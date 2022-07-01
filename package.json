@@ -7,6 +7,7 @@
   "types": "lib/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "demo": "cd demo && npm run dev",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -25,7 +26,8 @@
   },
   "homepage": "https://github.com/MartifyLabs/mesh#readme",
   "dependencies": {
-    "@emurgo/cardano-serialization-lib-browser": "^10.0.1",
+    "@emurgo/cardano-serialization-lib-browser": "^10.2.0",
+    "@emurgo/cardano-serialization-lib-nodejs": "^10.2.0",
     "axios": "^0.27.2"
   },
   "devDependencies": {
