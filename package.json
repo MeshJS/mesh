@@ -26,8 +26,7 @@
   },
   "homepage": "https://github.com/MartifyLabs/mesh#readme",
   "dependencies": {
-    "@emurgo/cardano-serialization-lib-browser": "^10.2.0",
-    "@emurgo/cardano-serialization-lib-nodejs": "^10.2.0",
+    "@emurgo/cardano-serialization-lib-browser": "10.2.0",
     "axios": "^0.27.2"
   },
   "devDependencies": {

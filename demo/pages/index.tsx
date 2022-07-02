@@ -30,12 +30,10 @@ function DemoConnectWallet({ setWalletConnected }) {
   const [availableWallets, setAvailableWallets] = useState<string[]>([]);
 
   useEffect(() => {
-    async function initMesh() {
-      await Mesh.init({ network: 0, blockfrostApiKey: "bfkeyhere" });
+    async function getWallets() {
       setAvailableWallets(await Mesh.getAvailableWallets());
     }
-    console.log("start"); // TODO to check, how come run twice?
-    initMesh();
+    getWallets();
   }, []);
 
   async function connectWallet(walletName: string) {

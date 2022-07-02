@@ -7,17 +7,9 @@ export type WalletApi = {
   getChangeAddress(): Promise<string>;
   getRewardAddresses(): Promise<string[]>;
   signTx(tx: string, partialSign: boolean): Promise<string>;
-  signData(
-    address: string,
-    payload: string
-  ): Promise<{ signature: string; key: string }>;
+  signData(address: string, payload: string): Promise<string>; //Promise<{ signature: string; key: string }>;
   submitTx(tx: string): Promise<string>;
   getCollateral(): Promise<string[]>;
-  experimental: {
-    getCollateral(): Promise<string[]>;
-    on(eventName: string, callback: Function): void;
-    off(eventName: string, callback: Function): void;
-  };
 };
 
 export type Cardano = {

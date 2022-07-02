@@ -1,14 +1,13 @@
 import { Asset } from "../types/assets";
 import { Core } from "./core";
-import { Wallet } from "./wallet";
 
 export class Mesh {
-  private _core: Core;
-  private _wallet: Wallet;
+  private _core: Core; // serialize lib
+  // TX; // build and sign txn
+  // Martify; // API calls
 
   constructor() {
     this._core = new Core();
-    this._wallet = new Wallet();
   }
 
   //** CORE **//
@@ -24,7 +23,7 @@ export class Mesh {
     martifyApiKey,
   }: {
     network: number;
-    blockfrostApiKey: string;
+    blockfrostApiKey?: string;
     martifyApiKey?: string;
   }) {
     await this._core.init();
@@ -37,12 +36,6 @@ export class Mesh {
    */
   async enableWallet({ walletName }: { walletName: string }) {
     let connected = await this._core.enableWallet({ walletName });
-    if (connected) {
-      this._wallet = new Wallet(
-        this._core.getWalletProvider(),
-        this._core.getCardano()
-      );
-    }
     return connected;
   }
 
@@ -55,6 +48,32 @@ export class Mesh {
   }
 
   /**
+   * Returns the reward addresses owned by the wallet. This can return multiple addresses e.g. CIP-0018.
+   * @returns list of reward addresses
+   */
+  async getRewardAddresses() {
+    return await this._core.getRewardAddresses();
+  }
+
+  /**
+   * Return the first used address
+   * @returns first address in string
+   */
+  async getUsedAddress(): Promise<string> {
+    const usedAddresses = await this.getUsedAddresses();
+    return usedAddresses[0];
+  }
+
+  /**
+   * Return the first reward address
+   * @returns first address in string
+   */
+  async getRewardAddress(): Promise<string> {
+    const addresses = await this.getRewardAddresses();
+    return addresses[0];
+  }
+
+  /**
    * return a list of all UTXOs (unspent transaction outputs) controlled by the wallet
    * @returns list of all UTXOs
    */
@@ -62,14 +81,12 @@ export class Mesh {
     return await this._core.getUtxos();
   }
 
-  //** WALLET **//
-
   async getAvailableWallets() {
-    return await this._wallet.getAvailableWallets();
+    return await this._core.getAvailableWallets();
   }
 
   async getAssets({ policyId }: { policyId?: string }): Promise<Asset[]> {
-    const assets = await this._wallet.getAssets();
+    const assets = await this._core.getAssets();
     if (policyId) {
       const filteredAssets = assets
         .filter(function (el) {
@@ -83,11 +100,14 @@ export class Mesh {
     return assets;
   }
 
+  async signData({ payload }: { payload: string }) {
+    const coseSign1Hex = await this._core.signData(payload);
+    return coseSign1Hex;
+  }
+
   //** TX **//
 
   async signTx() {}
-
-  async signData() {}
 
   //** MARTIFY **//
 
