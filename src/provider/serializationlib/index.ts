@@ -1,11 +1,11 @@
+import * as lib from "@emurgo/cardano-serialization-lib-browser";
+
 class SerializationLib {
   private _wasm;
   async load() {
     if (this._wasm) return;
     try {
-      this._wasm = await (
-        await import("@emurgo/cardano-serialization-lib-browser")
-      ).default;
+      this._wasm = lib
     } catch (error) {
       throw error;
     }
