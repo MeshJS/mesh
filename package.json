@@ -1,6 +1,6 @@
 {
   "version": "0.0.2-beta.0",
-  "name": "@martify-labs/mesh",
+  "name": "@martifylabs/mesh",
   "description": "Blockchain solutions on Cardano.",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "publish": "yarn build"
+    "publish": "yarn build && npm publish --tag beta --access public"
   },
   "repository": {
     "type": "git",
