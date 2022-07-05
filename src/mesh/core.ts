@@ -1,7 +1,16 @@
-import SerializationLib from "../provider/serializationlib";
-import { HexToAscii, toHex, fromHex } from "../utils/converter";
+import * as lib from "@emurgo/cardano-serialization-lib-browser";
+import {
+  BigNum,
+  Value,
+  Address,
+  min_ada_required,
+  TransactionUnspentOutput,
+} from "@emurgo/cardano-serialization-lib-browser";
+
+import { HexToAscii, toHex, fromHex, fromLovelace } from "../utils/converter";
 import { WalletApi } from "../types";
 import { Asset } from "../types/assets";
+import { MIN_ADA_REQUIRED } from "../global";
 
 export class Core {
   private _provider: WalletApi; // wallet provider on the browser, i.e. window.cardano.ccvault
@@ -10,8 +19,11 @@ export class Core {
   constructor() {}
 
   async init() {
-    await SerializationLib.load();
-    this._cardano = await SerializationLib.Instance;
+    this._cardano = lib;
+  }
+
+  getCardano() {
+    return this._cardano;
   }
 
   _checkWallet() {
@@ -21,22 +33,13 @@ export class Core {
   }
 
   fromCborToHex({ cbor }: { cbor: string }) {
-    return this._cardano.Value.from_bytes(fromHex(cbor));
-  }
-
-  getCardano() {
-    return this._cardano;
+    return Value.from_bytes(fromHex(cbor));
   }
 
   getWalletProvider() {
     return this._provider;
   }
 
-  /**
-   * Enable and connect wallet
-   * @param walletName available wallets are `ccvault`, `gerowallet` and `nami`
-   * @returns connected boolean
-   */
   async enableWallet({ walletName }: { walletName: string }): Promise<boolean> {
     if (walletName === "ccvault") {
       const instance = await window.cardano?.ccvault?.enable();
@@ -65,15 +68,11 @@ export class Core {
     return false;
   }
 
-  /**
-   * Returns a list of all used (included in some on-chain transaction) addresses controlled by the wallet.
-   * @returns list of bech32 addresses
-   */
   async getUsedAddresses(): Promise<string[]> {
     this._checkWallet();
     const usedAddresses = await this._provider.getUsedAddresses();
     return usedAddresses.map((address) =>
-      this._cardano.Address.from_bytes(fromHex(address)).to_bech32()
+      Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
 
@@ -86,30 +85,25 @@ export class Core {
     return await this._provider.getUtxos();
   }
 
-  /**
-   *
-   * @returns a list of available wallets
-   */
   async getAvailableWallets(): Promise<string[]> {
     let availableWallets: string[] = [];
-
     if (window.cardano === undefined) {
       return availableWallets;
     }
-
     if (window.cardano.ccvault) {
       availableWallets.push("ccvault");
     }
-
     if (window.cardano.gerowallet) {
       availableWallets.push("gerowallet");
     }
-
     if (window.cardano.nami) {
       availableWallets.push("nami");
     }
-
     return availableWallets;
+  }
+
+  async getNetworkId(): Promise<number> {
+    return await this._provider.getNetworkId();
   }
 
   async getAssets(): Promise<Asset[]> {
@@ -142,12 +136,59 @@ export class Core {
     return assets;
   }
 
-  async signData(payload: string): Promise<string> {
+  /**
+   * TODO: somehow the amount dont tally my wallet
+   * TODO: need check this function and clean up
+   * @param inAda
+   * @returns
+   */
+  async getLovelace(): Promise<number> {
+    const utxos = await this._provider.getUtxos();
+
+    if (utxos !== undefined) {
+      const parsedUtxos = utxos.map((utxo) =>
+        TransactionUnspentOutput.from_bytes(Buffer.from(utxo, "hex"))
+      );
+
+      let countedValue = Value.new(BigNum.from_str("0"));
+      parsedUtxos.forEach((element) => {
+        countedValue = countedValue.checked_add(element.output().amount());
+      });
+
+      const minAda = min_ada_required(
+        countedValue,
+        false,
+        BigNum.from_str(MIN_ADA_REQUIRED.toString())
+      );
+
+      const availableAda = countedValue.coin().checked_sub(minAda);
+      const lovelace = parseInt(availableAda.to_str());
+      return lovelace;
+    }
+
+    return 0;
+  }
+
+  async signData({ payload }: { payload: string }): Promise<string> {
     const rewardAddress = await this.getRewardAddresses();
     const coseSign1Hex = await this._provider.signData(
       rewardAddress[0],
       payload
     );
     return coseSign1Hex;
+  }
+
+  async signTx({
+    tx,
+    partialSign = false,
+  }: {
+    tx: string;
+    partialSign: boolean;
+  }): Promise<string> {
+    return await this._provider.signTx(tx, partialSign);
+  }
+
+  async submitTx({ tx }: { tx: string }): Promise<string> {
+    return await this._provider.submitTx(tx);
   }
 }

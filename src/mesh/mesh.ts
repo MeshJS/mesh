@@ -1,10 +1,13 @@
 import { Asset } from "../types/assets";
 import { Core } from "./core";
+import { Blockfrost } from "../provider/blockfrost";
+import { Transaction } from "./transaction";
 
 export class Mesh {
+  private _blockfrost: Blockfrost;
   private _core: Core; // serialize lib
-  // TX; // build and sign txn
-  // Martify; // API calls
+  private _transaction: Transaction;
+  // private _martify: Martify; // API calls
 
   constructor() {
     this._core = new Core();
@@ -14,28 +17,34 @@ export class Mesh {
 
   /**
    * Init Mesh library
-   * @param network 0 for testnet, 1 for mainnet
    * @param blockfrostApiKey get your keys from blockfrost
+   * @param network 0 for testnet, 1 for mainnet
    */
   async init({
-    network,
     blockfrostApiKey,
-    martifyApiKey,
+    network,
   }: {
-    network: number;
     blockfrostApiKey?: string;
-    martifyApiKey?: string;
+    network?: number;
   }) {
     await this._core.init();
+
+    if (blockfrostApiKey !== undefined && network !== undefined) {
+      this._blockfrost = new Blockfrost({ blockfrostApiKey, network });
+    }
   }
 
   /**
    * Enable and connect wallet
    * @param walletName available wallets are `ccvault`, `gerowallet` and `nami`
-   * @returns boolean
+   * @returns wallet is connected boolean
    */
   async enableWallet({ walletName }: { walletName: string }) {
     let connected = await this._core.enableWallet({ walletName });
+    this._transaction = new Transaction({
+      blockfrost: this._blockfrost,
+      core: this._core,
+    });
     return connected;
   }
 
@@ -81,10 +90,35 @@ export class Mesh {
     return await this._core.getUtxos();
   }
 
+  /**
+   * Get a list wallets installed on this browse
+   * @returns a list of available wallets
+   */
   async getAvailableWallets() {
     return await this._core.getAvailableWallets();
   }
 
+  /**
+   * Returns the network id of the currently connected account. 0 is testnet and 1 is mainnet but other networks can possibly be returned by wallets. Those other network ID values are not governed by this document.
+   * @returns 0 is testnet and 1 is mainnet
+   */
+  async getNetworkId() {
+    return await this._core.getNetworkId();
+  }
+
+  /**
+   * Return lovelace amount
+   * @returns {string}
+   */
+  async getLovelace() {
+    return await this._core.getLovelace();
+  }
+
+  /**
+   *
+   * @param policyId (optional) if provided will filter only assets in this policy
+   * @returns
+   */
   async getAssets({ policyId }: { policyId?: string }): Promise<Asset[]> {
     const assets = await this._core.getAssets();
     if (policyId) {
@@ -100,14 +134,56 @@ export class Mesh {
     return assets;
   }
 
+  /**
+   * This endpoint utilizes the CIP-0008 signing spec for standardization/safety reasons. It allows the dApp to request the user to sign a payload conforming to said spec.
+   * @param payload
+   * @returns signature
+   */
   async signData({ payload }: { payload: string }) {
-    const coseSign1Hex = await this._core.signData(payload);
-    return coseSign1Hex;
+    const signature = await this._core.signData({ payload });
+    return signature;
   }
 
-  //** TX **//
+  /**
+   * Requests that a user sign the unsigned portions of the supplied transaction. The wallet should ask the user for permission, and if given, try to sign the supplied body and return a signed transaction.
+   * @param tx CBOR string
+   * @param partialSign boolean default false
+   * @returns signature
+   */
+  async signTx({
+    tx,
+    partialSign = false,
+  }: {
+    tx: string;
+    partialSign: boolean;
+  }) {
+    const signature = await this._core.signTx({ tx, partialSign });
+    return signature;
+  }
 
-  async signTx() {}
+  /**
+   * As wallets should already have this ability, we allow dApps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction id for the dApp to track.
+   * @param tx CBOR string
+   * @returns transactionHash
+   */
+  async submitTx({ tx }: { tx: string }) {
+    const transactionHash = await this._core.submitTx({ tx });
+    return transactionHash;
+  }
+
+  //** TRANSACTION **//
+
+  /**
+   *
+   * @param param0
+   * @returns
+   */
+  async makeSimpleTransaction({ lovelace = 0 }: { lovelace: number }) {
+    const txCbor = await this._transaction.makeSimpleTransaction({
+      lovelace,
+    });
+    return txCbor;
+  }
 
   //** MARTIFY **//
 

@@ -7,9 +7,11 @@ const Home: NextPage = () => {
   const [walletConnected, setWalletConnected] = useState(false);
 
   useEffect(() => {
-    console.log("start"); // TODO to check, how come run multiple times?
     async function initMesh() {
-      await Mesh.init({ network: 0, blockfrostApiKey: "bfkeyhere" });
+      await Mesh.init({
+        blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY,
+        network: 0,
+      });
       setMeshLoaded(true);
     }
     initMesh();
@@ -63,7 +65,12 @@ function DemoConnectWallet({ setWalletConnected }) {
 function DemoAssets() {
   const [response, setResponse] = useState<any>(undefined);
 
-  async function getAddress() {
+  async function getLovelace() {
+    let lovelace = await Mesh.getLovelace();
+    setResponse(lovelace);
+  }
+
+  async function getUsedAddresses() {
     let addr = await Mesh.getUsedAddresses();
     setResponse(addr);
   }
@@ -85,23 +92,38 @@ function DemoAssets() {
     setResponse(utxo);
   }
 
+  async function makeSimpleTransaction() {
+    let cbor = await Mesh.makeSimpleTransaction({
+      lovelace: 10000000,
+    });
+    setResponse(cbor);
+  }
+
   return (
     <div>
       <h2>Get assets</h2>
 
-      <button onClick={() => getAddress()} type="button">
-        get address
+      <button onClick={() => getLovelace()} type="button">
+        getLovelace
+      </button>
+
+      <button onClick={() => getUsedAddresses()} type="button">
+        getUsedAddresses
       </button>
 
       <button onClick={() => getAssets()} type="button">
-        get assets
+        getAssets
       </button>
       <button onClick={() => getAssetsPolicyId()} type="button">
-        get assets policy
+        getAssetsPolicyId
       </button>
 
       <button onClick={() => getUtxos()} type="button">
-        get utxo
+        getUtxos
+      </button>
+
+      <button onClick={() => makeSimpleTransaction()} type="button">
+        makeSimpleTransaction (send ADA)
       </button>
 
       <h4>Response</h4>

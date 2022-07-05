@@ -25,3 +25,9 @@ export type Cardano = {
 declare interface Window {
   cardano: Cardano;
 }
+
+declare global {
+  interface Window {
+    cardano: any;
+  }
+}
