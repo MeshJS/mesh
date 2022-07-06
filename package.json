@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "publish": "yarn build && npm publish --tag beta --access public",
+    "publish": "yarn build && npm publish --access public",
     "generate_docs": "npx typedoc --options typedoc.json"
   },
   "repository": {
@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@types/node": "18.0.1",
-    "typedoc": "^0.23.5",
+    "typedoc": "0.23.5",
     "typescript": "4.7.4"
   }
 }
