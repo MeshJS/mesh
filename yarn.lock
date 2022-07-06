@@ -25,6 +25,18 @@
     "follow-redirects" "^1.14.9"
     "form-data" "^4.0.0"
 
+"balanced-match@^1.0.0":
+  "integrity" "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="
+  "resolved" "https://registry.npmjs.org/balanced-match/-/balanced-match-1.0.2.tgz"
+  "version" "1.0.2"
+
+"brace-expansion@^2.0.1":
+  "integrity" "sha512-XnAIvQ8eM+kC6aULx6wuQiwVsnzsi9d3WxzV3FpWTGA19F621kwdbsAcFKXgKUHZWsy+mY6iL1sHTxWEFCytDA=="
+  "resolved" "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.0.1.tgz"
+  "version" "2.0.1"
+  dependencies:
+    "balanced-match" "^1.0.0"
+
 "combined-stream@^1.0.8":
   "integrity" "sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg=="
   "resolved" "https://registry.npmjs.org/combined-stream/-/combined-stream-1.0.8.tgz"
@@ -51,6 +63,21 @@
     "combined-stream" "^1.0.8"
     "mime-types" "^2.1.12"
 
+"jsonc-parser@^3.0.0":
+  "integrity" "sha512-fQzRfAbIBnR0IQvftw9FJveWiHp72Fg20giDrHz6TdfB12UH/uue0D3hm57UB5KgAVuniLMCaS8P1IMj9NR7cA=="
+  "resolved" "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-3.0.0.tgz"
+  "version" "3.0.0"
+
+"lunr@^2.3.9":
+  "integrity" "sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow=="
+  "resolved" "https://registry.npmjs.org/lunr/-/lunr-2.3.9.tgz"
+  "version" "2.3.9"
+
+"marked@^4.0.16":
+  "integrity" "sha512-Wfk0ATOK5iPxM4ptrORkFemqroz0ZDxp5MWfYA7H/F+wO17NRWV5Ypxi6p3g2Xmw2bKeiYOl6oVnLHKxBA0VhA=="
+  "resolved" "https://registry.npmjs.org/marked/-/marked-4.0.17.tgz"
+  "version" "4.0.17"
+
 "mime-db@1.52.0":
   "integrity" "sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg=="
   "resolved" "https://registry.npmjs.org/mime-db/-/mime-db-1.52.0.tgz"
@@ -63,7 +90,43 @@
   dependencies:
     "mime-db" "1.52.0"
 
-"typescript@4.7.4":
+"minimatch@^5.1.0":
+  "integrity" "sha512-9TPBGGak4nHfGZsPBohm9AWg6NoT7QTCehS3BIJABslyZbzxfV78QM2Y6+i741OPZIafFAaiiEMh5OyIrJPgtg=="
+  "resolved" "https://registry.npmjs.org/minimatch/-/minimatch-5.1.0.tgz"
+  "version" "5.1.0"
+  dependencies:
+    "brace-expansion" "^2.0.1"
+
+"shiki@^0.10.1":
+  "integrity" "sha512-VsY7QJVzU51j5o1+DguUd+6vmCmZ5v/6gYu4vyYAhzjuNQU6P/vmSy4uQaOhvje031qQMiW0d2BwgMH52vqMng=="
+  "resolved" "https://registry.npmjs.org/shiki/-/shiki-0.10.1.tgz"
+  "version" "0.10.1"
+  dependencies:
+    "jsonc-parser" "^3.0.0"
+    "vscode-oniguruma" "^1.6.1"
+    "vscode-textmate" "5.2.0"
+
+"typedoc@^0.23.5":
+  "integrity" "sha512-5ydWUOe4E9Z3a/r33cC5X5CJPLnFDKIondHYtdnEnO0sa/s8f+Nrfe+LBGOk/UTkV2IPYyL1Gm1PtUKIihklyw=="
+  "resolved" "https://registry.npmjs.org/typedoc/-/typedoc-0.23.5.tgz"
+  "version" "0.23.5"
+  dependencies:
+    "lunr" "^2.3.9"
+    "marked" "^4.0.16"
+    "minimatch" "^5.1.0"
+    "shiki" "^0.10.1"
+
+"typescript@4.6.x || 4.7.x", "typescript@4.7.4":
   "integrity" "sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ=="
   "resolved" "https://registry.npmjs.org/typescript/-/typescript-4.7.4.tgz"
   "version" "4.7.4"
+
+"vscode-oniguruma@^1.6.1":
+  "integrity" "sha512-KH8+KKov5eS/9WhofZR8M8dMHWN2gTxjMsG4jd04YhpbPR91fUj7rYQ2/XjeHCJWbg7X++ApRIU9NUwM2vTvLA=="
+  "resolved" "https://registry.npmjs.org/vscode-oniguruma/-/vscode-oniguruma-1.6.2.tgz"
+  "version" "1.6.2"
+
+"vscode-textmate@5.2.0":
+  "integrity" "sha512-Uw5ooOQxRASHgu6C7GVvUxisKXfSgW4oFlO+aa+PAkgmH89O3CXxEEzNRNtHSqtXFTl0nAC1uYj0GMSH27uwtQ=="
+  "resolved" "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-5.2.0.tgz"
+  "version" "5.2.0"

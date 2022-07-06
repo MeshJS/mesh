@@ -17,8 +17,8 @@ export class Mesh {
 
   /**
    * Init Mesh library
-   * @param blockfrostApiKey get your keys from blockfrost
-   * @param network 0 for testnet, 1 for mainnet
+   * @param blockfrostApiKey - Get your keys from blockfrost
+   * @param network - 0 for testnet, 1 for mainnet
    */
   async init({
     blockfrostApiKey,
@@ -36,8 +36,14 @@ export class Mesh {
 
   /**
    * Enable and connect wallet
-   * @param walletName available wallets are `ccvault`, `gerowallet` and `nami`
-   * @returns wallet is connected boolean
+   * 
+   * @example
+   * ```ts
+   * let connected = await Mesh.enableWallet({ walletName: 'ccvault' });
+   * ```
+   * 
+   * @param walletName - Available wallets are `ccvault`, `gerowallet` and `nami`
+   * @returns - True if wallet is connected
    */
   async enableWallet({ walletName }: { walletName: string }) {
     let connected = await this._core.enableWallet({ walletName });
@@ -107,16 +113,16 @@ export class Mesh {
 
   /**
    * Return lovelace amount
-   * @returns {string}
+   * @returns lovelance
    */
   async getLovelace() {
     return await this._core.getLovelace();
   }
 
   /**
-   *
+   * Get a list of assets in connected wallet
    * @param policyId (optional) if provided will filter only assets in this policy
-   * @returns
+   * @returns assets - List of asset
    */
   async getAssets({ policyId }: { policyId?: string }): Promise<Asset[]> {
     const assets = await this._core.getAssets();
@@ -135,7 +141,7 @@ export class Mesh {
 
   /**
    * This endpoint utilizes the CIP-0008 signing spec for standardization/safety reasons. It allows the dApp to request the user to sign a payload conforming to said spec.
-   * @param payload
+   * @param payload - Nonce string
    * @returns signature
    */
   async signData({ payload }: { payload: string }) {
@@ -145,8 +151,8 @@ export class Mesh {
 
   /**
    * Requests that a user sign the unsigned portions of the supplied transaction. The wallet should ask the user for permission, and if given, try to sign the supplied body and return a signed transaction.
-   * @param tx CBOR string
-   * @param partialSign boolean default false
+   * @param tx - Transaction in CBOR
+   * @param partialSign - True if partial sign for multi-signature
    * @returns signature
    */
   async signTx({
@@ -160,22 +166,13 @@ export class Mesh {
     return signature;
   }
 
-  /**
-   * As wallets should already have this ability, we allow dApps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction id for the dApp to track.
-   * @param tx CBOR string
-   * @returns transactionHash
-   */
-  // async submitTx({ tx }: { tx: string }) {
-  //   const transactionHash = await this._core.submitTx({ tx });
-  //   return transactionHash;
-  // }
-
   //** TRANSACTION **//
 
   /**
-   *
-   * @param param0
-   * @returns
+   * Send ADA to address
+   * 
+   * @param address An interesting value
+   * @param lovelace - amount of lovelance to send
    */
   async makeSimpleTransaction({
     address,

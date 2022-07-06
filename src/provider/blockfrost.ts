@@ -64,12 +64,20 @@ export class Blockfrost {
     return await this._request({ endpoint: `/assets/${asset}` });
   }
 
+  /**
+   * Return the transactions within the latest block.
+   * @returns 
+   */
   async blockLatestBlock(): Promise<{}> {
     return await this._request({
       endpoint: "/blocks/latest",
     });
   }
 
+  /**
+   * Return the protocol parameters for the latest epoch.
+   * @returns 
+   */
   async epochsLatestEpochProtocolParameters(): Promise<ProtocolParameters> {
     return await this._request({
       endpoint: "/epochs/latest/parameters",
