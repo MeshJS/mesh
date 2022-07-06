@@ -94,7 +94,9 @@ function DemoAssets() {
 
   async function makeSimpleTransaction() {
     let cbor = await Mesh.makeSimpleTransaction({
-      lovelace: 10000000,
+      lovelace: 2500000,
+      address:
+        "addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt",
     });
     setResponse(cbor);
   }

@@ -1,12 +1,12 @@
-import { Asset } from "../types/assets";
+import { Asset } from "../types";
 import { Core } from "./core";
 import { Blockfrost } from "../provider/blockfrost";
-import { Transaction } from "./transaction";
+import { Tx } from "./tx";
 
 export class Mesh {
   private _blockfrost: Blockfrost;
   private _core: Core; // serialize lib
-  private _transaction: Transaction;
+  private _transaction: Tx;
   // private _martify: Martify; // API calls
 
   constructor() {
@@ -41,7 +41,7 @@ export class Mesh {
    */
   async enableWallet({ walletName }: { walletName: string }) {
     let connected = await this._core.enableWallet({ walletName });
-    this._transaction = new Transaction({
+    this._transaction = new Tx({
       blockfrost: this._blockfrost,
       core: this._core,
     });
@@ -68,9 +68,8 @@ export class Mesh {
    * Return the first used address
    * @returns first address in string
    */
-  async getUsedAddress(): Promise<string> {
-    const usedAddresses = await this.getUsedAddresses();
-    return usedAddresses[0];
+  async getWalletAddress(): Promise<string> {
+    return await this._core.getWalletAddress();
   }
 
   /**
@@ -166,10 +165,10 @@ export class Mesh {
    * @param tx CBOR string
    * @returns transactionHash
    */
-  async submitTx({ tx }: { tx: string }) {
-    const transactionHash = await this._core.submitTx({ tx });
-    return transactionHash;
-  }
+  // async submitTx({ tx }: { tx: string }) {
+  //   const transactionHash = await this._core.submitTx({ tx });
+  //   return transactionHash;
+  // }
 
   //** TRANSACTION **//
 
@@ -178,11 +177,24 @@ export class Mesh {
    * @param param0
    * @returns
    */
-  async makeSimpleTransaction({ lovelace = 0 }: { lovelace: number }) {
-    const txCbor = await this._transaction.makeSimpleTransaction({
+  async makeSimpleTransaction({
+    address,
+    lovelace = 1000000,
+  }: {
+    address: string;
+    lovelace: number;
+  }) {
+    const tx = await this._transaction.makeSimpleTransaction({
       lovelace,
+      address,
     });
-    return txCbor;
+    const txSigned = await this._core.signTx({ tx: tx });
+    const txHash = await this._core.submitTx({
+      tx: tx,
+      witnesses: [txSigned],
+    });
+
+    return txHash;
   }
 
   //** MARTIFY **//

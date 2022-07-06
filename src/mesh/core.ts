@@ -5,11 +5,18 @@ import {
   Address,
   min_ada_required,
   TransactionUnspentOutput,
+  Transaction,
+  Vkeywitnesses,
+  NativeScripts,
+  TransactionWitnessSet,
+  AuxiliaryData,
+  GeneralTransactionMetadata,
+  encode_json_str_to_metadatum,
 } from "@emurgo/cardano-serialization-lib-browser";
 
 import { HexToAscii, toHex, fromHex, fromLovelace } from "../utils/converter";
 import { WalletApi } from "../types";
-import { Asset } from "../types/assets";
+import { Asset } from "../types";
 import { MIN_ADA_REQUIRED } from "../global";
 
 export class Core {
@@ -74,6 +81,11 @@ export class Core {
     return usedAddresses.map((address) =>
       Address.from_bytes(fromHex(address)).to_bech32()
     );
+  }
+
+  async getWalletAddress(): Promise<string> {
+    const usedAddresses = await this.getUsedAddresses();
+    return usedAddresses[0];
   }
 
   async getRewardAddresses(): Promise<string[]> {
@@ -183,12 +195,95 @@ export class Core {
     partialSign = false,
   }: {
     tx: string;
-    partialSign: boolean;
+    partialSign?: boolean;
   }): Promise<string> {
     return await this._provider.signTx(tx, partialSign);
   }
 
-  async submitTx({ tx }: { tx: string }): Promise<string> {
-    return await this._provider.submitTx(tx);
+  // async submitTx({ tx }: { tx: string }): Promise<string> {
+  //   return await this._provider.submitTx(tx);
+  // }
+
+  async submitTx({
+    tx,
+    witnesses,
+    metadata = undefined,
+  }: {
+    tx: string;
+    witnesses: string[];
+    metadata?: {};
+  }) {
+    let networkId = await this.getNetworkId();
+    let transaction = Transaction.from_bytes(
+      Buffer.from(tx, "hex")
+    );
+
+    const txWitnesses = transaction.witness_set();
+    const txVkeys = txWitnesses.vkeys();
+    const txScripts = txWitnesses.native_scripts();
+
+    const totalVkeys = Vkeywitnesses.new();
+    const totalScripts = NativeScripts.new();
+
+    for (let witness of witnesses) {
+      const addWitnesses = TransactionWitnessSet.from_bytes(
+        Buffer.from(witness, "hex")
+      );
+      const addVkeys = addWitnesses.vkeys();
+      if (addVkeys) {
+        for (let i = 0; i < addVkeys.len(); i++) {
+          totalVkeys.add(addVkeys.get(i));
+        }
+      }
+    }
+
+    if (txVkeys) {
+      for (let i = 0; i < txVkeys.len(); i++) {
+        totalVkeys.add(txVkeys.get(i));
+      }
+    }
+    if (txScripts) {
+      for (let i = 0; i < txScripts.len(); i++) {
+        totalScripts.add(txScripts.get(i));
+      }
+    }
+
+    const totalWitnesses = TransactionWitnessSet.new();
+    totalWitnesses.set_vkeys(totalVkeys);
+    totalWitnesses.set_native_scripts(totalScripts);
+    let aux;
+    if (metadata) {
+      aux = AuxiliaryData.new();
+      const generalMetadata = GeneralTransactionMetadata.new();
+      Object.entries(metadata).map(([MetadataLabel, Metadata]) => {
+        generalMetadata.insert(
+          BigNum.from_str(MetadataLabel),
+          encode_json_str_to_metadatum(JSON.stringify(Metadata), 0)
+        );
+      });
+
+      aux.set_metadata(generalMetadata);
+    } else {
+      aux = transaction.auxiliary_data();
+    }
+    const signedTx = await Transaction.new(
+      transaction.body(),
+      totalWitnesses,
+      aux
+    );
+
+    // const txhash = await this._blockfrostRequest({
+    //   endpoint: `/tx/submit`,
+    //   headers: {
+    //     "Content-Type": "application/cbor",
+    //   },
+    //   body: Buffer.from(signedTx.to_bytes(), "hex"),
+    //   networkId: networkId,
+    //   method: "POST",
+    // });
+
+    const txHash = await this._provider.submitTx(toHex(signedTx.to_bytes()));
+
+    return txHash;
   }
 }

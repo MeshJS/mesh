@@ -1,7 +1,8 @@
-import axios from "axios";
+import axios, { AxiosInstance } from "axios";
+import { ProtocolParameters } from "../types";
 
 export class Blockfrost {
-  private _instance;
+  private _instance: AxiosInstance;
 
   constructor({
     blockfrostApiKey,
@@ -22,7 +23,15 @@ export class Blockfrost {
     });
   }
 
-  async _request({ endpoint = "", body = null, method = "GET" }) {
+  async _request({
+    endpoint = "",
+    body = null,
+    method = "GET",
+  }: {
+    endpoint: string;
+    body?: null | string | Buffer;
+    method?: string;
+  }) {
     if (method == "GET") {
       return await this._instance
         .get(`${endpoint}`)
@@ -58,6 +67,12 @@ export class Blockfrost {
   async blockLatestBlock(): Promise<{}> {
     return await this._request({
       endpoint: "/blocks/latest",
+    });
+  }
+
+  async epochsLatestEpochProtocolParameters(): Promise<ProtocolParameters> {
+    return await this._request({
+      endpoint: "/epochs/latest/parameters",
     });
   }
 }
