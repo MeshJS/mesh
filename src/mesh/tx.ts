@@ -87,7 +87,8 @@ export class Tx {
 
   /**
    * baby steps, lets send ADA, from one wallet, to one wallet
-   * @param param0
+   * @param address
+   * @param lovelace
    * @returns
    */
   async makeSimpleTransaction({
@@ -132,18 +133,137 @@ export class Tx {
   }
 
   /**
+   * Create a transaction based on the inputs and outputs provided.
+   * @param inputs
+   * @param outputs
+   * @returns Transaction in CBOR string
    *
-   * @param param0
-   * @returns cbor string
+   * @example
+   * To send ADA from one wallet to another
+   * ```ts
+   * const tx = await Mesh.makeTransaction({
+   *   inputs: [
+   *     {
+   *       address: "addr_test1qqwk2r75gu5e56zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgsxv2vgg",
+   *       assets: {
+   *         lovelace: 1500000,
+   *       },
+   *     },
+   *   ],
+   *   outputs: [
+   *     {
+   *       address: "addr_test1aawk2r75gu5e56zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgshs7c8s",
+   *       assets: {
+   *         lovelace: 1500000,
+   *       },
+   *     },
+   *   ],
+   * });
+   * ```
+   *
+   * To send ADA and assets from one wallet to multiple wallets
+   * ```ts
+   * const tx = await Mesh.makeTransaction({
+   *   inputs: [
+   *     {
+   *       address: "addr_test1qqwk2r75gu5e56zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgsxv2vgg",
+   *       assets: {
+   *         lovelace: 3000000,
+   *         PixelHead001: 1,
+   *         PixelHead005: 1,
+   *       },
+   *     },
+   *   ],
+   *   outputs: [
+   *     {
+   *       address: "addr_test1aawk2r75gu5e56zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgshs7c8sy",
+   *       assets: {
+   *         lovelace: 1000000,
+   *         PixelHead001: 1,
+   *       },
+   *     },
+   *     {
+   *       address: "addr_test1chsd7chds7zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgshs7c8s1t6va",
+   *       assets: {
+   *         lovelace: 2000000,
+   *         PixelHead005: 1,
+   *       },
+   *     },
+   *   ],
+   * });
+   * ```
+   *
+   * Multi-signature transaction. To send ADA and assets from multiple wallet to multiple wallets
+   * ```ts
+   * const tx = await Mesh.makeTransaction({
+   *   inputs: [
+   *     {
+   *       address: "addr_test1qqwk2r75gu5e56zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgsxv2vgg",
+   *       assets: {
+   *         lovelace: 2000000,
+   *         PixelHead001: 1,
+   *         Pixos: 10,
+   *       },
+   *     },
+   *     {
+   *       address: "addr_test1d7hf8dfd56zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgsx2rf263fsf",
+   *       assets: {
+   *         lovelace: 4000000,
+   *         PixelHead005: 1,
+   *       },
+   *     },
+   *   ],
+   *   outputs: [
+   *     {
+   *       address: "addr_test1aawk2r75gu5e56zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgshs7c8s3",
+   *       assets: {
+   *         lovelace: 3000000,
+   *         PixelHead001: 1,
+   *         Pixos: 5,
+   *       },
+   *     },
+   *     {
+   *       address: "addr_test1chsd7chds7zawmdp2pk8x74l5wbandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgshs7c8s1t6v3",
+   *       assets: {
+   *         lovelace: 3000000,
+   *         PixelHead005: 1,
+   *         Pixos: 5,
+   *       },
+   *     },
+   *   ],
+   * });
+   * ```
    */
   async makeTransaction({
-    recipients = [],
+    inputs,
+    outputs,
   }: {
-    recipients: { lovelace?: number; assets?: { [asset: string]: number } }[];
+    inputs: [
+      {
+        address: string;
+        assets: {
+          [assetId: string]: number;
+        };
+      }
+    ];
+    outputs: [
+      {
+        address: string;
+        assets: {
+          [assetId: string]: number;
+        };
+      }
+    ];
   }): Promise<string> {
-    if (recipients.length == 0) {
-      throw "No recipient.";
-    }
+    
+    // check if inputs and outputs are equal
+
+    // check if UTXOs has those inputs
+
+    // if there are multiple `inputs`, this is multisig
+
+    // perform coin selection and change
+
     return "";
   }
 }

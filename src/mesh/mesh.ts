@@ -28,7 +28,6 @@ export class Mesh {
     network?: number;
   }) {
     await this._core.init();
-
     if (blockfrostApiKey !== undefined && network !== undefined) {
       this._blockfrost = new Blockfrost({ blockfrostApiKey, network });
     }
@@ -36,12 +35,12 @@ export class Mesh {
 
   /**
    * Enable and connect wallet
-   * 
+   *
    * @example
    * ```ts
    * let connected = await Mesh.enableWallet({ walletName: 'ccvault' });
    * ```
-   * 
+   *
    * @param walletName - Available wallets are `ccvault`, `gerowallet` and `nami`
    * @returns - True if wallet is connected
    */
@@ -166,11 +165,27 @@ export class Mesh {
     return signature;
   }
 
+  async submitTx({
+    tx,
+    witnesses,
+    metadata = undefined,
+  }: {
+    tx: string;
+    witnesses: string[];
+    metadata?: {};
+  }) {
+    return await this._core.submitTx({
+      tx: tx,
+      witnesses: witnesses,
+      metadata: metadata,
+    });
+  }
+
   //** TRANSACTION **//
 
   /**
    * Send ADA to address
-   * 
+   *
    * @param address An interesting value
    * @param lovelace - amount of lovelance to send
    */
@@ -186,7 +201,7 @@ export class Mesh {
       address,
     });
     const txSigned = await this._core.signTx({ tx: tx });
-    const txHash = await this._core.submitTx({
+    const txHash = await this.submitTx({
       tx: tx,
       witnesses: [txSigned],
     });
