@@ -1,5 +1,5 @@
-import axios, { AxiosInstance } from "axios";
-import { ProtocolParameters } from "../types";
+import { ProtocolParameters } from "../types/types.js";
+import axios, { AxiosInstance } from "axios/index.js";
 
 export class Blockfrost {
   private _instance: AxiosInstance;
@@ -53,6 +53,20 @@ export class Blockfrost {
           throw error;
         });
     }
+  }
+
+  async addressesAddressUtxos({
+    address,
+    page = 1,
+    limit = 100,
+  }: {
+    address: string;
+    page?: number;
+    limit?: number;
+  }): Promise<[]> {
+    return await this._request({
+      endpoint: `/addresses/${address}/utxos?page=${page}&count=${limit}`,
+    });
   }
 
   /**

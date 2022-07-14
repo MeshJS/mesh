@@ -10,3 +10,8 @@
 - mesh documention (determine a doc syntax format)
 - write a proper README.md
 - write a contribute.md
+
+## SOME OTHER FEATURES
+- upload image to IPFS
+- create custodial wallet for general users
+- flexible makeTransaction function to accept multiple type of inputs and outputs
