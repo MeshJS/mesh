@@ -76,7 +76,6 @@ export type Address = string;
 export type DatumHash = string;
 export type Datum = string;
 
-
 export type UTxO = {
   txHash: TxHash;
   outputIndex: number;

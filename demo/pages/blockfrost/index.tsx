@@ -17,7 +17,7 @@ const Blockfrost: NextPage = () => {
   useEffect(() => {
     async function loadBlockfrost() {
       await Mesh.blockfrost.init({
-        blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY,
+        blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY!,
         network: 0,
       });
       setBlockfrostLoaded(true);

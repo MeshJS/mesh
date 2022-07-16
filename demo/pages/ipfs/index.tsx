@@ -9,8 +9,8 @@ const IPFS: NextPage = () => {
   useEffect(() => {
     async function loadInfura() {
       await Mesh.infura.init({
-        projectId: process.env.NEXT_PUBLIC_INFURA_PROJECT_ID,
-        projectSecret: process.env.NEXT_PUBLIC_INFURA_PROJECT_SECRET,
+        projectId: process.env.NEXT_PUBLIC_INFURA_PROJECT_ID!,
+        projectSecret: process.env.NEXT_PUBLIC_INFURA_PROJECT_SECRET!,
       });
       setInfuraLoaded(true);
     }
@@ -78,7 +78,7 @@ function AddFileIpfs() {
           <h4>Image</h4>
           <a
             href={`https://infura-ipfs.io/ipfs/${response.Hash}`}
-            target="_blank"
+            target="_blank" rel="noreferrer"
           >
             <img src={`https://infura-ipfs.io/ipfs/${response.Hash}`} />
           </a>
