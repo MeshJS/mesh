@@ -2,6 +2,7 @@
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": [
     "src/wallet.ts",
+    "src/transaction.ts",
   ],
   "out": "docs",
   "excludePrivate": true

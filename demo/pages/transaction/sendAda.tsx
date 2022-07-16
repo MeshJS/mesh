@@ -82,6 +82,7 @@ export default function SendAda() {
         {recipients.map((recipient, i) => {
           return (
             <div className="flex flex-row justify-between items-center" key={i}>
+              <span className="mr-4">{i+1}</span>
               <input
                 className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
                 value={recipient.address}
