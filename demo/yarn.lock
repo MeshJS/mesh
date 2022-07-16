@@ -51,10 +51,10 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-1.2.1.tgz#b520529ec21d8e5945a1851dfd1c32e94e39ff45"
   integrity sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==
 
-"@martifylabs/mesh@0.0.3-beta.4":
-  version "0.0.3-beta.4"
-  resolved "https://registry.yarnpkg.com/@martifylabs/mesh/-/mesh-0.0.3-beta.4.tgz#0fde92777c7eaf772b8f98d708fff073b597cc31"
-  integrity sha512-hYNaRsOl3+7UsiPzNHeUydsQcGTL5DDEz0tt407tkx+ttndi5VSlCUDACAzT7b14r/I0ium2J2ITLDs0BFM33A==
+"@martifylabs/mesh@0.0.3-beta.6":
+  version "0.0.3-beta.6"
+  resolved "https://registry.yarnpkg.com/@martifylabs/mesh/-/mesh-0.0.3-beta.6.tgz#ea635a9d1ae6e407bd1f61de49aa1960204a5a9c"
+  integrity sha512-z50K0nEqhVdnyeI8Z79G0cL4FpeQSqEMBcqiTXXz6B8nUA5OVTwigPfbV43ie9ZidBZVykpGcR3IQKXNXiUMrA==
   dependencies:
     "@emurgo/cardano-serialization-lib-browser" "10.2.0"
     axios "0.27.2"

@@ -5,5 +5,8 @@ const nextConfig = {
     config.experiments = { asyncWebAssembly: true, layers: true };
     return config;
   },
+  experimental: {
+    esmExternals: false,
+  },
 };
 module.exports = nextConfig;

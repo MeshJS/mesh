@@ -1,6 +1,6 @@
 import { Assets, UTxO } from "../types";
 // import * as lib from "@emurgo/cardano-serialization-lib-browser/cardano_serialization_lib.js";
-import SerializationLib from "../provider/serializationlib.mjs";
+import SerializationLib from "../provider/serializationlib.js";
 
 export const fromHex = (hex) => Buffer.from(hex, "hex");
 
