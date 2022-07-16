@@ -2,7 +2,7 @@
  * https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030
  */
 
-import SerializationLib from "./provider/serializationlib.js";
+import SerializationLib from "./provider/serializationlib.mjs";
 
 import { WalletApi, Asset } from "./types/index.js";
 import { MIN_ADA_REQUIRED, TxSignError } from "./global.js";

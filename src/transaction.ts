@@ -1,7 +1,7 @@
 import { Blockfrost } from "./provider/blockfrost.js";
 import { MIN_ADA_REQUIRED } from "./global.js";
 import { toHex, StringToBigNum, StringToAddress } from "./utils/converter.js";
-import SerializationLib from "./provider/serializationlib.js";
+import SerializationLib from "./provider/serializationlib.mjs";
 import { Wallet } from "./wallet.js";
 import { MakeTxError } from "./global.js";
 
