@@ -1,7 +1,7 @@
 {
   "name": "@martifylabs/mesh",
   "description": "Blockchain solutions on Cardano.",
-  "version": "0.0.3-beta.6",
+  "version": "0.0.3-beta.14",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "module": "dist/index.js",
@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@emurgo/cardano-serialization-lib-browser": "10.2.0",
+    "@emurgo/cardano-serialization-lib-nodejs": "10.2.0",
     "axios": "0.27.2",
     "bip39": "3.0.4",
     "crypto-random-string": "5.0.0"
