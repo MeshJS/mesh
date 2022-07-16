@@ -3,7 +3,7 @@ import Mesh from "@martifylabs/mesh";
 import { Button, Codeblock } from "../../components";
 
 export default function WalletApi() {
-  const [response, setResponse] = useState<any>(undefined);
+  const [response, setResponse] = useState<null | any>(null);
   const [selectedApi, setSelectedApi] = useState<string | null>(null);
   const [policyId, setPolicyId] = useState(
     "ab8a25c96cb18e174d2522ada5f7c7d629724a50f9c200c12569b4e2"
@@ -179,7 +179,7 @@ export default function WalletApi() {
           </div>
         </div>
       </div>
-      {response && (
+      {response !== null && (
         <>
           <h4>Response</h4>
           <Codeblock data={response} />

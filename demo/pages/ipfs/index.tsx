@@ -5,8 +5,6 @@ import { Button, Codeblock, Metatags } from "../../components";
 
 const IPFS: NextPage = () => {
   const [infuraLoaded, setInfuraLoaded] = useState<boolean>(false);
-  const [response, setResponse] = useState<any>(undefined);
-  const [selectedApi, setSelectedApi] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadInfura() {
@@ -23,7 +21,7 @@ const IPFS: NextPage = () => {
     <div className="mt-32 prose prose-slate mx-auto lg:prose-lg">
       <Metatags title="Infura IPFS APIs" />
       <h1>Infura IPFS APIs</h1>
-      <p className="lead"></p>
+      <p className="lead">Add files to IPFS.</p>
       {infuraLoaded && <AddFileIpfs />}
     </div>
   );
@@ -32,22 +30,26 @@ const IPFS: NextPage = () => {
 export default IPFS;
 
 function AddFileIpfs() {
-  const [response, setResponse] = useState<any>(undefined);
+  const [response, setResponse] = useState<null | any>(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [state, setState] = useState(0);
 
   async function upload(formData) {
     const res = await Mesh.infura.addFileIpfs({ formData });
     setResponse(res);
   }
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
+  async function addFileIpfs() {
+    setState(1);
     const formData = new FormData();
     if (selectedFile) {
       formData.append("file", selectedFile);
       upload(formData);
+      const res = await Mesh.infura.addFileIpfs({ formData });
+      setResponse(res);
+      setState(2);
     }
-  };
+  }
 
   const handleFileSelect = (event) => {
     setSelectedFile(event.target.files[0]);
@@ -56,22 +58,29 @@ function AddFileIpfs() {
   return (
     <>
       <h2>Upload to IPFS</h2>
-      <form onSubmit={handleSubmit}>
+
+      <div>
         <input type="file" onChange={handleFileSelect} />
-        <input type="submit" value="Upload File" />
-      </form>
-      {response && (
+        <Button
+          onClick={() => addFileIpfs()}
+          style={state == 1 ? "warning" : state == 2 ? "success" : "primary"}
+          disabled={state == 1}
+        >
+          addFileIpfs
+        </Button>
+      </div>
+
+      {response !== null && (
         <>
           <h4>Response</h4>
           <Codeblock data={response} />
 
           <h4>Image</h4>
-          <img src={`https://infura-ipfs.io/ipfs/${response.Hash}`} />
           <a
             href={`https://infura-ipfs.io/ipfs/${response.Hash}`}
             target="_blank"
           >
-            https://infura-ipfs.io/ipfs/{response.Hash}
+            <img src={`https://infura-ipfs.io/ipfs/${response.Hash}`} />
           </a>
         </>
       )}

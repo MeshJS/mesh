@@ -4,9 +4,11 @@ import { Button, Codeblock } from "../../components";
 
 export default function SendAda() {
   const [state, setState] = useState(0);
-  const [transactionTx, setTransactionTx] = useState(undefined);
-  const [transactionSignature, setTransactionSignature] = useState(undefined);
-  const [transactionHash, setTransactionHash] = useState(undefined);
+  const [transactionTx, setTransactionTx] = useState<null | string>(null);
+  const [transactionSignature, setTransactionSignature] = useState<
+    null | string
+  >(null);
+  const [transactionHash, setTransactionHash] = useState<null | string>(null);
 
   const [recipients, setRecipients] = useState([
     {

@@ -1,10 +1,11 @@
 import "../styles/globals.css";
 import type { AppProps } from "next/app";
-import { Navbar } from "../components";
+import { Metatags, Navbar } from "../components";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <>
+      <Metatags />
       <Navbar />
       <div className="">
         <Component {...pageProps} />

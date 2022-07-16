@@ -5,7 +5,7 @@ import { Button, Codeblock, Metatags } from "../../components";
 
 const Blockfrost: NextPage = () => {
   const [blockfrostLoaded, setBlockfrostLoaded] = useState<boolean>(false);
-  const [response, setResponse] = useState<any>(undefined);
+  const [response, setResponse] = useState<null | any>(null);
   const [selectedApi, setSelectedApi] = useState<string | null>(null);
   const [address, setAddress] = useState(
     "addr_test1qqwk2r75gu5e56zawmdp2pk8x74l5waandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgsxv2vff"
@@ -129,7 +129,7 @@ const Blockfrost: NextPage = () => {
             epochsLatestEpochProtocolParameters
           </Button>
 
-          {response && (
+          {response !== null && (
             <>
               <h4>Response</h4>
               <Codeblock data={response} />
