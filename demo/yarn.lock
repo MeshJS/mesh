@@ -51,15 +51,15 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-1.2.1.tgz#b520529ec21d8e5945a1851dfd1c32e94e39ff45"
   integrity sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==
 
-"@martifylabs/mesh@0.0.3-beta.1":
-  version "0.0.3-beta.1"
-  resolved "https://registry.yarnpkg.com/@martifylabs/mesh/-/mesh-0.0.3-beta.1.tgz#1744745efd1521716d0f1dc1d362ce5e5390744d"
-  integrity sha512-oEsRFibUn3Dwh0K9TMj71OB+am5HE2mF5JuA43SxqUWcEa6lRYYLwp+I2hzPix3ds+7YcCJkEZfoeJsYG7v9ew==
+"@martifylabs/mesh@0.0.3-beta.2":
+  version "0.0.3-beta.2"
+  resolved "https://registry.yarnpkg.com/@martifylabs/mesh/-/mesh-0.0.3-beta.2.tgz#3a2be0034a57f104b14c423b88d246cb887bf98a"
+  integrity sha512-iKjnICFbv4+fgT3UKr8FLVYFY6G0cRZqVASsvBovVorDOGIGqo7XXD5f2lTkFTNpiLuyv7gsYC4Zn93E899C0A==
   dependencies:
     "@emurgo/cardano-serialization-lib-browser" "10.2.0"
     axios "0.27.2"
-    bip39 "^3.0.4"
-    crypto-random-string "^5.0.0"
+    bip39 "3.0.4"
+    crypto-random-string "5.0.0"
 
 "@next/env@12.1.6":
   version "12.1.6"
@@ -425,7 +425,7 @@ binary-extensions@^2.0.0:
   resolved "https://registry.yarnpkg.com/binary-extensions/-/binary-extensions-2.2.0.tgz#75f502eeaf9ffde42fc98829645be4ea76bd9e2d"
   integrity sha512-jDctJ/IVQbZoJykoeHbhXpOlNBqGNcwXJKJog42E5HDPUwQTSdjCHdihjj0DlnheQ7blbT6dHOafNAiS8ooQKA==
 
-bip39@^3.0.4:
+bip39@3.0.4:
   version "3.0.4"
   resolved "https://registry.yarnpkg.com/bip39/-/bip39-3.0.4.tgz#5b11fed966840b5e1b8539f0f54ab6392969b2a0"
   integrity sha512-YZKQlb752TrUWqHWj7XAwCSjYEgGAk+/Aas3V7NyjQeZYsztO8JnQUaCWhcnL4T+jL8nvB8typ2jRPzTlgugNw==
@@ -575,7 +575,7 @@ cross-spawn@^7.0.2:
     shebang-command "^2.0.0"
     which "^2.0.1"
 
-crypto-random-string@^5.0.0:
+crypto-random-string@5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/crypto-random-string/-/crypto-random-string-5.0.0.tgz#12b4ca8ba936c36d757b65b71a7d85a69a02c18a"
   integrity sha512-KWjTXWwxFd6a94m5CdRGW/t82Tr8DoBc9dNnPCAbFI1EBweN6v1tv8y4Y1m7ndkp/nkIBRxUxAzpaBnR2k3bcQ==
