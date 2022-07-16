@@ -10,7 +10,7 @@ const Transaction = () => {
       <Metatags title="Transaction APIs" />
       <h1>Transaction APIs</h1>
       <p className="lead">
-        Let's create transactions.
+        Let&apos;s create transactions.
       </p>
       <ConnectWallet
         walletConnected={walletConnected}

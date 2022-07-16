@@ -91,7 +91,7 @@ export default function WalletApi() {
         <a href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030">
           Cardano Improvement Proposals 30 - Cardano dApp-Wallet Web Bridge
         </a>
-        , which defines the API for dApps to communicate with the user's wallet.
+        , which defines the API for dApps to communicate with the user&apos;s wallet.
       </p>
       ​
       <Button
