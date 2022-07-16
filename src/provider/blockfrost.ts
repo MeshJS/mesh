@@ -1,10 +1,12 @@
-import { ProtocolParameters } from "../types/types.js";
+import { ProtocolParameters } from "../types/index.js";
 import axios, { AxiosInstance } from "axios/index.js";
 
 export class Blockfrost {
   private _instance: AxiosInstance;
 
-  constructor({
+  constructor() {}
+
+  async init({
     blockfrostApiKey,
     network,
   }: {
@@ -23,7 +25,7 @@ export class Blockfrost {
     });
   }
 
-  async _request({
+  private async _request({
     endpoint = "",
     body = null,
     method = "GET",
@@ -80,7 +82,7 @@ export class Blockfrost {
 
   /**
    * Return the transactions within the latest block.
-   * @returns 
+   * @returns
    */
   async blockLatestBlock(): Promise<{}> {
     return await this._request({
@@ -90,7 +92,7 @@ export class Blockfrost {
 
   /**
    * Return the protocol parameters for the latest epoch.
-   * @returns 
+   * @returns
    */
   async epochsLatestEpochProtocolParameters(): Promise<ProtocolParameters> {
     return await this._request({

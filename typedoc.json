@@ -1,11 +1,7 @@
 {
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": [
-    "src/mesh/mesh.ts",
-    "src/mesh/core.ts",
-    "src/mesh/tx.ts",
-    "src/types/types.ts",
-    "src/provider/blockfrost.ts"
+    "src/wallet.ts",
   ],
   "out": "docs",
   "excludePrivate": true

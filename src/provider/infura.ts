@@ -3,7 +3,9 @@ import { Axios } from "./axios.js";
 export class Infura {
   private _instance: Axios;
 
-  constructor({
+  constructor() {}
+
+  async init({
     projectId,
     projectSecret,
     ipfsApiEndpoint,
@@ -27,12 +29,27 @@ export class Infura {
    * @returns
    */
   async addFileIpfs({ formData }): Promise<{}> {
-    return await this._instance.post({
-      endpoint: "/add?",
-      data: formData,
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    // return await this._instance.post({
+    //   endpoint: "/add?",
+    //   data: formData,
+    //   headers: {
+    //     "Content-Type": "multipart/form-data",
+    //   },
+    // });
+
+    return await this._instance
+      .post({
+        endpoint: "/add?",
+        data: formData,
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      })
+      .then(({ data }) => {
+        return data;
+      })
+      .catch((error) => {
+        throw error;
+      });
   }
 }

@@ -15,3 +15,8 @@
 - upload image to IPFS
 - create custodial wallet for general users
 - flexible makeTransaction function to accept multiple type of inputs and outputs
+
+## What can you contribute?
+- a nice logo for Mesh
+- documentations
+- try Mesh by implementing your project
