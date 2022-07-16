@@ -15,10 +15,7 @@ function Hero() {
             Rapidly build Web3 apps on the Cardano blockchain
           </h1>
           <p className="max-w-2xl mb-6 font-light text-gray-500 lg:mb-8 md:text-lg lg:text-xl dark:text-gray-400">
-            Access to advanced blockchain capbilities via Martify APIs, create
-            transactions with Cardano Serialization library, accessing
-            information stored on the blockchain with Blockfrost, add files on
-            IPFS with Infura.
+            Access to advanced blockchain capbilities via Martify APIs, build and submit transactions, accessing information stored on the blockchain, add files on IPFS.
           </p>
           <a
             href="#"

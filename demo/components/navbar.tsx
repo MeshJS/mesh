@@ -20,12 +20,6 @@ const Navbar = (props) => {
         </Link>
         <Link
           className="flex text-gray-600 hover:text-blue-500 cursor-pointer transition-colors duration-300"
-          href="/blockfrost"
-        >
-          Blockfrost
-        </Link>
-        <Link
-          className="flex text-gray-600 hover:text-blue-500 cursor-pointer transition-colors duration-300"
           href="/transaction"
         >
           Transaction

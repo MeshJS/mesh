@@ -29,14 +29,6 @@ export class Infura {
    * @returns
    */
   async addFileIpfs({ formData }): Promise<{}> {
-    // return await this._instance.post({
-    //   endpoint: "/add?",
-    //   data: formData,
-    //   headers: {
-    //     "Content-Type": "multipart/form-data",
-    //   },
-    // });
-
     return await this._instance
       .post({
         endpoint: "/add?",

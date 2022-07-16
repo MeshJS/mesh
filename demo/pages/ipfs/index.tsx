@@ -20,7 +20,7 @@ const IPFS: NextPage = () => {
   return (
     <div className="mt-32 prose prose-slate mx-auto lg:prose-lg">
       <Metatags title="Infura IPFS APIs" />
-      <h1>Infura IPFS APIs</h1>
+      <h1>IPFS APIs</h1>
       <p className="lead">Add files to IPFS.</p>
       {infuraLoaded && <AddFileIpfs />}
     </div>
