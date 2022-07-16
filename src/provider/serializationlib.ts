@@ -4,7 +4,7 @@ class SerializationLib {
     if (this._wasm) return;
 
     try {
-      this._wasm = await import("@emurgo/cardano-serialization-lib-browser/cardano_serialization_lib");
+      this._wasm = await import("@emurgo/cardano-serialization-lib-browser/cardano_serialization_lib.js");
     } catch (error) {
       throw error;
     }
