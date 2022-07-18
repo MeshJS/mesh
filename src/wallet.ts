@@ -5,11 +5,8 @@
 import SerializationLib from "./provider/serializationlib.js";
 
 import { WalletApi, Asset } from "./types/index.js";
-import { MIN_ADA_REQUIRED, TxSignError } from "./global.js";
-import { HexToAscii, toHex, fromHex, harden } from "./utils/converter.js";
-// for Mnemonic wallets
-import { generateMnemonic, mnemonicToEntropy } from "bip39";
-import cryptoRandomString from "crypto-random-string";
+import { MIN_ADA_REQUIRED } from "./global.js";
+import { HexToAscii, toHex, fromHex } from "./utils/converter.js";
 
 export class Wallet {
   private _provider: WalletApi; // wallet provider on the browser, i.e. window.cardano.ccvault
