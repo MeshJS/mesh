@@ -10,18 +10,18 @@
 
 ## Steps to get started
 
-1. Creating a new Next.js app:
-```
+1. Create a new Next.js app:
+```sh
 yarn create next-app --typescript
 ```
 
 2. Install the `@martifylabs/mesh` package:
-```
+```sh
 yarn add yarn install @martifylabs/mesh
 ```
 
 3. In `tsconfig.json`, add:
-```
+```js
 "experiments": {
   "asyncWebAssembly": true,
   "topLevelAwait": true
@@ -29,7 +29,7 @@ yarn add yarn install @martifylabs/mesh
 ```
 
 4. In `next.config.js`, add:
-```
+```js
 webpack: function (config, options) {
   config.experiments = { asyncWebAssembly: true, layers: true };
   config.resolve.fallback = { fs: false };
@@ -38,7 +38,7 @@ webpack: function (config, options) {
 ```
 
 5. Try this by replacing `pages/index.tsx` with:
-```
+```js
 import type { NextPage } from "next";
 import Mesh from "@martifylabs/mesh";
 
@@ -63,11 +63,11 @@ export default Home;
 ```
 
 6. Start the server:
-```
+```sh
 yarn run dev
 ```
 
-## What can you contribute?
+## How can you contribute?
 - star the [Github repo](https://github.com/MartifyLabs/mesh) and tell others about this
 - try Mesh by implementing your Web3 project
 - design a nice logo for Mesh, and a hero image for Mesh playground
