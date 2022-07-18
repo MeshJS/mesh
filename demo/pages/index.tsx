@@ -73,6 +73,7 @@ function Install({ setShowInstall }) {
             className="w-full dark:text-gray-800 dark:hover:bg-gray-100 dark:bg-white sm:w-auto mt-14 text-base leading-4 text-center text-white py-6 px-16 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-800 bg-gray-800 hover:bg-black"
             href="https://github.com/MartifyLabs/mesh"
             target="_blank"
+            rel="noreferrer"
           >
             Visit the Mesh repo for details
           </a>
