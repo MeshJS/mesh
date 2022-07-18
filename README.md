@@ -2,25 +2,21 @@
 
 > Rapidly build Web3 apps on the Cardano blockchain
 
-## Some features currently:
-- connect wallet to dApps and execute wallet functions
-- create, sign and submit transactions
-- query Blockfrost to access blockchain information
-- upload files to Infura IPFS
+Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
 ## Steps to get started
 
-1. Create a new Next.js app:
+#### 1. Create a new Next.js app:
 ```sh
 yarn create next-app --typescript
 ```
 
-2. Install the `@martifylabs/mesh` package:
+#### 2. Install the `@martifylabs/mesh` package:
 ```sh
-yarn add yarn install @martifylabs/mesh
+yarn add @martifylabs/mesh
 ```
 
-3. In `tsconfig.json`, add:
+#### 3. In `tsconfig.json`, add:
 ```js
 const nextConfig = {
   ...
@@ -31,9 +27,10 @@ const nextConfig = {
 }
 ```
 
-<details><summary>Example `tsconfig.json`</summary>
+<details><summary>See example</summary>
 <p>
 
+Example of `tsconfig.json`:
 ```js
 {
   "compilerOptions": {
@@ -63,7 +60,7 @@ const nextConfig = {
 </p>
 </details>
 
-4. In `next.config.js`, add:
+#### 4. In `next.config.js`, add:
 ```js
 {
   ...,
@@ -75,9 +72,10 @@ const nextConfig = {
 }
 ```
 
-<details><summary>Example `next.config.js`</summary>
+<details><summary>See example</summary>
 <p>
 
+Example of `next.config.js`:
 ```js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -94,11 +92,12 @@ module.exports = nextConfig
 </p>
 </details>
 
-5. Import Mesh with `import Mesh from "@martifylabs/mesh";`
+#### 5. Import Mesh with `import Mesh from "@martifylabs/mesh";`
 
-<details><summary>Example `pages/index.tsx`</summary>
+<details><summary>See example</summary>
 <p>
 
+Replace `pages/index.tsx` with:
 ```js
 import { useState } from "react";
 import type { NextPage } from "next";
@@ -132,6 +131,8 @@ Start the server:
 ```sh
 yarn run dev
 ```
+
+Need more examples? Check the [demo](https://github.com/MartifyLabs/mesh/tree/main/demo).
 </p>
 </details>
 

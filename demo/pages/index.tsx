@@ -66,7 +66,7 @@ function Install({ setShowInstall }) {
           </div>
           <div className="mt">
             <div className="mt-6 sm:w-80 text-base dark:text-white leading-7 text-center text-gray-800">
-              <pre>yarn install @martifylabs/mesh</pre>
+              <pre>yarn add @martifylabs/mesh</pre>
             </div>
           </div>
           <a
