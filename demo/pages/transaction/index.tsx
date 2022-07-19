@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Metatags } from "../../components";
-import ConnectWallet from "../wallet/connectWallet";
-import SendAda from "./sendAda";
+import ConnectWallet from "../../components/wallet/connectWallet";
+import SendAda from "../../components/transaction/sendAda";
 
 const Transaction = () => {
   const [walletConnected, setWalletConnected] = useState<null | string>(null);

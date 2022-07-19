@@ -62,7 +62,7 @@ export type ProtocolParameters = {
 
 export type Asset = {
   unit: string;
-  quantity: string;
+  quantity: number;
   policy: string;
   name: string;
 };

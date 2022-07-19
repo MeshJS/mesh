@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Metatags } from "../../components";
-import ConnectWallet from "./connectWallet";
-import WalletApi from "./walletApi";
+import ConnectWallet from "../../components/wallet/connectWallet";
+import WalletApi from "../../components/wallet/walletApi";
 import { ChevronRightIcon, LinkIcon } from "@heroicons/react/solid";
 const Wallet = () => {
-  const [walletConnected, setWalletConnected] = useState<null | string>(null);
+  
   return (
     <>
       <Metatags title="Wallet APIs" />

@@ -1,8 +1,10 @@
-const Codeblock = ({ data }) => {
+const Codeblock = ({ data, isJson = true }) => {
   return (
-    <article className="prose w-full">
+    <article className="prose">
       <pre>
-        <code className="language-js">{JSON.stringify(data, null, 2)}</code>
+        <code className="language-js">
+          {isJson ? JSON.stringify(data, null, 2) : data}
+        </code>
       </pre>
     </article>
   );

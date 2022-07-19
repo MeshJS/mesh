@@ -3,148 +3,95 @@ import Mesh from "@martifylabs/mesh";
 import { Button, Codeblock } from "../../components";
 
 export default function WalletApi() {
-  const [response, setResponse] = useState<null | any>(null);
-  const [selectedApi, setSelectedApi] = useState<string | null>(null);
-
-  async function isEnabled() {
-    return Mesh.wallet.isEnabled();
-  }
-
-  async function getNetworkId() {
-    return Mesh.wallet.getNetworkId();
-  }
-
-  async function getUtxos() {
-    return Mesh.wallet.getUtxos();
-  }
-
-  async function getBalance() {
-    return Mesh.wallet.getBalance();
-  }
-
-  async function getUsedAddresses() {
-    return Mesh.wallet.getUsedAddresses();
-  }
-
-  async function getUnusedAddresses() {
-    return Mesh.wallet.getUnusedAddresses();
-  }
-
-  async function getChangeAddress() {
-    return Mesh.wallet.getChangeAddress();
-  }
-
-  async function getRewardAddresses() {
-    return Mesh.wallet.getRewardAddresses();
-  }
-
-  async function getWalletAddress() {
-    return Mesh.wallet.getWalletAddress();
-  }
-
-  async function getLovelace() {
-    return Mesh.wallet.getLovelace();
-  }
-
-  async function getAssets() {
-    return Mesh.wallet.getAssets({});
-  }
 
   return (
     <>
       <DemoSection
         title="Is wallet enabled"
         desc="Check if wallet is enabled."
-        demoFn={isEnabled}
+        demoFn={Mesh.wallet.isEnabled()}
+        demoStr={"Mesh.wallet.isEnabled()"}
       />
 
       <DemoSection
         title="Get network ID"
         desc="Get network ID. 0 is testnet, 1 is mainnet."
-        demoFn={getNetworkId}
+        demoFn={Mesh.wallet.getNetworkId()}
+        demoStr={"Mesh.wallet.getNetworkId()"}
       />
 
       <DemoSection
         title="Get UTXOs"
         desc="Get wallet's UTXOs"
-        demoFn={getUtxos}
+        demoFn={Mesh.wallet.getUtxos()}
+        demoStr={"Mesh.wallet.getUtxos()"}
       />
 
-      <DemoSection title="Get balance" desc="Get balance" demoFn={getBalance} />
+      <DemoSection
+        title="Get balance"
+        desc="Get balance"
+        demoFn={Mesh.wallet.getBalance()}
+        demoStr={"Mesh.wallet.getBalance()"}
+      />
 
       <DemoSection
         title="Get used address"
         desc="Get used address"
-        demoFn={getUsedAddresses}
+        demoFn={Mesh.wallet.getUsedAddresses()}
+        demoStr={"Mesh.wallet.getUsedAddresses()"}
       />
 
       <DemoSection
         title="Get unused address"
         desc="Get unused address"
-        demoFn={getUnusedAddresses}
+        demoFn={Mesh.wallet.getUnusedAddresses()}
+        demoStr={"Mesh.wallet.getUnusedAddresses()"}
       />
 
       <DemoSection
         title="Get change address"
         desc="Get change address"
-        demoFn={getChangeAddress}
+        demoFn={Mesh.wallet.getChangeAddress()}
+        demoStr={"Mesh.wallet.getChangeAddress()"}
       />
 
       <DemoSection
         title="Get reward address"
         desc="Get reward address"
-        demoFn={getRewardAddresses}
+        demoFn={Mesh.wallet.getRewardAddresses()}
+        demoStr={"Mesh.wallet.getRewardAddresses()"}
       />
 
       <DemoSection
         title="Get wallet address"
         desc="Get the first used address."
-        demoFn={getWalletAddress}
+        demoFn={Mesh.wallet.getWalletAddress()}
+        demoStr={"Mesh.wallet.getWalletAddress()"}
       />
 
       <DemoSection
         title="Get lovelace amount"
         desc="Get lovelace amount"
-        demoFn={getLovelace}
+        demoFn={Mesh.wallet.getLovelace()}
+        demoStr={"Mesh.wallet.getLovelace()"}
       />
 
-      <DemoSection title="Get assets" desc="Get assets" demoFn={getAssets} />
+      <DemoSection
+        title="Get assets"
+        desc="Get assets"
+        demoFn={Mesh.wallet.getAssets({})}
+        demoStr={"Mesh.wallet.getAssets({})"}
+      />
 
-      <DemoAssetsPolicyId />
-
-      {/* <div className="m-2 p-2 bg-white shadow rounded w-full">
-        <div className="flex justify-between items-center">
-          <input
-            className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
-            value={policyId}
-            onChange={(e) => setPolicyId(e.target.value)}
-            type="text"
-            placeholder="policy ID"
-          />
-          <div className="flex justify-center items-center space-x-2">
-            <Button
-              onClick={() => getAssetsPolicyId()}
-              style={selectedApi == "getAssetsPolicyId" ? "success" : "primary"}
-            >
-              getAssetsPolicyId
-            </Button>
-          </div>
-        </div>
-      </div>
-      {response !== null && (
-        <>
-          <h4>Response</h4>
-          <Codeblock data={response} />
-        </>
-      )} */}
+      {/* <DemoAssetsPolicyId /> */}
     </>
   );
 }
 
-function DemoSection({ title, desc, demoFn }) {
+function DemoSection({ title, desc, demoFn, demoStr }) {
   const [response, setResponse] = useState<null | any>(null);
   async function runDemo() {
-    let results = await demoFn();
+    let results = await demoFn;
     setResponse(results);
   }
 
@@ -156,13 +103,39 @@ function DemoSection({ title, desc, demoFn }) {
           <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">
             {desc}
           </p>
+
+          <Codeblock
+            data={`const result = await ${demoStr};`}
+            isJson={false}
+          />
+
+          {/* <Codeblock
+            data={`function DemoTest() {
+  async function runDemo() {
+    const result = await ${demoStr};
+    console.log(result);
+  }
+  return (
+    <>
+      <button type="button" onClick={() => runDemo()}>
+        Run code snippet
+      </button>
+    </>
+  );
+}`}
+            isJson={false}
+          /> */}
+          <Button onClick={() => runDemo()}>Run code snippet</Button>
         </div>
 
-        <div className="flex-1">
-          {response !== null ? (
-            <Codeblock data={response} />
-          ) : (
-            <Button onClick={() => runDemo()}>Try it</Button>
+        <div className="flex-1 mt-8">
+          {response !== null && (
+            <>
+              <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">
+                Console
+              </p>
+              <Codeblock data={response} />
+            </>
           )}
         </div>
       </div>

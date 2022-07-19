@@ -241,7 +241,7 @@ export class Wallet {
           const _name = asset.slice(56);
           assets.push({
             unit: asset,
-            quantity: quantity.to_str(),
+            quantity: parseInt(quantity.to_str()),
             policy: _policy,
             name: HexToAscii(_name),
           });
