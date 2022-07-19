@@ -5,162 +5,114 @@ import { Button, Codeblock } from "../../components";
 export default function WalletApi() {
   const [response, setResponse] = useState<null | any>(null);
   const [selectedApi, setSelectedApi] = useState<string | null>(null);
-  const [policyId, setPolicyId] = useState(
-    "ab8a25c96cb18e174d2522ada5f7c7d629724a50f9c200c12569b4e2"
-  );
 
   async function isEnabled() {
-    const res = await Mesh.wallet.isEnabled();
-    setResponse(res);
-    setSelectedApi("isEnabled");
+    return Mesh.wallet.isEnabled();
   }
 
   async function getNetworkId() {
-    const res = await Mesh.wallet.getNetworkId();
-    setResponse(res);
-    setSelectedApi("getNetworkId");
+    return Mesh.wallet.getNetworkId();
   }
 
   async function getUtxos() {
-    const res = await Mesh.wallet.getUtxos();
-    setResponse(res);
-    setSelectedApi("getUtxos");
+    return Mesh.wallet.getUtxos();
   }
 
   async function getBalance() {
-    const res = await Mesh.wallet.getBalance();
-    setResponse(res);
-    setSelectedApi("getBalance");
+    return Mesh.wallet.getBalance();
   }
 
   async function getUsedAddresses() {
-    const res = await Mesh.wallet.getUsedAddresses();
-    setResponse(res);
-    setSelectedApi("getUsedAddresses");
+    return Mesh.wallet.getUsedAddresses();
   }
 
   async function getUnusedAddresses() {
-    const res = await Mesh.wallet.getUnusedAddresses();
-    setResponse(res);
-    setSelectedApi("getUnusedAddresses");
+    return Mesh.wallet.getUnusedAddresses();
   }
 
   async function getChangeAddress() {
-    const res = await Mesh.wallet.getChangeAddress();
-    setResponse(res);
-    setSelectedApi("getChangeAddress");
+    return Mesh.wallet.getChangeAddress();
   }
 
   async function getRewardAddresses() {
-    const res = await Mesh.wallet.getRewardAddresses();
-    setResponse(res);
-    setSelectedApi("getRewardAddresses");
+    return Mesh.wallet.getRewardAddresses();
   }
 
   async function getWalletAddress() {
-    const res = await Mesh.wallet.getWalletAddress();
-    setResponse(res);
-    setSelectedApi("getWalletAddress");
+    return Mesh.wallet.getWalletAddress();
   }
 
   async function getLovelace() {
-    const res = await Mesh.wallet.getLovelace();
-    setResponse(res);
-    setSelectedApi("getLovelace");
+    return Mesh.wallet.getLovelace();
   }
 
   async function getAssets() {
-    const res = await Mesh.wallet.getAssets({});
-    setResponse(res);
-    setSelectedApi("getAssets");
-  }
-
-  async function getAssetsPolicyId() {
-    const res = await Mesh.wallet.getAssets({
-      policyId: policyId,
-    });
-    setResponse(res);
-    setSelectedApi("getAssetsPolicyId");
+    return Mesh.wallet.getAssets({});
   }
 
   return (
     <>
-      <h3>Wallet APIs</h3>
-      <p>
-        These wallet APIs are in accordance to{" "}
-        <a href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030">
-          Cardano Improvement Proposals 30 - Cardano dApp-Wallet Web Bridge
-        </a>
-        , which defines the API for dApps to communicate with the user&apos;s wallet.
-      </p>
-      ​
-      <Button
-        onClick={() => isEnabled()}
-        style={selectedApi == "isEnabled" ? "success" : "primary"}
-      >
-        isEnabled
-      </Button>
-      <Button
-        onClick={() => getNetworkId()}
-        style={selectedApi == "getNetworkId" ? "success" : "primary"}
-      >
-        getNetworkId
-      </Button>
-      <Button
-        onClick={() => getUtxos()}
-        style={selectedApi == "getUtxos" ? "success" : "primary"}
-      >
-        getUtxos
-      </Button>
-      <Button
-        onClick={() => getBalance()}
-        style={selectedApi == "getBalance" ? "success" : "primary"}
-      >
-        getBalance
-      </Button>
-      <Button
-        onClick={() => getUsedAddresses()}
-        style={selectedApi == "getUsedAddresses" ? "success" : "primary"}
-      >
-        getUsedAddresses
-      </Button>
-      <Button
-        onClick={() => getUnusedAddresses()}
-        style={selectedApi == "getUnusedAddresses" ? "success" : "primary"}
-      >
-        getUnusedAddresses
-      </Button>
-      <Button
-        onClick={() => getChangeAddress()}
-        style={selectedApi == "getChangeAddress" ? "success" : "primary"}
-      >
-        getChangeAddress
-      </Button>
-      <Button
-        onClick={() => getRewardAddresses()}
-        style={selectedApi == "getRewardAddresses" ? "success" : "primary"}
-      >
-        getRewardAddresses
-      </Button>
-      <Button
-        onClick={() => getWalletAddress()}
-        style={selectedApi == "getWalletAddress" ? "success" : "primary"}
-      >
-        getWalletAddress
-      </Button>
-      <Button
-        onClick={() => getLovelace()}
-        style={selectedApi == "getLovelace" ? "success" : "primary"}
-      >
-        getLovelace
-      </Button>
-      <Button
-        onClick={() => getAssets()}
-        style={selectedApi == "getAssets" ? "success" : "primary"}
-      >
-        getAssets
-      </Button>
-      <div className="m-2 p-2 bg-white shadow rounded w-full">
+      <DemoSection
+        title="Is wallet enabled"
+        desc="Check if wallet is enabled."
+        demoFn={isEnabled}
+      />
+
+      <DemoSection
+        title="Get network ID"
+        desc="Get network ID. 0 is testnet, 1 is mainnet."
+        demoFn={getNetworkId}
+      />
+
+      <DemoSection
+        title="Get UTXOs"
+        desc="Get wallet's UTXOs"
+        demoFn={getUtxos}
+      />
+
+      <DemoSection title="Get balance" desc="Get balance" demoFn={getBalance} />
+
+      <DemoSection
+        title="Get used address"
+        desc="Get used address"
+        demoFn={getUsedAddresses}
+      />
+
+      <DemoSection
+        title="Get unused address"
+        desc="Get unused address"
+        demoFn={getUnusedAddresses}
+      />
+
+      <DemoSection
+        title="Get change address"
+        desc="Get change address"
+        demoFn={getChangeAddress}
+      />
+
+      <DemoSection
+        title="Get reward address"
+        desc="Get reward address"
+        demoFn={getRewardAddresses}
+      />
+
+      <DemoSection
+        title="Get wallet address"
+        desc="Get the first used address."
+        demoFn={getWalletAddress}
+      />
+
+      <DemoSection
+        title="Get lovelace amount"
+        desc="Get lovelace amount"
+        demoFn={getLovelace}
+      />
+
+      <DemoSection title="Get assets" desc="Get assets" demoFn={getAssets} />
+
+      <DemoAssetsPolicyId />
+
+      {/* <div className="m-2 p-2 bg-white shadow rounded w-full">
         <div className="flex justify-between items-center">
           <input
             className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
@@ -184,7 +136,82 @@ export default function WalletApi() {
           <h4>Response</h4>
           <Codeblock data={response} />
         </>
-      )}
+      )} */}
     </>
+  );
+}
+
+function DemoSection({ title, desc, demoFn }) {
+  const [response, setResponse] = useState<null | any>(null);
+  async function runDemo() {
+    let results = await demoFn();
+    setResponse(results);
+  }
+
+  return (
+    <section className="bg-white dark:bg-gray-900 mt-4">
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <h2 className="text-2xl dark:text-white">{title}</h2>
+          <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">
+            {desc}
+          </p>
+        </div>
+
+        <div className="flex-1">
+          {response !== null ? (
+            <Codeblock data={response} />
+          ) : (
+            <Button onClick={() => runDemo()}>Try it</Button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DemoAssetsPolicyId() {
+  const [response, setResponse] = useState<null | any>(null);
+  const [policyId, setPolicyId] = useState(
+    "ab8a25c96cb18e174d2522ada5f7c7d629724a50f9c200c12569b4e2"
+  );
+
+  async function runDemo() {
+    const res = await Mesh.wallet.getAssets({
+      policyId: policyId,
+    });
+    setResponse(res);
+  }
+
+  return (
+    <section className="bg-white dark:bg-gray-900 mt-4">
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <h2 className="text-2xl dark:text-white">
+            Get assets and filtered by policy ID
+          </h2>
+          <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">
+            Get assets and filtered by policy ID
+          </p>
+        </div>
+
+        <div className="flex-1">
+          {response !== null ? (
+            <Codeblock data={response} />
+          ) : (
+            <>
+              <input
+                className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
+                value={policyId}
+                onChange={(e) => setPolicyId(e.target.value)}
+                type="text"
+                placeholder="policy ID"
+              />
+              <Button onClick={() => runDemo()}>Try it</Button>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
