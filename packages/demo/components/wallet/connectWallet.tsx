@@ -23,6 +23,13 @@ export default function ConnectWallet({ walletConnected, setWalletConnected }) {
   );
   const [connecting, setConnecting] = useState<boolean>(false);
 
+  useEffect(() => {
+    async function getWallets() {
+      setAvailableWallets(await Mesh.wallet.getAvailableWallets());
+    }
+    getWallets();
+  }, []);
+
   async function connectWallet(walletName: string) {
     setConnecting(true);
     let connected = await Mesh.wallet.enable({ walletName: walletName });
@@ -50,7 +57,7 @@ export default function ConnectWallet({ walletConnected, setWalletConnected }) {
                 key={walletName}
                 onClick={() => connectWallet(walletName)}
                 style={walletConnected == walletName ? "success" : "light"}
-                disabled={connecting || walletConnected == walletName}
+                disabled={connecting}
               >
                 <img
                   src={`/wallets/${WALLETS[walletName].logo}`}

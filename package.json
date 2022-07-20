@@ -1,6 +1,11 @@
 {
-  "private": true,
-  "name": "@workspace/root",
+  "name": "@martifylabs/mesh",
+  "description": "Blockchain solutions on Cardano.",
+  "version": "0.0.3-beta.35",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "module": "dist/index.js",
+  "type": "module",
   "scripts": {
     "test": "lerna run test",
     "start": "lerna exec --scope @workspace/playground -- yarn dev",

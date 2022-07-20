@@ -70,6 +70,10 @@ function CodeDemo() {
   }
 
   async function makeTransaction() {
+    if (process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY === undefined) {
+      throw "Need blockfrost API key";
+    }
+
     setState(1);
 
     try {
@@ -134,8 +138,10 @@ function CodeDemo() {
             return (
               <tr key={i}>
                 <td className="py-4 px-4 w-3/4">
-                  <Input
-                    value={recipient.address}
+                  <input
+                    type="text"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                    placeholder="address"
                     onChange={(e) =>
                       updateAddress(i, "address", e.target.value)
                     }
@@ -143,7 +149,11 @@ function CodeDemo() {
                   />
                 </td>
                 <td className="py-4 px-4 w-1/4">
-                  <Input
+                  <input
+                    type="text"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                    placeholder="lovelace"
+                    onChange={(e) => updateAsset(i, "lovelace", e.target.value)}
                     value={recipient.assets.lovelace}
                     onChange={(e) => updateAsset(i, "lovelace", e.target.value)}
                     placeholder="lovelace"
