@@ -10,12 +10,14 @@ class Mesh {
   public infura: Infura;
 
   constructor() {
-    this.wallet = new Wallet();
+    this.blockfrost = new Blockfrost();
+    this.infura = new Infura();
+    this.wallet = new Wallet({
+      blockfrost: this.blockfrost,
+    });
     this.transaction = new Transaction({
       wallet: this.wallet,
     });
-    this.blockfrost = new Blockfrost();
-    this.infura = new Infura();
   }
 }
 

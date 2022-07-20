@@ -8,8 +8,23 @@ export default function SendAda() {
     <Card>
       <div className="grid gap-4 grid-cols-2">
         <div className="">
-          <h3>Send some ADA to another address</h3>
-          <p>Send ADA</p>
+          <h3>Send some ADA to another addresses</h3>
+          <p>Creating a transaction requires various steps:</p>
+          <ol>
+            <li>
+              Build the transaction
+              <ol>
+                <li>Get the protocol parameters</li>
+                <li>Define transaction builder config</li>
+                <li>Add input UTXOs</li>
+                <li>Add outputs</li>
+                <li>Add change address</li>
+                <li>Build transaction</li>
+              </ol>
+            </li>
+            <li>Sign the transaction</li>
+            <li>Submit the transaction</li>
+          </ol>
         </div>
         <div className="mt-8">
           <CodeDemo />
@@ -61,7 +76,7 @@ function CodeDemo() {
     setRecipients(newRecipients);
   }
 
-  async function makeSimpleTransaction() {
+  async function makeTransaction() {
     if (process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY === undefined) {
       throw "Need blockfrost API key";
     }
@@ -114,7 +129,7 @@ function CodeDemo() {
                 <td className="py-4 px-4 w-3/4">
                   <input
                     type="text"
-                    className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                     placeholder="address"
                     onChange={(e) =>
                       updateAddress(i, "address", e.target.value)
@@ -125,7 +140,7 @@ function CodeDemo() {
                 <td className="py-4 px-4 w-1/4">
                   <input
                     type="text"
-                    className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
+                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                     placeholder="lovelace"
                     onChange={(e) => updateAsset(i, "lovelace", e.target.value)}
                     value={recipient.assets.lovelace}
@@ -147,7 +162,7 @@ function CodeDemo() {
             <td className="py-4 px-4" colSpan={3}>
               <Button
                 onClick={() => add()}
-                style="success"
+                style="primary"
                 className="block w-full"
                 disabled={state == 1}
               >
@@ -178,7 +193,7 @@ const txHash = await Mesh.wallet.submitTransaction({
       />
 
       <Button
-        onClick={() => makeSimpleTransaction()}
+        onClick={() => makeTransaction()}
         disabled={state == 1}
         style={state == 1 ? "warning" : state == 2 ? "success" : "light"}
       >

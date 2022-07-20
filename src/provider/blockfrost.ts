@@ -25,6 +25,10 @@ export class Blockfrost {
     });
   }
 
+  isLoaded(){
+    return this._instance !== undefined;
+  }
+
   private async _request({
     endpoint = "",
     body = null,

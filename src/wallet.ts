@@ -7,12 +7,15 @@ import SerializationLib from "./provider/serializationlib.js";
 import { WalletApi, Asset } from "./types/index.js";
 import { MIN_ADA_REQUIRED } from "./global.js";
 import { HexToAscii, toHex, fromHex } from "./utils/converter.js";
+import { Blockfrost } from "./provider/blockfrost.js";
 
 export class Wallet {
   private _provider: WalletApi; // wallet provider on the browser, i.e. window.cardano.ccvault
+  private _blockfrost: Blockfrost;
 
-  constructor() {
+  constructor({ blockfrost }) {
     this._init();
+    this._blockfrost = blockfrost;
   }
 
   private async _init() {
@@ -220,13 +223,19 @@ export class Wallet {
    * @param policyId (optional) if provided will filter only assets in this policy
    * @returns assets - List of asset
    */
-  async getAssets({ policyId }: { policyId?: string }): Promise<Asset[]> {
+  async getAssets({
+    policyId,
+    includeOnchain = false,
+  }: {
+    policyId?: string;
+    includeOnchain?: boolean;
+  }): Promise<Asset[]> {
     const valueCBOR = await this.getBalance();
     const value = SerializationLib.Instance.Value.from_bytes(
       fromHex(valueCBOR)
     );
 
-    const assets: Asset[] = [];
+    let assets: Asset[] = [];
     if (value.multiasset()) {
       const multiAssets = value.multiasset().keys();
       for (let j = 0; j < multiAssets.len(); j++) {
@@ -250,7 +259,7 @@ export class Wallet {
     }
 
     // if `policyId` is provided, return assets in this policy ID
-    if (policyId) {
+    if (policyId && policyId.length>0) {
       const filteredAssets = assets
         .filter(function (el) {
           return el.unit.includes(policyId);
@@ -258,7 +267,17 @@ export class Wallet {
         .map((item) => {
           return item;
         });
-      return filteredAssets;
+      assets = [...filteredAssets];
+    }
+
+    if (this._blockfrost.isLoaded() && includeOnchain) {
+      await Promise.all(
+        assets.map(async (asset, j) => {
+          asset.onchain = await this._blockfrost.assetSpecificAsset({
+            asset: asset.unit,
+          });
+        })
+      );
     }
 
     return assets;
@@ -340,5 +359,4 @@ export class Wallet {
     const txHash = await this.submitTx({ tx: toHex(signedTx.to_bytes()) });
     return txHash;
   }
-
 }

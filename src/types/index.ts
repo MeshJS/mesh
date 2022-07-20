@@ -65,6 +65,7 @@ export type Asset = {
   quantity: number;
   policy: string;
   name: string;
+  onchain?: {};
 };
 
 export type Assets = {

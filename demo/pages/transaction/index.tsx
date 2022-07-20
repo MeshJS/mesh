@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Metatags } from "../../components";
 import ConnectWallet from "../../components/wallet/connectWallet";
 import SendAda from "../../components/transaction/sendAda";
+import SendMultiassets from "../../components/transaction/sendMultiassets";
 
 const Transaction = () => {
   return (
@@ -25,6 +26,7 @@ function Showcase() {
         {walletConnected && (
           <>
             <SendAda />
+            {/* <SendMultiassets /> */}
           </>
         )}
       </div>
@@ -38,20 +40,7 @@ function Hero() {
       <div className="py-8 px-4 lg:py-16 lg:px-6">
         <h1>Transaction APIs</h1>
 
-        <div className="mb-4">
-          <p>Creating a transaction requires various steps:</p>
-          <ol>
-            <li>
-              Get the protocol parameters and define transaction builder config
-            </li>
-            <li>Add input UTXOs</li>
-            <li>Add outputs</li>
-            <li>Add change address</li>
-            <li>Build transaction</li>
-            <li>Sign the transaction</li>
-            <li>Submit the transaction</li>
-          </ol>
-        </div>
+        <div className="mb-4"></div>
         <div className="mb-4">
           <p className="font-medium">
             In this section, let&apos;s create some transactions.
