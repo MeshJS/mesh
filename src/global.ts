@@ -12,4 +12,5 @@ export const MakeTxError = {
     "Not enough assets in the inputs to complete this transaction.",
   InputNotEqualOutput: "Input not equal to output",
   LovelaceTooLittle: "Lovelace must be greater than 1000000",
+  NoRecipientsAddress: "Missing recipient address"
 };

@@ -1,15 +1,27 @@
 import { useState } from "react";
 import Mesh from "@martifylabs/mesh";
-import { Button, Codeblock } from "../../components";
+import { Button, Card, Codeblock } from "../../components";
+import { TrashIcon, PlusCircleIcon } from "@heroicons/react/solid";
 
 export default function SendAda() {
-  const [state, setState] = useState(0);
-  const [transactionTx, setTransactionTx] = useState<null | string>(null);
-  const [transactionSignature, setTransactionSignature] = useState<
-    null | string
-  >(null);
-  const [transactionHash, setTransactionHash] = useState<null | string>(null);
+  return (
+    <Card>
+      <div className="grid gap-4 grid-cols-2">
+        <div className="">
+          <h3>Send some ADA to another address</h3>
+          <p>Send ADA</p>
+        </div>
+        <div className="mt-8">
+          <CodeDemo />
+        </div>
+      </div>
+    </Card>
+  );
+}
 
+function CodeDemo() {
+  const [state, setState] = useState(0);
+  const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState([
     {
       address:
@@ -56,95 +68,129 @@ export default function SendAda() {
 
     setState(1);
 
-    const tx = await Mesh.transaction.new({
-      outputs: recipients,
-      blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY,
-      network: 0,
-    });
-    setTransactionTx(tx);
+    try {
+      const tx = await Mesh.transaction.new({
+        outputs: recipients,
+        blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY,
+        network: 0,
+      });
 
-    const signature = await Mesh.wallet.signTx({ tx });
-    setTransactionSignature(signature);
+      const signature = await Mesh.wallet.signTx({ tx });
 
-    const txHash = await Mesh.wallet.submitTransaction({
-      tx: tx,
-      witnesses: [signature],
-    });
-    setTransactionHash(txHash);
+      const txHash = await Mesh.wallet.submitTransaction({
+        tx: tx,
+        witnesses: [signature],
+      });
+      setResult(txHash);
 
-    setState(2);
+      setState(2);
+    } catch (error) {
+      setResult(`${error}`);
+      setState(0);
+    }
   }
 
   return (
     <>
-      <h2>Send some ADA to another address</h2>
-      <div className="m-2 p-2 bg-white shadow rounded w-full">
-        {recipients.map((recipient, i) => {
-          return (
-            <div className="flex flex-row justify-between items-center" key={i}>
-              <span className="mr-4">{i+1}</span>
-              <input
-                className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
-                value={recipient.address}
-                onChange={(e) => updateAddress(i, "address", e.target.value)}
-                type="text"
-                placeholder="address"
-              />
-              <input
-                className="bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
-                value={recipient.assets.lovelace}
-                onChange={(e) => updateAsset(i, "lovelace", e.target.value)}
-                type="text"
-                placeholder="lovelace"
-              />
+      <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+          <tr>
+            <th scope="col" className="py-3 px-6">
+              Address
+            </th>
+            <th scope="col" className="py-3 px-6">
+              Lovelace
+            </th>
+            <th scope="col" className="py-3 px-6"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {recipients.map((recipient, i) => {
+            return (
+              <tr
+                className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
+                key={i}
+              >
+                <td className="py-4 px-4 w-3/4">
+                  <input
+                    type="text"
+                    className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
+                    placeholder="address"
+                    onChange={(e) =>
+                      updateAddress(i, "address", e.target.value)
+                    }
+                    value={recipient.address}
+                  />
+                </td>
+                <td className="py-4 px-4 w-1/4">
+                  <input
+                    type="text"
+                    className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
+                    placeholder="lovelace"
+                    onChange={(e) => updateAsset(i, "lovelace", e.target.value)}
+                    value={recipient.assets.lovelace}
+                  />
+                </td>
+                <td className="py-4 px-4">
+                  <Button
+                    onClick={() => remove(i)}
+                    style="error"
+                    disabled={state == 1}
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </Button>
+                </td>
+              </tr>
+            );
+          })}
+          <tr>
+            <td className="py-4 px-4" colSpan={3}>
               <Button
-                onClick={() => remove(i)}
-                style="error"
+                onClick={() => add()}
+                style="success"
+                className="block w-full"
                 disabled={state == 1}
               >
-                delete
+                <PlusCircleIcon className="m-0 mr-2 w-6 h-6" />
+                <span>Add recipient</span>
               </Button>
-            </div>
-          );
-        })}
-        <div className="flex flex-row justify-between items-center">
-          <Button onClick={() => add()} style="info" disabled={state == 1}>
-            add another recipient
-          </Button>
-          <Button
-            onClick={() => makeSimpleTransaction()}
-            disabled={state == 1}
-            style={state == 1 ? "warning" : state == 2 ? "success" : "primary"}
-          >
-            makeSimpleTransaction
-          </Button>
-        </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-        {state != 0 && recipients && (
-          <>
-            <h4>Recipients</h4>
-            <Codeblock data={recipients} />
-          </>
-        )}
-        {transactionTx && (
-          <>
-            <h4>Transaction</h4>
-            <Codeblock data={transactionTx} />
-          </>
-        )}
-        {transactionSignature && (
-          <>
-            <h4>Signature</h4>
-            <Codeblock data={transactionSignature} />
-          </>
-        )}
-        {transactionHash && (
-          <>
-            <h4>Transaction Hash</h4>
-            <Codeblock data={transactionHash} />
-          </>
-        )}
-      </div>
+      <Codeblock
+        data={`const recipients = ${JSON.stringify(recipients, null, 2)}}
+
+const tx = await Mesh.transaction.new({
+  outputs: recipients,
+  blockfrostApiKey: "BLOCKFROST_API_KEY",
+  network: 0, // 0 for testnet, 1 for mainnet
+});
+
+const signature = await Mesh.wallet.signTx({ tx });
+
+const txHash = await Mesh.wallet.submitTransaction({
+  tx: tx,
+  witnesses: [signature],
+});`}
+        isJson={false}
+      />
+
+      <Button
+        onClick={() => makeSimpleTransaction()}
+        disabled={state == 1}
+        style={state == 1 ? "warning" : state == 2 ? "success" : "light"}
+      >
+        Run code snippet
+      </Button>
+
+      {result && (
+        <>
+          <h4>Result</h4>
+          <Codeblock data={result} />
+        </>
+      )}
     </>
   );
 }

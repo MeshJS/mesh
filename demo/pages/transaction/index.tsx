@@ -4,26 +4,71 @@ import ConnectWallet from "../../components/wallet/connectWallet";
 import SendAda from "../../components/transaction/sendAda";
 
 const Transaction = () => {
-  const [walletConnected, setWalletConnected] = useState<null | string>(null);
   return (
-    <div className="mt-32 prose prose-slate mx-auto lg:prose-lg">
+    <>
       <Metatags title="Transaction APIs" />
-      <h1>Transaction APIs</h1>
-      <p className="lead">
-        Let&apos;s create transactions.
-      </p>
-      <ConnectWallet
-        walletConnected={walletConnected}
-        setWalletConnected={setWalletConnected}
-      />
-      {walletConnected && (
-        <>
-          <SendAda />
-        </>
-      )}
-    </div>
+      <Hero />
+      <Showcase />
+    </>
   );
 };
+
+function Showcase() {
+  const [walletConnected, setWalletConnected] = useState<null | string>(null);
+  return (
+    <section>
+      <div className="mx-auto max-w-screen-xl px-4 lg:px-6">
+        <ConnectWallet
+          walletConnected={walletConnected}
+          setWalletConnected={setWalletConnected}
+        />
+        {walletConnected && (
+          <>
+            <SendAda />
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Hero() {
+  return (
+    <section>
+      <div className="py-8 px-4 lg:py-16 lg:px-6">
+        <h1>Transaction APIs</h1>
+
+        <div className="mb-4">
+          <p>Creating a transaction requires various steps:</p>
+          <ol>
+            <li>
+              Get the protocol parameters and define transaction builder config
+            </li>
+            <li>Add input UTXOs</li>
+            <li>Add outputs</li>
+            <li>Add change address</li>
+            <li>Build transaction</li>
+            <li>Sign the transaction</li>
+            <li>Submit the transaction</li>
+          </ol>
+        </div>
+        <div className="mb-4">
+          <p className="font-medium">
+            In this section, let&apos;s create some transactions.
+          </p>
+        </div>
+
+        {/* <a
+          href="#"
+          className="inline-flex items-center font-medium text-primary-600 hover:text-primary-800 dark:text-primary-500 dark:hover:text-primary-700"
+        >
+          Learn more
+          <ChevronRightIcon className="ml-1 w-6 h-6" />
+        </a> */}
+      </div>
+    </section>
+  );
+}
 
 export default Transaction;
 

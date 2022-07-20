@@ -1,9 +1,8 @@
 import { useState } from "react";
 import Mesh from "@martifylabs/mesh";
-import { Button, Codeblock } from "../../components";
+import { Button, Card, Codeblock } from "../../components";
 
 export default function WalletApi() {
-
   return (
     <>
       <DemoSection
@@ -96,50 +95,32 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
   }
 
   return (
-    <section className="bg-white dark:bg-gray-900 mt-4">
-      <div className="flex gap-4">
-        <div className="flex-1">
-          <h2 className="text-2xl dark:text-white">{title}</h2>
-          <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">
-            {desc}
-          </p>
-
-          <Codeblock
-            data={`const result = await ${demoStr};`}
-            isJson={false}
-          />
-
-          {/* <Codeblock
-            data={`function DemoTest() {
-  async function runDemo() {
-    const result = await ${demoStr};
-    console.log(result);
-  }
-  return (
-    <>
-      <button type="button" onClick={() => runDemo()}>
-        Run code snippet
-      </button>
-    </>
-  );
-}`}
-            isJson={false}
-          /> */}
-          <Button onClick={() => runDemo()}>Run code snippet</Button>
+    <Card>
+      <div className="grid gap-4 grid-cols-2">
+        <div className="">
+          <h3>{title}</h3>
+          <p>{desc}</p>
         </div>
 
-        <div className="flex-1 mt-8">
+        <div className="mt-8">
+          <Codeblock data={`const result = await ${demoStr};`} isJson={false} />
+          <Button
+            onClick={() => runDemo()}
+            style={response !== null ? "success" : "light"}
+          >
+            Run code snippet
+          </Button>
           {response !== null && (
             <>
-              <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">
-                Console
+              <p>
+                <b>Console:</b>
               </p>
               <Codeblock data={response} />
             </>
           )}
         </div>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -157,13 +138,13 @@ function DemoAssetsPolicyId() {
   }
 
   return (
-    <section className="bg-white dark:bg-gray-900 mt-4">
+    <section className="mt-4">
       <div className="flex gap-4">
         <div className="flex-1">
           <h2 className="text-2xl dark:text-white">
             Get assets and filtered by policy ID
           </h2>
-          <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400">
+          <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400 prose">
             Get assets and filtered by policy ID
           </p>
         </div>

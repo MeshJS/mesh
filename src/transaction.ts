@@ -106,8 +106,6 @@ export class Transaction {
     this._blockfrost = new Blockfrost();
     await this._blockfrost.init({ blockfrostApiKey, network });
 
-    const paymentAddress = await this.wallet.getWalletAddress();
-
     const txBuilder = SerializationLib.Instance.TransactionBuilder.new(
       await this._getTxBuilderConfig()
     );
@@ -119,6 +117,9 @@ export class Transaction {
     // add outputs
     await Promise.all(
       outputs.map(async (output, i) => {
+        if (output.address == undefined || output.address.length == 0) {
+          throw MakeTxError.NoRecipientsAddress;
+        }
         await Promise.all(
           Object.keys(output.assets).map(async (assetId, j) => {
             if (assetId === "lovelace") {
@@ -137,6 +138,7 @@ export class Transaction {
     );
 
     // add change
+    const paymentAddress = await this.wallet.getWalletAddress();
     txBuilder.add_change_if_needed(StringToAddress(paymentAddress));
 
     const txBody = txBuilder.build();

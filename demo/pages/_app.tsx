@@ -7,8 +7,10 @@ function MyApp({ Component, pageProps }: AppProps) {
     <>
       <Metatags />
       <Navbar />
-      <div className="">
-        <Component {...pageProps} />
+      <div className="prose dark:prose-invert max-w-full">
+        <div className="mx-auto max-w-screen-xl">
+          <Component {...pageProps} />
+        </div>
       </div>
     </>
   );
