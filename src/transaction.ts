@@ -1,6 +1,11 @@
 import { Blockfrost } from "./provider/blockfrost.js";
 import { MIN_ADA_REQUIRED } from "./global.js";
-import { toHex, StringToBigNum, StringToAddress } from "./utils/converter.js";
+import {
+  toHex,
+  StringToBigNum,
+  StringToAddress,
+  assetsToValue,
+} from "./utils/converter.js";
 import SerializationLib from "./provider/serializationlib.js";
 import { Wallet } from "./wallet.js";
 import { MakeTxError } from "./global.js";
@@ -238,6 +243,15 @@ export class Transaction {
     console.log(88, "txBuilder", txBuilder);
   }
 
+  payToAddress(txBuilder, address, assets) {
+    const output = SerializationLib.Instance.TransactionOutput.new(
+      SerializationLib.Instance.Address.from_bech32(address),
+      assetsToValue(assets)
+    );
+    txBuilder.add_output(output);
+    return this;
+  }
+
   async new({
     outputs,
     blockfrostApiKey,
@@ -262,15 +276,17 @@ export class Transaction {
     // end: init
 
     // add outputs
-    // await this._addOutputsJustADA({ txBuilder, outputs });
+    await this._addOutputsJustADA({ txBuilder, outputs });
 
     // // new add outputs
-    await this._addOutputs({ txBuilder, outputs });
+    // await this._addOutputs({ txBuilder, outputs });
 
     // add utxo
+    console.log("_addInputUtxo");
     await this._addInputUtxo({ txBuilder });
 
     // add change
+    console.log("_addChange");
     await this._addChange({ txBuilder });
 
     const transactionHex = await this._buildTransaction({ txBuilder });

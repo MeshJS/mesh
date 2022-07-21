@@ -78,21 +78,24 @@ export default function WalletApi() {
       <DemoSection
         title="Get assets"
         desc="Get assets"
-        demoFn={Mesh.wallet.getAssets({})}
-        demoStr={"Mesh.wallet.getAssets({})"}
+        demoFn={Mesh.wallet.getAssets()}
+        demoStr={"Mesh.wallet.getAssets()"}
       />
 
       <DemoAssetParams />
-
     </>
   );
 }
 
 function DemoSection({ title, desc, demoFn, demoStr }) {
+  const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<null | any>(null);
+
   async function runDemo() {
+    setLoading(true);
     let results = await demoFn;
     setResponse(results);
+    setLoading(false);
   }
 
   return (
@@ -107,7 +110,10 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
           <Codeblock data={`const result = await ${demoStr};`} isJson={false} />
           <Button
             onClick={() => runDemo()}
-            style={response !== null ? "success" : "light"}
+            style={
+              loading ? "warning" : response !== null ? "success" : "light"
+            }
+            disabled={loading}
           >
             Run code snippet
           </Button>
@@ -126,6 +132,7 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
 }
 
 function DemoAssetParams() {
+  const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<null | any>(null);
   const [policyId, setPolicyId] = useState(
     "ab8a25c96cb18e174d2522ada5f7c7d629724a50f9c200c12569b4e2"
@@ -133,6 +140,7 @@ function DemoAssetParams() {
   const [includeOnchain, setIncludeOnchain] = useState(true);
 
   async function runDemo() {
+    setLoading(true);
     await Mesh.blockfrost.init({
       blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY!,
       network: 0,
@@ -143,6 +151,22 @@ function DemoAssetParams() {
       includeOnchain: includeOnchain,
     });
     setResponse(res);
+    setLoading(false);
+  }
+
+  let codeSnippet = `const result = await Mesh.wallet.getAssets({\n`;
+  if (policyId) {
+    codeSnippet += policyId && `  policyId: "${policyId}",\n`;
+  }
+  if (includeOnchain) {
+    codeSnippet += `  includeOnchain: ${includeOnchain},\n`;
+  }
+  codeSnippet += `}`;
+
+  if (includeOnchain) {
+    codeSnippet =
+      `await Mesh.blockfrost.init({\n  blockfrostApiKey: "BLOCKFROST_API_KEY",\n  network: 0,\n});\n\n` +
+      codeSnippet;
   }
 
   return (
@@ -150,7 +174,9 @@ function DemoAssetParams() {
       <div className="grid gap-4 grid-cols-2">
         <div className="">
           <h3>Get assets with parameters</h3>
-          <p>Get assets, filtered by policy ID and query on-chain information.</p>
+          <p>
+            Get assets, filtered by policy ID and query on-chain information.
+          </p>
         </div>
 
         <div className="mt-8">
@@ -170,7 +196,9 @@ function DemoAssetParams() {
               </tr>
 
               <tr className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
-                <td className="py-4 px-4 w-1/4">Include Onchain</td>
+                <td className="py-4 px-4 w-1/4">
+                  Include on-chain information
+                </td>
                 <td className="py-4 px-4 w-3/4">
                   <input
                     id="default-checkbox"
@@ -184,17 +212,14 @@ function DemoAssetParams() {
             </tbody>
           </table>
 
-          <Codeblock
-            data={`const result = await Mesh.wallet.getAssets({
-  ${policyId && `policyId: ${policyId},`}
-  includeOnchain: ${includeOnchain},
-});`}
-            isJson={false}
-          />
+          <Codeblock data={codeSnippet} isJson={false} />
 
           <Button
             onClick={() => runDemo()}
-            style={response !== null ? "success" : "light"}
+            style={
+              loading ? "warning" : response !== null ? "success" : "light"
+            }
+            disabled={loading}
           >
             Run code snippet
           </Button>

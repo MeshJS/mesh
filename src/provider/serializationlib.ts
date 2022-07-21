@@ -3,10 +3,7 @@ class SerializationLib {
 
   importNodeOrSSR = async () => {
     try {
-      return await import(
-        /* webpackIgnore: true */
-        '@emurgo/cardano-serialization-lib-nodejs'
-      );
+      return await import("@emurgo/cardano-serialization-lib-nodejs");
     } catch (e) {
       return null;
     }
@@ -16,12 +13,11 @@ class SerializationLib {
     if (this._wasm) return;
 
     try {
-      this._wasm = (typeof window !== 'undefined'
-      ? await import(
-          '@emurgo/cardano-serialization-lib-browser'
-        )
-      : await this.importNodeOrSSR())!
-
+      this._wasm = (
+        typeof window !== "undefined"
+          ? await import("@emurgo/cardano-serialization-lib-browser")
+          : await this.importNodeOrSSR()
+      )!;
     } catch (error) {
       throw error;
     }

@@ -200,9 +200,9 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
-"@martifylabs/mesh@../martifylabs-mesh-v0.0.3-beta.34.tgz":
-  version "0.0.3-beta.34"
-  resolved "../martifylabs-mesh-v0.0.3-beta.34.tgz#66154f805d9546f1691e7a08cf6c2cd3e81596ad"
+"@martifylabs/mesh@../martifylabs-mesh-v0.0.3-beta.48.tgz":
+  version "0.0.3-beta.48"
+  resolved "../martifylabs-mesh-v0.0.3-beta.48.tgz#52a9b767949a02ec06dcb4721b358f5044d510a8"
   dependencies:
     "@emurgo/cardano-serialization-lib-browser" "10.2.0"
     "@emurgo/cardano-serialization-lib-nodejs" "10.2.0"
@@ -210,9 +210,9 @@
     bip39 "3.0.4"
     crypto-random-string "5.0.0"
 
-"@martifylabs/mesh@../martifylabs-mesh-v0.0.3-beta.35.tgz":
-  version "0.0.3-beta.35"
-  resolved "../martifylabs-mesh-v0.0.3-beta.35.tgz#003fef74e5e94d05e5731d585abae9162d4ca81f"
+"@martifylabs/mesh@../martifylabs-mesh-v0.0.3-beta.49.tgz":
+  version "0.0.3-beta.49"
+  resolved "../martifylabs-mesh-v0.0.3-beta.49.tgz#5a047b6fa3d1e715bd787c0e975c4e5a32ee53b4"
   dependencies:
     "@emurgo/cardano-serialization-lib-browser" "10.2.0"
     "@emurgo/cardano-serialization-lib-nodejs" "10.2.0"

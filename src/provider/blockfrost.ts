@@ -25,7 +25,7 @@ export class Blockfrost {
     });
   }
 
-  isLoaded(){
+  isLoaded() {
     return this._instance !== undefined;
   }
 
@@ -80,7 +80,11 @@ export class Blockfrost {
    * @param asset Concatenation of the policy_id and hex-encoded asset_name
    * @returns asset
    */
-  async assetSpecificAsset({ asset }: { asset: string }): Promise<{}> {
+  async assetSpecificAsset({
+    asset,
+  }: {
+    asset: string;
+  }): Promise<{ onchain_metadata: { image: string } }> {
     return await this._request({ endpoint: `/assets/${asset}` });
   }
 

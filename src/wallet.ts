@@ -7,6 +7,7 @@ import SerializationLib from "./provider/serializationlib.js";
 import { WalletApi, Asset } from "./types/index.js";
 import { MIN_ADA_REQUIRED } from "./global.js";
 import { HexToAscii, toHex, fromHex } from "./utils/converter.js";
+import { linkToSrc, convertMetadataPropToString } from "./utils/metadata.js";
 import { Blockfrost } from "./provider/blockfrost.js";
 
 export class Wallet {
@@ -220,15 +221,16 @@ export class Wallet {
 
   /**
    * Get a list of assets in connected wallet
+   * Note: includeOnchain requires `Mesh.blockfrost.init`
    * @param policyId (optional) if provided will filter only assets in this policy
+   * @param includeOnchain (optional) if provided will get on-chain metadata
+   * @param limit (optional) if provided will limit the number of (random) assets returned
    * @returns assets - List of asset
    */
-  async getAssets({
-    policyId,
-    includeOnchain = false,
-  }: {
+  async getAssets(options?: {
     policyId?: string;
     includeOnchain?: boolean;
+    limit?: number;
   }): Promise<Asset[]> {
     const valueCBOR = await this.getBalance();
     const value = SerializationLib.Instance.Value.from_bytes(
@@ -236,12 +238,13 @@ export class Wallet {
     );
 
     let assets: Asset[] = [];
+    let earlyStopping = false;
     if (value.multiasset()) {
       const multiAssets = value.multiasset().keys();
       for (let j = 0; j < multiAssets.len(); j++) {
         const policy = multiAssets.get(j);
         const policyAssets = value.multiasset().get(policy);
-        const assetNames = policyAssets.keys();
+        let assetNames = policyAssets.keys();
         for (let k = 0; k < assetNames.len(); k++) {
           const policyAsset = assetNames.get(k);
           const quantity = policyAssets.get(policyAsset);
@@ -254,15 +257,26 @@ export class Wallet {
             policy: _policy,
             name: HexToAscii(_name),
           });
+          if (
+            options?.limit &&
+            options.limit > 0 &&
+            options.limit === assets.length
+          ) {
+            earlyStopping = true;
+            break;
+          }
+        }
+        if (earlyStopping) {
+          break;
         }
       }
     }
 
     // if `policyId` is provided, return assets in this policy ID
-    if (policyId && policyId.length>0) {
+    if (options?.policyId && options.policyId && options?.policyId.length > 0) {
       const filteredAssets = assets
         .filter(function (el) {
-          return el.unit.includes(policyId);
+          return el.unit.includes(options.policyId!);
         })
         .map((item) => {
           return item;
@@ -270,12 +284,22 @@ export class Wallet {
       assets = [...filteredAssets];
     }
 
-    if (this._blockfrost.isLoaded() && includeOnchain) {
+    if (this._blockfrost.isLoaded() && options?.includeOnchain) {
       await Promise.all(
         assets.map(async (asset, j) => {
           asset.onchain = await this._blockfrost.assetSpecificAsset({
             asset: asset.unit,
           });
+
+          asset.image =
+            (asset.onchain.onchain_metadata &&
+              asset.onchain.onchain_metadata.image &&
+              linkToSrc(
+                convertMetadataPropToString(
+                  asset.onchain.onchain_metadata.image
+                )
+              )) ||
+            "";
         })
       );
     }
