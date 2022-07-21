@@ -257,17 +257,6 @@ export class Wallet {
             policy: _policy,
             name: HexToAscii(_name),
           });
-          if (
-            options?.limit &&
-            options.limit > 0 &&
-            options.limit === assets.length
-          ) {
-            earlyStopping = true;
-            break;
-          }
-        }
-        if (earlyStopping) {
-          break;
         }
       }
     }
@@ -284,6 +273,12 @@ export class Wallet {
       assets = [...filteredAssets];
     }
 
+    // if `limit` provided, pick the first `limit` number of assets
+    if (options?.limit && options.limit > 0) {
+      assets = assets.slice(0, options.limit);
+    }
+
+    // if blockfrost is loaded and `includeOnchain`, pull on-chain info
     if (this._blockfrost.isLoaded() && options?.includeOnchain) {
       await Promise.all(
         assets.map(async (asset, j) => {

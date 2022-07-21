@@ -4,7 +4,6 @@ import { SunIcon, MoonIcon, MenuIcon } from "@heroicons/react/solid";
 
 const Navbar = (props) => {
   const [darkMode, setDarkMode] = useState(true);
-
   function toggle() {
     let newMode = !darkMode;
     if (newMode) {
@@ -16,8 +15,8 @@ const Navbar = (props) => {
   }
 
   return (
-    <header className="sticky top-0 z-40 flex-none mx-auto w-full bg-white border-b border-gray-200 dark:border-gray-600 dark:bg-gray-800">
-      <nav className="bg-white border-gray-200 px-4 lg:px-6 py-2.5 dark:bg-gray-800 sticky">
+    <header className="sticky top-0 z-40 flex-none mx-auto w-full border-b border-gray-200 dark:border-gray-600">
+      <nav className="px-4 lg:px-6 py-2.5 bg-white/80 backdrop-blur dark:bg-gray-800/80">
         <div className="flex flex-wrap justify-between items-center mx-auto max-w-screen-xl">
           <Link href="/" className="flex items-center">
             <span className="self-center text-xl font-semibold whitespace-nowrap dark:text-white cursor-pointer">

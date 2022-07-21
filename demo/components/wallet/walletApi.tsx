@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Mesh from "@martifylabs/mesh";
-import { Button, Card, Codeblock } from "../../components";
+import { Button, Card, Codeblock, Input, Toggle } from "../../components";
 
 export default function WalletApi() {
   return (
@@ -138,6 +138,7 @@ function DemoAssetParams() {
     "ab8a25c96cb18e174d2522ada5f7c7d629724a50f9c200c12569b4e2"
   );
   const [includeOnchain, setIncludeOnchain] = useState(true);
+  const [limit, setLimit] = useState<string>("");
 
   async function runDemo() {
     setLoading(true);
@@ -146,10 +147,15 @@ function DemoAssetParams() {
       network: 0,
     });
 
-    const res = await Mesh.wallet.getAssets({
+    let params = {
       policyId: policyId,
       includeOnchain: includeOnchain,
-    });
+    };
+    if (limit) {
+      params["limit"] = parseInt(limit);
+    }
+
+    const res = await Mesh.wallet.getAssets(params);
     setResponse(res);
     setLoading(false);
   }
@@ -160,6 +166,9 @@ function DemoAssetParams() {
   }
   if (includeOnchain) {
     codeSnippet += `  includeOnchain: ${includeOnchain},\n`;
+  }
+  if (limit) {
+    codeSnippet += `  limit: ${limit},\n`;
   }
   codeSnippet += `}`;
 
@@ -182,30 +191,38 @@ function DemoAssetParams() {
         <div className="mt-8">
           <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
             <tbody>
-              <tr className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+              <tr>
                 <td className="py-4 px-4 w-1/4">Policy ID</td>
                 <td className="py-4 px-4 w-3/4">
-                  <input
-                    type="text"
-                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                    placeholder="policyId"
-                    onChange={(e) => setPolicyId(e.target.value)}
+                  <Input
                     value={policyId}
+                    onChange={(e) => setPolicyId(e.target.value)}
+                    placeholder="policyId"
                   />
                 </td>
               </tr>
-
-              <tr className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+              <tr>
                 <td className="py-4 px-4 w-1/4">
                   Include on-chain information
                 </td>
                 <td className="py-4 px-4 w-3/4">
-                  <input
+                  {/* <input
                     id="default-checkbox"
                     type="checkbox"
                     checked={includeOnchain}
                     onChange={() => setIncludeOnchain(!includeOnchain)}
                     className="w-4 h-4 text-blue-600 bg-gray-100 rounded border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  /> */}
+                  <Toggle value={includeOnchain} onChange={setIncludeOnchain} />
+                </td>
+              </tr>
+              <tr>
+                <td className="py-4 px-4 w-1/4">Limit</td>
+                <td className="py-4 px-4 w-3/4">
+                  <Input
+                    value={limit}
+                    onChange={(e) => setLimit(e.target.value)}
+                    placeholder="limit"
                   />
                 </td>
               </tr>

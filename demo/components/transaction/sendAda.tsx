@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Mesh from "@martifylabs/mesh";
-import { Button, Card, Codeblock } from "../../components";
+import { Button, Card, Codeblock, Input } from "../../components";
 import { TrashIcon, PlusCircleIcon } from "@heroicons/react/solid";
 
 export default function SendAda() {
@@ -72,21 +72,17 @@ function CodeDemo() {
 
   function updateAsset(index, assetId, value) {
     let newRecipients = [...recipients];
-    newRecipients[index].assets[assetId] = value;
+    newRecipients[index].assets[assetId] = parseInt(value);
     setRecipients(newRecipients);
   }
 
   async function makeTransaction() {
-    if (process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY === undefined) {
-      throw "Need blockfrost API key";
-    }
-
     setState(1);
 
     try {
       const tx = await Mesh.transaction.new({
         outputs: recipients,
-        blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY,
+        blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY!,
         network: 0,
       });
 
@@ -116,34 +112,28 @@ function CodeDemo() {
             <th scope="col" className="py-3 px-6">
               Lovelace
             </th>
-            <th scope="col" className="py-3 px-6"></th>
+            <th scope="col"></th>
           </tr>
         </thead>
         <tbody>
           {recipients.map((recipient, i) => {
             return (
-              <tr
-                className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
-                key={i}
-              >
+              <tr key={i}>
                 <td className="py-4 px-4 w-3/4">
-                  <input
-                    type="text"
-                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                    placeholder="address"
+                  <Input
+                    value={recipient.address}
                     onChange={(e) =>
                       updateAddress(i, "address", e.target.value)
                     }
-                    value={recipient.address}
+                    placeholder="address"
                   />
                 </td>
                 <td className="py-4 px-4 w-1/4">
-                  <input
-                    type="text"
-                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                    placeholder="lovelace"
-                    onChange={(e) => updateAsset(i, "lovelace", e.target.value)}
+                  <Input
                     value={recipient.assets.lovelace}
+                    onChange={(e) => updateAsset(i, "lovelace", e.target.value)}
+                    placeholder="lovelace"
+                    type="number"
                   />
                 </td>
                 <td className="py-4 px-4">

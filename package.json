@@ -1,7 +1,7 @@
 {
   "name": "@martifylabs/mesh",
   "description": "Blockchain solutions on Cardano.",
-  "version": "0.0.3-beta.49",
+  "version": "0.0.3-beta.50",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "module": "dist/index.js",

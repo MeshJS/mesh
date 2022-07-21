@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Mesh from "@martifylabs/mesh";
-import { Button, Card, Codeblock } from "../../components";
+import { Button, Card, Codeblock, Input } from "../../components";
 import { TrashIcon, PlusCircleIcon } from "@heroicons/react/solid";
 
 export default function SendMultiassets() {
@@ -146,25 +146,22 @@ function CodeDemo() {
               </tr>
             </thead>
             <tbody>
-              <tr className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+              <tr>
                 <td className="py-4 px-4 w-3/4">
-                  <input
-                    type="text"
-                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                    placeholder="address"
+                  <Input
+                    value={recipients[0].address}
                     onChange={(e) =>
                       updateAddress(0, "address", e.target.value)
                     }
-                    value={recipients[0].address}
+                    placeholder="address"
                   />
                 </td>
                 <td className="py-4 px-4 w-1/4">
-                  <input
-                    type="text"
-                    className="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                    placeholder="lovelace"
-                    onChange={(e) => updateLovelace(e.target.value)}
+                  <Input
                     value={lovelace}
+                    onChange={(e) => updateLovelace(e.target.value)}
+                    placeholder="lovelace"
+                    type="number"
                   />
                 </td>
               </tr>

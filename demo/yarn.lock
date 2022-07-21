@@ -158,6 +158,11 @@
   resolved "https://registry.yarnpkg.com/@gar/promisify/-/promisify-1.1.3.tgz#555193ab2e3bb3b6adc3d551c9c030d9e860daf6"
   integrity sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw==
 
+"@headlessui/react@^1.6.6":
+  version "1.6.6"
+  resolved "https://registry.yarnpkg.com/@headlessui/react/-/react-1.6.6.tgz#3073c066b85535c9d28783da0a4d9288b5354d0c"
+  integrity sha512-MFJtmj9Xh/hhBMhLccGbBoSk+sk61BlP6sJe4uQcVMtXZhCgGqd2GyIQzzmsdPdTEWGSF434CBi8mnhR6um46Q==
+
 "@heroicons/react@^1.0.6":
   version "1.0.6"
   resolved "https://registry.yarnpkg.com/@heroicons/react/-/react-1.0.6.tgz#35dd26987228b39ef2316db3b1245c42eb19e324"
@@ -200,19 +205,9 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
-"@martifylabs/mesh@../martifylabs-mesh-v0.0.3-beta.48.tgz":
-  version "0.0.3-beta.48"
-  resolved "../martifylabs-mesh-v0.0.3-beta.48.tgz#52a9b767949a02ec06dcb4721b358f5044d510a8"
-  dependencies:
-    "@emurgo/cardano-serialization-lib-browser" "10.2.0"
-    "@emurgo/cardano-serialization-lib-nodejs" "10.2.0"
-    axios "0.27.2"
-    bip39 "3.0.4"
-    crypto-random-string "5.0.0"
-
-"@martifylabs/mesh@../martifylabs-mesh-v0.0.3-beta.49.tgz":
-  version "0.0.3-beta.49"
-  resolved "../martifylabs-mesh-v0.0.3-beta.49.tgz#5a047b6fa3d1e715bd787c0e975c4e5a32ee53b4"
+"@martifylabs/mesh@../martifylabs-mesh-v0.0.3-beta.50.tgz":
+  version "0.0.3-beta.50"
+  resolved "../martifylabs-mesh-v0.0.3-beta.50.tgz#c693bc2e8bd7844c0a418e366cbbca7f4002e763"
   dependencies:
     "@emurgo/cardano-serialization-lib-browser" "10.2.0"
     "@emurgo/cardano-serialization-lib-nodejs" "10.2.0"
