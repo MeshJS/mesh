@@ -25,7 +25,7 @@ export class Blockfrost {
     });
   }
 
-  isLoaded(){
+  isLoaded() {
     return this._instance !== undefined;
   }
 

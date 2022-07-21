@@ -26,7 +26,7 @@ function Showcase() {
         {walletConnected && (
           <>
             <SendAda />
-            {/* <SendMultiassets /> */}
+            <SendMultiassets />
           </>
         )}
       </div>

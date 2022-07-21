@@ -65,7 +65,8 @@ export type Asset = {
   quantity: number;
   policy: string;
   name: string;
-  onchain?: {};
+  onchain?: { onchain_metadata: { image: string } };
+  image?: string;
 };
 
 export type Assets = {

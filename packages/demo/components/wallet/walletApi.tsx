@@ -75,13 +75,20 @@ export default function WalletApi() {
         demoStr={"Mesh.wallet.getLovelace()"}
       />
 
+      <DemoSection
+        title="Get assets"
+        desc="Get assets"
+        demoFn={Mesh.wallet.getAssets()}
+        demoStr={"Mesh.wallet.getAssets()"}
+      />
+
       <DemoAssetParams />
     </>
   );
 }
 
 function DemoSection({ title, desc, demoFn, demoStr }) {
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<null | any>(null);
 
   async function runDemo() {
@@ -125,7 +132,7 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
 }
 
 function DemoAssetParams() {
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<null | any>(null);
   const [policyId, setPolicyId] = useState<string>("");
   const [includeOnchain, setIncludeOnchain] = useState<boolean>(false);
@@ -156,6 +163,21 @@ function DemoAssetParams() {
     const res = await Mesh.wallet.getAssets(params);
     setResponse(res);
     setLoading(false);
+  }
+
+  let codeSnippet = `const result = await Mesh.wallet.getAssets({\n`;
+  if (policyId) {
+    codeSnippet += policyId && `  policyId: "${policyId}",\n`;
+  }
+  if (includeOnchain) {
+    codeSnippet += `  includeOnchain: ${includeOnchain},\n`;
+  }
+  codeSnippet += `}`;
+
+  if (includeOnchain) {
+    codeSnippet =
+      `await Mesh.blockfrost.init({\n  blockfrostApiKey: "BLOCKFROST_API_KEY",\n  network: 0,\n});\n\n` +
+      codeSnippet;
   }
 
   let hasParams = false;
@@ -199,7 +221,7 @@ function DemoAssetParams() {
     <Card>
       <div className="grid gap-4 grid-cols-2">
         <div className="">
-          <h3>Get assets</h3>
+          <h3>Get assets with parameters</h3>
           <p>
             Get assets, filtered by policy ID and query on-chain information.
           </p>
@@ -218,7 +240,8 @@ function DemoAssetParams() {
                   />
                 </td>
               </tr>
-              <tr>
+
+              <tr className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
                 <td className="py-4 px-4 w-1/4">
                   Include on-chain information
                 </td>
