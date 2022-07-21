@@ -357,28 +357,23 @@ export class Wallet {
 
     let assets: Asset[] = [];
     if (value.multiasset()) {
-      const multiAssets = value.multiasset()?.keys();
-      if (multiAssets) {
-        for (let j = 0; j < multiAssets.len(); j++) {
-          const policy = multiAssets.get(j);
-          const policyAssets = value.multiasset()?.get(policy);
-          let assetNames = policyAssets?.keys();
-          if (policyAssets && assetNames) {
-            for (let k = 0; k < assetNames.len(); k++) {
-              const policyAsset = assetNames.get(k);
-              const quantity = policyAssets.get(policyAsset)!;
-              const asset =
-                toHex(policy.to_bytes()) + toHex(policyAsset.name());
-              const _policy = asset.slice(0, 56);
-              const _name = asset.slice(56);
-              assets.push({
-                unit: asset,
-                quantity: parseInt(quantity.to_str()),
-                policy: _policy,
-                name: HexToAscii(_name),
-              });
-            }
-          }
+      const multiAssets = value.multiasset().keys();
+      for (let j = 0; j < multiAssets.len(); j++) {
+        const policy = multiAssets.get(j);
+        const policyAssets = value.multiasset().get(policy);
+        let assetNames = policyAssets.keys();
+        for (let k = 0; k < assetNames.len(); k++) {
+          const policyAsset = assetNames.get(k);
+          const quantity = policyAssets.get(policyAsset);
+          const asset = toHex(policy.to_bytes()) + toHex(policyAsset.name());
+          const _policy = asset.slice(0, 56);
+          const _name = asset.slice(56);
+          assets.push({
+            unit: asset,
+            quantity: parseInt(quantity.to_str()),
+            policy: _policy,
+            name: HexToAscii(_name),
+          });
         }
       }
     }
