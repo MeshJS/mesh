@@ -483,18 +483,18 @@ export class Wallet {
     } else {
       aux = transaction.auxiliary_data();
     }
-
+    
     try {
-      const signedTx = await csl.Transaction.new(
+      const signedTx = await SerializationLib.Instance.Transaction.new(
         transaction.body(),
         totalWitnesses,
         aux
       );
-
+  
       const txHash = await this.submitTx({ tx: toHex(signedTx.to_bytes()) });
       return txHash;
     } catch (error) {
-      throw error;
+      console.error("KABOOOM!", error);
     }
   }
 }
