@@ -369,13 +369,18 @@ export class Wallet {
     } else {
       aux = transaction.auxiliary_data();
     }
-    const signedTx = await SerializationLib.Instance.Transaction.new(
-      transaction.body(),
-      totalWitnesses,
-      aux
-    );
-
-    const txHash = await this.submitTx({ tx: toHex(signedTx.to_bytes()) });
-    return txHash;
+    
+    try {
+      const signedTx = await SerializationLib.Instance.Transaction.new(
+        transaction.body(),
+        totalWitnesses,
+        aux
+      );
+  
+      const txHash = await this.submitTx({ tx: toHex(signedTx.to_bytes()) });
+      return txHash;
+    } catch (error) {
+      console.error("KABOOOM!", error);
+    }
   }
 }

@@ -104,7 +104,7 @@ export class Transaction {
         )
       );
     });
-    txBuilder.add_inputs_from(coreUtxos, 0);
+    txBuilder.add_inputs_from(coreUtxos, 2);
   }
 
   private async _addPaymentAda({
@@ -196,7 +196,7 @@ export class Transaction {
     console.log(999, txOutputs);
 
     outputs.map((output, i) => {
-      if (output.address == undefined || output.address.length == 0) {
+      if (output.address === undefined || output.address.length === 0) {
         throw MakeTxError.NoRecipientsAddress;
       }
       console.log(11, output);
@@ -204,7 +204,7 @@ export class Transaction {
       // add lovelace
       let outputValue = SerializationLib.Instance.Value.new(
         SerializationLib.Instance.BigNum.from_str(
-          output.assets["lovelace"].toString()
+          "2000000" // the minimum UTXO value
         )
       );
       console.log(22, output.assets["lovelace"], outputValue);
@@ -276,10 +276,10 @@ export class Transaction {
     // end: init
 
     // add outputs
-    await this._addOutputsJustADA({ txBuilder, outputs });
+    // await this._addOutputsJustADA({ txBuilder, outputs });
 
-    // // new add outputs
-    // await this._addOutputs({ txBuilder, outputs });
+    // new add outputs
+    await this._addOutputs({ txBuilder, outputs });
 
     // add utxo
     console.log("_addInputUtxo");
