@@ -57,7 +57,7 @@ export default function ConnectWallet({ walletConnected, setWalletConnected }) {
                 key={walletName}
                 onClick={() => connectWallet(walletName)}
                 style={walletConnected == walletName ? "success" : "light"}
-                disabled={connecting}
+                disabled={connecting || walletConnected == walletName}
               >
                 <img
                   src={`/wallets/${WALLETS[walletName].logo}`}

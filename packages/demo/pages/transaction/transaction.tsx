@@ -3,6 +3,7 @@ import { Metatags } from "../../components";
 import ConnectWallet from "../../components/wallet/connectWallet";
 import SendAda from "../../components/transaction/sendAda";
 import SendMultiassets from "../../components/transaction/sendMultiassets";
+import TransactionBuilder from "../../components/transaction/transactionBuilder";
 
 const Transaction = () => {
   return (
@@ -27,6 +28,7 @@ function Showcase() {
           <>
             <SendAda />
             <SendMultiassets />
+            <TransactionBuilder />
           </>
         )}
       </div>

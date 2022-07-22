@@ -75,8 +75,11 @@ function CodeDemo() {
     try {
       const tx = await Mesh.transaction.build({
         outputs: recipients,
-        blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY!,
-        network: 0,
+        blockfrostApiKey:
+          (await Mesh.wallet.getNetworkId()) === 1
+            ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
+            : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+        network: await Mesh.wallet.getNetworkId(),
       });
 
       const signature = await Mesh.wallet.signTx({ tx });
