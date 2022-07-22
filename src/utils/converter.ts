@@ -36,16 +36,22 @@ export const assetsToValue = (assets: Assets) => {
         SerializationLib.Instance.BigNum.from_str(assets[unit].toString())
       );
     });
-    multiAsset.insert(SerializationLib.Instance.ScriptHash.from_bytes(fromHex(policy)), assetsValue);
+    multiAsset.insert(
+      SerializationLib.Instance.ScriptHash.from_bytes(fromHex(policy)),
+      assetsValue
+    );
   });
   const value = SerializationLib.Instance.Value.new(
-    SerializationLib.Instance.BigNum.from_str(lovelace ? lovelace.toString() : "0")
+    SerializationLib.Instance.BigNum.from_str(
+      lovelace ? lovelace.toString() : "0"
+    )
   );
   if (units.length > 1 || !lovelace) value.set_multiasset(multiAsset);
   return value;
 };
 
-export const StringToBigNum = (string) => SerializationLib.Instance.BigNum.from_str(string);
+export const StringToBigNum = (string) =>
+  SerializationLib.Instance.BigNum.from_str(string);
 
 export const utxoToCore = (utxo: UTxO) => {
   const output = SerializationLib.Instance.TransactionOutput.new(
@@ -55,14 +61,17 @@ export const utxoToCore = (utxo: UTxO) => {
 
   return SerializationLib.Instance.TransactionUnspentOutput.new(
     SerializationLib.Instance.TransactionInput.new(
-      SerializationLib.Instance.TransactionHash.from_bytes(fromHex(utxo.txHash)),
+      SerializationLib.Instance.TransactionHash.from_bytes(
+        fromHex(utxo.txHash)
+      ),
       utxo.outputIndex
     ),
     output
   );
 };
 
-export const StringToAddress = (string) => SerializationLib.Instance.Address.from_bech32(string);
+export const StringToAddress = (string) =>
+  SerializationLib.Instance.Address.from_bech32(string);
 
 export const harden = (num) => {
   return 0x80000000 + num;
@@ -88,4 +97,27 @@ export const utxoFromJson = async (output, address) => {
       await assetsToValue(output.amount)
     )
   );
+};
+
+export const valueToAssets = (value) => {
+  const assets: { unit: string; quantity: string }[] = [];
+  assets.push({ unit: "lovelace", quantity: value.coin().to_str() });
+  if (value.multiasset()) {
+    const multiAssets = value.multiasset().keys();
+    for (let j = 0; j < multiAssets.len(); j++) {
+      const policy = multiAssets.get(j);
+      const policyAssets = value.multiasset().get(policy);
+      const assetNames = policyAssets.keys();
+      for (let k = 0; k < assetNames.len(); k++) {
+        const policyAsset = assetNames.get(k);
+        const quantity = policyAssets.get(policyAsset);
+        const asset = toHex(policy.to_bytes()) + toHex(policyAsset.name());
+        assets.push({
+          unit: asset,
+          quantity: quantity.to_str(),
+        });
+      }
+    }
+  }
+  return assets;
 };

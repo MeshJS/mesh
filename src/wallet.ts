@@ -6,7 +6,12 @@ import SerializationLib from "./provider/serializationlib.js";
 
 import { WalletApi, Asset } from "./types/index.js";
 import { MIN_ADA_REQUIRED } from "./global.js";
-import { HexToAscii, toHex, fromHex } from "./utils/converter.js";
+import {
+  HexToAscii,
+  toHex,
+  fromHex,
+  valueToAssets,
+} from "./utils/converter.js";
 import { linkToSrc, convertMetadataPropToString } from "./utils/metadata.js";
 import { Blockfrost } from "./provider/blockfrost.js";
 
@@ -73,8 +78,42 @@ export class Wallet {
    * return a list of all UTXOs (unspent transaction outputs) controlled by the wallet
    * @returns list of all UTXOs
    */
-  async getUtxos(): Promise<string[] | undefined> {
-    return await this._provider.getUtxos();
+  async getUtxos(options?: {
+    returnAssets?: boolean;
+  }): Promise<{}[] | string[] | undefined> {
+    let utxos = await this._provider.getUtxos();
+
+    if (options?.returnAssets && options.returnAssets) {
+      if (utxos === undefined) {
+        throw "No utxos";
+      }
+
+      let utxosAssets: {}[] = [];
+
+      utxos.map((u) => {
+        let thisUtxo = { hex: u, assets: {} };
+
+        const nn =
+          SerializationLib.Instance.TransactionUnspentOutput.from_bytes(
+            Buffer.from(u, "hex")
+          );
+
+        valueToAssets(nn.output().amount()).forEach((nnn) => {
+          const unit = nnn.unit;
+          const _policy = unit.slice(0, 56);
+          const _name = HexToAscii(unit.slice(56));
+          const assetId =
+            _policy == "lovelace" ? "lovelace" : `${_policy}.${_name}`;
+          thisUtxo.assets[assetId] = parseInt(nnn.quantity);
+        });
+
+        utxosAssets.push(thisUtxo);
+      });
+
+      return utxosAssets;
+    }
+
+    return utxos;
   }
 
   async getBalance(): Promise<string> {
@@ -369,18 +408,18 @@ export class Wallet {
     } else {
       aux = transaction.auxiliary_data();
     }
-    
+
     try {
       const signedTx = await SerializationLib.Instance.Transaction.new(
         transaction.body(),
         totalWitnesses,
         aux
       );
-  
+
       const txHash = await this.submitTx({ tx: toHex(signedTx.to_bytes()) });
       return txHash;
     } catch (error) {
-      console.error("KABOOOM!", error);
+      throw error;
     }
   }
 }

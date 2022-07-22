@@ -1,4 +1,5 @@
 export const MIN_ADA_REQUIRED = 1000000;
+export const MIN_ADA_REQUIRED_WITH_ASSETS = 2000000;
 export const ADA_BUFFER_REQUIRED = 2000000;
 export const IPFS_PROVIDER = 'https://infura-ipfs.io/ipfs/';
 

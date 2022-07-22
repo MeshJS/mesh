@@ -82,8 +82,11 @@ function CodeDemo() {
     try {
       const tx = await Mesh.transaction.new({
         outputs: recipients,
-        blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY!,
-        network: 0,
+        blockfrostApiKey:
+          (await Mesh.wallet.getNetworkId()) === 1
+            ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
+            : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+        network: await Mesh.wallet.getNetworkId(),
       });
 
       const signature = await Mesh.wallet.signTx({ tx });
@@ -170,7 +173,7 @@ function CodeDemo() {
 const tx = await Mesh.transaction.new({
   outputs: recipients,
   blockfrostApiKey: "BLOCKFROST_API_KEY",
-  network: 0, // 0 for testnet, 1 for mainnet
+  network: await Mesh.wallet.getNetworkId(),
 });
 
 const signature = await Mesh.wallet.signTx({ tx });

@@ -75,13 +75,6 @@ export default function WalletApi() {
         demoStr={"Mesh.wallet.getLovelace()"}
       />
 
-      <DemoSection
-        title="Get assets"
-        desc="Get assets"
-        demoFn={Mesh.wallet.getAssets()}
-        demoStr={"Mesh.wallet.getAssets()"}
-      />
-
       <DemoAssetParams />
     </>
   );
@@ -134,17 +127,18 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
 function DemoAssetParams() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<null | any>(null);
-  const [policyId, setPolicyId] = useState(
-    "ab8a25c96cb18e174d2522ada5f7c7d629724a50f9c200c12569b4e2"
-  );
-  const [includeOnchain, setIncludeOnchain] = useState(true);
-  const [limit, setLimit] = useState<string>("");
+  const [policyId, setPolicyId] = useState("");
+  const [includeOnchain, setIncludeOnchain] = useState(false);
+  const [limit, setLimit] = useState<string>("9");
 
   async function runDemo() {
     setLoading(true);
     await Mesh.blockfrost.init({
-      blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY!,
-      network: 0,
+      blockfrostApiKey:
+        (await Mesh.wallet.getNetworkId()) === 1
+          ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
+          : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+      network: await Mesh.wallet.getNetworkId(),
     });
 
     let params = {
@@ -152,7 +146,10 @@ function DemoAssetParams() {
       includeOnchain: includeOnchain,
     };
     if (limit) {
-      params["limit"] = parseInt(limit);
+      let _limit = parseInt(limit);
+      if (_limit > 0) {
+        params["limit"] = _limit;
+      }
     }
 
     const res = await Mesh.wallet.getAssets(params);
@@ -160,17 +157,28 @@ function DemoAssetParams() {
     setLoading(false);
   }
 
-  let codeSnippet = `const result = await Mesh.wallet.getAssets({\n`;
+  let hasParams = false;
+  let codeSnippet = ``;
   if (policyId) {
+    hasParams = true;
     codeSnippet += policyId && `  policyId: "${policyId}",\n`;
   }
   if (includeOnchain) {
+    hasParams = true;
     codeSnippet += `  includeOnchain: ${includeOnchain},\n`;
   }
   if (limit) {
-    codeSnippet += `  limit: ${limit},\n`;
+    let _limit = parseInt(limit);
+    if (_limit > 0) {
+      hasParams = true;
+      codeSnippet += `  limit: ${limit},\n`;
+    }
   }
-  codeSnippet += `}`;
+  if (hasParams) {
+    codeSnippet = `const result = await Mesh.wallet.getAssets({\n${codeSnippet}});`;
+  } else {
+    codeSnippet = `const result = await Mesh.wallet.getAssets();`;
+  }
 
   if (includeOnchain) {
     codeSnippet =
@@ -182,7 +190,7 @@ function DemoAssetParams() {
     <Card>
       <div className="grid gap-4 grid-cols-2">
         <div className="">
-          <h3>Get assets with parameters</h3>
+          <h3>Get assets</h3>
           <p>
             Get assets, filtered by policy ID and query on-chain information.
           </p>
@@ -206,13 +214,6 @@ function DemoAssetParams() {
                   Include on-chain information
                 </td>
                 <td className="py-4 px-4 w-3/4">
-                  {/* <input
-                    id="default-checkbox"
-                    type="checkbox"
-                    checked={includeOnchain}
-                    onChange={() => setIncludeOnchain(!includeOnchain)}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 rounded border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                  /> */}
                   <Toggle value={includeOnchain} onChange={setIncludeOnchain} />
                 </td>
               </tr>
@@ -223,6 +224,7 @@ function DemoAssetParams() {
                     value={limit}
                     onChange={(e) => setLimit(e.target.value)}
                     placeholder="limit"
+                    type="number"
                   />
                 </td>
               </tr>
@@ -253,49 +255,3 @@ function DemoAssetParams() {
     </Card>
   );
 }
-
-// function DemoAssetsPolicyId() {
-//   const [response, setResponse] = useState<null | any>(null);
-//   const [policyId, setPolicyId] = useState(
-//     "ab8a25c96cb18e174d2522ada5f7c7d629724a50f9c200c12569b4e2"
-//   );
-
-//   async function runDemo() {
-//     const res = await Mesh.wallet.getAssets({
-//       policyId: policyId,
-//     });
-//     setResponse(res);
-//   }
-
-//   return (
-//     <section className="mt-4">
-//       <div className="flex gap-4">
-//         <div className="flex-1">
-//           <h2 className="text-2xl dark:text-white">
-//             Get assets and filtered by policy ID
-//           </h2>
-//           <p className="font-light text-gray-500 sm:text-lg dark:text-gray-400 prose">
-//             Get assets and filtered by policy ID
-//           </p>
-//         </div>
-
-//         <div className="flex-1">
-//           {response !== null ? (
-//             <Codeblock data={response} />
-//           ) : (
-//             <>
-//               <input
-//                 className="w-full bg-gray-100 rounded p-2 border focus:outline-none focus:border-blue-500"
-//                 value={policyId}
-//                 onChange={(e) => setPolicyId(e.target.value)}
-//                 type="text"
-//                 placeholder="policy ID"
-//               />
-//               <Button onClick={() => runDemo()}>Try it</Button>
-//             </>
-//           )}
-//         </div>
-//       </div>
-//     </section>
-//   );
-// }

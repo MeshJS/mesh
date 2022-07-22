@@ -1,5 +1,5 @@
 import { Blockfrost } from "./provider/blockfrost.js";
-import { MIN_ADA_REQUIRED } from "./global.js";
+import { MIN_ADA_REQUIRED, MIN_ADA_REQUIRED_WITH_ASSETS } from "./global.js";
 import {
   toHex,
   StringToBigNum,
@@ -90,7 +90,7 @@ export class Transaction {
 
   // TODO: can we filter UTXOs to only those that needed by inputs
   private async _addInputUtxo({ txBuilder }) {
-    const utxos = await this.wallet.getUtxos();
+    const utxos = await this.wallet.getUtxos() as string[];
 
     if (utxos === undefined) {
       throw "No utxos";
@@ -202,10 +202,12 @@ export class Transaction {
       console.log(11, output);
 
       // add lovelace
+      let amountLovelace =
+        output.lovelace && output.lovelace > MIN_ADA_REQUIRED_WITH_ASSETS
+          ? output.lovelace
+          : MIN_ADA_REQUIRED_WITH_ASSETS;
       let outputValue = SerializationLib.Instance.Value.new(
-        SerializationLib.Instance.BigNum.from_str(
-          "2000000" // the minimum UTXO value
-        )
+        SerializationLib.Instance.BigNum.from_str(amountLovelace.toString())
       );
       console.log(22, output.assets["lovelace"], outputValue);
 
