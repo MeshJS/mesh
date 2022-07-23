@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Mesh from "@martifylabs/mesh";
 import { Button, Card, Codeblock, Input } from "../../components";
 import { TrashIcon, PlusCircleIcon } from "@heroicons/react/solid";
+import { Recipient } from "../../types";
 
 export default function SendAda() {
   return (
@@ -37,15 +38,7 @@ export default function SendAda() {
 function CodeDemo() {
   const [state, setState] = useState(0);
   const [result, setResult] = useState<null | string>(null);
-  const [recipients, setRecipients] = useState([
-    {
-      address:
-        "addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt",
-      assets: {
-        lovelace: 1500000,
-      },
-    },
-  ]);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
 
   function add() {
     let newRecipients = [...recipients];
@@ -103,6 +96,24 @@ function CodeDemo() {
       setState(0);
     }
   }
+
+  useEffect(() => {
+    async function init() {
+      const newRecipents = [
+        {
+          address:
+            (await Mesh.wallet.getNetworkId()) === 1
+              ? process.env.NEXT_PUBLIC_TEST_ADDRESS_MAINNET!
+              : process.env.NEXT_PUBLIC_TEST_ADDRESS_TESTNET!,
+          assets: {
+            lovelace: 1500000,
+          },
+        },
+      ];
+      setRecipients(newRecipents);
+    }
+    init();
+  }, []);
 
   return (
     <>

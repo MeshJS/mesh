@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Mesh from "@martifylabs/mesh";
 import { Button, Card, Codeblock, Input, Toggle } from "../../components";
 
@@ -130,15 +130,16 @@ function DemoAssetParams() {
   const [policyId, setPolicyId] = useState("");
   const [includeOnchain, setIncludeOnchain] = useState(false);
   const [limit, setLimit] = useState<string>("9");
+  const [network, setNetwork] = useState<number>(0);
 
   async function runDemo() {
     setLoading(true);
     await Mesh.blockfrost.init({
       blockfrostApiKey:
-        (await Mesh.wallet.getNetworkId()) === 1
+        network === 1
           ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
           : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-      network: await Mesh.wallet.getNetworkId(),
+      network: network,
     });
 
     let params = {
@@ -182,9 +183,17 @@ function DemoAssetParams() {
 
   if (includeOnchain) {
     codeSnippet =
-      `await Mesh.blockfrost.init({\n  blockfrostApiKey: "BLOCKFROST_API_KEY",\n  network: 0,\n});\n\n` +
+      `await Mesh.blockfrost.init({\n  blockfrostApiKey: "BLOCKFROST_API_KEY",\n  network: await Mesh.wallet.getNetworkId(),\n});\n\n` +
       codeSnippet;
   }
+
+  useEffect(() => {
+    async function init() {
+      let network = await Mesh.wallet.getNetworkId();
+      setNetwork(network);
+    }
+    init();
+  }, []);
 
   return (
     <Card>

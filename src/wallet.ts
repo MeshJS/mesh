@@ -225,6 +225,7 @@ export class Wallet {
 
   /**
    * Return lovelace amount
+   * TODO: why get `underflow` error?
    * @returns lovelance
    */
   async getLovelace(): Promise<number> {

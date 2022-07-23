@@ -205,9 +205,10 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
-"@martifylabs/mesh@../martifylabs-mesh-v0.0.3-beta.57.tgz":
-  version "0.0.3-beta.57"
-  resolved "../martifylabs-mesh-v0.0.3-beta.57.tgz#f7950fd7378c4aff08a3283b8bae2b526d02bcb7"
+"@martifylabs/mesh@^0.0.3-beta.16":
+  version "0.0.3-beta.16"
+  resolved "https://registry.yarnpkg.com/@martifylabs/mesh/-/mesh-0.0.3-beta.16.tgz#fb8513079c6a4343382dbd87f345fb10241c77b1"
+  integrity sha512-n5+84UT9EYc7kDlriQ9U+ZZ8ppkeR0mp1GkD/yLGpLVd6P8KFRKI3AFI7mT5BNxiytZq05ELrvWraT/4ULJvLQ==
   dependencies:
     "@emurgo/cardano-serialization-lib-browser" "10.2.0"
     "@emurgo/cardano-serialization-lib-nodejs" "10.2.0"

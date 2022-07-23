@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Mesh from "@martifylabs/mesh";
 import { Button, Card, Codeblock, Input } from "../../components";
+import { Recipient } from "../../types";
 
 export default function SendMultiassets() {
   return (
@@ -20,9 +21,7 @@ export default function SendMultiassets() {
 function CodeDemo() {
   const [state, setState] = useState(0);
   const [result, setResult] = useState<null | string>(null);
-  const [recipients, setRecipients] = useState<
-    { address: string; assets: {} }[]
-  >([
+  const [recipients, setRecipients] = useState<Recipient[]>([
     {
       address:
         "addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt",
@@ -119,19 +118,31 @@ function CodeDemo() {
     setRecipients(newRecipients);
   }
 
-  // useEffect(() => {
-  //   getAssets();
-  // }, []);
+  useEffect(() => {
+    async function init() {
+      // getAssets();
+
+      const newRecipents = [
+        {
+          address:
+            (await Mesh.wallet.getNetworkId()) === 1
+              ? process.env.NEXT_PUBLIC_TEST_ADDRESS_MAINNET!
+              : process.env.NEXT_PUBLIC_TEST_ADDRESS_TESTNET!,
+          assets: {
+            lovelace: 1500000,
+          },
+        },
+      ];
+      setRecipients(newRecipents);
+    }
+    init();
+  }, []);
 
   return (
     <div className="grid gap-4 grid-cols-2">
       <div>
         {assets === null && state === 0 && (
-          <Button
-            onClick={() => getAssets()}
-          >
-            Get wallet assets
-          </Button>
+          <Button onClick={() => getAssets()}>Get wallet assets</Button>
         )}
 
         {assets === null && state === 1 && (
@@ -271,7 +282,7 @@ function CardAsset({ asset, selectedAssets, toggleSelectedAssets }) {
           />
         )}
       </div>
-      <div className="p-5 ">
+      <div className="p-5 overflow-auto tracking-tight">
         <b>{asset.name}</b>
       </div>
     </div>
