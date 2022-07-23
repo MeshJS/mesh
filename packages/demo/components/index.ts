@@ -1,12 +1,12 @@
-import Button from "./ui/button";
-import Codeblock from "./ui/codeblock";
+import Button from "./button";
+import Codeblock from "./codeblock";
 import Metatags from "./metatags";
 import Navbar from "./navbar";
-import Card from "./ui/card";
-import Modal from "./ui/modal";
-import Input from "./ui/input";
-import Toggle from "./ui/toggle";
-import Badge from "./ui/badge";
+import Card from "./card";
+import Modal from "./modal";
+import Input from "./input";
+import Toggle from "./toggle";
+import Badge from "./badge";
 
 export {
   Badge,
