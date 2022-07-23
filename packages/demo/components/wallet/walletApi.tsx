@@ -130,15 +130,16 @@ function DemoAssetParams() {
   const [policyId, setPolicyId] = useState("");
   const [includeOnchain, setIncludeOnchain] = useState(false);
   const [limit, setLimit] = useState<string>("9");
+  const [network, setNetwork] = useState<number>(0);
 
   async function runDemo() {
     setLoading(true);
     await Mesh.blockfrost.init({
       blockfrostApiKey:
-        (await Mesh.wallet.getNetworkId()) === 1
+        network === 1
           ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
           : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-      network: await Mesh.wallet.getNetworkId(),
+      network: network,
     });
 
     let params = {
@@ -155,35 +156,6 @@ function DemoAssetParams() {
     const res = await Mesh.wallet.getAssets(params);
     setResponse(res);
     setLoading(false);
-  }
-
-  let hasParams = false;
-  let codeSnippet = ``;
-  if (policyId) {
-    hasParams = true;
-    codeSnippet += policyId && `  policyId: "${policyId}",\n`;
-  }
-  if (includeOnchain) {
-    hasParams = true;
-    codeSnippet += `  includeOnchain: ${includeOnchain},\n`;
-  }
-  if (limit) {
-    let _limit = parseInt(limit);
-    if (_limit > 0) {
-      hasParams = true;
-      codeSnippet += `  limit: ${limit},\n`;
-    }
-  }
-  if (hasParams) {
-    codeSnippet = `const result = await Mesh.wallet.getAssets({\n${codeSnippet}});`;
-  } else {
-    codeSnippet = `const result = await Mesh.wallet.getAssets();`;
-  }
-
-  if (includeOnchain) {
-    codeSnippet =
-      `await Mesh.blockfrost.init({\n  blockfrostApiKey: "BLOCKFROST_API_KEY",\n  network: 0,\n});\n\n` +
-      codeSnippet;
   }
 
   let hasParams = false;

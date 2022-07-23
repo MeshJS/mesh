@@ -7,6 +7,7 @@ import {
   TrashIcon,
   PlusCircleIcon,
 } from "@heroicons/react/solid";
+import { Recipient } from "../../types";
 
 export default function TransactionBuilder() {
   return (
@@ -18,18 +19,16 @@ export default function TransactionBuilder() {
             Design your own transaction but selecting inputs UTXOs and defining
             the outputs.
           </p>
-          <p>
-            Todos:
-            <ul>
-              <li>show utxos in that shorter hex</li>
-              <li>show utxo in each address</li>
-              <li>
-                open up transaction build function, where user can define the
-                TTL, input UTXOs and change address. either overload
-                `Mesh.transaction.new` or another function
-              </li>
-            </ul>
-          </p>
+          <p>Todos:</p>
+          <ul>
+            <li>show utxos in that shorter hex</li>
+            <li>show utxo in each address</li>
+            <li>
+              open up transaction build function, where user can define the TTL,
+              input UTXOs and change address. either overload
+              `Mesh.transaction.new` or another function
+            </li>
+          </ul>
         </div>
         <div className="mt-8"></div>
       </div>
@@ -42,21 +41,25 @@ function PrepareInputsOutputs() {
   const [state, setState] = useState(0);
   const [utxos, setUtxos] = useState<{}[] | string[] | undefined>([]);
   const [selectedUtxos, setSelectedUtxos] = useState<string[]>([]);
-  const [recipients, setRecipients] = useState<
-    { address: string; assets: {} }[]
-  >([
-    {
-      address:
-        "addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt",
-      assets: {},
-    },
-  ]);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
 
   useEffect(() => {
-    async function getUtxos() {
+    async function init() {
       setUtxos(await Mesh.wallet.getUtxos({ returnAssets: true }));
+      const newRecipents = [
+        {
+          address:
+            (await Mesh.wallet.getNetworkId()) === 1
+              ? process.env.NEXT_PUBLIC_TEST_ADDRESS_MAINNET!
+              : process.env.NEXT_PUBLIC_TEST_ADDRESS_TESTNET!,
+          assets: {
+            lovelace: 1500000,
+          },
+        },
+      ];
+      setRecipients(newRecipents);
     }
-    getUtxos();
+    init();
   }, []);
 
   return (
@@ -81,7 +84,12 @@ function PrepareInputsOutputs() {
           />
         </div>
       </div>
-      <CodeDemo recipients={recipients} state={state} setState={setState} />
+      <CodeDemo
+        recipients={recipients}
+        state={state}
+        setState={setState}
+        selectedUtxos={selectedUtxos}
+      />
     </>
   );
 }
@@ -362,8 +370,18 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
   );
 }
 
-function CodeDemo({ recipients, state, setState }) {
+function CodeDemo({ recipients, state, setState, selectedUtxos }) {
   const [result, setResult] = useState<null | string>(null);
+  const [ttl, setTtl] = useState("");
+  const [message, setMessage] = useState("");
+  const [changeAddress, setChangeAddress] = useState("");
+
+  useEffect(() => {
+    async function getWalletAddress() {
+      setChangeAddress(await Mesh.wallet.getWalletAddress());
+    }
+    getWalletAddress();
+  }, []);
 
   async function makeTransaction() {
     setState(1);
@@ -393,20 +411,25 @@ function CodeDemo({ recipients, state, setState }) {
     }
   }
 
-  return (
-    <div className="grid gap-4 grid-cols-2">
-      <div>
-        <h4>Define transaction parameters</h4>
-      </div>
-      <div>
-        <Codeblock
-          data={`const recipients = ${JSON.stringify(recipients, null, 2)}}
+  let utxoSnippet = JSON.stringify(selectedUtxos, null, 2);
+  utxoSnippet = utxoSnippet.replace(new RegExp("  ", "g"), "    ");
+  utxoSnippet = utxoSnippet.replace(new RegExp("]", "g"), "  ]");
+
+  let codeSnippet = `const recipients = ${JSON.stringify(recipients, null, 2)}}
 
 const tx = await Mesh.transaction.build({
-  inputs: get selected utxos here,
+  inputs: ${utxoSnippet},
   outputs: recipients,
-  ttl: get ttl value,
-  message: get message here,
+  changeAddress: "${changeAddress}",`;
+
+  if (ttl != "") {
+    codeSnippet += `\n  ttl: ${ttl},`;
+  }
+  if (message != "") {
+    codeSnippet += `\n  message: "${message}",`;
+  }
+
+  codeSnippet += `
   blockfrostApiKey: "BLOCKFROST_API_KEY",
   network: await Mesh.wallet.getNetworkId(),
 });
@@ -416,9 +439,73 @@ const signature = await Mesh.wallet.signTx({ tx });
 const txHash = await Mesh.wallet.submitTransaction({
   tx: tx,
   witnesses: [signature],
-});`}
-          isJson={false}
-        />
+});`;
+
+  return (
+    <div className="grid gap-4 grid-cols-2">
+      <div>
+        <h4>Define transaction parameters</h4>
+
+        <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+          <tbody>
+            <tr>
+              <td className="py-4 px-4 w-1/4">Change Address</td>
+              <td className="py-4 px-4 w-3/4">
+                <Input
+                  value={changeAddress}
+                  onChange={(e) => setChangeAddress(e.target.value)}
+                  placeholder="change address"
+                />
+                <p>
+                  Change Address - is a bech32 address that will receive the
+                  remaining assets as "change".
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td className="py-4 px-4 w-1/4">TTL</td>
+              <td className="py-4 px-4 w-3/4">
+                <Input
+                  value={ttl}
+                  onChange={(e) => setTtl(e.target.value)}
+                  placeholder="ttl"
+                  type="number"
+                />
+                <p>
+                  Time-to-live (TTL) - represents a slot, or deadline by which a
+                  transaction must be submitted. The TTL is an absolute slot
+                  number, rather than a relative one, which means that the --ttl
+                  value should be greater than the current slot number. A
+                  transaction becomes invalid once its ttl expires.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td className="py-4 px-4 w-1/4">Message</td>
+              <td className="py-4 px-4 w-3/4">
+                <Input
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="message"
+                />
+                <p>
+                  Transaction message is introduced in{" "}
+                  <a
+                    href="https://cips.cardano.org/cips/cip20/"
+                    rel="noreferrer"
+                  >
+                    CIP 20
+                  </a>
+                  , an optional metadata to add messages, comments or memos to
+                  transactions.
+                </p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <Codeblock data={codeSnippet} isJson={false} />
 
         <Button
           onClick={() => makeTransaction()}
