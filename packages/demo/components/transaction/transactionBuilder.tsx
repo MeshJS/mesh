@@ -458,7 +458,7 @@ const txHash = await Mesh.wallet.submitTransaction({
                 />
                 <p>
                   Change Address - is a bech32 address that will receive the
-                  remaining assets as "change".
+                  remaining assets as &quot;change&quot;.
                 </p>
               </td>
             </tr>

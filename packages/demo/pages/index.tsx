@@ -4,6 +4,7 @@ import { XIcon } from "@heroicons/react/solid";
 
 const Home = () => {
   const [showInstall, setShowInstall] = useState(false);
+
   return (
     <>
       <Hero setShowInstall={setShowInstall} />
