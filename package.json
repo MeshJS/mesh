@@ -4,7 +4,7 @@
   "scripts": {
     "test": "lerna run test --scope @martifylabs/mesh",
     "start": "lerna exec --scope @workspace/playground -- yarn dev",
-    "build": "lerna exec --scope @workspace/playground -- yarn build"
+    "build": "lerna link && lerna exec --scope @workspace/playground -- yarn build"
   },
   "devDependencies": {
     "@types/jest": "28.1.6",
