@@ -36,7 +36,7 @@ export default function SendAda() {
 }
 
 function CodeDemo() {
-  const [state, setState] = useState(0);
+  const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
 

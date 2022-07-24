@@ -81,7 +81,7 @@ export default function WalletApi() {
 }
 
 function DemoSection({ title, desc, demoFn, demoStr }) {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
 
   async function runDemo() {
@@ -125,10 +125,10 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
 }
 
 function DemoAssetParams() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const [policyId, setPolicyId] = useState("");
-  const [includeOnchain, setIncludeOnchain] = useState(false);
+  const [policyId, setPolicyId] = useState<string>("");
+  const [includeOnchain, setIncludeOnchain] = useState<boolean>(false);
   const [limit, setLimit] = useState<string>("9");
   const [network, setNetwork] = useState<number>(0);
 
