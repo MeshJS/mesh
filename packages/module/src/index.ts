@@ -1,7 +1,7 @@
-import { Blockfrost } from "./provider/blockfrost.js";
-import { Wallet } from "./wallet.js";
-import { Transaction } from "./transaction.js";
-import { Infura } from "./provider/infura.js";
+import { Blockfrost } from './provider/blockfrost';
+import { Wallet } from './wallet';
+import { Transaction } from './transaction';
+import { Infura } from './provider/infura';
 
 class Mesh {
   public wallet: Wallet;

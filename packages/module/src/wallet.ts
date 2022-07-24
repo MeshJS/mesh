@@ -2,30 +2,31 @@
  * https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030
  */
 
-import SerializationLib from "./provider/serializationlib.js";
+import SerializationLib from './core';
 
-import { WalletApi, Asset } from "./types/index.js";
-import { MIN_ADA_REQUIRED } from "./global.js";
+import { WalletApi, Asset } from './types/index';
+import { MIN_ADA_REQUIRED } from './global';
 import {
   HexToAscii,
   toHex,
   fromHex,
   valueToAssets,
-} from "./utils/converter.js";
-import { linkToSrc, convertMetadataPropToString } from "./utils/metadata.js";
-import { Blockfrost } from "./provider/blockfrost.js";
+} from './utils/converter';
+import { linkToSrc, convertMetadataPropToString } from './utils/metadata';
+import { Blockfrost } from './provider/blockfrost';
+import { Value } from '@emurgo/cardano-serialization-lib-browser';
 
 export class Wallet {
-  private _provider: WalletApi; // wallet provider on the browser, i.e. window.cardano.ccvault
+  private _provider!: WalletApi; // wallet provider on the browser, i.e. window.cardano.ccvault
   private _blockfrost: Blockfrost;
 
-  constructor({ blockfrost }) {
+  constructor({ blockfrost }: { blockfrost: Blockfrost }) {
     this._init();
     this._blockfrost = blockfrost;
   }
 
   private async _init() {
-    await SerializationLib.load();
+    //await SerializationLib.load();
   }
 
   /**
@@ -40,19 +41,19 @@ export class Wallet {
    * @returns - True if wallet is connected
    */
   async enable({ walletName }: { walletName: string }): Promise<boolean> {
-    if (walletName === "ccvault") {
+    if (walletName === 'ccvault') {
       const instance = await window.cardano?.ccvault?.enable();
       if (instance) {
         this._provider = instance;
         return true;
       }
-    } else if (walletName === "gerowallet") {
+    } else if (walletName === 'gerowallet') {
       const instance = await window.cardano?.gerowallet?.enable();
       if (instance) {
         this._provider = instance;
         return true;
       }
-    } else if (walletName === "nami" || walletName === null) {
+    } else if (walletName === 'nami' || walletName === null) {
       const instance = await window.cardano?.nami?.enable();
       if (instance) {
         this._provider = instance;
@@ -78,32 +79,29 @@ export class Wallet {
    * return a list of all UTXOs (unspent transaction outputs) controlled by the wallet
    * @returns list of all UTXOs
    */
-  async getUtxos(options?: {
-    returnAssets?: boolean;
-  }): Promise<{}[] | string[] | undefined> {
+  async getUtxos(options?: { returnAssets?: boolean }): Promise<any> {
     let utxos = await this._provider.getUtxos();
 
     if (options?.returnAssets && options.returnAssets) {
       if (utxos === undefined) {
-        throw "No utxos";
+        throw 'No utxos';
       }
 
       let utxosAssets: {}[] = [];
 
-      utxos.map((u) => {
-        let thisUtxo = { hex: u, assets: {} };
+      utxos.map(u => {
+        let thisUtxo: { hex: string; assets: any } = { hex: u, assets: {} };
 
-        const nn =
-          SerializationLib.Instance.TransactionUnspentOutput.from_bytes(
-            Buffer.from(u, "hex")
-          );
+        const nn = SerializationLib.TransactionUnspentOutput.from_bytes(
+          Buffer.from(u, 'hex')
+        );
 
-        valueToAssets(nn.output().amount()).forEach((nnn) => {
+        valueToAssets(nn.output().amount()).forEach(nnn => {
           const unit = nnn.unit;
           const _policy = unit.slice(0, 56);
           const _name = HexToAscii(unit.slice(56));
           const assetId =
-            _policy == "lovelace" ? "lovelace" : `${_policy}.${_name}`;
+            _policy == 'lovelace' ? 'lovelace' : `${_policy}.${_name}`;
           thisUtxo.assets[assetId] = parseInt(nnn.quantity);
         });
 
@@ -126,21 +124,21 @@ export class Wallet {
    */
   async getUsedAddresses(): Promise<string[]> {
     const usedAddresses = await this._provider.getUsedAddresses();
-    return usedAddresses.map((address) =>
-      SerializationLib.Instance.Address.from_bytes(fromHex(address)).to_bech32()
+    return usedAddresses.map(address =>
+      SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
 
   async getUnusedAddresses(): Promise<string[]> {
     const unusedAddresses = await this._provider.getUnusedAddresses();
-    return unusedAddresses.map((address) =>
-      SerializationLib.Instance.Address.from_bytes(fromHex(address)).to_bech32()
+    return unusedAddresses.map(address =>
+      SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
 
   async getChangeAddress(): Promise<string> {
     const changeAddress = await this._provider.getChangeAddress();
-    return SerializationLib.Instance.Address.from_bytes(
+    return SerializationLib.Address.from_bytes(
       fromHex(changeAddress)
     ).to_bech32();
   }
@@ -151,8 +149,8 @@ export class Wallet {
    */
   async getRewardAddresses(): Promise<string[]> {
     const unusedAddresses = await this._provider.getRewardAddresses();
-    return unusedAddresses.map((address) =>
-      SerializationLib.Instance.Address.from_bytes(fromHex(address)).to_bech32()
+    return unusedAddresses.map(address =>
+      SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
 
@@ -204,13 +202,13 @@ export class Wallet {
       return availableWallets;
     }
     if (window.cardano.ccvault) {
-      availableWallets.push("ccvault");
+      availableWallets.push('ccvault');
     }
     if (window.cardano.gerowallet) {
-      availableWallets.push("gerowallet");
+      availableWallets.push('gerowallet');
     }
     if (window.cardano.nami) {
-      availableWallets.push("nami");
+      availableWallets.push('nami');
     }
     return availableWallets;
   }
@@ -232,23 +230,29 @@ export class Wallet {
     const utxos = await this.getUtxos();
 
     if (utxos !== undefined) {
-      const parsedUtxos = utxos.map((utxo) =>
-        SerializationLib.Instance.TransactionUnspentOutput.from_bytes(
-          Buffer.from(utxo, "hex")
-        )
+      const parsedUtxos = utxos.map((utxo: string) =>
+        SerializationLib.TransactionUnspentOutput.from_bytes(fromHex(utxo))
       );
 
-      let countedValue = SerializationLib.Instance.Value.new(
-        SerializationLib.Instance.BigNum.from_str("0")
+      let countedValue = SerializationLib.Value.new(
+        SerializationLib.BigNum.from_str('0')
       );
-      parsedUtxos.forEach((element) => {
-        countedValue = countedValue.checked_add(element.output().amount());
-      });
+      parsedUtxos.forEach(
+        (element: {
+          output: () => {
+            (): any;
+            new (): any;
+            amount: { (): Value; new (): any };
+          };
+        }) => {
+          countedValue = countedValue.checked_add(element.output().amount());
+        }
+      );
 
-      const minAda = SerializationLib.Instance.min_ada_required(
+      const minAda = SerializationLib.min_ada_required(
         countedValue,
         false,
-        SerializationLib.Instance.BigNum.from_str(MIN_ADA_REQUIRED.toString())
+        SerializationLib.BigNum.from_str(MIN_ADA_REQUIRED.toString())
       );
 
       const availableAda = countedValue.coin().checked_sub(minAda);
@@ -273,30 +277,32 @@ export class Wallet {
     limit?: number;
   }): Promise<Asset[]> {
     const valueCBOR = await this.getBalance();
-    const value = SerializationLib.Instance.Value.from_bytes(
-      fromHex(valueCBOR)
-    );
+    const value = SerializationLib.Value.from_bytes(fromHex(valueCBOR));
 
     let assets: Asset[] = [];
-    let earlyStopping = false;
     if (value.multiasset()) {
-      const multiAssets = value.multiasset().keys();
-      for (let j = 0; j < multiAssets.len(); j++) {
-        const policy = multiAssets.get(j);
-        const policyAssets = value.multiasset().get(policy);
-        let assetNames = policyAssets.keys();
-        for (let k = 0; k < assetNames.len(); k++) {
-          const policyAsset = assetNames.get(k);
-          const quantity = policyAssets.get(policyAsset);
-          const asset = toHex(policy.to_bytes()) + toHex(policyAsset.name());
-          const _policy = asset.slice(0, 56);
-          const _name = asset.slice(56);
-          assets.push({
-            unit: asset,
-            quantity: parseInt(quantity.to_str()),
-            policy: _policy,
-            name: HexToAscii(_name),
-          });
+      const multiAssets = value.multiasset()?.keys();
+      if (multiAssets) {
+        for (let j = 0; j < multiAssets.len(); j++) {
+          const policy = multiAssets.get(j);
+          const policyAssets = value.multiasset()?.get(policy);
+          let assetNames = policyAssets?.keys();
+          if (policyAssets && assetNames) {
+            for (let k = 0; k < assetNames.len(); k++) {
+              const policyAsset = assetNames.get(k);
+              const quantity = policyAssets.get(policyAsset)!;
+              const asset =
+                toHex(policy.to_bytes()) + toHex(policyAsset.name());
+              const _policy = asset.slice(0, 56);
+              const _name = asset.slice(56);
+              assets.push({
+                unit: asset,
+                quantity: parseInt(quantity.to_str()),
+                policy: _policy,
+                name: HexToAscii(_name),
+              });
+            }
+          }
         }
       }
     }
@@ -304,10 +310,10 @@ export class Wallet {
     // if `policyId` is provided, return assets in this policy ID
     if (options?.policyId && options.policyId && options?.policyId.length > 0) {
       const filteredAssets = assets
-        .filter(function (el) {
+        .filter(function(el) {
           return el.unit.includes(options.policyId!);
         })
-        .map((item) => {
+        .map(item => {
           return item;
         });
       assets = [...filteredAssets];
@@ -321,7 +327,7 @@ export class Wallet {
     // if blockfrost is loaded and `includeOnchain`, pull on-chain info
     if (this._blockfrost.isLoaded() && options?.includeOnchain) {
       await Promise.all(
-        assets.map(async (asset, j) => {
+        assets.map(async (asset) => {
           asset.onchain = await this._blockfrost.assetSpecificAsset({
             asset: asset.unit,
           });
@@ -334,7 +340,7 @@ export class Wallet {
                   asset.onchain.onchain_metadata.image
                 )
               )) ||
-            "";
+            '';
         })
       );
     }
@@ -351,22 +357,21 @@ export class Wallet {
     witnesses: string[];
     metadata?: {};
   }) {
-    let transaction = SerializationLib.Instance.Transaction.from_bytes(
-      Buffer.from(tx, "hex")
+    let transaction = SerializationLib.Transaction.from_bytes(
+      Buffer.from(tx, 'hex')
     );
 
     const txWitnesses = transaction.witness_set();
     const txVkeys = txWitnesses.vkeys();
     const txScripts = txWitnesses.native_scripts();
 
-    const totalVkeys = SerializationLib.Instance.Vkeywitnesses.new();
-    const totalScripts = SerializationLib.Instance.NativeScripts.new();
+    const totalVkeys = SerializationLib.Vkeywitnesses.new();
+    const totalScripts = SerializationLib.NativeScripts.new();
 
     for (let witness of witnesses) {
-      const addWitnesses =
-        SerializationLib.Instance.TransactionWitnessSet.from_bytes(
-          Buffer.from(witness, "hex")
-        );
+      const addWitnesses = SerializationLib.TransactionWitnessSet.from_bytes(
+        Buffer.from(witness, 'hex')
+      );
       const addVkeys = addWitnesses.vkeys();
       if (addVkeys) {
         for (let i = 0; i < addVkeys.len(); i++) {
@@ -386,19 +391,17 @@ export class Wallet {
       }
     }
 
-    const totalWitnesses =
-      SerializationLib.Instance.TransactionWitnessSet.new();
+    const totalWitnesses = SerializationLib.TransactionWitnessSet.new();
     totalWitnesses.set_vkeys(totalVkeys);
     totalWitnesses.set_native_scripts(totalScripts);
     let aux;
     if (metadata) {
-      aux = SerializationLib.Instance.AuxiliaryData.new();
-      const generalMetadata =
-        SerializationLib.Instance.GeneralTransactionMetadata.new();
+      aux = SerializationLib.AuxiliaryData.new();
+      const generalMetadata = SerializationLib.GeneralTransactionMetadata.new();
       Object.entries(metadata).map(([MetadataLabel, Metadata]) => {
         generalMetadata.insert(
-          SerializationLib.Instance.BigNum.from_str(MetadataLabel),
-          SerializationLib.Instance.encode_json_str_to_metadatum(
+          SerializationLib.BigNum.from_str(MetadataLabel),
+          SerializationLib.encode_json_str_to_metadatum(
             JSON.stringify(Metadata),
             0
           )
@@ -411,7 +414,7 @@ export class Wallet {
     }
 
     try {
-      const signedTx = await SerializationLib.Instance.Transaction.new(
+      const signedTx = await SerializationLib.Transaction.new(
         transaction.body(),
         totalWitnesses,
         aux

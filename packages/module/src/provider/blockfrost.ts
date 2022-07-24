@@ -1,8 +1,8 @@
-import { ProtocolParameters } from "../types/index.js";
-import axios, { AxiosInstance } from "axios/index.js";
+import { ProtocolParameters } from "../types/index";
+import axios, { AxiosInstance } from "axios/index";
 
 export class Blockfrost {
-  private _instance: AxiosInstance;
+  private _instance!: AxiosInstance;
 
   constructor() {}
 

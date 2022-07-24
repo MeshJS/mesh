@@ -1,7 +1,7 @@
-import { Axios } from "./axios.js";
+import { Axios } from './axios';
 
 export class Infura {
-  private _instance: Axios;
+  private _instance!: Axios;
 
   constructor() {}
 
@@ -18,7 +18,7 @@ export class Infura {
       auth: `${projectId}:${projectSecret}`,
     };
     this._instance = new Axios({
-      baseURL: ipfsApiEndpoint ?? "https://ipfs.infura.io:5001/api/v0",
+      baseURL: ipfsApiEndpoint ?? 'https://ipfs.infura.io:5001/api/v0',
       headers: headers,
     });
   }
@@ -28,19 +28,19 @@ export class Infura {
    * https://docs.infura.io/infura/networks/ipfs/http-api-methods/add
    * @returns
    */
-  async addFileIpfs({ formData }): Promise<{}> {
+  async addFileIpfs({ formData }: any): Promise<{}> {
     return await this._instance
       .post({
-        endpoint: "/add?",
+        endpoint: '/add?',
         data: formData,
         headers: {
-          "Content-Type": "multipart/form-data",
+          'Content-Type': 'multipart/form-data',
         },
       })
       .then(({ data }) => {
         return data;
       })
-      .catch((error) => {
+      .catch(error => {
         throw error;
       });
   }
