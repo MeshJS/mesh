@@ -4,8 +4,8 @@
   "author": "MartifyLabs",
   "version": "0.0.4-beta.3",
   "name": "@martifylabs/mesh",
-  "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://mesh.martify.io",
+  "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MartifyLabs/mesh.git"
@@ -29,14 +29,13 @@
     "node": ">=14"
   },
   "scripts": {
-    "start": "tsdx watch",
     "lint": "tsdx lint",
     "test": "tsdx test",
-    "test:watch": "tsdx test --watch",
+    "test:watch": "tsdx test",
     "test:coverage": "tsdx test --coverage",
+    "start": "tsdx watch",
     "build": "tsdx build --format esm",
-    "prepare": "tsdx build",
-    "analyze": "size-limit --why",
+    "prepare": "yarn build",
     "size": "size-limit"
   },
   "husky": {
@@ -44,33 +43,27 @@
       "pre-commit": "tsdx lint"
     }
   },
-  "prettier": {
-    "printWidth": 80,
-    "semi": true,
-    "singleQuote": true,
-    "trailingComma": "es5"
-  },
   "size-limit": [
     {
       "path": "dist/mesh.cjs.production.min.js",
-      "limit": "10 KB"
+      "limit": "16 KB"
     },
     {
       "path": "dist/mesh.esm.js",
-      "limit": "10 KB"
+      "limit": "16 KB"
     }
   ],
   "devDependencies": {
     "@size-limit/preset-small-lib": "7.0.8",
-    "@types/jest": "28.1.6",
     "husky": "8.0.1",
     "size-limit": "7.0.8",
     "tsdx": "0.14.1",
     "tslib": "2.4.0",
-    "typescript": "4.7.4"
+    "typedoc": "0.23.5"
   },
-  "peerDependencies": {
+  "dependencies": {
     "@emurgo/cardano-serialization-lib-browser": "10.2.0",
-    "@emurgo/cardano-serialization-lib-nodejs": "10.2.0"
+    "@emurgo/cardano-serialization-lib-nodejs": "10.2.0",
+    "axios": "0.27.2"
   }
 }

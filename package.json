@@ -1,47 +1,18 @@
 {
-  "name": "@martifylabs/mesh",
-  "description": "Blockchain solutions on Cardano.",
-  "version": "0.0.3-beta.57",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "module": "dist/index.js",
-  "type": "module",
+  "private": true,
+  "name": "@workspace/root",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "ybuild": "yarn build",
-    "generate_docs": "npx typedoc --options typedoc.json",
-    "pack": "yarn pack",
-    "publish": "npm publish --access public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/MartifyLabs/mesh.git"
-  },
-  "keywords": [
-    "blockchain",
-    "cardano",
-    "plutus"
-  ],
-  "license": "MIT",
-  "author": "MartifyLabs",
-  "homepage": "https://github.com/MartifyLabs/mesh#readme",
-  "bugs": {
-    "url": "https://github.com/MartifyLabs/mesh/issues"
-  },
-  "dependencies": {
-    "@emurgo/cardano-serialization-lib-browser": "10.2.0",
-    "@emurgo/cardano-serialization-lib-nodejs": "10.2.0",
-    "axios": "0.27.2",
-    "bip39": "3.0.4",
-    "crypto-random-string": "5.0.0"
+    "test": "lerna run test --scope @martifylabs/mesh",
+    "start": "lerna exec --scope @workspace/playground -- yarn dev"
   },
   "devDependencies": {
+    "@types/jest": "28.1.6",
     "@types/node": "18.0.1",
-    "typedoc": "0.23.5",
+    "lerna": "5.2.0",
+    "prettier": "2.7.1",
     "typescript": "4.7.4"
   },
-  "files": [
-    "dist"
+  "workspaces": [
+    "packages/*"
   ]
 }

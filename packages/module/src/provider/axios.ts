@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios/index';
+import axios, { AxiosInstance } from 'axios';
 
 export const createAxiosInstance = ({ baseURL, headers }: any): AxiosInstance => {
   return axios.create({
