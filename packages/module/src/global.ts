@@ -10,8 +10,6 @@ export const TxSignError = {
 };
 
 export const MakeTxError = {
-  NotEnoughLovelaceInput:
-    'Not enough lovelace to complete this transaction.',
   NotEnoughAssetsInput:
     'Not enough assets in the inputs to complete this transaction.',
   InputNotEqualOutput: 'Input not equal to output',

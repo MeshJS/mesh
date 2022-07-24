@@ -1,4 +1,4 @@
-const importCSL = async () => {
+const importLib = async () => {
   if (typeof window !== 'undefined') {
     return await import('@emurgo/cardano-serialization-lib-browser');
   } else {
@@ -8,11 +8,7 @@ const importCSL = async () => {
 
 const resolveImport = async () => {
   try {
-    const {
-      default: _, ...rest
-    } = await importCSL();
-
-    return rest;
+    return await importLib();
   } catch (error) {
     console.error(
       'An error occurred when importing the Cardano Serialization Lib package.'
@@ -21,4 +17,4 @@ const resolveImport = async () => {
   }
 };
 
-export const csl = await resolveImport();
+export default await resolveImport();
