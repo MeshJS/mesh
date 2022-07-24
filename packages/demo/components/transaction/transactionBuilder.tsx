@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Mesh from "@martifylabs/mesh";
-import { Badge, Button, Card, Codeblock, Input } from "../../components";
+import { Badge, Button, Card, Codeblock, Input, Modal } from "../../components";
 import { RadioGroup } from "@headlessui/react";
 import {
   CheckCircleIcon,
@@ -8,6 +8,7 @@ import {
   PlusCircleIcon,
 } from "@heroicons/react/solid";
 import { Recipient } from "../../types";
+import { XIcon } from "@heroicons/react/solid";
 
 export default function TransactionBuilder() {
   return (
@@ -195,6 +196,7 @@ function Assets({ assets }) {
 
 function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
   const [selectedAsset, setSelectedAsset] = useState("");
+  const [showSelectAssetModal, setShowSelectAssetModal] = useState(false);
 
   let availableAssets = {};
   for (let i = 0; i < selectedUtxos.length; i++) {
@@ -366,6 +368,10 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
           </tr>
         </tbody>
       </table>
+
+      {showSelectAssetModal && (
+        <SelectAssetModal showModal={setShowSelectAssetModal} />
+      )}
     </>
   );
 }
@@ -417,7 +423,7 @@ function CodeDemo({ recipients, state, setState, selectedUtxos }) {
 
   let codeSnippet = `const recipients = ${JSON.stringify(recipients, null, 2)}}
 
-const tx = await Mesh.transaction.build({
+const tx = await Mesh.transaction.new({
   inputs: ${utxoSnippet},
   outputs: recipients,
   changeAddress: "${changeAddress}",`;
@@ -523,5 +529,33 @@ const txHash = await Mesh.wallet.submitTransaction({
         )}
       </div>
     </div>
+  );
+}
+
+function SelectAssetModal({ showModal }) {
+  return (
+    <Modal>
+      <div className="text-center mb-8">
+        <h2>Get started on Mesh</h2>
+        <pre>yarn add @martifylabs/mesh</pre>
+
+        <a
+          href="https://github.com/MartifyLabs/mesh"
+          className="mt-6 dark:text-white dark:hover:border-white text-base leading-none focus:outline-none hover:border-gray-800 focus:border-gray-800 border-b border-transparent text-center text-gray-800"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Visit the Github repo for details
+        </a>
+      </div>
+
+      <button
+        className="text-gray-800 dark:text-gray-400 absolute top-8 right-8 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-800"
+        aria-label="close"
+        onClick={() => showModal(false)}
+      >
+        <XIcon className="w-6 h-6" />
+      </button>
+    </Modal>
   );
 }

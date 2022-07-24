@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import Mesh from "@martifylabs/mesh";
-import { Button, Card, Codeblock, Input } from "../../components";
-import { Recipient } from "../../types";
+import { useState, useEffect } from 'react';
+import Mesh from '@martifylabs/mesh';
+import { Button, Card, Codeblock, Input, Modal } from '../../components';
+import { Recipient, Asset } from '../../types';
+import { CardAsset } from '../blocks/cardassets';
 
 export default function SendMultiassets() {
   return (
@@ -19,17 +20,16 @@ export default function SendMultiassets() {
 }
 
 function CodeDemo() {
-  const [state, setState] = useState(0);
+  const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([
     {
-      address:
-        "addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt",
+      address: '',
       assets: {},
     },
   ]);
-  const [assets, setAssets] = useState<null | any>(null);
-  const [lovelace, setLovelace] = useState<string>("");
+  const [assets, setAssets] = useState<null | Asset[]>(null);
+  const [lovelace, setLovelace] = useState<string>('');
   const [selectedAssets, setSelectedAssets] = useState<{}>({});
 
   async function makeTransaction() {
@@ -78,7 +78,7 @@ function CodeDemo() {
     setState(0);
   }
 
-  function toggleSelectedAssets(asset) {
+  function toggleSelectedAssets(asset: Asset) {
     let updateSelectedAssets = { ...selectedAssets };
     if (asset.unit in updateSelectedAssets) {
       delete updateSelectedAssets[asset.unit];
@@ -95,7 +95,7 @@ function CodeDemo() {
       ] = 1;
     }
     if (lovelace) {
-      newAssets["lovelace"] = parseInt(lovelace);
+      newAssets['lovelace'] = parseInt(lovelace);
     }
     newRecipients[0].assets = newAssets;
     setRecipients(newRecipients);
@@ -105,9 +105,9 @@ function CodeDemo() {
     setLovelace(value);
     let newRecipients = [...recipients];
     if (value) {
-      newRecipients[0].assets["lovelace"] = parseInt(value);
+      newRecipients[0].assets['lovelace'] = parseInt(value);
     } else {
-      delete newRecipients[0].assets["lovelace"];
+      delete newRecipients[0].assets['lovelace'];
     }
     setRecipients(newRecipients);
   }
@@ -190,7 +190,7 @@ function CodeDemo() {
               <td className="py-4 px-4 w-3/4">
                 <Input
                   value={recipients[0].address}
-                  onChange={(e) => updateAddress(0, "address", e.target.value)}
+                  onChange={(e) => updateAddress(0, 'address', e.target.value)}
                   placeholder="address"
                 />
               </td>
@@ -227,7 +227,7 @@ const txHash = await Mesh.wallet.submitTransaction({
         <Button
           onClick={() => makeTransaction()}
           disabled={state == 1}
-          style={state == 1 ? "warning" : state == 2 ? "success" : "light"}
+          style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
         >
           Run code snippet
         </Button>
@@ -257,34 +257,6 @@ function AssetsContainer({ assets, selectedAssets, toggleSelectedAssets }) {
             />
           );
         })}
-    </div>
-  );
-}
-
-function CardAsset({ asset, selectedAssets, toggleSelectedAssets }) {
-  let thisClass =
-    asset.unit in selectedAssets
-      ? "max-w-sm bg-white rounded-lg border border-green-200 shadow-md dark:bg-gray-800 dark:border-green-700 cursor-pointer"
-      : "max-w-sm bg-white rounded-lg border border-gray-200 shadow-md dark:bg-gray-800 dark:border-gray-700 cursor-pointer";
-  return (
-    <div
-      className={thisClass}
-      onClick={() => {
-        toggleSelectedAssets(asset);
-      }}
-    >
-      <div className="aspect-w-3 aspect-h-2 rounded-t-lg overflow-hidden">
-        {asset.image && (
-          <img
-            className="m-0 w-full h-full object-center object-cover"
-            src={asset.image}
-            alt={asset.name}
-          />
-        )}
-      </div>
-      <div className="p-5 overflow-auto tracking-tight">
-        <b>{asset.name}</b>
-      </div>
     </div>
   );
 }
