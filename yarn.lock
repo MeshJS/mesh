@@ -2015,15 +2015,6 @@
     npmlog "^6.0.2"
     write-file-atomic "^3.0.3"
 
-"@martifylabs/mesh@*":
-  version "0.0.4-beta.1"
-  resolved "https://registry.yarnpkg.com/@martifylabs/mesh/-/mesh-0.0.4-beta.1.tgz#c9556b6f14b8f4c4cbebc992fe2bcb3ed596aa33"
-  integrity sha512-tc4YSXx8bYtU1OGu9c6YTSZWH7/QyyOYYqirmdno+IhAUM3z57jWRLrv98sCjZlEwy6SLkiZqLIA3WNPWM/X/Q==
-  dependencies:
-    "@emurgo/cardano-serialization-lib-browser" "10.2.0"
-    "@emurgo/cardano-serialization-lib-nodejs" "10.2.0"
-    axios "0.27.2"
-
 "@next/env@12.1.6":
   version "12.1.6"
   resolved "https://registry.yarnpkg.com/@next/env/-/env-12.1.6.tgz#5f44823a78335355f00f1687cfc4f1dafa3eca08"
