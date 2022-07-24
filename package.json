@@ -2,9 +2,11 @@
   "private": true,
   "name": "@workspace/root",
   "scripts": {
-    "test": "lerna run test --scope @martifylabs/mesh",
+    "test": "lerna run test",
     "start": "lerna exec --scope @workspace/playground -- yarn dev",
-    "build": "lerna link && lerna exec --scope @workspace/playground -- yarn build"
+    "build": "lerna link && yarn build:module && yarn build:demo",
+    "build:demo": "lerna link && lerna exec --scope @workspace/playground -- yarn build",
+    "build:module": "lerna link && lerna exec --scope @martifylabs/mesh -- yarn build"
   },
   "devDependencies": {
     "@types/jest": "28.1.6",
