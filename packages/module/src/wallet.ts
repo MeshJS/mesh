@@ -4,17 +4,12 @@
 
 import SerializationLib from './core';
 
-import { WalletApi, Asset } from './types/index';
-import { MIN_ADA_REQUIRED } from './global';
-import {
-  HexToAscii,
-  toHex,
-  fromHex,
-  valueToAssets,
-} from './utils/converter';
+import { WalletApi, Asset, UTxO } from './types/index';
+// import { MIN_ADA_REQUIRED } from './global';
+import { HexToAscii, toHex, fromHex, valueToAssets } from './utils/converter';
 import { linkToSrc, convertMetadataPropToString } from './utils/metadata';
 import { Blockfrost } from './provider/blockfrost';
-import { Value } from '@emurgo/cardano-serialization-lib-browser';
+// import { Value } from '@emurgo/cardano-serialization-lib-browser';
 
 export class Wallet {
   private _provider!: WalletApi; // wallet provider on the browser, i.e. window.cardano.ccvault
@@ -79,39 +74,98 @@ export class Wallet {
    * return a list of all UTXOs (unspent transaction outputs) controlled by the wallet
    * @returns list of all UTXOs
    */
-  async getUtxos(options?: { returnAssets?: boolean }): Promise<any> {
+  // async getUtxos(options?: { returnAssets?: boolean }): Promise<any> {
+  //   let utxos = await this._provider.getUtxos();
+
+  //   if (options?.returnAssets && options.returnAssets) {
+  //     if (utxos === undefined) {
+  //       throw 'No utxos';
+  //     }
+
+  //     let utxosAssets: {}[] = [];
+
+  //     // TODO, lets get UTXOs like this as default https://docs.blockfrost.io/#tag/Cardano-Addresses/paths/~1addresses~1{address}~1utxos/get
+  //     utxos.map((u) => {
+  //       let thisUtxo: {
+  //         cbor: string; // TODO name `cbor` ok?
+  //         assets: { [assetId: string]: number };
+  //         paymentAddr: string;
+  //         txHash: string; // TODO to get?
+  //         outputIndex: number; // TODO to get?
+  //         dataHash?;
+  //       } = {
+  //         cbor: u,
+  //         assets: {},
+  //         paymentAddr: '',
+  //         txHash: '',
+  //         outputIndex: 0,
+  //       };
+
+  //       const utxo = SerializationLib.TransactionUnspentOutput.from_bytes(
+  //         Buffer.from(u, 'hex')
+  //       );
+
+  //       thisUtxo.paymentAddr = utxo.output().address().to_bech32();
+
+  //       valueToAssets(utxo.output().amount()).forEach((nnn) => {
+  //         const unit = nnn.unit;
+  //         const _policy = unit.slice(0, 56);
+  //         const _name = HexToAscii(unit.slice(56));
+  //         const assetId =
+  //           _policy == 'lovelace' ? 'lovelace' : `${_policy}.${_name}`;
+  //         thisUtxo.assets[assetId] = parseInt(nnn.quantity);
+  //       });
+
+  //       utxosAssets.push(thisUtxo);
+  //     });
+
+  //     return utxosAssets;
+  //   }
+
+  //   return utxos;
+  // }
+
+  async getUtxos(): Promise<UTxO[]> {
     let utxos = await this._provider.getUtxos();
 
-    if (options?.returnAssets && options.returnAssets) {
-      if (utxos === undefined) {
-        throw 'No utxos';
-      }
-
-      let utxosAssets: {}[] = [];
-
-      utxos.map(u => {
-        let thisUtxo: { hex: string; assets: any } = { hex: u, assets: {} };
-
-        const nn = SerializationLib.TransactionUnspentOutput.from_bytes(
-          Buffer.from(u, 'hex')
-        );
-
-        valueToAssets(nn.output().amount()).forEach(nnn => {
-          const unit = nnn.unit;
-          const _policy = unit.slice(0, 56);
-          const _name = HexToAscii(unit.slice(56));
-          const assetId =
-            _policy == 'lovelace' ? 'lovelace' : `${_policy}.${_name}`;
-          thisUtxo.assets[assetId] = parseInt(nnn.quantity);
-        });
-
-        utxosAssets.push(thisUtxo);
-      });
-
-      return utxosAssets;
+    if (utxos === undefined) {
+      throw 'No utxos';
     }
 
-    return utxos;
+    let utxosAssets: UTxO[] = [];
+
+    // TODO, lets get UTXOs like this as default https://docs.blockfrost.io/#tag/Cardano-Addresses/paths/~1addresses~1{address}~1utxos/get
+    utxos.map((u) => {
+      let thisUtxo: UTxO = {
+        cbor: u,
+        assets: {},
+        address: '',
+        txHash: '',
+        outputIndex: 0,
+      };
+
+      const utxo = SerializationLib.TransactionUnspentOutput.from_bytes(
+        Buffer.from(u, 'hex')
+      );
+
+      thisUtxo.address = utxo.output().address().to_bech32();
+      // thisUtxo.txHash = utxo.output().data_hash()
+      //   ? toHex(utxo.output().data_hash()!.to_bytes())
+      //   : '';
+
+      valueToAssets(utxo.output().amount()).forEach((nnn) => {
+        const unit = nnn.unit;
+        const _policy = unit.slice(0, 56);
+        const _name = HexToAscii(unit.slice(56));
+        const assetId =
+          _policy == 'lovelace' ? 'lovelace' : `${_policy}.${_name}`;
+        thisUtxo.assets[assetId] = parseInt(nnn.quantity);
+      });
+
+      utxosAssets.push(thisUtxo);
+    });
+
+    return utxosAssets;
   }
 
   async getBalance(): Promise<string> {
@@ -124,14 +178,14 @@ export class Wallet {
    */
   async getUsedAddresses(): Promise<string[]> {
     const usedAddresses = await this._provider.getUsedAddresses();
-    return usedAddresses.map(address =>
+    return usedAddresses.map((address) =>
       SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
 
   async getUnusedAddresses(): Promise<string[]> {
     const unusedAddresses = await this._provider.getUnusedAddresses();
-    return unusedAddresses.map(address =>
+    return unusedAddresses.map((address) =>
       SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
@@ -143,13 +197,17 @@ export class Wallet {
     ).to_bech32();
   }
 
+  async getCollateral() {
+    return await this._provider.getCollateral();
+  }
+
   /**
    * Returns the reward addresses owned by the wallet. This can return multiple addresses e.g. CIP-0018.
    * @returns list of reward addresses
    */
   async getRewardAddresses(): Promise<string[]> {
     const unusedAddresses = await this._provider.getRewardAddresses();
-    return unusedAddresses.map(address =>
+    return unusedAddresses.map((address) =>
       SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
@@ -185,7 +243,7 @@ export class Wallet {
   }
 
   async submitTx({ tx }: { tx: string }): Promise<string> {
-    return await await this._provider.submitTx(tx);
+    return await this._provider.submitTx(tx);
   }
 
   /**
@@ -227,40 +285,58 @@ export class Wallet {
    * @returns lovelance
    */
   async getLovelace(): Promise<number> {
+    let lovelace = 0;
+
     const utxos = await this.getUtxos();
 
     if (utxos !== undefined) {
-      const parsedUtxos = utxos.map((utxo: string) =>
-        SerializationLib.TransactionUnspentOutput.from_bytes(fromHex(utxo))
-      );
+      // // v1
+      // const parsedUtxos = utxos.map((utxo) =>
+      //   SerializationLib.TransactionUnspentOutput.from_bytes(fromHex(utxo.cbor))
+      // );
 
-      let countedValue = SerializationLib.Value.new(
-        SerializationLib.BigNum.from_str('0')
-      );
-      parsedUtxos.forEach(
-        (element: {
-          output: () => {
-            (): any;
-            new (): any;
-            amount: { (): Value; new (): any };
-          };
-        }) => {
-          countedValue = countedValue.checked_add(element.output().amount());
-        }
-      );
+      // let countedValue = SerializationLib.Value.new(
+      //   SerializationLib.BigNum.from_str('0')
+      // );
+      // parsedUtxos.forEach(
+      //   (element: {
+      //     output: () => {
+      //       (): any;
+      //       new (): any;
+      //       amount: { (): Value; new (): any };
+      //     };
+      //   }) => {
+      //     countedValue = countedValue.checked_add(element.output().amount());
+      //   }
+      // );
 
-      const minAda = SerializationLib.min_ada_required(
-        countedValue,
-        false,
-        SerializationLib.BigNum.from_str(MIN_ADA_REQUIRED.toString())
-      );
+      // const minAda = SerializationLib.min_ada_required(
+      //   countedValue,
+      //   false,
+      //   SerializationLib.BigNum.from_str(MIN_ADA_REQUIRED.toString())
+      // );
 
-      const availableAda = countedValue.coin().checked_sub(minAda);
-      const lovelace = parseInt(availableAda.to_str());
-      return lovelace;
+      // const availableAda = countedValue.coin().checked_sub(minAda);
+      // const lovelace = parseInt(availableAda.to_str());
+      // return lovelace;
+
+      // // v2
+      const inputs = utxos.map((utxo) => {
+        return SerializationLib.TransactionUnspentOutput.from_bytes(
+          Buffer.from(utxo.cbor, 'hex')
+        );
+      });
+
+      inputs.forEach((nn) => {
+        valueToAssets(nn.output().amount()).forEach((nnn) => {
+          if (nnn.unit === 'lovelace') {
+            lovelace += parseInt(nnn.quantity, 10);
+          }
+        });
+      });
     }
 
-    return 0;
+    return lovelace;
   }
 
   /**
@@ -310,10 +386,10 @@ export class Wallet {
     // if `policyId` is provided, return assets in this policy ID
     if (options?.policyId && options.policyId && options?.policyId.length > 0) {
       const filteredAssets = assets
-        .filter(function(el) {
+        .filter(function (el) {
           return el.unit.includes(options.policyId!);
         })
-        .map(item => {
+        .map((item) => {
           return item;
         });
       assets = [...filteredAssets];

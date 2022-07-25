@@ -79,10 +79,16 @@ export type DatumHash = string;
 export type Datum = string;
 
 export type UTxO = {
+  cbor: string;
   txHash: TxHash;
   outputIndex: number;
   assets: Assets;
   address: Address;
   datumHash?: DatumHash;
   datum?: Datum; // some providers may be able to return the datum as well in an efficient way
+};
+
+export type Recipient = {
+  address: string;
+  assets: { [assetId: string]: number };
 };

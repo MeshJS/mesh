@@ -73,7 +73,7 @@ function CodeDemo() {
     setState(1);
 
     try {
-      const tx = await Mesh.transaction.new({
+      const tx = await Mesh.transaction.build({
         outputs: recipients,
         blockfrostApiKey:
           (await Mesh.wallet.getNetworkId()) === 1
@@ -181,7 +181,7 @@ function CodeDemo() {
       <Codeblock
         data={`const recipients = ${JSON.stringify(recipients, null, 2)}}
 
-const tx = await Mesh.transaction.new({
+const tx = await Mesh.transaction.build({
   outputs: recipients,
   blockfrostApiKey: "BLOCKFROST_API_KEY",
   network: await Mesh.wallet.getNetworkId(),

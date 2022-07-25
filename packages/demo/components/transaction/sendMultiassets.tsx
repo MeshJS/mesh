@@ -36,7 +36,7 @@ function CodeDemo() {
     setState(1);
 
     try {
-      const tx = await Mesh.transaction.new({
+      const tx = await Mesh.transaction.build({
         outputs: recipients,
         blockfrostApiKey:
           (await Mesh.wallet.getNetworkId()) === 1
@@ -120,7 +120,7 @@ function CodeDemo() {
 
   useEffect(() => {
     async function init() {
-      // getAssets();
+      getAssets();
 
       const newRecipents = [
         {
@@ -128,9 +128,7 @@ function CodeDemo() {
             (await Mesh.wallet.getNetworkId()) === 1
               ? process.env.NEXT_PUBLIC_TEST_ADDRESS_MAINNET!
               : process.env.NEXT_PUBLIC_TEST_ADDRESS_TESTNET!,
-          assets: {
-            lovelace: 1500000,
-          },
+          assets: {},
         },
       ];
       setRecipients(newRecipents);
@@ -209,7 +207,7 @@ function CodeDemo() {
         <Codeblock
           data={`const recipients = ${JSON.stringify(recipients, null, 2)}}
 
-const tx = await Mesh.transaction.new({
+const tx = await Mesh.transaction.build({
   outputs: recipients,
   blockfrostApiKey: "BLOCKFROST_API_KEY",
   network: await Mesh.wallet.getNetworkId(),

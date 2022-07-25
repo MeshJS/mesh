@@ -8,7 +8,7 @@ class Mesh {
   public transaction: Transaction;
   public blockfrost: Blockfrost;
   public infura: Infura;
-
+  
   constructor() {
     this.blockfrost = new Blockfrost();
     this.infura = new Infura();
