@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
-import Mesh from "@martifylabs/mesh";
-import { Badge, Button, Card, Codeblock, Input, Modal } from "../../components";
-import { RadioGroup } from "@headlessui/react";
+import { useState, useEffect } from 'react';
+import Mesh from '@martifylabs/mesh';
+import { Badge, Button, Card, Codeblock, Input, Modal } from '../../components';
+import { RadioGroup } from '@headlessui/react';
 import {
   CheckCircleIcon,
   TrashIcon,
   PlusCircleIcon,
-} from "@heroicons/react/solid";
-import { Recipient } from "../../types";
-import { XIcon } from "@heroicons/react/solid";
+} from '@heroicons/react/solid';
+import { Recipient } from '../../types';
+import { XIcon } from '@heroicons/react/solid';
 
 export default function TransactionBuilder() {
   return (
@@ -20,16 +20,6 @@ export default function TransactionBuilder() {
             Design your own transaction but selecting inputs UTXOs and defining
             the outputs.
           </p>
-          <p>Todos:</p>
-          <ul>
-            <li>show utxos in that shorter hex</li>
-            <li>show utxo in each address</li>
-            <li>
-              open up transaction build function, where user can define the TTL,
-              input UTXOs and change address. either overload
-              `Mesh.transaction.new` or another function
-            </li>
-          </ul>
         </div>
         <div className="mt-8"></div>
       </div>
@@ -46,16 +36,14 @@ function PrepareInputsOutputs() {
 
   useEffect(() => {
     async function init() {
-      setUtxos(await Mesh.wallet.getUtxos({ returnAssets: true }));
+      setUtxos(await Mesh.wallet.getUtxos());
       const newRecipents = [
         {
           address:
             (await Mesh.wallet.getNetworkId()) === 1
               ? process.env.NEXT_PUBLIC_TEST_ADDRESS_MAINNET!
               : process.env.NEXT_PUBLIC_TEST_ADDRESS_TESTNET!,
-          assets: {
-            lovelace: 1500000,
-          },
+          assets: {},
         },
       ];
       setRecipients(newRecipents);
@@ -98,7 +86,7 @@ function PrepareInputsOutputs() {
 function Inputs({ utxos, selectedUtxos, setSelectedUtxos }) {
   function toggleSelectUtxo(value) {
     let updated = [...selectedUtxos];
-    let id = value.hex;
+    let id = value.cbor;
     if (updated.includes(id)) {
       const index = updated.indexOf(id);
       updated.splice(index, 1);
@@ -113,16 +101,16 @@ function Inputs({ utxos, selectedUtxos, setSelectedUtxos }) {
       <RadioGroup value={null} onChange={toggleSelectUtxo}>
         <div className="space-y-2">
           {utxos.map((utxo, i) => {
-            let thisSelected = selectedUtxos.includes(utxo.hex);
+            let thisSelected = selectedUtxos.includes(utxo.cbor);
             return (
               <RadioGroup.Option
-                key={utxo.hex}
+                key={i}
                 value={utxo}
                 className={`
                   ${
                     thisSelected
-                      ? "bg-sky-900 bg-opacity-75 text-white"
-                      : "bg-white"
+                      ? 'bg-sky-900 bg-opacity-75 text-white'
+                      : 'bg-white'
                   }
                     relative flex cursor-pointer rounded-lg px-5 py-4 shadow-md focus:outline-none`}
               >
@@ -134,7 +122,7 @@ function Inputs({ utxos, selectedUtxos, setSelectedUtxos }) {
                           <RadioGroup.Label
                             as="p"
                             className={`font-medium  ${
-                              thisSelected ? "text-white" : "text-gray-900"
+                              thisSelected ? 'text-white' : 'text-gray-900'
                             }`}
                           >
                             UTXO #{i + 1}
@@ -142,7 +130,7 @@ function Inputs({ utxos, selectedUtxos, setSelectedUtxos }) {
                           <RadioGroup.Description
                             as="span"
                             className={`${
-                              thisSelected ? "text-sky-100" : "text-gray-500"
+                              thisSelected ? 'text-sky-100' : 'text-gray-500'
                             }`}
                           >
                             <Assets assets={utxo.assets} />
@@ -171,17 +159,17 @@ function Assets({ assets }) {
     <div className="w-full">
       <div className="mx-auto w-full max-w-md p-2">
         {Object.keys(assets).map((assetId, i) => {
-          let style = "default";
+          let style = 'default';
           let assetName = assetId;
           let quantity = assets[assetId];
           let policy: undefined | string = undefined;
-          if (assetId == "lovelace") {
-            style = "red";
+          if (assetId == 'lovelace') {
+            style = 'red';
             quantity = `${quantity / 1000000}`;
             assetName = `₳`;
           } else {
-            assetName = assetName.split(".")[1];
-            policy = assetName.split(".")[0];
+            assetName = assetName.split('.')[1];
+            policy = assetName.split('.')[0];
           }
           return (
             <Badge style={style} className="block mb-2" key={i}>
@@ -195,14 +183,14 @@ function Assets({ assets }) {
 }
 
 function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
-  const [selectedAsset, setSelectedAsset] = useState("");
+  const [selectedAsset, setSelectedAsset] = useState('');
   const [showSelectAssetModal, setShowSelectAssetModal] = useState(false);
 
   let availableAssets = {};
   for (let i = 0; i < selectedUtxos.length; i++) {
     let selectedHex = selectedUtxos[i];
     let thisUtxo = utxos.filter(function (utxo) {
-      return utxo.hex === selectedHex;
+      return utxo.cbor === selectedHex;
     })[0];
     for (let assetId in thisUtxo.assets) {
       if (!(assetId in availableAssets)) {
@@ -215,7 +203,7 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
   function add() {
     let newRecipients = [...recipients];
     newRecipients.push({
-      address: "",
+      address: '',
       assets: {},
     });
     setRecipients(newRecipients);
@@ -236,7 +224,7 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
   function addAsset(index, assetId) {
     let newRecipients = [...recipients];
     let startingAmount = 1;
-    if (assetId == "lovelace") {
+    if (assetId == 'lovelace') {
       startingAmount = 1000000;
     }
     newRecipients[index].assets[assetId] = startingAmount;
@@ -277,7 +265,7 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
                   <Input
                     value={recipient.address}
                     onChange={(e) =>
-                      updateAddress(i, "address", e.target.value)
+                      updateAddress(i, 'address', e.target.value)
                     }
                     placeholder="address"
                   />
@@ -287,8 +275,8 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
                       return (
                         <div className="w-full grid gap-4 grid-cols-3" key={j}>
                           <b className="pt-4 capitalize">
-                            {assetId.includes(".")
-                              ? assetId.split(".")[1]
+                            {assetId.includes('.')
+                              ? assetId.split('.')[1]
                               : assetId}
                           </b>
 
@@ -324,8 +312,8 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
                         {Object.keys(availableAssets).map((assetId, i) => {
                           return (
                             <option value={assetId} key={i}>
-                              {assetId.includes(".")
-                                ? assetId.split(".")[1]
+                              {assetId.includes('.')
+                                ? assetId.split('.')[1]
                                 : assetId}
                             </option>
                           );
@@ -334,7 +322,7 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
                       <button
                         className="text-white absolute right-2.5 bottom-2.5 bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
                         onClick={() => addAsset(i, selectedAsset)}
-                        disabled={selectedAsset == ""}
+                        disabled={selectedAsset == ''}
                       >
                         Add
                       </button>
@@ -378,9 +366,9 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
 
 function CodeDemo({ recipients, state, setState, selectedUtxos }) {
   const [result, setResult] = useState<null | string>(null);
-  const [ttl, setTtl] = useState("");
-  const [message, setMessage] = useState("");
-  const [changeAddress, setChangeAddress] = useState("");
+  const [ttl, setTtl] = useState('');
+  const [message, setMessage] = useState('');
+  const [changeAddress, setChangeAddress] = useState('');
 
   useEffect(() => {
     async function getWalletAddress() {
@@ -393,14 +381,30 @@ function CodeDemo({ recipients, state, setState, selectedUtxos }) {
     setState(1);
 
     try {
-      const tx = await Mesh.transaction.new({
+      let params = {
+        inputs: selectedUtxos,
         outputs: recipients,
         blockfrostApiKey:
           (await Mesh.wallet.getNetworkId()) === 1
             ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
             : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
         network: await Mesh.wallet.getNetworkId(),
-      });
+      };
+
+      if (ttl) {
+        // @ts-ignore
+        params.ttl = ttl;
+      }
+      if (changeAddress) {
+        // @ts-ignore
+        params.changeAddress = changeAddress;
+      }
+      if (message) {
+        // @ts-ignore
+        params.message = message;
+      }
+
+      const tx = await Mesh.transaction.build(params);
 
       const signature = await Mesh.wallet.signTx({ tx });
 
@@ -418,20 +422,20 @@ function CodeDemo({ recipients, state, setState, selectedUtxos }) {
   }
 
   let utxoSnippet = JSON.stringify(selectedUtxos, null, 2);
-  utxoSnippet = utxoSnippet.replace(new RegExp("  ", "g"), "    ");
-  utxoSnippet = utxoSnippet.replace(new RegExp("]", "g"), "  ]");
+  utxoSnippet = utxoSnippet.replace(new RegExp('  ', 'g'), '    ');
+  utxoSnippet = utxoSnippet.replace(new RegExp(']', 'g'), '  ]');
 
   let codeSnippet = `const recipients = ${JSON.stringify(recipients, null, 2)}}
 
-const tx = await Mesh.transaction.new({
+const tx = await Mesh.transaction.build({
   inputs: ${utxoSnippet},
   outputs: recipients,
   changeAddress: "${changeAddress}",`;
 
-  if (ttl != "") {
+  if (ttl != '') {
     codeSnippet += `\n  ttl: ${ttl},`;
   }
-  if (message != "") {
+  if (message != '') {
     codeSnippet += `\n  message: "${message}",`;
   }
 
@@ -495,7 +499,7 @@ const txHash = await Mesh.wallet.submitTransaction({
                   placeholder="message"
                 />
                 <p>
-                  Transaction message is introduced in{" "}
+                  Transaction message is introduced in{' '}
                   <a
                     href="https://cips.cardano.org/cips/cip20/"
                     rel="noreferrer"
@@ -516,7 +520,7 @@ const txHash = await Mesh.wallet.submitTransaction({
         <Button
           onClick={() => makeTransaction()}
           disabled={state == 1}
-          style={state == 1 ? "warning" : state == 2 ? "success" : "light"}
+          style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
         >
           Run code snippet
         </Button>
