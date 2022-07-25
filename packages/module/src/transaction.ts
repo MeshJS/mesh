@@ -1,7 +1,7 @@
 import { Blockfrost } from './provider/blockfrost';
 import { MIN_ADA_REQUIRED_WITH_ASSETS } from './global';
 import { toHex, StringToAddress, toLovelace } from './utils/converter';
-import SerializationLib from './core';
+import { csl } from './core';
 import { Wallet } from './wallet';
 import { MakeTxError } from './global';
 import { Recipient, UTxO } from './types';
@@ -19,25 +19,25 @@ export class Transaction {
     const protocolParameters =
       await this._blockfrost.epochsLatestEpochProtocolParameters();
 
-    let txBuilderConfig = SerializationLib.TransactionBuilderConfigBuilder.new()
+    let txBuilderConfig = csl.TransactionBuilderConfigBuilder.new()
       .coins_per_utxo_word(
-        SerializationLib.BigNum.from_str(protocolParameters.coins_per_utxo_word)
+        csl.BigNum.from_str(protocolParameters.coins_per_utxo_word)
       )
       .fee_algo(
-        SerializationLib.LinearFee.new(
-          SerializationLib.BigNum.from_str(
+        csl.LinearFee.new(
+          csl.BigNum.from_str(
             protocolParameters.min_fee_a.toString()
           ),
-          SerializationLib.BigNum.from_str(
+          csl.BigNum.from_str(
             protocolParameters.min_fee_b.toString()
           )
         )
       )
       .key_deposit(
-        SerializationLib.BigNum.from_str(protocolParameters.key_deposit)
+        csl.BigNum.from_str(protocolParameters.key_deposit)
       )
       .pool_deposit(
-        SerializationLib.BigNum.from_str(protocolParameters.pool_deposit)
+        csl.BigNum.from_str(protocolParameters.pool_deposit)
       )
       .max_tx_size(protocolParameters.max_tx_size)
       .max_value_size(parseInt(protocolParameters.max_val_size))
@@ -48,8 +48,8 @@ export class Transaction {
 
   private async _buildTransaction({ txBuilder }: { txBuilder }) {
     const txBody = txBuilder.build();
-    const witnesses = SerializationLib.TransactionWitnessSet.new();
-    const transaction = SerializationLib.Transaction.new(txBody, witnesses);
+    const witnesses = csl.TransactionWitnessSet.new();
+    const transaction = csl.Transaction.new(txBody, witnesses);
     const transactionBytes = transaction.to_bytes();
     const transactionHex = toHex(transactionBytes);
     return transactionHex;
@@ -69,11 +69,11 @@ export class Transaction {
   }
 
   private async _addMetadata({ txBuilder, metadata }) {
-    const auxData = SerializationLib.AuxiliaryData.new();
-    const generalMetadata = SerializationLib.GeneralTransactionMetadata.new();
+    const auxData = csl.AuxiliaryData.new();
+    const generalMetadata = csl.GeneralTransactionMetadata.new();
     generalMetadata.insert(
-      SerializationLib.BigNum.from_str('100'),
-      SerializationLib.encode_json_str_to_metadatum(JSON.stringify(metadata), 1)
+      csl.BigNum.from_str('100'),
+      csl.encode_json_str_to_metadatum(JSON.stringify(metadata), 1)
     );
     auxData.set_metadata(generalMetadata);
     txBuilder.set_auxiliary_data(auxData);
@@ -322,10 +322,10 @@ export class Transaction {
     //     throw 'No utxos';
     //   }
     // }
-    // const coreUtxos = SerializationLib.TransactionUnspentOutputs.new();
+    // const coreUtxos = csl.TransactionUnspentOutputs.new();
     // inputs.forEach((utxo) => {
     //   coreUtxos.add(
-    //     SerializationLib.TransactionUnspentOutput.from_bytes(
+    //     csl.TransactionUnspentOutput.from_bytes(
     //       Buffer.from(utxo, 'hex')
     //     )
     //   );
@@ -358,10 +358,10 @@ export class Transaction {
     /**
      * from the inputs, create TxInputsBuilder
      */
-    let txInputsBuilder = SerializationLib.TxInputsBuilder.new();
+    let txInputsBuilder = csl.TxInputsBuilder.new();
 
     const utxos = inputs.map((utxo) => {
-      return SerializationLib.TransactionUnspentOutput.from_bytes(
+      return csl.TransactionUnspentOutput.from_bytes(
         Buffer.from(utxo, 'hex')
       );
     });
@@ -394,21 +394,21 @@ export class Transaction {
       });
     }
 
-    const multiAsset = SerializationLib.MultiAsset.new();
+    const multiAsset = csl.MultiAsset.new();
 
     for (const policy in AssetsMap) {
-      const ScriptHash = SerializationLib.ScriptHash.from_bytes(
+      const ScriptHash = csl.ScriptHash.from_bytes(
         Buffer.from(policy, 'hex')
       );
-      const Assets = SerializationLib.Assets.new();
+      const Assets = csl.Assets.new();
 
       const _assets = AssetsMap[policy];
 
       for (const asset of _assets) {
-        const AssetName = SerializationLib.AssetName.new(
+        const AssetName = csl.AssetName.new(
           Buffer.from(asset.unit, 'hex')
         );
-        const BigNum = SerializationLib.BigNum.from_str(
+        const BigNum = csl.BigNum.from_str(
           asset.quantity.toString()
         );
         Assets.insert(AssetName, BigNum);
@@ -421,7 +421,7 @@ export class Transaction {
   }
 
   private async _addOutputs({ txBuilder, outputs }: any) {
-    const txOutputs = SerializationLib.TransactionOutputs.new();
+    const txOutputs = csl.TransactionOutputs.new();
 
     outputs.map((output: any) => {
       if (output.address === undefined || output.address.length === 0) {
@@ -434,8 +434,8 @@ export class Transaction {
         output.assets.lovelace > MIN_ADA_REQUIRED_WITH_ASSETS
           ? output.assets.lovelace
           : MIN_ADA_REQUIRED_WITH_ASSETS; // TODO, cannot hardcode 2ADA. if too many assets, 2 ADA is not enough
-      let outputValue = SerializationLib.Value.new(
-        SerializationLib.BigNum.from_str(amountLovelace.toString())
+      let outputValue = csl.Value.new(
+        csl.BigNum.from_str(amountLovelace.toString())
       );
 
       let assets: {}[] = [];
@@ -452,7 +452,7 @@ export class Transaction {
       outputValue.set_multiasset(multiAsset);
 
       txOutputs.add(
-        SerializationLib.TransactionOutput.new(
+        csl.TransactionOutput.new(
           StringToAddress(output.address),
           outputValue
         )
@@ -489,7 +489,7 @@ export class Transaction {
     this._blockfrost = new Blockfrost();
     await this._blockfrost.init({ blockfrostApiKey, network });
 
-    const txBuilder = SerializationLib.TransactionBuilder.new(
+    const txBuilder = csl.TransactionBuilder.new(
       await this._getTxBuilderConfig()
     );
     // end: init
