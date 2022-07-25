@@ -46,7 +46,7 @@ export class Transaction {
     return txBuilderConfig;
   }
 
-  private async _buildTransaction({ txBuilder }: { txBuilder: any }) {
+  private async _buildTransaction({ txBuilder }: { txBuilder: TransactionBuilder }) {
     const txBody = txBuilder.build();
     const witnesses = SerializationLib.TransactionWitnessSet.new();
     const transaction = SerializationLib.Transaction.new(txBody, witnesses);
