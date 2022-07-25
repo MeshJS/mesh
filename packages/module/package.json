@@ -31,7 +31,7 @@
   "scripts": {
     "lint": "tsdx lint",
     "test": "tsdx test",
-    "test:watch": "tsdx test",
+    "test:watch": "tsdx test --watch",
     "test:coverage": "tsdx test --coverage",
     "start": "tsdx watch",
     "build": "tsdx build --format esm",

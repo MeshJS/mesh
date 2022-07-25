@@ -2,7 +2,7 @@
  * https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030
  */
 
-import SerializationLib from './core';
+import { csl } from './core';
 
 import { WalletApi, Asset, UTxO } from './types/index';
 // import { MIN_ADA_REQUIRED } from './global';
@@ -21,7 +21,7 @@ export class Wallet {
   }
 
   private async _init() {
-    //await SerializationLib.load();
+    //await csl.load();
   }
 
   /**
@@ -101,7 +101,7 @@ export class Wallet {
   //         outputIndex: 0,
   //       };
 
-  //       const utxo = SerializationLib.TransactionUnspentOutput.from_bytes(
+  //       const utxo = csl.TransactionUnspentOutput.from_bytes(
   //         Buffer.from(u, 'hex')
   //       );
 
@@ -144,7 +144,7 @@ export class Wallet {
         outputIndex: 0,
       };
 
-      const utxo = SerializationLib.TransactionUnspentOutput.from_bytes(
+      const utxo = csl.TransactionUnspentOutput.from_bytes(
         Buffer.from(u, 'hex')
       );
 
@@ -179,20 +179,20 @@ export class Wallet {
   async getUsedAddresses(): Promise<string[]> {
     const usedAddresses = await this._provider.getUsedAddresses();
     return usedAddresses.map((address) =>
-      SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
+      csl.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
 
   async getUnusedAddresses(): Promise<string[]> {
     const unusedAddresses = await this._provider.getUnusedAddresses();
     return unusedAddresses.map((address) =>
-      SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
+      csl.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
 
   async getChangeAddress(): Promise<string> {
     const changeAddress = await this._provider.getChangeAddress();
-    return SerializationLib.Address.from_bytes(
+    return csl.Address.from_bytes(
       fromHex(changeAddress)
     ).to_bech32();
   }
@@ -208,7 +208,7 @@ export class Wallet {
   async getRewardAddresses(): Promise<string[]> {
     const unusedAddresses = await this._provider.getRewardAddresses();
     return unusedAddresses.map((address) =>
-      SerializationLib.Address.from_bytes(fromHex(address)).to_bech32()
+      csl.Address.from_bytes(fromHex(address)).to_bech32()
     );
   }
 
@@ -292,11 +292,11 @@ export class Wallet {
     if (utxos !== undefined) {
       // // v1
       // const parsedUtxos = utxos.map((utxo) =>
-      //   SerializationLib.TransactionUnspentOutput.from_bytes(fromHex(utxo.cbor))
+      //   csl.TransactionUnspentOutput.from_bytes(fromHex(utxo.cbor))
       // );
 
-      // let countedValue = SerializationLib.Value.new(
-      //   SerializationLib.BigNum.from_str('0')
+      // let countedValue = csl.Value.new(
+      //   csl.BigNum.from_str('0')
       // );
       // parsedUtxos.forEach(
       //   (element: {
@@ -310,10 +310,10 @@ export class Wallet {
       //   }
       // );
 
-      // const minAda = SerializationLib.min_ada_required(
+      // const minAda = csl.min_ada_required(
       //   countedValue,
       //   false,
-      //   SerializationLib.BigNum.from_str(MIN_ADA_REQUIRED.toString())
+      //   csl.BigNum.from_str(MIN_ADA_REQUIRED.toString())
       // );
 
       // const availableAda = countedValue.coin().checked_sub(minAda);
@@ -322,7 +322,7 @@ export class Wallet {
 
       // // v2
       const inputs = utxos.map((utxo) => {
-        return SerializationLib.TransactionUnspentOutput.from_bytes(
+        return csl.TransactionUnspentOutput.from_bytes(
           Buffer.from(utxo.cbor, 'hex')
         );
       });
@@ -353,7 +353,7 @@ export class Wallet {
     limit?: number;
   }): Promise<Asset[]> {
     const valueCBOR = await this.getBalance();
-    const value = SerializationLib.Value.from_bytes(fromHex(valueCBOR));
+    const value = csl.Value.from_bytes(fromHex(valueCBOR));
 
     let assets: Asset[] = [];
     if (value.multiasset()) {
@@ -433,7 +433,7 @@ export class Wallet {
     witnesses: string[];
     metadata?: {};
   }) {
-    let transaction = SerializationLib.Transaction.from_bytes(
+    let transaction = csl.Transaction.from_bytes(
       Buffer.from(tx, 'hex')
     );
 
@@ -441,11 +441,11 @@ export class Wallet {
     const txVkeys = txWitnesses.vkeys();
     const txScripts = txWitnesses.native_scripts();
 
-    const totalVkeys = SerializationLib.Vkeywitnesses.new();
-    const totalScripts = SerializationLib.NativeScripts.new();
+    const totalVkeys = csl.Vkeywitnesses.new();
+    const totalScripts = csl.NativeScripts.new();
 
     for (let witness of witnesses) {
-      const addWitnesses = SerializationLib.TransactionWitnessSet.from_bytes(
+      const addWitnesses = csl.TransactionWitnessSet.from_bytes(
         Buffer.from(witness, 'hex')
       );
       const addVkeys = addWitnesses.vkeys();
@@ -467,17 +467,17 @@ export class Wallet {
       }
     }
 
-    const totalWitnesses = SerializationLib.TransactionWitnessSet.new();
+    const totalWitnesses = csl.TransactionWitnessSet.new();
     totalWitnesses.set_vkeys(totalVkeys);
     totalWitnesses.set_native_scripts(totalScripts);
     let aux;
     if (metadata) {
-      aux = SerializationLib.AuxiliaryData.new();
-      const generalMetadata = SerializationLib.GeneralTransactionMetadata.new();
+      aux = csl.AuxiliaryData.new();
+      const generalMetadata = csl.GeneralTransactionMetadata.new();
       Object.entries(metadata).map(([MetadataLabel, Metadata]) => {
         generalMetadata.insert(
-          SerializationLib.BigNum.from_str(MetadataLabel),
-          SerializationLib.encode_json_str_to_metadatum(
+          csl.BigNum.from_str(MetadataLabel),
+          csl.encode_json_str_to_metadatum(
             JSON.stringify(Metadata),
             0
           )
@@ -490,7 +490,7 @@ export class Wallet {
     }
 
     try {
-      const signedTx = await SerializationLib.Transaction.new(
+      const signedTx = await csl.Transaction.new(
         transaction.body(),
         totalWitnesses,
         aux
