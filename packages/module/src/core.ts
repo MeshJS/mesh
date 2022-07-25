@@ -7,7 +7,7 @@ const importLib = async () => {
 };
 
 const resolveImport = async () => {
-  try {
+  try { 
     return await importLib();
   } catch (error) {
     console.error(
@@ -17,4 +17,12 @@ const resolveImport = async () => {
   }
 };
 
-export default await resolveImport();
+const lib = await resolveImport();
+
+type TransactionBuilder = InstanceType<typeof lib.TransactionBuilder>
+
+export {
+  TransactionBuilder,
+};
+
+export default lib;

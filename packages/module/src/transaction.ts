@@ -5,7 +5,7 @@ import {
   StringToAddress,
   assetsToValue,
 } from './utils/converter';
-import SerializationLib from './core';
+import SerializationLib, { TransactionBuilder } from './core';
 import { Wallet } from './wallet';
 import { MakeTxError } from './global';
 
@@ -49,7 +49,7 @@ export class Transaction {
     return txBuilderConfig;
   }
 
-  private async _buildTransaction({ txBuilder }: { txBuilder: any }) {
+  private async _buildTransaction({ txBuilder }: { txBuilder: TransactionBuilder }) {
     const txBody = txBuilder.build();
     console.log(12, 'txBody', txBody);
     const witnesses = SerializationLib.TransactionWitnessSet.new();
@@ -63,7 +63,7 @@ export class Transaction {
     return transactionHex;
   }
 
-  private async _addChange({ txBuilder }: { txBuilder: any }) {
+  private async _addChange({ txBuilder }: { txBuilder: TransactionBuilder }) {
     console.log(99, 'add change');
     const paymentAddress = await this.wallet.getWalletAddress();
     console.log(99, 'paymentAddress', paymentAddress);
@@ -78,7 +78,7 @@ export class Transaction {
   }
 
   // TODO: can we filter UTXOs to only those that needed by inputs
-  private async _addInputUtxo({ txBuilder }: { txBuilder: any }) {
+  private async _addInputUtxo({ txBuilder }: { txBuilder: TransactionBuilder }) {
     const utxos = (await this.wallet.getUtxos()) as string[];
 
     if (utxos === undefined) {
