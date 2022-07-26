@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { Metatags } from "../../components";
-import ConnectWallet from "../../components/wallet/connectWallet";
-import SendAda from "../../components/transaction/sendAda";
-import SendMultiassets from "../../components/transaction/sendMultiassets";
-import TransactionBuilder from "../../components/transaction/transactionBuilder";
+import { useState } from 'react';
+import { Metatags } from '../../components';
+import ConnectWallet from '../../components/wallet/connectWallet';
+import SendAda from '../../components/transaction/sendAda';
+import SendMultiassets from '../../components/transaction/sendMultiassets';
+import TransactionBuilder from '../../components/transaction/transactionBuilder';
 
 const Transaction = () => {
   return (
@@ -17,6 +17,7 @@ const Transaction = () => {
 
 function Showcase() {
   const [walletConnected, setWalletConnected] = useState<null | string>(null);
+
   return (
     <section>
       <div className="mx-auto max-w-screen-xl px-4 lg:px-6">

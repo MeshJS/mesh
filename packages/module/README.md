@@ -1,103 +1,147 @@
-# TSDX User Guide
+# Mesh
 
-Congrats! You just saved yourself hours of work by bootstrapping this project with TSDX. Let’s get you oriented with what’s here and how to use it.
+> Rapidly build Web3 apps on the Cardano blockchain
 
-> This TSDX setup is meant for developing libraries (not apps!) that can be published to NPM. If you’re looking to build a Node app, you could use `ts-node-dev`, plain `ts-node`, or simple `tsc`.
+Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
-> If you’re new to TypeScript, checkout [this handy cheatsheet](https://devhints.io/typescript)
+## Steps to get started building Web3 dApps with Mesh
 
-## Commands
-
-TSDX scaffolds your new library inside `/src`.
-
-To run TSDX, use:
-
-```bash
-npm start # or yarn start
+#### 1. Create a new Next.js app:
+```sh
+yarn create next-app --typescript
 ```
 
-This builds to `/dist` and runs the project in watch mode so any edits you save inside `src` causes a rebuild to `/dist`.
-
-To do a one-off build, use `npm run build` or `yarn build`.
-
-To run tests, use `npm test` or `yarn test`.
-
-## Configuration
-
-Code quality is set up for you with `prettier`, `husky`, and `lint-staged`. Adjust the respective fields in `package.json` accordingly.
-
-### Jest
-
-Jest tests are set up to run with `npm test` or `yarn test`.
-
-### Bundle Analysis
-
-[`size-limit`](https://github.com/ai/size-limit) is set up to calculate the real cost of your library with `npm run size` and visualize the bundle with `npm run analyze`.
-
-#### Setup Files
-
-This is the folder structure we set up for you:
-
-```txt
-/src
-  index.tsx       # EDIT THIS
-/test
-  blah.test.tsx   # EDIT THIS
-.gitignore
-package.json
-README.md         # EDIT THIS
-tsconfig.json
+#### 2. Install the `@martifylabs/mesh` package:
+```sh
+yarn add @martifylabs/mesh
 ```
 
-### Rollup
-
-TSDX uses [Rollup](https://rollupjs.org) as a bundler and generates multiple rollup configs for various module formats and build settings. See [Optimizations](#optimizations) for details.
-
-### TypeScript
-
-`tsconfig.json` is set up to interpret `dom` and `esnext` types, as well as `react` for `jsx`. Adjust according to your needs.
-
-## Continuous Integration
-
-### GitHub Actions
-
-Two actions are added by default:
-
-- `main` which installs deps w/ cache, lints, tests, and builds on all pushes against a Node and OS matrix
-- `size` which comments cost comparison of your library on every pull request using [`size-limit`](https://github.com/ai/size-limit)
-
-## Optimizations
-
-Please see the main `tsdx` [optimizations docs](https://github.com/palmerhq/tsdx#optimizations). In particular, know that you can take advantage of development-only optimizations:
-
+#### 3. In `tsconfig.json`, add:
 ```js
-// ./types/index.d.ts
-declare var __DEV__: boolean;
-
-// inside your code...
-if (__DEV__) {
-  console.log('foo');
+const nextConfig = {
+  ...
+  "experiments": {
+    "asyncWebAssembly": true,
+    "topLevelAwait": true
+  }
 }
 ```
 
-You can also choose to install and use [invariant](https://github.com/palmerhq/tsdx#invariant) and [warning](https://github.com/palmerhq/tsdx#warning) functions.
+<details><summary>See example</summary>
+<p>
 
-## Module Formats
+Example of `tsconfig.json`:
+```js
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"],
+  "experiments": {
+    "asyncWebAssembly": true,
+    "topLevelAwait": true
+  },
+}
+```
+</p>
+</details>
 
-CJS, ESModules, and UMD module formats are supported.
+#### 4. In `next.config.js`, add:
+```js
+{
+  ...,
+  webpack: function (config, options) {
+    config.experiments = {
+      asyncWebAssembly: true,
+      layers: true,
+      topLevelAwait: true,
+    };
+    config.resolve.fallback = { fs: false };
+    return config;
+  }
+}
+```
 
-The appropriate paths are configured in `package.json` and `dist/index.js` accordingly. Please report if any issues are found.
+<details><summary>See example</summary>
+<p>
 
-## Named Exports
+Example of `next.config.js`:
+```js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  swcMinify: true,
+  webpack: function (config, options) {
+    config.experiments = {
+      asyncWebAssembly: true,
+      layers: true,
+      topLevelAwait: true,
+    };
+    config.resolve.fallback = { fs: false };
+    return config;
+  },
+};
 
-Per Palmer Group guidelines, [always use named exports.](https://github.com/palmerhq/typescript#exports) Code split inside your React app instead of your React library.
+module.exports = nextConfig;
 
-## Including Styles
+```
+</p>
+</details>
 
-There are many ways to ship styles, including with CSS-in-JS. TSDX has no opinion on this, configure how you like.
+#### 5. Import Mesh with `import Mesh from "@martifylabs/mesh";`
 
-For vanilla CSS, you can include it at the root directory and add it to the `files` section in your `package.json`, so that it can be imported separately by your users and run through their bundler's loader.
+<details><summary>See example</summary>
+<p>
 
-## Publishing to NPM
+Replace `pages/index.tsx` with:
+```js
+import { useState } from "react";
+import type { NextPage } from "next";
+import Mesh from "@martifylabs/mesh";
 
-We recommend using [np](https://github.com/sindresorhus/np).
+const Home: NextPage = () => {
+  const [assets, setAssets] = useState<null | any>(null);
+
+  async function connectWallet(walletName: string) {
+    let connected = await Mesh.wallet.enable({ walletName: walletName });
+    const _assets = await Mesh.wallet.getAssets({});
+    setAssets(_assets);
+  }
+
+  return (
+    <div>
+      <button type="button" onClick={() => connectWallet("ccvault")}>
+        Connect Wallet
+      </button>
+      <pre>
+        <code className="language-js">{JSON.stringify(assets, null, 2)}</code>
+      </pre>
+    </div>
+  );
+};
+
+export default Home;
+```
+
+Start the server:
+```sh
+yarn run dev
+```
+
+Need more examples? Check the [demo](https://github.com/MartifyLabs/mesh/tree/main/demo).
+</p>
+</details>
