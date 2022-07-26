@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Metatags } from "../../components";
-import ConnectWallet from "../../components/wallet/connectWallet";
-import WalletApi from "../../components/wallet/walletApi";
-import { ChevronRightIcon, LinkIcon } from "@heroicons/react/solid";
+import { useState } from 'react';
+import { Metatags } from '../../components';
+import ConnectWallet from '../../components/wallet/connectWallet';
+import WalletApi from '../../components/wallet/walletApi';
+import { ChevronRightIcon, LinkIcon } from '@heroicons/react/solid';
 
 const Wallet = () => {
   return (
@@ -16,6 +16,7 @@ const Wallet = () => {
 
 function Showcase() {
   const [walletConnected, setWalletConnected] = useState<null | string>(null);
+
   return (
     <section className="px-4 lg:px-6">
       <ConnectWallet
@@ -39,7 +40,7 @@ function Hero() {
 
         <div className="mb-4">
           <p>
-            These wallet APIs are in accordance to{" "}
+            These wallet APIs are in accordance to{' '}
             <a href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030">
               Cardano Improvement Proposals 30 - Cardano dApp-Wallet Web Bridge
             </a>
