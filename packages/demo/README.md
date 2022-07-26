@@ -4,10 +4,10 @@
 
 In the root folder, 
 
-#### 1. Setup 
+#### 1. Setup
+Run `yarn install && yarn lerna bootstrap && yarn build`:
 ```sh
-yarn install
-yarn lerna bootstrap
+yarn install && yarn lerna bootstrap && yarn build
 ```
 
 #### 2. Add .env variables

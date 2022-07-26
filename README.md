@@ -6,7 +6,7 @@ Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
 ## Steps to get started building Web3 dApps with Mesh
 
-View setup instructions to [packages/module](https://github.com/MartifyLabs/mesh/tree/main/packages/module)
+View setup instructions in [packages/module](https://github.com/MartifyLabs/mesh/tree/main/packages/module)
 
 ## How can you contribute?
 - star the [Github repo](https://github.com/MartifyLabs/mesh) and tell others about this
@@ -18,4 +18,4 @@ View setup instructions to [packages/module](https://github.com/MartifyLabs/mesh
 
 ## How to start the Mesh Playground on localhost
 
-View instructions to [packages/demo](https://github.com/MartifyLabs/mesh/tree/main/packages/demo)
+View instructions in [packages/demo](https://github.com/MartifyLabs/mesh/tree/main/packages/demo)
