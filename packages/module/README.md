@@ -16,52 +16,7 @@ yarn create next-app --typescript
 yarn add @martifylabs/mesh
 ```
 
-#### 3. In `tsconfig.json`, add:
-```js
-{
-  ...
-  "experiments": {
-    "asyncWebAssembly": true,
-    "topLevelAwait": true
-  }
-}
-```
-
-<details><summary>See example</summary>
-<p>
-
-Example of `tsconfig.json`:
-```js
-{
-  "compilerOptions": {
-    "target": "es5",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "noImplicitAny": false
-  },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"],
-  "experiments": {
-    "asyncWebAssembly": true,
-    "topLevelAwait": true
-  },
-}
-```
-</p>
-</details>
-
-#### 4. In `next.config.js`, add:
+#### 3. In `next.config.js`, add:
 ```js
 const nextConfig = {
   ...
@@ -100,7 +55,7 @@ module.exports = nextConfig;
 </p>
 </details>
 
-#### 5. Import Mesh with `import Mesh from "@martifylabs/mesh";`
+#### 4. Import Mesh with `import Mesh from "@martifylabs/mesh";`
 
 <details><summary>See example</summary>
 <p>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal } from "../components";
 import { XIcon } from "@heroicons/react/solid";
+import Link from 'next/link';
 
 const Home = () => {
   const [showInstall, setShowInstall] = useState(false);
@@ -56,15 +57,15 @@ function Install({ showModal }) {
       <div className="text-center mb-8">
         <h2>Get started on Mesh</h2>
         <pre>yarn add @martifylabs/mesh</pre>
-
-        <a
+        <Link href="/get-started">Find out more</Link>
+        {/* <a
           href="https://github.com/MartifyLabs/mesh"
           className="mt-6 dark:text-white dark:hover:border-white text-base leading-none focus:outline-none hover:border-gray-800 focus:border-gray-800 border-b border-transparent text-center text-gray-800"
           target="_blank"
           rel="noreferrer"
         >
           Visit the Github repo for details
-        </a>
+        </a> */}
       </div>
 
       <button

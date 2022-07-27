@@ -26,9 +26,9 @@ function Intro() {
         <p>
           Mesh has been designed from the start for gradual adoption, and you
           can use as little or as much as you need. Whether you want to build an
-          application to connect wallet and display what&apos;s in your wallet or
-          start a complex dApp to create transactions and interact with Cardano
-          blockchain and smart contracts; this section will help you get
+          application to connect wallet and display what&apos;s in your wallet
+          or start a complex dApp to create transactions and interact with
+          Cardano blockchain and smart contracts; this section will help you get
           started.
         </p>
       </div>
@@ -39,7 +39,7 @@ function Intro() {
 function StartNextJsWebApp() {
   return (
     <section className="px-4 lg:px-6">
-      <h2>Start a Web3 app with Next.js</h2>
+      <h1>Start a Web3 app with Next.js</h1>
       <p>
         <a href="https://nextjs.org/" target="_blank" rel="noreferrer">
           Next.js
@@ -52,8 +52,8 @@ function StartNextJsWebApp() {
         Next.js and Mesh are JavaScript libraries, and so we will assume that
         you have some familiarity with HTML and JavaScript language, but you
         should be able to follow along even if you are coming from a different
-        programming language. If you don&apos;t feel very confident, we recommend
-        going through this{' '}
+        programming language. If you don&apos;t feel very confident, we
+        recommend going through this{' '}
         <a
           href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript"
           target="_blank"
@@ -77,13 +77,12 @@ function StartNextJsWebApp() {
         >
           videos from YouTube
         </a>
-        . Note that we are also using some features from ES6 — a recent version
-        of JavaScript.
+        . Note that we are also using some features from ES6.
       </p>
 
-      <h3>System setup</h3>
+      <h2>System setup</h2>
 
-      <h4>1. Visual Studio Code</h4>
+      <h3>1. Visual Studio Code</h3>
       <p>
         Visual Studio Code is a code editor made by Microsoft. Download and
         install{' '}
@@ -97,7 +96,7 @@ function StartNextJsWebApp() {
         for code editing.
       </p>
 
-      <h4>2. Node.js</h4>
+      <h3>2. Node.js</h3>
       <p>
         Node.js is a cross-platform JavaScript runtime environment that runs on
         the V8 engine and executes JavaScript code. Install the Long-Term
@@ -108,7 +107,7 @@ function StartNextJsWebApp() {
         (as of writing v16.16.0).
       </p>
 
-      <h4>3. Yarn</h4>
+      <h3>3. Yarn</h3>
       <p>
         Yarn is a software packaging system developed for the Node.js JavaScript
         runtime environment. Install Yarn through the npm package manager, which
@@ -117,8 +116,8 @@ function StartNextJsWebApp() {
       </p>
       <Codeblock data={`npm install --global yarn`} isJson={false} />
 
-      <h3>Setup Next.js</h3>
-      <h4>1. Create project folder and open Visual Studio Code</h4>
+      <h2>Setup Next.js</h2>
+      <h3>1. Create project folder and open Visual Studio Code</h3>
       <p>
         Create a new folder for your project. Give the folder a meaningful name.
       </p>
@@ -126,13 +125,13 @@ function StartNextJsWebApp() {
         Open the Visual Studio Code application and drag your project folder in.
       </p>
 
-      <h4>2. Create Next.js app</h4>
+      <h3>2. Create Next.js app</h3>
       <p>
         Open the Terminal on your Visual Studio Code and execute this command:
       </p>
       <Codeblock data={`yarn create next-app --typescript .`} isJson={false} />
 
-      <h4>3. Start development server</h4>
+      <h3>3. Start development server</h3>
       <p>
         After the installation is complete, start the development server on
         http://localhost:3000:
@@ -146,62 +145,14 @@ function StartNextJsWebApp() {
         to view your application. <b>CTRL+C</b> to stop the application.
       </p>
 
-      <h3>Setup Mesh</h3>
-      <h4>1. Install the @martifylabs/mesh package</h4>
+      <h2>Setup Mesh</h2>
+      <h3>1. Install the @martifylabs/mesh package</h3>
       <p>Install the latest version of Mesh with yarn:</p>
       <Codeblock data={`yarn add @martifylabs/mesh`} isJson={false} />
 
-      <h4>
-        2. Add experiments in <b>tsconfig.json</b>
-      </h4>
-      <p>
-        Open <b>tsconfig.json</b> and append the following:
-      </p>
-      <Codeblock
-        data={`{
-  ...
-  "experiments": {
-    "asyncWebAssembly": true,
-    "topLevelAwait": true
-  }
-}`}
-        isJson={false}
-      />
-      <p>
-        Your <b>tsconfig.json</b> should look like this:
-      </p>
-      <Codeblock
-        data={`{
-  "compilerOptions": {
-    "target": "es5",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "noImplicitAny": false
-  },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"],
-  "experiments": {
-    "asyncWebAssembly": true,
-    "topLevelAwait": true
-  },
-}`}
-        isJson={false}
-      />
-
-      <h4>
-        3. Add webpack in <b>next.config.js</b>
-      </h4>
+      <h3>
+        2. Add webpack in <b>next.config.js</b>
+      </h3>
       <p>
         Open <b>next.config.js</b> and append the following:
       </p>
@@ -240,16 +191,16 @@ const nextConfig = {
 module.exports = nextConfig;`}
         isJson={false}
       />
-      <h4>4. Congratulations</h4>
+      <h3>3. Congratulations</h3>
       <p>
-        Your just saved a few weeks of learning and a number days trying to get
+        You just saved a few weeks of learning and a number days trying to get
         started. Your Next.js application is ready to connect wallet, browse
         assets and make some transactions. Start the development server:
       </p>
       <Codeblock data={`yarn run dev`} isJson={false} />
 
-      <h3>Examples to get started</h3>
-      <h4>1. Create a Connect Wallet commponent</h4>
+      <h2>See it in action</h2>
+      <h3>1. Create a Connect Wallet commponent</h3>
       <p>
         Create a new folder named <b>components</b> and create a new file named{' '}
         <b>connectWallet.tsx</b>. In <b>components/connectWallet.tsx</b> insert
@@ -335,7 +286,7 @@ export default function ConnectWallet({
         isJson={false}
       />
 
-      <h4>2. Lets connect wallet and check wallet&apos;s assets</h4>
+      <h3>2. Lets connect wallet and check wallet&apos;s assets</h3>
       <p>
         Open <b>pages/index.tsx</b> and replace with the following codes:
       </p>
@@ -394,7 +345,7 @@ export default Home;
         isJson={false}
       />
 
-      <h4>3. Start server and try it</h4>
+      <h3>3. Start server and try it</h3>
       <p>Start the development server:</p>
       <Codeblock data={`yarn run dev`} isJson={false} />
       <p>
@@ -405,11 +356,11 @@ export default Home;
         to connect available wallets and view the assets in wallet.
       </p>
 
-      <h4>4. Try on your own</h4>
+      <h3>4. Try on your own</h3>
       <p>
-        Try displaying your wallet&apos;s address and the amount of lovelace in your
-        Next.js application. Check out the <Link href="/wallet">wallet</Link>{' '}
-        page for more details.
+        Try displaying your wallet&apos;s address and the amount of lovelace in
+        your Next.js application. Check out the{' '}
+        <Link href="/wallet">wallet</Link> page for more details.
       </p>
     </section>
   );
@@ -418,7 +369,7 @@ export default Home;
 function SeekHelp() {
   return (
     <section className="px-4 lg:px-6">
-      <h2>Help, I&apos;m Stuck!</h2>
+      <h1>Help, I&apos;m Stuck!</h1>
       <p>
         If you get stuck, check out{' '}
         <a
@@ -442,15 +393,31 @@ function SeekHelp() {
         , and we will help you out.
       </p>
       <p>
-        You can also ask questions on{' '}
+        You can also ask questions on {' '}
         <a
           href="https://discord.gg/Z6AH9dahdH"
           target="_blank"
           rel="noreferrer"
         >
-          Martify&apos;s Discord server
+          Martify&apos;s
         </a>
-        .
+        ,{' '}
+        <a
+          href="https://discord.gg/Va7DXqSSn8"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Gimbalabs&apos;
+        </a>{' '}
+        or{' '}
+        <a
+          href="https://discord.gg/inputoutput"
+          target="_blank"
+          rel="noreferrer"
+        >
+          IOG Technical Community&apos;s
+        </a>{' '}
+        Discord servers.
       </p>
     </section>
   );
@@ -459,7 +426,7 @@ function SeekHelp() {
 function StartNodeJs() {
   return (
     <section className="px-4 lg:px-6">
-      <h2>Start a Node.js project with Mesh</h2>
+      <h1>Start a Node.js project with Mesh</h1>
       <p>
         <i>Coming soon... Anyone wanna contribute?</i>
       </p>
