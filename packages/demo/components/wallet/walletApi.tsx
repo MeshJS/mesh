@@ -1,78 +1,88 @@
-import { useState, useEffect } from "react";
-import Mesh from "@martifylabs/mesh";
-import { Button, Card, Codeblock, Input, Toggle } from "../../components";
+import { useState, useEffect } from 'react';
+import Mesh from '@martifylabs/mesh';
+import { Button, Card, Codeblock, Input, Toggle } from '../../components';
+import ConnectWallet from '../../components/wallet/connectWallet';
 
 export default function WalletApi() {
   return (
     <>
+      <DemoConnectWallet />
+
+      <DemoSection
+        title="Get wallets available"
+        desc="Get a list of wallets available to connect."
+        demoFn={Mesh.wallet.getAvailableWallets()}
+        demoStr={'Mesh.wallet.getAvailableWallets()'}
+      />
+
       <DemoSection
         title="Is wallet enabled"
         desc="Check if wallet is enabled."
         demoFn={Mesh.wallet.isEnabled()}
-        demoStr={"Mesh.wallet.isEnabled()"}
+        demoStr={'Mesh.wallet.isEnabled()'}
       />
 
       <DemoSection
         title="Get network ID"
         desc="Get network ID. 0 is testnet, 1 is mainnet."
         demoFn={Mesh.wallet.getNetworkId()}
-        demoStr={"Mesh.wallet.getNetworkId()"}
+        demoStr={'Mesh.wallet.getNetworkId()'}
       />
 
       <DemoSection
         title="Get UTXOs"
         desc="Get wallet's UTXOs"
         demoFn={Mesh.wallet.getUtxos()}
-        demoStr={"Mesh.wallet.getUtxos()"}
+        demoStr={'Mesh.wallet.getUtxos()'}
       />
 
       <DemoSection
         title="Get balance"
         desc="Get balance"
         demoFn={Mesh.wallet.getBalance()}
-        demoStr={"Mesh.wallet.getBalance()"}
+        demoStr={'Mesh.wallet.getBalance()'}
       />
 
       <DemoSection
         title="Get used address"
         desc="Get used address"
         demoFn={Mesh.wallet.getUsedAddresses()}
-        demoStr={"Mesh.wallet.getUsedAddresses()"}
+        demoStr={'Mesh.wallet.getUsedAddresses()'}
       />
 
       <DemoSection
         title="Get unused address"
         desc="Get unused address"
         demoFn={Mesh.wallet.getUnusedAddresses()}
-        demoStr={"Mesh.wallet.getUnusedAddresses()"}
+        demoStr={'Mesh.wallet.getUnusedAddresses()'}
       />
 
       <DemoSection
         title="Get change address"
         desc="Get change address"
         demoFn={Mesh.wallet.getChangeAddress()}
-        demoStr={"Mesh.wallet.getChangeAddress()"}
+        demoStr={'Mesh.wallet.getChangeAddress()'}
       />
 
       <DemoSection
         title="Get reward address"
         desc="Get reward address"
         demoFn={Mesh.wallet.getRewardAddresses()}
-        demoStr={"Mesh.wallet.getRewardAddresses()"}
+        demoStr={'Mesh.wallet.getRewardAddresses()'}
       />
 
       <DemoSection
         title="Get wallet address"
         desc="Get the first used address."
         demoFn={Mesh.wallet.getWalletAddress()}
-        demoStr={"Mesh.wallet.getWalletAddress()"}
+        demoStr={'Mesh.wallet.getWalletAddress()'}
       />
 
       <DemoSection
         title="Get lovelace amount"
         desc="Get lovelace amount"
         demoFn={Mesh.wallet.getLovelace()}
-        demoStr={"Mesh.wallet.getLovelace()"}
+        demoStr={'Mesh.wallet.getLovelace()'}
       />
 
       <DemoAssetParams />
@@ -104,7 +114,7 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
           <Button
             onClick={() => runDemo()}
             style={
-              loading ? "warning" : response !== null ? "success" : "light"
+              loading ? 'warning' : response !== null ? 'success' : 'light'
             }
             disabled={loading}
           >
@@ -124,12 +134,32 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
   );
 }
 
+function DemoConnectWallet() {
+  return (
+    <Card>
+      <div className="grid gap-4 grid-cols-2">
+        <div className="">
+          <h3>Connect wallet</h3>
+          <p>Connect wallet.</p>
+        </div>
+        <div className="mt-8">
+          <Codeblock
+            data={`const walletConnected = await Mesh.wallet.enable({ walletName: "ccvault" });`}
+            isJson={false}
+          />
+          <ConnectWallet />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function DemoAssetParams() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const [policyId, setPolicyId] = useState<string>("");
+  const [policyId, setPolicyId] = useState<string>('');
   const [includeOnchain, setIncludeOnchain] = useState<boolean>(false);
-  const [limit, setLimit] = useState<string>("9");
+  const [limit, setLimit] = useState<string>('9');
   const [network, setNetwork] = useState<number>(0);
 
   async function runDemo() {
@@ -149,7 +179,7 @@ function DemoAssetParams() {
     if (limit) {
       let _limit = parseInt(limit);
       if (_limit > 0) {
-        params["limit"] = _limit;
+        params['limit'] = _limit;
       }
     }
 
@@ -245,7 +275,7 @@ function DemoAssetParams() {
           <Button
             onClick={() => runDemo()}
             style={
-              loading ? "warning" : response !== null ? "success" : "light"
+              loading ? 'warning' : response !== null ? 'success' : 'light'
             }
             disabled={loading}
           >

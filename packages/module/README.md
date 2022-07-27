@@ -18,7 +18,7 @@ yarn add @martifylabs/mesh
 
 #### 3. In `tsconfig.json`, add:
 ```js
-const nextConfig = {
+{
   ...
   "experiments": {
     "asyncWebAssembly": true,
@@ -47,7 +47,8 @@ Example of `tsconfig.json`:
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "incremental": true
+    "incremental": true,
+    "noImplicitAny": false
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules"],
@@ -62,29 +63,8 @@ Example of `tsconfig.json`:
 
 #### 4. In `next.config.js`, add:
 ```js
-{
-  ...,
-  webpack: function (config, options) {
-    config.experiments = {
-      asyncWebAssembly: true,
-      layers: true,
-      topLevelAwait: true,
-    };
-    config.resolve.fallback = { fs: false };
-    return config;
-  }
-}
-```
-
-<details><summary>See example</summary>
-<p>
-
-Example of `next.config.js`:
-```js
-/** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  swcMinify: true,
+  ...
   webpack: function (config, options) {
     config.experiments = {
       asyncWebAssembly: true,
@@ -95,9 +75,27 @@ const nextConfig = {
     return config;
   },
 };
+```
 
+<details><summary>See example</summary>
+<p>
+
+Example of `next.config.js`:
+```js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  webpack: function (config, options) {
+    config.experiments = {
+      asyncWebAssembly: true,
+      layers: true,
+      topLevelAwait: true,
+    };
+    config.resolve.fallback = { fs: false };
+    return config;
+  },
+};
 module.exports = nextConfig;
-
 ```
 </p>
 </details>
@@ -118,7 +116,7 @@ const Home: NextPage = () => {
 
   async function connectWallet(walletName: string) {
     let connected = await Mesh.wallet.enable({ walletName: walletName });
-    const _assets = await Mesh.wallet.getAssets({});
+    const _assets = await Mesh.wallet.getAssets();
     setAssets(_assets);
   }
 

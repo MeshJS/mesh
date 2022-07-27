@@ -17,17 +17,27 @@ const WALLETS = {
   },
 };
 
-export default function ConnectWallet({ walletConnected, setWalletConnected }) {
+export default function ConnectWallet({
+  setWalletConnected,
+}: {
+  setWalletConnected?;
+}) {
   const [availableWallets, setAvailableWallets] = useState<string[] | null>(
     null
   );
   const [connecting, setConnecting] = useState<boolean>(false);
+  const [walletNameConnected, setWalletNameConnected] = useState<string>('');
 
   async function connectWallet(walletName: string) {
     setConnecting(true);
-    let connected = await Mesh.wallet.enable({ walletName: walletName });
-    if (connected) {
-      setWalletConnected(walletName);
+    const walletConnected = await Mesh.wallet.enable({
+      walletName: walletName,
+    });
+    if (walletConnected) {
+      if (setWalletConnected) {
+        setWalletConnected(true);
+      }
+      setWalletNameConnected(walletName);
     }
     setConnecting(false);
   }
@@ -41,16 +51,15 @@ export default function ConnectWallet({ walletConnected, setWalletConnected }) {
 
   return (
     <>
-      <h2>Connect available wallets</h2>
       {availableWallets
         ? availableWallets.length == 0
           ? 'No wallets found'
           : availableWallets.map((walletName, i) => (
               <Button
-                key={walletName}
+                key={i}
                 onClick={() => connectWallet(walletName)}
-                style={walletConnected == walletName ? 'success' : 'light'}
-                disabled={connecting || walletConnected == walletName}
+                style={walletNameConnected == walletName ? 'success' : 'light'}
+                disabled={connecting || walletNameConnected == walletName}
               >
                 <img
                   src={`/wallets/${WALLETS[walletName].logo}`}

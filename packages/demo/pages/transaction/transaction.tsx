@@ -16,15 +16,13 @@ const Transaction = () => {
 };
 
 function Showcase() {
-  const [walletConnected, setWalletConnected] = useState<null | string>(null);
+  const [walletConnected, setWalletConnected] = useState<boolean>(false);
 
   return (
     <section>
       <div className="mx-auto max-w-screen-xl px-4 lg:px-6">
-        <ConnectWallet
-          walletConnected={walletConnected}
-          setWalletConnected={setWalletConnected}
-        />
+        <h2>Connect available wallets</h2>
+        <ConnectWallet setWalletConnected={setWalletConnected} />
         {walletConnected && (
           <>
             <SendAda />

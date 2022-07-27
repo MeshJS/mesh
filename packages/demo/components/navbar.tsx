@@ -1,15 +1,15 @@
-import { useState } from "react";
-import Link from "next/link";
-import { SunIcon, MoonIcon, MenuIcon } from "@heroicons/react/solid";
+import { useState } from 'react';
+import Link from 'next/link';
+import { SunIcon, MoonIcon, MenuIcon } from '@heroicons/react/solid';
 
 const Navbar = (props) => {
   const [darkMode, setDarkMode] = useState(true);
   function toggle() {
     let newMode = !darkMode;
     if (newMode) {
-      document.documentElement.classList.add("dark");
+      document.documentElement.classList.add('dark');
     } else {
-      document.documentElement.classList.remove("dark");
+      document.documentElement.classList.remove('dark');
     }
     setDarkMode(newMode);
   }
@@ -110,8 +110,9 @@ const Navbar = (props) => {
             id="mobile-menu-2"
           >
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
-              <NavLink href={"/wallet"} label={"Wallet"} />
-              <NavLink href={"/transaction"} label={"Transaction"} />
+              <NavLink href={'/get-started'} label={'Getting Started'} />
+              <NavLink href={'/wallet'} label={'Wallet'} />
+              <NavLink href={'/transaction'} label={'Transaction'} />
               {/* <NavLink href={"/ipfs"} label={"IPFS"} /> */}
             </ul>
           </div>
