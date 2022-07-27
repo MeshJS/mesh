@@ -59,11 +59,11 @@
     "size-limit": "7.0.8",
     "tsdx": "0.14.1",
     "tslib": "2.4.0",
-    "typedoc": "0.23.5"
+    "typedoc": "0.23.9"
   },
   "dependencies": {
-    "@emurgo/cardano-serialization-lib-browser": "10.2.0",
-    "@emurgo/cardano-serialization-lib-nodejs": "10.2.0",
+    "@emurgo/cardano-serialization-lib-browser": "11.0.0",
+    "@emurgo/cardano-serialization-lib-nodejs": "11.0.0",
     "axios": "0.27.2",
     "zod": "3.17.10"
   }

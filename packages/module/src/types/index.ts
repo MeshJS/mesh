@@ -56,6 +56,8 @@ export type ProtocolParameters = {
   n_opt: number;
   nonce: string;
   pool_deposit: string;
+  price_mem: number,
+  price_step: number,
   protocol_major_ver: number;
   protocol_minor_ver: number;
 };

@@ -80,7 +80,6 @@ export type PrivateKey = InstanceType<typeof csl.PrivateKey>;
 export type ProposedProtocolParameterUpdates = InstanceType<typeof csl.ProposedProtocolParameterUpdates>;
 export type ProtocolParamUpdate = InstanceType<typeof csl.ProtocolParamUpdate>;
 export type ProtocolVersion = InstanceType<typeof csl.ProtocolVersion>;
-export type ProtocolVersions = InstanceType<typeof csl.ProtocolVersions>;
 export type PublicKey = InstanceType<typeof csl.PublicKey>;
 export type PublicKeys = InstanceType<typeof csl.PublicKeys>;
 export type Redeemer = InstanceType<typeof csl.Redeemer>;

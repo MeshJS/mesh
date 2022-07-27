@@ -20,7 +20,7 @@ export class Transaction {
       await this._blockfrost.epochsLatestEpochProtocolParameters();
 
     let txBuilderConfig = csl.TransactionBuilderConfigBuilder.new()
-      .coins_per_utxo_word(
+      .coins_per_utxo_byte(
         csl.BigNum.from_str(protocolParameters.coins_per_utxo_word)
       )
       .fee_algo(
@@ -41,12 +41,24 @@ export class Transaction {
       )
       .max_tx_size(protocolParameters.max_tx_size)
       .max_value_size(parseInt(protocolParameters.max_val_size))
+      .ex_unit_prices(
+        csl.ExUnitPrices.new(
+          csl.UnitInterval.new(
+            csl.BigNum.from_str("577"),
+            csl.BigNum.from_str("10000")
+          ),
+          csl.UnitInterval.new(
+            csl.BigNum.from_str("721"),
+            csl.BigNum.from_str("10000000")
+          )
+        )
+      )
       .build();
 
     return txBuilderConfig;
   }
 
-  private async _buildTransaction({ txBuilder }: { txBuilder }) {
+  private async _buildTransaction({ txBuilder }: any) {
     const txBody = txBuilder.build();
     const witnesses = csl.TransactionWitnessSet.new();
     const transaction = csl.Transaction.new(txBody, witnesses);
