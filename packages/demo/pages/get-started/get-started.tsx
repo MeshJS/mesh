@@ -200,11 +200,11 @@ module.exports = nextConfig;`}
       <Codeblock data={`yarn run dev`} isJson={false} />
 
       <h2>See it in action</h2>
-      <h3>1. Create a Connect Wallet commponent</h3>
+      <h3>1. Create a Connect Wallet component</h3>
       <p>
         Create a new folder named <b>components</b> and create a new file named{' '}
-        <b>connectWallet.tsx</b>. In <b>components/connectWallet.tsx</b> insert
-        the following:
+        <b>connectWallet.tsx</b>. Open <b>components/connectWallet.tsx</b> and insert
+        the following codes:
       </p>
       <Codeblock
         data={`import { useEffect, useState } from "react";
@@ -288,7 +288,7 @@ export default function ConnectWallet({
 
       <h3>2. Lets connect wallet and check wallet&apos;s assets</h3>
       <p>
-        Open <b>pages/index.tsx</b> and replace with the following codes:
+        Open <b>pages/index.tsx</b> and replace it with the following codes:
       </p>
       <Codeblock
         data={`import { useState } from "react";
