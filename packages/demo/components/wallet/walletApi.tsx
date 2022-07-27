@@ -3,7 +3,25 @@ import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input, Toggle } from '../../components';
 import ConnectWallet from '../../components/wallet/connectWallet';
 
-export default function WalletApi() {
+async function callWalletFunctions(fnName) {
+  const walletFn = {
+    getAvailableWallets: Mesh.wallet.getAvailableWallets(),
+    isEnabled: Mesh.wallet.isEnabled(),
+    getNetworkId: Mesh.wallet.getNetworkId(),
+    getUtxos: Mesh.wallet.getUtxos(),
+    getBalance: Mesh.wallet.getBalance(),
+    getUsedAddresses: Mesh.wallet.getUsedAddresses(),
+    getUnusedAddresses: Mesh.wallet.getUnusedAddresses(),
+    getChangeAddress: Mesh.wallet.getChangeAddress(),
+    getRewardAddresses: Mesh.wallet.getRewardAddresses(),
+    getWalletAddress: Mesh.wallet.getWalletAddress(),
+    getLovelace: Mesh.wallet.getLovelace(),
+  };
+  let res = await walletFn[fnName];
+  return res;
+}
+
+export default function WalletApi({ walletConnected }) {
   return (
     <>
       <DemoConnectWallet />
@@ -11,92 +29,103 @@ export default function WalletApi() {
       <DemoSection
         title="Get wallets available"
         desc="Get a list of wallets available to connect."
-        demoFn={Mesh.wallet.getAvailableWallets()}
+        demoFn={'getAvailableWallets'}
         demoStr={'Mesh.wallet.getAvailableWallets()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Is wallet enabled"
         desc="Check if wallet is enabled."
-        demoFn={Mesh.wallet.isEnabled()}
+        demoFn={'isEnabled'}
         demoStr={'Mesh.wallet.isEnabled()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get network ID"
         desc="Get network ID. 0 is testnet, 1 is mainnet."
-        demoFn={Mesh.wallet.getNetworkId()}
+        demoFn={'getNetworkId'}
         demoStr={'Mesh.wallet.getNetworkId()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get UTXOs"
         desc="Get wallet's UTXOs"
-        demoFn={Mesh.wallet.getUtxos()}
+        demoFn={'getUtxos'}
         demoStr={'Mesh.wallet.getUtxos()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get balance"
         desc="Get balance"
-        demoFn={Mesh.wallet.getBalance()}
+        demoFn={'getBalance'}
         demoStr={'Mesh.wallet.getBalance()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get used address"
         desc="Get used address"
-        demoFn={Mesh.wallet.getUsedAddresses()}
+        demoFn={'getUsedAddresses'}
         demoStr={'Mesh.wallet.getUsedAddresses()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get unused address"
         desc="Get unused address"
-        demoFn={Mesh.wallet.getUnusedAddresses()}
+        demoFn={'getUnusedAddresses'}
         demoStr={'Mesh.wallet.getUnusedAddresses()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get change address"
         desc="Get change address"
-        demoFn={Mesh.wallet.getChangeAddress()}
+        demoFn={'getChangeAddress'}
         demoStr={'Mesh.wallet.getChangeAddress()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get reward address"
         desc="Get reward address"
-        demoFn={Mesh.wallet.getRewardAddresses()}
+        demoFn={'getRewardAddresses'}
         demoStr={'Mesh.wallet.getRewardAddresses()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get wallet address"
         desc="Get the first used address."
-        demoFn={Mesh.wallet.getWalletAddress()}
+        demoFn={'getWalletAddress'}
         demoStr={'Mesh.wallet.getWalletAddress()'}
+        walletConnected={walletConnected}
       />
 
       <DemoSection
         title="Get lovelace amount"
         desc="Get lovelace amount"
-        demoFn={Mesh.wallet.getLovelace()}
+        demoFn={'getLovelace'}
         demoStr={'Mesh.wallet.getLovelace()'}
+        walletConnected={walletConnected}
       />
 
-      <DemoAssetParams />
+      <DemoAssetParams walletConnected={walletConnected} />
     </>
   );
 }
 
-function DemoSection({ title, desc, demoFn, demoStr }) {
+function DemoSection({ title, desc, demoStr, demoFn, walletConnected }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
 
   async function runDemo() {
     setLoading(true);
-    let results = await demoFn;
+    let results = await callWalletFunctions(demoFn);
     setResponse(results);
     setLoading(false);
   }
@@ -111,15 +140,17 @@ function DemoSection({ title, desc, demoFn, demoStr }) {
 
         <div className="mt-8">
           <Codeblock data={`const result = await ${demoStr};`} isJson={false} />
-          <Button
-            onClick={() => runDemo()}
-            style={
-              loading ? 'warning' : response !== null ? 'success' : 'light'
-            }
-            disabled={loading}
-          >
-            Run code snippet
-          </Button>
+          {walletConnected && (
+            <Button
+              onClick={() => runDemo()}
+              style={
+                loading ? 'warning' : response !== null ? 'success' : 'light'
+              }
+              disabled={loading}
+            >
+              Run code snippet
+            </Button>
+          )}
           {response !== null && (
             <>
               <p>
@@ -154,7 +185,7 @@ function DemoConnectWallet() {
   );
 }
 
-function DemoAssetParams() {
+function DemoAssetParams({ walletConnected }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [policyId, setPolicyId] = useState<string>('');
@@ -222,8 +253,10 @@ function DemoAssetParams() {
       let network = await Mesh.wallet.getNetworkId();
       setNetwork(network);
     }
-    init();
-  }, []);
+    if (walletConnected) {
+      init();
+    }
+  }, [walletConnected]);
 
   return (
     <Card>
@@ -271,16 +304,17 @@ function DemoAssetParams() {
           </table>
 
           <Codeblock data={codeSnippet} isJson={false} />
-
-          <Button
-            onClick={() => runDemo()}
-            style={
-              loading ? 'warning' : response !== null ? 'success' : 'light'
-            }
-            disabled={loading}
-          >
-            Run code snippet
-          </Button>
+          {walletConnected && (
+            <Button
+              onClick={() => runDemo()}
+              style={
+                loading ? 'warning' : response !== null ? 'success' : 'light'
+              }
+              disabled={loading}
+            >
+              Run code snippet
+            </Button>
+          )}
           {response !== null && (
             <>
               <p>

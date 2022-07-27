@@ -23,13 +23,16 @@ function Showcase() {
       <div className="mx-auto max-w-screen-xl px-4 lg:px-6">
         <h2>Connect available wallets</h2>
         <ConnectWallet setWalletConnected={setWalletConnected} />
-        {walletConnected && (
+        {/* {walletConnected && (
           <>
-            <SendAda />
-            <SendMultiassets />
-            <TransactionBuilder />
+            <SendAda walletConnected={walletConnected}/>
+            <SendMultiassets walletConnected={walletConnected}/>
+            <TransactionBuilder walletConnected={walletConnected}/>
           </>
-        )}
+        )} */}
+        <SendAda walletConnected={walletConnected} />
+        <SendMultiassets walletConnected={walletConnected} />
+        <TransactionBuilder walletConnected={walletConnected} />
       </div>
     </section>
   );

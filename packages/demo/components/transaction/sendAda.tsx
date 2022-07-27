@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
-import Mesh from "@martifylabs/mesh";
-import { Button, Card, Codeblock, Input } from "../../components";
-import { TrashIcon, PlusCircleIcon } from "@heroicons/react/solid";
-import { Recipient } from "../../types";
+import { useState, useEffect } from 'react';
+import Mesh from '@martifylabs/mesh';
+import { Button, Card, Codeblock, Input } from '../../components';
+import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
+import { Recipient } from '../../types';
 
-export default function SendAda() {
+export default function SendAda({ walletConnected }) {
   return (
     <Card>
       <div className="grid gap-4 grid-cols-2">
@@ -28,14 +28,14 @@ export default function SendAda() {
           </ol>
         </div>
         <div className="mt-8">
-          <CodeDemo />
+          <CodeDemo walletConnected={walletConnected} />
         </div>
       </div>
     </Card>
   );
 }
 
-function CodeDemo() {
+function CodeDemo({ walletConnected }) {
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -43,7 +43,7 @@ function CodeDemo() {
   function add() {
     let newRecipients = [...recipients];
     newRecipients.push({
-      address: "",
+      address: '',
       assets: {
         lovelace: 1000000,
       },
@@ -112,8 +112,10 @@ function CodeDemo() {
       ];
       setRecipients(newRecipents);
     }
-    init();
-  }, []);
+    if (walletConnected) {
+      init();
+    }
+  }, [walletConnected]);
 
   return (
     <>
@@ -137,7 +139,7 @@ function CodeDemo() {
                   <Input
                     value={recipient.address}
                     onChange={(e) =>
-                      updateAddress(i, "address", e.target.value)
+                      updateAddress(i, 'address', e.target.value)
                     }
                     placeholder="address"
                   />
@@ -145,7 +147,7 @@ function CodeDemo() {
                 <td className="py-4 px-4 w-1/4">
                   <Input
                     value={recipient.assets.lovelace}
-                    onChange={(e) => updateAsset(i, "lovelace", e.target.value)}
+                    onChange={(e) => updateAsset(i, 'lovelace', e.target.value)}
                     placeholder="lovelace"
                     type="number"
                   />
@@ -179,7 +181,7 @@ function CodeDemo() {
       </table>
 
       <Codeblock
-        data={`const recipients = ${JSON.stringify(recipients, null, 2)}}
+        data={`const recipients = ${JSON.stringify(recipients, null, 2)};
 
 const tx = await Mesh.transaction.build({
   outputs: recipients,
@@ -196,13 +198,15 @@ const txHash = await Mesh.wallet.submitTransaction({
         isJson={false}
       />
 
-      <Button
-        onClick={() => makeTransaction()}
-        disabled={state == 1}
-        style={state == 1 ? "warning" : state == 2 ? "success" : "light"}
-      >
-        Run code snippet
-      </Button>
+      {walletConnected && (
+        <Button
+          onClick={() => makeTransaction()}
+          disabled={state == 1}
+          style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
+        >
+          Run code snippet
+        </Button>
+      )}
 
       {result && (
         <>

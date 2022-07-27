@@ -21,11 +21,7 @@ function Showcase() {
     <section className="px-4 lg:px-6">
       <h2>Connect available wallets</h2>
       <ConnectWallet setWalletConnected={setWalletConnected} />
-      {walletConnected && (
-        <>
-          <WalletApi />
-        </>
-      )}
+      <WalletApi walletConnected={walletConnected} />
     </section>
   );
 }

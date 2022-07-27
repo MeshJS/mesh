@@ -4,7 +4,7 @@ import { Button, Card, Codeblock, Input, Modal } from '../../components';
 import { Recipient, Asset } from '../../types';
 import { CardAsset } from '../blocks/cardassets';
 
-export default function SendMultiassets() {
+export default function SendMultiassets({ walletConnected }) {
   return (
     <Card>
       <div className="grid gap-4 grid-cols-2">
@@ -14,12 +14,12 @@ export default function SendMultiassets() {
         </div>
         <div className="mt-8"></div>
       </div>
-      <CodeDemo />
+      <CodeDemo walletConnected={walletConnected} />
     </Card>
   );
 }
 
-function CodeDemo() {
+function CodeDemo({ walletConnected }) {
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([
@@ -133,13 +133,15 @@ function CodeDemo() {
       ];
       setRecipients(newRecipents);
     }
-    init();
-  }, []);
+    if (walletConnected) {
+      init();
+    }
+  }, [walletConnected]);
 
   return (
     <div className="grid gap-4 grid-cols-2">
       <div>
-        {assets === null && state === 0 && (
+        {walletConnected && assets === null && state === 0 && (
           <Button onClick={() => getAssets()}>Get wallet assets</Button>
         )}
 
@@ -205,7 +207,7 @@ function CodeDemo() {
         </table>
 
         <Codeblock
-          data={`const recipients = ${JSON.stringify(recipients, null, 2)}}
+          data={`const recipients = ${JSON.stringify(recipients, null, 2)};
 
 const tx = await Mesh.transaction.build({
   outputs: recipients,
@@ -222,13 +224,15 @@ const txHash = await Mesh.wallet.submitTransaction({
           isJson={false}
         />
 
-        <Button
-          onClick={() => makeTransaction()}
-          disabled={state == 1}
-          style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
-        >
-          Run code snippet
-        </Button>
+        {walletConnected && (
+          <Button
+            onClick={() => makeTransaction()}
+            disabled={state == 1}
+            style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
+          >
+            Run code snippet
+          </Button>
+        )}
 
         {result && (
           <>

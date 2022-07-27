@@ -10,7 +10,7 @@ import {
 import { Recipient } from '../../types';
 import { XIcon } from '@heroicons/react/solid';
 
-export default function TransactionBuilder() {
+export default function TransactionBuilder({ walletConnected }) {
   return (
     <Card>
       <div className="grid gap-4 grid-cols-2">
@@ -23,12 +23,12 @@ export default function TransactionBuilder() {
         </div>
         <div className="mt-8"></div>
       </div>
-      <PrepareInputsOutputs />
+      <PrepareInputsOutputs walletConnected={walletConnected} />
     </Card>
   );
 }
 
-function PrepareInputsOutputs() {
+function PrepareInputsOutputs({ walletConnected }) {
   const [state, setState] = useState(0);
   const [utxos, setUtxos] = useState<{}[] | string[] | undefined>([]);
   const [selectedUtxos, setSelectedUtxos] = useState<string[]>([]);
@@ -48,8 +48,10 @@ function PrepareInputsOutputs() {
       ];
       setRecipients(newRecipents);
     }
-    init();
-  }, []);
+    if (walletConnected) {
+      init();
+    }
+  }, [walletConnected]);
 
   return (
     <>
@@ -78,6 +80,7 @@ function PrepareInputsOutputs() {
         state={state}
         setState={setState}
         selectedUtxos={selectedUtxos}
+        walletConnected={walletConnected}
       />
     </>
   );
@@ -364,7 +367,13 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
   );
 }
 
-function CodeDemo({ recipients, state, setState, selectedUtxos }) {
+function CodeDemo({
+  recipients,
+  state,
+  setState,
+  selectedUtxos,
+  walletConnected,
+}) {
   const [result, setResult] = useState<null | string>(null);
   const [ttl, setTtl] = useState('');
   const [message, setMessage] = useState('');
@@ -374,8 +383,10 @@ function CodeDemo({ recipients, state, setState, selectedUtxos }) {
     async function getWalletAddress() {
       setChangeAddress(await Mesh.wallet.getWalletAddress());
     }
-    getWalletAddress();
-  }, []);
+    if (walletConnected) {
+      getWalletAddress();
+    }
+  }, [walletConnected]);
 
   async function makeTransaction() {
     setState(1);
@@ -425,7 +436,7 @@ function CodeDemo({ recipients, state, setState, selectedUtxos }) {
   utxoSnippet = utxoSnippet.replace(new RegExp('  ', 'g'), '    ');
   utxoSnippet = utxoSnippet.replace(new RegExp(']', 'g'), '  ]');
 
-  let codeSnippet = `const recipients = ${JSON.stringify(recipients, null, 2)}}
+  let codeSnippet = `const recipients = ${JSON.stringify(recipients, null, 2)};
 
 const tx = await Mesh.transaction.build({
   inputs: ${utxoSnippet},
@@ -517,13 +528,15 @@ const txHash = await Mesh.wallet.submitTransaction({
       <div>
         <Codeblock data={codeSnippet} isJson={false} />
 
-        <Button
-          onClick={() => makeTransaction()}
-          disabled={state == 1}
-          style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
-        >
-          Run code snippet
-        </Button>
+        {walletConnected && (
+          <Button
+            onClick={() => makeTransaction()}
+            disabled={state == 1}
+            style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
+          >
+            Run code snippet
+          </Button>
+        )}
 
         {result && (
           <>
