@@ -1,19 +1,19 @@
-import { useEffect, useState } from "react";
-import Mesh from "@martifylabs/mesh";
-import { Button } from "../../components";
+import { useEffect, useState } from 'react';
+import Mesh from '@martifylabs/mesh';
+import { Button } from '../../components';
 
 const WALLETS = {
   nami: {
-    name: "Nami",
-    logo: "nami.svg",
+    name: 'Nami',
+    logo: 'nami.svg',
   },
   ccvault: {
-    name: "Eternl",
-    logo: "eternl.webp",
+    name: 'Eternl',
+    logo: 'eternl.webp',
   },
   gerowallet: {
-    name: "Gero",
-    logo: "gerowallet.svg",
+    name: 'Gero',
+    logo: 'gerowallet.svg',
   },
 };
 
@@ -44,12 +44,12 @@ export default function ConnectWallet({ walletConnected, setWalletConnected }) {
       <h2>Connect available wallets</h2>
       {availableWallets
         ? availableWallets.length == 0
-          ? "No wallets found"
+          ? 'No wallets found'
           : availableWallets.map((walletName, i) => (
               <Button
                 key={walletName}
                 onClick={() => connectWallet(walletName)}
-                style={walletConnected == walletName ? "success" : "light"}
+                style={walletConnected == walletName ? 'success' : 'light'}
                 disabled={connecting || walletConnected == walletName}
               >
                 <img
@@ -59,7 +59,7 @@ export default function ConnectWallet({ walletConnected, setWalletConnected }) {
                 Connect with {WALLETS[walletName].name}
               </Button>
             ))
-        : ""}
+        : ''}
     </>
   );
 }
