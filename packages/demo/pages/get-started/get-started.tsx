@@ -26,7 +26,7 @@ function Intro() {
         <p>
           Mesh has been designed from the start for gradual adoption, and you
           can use as little or as much as you need. Whether you want to build an
-          application to connect wallet and display what's in your wallet or
+          application to connect wallet and display what&apos;s in your wallet or
           start a complex dApp to create transactions and interact with Cardano
           blockchain and smart contracts; this section will help you get
           started.
@@ -52,7 +52,7 @@ function StartNextJsWebApp() {
         Next.js and Mesh are JavaScript libraries, and so we will assume that
         you have some familiarity with HTML and JavaScript language, but you
         should be able to follow along even if you are coming from a different
-        programming language. If you don't feel very confident, we recommend
+        programming language. If you don&apos;t feel very confident, we recommend
         going through this{' '}
         <a
           href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript"
@@ -335,7 +335,7 @@ export default function ConnectWallet({
         isJson={false}
       />
 
-      <h4>2. Lets connect wallet and check wallet's assets</h4>
+      <h4>2. Lets connect wallet and check wallet&apos;s assets</h4>
       <p>
         Open <b>pages/index.tsx</b> and replace with the following codes:
       </p>
@@ -407,7 +407,7 @@ export default Home;
 
       <h4>4. Try on your own</h4>
       <p>
-        Try displaying your wallet's address and the amount of lovelace in your
+        Try displaying your wallet&apos;s address and the amount of lovelace in your
         Next.js application. Check out the <Link href="/wallet">wallet</Link>{' '}
         page for more details.
       </p>
@@ -418,7 +418,7 @@ export default Home;
 function SeekHelp() {
   return (
     <section className="px-4 lg:px-6">
-      <h2>Help, I'm Stuck!</h2>
+      <h2>Help, I&apos;m Stuck!</h2>
       <p>
         If you get stuck, check out{' '}
         <a
@@ -431,7 +431,7 @@ function SeekHelp() {
         . You can ask questions and tagged it with <b>mesh</b>.
       </p>
       <p>
-        If you don't receive an answer, or if you remain stuck, please file{' '}
+        If you don&apos;t receive an answer, or if you remain stuck, please file{' '}
         <a
           href="https://github.com/MartifyLabs/mesh/issues"
           target="_blank"
@@ -448,7 +448,7 @@ function SeekHelp() {
           target="_blank"
           rel="noreferrer"
         >
-          Martify's Discord server
+          Martify&apos;s Discord server
         </a>
         .
       </p>
