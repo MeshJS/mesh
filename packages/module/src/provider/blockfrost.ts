@@ -1,5 +1,5 @@
-import { ProtocolParameters } from "../types/index";
-import axios, { AxiosInstance } from "axios/index";
+import { ProtocolParameters } from '../types/index';
+import axios, { AxiosInstance } from 'axios/index';
 
 export class Blockfrost {
   private _instance!: AxiosInstance;
@@ -15,8 +15,8 @@ export class Blockfrost {
   }) {
     const networkEndpoint =
       network == 0
-        ? "https://cardano-testnet.blockfrost.io/api/v0"
-        : "https://cardano-mainnet.blockfrost.io/api/v0";
+        ? 'https://cardano-testnet.blockfrost.io/api/v0'
+        : 'https://cardano-mainnet.blockfrost.io/api/v0';
     this._instance = axios.create({
       baseURL: networkEndpoint,
       headers: {
@@ -30,15 +30,15 @@ export class Blockfrost {
   }
 
   private async _request({
-    endpoint = "",
+    endpoint = '',
     body = null,
-    method = "GET",
+    method = 'GET',
   }: {
     endpoint: string;
     body?: null | string | Buffer;
     method?: string;
   }) {
-    if (method == "GET") {
+    if (method == 'GET') {
       return await this._instance
         .get(`${endpoint}`)
         .then(({ data }) => {
@@ -49,7 +49,7 @@ export class Blockfrost {
         });
     }
 
-    if (method == "POST") {
+    if (method == 'POST') {
       return await this._instance
         .post(`${endpoint}`, body)
         .then(({ data }) => {
@@ -75,6 +75,18 @@ export class Blockfrost {
     });
   }
 
+  async addressesAddressUtxosAsset({
+    address,
+    asset,
+  }: {
+    address: string;
+    asset: string;
+  }): Promise<[]> {
+    return await this._request({
+      endpoint: `/addresses/${address}/utxos/${asset}`,
+    });
+  }
+
   /**
    * Information about a specific asset
    * @param asset Concatenation of the policy_id and hex-encoded asset_name
@@ -94,7 +106,7 @@ export class Blockfrost {
    */
   async blockLatestBlock(): Promise<{}> {
     return await this._request({
-      endpoint: "/blocks/latest",
+      endpoint: '/blocks/latest',
     });
   }
 
@@ -104,7 +116,23 @@ export class Blockfrost {
    */
   async epochsLatestEpochProtocolParameters(): Promise<ProtocolParameters> {
     return await this._request({
-      endpoint: "/epochs/latest/parameters",
+      endpoint: '/epochs/latest/parameters',
+    });
+  }
+
+  async transactionsSpecificTransaction({
+    hash,
+  }: {
+    hash: string;
+  }): Promise<{}> {
+    return await this._request({
+      endpoint: `/txs/${hash}`,
+    });
+  }
+
+  async transactionsTransactionUTXOs({ hash }: { hash: string }): Promise<{}> {
+    return await this._request({
+      endpoint: `/txs/${hash}/utxos`,
     });
   }
 }

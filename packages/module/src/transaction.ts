@@ -1,6 +1,7 @@
 import { Blockfrost } from './provider/blockfrost';
 import { MIN_ADA_REQUIRED_WITH_ASSETS } from './global';
 import {
+  assetsToValue,
   toHex,
   fromHex,
   StringToAddress,
@@ -437,24 +438,31 @@ export class Transaction {
   }
 
   private _createTxOutput = ({ address, value, datum }) => {
-    const minAda = csl.min_ada_required(
-      value,
-      datum !== undefined,
-      csl.BigNum.from_str(this.protocolParameters.coins_per_utxo_word)
-    );
-
-    if (minAda.compare(value.coin()) === 1) value.set_coin(minAda);
-
-    const output = csl.TransactionOutput.new(address, value);
-
+    let output: any;
     if (datum) {
-      output.set_data_hash(csl.hash_plutus_data(datum));
+      output = csl.TransactionOutputBuilder.new()
+        .with_address(address)
+        .with_plutus_data(datum)
+        .with_data_hash(csl.hash_plutus_data(datum))
+        .next()
+        .with_value(value)
+        .build();
+    } else {
+      output = csl.TransactionOutputBuilder.new()
+        .with_address(address)
+        .next()
+        .with_value(value)
+        .build();
     }
-
     return output;
   };
 
-  private async _addOutputs({ txBuilder, outputs, datumAssetsList }: any) {
+  private async _addOutputs({
+    txBuilder,
+    outputs,
+    ownerAddressBech32,
+    datumAssetsList,
+  }: any) {
     const txOutputs = csl.TransactionOutputs.new();
 
     outputs.map((output: any) => {
@@ -488,17 +496,20 @@ export class Transaction {
         outputValue.set_multiasset(multiAsset);
       }
 
-      const datum = this.createDatum({
-        ownerAddressBech32: output.address,
-        assets: datumAssetsList,
-      });
-      const datumHash = plutusDataToHex(datum);
-      console.log('datumHash', datumHash);
+      // let datumHash: string | null = null;
+      let datum: any = null;
+      if (datumAssetsList) {
+        datum = this.createDatum({
+          ownerAddressBech32: ownerAddressBech32,
+          assets: datumAssetsList,
+        });
+        // datumHash = plutusDataToHex(datum);
+      }
 
       let thisOutput = this._createTxOutput({
         address: StringToAddress(output.address),
         value: outputValue,
-        datum: output.datum,
+        datum: datum,
       });
 
       txOutputs.add(
@@ -561,11 +572,16 @@ export class Transaction {
           return el != 'lovelace';
         });
       }
-      console.log('datumAssetsList', datumAssetsList);
+      console.log('datumAssetsList', datumAssetsList); // ["ds8dh9s8dhs.Pixel"]
     }
 
     // add outputs
-    await this._addOutputs({ txBuilder, outputs, datumAssetsList });
+    await this._addOutputs({
+      txBuilder,
+      outputs,
+      ownerAddressBech32: await this.wallet.getWalletAddress(),
+      datumAssetsList,
+    });
 
     // TODO: how to add message?
     if (message) {
@@ -632,16 +648,79 @@ export class Transaction {
     return datum;
   }
 
+  createTxUnspentOutput = (address, utxo) => {
+    console.log(123, 'address', address);
+    let amount = {};
+    for (let i = 0; i < utxo.amount.length; i++) {
+      let thisAsset = utxo.amount[i];
+      amount[thisAsset.unit] = thisAsset.quantity;
+    }
+
+    try {
+      return csl.TransactionUnspentOutput.new(
+        csl.TransactionInput.new(
+          csl.TransactionHash.from_bytes(fromHex(utxo.tx_hash)),
+          utxo.output_index
+        ),
+        csl.TransactionOutput.new(address, assetsToValue(amount))
+      );
+    } catch (error) {
+      console.error(
+        `Unexpected error in createTxUnspentOutput. [Message: ${error}]`
+      );
+      throw error;
+    }
+  };
+
+  async _addInputUtxoSC({ scriptAddress, asset }) {
+    let utxosFromBF = await this._blockfrost.addressesAddressUtxosAsset({
+      address: scriptAddress,
+      asset: asset,
+    });
+    console.log('utxosFromBF', utxosFromBF);
+
+    let utxos = utxosFromBF
+      .filter((utxo: any) => {
+        return utxo.data_hash !== null;
+      })
+      .map((utxoBF) => {
+        let txoutput = this.createTxUnspentOutput(
+          StringToAddress(scriptAddress),
+          utxoBF
+        );
+        console.log('txoutput', txoutput);
+        return txoutput;
+      });
+
+    let txInputsBuilder = csl.TxInputsBuilder.new();
+
+    // utxos.forEach((utxo: any) => {
+    //   txInputsBuilder.add_input(
+    //     utxo.output().address(),
+    //     utxo.input(),
+    //     utxo.output().amount()
+    //   );
+    // });
+
+    txInputsBuilder.add_input(
+      utxos[0].output().address(),
+      utxos[0].input(),
+      utxos[0].output().amount()
+    );
+
+    return { txInputsBuilder, utxoselected: utxos[0] };
+  }
+
   // this is for devt only, will need to refactor everything eventually
   async buildSC({
     ownerAddress,
-    changeAddress,
+    scriptAddress,
     assets,
     blockfrostApiKey,
     network,
   }: {
     ownerAddress: string;
-    changeAddress?: string;
+    scriptAddress: string;
     assets: string[];
     blockfrostApiKey: string;
     network: number;
@@ -656,9 +735,6 @@ export class Transaction {
 
     // prepare datum
 
-    /**
-     * assets = ["sa9djsa98j9djas98djasj89.PixelHead991","sa9djsa98j9djas98djasj89.PixelHead991"],
-     */
     const datum = this.createDatum({
       ownerAddressBech32: ownerAddress,
       assets: assets,
@@ -674,26 +750,69 @@ export class Transaction {
         datum: datum,
       },
     ];
+    let asset: string | null = null;
     assets.map((assetId) => {
       outputs[0].assets[assetId] = 1;
+      asset = assetId;
     });
+    outputs[0].assets['lovelace'] = 3000000;
+    console.log(44, 'outputs', outputs);
     await this._addOutputs({ txBuilder, outputs });
 
     // inputs
-    const inputs = [];
-    const txInputsBuilder = await this._addInputUtxo({ inputs, outputs });
+    const [policy, assetName] = asset!.split('.');
+    asset = `${policy}${toHex(assetName)}`;
+
+    const { txInputsBuilder, utxoselected } = await this._addInputUtxoSC({
+      scriptAddress,
+      asset,
+    });
+    console.log(22);
+    const scriptWitness = this.getPlutusWitness(
+      csl.PlutusScript.new(fromHex('4e4d01000033222220051200120011')),
+      datum,
+      this.unlock,
+      utxoselected
+    );
+    console.log(33);
+    txInputsBuilder.add_plutus_script_input(
+      scriptWitness,
+      utxoselected.input(),
+      utxoselected.output().amount()
+    );
+    console.log(44);
     txBuilder.set_inputs(txInputsBuilder);
+    console.log(44);
 
     // here to finalizeTx
     txBuilder.calc_script_data_hash(
       csl.TxBuilderConstants.plutus_vasil_cost_models()
     );
+    console.log(55);
 
-    await this._addChange({ txBuilder, changeAddress });
-
+    await this._addChange({ txBuilder, changeAddress: ownerAddress });
+    console.log(66);
     const transactionHex = await this._buildTransaction({ txBuilder });
-
+    console.log(77);
     return transactionHex;
+  }
+
+  unlock(index) {
+    const data = csl.PlutusData.new_constr_plutus_data(
+      csl.ConstrPlutusData.new(csl.BigNum.from_str('0'), csl.PlutusList.new())
+    );
+
+    const redeemer = csl.Redeemer.new(
+      csl.RedeemerTag.new_spend(),
+      csl.BigNum.from_str(index),
+      data,
+      csl.ExUnits.new(
+        csl.BigNum.from_str('7000000'),
+        csl.BigNum.from_str('3000000000')
+      )
+    );
+
+    return redeemer;
   }
 
   setCollateral(txBuilder, utxos) {
