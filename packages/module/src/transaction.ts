@@ -9,7 +9,6 @@ import {
   plutusDataToHex,
   fromFloat,
   getAddressKeyHash,
-  HexToAscii,
 } from './utils/converter';
 import { csl } from './core';
 import { Wallet } from './wallet';
@@ -553,9 +552,16 @@ export class Transaction {
     const txInputsBuilder = await this._addInputUtxo({ inputs, outputs });
 
     // if datum
-    let datumAssetsList: string[] = [];
-    for (let output of outputs) {
-      datumAssetsList = [...Object.keys(output.assets)];
+    let datumAssetsList: string[] | null = null;
+    if (hasDatum) {
+      datumAssetsList = [];
+      for (let output of outputs) {
+        datumAssetsList = [...Object.keys(output.assets)];
+        datumAssetsList = datumAssetsList.filter(function (el) {
+          return el != 'lovelace';
+        });
+      }
+      console.log('datumAssetsList', datumAssetsList);
     }
 
     // add outputs
@@ -606,9 +612,7 @@ export class Transaction {
       const assetDetails = csl.PlutusList.new();
       const [policy, assetName] = asset.split('.');
       assetDetails.add(csl.PlutusData.new_bytes(fromHex(policy)));
-      assetDetails.add(
-        csl.PlutusData.new_bytes(fromHex(HexToAscii(assetName)))
-      );
+      assetDetails.add(csl.PlutusData.new_bytes(fromHex(toHex(assetName))));
       fields.add(
         csl.PlutusData.new_constr_plutus_data(
           csl.ConstrPlutusData.new(csl.BigNum.from_str('0'), assetDetails)
@@ -617,7 +621,9 @@ export class Transaction {
     }
 
     const owner = getAddressKeyHashHex(ownerAddressBech32);
-    fields.add(csl.PlutusData.new_bytes(fromHex(owner)));
+    if (owner) {
+      fields.add(csl.PlutusData.new_bytes(fromHex(owner)));
+    }
 
     const datum = csl.PlutusData.new_constr_plutus_data(
       csl.ConstrPlutusData.new(csl.BigNum.from_str('0'), fields)

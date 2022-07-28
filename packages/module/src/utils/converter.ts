@@ -126,12 +126,12 @@ export const valueToAssets = (value: any) => {
 };
 
 export const getAddressKeyHashHex = (address: string) => {
-  return toHex(
-    csl.BaseAddress.from_address(csl.Address.from_bech32(address))
-      ?.payment_cred()
-      .to_keyhash()
-      ?.to_bytes()
-  );
+  let addr = csl.BaseAddress.from_address(csl.Address.from_bech32(address))
+    ?.payment_cred()
+    .to_keyhash()
+    ?.to_bytes();
+  if (addr) return toHex(addr);
+  return null;
 };
 
 export const getAddressKeyHash = (address: string) => {
