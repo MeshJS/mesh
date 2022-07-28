@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Mesh from '@martifylabs/mesh';
 import { Button } from '../../components';
+import useWallet from '../../contexts/wallet';
 
 const WALLETS = {
   nami: {
@@ -17,30 +18,27 @@ const WALLETS = {
   },
 };
 
-export default function ConnectWallet({
-  setWalletConnected,
-}: {
-  setWalletConnected?;
-}) {
+export default function ConnectWallet() {
+  const { connecting, walletNameConnected, connectWallet } = useWallet();
   const [availableWallets, setAvailableWallets] = useState<string[] | null>(
     null
   );
-  const [connecting, setConnecting] = useState<boolean>(false);
-  const [walletNameConnected, setWalletNameConnected] = useState<string>('');
+  // const [connecting, setConnecting] = useState<boolean>(false);
+  // const [walletNameConnected, setWalletNameConnected] = useState<string>('');
 
-  async function connectWallet(walletName: string) {
-    setConnecting(true);
-    const walletConnected = await Mesh.wallet.enable({
-      walletName: walletName,
-    });
-    if (walletConnected) {
-      if (setWalletConnected) {
-        setWalletConnected(true);
-      }
-      setWalletNameConnected(walletName);
-    }
-    setConnecting(false);
-  }
+  // async function connectWallet(walletName: string) {
+  //   setConnecting(true);
+  //   const walletConnected = await Mesh.wallet.enable({
+  //     walletName: walletName,
+  //   });
+  //   if (walletConnected) {
+  //     if (setWalletConnected) {
+  //       setWalletConnected(true);
+  //     }
+  //     setWalletNameConnected(walletName);
+  //   }
+  //   setConnecting(false);
+  // }
 
   useEffect(() => {
     async function init() {

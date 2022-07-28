@@ -3,8 +3,9 @@ import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input } from '../../components';
 import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import { Recipient } from '../../types';
+import useWallet from '../../contexts/wallet';
 
-export default function SendAda({ walletConnected }) {
+export default function SendAda() {
   return (
     <Card>
       <div className="grid gap-4 grid-cols-2">
@@ -28,14 +29,15 @@ export default function SendAda({ walletConnected }) {
           </ol>
         </div>
         <div className="mt-8">
-          <CodeDemo walletConnected={walletConnected} />
+          <CodeDemo />
         </div>
       </div>
     </Card>
   );
 }
 
-function CodeDemo({ walletConnected }) {
+function CodeDemo() {
+  const { walletConnected } = useWallet();
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);

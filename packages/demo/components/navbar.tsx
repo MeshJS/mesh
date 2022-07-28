@@ -1,18 +1,27 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { SunIcon, MoonIcon, MenuIcon } from '@heroicons/react/solid';
+import useLocalStorage from '../hooks/useLocalStorage';
 
 const Navbar = (props) => {
-  const [darkMode, setDarkMode] = useState(true);
-  function toggle() {
-    let newMode = !darkMode;
-    if (newMode) {
+  const [darkMode, setDarkMode] = useLocalStorage('darkmode', false);
+
+  function setDarkTheme(bool) {
+    if (bool) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-    setDarkMode(newMode);
+    setDarkMode(bool);
   }
+
+  function toggle() {
+    setDarkMode(!darkMode);
+  }
+
+  useEffect(() => {
+    setDarkTheme(darkMode);
+  }, [darkMode]);
 
   return (
     <header className="sticky top-0 z-40 flex-none mx-auto w-full border-b border-gray-200 dark:border-gray-600">

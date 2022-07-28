@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input, Toggle } from '../../components';
 import ConnectWallet from '../../components/wallet/connectWallet';
+import useWallet from '../../contexts/wallet';
 
 async function callWalletFunctions(fnName) {
   const walletFn = {
@@ -21,7 +22,8 @@ async function callWalletFunctions(fnName) {
   return res;
 }
 
-export default function WalletApi({ walletConnected }) {
+export default function WalletApi() {
+  const { walletConnected } = useWallet();
   return (
     <>
       <DemoConnectWallet />

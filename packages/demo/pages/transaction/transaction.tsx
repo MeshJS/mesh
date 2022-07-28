@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { Metatags } from '../../components';
 import ConnectWallet from '../../components/wallet/connectWallet';
 import SendAda from '../../components/transaction/sendAda';
 import SendMultiassets from '../../components/transaction/sendMultiassets';
 import TransactionBuilder from '../../components/transaction/transactionBuilder';
+import LockAssets from '../../components/transaction/lockAssets';
 
 const Transaction = () => {
   return (
@@ -16,23 +16,17 @@ const Transaction = () => {
 };
 
 function Showcase() {
-  const [walletConnected, setWalletConnected] = useState<boolean>(false);
-
   return (
     <section>
       <div className="mx-auto max-w-screen-xl px-4 lg:px-6">
         <h2>Connect available wallets</h2>
-        <ConnectWallet setWalletConnected={setWalletConnected} />
-        {/* {walletConnected && (
-          <>
-            <SendAda walletConnected={walletConnected}/>
-            <SendMultiassets walletConnected={walletConnected}/>
-            <TransactionBuilder walletConnected={walletConnected}/>
-          </>
-        )} */}
-        <SendAda walletConnected={walletConnected} />
-        <SendMultiassets walletConnected={walletConnected} />
-        <TransactionBuilder walletConnected={walletConnected} />
+        <ConnectWallet />
+
+        <LockAssets />
+
+        <SendAda />
+        <SendMultiassets />
+        <TransactionBuilder />
       </div>
     </section>
   );

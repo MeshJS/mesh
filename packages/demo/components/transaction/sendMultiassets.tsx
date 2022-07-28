@@ -3,8 +3,9 @@ import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input, Modal } from '../../components';
 import { Recipient, Asset } from '../../types';
 import { CardAsset } from '../blocks/cardassets';
+import useWallet from '../../contexts/wallet';
 
-export default function SendMultiassets({ walletConnected }) {
+export default function SendMultiassets() {
   return (
     <Card>
       <div className="grid gap-4 grid-cols-2">
@@ -14,12 +15,13 @@ export default function SendMultiassets({ walletConnected }) {
         </div>
         <div className="mt-8"></div>
       </div>
-      <CodeDemo walletConnected={walletConnected} />
+      <CodeDemo />
     </Card>
   );
 }
 
-function CodeDemo({ walletConnected }) {
+function CodeDemo() {
+  const { walletConnected } = useWallet();
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([

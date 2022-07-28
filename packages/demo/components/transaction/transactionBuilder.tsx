@@ -9,8 +9,9 @@ import {
 } from '@heroicons/react/solid';
 import { Recipient } from '../../types';
 import { XIcon } from '@heroicons/react/solid';
+import useWallet from '../../contexts/wallet';
 
-export default function TransactionBuilder({ walletConnected }) {
+export default function TransactionBuilder() {
   return (
     <Card>
       <div className="grid gap-4 grid-cols-2">
@@ -23,12 +24,13 @@ export default function TransactionBuilder({ walletConnected }) {
         </div>
         <div className="mt-8"></div>
       </div>
-      <PrepareInputsOutputs walletConnected={walletConnected} />
+      <PrepareInputsOutputs />
     </Card>
   );
 }
 
-function PrepareInputsOutputs({ walletConnected }) {
+function PrepareInputsOutputs() {
+  const { walletConnected } = useWallet();
   const [state, setState] = useState(0);
   const [utxos, setUtxos] = useState<{}[] | string[] | undefined>([]);
   const [selectedUtxos, setSelectedUtxos] = useState<string[]>([]);
@@ -80,7 +82,6 @@ function PrepareInputsOutputs({ walletConnected }) {
         state={state}
         setState={setState}
         selectedUtxos={selectedUtxos}
-        walletConnected={walletConnected}
       />
     </>
   );
@@ -367,13 +368,8 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
   );
 }
 
-function CodeDemo({
-  recipients,
-  state,
-  setState,
-  selectedUtxos,
-  walletConnected,
-}) {
+function CodeDemo({ recipients, state, setState, selectedUtxos }) {
+  const { walletConnected } = useWallet();
   const [result, setResult] = useState<null | string>(null);
   const [ttl, setTtl] = useState('');
   const [message, setMessage] = useState('');
