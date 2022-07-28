@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Modal } from "../components";
-import { XIcon } from "@heroicons/react/solid";
+import { useState } from 'react';
+import { Modal } from '../components';
+import { XIcon } from '@heroicons/react/solid';
 import Link from 'next/link';
+import { ChevronRightIcon } from '@heroicons/react/solid';
 
 const Home = () => {
   const [showInstall, setShowInstall] = useState(false);
@@ -31,7 +32,7 @@ function Hero({ setShowInstall }) {
             className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-900"
             onClick={() => setShowInstall(true)}
           >
-            Get started
+            Get started <ChevronRightIcon className="ml-1 w-6 h-6" />
           </button>
           {/* <a
               href="#"
@@ -42,7 +43,7 @@ function Hero({ setShowInstall }) {
         </div>
         <div className="hidden lg:mt-0 lg:col-span-5 lg:flex">
           {/* <img
-              src="https://flowbite.s3.amazonaws.com/blocks/marketing-ui/hero/phone-mockup.png"
+              src="https://"
               alt="mockup"
             /> */}
         </div>
@@ -57,7 +58,7 @@ function Install({ showModal }) {
       <div className="text-center mb-8">
         <h2>Get started on Mesh</h2>
         <pre>yarn add @martifylabs/mesh</pre>
-        <Link href="/get-started">Find out more</Link>
+        <Link href="/guides">Learn more</Link>
         {/* <a
           href="https://github.com/MartifyLabs/mesh"
           className="mt-6 dark:text-white dark:hover:border-white text-base leading-none focus:outline-none hover:border-gray-800 focus:border-gray-800 border-b border-transparent text-center text-gray-800"

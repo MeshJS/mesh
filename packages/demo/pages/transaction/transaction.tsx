@@ -7,20 +7,43 @@ import TransactionBuilder from '../../components/transaction/transactionBuilder'
 
 const Transaction = () => {
   return (
-    <>
-      <Metatags title="Transaction APIs" />
+    <div className="px-4">
+      <Metatags
+        title="Transaction APIs"
+        description="Basic to advance transaction builders."
+      />
       <Hero />
       <Showcase />
-    </>
+    </div>
   );
 };
+
+function Hero() {
+  return (
+    <section>
+      <div className="py-8 lg:py-16 lg:px-6">
+        <h1>Transaction APIs</h1>
+        <p className="lead">
+          Create basic to advance transactions with Mesh transaction builders.
+        </p>
+
+        <div className="mb-4">
+          <p>Send multi-assets to multiple recipients.</p>
+          <p className="font-medium">
+            In this section, let&apos;s create some transactions.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function Showcase() {
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
 
   return (
     <section>
-      <div className="mx-auto max-w-screen-xl px-4 lg:px-6">
+      <div className="mx-auto max-w-screen-xl lg:px-6">
         <h2>Connect available wallets</h2>
         <ConnectWallet setWalletConnected={setWalletConnected} />
         {/* {walletConnected && (
@@ -33,31 +56,6 @@ function Showcase() {
         <SendAda walletConnected={walletConnected} />
         <SendMultiassets walletConnected={walletConnected} />
         <TransactionBuilder walletConnected={walletConnected} />
-      </div>
-    </section>
-  );
-}
-
-function Hero() {
-  return (
-    <section>
-      <div className="py-8 px-4 lg:py-16 lg:px-6">
-        <h1>Transaction APIs</h1>
-
-        <div className="mb-4"></div>
-        <div className="mb-4">
-          <p className="font-medium">
-            In this section, let&apos;s create some transactions.
-          </p>
-        </div>
-
-        {/* <a
-          href="#"
-          className="inline-flex items-center font-medium text-primary-600 hover:text-primary-800 dark:text-primary-500 dark:hover:text-primary-700"
-        >
-          Learn more
-          <ChevronRightIcon className="ml-1 w-6 h-6" />
-        </a> */}
       </div>
     </section>
   );

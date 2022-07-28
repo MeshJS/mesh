@@ -110,7 +110,7 @@ const Navbar = (props) => {
             id="mobile-menu-2"
           >
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
-              <NavLink href={'/get-started'} label={'Getting Started'} />
+              <NavLink href={'/guides'} label={'Guides'} />
               <NavLink href={'/wallet'} label={'Wallet'} />
               <NavLink href={'/transaction'} label={'Transaction'} />
               {/* <NavLink href={"/ipfs"} label={"IPFS"} /> */}
