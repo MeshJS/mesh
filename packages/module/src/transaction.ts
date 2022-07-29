@@ -15,6 +15,7 @@ import { csl } from './core';
 import { Wallet } from './wallet';
 import { MakeTxError } from './global';
 import { Recipient, UTxO } from './types';
+import type { TransactionUnspentOutput } from './types/core';
 
 export class Transaction {
   private _blockfrost: Blockfrost;
@@ -649,7 +650,6 @@ export class Transaction {
   }
 
   createTxUnspentOutput = (address, utxo) => {
-    console.log(123, 'address', address);
     let amount = {};
     for (let i = 0; i < utxo.amount.length; i++) {
       let thisAsset = utxo.amount[i];
@@ -688,7 +688,6 @@ export class Transaction {
           StringToAddress(scriptAddress),
           utxoBF
         );
-        console.log('txoutput', txoutput);
         return txoutput;
       });
 
@@ -855,5 +854,409 @@ export class Transaction {
     });
 
     return requiredSigners;
+  }
+
+  async getCollateral() {
+    let collatUtxos: TransactionUnspentOutput[] = [];
+    let collateral = await this.wallet.getCollateral();
+    for (const x of collateral) {
+      const utxo = csl.TransactionUnspentOutput.from_bytes(
+        Buffer.from(x, 'hex')
+      );
+      collatUtxos.push(utxo);
+    }
+    return collatUtxos;
+  }
+
+  async buildSCv2({
+    ownerAddress,
+    scriptAddress,
+    blockfrostApiKey,
+    network,
+  }: {
+    ownerAddress: string;
+    scriptAddress: string;
+    blockfrostApiKey: string;
+    network: number;
+  }): Promise<string> {
+    // start: init
+    this._blockfrost = new Blockfrost();
+    await this._blockfrost.init({ blockfrostApiKey, network });
+    const txBuilder = csl.TransactionBuilder.new(
+      await this._getTxBuilderConfig()
+    );
+    // end: init
+
+    const scriptAddressObj = StringToAddress(scriptAddress);
+    const shelleyChangeAddress = StringToAddress(ownerAddress);
+
+    let assetName = 'SOCIETY';
+    let assetNameHex = toHex(assetName);
+    let assetAmountToSend = 1;
+    let assetPolicyIdHex =
+      'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a';
+    let transactionIdLocked =
+      '3c0fc4774e529432b2eaa654720231ad6c6d92ae2a4a7ab2544a93dcfa3c8561';
+    let lovelaceLocked = 3_000_000;
+    let plutusScriptCborHex = '4e4d01000033222220051200120011';
+    let transactionIndxLocked = 0;
+    let manualFee = 900000;
+
+    let multiAsset = csl.MultiAsset.new();
+    let assets = csl.Assets.new();
+    assets.insert(
+      csl.AssetName.new(Buffer.from(assetNameHex, 'hex')), // Asset Name
+      csl.BigNum.from_str(assetAmountToSend.toString()) // How much to send
+    );
+
+    multiAsset.insert(
+      csl.ScriptHash.from_bytes(Buffer.from(assetPolicyIdHex, 'hex')), // PolicyID
+      assets
+    );
+
+    txBuilder.add_input(
+      scriptAddressObj,
+      csl.TransactionInput.new(
+        csl.TransactionHash.from_bytes(Buffer.from(transactionIdLocked, 'hex')),
+        transactionIndxLocked
+      ),
+      csl.Value.new_from_assets(multiAsset)
+    ); // how much lovelace is at that UTXO
+
+    txBuilder.set_fee(csl.BigNum.from_str(Number(manualFee).toString()))
+
+    const scripts = csl.PlutusScripts.new();
+    scripts.add(
+      csl.PlutusScript.from_bytes(Buffer.from(plutusScriptCborHex, 'hex'))
+    ); //from cbor of plutus script
+
+    // Add outputs
+
+    let txOutputBuilder = csl.TransactionOutputBuilder.new()
+      .with_address(shelleyChangeAddress)
+      .next()
+      .with_coin_and_asset(
+        csl.BigNum.from_str(lovelaceLocked.toString()),
+        multiAsset
+      )
+      .build();
+
+    txBuilder.add_output(txOutputBuilder);
+
+    // add utxos from user
+    const walletUtxos = await this.wallet.getUtxos();
+
+    const utxos = walletUtxos.map((utxo) => {
+      return csl.TransactionUnspentOutput.from_bytes(
+        Buffer.from(utxo.cbor, 'hex')
+      );
+    });
+
+    const transactionUnspentOutputs = csl.TransactionUnspentOutputs.new();
+    utxos.forEach((utxo) => {
+      transactionUnspentOutputs.add(utxo);
+    });
+
+    txBuilder.add_inputs_from(
+      transactionUnspentOutputs,
+      csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
+    );
+
+    //txBuilder.add_change_if_needed(shelleyChangeAddress);
+
+    // once the transaction is ready, we build it to get the tx body without witnesses
+    const txBody = txBuilder.build();
+
+    const collateral = await this.getCollateral();
+    const inputs = csl.TransactionInputs.new();
+    collateral.forEach((utxo) => {
+      inputs.add(utxo.input());
+    });
+
+    // make datum
+    const datum = this.createDatum({
+      ownerAddressBech32: ownerAddress,
+      assets: [
+        `${assetPolicyIdHex}.${assetName}`,
+      ],
+    });
+    const datumHash = plutusDataToHex(datum);
+    console.log('datumHash', datumHash);
+
+    let datums = csl.PlutusList.new();
+    // datums.add(PlutusData.from_bytes(Buffer.from(this.state.datumStr, "utf8")))
+    datums.add(datum);
+
+    const redeemers = csl.Redeemers.new();
+
+    const data = csl.PlutusData.new_constr_plutus_data(
+      csl.ConstrPlutusData.new(csl.BigNum.from_str('0'), csl.PlutusList.new())
+    );
+
+    const redeemer = csl.Redeemer.new(
+      csl.RedeemerTag.new_spend(),
+      csl.BigNum.from_str('0'),
+      data,
+      csl.ExUnits.new(
+        csl.BigNum.from_str('7000000'),
+        csl.BigNum.from_str('3000000000')
+      )
+    );
+
+    redeemers.add(redeemer);
+
+    // Tx witness
+    const transactionWitnessSet = csl.TransactionWitnessSet.new();
+
+    transactionWitnessSet.set_plutus_scripts(scripts);
+    transactionWitnessSet.set_plutus_data(datums);
+    transactionWitnessSet.set_redeemers(redeemers);
+
+    // Pre Vasil hard fork cost model
+    // const cost_model_vals = [197209, 0, 1, 1, 396231, 621, 0, 1, 150000, 1000, 0, 1, 150000, 32, 2477736, 29175, 4, 29773, 100, 29773, 100, 29773, 100, 29773, 100, 29773, 100, 29773, 100, 100, 100, 29773, 100, 150000, 32, 150000, 32, 150000, 32, 150000, 1000, 0, 1, 150000, 32, 150000, 1000, 0, 8, 148000, 425507, 118, 0, 1, 1, 150000, 1000, 0, 8, 150000, 112536, 247, 1, 150000, 10000, 1, 136542, 1326, 1, 1000, 150000, 1000, 1, 150000, 32, 150000, 32, 150000, 32, 1, 1, 150000, 1, 150000, 4, 103599, 248, 1, 103599, 248, 1, 145276, 1366, 1, 179690, 497, 1, 150000, 32, 150000, 32, 150000, 32, 150000, 32, 150000, 32, 150000, 32, 148000, 425507, 118, 0, 1, 1, 61516, 11218, 0, 1, 150000, 32, 148000, 425507, 118, 0, 1, 1, 148000, 425507, 118, 0, 1, 1, 2477736, 29175, 4, 0, 82363, 4, 150000, 5000, 0, 1, 150000, 32, 197209, 0, 1, 1, 150000, 32, 150000, 32, 150000, 32, 150000, 32, 150000, 32, 150000, 32, 150000, 32, 3345831, 1, 1];
+
+    /*
+        Post Vasil hard fork cost model
+        If you need to make this code work on the Mainnnet, before Vasil hard-fork
+        Then you need to comment this section below and uncomment the cost model above
+        Otherwise it will give errors when redeeming from Scripts
+        Sending assets and ada to Script addresses is unaffected by this cost model
+         */
+    const cost_model_vals = [
+      205665, 812, 1, 1, 1000, 571, 0, 1, 1000, 24177, 4, 1, 1000, 32, 117366,
+      10475, 4, 23000, 100, 23000, 100, 23000, 100, 23000, 100, 23000, 100,
+      23000, 100, 100, 100, 23000, 100, 19537, 32, 175354, 32, 46417, 4, 221973,
+      511, 0, 1, 89141, 32, 497525, 14068, 4, 2, 196500, 453240, 220, 0, 1, 1,
+      1000, 28662, 4, 2, 245000, 216773, 62, 1, 1060367, 12586, 1, 208512, 421,
+      1, 187000, 1000, 52998, 1, 80436, 32, 43249, 32, 1000, 32, 80556, 1,
+      57667, 4, 1000, 10, 197145, 156, 1, 197145, 156, 1, 204924, 473, 1,
+      208896, 511, 1, 52467, 32, 64832, 32, 65493, 32, 22558, 32, 16563, 32,
+      76511, 32, 196500, 453240, 220, 0, 1, 1, 69522, 11687, 0, 1, 60091, 32,
+      196500, 453240, 220, 0, 1, 1, 196500, 453240, 220, 0, 1, 1, 806990, 30482,
+      4, 1927926, 82523, 4, 265318, 0, 4, 0, 85931, 32, 205665, 812, 1, 1,
+      41182, 32, 212342, 32, 31220, 32, 32696, 32, 43357, 32, 32247, 32, 38314,
+      32, 9462713, 1021, 10,
+    ];
+
+    const costModel = csl.CostModel.new();
+    cost_model_vals.forEach((x, i) => costModel.set(i, csl.Int.new_i32(x)));
+
+    const costModels = csl.Costmdls.new();
+    costModels.insert(csl.Language.new_plutus_v1(), costModel);
+
+    const scriptDataHash = csl.hash_script_data(redeemers, costModels, datums);
+    txBody.set_script_data_hash(scriptDataHash);
+
+    txBody.set_collateral(inputs);
+
+    const baseAddress = csl.BaseAddress.from_address(shelleyChangeAddress);
+    const requiredSigners = csl.Ed25519KeyHashes.new();
+    requiredSigners.add(baseAddress?.payment_cred().to_keyhash()!);
+
+    txBody.set_required_signers(requiredSigners);
+
+    const transaction = csl.Transaction.new(
+      txBody,
+      csl.TransactionWitnessSet.from_bytes(transactionWitnessSet.to_bytes())
+    );
+
+    const transactionBytes = transaction.to_bytes();
+    const transactionHex = toHex(transactionBytes);
+    return transactionHex;
+
+    // let txVkeyWitnesses = await this.API.signTx(Buffer.from(tx.to_bytes(), "utf8").toString("hex"), true);
+    // txVkeyWitnesses = csl.TransactionWitnessSet.from_bytes(Buffer.from(txVkeyWitnesses, "hex"));
+
+    // transactionWitnessSet.set_vkeys(txVkeyWitnesses.vkeys());
+
+    // const signedTx = csl.Transaction.new(
+    //     tx.body(),
+    //     transactionWitnessSet
+    // );
+
+    // const submittedTxHash = await this.API.submitTx(Buffer.from(signedTx.to_bytes(), "utf8").toString("hex"));
+    // console.log(submittedTxHash)
+    // this.setState({submittedTxHash});
+  }
+
+
+
+  async _getAssetUtxo({ scriptAddress, asset }) {
+    let utxosFromBF = await this._blockfrost.addressesAddressUtxosAsset({
+      address: scriptAddress,
+      asset: asset,
+    });
+    console.log('utxosFromBF', utxosFromBF);
+
+    let utxos = utxosFromBF
+      .filter((utxo: any) => {
+        // return utxo.data_hash !== null;
+        return utxo.data_hash == "287bb96b1b2b86658cae7a5a2c10a8e6663f710a7e0aa9df7b439891be6ede8c"
+      })
+      .map((utxoBF) => {
+        let txoutput = this.createTxUnspentOutput(
+          StringToAddress(scriptAddress),
+          utxoBF
+        );
+        console.log('txoutput', txoutput);
+        return txoutput;
+      });
+
+    return utxos[0];
+  }
+
+
+  async buildSCv3({
+    ownerAddress,
+    scriptAddress,
+    blockfrostApiKey,
+    network,
+  }: {
+    ownerAddress: string;
+    scriptAddress: string;
+    blockfrostApiKey: string;
+    network: number;
+  }): Promise<string> {
+    // start: init
+    this._blockfrost = new Blockfrost();
+    await this._blockfrost.init({ blockfrostApiKey, network });
+    const txBuilder = csl.TransactionBuilder.new(
+      await this._getTxBuilderConfig()
+    );
+    
+    let assetName = 'SOCIETY';
+    let assetNameHex = toHex(assetName);
+    let assetPolicyIdHex =
+      'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a';
+    // let transactionIdLocked =
+    //   '3c0fc4774e529432b2eaa654720231ad6c6d92ae2a4a7ab2544a93dcfa3c8561';
+
+    let assetUtxo = await this._getAssetUtxo({scriptAddress, asset: `${assetPolicyIdHex}${assetNameHex}`});
+  
+    const walletUtxos = await this.wallet.getUtxos();
+
+    const utxos = walletUtxos.map((utxo) => {
+      return csl.TransactionUnspentOutput.from_bytes(
+        Buffer.from(utxo.cbor, 'hex')
+      );
+    });
+
+    const transactionUnspentOutputs = csl.TransactionUnspentOutputs.new();
+    utxos.forEach((utxo) => {
+      transactionUnspentOutputs.add(utxo);
+    });
+
+   
+    let inputs = [...utxos];
+
+    if (assetUtxo) {
+      inputs.push(assetUtxo);
+    }
+
+    ////
+    let outputs = [
+      {
+        address: ownerAddress,
+        assets: {
+          [`${assetPolicyIdHex}.${assetName}`]: 1,
+          lovelace: 3000000
+        },
+      },
+    ];
+    this._addOutputs({
+      txBuilder,
+      outputs,
+      ownerAddressBech32:ownerAddress,
+      })
+    ////
+
+    const plutusScripts = csl.PlutusScripts.new();
+    plutusScripts.add(
+      csl.PlutusScript.from_bytes(Buffer.from('4e4d01000033222220051200120011', 'hex'))
+    );
+    
+    // make datum
+    const datum = this.createDatum({
+      ownerAddressBech32: ownerAddress,
+      assets: [
+        `${assetPolicyIdHex}.${assetName}`,
+      ],
+    });
+    const datumHash = plutusDataToHex(datum);
+    console.log('datumHash', datumHash);
+
+    let datums = csl.PlutusList.new();
+    datums.add(datum);
+  
+    if (plutusScripts) {
+      const txInputsBuilder = csl.TxInputsBuilder.new();
+      const plutusWitness = this.getPlutusWitness(plutusScripts.get(0), datums.get(0), this.unlock, assetUtxo);
+  
+      txInputsBuilder.add_plutus_script_input(
+        plutusWitness,
+        assetUtxo.input(),
+        assetUtxo.output().amount()
+      );
+  
+      const collateral = (await this.wallet.getCollateral())
+        .map((utxo) =>
+          csl.TransactionUnspentOutput.from_bytes(fromHex(utxo))
+        )
+        .slice(0, 1);
+  
+      this.setCollateral(txBuilder, collateral);
+  
+      const requiredSigners = this.getRequiredSigners(inputs, assetUtxo, collateral);
+      txInputsBuilder.add_required_signers(requiredSigners);
+      txBuilder.set_inputs(txInputsBuilder);
+    }
+  
+    txBuilder.calc_script_data_hash(
+      csl.TxBuilderConstants.plutus_vasil_cost_models()
+    );
+  
+    try {
+      const transactionUnspentOutputs = csl.TransactionUnspentOutputs.new();
+      inputs.forEach((utxo) => { transactionUnspentOutputs.add(utxo); });
+      
+      txBuilder.add_inputs_from(
+        transactionUnspentOutputs,
+        csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
+      );
+      
+      txBuilder.add_change_if_needed(StringToAddress(ownerAddress));
+    } catch (error) {
+      throw new Error("INPUTS_EXHAUSTED");
+    }
+  
+    const tx = txBuilder.build_tx();
+  
+    let txVkeyWitnessesHex = await this.wallet.signTx({ tx: toHex(tx.to_bytes()), partialSign: true });
+    let txVkeyWitnesses = csl.TransactionWitnessSet.from_bytes(
+      fromHex(txVkeyWitnessesHex)
+    );
+  
+    const transactionWitnessSet =
+      csl.TransactionWitnessSet.from_bytes(
+        tx.witness_set().to_bytes()
+      );
+  
+    transactionWitnessSet.set_vkeys(txVkeyWitnesses?.vkeys()!);
+  
+    const signedTx = csl.Transaction.new(
+      tx.body(),
+      transactionWitnessSet,
+      tx.auxiliary_data()
+    );
+  
+    const txHex = toHex(signedTx.to_bytes());
+
+
+    const txHash = await this.wallet.submitTx({
+      tx: txHex,
+    });
+    console.log('txHash', txHash);
+  
+    return txHash;
   }
 }

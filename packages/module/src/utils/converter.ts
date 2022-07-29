@@ -31,7 +31,6 @@ export const HexToAscii = (string: any) => fromHex(string).toString('ascii');
 export const assetsToValue = (assets: Assets) => {
   const multiAsset = csl.MultiAsset.new();
   const lovelace = assets['lovelace'];
-  console.log("DONE0!!!");
   const units = Object.keys(assets);
   const policies = Array.from(
     new Set(
@@ -40,12 +39,10 @@ export const assetsToValue = (assets: Assets) => {
         .map((unit) => unit.slice(0, 56))
     )
   );
-  console.log(9887, assets);
   policies.forEach((policy) => {
     const policyUnits = units.filter((unit) => unit.slice(0, 56) === policy);
     const assetsValue = csl.Assets.new();
     policyUnits.forEach((unit) => {
-      console.log(12312, unit, assets[unit])
       assetsValue.insert(
         csl.AssetName.new(fromHex(unit.slice(56))),
         csl.BigNum.from_str(assets[unit].toString())
@@ -53,12 +50,10 @@ export const assetsToValue = (assets: Assets) => {
     });
     multiAsset.insert(csl.ScriptHash.from_bytes(fromHex(policy)), assetsValue);
   });
-  console.log("DONE2!!!");
   const value = csl.Value.new(
     csl.BigNum.from_str(lovelace ? lovelace.toString() : '0')
   );
   if (units.length > 1 || !lovelace) value.set_multiasset(multiAsset);
-  console.log("DONE3!!!");
   
   return value;
 };
