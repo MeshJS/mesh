@@ -1,7 +1,12 @@
 import React, { createContext, useState, useContext, useMemo } from 'react';
 import Mesh from '@martifylabs/mesh';
 
-const WalletContext = createContext({});
+const WalletContext = createContext({
+  connecting: false,
+  walletNameConnected: '',
+  walletConnected: false,
+  connectWallet: async (walletName: string) => {},
+});
 
 export const WalletProvider = ({ children }) => {
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
