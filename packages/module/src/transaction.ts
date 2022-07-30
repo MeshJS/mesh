@@ -15,7 +15,7 @@ import { csl } from './core';
 import { Wallet } from './wallet';
 import { MakeTxError } from './global';
 import { Recipient, UTxO } from './types';
-import type { TransactionUnspentOutput } from './types/core';
+import type { TransactionUnspentOutput } from './core';
 
 export class Transaction {
   private _blockfrost: Blockfrost;

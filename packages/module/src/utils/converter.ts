@@ -1,7 +1,7 @@
 import { Assets, UTxO } from '../types';
 // import * as lib from "@emurgo/cardano-serialization-lib-browser/cardano_serialization_lib";
 import { csl } from '../core';
-import { PlutusData } from '../types/core';
+import type { PlutusData } from '../core';
 
 export const fromHex = (hex: any) => Buffer.from(hex, 'hex');
 

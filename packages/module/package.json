@@ -16,7 +16,8 @@
   "keywords": [
     "blockchain",
     "cardano",
-    "plutus"
+    "plutus",
+    "utxo"
   ],
   "main": "dist/index.js",
   "module": "dist/mesh.esm.js",
