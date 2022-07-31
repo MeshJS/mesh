@@ -1,9 +1,8 @@
+import { csl } from '../core';
 import {
-  csl, deserializeAddress, fromValue, toBytes
-} from '../core';
-import type { Asset } from '../core';
-
-const { Value } = csl;
+  deserializeAddress, fromValue, toBytes
+} from '../common';
+import type { Asset } from '../common';
 
 export class WalletService {
   private _walletInstance: WalletInstance;
@@ -16,7 +15,7 @@ export class WalletService {
     'flint', 'nami', 'eternl', 'nufi',
   ];
 
-  static getAvailableWallets(): Partial<Wallet>[] {
+  static getInstalledWallets(): Partial<Wallet>[] {
     if (window.cardano === undefined) return [];
     
     return WalletService.supportedWallets
@@ -28,15 +27,15 @@ export class WalletService {
       }));
   }
 
-  static async create(walletName: string): Promise<WalletService> {
-    const walletInstance = await WalletService.enable(walletName);
+  static async enable(walletName: string): Promise<WalletService> {
+    const walletInstance = await WalletService.resolveInstance(walletName);
     if (walletInstance !== undefined) return new WalletService(walletInstance);
     throw new Error(`Couldn't create an instance for wallet: ${walletName}.`);
   }
 
   async getBalance(): Promise<Asset[]> {
     const balance = await this._walletInstance.getBalance();
-    return fromValue(Value.from_bytes(toBytes(balance)));
+    return fromValue(csl.Value.from_bytes(toBytes(balance)));
   }
 
   async getChangeAddress(): Promise<string> {
@@ -49,8 +48,8 @@ export class WalletService {
     return collateral ?? [];
   }
 
-  async getNetworkId(): Promise<number> {
-    return await this._walletInstance.getNetworkId();
+  getNetworkId(): Promise<number> {
+    return this._walletInstance.getNetworkId();
   }
 
   async getRewardAddresses(): Promise<string[]> {
@@ -74,27 +73,47 @@ export class WalletService {
   }
 
   async signData(payload: string): Promise<string> {
-    const changeAddress = await this.getChangeAddress();
-    return await this._walletInstance.signData(changeAddress, payload);
+    const changeAddress = await this._walletInstance.getChangeAddress();
+    return this._walletInstance.signData(changeAddress, payload);
   }
 
-  async signTx(tx: string, partialSign = false): Promise<string> {
-    return await this._walletInstance.signTx(tx, partialSign);
+  signTx(tx: string, partialSign = false): Promise<string> {
+    return this._walletInstance.signTx(tx, partialSign);
   }
 
-  async submitTx(tx: string): Promise<string> {
-    return await this._walletInstance.submitTx(tx);
+  submitTx(tx: string): Promise<string> {
+    return this._walletInstance.submitTx(tx);
   }
 
-  private static async enable(selectedWalletName: string): Promise<WalletInstance | undefined> {
+  async getNativeAssets(limit = 100): Promise<Asset[]> {
+    const balance = await this.getBalance();
+    return balance
+      .filter((v) => v.unit !== 'lovelace')
+      .slice(0, limit);
+  }
+
+  async getNativeAssetBalance(policyId: string): Promise<number> {
+    const balance = await this.getBalance();
+    const nativeAsset = balance.find((v) => v.unit ===  policyId);
+
+    return nativeAsset !== undefined
+      ? parseInt(nativeAsset.quantity, 10)
+      : 0;
+  }
+
+  getLovelaceBalance(): Promise<number> {
+    return this.getNativeAssetBalance('lovelace');
+  }
+
+  private static resolveInstance(walletName: string): Promise<WalletInstance> | undefined {
     if (window.cardano === undefined) return undefined;
   
     const wallet: Wallet | undefined = WalletService.supportedWallets
       .map((sw: string) => window.cardano[sw])
       .filter((sw: Wallet) => sw !== undefined)
-      .find((sw: Wallet) => sw.name === selectedWalletName);
+      .find((sw: Wallet) => sw.name === walletName);
 
-    return await wallet?.enable();
+    return wallet?.enable();
   }
 }
 
@@ -122,10 +141,3 @@ type WalletInstance = {
 type ExperimentalFeatures = {
   getCollateral(): Promise<string[] | undefined>;
 }
-
-/**
- * <MESH>
- *  - getControlledStakeKey
- *  - getLovelaceBalance
- *  - getNativeAssets
- */
