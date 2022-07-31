@@ -1,6 +1,13 @@
 import { csl } from '../../core';
-import type { Value } from '../../core';
-import type { Asset } from '../types/Asset';
+import type { TransactionUnspentOutput, Value } from '../../core';
+import type { Asset, UTxO } from '../types';
+import {
+  deserializeDataHash,
+  deserializePlutusData,
+  deserializeScriptHash,
+  deserializeScriptRef,
+  deserializeTxHash
+} from './deserializer';
 
 const POLICY_ID_LENGTH = 56;
 
@@ -23,6 +30,62 @@ export const toBytes = (hex: string) => Buffer.from(hex, 'hex') as Uint8Array;
 export const fromLovelace = (lovelace: number) => lovelace / 1_000_000;
 
 export const toLovelace = (ada: number) => ada * 1_000_000;
+
+/* -----------------[ TransactionUnspentOutput ]----------------- */
+
+export const fromTxUnspentOutput = (
+  txUnspentOutput: TransactionUnspentOutput
+): UTxO => {
+  const dataHash = txUnspentOutput.output().has_data_hash()
+    ? fromBytes(txUnspentOutput.output().data_hash()?.to_bytes()!)
+    : undefined;
+  
+  const plutusData = txUnspentOutput.output().has_plutus_data()
+  ? fromBytes(txUnspentOutput.output().plutus_data()?.to_bytes()!)
+  : undefined;
+
+  const scriptRef = txUnspentOutput.output().has_script_ref()
+  ? fromBytes(txUnspentOutput.output().script_ref()?.to_bytes()!)
+  : undefined;
+
+  return {
+    input: {
+      outputIndex: txUnspentOutput.input().index(),
+      txHash: fromBytes(txUnspentOutput.input().transaction_id().to_bytes()),
+    },
+    output: {
+      address: txUnspentOutput.output().address().to_bech32(),
+      amount: fromValue(txUnspentOutput.output().amount()),
+      dataHash, plutusData, scriptRef
+    }
+  }
+};
+
+export const toTxUnspentOutput = (utxo: UTxO) => {
+  const txInput = csl.TransactionInput.new(
+    deserializeTxHash(utxo.input.txHash),
+    utxo.input.outputIndex
+  );
+
+  const txOutput = csl.TransactionOutput.new(
+    toAddress(utxo.output.address),
+    toValue(utxo.output.amount)
+  );
+
+  if (utxo.output.dataHash !== undefined) {
+    txOutput.set_data_hash(deserializeDataHash(utxo.output.dataHash));
+  }
+
+  if (utxo.output.plutusData !== undefined) {
+    txOutput.set_plutus_data(deserializePlutusData(utxo.output.plutusData));
+  }
+
+  if (utxo.output.scriptRef !== undefined) {
+    txOutput.set_script_ref(deserializeScriptRef(utxo.output.scriptRef));
+  }
+
+  return csl.TransactionUnspentOutput.new(txInput, txOutput);
+};
 
 /* -----------------[ UnitInterval ]----------------- */
 
@@ -89,7 +152,7 @@ export const toValue = (assets: Asset[]) => {
       });
 
     multiAsset.insert(
-      csl.ScriptHash.from_bytes(toBytes(policyId)),
+      deserializeScriptHash(policyId),
       policyAssets
     );
   });

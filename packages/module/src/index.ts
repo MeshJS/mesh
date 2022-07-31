@@ -1,5 +1,5 @@
 import { Blockfrost } from './provider/blockfrost';
-import { Wallet } from './wallet';
+import { Wallet } from './wallet.old';
 import { Transaction } from './transaction';
 import { Infura } from './provider/infura';
 

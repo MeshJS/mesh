@@ -12,7 +12,7 @@ import {
   getAddressKeyHash,
 } from './utils/converter';
 import { csl } from './core';
-import { Wallet } from './wallet';
+import { Wallet } from './wallet.old';
 import { MakeTxError } from './global';
 import { Recipient, UTxO } from './types';
 import type { TransactionUnspentOutput } from './core';

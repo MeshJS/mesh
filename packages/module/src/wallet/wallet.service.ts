@@ -1,8 +1,11 @@
-import { csl } from '../core';
 import {
-  deserializeAddress, fromValue, toBytes
+  deserializeAddress,
+  deserializeTxUnspentOutput,
+  deserializeValue,
+  fromTxUnspentOutput,
+  fromValue,
 } from '../common/utils';
-import type { Asset } from '../common/types';
+import type { Asset, UTxO } from '../common/types';
 
 export class WalletService {
   private _walletInstance: WalletInstance;
@@ -36,7 +39,7 @@ export class WalletService {
 
   async getBalance(): Promise<Asset[]> {
     const balance = await this._walletInstance.getBalance();
-    return fromValue(csl.Value.from_bytes(toBytes(balance)));
+    return fromValue(deserializeValue(balance));
   }
 
   async getChangeAddress(): Promise<string> {
@@ -44,9 +47,9 @@ export class WalletService {
     return deserializeAddress(changeAddress).to_bech32();
   }
 
-  async getCollateral(): Promise<string[]> {
-    const collateral = await this._walletInstance.experimental.getCollateral();
-    return collateral ?? [];
+  async getCollateral(): Promise<UTxO[]> {
+    const collateral = await this._walletInstance.experimental.getCollateral() ?? [];
+    return collateral.map((c) => fromTxUnspentOutput(deserializeTxUnspentOutput(c)))
   }
 
   getNetworkId(): Promise<number> {
@@ -68,9 +71,9 @@ export class WalletService {
     return usedAddresses.map((usa) => deserializeAddress(usa).to_bech32());
   }
 
-  async getUtxos(): Promise<string[]> {
-    const utxos = await this._walletInstance.getUtxos();
-    return utxos ?? [];
+  async getUtxos(): Promise<UTxO[]> {
+    const utxos = await this._walletInstance.getUtxos() ?? [];
+    return utxos.map((u) => fromTxUnspentOutput(deserializeTxUnspentOutput(u)))
   }
 
   async signData(payload: string): Promise<string> {
