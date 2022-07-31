@@ -2,6 +2,8 @@ import { csl } from '../../core';
 import type { Value } from '../../core';
 import type { Asset } from '../types/Asset';
 
+const POLICY_ID_LENGTH = 56;
+
 /* -----------------[ Address ]----------------- */
 
 export const toAddress = (bech32: string) => csl.Address.from_bech32(bech32);
@@ -22,9 +24,21 @@ export const fromLovelace = (lovelace: number) => lovelace / 1_000_000;
 
 export const toLovelace = (ada: number) => ada * 1_000_000;
 
-/* -----------------[ Value ]----------------- */
+/* -----------------[ UnitInterval ]----------------- */
 
-const POLICY_ID_LENGTH = 56;
+export const toUnitInterval = (float: string) => {
+  const decimal = float.split('.')[1];
+
+  const numerator = `${parseInt(decimal, 10)}`;
+  const denominator = '1' + '0'.repeat(decimal.length);
+
+  return csl.UnitInterval.new(
+    csl.BigNum.from_str(numerator),
+    csl.BigNum.from_str(denominator)
+  );
+};
+
+/* -----------------[ Value ]----------------- */
 
 export const fromValue = (value: Value) => {
   const assets: Asset[] = [
