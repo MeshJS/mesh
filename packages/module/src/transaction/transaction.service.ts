@@ -4,7 +4,7 @@ import {
 } from '../common/utils';
 import { WalletService } from '../wallet';
 import type { TransactionBuilder } from '../core';
-import type { Asset, Metadata, Protocol } from '../common/types';
+import type { Asset, Metadata, Protocol, UTxO } from '../common/types';
 
 export class TransactionService {
   private _txBuilder: TransactionBuilder;
@@ -14,6 +14,12 @@ export class TransactionService {
     this._txBuilder = TransactionService.createTxBuilder(parameters);
     this._walletService = walletService;
   }
+
+  private _checkList = {
+    changeAddressSet: false,
+    nativeAssetsSet: false,
+    txInputsSet: false,
+  };
 
   sendLovelace(address: string, lovelace: string): TransactionService {
     const txOutput = csl.TransactionOutputBuilder.new()
@@ -36,6 +42,16 @@ export class TransactionService {
 
     this._txBuilder.add_output(txOutput);
 
+    this._checkList.nativeAssetsSet = true;
+
+    return this;
+  }
+
+  setChangeAddress(address: string): TransactionService {
+    this._txBuilder.add_change_if_needed(toAddress(address));
+
+    this._checkList.changeAddressSet = true;
+
     return this;
   }
 
@@ -50,29 +66,42 @@ export class TransactionService {
   }
 
   setTimeToLive(slot: number): TransactionService {
-    this._txBuilder.set_ttl_bignum(
-      csl.BigNum.from_str(slot.toString())
-    );
+    this._txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot.toString()));
+
+    return this;
+  }
+
+  setTxInputs(inputs: UTxO[]): TransactionService {
+    const txInputsBuilder = csl.TxInputsBuilder.new();
+
+    inputs
+      .map((input) => toTxUnspentOutput(input))
+      .forEach((utxo) => {
+        txInputsBuilder.add_input(
+          utxo.output().address(),
+          utxo.input(),
+          utxo.output().amount(),
+        )
+      });
+
+    this._txBuilder.set_inputs(txInputsBuilder);
+
+    this._checkList.txInputsSet = true;
 
     return this;
   }
 
   async build(): Promise<string> {
-    const walletUtxos = await this._walletService.getUtxos();
-    const txUnspentOutputs = csl.TransactionUnspentOutputs.new();
+    try {
+      await this.addInputIfNeeded();
+      await this.addChangeIfNeeded();
 
-    walletUtxos.forEach((utxo) => {
-      txUnspentOutputs.add(toTxUnspentOutput(utxo))
-    });
+      const tx = this._txBuilder.build_tx();
 
-    this._txBuilder.add_inputs_from(
-      txUnspentOutputs, csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
-    );
-
-    const changeAddress = toAddress(await this._walletService.getChangeAddress());
-    this._txBuilder.add_change_if_needed(changeAddress);
-
-    return fromBytes(this._txBuilder.build_tx().to_bytes());
+      return fromBytes(tx.to_bytes());
+    } catch (error) {
+      throw error;
+    }
   }
 
   private static createTxBuilder(
@@ -109,5 +138,37 @@ export class TransactionService {
       .build();
 
     return csl.TransactionBuilder.new(txBuilderConfig);
+  }
+
+  private async addChangeIfNeeded() {
+    if (this._checkList.changeAddressSet === false) {
+      const changeAddress = await this._walletService.getChangeAddress();
+      this._txBuilder.add_change_if_needed(toAddress(changeAddress));
+    }
+  }
+
+  private async addInputIfNeeded() {
+    if (this._checkList.txInputsSet === false) {
+      const walletUtxos = await this.getWalletUtxos();
+
+      const coinSelectionStrategy = this._checkList.nativeAssetsSet
+        ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
+        : csl.CoinSelectionStrategyCIP2.LargestFirst;
+
+      this._txBuilder.add_inputs_from(
+        walletUtxos, coinSelectionStrategy
+      );
+    }
+  }
+
+  private async getWalletUtxos() {
+    const txUnspentOutputs = csl.TransactionUnspentOutputs.new();
+    const walletUtxos = await this._walletService.getUtxosInstance();
+
+    walletUtxos.forEach((utxo) => {
+      txUnspentOutputs.add(utxo);
+    });
+
+    return txUnspentOutputs;
   }
 }

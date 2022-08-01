@@ -4,7 +4,7 @@ import {
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
   fromTxUnspentOutput, fromValue,
 } from '../common/utils';
-import type { Address, TransactionUnspentOutput } from '../core';
+import type { TransactionUnspentOutput } from '../core';
 import type { Asset, UTxO } from '../common/types';
 
 export class WalletService {
@@ -49,11 +49,6 @@ export class WalletService {
   async getChangeAddress(): Promise<string> {
     const changeAddress = await this._walletInstance.getChangeAddress();
     return deserializeAddress(changeAddress).to_bech32();
-  }
-
-  async getChangeAddressInstance(): Promise<Address> {
-    const changeAddress = await this._walletInstance.getChangeAddress();
-    return deserializeAddress(changeAddress);
   }
 
   async getCollateral(): Promise<UTxO[]> {
