@@ -1,10 +1,10 @@
+import { csl } from '../core';
 import {
-  deserializeAddress,
-  deserializeTxUnspentOutput,
-  deserializeValue,
-  fromTxUnspentOutput,
-  fromValue,
+  deserializeAddress, deserializeTx, deserializeTxWitnessSet,
+  deserializeTxUnspentOutput, deserializeValue, fromBytes,
+  fromTxUnspentOutput, fromValue,
 } from '../common/utils';
+import type { Address, TransactionUnspentOutput } from '../core';
 import type { Asset, UTxO } from '../common/types';
 
 export class WalletService {
@@ -29,11 +29,16 @@ export class WalletService {
   }
 
   static async enable(walletName: string): Promise<WalletService> {
-    const walletInstance = await WalletService.resolveInstance(walletName);
+    try {
+      const walletInstance = await WalletService.resolveInstance(walletName);
 
-    if (walletInstance !== undefined) return new WalletService(walletInstance);
+      if (walletInstance !== undefined)
+        return new WalletService(walletInstance);
 
-    throw new Error(`Couldn't create an instance for wallet: ${walletName}.`);
+      throw new Error(`Couldn't create an instance of wallet: ${walletName}.`);
+    } catch (error) {
+      throw error;
+    }
   }
 
   async getBalance(): Promise<Asset[]> {
@@ -46,12 +51,19 @@ export class WalletService {
     return deserializeAddress(changeAddress).to_bech32();
   }
 
+  async getChangeAddressInstance(): Promise<Address> {
+    const changeAddress = await this._walletInstance.getChangeAddress();
+    return deserializeAddress(changeAddress);
+  }
+
   async getCollateral(): Promise<UTxO[]> {
-    const collateral =
-      (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) =>
-      fromTxUnspentOutput(deserializeTxUnspentOutput(c))
-    );
+    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
+    return collateral.map((c) => fromTxUnspentOutput(deserializeTxUnspentOutput(c)));
+  }
+
+  async getCollateralInstance(): Promise<TransactionUnspentOutput[]> {
+    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
+    return collateral.map((c) => deserializeTxUnspentOutput(c));
   }
 
   getNetworkId(): Promise<number> {
@@ -78,13 +90,40 @@ export class WalletService {
     return utxos.map((u) => fromTxUnspentOutput(deserializeTxUnspentOutput(u)));
   }
 
+  async getUtxosInstance(): Promise<TransactionUnspentOutput[]> {
+    const utxos = (await this._walletInstance.getUtxos()) ?? [];
+    return utxos.map((u) => deserializeTxUnspentOutput(u));
+  }
+
   async signData(payload: string): Promise<string> {
     const changeAddress = await this._walletInstance.getChangeAddress();
     return this._walletInstance.signData(changeAddress, payload);
   }
 
-  signTx(tx: string, partialSign = false): Promise<string> {
-    return this._walletInstance.signTx(tx, partialSign);
+  async signTx(unsignedTx: string, partialSign = false): Promise<string> {
+    try {
+      const tx = deserializeTx(unsignedTx);
+      const txWitnessSet = deserializeTxWitnessSet(fromBytes(tx.witness_set().to_bytes()));
+
+      const walletWitnessSet = await this._walletInstance.signTx(unsignedTx, partialSign);
+
+      const walletVerificationKeys = deserializeTxWitnessSet(walletWitnessSet).vkeys();
+      if (walletVerificationKeys !== undefined) {
+        txWitnessSet.set_vkeys(walletVerificationKeys);
+      }
+
+      const signedTx = fromBytes(
+        csl.Transaction.new(
+          tx.body(),
+          txWitnessSet,
+          tx.auxiliary_data()
+        ).to_bytes()
+      );
+
+      return signedTx;
+    } catch (error) {
+      throw error;
+    }
   }
 
   submitTx(tx: string): Promise<string> {

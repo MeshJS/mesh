@@ -1,6 +1,4 @@
 describe('Wallet Service', () => { 
-  it('should enable wallet', () => {
-
-  });
+  it('should enable wallet', () => { });
  });
  

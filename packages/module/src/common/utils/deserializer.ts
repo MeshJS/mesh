@@ -19,11 +19,17 @@ export const deserializeScriptRef = (scriptRef: string) => csl.ScriptRef
 export const deserializeScriptHash = (scriptHash: string) => csl.ScriptHash
   .from_bytes(toBytes(scriptHash));
 
+export const deserializeTx = (tx: string) => csl.Transaction
+  .from_bytes(toBytes(tx));
+
 export const deserializeTxHash = (txHash: string) => csl.TransactionHash
   .from_bytes(toBytes(txHash));
 
-export const deserializeTxUnspentOutput = (utxo: string) => csl.TransactionUnspentOutput
-  .from_bytes(toBytes(utxo));
+export const deserializeTxUnspentOutput = (txUnspentOutput: string) => csl.TransactionUnspentOutput
+  .from_bytes(toBytes(txUnspentOutput));
+
+export const deserializeTxWitnessSet = (txWitnessSet: string) => csl.TransactionWitnessSet
+  .from_bytes(toBytes(txWitnessSet));
 
 export const deserializeValue = (value: string) => csl.Value
   .from_bytes(toBytes(value));
