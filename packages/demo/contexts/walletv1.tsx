@@ -1,8 +1,7 @@
 import React, { createContext, useState, useContext, useMemo } from 'react';
-import { WalletService, Wallet } from '@martifylabs/mesh';
+import Mesh from '@martifylabs/mesh';
 
 const WalletContext = createContext({
-  wallet: undefined,
   connecting: false,
   walletNameConnected: '',
   walletConnected: false,
@@ -10,16 +9,16 @@ const WalletContext = createContext({
 });
 
 export const WalletProvider = ({ children }) => {
-  const [wallet, setWallet] = useState<undefined | Wallet>(undefined);
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [connecting, setConnecting] = useState<boolean>(false);
   const [walletNameConnected, setWalletNameConnected] = useState<string>('');
 
   const connectWallet = async (walletName: string) => {
     setConnecting(true);
-    const _wallet = await WalletService.enable(walletName);
-    if (_wallet) {
-      setWallet(_wallet);
+    const walletConnected = await Mesh.wallet.enable({
+      walletName: walletName,
+    });
+    if (walletConnected) {
       setWalletNameConnected(walletName);
       setWalletConnected(true);
     }
@@ -28,13 +27,12 @@ export const WalletProvider = ({ children }) => {
 
   const memoedValue = useMemo(
     () => ({
-      wallet,
       connecting,
       walletNameConnected,
       walletConnected,
       connectWallet,
     }),
-    [wallet, walletConnected, connecting, walletNameConnected]
+    [walletConnected, connecting, walletNameConnected]
   );
 
   return (

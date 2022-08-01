@@ -122,7 +122,7 @@ function CodeDemo() {
 
   useEffect(() => {
     async function init() {
-      getAssets();
+      // getAssets();
 
       const newRecipents = [
         {

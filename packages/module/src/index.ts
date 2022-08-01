@@ -22,3 +22,4 @@ class Mesh {
 }
 
 export default new Mesh();
+export * from "./wallet/index";

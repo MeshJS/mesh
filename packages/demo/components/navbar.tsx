@@ -1,10 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SunIcon, MoonIcon, MenuIcon } from '@heroicons/react/solid';
 import useLocalStorage from '../hooks/useLocalStorage';
 
 const Navbar = (props) => {
   const [darkMode, setDarkMode] = useLocalStorage('darkmode', false);
+  const [isSSR, setIsSSR] = useState(true);
+
+  useEffect(() => {
+    setIsSSR(false);
+  }, []);
 
   function setDarkTheme(bool) {
     if (bool) {
@@ -53,19 +58,21 @@ const Navbar = (props) => {
               </svg>
             </a>
 
-            <button
-              type="button"
-              className="inline-flex items-center p-2 ml-1 text-sm text-gray-500 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
-              onClick={() => {
-                toggle();
-              }}
-            >
-              {darkMode ? (
-                <MoonIcon className="h-4 w-4 text-gray-500" />
-              ) : (
-                <SunIcon className="h-4 w-4 text-gray-500" />
-              )}
-            </button>
+            {!isSSR && (
+              <button
+                type="button"
+                className="inline-flex items-center p-2 ml-1 text-sm text-gray-500 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
+                onClick={() => {
+                  toggle();
+                }}
+              >
+                {darkMode ? (
+                  <MoonIcon className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <SunIcon className="h-4 w-4 text-gray-500" />
+                )}
+              </button>
+            )}
 
             {/* <a
             href="#"

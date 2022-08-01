@@ -31,8 +31,7 @@ export class WalletService {
   static async enable(walletName: string): Promise<WalletService> {
     const walletInstance = await WalletService.resolveInstance(walletName);
 
-    if (walletInstance !== undefined)
-      return new WalletService(walletInstance);
+    if (walletInstance !== undefined) return new WalletService(walletInstance);
 
     throw new Error(`Couldn't create an instance for wallet: ${walletName}.`);
   }
@@ -48,8 +47,11 @@ export class WalletService {
   }
 
   async getCollateral(): Promise<UTxO[]> {
-    const collateral = await this._walletInstance.experimental.getCollateral() ?? [];
-    return collateral.map((c) => fromTxUnspentOutput(deserializeTxUnspentOutput(c)))
+    const collateral =
+      (await this._walletInstance.experimental.getCollateral()) ?? [];
+    return collateral.map((c) =>
+      fromTxUnspentOutput(deserializeTxUnspentOutput(c))
+    );
   }
 
   getNetworkId(): Promise<number> {
@@ -72,8 +74,8 @@ export class WalletService {
   }
 
   async getUtxos(): Promise<UTxO[]> {
-    const utxos = await this._walletInstance.getUtxos() ?? [];
-    return utxos.map((u) => fromTxUnspentOutput(deserializeTxUnspentOutput(u)))
+    const utxos = (await this._walletInstance.getUtxos()) ?? [];
+    return utxos.map((u) => fromTxUnspentOutput(deserializeTxUnspentOutput(u)));
   }
 
   async signData(payload: string): Promise<string> {
@@ -93,9 +95,7 @@ export class WalletService {
     const balance = await this.getBalance();
     const nativeAssets = balance.filter((v) => v.unit !== 'lovelace');
 
-    return limit !== undefined
-      ? nativeAssets.slice(0, limit)
-      : nativeAssets;
+    return limit !== undefined ? nativeAssets.slice(0, limit) : nativeAssets;
   }
 
   async getNativeAssetsCollection(policyId: string): Promise<Asset[]> {
@@ -107,9 +107,7 @@ export class WalletService {
     const balance = await this.getBalance();
     const nativeAsset = balance.find((v) => v.unit === 'lovelace');
 
-    return nativeAsset !== undefined
-      ? parseInt(nativeAsset.quantity, 10)
-      : 0;
+    return nativeAsset !== undefined ? parseInt(nativeAsset.quantity, 10) : 0;
   }
 
   private static resolveInstance(
@@ -126,7 +124,7 @@ export class WalletService {
   }
 }
 
-type Wallet = {
+export type Wallet = {
   name: string;
   icon: string;
   version: string;

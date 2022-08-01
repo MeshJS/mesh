@@ -1,8 +1,5 @@
-import { useState } from 'react';
 import { Metatags } from '../../components';
-import ConnectWallet from '../../components/wallet/connectWallet';
 import WalletApi from '../../components/wallet/walletApi';
-import { ChevronRightIcon, LinkIcon } from '@heroicons/react/solid';
 
 const Wallet = () => {
   return (
@@ -17,8 +14,6 @@ const Wallet = () => {
 function Showcase() {
   return (
     <section className="px-4 lg:px-6">
-      <h2>Connect available wallets</h2>
-      <ConnectWallet />
       <WalletApi />
     </section>
   );

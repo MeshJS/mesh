@@ -23,7 +23,7 @@ function Hero({ setShowInstall }) {
             Rapidly build Web3 apps on Cardano blockchain
           </h1>
           <p className="mb-6 font-light text-gray-500 lg:mb-8 md:text-lg lg:text-xl dark:text-gray-400">
-            Access to advanced blockchain capbilities via Martify APIs, build
+            Access to advanced blockchain capabilities via Martify APIs, build
             and submit transactions, accessing information stored on the
             blockchain, add files on IPFS.
           </p>
