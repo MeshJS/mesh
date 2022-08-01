@@ -20,7 +20,7 @@ export function CardAsset({ asset, selectedAssets, toggleSelectedAssets }) {
         )}
       </div>
       <div className="p-5 overflow-hidden tracking-tight">
-        <b>{asset.name}</b>
+        <b>{asset.unit}</b>
       </div>
     </div>
   );

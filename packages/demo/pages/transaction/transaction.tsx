@@ -4,6 +4,7 @@ import SendAda from '../../components/transaction/sendAda';
 import SendMultiassets from '../../components/transaction/sendMultiassets';
 import TransactionBuilder from '../../components/transaction/transactionBuilder';
 import LockAssets from '../../components/transaction/lockAssets';
+import { Button, Card, Codeblock, Input, Toggle } from '../../components';
 
 const Transaction = () => {
   return (
@@ -22,11 +23,10 @@ function Showcase() {
         <h2>Connect available wallets</h2>
         <ConnectWallet />
 
-        <LockAssets />
-
         <SendAda />
         <SendMultiassets />
-        <TransactionBuilder />
+        {/* <TransactionBuilder /> 
+        <LockAssets />*/}
       </div>
     </section>
   );
@@ -41,8 +41,13 @@ function Hero() {
         <div className="mb-4"></div>
         <div className="mb-4">
           <p className="font-medium">
-            In this section, let&apos;s create some transactions.
+            In this section, let&apos;s create some transactions. To start,
+            import TransactionService with:
           </p>
+          <Codeblock
+            data={`import { TransactionService } from '@martifylabs/mesh';`}
+            isJson={false}
+          />
         </div>
 
         {/* <a

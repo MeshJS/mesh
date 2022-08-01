@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input, Modal } from '../../components';
 import { Recipient, Asset } from '../../types';
 import { CardAsset } from '../blocks/cardassets';
 import useWallet from '../../contexts/wallet';
+import { TransactionService, Asset } from '@martifylabs/mesh';
 
 export default function SendMultiassets() {
   return (
@@ -12,6 +12,20 @@ export default function SendMultiassets() {
         <div className="">
           <h3>Send multi-assets to another addresses</h3>
           <p>Creating a transaction to send native assets.</p>
+          <p>
+            Similar to the sending ADA to other addresses example, appending{' '}
+            <code>
+              .sendNativeAssets(address: string, nativeAssets: Asset[])
+            </code>{' '}
+            for each recipients, where <code>Asset</code> is:
+          </p>
+          <Codeblock
+            data={`{
+  address: '',
+  assets: {},
+}`}
+            isJson={false}
+          />
         </div>
         <div className="mt-8"></div>
       </div>
@@ -21,7 +35,7 @@ export default function SendMultiassets() {
 }
 
 function CodeDemo() {
-  const { walletConnected } = useWallet();
+  const { wallet, walletConnected, walletNameConnected } = useWallet();
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([
@@ -37,45 +51,46 @@ function CodeDemo() {
   async function makeTransaction() {
     setState(1);
 
-    try {
-      const tx = await Mesh.transaction.build({
-        outputs: recipients,
-        blockfrostApiKey:
-          (await Mesh.wallet.getNetworkId()) === 1
-            ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-            : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-        network: await Mesh.wallet.getNetworkId(),
-      });
+    // try {
+    console.log(11, selectedAssets);
+    console.log(22, lovelace);
+    const tx = new TransactionService(wallet);
 
-      const signature = await Mesh.wallet.signTx({ tx });
-
-      const txHash = await Mesh.wallet.submitTransaction({
-        tx: tx,
-        witnesses: [signature],
-      });
-
-      setResult(txHash);
-      setState(2);
-    } catch (error) {
-      setResult(`${error}`);
-      setState(0);
+    if (Object.keys(selectedAssets).length > 0) {
+      let assets: { unit: string; quantity: string }[] = [];
+      for (const assetUnit in selectedAssets) {
+        console.log(22, recipients[0].address);
+        console.log(33, assetUnit);
+        let thisAsset = {
+          unit: assetUnit,
+          quantity: '1',
+        };
+        console.log(44, thisAsset);
+        assets.push(thisAsset);
+      }
+      console.log(55, recipients[0].address, assets);
+      tx.sendNativeAssets(recipients[0].address, assets);
     }
+    if (lovelace.length > 0) {
+      tx.sendLovelace(recipients[0].address, lovelace.toString());
+    }
+
+    console.log(88);
+
+    const unsignedTx = await tx.build();
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
+    setResult(txHash);
+    setState(2);
+    // } catch (error) {
+    //   setResult(`${error}`);
+    //   setState(0);
+    // }
   }
 
   async function getAssets() {
     setState(1);
-    await Mesh.blockfrost.init({
-      blockfrostApiKey:
-        (await Mesh.wallet.getNetworkId()) === 1
-          ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-          : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-      network: await Mesh.wallet.getNetworkId(),
-    });
-
-    const _assets = await Mesh.wallet.getAssets({
-      includeOnchain: true,
-      limit: 9,
-    });
+    const _assets = await wallet.getNativeAssets(9);
     setAssets(_assets);
     setState(0);
   }
@@ -92,9 +107,7 @@ function CodeDemo() {
     let newRecipients = [...recipients];
     let newAssets = {};
     for (let unit in updateSelectedAssets) {
-      newAssets[
-        `${updateSelectedAssets[unit].policy}.${updateSelectedAssets[unit].name}`
-      ] = 1;
+      newAssets[`${unit}`] = 1;
     }
     if (lovelace) {
       newAssets['lovelace'] = parseInt(lovelace);
@@ -122,12 +135,12 @@ function CodeDemo() {
 
   useEffect(() => {
     async function init() {
-      // getAssets();
+      getAssets();
 
       const newRecipents = [
         {
           address:
-            (await Mesh.wallet.getNetworkId()) === 1
+            (await wallet.getNetworkId()) === 1
               ? process.env.NEXT_PUBLIC_TEST_ADDRESS_MAINNET!
               : process.env.NEXT_PUBLIC_TEST_ADDRESS_TESTNET!,
           assets: {},
@@ -139,6 +152,36 @@ function CodeDemo() {
       init();
     }
   }, [walletConnected]);
+
+  let codeSnippet = `const wallet = await WalletService.enable("${
+    walletNameConnected ? walletNameConnected : 'eternl'
+  }");`;
+
+  codeSnippet += `\n\nconst tx = new TransactionService(wallet)`;
+
+  if (Object.keys(selectedAssets).length > 0) {
+    codeSnippet += `\n  .sendNativeAssets(\n    "${recipients[0].address}",`;
+    codeSnippet += `\n    [`;
+    for (const assetUnit in selectedAssets) {
+      codeSnippet += `\n      {`;
+      codeSnippet += `\n        unit: "${assetUnit}",`;
+      codeSnippet += `\n        quantity: "1",`;
+      codeSnippet += `\n      },`;
+    }
+    codeSnippet += `\n    ]`;
+    codeSnippet += `\n  )`;
+  }
+  if (lovelace.length > 0) {
+    codeSnippet += `\n  tx.sendLovelace("${recipients[0].address}", "${lovelace}")`;
+    codeSnippet += `\n    "${recipients[0].address}",`;
+    codeSnippet += `\n    "${lovelace}"`;
+    codeSnippet += `\n  )`;
+  }
+  codeSnippet += `;`;
+
+  codeSnippet += `\n\nconst unsignedTx = await tx.build();`;
+  codeSnippet += `\nconst signedTx = await wallet.signTx(unsignedTx);`;
+  codeSnippet += `\nconst txHash = await wallet.submitTx(signedTx);`;
 
   return (
     <div className="grid gap-4 grid-cols-2">
@@ -208,23 +251,7 @@ function CodeDemo() {
           </tbody>
         </table>
 
-        <Codeblock
-          data={`const recipients = ${JSON.stringify(recipients, null, 2)};
-
-const tx = await Mesh.transaction.build({
-  outputs: recipients,
-  blockfrostApiKey: "BLOCKFROST_API_KEY",
-  network: await Mesh.wallet.getNetworkId(),
-});
-
-const signature = await Mesh.wallet.signTx({ tx });
-
-const txHash = await Mesh.wallet.submitTransaction({
-  tx: tx,
-  witnesses: [signature],
-});`}
-          isJson={false}
-        />
+        <Codeblock data={codeSnippet} isJson={false} />
 
         {walletConnected && (
           <Button

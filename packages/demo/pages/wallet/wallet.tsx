@@ -1,5 +1,6 @@
 import { Metatags } from '../../components';
 import WalletApi from '../../components/wallet/walletApi';
+import { Codeblock } from '../../components';
 
 const Wallet = () => {
   return (
@@ -28,7 +29,11 @@ function Hero() {
         <div className="mb-4">
           <p>
             These wallet APIs are in accordance to{' '}
-            <a href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030">
+            <a
+              href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030"
+              target="_blank"
+              rel="noreferrer"
+            >
               Cardano Improvement Proposals 30 - Cardano dApp-Wallet Web Bridge
             </a>
             , which defines the API for dApps to communicate with the
@@ -38,8 +43,12 @@ function Hero() {
         <div className="mb-4">
           <p className="font-medium">
             In this section, you can connect wallet and try APIs for dApps to
-            communicate with your wallet.
+            communicate with your wallet. To start, import WalletService with:
           </p>
+          <Codeblock
+            data={`import { WalletService } from '@martifylabs/mesh';`}
+            isJson={false}
+          />
         </div>
 
         {/* <a

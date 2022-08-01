@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TransactionService } from '@martifylabs/mesh';
+import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input } from '../../components';
 import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import { Recipient } from '../../types';
@@ -10,7 +10,7 @@ export default function SendAda() {
     <Card>
       <div className="grid gap-4 grid-cols-2">
         <div className="">
-          <h3>Send ADA to other addresses</h3>
+          <h3>Send some ADA to another addresses</h3>
           <p>Creating a transaction requires various steps:</p>
           <ol>
             <li>
@@ -27,10 +27,6 @@ export default function SendAda() {
             <li>Sign the transaction</li>
             <li>Submit the transaction</li>
           </ol>
-          <p>
-            Append <code>.sendLovelace(address: string, lovelace: string)</code>{' '}
-            for each recipients.
-          </p>
         </div>
         <div className="mt-8">
           <CodeDemo />
@@ -41,7 +37,7 @@ export default function SendAda() {
 }
 
 function CodeDemo() {
-  const { wallet, walletConnected, walletNameConnected } = useWallet();
+  const { walletConnected } = useWallet();
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -77,18 +73,25 @@ function CodeDemo() {
 
   async function makeTransaction() {
     setState(1);
+
     try {
-      const tx = new TransactionService(wallet);
-      for (const recipient of recipients) {
-        tx.sendLovelace(
-          recipient.address,
-          recipient.assets.lovelace.toString()
-        );
-      }
-      const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx);
-      const txHash = await wallet.submitTx(signedTx);
+      const tx = await Mesh.transaction.build({
+        outputs: recipients,
+        blockfrostApiKey:
+          (await Mesh.wallet.getNetworkId()) === 1
+            ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
+            : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+        network: await Mesh.wallet.getNetworkId(),
+      });
+
+      const signature = await Mesh.wallet.signTx({ tx });
+
+      const txHash = await Mesh.wallet.submitTransaction({
+        tx: tx,
+        witnesses: [signature],
+      });
       setResult(txHash);
+
       setState(2);
     } catch (error) {
       setResult(`${error}`);
@@ -101,7 +104,7 @@ function CodeDemo() {
       const newRecipents = [
         {
           address:
-            (await wallet.getNetworkId()) === 1
+            (await Mesh.wallet.getNetworkId()) === 1
               ? process.env.NEXT_PUBLIC_TEST_ADDRESS_MAINNET!
               : process.env.NEXT_PUBLIC_TEST_ADDRESS_TESTNET!,
           assets: {
@@ -115,22 +118,6 @@ function CodeDemo() {
       init();
     }
   }, [walletConnected]);
-
-  let codeSnippet = `const wallet = await WalletService.enable("${
-    walletNameConnected ? walletNameConnected : 'eternl'
-  }");`;
-
-  codeSnippet += `\n\nconst tx = new TransactionService(wallet)`;
-
-  for (const recipient of recipients) {
-    codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
-  }
-
-  codeSnippet += `;`;
-
-  codeSnippet += `\n\nconst unsignedTx = await tx.build();`;
-  codeSnippet += `\nconst signedTx = await wallet.signTx(unsignedTx);`;
-  codeSnippet += `\nconst txHash = await wallet.submitTx(signedTx);`;
 
   return (
     <>
@@ -195,7 +182,23 @@ function CodeDemo() {
         </tbody>
       </table>
 
-      <Codeblock data={codeSnippet} isJson={false} />
+      <Codeblock
+        data={`const recipients = ${JSON.stringify(recipients, null, 2)};
+
+const tx = await Mesh.transaction.build({
+  outputs: recipients,
+  blockfrostApiKey: "BLOCKFROST_API_KEY",
+  network: await Mesh.wallet.getNetworkId(),
+});
+
+const signature = await Mesh.wallet.signTx({ tx });
+
+const txHash = await Mesh.wallet.submitTransaction({
+  tx: tx,
+  witnesses: [signature],
+});`}
+        isJson={false}
+      />
 
       {walletConnected && (
         <Button
@@ -206,6 +209,7 @@ function CodeDemo() {
           Run code snippet
         </Button>
       )}
+
       {result && (
         <>
           <h4>Result</h4>
