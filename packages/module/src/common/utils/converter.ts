@@ -4,7 +4,7 @@ import { POLICY_ID_LENGTH } from '../constants';
 import type { Asset, UTxO } from '../types';
 import {
   deserializeDataHash, deserializePlutusData, deserializeScriptHash,
-  deserializeScriptRef, deserializeTxHash
+  deserializeScriptRef, deserializeTxHash,
 } from './deserializer';
 
 /* -----------------[ Address ]----------------- */

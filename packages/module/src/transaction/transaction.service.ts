@@ -1,27 +1,22 @@
 import { csl } from '../core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '../common/constants';
+import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
 import {
-  fromBytes, toAddress, toTxUnspentOutput, toUnitInterval, toValue
+  fromBytes, toAddress, toTxUnspentOutput, toUnitInterval, toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
 import type { TransactionBuilder } from '../core';
 import type { Asset, Metadata, Protocol, UTxO } from '../common/types';
 
+@Trackable
 export class TransactionService {
   private readonly _txBuilder: TransactionBuilder;
 
   constructor(
-    private readonly _walletService: WalletService,
-    parameters?: Protocol,
+    private readonly _walletService: WalletService, parameters?: Protocol,
   ) {
     this._txBuilder = TransactionService.createTxBuilder(parameters);
   }
-
-  private _checkList = {
-    changeAddressSet: false,
-    nativeAssetsSet: false,
-    txInputsSet: false,
-  };
 
   sendLovelace(address: string, lovelace: string): TransactionService {
     const txOutput = csl.TransactionOutputBuilder.new()
@@ -35,6 +30,7 @@ export class TransactionService {
     return this;
   }
 
+  @Checkpoint()
   sendNativeAssets(
     address: string,
     nativeAssets: Asset[],
@@ -60,15 +56,12 @@ export class TransactionService {
 
     this._txBuilder.add_output(txOutput);
 
-    this._checkList.nativeAssetsSet = true;
-
     return this;
   }
 
+  @Checkpoint()
   setChangeAddress(address: string): TransactionService {
     this._txBuilder.add_change_if_needed(toAddress(address));
-
-    this._checkList.changeAddressSet = true;
 
     return this;
   }
@@ -89,6 +82,7 @@ export class TransactionService {
     return this;
   }
 
+  @Checkpoint()
   setTxInputs(inputs: UTxO[]): TransactionService {
     const txInputsBuilder = csl.TxInputsBuilder.new();
 
@@ -99,12 +93,10 @@ export class TransactionService {
           utxo.output().address(),
           utxo.input(),
           utxo.output().amount(),
-        )
+        );
       });
 
     this._txBuilder.set_inputs(txInputsBuilder);
-
-    this._checkList.txInputsSet = true;
 
     return this;
   }
@@ -151,23 +143,21 @@ export class TransactionService {
   }
 
   private async addChangeIfNeeded() {
-    if (this._checkList.changeAddressSet === false) {
+    if (this.notReached(this.setChangeAddress.name)) {
       const changeAddress = await this._walletService.getChangeAddress();
       this._txBuilder.add_change_if_needed(toAddress(changeAddress));
     }
   }
 
   private async addInputIfNeeded() {
-    if (this._checkList.txInputsSet === false) {
+    if (this.notReached(this.setTxInputs.name)) {
       const walletUtxos = await this.getWalletUtxos();
 
-      const coinSelectionStrategy = this._checkList.nativeAssetsSet
-        ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
-        : csl.CoinSelectionStrategyCIP2.LargestFirst;
+      const coinSelectionStrategy = this.notReached(this.sendNativeAssets.name)
+        ? csl.CoinSelectionStrategyCIP2.LargestFirst
+        : csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset;
 
-      this._txBuilder.add_inputs_from(
-        walletUtxos, coinSelectionStrategy
-      );
+      this._txBuilder.add_inputs_from(walletUtxos, coinSelectionStrategy);
     }
   }
 
@@ -180,5 +170,11 @@ export class TransactionService {
     });
 
     return txUnspentOutputs;
+  }
+
+  private notReached(checkpoint: string) {
+    return (
+      this as unknown as TrackableObject
+    ).__visits.includes(checkpoint) === false;
   }
 }
