@@ -51,8 +51,8 @@ export class WalletService {
   }
 
   async getCollateral(): Promise<UTxO[]> {
-    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) => fromTxUnspentOutput(deserializeTxUnspentOutput(c)));
+    const deserializedCollateral = await this.getDeserializedCollateral();
+    return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
   }
 
   async getDeserializedCollateral(): Promise<TransactionUnspentOutput[]> {
@@ -80,8 +80,8 @@ export class WalletService {
   }
 
   async getUtxos(): Promise<UTxO[]> {
-    const utxos = (await this._walletInstance.getUtxos()) ?? [];
-    return utxos.map((u) => fromTxUnspentOutput(deserializeTxUnspentOutput(u)));
+    const deserializedUtxos = await this.getDeserializedUtxos();
+    return deserializedUtxos.map((du) => fromTxUnspentOutput(du));
   }
 
   async getDeserializedUtxos(): Promise<TransactionUnspentOutput[]> {
