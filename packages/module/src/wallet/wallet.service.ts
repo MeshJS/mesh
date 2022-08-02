@@ -9,11 +9,9 @@ import type { TransactionUnspentOutput } from '../core';
 import type { Asset, UTxO } from '../common/types';
 
 export class WalletService {
-  private _walletInstance: WalletInstance;
-
-  private constructor(walletInstance: WalletInstance) {
-    this._walletInstance = walletInstance;
-  }
+  private constructor(
+    private readonly _walletInstance: WalletInstance,
+  ) {}
 
   static supportedWallets = ['flint', 'nami', 'eternl', 'nufi'];
 
@@ -140,9 +138,9 @@ export class WalletService {
 
   async getPolicyIds(): Promise<string[]> {
     const balance = await this.getBalance();
-    return [...new Set(balance.map(
+    return Array.from(new Set(balance.map(
       (v) => v.unit.slice(0, POLICY_ID_LENGTH)
-    ))];
+    ))).filter((p) => p !== 'lovelace');
   }
 
   private static resolveInstance(

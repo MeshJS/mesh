@@ -90,7 +90,7 @@ function CodeDemo() {
 
   async function getAssets() {
     setState(1);
-    const _assets = await wallet.getNativeAssets(9);
+    const _assets = await wallet.getBalance();
     setAssets(_assets);
     setState(0);
   }

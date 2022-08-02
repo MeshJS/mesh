@@ -19,5 +19,5 @@ export type Protocol = {
   maxValSize: string;
   collateralPercent: number;
   maxCollateralInputs: number;
-  coinsPerUTxOWord: string;
+  coinsPerUTxOSize: string;
 };

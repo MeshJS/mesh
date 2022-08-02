@@ -127,27 +127,22 @@ export const fromValue = (value: Value) => {
 
 export const toValue = (assets: Asset[]) => {
   const lovelace = assets.find((asset) => asset.unit === 'lovelace');
-  const policies = [
-    ...new Set<string>(
+  const policies = Array.from(
+    new Set<string>(
       assets
         .filter((asset) => asset.unit !== 'lovelace')
         .map((asset) => asset.unit.slice(0, POLICY_ID_LENGTH))
     ),
-  ];
+  );
 
   const multiAsset = csl.MultiAsset.new();
   policies.forEach((policyId) => {
-    console.log(339389, assets);
     const policyAssets = csl.Assets.new();
     assets
-      .filter((asset) => {
-          console.log(888, asset);
-          console.log(999, asset.unit.slice(0, POLICY_ID_LENGTH), policyId);
-          console.log(777, asset.unit.slice(0, POLICY_ID_LENGTH) === policyId)
-        return asset.unit.slice(0, POLICY_ID_LENGTH) === policyId})
+      .filter(
+        (asset) => asset.unit.slice(0, POLICY_ID_LENGTH) === policyId
+      )
       .forEach((asset) => {
-        console.log(1111, asset.unit)
-        console.log(2222, asset.unit.slice(POLICY_ID_LENGTH))
         policyAssets.insert(
           csl.AssetName.new(toBytes(asset.unit.slice(POLICY_ID_LENGTH))),
           csl.BigNum.from_str(asset.quantity)

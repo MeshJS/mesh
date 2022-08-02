@@ -1,4 +1,5 @@
 import { csl } from '../core';
+import { DEFAULT_PROTOCOL_PARAMETERS } from '../common/constants';
 import {
   fromBytes, toAddress, toTxUnspentOutput, toUnitInterval, toValue
 } from '../common/utils';
@@ -7,12 +8,13 @@ import type { TransactionBuilder } from '../core';
 import type { Asset, Metadata, Protocol, UTxO } from '../common/types';
 
 export class TransactionService {
-  private _txBuilder: TransactionBuilder;
-  private _walletService: WalletService;
+  private readonly _txBuilder: TransactionBuilder;
 
-  constructor(walletService: WalletService, parameters?: Protocol) {
+  constructor(
+    private readonly _walletService: WalletService,
+    parameters?: Protocol,
+  ) {
     this._txBuilder = TransactionService.createTxBuilder(parameters);
-    this._walletService = walletService;
   }
 
   private _checkList = {
@@ -33,11 +35,27 @@ export class TransactionService {
     return this;
   }
 
-  sendNativeAssets(address: string, nativeAssets: Asset[]): TransactionService {
+  sendNativeAssets(
+    address: string,
+    nativeAssets: Asset[],
+    coinsPerByte = DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize,
+  ): TransactionService {
+    const amount = toValue(nativeAssets);
+    const multiasset = amount.multiasset();
+
+    if (amount.is_zero() || multiasset === undefined) {
+      return this;
+    }
+
     const txOutput = csl.TransactionOutputBuilder.new()
       .with_address(toAddress(address))
       .next()
-      .with_value(toValue(nativeAssets))
+      .with_asset_and_min_required_coin_by_utxo_cost(
+        multiasset,
+        csl.DataCost.new_coins_per_byte(
+          csl.BigNum.from_str(coinsPerByte)
+        )
+      )
       .build();
 
     this._txBuilder.add_output(txOutput);
@@ -105,20 +123,12 @@ export class TransactionService {
   }
 
   private static createTxBuilder(
-    parameters = {
-      coinsPerUTxOWord: '4310',
-      priceMem: 0.0577,
-      priceStep: 0.0000721,
-      minFeeA: 44,
-      minFeeB: 155381,
-      keyDeposit: '2000000',
-      maxTxSize: 16384,
-      maxValSize: '5000',
-      poolDeposit: '500000000',
-    }
+    parameters = DEFAULT_PROTOCOL_PARAMETERS
   ): TransactionBuilder {
     const txBuilderConfig = csl.TransactionBuilderConfigBuilder.new()
-      .coins_per_utxo_byte(csl.BigNum.from_str(parameters.coinsPerUTxOWord))
+      .coins_per_utxo_byte(
+        csl.BigNum.from_str(parameters.coinsPerUTxOSize)
+      )
       .ex_unit_prices(
         csl.ExUnitPrices.new(
           toUnitInterval(parameters.priceMem.toString()),
