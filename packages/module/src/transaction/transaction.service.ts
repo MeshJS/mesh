@@ -143,17 +143,17 @@ export class TransactionService {
   }
 
   private async addChangeIfNeeded() {
-    if (this.notReached(this.setChangeAddress.name)) {
+    if (this.notReached('setChangeAddress')) {
       const changeAddress = await this._walletService.getChangeAddress();
       this._txBuilder.add_change_if_needed(toAddress(changeAddress));
     }
   }
 
   private async addInputIfNeeded() {
-    if (this.notReached(this.setTxInputs.name)) {
+    if (this.notReached('setTxInputs')) {
       const walletUtxos = await this.getWalletUtxos();
 
-      const coinSelectionStrategy = this.notReached(this.sendNativeAssets.name)
+      const coinSelectionStrategy = this.notReached('sendNativeAssets')
         ? csl.CoinSelectionStrategyCIP2.LargestFirst
         : csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset;
 
