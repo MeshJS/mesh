@@ -1,15 +1,11 @@
 import { csl } from '../../core';
 import type { TransactionUnspentOutput, Value } from '../../core';
+import { POLICY_ID_LENGTH } from '../constants';
 import type { Asset, UTxO } from '../types';
 import {
-  deserializeDataHash,
-  deserializePlutusData,
-  deserializeScriptHash,
-  deserializeScriptRef,
-  deserializeTxHash
+  deserializeDataHash, deserializePlutusData, deserializeScriptHash,
+  deserializeScriptRef, deserializeTxHash
 } from './deserializer';
-
-const POLICY_ID_LENGTH = 56;
 
 /* -----------------[ Address ]----------------- */
 

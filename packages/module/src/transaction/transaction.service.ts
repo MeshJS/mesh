@@ -65,8 +65,8 @@ export class TransactionService {
     return this;
   }
 
-  setTimeToLive(slot: number): TransactionService {
-    this._txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot.toString()));
+  setTimeToLive(slot: string): TransactionService {
+    this._txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot));
 
     return this;
   }
@@ -163,7 +163,7 @@ export class TransactionService {
 
   private async getWalletUtxos() {
     const txUnspentOutputs = csl.TransactionUnspentOutputs.new();
-    const walletUtxos = await this._walletService.getUtxosInstance();
+    const walletUtxos = await this._walletService.getDeserializedUtxos();
 
     walletUtxos.forEach((utxo) => {
       txUnspentOutputs.add(utxo);

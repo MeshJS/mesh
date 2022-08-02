@@ -1,4 +1,5 @@
 import { csl } from '../core';
+import { POLICY_ID_LENGTH } from '../common/constants';
 import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
@@ -56,7 +57,7 @@ export class WalletService {
     return collateral.map((c) => fromTxUnspentOutput(deserializeTxUnspentOutput(c)));
   }
 
-  async getCollateralInstance(): Promise<TransactionUnspentOutput[]> {
+  async getDeserializedCollateral(): Promise<TransactionUnspentOutput[]> {
     const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
     return collateral.map((c) => deserializeTxUnspentOutput(c));
   }
@@ -85,7 +86,7 @@ export class WalletService {
     return utxos.map((u) => fromTxUnspentOutput(deserializeTxUnspentOutput(u)));
   }
 
-  async getUtxosInstance(): Promise<TransactionUnspentOutput[]> {
+  async getDeserializedUtxos(): Promise<TransactionUnspentOutput[]> {
     const utxos = (await this._walletInstance.getUtxos()) ?? [];
     return utxos.map((u) => deserializeTxUnspentOutput(u));
   }
@@ -125,23 +126,23 @@ export class WalletService {
     return this._walletInstance.submitTx(tx);
   }
 
-  async getNativeAssets(limit?: number): Promise<Asset[]> {
+  async getLovelace(): Promise<string> {
     const balance = await this.getBalance();
-    const nativeAssets = balance.filter((v) => v.unit !== 'lovelace');
+    const nativeAsset = balance.find((v) => v.unit === 'lovelace');
 
-    return limit !== undefined ? nativeAssets.slice(0, limit) : nativeAssets;
+    return nativeAsset !== undefined ? nativeAsset.quantity : '0';
   }
 
-  async getNativeAssetsCollection(policyId: string): Promise<Asset[]> {
+  async getPolicyIdAssets(policyId: string): Promise<Asset[]> {
     const balance = await this.getBalance();
     return balance.filter((v) => v.unit.startsWith(policyId));
   }
 
-  async getLovelaceBalance(): Promise<number> {
+  async getPolicyIds(): Promise<string[]> {
     const balance = await this.getBalance();
-    const nativeAsset = balance.find((v) => v.unit === 'lovelace');
-
-    return nativeAsset !== undefined ? parseInt(nativeAsset.quantity, 10) : 0;
+    return [...new Set(balance.map(
+      (v) => v.unit.slice(0, POLICY_ID_LENGTH)
+    ))];
   }
 
   private static resolveInstance(
