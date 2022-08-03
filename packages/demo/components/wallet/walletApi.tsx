@@ -85,8 +85,9 @@ export default function WalletApi() {
           the user for permission, and if given, try to sign the supplied body
           and return a signed transaction. <code>partialSign</code> should be{' '}
           <code>true</code> if the transaction provided requires multiple
-          signatures. Check out <Link href="/apis/transaction">Transaction</Link> to
-          learn more on how to use this API.
+          signatures. Check out{' '}
+          <Link href="/apis/transaction">Transaction</Link> to learn more on how
+          to use this API.
         </p>
       </NoDemo>
 
@@ -100,8 +101,8 @@ export default function WalletApi() {
           wallet accepts the transaction and tries to send it, it shall return
           the transaction ID for the dApp to track. The wallet can return error
           messages or failure if there was an error in sending it. Check out{' '}
-          <Link href="/apis/transaction">Transaction</Link> to learn more on how to
-          use this API.
+          <Link href="/apis/transaction">Transaction</Link> to learn more on how
+          to use this API.
         </p>
       </NoDemo>
 
@@ -325,32 +326,11 @@ function DemoGetAssets() {
     <Card>
       <div className="grid2cols">
         <div className="">
-          <h3>Get native assets</h3>
-          <p>
-            Returns a list of assets in wallet. If <code>limit</code> is
-            provided, will return <code>limit</code> number of assets. If{' '}
-            <code>limit</code> not provided will return every assets in wallet
-            excluding lovelace.
-          </p>
+          <h3>Get assets</h3>
+          <p>Returns a list of assets in wallet excluding lovelace.</p>
         </div>
 
         <div className="mt-8">
-          <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
-            <tbody>
-              <tr>
-                <td className="py-4 px-4 w-1/4">Limit</td>
-                <td className="py-4 px-4 w-3/4">
-                  <Input
-                    value={limit}
-                    onChange={(e) => setLimit(e.target.value)}
-                    placeholder="limit"
-                    type="number"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
           <div className="flex">
             <div className="flex-1 overflow-auto">
               <Codeblock

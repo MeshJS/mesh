@@ -2,7 +2,7 @@
   "type": "module",
   "license": "MIT",
   "author": "MartifyLabs",
-  "version": "0.0.5-beta.1",
+  "version": "0.0.5-beta.2",
   "name": "@martifylabs/mesh",
   "homepage": "https://mesh.martify.io",
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",

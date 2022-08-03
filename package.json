@@ -6,7 +6,8 @@
     "start": "lerna exec --scope @workspace/playground -- yarn dev",
     "build": "lerna link && yarn build:module && yarn build:demo",
     "build:demo": "lerna exec --scope @workspace/playground -- yarn build",
-    "build:module": "lerna exec --scope @martifylabs/mesh -- yarn build"
+    "build:module": "lerna exec --scope @martifylabs/mesh -- yarn build",
+    "bootstrap": "yarn lerna bootstrap"
   },
   "devDependencies": {
     "@types/jest": "28.1.6",
