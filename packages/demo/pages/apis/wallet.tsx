@@ -29,7 +29,7 @@ function Hero() {
           Connect wallet, queries and performs wallet functions.
         </p>
 
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+        <div className="grid2cols">
           <div>
             <p>
               Most wallet APIs are in accordance to{' '}

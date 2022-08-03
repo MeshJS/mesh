@@ -81,11 +81,11 @@ export default function WalletApi() {
         codeSnippet="const signedTx = await wallet.signTx(tx: string, partialSign = false);"
       >
         <p>
-          Requests a user to sign the provided transaction. The wallet should
-          ask the user for permission, and if given, try to sign the supplied
-          body and return a signed transaction. <code>partialSign</code> should
-          be <code>true</code> if the transaction provided requires multiple
-          signatures. Check out <Link href="/transaction">Transaction</Link> to
+          Requests user to sign the provided transaction. The wallet should ask
+          the user for permission, and if given, try to sign the supplied body
+          and return a signed transaction. <code>partialSign</code> should be{' '}
+          <code>true</code> if the transaction provided requires multiple
+          signatures. Check out <Link href="/apis/transaction">Transaction</Link> to
           learn more on how to use this API.
         </p>
       </NoDemo>
@@ -100,7 +100,7 @@ export default function WalletApi() {
           wallet accepts the transaction and tries to send it, it shall return
           the transaction ID for the dApp to track. The wallet can return error
           messages or failure if there was an error in sending it. Check out{' '}
-          <Link href="/transaction">Transaction</Link> to learn more on how to
+          <Link href="/apis/transaction">Transaction</Link> to learn more on how to
           use this API.
         </p>
       </NoDemo>
@@ -153,7 +153,7 @@ function DemoSection({ children, title, demoFn }) {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>{title}</h3>
           {children}
@@ -202,7 +202,7 @@ function DemoSection({ children, title, demoFn }) {
 function NoDemo({ children, title, codeSnippet }) {
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>{title}</h3>
           {children}
@@ -228,13 +228,10 @@ function DemoGetInstalledWallets() {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>Get installed wallets</h3>
           <p>Returns a list of wallets installed on user's device.</p>
-          <p>
-            Provide the <code>name</code> of the wallet to connect the wallet.
-          </p>
         </div>
 
         <div className="mt-8">
@@ -276,7 +273,7 @@ function DemoConnectWallet() {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>Connect wallet</h3>
           <p>
@@ -288,8 +285,8 @@ function DemoConnectWallet() {
           </p>
           <p>
             Query <code>WalletService.getInstalledWallets()</code> to get a list
-            of available wallets, then provide the wallet name for which wallet
-            the user would like to connect with.
+            of available wallets, then provide the wallet <code>name</code> for
+            which wallet the user would like to connect with.
           </p>
         </div>
         <div className="mt-8">
@@ -326,7 +323,7 @@ function DemoGetAssets() {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>Get native assets</h3>
           <p>
@@ -413,7 +410,7 @@ function DemoGetAssetsCollection() {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>Get a collection of assets</h3>
           <p>

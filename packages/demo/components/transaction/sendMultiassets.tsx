@@ -10,7 +10,7 @@ import Link from 'next/link';
 export default function SendMultiassets() {
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>Send multi-assets to addresses</h3>
           <p>Similar to the sending ADA; for each recipients, append:</p>
@@ -21,7 +21,7 @@ export default function SendMultiassets() {
           <p>
             For each asset, <code>unit</code> is required and you can get them
             from <code>wallet.getAssets()</code> (see{' '}
-            <Link href="/wallet">Wallet</Link>). You can chain with{' '}
+            <Link href="/apis/wallet">Wallet</Link>). You can chain with{' '}
             <code>.sendLovelace()</code> to include ADA in the transaction.
           </p>
         </div>

@@ -360,7 +360,7 @@ export default Home;
       <p>
         Try displaying your wallet&apos;s address and the amount of lovelace in
         your Next.js application. Check out the{' '}
-        <Link href="/wallet">wallet</Link> page for more details.
+        <Link href="/apis/wallet">wallet</Link> page for more details.
       </p>
     </section>
   );

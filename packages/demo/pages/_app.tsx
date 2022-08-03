@@ -1,4 +1,6 @@
 import '../styles/globals.css';
+import "../styles/demopages.css";
+
 import type { AppProps } from 'next/app';
 import { Metatags, Navbar } from '../components';
 import { WalletProvider } from '../contexts/wallet';

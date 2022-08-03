@@ -8,7 +8,7 @@ import useWallet from '../../contexts/wallet';
 export default function SendAda() {
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>Send ADA to addresses</h3>
           <p>For each recipients, append:</p>
@@ -18,9 +18,10 @@ export default function SendAda() {
           />
           <p>
             <code>.build()</code> construct the transaction and returns a
-            transaction cbor., Behind the scene, it selects necessary inputs
+            transaction CBOR. Behind the scene, it selects necessary inputs
             belonging to the wallet, calculate the fee for this transaction and
-            return remaining assets to the change address.
+            return remaining assets to the change address. Use{' '}
+            <code>wallet.signTx()</code> to sign transaction CBOR.
           </p>
         </div>
         <div className="mt-8">

@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { Modal } from "../components";
-import { XIcon } from "@heroicons/react/solid";
+import { useState } from 'react';
+import { Modal } from '../components';
+import { XIcon } from '@heroicons/react/solid';
 import Link from 'next/link';
 
 const Home = () => {
   const [showInstall, setShowInstall] = useState(false);
-
   return (
     <>
       <Hero setShowInstall={setShowInstall} />
@@ -42,7 +41,7 @@ function Hero({ setShowInstall }) {
         </div>
         <div className="hidden lg:mt-0 lg:col-span-5 lg:flex">
           {/* <img
-              src="https://flowbite.s3.amazonaws.com/blocks/marketing-ui/hero/phone-mockup.png"
+              src="https://"
               alt="mockup"
             /> */}
         </div>
@@ -57,7 +56,7 @@ function Install({ showModal }) {
       <div className="text-center mb-8">
         <h2>Get started on Mesh</h2>
         <pre>yarn add @martifylabs/mesh</pre>
-        <Link href="/get-started">Find out more</Link>
+        <Link href="/guides">Learn more</Link>
         {/* <a
           href="https://github.com/MartifyLabs/mesh"
           className="mt-6 dark:text-white dark:hover:border-white text-base leading-none focus:outline-none hover:border-gray-800 focus:border-gray-800 border-b border-transparent text-center text-gray-800"

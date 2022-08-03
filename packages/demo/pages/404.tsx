@@ -16,9 +16,9 @@ export default function Custom404() {
               Here are some helpful links:
             </p>
             <div className="grid grid-cols-3 gap-1 justify-items-center">
-              <Link href={'/get-started'}>Getting Started</Link>
-              <Link href={'/wallet'}>Wallet</Link>
-              <Link href={'/transaction'}>Transaction</Link>
+              <Link href={'/guides'}>Guides</Link>
+              <Link href={'/apis/wallet'}>Wallet</Link>
+              <Link href={'/apis/transaction'}>Transaction</Link>
             </div>
           </div>
         </div>
