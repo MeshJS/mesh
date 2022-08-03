@@ -18,6 +18,16 @@ export class TransactionService {
     this._txBuilder = TransactionService.createTxBuilder(parameters);
   }
 
+  async build(): Promise<string> {
+    try {
+      await this.addTxInputsIfNeeded();
+      await this.addChangeAddressIfNeeded();
+      return fromBytes(this._txBuilder.build_tx().to_bytes());
+    } catch (error) {
+      throw error;
+    }
+  }
+
   sendLovelace(address: string, lovelace: string): TransactionService {
     const txOutput = csl.TransactionOutputBuilder.new()
       .with_address(toAddress(address))
@@ -31,12 +41,12 @@ export class TransactionService {
   }
 
   @Checkpoint()
-  sendNativeAssets(
+  sendAssets(
     address: string,
-    nativeAssets: Asset[],
+    assets: Asset[],
     coinsPerByte = DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize,
   ): TransactionService {
-    const amount = toValue(nativeAssets);
+    const amount = toValue(assets);
     const multiasset = amount.multiasset();
 
     if (amount.is_zero() || multiasset === undefined) {
@@ -101,19 +111,6 @@ export class TransactionService {
     return this;
   }
 
-  async build(): Promise<string> {
-    try {
-      await this.addInputIfNeeded();
-      await this.addChangeIfNeeded();
-
-      const tx = this._txBuilder.build_tx();
-
-      return fromBytes(tx.to_bytes());
-    } catch (error) {
-      throw error;
-    }
-  }
-
   private static createTxBuilder(
     parameters = DEFAULT_PROTOCOL_PARAMETERS
   ): TransactionBuilder {
@@ -142,20 +139,20 @@ export class TransactionService {
     return csl.TransactionBuilder.new(txBuilderConfig);
   }
 
-  private async addChangeIfNeeded() {
+  private async addChangeAddressIfNeeded() {
     if (this.notReached('setChangeAddress')) {
       const changeAddress = await this._walletService.getChangeAddress();
       this._txBuilder.add_change_if_needed(toAddress(changeAddress));
     }
   }
 
-  private async addInputIfNeeded() {
+  private async addTxInputsIfNeeded() {
     if (this.notReached('setTxInputs')) {
       const walletUtxos = await this.getWalletUtxos();
 
-      const coinSelectionStrategy = this.notReached('sendNativeAssets')
-        ? csl.CoinSelectionStrategyCIP2.LargestFirst
-        : csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset;
+      const coinSelectionStrategy = !this.notReached('sendAssets')
+        ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
+        : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
       this._txBuilder.add_inputs_from(walletUtxos, coinSelectionStrategy);
     }
