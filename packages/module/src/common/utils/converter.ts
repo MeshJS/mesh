@@ -3,27 +3,26 @@ import type { TransactionUnspentOutput, Value } from '../../core';
 import { POLICY_ID_LENGTH } from '../constants';
 import type { Asset, UTxO } from '../types';
 import {
-  deserializeDataHash,
-  deserializePlutusData,
-  deserializeScriptHash,
-  deserializeScriptRef,
+  deserializeDataHash, deserializePlutusData,
+  deserializeScriptHash, deserializeScriptRef,
   deserializeTxHash,
 } from './deserializer';
+
+/* -----------------[ ASCII ]----------------- */
+
+export const toASCII = (hex: string) => Buffer.from(hex, 'hex').toString('ascii');
 
 /* -----------------[ Address ]----------------- */
 
 export const toAddress = (bech32: string) => csl.Address.from_bech32(bech32);
 
-export const toBaseAddress = (bech32: string) =>
-  csl.BaseAddress.from_address(toAddress(bech32));
+export const toBaseAddress = (bech32: string) => csl.BaseAddress.from_address(toAddress(bech32));
 
-export const toEnterpriseAddress = (bech32: string) =>
-  csl.EnterpriseAddress.from_address(toAddress(bech32));
+export const toEnterpriseAddress = (bech32: string) => csl.EnterpriseAddress.from_address(toAddress(bech32));
 
 /* -----------------[ Bytes ]----------------- */
 
-export const fromBytes = (bytes: Uint8Array) =>
-  Buffer.from(bytes).toString('hex');
+export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 
 export const toBytes = (hex: string) => Buffer.from(hex, 'hex') as Uint8Array;
 
@@ -58,9 +57,7 @@ export const fromTxUnspentOutput = (
     output: {
       address: txUnspentOutput.output().address().to_bech32(),
       amount: fromValue(txUnspentOutput.output().amount()),
-      dataHash,
-      plutusData,
-      scriptRef,
+      dataHash, plutusData, scriptRef,
     },
   };
 };
@@ -122,10 +119,8 @@ export const fromValue = (value: Value) => {
         const policyAssetNames = policyAssets.keys();
         for (let j = 0; j < policyAssetNames.len(); j += 1) {
           const assetName = policyAssetNames.get(j);
-          const quantity =
-            policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
-          const assetId =
-            fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
+          const quantity = policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
+          const assetId = fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
           assets.push({ unit: assetId, quantity: quantity.to_str() });
         }
       }
@@ -169,18 +164,4 @@ export const toValue = (assets: Asset[]) => {
   }
 
   return value;
-};
-
-// added for getAssets, to be reviewed
-
-export const fromHex = (hex: any) => Buffer.from(hex, 'hex');
-export const hexToAscii = (string: any) => fromHex(string).toString('ascii');
-
-export const assetUnitToPolicyName = (assetUnit: string) => {
-  let policyId = assetUnit.slice(0, POLICY_ID_LENGTH);
-  let assetName = hexToAscii(assetUnit.slice(POLICY_ID_LENGTH));
-  return {
-    policyId: policyId,
-    name: assetName,
-  };
 };
