@@ -13,7 +13,7 @@ export class WalletService {
 
   static supportedWallets = ['flint', 'nami', 'eternl', 'nufi'];
 
-  static getInstalledWallets(): Partial<Wallet>[] {
+  static getInstalledWallets(): Wallet[] {
     if (window.cardano === undefined) return [];
 
     return WalletService.supportedWallets
@@ -173,7 +173,7 @@ export class WalletService {
       .filter((sw: Wallet) => sw !== undefined)
       .find((sw: Wallet) => sw.name === walletName);
 
-    return wallet?.enable();
+    return wallet && wallet.enable && wallet.enable();
   }
 }
 
@@ -181,7 +181,7 @@ export type Wallet = {
   name: string;
   icon: string;
   version: string;
-  enable(): Promise<WalletInstance>;
+  enable?: () => Promise<WalletInstance>;
 };
 
 type WalletInstance = {
