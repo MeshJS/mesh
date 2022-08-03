@@ -80,7 +80,7 @@ const Navbar = (props) => {
             id="mobile-menu-2"
           >
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
-              <NavLink href={'/get-started'} label={'Get started'} />
+              <NavLink href={'/guides'} label={'Guides'} />
               <NavLink href={'/apis/wallet'} label={'Wallet'} />
               <NavLink href={'/apis/transaction'} label={'Transaction'} />
             </ul>
