@@ -1,4 +1,4 @@
-export function CardAsset({ asset, selectedAssets, toggleSelectedAssets }) {
+export function CardAsset({ index, asset, selectedAssets, toggleSelectedAssets }) {
   let thisClass =
     asset.unit in selectedAssets
       ? "max-w-sm bg-white rounded-lg border border-green-200 shadow-md dark:bg-gray-800 dark:border-green-700 cursor-pointer"
@@ -7,7 +7,7 @@ export function CardAsset({ asset, selectedAssets, toggleSelectedAssets }) {
     <div
       className={thisClass}
       onClick={() => {
-        toggleSelectedAssets && toggleSelectedAssets(asset);
+        toggleSelectedAssets && toggleSelectedAssets(index, asset);
       }}
     >
       <div className="aspect-w-3 aspect-h-2 rounded-t-lg overflow-hidden">
@@ -20,7 +20,7 @@ export function CardAsset({ asset, selectedAssets, toggleSelectedAssets }) {
         )}
       </div>
       <div className="p-5 overflow-hidden tracking-tight">
-        <b>{asset.unit}</b>
+        <b className={`${asset.unit in selectedAssets && 'text-green-600'}`}>{asset.name}</b>
       </div>
     </div>
   );

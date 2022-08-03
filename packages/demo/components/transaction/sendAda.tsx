@@ -8,28 +8,19 @@ import useWallet from '../../contexts/wallet';
 export default function SendAda() {
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="">
-          <h3>Send ADA to other addresses</h3>
-          <p>Creating a transaction requires various steps:</p>
-          <ol>
-            <li>
-              Build the transaction
-              <ol>
-                <li>Get the protocol parameters</li>
-                <li>Define transaction builder config</li>
-                <li>Add input UTXOs</li>
-                <li>Add outputs</li>
-                <li>Add change address</li>
-                <li>Build transaction</li>
-              </ol>
-            </li>
-            <li>Sign the transaction</li>
-            <li>Submit the transaction</li>
-          </ol>
+          <h3>Send ADA to addresses</h3>
+          <p>For each recipients, append:</p>
+          <Codeblock
+            data={`.sendLovelace(address: string, lovelace: string)`}
+            isJson={false}
+          />
           <p>
-            Append <code>.sendLovelace(address: string, lovelace: string)</code>{' '}
-            for each recipients.
+            <code>.build()</code> construct the transaction and returns a
+            transaction cbor., Behind the scene, it selects necessary inputs
+            belonging to the wallet, calculate the fee for this transaction and
+            return remaining assets to the change address.
           </p>
         </div>
         <div className="mt-8">
@@ -71,7 +62,11 @@ function CodeDemo() {
 
   function updateAsset(index, assetId, value) {
     let newRecipients = [...recipients];
-    newRecipients[index].assets[assetId] = parseInt(value);
+    if (value) {
+      newRecipients[index].assets[assetId] = parseInt(value);
+    } else {
+      newRecipients[index].assets[assetId] = 0;
+    }
     setRecipients(newRecipients);
   }
 
@@ -137,20 +132,17 @@ function CodeDemo() {
       <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
           <tr>
-            <th scope="col" className="py-3 px-6">
-              Address
+            <th scope="col" colSpan={3} className="py-3 px-6">
+              Recipients
             </th>
-            <th scope="col" className="py-3 px-6">
-              Lovelace
-            </th>
-            <th scope="col"></th>
           </tr>
         </thead>
         <tbody>
           {recipients.map((recipient, i) => {
             return (
               <tr key={i}>
-                <td className="py-4 px-4 w-3/4">
+                <td className="py-4 px-4 w-full">
+                  <p>Address:</p>
                   <Input
                     value={recipient.address}
                     onChange={(e) =>
@@ -158,8 +150,7 @@ function CodeDemo() {
                     }
                     placeholder="address"
                   />
-                </td>
-                <td className="py-4 px-4 w-1/4">
+                  <p>Lovelace:</p>
                   <Input
                     value={recipient.assets.lovelace}
                     onChange={(e) => updateAsset(i, 'lovelace', e.target.value)}

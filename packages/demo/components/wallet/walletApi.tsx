@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Button, Card, Codeblock, Input, Toggle } from '../../components';
+import { useState } from 'react';
+import { Button, Card, Codeblock, Input } from '../../components';
 import useWallet from '../../contexts/wallet';
 import { PlayIcon } from '@heroicons/react/solid';
 import ConnectWallet from '../../components/wallet/connectWallet';
@@ -78,7 +78,7 @@ export default function WalletApi() {
 
       <NoDemo
         title="Sign transaction"
-        codeSnippet="const signature = await wallet.signTx(tx: string, partialSign = false);"
+        codeSnippet="const signedTx = await wallet.signTx(tx: string, partialSign = false);"
       >
         <p>
           Requests a user to sign the provided transaction. The wallet should
@@ -95,21 +95,25 @@ export default function WalletApi() {
         codeSnippet="const txHash = await wallet.submitTx(tx: string);"
       >
         <p>
-          As wallets should already have this ability, we allow dApps to request
-          that a transaction be sent through it. If the wallet accepts the
-          transaction and tries to send it, it shall return the transaction ID
-          for the dApp to track. The wallet is free to return the TxSendError
-          with code Refused if they do not wish to send it, or Failure if there
-          was an error in sending it. Check out <Link href="/transaction">Transaction</Link> to
-          learn more on how to use this API.
+          As wallets should already have this ability to submit transaction, we
+          allow dApps to request that a transaction be sent through it. If the
+          wallet accepts the transaction and tries to send it, it shall return
+          the transaction ID for the dApp to track. The wallet can return error
+          messages or failure if there was an error in sending it. Check out{' '}
+          <Link href="/transaction">Transaction</Link> to learn more on how to
+          use this API.
         </p>
       </NoDemo>
 
-      <DemoGetNativeAssets />
+      <DemoGetAssets />
 
-      <DemoGetNativeAssetsCollection />
+      <DemoSection title="Get policy IDs" demoFn="getPolicyIds">
+        <p>Return a list of assets' policy ID.</p>
+      </DemoSection>
 
-      <DemoSection title="Get lovelace" demoFn="getLovelaceBalance">
+      <DemoGetAssetsCollection />
+
+      <DemoSection title="Get lovelace" demoFn="getLovelace">
         <p>Return the lovelace balance in wallet. 1 ADA = 1000000 lovelace.</p>
       </DemoSection>
     </>
@@ -131,8 +135,9 @@ function DemoSection({ children, title, demoFn }) {
         getUnusedAddresses: wallet.getUnusedAddresses(),
         getChangeAddress: wallet.getChangeAddress(),
         getRewardAddresses: wallet.getRewardAddresses(),
-        getNativeAssets: wallet.getNativeAssets(),
-        getLovelaceBalance: wallet.getLovelaceBalance(),
+        getAssets: wallet.getAssets(),
+        getPolicyIds: wallet.getPolicyIds(),
+        getLovelace: wallet.getLovelace(),
       };
       let res = await walletFn[fnName];
       return res;
@@ -148,7 +153,7 @@ function DemoSection({ children, title, demoFn }) {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="">
           <h3>{title}</h3>
           {children}
@@ -156,7 +161,7 @@ function DemoSection({ children, title, demoFn }) {
 
         <div className="mt-8">
           <div className="flex">
-            <div className="grow">
+            <div className="flex-1 overflow-auto">
               <Codeblock
                 data={`const result = await wallet.${demoFn}();`}
                 isJson={false}
@@ -197,7 +202,7 @@ function DemoSection({ children, title, demoFn }) {
 function NoDemo({ children, title, codeSnippet }) {
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="">
           <h3>{title}</h3>
           {children}
@@ -223,7 +228,7 @@ function DemoGetInstalledWallets() {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="">
           <h3>Get installed wallets</h3>
           <p>Returns a list of wallets installed on user's device.</p>
@@ -234,7 +239,7 @@ function DemoGetInstalledWallets() {
 
         <div className="mt-8">
           <div className="flex">
-            <div className="grow">
+            <div className="flex-1 overflow-auto">
               <Codeblock
                 data={`const result = WalletService.getInstalledWallets();`}
                 isJson={false}
@@ -271,7 +276,7 @@ function DemoConnectWallet() {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="">
           <h3>Connect wallet</h3>
           <p>
@@ -301,7 +306,7 @@ function DemoConnectWallet() {
   );
 }
 
-function DemoGetNativeAssets() {
+function DemoGetAssets() {
   const { wallet, walletConnected } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
@@ -310,10 +315,10 @@ function DemoGetNativeAssets() {
   async function runDemo() {
     setLoading(true);
     if (limit.length) {
-      let results = await wallet.getNativeAssets(parseInt(limit));
+      let results = await wallet.getAssets(parseInt(limit));
       setResponse(results);
     } else {
-      let results = await wallet.getNativeAssets();
+      let results = await wallet.getAssets();
       setResponse(results);
     }
     setLoading(false);
@@ -321,7 +326,7 @@ function DemoGetNativeAssets() {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="">
           <h3>Get native assets</h3>
           <p>
@@ -350,9 +355,9 @@ function DemoGetNativeAssets() {
           </table>
 
           <div className="flex">
-            <div className="grow">
+            <div className="flex-1 overflow-auto">
               <Codeblock
-                data={`const result = await wallet.getNativeAssets(${limit});`}
+                data={`const result = await wallet.getAssets(${limit});`}
                 isJson={false}
               />
             </div>
@@ -388,7 +393,7 @@ function DemoGetNativeAssets() {
   );
 }
 
-function DemoGetNativeAssetsCollection() {
+function DemoGetAssetsCollection() {
   const { wallet, walletConnected } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
@@ -397,10 +402,10 @@ function DemoGetNativeAssetsCollection() {
   async function runDemo() {
     setLoading(true);
     if (policyId.length) {
-      let results = await wallet.getNativeAssetsCollection(policyId);
+      let results = await wallet.getPolicyIdAssets(policyId);
       setResponse(results);
     } else {
-      let results = await wallet.getNativeAssetsCollection();
+      let results = await wallet.getPolicyIdAssets();
       setResponse(results);
     }
     setLoading(false);
@@ -408,12 +413,13 @@ function DemoGetNativeAssetsCollection() {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <div className="">
           <h3>Get a collection of assets</h3>
           <p>
             Returns a list of assets from a policy ID. If no assets in wallet
-            belongs to the policy ID, an empty list is returned.
+            belongs to the policy ID, an empty list is returned. Query for a
+            list of assets' policy ID with <code>wallet.getPolicyIds()</code>.
           </p>
         </div>
 
@@ -434,9 +440,9 @@ function DemoGetNativeAssetsCollection() {
           </table>
 
           <div className="flex">
-            <div className="grow">
+            <div className="flex-1 overflow-auto">
               <Codeblock
-                data={`const result = await wallet.getNativeAssetsCollection(${
+                data={`const result = await wallet.getPolicyIdAssets(${
                   policyId == '' ? '' : '"' + policyId + '"'
                 });`}
                 isJson={false}

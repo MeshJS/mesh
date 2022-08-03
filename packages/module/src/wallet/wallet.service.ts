@@ -1,17 +1,21 @@
 import { csl } from '../core';
 import { POLICY_ID_LENGTH } from '../common/constants';
 import {
-  deserializeAddress, deserializeTx, deserializeTxWitnessSet,
-  deserializeTxUnspentOutput, deserializeValue, fromBytes,
-  fromTxUnspentOutput, fromValue,
+  deserializeAddress,
+  deserializeTx,
+  deserializeTxWitnessSet,
+  deserializeTxUnspentOutput,
+  deserializeValue,
+  fromBytes,
+  fromTxUnspentOutput,
+  fromValue,
+  assetUnitToPolicyName,
 } from '../common/utils';
 import type { TransactionUnspentOutput } from '../core';
-import type { Asset, UTxO } from '../common/types';
+import type { Asset, AssetInfo, UTxO } from '../common/types';
 
 export class WalletService {
-  private constructor(
-    private readonly _walletInstance: WalletInstance,
-  ) {}
+  private constructor(private readonly _walletInstance: WalletInstance) {}
 
   static supportedWallets = ['flint', 'nami', 'eternl', 'nufi'];
 
@@ -56,7 +60,8 @@ export class WalletService {
   }
 
   async getDeserializedCollateral(): Promise<TransactionUnspentOutput[]> {
-    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
+    const collateral =
+      (await this._walletInstance.experimental.getCollateral()) ?? [];
     return collateral.map((c) => deserializeTxUnspentOutput(c));
   }
 
@@ -97,11 +102,17 @@ export class WalletService {
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
     try {
       const tx = deserializeTx(unsignedTx);
-      const txWitnessSet = deserializeTxWitnessSet(fromBytes(tx.witness_set().to_bytes()));
+      const txWitnessSet = deserializeTxWitnessSet(
+        fromBytes(tx.witness_set().to_bytes())
+      );
 
-      const walletWitnessSet = await this._walletInstance.signTx(unsignedTx, partialSign);
+      const walletWitnessSet = await this._walletInstance.signTx(
+        unsignedTx,
+        partialSign
+      );
 
-      const walletVerificationKeys = deserializeTxWitnessSet(walletWitnessSet).vkeys();
+      const walletVerificationKeys =
+        deserializeTxWitnessSet(walletWitnessSet).vkeys();
       if (walletVerificationKeys !== undefined) {
         txWitnessSet.set_vkeys(walletVerificationKeys);
       }
@@ -131,6 +142,24 @@ export class WalletService {
     return nativeAsset !== undefined ? nativeAsset.quantity : '0';
   }
 
+  async getAssets(limit?: number): Promise<AssetInfo[]> {
+    const balance = await this.getBalance();
+    let nativeAssets = balance
+      .filter((v) => v.unit !== 'lovelace')
+      .map((asset) => {
+        const assetInfo = {
+          ...asset,
+          ...assetUnitToPolicyName(asset.unit),
+        };
+        return assetInfo;
+      });
+
+    if (limit && limit > 0) {
+      nativeAssets = nativeAssets.slice(0, limit);
+    }
+    return nativeAssets;
+  }
+
   async getPolicyIdAssets(policyId: string): Promise<Asset[]> {
     const balance = await this.getBalance();
     return balance.filter((v) => v.unit.startsWith(policyId));
@@ -138,9 +167,9 @@ export class WalletService {
 
   async getPolicyIds(): Promise<string[]> {
     const balance = await this.getBalance();
-    return Array.from(new Set(balance.map(
-      (v) => v.unit.slice(0, POLICY_ID_LENGTH)
-    ))).filter((p) => p !== 'lovelace');
+    return Array.from(
+      new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH)))
+    ).filter((p) => p !== 'lovelace');
   }
 
   private static resolveInstance(

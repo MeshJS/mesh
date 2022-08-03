@@ -4,7 +4,7 @@ import SendAda from '../../components/transaction/sendAda';
 import SendMultiassets from '../../components/transaction/sendMultiassets';
 import TransactionBuilder from '../../components/transaction/transactionBuilder';
 import LockAssets from '../../components/transaction/lockAssets';
-import { Button, Card, Codeblock, Input, Toggle } from '../../components';
+import { Codeblock } from '../../components';
 
 const Transaction = () => {
   return (
@@ -37,9 +37,38 @@ function Hero() {
     <section>
       <div className="py-8 px-4 lg:py-16 lg:px-6">
         <h1>Transaction APIs</h1>
+        <p className="lead">Let's create some transactions.</p>
 
-        <div className="mb-4"></div>
-        <div className="mb-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          <div>
+            <p>Creating a transaction requires various steps:</p>
+            <ol>
+              <li>
+                Build the transaction
+                <ol>
+                  <li>Get the protocol parameters</li>
+                  <li>Define transaction builder config</li>
+                  <li>Create transaction outputs</li>
+                  <li>Select input UTXOs</li>
+                  <li>Calculate fees and assign change address</li>
+                </ol>
+              </li>
+              <li>Sign the transaction</li>
+              <li>Submit the transaction</li>
+            </ol>
+          </div>
+          <div>
+            <p className="font-medium">
+              In this section, let&apos;s create some transactions with Mesh. To
+              start, import TransactionService with:
+            </p>
+            <Codeblock
+              data={`import { TransactionService } from '@martifylabs/mesh';`}
+              isJson={false}
+            />
+          </div>
+        </div>
+        {/* <div className="mb-4">
           <p className="font-medium">
             In this section, let&apos;s create some transactions. To start,
             import TransactionService with:
@@ -48,7 +77,7 @@ function Hero() {
             data={`import { TransactionService } from '@martifylabs/mesh';`}
             isJson={false}
           />
-        </div>
+        </div> */}
 
         {/* <a
           href="#"
