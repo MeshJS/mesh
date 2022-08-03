@@ -6,7 +6,7 @@ import {
   fromTxUnspentOutput, fromValue, toASCII, resolveFingerprint,
 } from '../common/utils';
 import type { TransactionUnspentOutput } from '../core';
-import type { Asset, AssetExtended, UTxO } from '../common/types';
+import type { Asset, AssetExtended, UTxO, Wallet } from '../common/types';
 
 export class WalletService {
   private constructor(private readonly _walletInstance: WalletInstance) {}
@@ -168,20 +168,20 @@ export class WalletService {
   ): Promise<WalletInstance> | undefined {
     if (window.cardano === undefined) return undefined;
 
-    const wallet: Wallet | undefined = WalletService.supportedWallets
-      .map((sw: string) => window.cardano[sw])
-      .filter((sw: Wallet) => sw !== undefined)
-      .find((sw: Wallet) => sw.name === walletName);
+    const wallet: WalletProvider | undefined = WalletService.supportedWallets
+      .map((sw) => window.cardano[sw])
+      .filter((sw) => sw !== undefined)
+      .find((sw) => sw.name === walletName);
 
-    return wallet && wallet.enable && wallet.enable();
+    return wallet?.enable();
   }
 }
 
-export type Wallet = {
+type WalletProvider = {
   name: string;
   icon: string;
   version: string;
-  enable?: () => Promise<WalletInstance>;
+  enable: () => Promise<WalletInstance>;
 };
 
 type WalletInstance = {
