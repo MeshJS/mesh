@@ -1,18 +1,12 @@
 import { csl } from '../core';
 import { POLICY_ID_LENGTH } from '../common/constants';
 import {
-  deserializeAddress,
-  deserializeTx,
-  deserializeTxWitnessSet,
-  deserializeTxUnspentOutput,
-  deserializeValue,
-  fromBytes,
-  fromTxUnspentOutput,
-  fromValue,
-  assetUnitToPolicyName,
+  deserializeAddress, deserializeTx, deserializeTxWitnessSet,
+  deserializeTxUnspentOutput, deserializeValue, fromBytes,
+  fromTxUnspentOutput, fromValue, toASCII, resolveFingerprint,
 } from '../common/utils';
 import type { TransactionUnspentOutput } from '../core';
-import type { Asset, AssetInfo, UTxO } from '../common/types';
+import type { Asset, AssetExtended, UTxO } from '../common/types';
 
 export class WalletService {
   private constructor(private readonly _walletInstance: WalletInstance) {}
@@ -60,8 +54,7 @@ export class WalletService {
   }
 
   async getDeserializedCollateral(): Promise<TransactionUnspentOutput[]> {
-    const collateral =
-      (await this._walletInstance.experimental.getCollateral()) ?? [];
+    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
     return collateral.map((c) => deserializeTxUnspentOutput(c));
   }
 
@@ -107,15 +100,12 @@ export class WalletService {
       );
 
       const walletWitnessSet = await this._walletInstance.signTx(
-        unsignedTx,
-        partialSign
+        unsignedTx, partialSign
       );
 
-      const walletVerificationKeys =
-        deserializeTxWitnessSet(walletWitnessSet).vkeys();
-      if (walletVerificationKeys !== undefined) {
+      const walletVerificationKeys = deserializeTxWitnessSet(walletWitnessSet).vkeys();
+      if (walletVerificationKeys !== undefined)
         txWitnessSet.set_vkeys(walletVerificationKeys);
-      }
 
       const signedTx = fromBytes(
         csl.Transaction.new(
@@ -135,29 +125,30 @@ export class WalletService {
     return this._walletInstance.submitTx(tx);
   }
 
+  async getAssets(): Promise<AssetExtended[]> {
+    const balance = await this.getBalance();
+    return balance
+      .filter((v) => v.unit !== 'lovelace')
+      .map((v) => {
+        const policyId = v.unit.slice(0, POLICY_ID_LENGTH);
+        const assetName = v.unit.slice(POLICY_ID_LENGTH);
+        const fingerprint = resolveFingerprint(policyId, assetName);
+
+        return {
+          unit: v.unit,
+          policyId,
+          assetName: toASCII(assetName),
+          fingerprint,
+          quantity: v.quantity
+        };
+      });
+  }
+
   async getLovelace(): Promise<string> {
     const balance = await this.getBalance();
     const nativeAsset = balance.find((v) => v.unit === 'lovelace');
 
     return nativeAsset !== undefined ? nativeAsset.quantity : '0';
-  }
-
-  async getAssets(limit?: number): Promise<AssetInfo[]> {
-    const balance = await this.getBalance();
-    let nativeAssets = balance
-      .filter((v) => v.unit !== 'lovelace')
-      .map((asset) => {
-        const assetInfo = {
-          ...asset,
-          ...assetUnitToPolicyName(asset.unit),
-        };
-        return assetInfo;
-      });
-
-    if (limit && limit > 0) {
-      nativeAssets = nativeAssets.slice(0, limit);
-    }
-    return nativeAssets;
   }
 
   async getPolicyIdAssets(policyId: string): Promise<Asset[]> {

@@ -1,5 +1,5 @@
 export * from './Asset';
-export * from './AssetInfo';
+export * from './AssetExtended';
 export * from './Metadata';
 export * from './Protocol';
 export * from './UTxO';

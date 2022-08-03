@@ -15,12 +15,12 @@ export function CardAsset({ index, asset, selectedAssets, toggleSelectedAssets }
           <img
             className="m-0 w-full h-full object-center object-cover"
             src={asset.image}
-            alt={asset.name}
+            alt={asset.assetName}
           />
         )}
       </div>
       <div className="p-5 overflow-hidden tracking-tight">
-        <b className={`${asset.unit in selectedAssets && 'text-green-600'}`}>{asset.name}</b>
+        <b className={`${asset.unit in selectedAssets && 'text-green-600'}`}>{asset.assetName}</b>
       </div>
     </div>
   );

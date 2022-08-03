@@ -15,7 +15,7 @@ export default function SendMultiassets() {
           <h3>Send multi-assets to addresses</h3>
           <p>Similar to the sending ADA; for each recipients, append:</p>
           <Codeblock
-            data={`.sendNativeAssets(address: string, nativeAssets: { unit: string, quantity: string }[])`}
+            data={`.sendAssets(address: string, nativeAssets: { unit: string, quantity: string }[])`}
             isJson={false}
           />
           <p>
@@ -65,7 +65,7 @@ function CodeDemo() {
             };
             assets.push(thisAsset);
           }
-          tx.sendNativeAssets(recipient.address, assets);
+          tx.sendAssets(recipient.address, assets);
         }
       }
 
@@ -165,7 +165,7 @@ function CodeDemo() {
       return assetId != 'lovelace';
     });
     if (nativeAssets.length) {
-      codeSnippet += `\n  .sendNativeAssets(\n    "${recipient.address}",`;
+      codeSnippet += `\n  .sendAssets(\n    "${recipient.address}",`;
       codeSnippet += `\n    [`;
       for (const asset of nativeAssets) {
         codeSnippet += `\n      {`;
