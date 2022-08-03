@@ -109,7 +109,7 @@ export default function WalletApi() {
       <DemoGetAssets />
 
       <DemoSection title="Get policy IDs" demoFn="getPolicyIds">
-        <p>Return a list of assets' policy ID.</p>
+        <p>Return a list of assets&apos; policy ID.</p>
       </DemoSection>
 
       <DemoGetAssetsCollection />
@@ -232,7 +232,7 @@ function DemoGetInstalledWallets() {
       <div className="grid2cols">
         <div className="">
           <h3>Get installed wallets</h3>
-          <p>Returns a list of wallets installed on user's device.</p>
+          <p>Returns a list of wallets installed on user&apos;s device.</p>
         </div>
 
         <div className="mt-8">
@@ -278,9 +278,9 @@ function DemoConnectWallet() {
         <div className="">
           <h3>Connect wallet</h3>
           <p>
-            This is the entrypoint to start communication with the user's
-            wallet. The wallet should request the user's permission to connect
-            the web page to the user's wallet, and if permission has been
+            This is the entrypoint to start communication with the user&apos;s
+            wallet. The wallet should request the user&apos;s permission to connect
+            the web page to the user&apos;s wallet, and if permission has been
             granted, the wallet will be returned and exposing the full API for
             the dApp to use.
           </p>
@@ -313,7 +313,7 @@ function DemoGetAssets() {
   async function runDemo() {
     setLoading(true);
     if (limit.length) {
-      let results = await wallet.getAssets(parseInt(limit));
+      let results = await wallet.getAssets();
       setResponse(results);
     } else {
       let results = await wallet.getAssets();
@@ -382,7 +382,7 @@ function DemoGetAssetsCollection() {
       let results = await wallet.getPolicyIdAssets(policyId);
       setResponse(results);
     } else {
-      let results = await wallet.getPolicyIdAssets();
+      let results = await wallet.getAssets();
       setResponse(results);
     }
     setLoading(false);
@@ -396,7 +396,7 @@ function DemoGetAssetsCollection() {
           <p>
             Returns a list of assets from a policy ID. If no assets in wallet
             belongs to the policy ID, an empty list is returned. Query for a
-            list of assets' policy ID with <code>wallet.getPolicyIds()</code>.
+            list of assets&apos; policy ID with <code>wallet.getPolicyIds()</code>.
           </p>
         </div>
 

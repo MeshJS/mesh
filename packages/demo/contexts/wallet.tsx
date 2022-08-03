@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useMemo } from 'react';
 import { WalletService } from '@martifylabs/mesh';
 
 const WalletContext = createContext({
-  wallet: undefined,
+  wallet: {} as WalletService,
   connecting: false,
   walletNameConnected: '',
   walletConnected: false,
@@ -10,7 +10,7 @@ const WalletContext = createContext({
 });
 
 export const WalletProvider = ({ children }) => {
-  const [wallet, setWallet] = useState<WalletService>();
+  const [wallet, setWallet] = useState<WalletService>({} as WalletService);
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [connecting, setConnecting] = useState<boolean>(false);
   const [walletNameConnected, setWalletNameConnected] = useState<string>('');

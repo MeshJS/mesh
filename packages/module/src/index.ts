@@ -1,6 +1,6 @@
 import { Blockfrost } from './provider/blockfrost';
 import { Wallet } from './wallet.old';
-import { Transaction } from './transaction';
+import { Transaction } from './transaction.old';
 import { Infura } from './provider/infura';
 
 class Mesh {

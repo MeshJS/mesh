@@ -6,6 +6,7 @@ import useWallet from '../../contexts/wallet';
 import { TransactionService } from '@martifylabs/mesh';
 import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import Link from 'next/link';
+import { AssetExtended } from '@martifylabs/mesh/dist/common/types';
 
 export default function SendMultiassets() {
   return (
@@ -38,7 +39,7 @@ function CodeDemo() {
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
-  const [assets, setAssets] = useState<null | Asset[]>(null);
+  const [assets, setAssets] = useState<null | AssetExtended[]>(null);
 
   async function makeTransaction() {
     setState(1);

@@ -45,7 +45,7 @@ function Hero() {
     <section>
       <div className="py-8 px-4 lg:py-16 lg:px-6">
         <h1>Transaction APIs</h1>
-        <p className="lead">Let's create some transactions.</p>
+        <p className="lead">Let&apos;s create some transactions.</p>
 
         <div className="grid2cols">
           <div>

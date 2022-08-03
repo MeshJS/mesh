@@ -107,71 +107,68 @@ function Inputs({ utxos, selectedUtxos, setSelectedUtxos }) {
           {utxos
             .map((item) => item.address)
             .filter((value, index, self) => self.indexOf(value) === index)
-            .map((address) => {
+            .map((address, index) => {
               return (
-                <div className="border border-slate-300 text-sm text-left text-gray-500 dark:text-gray-400 grid gap-4 grid-cols-1">
-                  
-                      <p className="truncate">
-                        <b className="truncate">{address}</b>
-                      </p>
-                    
-                  
-                    <div>
-                      {utxos
-                        .filter((utxo) => {
-                          return utxo.address == address;
-                        })
-                        .map((utxo, i) => {
-                          let thisSelected = selectedUtxos.includes(utxo.cbor);
-                          return (
-                            <RadioGroup.Option
-                              key={i}
-                              value={utxo}
-                              className={`
+                <div key={index} className="border border-slate-300 text-sm text-left text-gray-500 dark:text-gray-400 grid gap-4 grid-cols-1">
+                  <p className="truncate">
+                    <b className="truncate">{address}</b>
+                  </p>
+
+                  <div>
+                    {utxos
+                      .filter((utxo) => {
+                        return utxo.address == address;
+                      })
+                      .map((utxo, i) => {
+                        let thisSelected = selectedUtxos.includes(utxo.cbor);
+                        return (
+                          <RadioGroup.Option
+                            key={i}
+                            value={utxo}
+                            className={`
                     ${
                       thisSelected
                         ? 'bg-sky-900 bg-opacity-75 text-white'
                         : 'bg-white'
                     }
                       relative flex cursor-pointer rounded-lg px-4 shadow-md focus:outline-none m-4`}
-                            >
-                              {
-                                <>
-                                  <div className="flex w-full items-center justify-between">
-                                    <div className="w-full">
-                                      <RadioGroup.Label
-                                        as="p"
-                                        className={`font-medium  ${
-                                          thisSelected
-                                            ? 'text-white'
-                                            : 'text-gray-900'
-                                        }`}
-                                      >
-                                        UTXO #{i + 1}
-                                      </RadioGroup.Label>
-                                      <RadioGroup.Description
-                                        as="span"
-                                        className={`${
-                                          thisSelected
-                                            ? 'text-sky-100'
-                                            : 'text-gray-500'
-                                        }`}
-                                      >
-                                        <Assets assets={utxo.assets} />
-                                      </RadioGroup.Description>
-                                    </div>
-                                    {thisSelected && (
-                                      <div className="shrink-0 text-white">
-                                        <CheckCircleIcon className="h-6 w-6" />
-                                      </div>
-                                    )}
+                          >
+                            {
+                              <>
+                                <div className="flex w-full items-center justify-between">
+                                  <div className="w-full">
+                                    <RadioGroup.Label
+                                      as="p"
+                                      className={`font-medium  ${
+                                        thisSelected
+                                          ? 'text-white'
+                                          : 'text-gray-900'
+                                      }`}
+                                    >
+                                      UTXO #{i + 1}
+                                    </RadioGroup.Label>
+                                    <RadioGroup.Description
+                                      as="span"
+                                      className={`${
+                                        thisSelected
+                                          ? 'text-sky-100'
+                                          : 'text-gray-500'
+                                      }`}
+                                    >
+                                      <Assets assets={utxo.assets} />
+                                    </RadioGroup.Description>
                                   </div>
-                                </>
-                              }
-                            </RadioGroup.Option>
-                          );
-                        })}
-                    
+                                  {thisSelected && (
+                                    <div className="shrink-0 text-white">
+                                      <CheckCircleIcon className="h-6 w-6" />
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            }
+                          </RadioGroup.Option>
+                        );
+                      })}
                   </div>
                 </div>
               );
