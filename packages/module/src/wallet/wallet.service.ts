@@ -151,9 +151,9 @@ export class WalletService {
     return nativeAsset !== undefined ? nativeAsset.quantity : '0';
   }
 
-  async getPolicyIdAssets(policyId: string): Promise<Asset[]> {
-    const balance = await this.getBalance();
-    return balance.filter((v) => v.unit.startsWith(policyId));
+  async getPolicyIdAssets(policyId: string): Promise<AssetExtended[]> {
+    const assets = await this.getAssets();
+    return assets.filter((v) => v.policyId === policyId);
   }
 
   async getPolicyIds(): Promise<string[]> {
