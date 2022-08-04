@@ -6,7 +6,7 @@ import {
 } from '../common/utils';
 import { WalletService } from '../wallet';
 import type { TransactionBuilder } from '../core';
-import type { Asset, Metadata, Protocol, UTxO } from '../common/types';
+import type { Asset, Json, Protocol, UTxO } from '../common/types';
 
 @Trackable
 export class TransactionService {
@@ -76,7 +76,7 @@ export class TransactionService {
     return this;
   }
 
-  setMetadata(key: number, value: Metadata): TransactionService {
+  setMetadata(key: number, value: Json): TransactionService {
     this._txBuilder.add_json_metadatum_with_schema(
       csl.BigNum.from_str(key.toString()),
       JSON.stringify(value),

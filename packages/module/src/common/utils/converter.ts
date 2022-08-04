@@ -1,7 +1,7 @@
 import { csl } from '../../core';
-import type { TransactionUnspentOutput, Value } from '../../core';
+import type { TransactionUnspentOutput, PlutusData, Value } from '../../core';
 import { POLICY_ID_LENGTH } from '../constants';
-import type { Asset, UTxO } from '../types';
+import type { Asset, Json, UTxO } from '../types';
 import {
   deserializeDataHash, deserializePlutusData,
   deserializeScriptHash, deserializeScriptRef,
@@ -31,6 +31,19 @@ export const toBytes = (hex: string) => Buffer.from(hex, 'hex') as Uint8Array;
 export const fromLovelace = (lovelace: number) => lovelace / 1_000_000;
 
 export const toLovelace = (ada: number) => ada * 1_000_000;
+
+/* -----------------[ PlutusData ]----------------- */
+
+export const toPlutusData = (json: Json): PlutusData => {
+  const fields = csl.PlutusList.new();
+
+  return csl.PlutusData.new_constr_plutus_data(
+    csl.ConstrPlutusData.new(
+      csl.BigNum.from_str("0"),
+      fields
+    )
+  );
+}
 
 /* -----------------[ TransactionUnspentOutput ]----------------- */
 

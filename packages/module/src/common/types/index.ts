@@ -1,6 +1,6 @@
 export * from './Asset';
 export * from './AssetExtended';
-export * from './Metadata';
+export * from './Json';
 export * from './Protocol';
 export * from './UTxO';
 export * from './Wallet';
