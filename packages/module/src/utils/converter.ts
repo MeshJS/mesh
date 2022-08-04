@@ -1,6 +1,7 @@
 import { Assets, UTxO } from '../types';
 // import * as lib from "@emurgo/cardano-serialization-lib-browser/cardano_serialization_lib";
 import { csl } from '../core';
+import type { PlutusData } from '../core';
 
 export const fromHex = (hex: any) => Buffer.from(hex, 'hex');
 
@@ -14,6 +15,17 @@ export const fromStr = (str: any) => Buffer.from(str, 'utf-8');
 
 export const toStr = (bytes: any) => String.fromCharCode.apply(String, bytes);
 
+export const fromFloat = (
+  float: string
+): { numerator: string; denominator: string } => {
+  const parts = float.split('.');
+
+  const numerator = `${parseInt(parts[1], 10)}`;
+  const denominator = '1' + '0'.repeat(parts[1].length);
+
+  return { numerator, denominator };
+};
+
 export const HexToAscii = (string: any) => fromHex(string).toString('ascii');
 
 export const assetsToValue = (assets: Assets) => {
@@ -22,32 +34,31 @@ export const assetsToValue = (assets: Assets) => {
   const units = Object.keys(assets);
   const policies = Array.from(
     new Set(
-      units.filter(unit => unit !== 'lovelace').map(unit => unit.slice(0, 56))
+      units
+        .filter((unit) => unit !== 'lovelace')
+        .map((unit) => unit.slice(0, 56))
     )
   );
-  policies.forEach(policy => {
-    const policyUnits = units.filter(unit => unit.slice(0, 56) === policy);
+  policies.forEach((policy) => {
+    const policyUnits = units.filter((unit) => unit.slice(0, 56) === policy);
     const assetsValue = csl.Assets.new();
-    policyUnits.forEach(unit => {
+    policyUnits.forEach((unit) => {
       assetsValue.insert(
         csl.AssetName.new(fromHex(unit.slice(56))),
         csl.BigNum.from_str(assets[unit].toString())
       );
     });
-    multiAsset.insert(
-      csl.ScriptHash.from_bytes(fromHex(policy)),
-      assetsValue
-    );
+    multiAsset.insert(csl.ScriptHash.from_bytes(fromHex(policy)), assetsValue);
   });
   const value = csl.Value.new(
     csl.BigNum.from_str(lovelace ? lovelace.toString() : '0')
   );
   if (units.length > 1 || !lovelace) value.set_multiasset(multiAsset);
+  
   return value;
 };
 
-export const StringToBigNum = (string: any) =>
-  csl.BigNum.from_str(string);
+export const StringToBigNum = (string: any) => csl.BigNum.from_str(string);
 
 export const utxoToCore = (utxo: UTxO) => {
   const output = csl.TransactionOutput.new(
@@ -64,8 +75,7 @@ export const utxoToCore = (utxo: UTxO) => {
   );
 };
 
-export const StringToAddress = (string: any) =>
-  csl.Address.from_bech32(string);
+export const StringToAddress = (string: any) => csl.Address.from_bech32(string);
 
 export const harden = (num: any) => {
   return 0x80000000 + num;
@@ -114,4 +124,23 @@ export const valueToAssets = (value: any) => {
     }
   }
   return assets;
+};
+
+export const getAddressKeyHashHex = (address: string) => {
+  let addr = csl.BaseAddress.from_address(csl.Address.from_bech32(address))
+    ?.payment_cred()
+    .to_keyhash()
+    ?.to_bytes();
+  if (addr) return toHex(addr);
+  return null;
+};
+
+export const getAddressKeyHash = (address: string) => {
+  return csl.BaseAddress.from_address(csl.Address.from_bech32(address))
+    ?.payment_cred()
+    .to_keyhash();
+};
+
+export const plutusDataToHex = (datum: PlutusData) => {
+  return toHex(csl.hash_plutus_data(datum).to_bytes());
 };

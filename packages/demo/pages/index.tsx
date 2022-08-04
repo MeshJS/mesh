@@ -6,7 +6,6 @@ import { ChevronRightIcon } from '@heroicons/react/solid';
 
 const Home = () => {
   const [showInstall, setShowInstall] = useState(false);
-
   return (
     <>
       <Hero setShowInstall={setShowInstall} />
@@ -24,7 +23,7 @@ function Hero({ setShowInstall }) {
             Rapidly build Web3 apps on Cardano blockchain
           </h1>
           <p className="mb-6 font-light text-gray-500 lg:mb-8 md:text-lg lg:text-xl dark:text-gray-400">
-            Access to advanced blockchain capbilities via Martify APIs, build
+            Access to advanced blockchain capabilities via Martify APIs, build
             and submit transactions, accessing information stored on the
             blockchain, add files on IPFS.
           </p>
@@ -58,7 +57,7 @@ function Install({ showModal }) {
       <div className="text-center mb-8">
         <h2>Get started on Mesh</h2>
         <pre>yarn add @martifylabs/mesh</pre>
-        <Link href="/guides">Learn more</Link>
+        <Link href="/guides">Check guides to get started</Link>
         {/* <a
           href="https://github.com/MartifyLabs/mesh"
           className="mt-6 dark:text-white dark:hover:border-white text-base leading-none focus:outline-none hover:border-gray-800 focus:border-gray-800 border-b border-transparent text-center text-gray-800"

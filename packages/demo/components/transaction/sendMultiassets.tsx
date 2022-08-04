@@ -1,57 +1,78 @@
 import { useState, useEffect } from 'react';
-import Mesh from '@martifylabs/mesh';
-import { Button, Card, Codeblock, Input, Modal } from '../../components';
+import { Button, Card, Codeblock, Input } from '../../components';
 import { Recipient, Asset } from '../../types';
 import { CardAsset } from '../blocks/cardassets';
+import useWallet from '../../contexts/wallet';
+import { TransactionService } from '@martifylabs/mesh';
+import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
+import Link from 'next/link';
+import { AssetExtended } from '@martifylabs/mesh/dist/common/types';
 
-export default function SendMultiassets({ walletConnected }) {
+export default function SendMultiassets() {
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid2cols">
         <div className="">
-          <h3>Send multi-assets to another addresses</h3>
-          <p>Creating a transaction to send native assets.</p>
+          <h3>Send multi-assets to addresses</h3>
+          <p>Similar to the sending ADA; for each recipients, append:</p>
+          <Codeblock
+            data={`.sendAssets(address: string, nativeAssets: { unit: string, quantity: string }[])`}
+            isJson={false}
+          />
+          <p>
+            For each asset, <code>unit</code> is required and you can get them
+            from <code>wallet.getAssets()</code> (see{' '}
+            <Link href="/apis/wallet">Wallet</Link>). You can chain with{' '}
+            <code>.sendLovelace()</code> to include ADA in the transaction.
+          </p>
         </div>
-        <div className="mt-8"></div>
+        <div className="mt-8">
+          <CodeDemo />
+        </div>
       </div>
-      <CodeDemo walletConnected={walletConnected} />
     </Card>
   );
 }
 
-function CodeDemo({ walletConnected }) {
+function CodeDemo() {
+  const { wallet, walletConnected, walletNameConnected } = useWallet();
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
-  const [recipients, setRecipients] = useState<Recipient[]>([
-    {
-      address: '',
-      assets: {},
-    },
-  ]);
-  const [assets, setAssets] = useState<null | Asset[]>(null);
-  const [lovelace, setLovelace] = useState<string>('');
-  const [selectedAssets, setSelectedAssets] = useState<{}>({});
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [assets, setAssets] = useState<null | AssetExtended[]>(null);
 
   async function makeTransaction() {
     setState(1);
 
     try {
-      const tx = await Mesh.transaction.build({
-        outputs: recipients,
-        blockfrostApiKey:
-          (await Mesh.wallet.getNetworkId()) === 1
-            ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-            : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-        network: await Mesh.wallet.getNetworkId(),
-      });
+      const tx = new TransactionService(wallet);
 
-      const signature = await Mesh.wallet.signTx({ tx });
+      for (const recipient of recipients) {
+        if (recipient.assets.lovelace) {
+          tx.sendLovelace(
+            recipient.address,
+            recipient.assets.lovelace.toString()
+          );
+        }
+        let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
+          return assetId != 'lovelace';
+        });
+        if (nativeAssets.length) {
+          let assets: { unit: string; quantity: string }[] = [];
+          for (const asset of nativeAssets) {
+            let thisAsset = {
+              unit: asset,
+              quantity: '1',
+            };
+            assets.push(thisAsset);
+          }
+          tx.sendAssets(recipient.address, assets);
+        }
+      }
 
-      const txHash = await Mesh.wallet.submitTransaction({
-        tx: tx,
-        witnesses: [signature],
-      });
-
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx);
+      const txHash = await wallet.submitTx(signedTx);
       setResult(txHash);
       setState(2);
     } catch (error) {
@@ -62,52 +83,44 @@ function CodeDemo({ walletConnected }) {
 
   async function getAssets() {
     setState(1);
-    await Mesh.blockfrost.init({
-      blockfrostApiKey:
-        (await Mesh.wallet.getNetworkId()) === 1
-          ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-          : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-      network: await Mesh.wallet.getNetworkId(),
-    });
-
-    const _assets = await Mesh.wallet.getAssets({
-      includeOnchain: true,
-      limit: 9,
-    });
-    setAssets(_assets);
+    const _assets = await wallet.getAssets();
+    setAssets(_assets.slice(0, 9));
     setState(0);
   }
 
-  function toggleSelectedAssets(asset: Asset) {
-    let updateSelectedAssets = { ...selectedAssets };
-    if (asset.unit in updateSelectedAssets) {
-      delete updateSelectedAssets[asset.unit];
-    } else {
-      updateSelectedAssets[asset.unit] = asset;
-    }
-    setSelectedAssets(updateSelectedAssets);
-
+  function add() {
     let newRecipients = [...recipients];
-    let newAssets = {};
-    for (let unit in updateSelectedAssets) {
-      newAssets[
-        `${updateSelectedAssets[unit].policy}.${updateSelectedAssets[unit].name}`
-      ] = 1;
-    }
-    if (lovelace) {
-      newAssets['lovelace'] = parseInt(lovelace);
-    }
-    newRecipients[0].assets = newAssets;
+    newRecipients.push({
+      address: '',
+      assets: { lovelace: 0 },
+    });
     setRecipients(newRecipients);
   }
 
-  function updateLovelace(value) {
-    setLovelace(value);
+  function remove(index) {
+    let newRecipients = [...recipients];
+    newRecipients.splice(index, 1);
+    setRecipients(newRecipients);
+  }
+
+  function toggleSelectedAssets(index, asset: Asset) {
+    let newRecipients = [...recipients];
+
+    if (asset.unit in newRecipients[index].assets) {
+      delete newRecipients[index].assets[asset.unit];
+    } else {
+      newRecipients[index].assets[asset.unit] = 1;
+    }
+
+    setRecipients(newRecipients);
+  }
+
+  function updateLovelace(index, value) {
     let newRecipients = [...recipients];
     if (value) {
-      newRecipients[0].assets['lovelace'] = parseInt(value);
+      newRecipients[index].assets['lovelace'] = parseInt(value);
     } else {
-      delete newRecipients[0].assets['lovelace'];
+      newRecipients[index].assets['lovelace'] = 0;
     }
     setRecipients(newRecipients);
   }
@@ -121,14 +134,15 @@ function CodeDemo({ walletConnected }) {
   useEffect(() => {
     async function init() {
       getAssets();
-
       const newRecipents = [
         {
           address:
-            (await Mesh.wallet.getNetworkId()) === 1
+            (await wallet.getNetworkId()) === 1
               ? process.env.NEXT_PUBLIC_TEST_ADDRESS_MAINNET!
               : process.env.NEXT_PUBLIC_TEST_ADDRESS_TESTNET!,
-          assets: {},
+          assets: {
+            lovelace: 0,
+          },
         },
       ];
       setRecipients(newRecipents);
@@ -138,91 +152,107 @@ function CodeDemo({ walletConnected }) {
     }
   }, [walletConnected]);
 
+  let codeSnippet = `const wallet = await WalletService.enable("${
+    walletNameConnected ? walletNameConnected : 'eternl'
+  }");`;
+
+  codeSnippet += `\n\nconst tx = new TransactionService(wallet)`;
+  for (const recipient of recipients) {
+    if (recipient.assets.lovelace) {
+      codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
+    }
+
+    let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
+      return assetId != 'lovelace';
+    });
+    if (nativeAssets.length) {
+      codeSnippet += `\n  .sendAssets(\n    "${recipient.address}",`;
+      codeSnippet += `\n    [`;
+      for (const asset of nativeAssets) {
+        codeSnippet += `\n      {`;
+        codeSnippet += `\n        unit: "${asset}",`;
+        codeSnippet += `\n        quantity: "1",`;
+        codeSnippet += `\n      },`;
+      }
+      codeSnippet += `\n    ]`;
+      codeSnippet += `\n  )`;
+    }
+  }
+  codeSnippet += `;`;
+
+  codeSnippet += `\n\nconst unsignedTx = await tx.build();`;
+  codeSnippet += `\nconst signedTx = await wallet.signTx(unsignedTx);`;
+  codeSnippet += `\nconst txHash = await wallet.submitTx(signedTx);`;
+
   return (
-    <div className="grid gap-4 grid-cols-2">
-      <div>
-        {walletConnected && assets === null && state === 0 && (
-          <Button onClick={() => getAssets()}>Get wallet assets</Button>
-        )}
-
-        {assets === null && state === 1 && (
-          <div className="grid place-content-center" role="status">
-            <svg
-              aria-hidden="true"
-              className="mr-2 w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600"
-              viewBox="0 0 100 101"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-                fill="currentColor"
-              />
-              <path
-                d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-                fill="currentFill"
-              />
-            </svg>
-            <span className="sr-only">Loading...</span>
-          </div>
-        )}
-
-        <AssetsContainer
-          assets={assets}
-          selectedAssets={selectedAssets}
-          toggleSelectedAssets={toggleSelectedAssets}
-        />
-      </div>
+    <div className="">
       <div>
         <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
           <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
             <tr>
-              <th scope="col" className="py-3 px-6">
-                Address
-              </th>
-              <th scope="col" className="py-3 px-6">
-                Lovelace
+              <th scope="col" colSpan={2} className="py-3 px-6">
+                Recipients
               </th>
             </tr>
           </thead>
           <tbody>
+            {recipients.map((recipient, i) => {
+              return (
+                <tr key={i}>
+                  <td className="py-4 px-4 w-full">
+                    <p>Address:</p>
+                    <Input
+                      value={recipient.address}
+                      onChange={(e) =>
+                        updateAddress(i, 'address', e.target.value)
+                      }
+                      placeholder="address"
+                    />
+                    <p>Lovelace:</p>
+                    <Input
+                      value={recipient.assets.lovelace}
+                      onChange={(e) => updateLovelace(i, e.target.value)}
+                      placeholder="lovelace"
+                      type="number"
+                    />
+                    <AssetsContainer
+                      index={i}
+                      assets={assets}
+                      selectedAssets={recipient.assets}
+                      toggleSelectedAssets={toggleSelectedAssets}
+                      state={state}
+                      getAssets={getAssets}
+                    />
+                  </td>
+                  <td className="py-4 px-4">
+                    <Button
+                      onClick={() => remove(i)}
+                      style="error"
+                      disabled={state == 1}
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
             <tr>
-              <td className="py-4 px-4 w-3/4">
-                <Input
-                  value={recipients[0].address}
-                  onChange={(e) => updateAddress(0, 'address', e.target.value)}
-                  placeholder="address"
-                />
-              </td>
-              <td className="py-4 px-4 w-1/4">
-                <Input
-                  value={lovelace}
-                  onChange={(e) => updateLovelace(e.target.value)}
-                  placeholder="lovelace"
-                  type="number"
-                />
+              <td className="py-4 px-4" colSpan={3}>
+                <Button
+                  onClick={() => add()}
+                  style="primary"
+                  className="block w-full"
+                  disabled={state == 1}
+                >
+                  <PlusCircleIcon className="m-0 mr-2 w-6 h-6" />
+                  <span>Add recipient</span>
+                </Button>
               </td>
             </tr>
           </tbody>
         </table>
 
-        <Codeblock
-          data={`const recipients = ${JSON.stringify(recipients, null, 2)};
-
-const tx = await Mesh.transaction.build({
-  outputs: recipients,
-  blockfrostApiKey: "BLOCKFROST_API_KEY",
-  network: await Mesh.wallet.getNetworkId(),
-});
-
-const signature = await Mesh.wallet.signTx({ tx });
-
-const txHash = await Mesh.wallet.submitTransaction({
-  tx: tx,
-  witnesses: [signature],
-});`}
-          isJson={false}
-        />
+        <Codeblock data={codeSnippet} isJson={false} />
 
         {walletConnected && (
           <Button
@@ -245,20 +275,60 @@ const txHash = await Mesh.wallet.submitTransaction({
   );
 }
 
-function AssetsContainer({ assets, selectedAssets, toggleSelectedAssets }) {
+function AssetsContainer({
+  index,
+  assets,
+  selectedAssets,
+  toggleSelectedAssets,
+  state,
+  getAssets,
+}) {
+  const { walletConnected } = useWallet();
+
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {assets &&
-        assets.map((asset, i) => {
-          return (
-            <CardAsset
-              asset={asset}
-              selectedAssets={selectedAssets}
-              toggleSelectedAssets={toggleSelectedAssets}
-              key={i}
+    <>
+      {walletConnected && assets === null && state === 0 && (
+        <Button onClick={() => getAssets()}>Get wallet assets</Button>
+      )}
+
+      {assets === null && state === 1 && (
+        <div className="p-4 grid place-content-center" role="status">
+          <svg
+            aria-hidden="true"
+            className="mr-2 w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600"
+            viewBox="0 0 100 101"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+              fill="currentColor"
             />
-          );
-        })}
-    </div>
+            <path
+              d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+              fill="currentFill"
+            />
+          </svg>
+          <span className="sr-only">Loading...</span>
+        </div>
+      )}
+
+      {assets && assets.length && <p>Select assets to send:</p>}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {assets &&
+          assets.map((asset, i) => {
+            return (
+              <CardAsset
+                index={index}
+                asset={asset}
+                selectedAssets={selectedAssets}
+                toggleSelectedAssets={toggleSelectedAssets}
+                key={i}
+              />
+            );
+          })}
+      </div>
+    </>
   );
 }

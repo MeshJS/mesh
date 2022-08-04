@@ -24,6 +24,10 @@ export class Wallet {
     //await csl.load();
   }
 
+  private _showDepreciating(){
+    console.log("Depreciating.")
+  }
+
   /**
    * Enable and connect wallet
    *
@@ -36,6 +40,8 @@ export class Wallet {
    * @returns - True if wallet is connected
    */
   async enable({ walletName }: { walletName: string }): Promise<boolean> {
+    this._showDepreciating();
+    
     if (walletName === 'ccvault') {
       const instance = await window.cardano?.ccvault?.enable();
       if (instance) {

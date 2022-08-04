@@ -1,50 +1,18 @@
 import { useEffect, useState } from 'react';
-import Mesh from '@martifylabs/mesh';
 import { Button } from '../../components';
+import useWallet from '../../contexts/wallet';
+import { WalletService } from '@martifylabs/mesh';
+import type { Wallet } from '@martifylabs/mesh';
 
-const WALLETS = {
-  nami: {
-    name: 'Nami',
-    logo: 'nami.svg',
-  },
-  ccvault: {
-    name: 'Eternl',
-    logo: 'eternl.webp',
-  },
-  gerowallet: {
-    name: 'Gero',
-    logo: 'gerowallet.svg',
-  },
-};
-
-export default function ConnectWallet({
-  setWalletConnected,
-}: {
-  setWalletConnected?;
-}) {
-  const [availableWallets, setAvailableWallets] = useState<string[] | null>(
-    null
-  );
-  const [connecting, setConnecting] = useState<boolean>(false);
-  const [walletNameConnected, setWalletNameConnected] = useState<string>('');
-
-  async function connectWallet(walletName: string) {
-    setConnecting(true);
-    const walletConnected = await Mesh.wallet.enable({
-      walletName: walletName,
-    });
-    if (walletConnected) {
-      if (setWalletConnected) {
-        setWalletConnected(true);
-      }
-      setWalletNameConnected(walletName);
-    }
-    setConnecting(false);
-  }
+export default function ConnectWallet() {
+  const { connecting, walletNameConnected, connectWallet } = useWallet();
+  const [availableWallets, setAvailableWallets] = useState<
+    Wallet[] | undefined
+  >(undefined);
 
   useEffect(() => {
     async function init() {
-      setAvailableWallets(await Mesh.wallet.getAvailableWallets());
+      setAvailableWallets(WalletService.getInstalledWallets());
     }
     init();
   }, []);
@@ -54,18 +22,21 @@ export default function ConnectWallet({
       {availableWallets
         ? availableWallets.length == 0
           ? 'No wallets found'
-          : availableWallets.map((walletName, i) => (
+          : availableWallets.map((wallet, i) => (
               <Button
                 key={i}
-                onClick={() => connectWallet(walletName)}
-                style={walletNameConnected == walletName ? 'success' : 'light'}
-                disabled={connecting || walletNameConnected == walletName}
+                onClick={() => connectWallet(wallet.name)}
+                style={
+                  walletNameConnected == wallet.name
+                    ? 'success'
+                    : connecting
+                    ? 'warning'
+                    : 'light'
+                }
+                disabled={connecting || walletNameConnected == wallet.name}
               >
-                <img
-                  src={`/wallets/${WALLETS[walletName].logo}`}
-                  className="m-0 mr-2 w-6 h-6"
-                />
-                Connect with {WALLETS[walletName].name}
+                <img src={`${wallet.icon}`} className="m-0 mr-2 w-6 h-6" />
+                Connect with {wallet.name}
               </Button>
             ))
         : ''}

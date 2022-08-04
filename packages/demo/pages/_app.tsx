@@ -1,10 +1,13 @@
-import "../styles/globals.css";
-import type { AppProps } from "next/app";
-import { Metatags, Navbar } from "../components";
+import '../styles/globals.css';
+import "../styles/demopages.css";
+
+import type { AppProps } from 'next/app';
+import { Metatags, Navbar } from '../components';
+import { WalletProvider } from '../contexts/wallet';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <>
+    <WalletProvider>
       <Metatags />
       <Navbar />
       <div className="prose dark:prose-invert max-w-full">
@@ -12,7 +15,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           <Component {...pageProps} />
         </div>
       </div>
-    </>
+    </WalletProvider>
   );
 }
 

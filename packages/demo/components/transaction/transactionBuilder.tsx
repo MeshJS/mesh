@@ -9,8 +9,9 @@ import {
 } from '@heroicons/react/solid';
 import { Recipient } from '../../types';
 import { XIcon } from '@heroicons/react/solid';
+import useWallet from '../../contexts/wallet';
 
-export default function TransactionBuilder({ walletConnected }) {
+export default function TransactionBuilder() {
   return (
     <Card>
       <div className="grid gap-4 grid-cols-2">
@@ -23,12 +24,13 @@ export default function TransactionBuilder({ walletConnected }) {
         </div>
         <div className="mt-8"></div>
       </div>
-      <PrepareInputsOutputs walletConnected={walletConnected} />
+      <PrepareInputsOutputs />
     </Card>
   );
 }
 
-function PrepareInputsOutputs({ walletConnected }) {
+function PrepareInputsOutputs() {
+  const { walletConnected } = useWallet();
   const [state, setState] = useState(0);
   const [utxos, setUtxos] = useState<{}[] | string[] | undefined>([]);
   const [selectedUtxos, setSelectedUtxos] = useState<string[]>([]);
@@ -80,7 +82,6 @@ function PrepareInputsOutputs({ walletConnected }) {
         state={state}
         setState={setState}
         selectedUtxos={selectedUtxos}
-        walletConnected={walletConnected}
       />
     </>
   );
@@ -103,54 +104,75 @@ function Inputs({ utxos, selectedUtxos, setSelectedUtxos }) {
     <div className="w-full">
       <RadioGroup value={null} onChange={toggleSelectUtxo}>
         <div className="space-y-2">
-          {utxos.map((utxo, i) => {
-            let thisSelected = selectedUtxos.includes(utxo.cbor);
-            return (
-              <RadioGroup.Option
-                key={i}
-                value={utxo}
-                className={`
-                  ${
-                    thisSelected
-                      ? 'bg-sky-900 bg-opacity-75 text-white'
-                      : 'bg-white'
-                  }
-                    relative flex cursor-pointer rounded-lg px-5 py-4 shadow-md focus:outline-none`}
-              >
-                {
-                  <>
-                    <div className="flex w-full items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="text-sm">
-                          <RadioGroup.Label
-                            as="p"
-                            className={`font-medium  ${
-                              thisSelected ? 'text-white' : 'text-gray-900'
-                            }`}
+          {utxos
+            .map((item) => item.address)
+            .filter((value, index, self) => self.indexOf(value) === index)
+            .map((address, index) => {
+              return (
+                <div key={index} className="border border-slate-300 text-sm text-left text-gray-500 dark:text-gray-400 grid gap-4 grid-cols-1">
+                  <p className="truncate">
+                    <b className="truncate">{address}</b>
+                  </p>
+
+                  <div>
+                    {utxos
+                      .filter((utxo) => {
+                        return utxo.address == address;
+                      })
+                      .map((utxo, i) => {
+                        let thisSelected = selectedUtxos.includes(utxo.cbor);
+                        return (
+                          <RadioGroup.Option
+                            key={i}
+                            value={utxo}
+                            className={`
+                    ${
+                      thisSelected
+                        ? 'bg-sky-900 bg-opacity-75 text-white'
+                        : 'bg-white'
+                    }
+                      relative flex cursor-pointer rounded-lg px-4 shadow-md focus:outline-none m-4`}
                           >
-                            UTXO #{i + 1}
-                          </RadioGroup.Label>
-                          <RadioGroup.Description
-                            as="span"
-                            className={`${
-                              thisSelected ? 'text-sky-100' : 'text-gray-500'
-                            }`}
-                          >
-                            <Assets assets={utxo.assets} />
-                          </RadioGroup.Description>
-                        </div>
-                      </div>
-                      {thisSelected && (
-                        <div className="shrink-0 text-white">
-                          <CheckCircleIcon className="h-6 w-6" />
-                        </div>
-                      )}
-                    </div>
-                  </>
-                }
-              </RadioGroup.Option>
-            );
-          })}
+                            {
+                              <>
+                                <div className="flex w-full items-center justify-between">
+                                  <div className="w-full">
+                                    <RadioGroup.Label
+                                      as="p"
+                                      className={`font-medium  ${
+                                        thisSelected
+                                          ? 'text-white'
+                                          : 'text-gray-900'
+                                      }`}
+                                    >
+                                      UTXO #{i + 1}
+                                    </RadioGroup.Label>
+                                    <RadioGroup.Description
+                                      as="span"
+                                      className={`${
+                                        thisSelected
+                                          ? 'text-sky-100'
+                                          : 'text-gray-500'
+                                      }`}
+                                    >
+                                      <Assets assets={utxo.assets} />
+                                    </RadioGroup.Description>
+                                  </div>
+                                  {thisSelected && (
+                                    <div className="shrink-0 text-white">
+                                      <CheckCircleIcon className="h-6 w-6" />
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            }
+                          </RadioGroup.Option>
+                        );
+                      })}
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </RadioGroup>
     </div>
@@ -159,28 +181,26 @@ function Inputs({ utxos, selectedUtxos, setSelectedUtxos }) {
 
 function Assets({ assets }) {
   return (
-    <div className="w-full">
-      <div className="mx-auto w-full max-w-md p-2">
-        {Object.keys(assets).map((assetId, i) => {
-          let style = 'default';
-          let assetName = assetId;
-          let quantity = assets[assetId];
-          let policy: undefined | string = undefined;
-          if (assetId == 'lovelace') {
-            style = 'red';
-            quantity = `${quantity / 1000000}`;
-            assetName = `₳`;
-          } else {
-            assetName = assetName.split('.')[1];
-            policy = assetName.split('.')[0];
-          }
-          return (
-            <Badge style={style} className="block mb-2" key={i}>
-              <b>{quantity}</b> {assetName}
-            </Badge>
-          );
-        })}
-      </div>
+    <div className="w-full max-w-md grid grid-cols-3 gap-1 max-h-44 overflow-scroll">
+      {Object.keys(assets).map((assetId, i) => {
+        let style = 'default';
+        let assetName = assetId;
+        let quantity = assets[assetId];
+        let policy: undefined | string = undefined;
+        if (assetId == 'lovelace') {
+          style = 'red';
+          quantity = `${quantity / 1000000}`;
+          assetName = `₳`;
+        } else {
+          assetName = assetName.split('.')[1];
+          policy = assetName.split('.')[0];
+        }
+        return (
+          <Badge style={style} className="block mb-2 truncate" key={i}>
+            <b>{quantity}</b> {assetName}
+          </Badge>
+        );
+      })}
     </div>
   );
 }
@@ -367,13 +387,8 @@ function Outputs({ state, utxos, selectedUtxos, recipients, setRecipients }) {
   );
 }
 
-function CodeDemo({
-  recipients,
-  state,
-  setState,
-  selectedUtxos,
-  walletConnected,
-}) {
+function CodeDemo({ recipients, state, setState, selectedUtxos }) {
+  const { walletConnected } = useWallet();
   const [result, setResult] = useState<null | string>(null);
   const [ttl, setTtl] = useState('');
   const [message, setMessage] = useState('');

@@ -46,7 +46,7 @@ const Nextjs = () => {
           >
             MDN JavaScript Reference
           </a>{' '}
-          or watch a few{' '}
+          or my preferred method, by watch a few{' '}
           <a
             href="https://www.youtube.com/results?search_query=get+started+with+nextjs"
             target="_blank"
@@ -96,17 +96,16 @@ const Nextjs = () => {
         <h2>Setup Next.js</h2>
         <h3>1. Create project folder and open Visual Studio Code</h3>
         <p>
-          Create a new folder for your project. Give the folder a meaningful
-          name.
-        </p>
-        <p>
-          Open the Visual Studio Code application and drag your project folder
-          in.
+          Create a new folder for your project, and give the folder a meaningful
+          name. Open the Visual Studio Code application and drag your project
+          folder into Visual Studio Code.
         </p>
 
         <h3>2. Create Next.js app</h3>
         <p>
-          Open the Terminal on your Visual Studio Code and execute this command:
+          From the menu options in on your Visual Studio Code, open the{' '}
+          <code>Terminal</code> and execute this command to create a new NextJs
+          application:
         </p>
         <Codeblock
           data={`yarn create next-app --typescript .`}
@@ -115,8 +114,7 @@ const Nextjs = () => {
 
         <h3>3. Start development server</h3>
         <p>
-          After the installation is complete, start the development server on
-          http://localhost:3000:
+          After the installation is complete, start the development server with:
         </p>
         <Codeblock data={`yarn run dev`} isJson={false} />
         <p>
@@ -124,37 +122,21 @@ const Nextjs = () => {
           <a href="http://localhost:3000" target="_blank" rel="noreferrer">
             http://localhost:3000
           </a>{' '}
-          to view your application. <b>CTRL+C</b> to stop the application.
+          to view your application. <code>CTRL+C</code> to stop the application.
         </p>
 
         <h2>Setup Mesh</h2>
-        <h3>1. Install the @martifylabs/mesh package</h3>
+        <h3>1. Install @martifylabs/mesh package</h3>
         <p>Install the latest version of Mesh with yarn:</p>
         <Codeblock data={`yarn add @martifylabs/mesh`} isJson={false} />
 
         <h3>
-          2. Add webpack in <b>next.config.js</b>
+          2. Add webpack in <code>next.config.js</code>
         </h3>
         <p>
-          Open <b>next.config.js</b> and append the following:
-        </p>
-        <Codeblock
-          data={`const nextConfig = {
-  ...
-  webpack: function (config, options) {
-    config.experiments = {
-      asyncWebAssembly: true,
-      layers: true,
-      topLevelAwait: true,
-    };
-    config.resolve.fallback = { fs: false };
-    return config;
-  },
-};`}
-          isJson={false}
-        />
-        <p>
-          Your <b>next.config.js</b> should look like this:
+          Open <code>next.config.js</code> and append <code>webpack</code>{' '}
+          configurations. Your <code>next.config.js</code> should look like
+          this:
         </p>
         <Codeblock
           data={`/** @type {import('next').NextConfig} */
@@ -177,61 +159,135 @@ module.exports = nextConfig;`}
         <p>
           You just saved a few weeks of learning and a number days trying to get
           started. Your Next.js application is ready to connect wallet, browse
-          assets and make some transactions. Start the development server:
+          assets and make some transactions.
         </p>
-        <Codeblock data={`yarn run dev`} isJson={false} />
 
         <h2>See it in action</h2>
-        <h3>1. Create a Connect Wallet component</h3>
+        <h3>1. Create a wallet context</h3>
         <p>
-          Create a new folder named <b>components</b> and create a new file
-          named <b>connectWallet.tsx</b>. Open{' '}
-          <b>components/connectWallet.tsx</b> and insert the following codes:
+          React context is an essential tool for building web applications. It
+          allow you to easily share state in your applications, so you can use
+          the data in any component within the app. This means that when the
+          user has connected their wallet, visiting different pages on the app
+          ensure their wallet is still connected.
+        </p>
+        <p>
+          Create a new folder named <code>contexts</code> and create a new file
+          named <code>wallet.tsx</code>. Open <code>contexts/wallet.tsx</code>{' '}
+          and insert the following codes:
         </p>
         <Codeblock
-          data={`import { useEffect, useState } from "react";
-import Mesh from "@martifylabs/mesh";
+          data={`import React, {
+  createContext,
+  useState,
+  useContext,
+  useMemo,
+  ReactNode,
+} from "react";
+import { WalletService } from "@martifylabs/mesh";
 
-const WALLETS: { [name: string]: { name: string } } = {
-  nami: {
-    name: "Nami",
-  },
-  ccvault: {
-    name: "Eternl",
-  },
-  gerowallet: {
-    name: "Gero",
-  },
-};
+const WalletContext = createContext({
+  wallet: {} as WalletService,
+  connecting: false,
+  walletNameConnected: "",
+  walletConnected: false,
+  connectWallet: async (walletName: string) => {},
+});
 
-export default function ConnectWallet({
-  setWalletConnected,
-}: {
-  setWalletConnected?: any;
-}) {
-  const [availableWallets, setAvailableWallets] = useState<string[] | null>(
-    null
-  );
+export const WalletProvider = ({ children }: { children: ReactNode }) => {
+  const [wallet, setWallet] = useState<WalletService>({} as WalletService);
+  const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [connecting, setConnecting] = useState<boolean>(false);
   const [walletNameConnected, setWalletNameConnected] = useState<string>("");
 
-  async function connectWallet(walletName: string) {
+  const connectWallet = async (walletName: string) => {
     setConnecting(true);
-    const walletConnected = await Mesh.wallet.enable({
-      walletName: walletName,
-    });
-    if (walletConnected) {
-      if (setWalletConnected) {
-        setWalletConnected(true);
-      }
+    const _wallet = await WalletService.enable(walletName);
+    if (_wallet) {
+      setWallet(_wallet);
       setWalletNameConnected(walletName);
+      setWalletConnected(true);
     }
     setConnecting(false);
-  }
+  };
+
+  const memoedValue = useMemo(
+    () => ({
+      wallet,
+      connecting,
+      walletNameConnected,
+      walletConnected,
+      connectWallet,
+    }),
+    [wallet, walletConnected, connecting, walletNameConnected]
+  );
+
+  return (
+    <WalletContext.Provider value={memoedValue}>
+      {children}
+    </WalletContext.Provider>
+  );
+};
+
+export default function useWallet() {
+  return useContext(WalletContext);
+}`}
+          isJson={false}
+        />
+
+        <p>
+          Open <code>pages/_app.tsx</code> and include the{' '}
+          <code>WalletProvider</code>. Your <code>_app.tsx</code> should look
+          similar to this:
+        </p>
+        <Codeblock
+          data={`import "../styles/globals.css";
+import type { AppProps } from "next/app";
+import { WalletProvider } from "../contexts/wallet";
+
+function MyApp({ Component, pageProps }: AppProps) {
+  return (
+    <WalletProvider>
+      <Component {...pageProps} />
+    </WalletProvider>
+  );
+}
+
+export default MyApp;`}
+          isJson={false}
+        />
+
+        <h3>2. Create a connect wallet component</h3>
+        <p>
+          Lets create a connect wallet component to show users a few buttons to
+          connect wallets they have installed on their device. Clicking on these
+          buttons will ask the user for permission if not granted, and proceed
+          to connect the selected wallet. We will use the <code>useWallet</code>{' '}
+          we have previously created for connecting wallet and maintaining
+          states.
+        </p>
+        <p>
+          Create a new folder named <code>components</code> and create a new
+          file named <code>connectWallet.tsx</code>. Open{' '}
+          <code>components/connectWallet.tsx</code> and insert the following
+          codes:
+        </p>
+        <Codeblock
+          data={`import { useEffect, useState } from "react";
+import { WalletService } from "@martifylabs/mesh";
+import type { Wallet } from "@martifylabs/mesh";
+import useWallet from "../contexts/wallet";
+
+export default function ConnectWallet() {
+  const [availableWallets, setAvailableWallets] = useState<
+    Wallet[] | undefined
+  >(undefined);
+  const { walletNameConnected, connecting, connectWallet, walletConnected } =
+    useWallet();
 
   useEffect(() => {
     async function init() {
-      setAvailableWallets(await Mesh.wallet.getAvailableWallets());
+      setAvailableWallets(WalletService.getInstalledWallets());
     }
     init();
   }, []);
@@ -241,24 +297,35 @@ export default function ConnectWallet({
       {availableWallets
         ? availableWallets.length == 0
           ? "No wallets found"
-          : availableWallets.map((walletName, i) => (
+          : availableWallets.map((wallet, i) => (
               <button
                 key={i}
-                onClick={() => connectWallet(walletName)}
-                disabled={connecting || walletNameConnected == walletName}
+                onClick={() => connectWallet(wallet.name)}
+                disabled={
+                  walletConnected ||
+                  connecting ||
+                  walletNameConnected == wallet.name
+                }
                 style={{
                   fontWeight:
-                    walletNameConnected == walletName ? "bold" : "normal",
+                    walletNameConnected == wallet.name ? "bold" : "normal",
                   margin: "8px",
                   backgroundColor:
-                    walletNameConnected == walletName
+                    walletNameConnected == wallet.name
                       ? "green"
                       : connecting
                       ? "orange"
                       : "grey",
                 }}
               >
-                Connect with {WALLETS[walletName].name}
+                <img
+                  src={wallet.icon}
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                  }}
+                />
+                Connect with {wallet.name}
               </button>
             ))
         : ""}
@@ -268,32 +335,40 @@ export default function ConnectWallet({
           isJson={false}
         />
 
-        <h3>2. Lets connect wallet and check wallet&apos;s assets</h3>
+        <h3>3. Lets connect wallet and check wallet&apos;s assets</h3>
         <p>
-          Open <b>pages/index.tsx</b> and replace it with the following codes:
+          Lastly, we link those components together, allowing users to choose a
+          wallet to connect, and query for assets in the wallet with{' '}
+          <code>wallet.getAssets()</code>.
+        </p>
+        <p>
+          Open <code>pages/index.tsx</code> and replace it with the following
+          codes:
         </p>
         <Codeblock
           data={`import { useState } from "react";
 import type { NextPage } from "next";
-import Mesh from "@martifylabs/mesh";
+import useWallet from "../contexts/wallet";
 import ConnectWallet from "../components/connectWallet";
 
 const Home: NextPage = () => {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [walletConnected, setWalletConnected] = useState<boolean>(false);
+  const { wallet, walletConnected, connecting } = useWallet();
   const [assets, setAssets] = useState<null | any>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   async function getAssets() {
-    setLoading(true);
-    const _assets = await Mesh.wallet.getAssets();
-    setAssets(_assets);
-    setLoading(false);
+    if (wallet) {
+      setLoading(true);
+      const _assets = await wallet.getAssets();
+      setAssets(_assets);
+      setLoading(false);
+    }
   }
 
   return (
     <div>
       <h1>Connect Wallet</h1>
-      <ConnectWallet setWalletConnected={setWalletConnected} />
+      <ConnectWallet />
       {walletConnected && (
         <>
           <h1>Get Wallet Assets</h1>
@@ -307,10 +382,10 @@ const Home: NextPage = () => {
             <button
               type="button"
               onClick={() => getAssets()}
-              disabled={loading}
+              disabled={connecting || loading}
               style={{
                 margin: "8px",
-                backgroundColor: loading ? "orange" : "grey",
+                backgroundColor: connecting || loading ? "orange" : "grey",
               }}
             >
               Get Wallet Assets
@@ -322,13 +397,11 @@ const Home: NextPage = () => {
   );
 };
 
-export default Home;
-`}
+export default Home;`}
           isJson={false}
         />
 
-        <h3>3. Start server and try it</h3>
-        <p>Start the development server:</p>
+        <p>Start the development server and try it:</p>
         <Codeblock data={`yarn run dev`} isJson={false} />
         <p>
           Visit{' '}
@@ -340,9 +413,9 @@ export default Home;
 
         <h3>4. Try on your own</h3>
         <p>
-          Try displaying your wallet&apos;s address and the amount of lovelace
-          in your Next.js application. Check out the{' '}
-          <Link href="/wallet">wallet</Link> page for more details.
+          Implement another component to display wallet&apos;s address and the
+          amount of lovelace in your Next.js application. Check out the{' '}
+          <Link href="/apis/wallet">wallet</Link> page for more details.
         </p>
 
         <Help />

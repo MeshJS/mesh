@@ -1,4 +1,27 @@
-import { csl } from '../core';
+const importCSL = async () => {
+  if (typeof window !== 'undefined') {
+    return await import('@emurgo/cardano-serialization-lib-browser');
+  } else {
+    return await import('@emurgo/cardano-serialization-lib-nodejs');
+  }
+};
+
+const resolveImport = async () => {
+  try {
+    const {
+      default: _, ...rest
+    } = await importCSL();
+
+    return rest;
+  } catch (error) {
+    console.error(
+      'An error occurred when importing the Cardano Serialization Lib module.'
+    );
+    throw error;
+  }
+};
+
+export const csl = await resolveImport();
 
 export type Address = InstanceType<typeof csl.Address>;
 export type AssetName = InstanceType<typeof csl.AssetName>;
@@ -80,7 +103,6 @@ export type PrivateKey = InstanceType<typeof csl.PrivateKey>;
 export type ProposedProtocolParameterUpdates = InstanceType<typeof csl.ProposedProtocolParameterUpdates>;
 export type ProtocolParamUpdate = InstanceType<typeof csl.ProtocolParamUpdate>;
 export type ProtocolVersion = InstanceType<typeof csl.ProtocolVersion>;
-export type ProtocolVersions = InstanceType<typeof csl.ProtocolVersions>;
 export type PublicKey = InstanceType<typeof csl.PublicKey>;
 export type PublicKeys = InstanceType<typeof csl.PublicKeys>;
 export type Redeemer = InstanceType<typeof csl.Redeemer>;

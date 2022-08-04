@@ -1,127 +1,149 @@
-import { useState, useEffect } from 'react';
-import Mesh from '@martifylabs/mesh';
-import { Button, Card, Codeblock, Input, Toggle } from '../../components';
+import { useState } from 'react';
+import { Button, Card, Codeblock, Input } from '../../components';
+import useWallet from '../../contexts/wallet';
+import { PlayIcon } from '@heroicons/react/solid';
 import ConnectWallet from '../../components/wallet/connectWallet';
+import { WalletService } from '@martifylabs/mesh';
+import Link from 'next/link';
 
-async function callWalletFunctions(fnName) {
-  const walletFn = {
-    getAvailableWallets: Mesh.wallet.getAvailableWallets(),
-    isEnabled: Mesh.wallet.isEnabled(),
-    getNetworkId: Mesh.wallet.getNetworkId(),
-    getUtxos: Mesh.wallet.getUtxos(),
-    getBalance: Mesh.wallet.getBalance(),
-    getUsedAddresses: Mesh.wallet.getUsedAddresses(),
-    getUnusedAddresses: Mesh.wallet.getUnusedAddresses(),
-    getChangeAddress: Mesh.wallet.getChangeAddress(),
-    getRewardAddresses: Mesh.wallet.getRewardAddresses(),
-    getWalletAddress: Mesh.wallet.getWalletAddress(),
-    getLovelace: Mesh.wallet.getLovelace(),
-  };
-  let res = await walletFn[fnName];
-  return res;
-}
-
-export default function WalletApi({ walletConnected }) {
+export default function WalletApi() {
   return (
     <>
+      <DemoGetInstalledWallets />
       <DemoConnectWallet />
 
-      <DemoSection
-        title="Get wallets available"
-        desc="Get a list of wallets available to connect."
-        demoFn={'getAvailableWallets'}
-        demoStr={'Mesh.wallet.getAvailableWallets()'}
-        walletConnected={walletConnected}
-      />
+      <DemoSection title="Get balance" demoFn="getBalance">
+        <p>
+          Returns a list of assets in the wallet. This API will return every
+          assets in the wallet.
+        </p>
+      </DemoSection>
 
-      <DemoSection
-        title="Is wallet enabled"
-        desc="Check if wallet is enabled."
-        demoFn={'isEnabled'}
-        demoStr={'Mesh.wallet.isEnabled()'}
-        walletConnected={walletConnected}
-      />
+      <DemoSection title="Get change address" demoFn="getChangeAddress">
+        <p>
+          Returns an address owned by the wallet that should be used as a change
+          address to return leftover assets during transaction creation back to
+          the connected wallet. This can be used as a generic receive address as
+          well.
+        </p>
+      </DemoSection>
 
-      <DemoSection
-        title="Get network ID"
-        desc="Get network ID. 0 is testnet, 1 is mainnet."
-        demoFn={'getNetworkId'}
-        demoStr={'Mesh.wallet.getNetworkId()'}
-        walletConnected={walletConnected}
-      />
+      <DemoSection title="Get network ID" demoFn="getNetworkId">
+        <p>
+          Returns the network ID of the currently connected account. 0 is
+          testnet and 1 is mainnet but other networks can possibly be returned
+          by wallets. Those other network ID values are not governed by CIP-30.
+          This result will stay the same unless the connected account has
+          changed.
+        </p>
+      </DemoSection>
 
-      <DemoSection
-        title="Get UTXOs"
-        desc="Get wallet's UTXOs"
-        demoFn={'getUtxos'}
-        demoStr={'Mesh.wallet.getUtxos()'}
-        walletConnected={walletConnected}
-      />
+      <DemoSection title="Get reward address" demoFn="getRewardAddresses">
+        <p>Returns a list of reward addresses owned by the wallet.</p>
+      </DemoSection>
 
-      <DemoSection
-        title="Get balance"
-        desc="Get balance"
-        demoFn={'getBalance'}
-        demoStr={'Mesh.wallet.getBalance()'}
-        walletConnected={walletConnected}
-      />
+      <DemoSection title="Get used address" demoFn="getUsedAddresses">
+        <p>Returns a list of used addresses controlled by the wallet</p>
+      </DemoSection>
 
-      <DemoSection
-        title="Get used address"
-        desc="Get used address"
-        demoFn={'getUsedAddresses'}
-        demoStr={'Mesh.wallet.getUsedAddresses()'}
-        walletConnected={walletConnected}
-      />
+      <DemoSection title="Get unused address" demoFn="getUnusedAddresses">
+        <p>Returns a list of unused addresses controlled by the wallet.</p>
+      </DemoSection>
 
-      <DemoSection
-        title="Get unused address"
-        desc="Get unused address"
-        demoFn={'getUnusedAddresses'}
-        demoStr={'Mesh.wallet.getUnusedAddresses()'}
-        walletConnected={walletConnected}
-      />
+      <DemoSection title="Get UTXOs" demoFn="getUtxos">
+        <p>
+          Return a list of all UTXOs (unspent transaction outputs) controlled by
+          the wallet. ADA balance and multiasset value in each UTXO are
+          specified in <code>amount</code>.
+        </p>
+      </DemoSection>
 
-      <DemoSection
-        title="Get change address"
-        desc="Get change address"
-        demoFn={'getChangeAddress'}
-        demoStr={'Mesh.wallet.getChangeAddress()'}
-        walletConnected={walletConnected}
-      />
+      <NoDemo
+        title="Sign data"
+        codeSnippet="const signature = await wallet.signData(payload: string);"
+      >
+        <p>
+          This endpoint utilizes the{' '}
+          <a
+            href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030"
+            target="_blank"
+            rel="noreferrer"
+          >
+            CIP-8 - Message Signing
+          </a>{' '}
+          to sign arbitrary data, to verify the data was signed by the owner of
+          the private key.
+        </p>
+      </NoDemo>
 
-      <DemoSection
-        title="Get reward address"
-        desc="Get reward address"
-        demoFn={'getRewardAddresses'}
-        demoStr={'Mesh.wallet.getRewardAddresses()'}
-        walletConnected={walletConnected}
-      />
+      <NoDemo
+        title="Sign transaction"
+        codeSnippet="const signedTx = await wallet.signTx(tx: string, partialSign = false);"
+      >
+        <p>
+          Requests user to sign the provided transaction. The wallet should ask
+          the user for permission, and if given, try to sign the supplied body
+          and return a signed transaction. <code>partialSign</code> should be{' '}
+          <code>true</code> if the transaction provided requires multiple
+          signatures. Check out{' '}
+          <Link href="/apis/transaction">Transaction</Link> to learn more on how
+          to use this API.
+        </p>
+      </NoDemo>
 
-      <DemoSection
-        title="Get wallet address"
-        desc="Get the first used address."
-        demoFn={'getWalletAddress'}
-        demoStr={'Mesh.wallet.getWalletAddress()'}
-        walletConnected={walletConnected}
-      />
+      <NoDemo
+        title="Submit transaction"
+        codeSnippet="const txHash = await wallet.submitTx(tx: string);"
+      >
+        <p>
+          As wallets should already have this ability to submit transaction, we
+          allow dApps to request that a transaction be sent through it. If the
+          wallet accepts the transaction and tries to send it, it shall return
+          the transaction ID for the dApp to track. The wallet can return error
+          messages or failure if there was an error in sending it. Check out{' '}
+          <Link href="/apis/transaction">Transaction</Link> to learn more on how
+          to use this API.
+        </p>
+      </NoDemo>
 
-      <DemoSection
-        title="Get lovelace amount"
-        desc="Get lovelace amount"
-        demoFn={'getLovelace'}
-        demoStr={'Mesh.wallet.getLovelace()'}
-        walletConnected={walletConnected}
-      />
+      <DemoGetAssets />
 
-      <DemoAssetParams walletConnected={walletConnected} />
+      <DemoSection title="Get policy IDs" demoFn="getPolicyIds">
+        <p>Return a list of assets&apos; policy ID.</p>
+      </DemoSection>
+
+      <DemoGetAssetsCollection />
+
+      <DemoSection title="Get lovelace" demoFn="getLovelace">
+        <p>Return the lovelace balance in wallet. 1 ADA = 1000000 lovelace.</p>
+      </DemoSection>
     </>
   );
 }
 
-function DemoSection({ title, desc, demoStr, demoFn, walletConnected }) {
+function DemoSection({ children, title, demoFn }) {
+  const { wallet, walletConnected } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
+
+  async function callWalletFunctions(fnName) {
+    if (wallet) {
+      const walletFn = {
+        getNetworkId: wallet.getNetworkId(),
+        getUtxos: wallet.getUtxos(),
+        getBalance: wallet.getBalance(),
+        getUsedAddresses: wallet.getUsedAddresses(),
+        getUnusedAddresses: wallet.getUnusedAddresses(),
+        getChangeAddress: wallet.getChangeAddress(),
+        getRewardAddresses: wallet.getRewardAddresses(),
+        getAssets: wallet.getAssets(),
+        getPolicyIds: wallet.getPolicyIds(),
+        getLovelace: wallet.getLovelace(),
+      };
+      let res = await walletFn[fnName];
+      return res;
+    }
+  }
 
   async function runDemo() {
     setLoading(true);
@@ -132,29 +154,111 @@ function DemoSection({ title, desc, demoStr, demoFn, walletConnected }) {
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>{title}</h3>
-          <p>{desc}</p>
+          {children}
         </div>
 
         <div className="mt-8">
-          <Codeblock data={`const result = await ${demoStr};`} isJson={false} />
-          {walletConnected && (
-            <Button
-              onClick={() => runDemo()}
-              style={
-                loading ? 'warning' : response !== null ? 'success' : 'light'
-              }
-              disabled={loading}
-            >
-              Run code snippet
-            </Button>
-          )}
+          <div className="flex">
+            <div className="flex-1 overflow-auto">
+              <Codeblock
+                data={`const result = await wallet.${demoFn}();`}
+                isJson={false}
+              />
+            </div>
+            <div className="pt-4 ml-1">
+              {walletConnected && (
+                <Button
+                  onClick={() => runDemo()}
+                  style={
+                    loading
+                      ? 'warning'
+                      : response !== null
+                      ? 'success'
+                      : 'light'
+                  }
+                  disabled={loading}
+                >
+                  <PlayIcon className="w-4 h-8" />
+                </Button>
+              )}
+            </div>
+          </div>
           {response !== null && (
             <>
               <p>
-                <b>Console:</b>
+                <b>Result:</b>
+              </p>
+              <Codeblock data={response} />
+            </>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function NoDemo({ children, title, codeSnippet }) {
+  return (
+    <Card>
+      <div className="grid2cols">
+        <div className="">
+          <h3>{title}</h3>
+          {children}
+        </div>
+        <div className="mt-8">
+          <Codeblock data={codeSnippet} isJson={false} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function DemoGetInstalledWallets() {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [response, setResponse] = useState<null | any>(null);
+
+  async function runDemo() {
+    setLoading(true);
+    let results = WalletService.getInstalledWallets();
+    setResponse(results);
+    setLoading(false);
+  }
+
+  return (
+    <Card>
+      <div className="grid2cols">
+        <div className="">
+          <h3>Get installed wallets</h3>
+          <p>Returns a list of wallets installed on user&apos;s device.</p>
+        </div>
+
+        <div className="mt-8">
+          <div className="flex">
+            <div className="flex-1 overflow-auto">
+              <Codeblock
+                data={`const result = WalletService.getInstalledWallets();`}
+                isJson={false}
+              />
+            </div>
+            <div className="pt-4 ml-1">
+              <Button
+                onClick={() => runDemo()}
+                style={
+                  loading ? 'warning' : response !== null ? 'success' : 'light'
+                }
+                disabled={loading}
+              >
+                <PlayIcon className="w-4 h-8" />
+              </Button>
+            </div>
+          </div>
+          {response !== null && (
+            <>
+              <p>
+                <b>Result:</b>
               </p>
               <Codeblock data={response} />
             </>
@@ -166,16 +270,31 @@ function DemoSection({ title, desc, demoStr, demoFn, walletConnected }) {
 }
 
 function DemoConnectWallet() {
+  const { walletNameConnected } = useWallet();
+
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid2cols">
         <div className="">
           <h3>Connect wallet</h3>
-          <p>Connect wallet.</p>
+          <p>
+            This is the entrypoint to start communication with the user&apos;s
+            wallet. The wallet should request the user&apos;s permission to connect
+            the web page to the user&apos;s wallet, and if permission has been
+            granted, the wallet will be returned and exposing the full API for
+            the dApp to use.
+          </p>
+          <p>
+            Query <code>WalletService.getInstalledWallets()</code> to get a list
+            of available wallets, then provide the wallet <code>name</code> for
+            which wallet the user would like to connect with.
+          </p>
         </div>
         <div className="mt-8">
           <Codeblock
-            data={`const walletConnected = await Mesh.wallet.enable({ walletName: "ccvault" });`}
+            data={`const wallet = await WalletService.enable("${
+              walletNameConnected ? walletNameConnected : 'eternl'
+            }");`}
             isJson={false}
           />
           <ConnectWallet />
@@ -185,86 +304,99 @@ function DemoConnectWallet() {
   );
 }
 
-function DemoAssetParams({ walletConnected }) {
+function DemoGetAssets() {
+  const { wallet, walletConnected } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const [policyId, setPolicyId] = useState<string>('');
-  const [includeOnchain, setIncludeOnchain] = useState<boolean>(false);
-  const [limit, setLimit] = useState<string>('9');
-  const [network, setNetwork] = useState<number>(0);
+  const [limit, setLimit] = useState<string>('');
 
   async function runDemo() {
     setLoading(true);
-    await Mesh.blockfrost.init({
-      blockfrostApiKey:
-        network === 1
-          ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-          : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-      network: network,
-    });
-
-    let params = {
-      policyId: policyId,
-      includeOnchain: includeOnchain,
-    };
-    if (limit) {
-      let _limit = parseInt(limit);
-      if (_limit > 0) {
-        params['limit'] = _limit;
-      }
+    if (limit.length) {
+      let results = await wallet.getAssets();
+      setResponse(results);
+    } else {
+      let results = await wallet.getAssets();
+      setResponse(results);
     }
-
-    const res = await Mesh.wallet.getAssets(params);
-    setResponse(res);
     setLoading(false);
   }
 
-  let hasParams = false;
-  let codeSnippet = ``;
-  if (policyId) {
-    hasParams = true;
-    codeSnippet += policyId && `  policyId: "${policyId}",\n`;
-  }
-  if (includeOnchain) {
-    hasParams = true;
-    codeSnippet += `  includeOnchain: ${includeOnchain},\n`;
-  }
-  if (limit) {
-    let _limit = parseInt(limit);
-    if (_limit > 0) {
-      hasParams = true;
-      codeSnippet += `  limit: ${limit},\n`;
-    }
-  }
-  if (hasParams) {
-    codeSnippet = `const result = await Mesh.wallet.getAssets({\n${codeSnippet}});`;
-  } else {
-    codeSnippet = `const result = await Mesh.wallet.getAssets();`;
-  }
+  return (
+    <Card>
+      <div className="grid2cols">
+        <div className="">
+          <h3>Get assets</h3>
+          <p>Returns a list of assets in wallet excluding lovelace.</p>
+        </div>
 
-  if (includeOnchain) {
-    codeSnippet =
-      `await Mesh.blockfrost.init({\n  blockfrostApiKey: "BLOCKFROST_API_KEY",\n  network: await Mesh.wallet.getNetworkId(),\n});\n\n` +
-      codeSnippet;
-  }
+        <div className="mt-8">
+          <div className="flex">
+            <div className="flex-1 overflow-auto">
+              <Codeblock
+                data={`const result = await wallet.getAssets(${limit});`}
+                isJson={false}
+              />
+            </div>
+            <div className="pt-4 ml-1">
+              {walletConnected && (
+                <Button
+                  onClick={() => runDemo()}
+                  style={
+                    loading
+                      ? 'warning'
+                      : response !== null
+                      ? 'success'
+                      : 'light'
+                  }
+                  disabled={loading}
+                >
+                  <PlayIcon className="w-4 h-8" />
+                </Button>
+              )}
+            </div>
+          </div>
+          {response !== null && (
+            <>
+              <p>
+                <b>Result:</b>
+              </p>
+              <Codeblock data={response} />
+            </>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
-  useEffect(() => {
-    async function init() {
-      let network = await Mesh.wallet.getNetworkId();
-      setNetwork(network);
+function DemoGetAssetsCollection() {
+  const { wallet, walletConnected } = useWallet();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [response, setResponse] = useState<null | any>(null);
+  const [policyId, setPolicyId] = useState<string>('');
+
+  async function runDemo() {
+    setLoading(true);
+    if (policyId.length) {
+      let results = await wallet.getPolicyIdAssets(policyId);
+      setResponse(results);
+    } else {
+      let results = await wallet.getAssets();
+      setResponse(results);
     }
-    if (walletConnected) {
-      init();
-    }
-  }, [walletConnected]);
+    setLoading(false);
+  }
 
   return (
     <Card>
-      <div className="grid gap-4 grid-cols-2">
+      <div className="grid2cols">
         <div className="">
-          <h3>Get assets</h3>
+          <h3>Get a collection of assets</h3>
           <p>
-            Get assets, filtered by policy ID and query on-chain information.
+            Returns a list of assets from a policy ID. If no assets in wallet
+            belongs to the policy ID, an empty list is returned. Query for a
+            list of assets&apos; policy ID with <code>wallet.getPolicyIds()</code>.
           </p>
         </div>
 
@@ -281,44 +413,40 @@ function DemoAssetParams({ walletConnected }) {
                   />
                 </td>
               </tr>
-              <tr>
-                <td className="py-4 px-4 w-1/4">
-                  Include on-chain information
-                </td>
-                <td className="py-4 px-4 w-3/4">
-                  <Toggle value={includeOnchain} onChange={setIncludeOnchain} />
-                </td>
-              </tr>
-              <tr>
-                <td className="py-4 px-4 w-1/4">Limit</td>
-                <td className="py-4 px-4 w-3/4">
-                  <Input
-                    value={limit}
-                    onChange={(e) => setLimit(e.target.value)}
-                    placeholder="limit"
-                    type="number"
-                  />
-                </td>
-              </tr>
             </tbody>
           </table>
 
-          <Codeblock data={codeSnippet} isJson={false} />
-          {walletConnected && (
-            <Button
-              onClick={() => runDemo()}
-              style={
-                loading ? 'warning' : response !== null ? 'success' : 'light'
-              }
-              disabled={loading}
-            >
-              Run code snippet
-            </Button>
-          )}
+          <div className="flex">
+            <div className="flex-1 overflow-auto">
+              <Codeblock
+                data={`const result = await wallet.getPolicyIdAssets(${
+                  policyId == '' ? '' : '"' + policyId + '"'
+                });`}
+                isJson={false}
+              />
+            </div>
+            <div className="pt-4 ml-1">
+              {walletConnected && (
+                <Button
+                  onClick={() => runDemo()}
+                  style={
+                    loading
+                      ? 'warning'
+                      : response !== null
+                      ? 'success'
+                      : 'light'
+                  }
+                  disabled={loading}
+                >
+                  <PlayIcon className="w-4 h-8" />
+                </Button>
+              )}
+            </div>
+          </div>
           {response !== null && (
             <>
               <p>
-                <b>Console:</b>
+                <b>Result:</b>
               </p>
               <Codeblock data={response} />
             </>
