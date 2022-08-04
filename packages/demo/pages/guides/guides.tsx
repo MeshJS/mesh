@@ -8,9 +8,9 @@ const GUIDES = [
     link: '/guides/nextjs',
   },
   {
-    title: 'Start a Node.js project with Mesh',
+    title: 'Start a Node.js backend with NestJS',
     desc: 'Coming soon...',
-    link: '/guides/nodejs',
+    link: '/guides/nestjs',
   },
   {
     title: 'Lock and redeem assets with Smart Contracts',

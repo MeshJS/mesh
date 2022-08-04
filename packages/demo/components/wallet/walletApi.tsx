@@ -279,10 +279,10 @@ function DemoConnectWallet() {
           <h3>Connect wallet</h3>
           <p>
             This is the entrypoint to start communication with the user&apos;s
-            wallet. The wallet should request the user&apos;s permission to connect
-            the web page to the user&apos;s wallet, and if permission has been
-            granted, the wallet will be returned and exposing the full API for
-            the dApp to use.
+            wallet. The wallet should request the user&apos;s permission to
+            connect the web page to the user&apos;s wallet, and if permission
+            has been granted, the wallet will be returned and exposing the full
+            API for the dApp to use.
           </p>
           <p>
             Query <code>WalletService.getInstalledWallets()</code> to get a list
@@ -378,13 +378,15 @@ function DemoGetAssetsCollection() {
 
   async function runDemo() {
     setLoading(true);
-    if (policyId.length) {
-      let results = await wallet.getPolicyIdAssets(policyId);
-      setResponse(results);
-    } else {
-      let results = await wallet.getAssets();
-      setResponse(results);
-    }
+    // if (policyId.length) {
+    //   let results = await wallet.getPolicyIdAssets(policyId);
+    //   setResponse(results);
+    // } else {
+    //   let results = await wallet.getAssets();
+    //   setResponse(results);
+    // }
+    let results = await wallet.getPolicyIdAssets(policyId);
+    setResponse(results);
     setLoading(false);
   }
 
@@ -396,7 +398,8 @@ function DemoGetAssetsCollection() {
           <p>
             Returns a list of assets from a policy ID. If no assets in wallet
             belongs to the policy ID, an empty list is returned. Query for a
-            list of assets&apos; policy ID with <code>wallet.getPolicyIds()</code>.
+            list of assets&apos; policy ID with{' '}
+            <code>wallet.getPolicyIds()</code>.
           </p>
         </div>
 
