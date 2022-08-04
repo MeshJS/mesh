@@ -4,7 +4,7 @@ const Help = () => {
       <section>
         <h2>Help, I&apos;m Stuck!</h2>
         <p>
-          If you get stuck, check out{' '}
+          If you get stuck, you can ask questions at
           <a
             href="https://cardano.stackexchange.com/"
             target="_blank"
@@ -12,7 +12,7 @@ const Help = () => {
           >
             cardano.stackexchange.com
           </a>
-          . You can ask questions and tagged it with <b>mesh</b>.
+          and tagged it with <code>mesh</code>.
         </p>
         <p>
           If you don&apos;t receive an answer, or if you remain stuck, please

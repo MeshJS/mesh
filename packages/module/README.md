@@ -8,7 +8,7 @@ Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
 #### 1. Create a new Next.js app:
 ```sh
-yarn create next-app --typescript
+yarn create next-app --typescript .
 ```
 
 #### 2. Install the `@martifylabs/mesh` package:
@@ -55,46 +55,6 @@ module.exports = nextConfig;
 </p>
 </details>
 
-#### 4. Import Mesh with `import Mesh from "@martifylabs/mesh";`
+#### 4. Import Mesh and start development
 
-<details><summary>See example</summary>
-<p>
-
-Replace `pages/index.tsx` with:
-```js
-import { useState } from "react";
-import type { NextPage } from "next";
-import Mesh from "@martifylabs/mesh";
-
-const Home: NextPage = () => {
-  const [assets, setAssets] = useState<null | any>(null);
-
-  async function connectWallet(walletName: string) {
-    let connected = await Mesh.wallet.enable({ walletName: walletName });
-    const _assets = await Mesh.wallet.getAssets();
-    setAssets(_assets);
-  }
-
-  return (
-    <div>
-      <button type="button" onClick={() => connectWallet("ccvault")}>
-        Connect Wallet
-      </button>
-      <pre>
-        <code className="language-js">{JSON.stringify(assets, null, 2)}</code>
-      </pre>
-    </div>
-  );
-};
-
-export default Home;
-```
-
-Start the server:
-```sh
-yarn run dev
-```
-
-Need more examples? Check the [demo](https://github.com/MartifyLabs/mesh/tree/main/demo).
-</p>
-</details>
+Check the [guides](https://mesh.martify.io/guides) to learn more.

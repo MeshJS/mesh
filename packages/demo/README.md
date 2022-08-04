@@ -2,15 +2,15 @@
 
 ## How to start the Mesh Playground on localhost
 
-In the root folder, 
+From the root folder...
 
 #### 1. Setup
-Run `yarn install && yarn lerna bootstrap && yarn build`:
+Run:
 ```sh
 yarn install && yarn lerna bootstrap && yarn build
 ```
 
-#### 2. Add .env variables
+#### 2. Add .env variables (deprecated)
 In `/packages/demo/`, create a file `.env.local` and fill in the variables:
 
 ```

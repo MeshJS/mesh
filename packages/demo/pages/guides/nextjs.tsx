@@ -46,7 +46,7 @@ const Nextjs = () => {
           >
             MDN JavaScript Reference
           </a>{' '}
-          or watch a few{' '}
+          or my preferred method, by watch a few{' '}
           <a
             href="https://www.youtube.com/results?search_query=get+started+with+nextjs"
             target="_blank"
@@ -96,17 +96,16 @@ const Nextjs = () => {
         <h2>Setup Next.js</h2>
         <h3>1. Create project folder and open Visual Studio Code</h3>
         <p>
-          Create a new folder for your project. Give the folder a meaningful
-          name.
-        </p>
-        <p>
-          Open the Visual Studio Code application and drag your project folder
-          in.
+          Create a new folder for your project, and give the folder a meaningful
+          name. Open the Visual Studio Code application and drag your project
+          folder into Visual Studio Code.
         </p>
 
         <h3>2. Create Next.js app</h3>
         <p>
-          Open the Terminal on your Visual Studio Code and execute this command:
+          From the menu options in on your Visual Studio Code, open the{' '}
+          <code>Terminal</code> and execute this command to create a new NextJs
+          application:
         </p>
         <Codeblock
           data={`yarn create next-app --typescript .`}
@@ -115,8 +114,7 @@ const Nextjs = () => {
 
         <h3>3. Start development server</h3>
         <p>
-          After the installation is complete, start the development server on
-          http://localhost:3000:
+          After the installation is complete, start the development server with:
         </p>
         <Codeblock data={`yarn run dev`} isJson={false} />
         <p>
@@ -128,7 +126,7 @@ const Nextjs = () => {
         </p>
 
         <h2>Setup Mesh</h2>
-        <h3>1. Install the @martifylabs/mesh package</h3>
+        <h3>1. Install @martifylabs/mesh package</h3>
         <p>Install the latest version of Mesh with yarn:</p>
         <Codeblock data={`yarn add @martifylabs/mesh`} isJson={false} />
 
@@ -136,25 +134,9 @@ const Nextjs = () => {
           2. Add webpack in <code>next.config.js</code>
         </h3>
         <p>
-          Open <code>next.config.js</code> and append the following:
-        </p>
-        <Codeblock
-          data={`const nextConfig = {
-  ...
-  webpack: function (config, options) {
-    config.experiments = {
-      asyncWebAssembly: true,
-      layers: true,
-      topLevelAwait: true,
-    };
-    config.resolve.fallback = { fs: false };
-    return config;
-  },
-};`}
-          isJson={false}
-        />
-        <p>
-          Your <code>next.config.js</code> should look like this:
+          Open <code>next.config.js</code> and append <code>webpack</code>{' '}
+          configurations. Your <code>next.config.js</code> should look like
+          this:
         </p>
         <Codeblock
           data={`/** @type {import('next').NextConfig} */
@@ -177,16 +159,15 @@ module.exports = nextConfig;`}
         <p>
           You just saved a few weeks of learning and a number days trying to get
           started. Your Next.js application is ready to connect wallet, browse
-          assets and make some transactions. Start the development server:
+          assets and make some transactions.
         </p>
-        <Codeblock data={`yarn run dev`} isJson={false} />
 
         <h2>See it in action</h2>
         <h3>1. Create a wallet context</h3>
         <p>
           React context is an essential tool for building web applications. It
           allow you to easily share state in your applications, so you can use
-          the data in any component we need in our app. This means that when the
+          the data in any component within the app. This means that when the
           user has connected their wallet, visiting different pages on the app
           ensure their wallet is still connected.
         </p>
@@ -196,22 +177,28 @@ module.exports = nextConfig;`}
           and insert the following codes:
         </p>
         <Codeblock
-          data={`import React, { createContext, useState, useContext, useMemo } from 'react';
-import { WalletService } from '@martifylabs/mesh';
+          data={`import React, {
+  createContext,
+  useState,
+  useContext,
+  useMemo,
+  ReactNode,
+} from "react";
+import { WalletService } from "@martifylabs/mesh";
 
 const WalletContext = createContext({
-  wallet: {},
+  wallet: {} as WalletService,
   connecting: false,
-  walletNameConnected: '',
+  walletNameConnected: "",
   walletConnected: false,
   connectWallet: async (walletName: string) => {},
 });
 
-export const WalletProvider = ({ children }) => {
-  const [wallet, setWallet] = useState({});
+export const WalletProvider = ({ children }: { children: ReactNode }) => {
+  const [wallet, setWallet] = useState<WalletService>({} as WalletService);
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [connecting, setConnecting] = useState<boolean>(false);
-  const [walletNameConnected, setWalletNameConnected] = useState<string>('');
+  const [walletNameConnected, setWalletNameConnected] = useState<string>("");
 
   const connectWallet = async (walletName: string) => {
     setConnecting(true);
@@ -244,8 +231,7 @@ export const WalletProvider = ({ children }) => {
 
 export default function useWallet() {
   return useContext(WalletContext);
-}
-`}
+}`}
           isJson={false}
         />
 
@@ -271,13 +257,14 @@ export default MyApp;`}
           isJson={false}
         />
 
-        <h3>2. Create a Connect Wallet component</h3>
+        <h3>2. Create a connect wallet component</h3>
         <p>
-          Here we show the users a few buttons to connect available wallets they
-          have installed on their device. Clicking on these buttons will ask the
-          user for permission if not granted, and proceed to connect the
-          selected wallet. We will use the <code>useWallet</code> we have
-          previously created for connecting wallet and maintaining states.
+          Lets create a connect wallet component to show users a few buttons to
+          connect wallets they have installed on their device. Clicking on these
+          buttons will ask the user for permission if not granted, and proceed
+          to connect the selected wallet. We will use the <code>useWallet</code>{' '}
+          we have previously created for connecting wallet and maintaining
+          states.
         </p>
         <p>
           Create a new folder named <code>components</code> and create a new
@@ -287,15 +274,16 @@ export default MyApp;`}
         </p>
         <Codeblock
           data={`import { useEffect, useState } from "react";
-import { WalletService, Wallet } from "@martifylabs/mesh";
+import { WalletService } from "@martifylabs/mesh";
+import type { Wallet } from "@martifylabs/mesh";
 import useWallet from "../contexts/wallet";
 
 export default function ConnectWallet() {
   const [availableWallets, setAvailableWallets] = useState<
     Wallet[] | undefined
   >(undefined);
-
-  const { walletNameConnected, connecting, connectWallet } = useWallet();
+  const { walletNameConnected, connecting, connectWallet, walletConnected } =
+    useWallet();
 
   useEffect(() => {
     async function init() {
@@ -313,7 +301,11 @@ export default function ConnectWallet() {
               <button
                 key={i}
                 onClick={() => connectWallet(wallet.name)}
-                disabled={connecting || walletNameConnected == wallet.name}
+                disabled={
+                  walletConnected ||
+                  connecting ||
+                  walletNameConnected == wallet.name
+                }
                 style={{
                   fontWeight:
                     walletNameConnected == wallet.name ? "bold" : "normal",
@@ -339,14 +331,13 @@ export default function ConnectWallet() {
         : ""}
     </>
   );
-}
-`}
+}`}
           isJson={false}
         />
 
         <h3>3. Lets connect wallet and check wallet&apos;s assets</h3>
         <p>
-          Here we link those components together, allowing users to choose a
+          Lastly, we link those components together, allowing users to choose a
           wallet to connect, and query for assets in the wallet with{' '}
           <code>wallet.getAssets()</code>.
         </p>
@@ -410,8 +401,7 @@ export default Home;`}
           isJson={false}
         />
 
-        <h3>3. Start server and try it</h3>
-        <p>Start the development server:</p>
+        <p>Start the development server and try it:</p>
         <Codeblock data={`yarn run dev`} isJson={false} />
         <p>
           Visit{' '}
@@ -423,9 +413,9 @@ export default Home;`}
 
         <h3>4. Try on your own</h3>
         <p>
-          Try displaying your wallet&apos;s address and the amount of lovelace
-          in your Next.js application. Check out the{' '}
-          <Link href="/wallet">wallet</Link> page for more details.
+          Implement another component to display wallet&apos;s address and the
+          amount of lovelace in your Next.js application. Check out the{' '}
+          <Link href="/apis/wallet">wallet</Link> page for more details.
         </p>
 
         <Help />
