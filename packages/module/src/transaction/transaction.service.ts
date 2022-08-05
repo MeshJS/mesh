@@ -2,17 +2,11 @@ import { csl } from '../core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '../common/constants';
 import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
 import {
-  fromBytes,
-  fromPlutusData,
-  toAddress,
-  toPlutusData,
-  toTxUnspentOutput,
-  toUnitInterval,
-  toValue,
+  fromBytes, toAddress, toPlutusData, toTxUnspentOutput, toUnitInterval, toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
 import type { TransactionBuilder } from '../core';
-import type { Asset, Json, Protocol, UTxO } from '../common/types';
+import type { Asset, Data, Protocol, UTxO } from '../common/types';
 
 @Trackable
 export class TransactionService {
@@ -81,11 +75,10 @@ export class TransactionService {
     return this;
   }
 
-  setMetadata(key: number, value: Json): TransactionService {
+  setMetadata(key: number, json: string): TransactionService {
     this._txBuilder.add_json_metadatum_with_schema(
       csl.BigNum.from_str(key.toString()),
-      JSON.stringify(value),
-      csl.MetadataJsonSchema.DetailedSchema
+      json, csl.MetadataJsonSchema.DetailedSchema
     );
 
     return this;
@@ -174,16 +167,16 @@ export class TransactionService {
 
   private notReached(checkpoint: string) {
     return (
-      (this as unknown as TrackableObject).__visits.includes(checkpoint) ===
-      false
+      (this as unknown as TrackableObject).__visits
+        .includes(checkpoint) === false
     );
   }
 
   /**
    * DEBUG
    */
-  static debug(json: Json) {
-    const pdata = toPlutusData(json);
-    return fromPlutusData(pdata);
+  static debug(data: Data) {
+    const pdata = toPlutusData(data);
+    return pdata;
   }
 }
