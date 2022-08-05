@@ -2,7 +2,8 @@ import { csl } from '../core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '../common/constants';
 import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
 import {
-  fromBytes, toAddress, toPlutusData, toTxUnspentOutput, toUnitInterval, toValue,
+  fromBytes, toAddress, toASCII, toPlutusData,
+  toTxUnspentOutput, toUnitInterval, toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
 import type { TransactionBuilder } from '../core';
@@ -11,12 +12,13 @@ import type { Asset, Data, Protocol, UTxO } from '../common/types';
 @Trackable
 export class TransactionService {
   private readonly _txBuilder: TransactionBuilder;
+  // private readonly _txInputsBuilder: TxInputsBuilder;
+  private readonly _walletService?: WalletService;
 
-  constructor(
-    private readonly _walletService: WalletService,
-    parameters?: Protocol
-  ) {
-    this._txBuilder = TransactionService.createTxBuilder(parameters);
+  constructor(options?: CreateTxOptions) {
+    this._txBuilder = TransactionService.createTxBuilder(options?.parameters);
+    // this._txInputsBuilder = csl.TxInputsBuilder.new();
+    this._walletService = options?.walletService;
   }
 
   async build(): Promise<string> {
@@ -29,37 +31,37 @@ export class TransactionService {
     }
   }
 
-  sendLovelace(address: string, lovelace: string): TransactionService {
-    const txOutput = csl.TransactionOutputBuilder.new()
-      .with_address(toAddress(address))
-      .next()
-      .with_coin(csl.BigNum.from_str(lovelace))
-      .build();
-
-    this._txBuilder.add_output(txOutput);
-
-    return this;
-  }
-
   @Checkpoint()
   sendAssets(
-    address: string,
-    assets: Asset[],
-    coinsPerByte = DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize
+    address: string, assets: Asset[],
+    options = {
+      coinsPerByte: DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize
+    } as SendAssetsOptions,
   ): TransactionService {
     const amount = toValue(assets);
     const multiasset = amount.multiasset();
 
-    if (amount.is_zero() || multiasset === undefined) {
+    if (amount.is_zero() || multiasset === undefined)
       return this;
+
+    const txOutputBuilder = csl.TransactionOutputBuilder.new()
+      .with_address(toAddress(address))
+
+    if (options.datum !== undefined) {
+      const datum = toPlutusData(options.datum);
+      const datumHash = csl.hash_plutus_data(datum);
+
+      txOutputBuilder
+        .with_plutus_data(datum)
+        .with_data_hash(datumHash);
     }
 
-    const txOutput = csl.TransactionOutputBuilder.new()
-      .with_address(toAddress(address))
-      .next()
+    const txOutput = txOutputBuilder.next()
       .with_asset_and_min_required_coin_by_utxo_cost(
         multiasset,
-        csl.DataCost.new_coins_per_byte(csl.BigNum.from_str(coinsPerByte))
+        csl.DataCost.new_coins_per_byte(
+          csl.BigNum.from_str(options.coinsPerByte)
+        ),
       )
       .build();
 
@@ -71,6 +73,40 @@ export class TransactionService {
   @Checkpoint()
   setChangeAddress(address: string): TransactionService {
     this._txBuilder.add_change_if_needed(toAddress(address));
+
+    return this;
+  }
+
+  /* @Checkpoint()
+  setCollateral(collateral: UTxO[]): TransactionService {
+    const txInputsBuilder = TransactionService.createTxInputsBuilder(collateral);
+
+    this._txBuilder.set_collateral(txInputsBuilder);
+
+    return this;
+  } */
+
+  sendLovelace(
+    address: string, lovelace: string,
+    options?: SendLovelaceOptions,
+  ): TransactionService {
+    const txOutputBuilder = csl.TransactionOutputBuilder.new()
+      .with_address(toAddress(address))
+
+    if (options?.datum) {
+      const datum = toPlutusData(options.datum);
+      const datumHash = csl.hash_plutus_data(datum);
+
+      txOutputBuilder
+        .with_plutus_data(datum)
+        .with_data_hash(datumHash);
+    }
+      
+    const txOutput = txOutputBuilder.next()
+      .with_coin(csl.BigNum.from_str(lovelace))
+      .build();
+
+    this._txBuilder.add_output(txOutput);
 
     return this;
   }
@@ -135,8 +171,20 @@ export class TransactionService {
     return csl.TransactionBuilder.new(txBuilderConfig);
   }
 
+  /* private addTxInputs(utxos: UTxO[]) {
+    utxos
+      .map((utxo) => toTxUnspentOutput(utxo))
+      .forEach((utxo) => {
+        this._txInputsBuilder.add_input(
+          utxo.output().address(),
+          utxo.input(),
+          utxo.output().amount(),
+        );
+      });
+  } */
+
   private async addChangeAddressIfNeeded() {
-    if (this.notReached('setChangeAddress')) {
+    if (this._walletService && this.notReached('setChangeAddress')) {
       const changeAddress = await this._walletService.getChangeAddress();
       this._txBuilder.add_change_if_needed(toAddress(changeAddress));
     }
@@ -156,7 +204,7 @@ export class TransactionService {
 
   private async getWalletUtxos() {
     const txUnspentOutputs = csl.TransactionUnspentOutputs.new();
-    const walletUtxos = await this._walletService.getDeserializedUtxos();
+    const walletUtxos = await this._walletService?.getDeserializedUtxos()!;
 
     walletUtxos.forEach((utxo) => {
       txUnspentOutputs.add(utxo);
@@ -164,6 +212,24 @@ export class TransactionService {
 
     return txUnspentOutputs;
   }
+
+  /* private getRequiredSigners() {
+    const inputs = [...utxos, ...collateral];
+
+    const addresses = new Set();
+    inputs.forEach((utxo) => {
+      addresses.add(utxo.output().address().to_bech32());
+    });
+    addresses.delete(scriptInput.output().address().to_bech32());
+
+    const requiredSigners = csl.Ed25519KeyHashes.new();
+    addresses.forEach((address) => {
+      const keyHash = resolveAddressKeyHash(address);
+      requiredSigners.add(keyHash);
+    });
+
+    return requiredSigners;
+  } */
 
   private notReached(checkpoint: string) {
     return (
@@ -177,6 +243,30 @@ export class TransactionService {
    */
   static debug(data: Data) {
     const pdata = toPlutusData(data);
-    return pdata;
+
+    const result = pdata.as_constr_plutus_data()?.data();
+
+    console.log("AA", result);
+    console.log("BB", result?.get(0));
+    console.log("CC", result?.get(0).as_bytes());
+    console.log("DD", toASCII(fromBytes(result?.get(0).as_bytes()!)));
+
+    const a = toASCII(fromBytes(result?.get(0).as_bytes()!));    
+    
+    return {a};
   }
 }
+
+type CreateTxOptions = {
+  parameters?: Protocol,
+  walletService?: WalletService
+};
+
+type SendAssetsOptions = {
+  datum?: Data,
+  coinsPerByte: string,
+};
+
+type SendLovelaceOptions = {
+  datum?: Data,
+};

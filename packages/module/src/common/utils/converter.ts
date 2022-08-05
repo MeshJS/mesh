@@ -2,14 +2,11 @@ import { csl } from '../../core';
 import { buildPlutusData } from './builder';
 import { POLICY_ID_LENGTH } from '../constants';
 import {
-  deserializeDataHash, deserializePlutusData,
-  deserializeScriptHash, deserializeScriptRef,
-  deserializeTxHash,
+  deserializeDataHash, deserializePlutusData, deserializeScriptHash,
+  deserializeScriptRef, deserializeTxHash,
 } from './deserializer';
-import type {
-  TransactionUnspentOutput, PlutusData, PlutusList, Value,
-} from '../../core';
-import type { Asset, Data, DataContent, UTxO } from '../types';
+import type { TransactionUnspentOutput, PlutusData, Value } from '../../core';
+import type { Asset, Data, UTxO } from '../types';
 
 /* -----------------[ ASCII ]----------------- */
 
@@ -40,54 +37,13 @@ export const toLovelace = (ada: number) => ada * 1_000_000;
 export const toPlutusData = (data: Data): PlutusData => {
   const fields = csl.PlutusList.new();
 
-  data.fields.forEach((field, index) => {
-    fields.add(buildPlutusData(index, toPlutusList(field)));
+  data.fields.forEach((field) => {
+    fields.add(buildPlutusData(field));
   });
 
-  return buildPlutusData(0, fields);
-};
-
-/* -----------------[ PlutusList ]----------------- */
-
-export const toPlutusList = (content: DataContent): PlutusList => {
-  const result = csl.PlutusList.new();
-
-  switch (typeof content) {
-    case 'string':
-      result.add(csl.PlutusData.new_bytes(
-        toBytes(content),
-      ));
-      break;
-    case 'number':
-      result.add(csl.PlutusData.new_integer(
-        csl.BigInt.from_str(content.toString()),
-      ));
-      break;
-    case 'object':
-      if (Array.isArray(content)) {
-        const plutusList = csl.PlutusList.new();
-        content.forEach((element, index) => {
-          plutusList.add(
-            buildPlutusData(index, toPlutusList(element)),
-          )
-        });
-        result.add(csl.PlutusData.new_list(plutusList));
-      } else {
-        const plutusMap = csl.PlutusMap.new();
-        Object.keys(content).forEach((key, index) => {
-          plutusMap.insert(
-            buildPlutusData(index, toPlutusList(key)),
-            buildPlutusData(index, toPlutusList(content[key])),
-          );
-        });
-        result.add(csl.PlutusData.new_map(plutusMap));
-      }
-      break;
-    default:
-      break;
-  }
-
-  return result;
+  return csl.PlutusData.new_constr_plutus_data(
+    csl.ConstrPlutusData.new(csl.BigNum.from_str('0'), fields),
+  );
 };
 
 /* -----------------[ TransactionUnspentOutput ]----------------- */

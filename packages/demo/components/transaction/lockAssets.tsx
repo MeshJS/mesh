@@ -25,21 +25,14 @@ function CodeDemo() {
   const [state, setState] = useState<number>(0);
 
   async function debug() {
-
     console.log('debug');
 
     let data = {
-      addr: 'addr_something',
-      price: 5,
-      mapofstuffs: {
-        a: 1,
-        b: 'a',
-        c: {
-          d: 2,
-          e: 'b',
-        },
-      },
-      // listofstuffs: [4, 3, 2, 1],
+      fields: [
+        "484f525345323033",
+        43434,
+        "dee127dcc877b538e2fda67d10eff19426b0453779ea17c8bb1b87ff"
+      ],
     };
     const plustusdata = TransactionService.debug(data);
     console.log('plustusdata', plustusdata);
