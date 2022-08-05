@@ -2,7 +2,13 @@ import { csl } from '../core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '../common/constants';
 import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
 import {
-  fromBytes, toAddress, toTxUnspentOutput, toUnitInterval, toValue,
+  fromBytes,
+  fromPlutusData,
+  toAddress,
+  toPlutusData,
+  toTxUnspentOutput,
+  toUnitInterval,
+  toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
 import type { TransactionBuilder } from '../core';
@@ -13,7 +19,8 @@ export class TransactionService {
   private readonly _txBuilder: TransactionBuilder;
 
   constructor(
-    private readonly _walletService: WalletService, parameters?: Protocol,
+    private readonly _walletService: WalletService,
+    parameters?: Protocol
   ) {
     this._txBuilder = TransactionService.createTxBuilder(parameters);
   }
@@ -44,7 +51,7 @@ export class TransactionService {
   sendAssets(
     address: string,
     assets: Asset[],
-    coinsPerByte = DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize,
+    coinsPerByte = DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize
   ): TransactionService {
     const amount = toValue(assets);
     const multiasset = amount.multiasset();
@@ -58,9 +65,7 @@ export class TransactionService {
       .next()
       .with_asset_and_min_required_coin_by_utxo_cost(
         multiasset,
-        csl.DataCost.new_coins_per_byte(
-          csl.BigNum.from_str(coinsPerByte)
-        )
+        csl.DataCost.new_coins_per_byte(csl.BigNum.from_str(coinsPerByte))
       )
       .build();
 
@@ -102,7 +107,7 @@ export class TransactionService {
         txInputsBuilder.add_input(
           utxo.output().address(),
           utxo.input(),
-          utxo.output().amount(),
+          utxo.output().amount()
         );
       });
 
@@ -115,9 +120,7 @@ export class TransactionService {
     parameters = DEFAULT_PROTOCOL_PARAMETERS
   ): TransactionBuilder {
     const txBuilderConfig = csl.TransactionBuilderConfigBuilder.new()
-      .coins_per_utxo_byte(
-        csl.BigNum.from_str(parameters.coinsPerUTxOSize)
-      )
+      .coins_per_utxo_byte(csl.BigNum.from_str(parameters.coinsPerUTxOSize))
       .ex_unit_prices(
         csl.ExUnitPrices.new(
           toUnitInterval(parameters.priceMem.toString()),
@@ -171,7 +174,16 @@ export class TransactionService {
 
   private notReached(checkpoint: string) {
     return (
-      this as unknown as TrackableObject
-    ).__visits.includes(checkpoint) === false;
+      (this as unknown as TrackableObject).__visits.includes(checkpoint) ===
+      false
+    );
+  }
+
+  /**
+   * DEBUG
+   */
+  static debug(json: Json) {
+    const pdata = toPlutusData(json);
+    return fromPlutusData(pdata);
   }
 }

@@ -1,9 +1,9 @@
 export type Json = {
-  [key: string]: Content;
+  [key: string]: JsonContent;
 };
 
-type Content =
+export type JsonContent =
   | string
   | number
-  | Content[]
-  | { [key: string]: Content; };
+  | JsonContent[]
+  | { [key: string]: JsonContent; };

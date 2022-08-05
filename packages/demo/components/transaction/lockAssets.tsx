@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input } from '../../components';
 import useWallet from '../../contexts/wallet';
+import { TransactionService } from '@martifylabs/mesh';
 
 export default function LockAssets() {
   return (
@@ -24,7 +25,24 @@ function CodeDemo() {
   const [state, setState] = useState<number>(0);
 
   async function debug() {
+
     console.log('debug');
+
+    let data = {
+      addr: 'addr_something',
+      price: 5,
+      mapofstuffs: {
+        a: 1,
+        b: 'a',
+        c: {
+          d: 2,
+          e: 'b',
+        },
+      },
+      // listofstuffs: [4, 3, 2, 1],
+    };
+    const plustusdata = TransactionService.debug(data);
+    console.log('plustusdata', plustusdata);
 
     /**
      * LOCK
@@ -62,17 +80,17 @@ function CodeDemo() {
      * UNLOCK
      */
 
-     const txHash = await Mesh.transaction.buildSCv3({
-      ownerAddress: await Mesh.wallet.getWalletAddress(),
-      scriptAddress:
-        'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
-      blockfrostApiKey:
-        (await Mesh.wallet.getNetworkId()) === 1
-          ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-          : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-      network: await Mesh.wallet.getNetworkId(),
-    });
-    console.log('tx', txHash);
+    //  const txHash = await Mesh.transaction.buildSCv3({
+    //   ownerAddress: await Mesh.wallet.getWalletAddress(),
+    //   scriptAddress:
+    //     'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
+    //   blockfrostApiKey:
+    //     (await Mesh.wallet.getNetworkId()) === 1
+    //       ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
+    //       : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+    //   network: await Mesh.wallet.getNetworkId(),
+    // });
+    // console.log('tx', txHash);
 
     /**
      * to check BF tx hash
@@ -85,66 +103,14 @@ function CodeDemo() {
     //   hash: '3c0fc4774e529432b2eaa654720231ad6c6d92ae2a4a7ab2544a93dcfa3c8561',
     // });
     // console.log('result', result);
-
-
-
-
-    // const tx = await Mesh.transaction.buildSC({
-    //   ownerAddress: await Mesh.wallet.getWalletAddress(),
-    //   scriptAddress:
-    //     'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
-    //   assets: [
-    //     'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a.SOCIETY',
-    //   ],
-    //   blockfrostApiKey:
-    //     (await Mesh.wallet.getNetworkId()) === 1
-    //       ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-    //       : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-    //   network: await Mesh.wallet.getNetworkId(),
-    // });
-    // console.log('tx', tx);
-
-    // const signature = await Mesh.wallet.signTx({ tx, partialSign: true });
-    // console.log('signature', signature);
-
-    // const txHash = await Mesh.wallet.submitTransaction({
-    //   tx: tx,
-    //   witnesses: [signature],
-    // });
-    // console.log('txHash', txHash);
-
-
-    // const tx = await Mesh.transaction.buildSCv2({
-    //   ownerAddress: await Mesh.wallet.getWalletAddress(),
-    //   scriptAddress:
-    //     'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
-    //   blockfrostApiKey:
-    //     (await Mesh.wallet.getNetworkId()) === 1
-    //       ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-    //       : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-    //   network: await Mesh.wallet.getNetworkId(),
-    // });
-    // console.log('tx', tx);
-    
-    // const signature = await Mesh.wallet.signTx({ tx, partialSign: true });
-    // console.log("signature", signature);
-
-    // const txHash = await Mesh.wallet.submitTransaction({
-    //   tx: tx,
-    //   witnesses: [signature],
-    // });
-    // console.log('txHash', txHash);
-
-
-
-    
-
-    
   }
 
   return (
     <>
-      <Button onClick={() => debug()} disabled={!walletConnected || state == 1}>
+      <Button
+        onClick={() => debug()}
+        // disabled={!walletConnected || state == 1}
+      >
         debug
       </Button>
     </>

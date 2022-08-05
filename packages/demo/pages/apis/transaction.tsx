@@ -3,7 +3,7 @@ import ConnectWallet from '../../components/wallet/connectWallet';
 import SendAda from '../../components/transaction/sendAda';
 import SendMultiassets from '../../components/transaction/sendMultiassets';
 // import TransactionBuilder from '../../components/transaction/transactionBuilder';
-// import LockAssets from '../../components/transaction/lockAssets';
+import LockAssets from '../../components/transaction/lockAssets';
 import { Codeblock } from '../../components';
 
 const Transaction = () => {
@@ -26,7 +26,8 @@ function Showcase() {
         <SendAda />
         <SendMultiassets />
         {/* <TransactionBuilder /> 
-        <LockAssets />*/}
+        */}
+        <LockAssets />
       </div>
     </section>
   );
