@@ -94,8 +94,11 @@ export class TransactionService {
       .with_address(toAddress(address))
 
     if (options?.datum) {
+      console.log("options.datum", JSON.stringify(options.datum, null, 2));
       const datum = toPlutusData(options.datum);
+      console.log("datum", JSON.stringify(datum, null, 2));
       const datumHash = csl.hash_plutus_data(datum);
+      console.log("datumHash", JSON.stringify(datumHash, null, 2));
 
       txOutputBuilder
         .with_plutus_data(datum)

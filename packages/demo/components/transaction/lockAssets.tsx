@@ -21,8 +21,12 @@ export default function LockAssets() {
 }
 
 function CodeDemo() {
-  const { walletConnected } = useWallet();
+  const { wallet, walletConnected, walletNameConnected } = useWallet();
   const [state, setState] = useState<number>(0);
+  const [result, setResult] = useState<null | string>(null);
+  const [response, setResponse] = useState<null | any>(null);
+  const [amount, setAmount] = useState<string>('1500000');
+  const [datum, setDatum] = useState<string>('');
 
   async function debug() {
     console.log('debug');
@@ -98,8 +102,78 @@ function CodeDemo() {
     // console.log('result', result);
   }
 
+  async function makeTransaction() {
+    setState(1);
+    try {
+      const tx = new TransactionService({ walletService: wallet });
+      tx.sendLovelace(
+        "addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt",
+        amount.toString(),
+        {
+          datum: {
+            fields: ["abc", 123]
+          }
+        }
+      );
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx);
+      const txHash = await wallet.submitTx(signedTx);
+      setResult(txHash);
+      setState(2);
+    } catch (error) {
+      setResult(`${error}`);
+      setState(0);
+    }
+  }
+
+  let codeSnippet = 'code here;';
+
   return (
     <>
+      <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+        <tbody>
+          <tr>
+            <td className="py-4 px-4 w-1/4">Lock amount</td>
+            <td className="py-4 px-4 w-3/4">
+              <Input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="amount lovelace to lock"
+                type="number"
+              />
+            </td>
+          </tr>
+          <tr>
+            <td className="py-4 px-4 w-1/4">Datum</td>
+            <td className="py-4 px-4 w-3/4">
+              <Input
+                value={datum}
+                onChange={(e) => setDatum(e.target.value)}
+                placeholder="a password for datum"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <Codeblock data={codeSnippet} isJson={false} />
+
+      {walletConnected && (
+        <Button
+          onClick={() => makeTransaction()}
+          disabled={state == 1}
+          style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
+        >
+          Run code snippet
+        </Button>
+      )}
+      {result && (
+        <>
+          <h4>Result</h4>
+          <Codeblock data={result} />
+        </>
+      )}
+
       <Button
         onClick={() => debug()}
         // disabled={!walletConnected || state == 1}
