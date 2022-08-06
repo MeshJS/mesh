@@ -25,7 +25,7 @@ function CodeDemo() {
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [response, setResponse] = useState<null | any>(null);
-  const [amount, setAmount] = useState<string>('1500000');
+  const [amount, setAmount] = useState<string>('1700000');
   const [datum, setDatum] = useState<string>('');
 
   async function debug() {
@@ -102,22 +102,68 @@ function CodeDemo() {
     // console.log('result', result);
   }
 
+  async function _getAssetUtxo({ scriptAddress, asset, dataHash }) {
+    let utxosFromBF = await Mesh.blockfrost.addressesAddressUtxosAsset({
+      address: scriptAddress,
+      asset: asset,
+    });
+    console.log('utxosFromBF', utxosFromBF);
+
+    let utxos = utxosFromBF
+      .filter((utxo: any) => {
+        return utxo.data_hash == dataHash
+      })
+      .map((utxoBF) => {
+        return {
+          input: {
+            outputIndex: utxoBF.output_index,
+            txHash: utxoBF.tx_hash
+          },
+          output: {
+            address: "addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8",
+            amount: utxoBF.amount
+          }
+        }
+      });
+
+    return utxos[0];
+  }
+
   async function makeTransaction() {
     setState(1);
     try {
       const tx = new TransactionService({ walletService: wallet });
-      tx.sendLovelace(
-        "addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt",
-        amount.toString(),
-        {
-          datum: {
-            fields: ["484f525345323033", 123]
-          }
-        }
-      );
+
+      // // lock
+      // tx.sendLovelace(
+      //   "addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8",
+      //   amount.toString(),
+      //   {
+      //     datum: {
+      //       fields: ["484f525345323033", 123]
+      //     }
+      //   }
+      // );
+      // const unsignedTx = await tx.build();
+      // const signedTx = await wallet.signTx(unsignedTx);
+      // const txHash = await wallet.submitTx(signedTx);
+
+
+      // // unlock 
+      let assetUtxo = await _getAssetUtxo({
+        scriptAddress:'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
+        asset: 'lovelace',
+        dataHash: "8ab2d08c4821f106c73a44f8ecd7856c264176cfc1672979731ba51e9312f7f2" // TODO add this hash
+      });
+      tx.spendFromScript(
+        '4e4d01000033222220051200120011',
+        { fields: ["484f525345323033", 123] },
+        assetUtxo
+      )
       const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx);
+      const signedTx = await wallet.signTx(unsignedTx, true);
       const txHash = await wallet.submitTx(signedTx);
+
       setResult(txHash);
       setState(2);
     } catch (error) {
