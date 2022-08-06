@@ -2,11 +2,11 @@ import { csl } from '../core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '../common/constants';
 import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
 import {
-  fromBytes, toAddress, toASCII, toPlutusData,
+  fromBytes, toAddress, toPlutusData,
   toTxUnspentOutput, toUnitInterval, toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
-import type { TransactionBuilder } from '../core';
+import type { TransactionBuilder, TransactionOutputBuilder } from '../core';
 import type { Asset, Data, Protocol, UTxO } from '../common/types';
 
 @Trackable
@@ -44,17 +44,8 @@ export class TransactionService {
     if (amount.is_zero() || multiasset === undefined)
       return this;
 
-    const txOutputBuilder = csl.TransactionOutputBuilder.new()
-      .with_address(toAddress(address))
-
-    if (options.datum !== undefined) {
-      const datum = toPlutusData(options.datum);
-      const datumHash = csl.hash_plutus_data(datum);
-
-      txOutputBuilder
-        .with_plutus_data(datum)
-        .with_data_hash(datumHash);
-    }
+    const txOutputBuilder = TransactionService
+      .createTxOutputBuilder(address, options.datum);
 
     const txOutput = txOutputBuilder.next()
       .with_asset_and_min_required_coin_by_utxo_cost(
@@ -88,22 +79,10 @@ export class TransactionService {
 
   sendLovelace(
     address: string, lovelace: string,
-    options?: SendLovelaceOptions,
+    options = {} as SendLovelaceOptions,
   ): TransactionService {
-    const txOutputBuilder = csl.TransactionOutputBuilder.new()
-      .with_address(toAddress(address))
-
-    if (options?.datum) {
-      console.log("options.datum", JSON.stringify(options.datum, null, 2));
-      const datum = toPlutusData(options.datum);
-      console.log("datum", JSON.stringify(datum, null, 2));
-      const datumHash = csl.hash_plutus_data(datum);
-      console.log("datumHash", JSON.stringify(datumHash, null, 2));
-
-      txOutputBuilder
-        .with_plutus_data(datum)
-        .with_data_hash(datumHash);
-    }
+    const txOutputBuilder = TransactionService
+      .createTxOutputBuilder(address, options.datum);
       
     const txOutput = txOutputBuilder.next()
       .with_coin(csl.BigNum.from_str(lovelace))
@@ -174,6 +153,24 @@ export class TransactionService {
     return csl.TransactionBuilder.new(txBuilderConfig);
   }
 
+  private static createTxOutputBuilder(
+    address: string,
+    datum?: Data
+  ): TransactionOutputBuilder {
+    const txOutputBuilder = csl.TransactionOutputBuilder.new()
+      .with_address(toAddress(address))
+
+    if (datum !== undefined) {
+      const plutusData = toPlutusData(datum);
+      const dataHash = csl.hash_plutus_data(plutusData);
+
+      txOutputBuilder.with_plutus_data(plutusData)
+        .with_data_hash(dataHash);
+    }
+
+    return txOutputBuilder;
+  }
+
   /* private addTxInputs(utxos: UTxO[]) {
     utxos
       .map((utxo) => toTxUnspentOutput(utxo))
@@ -187,7 +184,7 @@ export class TransactionService {
   } */
 
   private async addChangeAddressIfNeeded() {
-    if (this._walletService && this.notReached('setChangeAddress')) {
+    if (this._walletService !== undefined && this.notReached('setChangeAddress')) {
       const changeAddress = await this._walletService.getChangeAddress();
       this._txBuilder.add_change_if_needed(toAddress(changeAddress));
     }
@@ -207,7 +204,12 @@ export class TransactionService {
 
   private async getWalletUtxos() {
     const txUnspentOutputs = csl.TransactionUnspentOutputs.new();
-    const walletUtxos = await this._walletService?.getDeserializedUtxos()!;
+
+    if (this._walletService === undefined)
+      return txUnspentOutputs;
+
+    const walletUtxos = await this._walletService
+      .getDeserializedUtxos();
 
     walletUtxos.forEach((utxo) => {
       txUnspentOutputs.add(utxo);
@@ -240,36 +242,18 @@ export class TransactionService {
         .includes(checkpoint) === false
     );
   }
-
-  /**
-   * DEBUG
-   */
-  static debug(data: Data) {
-    const pdata = toPlutusData(data);
-
-    const result = pdata.as_constr_plutus_data()?.data();
-
-    console.log("AA", result);
-    console.log("BB", result?.get(0));
-    console.log("CC", result?.get(0).as_bytes());
-    console.log("DD", toASCII(fromBytes(result?.get(0).as_bytes()!)));
-
-    const a = toASCII(fromBytes(result?.get(0).as_bytes()!));    
-    
-    return {a};
-  }
 }
 
 type CreateTxOptions = {
-  parameters?: Protocol,
-  walletService?: WalletService
+  parameters?: Protocol;
+  walletService?: WalletService;
 };
 
 type SendAssetsOptions = {
-  datum?: Data,
-  coinsPerByte: string,
+  coinsPerByte: string;
+  datum?: Data;
 };
 
 type SendLovelaceOptions = {
-  datum?: Data,
+  datum?: Data;
 };
