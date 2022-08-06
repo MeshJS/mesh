@@ -1,6 +1,6 @@
 import { csl } from '../../core';
 import { toBytes } from './converter';
-import type { PlutusData } from '../../core';
+import type { PlutusData, Redeemer, RedeemerTag } from '../../core';
 import type { DataContent } from '../types';
 
 export const buildPlutusData = (content: DataContent): PlutusData => {
@@ -29,3 +29,20 @@ export const buildPlutusData = (content: DataContent): PlutusData => {
       throw new Error(`Couldn't build PlutusData of type: ${typeof content}.`);
   }
 };
+
+export const buildRedeemer = (
+  redeemerIndex: number,
+  redeemerTag: RedeemerTag,
+  plutusData: PlutusData,
+  memBudget = 7000000,
+  stepsBudget = 3000000000
+): Redeemer =>
+  csl.Redeemer.new(
+    redeemerTag,
+    csl.BigNum.from_str(redeemerIndex.toString()),
+    plutusData,
+    csl.ExUnits.new(
+      csl.BigNum.from_str(memBudget.toString()),
+      csl.BigNum.from_str(stepsBudget.toString()),
+    )
+  );

@@ -29,7 +29,7 @@ function CodeDemo() {
   const [datum, setDatum] = useState<string>('');
 
   async function debug() {
-    console.log('debug');
+    /*console.log('debug');
 
     let data = {
       fields: [
@@ -39,7 +39,7 @@ function CodeDemo() {
       ],
     };
     const plustusdata = TransactionService.debug(data);
-    console.log('plustusdata', plustusdata);
+    console.log('plustusdata', plustusdata);*/
 
     /**
      * LOCK
@@ -111,7 +111,7 @@ function CodeDemo() {
         amount.toString(),
         {
           datum: {
-            fields: ["abc", 123]
+            fields: ["484f525345323033", 123]
           }
         }
       );
