@@ -27,7 +27,7 @@ export class TransactionService {
     try {
       if (this.notVisited('redeemFromScript') === false) {
         await this.addCollateralIfNeeded();
-        await this.addRequiredSigners();
+        this.addRequiredSigners();
       }
 
       await this.addTxInputsIfNeeded();
@@ -166,19 +166,6 @@ export class TransactionService {
     }
   }
 
-  private async addRequiredSigners() {
-    const keys = csl.Ed25519KeyHashes.new();
-    const txInputsBuilder = csl.TxInputsBuilder.new();
-
-    this._signatures.forEach((signature) => {
-      keys.add(deserializeEd25519KeyHash(signature));
-    });
-
-    txInputsBuilder.add_required_signers(keys);
-    
-    this._txBuilder.set_inputs(txInputsBuilder);
-  }
-
   private async addTxInputsIfNeeded() {
     if (this.notVisited('setTxInputs')) {
       const walletUtxos = await this.getWalletUtxos();
@@ -205,6 +192,19 @@ export class TransactionService {
     });
 
     return txUnspentOutputs;
+  }
+
+  private addRequiredSigners() {
+    const keys = csl.Ed25519KeyHashes.new();
+    const txInputsBuilder = csl.TxInputsBuilder.new();
+
+    this._signatures.forEach((signature) => {
+      keys.add(deserializeEd25519KeyHash(signature));
+    });
+
+    txInputsBuilder.add_required_signers(keys);
+    
+    this._txBuilder.set_inputs(txInputsBuilder);
   }
 
   private addSignaturesFrom(inputs: UTxO[]) {
