@@ -29,7 +29,7 @@ export class TransactionService {
     try {
       if (this.notVisited('redeemFromScript') === false) {
         await this.addCollateralIfNeeded();
-        this.addRequiredSigners();
+        // this.addRequiredSigners();
       }
 
       await this.addTxInputsIfNeeded();
@@ -53,22 +53,20 @@ export class TransactionService {
       } as Action,
     } as RedeemFromScriptOptions
   ): TransactionService {
-    const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
-    const txInputsBuilder = csl.TxInputsBuilder.new();
     const utxo = toTxUnspentOutput(value);
+    const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
 
     const plutusWitness = csl.PlutusWitness.new(
       deserializePlutusScript(script),
-      toPlutusData(options.datum),
-      toRedeemer(options.redeemer),
+      toPlutusData(options.datum!),
+      toRedeemer(options.redeemer!),
     );
 
-    txInputsBuilder.add_plutus_script_input(
+    this._txBuilder.add_plutus_script_input(
       plutusWitness, utxo.input(),
       utxo.output().amount()
     );
 
-    this._txBuilder.set_inputs(txInputsBuilder);
     this._txBuilder.calc_script_data_hash(costModels);
 
     return this;
@@ -205,7 +203,7 @@ export class TransactionService {
     return txUnspentOutputs;
   }
 
-  private addRequiredSigners() {
+  public addRequiredSigners() {
     const keys = csl.Ed25519KeyHashes.new();
     const txInputsBuilder = csl.TxInputsBuilder.new();
 
@@ -233,6 +231,16 @@ export class TransactionService {
         .includes(checkpoint) === false
     );
   }
+
+  //////
+
+  static createDatumHash(datum: Data){
+    const plutusData = toPlutusData(datum);
+    const dataHash = csl.hash_plutus_data(plutusData);
+    return fromBytes(dataHash.to_bytes());
+  }
+  // "TypeError: _martifylabs_mesh__WEBPACK_IMPORTED_MODULE_3__.default.transaction.createDatumHash is not a function"
+
 }
 
 type CreateTxOptions = {
@@ -241,8 +249,8 @@ type CreateTxOptions = {
 };
 
 type RedeemFromScriptOptions = {
-  datum: Data;
-  redeemer: Action;
+  datum?: Data;
+  redeemer?: Action;
 };
 
 type SendAssetsOptions = {

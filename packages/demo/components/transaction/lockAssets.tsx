@@ -40,11 +40,9 @@ function CodeDemo() {
     };
     const plustusdata = TransactionService.debug(data);
     console.log('plustusdata', plustusdata);*/
-
     /**
      * LOCK
      */
-
     // const tx = await Mesh.transaction.build({
     //   outputs: [
     //     {
@@ -64,19 +62,15 @@ function CodeDemo() {
     //   network: await Mesh.wallet.getNetworkId(),
     // });
     // console.log('tx', tx);
-
     // const signature = await Mesh.wallet.signTx({ tx });
-
     // const txHash = await Mesh.wallet.submitTransaction({
     //   tx: tx,
     //   witnesses: [signature],
     // });
     // console.log('txHash', txHash);
-
     /**
      * UNLOCK
      */
-
     //  const txHash = await Mesh.transaction.buildSCv3({
     //   ownerAddress: await Mesh.wallet.getWalletAddress(),
     //   scriptAddress:
@@ -88,7 +82,6 @@ function CodeDemo() {
     //   network: await Mesh.wallet.getNetworkId(),
     // });
     // console.log('tx', txHash);
-
     /**
      * to check BF tx hash
      */
@@ -103,6 +96,11 @@ function CodeDemo() {
   }
 
   async function _getAssetUtxo({ scriptAddress, asset, dataHash }) {
+    await Mesh.blockfrost.init({
+      blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+      network: 0,
+    });
+
     let utxosFromBF = await Mesh.blockfrost.addressesAddressUtxosAsset({
       address: scriptAddress,
       asset: asset,
@@ -111,19 +109,20 @@ function CodeDemo() {
 
     let utxos = utxosFromBF
       .filter((utxo: any) => {
-        return utxo.data_hash == dataHash
+        return utxo.data_hash == dataHash;
       })
-      .map((utxoBF) => {
+      .map((utxoBF: any) => {
         return {
           input: {
             outputIndex: utxoBF.output_index,
-            txHash: utxoBF.tx_hash
+            txHash: utxoBF.tx_hash,
           },
           output: {
-            address: "addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8",
-            amount: utxoBF.amount
-          }
-        }
+            address:
+              'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
+            amount: utxoBF.amount,
+          },
+        };
       });
 
     return utxos[0];
@@ -134,37 +133,63 @@ function CodeDemo() {
     try {
       const tx = new TransactionService({ walletService: wallet });
 
+      const isLocking = true;
+      const datum = { fields: ['484f525345323033', 123] };
+      const script = '4e4d01000033222220051200120011';
+      const scriptAddress =
+        'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
+      const asset = {
+        unit: 'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459', // society
+        quantity: '1',
+      };
+
       // // lock
-      // tx.sendLovelace(
-      //   "addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8",
-      //   amount.toString(),
-      //   {
-      //     datum: {
-      //       fields: ["484f525345323033", 123]
-      //     }
-      //   }
-      // );
-      // const unsignedTx = await tx.build();
-      // const signedTx = await wallet.signTx(unsignedTx);
-      // const txHash = await wallet.submitTx(signedTx);
+      if (isLocking) {
+        // tx.sendLovelace(scriptAddress, amount.toString(), {
+        //   datum: datum,
+        // });
 
+        tx.sendAssets(scriptAddress, [asset], {
+          datum: datum,
+          coinsPerByte: '4310',
+        });
 
-      // // unlock 
-      let assetUtxo = await _getAssetUtxo({
-        scriptAddress:'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
-        asset: 'lovelace',
-        dataHash: "8ab2d08c4821f106c73a44f8ecd7856c264176cfc1672979731ba51e9312f7f2" // TODO add this hash
-      });
-      tx.spendFromScript(
-        '4e4d01000033222220051200120011',
-        { fields: ["484f525345323033", 123] },
-        assetUtxo
-      )
-      const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx, true);
-      const txHash = await wallet.submitTx(signedTx);
+        const unsignedTx = await tx.build();
+        const signedTx = await wallet.signTx(unsignedTx);
+        const txHash = await wallet.submitTx(signedTx);
+        setResult(txHash);
+      }
 
-      setResult(txHash);
+      // // unlock
+      else {
+        const dataHash = TransactionService.createDatumHash(datum);
+
+        let assetUtxo = await _getAssetUtxo({
+          scriptAddress: scriptAddress,
+          asset: asset.unit,
+          dataHash: dataHash,
+        });
+
+        tx.redeemFromScript(assetUtxo, script, {
+          datum: datum,
+          redeemer: {
+            // to fix
+            index: assetUtxo.input.outputIndex,
+            budget: {
+              mem: 7000000,
+              steps: 3000000000,
+            },
+            data: { fields: [] },
+            tag: 'SPEND',
+          },
+        }).sendAssets(await wallet.getChangeAddress(), [asset]);
+
+        const unsignedTx = await tx.build();
+        const signedTx = await wallet.signTx(unsignedTx, true);
+        const txHash = await wallet.submitTx(signedTx);
+        setResult(txHash);
+      }
+
       setState(2);
     } catch (error) {
       setResult(`${error}`);
