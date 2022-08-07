@@ -5,11 +5,11 @@ import {
   buildTxBuilder, buildTxInputBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializePlutusScript, fromBytes,
   fromTxUnspentOutput, resolveAddressKeyHash, toAddress,
-  toPlutusData, toTxUnspentOutput, toValue,
+  toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
 import type { TransactionBuilder } from '../core';
-import type { Asset, Data, Protocol, UTxO } from '../common/types';
+import type { Action, Asset, Data, Protocol, UTxO } from '../common/types';
 
 @Trackable
 export class TransactionService {
@@ -40,7 +40,26 @@ export class TransactionService {
 
   @Checkpoint()
   redeemFromScript(
+    value: UTxO, datum: Data, redeemer: Action, script: string
   ): TransactionService {
+    const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
+    const txInputsBuilder = csl.TxInputsBuilder.new();
+    const utxo = toTxUnspentOutput(value);
+
+    const plutusWitness = csl.PlutusWitness.new(
+      deserializePlutusScript(script),
+      toPlutusData(datum),
+      toRedeemer(redeemer),
+    );
+
+    txInputsBuilder.add_plutus_script_input(
+      plutusWitness, utxo.input(),
+      utxo.output().amount()
+    );
+
+    this._txBuilder.set_inputs(txInputsBuilder);
+    this._txBuilder.calc_script_data_hash(costModels);
+
     return this;
   }
 
