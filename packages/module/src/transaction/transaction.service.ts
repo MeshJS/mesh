@@ -3,38 +3,45 @@ import { DEFAULT_PROTOCOL_PARAMETERS } from '../common/constants';
 import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
 import {
   buildTxBuilder, buildTxInputBuilder, buildTxOutputBuilder,
-  deserializeEd25519KeyHash, deserializePlutusScript,
-  fromBytes, fromTxUnspentOutput, resolveAddressKeyHash, toAddress,
+  deserializeEd25519KeyHash, deserializePlutusScript, fromBytes,
+  fromTxUnspentOutput, resolveAddressKeyHash, toAddress,
   toPlutusData, toTxUnspentOutput, toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
-import type { TransactionBuilder,TxInputsBuilder } from '../core';
+import type { TransactionBuilder } from '../core';
 import type { Asset, Data, Protocol, UTxO } from '../common/types';
 
 @Trackable
 export class TransactionService {
+  private readonly _signatures: Set<string>;
   private readonly _txBuilder: TransactionBuilder;
-  private readonly _txInputsBuilder: TxInputsBuilder;
-  private readonly _txSigners: Set<string>;
   private readonly _walletService?: WalletService;
 
   constructor(options = {} as CreateTxOptions) {
+    this._signatures = new Set<string>();
     this._txBuilder = buildTxBuilder(options.parameters);
-    this._txInputsBuilder = csl.TxInputsBuilder.new();
-    this._txSigners = new Set<string>();
     this._walletService = options.walletService;
   }
 
   async build(): Promise<string> {
     try {
-      await this.addCollateralIfNeeded();
-      await this.addRequiredSignersIfNeeded();
+      if (this.notVisited('redeemFromScript') === false) {
+        await this.addCollateralIfNeeded();
+        await this.addRequiredSigners();
+      }
+
       await this.addTxInputsIfNeeded();
       await this.addChangeAddressIfNeeded();
       return fromBytes(this._txBuilder.build_tx().to_bytes());
     } catch (error) {
       throw error;
     }
+  }
+
+  @Checkpoint()
+  redeemFromScript(
+  ): TransactionService {
+    return this;
   }
 
   @Checkpoint()
@@ -92,8 +99,8 @@ export class TransactionService {
   setCollateral(collateral: UTxO[]): TransactionService {
     const txInputsBuilder = buildTxInputBuilder(collateral);
 
+    this.addSignaturesFrom(collateral);
     this._txBuilder.set_collateral(txInputsBuilder);
-    this.addTxSignersFrom(collateral);
 
     return this;
   }
@@ -117,34 +124,8 @@ export class TransactionService {
   setTxInputs(inputs: UTxO[]): TransactionService {
     const txInputsBuilder = buildTxInputBuilder(inputs);
 
+    this.addSignaturesFrom(inputs);
     this._txBuilder.set_inputs(txInputsBuilder);
-    this.addTxSignersFrom(inputs);
-
-    return this;
-  }
-
-  @Checkpoint()
-  spendFromScript(
-    script: string,
-    datum: Data,
-    amount: UTxO,
-  ): TransactionService {
-    const assetUtxo = toTxUnspentOutput(amount);
-    const plutusWitness = csl.PlutusWitness.new(
-      deserializePlutusScript(script),
-      toPlutusData(datum),
-      this.getRedeemer(assetUtxo.input().index().toString()),
-    );
-
-    this._txInputsBuilder.add_plutus_script_input(
-      plutusWitness,
-      assetUtxo.input(),
-      assetUtxo.output().amount()
-    );
-
-    this._txBuilder.calc_script_data_hash(
-      csl.TxBuilderConstants.plutus_vasil_cost_models(),
-    );
 
     return this;
   }
@@ -157,33 +138,26 @@ export class TransactionService {
   }
 
   private async addCollateralIfNeeded() {
-    if (!this.notVisited('spendFromScript')) {
-      if (this._walletService && this.notVisited('setCollateral')) {
-        const collateral = await this._walletService
-          .getDeserializedCollateral();
+    if (this._walletService && this.notVisited('setCollateral')) {
+      const collateral = await this._walletService
+        .getDeserializedCollateral();
 
-        this._txBuilder.set_collateral(
-          buildTxInputBuilder(collateral)
-        );
-
-        this.addTxSignersFrom(
-          collateral.map((c) => fromTxUnspentOutput(c))
-        );
-      }
+      this.addSignaturesFrom(collateral.map((c) => fromTxUnspentOutput(c)));
+      this._txBuilder.set_collateral(buildTxInputBuilder(collateral));
     }
   }
 
-  private async addRequiredSignersIfNeeded() {
-    if (!this.notVisited('spendFromScript')) {
-      const keys = csl.Ed25519KeyHashes.new();
+  private async addRequiredSigners() {
+    const keys = csl.Ed25519KeyHashes.new();
+    const txInputsBuilder = csl.TxInputsBuilder.new();
 
-      this._txSigners.forEach((signature) => {
-        keys.add(deserializeEd25519KeyHash(signature));
-      });
+    this._signatures.forEach((signature) => {
+      keys.add(deserializeEd25519KeyHash(signature));
+    });
 
-      this._txInputsBuilder.add_required_signers(keys);
-      this._txBuilder.set_inputs(this._txInputsBuilder);
-    }
+    txInputsBuilder.add_required_signers(keys);
+    
+    this._txBuilder.set_inputs(txInputsBuilder);
   }
 
   private async addTxInputsIfNeeded() {
@@ -214,12 +188,12 @@ export class TransactionService {
     return txUnspentOutputs;
   }
 
-  private addTxSignersFrom(inputs: UTxO[]) {
+  private addSignaturesFrom(inputs: UTxO[]) {
     inputs
-      .forEach((utxo) => {
-        const address = utxo.output.address;
+      .forEach((input) => {
+        const address = input.output.address;
         const keyHash = resolveAddressKeyHash(address);
-        this._txSigners.add(keyHash);
+        this._signatures.add(keyHash);
       });
   }
 
@@ -229,26 +203,6 @@ export class TransactionService {
         .includes(checkpoint) === false
     );
   }
-
-  ////////
-  getRedeemer(index) {
-    const data = csl.PlutusData.new_constr_plutus_data(
-      csl.ConstrPlutusData.new(csl.BigNum.from_str('0'), csl.PlutusList.new())
-    );
-
-    const redeemer = csl.Redeemer.new(
-      csl.RedeemerTag.new_spend(),
-      csl.BigNum.from_str(index),
-      data,
-      csl.ExUnits.new(
-        csl.BigNum.from_str('7000000'),
-        csl.BigNum.from_str('3000000000')
-      )
-    );
-
-    return redeemer;
-  }
-  ////////
 }
 
 type CreateTxOptions = {
