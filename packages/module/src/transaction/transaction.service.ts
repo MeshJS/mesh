@@ -1,5 +1,7 @@
 import { csl } from '../core';
-import { DEFAULT_PROTOCOL_PARAMETERS } from '../common/constants';
+import {
+  DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
+} from '../common/constants';
 import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
 import {
   buildTxBuilder, buildTxInputBuilder, buildTxOutputBuilder,
@@ -40,7 +42,16 @@ export class TransactionService {
 
   @Checkpoint()
   redeemFromScript(
-    value: UTxO, datum: Data, redeemer: Action, script: string
+    value: UTxO, script: string,
+    options = {
+      datum: { fields: [] },
+      redeemer: {
+        index: value.input.outputIndex,
+        budget: DEFAULT_REDEEMER_BUDGET,
+        data: { fields: [] } as Data,
+        tag: 'SPEND',
+      } as Action,
+    } as RedeemFromScriptOptions
   ): TransactionService {
     const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
     const txInputsBuilder = csl.TxInputsBuilder.new();
@@ -48,8 +59,8 @@ export class TransactionService {
 
     const plutusWitness = csl.PlutusWitness.new(
       deserializePlutusScript(script),
-      toPlutusData(datum),
-      toRedeemer(redeemer),
+      toPlutusData(options.datum),
+      toRedeemer(options.redeemer),
     );
 
     txInputsBuilder.add_plutus_script_input(
@@ -227,6 +238,11 @@ export class TransactionService {
 type CreateTxOptions = {
   parameters?: Protocol;
   walletService?: WalletService;
+};
+
+type RedeemFromScriptOptions = {
+  datum: Data;
+  redeemer: Action;
 };
 
 type SendAssetsOptions = {

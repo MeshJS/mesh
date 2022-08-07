@@ -1,5 +1,10 @@
 import { csl } from '../core';
 
+export const DEFAULT_REDEEMER_BUDGET = {
+  mem: 7000000,
+  steps: 3000000000,
+};
+
 export const DEFAULT_PROTOCOL_PARAMETERS = {
   coinsPerUTxOSize: '4310',
   priceMem: 0.0577,
