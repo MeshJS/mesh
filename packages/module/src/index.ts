@@ -24,5 +24,6 @@ class Mesh {
 export default new Mesh();
 
 export * from './common/types';
+export * from './common/utils/resolver';
 export * from './transaction';
 export * from './wallet';

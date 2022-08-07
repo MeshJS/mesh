@@ -1,5 +1,7 @@
+import { csl } from '../../core';
+import { Data } from '../types';
 import {
-  fromBytes, toAddress, toBaseAddress, toEnterpriseAddress,
+  fromBytes, toAddress, toBaseAddress, toEnterpriseAddress, toPlutusData,
 } from './converter';
 import { deserializeAddress } from './deserializer';
 
@@ -17,6 +19,12 @@ export const resolveAddressKeyHash = (bech32: string) => {
   }
 };
 
+export const resolveDataHash = (data: Data) => {
+  const plutusData = toPlutusData(data);
+  const dataHash = csl.hash_plutus_data(plutusData);
+  return fromBytes(dataHash.to_bytes());
+};
+
 export const resolveFingerprint = (policyId: string, assetName: string) => {
   return `${policyId}${assetName}`; // TODO: CIP 14 - User-Facing Asset Fingerprint
 }
@@ -31,7 +39,7 @@ export const resolveScriptHash = (bech32: string) => {
 
     throw new Error(`Couldn't resolve script hash from address: ${bech32}.`);
   } catch (error) {
-    throw error
+    throw error;
   }
 }
 

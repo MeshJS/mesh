@@ -63,10 +63,10 @@ export const buildTxBuilder = (
   return csl.TransactionBuilder.new(txBuilderConfig);
 };
 
-export const buildTxInputBuilder = (
+export const buildTxInputsBuilder = (
   utxos: unknown[],
 ): TxInputsBuilder => {
-  const txInputBuilder = csl.TxInputsBuilder.new();
+  const txInputsBuilder = csl.TxInputsBuilder.new();
 
   utxos
     .map((utxo) => {
@@ -75,14 +75,14 @@ export const buildTxInputBuilder = (
         : toTxUnspentOutput(utxo as UTxO);
     })
     .forEach((utxo) => {
-      txInputBuilder.add_input(
+      txInputsBuilder.add_input(
         utxo.output().address(),
         utxo.input(),
         utxo.output().amount()
       );
     });
 
-  return txInputBuilder;
+  return txInputsBuilder;
 };
 
 export const buildTxOutputBuilder = (

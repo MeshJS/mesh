@@ -4,24 +4,26 @@ import {
 } from '../common/constants';
 import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
 import {
-  buildTxBuilder, buildTxInputBuilder, buildTxOutputBuilder,
+  buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializePlutusScript, fromBytes,
   fromTxUnspentOutput, resolveAddressKeyHash, toAddress,
   toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
-import type { TransactionBuilder } from '../core';
+import type { TransactionBuilder, TxInputsBuilder } from '../core';
 import type { Action, Asset, Data, Protocol, UTxO } from '../common/types';
 
 @Trackable
 export class TransactionService {
   private readonly _signatures: Set<string>;
   private readonly _txBuilder: TransactionBuilder;
+  private readonly _txInputsBuilder: TxInputsBuilder;
   private readonly _walletService?: WalletService;
 
   constructor(options = {} as CreateTxOptions) {
     this._signatures = new Set<string>();
     this._txBuilder = buildTxBuilder(options.parameters);
+    this._txInputsBuilder = csl.TxInputsBuilder.new();
     this._walletService = options.walletService;
   }
 
@@ -29,7 +31,7 @@ export class TransactionService {
     try {
       if (this.notVisited('redeemFromScript') === false) {
         await this.addCollateralIfNeeded();
-        // this.addRequiredSigners();
+        await this.addRequiredSigners();
       }
 
       await this.addTxInputsIfNeeded();
@@ -62,7 +64,7 @@ export class TransactionService {
       toRedeemer(options.redeemer!),
     );
 
-    this._txBuilder.add_plutus_script_input(
+    this._txInputsBuilder.add_plutus_script_input(
       plutusWitness, utxo.input(),
       utxo.output().amount()
     );
@@ -125,7 +127,7 @@ export class TransactionService {
 
   @Checkpoint()
   setCollateral(collateral: UTxO[]): TransactionService {
-    const txInputsBuilder = buildTxInputBuilder(collateral);
+    const txInputsBuilder = buildTxInputsBuilder(collateral);
 
     this.addSignaturesFrom(collateral);
     this._txBuilder.set_collateral(txInputsBuilder);
@@ -150,10 +152,17 @@ export class TransactionService {
 
   @Checkpoint()
   setTxInputs(inputs: UTxO[]): TransactionService {
-    const txInputsBuilder = buildTxInputBuilder(inputs);
-
     this.addSignaturesFrom(inputs);
-    this._txBuilder.set_inputs(txInputsBuilder);
+
+    inputs
+      .map((input) => toTxUnspentOutput(input))
+      .forEach((utxo) => {
+        this._txInputsBuilder.add_input(
+          utxo.output().address(),
+          utxo.input(),
+          utxo.output().amount()
+        );
+      });
 
     return this;
   }
@@ -171,7 +180,7 @@ export class TransactionService {
         .getDeserializedCollateral();
 
       this.addSignaturesFrom(collateral.map((c) => fromTxUnspentOutput(c)));
-      this._txBuilder.set_collateral(buildTxInputBuilder(collateral));
+      this._txBuilder.set_collateral(buildTxInputsBuilder(collateral));
     }
   }
 
@@ -184,6 +193,8 @@ export class TransactionService {
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
       this._txBuilder.add_inputs_from(walletUtxos, coinSelectionStrategy);
+    } else {
+      this._txBuilder.set_inputs(this._txInputsBuilder);
     }
   }
 
@@ -203,17 +214,14 @@ export class TransactionService {
     return txUnspentOutputs;
   }
 
-  public addRequiredSigners() {
+  private async addRequiredSigners() {
     const keys = csl.Ed25519KeyHashes.new();
-    const txInputsBuilder = csl.TxInputsBuilder.new();
 
     this._signatures.forEach((signature) => {
       keys.add(deserializeEd25519KeyHash(signature));
     });
 
-    txInputsBuilder.add_required_signers(keys);
-    
-    this._txBuilder.set_inputs(txInputsBuilder);
+    this._txInputsBuilder.add_required_signers(keys);
   }
 
   private addSignaturesFrom(inputs: UTxO[]) {
@@ -231,16 +239,6 @@ export class TransactionService {
         .includes(checkpoint) === false
     );
   }
-
-  //////
-
-  static createDatumHash(datum: Data){
-    const plutusData = toPlutusData(datum);
-    const dataHash = csl.hash_plutus_data(plutusData);
-    return fromBytes(dataHash.to_bytes());
-  }
-  // "TypeError: _martifylabs_mesh__WEBPACK_IMPORTED_MODULE_3__.default.transaction.createDatumHash is not a function"
-
 }
 
 type CreateTxOptions = {
