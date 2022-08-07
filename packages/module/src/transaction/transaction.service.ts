@@ -20,7 +20,7 @@ export class TransactionService {
   private readonly _txInputsBuilder: TxInputsBuilder;
   private readonly _walletService?: WalletService;
 
-  constructor(options = {} as CreateTxOptions) {
+  constructor(options = {} as Partial<CreateTxOptions>) {
     this._signatures = new Set<string>();
     this._txBuilder = buildTxBuilder(options.parameters);
     this._txInputsBuilder = csl.TxInputsBuilder.new();
@@ -53,7 +53,7 @@ export class TransactionService {
         data: { fields: [] } as Data,
         tag: 'SPEND',
       } as Action,
-    } as RedeemFromScriptOptions
+    } as Partial<RedeemFromScriptOptions>
   ): TransactionService {
     const utxo = toTxUnspentOutput(value);
     const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
@@ -79,7 +79,7 @@ export class TransactionService {
     address: string, assets: Asset[],
     options = {
       coinsPerByte: DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize,
-    } as SendAssetsOptions
+    } as Partial<SendAssetsOptions>
   ): TransactionService {
     const amount = toValue(assets);
     const multiasset = amount.multiasset();
@@ -93,7 +93,7 @@ export class TransactionService {
       .with_asset_and_min_required_coin_by_utxo_cost(
         multiasset,
         csl.DataCost.new_coins_per_byte(
-          csl.BigNum.from_str(options.coinsPerByte)
+          csl.BigNum.from_str(options.coinsPerByte!)
         )
       )
       .build();
@@ -105,7 +105,7 @@ export class TransactionService {
 
   sendLovelace(
     address: string, lovelace: string,
-    options = {} as SendLovelaceOptions
+    options = {} as Partial<SendLovelaceOptions>
   ): TransactionService {
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
 
@@ -242,20 +242,20 @@ export class TransactionService {
 }
 
 type CreateTxOptions = {
-  parameters?: Protocol;
-  walletService?: WalletService;
+  parameters: Protocol;
+  walletService: WalletService;
 };
 
 type RedeemFromScriptOptions = {
-  datum?: Data;
-  redeemer?: Action;
+  datum: Data;
+  redeemer: Action;
 };
 
 type SendAssetsOptions = {
   coinsPerByte: string;
-  datum?: Data;
+  datum: Data;
 };
 
 type SendLovelaceOptions = {
-  datum?: Data;
+  datum: Data;
 };

@@ -64,7 +64,7 @@ export const toRedeemer = (action: Action): Redeemer => {
       csl.BigNum.from_str(action.budget.steps.toString())
     )
   );
-}
+};
 
 /* -----------------[ TransactionUnspentOutput ]----------------- */
 
