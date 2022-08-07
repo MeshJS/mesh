@@ -1,7 +1,7 @@
 import {
   fromBytes, toAddress, toBaseAddress, toEnterpriseAddress,
-} from "./converter";
-import { deserializeAddress } from "./deserializer";
+} from './converter';
+import { deserializeAddress } from './deserializer';
 
 export const resolveAddressKeyHash = (bech32: string) => {
   try {
