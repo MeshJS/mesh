@@ -1,3 +1,5 @@
+import { csl } from '../core';
+
 export const DEFAULT_PROTOCOL_PARAMETERS = {
   coinsPerUTxOSize: '4310',
   priceMem: 0.0577,
@@ -11,3 +13,10 @@ export const DEFAULT_PROTOCOL_PARAMETERS = {
 };
 
 export const POLICY_ID_LENGTH = 56;
+
+export const REDEEMER_TAGS = {
+  CERT: csl.RedeemerTag.new_cert(),
+  MINT: csl.RedeemerTag.new_mint(),
+  REWARD: csl.RedeemerTag.new_reward(),
+  SPEND: csl.RedeemerTag.new_spend(),
+};

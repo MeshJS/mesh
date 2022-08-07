@@ -1,12 +1,14 @@
 import { csl } from '../../core';
 import { buildPlutusData } from './builder';
-import { POLICY_ID_LENGTH } from '../constants';
+import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '../constants';
 import {
   deserializeDataHash, deserializePlutusData, deserializeScriptHash,
   deserializeScriptRef, deserializeTxHash,
 } from './deserializer';
-import type { TransactionUnspentOutput, PlutusData, Value } from '../../core';
-import type { Asset, Data, UTxO } from '../types';
+import type {
+  PlutusData, Redeemer, TransactionUnspentOutput, Value,
+} from '../../core';
+import type { Action, Asset, Data, UTxO } from '../types';
 
 /* -----------------[ ASCII ]----------------- */
 
@@ -34,7 +36,7 @@ export const toLovelace = (ada: number) => ada * 1_000_000;
 
 /* -----------------[ PlutusData ]----------------- */
 
-export const toPlutusData = (data: Data): PlutusData => {
+export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
   const fields = csl.PlutusList.new();
 
   data.fields.forEach((field) => {
@@ -42,9 +44,27 @@ export const toPlutusData = (data: Data): PlutusData => {
   });
 
   return csl.PlutusData.new_constr_plutus_data(
-    csl.ConstrPlutusData.new(csl.BigNum.from_str('0'), fields),
+    csl.ConstrPlutusData.new(
+      csl.BigNum.from_str(alternative.toString()), fields
+    ),
   );
 };
+
+/* -----------------[ Redeemer ]----------------- */
+
+export const toRedeemer = (action: Action): Redeemer => {
+  const lookupRedeemerTag = (key: string) => REDEEMER_TAGS[key];
+
+  return csl.Redeemer.new(
+    lookupRedeemerTag(action.tag),
+    csl.BigNum.from_str(action.index.toString()),
+    toPlutusData(action.data, action.alternative),
+    csl.ExUnits.new(
+      csl.BigNum.from_str(action.budget.mem.toString()),
+      csl.BigNum.from_str(action.budget.steps.toString())
+    )
+  );
+}
 
 /* -----------------[ TransactionUnspentOutput ]----------------- */
 

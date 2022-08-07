@@ -5,8 +5,7 @@ import {
   toTxUnspentOutput, toUnitInterval,
 } from './converter';
 import type {
-  PlutusData, Redeemer, RedeemerTag,
-  TransactionBuilder, TransactionOutputBuilder,
+  PlutusData, TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
 } from '../../core';
 import type { Data, DataContent, UTxO } from '../types';
@@ -37,23 +36,6 @@ export const buildPlutusData = (content: DataContent): PlutusData => {
       throw new Error(`Couldn't build PlutusData of type: ${typeof content}.`);
   }
 };
-
-export const buildRedeemer = (
-  redeemerIndex: number,
-  redeemerTag: RedeemerTag,
-  data: Data,
-  memBudget = 7000000,
-  stepsBudget = 3000000000
-): Redeemer =>
-  csl.Redeemer.new(
-    redeemerTag,
-    csl.BigNum.from_str(redeemerIndex.toString()),
-    toPlutusData(data),
-    csl.ExUnits.new(
-      csl.BigNum.from_str(memBudget.toString()),
-      csl.BigNum.from_str(stepsBudget.toString())
-    )
-  );
 
 export const buildTxBuilder = (
   parameters = DEFAULT_PROTOCOL_PARAMETERS
@@ -92,7 +74,7 @@ export const buildTxInputBuilder = (
         ? utxo as TransactionUnspentOutput
         : toTxUnspentOutput(utxo as UTxO);
     })
-    .forEach((utxo: TransactionUnspentOutput) => {
+    .forEach((utxo) => {
       txInputBuilder.add_input(
         utxo.output().address(),
         utxo.input(),
