@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Button, Card, Codeblock, Input } from '../../components';
-import { Recipient, Asset } from '../../types';
+import { Recipient } from '../../types';
 import { CardAsset } from '../blocks/cardassets';
+import { AssetsContainer } from '../blocks/assetscontainer';
+import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import useWallet from '../../contexts/wallet';
 import { TransactionService } from '@martifylabs/mesh';
-import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
-import Link from 'next/link';
-import { AssetExtended } from '@martifylabs/mesh/dist/common/types';
-import { AssetsContainer } from '../blocks/assetscontainer';
+import type { Asset, AssetExtended } from '@martifylabs/mesh';
 
 export default function SendMultiassets() {
   return (
@@ -82,12 +82,12 @@ function CodeDemo() {
     }
   }
 
-  async function getAssets() {
-    setState(1);
-    const _assets = await wallet.getAssets();
-    setAssets(_assets.slice(0, 9));
-    setState(0);
-  }
+  // async function getAssets() {
+  //   setState(1);
+  //   const _assets = await wallet.getAssets();
+  //   setAssets(_assets.slice(0, 9));
+  //   setState(0);
+  // }
 
   function add() {
     let newRecipients = [...recipients];
@@ -134,7 +134,7 @@ function CodeDemo() {
 
   useEffect(() => {
     async function init() {
-      getAssets();
+      // getAssets();
       const newRecipents = [
         {
           address:

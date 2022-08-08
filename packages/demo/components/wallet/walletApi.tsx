@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Button, Card, Codeblock, Input } from '../../components';
-import useWallet from '../../contexts/wallet';
-import { PlayIcon } from '@heroicons/react/solid';
-import ConnectWallet from '../../components/wallet/connectWallet';
-import { WalletService } from '@martifylabs/mesh';
 import Link from 'next/link';
+import { Button, Card, Codeblock, Input } from '../../components';
+import { PlayIcon } from '@heroicons/react/solid';
+import useWallet from '../../contexts/wallet';
+import ConnectWallet from './connectWallet';
+import { WalletService } from '@martifylabs/mesh';
 
 export default function WalletApi() {
   return (

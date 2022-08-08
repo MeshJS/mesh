@@ -45,23 +45,25 @@ export class TransactionService {
   @Checkpoint()
   redeemFromScript(
     value: UTxO, script: string,
-    options = {
-      datum: { fields: [] },
-      redeemer: {
-        index: value.input.outputIndex,
-        budget: DEFAULT_REDEEMER_BUDGET,
-        data: { fields: [] } as Data,
-        tag: 'SPEND',
-      } as Action,
-    } as Partial<RedeemFromScriptOptions>
+    options = {} as Partial<RedeemFromScriptOptions>
   ): TransactionService {
     const utxo = toTxUnspentOutput(value);
     const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
 
+    const datum: Data = options.datum ?? { fields: [] };
+    const redeemer: Action = {
+      alternative: 0,
+      budget: DEFAULT_REDEEMER_BUDGET,
+      data: { fields: [] } as Data,
+      index: value.input.outputIndex,
+      tag: 'SPEND',
+      ...options.redeemer,
+    };
+
     const plutusWitness = csl.PlutusWitness.new(
       deserializePlutusScript(script),
-      toPlutusData(options.datum!),
-      toRedeemer(options.redeemer!),
+      toPlutusData(datum),
+      toRedeemer(redeemer),
     );
 
     this._txBuilder.add_plutus_script_input(
@@ -77,9 +79,7 @@ export class TransactionService {
   @Checkpoint()
   sendAssets(
     address: string, assets: Asset[],
-    options = {
-      coinsPerByte: DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize,
-    } as Partial<SendAssetsOptions>
+    options = {} as Partial<SendAssetsOptions>
   ): TransactionService {
     const amount = toValue(assets);
     const multiasset = amount.multiasset();
@@ -93,7 +93,9 @@ export class TransactionService {
       .with_asset_and_min_required_coin_by_utxo_cost(
         multiasset,
         csl.DataCost.new_coins_per_byte(
-          csl.BigNum.from_str(options.coinsPerByte!)
+          csl.BigNum.from_str(
+            options.coinsPerByte ?? DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize
+          )
         )
       )
       .build();
@@ -111,6 +113,23 @@ export class TransactionService {
 
     const txOutput = txOutputBuilder.next()
       .with_coin(csl.BigNum.from_str(lovelace))
+      .build();
+
+    this._txBuilder.add_output(txOutput);
+
+    return this;
+  }
+
+  @Checkpoint()
+  sendValue(
+    address: string, value: UTxO,
+    options = {} as Partial<SendValueOptions>
+  ): TransactionService {
+    const amount = toValue(value.output.amount);
+    const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
+
+    const txOutput = txOutputBuilder.next()
+      .with_value(amount)
       .build();
 
     this._txBuilder.add_output(txOutput);
@@ -188,7 +207,10 @@ export class TransactionService {
     if (this.notVisited('setTxInputs')) {
       const walletUtxos = await this.getWalletUtxos();
 
-      const coinSelectionStrategy = !this.notVisited('sendAssets')
+      const includeMultiAsset =
+        !this.notVisited('sendAssets') || !this.notVisited('sendValue');
+
+      const coinSelectionStrategy = includeMultiAsset
         ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
@@ -257,5 +279,9 @@ type SendAssetsOptions = {
 };
 
 type SendLovelaceOptions = {
+  datum: Data;
+};
+
+type SendValueOptions = {
   datum: Data;
 };

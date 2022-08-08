@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input } from '../../components';
-import useWallet from '../../contexts/wallet';
-import { TransactionService, resolveDataHash } from '@martifylabs/mesh';
 import { AssetsContainer } from '../blocks/assetscontainer';
-import { Asset } from '@martifylabs/mesh/dist/common/types';
+import useWallet from '../../contexts/wallet';
+import Mesh from '@martifylabs/mesh';
+import { TransactionService, resolveDataHash } from '@martifylabs/mesh';
+import type { Asset } from '@martifylabs/mesh';
 
 export default function LockAssets() {
   return (
@@ -36,7 +36,7 @@ function CodeDemo() {
   const { wallet, walletConnected, walletNameConnected } = useWallet();
   const [state, setState] = useState<number>(0);
 
-  const [inputDatum, setInputDatum] = useState<string>('abc'); // user input for datum
+  const [inputDatum, setInputDatum] = useState<string>('supersecret'); // user input for datum
   const [selectedAssets, setSelectedAssets] = useState<{
     [assetId: string]: number;
   }>({}); // user selected assets for locking
@@ -46,12 +46,16 @@ function CodeDemo() {
 
   // set during locking
   const [lockedAssets, setLockedAssets] = useState<Asset[]>([
-    {
-      unit: 'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459',
-      quantity: '1',
-    },
+    // {
+    //   unit: 'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459',
+    //   quantity: '1',
+    // },
+    // {
+    //   unit: '1e82bbd44f7bd555a8bcc829bd4f27056e86412fbb549efdbf78f42d756e7369673030303033',
+    //   quantity: '1',
+    // },
   ]);
-  const [hasLocked, setHasLocked] = useState<boolean>(true);
+  const [hasLocked, setHasLocked] = useState<boolean>(false);
 
   let selectedAssetsList = Object.keys(selectedAssets).map((assetId) => {
     return {
@@ -97,7 +101,7 @@ function CodeDemo() {
       if (isLocking) {
         tx.sendAssets(scriptAddress, [asset], {
           datum: datum,
-          coinsPerByte: '4310', // need this?
+          // coinsPerByte: '4310', // need this?
         });
 
         const unsignedTx = await tx.build();
@@ -118,16 +122,16 @@ function CodeDemo() {
 
         tx.redeemFromScript(assetUtxo, script, {
           datum: datum,
-          redeemer: {
-            // to remove?
-            index: assetUtxo.input.outputIndex,
-            budget: {
-              mem: 7000000,
-              steps: 3000000000,
-            },
-            data: { fields: [] },
-            tag: 'SPEND',
-          },
+          // redeemer: {
+          //   // to remove?
+          //   index: assetUtxo.input.outputIndex,
+          //   budget: {
+          //     mem: 7000000,
+          //     steps: 3000000000,
+          //   },
+          //   data: { fields: [] },
+          //   tag: 'SPEND',
+          // },
         }).sendAssets(await wallet.getChangeAddress(), [asset]);
 
         const unsignedTx = await tx.build();
@@ -199,14 +203,14 @@ function CodeDemo() {
       const datumToLock = { secretCode: inputDatum };
       const datum = { fields: [datumToLock] };
 
-      console.log(1, selectedAssetsList);
-      console.log(2, datumToLock);
+      console.log("selectedAssetsList", selectedAssetsList);
+      console.log("datumToLock", datumToLock);
 
       const tx = new TransactionService({ walletService: wallet });
 
       tx.sendAssets(scriptAddress, selectedAssetsList, {
         datum: datum,
-        coinsPerByte: '4310', // need this?
+        // coinsPerByte: '4310', // need this?
       });
 
       const unsignedTx = await tx.build();
@@ -223,11 +227,11 @@ function CodeDemo() {
   }
 
   async function makeTransactionUnlockAsset() {
-    console.log(11);
+    // console.log(11);
     setState(1);
     try {
       const datumToUnlock = { secretCode: inputDatum };
-      const datum = { fields: [datumToUnlock] }; // still find the `fields` unnecessary
+      const datum = { fields: [datumToUnlock] };
       const dataHash = resolveDataHash(datum);
       console.log('dataHash', dataHash);
 
@@ -241,17 +245,17 @@ function CodeDemo() {
       const tx = new TransactionService({ walletService: wallet });
       tx.redeemFromScript(assetUtxo, script, {
         datum: datum,
-        redeemer: {
-          // to remove?
-          index: assetUtxo.input.outputIndex,
-          budget: {
-            mem: 7000000,
-            steps: 3000000000,
-          },
-          data: { fields: [] },
-          tag: 'SPEND',
-        },
-      }).sendAssets(await wallet.getChangeAddress(), lockedAssets);
+        // redeemer: {
+        //   // to remove?
+        //   index: assetUtxo.input.outputIndex,
+        //   budget: {
+        //     mem: 7000000,
+        //     steps: 3000000000,
+        //   },
+        //   data: { fields: [] },
+        //   tag: 'SPEND',
+        // },
+      }).sendValue(await wallet.getChangeAddress(), assetUtxo);
 
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx, true);
@@ -304,7 +308,7 @@ function CodeDemo() {
               disabled={state == 1}
               style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
             >
-              Run code snippet
+              Run code snippet to lock assets
             </Button>
           )}
           {resultLock && (
@@ -353,7 +357,7 @@ function CodeDemo() {
               disabled={state == 1}
               style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
             >
-              Run code snippet
+              Run code snippet to unlock assets
             </Button>
           )}
           {resultUnlock && (
