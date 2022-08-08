@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input } from '../../components';
 import useWallet from '../../contexts/wallet';
-import { TransactionService } from '@martifylabs/mesh';
+import { TransactionService, resolveDataHash } from '@martifylabs/mesh';
 import { AssetsContainer } from '../blocks/assetscontainer';
 import { Asset } from '@martifylabs/mesh/dist/common/types';
 
@@ -108,7 +108,7 @@ function CodeDemo() {
 
       // // unlock
       else {
-        const dataHash = TransactionService.createDatumHash(datum);
+        const dataHash = resolveDataHash(datum);
 
         let assetUtxo = await _getAssetUtxo({
           scriptAddress: scriptAddress,
@@ -228,7 +228,7 @@ function CodeDemo() {
     try {
       const datumToUnlock = { secretCode: inputDatum };
       const datum = { fields: [datumToUnlock] }; // still find the `fields` unnecessary
-      const dataHash = TransactionService.createDatumHash(datum);
+      const dataHash = resolveDataHash(datum);
       console.log('dataHash', dataHash);
 
       let assetUtxo = await _getAssetUtxo({

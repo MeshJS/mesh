@@ -64,7 +64,7 @@ export class TransactionService {
       toRedeemer(options.redeemer!),
     );
 
-    this._txInputsBuilder.add_plutus_script_input(
+    this._txBuilder.add_plutus_script_input(
       plutusWitness, utxo.input(),
       utxo.output().amount()
     );
@@ -239,15 +239,6 @@ export class TransactionService {
         .includes(checkpoint) === false
     );
   }
-
-  ////
-
-  static createDatumHash(datum: Data){
-    const plutusData = toPlutusData(datum);
-    const dataHash = csl.hash_plutus_data(plutusData);
-    return fromBytes(dataHash.to_bytes());
-  }
-  
 }
 
 type CreateTxOptions = {
