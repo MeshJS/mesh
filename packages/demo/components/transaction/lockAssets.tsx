@@ -3,14 +3,26 @@ import Mesh from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input } from '../../components';
 import useWallet from '../../contexts/wallet';
 import { TransactionService } from '@martifylabs/mesh';
+import { AssetsContainer } from '../blocks/assetscontainer';
+import { Asset } from '@martifylabs/mesh/dist/common/types';
 
 export default function LockAssets() {
   return (
     <Card>
       <div className="grid gap-4 grid-cols-2">
         <div className="">
-          <h3>Lock assets SC</h3>
-          <p>WIP</p>
+          <h3>Lock and unlock assets on smart contract</h3>
+          <p>
+            Token locking is a feature where certain assets are reserved on the
+            smart contract. The assets can only be unlocked when certain
+            conditions are met, for example, when making a purchase.
+          </p>
+          <p>
+            In this showcase, we will lock selected assets from your wallet to
+            an "always succeed" smart contract, where unlocking assets requires
+            the correct datum.
+          </p>
+          <p>Note: recommended to test this feature on testnet only.</p>
         </div>
         <div className="mt-8">
           <CodeDemo />
@@ -23,65 +35,36 @@ export default function LockAssets() {
 function CodeDemo() {
   const { wallet, walletConnected, walletNameConnected } = useWallet();
   const [state, setState] = useState<number>(0);
-  const [result, setResult] = useState<null | string>(null);
-  const [response, setResponse] = useState<null | any>(null);
-  const [amount, setAmount] = useState<string>('1700000');
-  const [datum, setDatum] = useState<string>('');
+
+  const [inputDatum, setInputDatum] = useState<string>('abc'); // user input for datum
+  const [selectedAssets, setSelectedAssets] = useState<{
+    [assetId: string]: number;
+  }>({}); // user selected assets for locking
+
+  const [resultLock, setResultLock] = useState<null | string>(null); // reponse from lock
+  const [resultUnlock, setResultUnlock] = useState<null | string>(null); // reponse from unlock
+
+  // set during locking
+  const [lockedAssets, setLockedAssets] = useState<Asset[]>([
+    {
+      unit: 'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459',
+      quantity: '1',
+    },
+  ]);
+  const [hasLocked, setHasLocked] = useState<boolean>(true);
+
+  let selectedAssetsList = Object.keys(selectedAssets).map((assetId) => {
+    return {
+      unit: assetId,
+      quantity: selectedAssets[assetId].toString(),
+    };
+  });
+
+  const script = '4e4d01000033222220051200120011';
+  const scriptAddress =
+    'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
 
   async function debug() {
-    /*console.log('debug');
-
-    let data = {
-      fields: [
-        "484f525345323033",
-        43434,
-        "dee127dcc877b538e2fda67d10eff19426b0453779ea17c8bb1b87ff"
-      ],
-    };
-    const plustusdata = TransactionService.debug(data);
-    console.log('plustusdata', plustusdata);*/
-    /**
-     * LOCK
-     */
-    // const tx = await Mesh.transaction.build({
-    //   outputs: [
-    //     {
-    //       address:
-    //         'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
-    //       assets: {
-    //         'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a.SOCIETY': 1,
-    //         lovelace: 3000000,
-    //       },
-    //     },
-    //   ],
-    //   hasDatum: true,
-    //   blockfrostApiKey:
-    //     (await Mesh.wallet.getNetworkId()) === 1
-    //       ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-    //       : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-    //   network: await Mesh.wallet.getNetworkId(),
-    // });
-    // console.log('tx', tx);
-    // const signature = await Mesh.wallet.signTx({ tx });
-    // const txHash = await Mesh.wallet.submitTransaction({
-    //   tx: tx,
-    //   witnesses: [signature],
-    // });
-    // console.log('txHash', txHash);
-    /**
-     * UNLOCK
-     */
-    //  const txHash = await Mesh.transaction.buildSCv3({
-    //   ownerAddress: await Mesh.wallet.getWalletAddress(),
-    //   scriptAddress:
-    //     'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
-    //   blockfrostApiKey:
-    //     (await Mesh.wallet.getNetworkId()) === 1
-    //       ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
-    //       : process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-    //   network: await Mesh.wallet.getNetworkId(),
-    // });
-    // console.log('tx', txHash);
     /**
      * to check BF tx hash
      */
@@ -93,6 +76,85 @@ function CodeDemo() {
     //   hash: '3c0fc4774e529432b2eaa654720231ad6c6d92ae2a4a7ab2544a93dcfa3c8561',
     // });
     // console.log('result', result);
+  }
+
+  async function makeTransaction() {
+    setState(1);
+    try {
+      const tx = new TransactionService({ walletService: wallet });
+
+      const isLocking = false;
+      const datum = { fields: [{ secretCode: 'abc' }] };
+      const script = '4e4d01000033222220051200120011';
+      const scriptAddress =
+        'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
+      const asset = {
+        unit: 'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459', // society
+        quantity: '1',
+      };
+
+      // // lock
+      if (isLocking) {
+        tx.sendAssets(scriptAddress, [asset], {
+          datum: datum,
+          coinsPerByte: '4310', // need this?
+        });
+
+        const unsignedTx = await tx.build();
+        const signedTx = await wallet.signTx(unsignedTx);
+        const txHash = await wallet.submitTx(signedTx);
+        setResultLock(txHash);
+      }
+
+      // // unlock
+      else {
+        const dataHash = TransactionService.createDatumHash(datum);
+
+        let assetUtxo = await _getAssetUtxo({
+          scriptAddress: scriptAddress,
+          asset: asset.unit,
+          dataHash: dataHash,
+        });
+
+        tx.redeemFromScript(assetUtxo, script, {
+          datum: datum,
+          redeemer: {
+            // to remove?
+            index: assetUtxo.input.outputIndex,
+            budget: {
+              mem: 7000000,
+              steps: 3000000000,
+            },
+            data: { fields: [] },
+            tag: 'SPEND',
+          },
+        }).sendAssets(await wallet.getChangeAddress(), [asset]);
+
+        const unsignedTx = await tx.build();
+        const signedTx = await wallet.signTx(unsignedTx, true);
+        const txHash = await wallet.submitTx(signedTx);
+        setResultLock(txHash);
+      }
+
+      setState(2);
+    } catch (error) {
+      setResultLock(`${error}`);
+      setState(0);
+    }
+  }
+
+  ///////////////
+
+  function toggleSelectedAssets(index, asset: Asset) {
+    let newSelectedAssets = { ...selectedAssets };
+
+    if (asset.unit in newSelectedAssets) {
+      delete newSelectedAssets[asset.unit];
+    } else {
+      newSelectedAssets[asset.unit] = 1;
+    }
+
+    setSelectedAssets(newSelectedAssets);
   }
 
   async function _getAssetUtxo({ scriptAddress, asset, dataHash }) {
@@ -128,126 +190,184 @@ function CodeDemo() {
     return utxos[0];
   }
 
-  async function makeTransaction() {
+  async function makeTransactionLockAsset() {
+    console.log('selectedAssets', selectedAssets);
+
     setState(1);
     try {
+      setLockedAssets(selectedAssetsList);
+      const datumToLock = { secretCode: inputDatum };
+      const datum = { fields: [datumToLock] };
+
+      console.log(1, selectedAssetsList);
+      console.log(2, datumToLock);
+
       const tx = new TransactionService({ walletService: wallet });
 
-      const isLocking = true;
-      const datum = { fields: ['484f525345323033', 123] };
-      const script = '4e4d01000033222220051200120011';
-      const scriptAddress =
-        'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
-      const asset = {
-        unit: 'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459', // society
-        quantity: '1',
-      };
+      tx.sendAssets(scriptAddress, selectedAssetsList, {
+        datum: datum,
+        coinsPerByte: '4310', // need this?
+      });
 
-      // // lock
-      if (isLocking) {
-        // tx.sendLovelace(scriptAddress, amount.toString(), {
-        //   datum: datum,
-        // });
-
-        tx.sendAssets(scriptAddress, [asset], {
-          datum: datum,
-          coinsPerByte: '4310',
-        });
-
-        const unsignedTx = await tx.build();
-        const signedTx = await wallet.signTx(unsignedTx);
-        const txHash = await wallet.submitTx(signedTx);
-        setResult(txHash);
-      }
-
-      // // unlock
-      else {
-        const dataHash = TransactionService.createDatumHash(datum);
-
-        let assetUtxo = await _getAssetUtxo({
-          scriptAddress: scriptAddress,
-          asset: asset.unit,
-          dataHash: dataHash,
-        });
-
-        tx.redeemFromScript(assetUtxo, script, {
-          datum: datum,
-          redeemer: {
-            // to fix
-            index: assetUtxo.input.outputIndex,
-            budget: {
-              mem: 7000000,
-              steps: 3000000000,
-            },
-            data: { fields: [] },
-            tag: 'SPEND',
-          },
-        }).sendAssets(await wallet.getChangeAddress(), [asset]);
-
-        const unsignedTx = await tx.build();
-        const signedTx = await wallet.signTx(unsignedTx, true);
-        const txHash = await wallet.submitTx(signedTx);
-        setResult(txHash);
-      }
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx);
+      const txHash = await wallet.submitTx(signedTx);
+      setResultLock(txHash);
+      setHasLocked(true);
 
       setState(2);
     } catch (error) {
-      setResult(`${error}`);
+      setResultLock(`${error}`);
+      setState(0);
+    }
+  }
+
+  async function makeTransactionUnlockAsset() {
+    console.log(11);
+    setState(1);
+    try {
+      const datumToUnlock = { secretCode: inputDatum };
+      const datum = { fields: [datumToUnlock] }; // still find the `fields` unnecessary
+      const dataHash = TransactionService.createDatumHash(datum);
+      console.log('dataHash', dataHash);
+
+      let assetUtxo = await _getAssetUtxo({
+        scriptAddress: scriptAddress,
+        asset: lockedAssets[0].unit, // we pick the first asset to search
+        dataHash: dataHash,
+      });
+      console.log('assetUtxo', assetUtxo);
+
+      const tx = new TransactionService({ walletService: wallet });
+      tx.redeemFromScript(assetUtxo, script, {
+        datum: datum,
+        redeemer: {
+          // to remove?
+          index: assetUtxo.input.outputIndex,
+          budget: {
+            mem: 7000000,
+            steps: 3000000000,
+          },
+          data: { fields: [] },
+          tag: 'SPEND',
+        },
+      }).sendAssets(await wallet.getChangeAddress(), lockedAssets);
+
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx, true);
+      const txHash = await wallet.submitTx(signedTx);
+      setResultUnlock(txHash);
+
+      setState(2);
+    } catch (error) {
+      setResultUnlock(`${error}`);
       setState(0);
     }
   }
 
   let codeSnippet = 'code here;';
+  let codeSnippet2 = 'code here;';
 
   return (
     <>
-      <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
-        <tbody>
-          <tr>
-            <td className="py-4 px-4 w-1/4">Lock amount</td>
-            <td className="py-4 px-4 w-3/4">
-              <Input
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="amount lovelace to lock"
-                type="number"
-              />
-            </td>
-          </tr>
-          <tr>
-            <td className="py-4 px-4 w-1/4">Datum</td>
-            <td className="py-4 px-4 w-3/4">
-              <Input
-                value={datum}
-                onChange={(e) => setDatum(e.target.value)}
-                placeholder="a password for datum"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <Codeblock data={codeSnippet} isJson={false} />
-
-      {walletConnected && (
-        <Button
-          onClick={() => makeTransaction()}
-          disabled={state == 1}
-          style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
-        >
-          Run code snippet
-        </Button>
-      )}
-      {result && (
+      {!hasLocked && (
         <>
-          <h4>Result</h4>
-          <Codeblock data={result} />
+          <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+            <tbody>
+              <tr>
+                <td className="py-4 px-4" colSpan={2}>
+                  <AssetsContainer
+                    index={0}
+                    selectedAssets={selectedAssets}
+                    toggleSelectedAssets={toggleSelectedAssets}
+                  />
+                </td>
+              </tr>
+              <tr>
+                <td className="py-4 px-4 w-1/4">Datum</td>
+                <td className="py-4 px-4 w-3/4">
+                  <Input
+                    value={inputDatum}
+                    onChange={(e) => setInputDatum(e.target.value)}
+                    placeholder="a secret code to create datum"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <Codeblock data={codeSnippet} isJson={false} />
+
+          {walletConnected && (
+            <Button
+              onClick={() => makeTransactionLockAsset()}
+              disabled={state == 1}
+              style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
+            >
+              Run code snippet
+            </Button>
+          )}
+          {resultLock && (
+            <>
+              <h4>Result</h4>
+              <Codeblock data={resultLock} />
+            </>
+          )}
+        </>
+      )}
+
+      {hasLocked && (
+        <>
+          <h3>You have locked some assets</h3>
+          <p>
+            Please give some time for the transaction to confirm before attempt
+            unlocking.
+          </p>
+
+          <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+            <tbody>
+              <tr>
+                <td className="py-4 px-4 w-1/4">Locked assets</td>
+                <td className="py-4 px-4 w-3/4">
+                  <Codeblock data={lockedAssets} />
+                </td>
+              </tr>
+              <tr>
+                <td className="py-4 px-4 w-1/4">Datum</td>
+                <td className="py-4 px-4 w-3/4">
+                  <Input
+                    value={inputDatum}
+                    onChange={(e) => setInputDatum(e.target.value)}
+                    placeholder="that secret code to unlock"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <Codeblock data={codeSnippet2} isJson={false} />
+
+          {walletConnected && hasLocked && (
+            <Button
+              onClick={() => makeTransactionUnlockAsset()}
+              disabled={state == 1}
+              style={state == 1 ? 'warning' : state == 2 ? 'success' : 'light'}
+            >
+              Run code snippet
+            </Button>
+          )}
+          {resultUnlock && (
+            <>
+              <h4>Result</h4>
+              <Codeblock data={resultUnlock} />
+            </>
+          )}
         </>
       )}
 
       <Button
-        onClick={() => debug()}
-        // disabled={!walletConnected || state == 1}
+        onClick={() => makeTransaction()}
+        disabled={!walletConnected || state == 1}
       >
         debug
       </Button>

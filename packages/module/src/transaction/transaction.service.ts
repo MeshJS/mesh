@@ -239,6 +239,15 @@ export class TransactionService {
         .includes(checkpoint) === false
     );
   }
+
+  ////
+
+  static createDatumHash(datum: Data){
+    const plutusData = toPlutusData(datum);
+    const dataHash = csl.hash_plutus_data(plutusData);
+    return fromBytes(dataHash.to_bytes());
+  }
+  
 }
 
 type CreateTxOptions = {
