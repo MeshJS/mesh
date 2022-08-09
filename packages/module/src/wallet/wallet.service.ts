@@ -1,5 +1,5 @@
 import { csl } from '../core';
-import { POLICY_ID_LENGTH } from '../common/constants';
+import { MAX_COLLATERAL, POLICY_ID_LENGTH } from '../common/constants';
 import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
@@ -48,14 +48,14 @@ export class WalletService {
     return deserializeAddress(changeAddress).to_bech32();
   }
 
-  async getCollateral(): Promise<UTxO[]> {
-    const deserializedCollateral = await this.getDeserializedCollateral();
+  async getCollateral(limit = MAX_COLLATERAL): Promise<UTxO[]> {
+    const deserializedCollateral = await this.getDeserializedCollateral(limit);
     return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
   }
 
-  async getDeserializedCollateral(): Promise<TransactionUnspentOutput[]> {
+  async getDeserializedCollateral(limit = MAX_COLLATERAL): Promise<TransactionUnspentOutput[]> {
     const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) => deserializeTxUnspentOutput(c));
+    return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }
 
   getNetworkId(): Promise<number> {

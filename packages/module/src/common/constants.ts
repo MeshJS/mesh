@@ -17,6 +17,8 @@ export const DEFAULT_PROTOCOL_PARAMETERS = {
   poolDeposit: '500000000',
 };
 
+export const MAX_COLLATERAL = 3;
+
 export const POLICY_ID_LENGTH = 56;
 
 export const REDEEMER_TAGS = {
