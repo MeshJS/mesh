@@ -4,6 +4,8 @@ import { Button, Card, Codeblock, Input } from '../../components';
 import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import { Recipient } from '../../types';
 import useWallet from '../../contexts/wallet';
+import { LinkCardanoscanTx } from '../blocks/linkCardanoscanTx';
+import ConnectWallet from '../wallet/connectWallet';
 
 export default function SendAda() {
   return (
@@ -33,7 +35,7 @@ export default function SendAda() {
 }
 
 function CodeDemo() {
-  const { wallet, walletConnected, walletNameConnected } = useWallet();
+  const { wallet, walletConnected } = useWallet();
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -112,21 +114,15 @@ function CodeDemo() {
     }
   }, [walletConnected]);
 
-  let codeSnippet = `const wallet = await WalletService.enable("${
-    walletNameConnected ? walletNameConnected : 'eternl'
-  }");`;
-
-  codeSnippet += `\n\nconst tx = new TransactionService(wallet)`;
-
+  let codeSnippet = `const tx = new TransactionService({ walletService: wallet })`;
   for (const recipient of recipients) {
     codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
   }
+  codeSnippet += `;\n`;
 
-  codeSnippet += `;`;
-
-  codeSnippet += `\n\nconst unsignedTx = await tx.build();`;
-  codeSnippet += `\nconst signedTx = await wallet.signTx(unsignedTx);`;
-  codeSnippet += `\nconst txHash = await wallet.submitTx(signedTx);`;
+  codeSnippet += `const unsignedTx = await tx.build();\n`;
+  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
   return (
     <>
@@ -189,7 +185,7 @@ function CodeDemo() {
 
       <Codeblock data={codeSnippet} isJson={false} />
 
-      {walletConnected && (
+      {walletConnected ? (
         <Button
           onClick={() => makeTransaction()}
           disabled={state == 1}
@@ -197,6 +193,8 @@ function CodeDemo() {
         >
           Run code snippet
         </Button>
+      ) : (
+        <ConnectWallet />
       )}
       {result && (
         <>
@@ -204,6 +202,7 @@ function CodeDemo() {
           <Codeblock data={result} />
         </>
       )}
+      {state === 2 && <LinkCardanoscanTx txHash={result} />}
     </>
   );
 }

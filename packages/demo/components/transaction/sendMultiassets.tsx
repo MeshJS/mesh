@@ -8,6 +8,8 @@ import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import useWallet from '../../contexts/wallet';
 import { TransactionService } from '@martifylabs/mesh';
 import type { Asset, AssetExtended } from '@martifylabs/mesh';
+import { LinkCardanoscanTx } from '../blocks/linkCardanoscanTx';
+import ConnectWallet from '../wallet/connectWallet';
 
 export default function SendMultiassets() {
   return (
@@ -153,11 +155,7 @@ function CodeDemo() {
     }
   }, [walletConnected]);
 
-  let codeSnippet = `const wallet = await WalletService.enable("${
-    walletNameConnected ? walletNameConnected : 'eternl'
-  }");`;
-
-  codeSnippet += `\n\nconst tx = new TransactionService(wallet)`;
+  let codeSnippet = `const tx = new TransactionService({ walletService: wallet })`;
   for (const recipient of recipients) {
     if (recipient.assets.lovelace) {
       codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
@@ -181,7 +179,7 @@ function CodeDemo() {
   }
   codeSnippet += `;`;
 
-  codeSnippet += `\n\nconst unsignedTx = await tx.build();`;
+  codeSnippet += `\nconst unsignedTx = await tx.build();`;
   codeSnippet += `\nconst signedTx = await wallet.signTx(unsignedTx);`;
   codeSnippet += `\nconst txHash = await wallet.submitTx(signedTx);`;
 
@@ -255,7 +253,7 @@ function CodeDemo() {
 
         <Codeblock data={codeSnippet} isJson={false} />
 
-        {walletConnected && (
+        {walletConnected ? (
           <Button
             onClick={() => makeTransaction()}
             disabled={state == 1}
@@ -263,6 +261,8 @@ function CodeDemo() {
           >
             Run code snippet
           </Button>
+        ) : (
+          <ConnectWallet />
         )}
 
         {result && (
@@ -271,6 +271,8 @@ function CodeDemo() {
             <Codeblock data={result} />
           </>
         )}
+
+        {state === 2 && <LinkCardanoscanTx txHash={result} />}
       </div>
     </div>
   );

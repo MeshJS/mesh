@@ -292,9 +292,9 @@ function DemoConnectWallet() {
         </div>
         <div className="mt-8">
           <Codeblock
-            data={`const wallet = await WalletService.enable("${
+            data={`const wallet = await WalletService.enable('${
               walletNameConnected ? walletNameConnected : 'eternl'
-            }");`}
+            }');`}
             isJson={false}
           />
           <ConnectWallet />

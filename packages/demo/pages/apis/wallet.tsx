@@ -21,6 +21,14 @@ function Showcase() {
 }
 
 function Hero() {
+  let codeSnippet = '';
+  codeSnippet += `// import WalletService\n`;
+  codeSnippet += `import { WalletService } from '@martifylabs/mesh';\n\n`;
+  codeSnippet += `// connect to a wallet\n`;
+  codeSnippet += `const wallet = await WalletService.enable('eternl');\n\n`;
+  codeSnippet += `// get assets in wallet\n`;
+  codeSnippet += `const assets = await wallet.getAssets();`;
+
   return (
     <section>
       <div className="py-8 px-4 lg:py-16 lg:px-6">
@@ -52,7 +60,7 @@ function Hero() {
               communicate with your wallet. To start, import WalletService with:
             </p>
             <Codeblock
-              data={`import { WalletService } from '@martifylabs/mesh';`}
+              data={codeSnippet}
               isJson={false}
             />
           </div>
