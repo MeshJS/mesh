@@ -21,10 +21,10 @@ export default function LockUnlockContract() {
           </p>
           <p>
             In this showcase, we will lock selected assets from your wallet to
-            an "always succeed" smart contract, where unlocking assets requires
-            the correct datum. In practice, multiple assets (both native assets
-            and lovelace) can be sent to the contract in a single transaction;
-            in this demo, we restrict to only one asset.
+            an &quot;always succeed&quot; smart contract, where unlocking assets
+            requires the correct datum. In practice, multiple assets (both
+            native assets and lovelace) can be sent to the contract in a single
+            transaction; in this demo, we restrict to only one asset.
           </p>
           <p>Note: this feature only works on testnet.</p>
         </div>
