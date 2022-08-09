@@ -47,9 +47,14 @@ function CodeDemo() {
   const [resultUnlock, setResultUnlock] = useState<null | string>(null); // reponse from unlock
   const [hasLocked, setHasLocked] = useState<boolean>(false); // toggle to show unlock section
 
-  const script = '4e4d01000033222220051200120011';
+  // always succeed
+  // const script = '4e4d01000033222220051200120011';
+  // const scriptAddress = 'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
+  // hello world
+  const script =
+    '5860585e0100003332223232323322323232322225335300d333500c00b0035004100913500700913350010024830af38f1ab66490480048dd4000891a8021a9801000a4c24002400224c44666ae68cdd78010008030028900089100109100090009';
   const scriptAddress =
-    'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
+    'addr_test1wrs527svgl0m0ghkhramqkdae643v0q96d83jku8h8etxrs58smpj';
 
   ////
 
@@ -67,6 +72,7 @@ function CodeDemo() {
       address: scriptAddress,
       asset: asset,
     });
+    console.log(`utxos that has ${asset}:`, utxosFromBF);
 
     let utxos = utxosFromBF
       .filter((utxo: any) => {
@@ -84,15 +90,17 @@ function CodeDemo() {
           },
         };
       });
-
+    console.log(`utxos that has datahash (${dataHash}):`, utxos);
+    
     return utxos[0];
   }
 
   async function makeTransactionLockAsset() {
     setState(1);
     try {
-      const datumToLock = { secretCode: inputDatum };
-      const datum = { fields: [datumToLock] };
+      // const datumToLock = { secretCode: inputDatum };
+      // const datum = { fields: [datumToLock] };
+      const datum = { fields: [79600447942433] };
       const assets = [
         {
           unit: selectedAsset,
@@ -101,7 +109,6 @@ function CodeDemo() {
       ];
 
       const tx = new TransactionService({ walletService: wallet });
-
       tx.sendAssets(scriptAddress, assets, { datum: datum });
 
       const unsignedTx = await tx.build();
@@ -120,19 +127,21 @@ function CodeDemo() {
   async function makeTransactionUnlockAsset() {
     setState(3);
     try {
-      const datumToUnlock = { secretCode: inputDatum };
-      const datum = { fields: [datumToUnlock] };
+      // const datumToUnlock = { secretCode: inputDatum };
+      // const datum = { fields: [datumToUnlock] };
+      const datum = { fields: [79600447942433] };
       const dataHash = resolveDataHash(datum);
+      console.log('dataHash', dataHash);
 
       const assetUtxo = await _getAssetUtxo({
         scriptAddress: scriptAddress,
         asset: selectedAsset,
         dataHash: dataHash,
       });
+      console.log('assetUtxo', assetUtxo);
 
       if (assetUtxo) {
         const tx = new TransactionService({ walletService: wallet });
-
         tx.redeemFromScript(assetUtxo, script, { datum: datum }).sendValue(
           await wallet.getChangeAddress(),
           assetUtxo
@@ -140,6 +149,7 @@ function CodeDemo() {
 
         const unsignedTx = await tx.build();
         const signedTx = await wallet.signTx(unsignedTx, true);
+        console.log('signedTx', signedTx);
         const txHash = await wallet.submitTx(signedTx);
         setResultUnlock(txHash);
 
@@ -149,6 +159,7 @@ function CodeDemo() {
         setState(2);
       }
     } catch (error) {
+      console.log('error', error);
       setResultUnlock(`${error}`);
       setState(2);
     }
@@ -201,10 +212,11 @@ function CodeDemo() {
     <>
       <h3>Lock assets</h3>
       <p>
-        In this section, we will lock an asset into the smart contract. Connect
-        your wallet and fetch the assets. Then, selects one of the assets to be
-        sent to the smart contract for locking. Lastly, define a code to create
-        the datum, the same datum hash must be provided to unlock the asset.
+        In this section, we will lock an asset into the smart contract by
+        attaching a hash of the datum to it. Connect your wallet and fetch the
+        assets. Then, selects one of the assets to be sent to the smart contract
+        for locking. Lastly, define a code to create the datum, the same datum
+        hash must be provided to unlock the asset.
       </p>
 
       <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
@@ -265,12 +277,12 @@ function CodeDemo() {
       {hasLocked && (
         <>
           <p>
-            In this section, you can create transactions to redeem the locked
-            assets. Define the corresponding code to create the datum, only a
-            transaction with the corrent datum hash is able to unlock the asset.
-            Define the <code>unit</code> of the locked asset to search for the
-            UTXO in the smart contract, which is required for the
-            transaction&apos;s input.
+            In this section, you can create transactions to unlock the assets
+            with a redeemer that corresponds to the datum. Define the
+            corresponding code to create the datum, only a transaction with the
+            corrent datum hash is able to unlock the asset. Define the{' '}
+            <code>unit</code> of the locked asset to search for the UTXO in the
+            smart contract, which is required for the transaction&apos;s input.
           </p>
           <p>
             Note: give some time for the transaction to confirm before attempt

@@ -25,7 +25,7 @@ export class WalletService {
       }));
   }
 
-  static async enable(walletName: string): Promise<WalletService> {
+  static async enable(walletName: string): Promise<WalletService> {    
     try {
       const walletInstance = await WalletService.resolveInstance(walletName);
 
