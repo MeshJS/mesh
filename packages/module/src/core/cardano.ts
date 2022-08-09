@@ -1,3 +1,5 @@
+import CIP14 from '@emurgo/cip14-js';
+
 const importCSL = async () => {
   if (typeof window !== 'undefined') {
     return await import('@emurgo/cardano-serialization-lib-browser');
@@ -6,7 +8,7 @@ const importCSL = async () => {
   }
 };
 
-const resolveImport = async () => {
+const resolveCSLImport = async () => {
   try {
     const {
       default: _, ...rest
@@ -21,7 +23,9 @@ const resolveImport = async () => {
   }
 };
 
-export const csl = await resolveImport();
+export const AssetFingerprint = (CIP14 as any).default as typeof CIP14;
+
+export const csl = await resolveCSLImport();
 
 export type Address = InstanceType<typeof csl.Address>;
 export type AssetName = InstanceType<typeof csl.AssetName>;

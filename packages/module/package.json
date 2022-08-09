@@ -65,6 +65,7 @@
   "dependencies": {
     "@emurgo/cardano-serialization-lib-browser": "11.0.0",
     "@emurgo/cardano-serialization-lib-nodejs": "11.0.0",
+    "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
     "zod": "3.17.10"
   }

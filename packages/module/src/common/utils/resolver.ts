@@ -1,7 +1,8 @@
-import { csl } from '../../core';
+import { AssetFingerprint, csl } from '../../core';
 import { Data } from '../types';
 import {
-  fromBytes, toAddress, toBaseAddress, toEnterpriseAddress, toPlutusData,
+  fromBytes, toAddress, toBaseAddress,
+  toBytes, toEnterpriseAddress, toPlutusData,
 } from './converter';
 import { deserializeAddress } from './deserializer';
 
@@ -26,7 +27,10 @@ export const resolveDataHash = (data: Data) => {
 };
 
 export const resolveFingerprint = (policyId: string, assetName: string) => {
-  return `${policyId}${assetName}`; // TODO: CIP 14 - User-Facing Asset Fingerprint
+  return AssetFingerprint.fromParts(
+    toBytes(policyId),
+    toBytes(assetName)
+  ).fingerprint();
 }
 
 export const resolveScriptHash = (bech32: string) => {
