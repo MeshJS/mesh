@@ -34,7 +34,7 @@ export class TransactionService {
         await this.addRequiredSigners();
       }
 
-      await this.addTxInputsIfNeeded();
+      await this.addTxInputsAsNeeded();
       await this.addChangeAddressIfNeeded();
       return fromBytes(this._txBuilder.build_tx().to_bytes());
     } catch (error) {
@@ -48,8 +48,6 @@ export class TransactionService {
     options = {} as Partial<RedeemFromScriptOptions>
   ): TransactionService {
     const utxo = toTxUnspentOutput(value);
-    const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
-
     const datum: Data = options.datum ?? { fields: [] };
     const redeemer: Action = {
       alternative: 0,
@@ -66,12 +64,9 @@ export class TransactionService {
       toRedeemer(redeemer),
     );
 
-    this._txBuilder.add_plutus_script_input(
-      plutusWitness, utxo.input(),
-      utxo.output().amount()
+    this._txInputsBuilder.add_plutus_script_input(
+      plutusWitness, utxo.input(), utxo.output().amount()
     );
-
-    this._txBuilder.calc_script_data_hash(costModels);
 
     return this;
   }
@@ -203,7 +198,14 @@ export class TransactionService {
     }
   }
 
-  private async addTxInputsIfNeeded() {
+  private async addTxInputsAsNeeded() {
+    this._txBuilder.set_inputs(this._txInputsBuilder);
+
+    if (this.notVisited('redeemFromScript') === false) {
+      const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
+      this._txBuilder.calc_script_data_hash(costModels);
+    }
+
     if (this.notVisited('setTxInputs')) {
       const walletUtxos = await this.getWalletUtxos();
 
@@ -215,8 +217,6 @@ export class TransactionService {
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
       this._txBuilder.add_inputs_from(walletUtxos, coinSelectionStrategy);
-    } else {
-      this._txBuilder.set_inputs(this._txInputsBuilder);
     }
   }
 
