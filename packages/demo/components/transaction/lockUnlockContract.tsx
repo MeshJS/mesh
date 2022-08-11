@@ -3,7 +3,11 @@ import { Button, Card, Codeblock, Input, Toggle } from '../../components';
 import { AssetsContainer } from '../blocks/assetscontainer';
 import useWallet from '../../contexts/wallet';
 import Mesh from '@martifylabs/mesh';
-import { TransactionService, resolveDataHash } from '@martifylabs/mesh';
+import {
+  TransactionService,
+  resolveDataHash,
+  // resolveDataHashDebug,
+} from '@martifylabs/mesh';
 import type { Asset } from '@martifylabs/mesh';
 import { LinkCardanoscanTx } from '../blocks/linkCardanoscanTx';
 import ConnectWallet from '../wallet/connectWallet';
@@ -41,11 +45,13 @@ function CodeDemo() {
   const [state, setState] = useState<number>(0);
 
   const [inputDatum, setInputDatum] = useState<string>('supersecret'); // user input for datum
-  const [selectedAsset, setSelectedAsset] = useState<string>('f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459'); // user input for selected asset unit
+  const [selectedAsset, setSelectedAsset] = useState<string>(
+    'f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459'
+  ); // user input for selected asset unit
 
   const [resultLock, setResultLock] = useState<null | string>(null); // reponse from lock
   const [resultUnlock, setResultUnlock] = useState<null | string>(null); // reponse from unlock
-  const [hasLocked, setHasLocked] = useState<boolean>(false); // toggle to show unlock section
+  const [hasLocked, setHasLocked] = useState<boolean>(true); // toggle to show unlock section
 
   // always succeed
   // const script = '4e4d01000033222220051200120011';
@@ -91,8 +97,8 @@ function CodeDemo() {
         };
       });
     console.log(`utxos that has datahash (${dataHash}):`, utxos);
-    
-    return utxos[1];
+
+    return utxos[0];
   }
 
   async function makeTransactionLockAsset() {
@@ -100,7 +106,9 @@ function CodeDemo() {
     try {
       // const datumToLock = { secretCode: inputDatum };
       // const datum = { fields: [datumToLock] };
-      const datum = { fields: [79600447942433] };
+      const datum = { fields: ["79600447942433"] };
+      // const datum = "79600447942433";
+      
       const assets = [
         {
           unit: selectedAsset,
@@ -126,12 +134,18 @@ function CodeDemo() {
 
   async function makeTransactionUnlockAsset() {
     setState(3);
+    // const datum = "79600447942433";
+    // const dataHash = resolveDataHashDebug(datum);
+    // console.log('dataHash', dataHash); // expected: 8fb8d1694f8180e8a59f23cce7a70abf0b3a92122565702529ff39baf01f87f1
+    // return;
+
     try {
       // const datumToUnlock = { secretCode: inputDatum };
       // const datum = { fields: [datumToUnlock] };
-      const datum = { fields: [79600447942433] };
+
+      const datum = { fields: ["79600447942433"] };
       const dataHash = resolveDataHash(datum);
-      console.log('dataHash', dataHash);
+      console.log('dataHash', dataHash); // expected: 8fb8d1694f8180e8a59f23cce7a70abf0b3a92122565702529ff39baf01f87f1
 
       const assetUtxo = await _getAssetUtxo({
         scriptAddress: scriptAddress,
@@ -142,21 +156,19 @@ function CodeDemo() {
 
       if (assetUtxo) {
         const tx = new TransactionService({ walletService: wallet });
-        tx.redeemFromScript(assetUtxo, script, { datum: datum }).sendValue(
-          await wallet.getChangeAddress(),
-          assetUtxo
-        ).sendLovelace(
-          await wallet.getChangeAddress(),
-          "3000000"
-        );
+        tx.redeemFromScript(assetUtxo, script, { datum: datum })
+          .sendValue(await wallet.getChangeAddress(), assetUtxo)
+          .sendLovelace(await wallet.getChangeAddress(), '3000000');
 
         const unsignedTx = await tx.build();
         const signedTx = await wallet.signTx(unsignedTx, true);
         console.log('signedTx', signedTx);
         // const txHash = await wallet.submitTx(signedTx);
 
-        let txHash: any = await Mesh.blockfrost.transactionSubmitTx({tx: signedTx});
-        console.log("txHash", txHash);
+        let txHash: any = await Mesh.blockfrost.transactionSubmitTx({
+          tx: signedTx,
+        });
+        console.log('txHash', txHash);
 
         setResultUnlock(txHash);
 
@@ -198,7 +210,9 @@ function CodeDemo() {
   codeSnippet2 += `const script = '${script}'; // SCRIPT CBOR HERE\n`;
   codeSnippet2 += `const datum = { fields: [{ secretCode: '${inputDatum}' }] };\n`;
   codeSnippet2 += `const dataHash = resolveDataHash(datum);\n`;
-  codeSnippet2 += `const assetUtxo = await getAssetUtxo('${scriptAddress}', '${selectedAsset.length>0?selectedAsset:'ASSET UNIT HERE'}', dataHash); // this get UTXO from the script address;\n\n`;
+  codeSnippet2 += `const assetUtxo = await getAssetUtxo('${scriptAddress}', '${
+    selectedAsset.length > 0 ? selectedAsset : 'ASSET UNIT HERE'
+  }', dataHash); // this get UTXO from the script address;\n\n`;
 
   codeSnippet2 += `const tx = new TransactionService({ walletService: wallet })\n`;
   codeSnippet2 += `  .redeemFromScript(\n`;
@@ -274,7 +288,7 @@ function CodeDemo() {
         </>
       )}
 
-      <div className='h-8'></div>
+      <div className="h-8"></div>
 
       <div className="flex">
         <h3>Unlock assets</h3>

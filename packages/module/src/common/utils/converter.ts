@@ -1,30 +1,44 @@
 import { csl } from '@mesh/core';
 import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '@mesh/common/constants';
-import { buildPlutusData } from './builder';
+// import { buildPlutusData } from './builder';
 import {
-  deserializeDataHash, deserializePlutusData, deserializeScriptHash,
-  deserializeScriptRef, deserializeTxHash,
+  deserializeDataHash,
+  deserializePlutusData,
+  deserializeScriptHash,
+  deserializeScriptRef,
+  deserializeTxHash,
 } from './deserializer';
 import type {
-  PlutusData, Redeemer, TransactionUnspentOutput, Value,
+  PlutusData,
+  Redeemer,
+  TransactionUnspentOutput,
+  Value,
 } from '@mesh/core';
 import type { Action, Asset, Data, UTxO } from '@mesh/common/types';
+import { buildPlutusData } from './builder';
 
 /* -----------------[ ASCII ]----------------- */
 
-export const toASCII = (hex: string) => Buffer.from(hex, 'hex').toString('ascii');
+export const fromASCII = (ascii: string) =>
+  fromBytes(Buffer.from(ascii, 'ascii'));
+
+export const toASCII = (hex: string) =>
+  Buffer.from(hex, 'hex').toString('ascii');
 
 /* -----------------[ Address ]----------------- */
 
 export const toAddress = (bech32: string) => csl.Address.from_bech32(bech32);
 
-export const toBaseAddress = (bech32: string) => csl.BaseAddress.from_address(toAddress(bech32));
+export const toBaseAddress = (bech32: string) =>
+  csl.BaseAddress.from_address(toAddress(bech32));
 
-export const toEnterpriseAddress = (bech32: string) => csl.EnterpriseAddress.from_address(toAddress(bech32));
+export const toEnterpriseAddress = (bech32: string) =>
+  csl.EnterpriseAddress.from_address(toAddress(bech32));
 
 /* -----------------[ Bytes ]----------------- */
 
-export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
+export const fromBytes = (bytes: Uint8Array) =>
+  Buffer.from(bytes).toString('hex');
 
 export const toBytes = (hex: string) => Buffer.from(hex, 'hex') as Uint8Array;
 
@@ -35,18 +49,44 @@ export const fromLovelace = (lovelace: number) => lovelace / 1_000_000;
 export const toLovelace = (ada: number) => ada * 1_000_000;
 
 /* -----------------[ PlutusData ]----------------- */
+// export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
+//   const fields = csl.PlutusList.new();
+
+//   data.fields.forEach((field) => {
+//     fields.add(buildPlutusData(field));
+//   });
+
+//   return csl.PlutusData.new_constr_plutus_data(
+//     csl.ConstrPlutusData.new(
+//       csl.BigNum.from_str(alternative.toString()), fields
+//     ),
+//   );
+// };
 
 export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
+  if (alternative === undefined) {
+    const fields = csl.PlutusList.new();
+
+    data.fields.forEach((field) => {
+      fields.add(buildPlutusData(field));
+    });
+
+    return csl.PlutusData.new_list(fields);
+  }
+  
+  if (data.fields[0]) {
+    const datum = csl.PlutusData.new_integer(
+      csl.BigInt.from_str(data.fields[0].toString())
+    );
+    return datum;
+  }
+
   const fields = csl.PlutusList.new();
-
-  data.fields.forEach((field) => {
-    fields.add(buildPlutusData(field));
-  });
-
   return csl.PlutusData.new_constr_plutus_data(
     csl.ConstrPlutusData.new(
-      csl.BigNum.from_str(alternative.toString()), fields
-    ),
+      csl.BigNum.from_str(alternative.toString()),
+      fields
+    )
   );
 };
 
@@ -91,7 +131,9 @@ export const fromTxUnspentOutput = (
     output: {
       address: txUnspentOutput.output().address().to_bech32(),
       amount: fromValue(txUnspentOutput.output().amount()),
-      dataHash, plutusData, scriptRef,
+      dataHash,
+      plutusData,
+      scriptRef,
     },
   };
 };
@@ -153,8 +195,10 @@ export const fromValue = (value: Value) => {
         const policyAssetNames = policyAssets.keys();
         for (let j = 0; j < policyAssetNames.len(); j += 1) {
           const assetName = policyAssetNames.get(j);
-          const quantity = policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
-          const assetId = fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
+          const quantity =
+            policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
+          const assetId =
+            fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
           assets.push({ unit: assetId, quantity: quantity.to_str() });
         }
       }

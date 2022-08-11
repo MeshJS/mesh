@@ -61,7 +61,6 @@ export class Blockfrost {
           baseURL: this._networkEndpoint,
           headers: { project_id: this._blockfrostApiKey },
         });
-        console.log("temp_instance", temp_instance);
 
         return await temp_instance
           .post({ endpoint: `${endpoint}`, data: body, headers: headers })
