@@ -1,0 +1,45 @@
+""transaction submit error ShelleyTxValidationError ShelleyBasedEraBabbage 
+(ApplyTxError [UtxowFailure 
+(UtxoFailure 
+(FromAlonzoUtxoFail 
+(UtxosFailure 
+(ValidationTagMismatch 
+(IsValid True) 
+(FailedUnexpectedly 
+(PlutusFailure \"\\nThe 3 arg plutus script 
+(PlutusScript PlutusV1 ScriptHash \\\"e1457a0c47dfb7a2f6b8fbb059bdceab163c05d34f195b87b9f2b30e\\\") fails.\\nCekError An error has occurred:  User error:\\nThe machine terminated because of an error, either from a built-in function or from an explicit use of 'error'.\\nThe protocol version is: ProtVer {pvMajor = 7, pvMinor = 0}\\nThe data is: Constr 0 [I 79600447942433]\\nThe redeemer is: Constr 0 []\\nThe context is:\\nPurpose: Spending 
+(TxOutRef {txOutRefId = ae6786c537a712eb37c39bb425036877d1ac213e54a7ece0c30b9561482509af, txOutRefIdx = 0})\\nTxInfo:\\n  TxId: 686f06181d71eb81dafdb1ab49c0f8fffc7d89bc0e4e4856d5052f190bd2300b\\n  Inputs: [ ae6786c537a712eb37c39bb425036877d1ac213e54a7ece0c30b9561482509af!0 -> - Value 
+(Map [
+  (,Map [
+  (\\\"\\\",1297310)]),
+(f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a,Map [
+  (\\\"SOCIETY\\\",1)])]) addressed to\\n                                                                                    ScriptCredential: e1457a0c47dfb7a2f6b8fbb059bdceab163c05d34f195b87b9f2b30e 
+(no staking credential)\\n          , ae6786c537a712eb37c39bb425036877d1ac213e54a7ece0c30b9561482509af!1 -> - Value 
+(Map [
+  (,Map [
+  (\\\"\\\",197481362)]),
+(9a4e855293a0b9af5e50935a331d83e7982ab5b738ea0e6fc0f9e656,Map [
+  (\\\"FRAME_05001_L0\\\",1)])]) addressed to\\n                                                                                    PubKeyCredential: 28be93c7117fef32c660d8b1b3cf9b24db3d2461b601429e921ec069 
+(StakingHash PubKeyCredential: d68b8a14843d44a83c55d0dfd24660e68788bb737d170a6054a22d42) ]\\n  Outputs: [ - Value 
+(Map [
+  (,Map [
+  (\\\"\\\",1297310)]),
+(f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a,Map [
+  (\\\"SOCIETY\\\",1)])]) addressed to\\n               PubKeyCredential: 28be93c7117fef32c660d8b1b3cf9b24db3d2461b601429e921ec069 
+(StakingHash PubKeyCredential: d68b8a14843d44a83c55d0dfd24660e68788bb737d170a6054a22d42)\\n           , - Value 
+(Map [
+  (,Map [
+  (\\\"\\\",3000000)])]) addressed to\\n               PubKeyCredential: 28be93c7117fef32c660d8b1b3cf9b24db3d2461b601429e921ec069 
+(StakingHash PubKeyCredential: d68b8a14843d44a83c55d0dfd24660e68788bb737d170a6054a22d42)\\n           , - Value 
+(Map [
+  (,Map [
+  (\\\"\\\",193675509)]),
+(9a4e855293a0b9af5e50935a331d83e7982ab5b738ea0e6fc0f9e656,Map [
+  (\\\"FRAME_05001_L0\\\",1)])]) addressed to\\n               PubKeyCredential: 28be93c7117fef32c660d8b1b3cf9b24db3d2461b601429e921ec069 
+(StakingHash PubKeyCredential: d68b8a14843d44a83c55d0dfd24660e68788bb737d170a6054a22d42) ]\\n  Fee: Value 
+(Map [
+  (,Map [
+  (\\\"\\\",805853)])])\\n  Value minted: Value 
+(Map [])\\n  DCerts: []\\n  Wdrl: []\\n  Valid range: 
+(-\\8734 , +\\8734)\\n  Signatories: []\\n  Datums: [ 
+  ( 3a1f72730f480e51931f5be8d428a410b05641d9b1279ebf3100181f9836e26b\\n          , <79600447942433> ) ]\\n\" \"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\" :| []))))))])""

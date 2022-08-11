@@ -1,8 +1,11 @@
 import { ProtocolParameters } from '../types/index';
 import axios, { AxiosInstance } from 'axios/index';
+import { Axios } from './axios';
 
 export class Blockfrost {
   private _instance!: AxiosInstance;
+  private _networkEndpoint = '';
+  private _blockfrostApiKey = '';
 
   constructor() {}
 
@@ -13,12 +16,13 @@ export class Blockfrost {
     blockfrostApiKey: string;
     network: number;
   }) {
-    const networkEndpoint =
+    this._blockfrostApiKey = blockfrostApiKey;
+    this._networkEndpoint =
       network == 0
         ? 'https://cardano-testnet.blockfrost.io/api/v0'
         : 'https://cardano-mainnet.blockfrost.io/api/v0';
     this._instance = axios.create({
-      baseURL: networkEndpoint,
+      baseURL: this._networkEndpoint,
       headers: {
         project_id: blockfrostApiKey,
       },
@@ -33,10 +37,12 @@ export class Blockfrost {
     endpoint = '',
     body = null,
     method = 'GET',
+    headers = null,
   }: {
     endpoint: string;
     body?: null | string | Buffer;
     method?: string;
+    headers?: {} | null;
   }) {
     if (method == 'GET') {
       return await this._instance
@@ -50,14 +56,31 @@ export class Blockfrost {
     }
 
     if (method == 'POST') {
-      return await this._instance
-        .post(`${endpoint}`, body)
-        .then(({ data }) => {
-          return data;
-        })
-        .catch((error) => {
-          throw error;
+      if (headers) {
+        let temp_instance = new Axios({
+          baseURL: this._networkEndpoint,
+          headers: { project_id: this._blockfrostApiKey },
         });
+        console.log("temp_instance", temp_instance);
+
+        return await temp_instance
+          .post({ endpoint: `${endpoint}`, data: body, headers: headers })
+          .then(({ data }) => {
+            return data;
+          })
+          .catch((error) => {
+            throw error;
+          });
+      } else {
+        return await this._instance
+          .post(`${endpoint}`, body)
+          .then(({ data }) => {
+            return data;
+          })
+          .catch((error) => {
+            throw error;
+          });
+      }
     }
   }
 
@@ -135,4 +158,19 @@ export class Blockfrost {
       endpoint: `/txs/${hash}/utxos`,
     });
   }
+
+  async transactionSubmitTx({ tx }: { tx: string }): Promise<{}> {
+    return await this._request({
+      endpoint: `/tx/submit`,
+      body: Buffer.from(tx, 'hex'),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/cbor' },
+    });
+  }
+
+  // const result = await blockfrostRequest(
+  //   `/tx/submit`,
+  //   { 'Content-Type': 'application/cbor' },
+  //   Buffer.from(tx, 'hex')
+  // );
 }

@@ -72,7 +72,7 @@ function Listings() {
           <Link href={guide.link} key={i}>
             <div className="cursor-pointer">
               <Card className="h-64">
-                <h2 className="mt-4">{guide.title}</h2>
+                <h3 className="mt-4">{guide.title}</h3>
                 <p>{guide.desc}</p>
               </Card>
             </div>

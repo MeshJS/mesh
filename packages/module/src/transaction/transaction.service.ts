@@ -10,11 +10,13 @@ import {
   toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
 } from '../common/utils';
 import { WalletService } from '../wallet';
-import type { TransactionBuilder, TxInputsBuilder } from '../core';
+import type { Address, TransactionBuilder, TxInputsBuilder } from '../core';
 import type { Action, Asset, Data, Protocol, UTxO } from '../common/types';
 
 @Trackable
 export class TransactionService {
+  private _changeAddress: Address | null = null;
+
   private readonly _signatures: Set<string>;
   private readonly _txBuilder: TransactionBuilder;
   private readonly _txInputsBuilder: TxInputsBuilder;
@@ -134,7 +136,7 @@ export class TransactionService {
 
   @Checkpoint()
   setChangeAddress(address: string): TransactionService {
-    this._txBuilder.add_change_if_needed(toAddress(address));
+    this._changeAddress = toAddress(address);
 
     return this;
   }
@@ -185,6 +187,8 @@ export class TransactionService {
     if (this._walletService && this.notVisited('setChangeAddress')) {
       const changeAddress = await this._walletService.getChangeAddress();
       this._txBuilder.add_change_if_needed(toAddress(changeAddress));
+    } else if (this._changeAddress !== null) {
+      this._txBuilder.add_change_if_needed(this._changeAddress);
     }
   }
 

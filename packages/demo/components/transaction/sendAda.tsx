@@ -6,6 +6,7 @@ import { Recipient } from '../../types';
 import useWallet from '../../contexts/wallet';
 import { LinkCardanoscanTx } from '../blocks/linkCardanoscanTx';
 import ConnectWallet from '../wallet/connectWallet';
+// import Mesh from '@martifylabs/mesh';
 
 export default function SendAda() {
   return (
@@ -86,6 +87,14 @@ function CodeDemo() {
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
+
+      // await Mesh.blockfrost.init({
+      //   blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+      //   network: 0,
+      // });
+      // let txHash = await Mesh.blockfrost.transactionSubmitTx({ tx: signedTx });
+      // console.log('txHash', txHash);
+
       setResult(txHash);
       setState(2);
     } catch (error) {
@@ -126,8 +135,8 @@ function CodeDemo() {
 
   return (
     <>
-      <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
-        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+      <table className="tableForInputs not-format">
+        <thead className="tableForInputsThead">
           <tr>
             <th scope="col" colSpan={3} className="py-3 px-6">
               Recipients

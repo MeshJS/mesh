@@ -184,10 +184,9 @@ function CodeDemo() {
   codeSnippet += `\nconst txHash = await wallet.submitTx(signedTx);`;
 
   return (
-    <div className="">
-      <div>
-        <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+    <div>
+      <table className="tableForInputs not-format">
+        <thead className="tableForInputsThead">
             <tr>
               <th scope="col" colSpan={2} className="py-3 px-6">
                 Recipients
@@ -274,7 +273,6 @@ function CodeDemo() {
 
         {state === 2 && <LinkCardanoscanTx txHash={result} />}
       </div>
-    </div>
   );
 }
 

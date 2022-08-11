@@ -11,7 +11,7 @@ const Help = () => {
             rel="noreferrer"
           >
             cardano.stackexchange.com
-          </a>
+          </a>{' '}
           and tagged it with <code>mesh</code>.
         </p>
         <p>

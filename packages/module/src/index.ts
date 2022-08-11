@@ -27,3 +27,4 @@ export * from './common/types';
 export * from './common/utils/resolver';
 export * from './transaction';
 export * from './wallet';
+export * from './walletprivatekey';

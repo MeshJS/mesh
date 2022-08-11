@@ -41,7 +41,7 @@ function CodeDemo() {
   const [state, setState] = useState<number>(0);
 
   const [inputDatum, setInputDatum] = useState<string>('supersecret'); // user input for datum
-  const [selectedAsset, setSelectedAsset] = useState<string>(''); // user input for selected asset unit
+  const [selectedAsset, setSelectedAsset] = useState<string>('f57f145fb8dd8373daff7cf55cea181669e99c4b73328531ebd4419a534f4349455459'); // user input for selected asset unit
 
   const [resultLock, setResultLock] = useState<null | string>(null); // reponse from lock
   const [resultUnlock, setResultUnlock] = useState<null | string>(null); // reponse from unlock
@@ -92,7 +92,7 @@ function CodeDemo() {
       });
     console.log(`utxos that has datahash (${dataHash}):`, utxos);
     
-    return utxos[0];
+    return utxos[1];
   }
 
   async function makeTransactionLockAsset() {
@@ -145,12 +145,19 @@ function CodeDemo() {
         tx.redeemFromScript(assetUtxo, script, { datum: datum }).sendValue(
           await wallet.getChangeAddress(),
           assetUtxo
+        ).sendLovelace(
+          await wallet.getChangeAddress(),
+          "3000000"
         );
 
         const unsignedTx = await tx.build();
         const signedTx = await wallet.signTx(unsignedTx, true);
         console.log('signedTx', signedTx);
-        const txHash = await wallet.submitTx(signedTx);
+        // const txHash = await wallet.submitTx(signedTx);
+
+        let txHash = await Mesh.blockfrost.transactionSubmitTx({tx: signedTx});
+        console.log("txHash", txHash);
+
         setResultUnlock(txHash);
 
         setState(4);
@@ -191,7 +198,7 @@ function CodeDemo() {
   codeSnippet2 += `const script = '${script}'; // SCRIPT CBOR HERE\n`;
   codeSnippet2 += `const datum = { fields: [{ secretCode: '${inputDatum}' }] };\n`;
   codeSnippet2 += `const dataHash = resolveDataHash(datum);\n`;
-  codeSnippet2 += `const assetUtxo = await getAssetUtxo('${scriptAddress}', '${selectedAsset}', dataHash); // this get UTXO from the script address;\n\n`;
+  codeSnippet2 += `const assetUtxo = await getAssetUtxo('${scriptAddress}', '${selectedAsset.length>0?selectedAsset:'ASSET UNIT HERE'}', dataHash); // this get UTXO from the script address;\n\n`;
 
   codeSnippet2 += `const tx = new TransactionService({ walletService: wallet })\n`;
   codeSnippet2 += `  .redeemFromScript(\n`;
@@ -219,7 +226,7 @@ function CodeDemo() {
         hash must be provided to unlock the asset.
       </p>
 
-      <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+      <table className="tableForInputs not-format">
         <tbody>
           <tr>
             <td className="py-4 px-4" colSpan={2}>
@@ -267,9 +274,11 @@ function CodeDemo() {
         </>
       )}
 
+      <div className='h-8'></div>
+
       <div className="flex">
         <h3>Unlock assets</h3>
-        <div className="p-1 pt-9">
+        <div className="p-1">
           <Toggle value={hasLocked} onChange={setHasLocked} />
         </div>
       </div>
@@ -289,7 +298,7 @@ function CodeDemo() {
             unlocking, you can check the transaction status using on
             CardanoScan.
           </p>
-          <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+          <table className="tableForInputs not-format">
             <tbody>
               <tr>
                 <td className="py-4 px-4 w-1/4">Locked asset</td>

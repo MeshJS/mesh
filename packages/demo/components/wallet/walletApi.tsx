@@ -168,7 +168,7 @@ function DemoSection({ children, title, demoFn }) {
                 isJson={false}
               />
             </div>
-            <div className="pt-4 ml-1">
+            <div className="pt-7 ml-1">
               {walletConnected && (
                 <Button
                   onClick={() => runDemo()}
@@ -243,7 +243,7 @@ function DemoGetInstalledWallets() {
                 isJson={false}
               />
             </div>
-            <div className="pt-4 ml-1">
+            <div className="pt-7 ml-1">
               <Button
                 onClick={() => runDemo()}
                 style={
@@ -338,7 +338,7 @@ function DemoGetAssets() {
                 isJson={false}
               />
             </div>
-            <div className="pt-4 ml-1">
+            <div className="pt-7 ml-1">
               {walletConnected && (
                 <Button
                   onClick={() => runDemo()}
@@ -404,7 +404,7 @@ function DemoGetAssetsCollection() {
         </div>
 
         <div className="mt-8">
-          <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+          <table className="tableForInputs not-format">
             <tbody>
               <tr>
                 <td className="py-4 px-4 w-1/4">Policy ID</td>
@@ -428,7 +428,7 @@ function DemoGetAssetsCollection() {
                 isJson={false}
               />
             </div>
-            <div className="pt-4 ml-1">
+            <div className="pt-7 ml-1">
               {walletConnected && (
                 <Button
                   onClick={() => runDemo()}
