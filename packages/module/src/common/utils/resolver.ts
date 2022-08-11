@@ -59,36 +59,3 @@ export const resolveStakeKey = (bech32: string) => {
     throw new Error(`Couldn't resolve stake key from address: ${bech32}.`);
   }
 };
-
-////
-
-// const myascii = (s) => Buffer.from(s, 'ascii').toString('hex');
-// const fromHex = (hex) => Buffer.from(hex, 'hex');
-// const toHex = (bytes) => Buffer.from(bytes).toString('hex');
-export const resolveDataHashDebug = (data: string) => {
-  // const datum = csl.PlutusData.from_bytes(fromHex(data));
-  // console.log(11, datum);
-  // console.log(22, csl.hash_plutus_data(datum));
-
-  // console.log(33, csl.hash_plutus_data(datum).to_bytes());
-  // return toHex(csl.hash_plutus_data(datum).to_bytes());
-
-  // const datum = csl.PlutusData.new_bytes(toBytes(data));
-  // const datum = csl.new_integer
-  // const dataHash = csl.hash_plutus_data(datum);
-  // return fromBytes(dataHash.to_bytes());
-
-  // console.log(111, fromASCII(data)); // 68656c6c6f20776f726c64
-  // console.log(222, fromHex(fromASCII(data)));
-  // const datum = csl.PlutusData.from_bytes(fromHex(fromASCII(data)));
-  // // Uncaught (in promise) Deserialization failed in PlutusDataEnum.PlutusDataEnum because: No variant matched
-  // // console.log("datum", datum);
-  // return datum;
-
-
-  const datum = csl.PlutusData.new_integer(
-    csl.BigInt.from_str(data.toString())
-  );
-  const dataHash = csl.hash_plutus_data(datum);
-  return fromBytes(dataHash.to_bytes());
-};

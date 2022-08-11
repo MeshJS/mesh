@@ -1,4 +1,4 @@
-import type { Address, TransactionUnspentOutput } from "@mesh/core";
+import type { Address, TransactionUnspentOutput } from '@mesh/core';
 
 export interface IInitiator {
   getAvailableUtxos(): Promise<TransactionUnspentOutput[]>;

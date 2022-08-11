@@ -1,6 +1,6 @@
 import { csl } from '@mesh/core';
 import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '@mesh/common/constants';
-// import { buildPlutusData } from './builder';
+import { buildPlutusData } from './builder';
 import {
   deserializeDataHash,
   deserializePlutusData,
@@ -15,30 +15,24 @@ import type {
   Value,
 } from '@mesh/core';
 import type { Action, Asset, Data, UTxO } from '@mesh/common/types';
-import { buildPlutusData } from './builder';
 
 /* -----------------[ ASCII ]----------------- */
 
-export const fromASCII = (ascii: string) =>
-  fromBytes(Buffer.from(ascii, 'ascii'));
+export const fromASCII = (ascii: string) => fromBytes(Buffer.from(ascii, 'ascii'));
 
-export const toASCII = (hex: string) =>
-  Buffer.from(hex, 'hex').toString('ascii');
+export const toASCII = (hex: string) => Buffer.from(hex, 'hex').toString('ascii');
 
 /* -----------------[ Address ]----------------- */
 
 export const toAddress = (bech32: string) => csl.Address.from_bech32(bech32);
 
-export const toBaseAddress = (bech32: string) =>
-  csl.BaseAddress.from_address(toAddress(bech32));
+export const toBaseAddress = (bech32: string) => csl.BaseAddress.from_address(toAddress(bech32));
 
-export const toEnterpriseAddress = (bech32: string) =>
-  csl.EnterpriseAddress.from_address(toAddress(bech32));
+export const toEnterpriseAddress = (bech32: string) => csl.EnterpriseAddress.from_address(toAddress(bech32));
 
 /* -----------------[ Bytes ]----------------- */
 
-export const fromBytes = (bytes: Uint8Array) =>
-  Buffer.from(bytes).toString('hex');
+export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 
 export const toBytes = (hex: string) => Buffer.from(hex, 'hex') as Uint8Array;
 
@@ -49,45 +43,25 @@ export const fromLovelace = (lovelace: number) => lovelace / 1_000_000;
 export const toLovelace = (ada: number) => ada * 1_000_000;
 
 /* -----------------[ PlutusData ]----------------- */
-// export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
-//   const fields = csl.PlutusList.new();
 
-//   data.fields.forEach((field) => {
-//     fields.add(buildPlutusData(field));
-//   });
-
-//   return csl.PlutusData.new_constr_plutus_data(
-//     csl.ConstrPlutusData.new(
-//       csl.BigNum.from_str(alternative.toString()), fields
-//     ),
-//   );
-// };
-
-export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
-  if (alternative === undefined) {
-    const fields = csl.PlutusList.new();
-
-    data.fields.forEach((field) => {
-      fields.add(buildPlutusData(field));
-    });
-
-    return csl.PlutusData.new_list(fields);
-  }
-  
-  if (data.fields[0]) {
-    const datum = csl.PlutusData.new_integer(
-      csl.BigInt.from_str(data.fields[0].toString())
-    );
-    return datum;
-  }
+export const toPlutusData = (data: Data, alternative?: number): PlutusData => {
+  if (data.fields.length === 1)
+    return buildPlutusData(data.fields[0]);
 
   const fields = csl.PlutusList.new();
-  return csl.PlutusData.new_constr_plutus_data(
-    csl.ConstrPlutusData.new(
-      csl.BigNum.from_str(alternative.toString()),
-      fields
-    )
-  );
+  
+  data.fields.forEach((field) => {
+    fields.add(buildPlutusData(field));
+  });
+
+  return alternative !== undefined
+    ? csl.PlutusData.new_constr_plutus_data(
+        csl.ConstrPlutusData.new(
+          csl.BigNum.from_str(alternative.toString()),
+          fields
+        )
+      )
+    : csl.PlutusData.new_list(fields);
 };
 
 /* -----------------[ Redeemer ]----------------- */
