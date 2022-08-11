@@ -155,7 +155,7 @@ function CodeDemo() {
         console.log('signedTx', signedTx);
         // const txHash = await wallet.submitTx(signedTx);
 
-        let txHash = await Mesh.blockfrost.transactionSubmitTx({tx: signedTx});
+        let txHash: any = await Mesh.blockfrost.transactionSubmitTx({tx: signedTx});
         console.log("txHash", txHash);
 
         setResultUnlock(txHash);
