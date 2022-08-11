@@ -22,10 +22,10 @@ function Showcase() {
 
 function Hero() {
   let codeSnippet = '';
-  codeSnippet += `// import WalletService\n`;
-  codeSnippet += `import { WalletService } from '@martifylabs/mesh';\n\n`;
+  codeSnippet += `// import BrowserWallet\n`;
+  codeSnippet += `import { BrowserWallet } from '@martifylabs/mesh';\n\n`;
   codeSnippet += `// connect to a wallet\n`;
-  codeSnippet += `const wallet = await WalletService.enable('eternl');\n\n`;
+  codeSnippet += `const wallet = await BrowserWallet.enable('eternl');\n\n`;
   codeSnippet += `// get assets in wallet\n`;
   codeSnippet += `const assets = await wallet.getAssets();`;
 
@@ -57,7 +57,7 @@ function Hero() {
           <div>
             <p className="font-medium">
               In this section, you can connect wallet and try APIs for dApps to
-              communicate with your wallet. To start, import WalletService with:
+              communicate with your wallet. To start, import BrowserWallet with:
             </p>
             <Codeblock
               data={codeSnippet}

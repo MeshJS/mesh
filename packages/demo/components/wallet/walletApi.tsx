@@ -4,7 +4,7 @@ import { Button, Card, Codeblock, Input } from '../../components';
 import { PlayIcon } from '@heroicons/react/solid';
 import useWallet from '../../contexts/wallet';
 import ConnectWallet from './connectWallet';
-import { WalletService } from '@martifylabs/mesh';
+import { BrowserWallet } from '@martifylabs/mesh';
 
 export default function WalletApi() {
   return (
@@ -222,7 +222,7 @@ function DemoGetInstalledWallets() {
 
   async function runDemo() {
     setLoading(true);
-    let results = WalletService.getInstalledWallets();
+    let results = BrowserWallet.getInstalledWallets();
     setResponse(results);
     setLoading(false);
   }
@@ -239,7 +239,7 @@ function DemoGetInstalledWallets() {
           <div className="flex">
             <div className="flex-1 overflow-auto">
               <Codeblock
-                data={`const result = WalletService.getInstalledWallets();`}
+                data={`const result = BrowserWallet.getInstalledWallets();`}
                 isJson={false}
               />
             </div>
@@ -285,14 +285,14 @@ function DemoConnectWallet() {
             API for the dApp to use.
           </p>
           <p>
-            Query <code>WalletService.getInstalledWallets()</code> to get a list
+            Query <code>BrowserWallet.getInstalledWallets()</code> to get a list
             of available wallets, then provide the wallet <code>name</code> for
             which wallet the user would like to connect with.
           </p>
         </div>
         <div className="mt-8">
           <Codeblock
-            data={`const wallet = await WalletService.enable('${
+            data={`const wallet = await BrowserWallet.enable('${
               walletNameConnected ? walletNameConnected : 'eternl'
             }');`}
             isJson={false}

@@ -2,17 +2,11 @@ import { csl } from '@mesh/core';
 import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '@mesh/common/constants';
 import { buildPlutusData } from './builder';
 import {
-  deserializeDataHash,
-  deserializePlutusData,
-  deserializeScriptHash,
-  deserializeScriptRef,
-  deserializeTxHash,
+  deserializeDataHash, deserializePlutusData, deserializeScriptHash,
+  deserializeScriptRef, deserializeTxHash,
 } from './deserializer';
 import type {
-  PlutusData,
-  Redeemer,
-  TransactionUnspentOutput,
-  Value,
+  PlutusData, Redeemer, TransactionUnspentOutput, Value,
 } from '@mesh/core';
 import type { Action, Asset, Data, UTxO } from '@mesh/common/types';
 
@@ -105,9 +99,7 @@ export const fromTxUnspentOutput = (
     output: {
       address: txUnspentOutput.output().address().to_bech32(),
       amount: fromValue(txUnspentOutput.output().amount()),
-      dataHash,
-      plutusData,
-      scriptRef,
+      dataHash, plutusData, scriptRef,
     },
   };
 };
@@ -169,10 +161,8 @@ export const fromValue = (value: Value) => {
         const policyAssetNames = policyAssets.keys();
         for (let j = 0; j < policyAssetNames.len(); j += 1) {
           const assetName = policyAssetNames.get(j);
-          const quantity =
-            policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
-          const assetId =
-            fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
+          const quantity = policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
+          const assetId = fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
           assets.push({ unit: assetId, quantity: quantity.to_str() });
         }
       }

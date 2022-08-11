@@ -9,7 +9,7 @@ import {
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
 
-export class WalletService implements IInitiator, ISigner, ISubmitter {
+export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private constructor(private readonly _walletInstance: WalletInstance) {}
 
   static supportedWallets = ['flint', 'nami', 'eternl', 'nufi'];
@@ -17,7 +17,7 @@ export class WalletService implements IInitiator, ISigner, ISubmitter {
   static getInstalledWallets(): Wallet[] {
     if (window.cardano === undefined) return [];
 
-    return WalletService.supportedWallets
+    return BrowserWallet.supportedWallets
       .filter((sw) => window.cardano[sw] !== undefined)
       .map((sw) => ({
         name: window.cardano[sw].name,
@@ -26,12 +26,12 @@ export class WalletService implements IInitiator, ISigner, ISubmitter {
       }));
   }
 
-  static async enable(walletName: string): Promise<WalletService> {    
+  static async enable(walletName: string): Promise<BrowserWallet> {    
     try {
-      const walletInstance = await WalletService.resolveInstance(walletName);
+      const walletInstance = await BrowserWallet.resolveInstance(walletName);
 
       if (walletInstance !== undefined)
-        return new WalletService(walletInstance);
+        return new BrowserWallet(walletInstance);
 
       throw new Error(`Couldn't create an instance of wallet: ${walletName}.`);
     } catch (error) {
@@ -174,7 +174,7 @@ export class WalletService implements IInitiator, ISigner, ISubmitter {
   ): Promise<WalletInstance> | undefined {
     if (window.cardano === undefined) return undefined;
 
-    const wallet: WalletProvider | undefined = WalletService.supportedWallets
+    const wallet: WalletProvider | undefined = BrowserWallet.supportedWallets
       .map((sw) => window.cardano[sw])
       .filter((sw) => sw !== undefined)
       .find((sw) => sw.name === walletName);

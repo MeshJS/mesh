@@ -48,7 +48,7 @@ function CodeDemo() {
     setState(1);
 
     try {
-      const tx = new TransactionService({ walletService: wallet });
+      const tx = new TransactionService({ initiator: wallet });
 
       for (const recipient of recipients) {
         if (recipient.assets.lovelace) {

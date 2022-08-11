@@ -116,7 +116,7 @@ function CodeDemo() {
         },
       ];
 
-      const tx = new TransactionService({ walletService: wallet });
+      const tx = new TransactionService({ initiator: wallet });
       tx.sendAssets(scriptAddress, assets, { datum: datum });
 
       const unsignedTx = await tx.build();
@@ -155,7 +155,7 @@ function CodeDemo() {
       console.log('assetUtxo', assetUtxo);
 
       if (assetUtxo) {
-        const tx = new TransactionService({ walletService: wallet });
+        const tx = new TransactionService({ initiator: wallet });
         tx.redeemFromScript(assetUtxo, script, { datum: datum })
           .sendValue(await wallet.getChangeAddress(), assetUtxo)
           .sendLovelace(await wallet.getChangeAddress(), '3000000');
