@@ -1,17 +1,17 @@
-import { csl } from '../core';
+import { csl } from '@mesh/core';
+import { WalletService } from '@mesh/wallet';
 import {
   DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
-} from '../common/constants';
-import { Checkpoint, Trackable, TrackableObject } from '../common/decorators';
+} from '@mesh/common/constants';
+import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
   buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializePlutusScript, fromBytes,
   fromTxUnspentOutput, resolveAddressKeyHash, toAddress,
   toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
-} from '../common/utils';
-import { WalletService } from '../wallet';
-import type { Address, TransactionBuilder, TxInputsBuilder } from '../core';
-import type { Action, Asset, Data, Protocol, UTxO } from '../common/types';
+} from '@mesh/common/utils';
+import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
+import type { Action, Asset, Data, Protocol, UTxO } from '@mesh/common/types';
 
 @Trackable
 export class TransactionService {

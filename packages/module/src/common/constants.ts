@@ -1,4 +1,4 @@
-import { csl } from '../core';
+import { csl } from '@mesh/core';
 
 export const DEFAULT_REDEEMER_BUDGET = {
   mem: 7000000,

@@ -1,14 +1,14 @@
-import { csl } from '../../core';
+import { csl } from '@mesh/core';
+import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '@mesh/common/constants';
 import { buildPlutusData } from './builder';
-import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '../constants';
 import {
   deserializeDataHash, deserializePlutusData, deserializeScriptHash,
   deserializeScriptRef, deserializeTxHash,
 } from './deserializer';
 import type {
   PlutusData, Redeemer, TransactionUnspentOutput, Value,
-} from '../../core';
-import type { Action, Asset, Data, UTxO } from '../types';
+} from '@mesh/core';
+import type { Action, Asset, Data, UTxO } from '@mesh/common/types';
 
 /* -----------------[ ASCII ]----------------- */
 

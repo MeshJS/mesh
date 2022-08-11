@@ -4,7 +4,7 @@
 
 import { csl } from './core';
 
-import { WalletApi, Asset, UTxO } from './types/index';
+import { WalletApi, Asset, UTxO } from './types';
 // import { MIN_ADA_REQUIRED } from './global';
 import { HexToAscii, toHex, fromHex, valueToAssets } from './utils/converter';
 import { linkToSrc, convertMetadataPropToString } from './utils/metadata';

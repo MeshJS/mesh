@@ -1,4 +1,4 @@
-import { csl } from '../../core/cardano';
+import { csl } from '@mesh/core';
 import { toBytes } from './converter';
 
 export const deserializeAddress = (address: string) => csl.Address

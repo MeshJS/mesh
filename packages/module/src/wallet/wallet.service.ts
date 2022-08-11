@@ -1,12 +1,12 @@
-import { csl } from '../core';
-import { MAX_COLLATERAL, POLICY_ID_LENGTH } from '../common/constants';
+import { csl } from '@mesh/core';
+import { MAX_COLLATERAL, POLICY_ID_LENGTH } from '@mesh/common/constants';
 import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
   fromTxUnspentOutput, fromValue, toASCII, resolveFingerprint,
-} from '../common/utils';
-import type { TransactionUnspentOutput } from '../core';
-import type { Asset, AssetExtended, UTxO, Wallet } from '../common/types';
+} from '@mesh/common/utils';
+import type { TransactionUnspentOutput } from '@mesh/core';
+import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
 
 export class WalletService {
   private constructor(private readonly _walletInstance: WalletInstance) {}

@@ -1,5 +1,5 @@
-import { csl } from '../../core';
-import { DEFAULT_PROTOCOL_PARAMETERS } from '../constants';
+import { csl } from '@mesh/core';
+import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
   toAddress, toBytes, toPlutusData,
   toTxUnspentOutput, toUnitInterval,
@@ -7,8 +7,8 @@ import {
 import type {
   PlutusData, TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
-} from '../../core';
-import type { Data, DataContent, UTxO } from '../types';
+} from '@mesh/core';
+import type { Data, DataContent, UTxO } from '@mesh/common/types';
 
 export const buildPlutusData = (content: DataContent): PlutusData => {
   switch (typeof content) {

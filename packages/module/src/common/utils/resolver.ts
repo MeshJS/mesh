@@ -1,10 +1,10 @@
-import { AssetFingerprint, csl } from '../../core';
-import { Data } from '../types';
+import { AssetFingerprint, csl } from '@mesh/core';
 import {
   fromBytes, toAddress, toBaseAddress,
   toBytes, toEnterpriseAddress, toPlutusData,
 } from './converter';
 import { deserializeAddress } from './deserializer';
+import type { Data } from '@mesh/common/types';
 
 export const resolveAddressKeyHash = (bech32: string) => {
   try {

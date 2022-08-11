@@ -1,4 +1,4 @@
-import { REDEEMER_TAGS } from '../constants';
+import { REDEEMER_TAGS } from '@mesh/common/constants';
 import { Data } from './Data';
 
 export type Action = {
