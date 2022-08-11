@@ -1,8 +1,8 @@
 import { csl } from '@mesh/core';
-import { WalletService } from '@mesh/wallet';
 import {
   DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
 } from '@mesh/common/constants';
+import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
   buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
@@ -15,18 +15,18 @@ import type { Action, Asset, Data, Protocol, UTxO } from '@mesh/common/types';
 
 @Trackable
 export class TransactionService {
-  private _changeAddress: Address | null = null;
+  private _change?: Address;
 
   private readonly _signatures: Set<string>;
+  private readonly _txInitiator?: IInitiator;
   private readonly _txBuilder: TransactionBuilder;
   private readonly _txInputsBuilder: TxInputsBuilder;
-  private readonly _walletService?: WalletService;
 
   constructor(options = {} as Partial<CreateTxOptions>) {
     this._signatures = new Set<string>();
+    this._txInitiator = options.initiator;
     this._txBuilder = buildTxBuilder(options.parameters);
     this._txInputsBuilder = csl.TxInputsBuilder.new();
-    this._walletService = options.walletService;
   }
 
   async build(): Promise<string> {
@@ -134,9 +134,10 @@ export class TransactionService {
     return this;
   }
 
-  @Checkpoint()
   setChangeAddress(address: string): TransactionService {
-    this._changeAddress = toAddress(address);
+    if (address?.length > 0) {// TODO: check for CIP-19 https://cips.cardano.org/cips/cip19/
+      this._change = toAddress(address);
+    }
 
     return this;
   }
@@ -184,18 +185,17 @@ export class TransactionService {
   }
 
   private async addChangeAddressIfNeeded() {
-    if (this._walletService && this.notVisited('setChangeAddress')) {
-      const changeAddress = await this._walletService.getChangeAddress();
-      this._txBuilder.add_change_if_needed(toAddress(changeAddress));
-    } else if (this._changeAddress !== null) {
-      this._txBuilder.add_change_if_needed(this._changeAddress);
+    if (this._txInitiator && this._change === undefined) {
+      const change = await this._txInitiator.getUsedAddress();
+      this._txBuilder.add_change_if_needed(change);
+    } else if (this._change !== undefined) {
+      this._txBuilder.add_change_if_needed(this._change);
     }
   }
 
   private async addCollateralIfNeeded() {
-    if (this._walletService && this.notVisited('setCollateral')) {
-      const collateral = await this._walletService
-        .getDeserializedCollateral();
+    if (this._txInitiator && this.notVisited('setCollateral')) {
+      const collateral = await this._txInitiator.getCollateralInput();
 
       this.addSignaturesFrom(collateral.map((c) => fromTxUnspentOutput(c)));
       this._txBuilder.set_collateral(buildTxInputsBuilder(collateral));
@@ -211,7 +211,7 @@ export class TransactionService {
     }
 
     if (this.notVisited('setTxInputs')) {
-      const walletUtxos = await this.getWalletUtxos();
+      const availableUtxos = await this.getAvailableUtxos();
 
       const includeMultiAsset =
         !this.notVisited('sendAssets') || !this.notVisited('sendValue');
@@ -220,20 +220,20 @@ export class TransactionService {
         ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
-      this._txBuilder.add_inputs_from(walletUtxos, coinSelectionStrategy);
+      this._txBuilder.add_inputs_from(availableUtxos, coinSelectionStrategy);
     }
   }
 
-  private async getWalletUtxos() {
+  private async getAvailableUtxos() {
     const txUnspentOutputs = csl.TransactionUnspentOutputs.new();
 
-    if (this._walletService === undefined)
+    if (this._txInitiator === undefined)
       return txUnspentOutputs;
 
-    const walletUtxos = await this._walletService
-      .getDeserializedUtxos();
+    const availableUtxos = await this._txInitiator
+      .getAvailableUtxos();
 
-    walletUtxos.forEach((utxo) => {
+      availableUtxos.forEach((utxo) => {
       txUnspentOutputs.add(utxo);
     });
 
@@ -269,7 +269,7 @@ export class TransactionService {
 
 type CreateTxOptions = {
   parameters: Protocol;
-  walletService: WalletService;
+  initiator: IInitiator;
 };
 
 type RedeemFromScriptOptions = {

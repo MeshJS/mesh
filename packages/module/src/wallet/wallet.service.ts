@@ -1,14 +1,15 @@
 import { csl } from '@mesh/core';
 import { MAX_COLLATERAL, POLICY_ID_LENGTH } from '@mesh/common/constants';
+import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
   fromTxUnspentOutput, fromValue, toASCII, resolveFingerprint,
 } from '@mesh/common/utils';
-import type { TransactionUnspentOutput } from '@mesh/core';
+import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
 
-export class WalletService {
+export class WalletService implements IInitiator, ISigner, ISubmitter {
   private constructor(private readonly _walletInstance: WalletInstance) {}
 
   static supportedWallets = ['flint', 'nami', 'eternl', 'nufi'];
@@ -49,13 +50,8 @@ export class WalletService {
   }
 
   async getCollateral(limit = MAX_COLLATERAL): Promise<UTxO[]> {
-    const deserializedCollateral = await this.getDeserializedCollateral(limit);
+    const deserializedCollateral = await this.getCollateralInput(limit);
     return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
-  }
-
-  async getDeserializedCollateral(limit = MAX_COLLATERAL): Promise<TransactionUnspentOutput[]> {
-    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }
 
   getNetworkId(): Promise<number> {
@@ -78,13 +74,8 @@ export class WalletService {
   }
 
   async getUtxos(): Promise<UTxO[]> {
-    const deserializedUtxos = await this.getDeserializedUtxos();
+    const deserializedUtxos = await this.getAvailableUtxos();
     return deserializedUtxos.map((du) => fromTxUnspentOutput(du));
-  }
-
-  async getDeserializedUtxos(): Promise<TransactionUnspentOutput[]> {
-    const utxos = (await this._walletInstance.getUtxos()) ?? [];
-    return utxos.map((u) => deserializeTxUnspentOutput(u));
   }
 
   async signData(payload: string): Promise<string> {
@@ -123,6 +114,21 @@ export class WalletService {
 
   submitTx(tx: string): Promise<string> {
     return this._walletInstance.submitTx(tx);
+  }
+
+  async getAvailableUtxos(): Promise<TransactionUnspentOutput[]> {
+    const utxos = (await this._walletInstance.getUtxos()) ?? [];
+    return utxos.map((u) => deserializeTxUnspentOutput(u));
+  }
+
+  async getCollateralInput(limit = MAX_COLLATERAL): Promise<TransactionUnspentOutput[]> {
+    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
+    return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
+  }
+
+  async getUsedAddress(): Promise<Address> {
+    const changeAddress = await this._walletInstance.getChangeAddress();
+    return deserializeAddress(changeAddress);
   }
 
   async getAssets(): Promise<AssetExtended[]> {
