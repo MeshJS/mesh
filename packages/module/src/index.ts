@@ -1,17 +1,14 @@
-import { Blockfrost } from './provider/blockfrost';
+import { Blockfrost } from './providers/blockfrost';
 import { Wallet } from './wallet.old';
 import { Transaction } from './transaction.old';
-import { Infura } from './provider/infura';
 
 class Mesh {
   public wallet: Wallet;
   public transaction: Transaction;
   public blockfrost: Blockfrost;
-  public infura: Infura;
   
   constructor() {
     this.blockfrost = new Blockfrost();
-    this.infura = new Infura();
     this.wallet = new Wallet({
       blockfrost: this.blockfrost,
     });

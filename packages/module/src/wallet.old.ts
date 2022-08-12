@@ -8,7 +8,7 @@ import { WalletApi, Asset, UTxO } from './types';
 // import { MIN_ADA_REQUIRED } from './global';
 import { HexToAscii, toHex, fromHex, valueToAssets } from './utils/converter';
 import { linkToSrc, convertMetadataPropToString } from './utils/metadata';
-import { Blockfrost } from './provider/blockfrost';
+import { Blockfrost } from './providers/blockfrost';
 // import { Value } from '@emurgo/cardano-serialization-lib-browser';
 
 export class Wallet {
