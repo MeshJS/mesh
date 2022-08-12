@@ -1,5 +1,6 @@
-import type { UTxO } from '@mesh/common/types';
+import type { Protocol, UTxO } from '@mesh/common/types';
 
 export interface IFetcher {
   fetchAssetUtxosFromAddress(asset: string, address: string): Promise<UTxO[]>;
+  fetchProtocolParameters(): Promise<Protocol>;
 }

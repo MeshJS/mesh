@@ -8,7 +8,6 @@ export type Protocol = {
   keyDeposit: string;
   poolDeposit: string;
   decentralisationParam: number;
-  minUTxO: string;
   minPoolCost: string;
   priceMem: number;
   priceStep: number;
