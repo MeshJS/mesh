@@ -135,7 +135,7 @@ export class TransactionService {
   }
 
   setChangeAddress(address: string): TransactionService {
-    if (address?.length > 0) {// TODO: check for CIP-19 https://cips.cardano.org/cips/cip19/
+    if (address?.length > 0) { // TODO: CIP-19 https://cips.cardano.org/cips/cip19/
       this._change = toAddress(address);
     }
 

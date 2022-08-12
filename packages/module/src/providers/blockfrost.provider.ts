@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { toBytes } from '@mesh/common/utils';
-import type { Protocol, UTxO } from '@mesh/common/types';
+import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
 
 export class BlockfrostProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
@@ -11,6 +11,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       baseURL: `https://cardano-${networkId}.blockfrost.io/api/v${version}`,
       headers: { project_id: projectId },
     });
+  }
+
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+    throw new Error('Method not implemented.' + asset);
   }
 
   async fetchAssetUtxosFromAddress(asset: string, address: string): Promise<UTxO[]> {
