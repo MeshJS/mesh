@@ -6,7 +6,7 @@ import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
 export class BlockfrostProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  private constructor(projectId: string, networkId: 'testnet' | 'mainnet', version = 0) {
+  constructor(projectId: string, networkId: 'testnet' | 'mainnet', version = 0) {
     this._axiosInstance = axios.create({
       baseURL: `https://cardano-${networkId}.blockfrost.io/api/v${version}`,
       headers: { project_id: projectId },
@@ -33,6 +33,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
             output: {
               address: address,
               amount: utxo.amount,
+              dataHash: utxo.data_hash,
             },
           }
         ) as UTxO);

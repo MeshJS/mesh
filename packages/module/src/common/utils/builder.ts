@@ -24,7 +24,11 @@ export const buildPlutusData = (content: DataContent): PlutusData => {
         content.forEach((element) => {
           plutusList.add(buildPlutusData(element));
         });
-        return csl.PlutusData.new_list(plutusList);
+        return csl.PlutusData.new_constr_plutus_data(
+          csl.ConstrPlutusData.new(
+            csl.BigNum.from_str("0"), plutusList
+          ),
+        );
       } else {
         const plutusMap = csl.PlutusMap.new();
         Object.keys(content).forEach((key) => {

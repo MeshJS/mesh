@@ -6,7 +6,7 @@ import Mesh from '@martifylabs/mesh';
 import {
   TransactionService,
   resolveDataHash,
-  // resolveDataHashDebug,
+  BlockfrostProvider,
 } from '@martifylabs/mesh';
 import type { Asset } from '@martifylabs/mesh';
 import { LinkCardanoscanTx } from '../blocks/linkCardanoscanTx';
@@ -69,46 +69,39 @@ function CodeDemo() {
   }
 
   async function _getAssetUtxo({ scriptAddress, asset, dataHash }) {
-    await Mesh.blockfrost.init({
-      blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-      network: 0,
-    });
+    // await Mesh.blockfrost.init({
+    //   blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+    //   network: 0,
+    // });
 
-    let utxosFromBF = await Mesh.blockfrost.addressesAddressUtxosAsset({
-      address: scriptAddress,
-      asset: asset,
-    });
-    console.log(`utxos that has ${asset}:`, utxosFromBF);
+    // let utxosFromBF = await Mesh.blockfrost.addressesAddressUtxosAsset({
+    //   address: scriptAddress,
+    //   asset: asset,
+    // });
+    // console.log(`utxos that has ${asset}:`, utxosFromBF);
 
-    let utxos = utxosFromBF
-      .filter((utxo: any) => {
-        return utxo.data_hash == dataHash;
-      })
-      .map((utxoBF: any) => {
-        return {
-          input: {
-            outputIndex: utxoBF.output_index,
-            txHash: utxoBF.tx_hash,
-          },
-          output: {
-            address: scriptAddress,
-            amount: utxoBF.amount,
-          },
-        };
-      });
+    const blockfrost = new BlockfrostProvider(
+      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+      'testnet'
+    );
+    const utxos = await blockfrost.fetchAssetUtxosFromAddress(
+      asset,
+      scriptAddress
+    );
+    console.log('utxos', utxos);
+    let filteredUtxo = utxos.find((utxo: any) => {
+      return utxo.output.dataHash == dataHash;
+    });
     console.log(`utxos that has datahash (${dataHash}):`, utxos);
 
-    return utxos[0];
+    return filteredUtxo;
   }
 
   async function makeTransactionLockAsset() {
     setState(1);
     try {
       // const datumToLock = { secretCode: inputDatum };
-      // const datum = { fields: [datumToLock] };
-      const datum = { fields: ["79600447942433"] };
-      // const datum = "79600447942433";
-      
+      const datum = 79600447942433;
       const assets = [
         {
           unit: selectedAsset,
@@ -134,18 +127,10 @@ function CodeDemo() {
 
   async function makeTransactionUnlockAsset() {
     setState(3);
-    // const datum = "79600447942433";
-    // const dataHash = resolveDataHashDebug(datum);
-    // console.log('dataHash', dataHash); // expected: 8fb8d1694f8180e8a59f23cce7a70abf0b3a92122565702529ff39baf01f87f1
-    // return;
-
     try {
       // const datumToUnlock = { secretCode: inputDatum };
-      // const datum = { fields: [datumToUnlock] };
-
-      const datum = { fields: ["79600447942433"] };
+      const datum = 79600447942433;
       const dataHash = resolveDataHash(datum);
-      console.log('dataHash', dataHash); // expected: 8fb8d1694f8180e8a59f23cce7a70abf0b3a92122565702529ff39baf01f87f1
 
       const assetUtxo = await _getAssetUtxo({
         scriptAddress: scriptAddress,
@@ -162,12 +147,21 @@ function CodeDemo() {
 
         const unsignedTx = await tx.build();
         const signedTx = await wallet.signTx(unsignedTx, true);
-        console.log('signedTx', signedTx);
+
+        // v1 use user wallet to submit
         // const txHash = await wallet.submitTx(signedTx);
 
-        let txHash: any = await Mesh.blockfrost.transactionSubmitTx({
-          tx: signedTx,
-        });
+        // v2 use old bf to submit
+        // let txHash: any = await Mesh.blockfrost.transactionSubmitTx({
+        //   tx: signedTx,
+        // });
+
+        // v3 use new bf to submit
+        const blockfrost = new BlockfrostProvider(
+          process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+          'testnet'
+        );
+        let txHash = await blockfrost.submitTx(signedTx);
         console.log('txHash', txHash);
 
         setResultUnlock(txHash);
@@ -342,7 +336,7 @@ function CodeDemo() {
           {walletConnected && hasLocked && (
             <Button
               onClick={() => makeTransactionUnlockAsset()}
-              disabled={state == 1}
+              disabled={state == 3}
               style={state == 3 ? 'warning' : state == 4 ? 'success' : 'light'}
             >
               Run code snippet to unlock assets

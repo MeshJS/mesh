@@ -50,11 +50,11 @@ export class TransactionService {
     options = {} as Partial<RedeemFromScriptOptions>
   ): TransactionService {
     const utxo = toTxUnspentOutput(value);
-    const datum: Data = options.datum ?? { fields: [] };
+    const datum: Data = options.datum ?? [];
     const redeemer: Action = {
       alternative: 0,
       budget: DEFAULT_REDEEMER_BUDGET,
-      data: { fields: [] } as Data,
+      data: [] as Data,
       index: value.input.outputIndex,
       tag: 'SPEND',
       ...options.redeemer,
