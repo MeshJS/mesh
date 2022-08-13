@@ -241,13 +241,13 @@ export class TransactionService {
   }
 
   private async addRequiredSigners() {
-    const keys = csl.Ed25519KeyHashes.new();
+    // const keys = csl.Ed25519KeyHashes.new();
 
     this._signatures.forEach((signature) => {
-      keys.add(deserializeEd25519KeyHash(signature));
+      this._txBuilder.add_required_signer(deserializeEd25519KeyHash(signature));
     });
 
-    this._txInputsBuilder.add_required_signers(keys);
+    // this._txInputsBuilder.add_required_signers(keys);
   }
 
   private addSignaturesFrom(inputs: UTxO[]) {
