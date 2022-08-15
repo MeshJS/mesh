@@ -190,20 +190,28 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   ): Promise<WalletInstance> | undefined {
     if (window.cardano === undefined) return undefined;
 
-    const wallet: WalletProvider | undefined = BrowserWallet.supportedWallets
+    const wallet = BrowserWallet.supportedWallets
       .map((sw) => window.cardano[sw])
       .filter((sw) => sw !== undefined)
-      .find((sw) => sw.name === walletName);
+      .find((sw) => sw.name.toLowerCase() === walletName.toLowerCase());
 
     return wallet?.enable();
   }
 }
 
-type WalletProvider = {
-  name: string;
-  icon: string;
-  version: string;
-  enable: () => Promise<WalletInstance>;
+declare global {
+  interface Window {
+    cardano: Cardano;
+  }
+};
+
+type Cardano = {
+  [key: string]: {
+    name: string;
+    icon: string;
+    apiVersion: string;
+    enable: () => Promise<WalletInstance>;
+  };
 };
 
 type WalletInstance = {

@@ -26,12 +26,6 @@ declare interface Window {
   cardano: Cardano;
 }
 
-declare global {
-  interface Window {
-    cardano: any;
-  }
-}
-
 export type ProtocolParameters = {
   coins_per_utxo_size: string;
   coins_per_utxo_word: string;
