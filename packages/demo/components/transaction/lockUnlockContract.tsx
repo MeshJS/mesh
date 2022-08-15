@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Button, Card, Codeblock, Input, Toggle } from '../../components';
 import { AssetsContainer } from '../blocks/assetscontainer';
 import useWallet from '../../contexts/wallet';
-import Mesh from '@martifylabs/mesh';
 import {
   TransactionService,
   resolveDataHash,
@@ -81,8 +80,7 @@ function CodeDemo() {
     // console.log(`utxos that has ${asset}:`, utxosFromBF);
 
     const blockfrost = new BlockfrostProvider(
-      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-      'testnet'
+      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!, 0
     );
     const utxos = await blockfrost.fetchAssetUtxosFromAddress(
       asset,
@@ -158,8 +156,7 @@ function CodeDemo() {
 
         // v3 use new bf to submit
         const blockfrost = new BlockfrostProvider(
-          process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
-          'testnet'
+          process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!, 0
         );
         let txHash = await blockfrost.submitTx(signedTx);
         console.log('txHash', txHash);
