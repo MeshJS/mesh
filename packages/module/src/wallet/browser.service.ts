@@ -1,5 +1,5 @@
 import { csl } from '@mesh/core';
-import { MAX_COLLATERAL, POLICY_ID_LENGTH } from '@mesh/common/constants';
+import { DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH } from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeAddress, deserializeEd25519KeyHash, deserializeTx,
@@ -50,7 +50,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return deserializeAddress(changeAddress).to_bech32();
   }
 
-  async getCollateral(limit = MAX_COLLATERAL): Promise<UTxO[]> {
+  async getCollateral(
+    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
+  ): Promise<UTxO[]> {
     const deserializedCollateral = await this.getCollateralInput(limit);
     return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
   }
@@ -122,7 +124,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return utxos.map((u) => deserializeTxUnspentOutput(u));
   }
 
-  async getCollateralInput(limit = MAX_COLLATERAL): Promise<TransactionUnspentOutput[]> {
+  async getCollateralInput(
+    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
+  ): Promise<TransactionUnspentOutput[]> {
     const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
     return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }

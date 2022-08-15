@@ -6,7 +6,7 @@ import {
   deserializeTxHash,
 } from './deserializer';
 import type {
-  PlutusData, Redeemer, TransactionUnspentOutput, Value,
+  PlutusData, Redeemer, RedeemerTag, TransactionUnspentOutput, Value,
 } from '@mesh/core';
 import type { Action, Asset, Data, UTxO } from '@mesh/common/types';
 
@@ -83,7 +83,7 @@ export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
 /* -----------------[ Redeemer ]----------------- */
 
 export const toRedeemer = (action: Action): Redeemer => {
-  const lookupRedeemerTag = (key: string) => REDEEMER_TAGS[key];
+  const lookupRedeemerTag = (key: string) => REDEEMER_TAGS[key] as RedeemerTag;
 
   return csl.Redeemer.new(
     lookupRedeemerTag(action.tag),

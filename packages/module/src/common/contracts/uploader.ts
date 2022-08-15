@@ -1,3 +1,3 @@
 export interface IUploader {
-  uploadContent(content: FormData, recursive: false): Promise<string>;
+  uploadContent(content: FormData, recursive: boolean): Promise<string>;
 }

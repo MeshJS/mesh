@@ -15,9 +15,8 @@ export const DEFAULT_PROTOCOL_PARAMETERS = {
   maxTxSize: 16384,
   maxValSize: '5000',
   poolDeposit: '500000000',
+  maxCollateralInputs: 3,
 };
-
-export const MAX_COLLATERAL = 3;
 
 export const POLICY_ID_LENGTH = 56;
 
@@ -27,3 +26,8 @@ export const REDEEMER_TAGS = {
   REWARD: csl.RedeemerTag.new_reward(),
   SPEND: csl.RedeemerTag.new_spend(),
 };
+
+export const SUPPORTED_NETWORKS = new Map<number, string>([
+  [0, 'testnet'],
+  [1, 'mainnet'],
+]);

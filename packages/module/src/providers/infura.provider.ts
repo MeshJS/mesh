@@ -19,7 +19,7 @@ export class InfuraProvider implements IUploader {
     });
   }
 
-  async uploadContent(content: FormData, recursive: false): Promise<string> {
+  async uploadContent(content: FormData, recursive = false): Promise<string> {
     try {
       const headers = { 'Content-Type': 'multipart/form-data' };
       const { data, status } = await this._axiosInstance.post(
