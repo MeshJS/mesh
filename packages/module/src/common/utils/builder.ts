@@ -1,45 +1,13 @@
 import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
-  toAddress, toBytes, toPlutusData,
-  toTxUnspentOutput, toUnitInterval,
+  toAddress, toPlutusData, toTxUnspentOutput, toUnitInterval,
 } from './converter';
 import type {
-  PlutusData, TransactionBuilder, TransactionOutputBuilder,
+  TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
-import type { Data, DataContent, UTxO } from '@mesh/common/types';
-
-export const buildPlutusData = (content: DataContent): PlutusData => {
-  switch (typeof content) {
-    case 'string':
-      return csl.PlutusData.new_bytes(toBytes(content));
-    case 'number':
-      return csl.PlutusData.new_integer(
-        csl.BigInt.from_str(content.toString())
-      );
-    case 'object':
-      if (Array.isArray(content)) {
-        const plutusList = csl.PlutusList.new();
-        content.forEach((element) => {
-          plutusList.add(buildPlutusData(element));
-        });
-        return csl.PlutusData.new_constr_plutus_data(
-          csl.ConstrPlutusData.new(
-            csl.BigNum.from_str("0"), plutusList
-          ),
-        );
-      } else {
-        const plutusMap = csl.PlutusMap.new();
-        Object.keys(content).forEach((key) => {
-          plutusMap.insert(buildPlutusData(key), buildPlutusData(content[key]));
-        });
-        return csl.PlutusData.new_map(plutusMap);
-      }
-    default:
-      throw new Error(`Couldn't build PlutusData of type: ${typeof content}.`);
-  }
-};
+import type { Data, UTxO } from '@mesh/common/types';
 
 export const buildTxBuilder = (
   parameters = DEFAULT_PROTOCOL_PARAMETERS
@@ -62,6 +30,7 @@ export const buildTxBuilder = (
     .max_tx_size(parameters.maxTxSize)
     .max_value_size(parseInt(parameters.maxValSize))
     .pool_deposit(csl.BigNum.from_str(parameters.poolDeposit))
+    .prefer_pure_change(true)
     .build();
 
   return csl.TransactionBuilder.new(txBuilderConfig);
@@ -93,7 +62,8 @@ export const buildTxOutputBuilder = (
   address: string, datum?: Data
 ): TransactionOutputBuilder => {
   if (datum === undefined)
-    return csl.TransactionOutputBuilder.new().with_address(toAddress(address));
+    return csl.TransactionOutputBuilder.new()
+      .with_address(toAddress(address));
 
   const plutusData = toPlutusData(datum);
   const dataHash = csl.hash_plutus_data(plutusData);

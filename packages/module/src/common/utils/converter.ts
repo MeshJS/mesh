@@ -1,43 +1,26 @@
 import { csl } from '@mesh/core';
 import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '@mesh/common/constants';
-import { buildPlutusData } from './builder';
 import {
-  deserializeDataHash,
-  deserializePlutusData,
-  deserializeScriptHash,
-  deserializeScriptRef,
+  deserializeDataHash, deserializePlutusData,
+  deserializeScriptHash, deserializeScriptRef,
   deserializeTxHash,
 } from './deserializer';
 import type {
-  PlutusData,
-  Redeemer,
-  TransactionUnspentOutput,
-  Value,
+  PlutusData, Redeemer, TransactionUnspentOutput, Value,
 } from '@mesh/core';
 import type { Action, Asset, Data, UTxO } from '@mesh/common/types';
-
-/* -----------------[ ASCII ]----------------- */
-
-export const fromASCII = (ascii: string) =>
-  fromBytes(Buffer.from(ascii, 'ascii'));
-
-export const toASCII = (hex: string) =>
-  Buffer.from(hex, 'hex').toString('ascii');
 
 /* -----------------[ Address ]----------------- */
 
 export const toAddress = (bech32: string) => csl.Address.from_bech32(bech32);
 
-export const toBaseAddress = (bech32: string) =>
-  csl.BaseAddress.from_address(toAddress(bech32));
+export const toBaseAddress = (bech32: string) => csl.BaseAddress.from_address(toAddress(bech32));
 
-export const toEnterpriseAddress = (bech32: string) =>
-  csl.EnterpriseAddress.from_address(toAddress(bech32));
+export const toEnterpriseAddress = (bech32: string) => csl.EnterpriseAddress.from_address(toAddress(bech32));
 
 /* -----------------[ Bytes ]----------------- */
 
-export const fromBytes = (bytes: Uint8Array) =>
-  Buffer.from(bytes).toString('hex');
+export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 
 export const toBytes = (hex: string) => Buffer.from(hex, 'hex') as Uint8Array;
 
@@ -50,11 +33,40 @@ export const toLovelace = (ada: number) => ada * 1_000_000;
 /* -----------------[ PlutusData ]----------------- */
 
 export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
+  const newPlutusData = (data: Data): PlutusData => {
+    switch (typeof data) {
+      case 'string':
+        return csl.PlutusData.new_bytes(
+          toBytes(data)
+        );
+      case 'number':
+        return csl.PlutusData.new_integer(
+          csl.BigInt.from_str(data.toString())
+        );
+      case 'object':
+        if (Array.isArray(data)) {
+          const plutusList = csl.PlutusList.new();
+          data.forEach((element) => {
+            plutusList.add(newPlutusData(element));
+          });
+          return csl.PlutusData.new_list(plutusList);
+        } else {
+          const plutusMap = csl.PlutusMap.new();
+          Object.keys(data).forEach((key) => {
+            plutusMap.insert(newPlutusData(key), newPlutusData(data[key]));
+          });
+          return csl.PlutusData.new_map(plutusMap);
+        }
+      default:
+        throw new Error(`Couldn't create PlutusData of type: ${typeof data}.`);
+    }
+  };
+
   if (Array.isArray(data)) {
     const fields = csl.PlutusList.new();
 
     data.forEach((field) => {
-      fields.add(buildPlutusData(field));
+      fields.add(newPlutusData(field));
     });
 
     return csl.PlutusData.new_constr_plutus_data(
@@ -65,7 +77,7 @@ export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
     );
   }
 
-  return buildPlutusData(data);
+  return newPlutusData(data);
 };
 
 /* -----------------[ Redeemer ]----------------- */
@@ -109,9 +121,7 @@ export const fromTxUnspentOutput = (
     output: {
       address: txUnspentOutput.output().address().to_bech32(),
       amount: fromValue(txUnspentOutput.output().amount()),
-      dataHash,
-      plutusData,
-      scriptRef,
+      dataHash, plutusData, scriptRef,
     },
   };
 };
@@ -156,6 +166,12 @@ export const toUnitInterval = (float: string) => {
   );
 };
 
+/* -----------------[ UTF-8 ]----------------- */
+
+export const fromUTF8 = (utf8: string) => fromBytes(Buffer.from(utf8, 'utf-8'));
+
+export const toUTF8 = (hex: string) => Buffer.from(hex, 'hex').toString('utf-8');
+
 /* -----------------[ Value ]----------------- */
 
 export const fromValue = (value: Value) => {
@@ -173,10 +189,8 @@ export const fromValue = (value: Value) => {
         const policyAssetNames = policyAssets.keys();
         for (let j = 0; j < policyAssetNames.len(); j += 1) {
           const assetName = policyAssetNames.get(j);
-          const quantity =
-            policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
-          const assetId =
-            fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
+          const quantity = policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
+          const assetId = fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
           assets.push({ unit: assetId, quantity: quantity.to_str() });
         }
       }

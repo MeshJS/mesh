@@ -1,3 +1,5 @@
-import { DataContent } from './DataContent';
-
-export type Data = string | number | DataContent[];
+export type Data =
+  | string
+  | number
+  | Data[]
+  | { [key: string]: Data };

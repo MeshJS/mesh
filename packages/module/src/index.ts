@@ -20,8 +20,9 @@ class Mesh {
 
 export default new Mesh();
 
+export * from './common/contracts';
 export * from './common/types';
-export * from './common/utils';
+export * from './common/utils/resolver';
 export * from './providers';
 export * from './transaction';
 export * from './wallet';
