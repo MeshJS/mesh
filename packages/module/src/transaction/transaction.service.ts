@@ -133,9 +133,7 @@ export class TransactionService {
   }
 
   setChangeAddress(address: string): TransactionService {
-    if (address?.length > 0) { // TODO: CIP-19 https://cips.cardano.org/cips/cip19/
-      this._change = toAddress(address);
-    }
+    this._change = toAddress(address);
 
     return this;
   }
@@ -212,10 +210,10 @@ export class TransactionService {
 
   private async addRequiredSignersIfNeeded() {
     if (this._initiator && this.notVisited('setRequiredSigners')) {
-      const signatures = await this._initiator.getPubKeyHashes();
-      signatures.forEach((signature) => {
-        this._txBuilder.add_required_signer(signature);
-      });
+      const usedAddress = await this._initiator.getUsedAddress();
+      const keyHash = resolveAddressKeyHash(usedAddress.to_bech32());
+      const signer = deserializeEd25519KeyHash(keyHash)
+      this._txBuilder.add_required_signer(signer);
     }
   }
 

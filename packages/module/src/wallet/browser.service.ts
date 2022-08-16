@@ -2,12 +2,11 @@ import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH } from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeAddress, deserializeEd25519KeyHash, deserializeTx,
-  deserializeTxWitnessSet, deserializeTxUnspentOutput, deserializeValue,
-  fromBytes, fromTxUnspentOutput, fromValue, resolveFingerprint,
-  resolveAddressKeyHash, toUTF8,
+  deserializeAddress, deserializeTx, deserializeTxWitnessSet,
+  deserializeTxUnspentOutput, deserializeValue, fromBytes,
+  fromTxUnspentOutput, fromValue, resolveFingerprint, toUTF8,
 } from '@mesh/common/utils';
-import type { Address, Ed25519KeyHash, TransactionUnspentOutput } from '@mesh/core';
+import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
 
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
@@ -129,17 +128,6 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   ): Promise<TransactionUnspentOutput[]> {
     const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
     return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
-  }
-
-  async getPubKeyHashes(): Promise<Ed25519KeyHash[]> {
-    const addresses = [
-      ...await this.getUsedAddresses(),
-      ...await this.getUnusedAddresses(),
-    ];
-
-    return addresses
-      .map((address) => resolveAddressKeyHash(address))
-      .map((keyHash) => deserializeEd25519KeyHash(keyHash));
   }
 
   async getUsedAddress(): Promise<Address> {
