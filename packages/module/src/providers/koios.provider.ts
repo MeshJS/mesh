@@ -2,17 +2,16 @@ import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_NETWORKS } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { toBytes } from '@mesh/common/utils';
-import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
+import type { Asset, AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
 
-export class BlockfrostProvider implements IFetcher, ISubmitter {
+export class KoiosProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(projectId: string, networkId: number, version = 0) {
-    const network = SUPPORTED_NETWORKS.get(networkId) ?? 'testnet';
+  constructor(networkId: number, version = 0) {
+    const network = SUPPORTED_NETWORKS.get(networkId) === 'mainnet' ? 'api' : 'testnet';
 
     this._axiosInstance = axios.create({
-      baseURL: `https://cardano-${network}.blockfrost.io/api/v${version}`,
-      headers: { project_id: projectId },
+      baseURL: `https://${network}.koios.rest/api/v${version}`,
     });
   }
 
@@ -23,23 +22,33 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
   async fetchAssetUtxosFromAddress(asset: string, address: string): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        `addresses/${address}/utxos/${asset}`
+        `address_info?_address=${address}`
       );
 
       if (status === 200)
-        return data.map((utxo) => (
-          {
+        return data
+          .flatMap(
+            (info: { utxo_set: []; }) => info.utxo_set
+          )
+          .map((utxo) => ({
             input: {
-              outputIndex: utxo.output_index,
+              outputIndex: utxo.tx_index,
               txHash: utxo.tx_hash,
             },
             output: {
               address: address,
-              amount: utxo.amount,
-              dataHash: utxo.data_hash,
+              amount: utxo.asset_list
+                .map((a) => ({
+                  unit: `${a.policy_id}${a.asset_name}`,
+                  quantity: `${a.quantity}`
+                }) as Asset),
+              dataHash: utxo.datum_hash,
             },
-          }
-        ) as UTxO);
+          }) as UTxO)
+          .filter(
+            (utxo: UTxO) =>
+              utxo.output.amount.find((a) => a.unit === asset) !== undefined
+          );
 
       throw data;
     } catch (error) {
@@ -47,10 +56,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
+  async fetchProtocolParameters(epoch: number): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        `epochs/${isNaN(epoch) ? 'latest' : epoch}/parameters`
+        `epoch_params?_epoch_no=${epoch}`
       );
 
       if (status === 200)
@@ -87,7 +96,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     try {
       const headers = { 'Content-Type': 'application/cbor' };
       const { data, status } = await this._axiosInstance.post(
-        'tx/submit', toBytes(tx), { headers },
+        'submittx', toBytes(tx), { headers },
       );
 
       if (status === 200)
