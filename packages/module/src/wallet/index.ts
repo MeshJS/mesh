@@ -1,2 +1,2 @@
 export * from './browser.service';
-export * from './custodial.service';
+export * from './embedded.service';

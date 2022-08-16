@@ -212,7 +212,7 @@ export class TransactionService {
     if (this._initiator && this.notVisited('setRequiredSigners')) {
       const usedAddress = await this._initiator.getUsedAddress();
       const keyHash = resolveAddressKeyHash(usedAddress.to_bech32());
-      const signer = deserializeEd25519KeyHash(keyHash)
+      const signer = deserializeEd25519KeyHash(keyHash);
       this._txBuilder.add_required_signer(signer);
     }
   }
