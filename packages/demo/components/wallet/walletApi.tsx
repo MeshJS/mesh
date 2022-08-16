@@ -239,7 +239,7 @@ function DemoGetInstalledWallets() {
           <div className="flex">
             <div className="flex-1 overflow-auto">
               <Codeblock
-                data={`const result = BrowserWallet.getInstalledWallets();`}
+                data={`const result = await BrowserWallet.getInstalledWallets();`}
                 isJson={false}
               />
             </div>
