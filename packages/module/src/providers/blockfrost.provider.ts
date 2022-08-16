@@ -16,6 +16,21 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     });
   }
 
+  escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+  }
+  replaceAll(str, find, replace) {
+    return str.replace(new RegExp(this.escapeRegExp(find), 'g'), replace);
+  }
+
+  _blockfrostError(data) {
+    if (data.response.data.status_code === 400) {
+      return this.replaceAll(data.response.data.message, '\\n', '\n');
+    } else {
+      return data;
+    }
+  }
+
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     throw new Error('Method not implemented.' + asset);
   }
@@ -27,23 +42,23 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return data.map((utxo) => (
-          {
-            input: {
-              outputIndex: utxo.output_index,
-              txHash: utxo.tx_hash,
-            },
-            output: {
-              address: address,
-              amount: utxo.amount,
-              dataHash: utxo.data_hash,
-            },
-          }
-        ) as UTxO);
+      return data.map((utxo) => (
+        {
+          input: {
+            outputIndex: utxo.output_index,
+            txHash: utxo.tx_hash,
+          },
+          output: {
+            address: address,
+            amount: utxo.amount,
+            dataHash: utxo.data_hash,
+          },
+        }
+      ) as UTxO);
 
-      throw data;
+      throw this._blockfrostError(data);
     } catch (error) {
-      throw error;
+      throw this._blockfrostError(error);
     }
   }
 
@@ -77,9 +92,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
           priceStep: data.price_step,
         } as Protocol;
 
-      throw data;
+      throw this._blockfrostError(data);
     } catch (error) {
-      throw error;
+      throw this._blockfrostError(error);
     }
   }
 
@@ -93,9 +108,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       if (status === 200)
         return data as string;
 
-      throw data;
+      throw this._blockfrostError(data);
     } catch (error) {
-      throw error;
+      throw this._blockfrostError(error);
     }
   }
 }

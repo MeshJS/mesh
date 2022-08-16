@@ -1,20 +1,20 @@
 import { Blockfrost } from './providers/blockfrost';
-import { Wallet } from './wallet.old';
-import { Transaction } from './transaction.old';
+// import { Wallet } from './wallet.old';
+// import { Transaction } from './transaction.old';
 
 class Mesh {
-  public wallet: Wallet;
-  public transaction: Transaction;
+  // public wallet: Wallet;
+  // public transaction: Transaction;
   public blockfrost: Blockfrost;
   
   constructor() {
     this.blockfrost = new Blockfrost();
-    this.wallet = new Wallet({
-      blockfrost: this.blockfrost,
-    });
-    this.transaction = new Transaction({
-      wallet: this.wallet,
-    });
+    // this.wallet = new Wallet({
+    //   blockfrost: this.blockfrost,
+    // });
+    // this.transaction = new Transaction({
+    //   wallet: this.wallet,
+    // });
   }
 }
 
