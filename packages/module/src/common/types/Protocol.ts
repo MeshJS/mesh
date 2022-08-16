@@ -7,7 +7,7 @@ export type Protocol = {
   maxBlockHeaderSize: number;
   keyDeposit: string;
   poolDeposit: string;
-  decentralisationParam: number;
+  decentralisation: number;
   minPoolCost: string;
   priceMem: number;
   priceStep: number;

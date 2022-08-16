@@ -71,7 +71,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
         return {
           coinsPerUTxOSize: data.coins_per_utxo_size,
           collateralPercent: data.collateral_percent,
-          decentralisationParam: data.decentralisation_param,
+          decentralisation: data.decentralisation_param,
           epoch: data.epoch,
           keyDeposit: data.key_deposit,
           maxBlockExMem: data.max_block_ex_mem,
