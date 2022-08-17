@@ -36,6 +36,7 @@ export class TransactionService {
 
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
+
       return fromBytes(this._txBuilder.build_tx().to_bytes());
     } catch (error) {
       throw error;
