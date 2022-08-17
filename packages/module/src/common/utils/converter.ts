@@ -49,7 +49,11 @@ export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
           data.forEach((element) => {
             plutusList.add(newPlutusData(element));
           });
-          return csl.PlutusData.new_list(plutusList);
+          return csl.PlutusData.new_constr_plutus_data(
+            csl.ConstrPlutusData.new(
+              csl.BigNum.from_str('0'), plutusList
+            )
+          );
         } else {
           const plutusMap = csl.PlutusMap.new();
           Object.keys(data).forEach((key) => {
