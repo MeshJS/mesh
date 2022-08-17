@@ -22,7 +22,6 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
   replaceAll(str, find, replace) {
     return str.replace(new RegExp(this.escapeRegExp(find), 'g'), replace);
   }
-
   _blockfrostError(data) {
     if (data.response.data.status_code === 400) {
       return this.replaceAll(data.response.data.message, '\\n', '\n');

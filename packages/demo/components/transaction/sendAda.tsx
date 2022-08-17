@@ -123,7 +123,7 @@ function CodeDemo() {
     }
   }, [walletConnected]);
 
-  let codeSnippet = `const tx = new TransactionService({ walletService: wallet })`;
+  let codeSnippet = `const tx = new TransactionService({ initiator: wallet })`;
   for (const recipient of recipients) {
     codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
   }

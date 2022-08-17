@@ -292,7 +292,7 @@ function DemoConnectWallet() {
         </div>
         <div className="mt-8">
           <Codeblock
-            data={`const wallet = await BrowserWallet.enable('${
+            data={`const wallet = BrowserWallet.enable('${
               walletNameConnected ? walletNameConnected : 'eternl'
             }');`}
             isJson={false}

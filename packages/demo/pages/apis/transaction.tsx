@@ -33,7 +33,7 @@ function Hero() {
   codeSnippet += `// connect to a wallet\n`;
   codeSnippet += `const wallet = await BrowserWallet.enable('eternl');\n\n`;
   codeSnippet += `// initiate a new TransactionService with the connected wallet\n`;
-  codeSnippet += `const tx = new TransactionService({ walletService: wallet });`;
+  codeSnippet += `const tx = new TransactionService({ initiator: wallet });`;
 
   return (
     <section>

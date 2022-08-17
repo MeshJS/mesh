@@ -25,7 +25,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         `address_info?_address=${address}`
       );
 
-      if (status === 200)
+      if (status === 202)
         return data
           .flatMap(
             (info: { utxo_set: []; }) => info.utxo_set
@@ -62,7 +62,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         `epoch_params?_epoch_no=${epoch}`
       );
 
-      if (status === 200)
+      if (status === 202)
         return {
           coinsPerUTxOSize: data.coins_per_utxo_size,
           collateralPercent: data.collateral_percent,
@@ -99,7 +99,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         'submittx', toBytes(tx), { headers },
       );
 
-      if (status === 200)
+      if (status === 202)
         return data as string;
 
       throw data;
