@@ -30,7 +30,7 @@ export const buildTxBuilder = (
     .max_tx_size(parameters.maxTxSize)
     .max_value_size(parseInt(parameters.maxValSize))
     .pool_deposit(csl.BigNum.from_str(parameters.poolDeposit))
-    .prefer_pure_change(true)
+    .prefer_pure_change(false)
     .build();
 
   return csl.TransactionBuilder.new(txBuilderConfig);
