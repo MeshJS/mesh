@@ -54,7 +54,7 @@ export class TransactionService {
       alternative: 0,
       budget: DEFAULT_REDEEMER_BUDGET,
       data: [] as Data,
-      index: value.input.outputIndex,
+      index: this._txInputsBuilder.inputs().len(),
       tag: 'SPEND',
       ...options.redeemer,
     };
