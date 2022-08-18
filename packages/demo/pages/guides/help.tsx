@@ -4,14 +4,14 @@ const Help = () => {
       <section>
         <h2>Help, I&apos;m Stuck!</h2>
         <p>
-          If you get stuck, you can ask questions at
+          If you get stuck, you can ask questions at{' '}
           <a
             href="https://cardano.stackexchange.com/"
             target="_blank"
             rel="noreferrer"
           >
             cardano.stackexchange.com
-          </a>
+          </a>{' '}
           and tagged it with <code>mesh</code>.
         </p>
         <p>

@@ -8,9 +8,9 @@ const GUIDES = [
     link: '/guides/nextjs',
   },
   {
-    title: 'Start a Node.js project with Mesh',
+    title: 'Start a Node.js backend with NestJS',
     desc: 'Coming soon...',
-    link: '/guides/nodejs',
+    link: '/guides/nestjs',
   },
   {
     title: 'Lock and redeem assets with Smart Contracts',
@@ -72,7 +72,7 @@ function Listings() {
           <Link href={guide.link} key={i}>
             <div className="cursor-pointer">
               <Card className="h-64">
-                <h2 className="mt-4">{guide.title}</h2>
+                <h3 className="mt-4">{guide.title}</h3>
                 <p>{guide.desc}</p>
               </Card>
             </div>

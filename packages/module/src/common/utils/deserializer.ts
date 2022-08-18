@@ -1,4 +1,4 @@
-import { csl } from '../../core/cardano';
+import { csl } from '@mesh/core';
 import { toBytes } from './converter';
 
 export const deserializeAddress = (address: string) => csl.Address
@@ -6,6 +6,9 @@ export const deserializeAddress = (address: string) => csl.Address
 
 export const deserializeDataHash = (dataHash: string) => csl.DataHash
   .from_bytes(toBytes(dataHash));
+
+export const deserializeEd25519KeyHash = (ed25519KeyHash: string) => csl.Ed25519KeyHash
+  .from_bytes(toBytes(ed25519KeyHash));
 
 export const deserializePlutusData = (plutusData: string) => csl.PlutusData
   .from_bytes(toBytes(plutusData));

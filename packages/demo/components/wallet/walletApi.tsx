@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Button, Card, Codeblock, Input } from '../../components';
-import useWallet from '../../contexts/wallet';
-import { PlayIcon } from '@heroicons/react/solid';
-import ConnectWallet from '../../components/wallet/connectWallet';
-import { WalletService } from '@martifylabs/mesh';
 import Link from 'next/link';
+import { Button, Card, Codeblock, Input } from '../../components';
+import { PlayIcon } from '@heroicons/react/solid';
+import useWallet from '../../contexts/wallet';
+import ConnectWallet from './connectWallet';
+import { BrowserWallet } from '@martifylabs/mesh';
 
 export default function WalletApi() {
   return (
@@ -168,7 +168,7 @@ function DemoSection({ children, title, demoFn }) {
                 isJson={false}
               />
             </div>
-            <div className="pt-4 ml-1">
+            <div className="pt-7 ml-1">
               {walletConnected && (
                 <Button
                   onClick={() => runDemo()}
@@ -222,7 +222,7 @@ function DemoGetInstalledWallets() {
 
   async function runDemo() {
     setLoading(true);
-    let results = WalletService.getInstalledWallets();
+    let results = BrowserWallet.getInstalledWallets();
     setResponse(results);
     setLoading(false);
   }
@@ -239,11 +239,11 @@ function DemoGetInstalledWallets() {
           <div className="flex">
             <div className="flex-1 overflow-auto">
               <Codeblock
-                data={`const result = WalletService.getInstalledWallets();`}
+                data={`const result = BrowserWallet.getInstalledWallets();`}
                 isJson={false}
               />
             </div>
-            <div className="pt-4 ml-1">
+            <div className="pt-7 ml-1">
               <Button
                 onClick={() => runDemo()}
                 style={
@@ -279,22 +279,22 @@ function DemoConnectWallet() {
           <h3>Connect wallet</h3>
           <p>
             This is the entrypoint to start communication with the user&apos;s
-            wallet. The wallet should request the user&apos;s permission to connect
-            the web page to the user&apos;s wallet, and if permission has been
-            granted, the wallet will be returned and exposing the full API for
-            the dApp to use.
+            wallet. The wallet should request the user&apos;s permission to
+            connect the web page to the user&apos;s wallet, and if permission
+            has been granted, the wallet will be returned and exposing the full
+            API for the dApp to use.
           </p>
           <p>
-            Query <code>WalletService.getInstalledWallets()</code> to get a list
+            Query <code>BrowserWallet.getInstalledWallets()</code> to get a list
             of available wallets, then provide the wallet <code>name</code> for
             which wallet the user would like to connect with.
           </p>
         </div>
         <div className="mt-8">
           <Codeblock
-            data={`const wallet = await WalletService.enable("${
+            data={`const wallet = BrowserWallet.enable('${
               walletNameConnected ? walletNameConnected : 'eternl'
-            }");`}
+            }');`}
             isJson={false}
           />
           <ConnectWallet />
@@ -338,7 +338,7 @@ function DemoGetAssets() {
                 isJson={false}
               />
             </div>
-            <div className="pt-4 ml-1">
+            <div className="pt-7 ml-1">
               {walletConnected && (
                 <Button
                   onClick={() => runDemo()}
@@ -378,13 +378,15 @@ function DemoGetAssetsCollection() {
 
   async function runDemo() {
     setLoading(true);
-    if (policyId.length) {
-      let results = await wallet.getPolicyIdAssets(policyId);
-      setResponse(results);
-    } else {
-      let results = await wallet.getAssets();
-      setResponse(results);
-    }
+    // if (policyId.length) {
+    //   let results = await wallet.getPolicyIdAssets(policyId);
+    //   setResponse(results);
+    // } else {
+    //   let results = await wallet.getAssets();
+    //   setResponse(results);
+    // }
+    let results = await wallet.getPolicyIdAssets(policyId);
+    setResponse(results);
     setLoading(false);
   }
 
@@ -396,12 +398,13 @@ function DemoGetAssetsCollection() {
           <p>
             Returns a list of assets from a policy ID. If no assets in wallet
             belongs to the policy ID, an empty list is returned. Query for a
-            list of assets&apos; policy ID with <code>wallet.getPolicyIds()</code>.
+            list of assets&apos; policy ID with{' '}
+            <code>wallet.getPolicyIds()</code>.
           </p>
         </div>
 
         <div className="mt-8">
-          <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
+          <table className="tableForInputs not-format">
             <tbody>
               <tr>
                 <td className="py-4 px-4 w-1/4">Policy ID</td>
@@ -425,7 +428,7 @@ function DemoGetAssetsCollection() {
                 isJson={false}
               />
             </div>
-            <div className="pt-4 ml-1">
+            <div className="pt-7 ml-1">
               {walletConnected && (
                 <Button
                   onClick={() => runDemo()}

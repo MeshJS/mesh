@@ -1,7 +1,10 @@
+import { AssetFingerprint, csl } from '@mesh/core';
 import {
-  fromBytes, toAddress, toBaseAddress, toEnterpriseAddress,
-} from "./converter";
-import { deserializeAddress } from "./deserializer";
+  fromBytes, toAddress, toBaseAddress,
+  toBytes, toEnterpriseAddress, toPlutusData,
+} from './converter';
+import { deserializeAddress } from './deserializer';
+import type { Data } from '@mesh/common/types';
 
 export const resolveAddressKeyHash = (bech32: string) => {
   try {
@@ -17,9 +20,18 @@ export const resolveAddressKeyHash = (bech32: string) => {
   }
 };
 
+export const resolveDataHash = (data: Data) => {
+  const plutusData = toPlutusData(data);
+  const dataHash = csl.hash_plutus_data(plutusData);
+  return fromBytes(dataHash.to_bytes());
+};
+
 export const resolveFingerprint = (policyId: string, assetName: string) => {
-  return `${policyId}${assetName}`; // TODO: CIP 14 - User-Facing Asset Fingerprint
-}
+  return AssetFingerprint.fromParts(
+    toBytes(policyId),
+    toBytes(assetName)
+  ).fingerprint();
+};
 
 export const resolveScriptHash = (bech32: string) => {
   try {
@@ -31,9 +43,9 @@ export const resolveScriptHash = (bech32: string) => {
 
     throw new Error(`Couldn't resolve script hash from address: ${bech32}.`);
   } catch (error) {
-    throw error
+    throw error;
   }
-}
+};
 
 export const resolveStakeKey = (bech32: string) => {
   try {

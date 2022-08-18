@@ -4,6 +4,9 @@ import { Button, Card, Codeblock, Input } from '../../components';
 import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import { Recipient } from '../../types';
 import useWallet from '../../contexts/wallet';
+import { LinkCardanoscanTx } from '../blocks/linkCardanoscanTx';
+import ConnectWallet from '../wallet/connectWallet';
+// import Mesh from '@martifylabs/mesh';
 
 export default function SendAda() {
   return (
@@ -33,7 +36,7 @@ export default function SendAda() {
 }
 
 function CodeDemo() {
-  const { wallet, walletConnected, walletNameConnected } = useWallet();
+  const { wallet, walletConnected } = useWallet();
   const [state, setState] = useState<number>(0);
   const [result, setResult] = useState<null | string>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -74,7 +77,7 @@ function CodeDemo() {
   async function makeTransaction() {
     setState(1);
     try {
-      const tx = new TransactionService(wallet);
+      const tx = new TransactionService({ initiator: wallet });
       for (const recipient of recipients) {
         tx.sendLovelace(
           recipient.address,
@@ -84,6 +87,14 @@ function CodeDemo() {
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
+
+      // await Mesh.blockfrost.init({
+      //   blockfrostApiKey: process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET!,
+      //   network: 0,
+      // });
+      // let txHash = await Mesh.blockfrost.transactionSubmitTx({ tx: signedTx });
+      // console.log('txHash', txHash);
+
       setResult(txHash);
       setState(2);
     } catch (error) {
@@ -112,26 +123,20 @@ function CodeDemo() {
     }
   }, [walletConnected]);
 
-  let codeSnippet = `const wallet = await WalletService.enable("${
-    walletNameConnected ? walletNameConnected : 'eternl'
-  }");`;
-
-  codeSnippet += `\n\nconst tx = new TransactionService(wallet)`;
-
+  let codeSnippet = `const tx = new TransactionService({ initiator: wallet })`;
   for (const recipient of recipients) {
     codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
   }
+  codeSnippet += `;\n`;
 
-  codeSnippet += `;`;
-
-  codeSnippet += `\n\nconst unsignedTx = await tx.build();`;
-  codeSnippet += `\nconst signedTx = await wallet.signTx(unsignedTx);`;
-  codeSnippet += `\nconst txHash = await wallet.submitTx(signedTx);`;
+  codeSnippet += `const unsignedTx = await tx.build();\n`;
+  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
   return (
     <>
-      <table className="border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400">
-        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+      <table className="tableForInputs not-format">
+        <thead className="tableForInputsThead">
           <tr>
             <th scope="col" colSpan={3} className="py-3 px-6">
               Recipients
@@ -189,7 +194,7 @@ function CodeDemo() {
 
       <Codeblock data={codeSnippet} isJson={false} />
 
-      {walletConnected && (
+      {walletConnected ? (
         <Button
           onClick={() => makeTransaction()}
           disabled={state == 1}
@@ -197,6 +202,8 @@ function CodeDemo() {
         >
           Run code snippet
         </Button>
+      ) : (
+        <ConnectWallet />
       )}
       {result && (
         <>
@@ -204,6 +211,7 @@ function CodeDemo() {
           <Codeblock data={result} />
         </>
       )}
+      {state === 2 && <LinkCardanoscanTx txHash={result} />}
     </>
   );
 }

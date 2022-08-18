@@ -1,9 +1,7 @@
 import { Metatags } from '../../components';
-import ConnectWallet from '../../components/wallet/connectWallet';
 import SendAda from '../../components/transaction/sendAda';
 import SendMultiassets from '../../components/transaction/sendMultiassets';
-// import TransactionBuilder from '../../components/transaction/transactionBuilder';
-// import LockAssets from '../../components/transaction/lockAssets';
+import LockUnlockContract from '../../components/transaction/lockUnlockContract';
 import { Codeblock } from '../../components';
 
 const Transaction = () => {
@@ -20,13 +18,9 @@ function Showcase() {
   return (
     <section>
       <div className="mx-auto max-w-screen-xl px-4 lg:px-6">
-        <h2>Connect available wallets</h2>
-        <ConnectWallet />
-
         <SendAda />
         <SendMultiassets />
-        {/* <TransactionBuilder /> 
-        <LockAssets />*/}
+        <LockUnlockContract />
       </div>
     </section>
   );
@@ -34,12 +28,12 @@ function Showcase() {
 
 function Hero() {
   let codeSnippet = '';
-  codeSnippet += `// import TransactionService\n`;
-  codeSnippet += `import { TransactionService } from '@martifylabs/mesh'\n\n`;
+  codeSnippet += `// import TransactionService and BrowserWallet\n`;
+  codeSnippet += `import { TransactionService, BrowserWallet } from '@martifylabs/mesh';\n\n`;
   codeSnippet += `// connect to a wallet\n`;
-  codeSnippet += `const wallet = await WalletService.enable("eternl");\n\n`;
+  codeSnippet += `const wallet = await BrowserWallet.enable('eternl');\n\n`;
   codeSnippet += `// initiate a new TransactionService with the connected wallet\n`;
-  codeSnippet += `const tx = new TransactionService(wallet);`;
+  codeSnippet += `const tx = new TransactionService({ initiator: wallet });`;
 
   return (
     <section>

@@ -2,7 +2,7 @@
   "type": "module",
   "license": "MIT",
   "author": "MartifyLabs",
-  "version": "0.0.5-beta.3",
+  "version": "0.0.6-beta.6",
   "name": "@martifylabs/mesh",
   "homepage": "https://mesh.martify.io",
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
@@ -34,7 +34,7 @@
     "test": "tsdx test",
     "test:watch": "tsdx test --watch",
     "test:coverage": "tsdx test --coverage",
-    "start": "tsdx watch",
+    "start": "tsdx watch --format esm",
     "build": "tsdx build --format esm",
     "prepare": "yarn build",
     "size": "size-limit"
@@ -55,7 +55,10 @@
     }
   ],
   "devDependencies": {
+    "@babel/core": "7.18.10",
+    "@babel/preset-typescript": "7.18.6",
     "@size-limit/preset-small-lib": "7.0.8",
+    "babel-plugin-module-resolver": "4.1.0",
     "husky": "8.0.1",
     "size-limit": "7.0.8",
     "tsdx": "0.14.1",
@@ -65,7 +68,10 @@
   "dependencies": {
     "@emurgo/cardano-serialization-lib-browser": "11.0.0",
     "@emurgo/cardano-serialization-lib-nodejs": "11.0.0",
+    "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
+    "bip39": "^3.0.4",
+    "crypto-random-string": "^5.0.0",
     "zod": "3.17.10"
   }
 }

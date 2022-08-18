@@ -21,6 +21,8 @@ const Button = (props) => {
     style += ` ${props.className}`;
   }
 
+  style += ` not-format`
+
   return (
     <button
       type="button"

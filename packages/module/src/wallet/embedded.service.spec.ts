@@ -1,4 +1,4 @@
-describe('Wallet Service', () => { 
+describe('Embedded Wallet Service', () => { 
   it('should enable wallet', () => { });
  });
  

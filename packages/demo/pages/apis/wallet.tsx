@@ -21,6 +21,14 @@ function Showcase() {
 }
 
 function Hero() {
+  let codeSnippet = '';
+  codeSnippet += `// import BrowserWallet\n`;
+  codeSnippet += `import { BrowserWallet } from '@martifylabs/mesh';\n\n`;
+  codeSnippet += `// connect to a wallet\n`;
+  codeSnippet += `const wallet = await BrowserWallet.enable('eternl');\n\n`;
+  codeSnippet += `// get assets in wallet\n`;
+  codeSnippet += `const assets = await wallet.getAssets();`;
+
   return (
     <section>
       <div className="py-8 px-4 lg:py-16 lg:px-6">
@@ -49,10 +57,10 @@ function Hero() {
           <div>
             <p className="font-medium">
               In this section, you can connect wallet and try APIs for dApps to
-              communicate with your wallet. To start, import WalletService with:
+              communicate with your wallet. To start, import BrowserWallet with:
             </p>
             <Codeblock
-              data={`import { WalletService } from '@martifylabs/mesh';`}
+              data={codeSnippet}
               isJson={false}
             />
           </div>

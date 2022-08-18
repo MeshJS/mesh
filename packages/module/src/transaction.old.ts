@@ -1,4 +1,4 @@
-import { Blockfrost } from './provider/blockfrost';
+import { Blockfrost } from './providers/blockfrost';
 import { MIN_ADA_REQUIRED_WITH_ASSETS } from './global';
 import {
   assetsToValue,

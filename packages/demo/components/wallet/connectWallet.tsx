@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '../../components';
 import useWallet from '../../contexts/wallet';
-import { WalletService } from '@martifylabs/mesh';
+import { BrowserWallet } from '@martifylabs/mesh';
 import type { Wallet } from '@martifylabs/mesh';
 
 export default function ConnectWallet() {
@@ -12,7 +12,7 @@ export default function ConnectWallet() {
 
   useEffect(() => {
     async function init() {
-      setAvailableWallets(WalletService.getInstalledWallets());
+      setAvailableWallets(BrowserWallet.getInstalledWallets());
     }
     init();
   }, []);

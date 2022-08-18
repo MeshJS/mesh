@@ -1,14 +1,15 @@
-import { csl } from '../core';
-import { POLICY_ID_LENGTH } from '../common/constants';
+import { csl } from '@mesh/core';
+import { DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH } from '@mesh/common/constants';
+import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
-  fromTxUnspentOutput, fromValue, toASCII, resolveFingerprint,
-} from '../common/utils';
-import type { TransactionUnspentOutput } from '../core';
-import type { Asset, AssetExtended, UTxO, Wallet } from '../common/types';
+  fromTxUnspentOutput, fromValue, resolveFingerprint, toUTF8,
+} from '@mesh/common/utils';
+import type { Address, TransactionUnspentOutput } from '@mesh/core';
+import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
 
-export class WalletService {
+export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private constructor(private readonly _walletInstance: WalletInstance) {}
 
   static supportedWallets = ['flint', 'nami', 'eternl', 'nufi'];
@@ -16,7 +17,7 @@ export class WalletService {
   static getInstalledWallets(): Wallet[] {
     if (window.cardano === undefined) return [];
 
-    return WalletService.supportedWallets
+    return BrowserWallet.supportedWallets
       .filter((sw) => window.cardano[sw] !== undefined)
       .map((sw) => ({
         name: window.cardano[sw].name,
@@ -25,12 +26,12 @@ export class WalletService {
       }));
   }
 
-  static async enable(walletName: string): Promise<WalletService> {
+  static async enable(walletName: string): Promise<BrowserWallet> {    
     try {
-      const walletInstance = await WalletService.resolveInstance(walletName);
+      const walletInstance = await BrowserWallet.resolveInstance(walletName);
 
       if (walletInstance !== undefined)
-        return new WalletService(walletInstance);
+        return new BrowserWallet(walletInstance);
 
       throw new Error(`Couldn't create an instance of wallet: ${walletName}.`);
     } catch (error) {
@@ -48,14 +49,11 @@ export class WalletService {
     return deserializeAddress(changeAddress).to_bech32();
   }
 
-  async getCollateral(): Promise<UTxO[]> {
-    const deserializedCollateral = await this.getDeserializedCollateral();
+  async getCollateral(
+    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
+  ): Promise<UTxO[]> {
+    const deserializedCollateral = await this.getCollateralInput(limit);
     return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
-  }
-
-  async getDeserializedCollateral(): Promise<TransactionUnspentOutput[]> {
-    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) => deserializeTxUnspentOutput(c));
   }
 
   getNetworkId(): Promise<number> {
@@ -78,13 +76,8 @@ export class WalletService {
   }
 
   async getUtxos(): Promise<UTxO[]> {
-    const deserializedUtxos = await this.getDeserializedUtxos();
+    const deserializedUtxos = await this.getAvailableUtxos();
     return deserializedUtxos.map((du) => fromTxUnspentOutput(du));
-  }
-
-  async getDeserializedUtxos(): Promise<TransactionUnspentOutput[]> {
-    const utxos = (await this._walletInstance.getUtxos()) ?? [];
-    return utxos.map((u) => deserializeTxUnspentOutput(u));
   }
 
   async signData(payload: string): Promise<string> {
@@ -125,6 +118,23 @@ export class WalletService {
     return this._walletInstance.submitTx(tx);
   }
 
+  async getAvailableUtxos(): Promise<TransactionUnspentOutput[]> {
+    const utxos = (await this._walletInstance.getUtxos()) ?? [];
+    return utxos.map((u) => deserializeTxUnspentOutput(u));
+  }
+
+  async getCollateralInput(
+    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
+  ): Promise<TransactionUnspentOutput[]> {
+    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
+    return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
+  }
+
+  async getUsedAddress(): Promise<Address> {
+    const changeAddress = await this._walletInstance.getChangeAddress();
+    return deserializeAddress(changeAddress);
+  }
+
   async getAssets(): Promise<AssetExtended[]> {
     const balance = await this.getBalance();
     return balance
@@ -137,7 +147,7 @@ export class WalletService {
         return {
           unit: v.unit,
           policyId,
-          assetName: toASCII(assetName),
+          assetName: toUTF8(assetName),
           fingerprint,
           quantity: v.quantity
         };
@@ -168,20 +178,28 @@ export class WalletService {
   ): Promise<WalletInstance> | undefined {
     if (window.cardano === undefined) return undefined;
 
-    const wallet: WalletProvider | undefined = WalletService.supportedWallets
+    const wallet = BrowserWallet.supportedWallets
       .map((sw) => window.cardano[sw])
       .filter((sw) => sw !== undefined)
-      .find((sw) => sw.name === walletName);
+      .find((sw) => sw.name.toLowerCase() === walletName.toLowerCase());
 
     return wallet?.enable();
   }
 }
 
-type WalletProvider = {
-  name: string;
-  icon: string;
-  version: string;
-  enable: () => Promise<WalletInstance>;
+declare global {
+  interface Window {
+    cardano: Cardano;
+  }
+};
+
+type Cardano = {
+  [key: string]: {
+    name: string;
+    icon: string;
+    apiVersion: string;
+    enable: () => Promise<WalletInstance>;
+  };
 };
 
 type WalletInstance = {

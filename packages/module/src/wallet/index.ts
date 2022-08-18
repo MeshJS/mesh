@@ -1,1 +1,2 @@
-export * from './wallet.service';
+export * from './browser.service';
+export * from './embedded.service';
