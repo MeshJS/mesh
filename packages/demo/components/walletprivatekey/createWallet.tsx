@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+/*import { useState, useEffect } from 'react';
 import { Button, Card, Codeblock, Input } from '../../components';
 import { ChevronRightIcon } from '@heroicons/react/solid';
 
@@ -316,3 +316,5 @@ function NavStages({ state, setState, stateCompleted }) {
     </nav>
   );
 }
+*/
+export {};

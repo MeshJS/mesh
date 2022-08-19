@@ -70,8 +70,8 @@
     "@emurgo/cardano-serialization-lib-nodejs": "11.0.0",
     "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
-    "bip39": "^3.0.4",
-    "crypto-random-string": "^5.0.0",
+    "bip39": "3.0.4",
+    "crypto-random-string": "5.0.0",
     "zod": "3.17.10"
   }
 }

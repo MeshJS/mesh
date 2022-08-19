@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+/*import { useState, useEffect } from 'react';
 import { WalletPrivateKeyService, TransactionService } from '@martifylabs/mesh';
 import Mesh from '@martifylabs/mesh';
 import type {UTxO, Asset} from '@martifylabs/mesh';
@@ -83,3 +83,5 @@ export default function TestTx() {
     </>
   );
 }
+*/
+export {};

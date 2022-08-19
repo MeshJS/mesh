@@ -1,8 +1,9 @@
 {
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": [
-    "src/wallet.ts",
-    "src/transaction.ts",
+    "src/wallet/browser.service.ts",
+    "src/wallet/embedded.service.ts",
+    "src/transaction/transaction.service.ts",
   ],
   "out": "docs",
   "excludePrivate": true
