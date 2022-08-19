@@ -1,4 +1,6 @@
 import { csl } from '@mesh/core';
+import type { Costmdls } from '@mesh/core';
+import type { Era } from './types';
 
 export const DEFAULT_REDEEMER_BUDGET = {
   mem: 7000000,
@@ -26,6 +28,11 @@ export const REDEEMER_TAGS = {
   REWARD: csl.RedeemerTag.new_reward(),
   SPEND: csl.RedeemerTag.new_spend(),
 };
+
+export const SUPPORTED_COST_MODELS = new Map<Era, Costmdls>([
+  ['ALONZO', csl.TxBuilderConstants.plutus_alonzo_cost_models()],
+  ['VASIL', csl.TxBuilderConstants.plutus_vasil_cost_models()],
+]);
 
 export const SUPPORTED_NETWORKS = new Map<number, string>([
   [0, 'testnet'],

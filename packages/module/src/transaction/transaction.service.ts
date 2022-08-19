@@ -1,6 +1,6 @@
 import { csl } from '@mesh/core';
 import {
-  DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
+  DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET, SUPPORTED_COST_MODELS,
 } from '@mesh/common/constants';
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
@@ -11,17 +11,19 @@ import {
   toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
-import type { Action, Asset, Data, Protocol, UTxO } from '@mesh/common/types';
+import type { Action, Asset, Data, Era, Protocol, UTxO } from '@mesh/common/types';
 
 @Trackable
 export class TransactionService {
   private _change?: Address;
 
+  private readonly _era?: Era;
   private readonly _initiator?: IInitiator;
   private readonly _txBuilder: TransactionBuilder;
   private readonly _txInputsBuilder: TxInputsBuilder;
 
   constructor(options = {} as Partial<CreateTxOptions>) {
+    this._era = options.era;
     this._initiator = options.initiator;
     this._txBuilder = buildTxBuilder(options.parameters);
     this._txInputsBuilder = csl.TxInputsBuilder.new();
@@ -221,7 +223,10 @@ export class TransactionService {
     this._txBuilder.set_inputs(this._txInputsBuilder);
 
     if (this.notVisited('redeemFromScript') === false) {
-      const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
+      const costModels = this._era && SUPPORTED_COST_MODELS.get(this._era)
+        ? SUPPORTED_COST_MODELS.get(this._era)!
+        : csl.TxBuilderConstants.plutus_vasil_cost_models();
+
       this._txBuilder.calc_script_data_hash(costModels);
     }
 
@@ -264,8 +269,9 @@ export class TransactionService {
 }
 
 type CreateTxOptions = {
-  parameters: Protocol;
+  era: Era;
   initiator: IInitiator;
+  parameters: Protocol;
 };
 
 type RedeemFromScriptOptions = {
