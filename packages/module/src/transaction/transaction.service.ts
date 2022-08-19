@@ -237,8 +237,8 @@ export class TransactionService {
         !this.notVisited('sendAssets') || !this.notVisited('sendValue');
 
       const coinSelectionStrategy = includeMultiAsset
-        ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
-        : csl.CoinSelectionStrategyCIP2.LargestFirst;
+        ? csl.CoinSelectionStrategyCIP2.RandomImproveMultiAsset
+        : csl.CoinSelectionStrategyCIP2.RandomImprove;
 
       this._txBuilder.add_inputs_from(availableUtxos, coinSelectionStrategy);
     }
