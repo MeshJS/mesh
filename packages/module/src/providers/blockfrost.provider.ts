@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_NETWORKS } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
-import { toBytes } from '@mesh/common/utils';
+import { parseHttpError, toBytes } from '@mesh/common/utils';
 import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
 
 export class BlockfrostProvider implements IFetcher, ISubmitter {
@@ -14,20 +14,6 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       baseURL: `https://cardano-${network}.blockfrost.io/api/v${version}`,
       headers: { project_id: projectId },
     });
-  }
-
-  escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
-  }
-  replaceAll(str, find, replace) {
-    return str.replace(new RegExp(this.escapeRegExp(find), 'g'), replace);
-  }
-  _blockfrostError(data) {
-    if (data.response.data.status_code === 400) {
-      return this.replaceAll(data.response.data.message, '\\n', '\n');
-    } else {
-      return data;
-    }
   }
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
@@ -55,9 +41,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
         }
       ) as UTxO);
 
-      throw this._blockfrostError(data);
+      throw parseHttpError(data);
     } catch (error) {
-      throw this._blockfrostError(error);
+      throw parseHttpError(error);
     }
   }
 
@@ -91,9 +77,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
           priceStep: data.price_step,
         } as Protocol;
 
-      throw this._blockfrostError(data);
+      throw parseHttpError(data);
     } catch (error) {
-      throw this._blockfrostError(error);
+      throw parseHttpError(error);
     }
   }
 
@@ -107,9 +93,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       if (status === 200)
         return data as string;
 
-      throw this._blockfrostError(data);
+      throw parseHttpError(data);
     } catch (error) {
-      throw this._blockfrostError(error);
+      throw parseHttpError(error);
     }
   }
 }
