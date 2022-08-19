@@ -7,7 +7,7 @@ import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators'
 import {
   buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializePlutusScript, fromBytes,
-  resolveAddressKeyHash, toAddress, toPlutusData, toRedeemer,
+  resolveKeyHash, toAddress, toPlutusData, toRedeemer,
   toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
@@ -161,7 +161,7 @@ export class TransactionService {
   setRequiredSigners(addresses: string[]) {
     const signatures = Array.from(new Set(
       addresses
-        .map((address) => resolveAddressKeyHash(address))
+        .map((address) => resolveKeyHash(address))
         .map((keyHash) => deserializeEd25519KeyHash(keyHash))
     ));
 
@@ -212,7 +212,7 @@ export class TransactionService {
   private async addRequiredSignersIfNeeded() {
     if (this._initiator && this.notVisited('setRequiredSigners')) {
       const usedAddress = await this._initiator.getUsedAddress();
-      const keyHash = resolveAddressKeyHash(usedAddress.to_bech32());
+      const keyHash = resolveKeyHash(usedAddress.to_bech32());
       this._txBuilder.add_required_signer(deserializeEd25519KeyHash(keyHash));
     }
   }

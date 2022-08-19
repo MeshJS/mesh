@@ -25,6 +25,9 @@ export const deserializeScriptHash = (scriptHash: string) => csl.ScriptHash
 export const deserializeTx = (tx: string) => csl.Transaction
   .from_bytes(toBytes(tx));
 
+export const deserializeTxBody = (txBody: string) => csl.TransactionBody
+  .from_bytes(toBytes(txBody));
+
 export const deserializeTxHash = (txHash: string) => csl.TransactionHash
   .from_bytes(toBytes(txHash));
 

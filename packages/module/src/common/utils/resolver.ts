@@ -3,22 +3,8 @@ import {
   fromBytes, toAddress, toBaseAddress,
   toBytes, toEnterpriseAddress, toPlutusData,
 } from './converter';
-import { deserializeAddress } from './deserializer';
+import { deserializeAddress, deserializeTxBody } from './deserializer';
 import type { Data } from '@mesh/common/types';
-
-export const resolveAddressKeyHash = (bech32: string) => {
-  try {
-    const baseAddress = toBaseAddress(bech32);
-    const keyHash = baseAddress?.payment_cred().to_keyhash();
-
-    if (keyHash !== undefined)
-      return fromBytes(keyHash.to_bytes());
-
-    throw new Error(`Couldn't resolve key hash from address: ${bech32}.`);
-  } catch (error) {
-    throw error;
-  }
-};
 
 export const resolveDataHash = (data: Data) => {
   const plutusData = toPlutusData(data);
@@ -31,6 +17,20 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
     toBytes(policyId),
     toBytes(assetName)
   ).fingerprint();
+};
+
+export const resolveKeyHash = (bech32: string) => {
+  try {
+    const baseAddress = toBaseAddress(bech32);
+    const keyHash = baseAddress?.payment_cred().to_keyhash();
+
+    if (keyHash !== undefined)
+      return fromBytes(keyHash.to_bytes());
+
+    throw new Error(`Couldn't resolve key hash from address: ${bech32}.`);
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const resolveScriptHash = (bech32: string) => {
@@ -58,4 +58,10 @@ export const resolveStakeKey = (bech32: string) => {
     console.error(error);
     throw new Error(`Couldn't resolve stake key from address: ${bech32}.`);
   }
+};
+
+export const resolveTxHash = (cborTxBody: string) => {
+  const txBody = deserializeTxBody(cborTxBody);
+  const txHash = csl.hash_transaction(txBody);
+  return fromBytes(txHash.to_bytes());
 };
