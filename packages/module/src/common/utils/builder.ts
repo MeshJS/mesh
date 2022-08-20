@@ -1,16 +1,38 @@
 import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
-  toAddress, toPlutusData, toTxUnspentOutput, toUnitInterval,
+  fromUTF8, toAddress, toBytes, toPlutusData,
+  toTxUnspentOutput, toUnitInterval,
 } from './converter';
 import type {
+  Address, Bip32PrivateKey, PrivateKey,
   TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
 import type { Data, UTxO } from '@mesh/common/types';
 
+export const buildAddress = (
+  networkId: number, publicKey: PrivateKey, stakeKey: PrivateKey,
+): Address => {
+  const publicKeyHash = publicKey.to_public().hash();
+  const stakeKeyHash = stakeKey.to_public().hash();
+  
+  return csl.BaseAddress.new(networkId,
+    csl.StakeCredential.from_keyhash(publicKeyHash),
+    csl.StakeCredential.from_keyhash(stakeKeyHash),
+  ).to_address();
+};
+
+export const buildBip32PrivateKey = (
+  entropy: string, password = '',
+): Bip32PrivateKey => {
+  return csl.Bip32PrivateKey.from_bip39_entropy(
+    toBytes(entropy), toBytes(fromUTF8(password))
+  );
+};
+
 export const buildTxBuilder = (
-  parameters = DEFAULT_PROTOCOL_PARAMETERS
+  parameters = DEFAULT_PROTOCOL_PARAMETERS,
 ): TransactionBuilder => {
   const txBuilderConfig = csl.TransactionBuilderConfigBuilder.new()
     .coins_per_utxo_byte(csl.BigNum.from_str(parameters.coinsPerUTxOSize))
@@ -59,7 +81,7 @@ export const buildTxInputsBuilder = (
 };
 
 export const buildTxOutputBuilder = (
-  address: string, datum?: Data
+  address: string, datum?: Data,
 ): TransactionOutputBuilder => {
   if (datum === undefined)
     return csl.TransactionOutputBuilder.new()

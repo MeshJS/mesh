@@ -4,6 +4,9 @@ import { toBytes } from './converter';
 export const deserializeAddress = (address: string) => csl.Address
   .from_bytes(toBytes(address));
 
+export const deserializeBip32PrivateKey = (bip32PrivateKey: string) => csl.Bip32PrivateKey
+  .from_bytes(toBytes(bip32PrivateKey));
+
 export const deserializeDataHash = (dataHash: string) => csl.DataHash
   .from_bytes(toBytes(dataHash));
 
