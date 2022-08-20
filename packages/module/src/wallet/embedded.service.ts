@@ -3,42 +3,45 @@ import { generateMnemonic, mnemonicToEntropy } from 'bip39';
 import { csl } from '@mesh/core';
 import { ISigner } from '@mesh/common/contracts';
 import {
-  buildAddress, buildBip32PrivateKey, deserializeBip32PrivateKey,
+  buildBaseAddress, buildBip32PrivateKey, deserializeBip32PrivateKey,
   deserializeTx, deserializeTxHash, deserializeTxWitnessSet,
   fromBytes, fromUTF8, resolveTxHash,
 } from '@mesh/common/utils';
-import type { Address, PrivateKey } from '@mesh/core';
+import type { BaseAddress, PrivateKey } from '@mesh/core';
 
 export class EmbeddedWallet implements ISigner {
-  private readonly _accountAddress: Address;
-  private readonly _publicKey: PrivateKey;
+  private readonly _baseAddress: BaseAddress;
+  private readonly _paymentKey: PrivateKey;
   private readonly _stakeKey: PrivateKey;
 
   constructor(
-    password: string,
-    networkId: number,
-    encryptedWalletKey: string,
-    accountIndex = 1,
+    encryptedWalletKey: string, password: string,
+    options = {} as Partial<CreateEmbeddedWalletOptions>,
   ) {
     try {
+      const accountIndex = options.accountIndex ?? 1;
+      const networkId = options.networkId ?? 0;
+
       const walletKey = EmbeddedWallet.decrypt(encryptedWalletKey, password);
 
       const {
-        publicKey, stakeKey,
+        paymentKey, stakeKey,
       } = EmbeddedWallet.derive(walletKey, accountIndex);
 
-      const address = buildAddress(networkId, publicKey, stakeKey);
+      const baseAddress = buildBaseAddress(networkId, paymentKey, stakeKey);
 
-      this._accountAddress = address;
-      this._publicKey = publicKey;
+      this._baseAddress = baseAddress;
+      this._paymentKey = paymentKey;
       this._stakeKey = stakeKey;
     } catch (error) {
       throw error;
     }
   }
 
-  get accountAddress() {
-    return this._accountAddress;
+  get accountAddress(): string {
+    return this._baseAddress
+      .to_address()
+      .to_bech32();
   }
 
   async signData(payload: string): Promise<string> {
@@ -58,9 +61,9 @@ export class EmbeddedWallet implements ISigner {
 
     const vkeyWitnesses = csl.Vkeywitnesses.new();
 
-    vkeyWitnesses.add(csl.make_vkey_witness(txHash, this._publicKey));
+    vkeyWitnesses.add(csl.make_vkey_witness(txHash, this._paymentKey));
     vkeyWitnesses.add(csl.make_vkey_witness(txHash, this._stakeKey));
-  
+
     txWitnessSet.set_vkeys(vkeyWitnesses);
 
     return fromBytes(
@@ -104,7 +107,7 @@ export class EmbeddedWallet implements ISigner {
       .derive(EmbeddedWallet.harden(1815)) // coin type
       .derive(EmbeddedWallet.harden(accountIndex));
 
-    const publicKey = accountKey
+    const paymentKey = accountKey
       .derive(0) // external chain
       .derive(0)
       .to_raw_key();
@@ -114,10 +117,15 @@ export class EmbeddedWallet implements ISigner {
       .derive(0)
       .to_raw_key();
 
-    return { publicKey, stakeKey };
+    return { paymentKey, stakeKey };
   }
 
   private static harden(path: number): number {
     return 0x80000000 + path;
   }
 }
+
+type CreateEmbeddedWalletOptions = {
+  accountIndex: number;
+  networkId: number;
+};

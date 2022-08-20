@@ -5,22 +5,22 @@ import {
   toTxUnspentOutput, toUnitInterval,
 } from './converter';
 import type {
-  Address, Bip32PrivateKey, PrivateKey,
+  BaseAddress, Bip32PrivateKey, PrivateKey,
   TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
 import type { Data, UTxO } from '@mesh/common/types';
 
-export const buildAddress = (
-  networkId: number, publicKey: PrivateKey, stakeKey: PrivateKey,
-): Address => {
-  const publicKeyHash = publicKey.to_public().hash();
+export const buildBaseAddress = (
+  networkId: number, paymentKey: PrivateKey, stakeKey: PrivateKey,
+): BaseAddress => {
+  const paymentKeyHash = paymentKey.to_public().hash();
   const stakeKeyHash = stakeKey.to_public().hash();
   
   return csl.BaseAddress.new(networkId,
-    csl.StakeCredential.from_keyhash(publicKeyHash),
+    csl.StakeCredential.from_keyhash(paymentKeyHash),
     csl.StakeCredential.from_keyhash(stakeKeyHash),
-  ).to_address();
+  );
 };
 
 export const buildBip32PrivateKey = (
