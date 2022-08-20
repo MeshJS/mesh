@@ -15,8 +15,8 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     });
   }
 
-  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
-    throw new Error('Method not implemented.' + asset);
+  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
+    throw new Error('Method not implemented.');
   }
 
   async fetchAssetUtxosFromAddress(asset: string, address: string): Promise<UTxO[]> {

@@ -44,8 +44,8 @@ export class EmbeddedWallet implements ISigner {
       .to_bech32();
   }
 
-  async signData(payload: string): Promise<string> {
-    throw new Error('Method not implemented.' + payload);
+  async signData(_payload: string): Promise<string> {
+    throw new Error('Method not implemented.');
   }
 
   async signTx(unsignedTx: string, _partialSign: boolean): Promise<string> {
