@@ -5,18 +5,17 @@ import {
   toTxUnspentOutput, toUnitInterval,
 } from './converter';
 import type {
-  BaseAddress, Bip32PrivateKey, PrivateKey,
+  BaseAddress, Bip32PrivateKey, Ed25519KeyHash, RewardAddress,
   TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
 import type { Data, UTxO } from '@mesh/common/types';
 
 export const buildBaseAddress = (
-  networkId: number, paymentKey: PrivateKey, stakeKey: PrivateKey,
+  networkId: number,
+  paymentKeyHash: Ed25519KeyHash,
+  stakeKeyHash: Ed25519KeyHash,
 ): BaseAddress => {
-  const paymentKeyHash = paymentKey.to_public().hash();
-  const stakeKeyHash = stakeKey.to_public().hash();
-  
   return csl.BaseAddress.new(networkId,
     csl.StakeCredential.from_keyhash(paymentKeyHash),
     csl.StakeCredential.from_keyhash(stakeKeyHash),
@@ -28,6 +27,14 @@ export const buildBip32PrivateKey = (
 ): Bip32PrivateKey => {
   return csl.Bip32PrivateKey.from_bip39_entropy(
     toBytes(entropy), toBytes(fromUTF8(password))
+  );
+};
+
+export const buildRewardAddress = (
+  networkId: number, stakeKeyHash: Ed25519KeyHash,
+): RewardAddress => {
+  return csl.RewardAddress.new(networkId,
+    csl.StakeCredential.from_keyhash(stakeKeyHash),
   );
 };
 
