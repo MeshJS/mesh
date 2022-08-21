@@ -4,7 +4,7 @@ import { csl } from '@mesh/core';
 import {
   buildBaseAddress, buildBip32PrivateKey, buildRewardAddress,
   deserializeBip32PrivateKey, deserializeTx, deserializeTxHash,
-  deserializeTxWitnessSet, fromBytes, fromUTF8, resolveTxHash,
+  deserializeTxWitnessSet, fromBytes, fromUTF8, resolveTxHash, toBytes,
 } from '@mesh/common/utils';
 import type { BaseAddress, RewardAddress } from '@mesh/core';
 
@@ -34,8 +34,7 @@ export class EmbeddedWallet {
       );
 
       this._rewardAddress = buildRewardAddress(
-        networkId,
-        stakeKey.to_public().hash(),
+        networkId, stakeKey.to_public().hash(),
       );
 
       paymentKey.free();
@@ -97,6 +96,29 @@ export class EmbeddedWallet {
     } catch (error) {
       throw error;
     }
+  }
+
+  static encryptXPrvKeys(
+    cborPayment: string, cborStake: string, password: string,
+  ): string {
+    const paymentKey = csl.Bip32PrivateKey
+      .from_128_xprv(toBytes(cborPayment));
+
+    const stakeKey = csl.Bip32PrivateKey
+      .from_128_xprv(toBytes(cborStake));
+
+    const encryptedPaymentKey = EmbeddedWallet.encrypt(
+      fromBytes(paymentKey.as_bytes()), password,
+    );
+
+    const encryptedStakeKey = EmbeddedWallet.encrypt(
+      fromBytes(stakeKey.as_bytes()), password,
+    );
+
+    paymentKey.free();
+    stakeKey.free();
+
+    return `${encryptedPaymentKey}|${encryptedStakeKey}`;
   }
 
   static encryptMnemonic(words: string[], password: string): string {
@@ -165,6 +187,28 @@ export class EmbeddedWallet {
   }
 
   private decryptAccountKeys(password: string) {
+    if (this._encryptedWalletKey.split('|').length === 2) {
+      const accountKeys = this._encryptedWalletKey.split('|');
+
+      const cborPayment = EmbeddedWallet.decrypt(
+        accountKeys[0], password,
+      );
+
+      const cborStake = EmbeddedWallet.decrypt(
+        accountKeys[1], password,
+      );
+
+      const paymentKey = csl.Bip32PrivateKey
+        .from_128_xprv(toBytes(cborPayment))
+        .to_raw_key();
+
+      const stakeKey = csl.Bip32PrivateKey
+        .from_128_xprv(toBytes(cborStake))
+        .to_raw_key();
+
+      return { paymentKey, stakeKey };
+    }
+
     const walletKey = EmbeddedWallet.decrypt(
       this._encryptedWalletKey, password,
     );
