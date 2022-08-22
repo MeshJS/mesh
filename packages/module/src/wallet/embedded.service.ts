@@ -12,6 +12,7 @@ export class EmbeddedWallet {
   private readonly _accountIndex: number;
   private readonly _baseAddress: BaseAddress;
   private readonly _rewardAddress: RewardAddress;
+  private readonly _walletKeyType: PrivateKeyType;
 
   constructor(
     private readonly _encryptedWalletKey: string, password: string,
@@ -19,6 +20,10 @@ export class EmbeddedWallet {
   ) {
     try {
       this._accountIndex = options.accountIndex ?? 0;
+      this._walletKeyType =
+        this._encryptedWalletKey.split('|').length === 1
+          ? 'ROOT'
+          : 'CHILD';
 
       const {
         paymentKey, stakeKey,
@@ -124,18 +129,23 @@ export class EmbeddedWallet {
   static encryptMnemonic(words: string[], password: string): string {
     const entropy = mnemonicToEntropy(words.join(' '));
     const bip32PrivateKey = buildBip32PrivateKey(entropy);
+    const cborBip32PrivateKey = fromBytes(bip32PrivateKey.as_bytes());
+
+    bip32PrivateKey.free();
 
     return EmbeddedWallet.encrypt(
-      fromBytes(bip32PrivateKey.as_bytes()), password,
+      cborBip32PrivateKey, password,
     );
   }
 
   static encryptPrivateKey(bech32: string, password: string): string {
-    const bip32PrivateKey = csl.Bip32PrivateKey
-      .from_bech32(bech32);
+    const bip32PrivateKey = csl.Bip32PrivateKey.from_bech32(bech32);
+    const cborBip32PrivateKey = fromBytes(bip32PrivateKey.as_bytes());
+
+    bip32PrivateKey.free();
 
     return EmbeddedWallet.encrypt(
-      fromBytes(bip32PrivateKey.as_bytes()), password,
+      cborBip32PrivateKey, password,
     );
   }
 
@@ -152,8 +162,8 @@ export class EmbeddedWallet {
     }
   }
 
-  private static derive(walletKey: string, accountIndex: number) {
-    const bip32PrivateKey = deserializeBip32PrivateKey(walletKey);
+  private static derive(rootKey: string, accountIndex: number) {
+    const bip32PrivateKey = deserializeBip32PrivateKey(rootKey);
 
     const accountKey = bip32PrivateKey
       .derive(EmbeddedWallet.harden(1852)) // purpose
@@ -187,7 +197,7 @@ export class EmbeddedWallet {
   }
 
   private decryptAccountKeys(password: string) {
-    if (this._encryptedWalletKey.split('|').length === 2) {
+    if (this._walletKeyType === 'CHILD') {
       const accountKeys = this._encryptedWalletKey.split('|');
 
       const cborPayment = EmbeddedWallet.decrypt(
@@ -209,13 +219,13 @@ export class EmbeddedWallet {
       return { paymentKey, stakeKey };
     }
 
-    const walletKey = EmbeddedWallet.decrypt(
+    const rootKey = EmbeddedWallet.decrypt(
       this._encryptedWalletKey, password,
     );
 
     const {
       paymentKey, stakeKey,
-    } = EmbeddedWallet.derive(walletKey, this._accountIndex);
+    } = EmbeddedWallet.derive(rootKey, this._accountIndex);
 
     return { paymentKey, stakeKey };
   }
@@ -225,3 +235,5 @@ type CreateEmbeddedWalletOptions = {
   accountIndex: number;
   networkId: number;
 };
+
+type PrivateKeyType = 'ROOT' | 'CHILD';
