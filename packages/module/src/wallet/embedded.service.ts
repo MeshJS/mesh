@@ -23,7 +23,7 @@ export class EmbeddedWallet {
       this._walletKeyType =
         this._encryptedWalletKey.split('|').length === 1
           ? 'ROOT'
-          : 'CHILD';
+          : 'ACCOUNT';
 
       const {
         paymentKey, stakeKey,
@@ -162,25 +162,46 @@ export class EmbeddedWallet {
     }
   }
 
-  private static derive(rootKey: string, accountIndex: number) {
+  private static deriveAccountKeys(
+    rootKey: string, accountIndex: number,
+  ) {
     const bip32PrivateKey = deserializeBip32PrivateKey(rootKey);
 
-    const accountKey = bip32PrivateKey
+    const accountKeys = bip32PrivateKey
       .derive(EmbeddedWallet.harden(1852)) // purpose
       .derive(EmbeddedWallet.harden(1815)) // coin type
       .derive(EmbeddedWallet.harden(accountIndex));
 
-    const paymentKey = accountKey
+    const paymentKey = accountKeys
       .derive(0) // external chain
       .derive(0)
       .to_raw_key();
 
-    const stakeKey = accountKey
+    const stakeKey = accountKeys
       .derive(2) // staking key
       .derive(0)
       .to_raw_key();
 
+    accountKeys.free();
+    bip32PrivateKey.free();
+
     return { paymentKey, stakeKey };
+  }
+
+  private static derivePolicyKey(
+    rootKey: string, policyIndex: number,
+  ) {
+    const bip32PrivateKey = deserializeBip32PrivateKey(rootKey);
+
+    const policyKey = bip32PrivateKey
+      .derive(EmbeddedWallet.harden(1855)) // purpose
+      .derive(EmbeddedWallet.harden(1815)) // coin type
+      .derive(EmbeddedWallet.harden(policyIndex))
+      .to_raw_key();
+
+    bip32PrivateKey.free();
+
+    return policyKey;
   }
 
   private static encrypt(data: string, password: string): string {
@@ -197,7 +218,7 @@ export class EmbeddedWallet {
   }
 
   private decryptAccountKeys(password: string) {
-    if (this._walletKeyType === 'CHILD') {
+    if (this._walletKeyType === 'ACCOUNT') {
       const accountKeys = this._encryptedWalletKey.split('|');
 
       const cborPayment = EmbeddedWallet.decrypt(
@@ -225,7 +246,7 @@ export class EmbeddedWallet {
 
     const {
       paymentKey, stakeKey,
-    } = EmbeddedWallet.derive(rootKey, this._accountIndex);
+    } = EmbeddedWallet.deriveAccountKeys(rootKey, this._accountIndex);
 
     return { paymentKey, stakeKey };
   }
@@ -236,4 +257,4 @@ type CreateEmbeddedWalletOptions = {
   networkId: number;
 };
 
-type PrivateKeyType = 'ROOT' | 'CHILD';
+type PrivateKeyType = 'ROOT' | 'ACCOUNT';
