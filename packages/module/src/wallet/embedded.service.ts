@@ -4,7 +4,7 @@ import { csl } from '@mesh/core';
 import {
   buildBaseAddress, buildBip32PrivateKey, buildRewardAddress,
   deserializeBip32PrivateKey, deserializeTx, deserializeTxHash,
-  deserializeTxWitnessSet, fromBytes, fromUTF8, resolveTxHash, toBytes,
+  deserializeTxWitnessSet, fromBytes, fromUTF8, resolveTxHash,
 } from '@mesh/common/utils';
 import type { BaseAddress, RewardAddress } from '@mesh/core';
 
@@ -84,7 +84,7 @@ export class EmbeddedWallet {
       const vkeyWitnesses = csl.Vkeywitnesses.new();
 
       vkeyWitnesses.add(csl.make_vkey_witness(txHash, paymentKey));
-      vkeyWitnesses.add(csl.make_vkey_witness(txHash, stakeKey));
+      // vkeyWitnesses.add(csl.make_vkey_witness(txHash, stakeKey));
 
       txWitnessSet.set_vkeys(vkeyWitnesses);
 
@@ -103,25 +103,16 @@ export class EmbeddedWallet {
     }
   }
 
-  static encryptXPrvKeys(
-    cborPayment: string, cborStake: string, password: string,
+  static encryptSigningKeys(
+    cborPaymentKey: string, cborStakeKey: string, password: string,
   ): string {
-    const paymentKey = csl.Bip32PrivateKey
-      .from_128_xprv(toBytes(cborPayment));
-
-    const stakeKey = csl.Bip32PrivateKey
-      .from_128_xprv(toBytes(cborStake));
-
     const encryptedPaymentKey = EmbeddedWallet.encrypt(
-      fromBytes(paymentKey.as_bytes()), password,
+      cborPaymentKey.slice(4), password,
     );
 
     const encryptedStakeKey = EmbeddedWallet.encrypt(
-      fromBytes(stakeKey.as_bytes()), password,
+      cborStakeKey.slice(4), password,
     );
-
-    paymentKey.free();
-    stakeKey.free();
 
     return `${encryptedPaymentKey}|${encryptedStakeKey}`;
   }
@@ -229,13 +220,11 @@ export class EmbeddedWallet {
         accountKeys[1], password,
       );
 
-      const paymentKey = csl.Bip32PrivateKey
-        .from_128_xprv(toBytes(cborPayment))
-        .to_raw_key();
+      const paymentKey = csl.PrivateKey
+        .from_hex(cborPayment);
 
-      const stakeKey = csl.Bip32PrivateKey
-        .from_128_xprv(toBytes(cborStake))
-        .to_raw_key();
+      const stakeKey = csl.PrivateKey
+        .from_hex(cborStake);
 
       return { paymentKey, stakeKey };
     }

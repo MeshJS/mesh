@@ -84,7 +84,7 @@ const TestEmbeddedWallet = ({}) => {
     const stakeSkey =
       '58200c3a757b78a02f9653804055c4650613c1aedb183f2de9e1f7d97a3d4908f033';
     const mypassword = '12345678';
-    const privatekey = EmbeddedWallet.encryptXPrvKeys(
+    const privatekey = EmbeddedWallet.encryptSigningKeys(
       paymentSkey,
       stakeSkey,
       mypassword

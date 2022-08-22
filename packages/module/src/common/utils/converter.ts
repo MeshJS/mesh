@@ -131,29 +131,28 @@ export const fromTxUnspentOutput = (
 };
 
 export const toTxUnspentOutput = (utxo: UTxO) => {
-  
   const txInput = csl.TransactionInput.new(
     deserializeTxHash(utxo.input.txHash),
     utxo.input.outputIndex
   );
-  
+
   const txOutput = csl.TransactionOutput.new(
     toAddress(utxo.output.address),
     toValue(utxo.output.amount)
   );
-  
+
   if (utxo.output.dataHash !== undefined) {
     txOutput.set_data_hash(deserializeDataHash(utxo.output.dataHash));
   }
-  
+
   if (utxo.output.plutusData !== undefined) {
     txOutput.set_plutus_data(deserializePlutusData(utxo.output.plutusData));
   }
-  
+
   if (utxo.output.scriptRef !== undefined) {
     txOutput.set_script_ref(deserializeScriptRef(utxo.output.scriptRef));
   }
-  
+
   return csl.TransactionUnspentOutput.new(txInput, txOutput);
 };
 
