@@ -66,8 +66,8 @@
     "typedoc": "0.23.9"
   },
   "dependencies": {
-    "@emurgo/cardano-serialization-lib-browser": "11.0.0",
-    "@emurgo/cardano-serialization-lib-nodejs": "11.0.0",
+    "@emurgo/cardano-serialization-lib-browser": "11.0.1",
+    "@emurgo/cardano-serialization-lib-nodejs": "11.0.1",
     "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
     "bip39": "3.0.4",

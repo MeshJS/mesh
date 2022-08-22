@@ -7,6 +7,7 @@ import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators'
 import {
   buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializePlutusScript, fromBytes,
+  fromValue,
   resolveKeyHash, toAddress, toPlutusData, toRedeemer,
   toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
@@ -220,6 +221,7 @@ export class TransactionService {
   }
 
   private async addTxInputsAsNeeded() {
+
     this._txBuilder.set_inputs(this._txInputsBuilder);
 
     if (this.notVisited('redeemFromScript') === false) {

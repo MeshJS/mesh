@@ -36,7 +36,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
           output: {
             address: address,
             amount: utxo.amount,
-            dataHash: utxo.data_hash,
+            dataHash: utxo.data_hash ?? undefined,
           },
         }
       ) as UTxO);
