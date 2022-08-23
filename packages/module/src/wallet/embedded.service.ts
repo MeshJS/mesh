@@ -103,20 +103,6 @@ export class EmbeddedWallet {
     }
   }
 
-  static encryptSigningKeys(
-    cborPaymentKey: string, cborStakeKey: string, password: string,
-  ): string {
-    const encryptedPaymentKey = EmbeddedWallet.encrypt(
-      cborPaymentKey.slice(4), password,
-    );
-
-    const encryptedStakeKey = EmbeddedWallet.encrypt(
-      cborStakeKey.slice(4), password,
-    );
-
-    return `${encryptedPaymentKey}|${encryptedStakeKey}`;
-  }
-
   static encryptMnemonic(words: string[], password: string): string {
     const entropy = mnemonicToEntropy(words.join(' '));
     const bip32PrivateKey = buildBip32PrivateKey(entropy);
@@ -138,6 +124,20 @@ export class EmbeddedWallet {
     return EmbeddedWallet.encrypt(
       cborBip32PrivateKey, password,
     );
+  }
+
+  static encryptSigningKeys(
+    cborPaymentKey: string, cborStakeKey: string, password: string,
+  ): string {
+    const encryptedPaymentKey = EmbeddedWallet.encrypt(
+      cborPaymentKey.slice(4), password,
+    );
+
+    const encryptedStakeKey = EmbeddedWallet.encrypt(
+      cborStakeKey.slice(4), password,
+    );
+
+    return `${encryptedPaymentKey}|${encryptedStakeKey}`;
   }
 
   static generate(strength = 256): string[] {

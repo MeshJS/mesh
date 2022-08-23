@@ -222,14 +222,6 @@ export class TransactionService {
   private async addTxInputsAsNeeded() {
     this._txBuilder.set_inputs(this._txInputsBuilder);
 
-    if (this.notVisited('redeemFromScript') === false) {
-      const costModels = this._era && SUPPORTED_COST_MODELS.get(this._era)
-        ? SUPPORTED_COST_MODELS.get(this._era)!
-        : csl.TxBuilderConstants.plutus_vasil_cost_models();
-
-      this._txBuilder.calc_script_data_hash(costModels);
-    }
-
     if (this.notVisited('setTxInputs')) {
       const availableUtxos = await this.getAvailableUtxos();
 
@@ -241,6 +233,14 @@ export class TransactionService {
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
       this._txBuilder.add_inputs_from(availableUtxos, coinSelectionStrategy);
+    }
+
+    if (this.notVisited('redeemFromScript') === false) {
+      const costModels = this._era && SUPPORTED_COST_MODELS.get(this._era)
+        ? SUPPORTED_COST_MODELS.get(this._era)!
+        : csl.TxBuilderConstants.plutus_vasil_cost_models();
+
+      this._txBuilder.calc_script_data_hash(costModels);
     }
   }
 
