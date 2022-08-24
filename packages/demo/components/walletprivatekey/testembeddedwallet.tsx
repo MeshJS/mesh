@@ -118,10 +118,10 @@ const TestEmbeddedWallet = ({}) => {
     return wallet;
   }
 
-  function getPolicyKey(){
+  /*function getPolicyKey(){
     const policyKey = EmbeddedWallet.derivePolicyKey();
     console.log("policyKey", policyKey);
-  }
+  }*/
 
   return (
     <>
