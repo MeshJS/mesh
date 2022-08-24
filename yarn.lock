@@ -1032,15 +1032,15 @@
   dependencies:
     "@jridgewell/trace-mapping" "0.3.9"
 
-"@emurgo/cardano-serialization-lib-browser@11.0.1":
-  version "11.0.1"
-  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-browser/-/cardano-serialization-lib-browser-11.0.1.tgz#2eaa05a004e21b5619e291ed2923898d19021e43"
-  integrity sha512-A6+BhenWGmBNCR3mkHPjRX/OVJIwVrcQBDBAvcD8LpmiIneXcwRvh4yR5baDRozFCA8Lgd2WAS7D99Fbg1hz+A==
+"@emurgo/cardano-serialization-lib-browser@11.0.3":
+  version "11.0.3"
+  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-browser/-/cardano-serialization-lib-browser-11.0.3.tgz#ad543387003a0dcf3d1abc060eaa43b366bfc13b"
+  integrity sha512-LlU7VPOBkJMMW0iD1H8d54rg5CtWo7YTYWlPO7f3ztgDKvS+nl+wJXamdmK8m4OfJqh1YeigabwMpQJJEZX/Pw==
 
-"@emurgo/cardano-serialization-lib-nodejs@11.0.1":
-  version "11.0.1"
-  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-nodejs/-/cardano-serialization-lib-nodejs-11.0.1.tgz#0e3c3e0fbe9d64b7c6670f13305f2bb34b7bd733"
-  integrity sha512-vRX1eeBCdDmQIkkUPrGywhs4osJO7DBecv6CxrfMbCSS/rITts50J7rxfpNERt+QGW8R24sU+oU0InIT+d9D/g==
+"@emurgo/cardano-serialization-lib-nodejs@11.0.3":
+  version "11.0.3"
+  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-nodejs/-/cardano-serialization-lib-nodejs-11.0.3.tgz#bec8284cdc4819577619127b09685bf67c84ff72"
+  integrity sha512-USUKgI9HRooyMeNWUCZVSZB2aPj4LR5QaMyBbnj08n6Hnykbc7966RUx3E1CmWWiJ36OiTfXbjWwnpMj4ESqzA==
 
 "@emurgo/cip14-js@3.0.1":
   version "3.0.1"
