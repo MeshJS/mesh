@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   EmbeddedWallet,
-  TransactionService,
+  Transaction,
   BlockfrostProvider,
 } from '@martifylabs/mesh';
 import type { UTxO, Asset } from '@martifylabs/mesh';
@@ -55,7 +55,7 @@ const TestEmbeddedWallet = ({}) => {
     console.log('utxos', utxos);
 
     // make tx
-    const tx = new TransactionService();
+    const tx = new Transaction();
     tx.sendLovelace(sendToAddress, sendAmount);
     tx.setTxInputs(utxos);
     tx.setChangeAddress(wallet.paymentAddress);

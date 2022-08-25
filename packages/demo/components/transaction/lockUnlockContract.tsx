@@ -3,7 +3,7 @@ import { Button, Card, Codeblock, Input, Toggle } from '../../components';
 import { AssetsContainer } from '../blocks/assetscontainer';
 import useWallet from '../../contexts/wallet';
 import {
-  TransactionService,
+  Transaction,
   resolveDataHash,
   KoiosProvider,
   resolveKeyHash,
@@ -143,7 +143,7 @@ function CodeDemo() {
         },
       ];
 
-      const tx = new TransactionService({ initiator: wallet });
+      const tx = new Transaction({ initiator: wallet });
       tx.sendAssets(scriptAddress, assets, { datum: datum });
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
@@ -177,8 +177,8 @@ function CodeDemo() {
 
       if (assetUtxo) {
         const address = await wallet.getChangeAddress();
-        const tx = new TransactionService({ initiator: wallet });
-        tx.redeemFromScript(assetUtxo, script, { datum: datum })
+        const tx = new Transaction({ initiator: wallet });
+        tx.redeemValue(script, assetUtxo, { datum: datum })
           .sendValue(address, assetUtxo)
           .setRequiredSigners([address]);
 
@@ -209,7 +209,7 @@ function CodeDemo() {
   codeSnippet1 += `  }\n`;
   codeSnippet1 += `];\n\n`;
 
-  codeSnippet1 += `const tx = new TransactionService({ initiator: wallet })\n`;
+  codeSnippet1 += `const tx = new Transaction({ initiator: wallet })\n`;
   codeSnippet1 += `  .sendAssets(\n`;
   codeSnippet1 += `    '${scriptAddress}', // SCRIPT ADDRESS HERE\n`;
   codeSnippet1 += `    assets,\n`;
@@ -246,10 +246,10 @@ function CodeDemo() {
   codeSnippet2 += `\n  79600447942433\n`;
   codeSnippet2 += `);\n\n`;
 
-  codeSnippet2 += `const tx = new TransactionService({ initiator: wallet })\n`;
-  codeSnippet2 += `  .redeemFromScript(\n`;
-  codeSnippet2 += `    assetUtxo, \n`;
+  codeSnippet2 += `const tx = new Transaction({ initiator: wallet })\n`;
+  codeSnippet2 += `  .redeemValue(\n`;
   codeSnippet2 += `    script, \n`;
+  codeSnippet2 += `    assetUtxo, \n`;
   codeSnippet2 += `    { datum: 79600447942433 }\n`;
   codeSnippet2 += `  )\n`;
   codeSnippet2 += `  .sendValue(\n`;

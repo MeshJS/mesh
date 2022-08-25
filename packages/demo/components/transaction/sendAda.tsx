@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TransactionService } from '@martifylabs/mesh';
+import { Transaction } from '@martifylabs/mesh';
 import { Button, Card, Codeblock, Input } from '../../components';
 import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import { Recipient } from '../../types';
@@ -77,7 +77,7 @@ function CodeDemo() {
   async function makeTransaction() {
     setState(1);
     try {
-      const tx = new TransactionService({ initiator: wallet });
+      const tx = new Transaction({ initiator: wallet });
       for (const recipient of recipients) {
         tx.sendLovelace(
           recipient.address,
@@ -123,7 +123,7 @@ function CodeDemo() {
     }
   }, [walletConnected]);
 
-  let codeSnippet = `const tx = new TransactionService({ initiator: wallet })`;
+  let codeSnippet = `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of recipients) {
     codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
   }

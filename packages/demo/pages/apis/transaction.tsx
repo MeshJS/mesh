@@ -28,12 +28,12 @@ function Showcase() {
 
 function Hero() {
   let codeSnippet = '';
-  codeSnippet += `// import TransactionService and BrowserWallet\n`;
-  codeSnippet += `import { TransactionService, BrowserWallet } from '@martifylabs/mesh';\n\n`;
+  codeSnippet += `// import Transaction and BrowserWallet\n`;
+  codeSnippet += `import { Transaction, BrowserWallet } from '@martifylabs/mesh';\n\n`;
   codeSnippet += `// connect to a wallet\n`;
   codeSnippet += `const wallet = await BrowserWallet.enable('eternl');\n\n`;
-  codeSnippet += `// initiate a new TransactionService with the connected wallet\n`;
-  codeSnippet += `const tx = new TransactionService({ initiator: wallet });`;
+  codeSnippet += `// initiate a new Transaction with the connected wallet\n`;
+  codeSnippet += `const tx = new Transaction({ initiator: wallet });`;
 
   return (
     <section>

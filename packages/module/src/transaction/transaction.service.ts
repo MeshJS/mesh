@@ -14,7 +14,7 @@ import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type { Action, Asset, Data, Era, Protocol, UTxO } from '@mesh/common/types';
 
 @Trackable
-export class TransactionService {
+export class Transaction {
   private _change?: Address;
 
   private readonly _era?: Era;
@@ -31,7 +31,7 @@ export class TransactionService {
 
   async build(): Promise<string> {
     try {
-      if (this.notVisited('redeemFromScript') === false) {
+      if (this.notVisited('redeemValue') === false) {
         await this.addCollateralIfNeeded();
         await this.addRequiredSignersIfNeeded();
       }
@@ -46,10 +46,10 @@ export class TransactionService {
   }
 
   @Checkpoint()
-  redeemFromScript(
-    value: UTxO, script: string,
-    options = {} as Partial<RedeemFromScriptOptions>
-  ): TransactionService {
+  redeemValue(
+    plutusScript: string, value: UTxO,
+    options = {} as Partial<RedeemValueOptions>
+  ): Transaction {
     const utxo = toTxUnspentOutput(value);
     const datum: Data = options.datum ?? [];
     const redeemer: Action = {
@@ -62,7 +62,7 @@ export class TransactionService {
     };
 
     const plutusWitness = csl.PlutusWitness.new(
-      deserializePlutusScript(script),
+      deserializePlutusScript(plutusScript),
       toPlutusData(datum),
       toRedeemer(redeemer),
     );
@@ -78,7 +78,7 @@ export class TransactionService {
   sendAssets(
     address: string, assets: Asset[],
     options = {} as Partial<SendAssetsOptions>
-  ): TransactionService {
+  ): Transaction {
     const amount = toValue(assets);
     const multiasset = amount.multiasset();
 
@@ -106,7 +106,7 @@ export class TransactionService {
   sendLovelace(
     address: string, lovelace: string,
     options = {} as Partial<SendLovelaceOptions>
-  ): TransactionService {
+  ): Transaction {
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
 
     const txOutput = txOutputBuilder.next()
@@ -122,7 +122,7 @@ export class TransactionService {
   sendValue(
     address: string, value: UTxO,
     options = {} as Partial<SendValueOptions>
-  ): TransactionService {
+  ): Transaction {
     const amount = toValue(value.output.amount);
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
 
@@ -135,14 +135,14 @@ export class TransactionService {
     return this;
   }
 
-  setChangeAddress(address: string): TransactionService {
+  setChangeAddress(address: string): Transaction {
     this._change = toAddress(address);
 
     return this;
   }
 
   @Checkpoint()
-  setCollateral(collateral: UTxO[]): TransactionService {
+  setCollateral(collateral: UTxO[]): Transaction {
     const txInputsBuilder = buildTxInputsBuilder(collateral);
 
     this._txBuilder.set_collateral(txInputsBuilder);
@@ -150,10 +150,10 @@ export class TransactionService {
     return this;
   }
 
-  setMetadata(key: number, json: string): TransactionService {
+  setMetadata(key: number, json: string): Transaction {
     this._txBuilder.add_json_metadatum_with_schema(
       csl.BigNum.from_str(key.toString()),
-      json, csl.MetadataJsonSchema.DetailedSchema
+      json, csl.MetadataJsonSchema.NoConversions
     );
 
     return this;
@@ -174,14 +174,14 @@ export class TransactionService {
     return this;
   }
 
-  setTimeToLive(slot: string): TransactionService {
+  setTimeToLive(slot: string): Transaction {
     this._txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot));
 
     return this;
   }
 
   @Checkpoint()
-  setTxInputs(inputs: UTxO[]): TransactionService {
+  setTxInputs(inputs: UTxO[]): Transaction {
     inputs
       .map((input) => toTxUnspentOutput(input))
       .forEach((utxo) => {
@@ -235,7 +235,7 @@ export class TransactionService {
       this._txBuilder.add_inputs_from(availableUtxos, coinSelectionStrategy);
     }
 
-    if (this.notVisited('redeemFromScript') === false) {
+    if (this.notVisited('redeemValue') === false) {
       const costModels = this._era && SUPPORTED_COST_MODELS.get(this._era)
         ? SUPPORTED_COST_MODELS.get(this._era)!
         : csl.TxBuilderConstants.plutus_vasil_cost_models();
@@ -274,7 +274,7 @@ type CreateTxOptions = {
   parameters: Protocol;
 };
 
-type RedeemFromScriptOptions = {
+type RedeemValueOptions = {
   datum: Data;
   redeemer: Action;
 };
