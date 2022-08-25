@@ -38,3 +38,10 @@ export const SUPPORTED_NETWORKS = new Map<number, string>([
   [csl.NetworkInfo.testnet().network_id(), 'testnet'],
   [csl.NetworkInfo.mainnet().network_id(), 'mainnet'],
 ]);
+
+export const SUPPORTED_WALLETS = [
+  'eternl',
+  'flint',
+  'nami',
+  'nufi',
+];
