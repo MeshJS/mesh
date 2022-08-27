@@ -8,6 +8,7 @@ export const DEFAULT_REDEEMER_BUDGET = {
 };
 
 export const DEFAULT_PROTOCOL_PARAMETERS = {
+  epoch: 0,
   coinsPerUTxOSize: '4310',
   priceMem: 0.0577,
   priceStep: 0.0000721,
@@ -18,6 +19,15 @@ export const DEFAULT_PROTOCOL_PARAMETERS = {
   maxValSize: '5000',
   poolDeposit: '500000000',
   maxCollateralInputs: 3,
+  decentralisation: 0,
+  maxBlockSize: 98304,
+  collateralPercent: 150,
+  maxBlockHeaderSize: 1100,
+  minPoolCost: '340000000',
+  maxTxExMem: '16000000',
+  maxTxExSteps: '10000000000',
+  maxBlockExMem: '80000000',
+  maxBlockExSteps: '40000000000',
 };
 
 export const POLICY_ID_LENGTH = 56;

@@ -183,12 +183,12 @@ export const fromValue = (value: Value) => {
     { unit: 'lovelace', quantity: value.coin().to_str() },
   ];
 
-  const multiasset = value.multiasset();
-  if (multiasset !== undefined) {
-    const policies = multiasset.keys();
+  const multiAsset = value.multiasset();
+  if (multiAsset !== undefined) {
+    const policies = multiAsset.keys();
     for (let i = 0; i < policies.len(); i += 1) {
       const policyId = policies.get(i);
-      const policyAssets = multiasset.get(policyId);
+      const policyAssets = multiAsset.get(policyId);
       if (policyAssets !== undefined) {
         const policyAssetNames = policyAssets.keys();
         for (let j = 0; j < policyAssetNames.len(); j += 1) {

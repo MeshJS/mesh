@@ -2,6 +2,7 @@ export * from './Action';
 export * from './Asset';
 export * from './AssetExtended';
 export * from './AssetMetadata';
+export * from './AssetRaw';
 export * from './Data';
 export * from './Era';
 export * from './Protocol';

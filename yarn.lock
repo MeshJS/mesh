@@ -1032,15 +1032,15 @@
   dependencies:
     "@jridgewell/trace-mapping" "0.3.9"
 
-"@emurgo/cardano-serialization-lib-browser@11.0.3":
-  version "11.0.3"
-  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-browser/-/cardano-serialization-lib-browser-11.0.3.tgz#ad543387003a0dcf3d1abc060eaa43b366bfc13b"
-  integrity sha512-LlU7VPOBkJMMW0iD1H8d54rg5CtWo7YTYWlPO7f3ztgDKvS+nl+wJXamdmK8m4OfJqh1YeigabwMpQJJEZX/Pw==
+"@emurgo/cardano-serialization-lib-browser@11.0.5":
+  version "11.0.5"
+  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-browser/-/cardano-serialization-lib-browser-11.0.5.tgz#1cb3119b9b934a38782343020d9e22b455e66bd6"
+  integrity sha512-iDXn6pjK3TSrFyUnLMf5lJzBgdf2aV2NTfM+Xc9t9j625W7/f/oQghUIBNpdJlHa0v11oPYFYRY5T1nFgb2mHA==
 
-"@emurgo/cardano-serialization-lib-nodejs@11.0.3":
-  version "11.0.3"
-  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-nodejs/-/cardano-serialization-lib-nodejs-11.0.3.tgz#bec8284cdc4819577619127b09685bf67c84ff72"
-  integrity sha512-USUKgI9HRooyMeNWUCZVSZB2aPj4LR5QaMyBbnj08n6Hnykbc7966RUx3E1CmWWiJ36OiTfXbjWwnpMj4ESqzA==
+"@emurgo/cardano-serialization-lib-nodejs@11.0.5":
+  version "11.0.5"
+  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-nodejs/-/cardano-serialization-lib-nodejs-11.0.5.tgz#3563c9fdc9ec9e0e71f8a75f3d7d9a872bf96661"
+  integrity sha512-6SBlRunFMLj9sC3YmMuJzPW0lY6MYOwMKft+/lkUtZPgUWsyzi7+d24iS3E2ThPDY1seS43dzHwZAeZxBH5KkQ==
 
 "@emurgo/cip14-js@3.0.1":
   version "3.0.1"
@@ -10592,15 +10592,20 @@ typedoc@0.23.9:
     minimatch "^5.1.0"
     shiki "^0.10.1"
 
-typescript@4.7.4, typescript@^4.6.4:
-  version "4.7.4"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.7.4.tgz#1a88596d1cf47d59507a1bcdfb5b9dfe4d488235"
-  integrity sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ==
+typescript@4.8.2:
+  version "4.8.2"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.2.tgz#e3b33d5ccfb5914e4eeab6699cf208adee3fd790"
+  integrity sha512-C0I1UsrrDHo2fYI5oaCGbSejwX4ch+9Y5jTQELvovfmFkK3HHSZJB8MSJcWLmCUBzQBchCrZ9rMRV6GuNrvGtw==
 
 typescript@^3.7.3:
   version "3.9.10"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.10.tgz#70f3910ac7a51ed6bef79da7800690b19bf778b8"
   integrity sha512-w6fIxVE/H1PkLKcCPsFqKE7Kv7QUwhU8qQY2MueZXWx5cPZdwFupLgKK3vntcK98BtNHZtAF4LA/yl2a7k8R6Q==
+
+typescript@^4.6.4:
+  version "4.7.4"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.7.4.tgz#1a88596d1cf47d59507a1bcdfb5b9dfe4d488235"
+  integrity sha512-C0WQT0gezHuw6AdY1M2jxUO83Rjf0HP7Sk1DtXj6j1EwkQNZrHAg2XPWlq62oqEhYvONq5pkC2Y9oPljWToLmQ==
 
 uglify-js@^3.1.4:
   version "3.16.3"

@@ -1,12 +1,13 @@
 import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
-  fromUTF8, toAddress, toBytes, toPlutusData,
-  toTxUnspentOutput, toUnitInterval,
+  fromUTF8, toAddress, toBytes, toPlutusData, toTxUnspentOutput, toUnitInterval,
 } from './converter';
+import { deserializeEd25519KeyHash } from './deserializer';
+import { resolveKeyHash } from './resolver';
 import type {
-  BaseAddress, Bip32PrivateKey, Ed25519KeyHash, RewardAddress,
-  TransactionBuilder, TransactionOutputBuilder,
+  BaseAddress, Bip32PrivateKey, DataCost, Ed25519KeyHash,
+  RewardAddress, TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
 import type { Data, UTxO } from '@mesh/common/types';
@@ -30,12 +31,38 @@ export const buildBip32PrivateKey = (
   );
 };
 
+export const buildDataCost = (
+  coinsPerByte: string,
+): DataCost => {
+  return csl.DataCost.new_coins_per_byte(
+    csl.BigNum.from_str(coinsPerByte),
+  );
+}
+
 export const buildRewardAddress = (
   networkId: number, stakeKeyHash: Ed25519KeyHash,
 ): RewardAddress => {
   return csl.RewardAddress.new(networkId,
     csl.StakeCredential.from_keyhash(stakeKeyHash),
   );
+};
+
+export const buildScriptPubkey = (address: string) => {
+  const scriptPubkey = csl.ScriptPubkey.new(
+    deserializeEd25519KeyHash(resolveKeyHash(address)),
+  );
+
+  return csl.NativeScript.new_script_pubkey(scriptPubkey);
+};
+
+export const buildTimelockExpiry = (slot: number) => {
+  const timelockExpiry = csl.TimelockExpiry.new(slot);
+  return csl.NativeScript.new_timelock_expiry(timelockExpiry);
+};
+
+export const buildTimelockStart = (slot: number) => {
+  const timelockStart = csl.TimelockStart.new(slot);
+  return csl.NativeScript.new_timelock_start(timelockStart);
 };
 
 export const buildTxBuilder = (
