@@ -3,6 +3,7 @@ import SendAda from '../../components/transaction/sendAda';
 import SendMultiassets from '../../components/transaction/sendMultiassets';
 import LockUnlockContract from '../../components/transaction/lockUnlockContract';
 import { Codeblock } from '../../components';
+import Minting from '../../components/transaction/minting';
 
 const Transaction = () => {
   return (
@@ -21,6 +22,7 @@ function Showcase() {
         <SendAda />
         <SendMultiassets />
         <LockUnlockContract />
+        <Minting />
       </div>
     </section>
   );

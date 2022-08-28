@@ -6,6 +6,7 @@ import {
 } from '@martifylabs/mesh';
 import type { UTxO, Asset } from '@martifylabs/mesh';
 import Button from '../ui/button';
+import Wallet from '../../pages/apis/wallet';
 
 const TestEmbeddedWallet = ({}) => {
   // from mnemonic
@@ -123,6 +124,31 @@ const TestEmbeddedWallet = ({}) => {
     console.log("policyKey", policyKey);
   }*/
 
+  // function doSomethingAndSignTx(){
+  //   const signedTx = await wallet.signTx();
+  // }
+
+  function testOpenWindow() {
+    const windowFeatures = 'left=100,top=100,width=320,height=320';
+    const handle = window.open(
+      'http://localhost:3000/apis/window',
+      'meshWindow',
+      windowFeatures
+    );
+    if (!handle) {
+      console.log('the window did not open', handle);
+    }
+  }
+
+  function gottenMessage(e) {
+    console.log('message', e.data);
+    return e.data;
+  }
+
+  useEffect(() => {
+    window.addEventListener('message', gottenMessage);
+  });
+
   return (
     <>
       <h2>Test Tx</h2>
@@ -141,8 +167,7 @@ const TestEmbeddedWallet = ({}) => {
       <Button onClick={() => makeTxCli()}>makeTxCli</Button>
 
       {/* <Button onClick={() => getPolicyKey()}>getPolicyKey</Button> */}
-
-      
+      <Button onClick={() => testOpenWindow()}>testOpenWindow</Button>
     </>
   );
 };

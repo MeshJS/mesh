@@ -1,6 +1,6 @@
 import { AssetFingerprint, csl } from '@mesh/core';
 import {
-  fromBytes, toAddress, toBytes,
+  fromBytes, toAddress, toBytes, toBaseAddress,
   toEnterpriseAddress, toPlutusData,
 } from './converter';
 import { deserializeAddress, deserializeTxBody } from './deserializer';
@@ -21,8 +21,8 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
 
 export const resolveKeyHash = (bech32: string) => {
   try {
-    const enterpriseAddress = toEnterpriseAddress(bech32);
-    const keyHash = enterpriseAddress?.payment_cred().to_keyhash();
+    const baseAddress = toBaseAddress(bech32);
+    const keyHash = baseAddress?.payment_cred().to_keyhash();
 
     if (keyHash !== undefined)
       return fromBytes(keyHash.to_bytes());

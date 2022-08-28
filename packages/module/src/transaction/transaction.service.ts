@@ -11,7 +11,7 @@ import {
   buildDataCost, buildTxBuilder, buildTxInputsBuilder,
   buildTxOutputBuilder, deserializeEd25519KeyHash,
   deserializeNativeScript, deserializePlutusScript,
-  fromBytes, fromUTF8, resolveKeyHash, toAddress,
+  fromBytes, fromUTF8, resolveKeyHash, toAddress, toBytes,
   toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
@@ -59,7 +59,7 @@ export class Transaction {
   burnAsset(forgeScript: string, asset: Asset): Transaction {
     this._txBuilder.add_mint_asset(
       deserializeNativeScript(forgeScript),
-      csl.AssetName.from_hex(asset.unit.slice(POLICY_ID_LENGTH)),
+      csl.AssetName.new(toBytes(asset.unit.slice(POLICY_ID_LENGTH))),
       csl.Int.new_negative(csl.BigNum.from_str(asset.quantity)),
     );
 
@@ -71,7 +71,7 @@ export class Transaction {
   ): Transaction {
     this._txBuilder.add_mint_asset(
       deserializeNativeScript(forgeScript),
-      csl.AssetName.from_hex(fromUTF8(assetRaw.name)),
+      csl.AssetName.new(toBytes(fromUTF8(assetRaw.name))),
       csl.Int.from_str(assetRaw.quantity),
     );
 
@@ -93,7 +93,7 @@ export class Transaction {
       this._mintRecipients.set(recipient, [asset]);
     }
 
-    this._totalMints.set(assetName, assetRaw);
+    this._totalMints.set(`${policyId}${assetName}`, assetRaw);
 
     return this;
   }
@@ -274,10 +274,10 @@ export class Transaction {
     if (this.notVisited('setTxInputs')) {
       const availableUtxos = await this.getAvailableUtxos();
 
-      const includeMultiAsset =
-        !this.notVisited('sendAssets') || !this.notVisited('sendValue');
+      // const includeMultiAsset =
+      //   !this.notVisited('sendAssets') || !this.notVisited('sendValue');
 
-      const coinSelectionStrategy = includeMultiAsset
+      const coinSelectionStrategy = true // includeMultiAsset
         ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
@@ -313,10 +313,17 @@ export class Transaction {
       }
     });
 
-    this._totalMints.forEach((assetRaw) => {
+    this._totalMints.forEach((assetRaw, unit) => {
+      const metadata = {
+        [`${unit.slice(0, POLICY_ID_LENGTH)}`]: {
+          [`${assetRaw.name}`]: {
+            ...assetRaw.metadata
+          }
+        }
+      }
       this._txBuilder.add_json_metadatum(
         csl.BigNum.from_str(assetRaw.label),
-        JSON.stringify(assetRaw.metadata),
+        JSON.stringify(metadata),
       );
     });
   }
