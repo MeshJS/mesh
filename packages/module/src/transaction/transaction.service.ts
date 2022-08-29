@@ -6,10 +6,9 @@ import {
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
-  buildDataCost, buildTxBuilder, buildTxInputsBuilder,
-  buildTxOutputBuilder, deserializeEd25519KeyHash,
-  deserializeNativeScript, deserializePlutusScript,
-  fromBytes, fromUTF8, resolveKeyHash, toAddress, toBytes,
+  buildDataCost, buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
+  deserializeEd25519KeyHash, deserializeNativeScript, deserializePlutusScript,
+  fromBytes, fromTxUnspentOutput, fromUTF8, resolveKeyHash, toAddress, toBytes,
   toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
@@ -250,9 +249,10 @@ export class Transaction {
       && this._totalBurns.length > 0
       && this.notVisited('setTxInputs')
     ) {
+      const utxos = await this._initiator.getAvailableUtxos();
       const inputs = largestFirstMultiAsset(this._totalBurns,
-        await this._initiator.getAvailableUtxos(),
-      );
+        utxos.map((utxo) => fromTxUnspentOutput(utxo)),
+      ).map((utxo) => toTxUnspentOutput(utxo));
 
       inputs
         .forEach((utxo) => {
