@@ -63,14 +63,14 @@ function CodeDemo() {
 
       const tx = new Transaction({ initiator: wallet });
       // to mint
-      // tx.mintAsset(forgingScript, address, asset);
+      tx.mintAsset(forgingScript, address, asset);
 
       // to burn
-      const assetToBurn = {
-        unit: 'd0147e5ecf60e565ec491293f1aaa3c8c4dde67683571f86269a77114d6573684e4654303031',
-        quantity: '1',
-      }
-      tx.burnAsset(forgingScript, assetToBurn);
+      // const assetToBurn = {
+      //   unit: 'd0147e5ecf60e565ec491293f1aaa3c8c4dde67683571f86269a77114d6573684e4654303031',
+      //   quantity: '1',
+      // }
+      // tx.burnAsset(forgingScript, assetToBurn);
 
       const unsignedTx = await tx.build();
       console.log('unsignedTx', unsignedTx);

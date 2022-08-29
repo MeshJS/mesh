@@ -21,8 +21,9 @@ import type {
 
 @Trackable
 export class Transaction {
-  private _changeAddress: Address | undefined;
+  private _changeAddress?: Address;
   private _mintRecipients = new Map<Address, Asset[]>();
+  // private _totalBurns: Asset[] = [];
   private _totalMints = new Map<string, AssetRaw>();
 
   private readonly _era?: Era;
@@ -66,6 +67,7 @@ export class Transaction {
     return this;
   }
 
+  @Checkpoint()
   mintAsset(
     forgeScript: string, recipientAddress: string, assetRaw: AssetRaw,
   ): Transaction {
@@ -274,10 +276,11 @@ export class Transaction {
     if (this.notVisited('setTxInputs')) {
       const availableUtxos = await this.getAvailableUtxos();
 
-      // const includeMultiAsset =
-      //   !this.notVisited('sendAssets') || !this.notVisited('sendValue');
+      const includeMultiAsset = !this.notVisited('mintAsset')
+        || !this.notVisited('sendAssets')
+        || !this.notVisited('sendValue');
 
-      const coinSelectionStrategy = true // includeMultiAsset
+      const coinSelectionStrategy = includeMultiAsset
         ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
@@ -313,17 +316,14 @@ export class Transaction {
       }
     });
 
-    this._totalMints.forEach((assetRaw, unit) => {
-      const metadata = {
-        [`${unit.slice(0, POLICY_ID_LENGTH)}`]: {
-          [`${assetRaw.name}`]: {
-            ...assetRaw.metadata
-          }
-        }
-      }
+    this._totalMints.forEach((asset, unit) => {
       this._txBuilder.add_json_metadatum(
-        csl.BigNum.from_str(assetRaw.label),
-        JSON.stringify(metadata),
+        csl.BigNum.from_str(asset.label),
+        JSON.stringify({
+          [`${unit.slice(0, POLICY_ID_LENGTH)}`]: {
+            [`${asset.name}`]: { ...asset.metadata },
+          },
+        }),
       );
     });
   }

@@ -17,8 +17,6 @@ export type NonFungibleAssetMetadata =
 type AudioAssetMetadata = CIP25 & Files & {};
 
 export type ImageAssetMetadata = CIP25 & Files & {
-  collection: string;
-  project: string;
   artists?: [{
     name: string;
     twitter?: string; // `https://twitter.com/${string}`;
