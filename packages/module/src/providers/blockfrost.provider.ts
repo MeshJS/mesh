@@ -55,7 +55,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return {
-          coinsPerUTxOSize: data.coins_per_utxo_size,
+          coinsPerUTxOSize: data.coins_per_utxo_word,
           collateralPercent: data.collateral_percent,
           decentralisation: data.decentralisation_param,
           epoch: data.epoch,

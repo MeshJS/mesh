@@ -1,12 +1,10 @@
-import { csl } from '@mesh/core';
+import { csl, largestFirstMultiAsset } from '@mesh/core';
 import {
   DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
   POLICY_ID_LENGTH, SUPPORTED_COST_MODELS,
 } from '@mesh/common/constants';
 import { IInitiator } from '@mesh/common/contracts';
-import {
-  Checkpoint, Trackable, TrackableObject,
-} from '@mesh/common/decorators';
+import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
   buildDataCost, buildTxBuilder, buildTxInputsBuilder,
   buildTxOutputBuilder, deserializeEd25519KeyHash,
@@ -23,7 +21,7 @@ import type {
 export class Transaction {
   private _changeAddress?: Address;
   private _mintRecipients = new Map<Address, Asset[]>();
-  // private _totalBurns: Asset[] = [];
+  private _totalBurns: Asset[] = [];
   private _totalMints = new Map<string, AssetRaw>();
 
   private readonly _era?: Era;
@@ -63,6 +61,8 @@ export class Transaction {
       csl.AssetName.new(toBytes(asset.unit.slice(POLICY_ID_LENGTH))),
       csl.Int.new_negative(csl.BigNum.from_str(asset.quantity)),
     );
+
+    this._totalBurns.push(asset);
 
     return this;
   }
@@ -143,11 +143,9 @@ export class Transaction {
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
 
     const txOutput = txOutputBuilder.next()
-      .with_asset_and_min_required_coin_by_utxo_cost(
-        multiAsset,
+      .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
         buildDataCost(this._protocolParameters.coinsPerUTxOSize),
-      )
-      .build();
+      ).build();
 
     this._txBuilder.add_output(txOutput);
 
@@ -246,6 +244,27 @@ export class Transaction {
     return this;
   }
 
+  private async addBurnInputsIfNeeded() {
+    if (
+      this._initiator !== undefined
+      && this._totalBurns.length > 0
+      && this.notVisited('setTxInputs')
+    ) {
+      const inputs = largestFirstMultiAsset(this._totalBurns,
+        await this._initiator.getAvailableUtxos(),
+      );
+
+      inputs
+        .forEach((utxo) => {
+          this._txInputsBuilder.add_input(
+            utxo.output().address(),
+            utxo.input(),
+            utxo.output().amount(),
+          );
+        });
+    }
+  }
+
   private async addChangeAddress() {
     if (this._initiator && this._changeAddress === undefined) {
       const change = await this._initiator.getUsedAddress();
@@ -298,23 +317,7 @@ export class Transaction {
   }
 
   private async forgeAssetsIfNeeded() {
-    this._mintRecipients.forEach((assets, recipient) => {
-      const amount = toValue(assets);
-      const multiAsset = amount.multiasset();
-
-      if (multiAsset !== undefined) {
-        const txOutputBuilder = buildTxOutputBuilder(recipient.to_bech32());
-
-        const txOutput = txOutputBuilder.next()
-          .with_asset_and_min_required_coin_by_utxo_cost(
-            multiAsset,
-            buildDataCost(this._protocolParameters.coinsPerUTxOSize),
-          )
-          .build();
-
-        this._txBuilder.add_output(txOutput);
-      }
-    });
+    this.addMintOutputs();
 
     this._totalMints.forEach((asset, unit) => {
       this._txBuilder.add_json_metadatum(
@@ -326,6 +329,8 @@ export class Transaction {
         }),
       );
     });
+
+    await this.addBurnInputsIfNeeded();
   }
 
   private async getAvailableUtxos() {
@@ -342,6 +347,24 @@ export class Transaction {
     });
 
     return txUnspentOutputs;
+  }
+
+  private addMintOutputs() {
+    this._mintRecipients.forEach((assets, recipient) => {
+      const amount = toValue(assets);
+      const multiAsset = amount.multiasset();
+
+      if (multiAsset !== undefined) {
+        const txOutputBuilder = buildTxOutputBuilder(recipient.to_bech32());
+
+        const txOutput = txOutputBuilder.next()
+          .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
+            buildDataCost(this._protocolParameters.coinsPerUTxOSize),
+          ).build();
+
+        this._txBuilder.add_output(txOutput);
+      }
+    });
   }
 
   private notVisited(checkpoint: string) {
