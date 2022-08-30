@@ -38,7 +38,7 @@ function CodeDemo() {
 
       const address = 'addr_test1qz8p7er75le6gxjkd4cgrvn9a5fspus4vtdyv6l2etj4qeq636sfudakhsh65qggs4ttjjsk8fuu3fkd65uaxcxv0tfq43ddah';
       console.log("keyHash", resolveKeyHash(address));
-      const forgingScript = ForgeScript.requireOneSignature(address);
+      const forgingScript = ForgeScript.withOneSignature(address);
       console.log("forgingScript", forgingScript);
 
       // asset
