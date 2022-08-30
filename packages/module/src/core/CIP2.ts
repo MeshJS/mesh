@@ -14,20 +14,8 @@ export const largestFirstMultiAsset = (
   });
 
   const sortedMultiAssetUTxOSet = initialUTxOSet
-    .filter((utxo) => {
-      return utxo.output.amount.length > 1;
-    })
-    .sort((a, b) => {
-      const aLovelaceQuantity = parseInt(
-        a.output.amount.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0',
-      );
-
-      const bLovelaceQuantity = parseInt(
-        b.output.amount.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0',
-      );
-
-      return aLovelaceQuantity - bLovelaceQuantity;
-    });
+    .filter(multiAssetUTxO)
+    .sort(largestLovelaceQuantity);
 
   let selection: UTxO[] = [];
   sortedMultiAssetUTxOSet.some((utxo) => {
@@ -65,8 +53,24 @@ const enoughValueHasBeenSelected = (
     });
 };
 
+const largestLovelaceQuantity = (
+  utxoA: UTxO, utxoB: UTxO,
+): number => {
+  const aLovelaceQuantity = parseInt(
+    utxoA.output.amount.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0',
+  );
+
+  const bLovelaceQuantity = parseInt(
+    utxoB.output.amount.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0',
+  );
+
+  return aLovelaceQuantity - bLovelaceQuantity;
+};
+
+const multiAssetUTxO = (utxo: UTxO): boolean => utxo.output.amount.length > 1;
+
 const valueCanBeSelected = (
-  utxo: UTxO, assets: Map<string, number>
+  utxo: UTxO, assets: Map<string, number>,
 ): boolean => {
   return Array.from(assets.keys()).some((unit) => {
     return utxo.output.amount

@@ -317,7 +317,7 @@ export class Transaction {
   }
 
   private async forgeAssetsIfNeeded() {
-    this.addMintOutputs();
+    await this.addBurnInputsIfNeeded();
 
     this._totalMints.forEach((asset, unit) => {
       this._txBuilder.add_json_metadatum(
@@ -330,7 +330,7 @@ export class Transaction {
       );
     });
 
-    await this.addBurnInputsIfNeeded();
+    this.addMintOutputs();
   }
 
   private async getAvailableUtxos() {
