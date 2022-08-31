@@ -35,34 +35,34 @@ export const toLovelace = (ada: number) => ada * 1_000_000;
 export const toPlutusData = (data: Data, alternative = 0): PlutusData => {
   const newPlutusData = (data: Data): PlutusData => {
     switch (typeof data) {
-    case 'string':
-      return csl.PlutusData.new_bytes(
-        toBytes(data)
-      );
-    case 'number':
-      return csl.PlutusData.new_integer(
-        csl.BigInt.from_str(data.toString())
-      );
-    case 'object':
-      if (Array.isArray(data)) {
-        const plutusList = csl.PlutusList.new();
-        data.forEach((element) => {
-          plutusList.add(newPlutusData(element));
-        });
-        return csl.PlutusData.new_constr_plutus_data(
-          csl.ConstrPlutusData.new(
-            csl.BigNum.from_str('0'), plutusList
-          )
+      case 'string':
+        return csl.PlutusData.new_bytes(
+          toBytes(data)
         );
-      } else {
-        const plutusMap = csl.PlutusMap.new();
-        Object.keys(data).forEach((key) => {
-          plutusMap.insert(newPlutusData(key), newPlutusData(data[key]));
-        });
-        return csl.PlutusData.new_map(plutusMap);
-      }
-    default:
-      throw new Error(`Couldn't create PlutusData of type: ${typeof data}.`);
+      case 'number':
+        return csl.PlutusData.new_integer(
+          csl.BigInt.from_str(data.toString())
+        );
+      case 'object':
+        if (Array.isArray(data)) {
+          const plutusList = csl.PlutusList.new();
+          data.forEach((element) => {
+            plutusList.add(newPlutusData(element));
+          });
+          return csl.PlutusData.new_constr_plutus_data(
+            csl.ConstrPlutusData.new(
+              csl.BigNum.from_str('0'), plutusList
+            )
+          );
+        } else {
+          const plutusMap = csl.PlutusMap.new();
+          Object.keys(data).forEach((key) => {
+            plutusMap.insert(newPlutusData(key), newPlutusData(data[key]));
+          });
+          return csl.PlutusData.new_map(plutusMap);
+        }
+      default:
+        throw new Error(`Couldn't create PlutusData of type: ${typeof data}.`);
     }
   };
 
