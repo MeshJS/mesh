@@ -5,7 +5,7 @@ export type AssetMetadata =
 export type FungibleAssetMetadata = CIP25 & {
   ticker: string;
   decimals: number;
-  version: string; // `${number}.${number}`;
+  version: `${number}.${number}`;
 };
 
 export type NonFungibleAssetMetadata =
@@ -14,12 +14,12 @@ export type NonFungibleAssetMetadata =
   | SmartAssetMetadata
   | VideoAssetMetadata;
 
-type AudioAssetMetadata = CIP25 & Files & {};
+type AudioAssetMetadata = CIP25 & Files;
 
 export type ImageAssetMetadata = CIP25 & Files & {
   artists?: [{
     name: string;
-    twitter?: string; // `https://twitter.com/${string}`;
+    twitter?: `https://twitter.com/${string}`;
   }];
   attributes?: {
     [key: string]: string;
@@ -27,25 +27,25 @@ export type ImageAssetMetadata = CIP25 & Files & {
   traits?: string[];
 };
 
-type SmartAssetMetadata = CIP25 & Files & {};
+type SmartAssetMetadata = CIP25 & Files;
 
-type VideoAssetMetadata = CIP25 & Files & {};
+type VideoAssetMetadata = CIP25 & Files;
 
 type CIP25 = {
   name: string;
-  image: string; // `${string}://${string}`;
-  mediaType?: string; // `image/${string}`;
+  image: `${string}://${string}`;
+  mediaType?: `image/${string}`;
   description?: string | string[];
-  instagram?: string; // `https://instagram.com/${string}`;
-  twitter?: string; // `https://twitter.com/${string}`;
-  discord?: string; // `https://discord.gg/${string}`;
-  website?: string; // `https://${string}`;
+  instagram?: `https://instagram.com/${string}`;
+  twitter?: `https://twitter.com/${string}`;
+  discord?: `https://discord.gg/${string}`;
+  website?: `https://${string}`;
 };
 
 type Files = {
   files?: [{
     name: string;
-    src: string; // `${string}://${string}`;
-    mediaType: string; // `${string}/${string}`;
+    src: `${string}://${string}`;
+    mediaType: `${string}/${string}`;
   }];
 };

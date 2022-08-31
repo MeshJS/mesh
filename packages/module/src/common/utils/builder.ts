@@ -37,7 +37,7 @@ export const buildDataCost = (
   return csl.DataCost.new_coins_per_byte(
     csl.BigNum.from_str(coinsPerByte),
   );
-}
+};
 
 export const buildRewardAddress = (
   networkId: number, stakeKeyHash: Ed25519KeyHash,

@@ -27,7 +27,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-      return data.map((utxo) => (
+        return data.map((utxo) => (
         {
           input: {
             outputIndex: utxo.output_index,

@@ -191,7 +191,7 @@ declare global {
   interface Window {
     cardano: Cardano;
   }
-};
+}
 
 type Cardano = {
   [key: string]: {

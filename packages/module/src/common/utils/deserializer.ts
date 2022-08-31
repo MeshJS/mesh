@@ -14,7 +14,7 @@ export const deserializeEd25519KeyHash = (ed25519KeyHash: string) => csl.Ed25519
   .from_bytes(toBytes(ed25519KeyHash));
 
 export const deserializeNativeScript = (nativeScript: string) => csl.NativeScript
-    .from_bytes(toBytes(nativeScript));
+  .from_bytes(toBytes(nativeScript));
 
 export const deserializePlutusData = (plutusData: string) => csl.PlutusData
   .from_bytes(toBytes(plutusData));

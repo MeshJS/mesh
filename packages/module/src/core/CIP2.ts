@@ -7,7 +7,7 @@ export const largestFirstMultiAsset = (
   requestedOutputSet.forEach((asset) => {
     if (summedOutputSet.has(asset.unit)) {
       const newQuantity = parseInt(asset.quantity);
-      const existingQuantity = summedOutputSet.get(asset.unit)!;
+      const existingQuantity = summedOutputSet.get(asset.unit) ?? 0;
       summedOutputSet.set(asset.unit, existingQuantity + newQuantity);
     }
     summedOutputSet.set(asset.unit, parseInt(asset.quantity));
@@ -17,7 +17,7 @@ export const largestFirstMultiAsset = (
     .filter(multiAssetUTxO)
     .sort(largestLovelaceQuantity);
 
-  let selection: UTxO[] = [];
+  const selection: UTxO[] = [];
   sortedMultiAssetUTxOSet.some((utxo) => {
     if (enoughValueHasBeenSelected(selection, summedOutputSet))
       return true;
