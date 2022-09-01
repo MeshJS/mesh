@@ -8,10 +8,10 @@ export default defineConfig({
   build: {
     lib: {
       entry: './src/index.ts',
-      formats: ['es'],
+      formats: ['cjs', 'es'],
     },
     minify: 'esbuild',
-    target: ['esnext'],
+    target: ['esnext', 'node16'],
     rollupOptions: {
       external: [
         '@emurgo/cardano-message-signing-browser',

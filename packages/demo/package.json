@@ -14,7 +14,7 @@
   "dependencies": {
     "@headlessui/react": "^1.6.6",
     "@heroicons/react": "^1.0.6",
-    "@martifylabs/mesh": "0.0.8-beta.3",
+    "@martifylabs/mesh": "0.0.8-beta.5",
     "flowbite": "^1.4.7",
     "flowbite-react": "^0.1.3",
     "i": "^0.3.7",
