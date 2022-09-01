@@ -18,6 +18,8 @@ export const toBaseAddress = (bech32: string) => csl.BaseAddress.from_address(to
 
 export const toEnterpriseAddress = (bech32: string) => csl.EnterpriseAddress.from_address(toAddress(bech32));
 
+export const toRewardAddress = (bech32: string) => csl.RewardAddress.from_address(toAddress(bech32));
+
 /* -----------------[ Bytes ]----------------- */
 
 export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');

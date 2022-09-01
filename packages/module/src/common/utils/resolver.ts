@@ -1,7 +1,7 @@
 import { AssetFingerprint, csl } from '@mesh/core';
 import {
   fromBytes, toAddress, toBytes, toBaseAddress,
-  toEnterpriseAddress, toPlutusData,
+  toRewardAddress, toEnterpriseAddress, toPlutusData,
 } from './converter';
 import { deserializeAddress, deserializeTxBody } from './deserializer';
 import type { Data } from '@mesh/common/types';
@@ -21,8 +21,11 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
 
 export const resolveKeyHash = (bech32: string) => {
   try {
-    const baseAddress = toBaseAddress(bech32);
-    const keyHash = baseAddress?.payment_cred().to_keyhash();
+    const keyHash = [
+      toBaseAddress(bech32)?.payment_cred().to_keyhash(),
+      toEnterpriseAddress(bech32)?.payment_cred().to_keyhash(),
+      toRewardAddress(bech32)?.payment_cred().to_keyhash()
+    ].find((kh) => kh !== undefined);
 
     if (keyHash !== undefined)
       return fromBytes(keyHash.to_bytes());
@@ -36,7 +39,8 @@ export const resolveKeyHash = (bech32: string) => {
 export const resolveScriptHash = (bech32: string) => {
   try {
     const enterpriseAddress = toEnterpriseAddress(bech32);
-    const scriptHash = enterpriseAddress?.payment_cred().to_scripthash();
+    const scriptHash = enterpriseAddress?.payment_cred()
+      .to_scripthash();
 
     if (scriptHash !== undefined)
       return fromBytes(scriptHash.to_bytes());
