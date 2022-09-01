@@ -22,13 +22,13 @@
       }
     ],
     "object-curly-spacing": [
-      "error", "always"
+      "warn", "always"
     ],
     "semi": [
-      "error", "always"
+      "warn", "always"
     ],
     "quotes": [
-      "error", "single"
+      "warn", "single"
     ],
     "no-useless-catch": "off"
   },

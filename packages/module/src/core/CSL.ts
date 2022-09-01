@@ -1,27 +1,6 @@
-const importCSL = async () => {
-  if (typeof window !== 'undefined') {
-    return await import('@emurgo/cardano-serialization-lib-browser');
-  } else {
-    return await import('@emurgo/cardano-serialization-lib-nodejs');
-  }
-};
+import { csl } from '.';
 
-const resolveCSLImport = async () => {
-  try {
-    const {
-      default: _, ...rest
-    } = await importCSL();
-
-    return rest;
-  } catch (error) {
-    console.error(
-      'An error occurred when importing the Cardano Serialization Lib module.'
-    );
-    throw error;
-  }
-};
-
-export const csl = await resolveCSLImport();
+export * as csl from '@emurgo/cardano-serialization-lib-nodejs';
 
 export type Address = InstanceType<typeof csl.Address>;
 export type AssetName = InstanceType<typeof csl.AssetName>;

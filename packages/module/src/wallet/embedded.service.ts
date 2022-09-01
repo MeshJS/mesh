@@ -2,16 +2,9 @@ import cryptoRandomString from 'crypto-random-string';
 import { generateMnemonic, mnemonicToEntropy } from 'bip39';
 import { csl } from '@mesh/core';
 import {
-  buildBaseAddress,
-  buildBip32PrivateKey,
-  buildRewardAddress,
-  deserializeBip32PrivateKey,
-  deserializeTx,
-  deserializeTxHash,
-  deserializeTxWitnessSet,
-  fromBytes,
-  fromUTF8,
-  resolveTxHash,
+  buildBaseAddress, buildBip32PrivateKey, buildRewardAddress,
+  deserializeBip32PrivateKey, deserializeTx, deserializeTxHash,
+  deserializeTxWitnessSet, fromBytes, fromUTF8, resolveTxHash,
 } from '@mesh/common/utils';
 import type { BaseAddress, RewardAddress } from '@mesh/core';
 
@@ -155,16 +148,14 @@ export class EmbeddedWallet {
   static encryptSigningKeys(
     cborPaymentKey: string,
     cborStakeKey: string,
-    password: string
+    password: string,
   ): string {
     const encryptedPaymentKey = EmbeddedWallet.encrypt(
-      cborPaymentKey.slice(4),
-      password
+      cborPaymentKey.slice(4), password,
     );
 
     const encryptedStakeKey = EmbeddedWallet.encrypt(
-      cborStakeKey.slice(4),
-      password
+      cborStakeKey.slice(4), password,
     );
 
     return `${encryptedPaymentKey}|${encryptedStakeKey}`;
@@ -236,22 +227,26 @@ export class EmbeddedWallet {
     if (this._walletKeyType === 'ACCOUNT') {
       const accountKeys = this._encryptedWalletKey.split('|');
 
-      const cborPayment = EmbeddedWallet.decrypt(accountKeys[0], password);
+      const cborPayment = EmbeddedWallet
+        .decrypt(accountKeys[0], password);
 
-      const cborStake = EmbeddedWallet.decrypt(accountKeys[1], password);
+      const cborStake = EmbeddedWallet
+        .decrypt(accountKeys[1], password);
 
-      const paymentKey = csl.PrivateKey.from_hex(cborPayment);
+      const paymentKey =
+        csl.PrivateKey.from_hex(cborPayment);
 
-      const stakeKey = csl.PrivateKey.from_hex(cborStake);
+      const stakeKey =
+        csl.PrivateKey.from_hex(cborStake);
 
       return { paymentKey, stakeKey };
     }
 
-    const rootKey = EmbeddedWallet.decrypt(this._encryptedWalletKey, password);
+    const rootKey = EmbeddedWallet
+      .decrypt(this._encryptedWalletKey, password);
 
     const { paymentKey, stakeKey } = EmbeddedWallet.deriveAccountKeys(
-      rootKey,
-      this._accountIndex
+      rootKey, this._accountIndex
     );
 
     return { paymentKey, stakeKey };

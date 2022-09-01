@@ -1,7 +1,6 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import typescript from '@rollup/plugin-typescript';
-import topLevelAwait from 'vite-plugin-top-level-await';
 import eslint from 'vite-plugin-eslint';
 import wasm from 'vite-plugin-wasm';
 
@@ -12,21 +11,16 @@ export default defineConfig({
       formats: ['es'],
     },
     minify: 'esbuild',
-    target: 'esnext',
+    target: ['esnext'],
     rollupOptions: {
       external: [
+        '@emurgo/cardano-message-signing-browser',
+        '@emurgo/cardano-message-signing-nodejs',
         '@emurgo/cardano-serialization-lib-browser',
         '@emurgo/cardano-serialization-lib-nodejs',
       ],
       plugins: [
-        typescript({
-          target: 'esnext',
-          declaration: true,
-          rootDir: resolve(__dirname, './src'),
-          declarationDir: resolve(__dirname, './dist'),
-          exclude: resolve(__dirname, './node_modules/**'),
-          allowSyntheticDefaultImports: true,
-        })
+        typescript(),
       ]
     },
   },
@@ -36,6 +30,6 @@ export default defineConfig({
     },
   },
   plugins: [
-    eslint(), topLevelAwait(), wasm(),
+    eslint(), wasm(),
   ],
 });

@@ -1,7 +1,7 @@
 import type { Asset, UTxO } from '@mesh/common/types';
 
 export const largestFirstMultiAsset = (
-  requestedOutputSet: Asset[], initialUTxOSet: UTxO[]
+  requestedOutputSet: Asset[], initialUTxOSet: UTxO[],
 ): UTxO[] => {
   const summedOutputSet = new Map<string, number>();
   requestedOutputSet.forEach((asset) => {
@@ -32,7 +32,7 @@ export const largestFirstMultiAsset = (
 };
 
 const enoughValueHasBeenSelected = (
-  selection: UTxO[], assets: Map<string, number>
+  selection: UTxO[], assets: Map<string, number>,
 ): boolean => {
   return Array
     .from(
