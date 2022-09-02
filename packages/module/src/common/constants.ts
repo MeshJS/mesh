@@ -30,6 +30,8 @@ export const DEFAULT_PROTOCOL_PARAMETERS = {
   maxBlockExSteps: '40000000000',
 };
 
+export const HARDENED_KEY_START = 0x80000000;
+
 export const POLICY_ID_LENGTH = 56;
 
 export const REDEEMER_TAGS = {

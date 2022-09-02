@@ -91,7 +91,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     try {
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = deserializeTxWitnessSet(
-        fromBytes(tx.witness_set().to_bytes()),
+        tx.witness_set().to_hex(),
       );
 
       const walletWitnessSet = await this._walletInstance.signTx(

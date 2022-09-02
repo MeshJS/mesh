@@ -8,8 +8,8 @@ import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators'
 import {
   buildDataCost, buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializeNativeScript, deserializePlutusScript,
-  fromBytes, fromTxUnspentOutput, fromUTF8, resolveKeyHash, toAddress, toBytes,
-  toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
+  fromTxUnspentOutput, fromUTF8, resolveKeyHash, toAddress, toBytes, toPlutusData,
+  toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
@@ -48,7 +48,7 @@ export class Transaction {
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
 
-      return fromBytes(this._txBuilder.build_tx().to_bytes());
+      return this._txBuilder.build_tx().to_hex();
     } catch (error) {
       throw error;
     }

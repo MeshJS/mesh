@@ -1,6 +1,6 @@
 import { AssetFingerprint, csl } from '@mesh/core';
 import {
-  fromBytes, toAddress, toBytes, toBaseAddress,
+  toAddress, toBytes, toBaseAddress,
   toRewardAddress, toEnterpriseAddress, toPlutusData,
 } from './converter';
 import { deserializeAddress, deserializeTxBody } from './deserializer';
@@ -9,7 +9,7 @@ import type { Data } from '@mesh/common/types';
 export const resolveDataHash = (data: Data) => {
   const plutusData = toPlutusData(data);
   const dataHash = csl.hash_plutus_data(plutusData);
-  return fromBytes(dataHash.to_bytes());
+  return dataHash.to_hex();
 };
 
 export const resolveFingerprint = (policyId: string, assetName: string) => {
@@ -28,7 +28,7 @@ export const resolveKeyHash = (bech32: string) => {
     ].find((kh) => kh !== undefined);
 
     if (keyHash !== undefined)
-      return fromBytes(keyHash.to_bytes());
+      return keyHash.to_hex();
 
     throw new Error(`Couldn't resolve key hash from address: ${bech32}.`);
   } catch (error) {
@@ -43,7 +43,7 @@ export const resolveScriptHash = (bech32: string) => {
       .to_scripthash();
 
     if (scriptHash !== undefined)
-      return fromBytes(scriptHash.to_bytes());
+      return scriptHash.to_hex();
 
     throw new Error(`Couldn't resolve script hash from address: ${bech32}.`);
   } catch (error) {
@@ -54,7 +54,7 @@ export const resolveScriptHash = (bech32: string) => {
 export const resolveStakeKey = (bech32: string) => {
   try {
     const address = toAddress(bech32);
-    const cborAddress = fromBytes(address.to_bytes());
+    const cborAddress = address.to_hex();
     const cborStakeAddress = `e${address.network_id()}${cborAddress.slice(58)}`;
 
     return deserializeAddress(cborStakeAddress).to_bech32();
@@ -67,5 +67,5 @@ export const resolveStakeKey = (bech32: string) => {
 export const resolveTxHash = (cborTxBody: string) => {
   const txBody = deserializeTxBody(cborTxBody);
   const txHash = csl.hash_transaction(txBody);
-  return fromBytes(txHash.to_bytes());
+  return txHash.to_hex();
 };

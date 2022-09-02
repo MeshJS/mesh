@@ -108,21 +108,21 @@ export const fromTxUnspentOutput = (
   txUnspentOutput: TransactionUnspentOutput
 ): UTxO => {
   const dataHash = txUnspentOutput.output().has_data_hash()
-    ? fromBytes(txUnspentOutput.output().data_hash()?.to_bytes() ?? new Uint8Array())
+    ? txUnspentOutput.output().data_hash()?.to_hex()
     : undefined;
 
   const plutusData = txUnspentOutput.output().has_plutus_data()
-    ? fromBytes(txUnspentOutput.output().plutus_data()?.to_bytes() ?? new Uint8Array())
+    ? txUnspentOutput.output().plutus_data()?.to_hex()
     : undefined;
 
   const scriptRef = txUnspentOutput.output().has_script_ref()
-    ? fromBytes(txUnspentOutput.output().script_ref()?.to_bytes() ?? new Uint8Array())
+    ? txUnspentOutput.output().script_ref()?.to_hex()
     : undefined;
 
   return {
     input: {
       outputIndex: txUnspentOutput.input().index(),
-      txHash: fromBytes(txUnspentOutput.input().transaction_id().to_bytes()),
+      txHash: txUnspentOutput.input().transaction_id().to_hex(),
     },
     output: {
       address: txUnspentOutput.output().address().to_bech32(),
@@ -196,7 +196,7 @@ export const fromValue = (value: Value) => {
         for (let j = 0; j < policyAssetNames.len(); j += 1) {
           const assetName = policyAssetNames.get(j);
           const quantity = policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
-          const assetId = fromBytes(policyId.to_bytes()) + fromBytes(assetName.name());
+          const assetId = policyId.to_hex() + fromBytes(assetName.name());
           assets.push({ unit: assetId, quantity: quantity.to_str() });
         }
       }
