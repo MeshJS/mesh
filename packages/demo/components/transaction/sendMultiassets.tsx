@@ -6,7 +6,7 @@ import { CardAsset } from '../blocks/cardassets';
 import { AssetsContainer } from '../blocks/assetscontainer';
 import { TrashIcon, PlusCircleIcon } from '@heroicons/react/solid';
 import useWallet from '../../contexts/wallet';
-import { TransactionService } from '@martifylabs/mesh';
+import { Transaction } from '@martifylabs/mesh';
 import type { Asset, AssetExtended } from '@martifylabs/mesh';
 import { LinkCardanoscanTx } from '../blocks/linkCardanoscanTx';
 import ConnectWallet from '../wallet/connectWallet';
@@ -48,7 +48,7 @@ function CodeDemo() {
     setState(1);
 
     try {
-      const tx = new TransactionService({ initiator: wallet });
+      const tx = new Transaction({ initiator: wallet });
 
       for (const recipient of recipients) {
         if (recipient.assets.lovelace) {
@@ -136,7 +136,6 @@ function CodeDemo() {
 
   useEffect(() => {
     async function init() {
-      // getAssets();
       const newRecipents = [
         {
           address:
@@ -155,7 +154,7 @@ function CodeDemo() {
     }
   }, [walletConnected]);
 
-  let codeSnippet = `const tx = new TransactionService({ initiator: wallet })`;
+  let codeSnippet = `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of recipients) {
     if (recipient.assets.lovelace) {
       codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;

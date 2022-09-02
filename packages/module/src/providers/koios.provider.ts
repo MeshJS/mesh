@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_NETWORKS } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
-import { toBytes } from '@mesh/common/utils';
+import { parseHttpError, toBytes } from '@mesh/common/utils';
 import type { Asset, AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
@@ -15,8 +15,8 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     });
   }
 
-  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
-    throw new Error('Method not implemented.' + asset);
+  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
+    throw new Error('Method not implemented.');
   }
 
   async fetchAssetUtxosFromAddress(asset: string, address: string): Promise<UTxO[]> {
@@ -27,9 +27,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return data
-          .flatMap(
-            (info: { utxo_set: []; }) => info.utxo_set
-          )
+          .flatMap((info: { utxo_set: []; }) => info.utxo_set)
           .map((utxo) => ({
             input: {
               outputIndex: utxo.tx_index,
@@ -37,11 +35,14 @@ export class KoiosProvider implements IFetcher, ISubmitter {
             },
             output: {
               address: address,
-              amount: utxo.asset_list
-                .map((a) => ({
-                  unit: `${a.policy_id}${a.asset_name}`,
-                  quantity: `${a.quantity}`
-                }) as Asset),
+              amount: [
+                { unit: 'lovelace', quantity: utxo.value },
+                ...utxo.asset_list
+                  .map((a) => ({
+                    unit: `${a.policy_id}${a.asset_name}`,
+                    quantity: `${a.quantity}`
+                  }) as Asset)
+              ],
               dataHash: utxo.datum_hash,
             },
           }) as UTxO)
@@ -50,9 +51,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
               utxo.output.amount.find((a) => a.unit === asset) !== undefined
           );
 
-      throw data;
+      throw parseHttpError(data);
     } catch (error) {
-      throw error;
+      throw parseHttpError(error);
     }
   }
 
@@ -86,9 +87,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
           priceStep: data.price_step,
         } as Protocol;
 
-      throw data;
+      throw parseHttpError(data);
     } catch (error) {
-      throw error;
+      throw parseHttpError(error);
     }
   }
 
@@ -102,9 +103,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       if (status === 202)
         return data as string;
 
-      throw data;
+      throw parseHttpError(data);
     } catch (error) {
-      throw error;
+      throw parseHttpError(error);
     }
   }
 }

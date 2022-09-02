@@ -106,15 +106,15 @@ export const fromTxUnspentOutput = (
   txUnspentOutput: TransactionUnspentOutput
 ): UTxO => {
   const dataHash = txUnspentOutput.output().has_data_hash()
-    ? fromBytes(txUnspentOutput.output().data_hash()?.to_bytes()!)
+    ? fromBytes(txUnspentOutput.output().data_hash()?.to_bytes() ?? new Uint8Array())
     : undefined;
 
   const plutusData = txUnspentOutput.output().has_plutus_data()
-    ? fromBytes(txUnspentOutput.output().plutus_data()?.to_bytes()!)
+    ? fromBytes(txUnspentOutput.output().plutus_data()?.to_bytes() ?? new Uint8Array())
     : undefined;
 
   const scriptRef = txUnspentOutput.output().has_script_ref()
-    ? fromBytes(txUnspentOutput.output().script_ref()?.to_bytes()!)
+    ? fromBytes(txUnspentOutput.output().script_ref()?.to_bytes() ?? new Uint8Array())
     : undefined;
 
   return {
@@ -183,12 +183,12 @@ export const fromValue = (value: Value) => {
     { unit: 'lovelace', quantity: value.coin().to_str() },
   ];
 
-  const multiasset = value.multiasset();
-  if (multiasset !== undefined) {
-    const policies = multiasset.keys();
+  const multiAsset = value.multiasset();
+  if (multiAsset !== undefined) {
+    const policies = multiAsset.keys();
     for (let i = 0; i < policies.len(); i += 1) {
       const policyId = policies.get(i);
-      const policyAssets = multiasset.get(policyId);
+      const policyAssets = multiAsset.get(policyId);
       if (policyAssets !== undefined) {
         const policyAssetNames = policyAssets.keys();
         for (let j = 0; j < policyAssetNames.len(); j += 1) {

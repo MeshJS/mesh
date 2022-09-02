@@ -1,5 +1,7 @@
 import { csl } from '@mesh/core';
-import { DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH } from '@mesh/common/constants';
+import {
+  DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH, SUPPORTED_WALLETS,
+} from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
@@ -12,7 +14,7 @@ import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private constructor(private readonly _walletInstance: WalletInstance) {}
 
-  static supportedWallets = ['flint', 'nami', 'eternl', 'nufi'];
+  static supportedWallets = SUPPORTED_WALLETS;
 
   static getInstalledWallets(): Wallet[] {
     if (window.cardano === undefined) return [];
@@ -89,11 +91,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     try {
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = deserializeTxWitnessSet(
-        fromBytes(tx.witness_set().to_bytes())
+        fromBytes(tx.witness_set().to_bytes()),
       );
 
       const walletWitnessSet = await this._walletInstance.signTx(
-        unsignedTx, partialSign
+        unsignedTx, partialSign,
       );
 
       const walletVerificationKeys = deserializeTxWitnessSet(walletWitnessSet).vkeys();
@@ -169,13 +171,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   async getPolicyIds(): Promise<string[]> {
     const balance = await this.getBalance();
     return Array.from(
-      new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH)))
+      new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH))),
     ).filter((p) => p !== 'lovelace');
   }
 
-  private static resolveInstance(
-    walletName: string
-  ): Promise<WalletInstance> | undefined {
+  private static resolveInstance(walletName: string) {
     if (window.cardano === undefined) return undefined;
 
     const wallet = BrowserWallet.supportedWallets
@@ -191,7 +191,7 @@ declare global {
   interface Window {
     cardano: Cardano;
   }
-};
+}
 
 type Cardano = {
   [key: string]: {

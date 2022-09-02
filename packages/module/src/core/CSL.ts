@@ -1,31 +1,6 @@
-import CIP14 from '@emurgo/cip14-js';
+import { csl } from '.';
 
-const importCSL = async () => {
-  if (typeof window !== 'undefined') {
-    return await import('@emurgo/cardano-serialization-lib-browser');
-  } else {
-    return await import('@emurgo/cardano-serialization-lib-nodejs');
-  }
-};
-
-const resolveCSLImport = async () => {
-  try {
-    const {
-      default: _, ...rest
-    } = await importCSL();
-
-    return rest;
-  } catch (error) {
-    console.error(
-      'An error occurred when importing the Cardano Serialization Lib module.'
-    );
-    throw error;
-  }
-};
-
-export const AssetFingerprint = (CIP14 as any).default as typeof CIP14;
-
-export const csl = await resolveCSLImport();
+export * as csl from '@emurgo/cardano-serialization-lib-nodejs';
 
 export type Address = InstanceType<typeof csl.Address>;
 export type AssetName = InstanceType<typeof csl.AssetName>;
@@ -51,6 +26,7 @@ export type CostModel = InstanceType<typeof csl.CostModel>;
 export type Costmdls = InstanceType<typeof csl.Costmdls>;
 export type DNSRecordAorAAAA = InstanceType<typeof csl.DNSRecordAorAAAA>;
 export type DNSRecordSRV = InstanceType<typeof csl.DNSRecordSRV>;
+export type DataCost = InstanceType<typeof csl.DataCost>;
 export type DataHash = InstanceType<typeof csl.DataHash>;
 export type Ed25519KeyHash = InstanceType<typeof csl.Ed25519KeyHash>;
 export type Ed25519KeyHashes = InstanceType<typeof csl.Ed25519KeyHashes>;
@@ -123,6 +99,7 @@ export type ScriptHash = InstanceType<typeof csl.ScriptHash>;
 export type ScriptHashes = InstanceType<typeof csl.ScriptHashes>;
 export type ScriptNOfK = InstanceType<typeof csl.ScriptNOfK>;
 export type ScriptPubkey = InstanceType<typeof csl.ScriptPubkey>;
+export type ScriptRef = InstanceType<typeof csl.ScriptRef>;
 export type SingleHostAddr = InstanceType<typeof csl.SingleHostAddr>;
 export type SingleHostName = InstanceType<typeof csl.SingleHostName>;
 export type StakeCredential = InstanceType<typeof csl.StakeCredential>;

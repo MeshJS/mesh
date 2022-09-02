@@ -1,6 +1,6 @@
 import { Metatags } from '../../components';
-import CreatePrivateKeyWallet from '../../components/walletprivatekey/createWallet';
-import TestTx from '../../components/walletprivatekey/testTx';
+// import CreatePrivateKeyWallet from '../../components/walletprivatekey/createWallet';
+// import TestTx from '../../components/walletprivatekey/testTx';
 
 /**
  * 1. connect a dapp wallet and get login session
@@ -16,8 +16,8 @@ const Minting = () => {
     <>
       <Metatags title="Minting" />
       <h1>Minting</h1>
-      <CreatePrivateKeyWallet />
-      <TestTx />
+      {/*<CreatePrivateKeyWallet />
+      <TestTx />*/}
     </>
   );
 };
