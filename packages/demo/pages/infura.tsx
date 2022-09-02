@@ -68,8 +68,7 @@ function AddFileIpfs({ infura }) {
           <img src={`https://infura-ipfs.io/ipfs/${response.Hash}`} />
           <a
             href={`https://infura-ipfs.io/ipfs/${response.Hash}`}
-            target="_blank"
-            rel="noreferrer"
+            target="_blank" rel="noreferrer"
           >
             https://infura-ipfs.io/ipfs/{response.Hash}
           </a>

@@ -14,9 +14,7 @@ export default defineConfig({
     target: ['esnext', 'node16'],
     rollupOptions: {
       external: [
-        '@emurgo/cardano-message-signing-browser',
         '@emurgo/cardano-message-signing-nodejs',
-        '@emurgo/cardano-serialization-lib-browser',
         '@emurgo/cardano-serialization-lib-nodejs',
       ],
       plugins: [
