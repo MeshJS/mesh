@@ -69,6 +69,7 @@ function AddFileIpfs({ infura }) {
           <a
             href={`https://infura-ipfs.io/ipfs/${response.Hash}`}
             target="_blank"
+            rel="noreferrer"
           >
             https://infura-ipfs.io/ipfs/{response.Hash}
           </a>
