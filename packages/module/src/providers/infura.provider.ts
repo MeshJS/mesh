@@ -20,15 +20,15 @@ export class InfuraProvider implements IUploader {
     });
   }
 
-  async uploadContent(content: FormData, recursive = false): Promise<string> {
+  // https://docs.infura.io/infura/networks/ipfs/http-api-methods/add
+  async uploadContent(content: FormData): Promise<string> {
     try {
       const headers = { 'Content-Type': 'multipart/form-data' };
-      const { data, status } = await this._axiosInstance.post(
-        `add?recursive=${recursive}`, content, { headers }
-      );
+      const { data, status } = await this._axiosInstance.post(`add`, content, {
+        headers,
+      });
 
-      if (status === 200)
-        return data as string;
+      if (status === 200) return data as string;
 
       throw parseHttpError(data);
     } catch (error) {

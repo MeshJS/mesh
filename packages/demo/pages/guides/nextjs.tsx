@@ -144,16 +144,13 @@ const nextConfig = {
   reactStrictMode: true,
   webpack: function (config, options) {
     config.experiments = {
-      ...config.experiments,
       asyncWebAssembly: true,
-      layers: true,
-      topLevelAwait: true,
     };
-    config.resolve.fallback = { fs: false };
     return config;
   },
 };
-module.exports = nextConfig;`}
+module.exports = nextConfig;
+`}
           isJson={false}
         />
         <h3>3. Congratulations</h3>

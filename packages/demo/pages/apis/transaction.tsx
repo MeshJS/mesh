@@ -4,6 +4,7 @@ import SendMultiassets from '../../components/transaction/sendMultiassets';
 import LockUnlockContract from '../../components/transaction/lockUnlockContract';
 import { Codeblock } from '../../components';
 import Minting from '../../components/transaction/minting';
+import Burning from '../../components/transaction/burning';
 
 const Transaction = () => {
   return (
@@ -23,6 +24,7 @@ function Showcase() {
         <SendMultiassets />
         <LockUnlockContract />
         <Minting />
+        <Burning />
       </div>
     </section>
   );

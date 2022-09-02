@@ -30,7 +30,7 @@ export default function LockUnlockContract() {
             native assets and lovelace) can be sent to the contract in a single
             transaction; in this demo, we restrict to only one asset.
           </p>
-          <p>Note: this feature only works on testnet.</p>
+          <p>Note: this feature only works on preview/preprod network.</p>
         </div>
         <div className="mt-8">
           <CodeDemo />
@@ -70,7 +70,7 @@ function CodeDemo() {
 
   const [resultLock, setResultLock] = useState<null | string>(null); // reponse from lock
   const [resultUnlock, setResultUnlock] = useState<null | string>(null); // reponse from unlock
-  const [hasLocked, setHasLocked] = useState<boolean>(true); // toggle to show unlock section
+  const [hasLocked, setHasLocked] = useState<boolean>(false); // toggle to show unlock section
 
   // always succeed
   // const script = '4e4d01000033222220051200120011';
@@ -251,20 +251,22 @@ function CodeDemo() {
         unlock from the hello world smart contract.
       </p>
 
-      <table className="tableForInputs not-format">
-        <tbody>
-          <tr>
-            <td className="py-4 px-4" colSpan={2}>
-              <AssetsContainer
-                index={0}
-                selectedAssets={{
-                  [selectedAsset]: 1,
-                }}
-                toggleSelectedAssets={toggleSelectedAssets}
-              />
-            </td>
-          </tr>
-          {/* <tr>
+      {!walletConnected && <ConnectWallet />}
+      {walletConnected && (
+        <table className="tableForInputs not-format">
+          <tbody>
+            <tr>
+              <td className="py-4 px-4" colSpan={2}>
+                <AssetsContainer
+                  index={0}
+                  selectedAssets={{
+                    [selectedAsset]: 1,
+                  }}
+                  toggleSelectedAssets={toggleSelectedAssets}
+                />
+              </td>
+            </tr>
+            {/* <tr>
             <td className="py-4 px-4 w-1/4">Datum</td>
             <td className="py-4 px-4 w-3/4">
               <Input
@@ -274,12 +276,13 @@ function CodeDemo() {
               />
             </td>
           </tr> */}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      )}
 
       <Codeblock data={codeSnippet1} isJson={false} />
 
-      {walletConnected ? (
+      {walletConnected && (
         <Button
           onClick={() => makeTransactionLockAsset()}
           disabled={state == 1}
@@ -293,9 +296,7 @@ function CodeDemo() {
         >
           Run code snippet to lock assets
         </Button>
-      ) : (
-        <ConnectWallet />
-      )}
+      ) }
 
       {resultLock && (
         <>

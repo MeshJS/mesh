@@ -1,12 +1,13 @@
 import Button from "./ui/button";
 import Codeblock from "./ui/codeblock";
 import Metatags from "./metatags";
-import Navbar from "./navbar";
+import NavigationBar from "./navbar";
 import Card from "./ui/card";
 import Modal from "./ui/modal";
 import Input from "./ui/input";
 import Toggle from "./ui/toggle";
 import Badge from "./ui/badge";
+import Textarea from "./ui/textarea";
 
 export {
   Badge,
@@ -16,6 +17,7 @@ export {
   Input,
   Metatags,
   Modal,
-  Navbar,
+  NavigationBar,
   Toggle,
+  Textarea,
 };

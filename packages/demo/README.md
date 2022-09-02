@@ -7,26 +7,18 @@ From the root folder...
 #### 1. Setup
 Run:
 ```sh
-yarn install && yarn lerna bootstrap && yarn build
+yarn install
 ```
 
-#### 2. Add .env variables (deprecated)
-In `/packages/demo/`, create a file `.env.local` and fill in the variables:
-
-```
-NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET = 
-NEXT_PUBLIC_BLOCKFROST_API_KEY_TESTNET = 
-NEXT_PUBLIC_INFURA_PROJECT_ID = 
-NEXT_PUBLIC_INFURA_PROJECT_SECRET = 
-NEXT_PUBLIC_TEST_ADDRESS_MAINNET = 
-NEXT_PUBLIC_TEST_ADDRESS_TESTNET = 
+#### 2. Start module building
+Run:
+```sh
+yarn run start:module
 ```
 
 #### 3. Start Playground
+Open a new Terminal and:
 ```sh
-yarn start
+yarn run start:demo
 ```
 and visit [http://localhost:3000/](http://localhost:3000/)
-
-#### After making a change to Mesh package
-Run `yarn run build` in `@martifylabs/mesh/packages/module` folder.

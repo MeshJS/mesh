@@ -1,6 +1,9 @@
 {
-  "private": true,
   "name": "@workspace/root",
+  "homepage": "https://mesh.martify.io",
+  "author": "MartifyLabs",
+  "license": "Apache-2.0",
+  "private": true,
   "scripts": {
     "start:demo": "lerna exec --scope @workspace/playground -- yarn dev",
     "start:module": "lerna exec --scope @martifylabs/mesh -- yarn dev",

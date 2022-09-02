@@ -136,7 +136,6 @@ function CodeDemo() {
 
   useEffect(() => {
     async function init() {
-      // getAssets();
       const newRecipents = [
         {
           address:
