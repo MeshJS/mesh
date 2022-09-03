@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  EmbeddedWallet,
+  // EmbeddedWallet,
   Transaction,
   BlockfrostProvider,
 } from '@martifylabs/mesh';
@@ -73,50 +73,50 @@ const TestEmbeddedWallet = ({}) => {
   }
 
   function getMnemonicCreateWallet() {
-    const mnemonic = EmbeddedWallet.generate();
-    console.log('mnemonic', mnemonic);
+  //   const mnemonic = EmbeddedWallet.generate();
+  //   console.log('mnemonic', mnemonic);
 
-    const privatewallet = EmbeddedWallet.encryptMnemonic(mnemonic, '12345678');
-    console.log('privatewallet', privatewallet);
+  //   const privatewallet = EmbeddedWallet.encryptMnemonic(mnemonic, '12345678');
+  //   console.log('privatewallet', privatewallet);
   }
 
   function loadWallet() {
-    const wallet = new EmbeddedWallet(myencryptedRootKey, mypassword, {
-      accountIndex: 0,
-    });
-    console.log('wallet', wallet);
-    console.log(
-      'paymentAddress',
-      wallet.paymentAddress,
-      wallet.paymentAddress == myaddress
-    );
-    console.log('stakeAddress', wallet.stakeAddress);
+  //   const wallet = new EmbeddedWallet(myencryptedRootKey, mypassword, {
+  //     accountIndex: 0,
+  //   });
+  //   console.log('wallet', wallet);
+  //   console.log(
+  //     'paymentAddress',
+  //     wallet.paymentAddress,
+  //     wallet.paymentAddress == myaddress
+  //   );
+  //   console.log('stakeAddress', wallet.stakeAddress);
 
-    return wallet;
+  //   return wallet;
   }
 
   function loadCliWallet() {
-    const privatekey = EmbeddedWallet.encryptSigningKeys(
-      paymentSkey,
-      stakeSkey,
-      mypassword
-    );
-    console.log('privatekey', privatekey);
+    // const privatekey = EmbeddedWallet.encryptSigningKeys(
+    //   paymentSkey,
+    //   stakeSkey,
+    //   mypassword
+    // );
+    // console.log('privatekey', privatekey);
   }
 
   function loadCliWalletFromDerivedPrivateKey() {
-    const wallet = new EmbeddedWallet(myCliDeriveEncryptedRootKey, mypassword, {
-      accountIndex: 0,
-    });
-    console.log('wallet', wallet);
-    console.log(
-      'paymentAddress',
-      wallet.paymentAddress,
-      wallet.paymentAddress == myCliAddress
-    );
-    console.log('stakeAddress', wallet.stakeAddress);
+    // const wallet = new EmbeddedWallet(myCliDeriveEncryptedRootKey, mypassword, {
+    //   accountIndex: 0,
+    // });
+    // console.log('wallet', wallet);
+    // console.log(
+    //   'paymentAddress',
+    //   wallet.paymentAddress,
+    //   wallet.paymentAddress == myCliAddress
+    // );
+    // console.log('stakeAddress', wallet.stakeAddress);
 
-    return wallet;
+    // return wallet;
   }
 
   /*function getPolicyKey(){
@@ -128,26 +128,26 @@ const TestEmbeddedWallet = ({}) => {
   //   const signedTx = await wallet.signTx();
   // }
 
-  function testOpenWindow() {
-    const windowFeatures = 'left=100,top=100,width=320,height=320';
-    const handle = window.open(
-      'http://localhost:3000/apis/window',
-      'meshWindow',
-      windowFeatures
-    );
-    if (!handle) {
-      console.log('the window did not open', handle);
-    }
-  }
+  // function testOpenWindow() {
+  //   const windowFeatures = 'left=100,top=100,width=320,height=320';
+  //   const handle = window.open(
+  //     'http://localhost:3000/apis/window',
+  //     'meshWindow',
+  //     windowFeatures
+  //   );
+  //   if (!handle) {
+  //     console.log('the window did not open', handle);
+  //   }
+  // }
 
-  function gottenMessage(e) {
-    console.log('message', e.data);
-    return e.data;
-  }
+  // function gottenMessage(e) {
+  //   console.log('message', e.data);
+  //   return e.data;
+  // }
 
-  useEffect(() => {
-    window.addEventListener('message', gottenMessage);
-  });
+  // useEffect(() => {
+  //   window.addEventListener('message', gottenMessage);
+  // });
 
   return (
     <>

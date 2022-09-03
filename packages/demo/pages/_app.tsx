@@ -10,7 +10,6 @@ function MyApp({ Component, pageProps }: AppProps) {
     <WalletProvider>
       <Metatags />
       <NavigationBar />
-      {/* <div className="prose dark:prose-invert max-w-full"> */}
       <div className="format lg:format-lg dark:format-invert max-w-full">
         <div className="mx-auto max-w-screen-xl">
           <Component {...pageProps} />

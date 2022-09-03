@@ -40,8 +40,8 @@ export default function Minting() {
 function CodeDemo() {
   const defaultMetadata = {
     name: 'Mesh Token',
-    image: 'ipfs://Qmbw8QcgMMdUMnLxjFuxFeXZJxPioXW5WU1UJKwqZgLXNS',
-    mediaType: 'image/gif',
+    image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
+    mediaType: 'image/jpg',
     description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
   };
   const { wallet, walletConnected } = useWallet();
@@ -132,7 +132,7 @@ function CodeDemo() {
     }
   }
 
-  let _metadata = JSON.stringify({ error: 'Not a valid javascript' });
+  let _metadata = JSON.stringify({ error: 'Not a valid javascript object' }, null, 2);
   try {
     _metadata = JSON.stringify(JSON.parse(metadata), null, 2);
   } catch (error) {}

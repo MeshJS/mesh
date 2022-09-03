@@ -1,6 +1,7 @@
 import { Metatags } from '../../components';
 import { Codeblock } from '../../components';
 import TestEmbeddedWallet from '../../components/walletprivatekey/testembeddedwallet';
+import TestMinaWallet from '../../components/walletprivatekey/testminawallet';
 
 const WalletEmbedded = () => {
   return (
@@ -15,6 +16,7 @@ const WalletEmbedded = () => {
 function Showcase() {
   return (
     <section className="px-4 lg:px-6">
+      <TestMinaWallet />
       <TestEmbeddedWallet />
     </section>
   );
@@ -29,27 +31,17 @@ function Hero() {
     <section>
       <div className="py-8 px-4 lg:py-16 lg:px-6">
         <h1>Embedded Wallet APIs</h1>
-        <p className="lead">
-          
-        </p>
+        <p className="lead"></p>
 
         <div className="grid2cols">
           <div>
-            <p>
-              
-            </p>
+            <p></p>
           </div>
           <div>
-            <p className="font-medium">
-              
-            </p>
-            <Codeblock
-              data={codeSnippet}
-              isJson={false}
-            />
+            <p className="font-medium"></p>
+            <Codeblock data={codeSnippet} isJson={false} />
           </div>
         </div>
-
       </div>
     </section>
   );
