@@ -1,29 +1,30 @@
 import axios, { AxiosInstance } from 'axios';
 const minaFrontendUrl = 'http://localhost:3001/';
 const minaBackendUrl = 'http://localhost:5000/';
-import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
+import type { Asset, AssetExtended, UTxO } from '@mesh/common/types';
 
 export class MinaWallet {
-  private readonly instance: AxiosInstance;
-
-  private constructor() {
-    this.instance = axios.create({
+  static getAxiosInstance() {
+    return axios.create({
       baseURL: minaBackendUrl,
       withCredentials: true,
     });
   }
 
-  async enable(social?: string) {
+  static async enable(social?: string) {
     try {
-      const wallets = await this.instance.get('wallet/getUserWalletsMeta');
+      const wallets = await this.getAxiosInstance().get(
+        'wallet/getUserWalletsMeta'
+      );
       console.log('wallets', wallets);
       return true;
     } catch (error) {
       console.log('no session, do login', social);
-      const afterLoginUrl = `${minaFrontendUrl}loginsuccess`;
+      // const afterLoginUrl = `${minaFrontendUrl}loginsuccess`;
       const windowFeatures = 'left=100,top=100,width=320,height=320';
       const handle = window.open(
-        `${minaBackendUrl}auth/discordlogin?redirect=${afterLoginUrl}`,
+        // `${minaBackendUrl}auth/discordlogin?redirect=${afterLoginUrl}`,
+        `${minaFrontendUrl}login`,
         'meshWindow',
         windowFeatures
       );
@@ -43,9 +44,11 @@ export class MinaWallet {
     }
   }
 
-  async getChangeAddress(): Promise<string | undefined> {
+  static async getChangeAddress(): Promise<string | undefined> {
     try {
-      const changeAddress = await this.instance.get('wallet/getChangeAddress');
+      const changeAddress = await this.getAxiosInstance().get(
+        'wallet/getChangeAddress'
+      );
       return changeAddress.data;
     } catch (error) {
       console.error('Not logged in');
