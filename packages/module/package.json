@@ -3,7 +3,7 @@
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://mesh.martify.io",
   "author": "MartifyLabs",
-  "version": "0.0.8-beta.5",
+  "version": "0.0.8-beta.9",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -72,6 +72,6 @@
     "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
     "bip39": "3.0.4",
-    "crypto-random-string": "5.0.0"
+    "crypto-random-string-with-promisify-polyfill": "5.0.0"
   }
 }

@@ -10,17 +10,19 @@ export default defineConfig({
       entry: './src/index.ts',
       formats: ['cjs', 'es'],
     },
-    minify: 'esbuild',
-    target: ['esnext', 'node16'],
     rollupOptions: {
       external: [
         '@emurgo/cardano-message-signing-nodejs',
         '@emurgo/cardano-serialization-lib-nodejs',
+        '@emurgo/cip14-js',
+        'bip39',
+        'crypto-random-string-with-promisify-polyfill',
       ],
       plugins: [
         typescript(),
       ]
     },
+    target: ['esnext', 'node16'],
   },
   resolve: {
     alias: {
