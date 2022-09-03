@@ -8,7 +8,39 @@ import type { Address, PrivateKey } from './CSL';
 
 export const signMessage = (
   message: Message, signer: Signer,
-): { key: string; signature: string } => {
+): { coseKey: string; coseSign1: string } => {
+  const coseKey = createCOSEKey(signer);
+  const coseSign1 = createCOSESign1(message, signer);
+
+  return {
+    coseKey: fromBytes(coseKey.to_bytes()),
+    coseSign1: fromBytes(coseSign1.to_bytes()),
+  };
+};
+
+const createCOSEKey = (signer: Signer) => {
+  const coseKey = COSEKey.new(
+    Label.from_key_type(KeyType.OKP),
+  );
+
+  coseKey.set_algorithm_id(
+    Label.from_algorithm_id(AlgorithmId.EdDSA),
+  );
+
+  coseKey.set_header(
+    Label.new_int(Int.new_negative(BigNum.from_str('1'))),
+    CBORValue.new_int(Int.new_i32(6)),
+  );
+
+  coseKey.set_header(
+    Label.new_int(Int.new_negative(BigNum.from_str('2'))),
+    CBORValue.new_bytes(signer.key.to_public().as_bytes()),
+  );
+
+  return coseKey;
+};
+
+const createCOSESign1 = (message: Message, signer: Signer) => {
   const protectedHeaders = HeaderMap.new();
   const unprotectedHeaders = HeaderMap.new();
 
@@ -38,26 +70,8 @@ export const signMessage = (
 
   const dataToSign = coseSign1Builder.make_data_to_sign();
   const signedSigStructure = signer.key.sign(dataToSign.to_bytes());
-  const coseSign1 = coseSign1Builder.build(signedSigStructure.to_bytes());
 
-  const coseKey = COSEKey.new(Label.from_key_type(KeyType.OKP));
-
-  coseKey.set_algorithm_id(Label.from_algorithm_id(AlgorithmId.EdDSA));
-
-  coseKey.set_header(
-    Label.new_int(Int.new_negative(BigNum.from_str('1'))),
-    CBORValue.new_int(Int.new_i32(6)),
-  );
-
-  coseKey.set_header(
-    Label.new_int(Int.new_negative(BigNum.from_str('2'))),
-    CBORValue.new_bytes(signer.key.to_public().as_bytes()),
-  );
-
-  return {
-    key: fromBytes(coseKey.to_bytes()),
-    signature: fromBytes(coseSign1.to_bytes()),
-  };
+  return coseSign1Builder.build(signedSigStructure.to_bytes());
 };
 
 export type Message = {
