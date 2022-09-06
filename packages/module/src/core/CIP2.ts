@@ -3,6 +3,10 @@ import type { Asset, UTxO } from '@mesh/common/types';
 export const largestFirstMultiAsset = (
   requestedOutputSet: Asset[], initialUTxOSet: UTxO[],
 ): UTxO[] => {
+  const sortedMultiAssetUTxO = initialUTxOSet
+    .filter(multiAssetUTxO)
+    .sort(largestLovelaceQuantity);
+
   const summedOutputSet = new Map<string, number>();
   requestedOutputSet.forEach((asset) => {
     if (summedOutputSet.has(asset.unit)) {
@@ -13,20 +17,10 @@ export const largestFirstMultiAsset = (
     summedOutputSet.set(asset.unit, parseInt(asset.quantity));
   });
 
-  const sortedMultiAssetUTxOSet = initialUTxOSet
-    .filter(multiAssetUTxO)
-    .sort(largestLovelaceQuantity);
-
-  const selection: UTxO[] = [];
-  sortedMultiAssetUTxOSet.some((utxo) => {
-    if (enoughValueHasBeenSelected(selection, summedOutputSet))
-      return true;
-
-    if (valueCanBeSelected(utxo, summedOutputSet))
-      selection.push(utxo);
-
-    return false;
-  });
+  const selection = selectValue(
+    sortedMultiAssetUTxO,
+    summedOutputSet,
+  );
 
   return selection;
 };
@@ -68,6 +62,32 @@ const largestLovelaceQuantity = (
 };
 
 const multiAssetUTxO = (utxo: UTxO): boolean => utxo.output.amount.length > 1;
+
+const selectValue = (
+  inputUTxO: UTxO[],
+  outputSet: Map<string, number>,
+  selection: UTxO[] = [],
+): UTxO[] => {
+  if (
+    inputUTxO.length === 0
+    || enoughValueHasBeenSelected(selection, outputSet)
+  ) {
+    return selection;
+  }
+
+  if (valueCanBeSelected(inputUTxO[0], outputSet)) {
+    return selectValue(
+      inputUTxO.slice(1), outputSet,
+      [...selection, inputUTxO[0]],
+    );
+  }
+
+  return selectValue(
+    inputUTxO.slice(1),
+    outputSet,
+    selection,
+  );
+};
 
 const valueCanBeSelected = (
   utxo: UTxO, assets: Map<string, number>,
