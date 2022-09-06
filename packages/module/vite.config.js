@@ -14,9 +14,7 @@ export default defineConfig({
       external: [
         '@emurgo/cardano-message-signing-nodejs',
         '@emurgo/cardano-serialization-lib-nodejs',
-        '@emurgo/cip14-js',
-        'bip39',
-        'crypto-random-string-with-promisify-polyfill',
+        '@emurgo/cip14-js', 'bip39', 'nanoid',
       ],
       plugins: [
         typescript(),

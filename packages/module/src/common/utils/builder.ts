@@ -1,7 +1,8 @@
 import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
-  fromUTF8, toAddress, toBytes, toPlutusData, toTxUnspentOutput, toUnitInterval,
+  fromUTF8, toAddress, toBytes, toPlutusData,
+  toTxUnspentOutput, toUnitInterval,
 } from './converter';
 import { deserializeEd25519KeyHash } from './deserializer';
 import { resolveKeyHash } from './resolver';
@@ -39,6 +40,14 @@ export const buildDataCost = (
   );
 };
 
+export const buildEnterpriseAddress = (
+  networkId: number, paymentKeyHash: Ed25519KeyHash,
+): RewardAddress => {
+  return csl.EnterpriseAddress.new(networkId,
+    csl.StakeCredential.from_keyhash(paymentKeyHash),
+  );
+};
+
 export const buildRewardAddress = (
   networkId: number, stakeKeyHash: Ed25519KeyHash,
 ): RewardAddress => {
@@ -51,7 +60,6 @@ export const buildScriptPubkey = (address: string) => {
   const scriptPubkey = csl.ScriptPubkey.new(
     deserializeEd25519KeyHash(resolveKeyHash(address)),
   );
-
   return csl.NativeScript.new_script_pubkey(scriptPubkey);
 };
 

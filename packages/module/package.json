@@ -72,6 +72,6 @@
     "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
     "bip39": "3.0.4",
-    "crypto-random-string-with-promisify-polyfill": "5.0.0"
+    "nanoid": "3.3.4"
   }
 }
