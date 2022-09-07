@@ -50,7 +50,7 @@ export class Transaction {
 
       return this._txBuilder.build_tx().to_hex();
     } catch (error) {
-      throw error;
+      throw new Error(`[Transaction] An error occurred during build: ${error}`);
     }
   }
 

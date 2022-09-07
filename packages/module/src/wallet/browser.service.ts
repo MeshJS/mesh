@@ -37,7 +37,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       throw new Error(`Couldn't create an instance of wallet: ${walletName}.`);
     } catch (error) {
-      throw error;
+      throw new Error(`[BrowserWallet] An error occurred during enable: ${error}`);
     }
   }
 
@@ -98,9 +98,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
         unsignedTx, partialSign,
       );
 
-      const walletVerificationKeys = deserializeTxWitnessSet(walletWitnessSet).vkeys();
-      if (walletVerificationKeys !== undefined)
-        txWitnessSet.set_vkeys(walletVerificationKeys);
+      const walletVkeywitnesses = deserializeTxWitnessSet(walletWitnessSet).vkeys();
+      if (walletVkeywitnesses !== undefined)
+        txWitnessSet.set_vkeys(walletVkeywitnesses);
 
       const signedTx = fromBytes(
         csl.Transaction.new(
@@ -112,7 +112,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       return signedTx;
     } catch (error) {
-      throw error;
+      throw new Error(`[BrowserWallet] An error occurred during signTx: ${error}`);
     }
   }
 

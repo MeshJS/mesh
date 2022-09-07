@@ -1,7 +1,7 @@
 import { AssetFingerprint, csl } from '@mesh/core';
 import {
-  toAddress, toBytes, toBaseAddress,
-  toRewardAddress, toEnterpriseAddress, toPlutusData,
+  toAddress, toBytes, toBaseAddress, toRewardAddress,
+  toEnterpriseAddress, toPlutusData,
 } from './converter';
 import { deserializeAddress, deserializeTxBody } from './deserializer';
 import type { Data } from '@mesh/common/types';
@@ -32,7 +32,7 @@ export const resolveKeyHash = (bech32: string) => {
 
     throw new Error(`Couldn't resolve key hash from address: ${bech32}.`);
   } catch (error) {
-    throw error;
+    throw new Error(`An error occurred during resolveKeyHash: ${error}`);
   }
 };
 
@@ -47,7 +47,7 @@ export const resolveScriptHash = (bech32: string) => {
 
     throw new Error(`Couldn't resolve script hash from address: ${bech32}.`);
   } catch (error) {
-    throw error;
+    throw new Error(`An error occurred during resolveScriptHash: ${error}`);
   }
 };
 
@@ -55,12 +55,12 @@ export const resolveStakeKey = (bech32: string) => {
   try {
     const address = toAddress(bech32);
     const cborAddress = address.to_hex();
-    const cborStakeAddress = `e${address.network_id()}${cborAddress.slice(58)}`;
+    const cborStakeAddress =
+      `e${address.network_id()}${cborAddress.slice(58)}`;
 
     return deserializeAddress(cborStakeAddress).to_bech32();
   } catch (error) {
-    console.error(error);
-    throw new Error(`Couldn't resolve stake key from address: ${bech32}.`);
+    throw new Error(`An error occurred during resolveStakeKey: ${error}`);
   }
 };
 

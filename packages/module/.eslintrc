@@ -29,8 +29,7 @@
     ],
     "quotes": [
       "warn", "single"
-    ],
-    "no-useless-catch": "off"
+    ]
   },
   "root": true
 }
