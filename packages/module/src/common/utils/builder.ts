@@ -7,9 +7,9 @@ import {
 import { deserializeEd25519KeyHash } from './deserializer';
 import { resolveKeyHash } from './resolver';
 import type {
-  BaseAddress, Bip32PrivateKey, DataCost, Ed25519KeyHash,
-  RewardAddress, TransactionBuilder, TransactionOutputBuilder,
-  TransactionUnspentOutput, TxInputsBuilder,
+  BaseAddress, Bip32PrivateKey, DataCost,
+  Ed25519KeyHash, EnterpriseAddress, RewardAddress, TransactionBuilder,
+  TransactionOutputBuilder, TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
 import type { Data, UTxO } from '@mesh/common/types';
 
@@ -42,7 +42,7 @@ export const buildDataCost = (
 
 export const buildEnterpriseAddress = (
   networkId: number, paymentKeyHash: Ed25519KeyHash,
-): RewardAddress => {
+): EnterpriseAddress => {
   return csl.EnterpriseAddress.new(networkId,
     csl.StakeCredential.from_keyhash(paymentKeyHash),
   );
