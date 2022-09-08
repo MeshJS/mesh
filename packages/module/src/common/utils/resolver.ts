@@ -30,9 +30,9 @@ export const resolveKeyHash = (bech32: string) => {
     if (keyHash !== undefined)
       return keyHash.to_hex();
 
-    throw new Error(`Couldn't resolve key hash from address: ${bech32}.`);
+    throw new Error(`Couldn't resolve key hash from address: ${bech32}`);
   } catch (error) {
-    throw new Error(`An error occurred during resolveKeyHash: ${error}`);
+    throw new Error(`An error occurred during resolveKeyHash: ${error}.`);
   }
 };
 
@@ -45,9 +45,9 @@ export const resolveScriptHash = (bech32: string) => {
     if (scriptHash !== undefined)
       return scriptHash.to_hex();
 
-    throw new Error(`Couldn't resolve script hash from address: ${bech32}.`);
+    throw new Error(`Couldn't resolve script hash from address: ${bech32}`);
   } catch (error) {
-    throw new Error(`An error occurred during resolveScriptHash: ${error}`);
+    throw new Error(`An error occurred during resolveScriptHash: ${error}.`);
   }
 };
 
@@ -60,7 +60,7 @@ export const resolveStakeKey = (bech32: string) => {
 
     return deserializeAddress(cborStakeAddress).to_bech32();
   } catch (error) {
-    throw new Error(`An error occurred during resolveStakeKey: ${error}`);
+    throw new Error(`An error occurred during resolveStakeKey: ${error}.`);
   }
 };
 

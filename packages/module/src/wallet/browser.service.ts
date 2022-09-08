@@ -35,9 +35,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       if (walletInstance !== undefined)
         return new BrowserWallet(walletInstance);
 
-      throw new Error(`Couldn't create an instance of wallet: ${walletName}.`);
+      throw new Error(`Couldn't create an instance of wallet: ${walletName}`);
     } catch (error) {
-      throw new Error(`[BrowserWallet] An error occurred during enable: ${error}`);
+      throw new Error(`[BrowserWallet] An error occurred during enable: ${error}.`);
     }
   }
 
@@ -112,7 +112,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       return signedTx;
     } catch (error) {
-      throw new Error(`[BrowserWallet] An error occurred during signTx: ${error}`);
+      throw new Error(`[BrowserWallet] An error occurred during signTx: ${error}.`);
     }
   }
 

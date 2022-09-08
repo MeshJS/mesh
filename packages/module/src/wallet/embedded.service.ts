@@ -6,7 +6,7 @@ import {
   buildEnterpriseAddress, deserializeTx, deserializeTxHash,
   fromBytes, fromUTF8, resolveTxHash,
 } from '@mesh/common/utils';
-import type { Message, PrivateKey, Signer, Transaction } from '@mesh/core';
+import type { Message, PrivateKey, Signer } from '@mesh/core';
 
 export class EmbeddedWallet {
   constructor(
@@ -19,7 +19,7 @@ export class EmbeddedWallet {
     address: string, payload: string,
   ): string {
     try {
-      return this.signWrapper(accountIndex, password, (paymentKey, stakeKey) => {
+      return this.signContext(accountIndex, password, (paymentKey, stakeKey) => {
         const message: Message = { payload };
 
         const signer: Signer = {
@@ -34,32 +34,37 @@ export class EmbeddedWallet {
         return signature;
       });
     } catch (error) {
-      throw new Error(`An error occurred during signData: ${error}`);
+      throw new Error(`An error occurred during signData: ${error}.`);
     }
   }
 
   signTx(
-    accountIndex: number, password: string, unsignedTx: string,
+    accountIndex: number, password: string,
+    unsignedTx: string, txSigners: string[],
+    partialSign: boolean,
   ): string {
     try {
-      return this.signWrapper(accountIndex, password, (paymentKey, stakeKey) => {
-        const tx = deserializeTx(unsignedTx);
-
-        const txHash = deserializeTxHash(
-          resolveTxHash(tx.body().to_hex()),
-        );
-
+      return this.signContext(accountIndex, password, (paymentKey, stakeKey) => {
         const signatures = csl.Vkeywitnesses.new();
-        /*signatures.add(csl.make_vkey_witness(txHash, paymentKey));
-        if (EmbeddedWallet.txRequireStakeCredentials(tx))
-          signatures.add(csl.make_vkey_witness(txHash, stakeKey));*/
+        const txWitnesses = csl.TransactionWitnessSet.new();
+        const txBody = deserializeTx(unsignedTx).body().to_hex();
+        const txHash = deserializeTxHash(resolveTxHash(txBody));
 
-        const txWitnessSet = csl.TransactionWitnessSet.new();
-        txWitnessSet.set_vkeys(signatures);
-        return txWitnessSet.to_hex();
+        txSigners.forEach((skh: string) => {
+          if (skh === paymentKey.to_public().hash().to_hex()) {
+            signatures.add(csl.make_vkey_witness(txHash, paymentKey));
+          } else if (skh === stakeKey.to_public().hash().to_hex()) {
+            signatures.add(csl.make_vkey_witness(txHash, stakeKey));
+          } else if (partialSign === false) {
+            throw new Error(`Missing key witness for: ${skh}`);
+          }
+        });
+
+        txWitnesses.set_vkeys(signatures);
+        return txWitnesses.to_hex();
       });
     } catch (error) {
-      throw new Error(`An error occurred during signTx: ${error}`);
+      throw new Error(`An error occurred during signTx: ${error}.`);
     }
   }
 
@@ -88,24 +93,24 @@ export class EmbeddedWallet {
   }
 
   private resolveAddress(
-    bech32: string, paymentKey: PrivateKey, stakeKey: PrivateKey,
+    bech32: string, payment: PrivateKey, stake: PrivateKey,
   ) {
     const address = [
-      buildBaseAddress(this._networkId, paymentKey.to_public().hash(), stakeKey.to_public().hash()),
-      buildEnterpriseAddress(this._networkId, paymentKey.to_public().hash()),
-      buildRewardAddress(this._networkId, stakeKey.to_public().hash()),
+      buildBaseAddress(this._networkId, payment.to_public().hash(), stake.to_public().hash()),
+      buildEnterpriseAddress(this._networkId, payment.to_public().hash()),
+      buildRewardAddress(this._networkId, stake.to_public().hash()),
     ].find((a) => a.to_address().to_bech32() ===  bech32);
 
     if (address !== undefined)
       return address.to_address();
 
-    throw new Error(`The address: ${bech32} doesn't belong to this account.`);
+    throw new Error(`Address: ${bech32} doesn't belong to this account.`);
   }
 
-  private signWrapper(
+  private signContext(
     accountIndex: number, password: string,
     callback: (payment: PrivateKey, stake: PrivateKey) => string,
-  ) {
+  ): string {
     const rootKey = EmbeddedWallet.decrypt(
       this._encryptedRootKey, password,
     );
@@ -139,19 +144,6 @@ export class EmbeddedWallet {
       fromUTF8(password), salt, nonce, data,
     );
   }
-  
-  /*private static txRequireStakeCredentials(tx: Transaction): boolean {
-    const txCertificates = tx.body().certs();
-
-    if (txCertificates === undefined)
-      return false;
-
-    for (let index = 0; index < txCertificates.len(); index++) {
-      txCertificates.get(index).as_stake_delegation()?.stake_credential().to_keyhash();
-      txCertificates.get(index).as_stake_deregistration()?.stake_credential().to_keyhash();
-      txCertificates.get(index).as_stake_registration()?.stake_credential().to_keyhash();
-    }
-  }*/
 }
 
   /*static encryptSigningKeys(
