@@ -1,8 +1,10 @@
+import type { MetadataStandard, Files } from '@mesh/core';
+
 export type AssetMetadata =
   | FungibleAssetMetadata
   | NonFungibleAssetMetadata;
 
-export type FungibleAssetMetadata = CIP25 & {
+export type FungibleAssetMetadata = MetadataStandard & {
   ticker: string;
   decimals: number;
   version: `${number}.${number}`;
@@ -14,9 +16,9 @@ export type NonFungibleAssetMetadata =
   | SmartAssetMetadata
   | VideoAssetMetadata;
 
-type AudioAssetMetadata = CIP25 & Files;
+type AudioAssetMetadata = MetadataStandard & Files;
 
-export type ImageAssetMetadata = CIP25 & Files & {
+export type ImageAssetMetadata = MetadataStandard & Files & {
   artists?: [{
     name: string;
     twitter?: `https://twitter.com/${string}`;
@@ -27,25 +29,6 @@ export type ImageAssetMetadata = CIP25 & Files & {
   traits?: string[];
 };
 
-type SmartAssetMetadata = CIP25 & Files;
+type SmartAssetMetadata = MetadataStandard & Files;
 
-type VideoAssetMetadata = CIP25 & Files;
-
-type CIP25 = {
-  name: string;
-  image: `${string}://${string}`;
-  mediaType?: `image/${string}`;
-  description?: string | string[];
-  instagram?: `https://instagram.com/${string}`;
-  twitter?: `https://twitter.com/${string}`;
-  discord?: `https://discord.gg/${string}`;
-  website?: `https://${string}`;
-};
-
-type Files = {
-  files?: [{
-    name: string;
-    src: `${string}://${string}`;
-    mediaType: `${string}/${string}`;
-  }];
-};
+type VideoAssetMetadata = MetadataStandard & Files;
