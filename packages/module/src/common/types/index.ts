@@ -1,3 +1,4 @@
+export * from './Account';
 export * from './Action';
 export * from './Asset';
 export * from './AssetExtended';

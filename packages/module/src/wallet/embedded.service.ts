@@ -2,11 +2,13 @@ import { generateMnemonic, mnemonicToEntropy } from 'bip39';
 import { customAlphabet } from 'nanoid';
 import { csl, deriveAccountKeys, signMessage } from '@mesh/core';
 import {
-  buildBaseAddress, buildBip32PrivateKey, buildRewardAddress,
-  buildEnterpriseAddress, deserializeTx, deserializeTxHash,
-  fromBytes, fromUTF8, resolveTxHash,
+  buildBaseAddress, buildBip32PrivateKey,
+  buildRewardAddress, buildEnterpriseAddress,
+  deserializeTx, deserializeTxHash, fromBytes,
+  fromUTF8, resolveTxHash,
 } from '@mesh/common/utils';
-import type { Message, PrivateKey, Signer } from '@mesh/core';
+import type { Address, Message, PrivateKey, Signer } from '@mesh/core';
+import type { Account } from '@mesh/common/types';
 
 export class EmbeddedWallet {
   constructor(
@@ -14,12 +16,30 @@ export class EmbeddedWallet {
     private readonly _encryptedRootKey: string,
   ) {}
 
+  getAccount(accountIndex: number, password: string): Account {
+    return this.accountContext(accountIndex, password, (paymentKey, stakeKey) => {
+      const baseAddress = buildBaseAddress(
+        this._networkId, paymentKey.to_public().hash(), stakeKey.to_public().hash(),
+      ).to_address().to_bech32();
+
+      const enterpriseAddress = buildEnterpriseAddress(
+        this._networkId, paymentKey.to_public().hash(),
+      ).to_address().to_bech32();
+
+      const rewardAddress = buildRewardAddress(
+        this._networkId, stakeKey.to_public().hash(),
+      ).to_address().to_bech32();
+
+      return { baseAddress, enterpriseAddress, rewardAddress };
+    }) as Account;
+  }
+
   signData(
     accountIndex: number, password: string,
     address: string, payload: string,
   ): string {
     try {
-      return this.signContext(accountIndex, password, (paymentKey, stakeKey) => {
+      return this.accountContext(accountIndex, password, (paymentKey, stakeKey) => {
         const message: Message = { payload };
 
         const signer: Signer = {
@@ -32,7 +52,7 @@ export class EmbeddedWallet {
         } = signMessage(message, signer);
 
         return signature;
-      });
+      }) as string;
     } catch (error) {
       throw new Error(`An error occurred during signData: ${error}.`);
     }
@@ -44,7 +64,7 @@ export class EmbeddedWallet {
     partialSign: boolean,
   ): string {
     try {
-      return this.signContext(accountIndex, password, (paymentKey, stakeKey) => {
+      return this.accountContext(accountIndex, password, (paymentKey, stakeKey) => {
         const signatures = csl.Vkeywitnesses.new();
         const txWitnesses = csl.TransactionWitnessSet.new();
         const txBody = deserializeTx(unsignedTx).body().to_hex();
@@ -62,7 +82,7 @@ export class EmbeddedWallet {
 
         txWitnesses.set_vkeys(signatures);
         return txWitnesses.to_hex();
-      });
+      }) as string;
     } catch (error) {
       throw new Error(`An error occurred during signTx: ${error}.`);
     }
@@ -92,25 +112,10 @@ export class EmbeddedWallet {
     return mnemonic.split(' ');
   }
 
-  private resolveAddress(
-    bech32: string, payment: PrivateKey, stake: PrivateKey,
-  ) {
-    const address = [
-      buildBaseAddress(this._networkId, payment.to_public().hash(), stake.to_public().hash()),
-      buildEnterpriseAddress(this._networkId, payment.to_public().hash()),
-      buildRewardAddress(this._networkId, stake.to_public().hash()),
-    ].find((a) => a.to_address().to_bech32() ===  bech32);
-
-    if (address !== undefined)
-      return address.to_address();
-
-    throw new Error(`Address: ${bech32} doesn't belong to this account.`);
-  }
-
-  private signContext(
+  private accountContext(
     accountIndex: number, password: string,
-    callback: (payment: PrivateKey, stake: PrivateKey) => string,
-  ): string {
+    callback: (payment: PrivateKey, stake: PrivateKey) => unknown,
+  ): unknown {
     const rootKey = EmbeddedWallet.decrypt(
       this._encryptedRootKey, password,
     );
@@ -124,6 +129,21 @@ export class EmbeddedWallet {
     stakeKey.free();
 
     return result;
+  }
+
+  private resolveAddress(
+    bech32: string, payment: PrivateKey, stake: PrivateKey,
+  ): Address {
+    const address = [
+      buildBaseAddress(this._networkId, payment.to_public().hash(), stake.to_public().hash()),
+      buildEnterpriseAddress(this._networkId, payment.to_public().hash()),
+      buildRewardAddress(this._networkId, stake.to_public().hash()),
+    ].find((a) => a.to_address().to_bech32() ===  bech32);
+
+    if (address !== undefined)
+      return address.to_address();
+
+    throw new Error(`Address: ${bech32} doesn't belong to this account.`);
   }
 
   private static decrypt(data: string, password: string): string {
@@ -145,79 +165,3 @@ export class EmbeddedWallet {
     );
   }
 }
-
-  /*static encryptSigningKeys(
-    cborPaymentKey: string,
-    cborStakeKey: string,
-    password: string,
-  ): string {
-    const encryptedPaymentKey = EmbeddedWallet.encrypt(
-      cborPaymentKey.slice(4), password,
-    );
-
-    const encryptedStakeKey = EmbeddedWallet.encrypt(
-      cborStakeKey.slice(4), password,
-    );
-
-    return `${encryptedPaymentKey}|${encryptedStakeKey}`;
-  }
-
-  private decryptAccountKeys(password: string) {
-    if (this._walletKeyType === 'ACCOUNT') {
-      const accountKeys = this._encryptedWalletKey.split('|');
-
-      const cborPayment = EmbeddedWallet
-        .decrypt(accountKeys[0], password);
-
-      const cborStake = EmbeddedWallet
-        .decrypt(accountKeys[1], password);
-
-      const paymentKey =
-        csl.PrivateKey.from_hex(cborPayment);
-
-      const stakeKey =
-        csl.PrivateKey.from_hex(cborStake);
-
-      return { paymentKey, stakeKey };
-    }
-
-    const rootKey = EmbeddedWallet
-      .decrypt(this._encryptedWalletKey, password);
-
-    const { paymentKey, stakeKey } = deriveAccountKeys(
-      rootKey, this._accountIndex
-    );
-
-    return { paymentKey, stakeKey };
-  }
-
-  async getMintingPolicy(password: string, policyIndex = 0) {
-    if (this._walletKeyType === 'ROOT') {
-      const rootKey = EmbeddedWallet.decrypt(
-        this._encryptedWalletKey,
-        password
-      );
-
-      const policyKey = derivePolicyKey(rootKey, policyIndex);
-
-      const forgingKeyHash = policyKey.to_public().hash();
-
-      const nativeScripts = csl.NativeScripts.new();
-      const script = csl.ScriptPubkey.new(forgingKeyHash);
-      const nativeScript = csl.NativeScript.new_script_pubkey(script);
-
-      nativeScripts.add(nativeScript);
-
-      const forgingScript = csl.NativeScript.new_script_all(
-        csl.ScriptAll.new(nativeScripts)
-      );
-
-      return {
-        forgingScript: fromBytes(forgingScript.to_bytes()),
-        forgingKeyHash: fromBytes(forgingKeyHash.to_bytes()),
-        forgingScriptHash: fromBytes(forgingScript.hash().to_bytes()),
-      };
-    }
-
-    throw new Error('TBD...');
-  }*/
