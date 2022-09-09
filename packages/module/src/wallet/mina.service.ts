@@ -1,7 +1,9 @@
-import axios, { AxiosInstance } from 'axios';
-const minaFrontendUrl = 'http://localhost:3001/';
+import axios from 'axios';
+import type { UTxO } from '@mesh/common/types';
+const minaFrontendUrl = 'http://localhost:4000/';
 const minaBackendUrl = 'http://localhost:5000/';
-import type { Asset, AssetExtended, UTxO } from '@mesh/common/types';
+const loginUrl = `${minaFrontendUrl}access`;
+const signtxUrl = `${minaFrontendUrl}transaction/signtx`;
 
 export class MinaWallet {
   static getAxiosInstance() {
@@ -11,56 +13,111 @@ export class MinaWallet {
     });
   }
 
-  static async enable(social?: string) {
-    try {
-      const wallets = await this.getAxiosInstance().get(
-        'wallet/getUserWalletsMeta'
-      );
-      console.log('wallets', wallets);
-      return true;
-    } catch (error) {
-      console.log('no session, do login', social);
-      // const afterLoginUrl = `${minaFrontendUrl}loginsuccess`;
-      const windowFeatures = 'left=100,top=100,width=320,height=320';
-      const handle = window.open(
-        // `${minaBackendUrl}auth/discordlogin?redirect=${afterLoginUrl}`,
-        `${minaFrontendUrl}login`,
-        'meshWindow',
-        windowFeatures
-      );
-      if (!handle) {
-        console.error('the window did not open', handle);
-      }
-      return await (async () => {
-        return new Promise((res) => {
-          window.addEventListener('message', async (e) => {
-            if (e.data.target == 'minaWalletLogin') {
-              console.log('MinaWalletLogin message', e.data);
-              res(e.data.data);
-            }
-          });
-        });
-      })();
-    }
+  static getAppId() {
+    const location = window.location;
+    const appId = location.hostname;
+    return appId;
   }
 
-  static async getChangeAddress(): Promise<string | undefined> {
+  static async openMinaFrontend(url: string) {
+    const appId = this.getAppId();
+    if (url.includes('?')) {
+      url = `${url}&appId=${appId}`;
+    } else {
+      url = `${url}?appId=${appId}`;
+    }
+    const windowFeatures = 'left=100,top=100,width=540,height=540';
+    const handle = window.open(url, 'meshWindow', windowFeatures);
+    if (!handle) {
+      console.error('the window did not open', handle);
+    }
+    return await (async () => {
+      return new Promise((res) => {
+        window.addEventListener('message', async (e) => {
+          if (e.data.target == 'minaWallet') {
+            res(e.data);
+          }
+        });
+      });
+    })();
+  }
+
+  static async get(route: string, params = {}) {
+    const appId = this.getAppId();
+
+    params = {
+      ...params,
+      appId: appId,
+    };
+
     try {
-      const changeAddress = await this.getAxiosInstance().get(
-        'wallet/getChangeAddress'
-      );
-      return changeAddress.data;
+      const res = await this.getAxiosInstance().get(route, {
+        params: params,
+      });
+      return res.data;
     } catch (error) {
       console.error('Not logged in');
       return undefined;
     }
   }
 
-  async getUtxos(): Promise<UTxO[]> {
-    return [];
+  static async enable() {
+    const userWalletsMeta = await this.get('wallet/getuserwalletsmeta');
+    if (userWalletsMeta === undefined) {
+      return await this.openMinaFrontend(loginUrl);
+      // const appId = this.getAppId();
+      // const windowFeatures = 'left=100,top=100,width=540,height=540';
+      // const handle = window.open(
+      //   `${loginUrl}?appId=${appId}`,
+      //   'meshWindow',
+      //   windowFeatures
+      // );
+      // if (!handle) {
+      //   console.error('the window did not open', handle);
+      // }
+      // return await (async () => {
+      //   return new Promise((res) => {
+      //     window.addEventListener('message', async (e) => {
+      //       if (e.data.target == 'minaWalletLogin') {
+      //         res(e.data.data);
+      //       }
+      //     });
+      //   });
+      // })();
+    } else {
+      return true;
+    }
   }
 
-  async signTx(unsignedTx: string, partialSign = false): Promise<string> {
-    return '';
+  static async getChangeAddress(
+    walletId = undefined,
+    accountIndex = undefined
+  ): Promise<string | undefined> {
+    return await this.get('wallet/getchangeaddress', {
+      walletId,
+      accountIndex,
+    });
+  }
+
+  static async getUtxos(
+    walletId = undefined,
+    accountIndex = undefined
+  ): Promise<UTxO[]> {
+    return await this.get('wallet/getutxo', {
+      walletId,
+      accountIndex,
+    });
+  }
+
+  static async signTx(unsignedTx: string, partialSign = false) {
+    const userWalletsMeta = await this.get('wallet/getuserwalletsmeta');
+    console.log('userWalletsMeta', userWalletsMeta);
+    if (userWalletsMeta) {
+      return await this.openMinaFrontend(
+        `${signtxUrl}?unsignedTx=${unsignedTx}&partialSign=${partialSign}`
+      );
+    } else {
+      return undefined;
+    }
   }
 }

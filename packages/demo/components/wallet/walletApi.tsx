@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button, Card, Codeblock, Input } from '../../components';
 import { PlayIcon } from '@heroicons/react/solid';

@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { SunIcon, MoonIcon, MenuIcon } from '@heroicons/react/solid';
-import useLocalStorage from '../hooks/useLocalStorage';
-import SvgGithub from './svgs/github';
+import useLocalStorage from '../../hooks/useLocalStorage';
+import SvgGithub from './../svgs/github';
 import { useRouter } from 'next/router';
 
 const NavigationBar = (props) => {
   const [darkMode, setDarkMode] = useLocalStorage('darkmode', false);
   const [isSSR, setIsSSR] = useState(true);
   const [hideMenu, setHideMenu] = useState(true);
-
+  
   useEffect(() => {
     setIsSSR(false);
   }, []);
@@ -33,16 +33,16 @@ const NavigationBar = (props) => {
 
   const { events } = useRouter();
 
-  const close = ()=> {
+  const close = () => {
     setHideMenu(true);
-  }
+  };
 
   useEffect(() => {
     // subscribe to next/router event
     events.on('routeChangeStart', close);
     return () => {
       // unsubscribe to event on unmount to prevent memory leak
-      events.off('routeChangeStart', close); 
+      events.off('routeChangeStart', close);
     };
   }, [close, events]);
 

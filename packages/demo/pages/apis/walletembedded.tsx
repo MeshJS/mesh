@@ -7,7 +7,7 @@ const WalletEmbedded = () => {
   return (
     <>
       <Metatags title="Embedded Wallet APIs" />
-      <Hero />
+      {/* <Hero /> */}
       <Showcase />
     </>
   );
@@ -17,7 +17,7 @@ function Showcase() {
   return (
     <section className="px-4 lg:px-6">
       <TestMinaWallet />
-      <TestEmbeddedWallet />
+      {/* <TestEmbeddedWallet /> */}
     </section>
   );
 }
