@@ -1,36 +1,28 @@
-import type { Asset, UTxO } from '@mesh/common/types';
+import { csl } from './CSL';
+import type { Quantity, Unit, UTxO } from '@mesh/common/types';
 
 export const largestFirstMultiAsset = (
-  requestedOutputSet: Asset[], initialUTxOSet: UTxO[],
+  requestedOutputSet: Map<Unit, Quantity>,
+  initialUTxOSet: UTxO[],
 ): UTxO[] => {
   const sortedMultiAssetUTxO = initialUTxOSet
     .filter(multiAssetUTxO)
     .sort(largestLovelaceQuantity);
 
-  const summedOutputSet = new Map<string, number>();
-  requestedOutputSet.forEach((asset) => {
-    if (summedOutputSet.has(asset.unit)) {
-      const newQuantity = parseInt(asset.quantity);
-      const existingQuantity = summedOutputSet.get(asset.unit) ?? 0;
-      summedOutputSet.set(asset.unit, existingQuantity + newQuantity);
-    }
-    summedOutputSet.set(asset.unit, parseInt(asset.quantity));
-  });
-
   const selection = selectValue(
     sortedMultiAssetUTxO,
-    summedOutputSet,
+    requestedOutputSet,
   );
 
   return selection;
 };
 
 const enoughValueHasBeenSelected = (
-  selection: UTxO[], assets: Map<string, number>,
+  selection: UTxO[], assets: Map<Unit, Quantity>,
 ): boolean => {
   return Array
     .from(
-      assets, (asset) => ({ unit: asset[0], quantity: asset[1] }),
+      assets, (asset) => ({ unit: asset[0], quantity: csl.BigNum.from_str(asset[1]) }),
     )
     .every((asset) => {
       selection
@@ -40,32 +32,35 @@ const enoughValueHasBeenSelected = (
         })
         .reduce((selectedQuantity, utxo) => {
           const utxoQuantity = utxo.output.amount
-            .reduce((quantity, a) => quantity + parseInt(a.quantity) , 0);
+            .reduce(
+              (quantity, a) => quantity.checked_add(csl.BigNum.from_str(a.quantity)),
+              csl.BigNum.from_str('0'),
+            );
 
-          return selectedQuantity + utxoQuantity;
-        }, 0) >= asset.quantity;
+          return selectedQuantity.checked_add(utxoQuantity);
+        }, csl.BigNum.from_str('0')).less_than(asset.quantity) === false;
     });
 };
 
 const largestLovelaceQuantity = (
   utxoA: UTxO, utxoB: UTxO,
 ): number => {
-  const aLovelaceQuantity = parseInt(
+  const aLovelaceQuantity = csl.BigNum.from_str(
     utxoA.output.amount.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0',
   );
 
-  const bLovelaceQuantity = parseInt(
+  const bLovelaceQuantity = csl.BigNum.from_str(
     utxoB.output.amount.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0',
   );
 
-  return aLovelaceQuantity - bLovelaceQuantity;
+  return aLovelaceQuantity.compare(bLovelaceQuantity);
 };
 
 const multiAssetUTxO = (utxo: UTxO): boolean => utxo.output.amount.length > 1;
 
 const selectValue = (
   inputUTxO: UTxO[],
-  outputSet: Map<string, number>,
+  outputSet: Map<Unit, Quantity>,
   selection: UTxO[] = [],
 ): UTxO[] => {
   if (
@@ -84,13 +79,12 @@ const selectValue = (
 
   return selectValue(
     inputUTxO.slice(1),
-    outputSet,
-    selection,
+    outputSet, selection,
   );
 };
 
 const valueCanBeSelected = (
-  utxo: UTxO, assets: Map<string, number>,
+  utxo: UTxO, assets: Map<Unit, Quantity>,
 ): boolean => {
   return Array.from(assets.keys()).some((unit) => {
     return utxo.output.amount

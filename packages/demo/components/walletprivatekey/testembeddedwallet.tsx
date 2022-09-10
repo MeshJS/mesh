@@ -128,17 +128,17 @@ const TestEmbeddedWallet = ({}) => {
   //   const signedTx = await wallet.signTx();
   // }
 
-  // function testOpenWindow() {
-  //   const windowFeatures = 'left=100,top=100,width=320,height=320';
-  //   const handle = window.open(
-  //     'http://localhost:3000/apis/window',
-  //     'meshWindow',
-  //     windowFeatures
-  //   );
-  //   if (!handle) {
-  //     console.log('the window did not open', handle);
-  //   }
-  // }
+  function testOpenWindow() {
+    const windowFeatures = 'left=100,top=100,width=320,height=320';
+    const handle = window.open(
+      'http://localhost:3000/apis/window',
+      'meshWindow',
+      windowFeatures
+    );
+    if (!handle) {
+      console.log('the window did not open', handle);
+    }
+  }
 
   // function gottenMessage(e) {
   //   console.log('message', e.data);

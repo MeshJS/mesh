@@ -13,15 +13,15 @@ import {
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
-  Action, Asset, AssetRaw, Data, Era, Protocol, UTxO,
+  Action, Asset, AssetRaw, Data, Era, Protocol, Quantity, Unit, UTxO,
 } from '@mesh/common/types';
 
 @Trackable
 export class Transaction {
   private _changeAddress?: Address;
   private _mintRecipients = new Map<Address, Asset[]>();
-  private _totalBurns: Asset[] = [];
-  private _totalMints = new Map<string, AssetRaw>();
+  private _totalBurns = new Map<Unit, Quantity>();
+  private _totalMints = new Map<Unit, AssetRaw>();
 
   private readonly _era?: Era;
   private readonly _initiator?: IInitiator;
@@ -55,13 +55,18 @@ export class Transaction {
   }
 
   burnAsset(forgeScript: string, asset: Asset): Transaction {
+    const totalQuantity = this._totalBurns.has(asset.unit)
+      ? csl.BigNum.from_str(this._totalBurns.get(asset.unit) ?? '0')
+          .checked_add(csl.BigNum.from_str(asset.quantity)).to_str()
+      : asset.quantity;
+
     this._txBuilder.add_mint_asset(
       deserializeNativeScript(forgeScript),
       csl.AssetName.new(toBytes(asset.unit.slice(POLICY_ID_LENGTH))),
-      csl.Int.new_negative(csl.BigNum.from_str(asset.quantity)),
+      csl.Int.new_negative(csl.BigNum.from_str(totalQuantity)),
     );
 
-    this._totalBurns.push(asset);
+    this._totalBurns.set(asset.unit, totalQuantity);
 
     return this;
   }
@@ -70,31 +75,38 @@ export class Transaction {
   mintAsset(
     forgeScript: string, recipientAddress: string, assetRaw: AssetRaw,
   ): Transaction {
+    const toAsset = (forgeScript: string, assetRaw: AssetRaw): Asset => {
+      const policyId = deserializeNativeScript(forgeScript).hash().to_hex();
+      const assetName = fromUTF8(assetRaw.name);
+
+      return {
+        unit: `${policyId}${assetName}`,
+        quantity: assetRaw.quantity,
+      };
+    };
+
+    const address = toAddress(recipientAddress);
+    const asset = toAsset(forgeScript, assetRaw);
+
+    const existingQuantity = csl.BigNum
+      .from_str(this._totalMints.get(asset.unit)?.quantity ?? '0');
+
+    const totalQuantity = existingQuantity
+      .checked_add(csl.BigNum.from_str(asset.quantity));
+
     this._txBuilder.add_mint_asset(
       deserializeNativeScript(forgeScript),
       csl.AssetName.new(toBytes(fromUTF8(assetRaw.name))),
-      csl.Int.from_str(assetRaw.quantity),
+      csl.Int.new(totalQuantity),
     );
 
-    const recipient = toAddress(recipientAddress);
-
-    const policyId = deserializeNativeScript(forgeScript)
-      .hash().to_hex();
-
-    const assetName = fromUTF8(assetRaw.name);
-
-    const asset: Asset = {
-      unit: `${policyId}${assetName}`,
-      quantity: assetRaw.quantity,
-    };
-
-    if (this._mintRecipients.has(recipient)) {
-      this._mintRecipients.get(recipient)?.push(asset);
+    if (this._mintRecipients.has(address)) {
+      this._mintRecipients.get(address)?.push(asset);
     } else {
-      this._mintRecipients.set(recipient, [asset]);
+      this._mintRecipients.set(address, [asset]);
     }
 
-    this._totalMints.set(`${policyId}${assetName}`, assetRaw);
+    this._totalMints.set(asset.unit, assetRaw);
 
     return this;
   }
@@ -245,8 +257,8 @@ export class Transaction {
 
   private async addBurnInputsIfNeeded() {
     if (
-      this._initiator !== undefined
-      && this._totalBurns.length > 0
+      this._initiator
+      && this._totalBurns.size > 0
       && this.notVisited('setTxInputs')
     ) {
       const utxos = await this._initiator.getAvailableUtxos();
