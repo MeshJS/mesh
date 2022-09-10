@@ -20,6 +20,14 @@
     "asyncWebAssembly": true,
     "topLevelAwait": true
   },
+  "baseUrl": "./",
+  "paths": {
+    "@components/*": ["./components/*"],
+    "@styles/*": ["styles/*"],
+    "@hooks/*": ["hooks/*"],
+    "@backend/*": ["backend/*"],
+    "@config/*": ["config/*"]
+  },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules"]
 }

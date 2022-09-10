@@ -1,62 +1,66 @@
-import { Codeblock, Metatags } from '../../components';
+import type { NextPage } from 'next';
 import Link from 'next/link';
-import Help from './help';
+import GuidesLayout from '../../components/pages/guides/layout';
+import Codeblock from '../../components/ui/codeblock';
+import { Element } from 'react-scroll';
 
-const Nextjs = () => {
+const GuideNextjsPage: NextPage = () => {
+  const sidebarItems = [
+    { label: 'System setup', to: 'systemsetup' },
+    { label: 'Setup Next.js', to: 'setupnextjs' },
+    { label: 'Setup Mesh', to: 'setupmesh' },
+    { label: 'See it in action', to: 'seeitinaction' },
+  ];
+
   return (
-    <>
-      <Metatags
-        title="Start a Web3 app on Next.js"
-        description="A step-by-step guide to setup a Next.js web application, connect wallet and browse wallet's assets."
-      />
+    <GuidesLayout
+      title="Start a Web3 app on Next.js"
+      desc="A step-by-step guide to setup a Next.js web application, connect
+    wallet and browse wallet's assets."
+      sidebarItems={sidebarItems}
+      image="/guides/laptop-g44c60b4ed_1280.jpg"
+    >
+      <p>
+        <a href="https://nextjs.org/" target="_blank" rel="noreferrer">
+          Next.js
+        </a>{' '}
+        is a web development framework built on top of Node.js enabling
+        React-based web applications functionalities such as server-side
+        rendering and generating static websites.
+      </p>
+      <p>
+        Next.js and Mesh are JavaScript libraries, and so we will assume that
+        you have some familiarity with HTML and JavaScript language, but you
+        should be able to follow along even if you are coming from a different
+        programming language. If you don't feel very confident, we
+        recommend going through this{' '}
+        <a
+          href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript"
+          target="_blank"
+          rel="noreferrer"
+        >
+          JS tutorial
+        </a>
+        , or the{' '}
+        <a
+          href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"
+          target="_blank"
+          rel="noreferrer"
+        >
+          MDN JavaScript Reference
+        </a>{' '}
+        or my preferred method, by watch a few{' '}
+        <a
+          href="https://www.youtube.com/results?search_query=get+started+with+nextjs"
+          target="_blank"
+          rel="noreferrer"
+        >
+          videos from YouTube
+        </a>
+        .
+      </p>
 
-      <section className="py-8 px-4 lg:py-16 lg:px-6">
-        <h1>Start a Web3 app on Next.js</h1>
-        <p className="lead">
-          A step-by-step guide to setup a Next.js web application, connect
-          wallet and browse wallet&apos;s assets.
-        </p>
-
-        <p>
-          <a href="https://nextjs.org/" target="_blank" rel="noreferrer">
-            Next.js
-          </a>{' '}
-          is a web development framework built on top of Node.js enabling
-          React-based web applications functionalities such as server-side
-          rendering and generating static websites.
-        </p>
-        <p>
-          Next.js and Mesh are JavaScript libraries, and so we will assume that
-          you have some familiarity with HTML and JavaScript language, but you
-          should be able to follow along even if you are coming from a different
-          programming language. If you don&apos;t feel very confident, we
-          recommend going through this{' '}
-          <a
-            href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript"
-            target="_blank"
-            rel="noreferrer"
-          >
-            JS tutorial
-          </a>
-          , or the{' '}
-          <a
-            href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"
-            target="_blank"
-            rel="noreferrer"
-          >
-            MDN JavaScript Reference
-          </a>{' '}
-          or my preferred method, by watch a few{' '}
-          <a
-            href="https://www.youtube.com/results?search_query=get+started+with+nextjs"
-            target="_blank"
-            rel="noreferrer"
-          >
-            videos from YouTube
-          </a>
-          .
-        </p>
-
+      <Element name="systemsetup">
         <h2>System setup</h2>
 
         <h3>1. Visual Studio Code</h3>
@@ -92,7 +96,9 @@ const Nextjs = () => {
           system. Run this command on your system Terminal:
         </p>
         <Codeblock data={`npm install --global yarn`} isJson={false} />
+      </Element>
 
+      <Element name="setupnextjs">
         <h2>Setup Next.js</h2>
         <h3>1. Create project folder and open Visual Studio Code</h3>
         <p>
@@ -124,7 +130,9 @@ const Nextjs = () => {
           </a>{' '}
           to view your application. <code>CTRL+C</code> to stop the application.
         </p>
+      </Element>
 
+      <Element name="setupmesh">
         <h2>Setup Mesh</h2>
         <h3>1. Install @martifylabs/mesh package</h3>
         <p>Install the latest version of Mesh with yarn:</p>
@@ -159,7 +167,9 @@ module.exports = nextConfig;
           started. Your Next.js application is ready to connect wallet, browse
           assets and make some transactions.
         </p>
+      </Element>
 
+      <Element name="seeitinaction">
         <h2>See it in action</h2>
         <h3>1. Create a wallet context</h3>
         <p>
@@ -415,11 +425,10 @@ export default Home;`}
           amount of lovelace in your Next.js application. Check out the{' '}
           <Link href="/apis/wallet">wallet</Link> page for more details.
         </p>
+      </Element>
 
-        <Help />
-      </section>
-    </>
+    </GuidesLayout>
   );
 };
 
-export default Nextjs;
+export default GuideNextjsPage;

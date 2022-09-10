@@ -1,5 +1,12 @@
-import React, { createContext, useState, useContext, useMemo } from 'react';
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useMemo,
+  useEffect,
+} from 'react';
 import { BrowserWallet } from '@martifylabs/mesh';
+import type { Wallet } from '@martifylabs/mesh';
 
 const WalletContext = createContext({
   wallet: {} as BrowserWallet,
@@ -7,6 +14,8 @@ const WalletContext = createContext({
   walletNameConnected: '',
   walletConnected: false,
   connectWallet: async (walletName: string) => {},
+  availableWallets: [] as Wallet[],
+  hasAvailableWallets: false,
 });
 
 export const WalletProvider = ({ children }) => {
@@ -14,6 +23,15 @@ export const WalletProvider = ({ children }) => {
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [connecting, setConnecting] = useState<boolean>(false);
   const [walletNameConnected, setWalletNameConnected] = useState<string>('');
+  const [availableWallets, setAvailableWallets] = useState<Wallet[]>([]);
+
+  useEffect(() => {
+    async function init() {
+      setAvailableWallets(BrowserWallet.getInstalledWallets());
+    }
+    init();
+  }, []);
+  const hasAvailableWallets = availableWallets.length > 0;
 
   const connectWallet = async (walletName: string) => {
     setConnecting(true);
@@ -33,8 +51,17 @@ export const WalletProvider = ({ children }) => {
       walletNameConnected,
       walletConnected,
       connectWallet,
+      availableWallets,
+      hasAvailableWallets,
     }),
-    [wallet, walletConnected, connecting, walletNameConnected]
+    [
+      wallet,
+      walletConnected,
+      connecting,
+      walletNameConnected,
+      availableWallets,
+      hasAvailableWallets,
+    ]
   );
 
   return (
