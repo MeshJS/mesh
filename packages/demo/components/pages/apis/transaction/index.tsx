@@ -1,10 +1,5 @@
 import ApisLayout from '../common/layout';
-import GetInstalledWallets from './getInstalledWallets';
-import Hero from './hero';
-import ConnectWallet from './connectWallet';
-import GetBalance from './getBalance';
-
-export default function BrowserWallet() {
+export default function Transaction() {
   const sidebarItems = [
     { label: 'Get installed wallets', to: 'getInstallWallets' },
     { label: 'Connect wallet', to: 'connectWallet' },
@@ -18,7 +13,7 @@ export default function BrowserWallet() {
   ];
   return (
     <ApisLayout sidebarItems={sidebarItems}>
-      <Hero />
+      {/* <Hero /> */}
       <Main />
     </ApisLayout>
   );
@@ -27,34 +22,8 @@ export default function BrowserWallet() {
 function Main() {
   return (
     <>
-      <GetInstalledWallets />
-      <ConnectWallet />
-      <GetBalance />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
-      <br />
+    Transaction
+      <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
     </>
   );
 }

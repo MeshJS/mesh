@@ -169,10 +169,7 @@ function NavLink({ href, label }) {
     <li>
       <Link href={href}>
         <span className="flex items-center py-2 pr-4 pl-3 text-gray-700 border-b border-gray-100 hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700 cursor-pointer">
-          <div className="mr-2">
-            <NewspaperIcon className="w-5 h-5" />
-          </div>
-          <span>{label}</span>
+          {label}
         </span>
       </Link>
     </li>

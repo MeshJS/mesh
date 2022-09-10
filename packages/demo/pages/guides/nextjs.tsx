@@ -3,6 +3,7 @@ import Link from 'next/link';
 import GuidesLayout from '../../components/pages/guides/layout';
 import Codeblock from '../../components/ui/codeblock';
 import { Element } from 'react-scroll';
+import Metatags from '../../components/site/metatags';
 
 const GuideNextjsPage: NextPage = () => {
   const sidebarItems = [
@@ -13,141 +14,148 @@ const GuideNextjsPage: NextPage = () => {
   ];
 
   return (
-    <GuidesLayout
-      title="Start a Web3 app on Next.js"
-      desc="A step-by-step guide to setup a Next.js web application, connect
+    <>
+      <Metatags
+        title="Start a Web3 app on Next.js"
+        description="A step-by-step guide to setup a Next.js web application, connect wallet and browse wallet's assets."
+      />
+      <GuidesLayout
+        title="Start a Web3 app on Next.js"
+        desc="A step-by-step guide to setup a Next.js web application, connect
     wallet and browse wallet's assets."
-      sidebarItems={sidebarItems}
-      image="/guides/laptop-g44c60b4ed_1280.jpg"
-    >
-      <p>
-        <a href="https://nextjs.org/" target="_blank" rel="noreferrer">
-          Next.js
-        </a>{' '}
-        is a web development framework built on top of Node.js enabling
-        React-based web applications functionalities such as server-side
-        rendering and generating static websites.
-      </p>
-      <p>
-        Next.js and Mesh are JavaScript libraries, and so we will assume that
-        you have some familiarity with HTML and JavaScript language, but you
-        should be able to follow along even if you are coming from a different
-        programming language. If you don't feel very confident, we
-        recommend going through this{' '}
-        <a
-          href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript"
-          target="_blank"
-          rel="noreferrer"
-        >
-          JS tutorial
-        </a>
-        , or the{' '}
-        <a
-          href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"
-          target="_blank"
-          rel="noreferrer"
-        >
-          MDN JavaScript Reference
-        </a>{' '}
-        or my preferred method, by watch a few{' '}
-        <a
-          href="https://www.youtube.com/results?search_query=get+started+with+nextjs"
-          target="_blank"
-          rel="noreferrer"
-        >
-          videos from YouTube
-        </a>
-        .
-      </p>
-
-      <Element name="systemsetup">
-        <h2>System setup</h2>
-
-        <h3>1. Visual Studio Code</h3>
+        sidebarItems={sidebarItems}
+        image="/guides/laptop-g44c60b4ed_1280.jpg"
+      >
         <p>
-          Visual Studio Code is a code editor made by Microsoft. Download and
-          install{' '}
+          <a href="https://nextjs.org/" target="_blank" rel="noreferrer">
+            Next.js
+          </a>{' '}
+          is a web development framework built on top of Node.js enabling
+          React-based web applications functionalities such as server-side
+          rendering and generating static websites.
+        </p>
+        <p>
+          Next.js and Mesh are JavaScript libraries, and so we will assume that
+          you have some familiarity with HTML and JavaScript language, but you
+          should be able to follow along even if you are coming from a different
+          programming language. If you don't feel very confident, we recommend
+          going through this{' '}
           <a
-            href="https://code.visualstudio.com/"
+            href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript"
             target="_blank"
             rel="noreferrer"
           >
-            Visual Studio Code
+            JS tutorial
+          </a>
+          , or the{' '}
+          <a
+            href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"
+            target="_blank"
+            rel="noreferrer"
+          >
+            MDN JavaScript Reference
           </a>{' '}
-          for code editing.
+          or my preferred method, by watch a few{' '}
+          <a
+            href="https://www.youtube.com/results?search_query=get+started+with+nextjs"
+            target="_blank"
+            rel="noreferrer"
+          >
+            videos from YouTube
+          </a>
+          .
         </p>
 
-        <h3>2. Node.js</h3>
-        <p>
-          Node.js is a cross-platform JavaScript runtime environment that runs
-          on the V8 engine and executes JavaScript code. Install the Long-Term
-          Support (LTS) version of{' '}
-          <a href="https://nodejs.org/" target="_blank" rel="noreferrer">
-            Node.js
-          </a>{' '}
-          (as of writing v16.16.0).
-        </p>
+        <Element name="systemsetup">
+          <h2>System setup</h2>
 
-        <h3>3. Yarn</h3>
-        <p>
-          Yarn is a software packaging system developed for the Node.js
-          JavaScript runtime environment. Install Yarn through the npm package
-          manager, which comes bundled with Node.js when you install it on your
-          system. Run this command on your system Terminal:
-        </p>
-        <Codeblock data={`npm install --global yarn`} isJson={false} />
-      </Element>
+          <h3>1. Visual Studio Code</h3>
+          <p>
+            Visual Studio Code is a code editor made by Microsoft. Download and
+            install{' '}
+            <a
+              href="https://code.visualstudio.com/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Visual Studio Code
+            </a>{' '}
+            for code editing.
+          </p>
 
-      <Element name="setupnextjs">
-        <h2>Setup Next.js</h2>
-        <h3>1. Create project folder and open Visual Studio Code</h3>
-        <p>
-          Create a new folder for your project, and give the folder a meaningful
-          name. Open the Visual Studio Code application and drag your project
-          folder into Visual Studio Code.
-        </p>
+          <h3>2. Node.js</h3>
+          <p>
+            Node.js is a cross-platform JavaScript runtime environment that runs
+            on the V8 engine and executes JavaScript code. Install the Long-Term
+            Support (LTS) version of{' '}
+            <a href="https://nodejs.org/" target="_blank" rel="noreferrer">
+              Node.js
+            </a>{' '}
+            (as of writing v16.16.0).
+          </p>
 
-        <h3>2. Create Next.js app</h3>
-        <p>
-          From the menu options in on your Visual Studio Code, open the{' '}
-          <code>Terminal</code> and execute this command to create a new NextJs
-          application:
-        </p>
-        <Codeblock
-          data={`yarn create next-app --typescript .`}
-          isJson={false}
-        />
+          <h3>3. Yarn</h3>
+          <p>
+            Yarn is a software packaging system developed for the Node.js
+            JavaScript runtime environment. Install Yarn through the npm package
+            manager, which comes bundled with Node.js when you install it on
+            your system. Run this command on your system Terminal:
+          </p>
+          <Codeblock data={`npm install --global yarn`} isJson={false} />
+        </Element>
 
-        <h3>3. Start development server</h3>
-        <p>
-          After the installation is complete, start the development server with:
-        </p>
-        <Codeblock data={`yarn run dev`} isJson={false} />
-        <p>
-          Visit{' '}
-          <a href="http://localhost:3000" target="_blank" rel="noreferrer">
-            http://localhost:3000
-          </a>{' '}
-          to view your application. <code>CTRL+C</code> to stop the application.
-        </p>
-      </Element>
+        <Element name="setupnextjs">
+          <h2>Setup Next.js</h2>
+          <h3>1. Create project folder and open Visual Studio Code</h3>
+          <p>
+            Create a new folder for your project, and give the folder a
+            meaningful name. Open the Visual Studio Code application and drag
+            your project folder into Visual Studio Code.
+          </p>
 
-      <Element name="setupmesh">
-        <h2>Setup Mesh</h2>
-        <h3>1. Install @martifylabs/mesh package</h3>
-        <p>Install the latest version of Mesh with yarn:</p>
-        <Codeblock data={`yarn add @martifylabs/mesh`} isJson={false} />
+          <h3>2. Create Next.js app</h3>
+          <p>
+            From the menu options in on your Visual Studio Code, open the{' '}
+            <code>Terminal</code> and execute this command to create a new
+            NextJs application:
+          </p>
+          <Codeblock
+            data={`yarn create next-app --typescript .`}
+            isJson={false}
+          />
 
-        <h3>
-          2. Add webpack in <code>next.config.js</code>
-        </h3>
-        <p>
-          Open <code>next.config.js</code> and append <code>webpack</code>{' '}
-          configurations. Your <code>next.config.js</code> should look like
-          this:
-        </p>
-        <Codeblock
-          data={`/** @type {import('next').NextConfig} */
+          <h3>3. Start development server</h3>
+          <p>
+            After the installation is complete, start the development server
+            with:
+          </p>
+          <Codeblock data={`yarn run dev`} isJson={false} />
+          <p>
+            Visit{' '}
+            <a href="http://localhost:3000" target="_blank" rel="noreferrer">
+              http://localhost:3000
+            </a>{' '}
+            to view your application. <code>CTRL+C</code> to stop the
+            application.
+          </p>
+        </Element>
+
+        <Element name="setupmesh">
+          <h2>Setup Mesh</h2>
+          <h3>1. Install @martifylabs/mesh package</h3>
+          <p>Install the latest version of Mesh with yarn:</p>
+          <Codeblock data={`yarn add @martifylabs/mesh`} isJson={false} />
+
+          <h3>
+            2. Add webpack in <code>next.config.js</code>
+          </h3>
+          <p>
+            Open <code>next.config.js</code> and append <code>webpack</code>{' '}
+            configurations. Your <code>next.config.js</code> should look like
+            this:
+          </p>
+          <Codeblock
+            data={`/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   webpack: function (config, options) {
@@ -159,33 +167,33 @@ const nextConfig = {
 };
 module.exports = nextConfig;
 `}
-          isJson={false}
-        />
-        <h3>3. Congratulations</h3>
-        <p>
-          You just saved a few weeks of learning and a number days trying to get
-          started. Your Next.js application is ready to connect wallet, browse
-          assets and make some transactions.
-        </p>
-      </Element>
+            isJson={false}
+          />
+          <h3>3. Congratulations</h3>
+          <p>
+            You just saved a few weeks of learning and a number days trying to
+            get started. Your Next.js application is ready to connect wallet,
+            browse assets and make some transactions.
+          </p>
+        </Element>
 
-      <Element name="seeitinaction">
-        <h2>See it in action</h2>
-        <h3>1. Create a wallet context</h3>
-        <p>
-          React context is an essential tool for building web applications. It
-          allow you to easily share state in your applications, so you can use
-          the data in any component within the app. This means that when the
-          user has connected their wallet, visiting different pages on the app
-          ensure their wallet is still connected.
-        </p>
-        <p>
-          Create a new folder named <code>contexts</code> and create a new file
-          named <code>wallet.tsx</code>. Open <code>contexts/wallet.tsx</code>{' '}
-          and insert the following codes:
-        </p>
-        <Codeblock
-          data={`import React, {
+        <Element name="seeitinaction">
+          <h2>See it in action</h2>
+          <h3>1. Create a wallet context</h3>
+          <p>
+            React context is an essential tool for building web applications. It
+            allow you to easily share state in your applications, so you can use
+            the data in any component within the app. This means that when the
+            user has connected their wallet, visiting different pages on the app
+            ensure their wallet is still connected.
+          </p>
+          <p>
+            Create a new folder named <code>contexts</code> and create a new
+            file named <code>wallet.tsx</code>. Open{' '}
+            <code>contexts/wallet.tsx</code> and insert the following codes:
+          </p>
+          <Codeblock
+            data={`import React, {
   createContext,
   useState,
   useContext,
@@ -240,16 +248,16 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
 export default function useWallet() {
   return useContext(WalletContext);
 }`}
-          isJson={false}
-        />
+            isJson={false}
+          />
 
-        <p>
-          Open <code>pages/_app.tsx</code> and include the{' '}
-          <code>WalletProvider</code>. Your <code>_app.tsx</code> should look
-          similar to this:
-        </p>
-        <Codeblock
-          data={`import "../styles/globals.css";
+          <p>
+            Open <code>pages/_app.tsx</code> and include the{' '}
+            <code>WalletProvider</code>. Your <code>_app.tsx</code> should look
+            similar to this:
+          </p>
+          <Codeblock
+            data={`import "../styles/globals.css";
 import type { AppProps } from "next/app";
 import { WalletProvider } from "../contexts/wallet";
 
@@ -262,26 +270,26 @@ function MyApp({ Component, pageProps }: AppProps) {
 }
 
 export default MyApp;`}
-          isJson={false}
-        />
+            isJson={false}
+          />
 
-        <h3>2. Create a connect wallet component</h3>
-        <p>
-          Lets create a connect wallet component to show users a few buttons to
-          connect wallets they have installed on their device. Clicking on these
-          buttons will ask the user for permission if not granted, and proceed
-          to connect the selected wallet. We will use the <code>useWallet</code>{' '}
-          we have previously created for connecting wallet and maintaining
-          states.
-        </p>
-        <p>
-          Create a new folder named <code>components</code> and create a new
-          file named <code>connectWallet.tsx</code>. Open{' '}
-          <code>components/connectWallet.tsx</code> and insert the following
-          codes:
-        </p>
-        <Codeblock
-          data={`import { useEffect, useState } from "react";
+          <h3>2. Create a connect wallet component</h3>
+          <p>
+            Lets create a connect wallet component to show users a few buttons
+            to connect wallets they have installed on their device. Clicking on
+            these buttons will ask the user for permission if not granted, and
+            proceed to connect the selected wallet. We will use the{' '}
+            <code>useWallet</code> we have previously created for connecting
+            wallet and maintaining states.
+          </p>
+          <p>
+            Create a new folder named <code>components</code> and create a new
+            file named <code>connectWallet.tsx</code>. Open{' '}
+            <code>components/connectWallet.tsx</code> and insert the following
+            codes:
+          </p>
+          <Codeblock
+            data={`import { useEffect, useState } from "react";
 import { BrowserWallet } from "@martifylabs/mesh";
 import type { Wallet } from "@martifylabs/mesh";
 import useWallet from "../contexts/wallet";
@@ -340,21 +348,21 @@ export default function ConnectWallet() {
     </>
   );
 }`}
-          isJson={false}
-        />
+            isJson={false}
+          />
 
-        <h3>3. Lets connect wallet and check wallet&apos;s assets</h3>
-        <p>
-          Lastly, we link those components together, allowing users to choose a
-          wallet to connect, and query for assets in the wallet with{' '}
-          <code>wallet.getAssets()</code>.
-        </p>
-        <p>
-          Open <code>pages/index.tsx</code> and replace it with the following
-          codes:
-        </p>
-        <Codeblock
-          data={`import { useState } from "react";
+          <h3>3. Lets connect wallet and check wallet&apos;s assets</h3>
+          <p>
+            Lastly, we link those components together, allowing users to choose
+            a wallet to connect, and query for assets in the wallet with{' '}
+            <code>wallet.getAssets()</code>.
+          </p>
+          <p>
+            Open <code>pages/index.tsx</code> and replace it with the following
+            codes:
+          </p>
+          <Codeblock
+            data={`import { useState } from "react";
 import type { NextPage } from "next";
 import useWallet from "../contexts/wallet";
 import ConnectWallet from "../components/connectWallet";
@@ -406,28 +414,28 @@ const Home: NextPage = () => {
 };
 
 export default Home;`}
-          isJson={false}
-        />
+            isJson={false}
+          />
 
-        <p>Start the development server and try it:</p>
-        <Codeblock data={`yarn run dev`} isJson={false} />
-        <p>
-          Visit{' '}
-          <a href="http://localhost:3000" target="_blank" rel="noreferrer">
-            http://localhost:3000
-          </a>{' '}
-          to connect available wallets and view the assets in wallet.
-        </p>
+          <p>Start the development server and try it:</p>
+          <Codeblock data={`yarn run dev`} isJson={false} />
+          <p>
+            Visit{' '}
+            <a href="http://localhost:3000" target="_blank" rel="noreferrer">
+              http://localhost:3000
+            </a>{' '}
+            to connect available wallets and view the assets in wallet.
+          </p>
 
-        <h3>4. Try on your own</h3>
-        <p>
-          Implement another component to display wallet&apos;s address and the
-          amount of lovelace in your Next.js application. Check out the{' '}
-          <Link href="/apis/wallet">wallet</Link> page for more details.
-        </p>
-      </Element>
-
-    </GuidesLayout>
+          <h3>4. Try on your own</h3>
+          <p>
+            Implement another component to display wallet&apos;s address and the
+            amount of lovelace in your Next.js application. Check out the{' '}
+            <Link href="/apis/wallet">wallet</Link> page for more details.
+          </p>
+        </Element>
+      </GuidesLayout>
+    </>
   );
 };
 
