@@ -13,15 +13,15 @@ import {
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
-  Action, Asset, AssetRaw, Data, Era, Protocol, Quantity, Unit, UTxO,
+  Action, Asset, Data, Era, Mint, Protocol, Quantity, Recipient, Unit, UTxO,
 } from '@mesh/common/types';
 
 @Trackable
 export class Transaction {
   private _changeAddress?: Address;
-  private _mintRecipients = new Map<Address, Asset[]>();
+  private _recipients = new Map<Recipient, Asset[]>();
   private _totalBurns = new Map<Unit, Quantity>();
-  private _totalMints = new Map<Unit, AssetRaw>();
+  private _totalMints = new Map<Unit, Mint>();
 
   private readonly _era?: Era;
   private readonly _initiator?: IInitiator;
@@ -72,41 +72,38 @@ export class Transaction {
   }
 
   @Checkpoint()
-  mintAsset(
-    forgeScript: string, recipientAddress: string, assetRaw: AssetRaw,
-  ): Transaction {
-    const toAsset = (forgeScript: string, assetRaw: AssetRaw): Asset => {
+  mintAsset(forgeScript: string, mint: Mint): Transaction {
+    const toAsset = (forgeScript: string, mint: Mint): Asset => {
       const policyId = deserializeNativeScript(forgeScript).hash().to_hex();
-      const assetName = fromUTF8(assetRaw.name);
+      const assetName = fromUTF8(mint.assetName);
 
       return {
         unit: `${policyId}${assetName}`,
-        quantity: assetRaw.quantity,
+        quantity: mint.assetQuantity,
       };
     };
 
-    const address = toAddress(recipientAddress);
-    const asset = toAsset(forgeScript, assetRaw);
+    const asset = toAsset(forgeScript, mint);
 
     const existingQuantity = csl.BigNum
-      .from_str(this._totalMints.get(asset.unit)?.quantity ?? '0');
+      .from_str(this._totalMints.get(asset.unit)?.assetQuantity ?? '0');
 
     const totalQuantity = existingQuantity
       .checked_add(csl.BigNum.from_str(asset.quantity));
 
     this._txBuilder.add_mint_asset(
       deserializeNativeScript(forgeScript),
-      csl.AssetName.new(toBytes(fromUTF8(assetRaw.name))),
+      csl.AssetName.new(toBytes(fromUTF8(mint.assetName))),
       csl.Int.new(totalQuantity),
     );
 
-    if (this._mintRecipients.has(address)) {
-      this._mintRecipients.get(address)?.push(asset);
-    } else {
-      this._mintRecipients.set(address, [asset]);
-    }
+    if (this._recipients.has(mint.recipient))
+      this._recipients.get(mint.recipient)?.push(asset);
+    else this._recipients.set(mint.recipient, [asset]);
 
-    this._totalMints.set(asset.unit, assetRaw);
+    this._totalMints.set(asset.unit, {
+      ...mint, assetQuantity: totalQuantity.to_str(),
+    });
 
     return this;
   }
@@ -143,7 +140,7 @@ export class Transaction {
   @Checkpoint()
   sendAssets(
     address: string, assets: Asset[],
-    options = {} as Partial<SendAssetsOptions>,
+    options = {} as Partial<LockValueOptions>,
   ): Transaction {
     const amount = toValue(assets);
     const multiAsset = amount.multiasset();
@@ -165,7 +162,7 @@ export class Transaction {
 
   sendLovelace(
     address: string, lovelace: string,
-    options = {} as Partial<SendLovelaceOptions>,
+    options = {} as Partial<LockValueOptions>,
   ): Transaction {
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
 
@@ -181,7 +178,7 @@ export class Transaction {
   @Checkpoint()
   sendValue(
     address: string, value: UTxO,
-    options = {} as Partial<SendValueOptions>,
+    options = {} as Partial<LockValueOptions>,
   ): Transaction {
     const amount = toValue(value.output.amount);
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
@@ -331,12 +328,12 @@ export class Transaction {
   private async forgeAssetsIfNeeded() {
     await this.addBurnInputsIfNeeded();
 
-    this._totalMints.forEach((asset, unit) => {
+    this._totalMints.forEach((mint, unit) => {
       this._txBuilder.add_json_metadatum(
-        csl.BigNum.from_str(asset.label),
+        csl.BigNum.from_str(mint.label),
         JSON.stringify({
           [`${unit.slice(0, POLICY_ID_LENGTH)}`]: {
-            [`${asset.name}`]: { ...asset.metadata },
+            [`${mint.assetName}`]: { ...mint.metadata },
           },
         }),
       );
@@ -362,12 +359,15 @@ export class Transaction {
   }
 
   private addMintOutputs() {
-    this._mintRecipients.forEach((assets, recipient) => {
+    this._recipients.forEach((assets, recipient) => {
       const amount = toValue(assets);
       const multiAsset = amount.multiasset();
 
       if (multiAsset !== undefined) {
-        const txOutputBuilder = buildTxOutputBuilder(recipient.to_bech32());
+        const txOutputBuilder = buildTxOutputBuilder(
+          recipient.address,
+          recipient.datum,
+        );
 
         const txOutput = txOutputBuilder.next()
           .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
@@ -393,19 +393,11 @@ type CreateTxOptions = {
   parameters: Protocol;
 };
 
+type LockValueOptions = {
+  datum: Data;
+};
+
 type RedeemValueOptions = {
   datum: Data;
   redeemer: Action;
-};
-
-type SendAssetsOptions = {
-  datum: Data;
-};
-
-type SendLovelaceOptions = {
-  datum: Data;
-};
-
-type SendValueOptions = {
-  datum: Data;
 };

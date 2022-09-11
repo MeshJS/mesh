@@ -3,7 +3,7 @@ import { Button, Card, Codeblock, Input, Textarea } from '../../components';
 import useWallet from '../../contexts/wallet';
 import ConnectWallet from '../wallet/connectWallet';
 import { Transaction, ForgeScript } from '@martifylabs/mesh';
-import type { AssetRaw } from '@martifylabs/mesh';
+import type { Mint } from '@martifylabs/mesh';
 import { LinkCardanoscanTx } from '../blocks/linkCardanoscanTx';
 
 export default function Minting() {
@@ -98,10 +98,11 @@ function CodeDemo() {
       //   description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
       // };
 
-      const asset: AssetRaw = {
-        name: assetName,
-        quantity: quantity.toString(),
+      const asset: Mint = {
+        assetName: assetName,
+        assetQuantity: quantity.toString(),
         metadata: assetMetadata,
+        recipient: { address },
         label: assetLabel,
       };
 
@@ -109,7 +110,7 @@ function CodeDemo() {
 
       const tx = new Transaction({ initiator: wallet });
       // to mint
-      tx.mintAsset(forgingScript, address, asset);
+      tx.mintAsset(forgingScript, asset);
 
       // to burn
       // const assetToBurn = {
@@ -138,12 +139,12 @@ function CodeDemo() {
   } catch (error) {}
 
   let codeSnippet1 = `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
-  codeSnippet1 += `import type { AssetRaw, AssetMetadata } from '@martifylabs/mesh';\n\n`;
+  codeSnippet1 += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n\n`;
 
   codeSnippet1 += `const assetMetadata: AssetMetadata = ${_metadata};\n`;
-  codeSnippet1 += `const asset: AssetRaw = {\n`;
-  codeSnippet1 += `  name: "${assetName}",\n`;
-  codeSnippet1 += `  quantity: "${quantity}",\n`;
+  codeSnippet1 += `const asset: Mint = {\n`;
+  codeSnippet1 += `  assetName: "${assetName}",\n`;
+  codeSnippet1 += `  assetQuantity: "${quantity}",\n`;
   codeSnippet1 += `  metadata: assetMetadata,\n`;
   codeSnippet1 += `  label: "${assetLabel}",\n`;
   codeSnippet1 += `};\n\n`;
