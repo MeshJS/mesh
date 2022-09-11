@@ -3,7 +3,9 @@ import {
   toAddress, toBytes, toBaseAddress, toRewardAddress,
   toEnterpriseAddress, toPlutusData,
 } from './converter';
-import { deserializeAddress, deserializeTxBody } from './deserializer';
+import {
+  deserializeAddress, deserializePlutusScript, deserializeTxBody,
+} from './deserializer';
 import type { Data } from '@mesh/common/types';
 
 export const resolveDataHash = (data: Data) => {
@@ -34,6 +36,16 @@ export const resolveKeyHash = (bech32: string) => {
   } catch (error) {
     throw new Error(`An error occurred during resolveKeyHash: ${error}.`);
   }
+};
+
+export const resolveScriptAddress = (networkId: number, cborPlutusScript: string) => {
+  const script = deserializePlutusScript(cborPlutusScript);
+
+  const enterpriseAddress = csl.EnterpriseAddress.new(networkId,
+    csl.StakeCredential.from_scripthash(script.hash()),
+  );
+
+  return enterpriseAddress.to_address().to_bech32();
 };
 
 export const resolveScriptHash = (bech32: string) => {
