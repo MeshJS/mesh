@@ -5,15 +5,15 @@ import SvgTwitter from '../svgs/twitter';
 export default function Footer() {
   const socials = [
     {
-      icon: <SvgDiscord className="w-5 h-5" fill="currentColor" />,
+      icon: <SvgDiscord className="w-5 h-5" />,
       link: 'https://discord.gg/Z6AH9dahdH',
     },
     {
-      icon: <SvgTwitter className="w-5 h-5" fill="currentColor" />,
+      icon: <SvgTwitter className="w-5 h-5" />,
       link: 'https://twitter.com/MartifyLabs',
     },
     {
-      icon: <SvgGithub className="w-5 h-5" fill="currentColor" />,
+      icon: <SvgGithub className="w-5 h-5" />,
       link: 'https://github.com/MartifyLabs',
     },
   ];

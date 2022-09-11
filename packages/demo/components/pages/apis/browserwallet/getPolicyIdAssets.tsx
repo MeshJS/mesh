@@ -9,17 +9,18 @@ import ConnectCipWallet from '../common/connectCipWallet';
 import Input from '../../../ui/input';
 
 export default function GetPolicyIdAssets() {
+  const [policyId, setPolicyId] = useState<string>('');
   return (
     <SectionTwoCol
       sidebarTo="getPolicyIdAssets"
       header="Get a Collection of Assets"
-      leftFn={Left()}
-      rightFn={Right()}
+      leftFn={Left({ policyId })}
+      rightFn={Right({ policyId, setPolicyId })}
     />
   );
 }
 
-function Left() {
+function Left({ policyId }) {
   return (
     <>
       <p>
@@ -28,18 +29,17 @@ function Left() {
         assets&apos; policy ID with <code>wallet.getPolicyIds()</code>.
       </p>
       <Codeblock
-        data={`const assets = await wallet.getPolicyIdAssets();`}
+        data={`const assets = await wallet.getPolicyIdAssets('${policyId}');`}
         isJson={false}
       />
     </>
   );
 }
 
-function Right() {
+function Right({ policyId, setPolicyId }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const { wallet, walletConnected, hasAvailableWallets } = useWallet();
-  const [policyId, setPolicyId] = useState<string>('');
 
   async function runDemo() {
     setLoading(true);

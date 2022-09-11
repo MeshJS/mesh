@@ -6,7 +6,7 @@ const BrowserWalletPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="Wallet APIs"
+        title="Browser Wallet APIs"
         description="Connecting, queries and performs wallet functions in accordance to CIP30"
       />
       <BrowserWallet />

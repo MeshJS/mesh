@@ -1,5 +1,6 @@
 import ApisLayout from '../common/layout';
 import Hero from './hero';
+import SendAda from './sendAda';
 export default function Transaction() {
   const sidebarItems = [
     { label: 'Send ADA to addresses', to: 'sendAda' },
@@ -17,5 +18,5 @@ export default function Transaction() {
 }
 
 function Main() {
-  return <></>;
+  return <><SendAda /></>;
 }
