@@ -7,11 +7,11 @@ import SectionTwoCol from '../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../common/connectCipWallet';
 
-export default function GetBalance() {
+export default function GetNetworkId() {
   return (
     <SectionTwoCol
-      sidebarTo="getBalance"
-      header="Get Balance"
+      sidebarTo="getNetworkId"
+      header="Get Network ID"
       leftFn={Left()}
       rightFn={Right()}
     />
@@ -22,11 +22,13 @@ function Left() {
   return (
     <>
       <p>
-        Returns a list of assets in the wallet. This API will return every
-        assets in the wallet.
+        Returns the network ID of the currently connected account. 0 is testnet
+        and 1 is mainnet but other networks can possibly be returned by wallets.
+        Those other network ID values are not governed by CIP-30. This result
+        will stay the same unless the connected account has changed.
       </p>
       <Codeblock
-        data={`const balance = await wallet.getBalance();`}
+        data={`const networkId = await wallet.getNetworkId();`}
         isJson={false}
       />
     </>
@@ -40,7 +42,7 @@ function Right() {
 
   async function runDemo() {
     setLoading(true);
-    let results = await wallet.getBalance();
+    let results = await wallet.getNetworkId();
     setResponse(results);
     setLoading(false);
   }

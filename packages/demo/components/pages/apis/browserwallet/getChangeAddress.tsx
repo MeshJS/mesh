@@ -7,11 +7,11 @@ import SectionTwoCol from '../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../common/connectCipWallet';
 
-export default function GetBalance() {
+export default function GetChangeAddress() {
   return (
     <SectionTwoCol
-      sidebarTo="getBalance"
-      header="Get Balance"
+      sidebarTo="getChangeAddress"
+      header="Get Change Address"
       leftFn={Left()}
       rightFn={Right()}
     />
@@ -22,11 +22,13 @@ function Left() {
   return (
     <>
       <p>
-        Returns a list of assets in the wallet. This API will return every
-        assets in the wallet.
+        Returns an address owned by the wallet that should be used as a change
+        address to return leftover assets during transaction creation back to
+        the connected wallet. This can be used as a generic receive address as
+        well.
       </p>
       <Codeblock
-        data={`const balance = await wallet.getBalance();`}
+        data={`const changeAddress = await wallet.getChangeAddress();`}
         isJson={false}
       />
     </>
@@ -40,7 +42,7 @@ function Right() {
 
   async function runDemo() {
     setLoading(true);
-    let results = await wallet.getBalance();
+    let results = await wallet.getChangeAddress();
     setResponse(results);
     setLoading(false);
   }

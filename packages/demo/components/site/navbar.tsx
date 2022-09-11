@@ -9,7 +9,6 @@ import {
   WalletIcon,
   ChevronDownIcon,
   PuzzlePieceIcon,
-  NewspaperIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 

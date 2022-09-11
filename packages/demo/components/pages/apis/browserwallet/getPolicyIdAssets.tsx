@@ -6,12 +6,13 @@ import RunDemoResult from '../common/runDemoResult';
 import SectionTwoCol from '../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../common/connectCipWallet';
+import Input from '../../../ui/input';
 
-export default function GetBalance() {
+export default function GetPolicyIdAssets() {
   return (
     <SectionTwoCol
-      sidebarTo="getBalance"
-      header="Get Balance"
+      sidebarTo="getPolicyIdAssets"
+      header="Get a Collection of Assets"
       leftFn={Left()}
       rightFn={Right()}
     />
@@ -22,11 +23,12 @@ function Left() {
   return (
     <>
       <p>
-        Returns a list of assets in the wallet. This API will return every
-        assets in the wallet.
+        Returns a list of assets from a policy ID. If no assets in wallet
+        belongs to the policy ID, an empty list is returned. Query for a list of
+        assets&apos; policy ID with <code>wallet.getPolicyIds()</code>.
       </p>
       <Codeblock
-        data={`const balance = await wallet.getBalance();`}
+        data={`const assets = await wallet.getPolicyIdAssets();`}
         isJson={false}
       />
     </>
@@ -37,10 +39,11 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const [policyId, setPolicyId] = useState<string>('');
 
   async function runDemo() {
     setLoading(true);
-    let results = await wallet.getBalance();
+    let results = await wallet.getPolicyIdAssets(policyId);
     setResponse(results);
     setLoading(false);
   }
@@ -50,6 +53,12 @@ function Right() {
         <Card>
           {walletConnected ? (
             <>
+              <Input
+                value={policyId}
+                onChange={(e) => setPolicyId(e.target.value)}
+                placeholder="Policy ID"
+                label="Policy ID"
+              />
               <RunDemoButton
                 runDemoFn={runDemo}
                 loading={loading}

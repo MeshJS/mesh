@@ -1,9 +1,5 @@
-import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
-import { BrowserWallet } from '@martifylabs/mesh';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
 import SectionTwoCol from '../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../common/connectCipWallet';

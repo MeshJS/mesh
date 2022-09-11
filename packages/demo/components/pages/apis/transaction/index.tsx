@@ -1,29 +1,21 @@
 import ApisLayout from '../common/layout';
+import Hero from './hero';
 export default function Transaction() {
   const sidebarItems = [
-    { label: 'Get installed wallets', to: 'getInstallWallets' },
-    { label: 'Connect wallet', to: 'connectWallet' },
-    { label: 'Get balance', to: 'getBalance' },
-    { label: 'Get change address', to: 'getChangeAddress' },
-    { label: 'Get network ID', to: 'getNetworkID' },
-    { label: 'Get reward address', to: 'getRewardAddress' },
-    { label: 'Get used address', to: 'getUsedAddress' },
-    { label: 'Get unused address', to: 'getUnusedAddress' },
-    { label: 'Get UTXOs', to: 'getUtxos' },
+    { label: 'Send ADA to addresses', to: 'sendAda' },
+    { label: 'Send multi-assets to addresses', to: 'sendAssets' },
+    { label: 'Lock assets on smart contract', to: 'lockAssets' },
+    { label: 'Unlock assets on smart contract', to: 'lockAssets' },
+    { label: 'Minting', to: 'minting' },
   ];
   return (
     <ApisLayout sidebarItems={sidebarItems}>
-      {/* <Hero /> */}
+      <Hero />
       <Main />
     </ApisLayout>
   );
 }
 
 function Main() {
-  return (
-    <>
-    Transaction
-      <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
-    </>
-  );
+  return <></>;
 }

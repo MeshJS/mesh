@@ -9,37 +9,37 @@ const GuidesPage: NextPage = () => {
       title: 'Start a Web3 app on Next.js',
       desc: "A step-by-step guide to setup a Next.js web application, connect wallet and browse wallet's assets.",
       link: '/guides/nextjs',
-      thumbnail: '/guides/Nextjs-logo.svg',
+      thumbnail: '/guides/nextjs.png',
     },
     {
       title: 'Start a Node.js backend with NestJS',
       desc: 'Coming soon...',
       link: '/guides/nestjs',
-      thumbnail: '/guides/Nextjs-logo.svg',
+      thumbnail: '/guides/nextjs.png',
     },
     {
       title: 'Lock and redeem assets with Smart Contracts',
       desc: 'Coming soon...',
       link: '/guides/coming-soon',
-      thumbnail: '/guides/Nextjs-logo.svg',
+      thumbnail: '/guides/nextjs.png',
     },
     {
       title: 'How to sign in to dApp with wallet',
       desc: 'Coming soon...',
       link: '/guides/coming-soon',
-      thumbnail: '/guides/Nextjs-logo.svg',
+      thumbnail: '/guides/nextjs.png',
     },
     {
       title: 'Multi-signatures assets minting',
       desc: 'Coming soon...',
       link: '/guides/coming-soon',
-      thumbnail: '/guides/Nextjs-logo.svg',
+      thumbnail: '/guides/nextjs.png',
     },
     {
       title: 'Multi-signatures transactions',
       desc: 'Coming soon...',
       link: '/guides/coming-soon',
-      thumbnail: '/guides/Nextjs-logo.svg',
+      thumbnail: '/guides/nextjs.png',
     },
   ];
 

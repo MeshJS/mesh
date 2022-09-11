@@ -7,11 +7,11 @@ import SectionTwoCol from '../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../common/connectCipWallet';
 
-export default function GetBalance() {
+export default function GetRewardAddresses() {
   return (
     <SectionTwoCol
-      sidebarTo="getBalance"
-      header="Get Balance"
+      sidebarTo="getRewardAddresses"
+      header="Get Reward Addresses"
       leftFn={Left()}
       rightFn={Right()}
     />
@@ -21,12 +21,9 @@ export default function GetBalance() {
 function Left() {
   return (
     <>
-      <p>
-        Returns a list of assets in the wallet. This API will return every
-        assets in the wallet.
-      </p>
+      <p>Returns a list of reward addresses owned by the wallet.</p>
       <Codeblock
-        data={`const balance = await wallet.getBalance();`}
+        data={`const rewardAddresses = await wallet.getRewardAddresses();`}
         isJson={false}
       />
     </>
@@ -40,7 +37,7 @@ function Right() {
 
   async function runDemo() {
     setLoading(true);
-    let results = await wallet.getBalance();
+    let results = await wallet.getRewardAddresses();
     setResponse(results);
     setLoading(false);
   }

@@ -7,11 +7,11 @@ import SectionTwoCol from '../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../common/connectCipWallet';
 
-export default function GetBalance() {
+export default function GetUtxos() {
   return (
     <SectionTwoCol
-      sidebarTo="getBalance"
-      header="Get Balance"
+      sidebarTo="getUtxos"
+      header="Get UTXOs"
       leftFn={Left()}
       rightFn={Right()}
     />
@@ -22,11 +22,12 @@ function Left() {
   return (
     <>
       <p>
-        Returns a list of assets in the wallet. This API will return every
-        assets in the wallet.
+        Return a list of all UTXOs (unspent transaction outputs) controlled by
+        the wallet. ADA balance and multiasset value in each UTXO are specified
+        in <code>amount</code>.
       </p>
       <Codeblock
-        data={`const balance = await wallet.getBalance();`}
+        data={`const utxos = await wallet.getUtxos();`}
         isJson={false}
       />
     </>
@@ -40,7 +41,7 @@ function Right() {
 
   async function runDemo() {
     setLoading(true);
-    let results = await wallet.getBalance();
+    let results = await wallet.getUtxos();
     setResponse(results);
     setLoading(false);
   }
