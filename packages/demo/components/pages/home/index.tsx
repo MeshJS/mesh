@@ -93,7 +93,9 @@ function Features() {
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
               Getting started with dApp development has never been this easy.
-              You focus on building, and let us handle the rest.
+              Mesh is built in a way so you can get started in as little time as
+              possible. We've built Mesh to handle difficult blockchain
+              interaction so you can focus on your project.
             </p>
             <a
               href="#"
