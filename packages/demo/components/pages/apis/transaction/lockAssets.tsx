@@ -13,7 +13,7 @@ import { demoAddresses } from '../../../../configs/demo';
 import { Transaction } from '@martifylabs/mesh';
 import FetchSelectAssets from '../common/fetchSelectAssets';
 
-export default function SendAssets() {
+export default function LockAssets() {
   const { wallet, walletConnected } = useWallet();
   const [userInput, setUserInput] = useState<
     { address: string; assets: { lovelace: number } }[]
@@ -212,7 +212,7 @@ function InputTable({ userInput, updateField }) {
     <div className="overflow-x-auto relative">
       <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 m-0">
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Send multi-assets to recipients
+          Send ADA to recipients
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Add or remove recipients, input the address and the amount ADA to
             send.
@@ -244,7 +244,6 @@ function InputTable({ userInput, updateField }) {
                   />
                   <Input
                     value={row.assets.lovelace}
-                    type="number"
                     onChange={(e) =>
                       updateField('update', i, 'lovelace', e.target.value)
                     }

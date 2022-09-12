@@ -178,10 +178,7 @@ function InputTable({ userInput, updateField }) {
         <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
           <tr>
             <th scope="col" className="py-3">
-              Address
-            </th>
-            <th scope="col" className="py-3">
-              Amount in Lovelace
+              Recipients
             </th>
             <th scope="col" className="py-3"></th>
           </tr>
@@ -200,15 +197,16 @@ function InputTable({ userInput, updateField }) {
                       updateField('update', i, 'address', e.target.value)
                     }
                     placeholder="Address"
+                    label="Address"
                   />
-                </td>
-                <td className="">
                   <Input
                     value={row.assets.lovelace}
+                    type="number"
                     onChange={(e) =>
                       updateField('update', i, 'lovelace', e.target.value)
                     }
                     placeholder="Amount in Lovelace"
+                    label="Amount in Lovelace"
                   />
                 </td>
                 <td className="">

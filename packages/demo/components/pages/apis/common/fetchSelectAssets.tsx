@@ -25,7 +25,7 @@ export default function FetchSelectAssets({
         <>
           {state == 2 ? (
             <>
-              <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
+              <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4">
                 {walletAssets.map((asset, i) => {
                   return (
                     <Button

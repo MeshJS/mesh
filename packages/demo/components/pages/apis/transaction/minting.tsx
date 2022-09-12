@@ -1,0 +1,354 @@
+import { useEffect, useState } from 'react';
+import Codeblock from '../../../ui/codeblock';
+import Card from '../../../ui/card';
+import RunDemoButton from '../common/runDemoButton';
+import RunDemoResult from '../common/runDemoResult';
+import SectionTwoCol from '../common/sectionTwoCol';
+import useWallet from '../../../../contexts/wallet';
+import ConnectCipWallet from '../common/connectCipWallet';
+import Input from '../../../ui/input';
+import Button from '../../../ui/button';
+import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
+import { demoAddresses } from '../../../../configs/demo';
+import { Transaction, ForgeScript } from '@martifylabs/mesh';
+import type { AssetRaw } from '@martifylabs/mesh';
+import Textarea from '../../../ui/textarea';
+
+export default function Minting() {
+  const { wallet, walletConnected } = useWallet();
+
+  const defaultMetadata = {
+    name: 'Mesh Token',
+    image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
+    mediaType: 'image/jpg',
+    description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+  };
+
+  const [userInput, setUserInput] = useState<{}[]>([
+    {
+      address: demoAddresses.testnet,
+      assetName: 'MeshToken',
+      metadata: JSON.stringify(defaultMetadata, null, 2),
+      assetLabel: '721',
+      quantity: 1,
+    },
+  ]);
+
+  async function updateField(action, index, field, value) {
+    let _address = demoAddresses.testnet;
+    if (walletConnected) {
+      _address =
+        (await wallet.getNetworkId()) === 1
+          ? demoAddresses.mainnet
+          : demoAddresses.testnet;
+    }
+
+    let updated = [...userInput];
+    if (action == 'add') {
+      updated.push({
+        address: _address,
+        assetName: 'MeshToken',
+        metadata: JSON.stringify(defaultMetadata, null, 2),
+        assetLabel: '721',
+        quantity: 1,
+      });
+    } else if (action == 'update') {
+      updated[index][field] = value;
+    } else if (action == 'remove') {
+      updated.splice(index, 1);
+    }
+    setUserInput(updated);
+  }
+
+  useEffect(() => {
+    async function init() {
+      let updated = [
+        {
+          address:
+            (await wallet.getNetworkId()) === 1
+              ? demoAddresses.mainnet
+              : demoAddresses.testnet,
+          assetName: 'MeshToken',
+          metadata: JSON.stringify(defaultMetadata, null, 2),
+          assetLabel: '721',
+          quantity: 1,
+        },
+      ];
+      setUserInput(updated);
+    }
+    if (walletConnected) {
+      init();
+    }
+  }, [walletConnected]);
+
+  return (
+    <SectionTwoCol
+      sidebarTo="minting"
+      header="Minting assets"
+      leftFn={Left({ userInput })}
+      rightFn={Right({ userInput, updateField })}
+    />
+  );
+}
+
+function Left({ userInput }) {
+  let codeSnippet = `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
+  codeSnippet += `import type { AssetRaw, AssetMetadata } from '@martifylabs/mesh';\n\n`;
+
+  codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
+  codeSnippet += `const address = usedAddress[0];\n`;
+  codeSnippet += `const forgingScript = ForgeScript.withOneSignature(address);\n\n`;
+
+  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n\n`;
+
+  let counter = 1;
+  for (const recipient of userInput) {
+    let _metadata = JSON.stringify(
+      { error: 'Not a valid javascript object' },
+      null,
+      2
+    );
+    try {
+      _metadata = JSON.stringify(JSON.parse(recipient.metadata), null, 2);
+    } catch (error) {}
+    codeSnippet += `// define asset #${counter} metadata\n`;
+    codeSnippet += `const assetMetadata${counter}: AssetMetadata = ${_metadata};\n`;
+    codeSnippet += `const asset${counter}: AssetRaw = {\n`;
+    codeSnippet += `  name: "${recipient.assetName}",\n`;
+    codeSnippet += `  quantity: "${recipient.quantity}",\n`;
+    codeSnippet += `  metadata: assetMetadata,\n`;
+    codeSnippet += `  label: "${recipient.assetLabel}",\n`;
+    codeSnippet += `};\n`;
+    codeSnippet += `tx.mintAsset(forgingScript,\n`;
+    codeSnippet += `  "${recipient.address}",\n`;
+    codeSnippet += `  asset${counter}\n`;
+    codeSnippet += `);\n\n`;
+    counter++;
+  }
+
+  codeSnippet += `const unsignedTx = await tx.build();\n`;
+  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
+
+  return (
+    <>
+      <p>
+        <code>.build()</code> construct the transaction and returns a
+        transaction CBOR. Behind the scene, it selects necessary inputs
+        belonging to the wallet, calculate the fee for this transaction and
+        return remaining assets to the change address. Use{' '}
+        <code>wallet.signTx()</code> to sign transaction CBOR.
+      </p>
+      <Codeblock data={codeSnippet} isJson={false} />
+    </>
+  );
+}
+
+function Right({ userInput, updateField }) {
+  const [state, setState] = useState<number>(0);
+  const [response, setResponse] = useState<null | any>(null);
+  const [responseError, setResponseError] = useState<null | any>(null);
+  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+
+  async function runDemo() {
+    setState(1);
+    setResponseError(null);
+
+    try {
+      const usedAddress = await wallet.getUsedAddresses();
+      const address = usedAddress[0];
+      const forgingScript = ForgeScript.withOneSignature(address);
+
+      const tx = new Transaction({ initiator: wallet });
+
+      for (const recipient of userInput) {
+        let assetMetadata = undefined;
+        try {
+          assetMetadata = JSON.parse(recipient.metadata);
+        } catch (error) {
+          setResponseError(
+            'Problem parsing metadata. Must be a valid javascript object.'
+          );
+          setState(0);
+        }
+        if (assetMetadata == undefined) {
+          return;
+        }
+
+        const asset: AssetRaw = {
+          name: recipient.assetName,
+          quantity: recipient.quantity.toString(),
+          metadata: assetMetadata,
+          label: recipient.assetLabel,
+        };
+        tx.mintAsset(forgingScript, recipient.address, asset);
+      }
+
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx);
+      const txHash = await wallet.submitTx(signedTx);
+      setResponse(txHash);
+      setState(2);
+    } catch (error) {
+      setResponseError(`${error}`);
+      setState(0);
+    }
+  }
+
+  return (
+    <Card>
+      <InputTable userInput={userInput} updateField={updateField} />
+      {hasAvailableWallets && (
+        <>
+          {walletConnected ? (
+            <>
+              <RunDemoButton
+                runDemoFn={runDemo}
+                loading={state == 1}
+                response={response}
+              />
+              <RunDemoResult response={response} />
+            </>
+          ) : (
+            <ConnectCipWallet />
+          )}
+        </>
+      )}
+      {responseError !== null && (
+        <>
+          <p>
+            <b>Result:</b>
+          </p>
+          <Codeblock data={responseError} />
+        </>
+      )}
+    </Card>
+  );
+}
+
+function InputTable({ userInput, updateField }) {
+  return (
+    <div className="overflow-x-auto relative">
+      <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 m-0">
+        <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Mint assets and send to recipients
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Add or remove recipients, input the address and define the asset
+            metadata to mint and send to recipients.
+          </p>
+        </caption>
+        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+          <tr>
+            <th scope="col" className="py-3">
+              Recipients
+            </th>
+            <th scope="col" className="py-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {userInput.map((row, i) => {
+            return (
+              <tr
+                className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
+                key={i}
+              >
+                <td className="">
+                  <Input
+                    value={row.address}
+                    onChange={(e) =>
+                      updateField('update', i, 'address', e.target.value)
+                    }
+                    placeholder="Address"
+                    label="Address"
+                  />
+                  <Input
+                    value={row.assetName}
+                    onChange={(e) =>
+                      updateField('update', i, 'assetName', e.target.value)
+                    }
+                    placeholder="Asset name"
+                    label="Asset name"
+                  />
+                  <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                    Metadata
+                  </label>
+                  <Textarea
+                    value={row.metadata}
+                    onChange={(e) =>
+                      updateField('update', i, 'metadata', e.target.value)
+                    }
+                    rows={8}
+                  />
+                  <div className="block mb-4">
+                    <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Asset label
+                    </label>
+                    <div className="flex items-center mb-4">
+                      <input
+                        type="radio"
+                        value="721"
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        checked={row.assetLabel === '721'}
+                        onChange={(e) =>
+                          updateField('update', i, 'assetLabel', '721')
+                        }
+                      />
+                      <label
+                        htmlFor="assetlabel-radio-1"
+                        className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                      >
+                        Non fungible asset (721)
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        value="20"
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        checked={row.assetLabel === '20'}
+                        onChange={(e) =>
+                          updateField('update', i, 'assetLabel', '20')
+                        }
+                      />
+                      <label
+                        htmlFor="assetlabel-radio-2"
+                        className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                      >
+                        Fungible asset (20)
+                      </label>
+                    </div>
+                  </div>
+                  <Input
+                    value={row.quantity}
+                    type="number"
+                    onChange={(e) =>
+                      updateField('update', i, 'quantity', e.target.value)
+                    }
+                    placeholder="Quantity"
+                    label="Quantity"
+                  />
+                </td>
+                <td className="">
+                  <Button
+                    onClick={() => updateField('remove', i)}
+                    style="error"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </Button>
+                </td>
+              </tr>
+            );
+          })}
+          <tr>
+            <td colSpan={3}>
+              <Button onClick={() => updateField('add')}>
+                <PlusCircleIcon className="m-0 mr-2 w-4 h-4" />
+                Add recipient
+              </Button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}

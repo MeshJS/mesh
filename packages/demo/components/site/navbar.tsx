@@ -20,7 +20,7 @@ export default function Navbar() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showSubmenuApi, setShowSubmenuApi] = useState(false);
 
-  const [logo, setLogo] = useState(1);
+  const [logo, setLogo] = useState(0);
 
   useEffect(() => {
     setIsSSR(false);
