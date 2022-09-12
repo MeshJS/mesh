@@ -8,6 +8,7 @@ export default function Transaction() {
     { label: 'Send ADA to addresses', to: 'sendAda' },
     { label: 'Send multi-assets to addresses', to: 'sendAssets' },
     { label: 'Minting assets', to: 'minting' },
+    { label: 'Burning assets', to: 'burning' },
     { label: 'Lock assets on smart contract', to: 'lockAssets' },
     { label: 'Unlock assets on smart contract', to: 'lockAssets' },
   ];

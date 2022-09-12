@@ -10,19 +10,19 @@ import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import { Transaction, ForgeScript } from '@martifylabs/mesh';
+import { Transaction, ForgeScript, AssetMetadata } from '@martifylabs/mesh';
 import type { AssetRaw } from '@martifylabs/mesh';
 import Textarea from '../../../ui/textarea';
 
+const defaultMetadata = {
+  name: 'Mesh Token',
+  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
+  mediaType: 'image/jpg',
+  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+};
+
 export default function Minting() {
   const { wallet, walletConnected } = useWallet();
-
-  const defaultMetadata = {
-    name: 'Mesh Token',
-    image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
-    mediaType: 'image/jpg',
-    description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
-  };
 
   const [userInput, setUserInput] = useState<{}[]>([
     {
@@ -95,6 +95,7 @@ function Left({ userInput }) {
   let codeSnippet = `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
   codeSnippet += `import type { AssetRaw, AssetMetadata } from '@martifylabs/mesh';\n\n`;
 
+  codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
   codeSnippet += `const address = usedAddress[0];\n`;
   codeSnippet += `const forgingScript = ForgeScript.withOneSignature(address);\n\n`;
@@ -111,15 +112,16 @@ function Left({ userInput }) {
     try {
       _metadata = JSON.stringify(JSON.parse(recipient.metadata), null, 2);
     } catch (error) {}
-    codeSnippet += `// define asset #${counter} metadata\n`;
+    codeSnippet += `// define asset#${counter} metadata\n`;
     codeSnippet += `const assetMetadata${counter}: AssetMetadata = ${_metadata};\n`;
     codeSnippet += `const asset${counter}: AssetRaw = {\n`;
     codeSnippet += `  name: "${recipient.assetName}",\n`;
     codeSnippet += `  quantity: "${recipient.quantity}",\n`;
-    codeSnippet += `  metadata: assetMetadata,\n`;
+    codeSnippet += `  metadata: assetMetadata${counter},\n`;
     codeSnippet += `  label: "${recipient.assetLabel}",\n`;
     codeSnippet += `};\n`;
-    codeSnippet += `tx.mintAsset(forgingScript,\n`;
+    codeSnippet += `tx.mintAsset(\n`;
+    codeSnippet += `  forgingScript,\n`;
     codeSnippet += `  "${recipient.address}",\n`;
     codeSnippet += `  asset${counter}\n`;
     codeSnippet += `);\n\n`;
@@ -130,15 +132,34 @@ function Left({ userInput }) {
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
+  let codeSnippet1 = `const usedAddress = await wallet.getUsedAddresses();\n`;
+  codeSnippet1 += `const address = usedAddress[0];\n`;
+  codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
+
+  let codeSnippet2 = `const assetMetadata${counter}: AssetMetadata = ${defaultMetadata};\n`;
+  codeSnippet2 += `const asset: AssetRaw = {\n`;
+  codeSnippet2 += `  name: "MeshToken",\n`;
+  codeSnippet2 += `  quantity: "1",\n`;
+  codeSnippet2 += `  metadata: assetMetadata,\n`;
+  codeSnippet2 += `  label: "721",\n`;
+  codeSnippet2 += `};\n`;
+  codeSnippet2 += `tx.mintAsset(\n`;
+  codeSnippet2 += `  forgingScript,\n`;
+  codeSnippet2 += `  "${demoAddresses.testnet}",\n`;
+  codeSnippet2 += `  asset\n`;
+  codeSnippet2 += `);`;
+
   return (
     <>
       <p>
-        <code>.build()</code> construct the transaction and returns a
-        transaction CBOR. Behind the scene, it selects necessary inputs
-        belonging to the wallet, calculate the fee for this transaction and
-        return remaining assets to the change address. Use{' '}
-        <code>wallet.signTx()</code> to sign transaction CBOR.
+        Firstly, we need to define the <code>forgingScript</code> with{' '}
+        <code>ForgeScript</code>. We use the first wallet address as the
+        "minting address".
       </p>
+      <Codeblock data={codeSnippet1} isJson={false} />
+      <p>Then, we define the metadata.</p>
+      <Codeblock data={codeSnippet2} isJson={false} />
+      <p>Here is the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
     </>
   );
@@ -162,7 +183,7 @@ function Right({ userInput, updateField }) {
       const tx = new Transaction({ initiator: wallet });
 
       for (const recipient of userInput) {
-        let assetMetadata = undefined;
+        let assetMetadata: undefined | AssetMetadata = undefined;
         try {
           assetMetadata = JSON.parse(recipient.metadata);
         } catch (error) {
@@ -237,7 +258,7 @@ function InputTable({ userInput, updateField }) {
             metadata to mint and send to recipients.
           </p>
         </caption>
-        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+        <thead className="thead">
           <tr>
             <th scope="col" className="py-3">
               Recipients

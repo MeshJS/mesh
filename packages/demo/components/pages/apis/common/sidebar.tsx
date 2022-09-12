@@ -2,7 +2,7 @@ import { Link, Element } from 'react-scroll';
 
 export default function ApisSidebar({ sidebarItems }) {
   return (
-    <div className="hidden mb-6 xl:block lg:w-72">
+    <div className="hidden mb-6 mr-6 xl:block lg:w-72">
       <div className="sticky top-24">
         <aside aria-labelledby="categories-label">
           <h3 id="categories-label" className="sr-only">
