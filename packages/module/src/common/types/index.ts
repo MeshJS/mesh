@@ -6,6 +6,7 @@ export * from './AssetMetadata';
 export * from './Data';
 export * from './Era';
 export * from './Mint';
+export * from './NativeScript';
 export * from './Protocol';
 export * from './Recipient';
 export * from './UTxO';

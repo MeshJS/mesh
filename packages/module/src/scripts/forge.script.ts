@@ -1,5 +1,6 @@
 import { csl } from '@mesh/core';
 import { buildScriptPubkey } from '@mesh/common/utils';
+import type { NativeScript } from '@mesh/common/types';
 
 export class ForgeScript {
   static withOneSignature(address: string): string {
@@ -41,7 +42,8 @@ export class ForgeScript {
     return csl.NativeScript.new_script_any(scriptAll).to_hex();
   }
 
-  static fromNativeScript(json: string): string {
+  static fromNativeScript(script: NativeScript): string {
+    const json = JSON.stringify(script);
     return csl.NativeScript.from_json(json).to_hex();
   }
 }

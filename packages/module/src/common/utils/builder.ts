@@ -63,13 +63,15 @@ export const buildScriptPubkey = (address: string) => {
   return csl.NativeScript.new_script_pubkey(scriptPubkey);
 };
 
-export const buildTimelockExpiry = (slot: number) => {
-  const timelockExpiry = csl.TimelockExpiry.new(slot);
+export const buildTimelockExpiry = (slot: string) => {
+  const expiry = csl.BigNum.from_str(slot);
+  const timelockExpiry = csl.TimelockExpiry.new_timelockexpiry(expiry);
   return csl.NativeScript.new_timelock_expiry(timelockExpiry);
 };
 
-export const buildTimelockStart = (slot: number) => {
-  const timelockStart = csl.TimelockStart.new(slot);
+export const buildTimelockStart = (slot: string) => {
+  const start = csl.BigNum.from_str(slot);
+  const timelockStart = csl.TimelockStart.new_timelockstart(start);
   return csl.NativeScript.new_timelock_start(timelockStart);
 };
 
