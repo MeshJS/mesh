@@ -116,11 +116,13 @@ export class Transaction {
     const utxo = toTxUnspentOutput(value);
     const datum: Data = options.datum ?? [];
     const redeemer: Action = {
-      alternative: 0,
       budget: DEFAULT_REDEEMER_BUDGET,
-      data: [] as Data,
       index: this._txInputsBuilder.inputs().len(),
       tag: 'SPEND',
+      data: {
+        alternative: 0,
+        fields: []
+      },
       ...options.redeemer,
     };
 
