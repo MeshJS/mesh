@@ -11,7 +11,7 @@ import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
 import { Transaction, ForgeScript, AssetMetadata } from '@martifylabs/mesh';
-import type { AssetRaw } from '@martifylabs/mesh';
+import type { Mint } from '@martifylabs/mesh';
 import Textarea from '../../../ui/textarea';
 
 const defaultMetadata = {
@@ -93,7 +93,7 @@ export default function Minting() {
 
 function Left({ userInput }) {
   let codeSnippet = `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
-  codeSnippet += `import type { AssetRaw, AssetMetadata } from '@martifylabs/mesh';\n\n`;
+  codeSnippet += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
@@ -114,15 +114,17 @@ function Left({ userInput }) {
     } catch (error) {}
     codeSnippet += `// define asset#${counter} metadata\n`;
     codeSnippet += `const assetMetadata${counter}: AssetMetadata = ${_metadata};\n`;
-    codeSnippet += `const asset${counter}: AssetRaw = {\n`;
-    codeSnippet += `  name: "${recipient.assetName}",\n`;
-    codeSnippet += `  quantity: "${recipient.quantity}",\n`;
+    codeSnippet += `const asset${counter}: Mint = {\n`;
+    codeSnippet += `  assetName: "${recipient.assetName}",\n`;
+    codeSnippet += `  assetQuantity: "${recipient.quantity}",\n`;
     codeSnippet += `  metadata: assetMetadata${counter},\n`;
     codeSnippet += `  label: "${recipient.assetLabel}",\n`;
+    codeSnippet += `  recipient: "{",\n`;
+    codeSnippet += `    address: ${recipient.address},\n`;
+    codeSnippet += `  },\n`;
     codeSnippet += `};\n`;
     codeSnippet += `tx.mintAsset(\n`;
     codeSnippet += `  forgingScript,\n`;
-    codeSnippet += `  "${recipient.address}",\n`;
     codeSnippet += `  asset${counter}\n`;
     codeSnippet += `);\n\n`;
     counter++;
@@ -137,15 +139,17 @@ function Left({ userInput }) {
   codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
 
   let codeSnippet2 = `const assetMetadata${counter}: AssetMetadata = ${defaultMetadata};\n`;
-  codeSnippet2 += `const asset: AssetRaw = {\n`;
-  codeSnippet2 += `  name: "MeshToken",\n`;
-  codeSnippet2 += `  quantity: "1",\n`;
+  codeSnippet2 += `const asset: Mint = {\n`;
+  codeSnippet2 += `  assetName: "MeshToken",\n`;
+  codeSnippet2 += `  assetQuantity: "1",\n`;
   codeSnippet2 += `  metadata: assetMetadata,\n`;
   codeSnippet2 += `  label: "721",\n`;
+  codeSnippet2 += `  recipient: "{",\n`;
+  codeSnippet2 += `    address: ${demoAddresses.testnet},\n`;
+  codeSnippet2 += `  },\n`;
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.mintAsset(\n`;
   codeSnippet2 += `  forgingScript,\n`;
-  codeSnippet2 += `  "${demoAddresses.testnet}",\n`;
   codeSnippet2 += `  asset\n`;
   codeSnippet2 += `);`;
 
@@ -196,13 +200,16 @@ function Right({ userInput, updateField }) {
           return;
         }
 
-        const asset: AssetRaw = {
-          name: recipient.assetName,
-          quantity: recipient.quantity.toString(),
+        const asset: Mint = {
+          assetName: recipient.assetName,
+          assetQuantity: recipient.quantity.toString(),
           metadata: assetMetadata,
           label: recipient.assetLabel,
+          recipient: {
+            address: recipient.address,
+          },
         };
-        tx.mintAsset(forgingScript, recipient.address, asset);
+        tx.mintAsset(forgingScript, asset);
       }
 
       const unsignedTx = await tx.build();
