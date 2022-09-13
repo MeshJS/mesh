@@ -22,12 +22,21 @@ export default function Footer() {
       <div className="p-4 py-6 mx-auto max-w-screen-xl md:p-8 lg:-10">
         <div className="grid grid-cols-2 gap-8 lg:grid-cols-6">
           <div className="col-span-2">
-            <a
-              href="#"
-              className="flex items-center mb-2 text-2xl font-semibold text-gray-900 sm:mb-0 dark:text-white"
-            >
+            <div className="flex items-center mb-2 text-2xl font-semibold text-gray-900 sm:mb-0 dark:text-white">
+              <div className="mr-2 h-8">
+                <img
+                  src="/logo-mesh/black/logo-mesh-black-32x32.png"
+                  className="dark:hidden"
+                  alt="mockup"
+                />
+                <img
+                  src="/logo-mesh/white/logo-mesh-white-32x32.png"
+                  className="hidden dark:block"
+                  alt="mockup dark"
+                />
+              </div>
               Mesh
-            </a>
+            </div>
             <p className="my-4 font-light text-gray-500 dark:text-gray-400">
               Mesh is an open-source library to advance Web3 development.
             </p>

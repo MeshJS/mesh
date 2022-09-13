@@ -12,15 +12,12 @@ import {
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
-import SvgMeshv2 from '../svgs/meshv2';
 
 export default function Navbar() {
   const [darkMode, setDarkMode] = useLocalStorage('darkmode', false);
   const [isSSR, setIsSSR] = useState(true);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showSubmenuApi, setShowSubmenuApi] = useState(false);
-
-  const [logo, setLogo] = useState(0);
 
   useEffect(() => {
     setIsSSR(false);
@@ -51,15 +48,6 @@ export default function Navbar() {
     setDarkTheme(darkMode);
   }, [darkMode]);
 
-  function toggleLogo() {
-    if (logo == 0) {
-      setLogo(1);
-    }
-    if (logo == 1) {
-      setLogo(0);
-    }
-  }
-
   return (
     <header>
       <nav className="border-gray-200 px-4 lg:px-6 py-2.5 fixed z-30 w-full border-b dark:border-gray-700 bg-white/80 backdrop-blur dark:bg-gray-800/80">
@@ -67,18 +55,10 @@ export default function Navbar() {
           <a href="/" className="flex items-center">
             {!isSSR && (
               <>
-                {logo == 0 && (
-                  <SvgMesh
-                    className="mr-3 h-6 sm:h-9"
-                    fill={darkMode ? '#ffffff' : '#000000'}
-                  />
-                )}
-                {logo == 1 && (
-                  <SvgMeshv2
-                    className="mr-3 h-6 sm:h-9"
-                    fill={darkMode ? '#ffffff' : '#000000'}
-                  />
-                )}
+                <SvgMesh
+                  className="mr-3 h-6 sm:h-9"
+                  fill={darkMode ? '#ffffff' : '#000000'}
+                />
               </>
             )}
             <span className="self-center text-xl font-semibold whitespace-nowrap dark:text-white">
@@ -86,16 +66,6 @@ export default function Navbar() {
             </span>
           </a>
           <div className="flex items-center lg:order-2">
-            <button
-              type="button"
-              className="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none rounded-lg text-sm p-2.5"
-              onClick={() => {
-                toggleLogo();
-              }}
-            >
-              logo
-            </button>
-
             <a
               href="https://github.com/MartifyLabs/mesh"
               target="_blank"

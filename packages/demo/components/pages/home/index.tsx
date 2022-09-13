@@ -41,12 +41,12 @@ function Hero() {
           </div>
           <div className="col-span-6">
             <img
-              src="https://flowbite.s3.amazonaws.com/blocks/marketing-ui/hero/search-mockup.png"
+              src="/logo-mesh/black/logo-mesh-black-512x512.png"
               className="dark:hidden"
               alt="mockup"
             />
             <img
-              src="https://flowbite.s3.amazonaws.com/blocks/marketing-ui/hero/search-mockup-dark.png"
+              src="/logo-mesh/white/logo-mesh-white-512x512.png"
               className="hidden dark:block"
               alt="mockup dark"
             />

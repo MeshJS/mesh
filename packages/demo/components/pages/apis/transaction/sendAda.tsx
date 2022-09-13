@@ -74,7 +74,7 @@ export default function SendAda() {
 function Left({ userInput }) {
   let codeSnippet = `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
-    codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
+    codeSnippet += `\ntx.sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
   }
   codeSnippet += `;\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
@@ -175,7 +175,7 @@ function InputTable({ userInput, updateField }) {
             send.
           </p>
         </caption>
-        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+        <thead className="thead">
           <tr>
             <th scope="col" className="py-3">
               Recipients

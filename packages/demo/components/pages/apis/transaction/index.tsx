@@ -1,4 +1,5 @@
 import ApisLayout from '../common/layout';
+import Burning from './burning';
 import Hero from './hero';
 import Minting from './minting';
 import SendAda from './sendAda';
@@ -26,6 +27,7 @@ function Main() {
       <SendAda />
       <SendAssets />
       <Minting />
+      <Burning />
     </>
   );
 }

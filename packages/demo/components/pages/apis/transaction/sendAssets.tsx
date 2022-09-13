@@ -12,6 +12,7 @@ import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
 import { Transaction } from '@martifylabs/mesh';
 import FetchSelectAssets from '../common/fetchSelectAssets';
+import type { Asset } from '@martifylabs/mesh';
 
 export default function SendAssets() {
   const { wallet, walletConnected } = useWallet();
@@ -54,7 +55,11 @@ export default function SendAssets() {
       if (field == 'address') {
         updated[index].address = value;
       } else {
-        updated[index].assets[field] = value;
+        if (value == 0) {
+          delete updated[index].assets[field];
+        } else {
+          updated[index].assets[field] = value;
+        }
       }
     } else if (action == 'remove') {
       updated.splice(index, 1);
@@ -73,23 +78,28 @@ export default function SendAssets() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `const tx = new Transaction({ initiator: wallet })`;
+  let codeSnippet = `import { Transaction } from '@martifylabs/mesh';\n`;
+  codeSnippet += `import type { Asset } from '@martifylabs/mesh';\n\n`;
+
+  codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
     if ('lovelace' in recipient.assets && recipient.assets.lovelace > 0) {
       codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
     }
 
     let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
-      return assetId != 'lovelace';
+      return assetId != 'lovelace' && recipient.assets[assetId] > 0;
     });
     if (nativeAssets.length) {
       codeSnippet += `\n  .sendAssets(\n    "${recipient.address}",`;
       codeSnippet += `\n    [`;
       for (const asset of nativeAssets) {
-        codeSnippet += `\n      {`;
-        codeSnippet += `\n        unit: "${asset}",`;
-        codeSnippet += `\n        quantity: "1",`;
-        codeSnippet += `\n      },`;
+        if (recipient.assets[asset] > 0) {
+          codeSnippet += `\n      {`;
+          codeSnippet += `\n        unit: "${asset}",`;
+          codeSnippet += `\n        quantity: "1",`;
+          codeSnippet += `\n      },`;
+        }
       }
       codeSnippet += `\n    ]`;
       codeSnippet += `\n  )`;
@@ -100,19 +110,26 @@ function Left({ userInput }) {
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
+  let codeSnippet1 = `let assets: Asset[] = [];\n`;
+  codeSnippet1 += `for (const asset of nativeAssets) {\n`;
+  codeSnippet1 += `  let thisAsset = {\n`;
+  codeSnippet1 += `    unit: asset,\n`;
+  codeSnippet1 += `    quantity: '1',\n`;
+  codeSnippet1 += `  };\n`;
+  codeSnippet1 += `  assets.push(thisAsset);\n`;
+  codeSnippet1 += `}\n`;
+  codeSnippet1 += `tx.sendAssets(recipient.address, assets);`;
+
   return (
     <>
-      <p>For each recipients, append:</p>
-      <Codeblock
-        data={`.sendLovelace(address: string, lovelace: string)`}
-        isJson={false}
-      />
       <p>
-        <code>.build()</code> construct the transaction and returns a
-        transaction CBOR. Behind the scene, it selects necessary inputs
-        belonging to the wallet, calculate the fee for this transaction and
-        return remaining assets to the change address. Use{' '}
-        <code>wallet.signTx()</code> to sign transaction CBOR.
+        For each recipients, we define a list of <code>Asset</code> to send:
+      </p>
+      <Codeblock data={codeSnippet1} isJson={false} />
+      <p>
+        We can chain a series of <code>tx.sendAssets()</code> and{' '}
+        <code>tx.sendLovelace()</code> to send multiple assets to multiple
+        recipients.
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
     </>
@@ -143,9 +160,9 @@ function Right({ userInput, updateField }) {
           return assetId != 'lovelace';
         });
         if (nativeAssets.length) {
-          let assets: { unit: string; quantity: string }[] = [];
+          let assets: Asset[] = [];
           for (const asset of nativeAssets) {
-            let thisAsset = {
+            let thisAsset: Asset = {
               unit: asset,
               quantity: '1',
             };
@@ -251,18 +268,16 @@ function InputTable({ userInput, updateField }) {
                     placeholder="Amount in Lovelace"
                     label="Lovelace"
                   />
-                  {walletConnected && (
-                    <>
-                      <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                        Select asset
-                      </label>
-                      <FetchSelectAssets
-                        index={i}
-                        selectedAssets={row.assets}
-                        selectAssetFn={selectAsset}
-                      />
-                    </>
-                  )}
+                  <>
+                    <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Select asset
+                    </label>
+                    <FetchSelectAssets
+                      index={i}
+                      selectedAssets={row.assets}
+                      selectAssetFn={selectAsset}
+                    />
+                  </>
                 </td>
                 <td className="">
                   <Button

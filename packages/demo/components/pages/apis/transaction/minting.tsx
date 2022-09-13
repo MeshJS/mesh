@@ -62,12 +62,11 @@ export default function Minting() {
 
   useEffect(() => {
     async function init() {
+      const usedAddress = await wallet.getUsedAddresses();
+      const address = usedAddress[0];
       let updated = [
         {
-          address:
-            (await wallet.getNetworkId()) === 1
-              ? demoAddresses.mainnet
-              : demoAddresses.testnet,
+          address: address,
           assetName: 'MeshToken',
           metadata: JSON.stringify(defaultMetadata, null, 2),
           assetLabel: '721',
@@ -158,7 +157,7 @@ function Left({ userInput }) {
       <p>
         Firstly, we need to define the <code>forgingScript</code> with{' '}
         <code>ForgeScript</code>. We use the first wallet address as the
-        "minting address".
+        "minting address" (you can use other addresses).
       </p>
       <Codeblock data={codeSnippet1} isJson={false} />
       <p>Then, we define the metadata.</p>
@@ -192,7 +191,7 @@ function Right({ userInput, updateField }) {
           assetMetadata = JSON.parse(recipient.metadata);
         } catch (error) {
           setResponseError(
-            'Problem parsing metadata. Must be a valid javascript object.'
+            'Problem parsing metadata. Must be a valid JavaScript object.'
           );
           setState(0);
         }
