@@ -57,6 +57,10 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     }
   }
 
+  async fetchHandleAddress(_handle: string): Promise<string> {
+    throw new Error('Method not implemented.');
+  }
+
   async fetchProtocolParameters(epoch: number): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(

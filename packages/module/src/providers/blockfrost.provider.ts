@@ -47,6 +47,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     }
   }
 
+  async fetchHandleAddress(_handle: string): Promise<string> {
+    throw new Error('Method not implemented.');
+  }
+
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(

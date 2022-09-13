@@ -47,7 +47,7 @@ export const SUPPORTED_COST_MODELS = new Map<Era, Costmdls>([
 ]);
 
 export const SUPPORTED_NETWORKS = new Map<number, string>([
-  [csl.NetworkInfo.testnet().network_id(), 'testnet'],
+  [csl.NetworkInfo.testnet().network_id(), 'preview'],
   [csl.NetworkInfo.mainnet().network_id(), 'mainnet'],
 ]);
 
