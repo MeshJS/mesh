@@ -9,7 +9,7 @@ export default function FetchSelectAssets({
   selectAssetFn,
 }) {
   const { wallet, walletConnected } = useWallet();
-  const [state, setState] = useState<number>(0);
+  // const [state, setState] = useState<number>(0);
   const [walletAssets, setWalletAssets] = useState<AssetExtended[]>([
     {
       unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',
@@ -28,10 +28,10 @@ export default function FetchSelectAssets({
   ]);
 
   async function loadAssets() {
-    setState(1);
+    // setState(1);
     const assets = await wallet.getAssets();
     setWalletAssets(assets);
-    setState(2);
+    // setState(2);
   }
 
   useEffect(() => {
@@ -45,12 +45,13 @@ export default function FetchSelectAssets({
 
   return (
     <>
-      <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4">
+      <div className="grid grid-cols-1 px-4 lg:grid-cols-2 lg:gap-2">
         {walletAssets.map((asset, i) => {
           return (
             <Button
               key={i}
               onClick={() => selectAssetFn(index, asset.unit)}
+              className="truncate"
               style={
                 asset.unit in selectedAssets && selectedAssets[asset.unit]
                   ? 'success'

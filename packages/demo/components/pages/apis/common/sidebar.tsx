@@ -8,8 +8,8 @@ export default function ApisSidebar({ sidebarItems }) {
           <h3 id="categories-label" className="sr-only">
             Topics
           </h3>
-          <nav className="p-6 mb-6 font-medium text-gray-500 rounded-lg border border-gray-200 dark:border-gray-700 dark:text-gray-400">
-            <ul className="mb-6 space-y-4">
+          <nav className="p-6 font-medium text-gray-500 rounded-lg border border-gray-200 dark:border-gray-700 dark:text-gray-400">
+            <ul className="space-y-4">
               {sidebarItems.map((item, i) => {
                 return (
                   <li key={i}>

@@ -97,13 +97,14 @@ function Features() {
               possible. We've built Mesh to handle difficult blockchain
               interaction so you can focus on your project.
             </p>
-            <a
-              href="#"
-              className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
-            >
-              Learn how to get started
-              <ChevronRightIcon className="ml-1 w-5 h-5" />
-            </a>
+            <Link href="/guides">
+              <div
+                className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
+              >
+                Learn how to get started
+                <ChevronRightIcon className="ml-1 w-5 h-5" />
+              </div>
+            </Link>
           </div>
           <div>
             <BeakerIcon className="mx-auto mb-4 w-12 h-12 text-primary-600 dark:text-primary-500" />
@@ -111,8 +112,8 @@ function Features() {
               Best practices
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh adopts many CIPs, and our package is only 250KB. You dApp
-              will be responsive and adhere to standards.
+              Mesh adopts many CIPs, and our package is only 24KB. You dApp will
+              be responsive and adhere to standards.
             </p>
             <a
               href="#"

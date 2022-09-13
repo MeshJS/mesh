@@ -58,7 +58,9 @@ export default function SendAssets() {
         if (value == 0) {
           delete updated[index].assets[field];
         } else {
-          updated[index].assets[field] = value;
+          if (value >= 0) {
+            updated[index].assets[field] = value;
+          }
         }
       }
     } else if (action == 'remove') {
@@ -113,7 +115,7 @@ function Left({ userInput }) {
   let codeSnippet1 = `let assets: Asset[] = [];\n`;
   codeSnippet1 += `for (const asset of nativeAssets) {\n`;
   codeSnippet1 += `  let thisAsset = {\n`;
-  codeSnippet1 += `    unit: asset,\n`;
+  codeSnippet1 += `    unit: "64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e",\n`;
   codeSnippet1 += `    quantity: '1',\n`;
   codeSnippet1 += `  };\n`;
   codeSnippet1 += `  assets.push(thisAsset);\n`;
@@ -240,7 +242,6 @@ function InputTable({ userInput, updateField }) {
             <th scope="col" className="py-3">
               Recipients
             </th>
-            <th scope="col" className="py-3"></th>
           </tr>
         </thead>
         <tbody>
@@ -250,7 +251,20 @@ function InputTable({ userInput, updateField }) {
                 className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
                 key={i}
               >
-                <td className="">
+                <td>
+                  <div className="flex">
+                    <div className="flex-1 items-center pt-2">
+                      Recipient #{i + 1}
+                    </div>
+                    <div className="flex-none">
+                      <Button
+                        onClick={() => updateField('remove', i)}
+                        style="error"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
                   <Input
                     value={row.address}
                     onChange={(e) =>
@@ -270,7 +284,7 @@ function InputTable({ userInput, updateField }) {
                   />
                   <>
                     <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                      Select asset
+                      Select assets
                     </label>
                     <FetchSelectAssets
                       index={i}
@@ -278,14 +292,6 @@ function InputTable({ userInput, updateField }) {
                       selectAssetFn={selectAsset}
                     />
                   </>
-                </td>
-                <td className="">
-                  <Button
-                    onClick={() => updateField('remove', i)}
-                    style="error"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
                 </td>
               </tr>
             );

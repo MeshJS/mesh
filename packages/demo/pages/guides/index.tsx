@@ -11,36 +11,36 @@ const GuidesPage: NextPage = () => {
       link: '/guides/nextjs',
       thumbnail: '/guides/nextjs.png',
     },
-    {
-      title: 'Start a Node.js backend with NestJS',
-      desc: 'Coming soon...',
-      link: '/guides/nestjs',
-      thumbnail: '/guides/nextjs.png',
-    },
-    {
-      title: 'Lock and redeem assets with Smart Contracts',
-      desc: 'Coming soon...',
-      link: '/guides/coming-soon',
-      thumbnail: '/guides/nextjs.png',
-    },
-    {
-      title: 'How to sign in to dApp with wallet',
-      desc: 'Coming soon...',
-      link: '/guides/coming-soon',
-      thumbnail: '/guides/nextjs.png',
-    },
-    {
-      title: 'Multi-signatures assets minting',
-      desc: 'Coming soon...',
-      link: '/guides/coming-soon',
-      thumbnail: '/guides/nextjs.png',
-    },
-    {
-      title: 'Multi-signatures transactions',
-      desc: 'Coming soon...',
-      link: '/guides/coming-soon',
-      thumbnail: '/guides/nextjs.png',
-    },
+    // {
+    //   title: 'Start a Node.js backend with NestJS',
+    //   desc: 'Coming soon...',
+    //   link: '/guides/nestjs',
+    //   thumbnail: '/guides/nextjs.png',
+    // },
+    // {
+    //   title: 'Lock and redeem assets with Smart Contracts',
+    //   desc: 'Coming soon...',
+    //   link: '/guides/coming-soon',
+    //   thumbnail: '/guides/nextjs.png',
+    // },
+    // {
+    //   title: 'How to sign in to dApp with wallet',
+    //   desc: 'Coming soon...',
+    //   link: '/guides/coming-soon',
+    //   thumbnail: '/guides/nextjs.png',
+    // },
+    // {
+    //   title: 'Multi-signatures assets minting',
+    //   desc: 'Coming soon...',
+    //   link: '/guides/coming-soon',
+    //   thumbnail: '/guides/nextjs.png',
+    // },
+    // {
+    //   title: 'Multi-signatures transactions',
+    //   desc: 'Coming soon...',
+    //   link: '/guides/coming-soon',
+    //   thumbnail: '/guides/nextjs.png',
+    // },
   ];
 
   return (

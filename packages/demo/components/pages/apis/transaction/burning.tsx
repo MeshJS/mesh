@@ -105,7 +105,7 @@ function Left({ userInput }) {
   codeSnippet2 += `  unit: "64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e",\n`;
   codeSnippet2 += `  quantity: "1",\n`;
   codeSnippet2 += `};\n`;
-  codeSnippet2 += `tx.burnAsset(forgingScript, asset);\n\n`;
+  codeSnippet2 += `tx.burnAsset(forgingScript, asset);`;
 
   return (
     <>

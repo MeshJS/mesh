@@ -53,7 +53,9 @@ export default function SendAda() {
       if (field == 'address') {
         updated[index].address = value;
       } else if (field == 'lovelace') {
-        updated[index].assets.lovelace = value;
+        if (value >= 1000000) {
+          updated[index].assets.lovelace = value;
+        }
       }
     } else if (action == 'remove') {
       updated.splice(index, 1);
@@ -85,7 +87,7 @@ function Left({ userInput }) {
     <>
       <p>For each recipients, append:</p>
       <Codeblock
-        data={`.sendLovelace(address: string, lovelace: string)`}
+        data={`tx.sendLovelace(address: string, lovelace: string)`}
         isJson={false}
       />
       <p>
@@ -180,7 +182,6 @@ function InputTable({ userInput, updateField }) {
             <th scope="col" className="py-3">
               Recipients
             </th>
-            <th scope="col" className="py-3"></th>
           </tr>
         </thead>
         <tbody>
@@ -190,7 +191,20 @@ function InputTable({ userInput, updateField }) {
                 className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
                 key={i}
               >
-                <td className="">
+                <td>
+                  <div className="flex">
+                    <div className="flex-1 items-center pt-2">
+                      Recipient #{i + 1}
+                    </div>
+                    <div className="flex-none">
+                      <Button
+                        onClick={() => updateField('remove', i)}
+                        style="error"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
                   <Input
                     value={row.address}
                     onChange={(e) =>
@@ -208,14 +222,6 @@ function InputTable({ userInput, updateField }) {
                     placeholder="Amount in Lovelace"
                     label="Amount in Lovelace"
                   />
-                </td>
-                <td className="">
-                  <Button
-                    onClick={() => updateField('remove', i)}
-                    style="error"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
                 </td>
               </tr>
             );

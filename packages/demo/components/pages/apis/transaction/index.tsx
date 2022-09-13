@@ -10,8 +10,8 @@ export default function Transaction() {
     { label: 'Send multi-assets to addresses', to: 'sendAssets' },
     { label: 'Minting assets', to: 'minting' },
     { label: 'Burning assets', to: 'burning' },
-    { label: 'Lock assets on smart contract', to: 'lockAssets' },
-    { label: 'Unlock assets on smart contract', to: 'lockAssets' },
+    // { label: 'Lock assets on smart contract', to: 'lockAssets' },
+    // { label: 'Unlock assets on smart contract', to: 'lockAssets' },
   ];
   return (
     <ApisLayout sidebarItems={sidebarItems}>

@@ -27,18 +27,18 @@ export default function Footer() {
                 <img
                   src="/logo-mesh/black/logo-mesh-black-32x32.png"
                   className="dark:hidden"
-                  alt="mockup"
+                  alt="logo"
                 />
                 <img
                   src="/logo-mesh/white/logo-mesh-white-32x32.png"
                   className="hidden dark:block"
-                  alt="mockup dark"
+                  alt="logo dark"
                 />
               </div>
               Mesh
             </div>
             <p className="my-4 font-light text-gray-500 dark:text-gray-400">
-              Mesh is an open-source library to advance Web3 development.
+              Mesh is an open-source library to advance Web3 development on Cardano.
             </p>
             <ul className="flex mt-5 space-x-6">
               {socials.map((social, i) => {

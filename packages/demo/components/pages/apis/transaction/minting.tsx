@@ -53,7 +53,9 @@ export default function Minting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      updated[index][field] = value;
+      if (value >= 1) {
+        updated[index][field] = value;
+      }
     } else if (action == 'remove') {
       updated.splice(index, 1);
     }
@@ -118,13 +120,13 @@ function Left({ userInput }) {
     codeSnippet += `  assetQuantity: "${recipient.quantity}",\n`;
     codeSnippet += `  metadata: assetMetadata${counter},\n`;
     codeSnippet += `  label: "${recipient.assetLabel}",\n`;
-    codeSnippet += `  recipient: "{",\n`;
+    codeSnippet += `  recipient: {\n`;
     codeSnippet += `    address: ${recipient.address},\n`;
     codeSnippet += `  },\n`;
     codeSnippet += `};\n`;
     codeSnippet += `tx.mintAsset(\n`;
     codeSnippet += `  forgingScript,\n`;
-    codeSnippet += `  asset${counter}\n`;
+    codeSnippet += `  asset${counter},\n`;
     codeSnippet += `);\n\n`;
     counter++;
   }
@@ -149,7 +151,7 @@ function Left({ userInput }) {
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.mintAsset(\n`;
   codeSnippet2 += `  forgingScript,\n`;
-  codeSnippet2 += `  asset\n`;
+  codeSnippet2 += `  asset,\n`;
   codeSnippet2 += `);`;
 
   return (
@@ -269,7 +271,6 @@ function InputTable({ userInput, updateField }) {
             <th scope="col" className="py-3">
               Recipients
             </th>
-            <th scope="col" className="py-3"></th>
           </tr>
         </thead>
         <tbody>
@@ -279,7 +280,20 @@ function InputTable({ userInput, updateField }) {
                 className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
                 key={i}
               >
-                <td className="">
+                <td>
+                  <div className="flex">
+                    <div className="flex-1 items-center pt-2">
+                      <span className="">Recipient #{i + 1}</span>
+                    </div>
+                    <div className="flex-none">
+                      <Button
+                        onClick={() => updateField('remove', i)}
+                        style="error"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
                   <Input
                     value={row.address}
                     onChange={(e) =>
@@ -354,14 +368,6 @@ function InputTable({ userInput, updateField }) {
                     placeholder="Quantity"
                     label="Quantity"
                   />
-                </td>
-                <td className="">
-                  <Button
-                    onClick={() => updateField('remove', i)}
-                    style="error"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
                 </td>
               </tr>
             );
