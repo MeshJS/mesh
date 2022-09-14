@@ -4,11 +4,17 @@ import { toBytes } from './converter';
 export const deserializeAddress = (address: string) => csl.Address
   .from_bytes(toBytes(address));
 
+export const deserializeBip32PrivateKey = (bip32PrivateKey: string) => csl.Bip32PrivateKey
+  .from_bytes(toBytes(bip32PrivateKey));
+
 export const deserializeDataHash = (dataHash: string) => csl.DataHash
   .from_bytes(toBytes(dataHash));
 
 export const deserializeEd25519KeyHash = (ed25519KeyHash: string) => csl.Ed25519KeyHash
   .from_bytes(toBytes(ed25519KeyHash));
+
+export const deserializeNativeScript = (nativeScript: string) => csl.NativeScript
+  .from_bytes(toBytes(nativeScript));
 
 export const deserializePlutusData = (plutusData: string) => csl.PlutusData
   .from_bytes(toBytes(plutusData));
@@ -24,6 +30,9 @@ export const deserializeScriptHash = (scriptHash: string) => csl.ScriptHash
 
 export const deserializeTx = (tx: string) => csl.Transaction
   .from_bytes(toBytes(tx));
+
+export const deserializeTxBody = (txBody: string) => csl.TransactionBody
+  .from_bytes(toBytes(txBody));
 
 export const deserializeTxHash = (txHash: string) => csl.TransactionHash
   .from_bytes(toBytes(txHash));

@@ -1,7 +1,9 @@
+import { Quantity, Unit } from './Asset';
+
 export type AssetExtended = {
-  unit: string;
+  unit: Unit;
   policyId: string;
   assetName: string;
   fingerprint: string;
-  quantity: string;
+  quantity: Quantity;
 };

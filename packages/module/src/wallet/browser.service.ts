@@ -1,10 +1,12 @@
 import { csl } from '@mesh/core';
-import { DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH } from '@mesh/common/constants';
+import {
+  DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH, SUPPORTED_WALLETS,
+} from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
-  fromTxUnspentOutput, fromValue, resolveFingerprint, toUTF8,
+  fromTxUnspentOutput, fromValue, resolveFingerprint, toUTF8, toAddress,
 } from '@mesh/common/utils';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
@@ -12,7 +14,7 @@ import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private constructor(private readonly _walletInstance: WalletInstance) {}
 
-  static supportedWallets = ['flint', 'nami', 'eternl', 'nufi'];
+  static supportedWallets = SUPPORTED_WALLETS;
 
   static getInstalledWallets(): Wallet[] {
     if (window.cardano === undefined) return [];
@@ -33,9 +35,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       if (walletInstance !== undefined)
         return new BrowserWallet(walletInstance);
 
-      throw new Error(`Couldn't create an instance of wallet: ${walletName}.`);
+      throw new Error(`Couldn't create an instance of wallet: ${walletName}`);
     } catch (error) {
-      throw error;
+      throw new Error(`[BrowserWallet] An error occurred during enable: ${error}.`);
     }
   }
 
@@ -80,25 +82,25 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return deserializedUtxos.map((du) => fromTxUnspentOutput(du));
   }
 
-  async signData(payload: string): Promise<string> {
-    const changeAddress = await this._walletInstance.getChangeAddress();
-    return this._walletInstance.signData(changeAddress, payload);
+  signData(address: string, payload: string): Promise<string> {
+    const signerAddress = toAddress(address).to_hex();
+    return this._walletInstance.signData(signerAddress, payload);
   }
 
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
     try {
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = deserializeTxWitnessSet(
-        fromBytes(tx.witness_set().to_bytes())
+        tx.witness_set().to_hex(),
       );
 
       const walletWitnessSet = await this._walletInstance.signTx(
-        unsignedTx, partialSign
+        unsignedTx, partialSign,
       );
 
-      const walletVerificationKeys = deserializeTxWitnessSet(walletWitnessSet).vkeys();
-      if (walletVerificationKeys !== undefined)
-        txWitnessSet.set_vkeys(walletVerificationKeys);
+      const walletVkeywitnesses = deserializeTxWitnessSet(walletWitnessSet).vkeys();
+      if (walletVkeywitnesses !== undefined)
+        txWitnessSet.set_vkeys(walletVkeywitnesses);
 
       const signedTx = fromBytes(
         csl.Transaction.new(
@@ -110,7 +112,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       return signedTx;
     } catch (error) {
-      throw error;
+      throw new Error(`[BrowserWallet] An error occurred during signTx: ${error}.`);
     }
   }
 
@@ -169,13 +171,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   async getPolicyIds(): Promise<string[]> {
     const balance = await this.getBalance();
     return Array.from(
-      new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH)))
+      new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH))),
     ).filter((p) => p !== 'lovelace');
   }
 
-  private static resolveInstance(
-    walletName: string
-  ): Promise<WalletInstance> | undefined {
+  private static resolveInstance(walletName: string) {
     if (window.cardano === undefined) return undefined;
 
     const wallet = BrowserWallet.supportedWallets
@@ -191,7 +191,7 @@ declare global {
   interface Window {
     cardano: Cardano;
   }
-};
+}
 
 type Cardano = {
   [key: string]: {

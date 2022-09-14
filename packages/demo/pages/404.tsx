@@ -10,16 +10,8 @@ export default function Custom404() {
           </div>
           <div className="grid grid-cols-1 justify-items-center">
             <p className="mb-4 text-3xl tracking-tight font-bold text-gray-900 md:text-4xl dark:text-white">
-              Whoops! This page doesn&apos;t exist.
+              Whoops! This page doesn't exist.
             </p>
-            <p className="mb-4 text-lg font-light text-gray-500 dark:text-gray-400">
-              Here are some helpful links:
-            </p>
-            <div className="grid grid-cols-3 gap-1 justify-items-center">
-              <Link href={'/guides'}>Guides</Link>
-              <Link href={'/apis/wallet'}>Wallet</Link>
-              <Link href={'/apis/transaction'}>Transaction</Link>
-            </div>
           </div>
         </div>
       </div>

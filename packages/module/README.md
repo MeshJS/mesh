@@ -16,17 +16,14 @@ yarn create next-app --typescript .
 yarn add @martifylabs/mesh
 ```
 
-#### 3. In `next.config.js`, add:
+#### 3. In `next.config.js`, add `webpack`:
 ```js
 const nextConfig = {
   ...
   webpack: function (config, options) {
     config.experiments = {
       asyncWebAssembly: true,
-      layers: true,
-      topLevelAwait: true,
     };
-    config.resolve.fallback = { fs: false };
     return config;
   },
 };
@@ -43,14 +40,12 @@ const nextConfig = {
   webpack: function (config, options) {
     config.experiments = {
       asyncWebAssembly: true,
-      layers: true,
-      topLevelAwait: true,
     };
-    config.resolve.fallback = { fs: false };
     return config;
   },
 };
 module.exports = nextConfig;
+
 ```
 </p>
 </details>

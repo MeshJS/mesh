@@ -1,5 +1,9 @@
 export type Data =
   | string
   | number
-  | Data[]
-  | { [key: string]: Data };
+  | Array<Data>
+  | Map<Data, Data>
+  | {
+      alternative: number;
+      fields: Array<Data>;
+    };

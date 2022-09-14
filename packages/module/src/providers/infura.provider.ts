@@ -1,8 +1,9 @@
 import axios, { AxiosInstance } from 'axios';
 import { IUploader } from '@mesh/common/contracts';
+import { parseHttpError } from '@mesh/common/utils';
 
 export class InfuraProvider implements IUploader {
-  private _axiosInstance!: AxiosInstance;
+  private _axiosInstance: AxiosInstance;
 
   constructor(
     projectId: string,
@@ -15,7 +16,7 @@ export class InfuraProvider implements IUploader {
 
     this._axiosInstance = axios.create({
       baseURL: `https://${host}:${port}/api/v${version}`,
-      headers: { auth: `${projectId}:${projectSecret}` },
+      auth: { username: projectId, password: projectSecret },
     });
   }
 
@@ -29,9 +30,9 @@ export class InfuraProvider implements IUploader {
       if (status === 200)
         return data as string;
 
-      throw data;
+      throw parseHttpError(data);
     } catch (error) {
-      throw error;
+      throw parseHttpError(error);
     }
   }
 }

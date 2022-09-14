@@ -1,72 +1,139 @@
-import { csl } from '@mesh/core';
+import { csl, largestFirstMultiAsset } from '@mesh/core';
 import {
   DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
+  POLICY_ID_LENGTH, SUPPORTED_COST_MODELS,
 } from '@mesh/common/constants';
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
-  buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
-  deserializeEd25519KeyHash, deserializePlutusScript, fromBytes,
-  resolveAddressKeyHash, toAddress, toPlutusData, toRedeemer,
-  toTxUnspentOutput, toValue,
+  buildDataCost, buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
+  deserializeEd25519KeyHash, deserializeNativeScript, deserializePlutusScript,
+  fromTxUnspentOutput, fromUTF8, resolveKeyHash, toAddress, toBytes, toPlutusData,
+  toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
-import type { Action, Asset, Data, Protocol, UTxO } from '@mesh/common/types';
+import type {
+  Action, Asset, Data, Era, Mint, Protocol, Quantity, Recipient, Unit, UTxO,
+} from '@mesh/common/types';
 
 @Trackable
-export class TransactionService {
-  private _change?: Address;
+export class Transaction {
+  private _changeAddress?: Address;
+  private _recipients = new Map<Recipient, Asset[]>();
+  private _totalBurns = new Map<Unit, Quantity>();
+  private _totalMints = new Map<Unit, Mint>();
 
+  private readonly _era?: Era;
   private readonly _initiator?: IInitiator;
+  private readonly _protocolParameters: Protocol;
   private readonly _txBuilder: TransactionBuilder;
   private readonly _txInputsBuilder: TxInputsBuilder;
 
   constructor(options = {} as Partial<CreateTxOptions>) {
+    this._era = options.era;
     this._initiator = options.initiator;
+    this._protocolParameters = options.parameters ?? DEFAULT_PROTOCOL_PARAMETERS;
     this._txBuilder = buildTxBuilder(options.parameters);
     this._txInputsBuilder = csl.TxInputsBuilder.new();
   }
 
   async build(): Promise<string> {
     try {
-      if (this.notVisited('redeemFromScript') === false) {
+      if (this.notVisited('redeemValue') === false) {
         await this.addCollateralIfNeeded();
         await this.addRequiredSignersIfNeeded();
       }
 
+      await this.forgeAssetsIfNeeded();
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
 
-      return fromBytes(this._txBuilder.build_tx().to_bytes());
+      return this._txBuilder.build_tx().to_hex();
     } catch (error) {
-      throw error;
+      throw new Error(`[Transaction] An error occurred during build: ${error}.`);
     }
   }
 
+  burnAsset(forgeScript: string, asset: Asset): Transaction {
+    const totalQuantity = this._totalBurns.has(asset.unit)
+      ? csl.BigNum.from_str(this._totalBurns.get(asset.unit) ?? '0')
+          .checked_add(csl.BigNum.from_str(asset.quantity)).to_str()
+      : asset.quantity;
+
+    this._txBuilder.add_mint_asset(
+      deserializeNativeScript(forgeScript),
+      csl.AssetName.new(toBytes(asset.unit.slice(POLICY_ID_LENGTH))),
+      csl.Int.new_negative(csl.BigNum.from_str(totalQuantity)),
+    );
+
+    this._totalBurns.set(asset.unit, totalQuantity);
+
+    return this;
+  }
+
   @Checkpoint()
-  redeemFromScript(
-    value: UTxO, script: string,
-    options = {} as Partial<RedeemFromScriptOptions>
-  ): TransactionService {
+  mintAsset(forgeScript: string, mint: Mint): Transaction {
+    const toAsset = (forgeScript: string, mint: Mint): Asset => {
+      const policyId = deserializeNativeScript(forgeScript).hash().to_hex();
+      const assetName = fromUTF8(mint.assetName);
+
+      return {
+        unit: `${policyId}${assetName}`,
+        quantity: mint.assetQuantity,
+      };
+    };
+
+    const asset = toAsset(forgeScript, mint);
+
+    const existingQuantity = csl.BigNum
+      .from_str(this._totalMints.get(asset.unit)?.assetQuantity ?? '0');
+
+    const totalQuantity = existingQuantity
+      .checked_add(csl.BigNum.from_str(asset.quantity));
+
+    this._txBuilder.add_mint_asset(
+      deserializeNativeScript(forgeScript),
+      csl.AssetName.new(toBytes(fromUTF8(mint.assetName))),
+      csl.Int.new(totalQuantity),
+    );
+
+    if (this._recipients.has(mint.recipient))
+      this._recipients.get(mint.recipient)?.push(asset);
+    else this._recipients.set(mint.recipient, [asset]);
+
+    this._totalMints.set(asset.unit, {
+      ...mint, assetQuantity: totalQuantity.to_str(),
+    });
+
+    return this;
+  }
+
+  @Checkpoint()
+  redeemValue(
+    plutusScript: string, value: UTxO,
+    options = {} as Partial<RedeemValueOptions>,
+  ): Transaction {
     const utxo = toTxUnspentOutput(value);
     const datum: Data = options.datum ?? [];
     const redeemer: Action = {
-      alternative: 0,
       budget: DEFAULT_REDEEMER_BUDGET,
-      data: [] as Data,
       index: this._txInputsBuilder.inputs().len(),
       tag: 'SPEND',
+      data: {
+        alternative: 0,
+        fields: []
+      },
       ...options.redeemer,
     };
 
     const plutusWitness = csl.PlutusWitness.new(
-      deserializePlutusScript(script),
+      deserializePlutusScript(plutusScript),
       toPlutusData(datum),
       toRedeemer(redeemer),
     );
 
     this._txInputsBuilder.add_plutus_script_input(
-      plutusWitness, utxo.input(), utxo.output().amount()
+      plutusWitness, utxo.input(), utxo.output().amount(),
     );
 
     return this;
@@ -75,26 +142,20 @@ export class TransactionService {
   @Checkpoint()
   sendAssets(
     address: string, assets: Asset[],
-    options = {} as Partial<SendAssetsOptions>
-  ): TransactionService {
+    options = {} as Partial<LockValueOptions>,
+  ): Transaction {
     const amount = toValue(assets);
-    const multiasset = amount.multiasset();
+    const multiAsset = amount.multiasset();
 
-    if (amount.is_zero() || multiasset === undefined)
+    if (amount.is_zero() || multiAsset === undefined)
       return this;
 
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
 
     const txOutput = txOutputBuilder.next()
-      .with_asset_and_min_required_coin_by_utxo_cost(
-        multiasset,
-        csl.DataCost.new_coins_per_byte(
-          csl.BigNum.from_str(
-            options.coinsPerByte ?? DEFAULT_PROTOCOL_PARAMETERS.coinsPerUTxOSize
-          )
-        )
-      )
-      .build();
+      .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
+        buildDataCost(this._protocolParameters.coinsPerUTxOSize),
+      ).build();
 
     this._txBuilder.add_output(txOutput);
 
@@ -103,8 +164,8 @@ export class TransactionService {
 
   sendLovelace(
     address: string, lovelace: string,
-    options = {} as Partial<SendLovelaceOptions>
-  ): TransactionService {
+    options = {} as Partial<LockValueOptions>,
+  ): Transaction {
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
 
     const txOutput = txOutputBuilder.next()
@@ -119,8 +180,8 @@ export class TransactionService {
   @Checkpoint()
   sendValue(
     address: string, value: UTxO,
-    options = {} as Partial<SendValueOptions>
-  ): TransactionService {
+    options = {} as Partial<LockValueOptions>,
+  ): Transaction {
     const amount = toValue(value.output.amount);
     const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
 
@@ -133,14 +194,14 @@ export class TransactionService {
     return this;
   }
 
-  setChangeAddress(address: string): TransactionService {
-    this._change = toAddress(address);
+  setChangeAddress(address: string): Transaction {
+    this._changeAddress = toAddress(address);
 
     return this;
   }
 
   @Checkpoint()
-  setCollateral(collateral: UTxO[]): TransactionService {
+  setCollateral(collateral: UTxO[]): Transaction {
     const txInputsBuilder = buildTxInputsBuilder(collateral);
 
     this._txBuilder.set_collateral(txInputsBuilder);
@@ -148,10 +209,10 @@ export class TransactionService {
     return this;
   }
 
-  setMetadata(key: number, json: string): TransactionService {
+  setMetadata(key: number, json: string): Transaction {
     this._txBuilder.add_json_metadatum_with_schema(
       csl.BigNum.from_str(key.toString()),
-      json, csl.MetadataJsonSchema.DetailedSchema
+      json, csl.MetadataJsonSchema.NoConversions,
     );
 
     return this;
@@ -161,7 +222,7 @@ export class TransactionService {
   setRequiredSigners(addresses: string[]) {
     const signatures = Array.from(new Set(
       addresses
-        .map((address) => resolveAddressKeyHash(address))
+        .map((address) => resolveKeyHash(address))
         .map((keyHash) => deserializeEd25519KeyHash(keyHash))
     ));
 
@@ -172,33 +233,55 @@ export class TransactionService {
     return this;
   }
 
-  setTimeToLive(slot: string): TransactionService {
+  setTimeToLive(slot: string): Transaction {
     this._txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot));
 
     return this;
   }
 
   @Checkpoint()
-  setTxInputs(inputs: UTxO[]): TransactionService {
+  setTxInputs(inputs: UTxO[]): Transaction {
     inputs
       .map((input) => toTxUnspentOutput(input))
       .forEach((utxo) => {
         this._txInputsBuilder.add_input(
           utxo.output().address(),
           utxo.input(),
-          utxo.output().amount()
+          utxo.output().amount(),
         );
       });
 
     return this;
   }
 
+  private async addBurnInputsIfNeeded() {
+    if (
+      this._initiator
+      && this._totalBurns.size > 0
+      && this.notVisited('setTxInputs')
+    ) {
+      const utxos = await this._initiator.getAvailableUtxos();
+      const inputs = largestFirstMultiAsset(this._totalBurns,
+        utxos.map((utxo) => fromTxUnspentOutput(utxo)),
+      ).map((utxo) => toTxUnspentOutput(utxo));
+
+      inputs
+        .forEach((utxo) => {
+          this._txInputsBuilder.add_input(
+            utxo.output().address(),
+            utxo.input(),
+            utxo.output().amount(),
+          );
+        });
+    }
+  }
+
   private async addChangeAddress() {
-    if (this._initiator && this._change === undefined) {
+    if (this._initiator && this._changeAddress === undefined) {
       const change = await this._initiator.getUsedAddress();
       this._txBuilder.add_change_if_needed(change);
-    } else if (this._change !== undefined) {
-      this._txBuilder.add_change_if_needed(this._change);
+    } else if (this._changeAddress !== undefined) {
+      this._txBuilder.add_change_if_needed(this._changeAddress);
     }
   }
 
@@ -212,7 +295,7 @@ export class TransactionService {
   private async addRequiredSignersIfNeeded() {
     if (this._initiator && this.notVisited('setRequiredSigners')) {
       const usedAddress = await this._initiator.getUsedAddress();
-      const keyHash = resolveAddressKeyHash(usedAddress.to_bech32());
+      const keyHash = resolveKeyHash(usedAddress.to_bech32());
       this._txBuilder.add_required_signer(deserializeEd25519KeyHash(keyHash));
     }
   }
@@ -220,16 +303,12 @@ export class TransactionService {
   private async addTxInputsAsNeeded() {
     this._txBuilder.set_inputs(this._txInputsBuilder);
 
-    if (this.notVisited('redeemFromScript') === false) {
-      const costModels = csl.TxBuilderConstants.plutus_vasil_cost_models();
-      this._txBuilder.calc_script_data_hash(costModels);
-    }
-
     if (this.notVisited('setTxInputs')) {
       const availableUtxos = await this.getAvailableUtxos();
 
-      const includeMultiAsset =
-        !this.notVisited('sendAssets') || !this.notVisited('sendValue');
+      const includeMultiAsset = !this.notVisited('mintAsset')
+        || !this.notVisited('sendAssets')
+        || !this.notVisited('sendValue');
 
       const coinSelectionStrategy = includeMultiAsset
         ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
@@ -237,6 +316,32 @@ export class TransactionService {
 
       this._txBuilder.add_inputs_from(availableUtxos, coinSelectionStrategy);
     }
+
+    if (this.notVisited('redeemValue') === false) {
+      const costModels =
+        this._era && SUPPORTED_COST_MODELS.get(this._era)
+          ? SUPPORTED_COST_MODELS.get(this._era)
+          : csl.TxBuilderConstants.plutus_vasil_cost_models();
+
+      this._txBuilder.calc_script_data_hash(costModels ?? csl.Costmdls.new());
+    }
+  }
+
+  private async forgeAssetsIfNeeded() {
+    await this.addBurnInputsIfNeeded();
+
+    this._totalMints.forEach((mint, unit) => {
+      this._txBuilder.add_json_metadatum(
+        csl.BigNum.from_str(mint.label),
+        JSON.stringify({
+          [`${unit.slice(0, POLICY_ID_LENGTH)}`]: {
+            [`${mint.assetName}`]: { ...mint.metadata },
+          },
+        }),
+      );
+    });
+
+    this.addMintOutputs();
   }
 
   private async getAvailableUtxos() {
@@ -248,11 +353,32 @@ export class TransactionService {
     const availableUtxos = await this._initiator
       .getAvailableUtxos();
 
-      availableUtxos.forEach((utxo) => {
+    availableUtxos.forEach((utxo) => {
       txUnspentOutputs.add(utxo);
     });
 
     return txUnspentOutputs;
+  }
+
+  private addMintOutputs() {
+    this._recipients.forEach((assets, recipient) => {
+      const amount = toValue(assets);
+      const multiAsset = amount.multiasset();
+
+      if (multiAsset !== undefined) {
+        const txOutputBuilder = buildTxOutputBuilder(
+          recipient.address,
+          recipient.datum,
+        );
+
+        const txOutput = txOutputBuilder.next()
+          .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
+            buildDataCost(this._protocolParameters.coinsPerUTxOSize),
+          ).build();
+
+        this._txBuilder.add_output(txOutput);
+      }
+    });
   }
 
   private notVisited(checkpoint: string) {
@@ -264,24 +390,16 @@ export class TransactionService {
 }
 
 type CreateTxOptions = {
-  parameters: Protocol;
+  era: Era;
   initiator: IInitiator;
+  parameters: Protocol;
 };
 
-type RedeemFromScriptOptions = {
+type LockValueOptions = {
+  datum: Data;
+};
+
+type RedeemValueOptions = {
   datum: Data;
   redeemer: Action;
-};
-
-type SendAssetsOptions = {
-  coinsPerByte: string;
-  datum: Data;
-};
-
-type SendLovelaceOptions = {
-  datum: Data;
-};
-
-type SendValueOptions = {
-  datum: Data;
 };

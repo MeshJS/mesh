@@ -1,0 +1,19 @@
+.grid2cols {
+  @apply grid gap-4 grid-cols-1 sm:grid-cols-2;
+}
+
+.tableForInputs {
+  @apply border border-slate-300 w-full text-sm text-left text-gray-500 dark:text-gray-400;
+}
+
+.tableForInputsThead {
+  @apply text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-400;
+}
+
+.typography {
+  @apply format lg:format-lg dark:format-invert;
+}
+
+.thead {
+  @apply text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-400;
+}
