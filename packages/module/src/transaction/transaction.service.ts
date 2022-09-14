@@ -114,14 +114,16 @@ export class Transaction {
     options = {} as Partial<RedeemValueOptions>,
   ): Transaction {
     const utxo = toTxUnspentOutput(value);
-    const datum: Data = options.datum ?? [];
+    const datum: Data = options.datum ?? {
+      alternative: 0, fields: [],
+    };
     const redeemer: Action = {
       budget: DEFAULT_REDEEMER_BUDGET,
       index: this._txInputsBuilder.inputs().len(),
       tag: 'SPEND',
       data: {
         alternative: 0,
-        fields: []
+        fields: [],
       },
       ...options.redeemer,
     };
