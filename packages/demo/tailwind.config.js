@@ -23,6 +23,17 @@ module.exports = {
           900: '#1e3a8a',
         },
       },
+      typography: {
+        DEFAULT: {
+          css: {
+            pre: {
+              margin: '0px',
+              padding: '0px',
+              'background-color': 'transparent',
+            },
+          },
+        },
+      },
     },
     fontFamily: {
       body: [

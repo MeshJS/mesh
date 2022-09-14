@@ -9,7 +9,9 @@ import ConnectCipWallet from '../common/connectCipWallet';
 import Input from '../../../ui/input';
 
 export default function GetPolicyIdAssets() {
-  const [policyId, setPolicyId] = useState<string>('');
+  const [policyId, setPolicyId] = useState<string>(
+    '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a42'
+  );
   return (
     <SectionTwoCol
       sidebarTo="getPolicyIdAssets"
@@ -48,17 +50,17 @@ function Right({ policyId, setPolicyId }) {
     setLoading(false);
   }
   return (
-    <>
+    <Card>
+      <Input
+        value={policyId}
+        onChange={(e) => setPolicyId(e.target.value)}
+        placeholder="Policy ID"
+        label="Policy ID"
+      />
       {hasAvailableWallets && (
-        <Card>
+        <>
           {walletConnected ? (
             <>
-              <Input
-                value={policyId}
-                onChange={(e) => setPolicyId(e.target.value)}
-                placeholder="Policy ID"
-                label="Policy ID"
-              />
               <RunDemoButton
                 runDemoFn={runDemo}
                 loading={loading}
@@ -69,8 +71,8 @@ function Right({ policyId, setPolicyId }) {
           ) : (
             <ConnectCipWallet />
           )}
-        </Card>
+        </>
       )}
-    </>
+    </Card>
   );
 }

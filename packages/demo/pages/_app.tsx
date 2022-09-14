@@ -5,6 +5,9 @@ import { WalletProvider } from '../contexts/wallet';
 import Navbar from '../components/site/navbar';
 import Footer from '../components/site/footer';
 
+import "../styles/highlight/stackoverflow-dark.css";
+
+
 function MyApp({ Component, pageProps }: AppProps) {
   return (
     <WalletProvider>

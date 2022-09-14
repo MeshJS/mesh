@@ -42,9 +42,14 @@ function Left() {
 }
 
 function Right() {
+  const { hasAvailableWallets } = useWallet();
   return (
-    <Card>
-      <ConnectCipWallet />
-    </Card>
+    <>
+      {hasAvailableWallets && (
+        <Card>
+          <ConnectCipWallet />
+        </Card>
+      )}
+    </>
   );
 }

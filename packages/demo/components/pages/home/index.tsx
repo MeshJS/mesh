@@ -99,7 +99,7 @@ function Features() {
             </p>
             <Link href="/guides">
               <div
-                className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
+                className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400 cursor-pointer"
               >
                 Learn how to get started
                 <ChevronRightIcon className="ml-1 w-5 h-5" />

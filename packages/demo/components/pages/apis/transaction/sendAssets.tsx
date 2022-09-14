@@ -86,20 +86,20 @@ function Left({ userInput }) {
   codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
     if ('lovelace' in recipient.assets && recipient.assets.lovelace > 0) {
-      codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
+      codeSnippet += `\n  .sendLovelace(\n    '${recipient.address}',\n    '${recipient.assets.lovelace}'\n  )`;
     }
 
     let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
       return assetId != 'lovelace' && recipient.assets[assetId] > 0;
     });
     if (nativeAssets.length) {
-      codeSnippet += `\n  .sendAssets(\n    "${recipient.address}",`;
+      codeSnippet += `\n  .sendAssets(\n    '${recipient.address}',`;
       codeSnippet += `\n    [`;
       for (const asset of nativeAssets) {
         if (recipient.assets[asset] > 0) {
           codeSnippet += `\n      {`;
-          codeSnippet += `\n        unit: "${asset}",`;
-          codeSnippet += `\n        quantity: "1",`;
+          codeSnippet += `\n        unit: '${asset}',`;
+          codeSnippet += `\n        quantity: '1',`;
           codeSnippet += `\n      },`;
         }
       }
@@ -115,7 +115,7 @@ function Left({ userInput }) {
   let codeSnippet1 = `let assets: Asset[] = [];\n`;
   codeSnippet1 += `for (const asset of nativeAssets) {\n`;
   codeSnippet1 += `  let thisAsset = {\n`;
-  codeSnippet1 += `    unit: "64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e",\n`;
+  codeSnippet1 += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
   codeSnippet1 += `    quantity: '1',\n`;
   codeSnippet1 += `  };\n`;
   codeSnippet1 += `  assets.push(thisAsset);\n`;
