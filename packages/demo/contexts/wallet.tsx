@@ -31,7 +31,9 @@ export const WalletProvider = ({ children }) => {
     'meshUserStorage',
     {}
   );
-  const [userStorage, setUserStorage] = useState<{}>(userLocalStorage);
+  const [userStorage, setUserStorage] = useState<{ lockedAssetUnit: '' }>(
+    userLocalStorage
+  );
 
   useEffect(() => {
     async function init() {
