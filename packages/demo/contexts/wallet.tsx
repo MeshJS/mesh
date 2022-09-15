@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import { BrowserWallet } from '@martifylabs/mesh';
 import type { Wallet } from '@martifylabs/mesh';
+import useLocalStorage from '../hooks/useLocalStorage';
 
 const WalletContext = createContext({
   wallet: {} as BrowserWallet,
@@ -16,6 +17,8 @@ const WalletContext = createContext({
   connectWallet: async (walletName: string) => {},
   availableWallets: [] as Wallet[],
   hasAvailableWallets: false,
+  userStorage: { lockedAssetUnit: '' },
+  updateUserStorage: (key, value) => {},
 });
 
 export const WalletProvider = ({ children }) => {
@@ -24,6 +27,11 @@ export const WalletProvider = ({ children }) => {
   const [connecting, setConnecting] = useState<boolean>(false);
   const [walletNameConnected, setWalletNameConnected] = useState<string>('');
   const [availableWallets, setAvailableWallets] = useState<Wallet[]>([]);
+  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
+    'meshUserStorage',
+    {}
+  );
+  const [userStorage, setUserStorage] = useState<{}>(userLocalStorage);
 
   useEffect(() => {
     async function init() {
@@ -44,6 +52,17 @@ export const WalletProvider = ({ children }) => {
     setConnecting(false);
   };
 
+  function updateUserStorage(key, value) {
+    let updateUserStorage = { ...userStorage };
+    if (value) {
+      updateUserStorage[key] = value;
+    } else {
+      delete updateUserStorage[key];
+    }
+    setUserStorage(updateUserStorage);
+    setUserlocalStorage(updateUserStorage);
+  }
+
   const memoedValue = useMemo(
     () => ({
       wallet,
@@ -53,6 +72,8 @@ export const WalletProvider = ({ children }) => {
       connectWallet,
       availableWallets,
       hasAvailableWallets,
+      userStorage,
+      updateUserStorage,
     }),
     [
       wallet,
@@ -61,6 +82,8 @@ export const WalletProvider = ({ children }) => {
       walletNameConnected,
       availableWallets,
       hasAvailableWallets,
+      userStorage,
+      updateUserStorage,
     ]
   );
 

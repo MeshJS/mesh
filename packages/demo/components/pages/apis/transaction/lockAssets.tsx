@@ -7,21 +7,24 @@ import SectionTwoCol from '../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../common/connectCipWallet';
 import Input from '../../../ui/input';
-import Button from '../../../ui/button';
-import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses } from '../../../../configs/demo';
-import { Transaction } from '@martifylabs/mesh';
+import { Transaction, Asset } from '@martifylabs/mesh';
 import FetchSelectAssets from '../common/fetchSelectAssets';
 
+// always succeed
+const script = '4e4d01000033222220051200120011';
+const scriptAddress =
+  'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
+
 export default function LockAssets() {
-  const { wallet, walletConnected } = useWallet();
+  const { walletConnected } = useWallet();
+  const [inputDatum, setInputDatum] = useState<string>('supersecret'); // user input for datum
   const [userInput, setUserInput] = useState<
-    { address: string; assets: { lovelace: number } }[]
+    { assets: { [unit: string]: string } }[]
   >([
     {
-      address: demoAddresses.testnet,
       assets: {
-        lovelace: 1000000,
+        '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e':
+          '1',
       },
     },
   ]);
@@ -30,13 +33,7 @@ export default function LockAssets() {
     async function init() {
       const newRecipents = [
         {
-          address:
-            (await wallet.getNetworkId()) === 1
-              ? demoAddresses.mainnet
-              : demoAddresses.testnet,
-          assets: {
-            lovelace: 1000000,
-          },
+          assets: {},
         },
       ];
       setUserInput(newRecipents);
@@ -48,42 +45,42 @@ export default function LockAssets() {
 
   function updateField(action, index, field, value) {
     let updated = [...userInput];
-    if (action == 'add') {
-      updated.push({ address: '', assets: { lovelace: 1000000 } });
-    } else if (action == 'update') {
-      if (field == 'address') {
-        updated[index].address = value;
+    if (action == 'update') {
+      if (value == 0) {
+        delete updated[index].assets[field];
       } else {
-        updated[index].assets[field] = value;
+        if (value >= 0) {
+          updated[index].assets[field] = value;
+        }
       }
-    } else if (action == 'remove') {
-      updated.splice(index, 1);
     }
     setUserInput(updated);
   }
 
   return (
     <SectionTwoCol
-      sidebarTo="sendAssets"
-      header="Send Multiple Assets to Addresses"
-      leftFn={Left({ userInput })}
-      rightFn={Right({ userInput, updateField })}
+      sidebarTo="lockAssets"
+      header="Lock assets on smart contract"
+      leftFn={Left({ userInput, inputDatum })}
+      rightFn={Right({
+        userInput,
+        updateField,
+        inputDatum,
+        setInputDatum,
+      })}
     />
   );
 }
 
-function Left({ userInput }) {
-  let codeSnippet = `const tx = new Transaction({ initiator: wallet })`;
+function Left({ userInput, inputDatum }) {
+  let codeSnippet = `import { Transaction, Asset } from '@martifylabs/mesh';\n\n`;
+  codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
-    if ('lovelace' in recipient.assets && recipient.assets.lovelace > 0) {
-      codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
-    }
-
     let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
       return assetId != 'lovelace';
     });
     if (nativeAssets.length) {
-      codeSnippet += `\n  .sendAssets(\n    "${recipient.address}",`;
+      codeSnippet += `\n  .sendAssets(\n    "${scriptAddress}",`;
       codeSnippet += `\n    [`;
       for (const asset of nativeAssets) {
         codeSnippet += `\n      {`;
@@ -91,7 +88,8 @@ function Left({ userInput }) {
         codeSnippet += `\n        quantity: "1",`;
         codeSnippet += `\n      },`;
       }
-      codeSnippet += `\n    ]`;
+      codeSnippet += `\n    ],\n`;
+      codeSnippet += `    { datum: '${inputDatum}' }`;
       codeSnippet += `\n  )`;
     }
   }
@@ -102,28 +100,35 @@ function Left({ userInput }) {
 
   return (
     <>
-      <p>For each recipients, append:</p>
-      <Codeblock
-        data={`.sendLovelace(address: string, lovelace: string)`}
-        isJson={false}
-      />
       <p>
-        <code>.build()</code> construct the transaction and returns a
-        transaction CBOR. Behind the scene, it selects necessary inputs
-        belonging to the wallet, calculate the fee for this transaction and
-        return remaining assets to the change address. Use{' '}
-        <code>wallet.signTx()</code> to sign transaction CBOR.
+        Token locking is a feature where certain assets are reserved on the
+        smart contract. The assets can only be unlocked when certain conditions
+        are met, for example, when making a purchase.
       </p>
+      <p>
+        In this showcase, we will lock selected assets from your wallet to an
+        <code>always succeed</code> smart contract, where unlocking assets
+        requires the correct datum. In practice, multiple assets (both native
+        assets and lovelace) can be sent to the contract in a single
+        transaction; in this demo, we restrict to only one asset.
+      </p>
+      <p>Here's the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
+      <p>
+        If the transaction is successful, you may want to copy one of the
+        asset's <code>unit</code> and the <code>datum</code> you used in this
+        transaction. These information are required to unlock the assets.
+      </p>
     </>
   );
 }
 
-function Right({ userInput, updateField }) {
+function Right({ userInput, updateField, inputDatum, setInputDatum }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, walletConnected, hasAvailableWallets, updateUserStorage } =
+    useWallet();
 
   async function runDemo() {
     setState(1);
@@ -132,29 +137,17 @@ function Right({ userInput, updateField }) {
     try {
       const tx = new Transaction({ initiator: wallet });
 
-      for (const recipient of userInput) {
-        if (recipient.assets.lovelace) {
-          tx.sendLovelace(
-            recipient.address,
-            recipient.assets.lovelace.toString()
-          );
-        }
-        let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
-          return assetId != 'lovelace';
-        });
-        if (nativeAssets.length) {
-          let assets: { unit: string; quantity: string }[] = [];
-          for (const asset of nativeAssets) {
-            let thisAsset = {
-              unit: asset,
-              quantity: '1',
-            };
-            assets.push(thisAsset);
-          }
-          tx.sendAssets(recipient.address, assets);
-        }
-      }
+      const assets: Asset[] = Object.keys(userInput[0].assets).map(
+        (asset: string) => ({
+          unit: asset,
+          quantity: '1',
+        })
+      );
 
+      console.log(111, Object.keys(userInput[0].assets)[0]);
+      updateUserStorage('lockedAssetUnit', Object.keys(userInput[0].assets)[0]);
+
+      tx.sendAssets(scriptAddress, assets, { datum: inputDatum });
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
@@ -168,7 +161,12 @@ function Right({ userInput, updateField }) {
 
   return (
     <Card>
-      <InputTable userInput={userInput} updateField={updateField} />
+      <InputTable
+        userInput={userInput}
+        updateField={updateField}
+        inputDatum={inputDatum}
+        setInputDatum={setInputDatum}
+      />
       {hasAvailableWallets && (
         <>
           {walletConnected ? (
@@ -197,14 +195,12 @@ function Right({ userInput, updateField }) {
   );
 }
 
-function InputTable({ userInput, updateField }) {
-  const { walletConnected } = useWallet();
-
+function InputTable({ userInput, updateField, inputDatum, setInputDatum }) {
   function selectAsset(id, unit) {
     if (unit in userInput[id].assets) {
-      updateField('update', id, unit, 0);
+      updateField('update', id, unit, '0');
     } else {
-      updateField('update', id, unit, 1);
+      updateField('update', id, unit, '1');
     }
   }
 
@@ -212,74 +208,33 @@ function InputTable({ userInput, updateField }) {
     <div className="overflow-x-auto relative">
       <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 m-0">
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Send ADA to recipients
+          Lock assets in smart contract
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Add or remove recipients, input the address and the amount ADA to
-            send.
+            Define a datum and select assets to lock in smart contract. Note:
+            this demo only works on <code>preview</code> network.
           </p>
         </caption>
         <thead className="thead">
           <tr>
             <th scope="col" className="py-3">
-              Recipients
+              Lock assets in smart contract
             </th>
-            <th scope="col" className="py-3"></th>
           </tr>
         </thead>
         <tbody>
-          {userInput.map((row, i) => {
-            return (
-              <tr
-                className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
-                key={i}
-              >
-                <td className="">
-                  <Input
-                    value={row.address}
-                    onChange={(e) =>
-                      updateField('update', i, 'address', e.target.value)
-                    }
-                    placeholder="Address"
-                    label="Address"
-                  />
-                  <Input
-                    value={row.assets.lovelace}
-                    onChange={(e) =>
-                      updateField('update', i, 'lovelace', e.target.value)
-                    }
-                    placeholder="Amount in Lovelace"
-                    label="Lovelace"
-                  />
-                  {walletConnected && (
-                    <>
-                      <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                        Select assets
-                      </label>
-                      <FetchSelectAssets
-                        index={i}
-                        selectedAssets={row.assets}
-                        selectAssetFn={selectAsset}
-                      />
-                    </>
-                  )}
-                </td>
-                <td className="">
-                  <Button
-                    onClick={() => updateField('remove', i)}
-                    style="error"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                </td>
-              </tr>
-            );
-          })}
-          <tr>
-            <td colSpan={2}>
-              <Button onClick={() => updateField('add')}>
-                <PlusCircleIcon className="m-0 mr-2 w-4 h-4" />
-                Add recipient
-              </Button>
+          <tr className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+            <td>
+              <Input
+                value={inputDatum}
+                onChange={(e) => setInputDatum(e.target.value)}
+                placeholder="Datum"
+                label="Datum"
+              />
+              <FetchSelectAssets
+                index={0}
+                selectedAssets={userInput.length ? userInput[0].assets : []}
+                selectAssetFn={selectAsset}
+              />
             </td>
           </tr>
         </tbody>

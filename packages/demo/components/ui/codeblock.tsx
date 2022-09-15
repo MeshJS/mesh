@@ -1,13 +1,18 @@
-import Highlight from 'react-highlight'
+import Highlight from 'react-highlight';
 
-
-export default function Codeblock({ data, isJson = true }) {
+export default function Codeblock({
+  data,
+  language = 'language-js',
+  isJson = true,
+}) {
   return (
     <div className="max-h-screen overflow-auto">
-      <pre className="">
-        <Highlight className="language-js">
-          {isJson ? JSON.stringify(data, null, 2) : data}
-        </Highlight>
+      <pre>
+        {language == 'language-js' && (
+          <Highlight className={language}>
+            {isJson ? JSON.stringify(data, null, 2) : data}
+          </Highlight>
+        )}
       </pre>
     </div>
   );

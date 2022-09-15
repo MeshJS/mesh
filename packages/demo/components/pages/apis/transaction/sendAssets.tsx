@@ -17,12 +17,13 @@ import type { Asset } from '@martifylabs/mesh';
 export default function SendAssets() {
   const { wallet, walletConnected } = useWallet();
   const [userInput, setUserInput] = useState<
-    { address: string; assets: { lovelace: number } }[]
+    { address: string; assets: { [unit: string]: number } }[]
   >([
     {
       address: demoAddresses.testnet,
       assets: {
         lovelace: 1000000,
+        '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
       },
     },
   ]);
@@ -35,9 +36,7 @@ export default function SendAssets() {
             (await wallet.getNetworkId()) === 1
               ? demoAddresses.mainnet
               : demoAddresses.testnet,
-          assets: {
-            lovelace: 1000000,
-          },
+          assets: {},
         },
       ];
       setUserInput(newRecipents);
@@ -274,7 +273,7 @@ function InputTable({ userInput, updateField }) {
                     label="Address"
                   />
                   <Input
-                    value={row.assets.lovelace}
+                    value={'lovelace' in row.assets ? row.assets.lovelace : 0}
                     type="number"
                     onChange={(e) =>
                       updateField('update', i, 'lovelace', e.target.value)
@@ -283,9 +282,6 @@ function InputTable({ userInput, updateField }) {
                     label="Lovelace"
                   />
                   <>
-                    <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                      Select assets
-                    </label>
                     <FetchSelectAssets
                       index={i}
                       selectedAssets={row.assets}

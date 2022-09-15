@@ -1,12 +1,10 @@
 import '../styles/globals.css';
+import "../styles/highlight/stackoverflow-dark.css";
 import '../styles/custom.css';
 import type { AppProps } from 'next/app';
 import { WalletProvider } from '../contexts/wallet';
 import Navbar from '../components/site/navbar';
 import Footer from '../components/site/footer';
-
-import "../styles/highlight/stackoverflow-dark.css";
-
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (

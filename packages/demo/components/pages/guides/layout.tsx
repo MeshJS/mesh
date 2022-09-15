@@ -23,7 +23,7 @@ export default function GuidesLayout({
         </div>
       </header>
       <Card className="flex relative z-20 justify-between p-6 -m-36 mx-0 max-w-screen-xl xl:-m-32 xl:p-9 xl:mx-auto">
-        <article className="xl:w-[828px] w-full max-w-none format lg:format-lg format-blue dark:format-invert">
+        <article className="xl:w-[828px] w-full max-w-none format format-blue dark:format-invert">
           {children}
         </article>
         <aside className="hidden xl:block" aria-labelledby="sidebar-label">

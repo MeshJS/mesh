@@ -53,7 +53,7 @@ export default function Minting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1) {
+      if (value >= 1 || field == 'metadata') {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -139,7 +139,11 @@ function Left({ userInput }) {
   codeSnippet1 += `const address = usedAddress[0];\n`;
   codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
 
-  let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(defaultMetadata, null, 2)};\n`;
+  let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
+    defaultMetadata,
+    null,
+    2
+  )};\n`;
   codeSnippet2 += `const asset: Mint = {\n`;
   codeSnippet2 += `  assetName: 'MeshToken',\n`;
   codeSnippet2 += `  assetQuantity: '1',\n`;

@@ -8,8 +8,8 @@ export default function FetchSelectAssets({
   selectedAssets,
   selectAssetFn,
 }) {
-  const { wallet, walletConnected } = useWallet();
-  // const [state, setState] = useState<number>(0);
+  const { wallet, walletConnected, connecting } = useWallet();
+  const [loadingAssets, setLoadingAssets] = useState<boolean>(false);
   const [walletAssets, setWalletAssets] = useState<AssetExtended[]>([
     {
       unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',
@@ -27,24 +27,30 @@ export default function FetchSelectAssets({
     },
   ]);
 
-  async function loadAssets() {
-    // setState(1);
-    const assets = await wallet.getAssets();
-    setWalletAssets(assets);
-    // setState(2);
-  }
-
   useEffect(() => {
     async function init() {
-      await loadAssets();
+      setLoadingAssets(true);
+      const assets = await wallet.getAssets();
+      setWalletAssets(assets);
+      setLoadingAssets(false);
     }
     if (walletConnected) {
       init();
     }
   }, [walletConnected]);
 
+  useEffect(() => {
+    if (connecting && !walletConnected) {
+      setWalletAssets([]);
+    }
+  }, [connecting]);
+
   return (
     <>
+      <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+        Select assets
+      </label>
+      {loadingAssets && <div className="mb-2">Fetching assets...</div>}
       <div className="grid grid-cols-1 px-4 lg:grid-cols-2 lg:gap-2">
         {walletAssets.map((asset, i) => {
           return (
