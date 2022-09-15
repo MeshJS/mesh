@@ -11,12 +11,12 @@ const GuidesPage: NextPage = () => {
       link: '/guides/nextjs',
       thumbnail: '/guides/nextjs.png',
     },
-    {
-      title: 'Start a NestJS backend',
-      desc: 'WIP',
-      link: '/guides/nestjs',
-      thumbnail: '/guides/nextjs.png',
-    },
+    // {
+    //   title: 'Start a NestJS backend',
+    //   desc: 'WIP',
+    //   link: '/guides/nestjs',
+    //   thumbnail: '/guides/nextjs.png',
+    // },
     // {
     //   title: 'Lock and redeem assets with Smart Contracts',
     //   desc: 'Coming soon...',
