@@ -1,5 +1,6 @@
 import ApisLayout from '../common/layout';
 import Burning from './burning';
+import DesignDatum from './datum';
 import Hero from './hero';
 import LockAssets from './lockAssets';
 import Minting from './minting';
@@ -15,7 +16,9 @@ export default function Transaction() {
     { label: 'Burning assets', to: 'burning' },
     { label: 'Lock assets on smart contract', to: 'lockAssets' },
     { label: 'Unlock assets on smart contract', to: 'unlockAssets' },
+    { label: 'Designing datum', to: 'datum' },
   ];
+
   return (
     <ApisLayout sidebarItems={sidebarItems}>
       <Hero />
@@ -33,6 +36,7 @@ function Main() {
       <Burning />
       <LockAssets />
       <UnlockAssets />
+      <DesignDatum />
     </>
   );
 }

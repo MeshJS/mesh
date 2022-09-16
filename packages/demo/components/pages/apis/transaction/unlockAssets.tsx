@@ -27,7 +27,6 @@ export default function UnlockAssets() {
 
   useEffect(() => {
     if (userStorage.lockedAssetUnit && userStorage.lockedAssetUnit.length) {
-      console.log('lockedAssetUnit', userStorage);
       setAssetUnit(userStorage.lockedAssetUnit);
     }
   }, [userStorage]);
