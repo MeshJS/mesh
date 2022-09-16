@@ -40,10 +40,6 @@ export default function Navbar() {
     setShowMobileMenu(!showMobileMenu);
   }
 
-  function toggleSubmenuApi() {
-    setShowSubmenuApi(!showSubmenuApi);
-  }
-
   useEffect(() => {
     setDarkTheme(darkMode);
   }, [darkMode]);
@@ -74,7 +70,6 @@ export default function Navbar() {
             >
               <SvgGithub className="w-6 h-6" />
             </a>
-
             {!isSSR && (
               <button
                 type="button"
@@ -108,14 +103,12 @@ export default function Navbar() {
             id="mobile-menu-2`}
           >
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
-              <NavLink href="/guides" label="Guides" />{' '}
-              <li>
-                <button
-                  className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700"
-                  onClick={() => {
-                    toggleSubmenuApi();
-                  }}
-                >
+              <NavLink href="/guides" label="Guides" />
+              <li
+                onMouseEnter={() => setShowSubmenuApi(true)}
+                onMouseLeave={() => setShowSubmenuApi(false)}
+              >
+                <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
                   APIs{' '}
                   <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
                 </button>
@@ -144,6 +137,7 @@ export default function Navbar() {
                   </div>
                 </div>
               </li>
+              <NavLink href="/about" label="About" />
             </ul>
           </div>
         </div>

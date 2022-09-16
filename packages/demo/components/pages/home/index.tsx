@@ -23,7 +23,7 @@ function Hero() {
         <div className="grid items-center gap-8 mb-8 lg:gap-12 lg:grid-cols-12">
           <div className="col-span-6 text-center sm:mb-6 lg:text-left lg:mb-0">
             <h1 className="mb-4 text-4xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl xl:text-6xl dark:text-white">
-              Rapidly build Web3 apps on Cardano
+              Rapidly build Web 3.0 apps on Cardano
             </h1>
             <p className="max-w-xl mx-auto mb-6 font-light text-gray-500 lg:mx-0 xl:mb-8 md:text-lg xl:text-xl dark:text-gray-400">
               Mesh is an open-source library to make building dApps accessible.
@@ -79,8 +79,9 @@ function Features() {
               changes.
             </p>
             <a
-              href="#"
-              className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
+              href="https://github.com/MartifyLabs/mesh/releases"
+              className="link"
+              rel="noreferrer"
             >
               Check out our change logs
               <ChevronRightIcon className="ml-1 w-5 h-5" />
@@ -98,9 +99,7 @@ function Features() {
               interaction so you can focus on your project.
             </p>
             <Link href="/guides">
-              <div
-                className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400 cursor-pointer"
-              >
+              <div className="link">
                 Learn how to get started
                 <ChevronRightIcon className="ml-1 w-5 h-5" />
               </div>
@@ -115,13 +114,12 @@ function Features() {
               Mesh adopts many CIPs, and our package is only 24KB. You dApp will
               be responsive and adhere to standards.
             </p>
-            <a
-              href="#"
-              className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
-            >
-              Explore our APIs
-              <ChevronRightIcon className="ml-1 w-5 h-5" />
-            </a>
+            <Link href="/browserwallet">
+              <div className="link">
+                Explore our APIs
+                <ChevronRightIcon className="ml-1 w-5 h-5" />
+              </div>
+            </Link>
           </div>
         </div>
       </div>

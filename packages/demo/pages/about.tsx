@@ -1,11 +1,12 @@
 import type { NextPage } from 'next';
+import About from '../components/pages/about';
 import Metatags from '../components/site/metatags';
 
 const AboutPage: NextPage = () => {
   return (
     <>
-      <Metatags />
-      https://ionic.io/ionicons
+      <Metatags title="About Mesh" />
+      <About />
     </>
   );
 };

@@ -13,3 +13,7 @@
 .thead {
   @apply text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-400;
 }
+
+.link {
+  @apply inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400 cursor-pointer;
+}
