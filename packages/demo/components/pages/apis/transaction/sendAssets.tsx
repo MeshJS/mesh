@@ -10,8 +10,8 @@ import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import { Transaction } from '@martifylabs/mesh';
 import FetchSelectAssets from '../common/fetchSelectAssets';
+import { Transaction } from '@martifylabs/mesh';
 import type { Asset } from '@martifylabs/mesh';
 
 export default function SendAssets() {
@@ -24,6 +24,12 @@ export default function SendAssets() {
       assets: {
         lovelace: 1000000,
         '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
+      },
+    },
+    {
+      address: 'ANOTHER ADDRESS HERE',
+      assets: {
+        lovelace: 1500000,
       },
     },
   ]);

@@ -10,11 +10,11 @@ export default function AboutHero() {
             We advance Cardano's tech stack
           </h1>
           <p className="mb-6 font-light text-gray-400 lg:mb-8 md:text-lg lg:text-xl">
-            Get started with building application on blockchain with this
-            enterprise-ready, well engineered, and profesionally designed SDK,
+            Get started building blockchain applications with our
+            enterprise-ready, well engineered, and professionally designed SDK,
             Mesh. With over 20+ components crafted ready for Vasil and many more
-            in the pipeline, building an Web 3.0 application has never been this
-            easy. At Martify, we don't just build tools that works, we ensure
+            in the pipeline, building a Web 3.0 application has never been this
+            easy. At Martify, we don't just build tools that work, we ensure
             they are optimized and beneficial to a wide array of applications.
           </p>
           <a

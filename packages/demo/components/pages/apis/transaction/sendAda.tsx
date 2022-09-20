@@ -23,6 +23,12 @@ export default function SendAda() {
         lovelace: 1000000,
       },
     },
+    {
+      address: 'ANOTHER ADDRESS HERE',
+      assets: {
+        lovelace: 1500000,
+      },
+    },
   ]);
 
   useEffect(() => {
@@ -85,7 +91,10 @@ function Left({ userInput }) {
 
   return (
     <>
-      <p>For each recipients, append:</p>
+      <p>
+        You can chain the component to send to multiple recipients. For each
+        recipients, append:
+      </p>
       <Codeblock
         data={`tx.sendLovelace(address: string, lovelace: string);`}
         isJson={false}

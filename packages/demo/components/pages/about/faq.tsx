@@ -14,6 +14,7 @@ export default function AboutFaq() {
               href="https://discord.gg/Z6AH9dahdH"
               rel="noreferrer"
               className="link"
+              target="_blank"
             >
               Discord server
             </a>
@@ -23,19 +24,121 @@ export default function AboutFaq() {
         <div className="grid pt-8 text-left border-t border-gray-200 dark:border-gray-700 sm:gap-8 lg:gap-16 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <Item
+              header={`Why Mesh?`}
+              body={
+                <div className="format">
+                  <p>
+                    If we look up the definition of the word "
+                    <a
+                      href="https://dictionary.cambridge.org/dictionary/english/mesh"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      Mesh
+                    </a>
+                    ":{' '}
+                  </p>
+                  <ul>
+                    <li>
+                      <i>
+                        when different things or people mesh, they suit each
+                        other or work well together
+                      </i>
+                    </li>
+                    <li>
+                      <i>
+                        (of two or more things) to fit together or be suitable
+                        for each other
+                      </i>
+                    </li>
+                  </ul>
+                  <p>
+                    Like a well-woven fabric, Mesh connects business goals with
+                    technology stacks. It enables developers (<i>resource</i>)
+                    to build applications (<i>product</i>) according to project
+                    requirements (<i>business</i>) on the blockchain (
+                    <i>technology</i>). Mesh is filling the gap by making
+                    product development accessible on Cardano.
+                  </p>
+                  <p>
+                    Whether you're a beginner developer, startup, web3 market
+                    leader, or a large enterprise, Mesh makes web3 development
+                    easy with reliable, scalable, and well-engineered APIs &
+                    developer tools.
+                  </p>
+                </div>
+              }
+            />
+          </div>
+          <div>
+            <Item
               header="Is Mesh open-source and open for contributions?"
               body={
                 <>
                   Yes, Mesh is open-source and we welcome all contributions. If
                   you are a developer or designer who wishes to contribute,
-                  connect with us. If there is something you wish that Mesh
-                  could include, ideas, feedbacks, let us know!
+                  connect with us. All feedback, ideas, and potential
+                  improvements (or additions) by the community are encouraged.
+                  Please let us know at our{' '}
+                  <a
+                    href="https://discord.gg/Z6AH9dahdH"
+                    rel="noreferrer"
+                    className="link"
+                    target="_blank"
+                  >
+                    Discord server
+                  </a>{' '}
+                  or email us at{' '}
+                  <a
+                    href="mailto:contact@martify.io"
+                    rel="noreferrer"
+                    className="link"
+                    target="_blank"
+                  >
+                    contact@martify.io
+                  </a>
+                  .
                 </>
               }
             />
           </div>
-          <div>{/*  */}</div>
-          <div>{/*  */}</div>
+          <div>
+            <Item
+              header="About this Playground"
+              body={
+                <>
+                  <p>
+                    Mesh playground is an interactive documentation which allows
+                    you to explore Mesh's features. Most APIs are interactive
+                    where you can modify the inputs and see how you can use the
+                    code in your project.
+                  </p>
+                  <p>
+                    This website is build with{' '}
+                    <a
+                      href="https://nextjs.org/"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      Next.js
+                    </a>{' '}
+                    and designed with
+                    <a
+                      href="https://flowbite.com/"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      Flowbite
+                    </a>
+                    .
+                  </p>
+                </>
+              }
+            />
+          </div>
         </div>
       </div>
     </section>
