@@ -28,7 +28,7 @@ export default function AboutFaq() {
               body={
                 <>
                   <p>
-                    If we look up the definition of the word "
+                    The word "Mesh" is defined as:
                     <a
                       href="https://dictionary.cambridge.org/dictionary/english/mesh"
                       rel="noreferrer"
@@ -62,10 +62,10 @@ export default function AboutFaq() {
                     product development accessible on Cardano.
                   </p>
                   <p>
-                    Whether you're a beginner developer, startup, web3 market
-                    leader, or a large enterprise, Mesh makes web3 development
-                    easy with reliable, scalable, and well-engineered APIs &
-                    developer tools.
+                    Whether you're a new developer, startup, Web3 market leader,
+                    or a large enterprise, Mesh makes Web3 development easy with
+                    reliable, scalable, and well-engineered APIs & developer
+                    tools.
                   </p>
                 </>
               }
@@ -77,16 +77,16 @@ export default function AboutFaq() {
               body={
                 <>
                   <p>
-                    Yes, Mesh is open source and we welcome all contributions.
-                    Developers, business, and writers can contribute in various
-                    ways. You can write, test, or review the codes; you can
-                    architect your project and design your product to use Mesh;
-                    you can also improve or write new documentation and guides
-                    to help other builders; you can also provide feedback,
-                    ideas, improvements, feature requests.
+                    Yes, Mesh is open source, and we welcome all contributions.
+                    Developers, businesses, and writers can contribute in
+                    various ways. You can write, test, or review the codes; you
+                    can create your project and design your product to use Mesh;
+                    you can improve or write new documentation and guides to
+                    help other builders; you can also provide feedback, ideas,
+                    improvements, and feature requests.
                   </p>
                   <p>
-                    Connect chat with us at our{' '}
+                    Connect and chat with us at our{' '}
                     <a
                       href="https://discord.gg/Z6AH9dahdH"
                       rel="noreferrer"
@@ -116,7 +116,7 @@ export default function AboutFaq() {
               body={
                 <>
                   <p>
-                    Mesh is develop and architect by{' '}
+                    Mesh has been created and is continuously developed by
                     <a
                       href="https://martify.io/"
                       rel="noreferrer"
@@ -129,12 +129,13 @@ export default function AboutFaq() {
                     for creators and companies who plan to develop on Cardano.
                   </p>
                   <p>
-                    As Mesh is open source, the people behind Mesh includes the
-                    Cardano community. We wish for more developers and writers
-                    to join us building this amazing tool. The users of Cardano
-                    applications are also indirectly behind Mesh, as where there
-                    are users, that will attract developers to build more
-                    applications.
+                    As Mesh is open source, the people in the Cardano
+                    development community are a part of this journey. We look
+                    forward to more developers and writers joining us to develop
+                    this fantastic tool further. The users of Cardano
+                    applications are also a part of Mesh, as they make it
+                    possible for developers to build, adapt and improve current
+                    and future applications.
                   </p>
                 </>
               }
@@ -144,10 +145,10 @@ export default function AboutFaq() {
               body={
                 <>
                   <p>
-                    Mesh playground is an interactive documentation which allows
-                    you to explore Mesh's features. Most APIs are interactive
-                    where you can modify the inputs and see how you can use the
-                    code in your project.
+                    Mesh playground is an interactive tool which allows you to
+                    explore Mesh's features. Most APIs are interactive, where
+                    you can modify the inputs and see how to use the code in
+                    your project.
                   </p>
                   <p>
                     This website is build with{' '}
@@ -159,7 +160,7 @@ export default function AboutFaq() {
                     >
                       Next.js
                     </a>{' '}
-                    and designed with
+                    and designed with{' '}
                     <a
                       href="https://flowbite.com/"
                       rel="noreferrer"
@@ -168,7 +169,16 @@ export default function AboutFaq() {
                     >
                       Flowbite
                     </a>
-                    .
+                    . If you wish to build a site like this, we have a{' '}
+                    <a
+                      href="https://mesh.martify.io/guides/nextjs"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      guide
+                    </a>{' '}
+                    for you to get started.
                   </p>
                 </>
               }
