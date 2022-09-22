@@ -26,7 +26,7 @@ export default function AboutFaq() {
             <Item
               header={`Why Mesh?`}
               body={
-                <div className="format">
+                <>
                   <p>
                     If we look up the definition of the word "
                     <a
@@ -67,43 +67,78 @@ export default function AboutFaq() {
                     easy with reliable, scalable, and well-engineered APIs &
                     developer tools.
                   </p>
-                </div>
-              }
-            />
-          </div>
-          <div>
-            <Item
-              header="Is Mesh open-source and open for contributions?"
-              body={
-                <>
-                  Yes, Mesh is open-source and we welcome all contributions. If
-                  you are a developer or designer who wishes to contribute,
-                  connect with us. All feedback, ideas, and potential
-                  improvements (or additions) by the community are encouraged.
-                  Please let us know at our{' '}
-                  <a
-                    href="https://discord.gg/Z6AH9dahdH"
-                    rel="noreferrer"
-                    className="link"
-                    target="_blank"
-                  >
-                    Discord server
-                  </a>{' '}
-                  or email us at{' '}
-                  <a
-                    href="mailto:contact@martify.io"
-                    rel="noreferrer"
-                    className="link"
-                    target="_blank"
-                  >
-                    contact@martify.io
-                  </a>
-                  .
                 </>
               }
             />
           </div>
           <div>
+            <Item
+              header="Is Mesh open source and open for contributions?"
+              body={
+                <>
+                  <p>
+                    Yes, Mesh is open source and we welcome all contributions.
+                    Developers, business, and writers can contribute in various
+                    ways. You can write, test, or review the codes; you can
+                    architect your project and design your product to use Mesh;
+                    you can also improve or write new documentation and guides
+                    to help other builders; you can also provide feedback,
+                    ideas, improvements, feature requests.
+                  </p>
+                  <p>
+                    Connect chat with us at our{' '}
+                    <a
+                      href="https://discord.gg/Z6AH9dahdH"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      Discord server
+                    </a>{' '}
+                    or email us at{' '}
+                    <a
+                      href="mailto:contact@martify.io"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      contact@martify.io
+                    </a>
+                    .
+                  </p>
+                </>
+              }
+            />
+          </div>
+          <div>
+            <Item
+              header="Who are behind Mesh?"
+              body={
+                <>
+                  <p>
+                    Mesh is develop and architect by{' '}
+                    <a
+                      href="https://martify.io/"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      Martify
+                    </a>
+                    . We build intuitive and well-engineered tools and services
+                    for creators and companies who plan to develop on Cardano.
+                  </p>
+                  <p>
+                    As Mesh is open source, the people behind Mesh includes the
+                    Cardano community. We wish for more developers and writers
+                    to join us building this amazing tool. The users of Cardano
+                    applications are also indirectly behind Mesh, as where there
+                    are users, that will attract developers to build more
+                    applications.
+                  </p>
+                </>
+              }
+            />
             <Item
               header="About this Playground"
               body={
@@ -147,7 +182,7 @@ export default function AboutFaq() {
 
 function Item({ header, body }) {
   return (
-    <div className="mb-10">
+    <div className="mb-10 format">
       <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
         {header}
       </h3>
