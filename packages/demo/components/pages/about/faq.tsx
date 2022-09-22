@@ -28,7 +28,7 @@ export default function AboutFaq() {
               body={
                 <>
                   <p>
-                    The word "Mesh" is defined as:
+                    The word "
                     <a
                       href="https://dictionary.cambridge.org/dictionary/english/mesh"
                       rel="noreferrer"
@@ -37,7 +37,7 @@ export default function AboutFaq() {
                     >
                       Mesh
                     </a>
-                    ":{' '}
+                    " is defined as:{' '}
                   </p>
                   <ul>
                     <li>
@@ -116,14 +116,14 @@ export default function AboutFaq() {
               body={
                 <>
                   <p>
-                    Mesh has been created and is continuously developed by
+                    Mesh has been created and is continuously developed by{' '}
                     <a
                       href="https://martify.io/"
                       rel="noreferrer"
                       className="link"
                       target="_blank"
                     >
-                      Martify
+                      Martify Labs
                     </a>
                     . We build intuitive and well-engineered tools and services
                     for creators and companies who plan to develop on Cardano.
