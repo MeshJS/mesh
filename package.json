@@ -5,12 +5,12 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
+    "bootstrap": "yarn install && yarn lerna bootstrap",
     "start:demo": "lerna exec --scope @workspace/playground -- yarn dev",
     "start:module": "lerna exec --scope @martifylabs/mesh -- yarn dev",
     "build": "lerna link && yarn build:module && yarn build:demo",
     "build:demo": "lerna exec --scope @workspace/playground -- yarn build",
-    "build:module": "lerna exec --scope @martifylabs/mesh -- yarn build",
-    "bootstrap": "yarn install && yarn lerna bootstrap"
+    "build:module": "lerna exec --scope @martifylabs/mesh -- yarn build"
   },
   "devDependencies": {
     "@types/jest": "28.1.6",

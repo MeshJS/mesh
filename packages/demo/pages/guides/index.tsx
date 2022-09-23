@@ -12,8 +12,8 @@ const GuidesPage: NextPage = () => {
       thumbnail: '/guides/nextjs.png',
     },
     // {
-    //   title: 'Start a Node.js backend with NestJS',
-    //   desc: 'Coming soon...',
+    //   title: 'Start a NestJS backend',
+    //   desc: 'WIP',
     //   link: '/guides/nestjs',
     //   thumbnail: '/guides/nextjs.png',
     // },

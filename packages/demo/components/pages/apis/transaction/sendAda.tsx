@@ -23,6 +23,12 @@ export default function SendAda() {
         lovelace: 1000000,
       },
     },
+    {
+      address: 'ANOTHER ADDRESS HERE',
+      assets: {
+        lovelace: 1500000,
+      },
+    },
   ]);
 
   useEffect(() => {
@@ -74,9 +80,9 @@ export default function SendAda() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `const tx = new Transaction({ initiator: wallet })`;
+  let codeSnippet = `const tx = new Transaction({ initiator: wallet });`;
   for (const recipient of userInput) {
-    codeSnippet += `\ntx.sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
+    codeSnippet += `\ntx.sendLovelace(\n  '${recipient.address}',\n  '${recipient.assets.lovelace}'\n)`;
   }
   codeSnippet += `;\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
@@ -85,9 +91,12 @@ function Left({ userInput }) {
 
   return (
     <>
-      <p>For each recipients, append:</p>
+      <p>
+        You can chain the component to send to multiple recipients. For each
+        recipients, append:
+      </p>
       <Codeblock
-        data={`tx.sendLovelace(address: string, lovelace: string)`}
+        data={`tx.sendLovelace(address: string, lovelace: string);`}
         isJson={false}
       />
       <p>

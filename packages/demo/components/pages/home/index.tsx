@@ -23,15 +23,15 @@ function Hero() {
         <div className="grid items-center gap-8 mb-8 lg:gap-12 lg:grid-cols-12">
           <div className="col-span-6 text-center sm:mb-6 lg:text-left lg:mb-0">
             <h1 className="mb-4 text-4xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl xl:text-6xl dark:text-white">
-              Rapidly build Web3 apps on Cardano
+              {/* Rapidly build Web 3.0 apps on Cardano */}
+              Build your dApp with ease on Cardano
             </h1>
             <p className="max-w-xl mx-auto mb-6 font-light text-gray-500 lg:mx-0 xl:mb-8 md:text-lg xl:text-xl dark:text-gray-400">
               Mesh is an open-source library to make building dApps accessible.
               Whether Web3 application or minting a NFT collection; Mesh will
-              alleviate many problems from getting started, to building the most
-              advance product you can imagine.
+              alleviate many problems from getting started, to building any
+              product you can imagine.
             </p>
-
             <Link href="/guides">
               <div className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 cursor-pointer">
                 Get started
@@ -39,7 +39,7 @@ function Hero() {
               </div>
             </Link>
           </div>
-          <div className="col-span-6">
+          <div className="hidden lg:block col-span-6">
             <img
               src="/logo-mesh/black/logo-mesh-black-512x512.png"
               className="dark:hidden"
@@ -79,8 +79,9 @@ function Features() {
               changes.
             </p>
             <a
-              href="#"
-              className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
+              href="https://github.com/MartifyLabs/mesh/releases"
+              className="link"
+              rel="noreferrer"
             >
               Check out our change logs
               <ChevronRightIcon className="ml-1 w-5 h-5" />
@@ -98,9 +99,7 @@ function Features() {
               interaction so you can focus on your project.
             </p>
             <Link href="/guides">
-              <div
-                className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
-              >
+              <div className="link">
                 Learn how to get started
                 <ChevronRightIcon className="ml-1 w-5 h-5" />
               </div>
@@ -112,16 +111,15 @@ function Features() {
               Best practices
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh adopts many CIPs, and our package is only 24KB. You dApp will
-              be responsive and adhere to standards.
+              Mesh adopts many CIPs, and our package is only 24KB. Your dApp
+              will be responsive and adhere to standards.
             </p>
-            <a
-              href="#"
-              className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-500 dark:hover:text-primary-400"
-            >
-              Explore our APIs
-              <ChevronRightIcon className="ml-1 w-5 h-5" />
-            </a>
+            <Link href="/apis/browserwallet">
+              <div className="link">
+                Explore our APIs
+                <ChevronRightIcon className="ml-1 w-5 h-5" />
+              </div>
+            </Link>
           </div>
         </div>
       </div>

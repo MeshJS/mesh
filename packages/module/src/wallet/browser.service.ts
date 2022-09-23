@@ -82,7 +82,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return deserializedUtxos.map((du) => fromTxUnspentOutput(du));
   }
 
-  signData(address: string, payload: string): Promise<string> {
+  signData(address: string, payload: string): Promise<{ signature: string; key: string }> {
     const signerAddress = toAddress(address).to_hex();
     return this._walletInstance.signData(signerAddress, payload);
   }
@@ -211,7 +211,7 @@ type WalletInstance = {
   getUnusedAddresses(): Promise<string[]>;
   getUsedAddresses(): Promise<string[]>;
   getUtxos(): Promise<string[] | undefined>;
-  signData(address: string, payload: string): Promise<string>;
+  signData(address: string, payload: string): Promise<{ signature: string; key: string }>;
   signTx(tx: string, partialSign: boolean): Promise<string>;
   submitTx(tx: string): Promise<string>;
 };

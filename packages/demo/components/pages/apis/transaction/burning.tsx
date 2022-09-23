@@ -86,8 +86,8 @@ function Left({ userInput }) {
   for (const unit in userInput) {
     codeSnippet += `// burn asset#${counter}\n`;
     codeSnippet += `const asset${counter}: Asset = {\n`;
-    codeSnippet += `  unit: "${unit}",\n`;
-    codeSnippet += `  quantity: "${userInput[unit]}",\n`;
+    codeSnippet += `  unit: '${unit}',\n`;
+    codeSnippet += `  quantity: '${userInput[unit]}',\n`;
     codeSnippet += `};\n`;
     codeSnippet += `tx.burnAsset(forgingScript, asset${counter});\n\n`;
     counter++;
@@ -102,8 +102,8 @@ function Left({ userInput }) {
   codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
 
   let codeSnippet2 = `const asset: Asset = {\n`;
-  codeSnippet2 += `  unit: "64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e",\n`;
-  codeSnippet2 += `  quantity: "1",\n`;
+  codeSnippet2 += `  unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
+  codeSnippet2 += `  quantity: '1',\n`;
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.burnAsset(forgingScript, asset);`;
 

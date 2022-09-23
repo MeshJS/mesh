@@ -10,19 +10,26 @@ import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import { Transaction } from '@martifylabs/mesh';
 import FetchSelectAssets from '../common/fetchSelectAssets';
+import { Transaction } from '@martifylabs/mesh';
 import type { Asset } from '@martifylabs/mesh';
 
 export default function SendAssets() {
   const { wallet, walletConnected } = useWallet();
   const [userInput, setUserInput] = useState<
-    { address: string; assets: { lovelace: number } }[]
+    { address: string; assets: { [unit: string]: number } }[]
   >([
     {
       address: demoAddresses.testnet,
       assets: {
         lovelace: 1000000,
+        '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
+      },
+    },
+    {
+      address: 'ANOTHER ADDRESS HERE',
+      assets: {
+        lovelace: 1500000,
       },
     },
   ]);
@@ -35,9 +42,7 @@ export default function SendAssets() {
             (await wallet.getNetworkId()) === 1
               ? demoAddresses.mainnet
               : demoAddresses.testnet,
-          assets: {
-            lovelace: 1000000,
-          },
+          assets: {},
         },
       ];
       setUserInput(newRecipents);
@@ -86,20 +91,20 @@ function Left({ userInput }) {
   codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
     if ('lovelace' in recipient.assets && recipient.assets.lovelace > 0) {
-      codeSnippet += `\n  .sendLovelace(\n    "${recipient.address}",\n    "${recipient.assets.lovelace}"\n  )`;
+      codeSnippet += `\n  .sendLovelace(\n    '${recipient.address}',\n    '${recipient.assets.lovelace}'\n  )`;
     }
 
     let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
       return assetId != 'lovelace' && recipient.assets[assetId] > 0;
     });
     if (nativeAssets.length) {
-      codeSnippet += `\n  .sendAssets(\n    "${recipient.address}",`;
+      codeSnippet += `\n  .sendAssets(\n    '${recipient.address}',`;
       codeSnippet += `\n    [`;
       for (const asset of nativeAssets) {
         if (recipient.assets[asset] > 0) {
           codeSnippet += `\n      {`;
-          codeSnippet += `\n        unit: "${asset}",`;
-          codeSnippet += `\n        quantity: "1",`;
+          codeSnippet += `\n        unit: '${asset}',`;
+          codeSnippet += `\n        quantity: '1',`;
           codeSnippet += `\n      },`;
         }
       }
@@ -115,7 +120,7 @@ function Left({ userInput }) {
   let codeSnippet1 = `let assets: Asset[] = [];\n`;
   codeSnippet1 += `for (const asset of nativeAssets) {\n`;
   codeSnippet1 += `  let thisAsset = {\n`;
-  codeSnippet1 += `    unit: "64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e",\n`;
+  codeSnippet1 += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
   codeSnippet1 += `    quantity: '1',\n`;
   codeSnippet1 += `  };\n`;
   codeSnippet1 += `  assets.push(thisAsset);\n`;
@@ -274,7 +279,7 @@ function InputTable({ userInput, updateField }) {
                     label="Address"
                   />
                   <Input
-                    value={row.assets.lovelace}
+                    value={'lovelace' in row.assets ? row.assets.lovelace : 0}
                     type="number"
                     onChange={(e) =>
                       updateField('update', i, 'lovelace', e.target.value)
@@ -283,9 +288,6 @@ function InputTable({ userInput, updateField }) {
                     label="Lovelace"
                   />
                   <>
-                    <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                      Select assets
-                    </label>
                     <FetchSelectAssets
                       index={i}
                       selectedAssets={row.assets}

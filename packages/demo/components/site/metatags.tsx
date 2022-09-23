@@ -47,6 +47,8 @@ const Metatags = ({ title, keywords, description, image }) => {
       <link rel="mask-icon" href="/favicon/safari-pinned-tab.svg" color="#333333" />
       <meta name="msapplication-TileColor" content="#555555" />
       <meta name="theme-color" content="#eeeeee" />
+      
+
     </Head>
   );
 };

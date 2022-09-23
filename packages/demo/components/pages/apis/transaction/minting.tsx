@@ -53,7 +53,7 @@ export default function Minting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1) {
+      if (value >= 1 || field == 'metadata') {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -116,12 +116,12 @@ function Left({ userInput }) {
     codeSnippet += `// define asset#${counter} metadata\n`;
     codeSnippet += `const assetMetadata${counter}: AssetMetadata = ${_metadata};\n`;
     codeSnippet += `const asset${counter}: Mint = {\n`;
-    codeSnippet += `  assetName: "${recipient.assetName}",\n`;
-    codeSnippet += `  assetQuantity: "${recipient.quantity}",\n`;
+    codeSnippet += `  assetName: '${recipient.assetName}',\n`;
+    codeSnippet += `  assetQuantity: '${recipient.quantity}',\n`;
     codeSnippet += `  metadata: assetMetadata${counter},\n`;
-    codeSnippet += `  label: "${recipient.assetLabel}",\n`;
+    codeSnippet += `  label: '${recipient.assetLabel}',\n`;
     codeSnippet += `  recipient: {\n`;
-    codeSnippet += `    address: ${recipient.address},\n`;
+    codeSnippet += `    address: '${recipient.address}',\n`;
     codeSnippet += `  },\n`;
     codeSnippet += `};\n`;
     codeSnippet += `tx.mintAsset(\n`;
@@ -139,14 +139,18 @@ function Left({ userInput }) {
   codeSnippet1 += `const address = usedAddress[0];\n`;
   codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
 
-  let codeSnippet2 = `const assetMetadata${counter}: AssetMetadata = ${defaultMetadata};\n`;
+  let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
+    defaultMetadata,
+    null,
+    2
+  )};\n`;
   codeSnippet2 += `const asset: Mint = {\n`;
-  codeSnippet2 += `  assetName: "MeshToken",\n`;
-  codeSnippet2 += `  assetQuantity: "1",\n`;
+  codeSnippet2 += `  assetName: 'MeshToken',\n`;
+  codeSnippet2 += `  assetQuantity: '1',\n`;
   codeSnippet2 += `  metadata: assetMetadata,\n`;
-  codeSnippet2 += `  label: "721",\n`;
-  codeSnippet2 += `  recipient: "{",\n`;
-  codeSnippet2 += `    address: ${demoAddresses.testnet},\n`;
+  codeSnippet2 += `  label: '721',\n`;
+  codeSnippet2 += `  recipient: {\n`;
+  codeSnippet2 += `    address: '${demoAddresses.testnet}',\n`;
   codeSnippet2 += `  },\n`;
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.mintAsset(\n`;

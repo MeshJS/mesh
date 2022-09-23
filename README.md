@@ -1,10 +1,6 @@
-![Mesh Logo](https://mesh.martify.io/favicon/apple-touch-icon.png)
+![Mesh Logo](https://mesh.martify.io/logo-mesh/mesh.png)
 
-# Mesh
-
-> An open-source library to advance Web3 development on Cardano
-
-Mesh is an open-source library to make building dApps accessible. Whether Web3 application or minting a NFT collection; Mesh will alleviate many problems from getting started, to building the most advance product you can imagine.
+Mesh is an open-source library to make building dApps accessible. Whether you're a beginner developer, startup, web3 market leader, or a large enterprise, Mesh makes web3 development easy with reliable, scalable, and well-engineered APIs & developer tools.
 
 Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
@@ -22,8 +18,10 @@ Explore the features on [Mesh Playground](https://mesh.martify.io/).
 - Integrates with Cardano projects - Koios, Blockfrost, ADA Handle (and more), you pick what you want to use for your app
 - Well documented - We focus on documentation so you can use it, our [Playground](https://mesh.martify.io/) is built so you can see how it works
 
+[Find out more](https://mesh.martify.io/about)
+
 ## How can you contribute?
 
-- star the [Github repo](https://github.com/MartifyLabs/mesh) and tell others about Mesh
-- try Mesh by implementing your Web 3.0 project
-- documentations and guides write up
+- Build something - try Mesh by implementing your Web 3.0 project (recommended [starter guide](https://mesh.martify.io/guides/nextjs))
+- Inform others - Tell others about Mesh, and star the [Github repo](https://github.com/MartifyLabs/mesh) :star:
+- Write ups - documentations and guides
