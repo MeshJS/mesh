@@ -1,13 +1,13 @@
 import { csl } from '@mesh/core';
 import type { Costmdls } from '@mesh/core';
-import type { Era } from './types';
+import type { Budget, Era, Protocol } from './types';
 
-export const DEFAULT_REDEEMER_BUDGET = {
+export const DEFAULT_REDEEMER_BUDGET: Budget = {
   mem: 7000000,
   steps: 3000000000,
 };
 
-export const DEFAULT_PROTOCOL_PARAMETERS = {
+export const DEFAULT_PROTOCOL_PARAMETERS: Protocol = {
   epoch: 0,
   coinsPerUTxOSize: '4310',
   priceMem: 0.0577,
@@ -43,7 +43,7 @@ export const REDEEMER_TAGS = {
 
 export const SUPPORTED_COST_MODELS = new Map<Era, Costmdls>([
   ['ALONZO', csl.TxBuilderConstants.plutus_alonzo_cost_models()],
-  ['VASIL', csl.TxBuilderConstants.plutus_vasil_cost_models()],
+  ['BABBAGE', csl.TxBuilderConstants.plutus_vasil_cost_models()],
 ]);
 
 export const SUPPORTED_NETWORKS = new Map<number, string>([
