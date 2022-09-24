@@ -54,7 +54,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   async getCollateral(
     limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
   ): Promise<UTxO[]> {
-    const deserializedCollateral = await this.getCollateralInput(limit);
+    const deserializedCollateral = await this.getUsedCollateral(limit);
     return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
   }
 
@@ -78,7 +78,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   async getUtxos(): Promise<UTxO[]> {
-    const deserializedUtxos = await this.getAvailableUtxos();
+    const deserializedUtxos = await this.getUsedUtxos();
     return deserializedUtxos.map((du) => fromTxUnspentOutput(du));
   }
 
@@ -120,21 +120,21 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return this._walletInstance.submitTx(tx);
   }
 
-  async getAvailableUtxos(): Promise<TransactionUnspentOutput[]> {
-    const utxos = (await this._walletInstance.getUtxos()) ?? [];
-    return utxos.map((u) => deserializeTxUnspentOutput(u));
+  async getUsedAddress(): Promise<Address> {
+    const usedAddresses = await this._walletInstance.getUsedAddresses();
+    return deserializeAddress(usedAddresses[0]);
   }
 
-  async getCollateralInput(
+  async getUsedCollateral(
     limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
   ): Promise<TransactionUnspentOutput[]> {
     const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
     return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }
 
-  async getUsedAddress(): Promise<Address> {
-    const changeAddress = await this._walletInstance.getChangeAddress();
-    return deserializeAddress(changeAddress);
+  async getUsedUtxos(): Promise<TransactionUnspentOutput[]> {
+    const utxos = (await this._walletInstance.getUtxos()) ?? [];
+    return utxos.map((u) => deserializeTxUnspentOutput(u));
   }
 
   async getAssets(): Promise<AssetExtended[]> {

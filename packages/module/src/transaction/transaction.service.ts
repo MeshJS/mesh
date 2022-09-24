@@ -262,7 +262,7 @@ export class Transaction {
       && this._totalBurns.size > 0
       && this.notVisited('setTxInputs')
     ) {
-      const utxos = await this._initiator.getAvailableUtxos();
+      const utxos = await this._initiator.getUsedUtxos();
       const inputs = largestFirstMultiAsset(this._totalBurns,
         utxos.map((utxo) => fromTxUnspentOutput(utxo)),
       ).map((utxo) => toTxUnspentOutput(utxo));
@@ -289,7 +289,7 @@ export class Transaction {
 
   private async addCollateralIfNeeded() {
     if (this._initiator && this.notVisited('setCollateral')) {
-      const collateral = await this._initiator.getCollateralInput();
+      const collateral = await this._initiator.getUsedCollateral();
       this._txBuilder.set_collateral(buildTxInputsBuilder(collateral));
     }
   }
@@ -353,7 +353,7 @@ export class Transaction {
       return txUnspentOutputs;
 
     const availableUtxos = await this._initiator
-      .getAvailableUtxos();
+      .getUsedUtxos();
 
     availableUtxos.forEach((utxo) => {
       txUnspentOutputs.add(utxo);
