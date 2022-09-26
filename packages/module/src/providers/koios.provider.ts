@@ -15,19 +15,15 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     });
   }
 
-  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
-    throw new Error('Method not implemented.');
-  }
-
-  async fetchAssetUtxosFromAddress(asset: string, address: string): Promise<UTxO[]> {
+  async fetchAddressUtxos(address: string, asset?: string): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
         `address_info?_address=${address}`
       );
 
-      if (status === 200)
-        return data
-          .flatMap((info: { utxo_set: []; }) => info.utxo_set)
+      if (status === 200) {
+        const utxos = data
+          .flatMap((info: { utxo_set: [] }) => info.utxo_set)
           .map((utxo) => ({
             input: {
               outputIndex: utxo.tx_index,
@@ -37,24 +33,34 @@ export class KoiosProvider implements IFetcher, ISubmitter {
               address: address,
               amount: [
                 { unit: 'lovelace', quantity: utxo.value },
-                ...utxo.asset_list
-                  .map((a) => ({
-                    unit: `${a.policy_id}${a.asset_name}`,
-                    quantity: `${a.quantity}`
-                  }) as Asset)
+                ...utxo.asset_list.map(
+                  (a) =>
+                    ({
+                      unit: `${a.policy_id}${a.asset_name}`,
+                      quantity: `${a.quantity}`,
+                    } as Asset)
+                ),
               ],
               dataHash: utxo.datum_hash,
             },
-          }) as UTxO)
-          .filter(
-            (utxo: UTxO) =>
-              utxo.output.amount.find((a) => a.unit === asset) !== undefined
-          );
+          })) as UTxO[];
+
+        return asset !== undefined
+          ? utxos.filter(
+              (utxo) =>
+                utxo.output.amount.find((a) => a.unit === asset) !== undefined
+            )
+          : utxos;
+      }
 
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
+    throw new Error('Method not implemented.');
   }
 
   async fetchHandleAddress(_handle: string): Promise<string> {
