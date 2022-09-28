@@ -31,21 +31,23 @@ export class NodeWallet implements IInitiator, ISigner {
         );
         break;
     }
+    }
 
-  getPaymentAddress(accountIndex = 0) {
+  getPaymentAddress(accountIndex = 0): string {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
     return account.enterpriseAddress;
   }
 
-  getStakeKey(accountIndex = 0) {
+  getStakeKey(accountIndex = 0): string {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
     return account.rewardAddress;
   }
 
   getUsedAddress(accountIndex = 0): Address {
-    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
+    const account = this._wallet
+      .getAccount(accountIndex, DEFAULT_PASSWORD);
     return toAddress(account.baseAddress);
   }
 
