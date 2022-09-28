@@ -19,13 +19,15 @@ export class NodeWallet implements IInitiator, ISigner {
       case 'mnemonic':
         this._wallet = new EmbeddedWallet(
           options.networkId,
-          EmbeddedWallet.encryptMnemonic(options.key.words, DEFAULT_PASSWORD),
+          EmbeddedWallet
+            .encryptMnemonic(options.key.words, DEFAULT_PASSWORD),
         );
         break;
       case 'root':
         this._wallet = new EmbeddedWallet(
           options.networkId,
-          EmbeddedWallet.encryptPrivateKey(options.key.bech32, DEFAULT_PASSWORD),
+          EmbeddedWallet
+            .encryptPrivateKey(options.key.bech32, DEFAULT_PASSWORD),
         );
         break;
       case 'cli':
@@ -81,7 +83,7 @@ export class NodeWallet implements IInitiator, ISigner {
   }
 
   async signTx(
-    unsignedTx: string, partialSign: boolean, accountIndex = 0,
+    unsignedTx: string, partialSign = false, accountIndex = 0,
   ): Promise<string> {
     try {
       const account = this._wallet
