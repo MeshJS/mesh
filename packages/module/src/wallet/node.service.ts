@@ -61,7 +61,7 @@ export class NodeWallet implements IInitiator, ISigner {
     const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
 
     const utxos = await this._fetcher
-      .fetchAddressUtxos(account.baseAddress) ?? [];
+      .fetchAddressUtxos(account.enterpriseAddress) ?? [];
 
     return utxos.map((utxo) => toTxUnspentOutput(utxo));
   }
@@ -80,7 +80,7 @@ export class NodeWallet implements IInitiator, ISigner {
     try {
       const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
       const utxos = await this._fetcher
-        .fetchAddressUtxos(account.baseAddress) ?? [];
+        .fetchAddressUtxos(account.enterpriseAddress) ?? [];
 
       const txSignatures = this._wallet.signTx(
         accountIndex, DEFAULT_PASSWORD, utxos,
