@@ -133,6 +133,13 @@ export default function Navbar() {
                         icon={<PuzzlePieceIcon className="w-5 h-5" />}
                         setShowSubmenuApi={setShowSubmenuApi}
                       />
+                      <SubMenuLinks
+                        href={`/apis/nodewallet`}
+                        title="Node Wallet"
+                        desc="Wallet for backend"
+                        icon={<WalletIcon className="w-5 h-5" />}
+                        setShowSubmenuApi={setShowSubmenuApi}
+                      />
                     </ul>
                   </div>
                 </div>
