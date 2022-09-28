@@ -8,6 +8,8 @@ import { EmbeddedWallet } from './embedded.service';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { DataSignature } from '@mesh/common/types';
 
+const DEFAULT_PASSWORD = 'MARI0TIME';
+
 export class NodeWallet implements IInitiator, ISigner {
   private readonly _fetcher: IFetcher;
   private readonly _wallet: EmbeddedWallet;
@@ -19,20 +21,20 @@ export class NodeWallet implements IInitiator, ISigner {
       case 'mnemonic':
         this._wallet = new EmbeddedWallet(
           options.networkId,
-          EmbeddedWallet.encryptMnemonic(options.key.words, ''),
+          EmbeddedWallet.encryptMnemonic(options.key.words, DEFAULT_PASSWORD),
         );
         break;
       case 'root':
         this._wallet = new EmbeddedWallet(
           options.networkId,
-          EmbeddedWallet.encryptPrivateKey(options.key.bech32, ''),
+          EmbeddedWallet.encryptPrivateKey(options.key.bech32, DEFAULT_PASSWORD),
         );
         break;
     }
   }
 
   getUsedAddress(accountIndex = 0): Address {
-    const account = this._wallet.getAccount(accountIndex, '');
+    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
     return toAddress(account.baseAddress);
   }
 
@@ -43,7 +45,7 @@ export class NodeWallet implements IInitiator, ISigner {
   }
 
   async getUsedUtxos(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
-    const account = this._wallet.getAccount(accountIndex, '');
+    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
 
     const utxos = await this._fetcher
       .fetchAddressUtxos(account.baseAddress) ?? [];
@@ -53,7 +55,7 @@ export class NodeWallet implements IInitiator, ISigner {
 
   signData(address: string, payload: string, accountIndex = 0): DataSignature {
     try {
-      return this._wallet.signData(accountIndex, '', address, payload);
+      return this._wallet.signData(accountIndex, DEFAULT_PASSWORD, address, payload);
     } catch (error) {
       throw new Error(`[NodeWallet] An error occurred during signData: ${error}.`);
     }
@@ -63,12 +65,12 @@ export class NodeWallet implements IInitiator, ISigner {
     unsignedTx: string, partialSign: boolean, accountIndex = 0,
   ): Promise<string> {
     try {
-      const account = this._wallet.getAccount(accountIndex, '');
+      const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
       const utxos = await this._fetcher
         .fetchAddressUtxos(account.baseAddress) ?? [];
 
       const txSignatures = this._wallet.signTx(
-        accountIndex, '', utxos,
+        accountIndex, DEFAULT_PASSWORD, utxos,
         unsignedTx, partialSign,
       );
 
