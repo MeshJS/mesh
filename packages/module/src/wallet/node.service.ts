@@ -48,7 +48,7 @@ export class NodeWallet implements IInitiator, ISigner {
   getUsedAddress(accountIndex = 0): Address {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
-    return toAddress(account.baseAddress);
+    return toAddress(account.enterpriseAddress);
   }
 
   getUsedCollateral(
