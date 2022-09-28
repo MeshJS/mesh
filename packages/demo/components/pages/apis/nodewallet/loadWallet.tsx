@@ -9,8 +9,9 @@ import {
   NodeWallet,
   Transaction,
   BlockfrostProvider,
+  ForgeScript,
 } from '@martifylabs/mesh';
-import type { IInitiator } from '@martifylabs/mesh';
+import type { IInitiator, Mint, AssetMetadata } from '@martifylabs/mesh';
 import { demoAddresses, demoMnemonic } from '../../../../configs/demo';
 
 export default function LoadWallet() {
@@ -42,6 +43,7 @@ function Right() {
     setResponseLoadMnemonicWalletGetAddress,
   ] = useState<null | any>(null);
   const [responseSendAda, setResponseSendAda] = useState<null | any>(null);
+  const [responseMintToken, setResponseMintToken] = useState<null | any>(null);
 
   async function runDemoGetMnemonic() {
     setLoading(true);
@@ -60,7 +62,6 @@ function Right() {
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREVIEW!,
       0
     );
-
     console.log('demoMnemonic', demoMnemonic);
 
     const network = 0;
@@ -76,10 +77,8 @@ function Right() {
     setWallet(wallet);
 
     const address = wallet.getPaymentAddress();
-    console.log('address', address);
 
     setResponseLoadMnemonicWalletGetAddress(address);
-
     setLoading(false);
   }
 
@@ -91,26 +90,51 @@ function Right() {
       0
     );
 
-    const bfUtxo = await blockfrostProvider.fetchAddressUtxos(
-      wallet.getPaymentAddress()
-    );
-    console.log('bfUtxo', bfUtxo);
+    const tx = new Transaction({ initiator: wallet });
+    tx.sendLovelace(demoAddresses.testnet, '1500000');
+    const unsignedTx = await tx.build();
+    const signedTx = await wallet.signTx(unsignedTx, false);
+    const txHash = await blockfrostProvider.submitTx(signedTx);
 
-    const utxos = await wallet.getUsedUtxos();
-    console.log('utxos', utxos);
+    setResponseSendAda(txHash);
+    setLoading(false);
+  }
+
+  async function runDemoMintToken() {
+    setLoading(true);
+
+    const blockfrostProvider = new BlockfrostProvider(
+      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREVIEW!,
+      0
+    );
+
+    const address = wallet.getPaymentAddress();
+    const forgingScript = ForgeScript.withOneSignature(address);
 
     const tx = new Transaction({ initiator: wallet });
-    console.log(11);
-    tx.sendLovelace(demoAddresses.testnet, '1500000');
-    console.log(22);
-    const unsignedTx = await tx.build();
-    console.log(33);
-    const signedTx = await wallet.signTx(unsignedTx, false);
-    console.log(44);
-    const txHash = await blockfrostProvider.submitTx(signedTx);
-    console.log(55, txHash);
-    setResponseSendAda(txHash);
 
+    const assetMetadata1: AssetMetadata = {
+      name: 'Mesh Token',
+      image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
+      mediaType: 'image/jpg',
+      description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+    };
+    const asset1: Mint = {
+      assetName: 'MeshToken',
+      assetQuantity: '1',
+      metadata: assetMetadata1,
+      label: '721',
+      recipient: {
+        address: demoAddresses.testnet,
+      },
+    };
+    tx.mintAsset(forgingScript, asset1);
+    tx.sendLovelace(demoAddresses.testnet, '1500000');
+
+    const unsignedTx = await tx.build();
+    const signedTx = await wallet.signTx(unsignedTx, false);
+    const txHash = await blockfrostProvider.submitTx(signedTx);
+    setResponseMintToken(txHash);
     setLoading(false);
   }
 
@@ -144,6 +168,16 @@ function Right() {
           disabled={wallet == null}
         />
         <RunDemoResult response={responseSendAda} />
+
+        <h3>Mint token</h3>
+
+        <RunDemoButton
+          runDemoFn={runDemoMintToken}
+          loading={loading}
+          response={responseMintToken}
+          disabled={wallet == null}
+        />
+        <RunDemoResult response={responseMintToken} />
       </Card>
     </>
   );
