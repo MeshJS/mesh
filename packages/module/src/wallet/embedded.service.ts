@@ -10,15 +10,15 @@ import {
 import type {
   Address, Certificates, Ed25519KeyHashes,
   Message, NativeScripts, PrivateKey, Signer,
-  TransactionBody, TransactionInputs,
-  TransactionWitnessSet, Vkeywitnesses, Withdrawals,
+  TransactionBody, TransactionInputs, TransactionWitnessSet,
+  Vkeywitnesses, Withdrawals,
 } from '@mesh/core';
 import type { Account, DataSignature, UTxO } from '@mesh/common/types';
 
 export class EmbeddedWallet {
   constructor(
     private readonly _networkId: number,
-    private readonly _encryptedSecret: string,
+    private readonly _encryptedSecret: string | [string, string],
   ) {}
 
   getAccount(accountIndex: number, password: string): Account {
@@ -121,6 +121,20 @@ export class EmbeddedWallet {
     return EmbeddedWallet.encrypt(cborBip32PrivateKey, password);
   }
 
+  static encryptSigningKeys(
+    cborPaymentKey: string, cborStakeKey: string, password: string,
+  ): [string, string] {
+    const encryptedPaymentKey = EmbeddedWallet.encrypt(
+      cborPaymentKey.slice(4), password,
+    );
+
+    const encryptedStakeKey = EmbeddedWallet.encrypt(
+      cborStakeKey.slice(4), password,
+    );
+
+    return [encryptedPaymentKey, encryptedStakeKey];
+  }
+
   static generateMnemonic(strength = 256): string[] {
     const mnemonic = generateMnemonic(strength);
     return mnemonic.split(' ');
@@ -130,9 +144,9 @@ export class EmbeddedWallet {
     accountIndex: number, password: string,
     callback: (paymentKey: PrivateKey, stakeKey: PrivateKey) => T,
   ): T {
-    const rootKey = EmbeddedWallet.decrypt(this._encryptedSecret, password);
-
-    const { paymentKey, stakeKey } = deriveAccountKeys(rootKey, accountIndex);
+    const { paymentKey, stakeKey } = EmbeddedWallet.resolveKeys(
+      accountIndex, password, this._encryptedSecret,
+    );
 
     const result = callback(paymentKey, stakeKey);
 
@@ -177,6 +191,29 @@ export class EmbeddedWallet {
     throw new Error(`Address: ${bech32} doesn't belong to this account.`);
   }
 
+  private static resolveKeys(
+    accountIndex: number, password: string,
+    encryptedSecret: string | [string, string],
+  ): { paymentKey: PrivateKey; stakeKey: PrivateKey; } {
+    if (typeof encryptedSecret === 'string') {
+      const rootKey = EmbeddedWallet
+        .decrypt(encryptedSecret, password);
+
+      return deriveAccountKeys(rootKey, accountIndex);
+    }
+
+    const cborPaymentKey = EmbeddedWallet
+      .decrypt(encryptedSecret[0], password);
+
+    const cborStakeKey = EmbeddedWallet
+      .decrypt(encryptedSecret[1], password);
+
+    return {
+      paymentKey: csl.PrivateKey.from_hex(cborPaymentKey),
+      stakeKey: csl.PrivateKey.from_hex(cborStakeKey),
+    };
+  }
+
   private static resolveSigners(
     cborTx: string, utxos: UTxO[],
     paymentKeyHash: string,
@@ -194,7 +231,8 @@ export class EmbeddedWallet {
         const cSigners = new Array<string>();
         switch (c.kind()) {
           case csl.CertificateKind.StakeDeregistration: {
-            const credential = c.as_stake_deregistration()?.stake_credential();
+            const credential = c.as_stake_deregistration()
+              ?.stake_credential();
             const keyHash =
               credential?.kind() === csl.StakeCredKind.Key
                 ? credential.to_keyhash()
@@ -205,7 +243,8 @@ export class EmbeddedWallet {
             break;
           }
           case csl.CertificateKind.StakeDelegation: {
-            const credential = c.as_stake_delegation()?.stake_credential();
+            const credential = c.as_stake_delegation()
+              ?.stake_credential();
             const keyHash =
               credential?.kind() === csl.StakeCredKind.Key
                 ? credential.to_keyhash()
@@ -216,26 +255,25 @@ export class EmbeddedWallet {
             break;
           }
           case csl.CertificateKind.PoolRegistration: {
-            const poolOwners = c
-              .as_pool_registration()
+            const poolOwners = c.as_pool_registration()
               ?.pool_params()
               .pool_owners();
 
             cSigners.push(
-              ...resolverequiredSigners(poolOwners)
+              ...resolveRequiredSigners(poolOwners)
             );
             break;
           }
           case csl.CertificateKind.PoolRetirement: {
-            const poolKeyhash = c.as_pool_retirement()?.pool_keyhash();
+            const poolKeyhash = c.as_pool_retirement()
+              ?.pool_keyhash();
 
             if (poolKeyhash)
               cSigners.push(poolKeyhash.to_hex());
             break;
           }
           case csl.CertificateKind.MoveInstantaneousRewardsCert: {
-            const credentials = c
-              .as_move_instantaneous_rewards_cert()
+            const credentials = c.as_move_instantaneous_rewards_cert()
               ?.move_instantaneous_reward()
               .as_to_stake_creds();
 
@@ -285,7 +323,7 @@ export class EmbeddedWallet {
         );
       };
 
-      const resolverequiredSigners = (
+      const resolveRequiredSigners = (
         keyHashes: Ed25519KeyHashes | undefined,
         signers: string[] = [],
         index = 0,
@@ -293,7 +331,7 @@ export class EmbeddedWallet {
         if (keyHashes === undefined || index >= keyHashes.len())
           return signers;
 
-        return resolverequiredSigners(keyHashes,
+        return resolveRequiredSigners(keyHashes,
           [...signers, keyHashes.get(index).to_hex()], index + 1,
         );
       };
@@ -327,7 +365,7 @@ export class EmbeddedWallet {
         ...resolveCertificatesSigners(certificates),
         ...resolveTxInputsSigners(collateral),
         ...resolveTxInputsSigners(inputs),
-        ...resolverequiredSigners(requiredSigners),
+        ...resolveRequiredSigners(requiredSigners),
         ...resolveWithdrawalsSigners(withdrawals),
       ];
     };

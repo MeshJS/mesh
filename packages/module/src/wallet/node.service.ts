@@ -8,8 +8,6 @@ import { EmbeddedWallet } from './embedded.service';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { DataSignature } from '@mesh/common/types';
 
-const DEFAULT_PASSWORD = 'MARI0TIME';
-
 export class NodeWallet implements IInitiator, ISigner {
   private readonly _fetcher: IFetcher;
   private readonly _wallet: EmbeddedWallet;
@@ -30,8 +28,16 @@ export class NodeWallet implements IInitiator, ISigner {
           EmbeddedWallet.encryptPrivateKey(options.key.bech32, DEFAULT_PASSWORD),
         );
         break;
+      case 'cli':
+        this._wallet = new EmbeddedWallet(
+          options.networkId,
+          EmbeddedWallet.encryptSigningKeys(
+            options.key.payment, options.key.stake,
+            DEFAULT_PASSWORD,
+          ),
+        );
     }
-    }
+  }
 
   getPaymentAddress(accountIndex = 0): string {
     const account = this._wallet
@@ -78,7 +84,8 @@ export class NodeWallet implements IInitiator, ISigner {
     unsignedTx: string, partialSign: boolean, accountIndex = 0,
   ): Promise<string> {
     try {
-      const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
+      const account = this._wallet
+        .getAccount(accountIndex, DEFAULT_PASSWORD);
       const utxos = await this._fetcher
         .fetchAddressUtxos(account.enterpriseAddress) ?? [];
 
@@ -105,14 +112,20 @@ export class NodeWallet implements IInitiator, ISigner {
   }
 }
 
+const DEFAULT_PASSWORD = 'MARI0TIME';
+
 type CreateNodeWalletOptions = {
   networkId: number;
   fetcher: IFetcher;
   key: {
-    type: 'mnemonic';
-    words: string[];
-  } | {
     type: 'root';
     bech32: string;
+  } | {
+    type: 'cli';
+    payment: string;
+    stake: string;
+  } | {
+    type: 'mnemonic';
+    words: string[];
   };
 };
