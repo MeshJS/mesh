@@ -31,6 +31,17 @@ export class NodeWallet implements IInitiator, ISigner {
         );
         break;
     }
+
+  getPaymentAddress(accountIndex = 0) {
+    const account = this._wallet
+      .getAccount(accountIndex, DEFAULT_PASSWORD);
+    return account.enterpriseAddress;
+  }
+
+  getStakeKey(accountIndex = 0) {
+    const account = this._wallet
+      .getAccount(accountIndex, DEFAULT_PASSWORD);
+    return account.rewardAddress;
   }
 
   getUsedAddress(accountIndex = 0): Address {
