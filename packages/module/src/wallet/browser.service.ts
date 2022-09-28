@@ -9,7 +9,7 @@ import {
   fromTxUnspentOutput, fromValue, resolveFingerprint, toUTF8, toAddress,
 } from '@mesh/common/utils';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
-import type { Asset, AssetExtended, UTxO, Wallet } from '@mesh/common/types';
+import type { Asset, AssetExtended, DataSignature, UTxO, Wallet } from '@mesh/common/types';
 
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private constructor(private readonly _walletInstance: WalletInstance) {}
@@ -82,7 +82,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return deserializedUtxos.map((du) => fromTxUnspentOutput(du));
   }
 
-  signData(address: string, payload: string): Promise<{ signature: string; key: string }> {
+  signData(address: string, payload: string): Promise<DataSignature> {
     const signerAddress = toAddress(address).to_hex();
     return this._walletInstance.signData(signerAddress, payload);
   }
@@ -90,17 +90,15 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
     try {
       const tx = deserializeTx(unsignedTx);
-      const txWitnessSet = deserializeTxWitnessSet(
-        tx.witness_set().to_hex(),
-      );
+      const txWitnessSet = tx.witness_set();
 
       const walletWitnessSet = await this._walletInstance.signTx(
         unsignedTx, partialSign,
       );
 
-      const walletVkeywitnesses = deserializeTxWitnessSet(walletWitnessSet).vkeys();
-      if (walletVkeywitnesses !== undefined)
-        txWitnessSet.set_vkeys(walletVkeywitnesses);
+      const txSignatures = deserializeTxWitnessSet(walletWitnessSet).vkeys();
+      if (txSignatures !== undefined)
+        txWitnessSet.set_vkeys(txSignatures);
 
       const signedTx = fromBytes(
         csl.Transaction.new(
@@ -211,7 +209,7 @@ type WalletInstance = {
   getUnusedAddresses(): Promise<string[]>;
   getUsedAddresses(): Promise<string[]>;
   getUtxos(): Promise<string[] | undefined>;
-  signData(address: string, payload: string): Promise<{ signature: string; key: string }>;
+  signData(address: string, payload: string): Promise<DataSignature>;
   signTx(tx: string, partialSign: boolean): Promise<string>;
   submitTx(tx: string): Promise<string>;
 };

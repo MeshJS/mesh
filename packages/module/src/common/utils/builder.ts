@@ -5,7 +5,7 @@ import {
   toTxUnspentOutput, toUnitInterval,
 } from './converter';
 import { deserializeEd25519KeyHash } from './deserializer';
-import { resolveKeyHash } from './resolver';
+import { resolvePaymentKeyHash } from './resolver';
 import type {
   BaseAddress, Bip32PrivateKey, DataCost,
   Ed25519KeyHash, EnterpriseAddress, RewardAddress, TransactionBuilder,
@@ -58,7 +58,7 @@ export const buildRewardAddress = (
 
 export const buildScriptPubkey = (address: string) => {
   const scriptPubkey = csl.ScriptPubkey.new(
-    deserializeEd25519KeyHash(resolveKeyHash(address)),
+    deserializeEd25519KeyHash(resolvePaymentKeyHash(address)),
   );
   return csl.NativeScript.new_script_pubkey(scriptPubkey);
 };

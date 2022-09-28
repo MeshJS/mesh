@@ -48,9 +48,9 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippetGetAssetUtxo += `    'BLOCKFROST_API_KEY_PREVIEW',\n`;
   codeSnippetGetAssetUtxo += `    0\n`;
   codeSnippetGetAssetUtxo += `  );\n`;
-  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAssetUtxosFromAddress(\n`;
-  codeSnippetGetAssetUtxo += `    asset,\n`;
-  codeSnippetGetAssetUtxo += `    scriptAddress\n`;
+  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAddressUtxos(\n`;
+  codeSnippetGetAssetUtxo += `    scriptAddress,\n`;
+  codeSnippetGetAssetUtxo += `    asset\n`;
   codeSnippetGetAssetUtxo += `  );\n`;
   codeSnippetGetAssetUtxo += `  const dataHash = resolveDataHash(datum);\n`;
   codeSnippetGetAssetUtxo += `  let utxo = utxos.find((utxo: any) => {\n`;
@@ -139,9 +139,9 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREVIEW!,
       0
     );
-    const utxos = await blockfrostProvider.fetchAssetUtxosFromAddress(
-      asset,
-      scriptAddress
+    const utxos = await blockfrostProvider.fetchAddressUtxos(
+      scriptAddress,
+      asset
     );
     const dataHash = resolveDataHash(datum);
     let utxo = utxos.find((utxo: any) => {

@@ -4,6 +4,7 @@ export * from './Asset';
 export * from './AssetExtended';
 export * from './AssetMetadata';
 export * from './Data';
+export * from './DataSignature';
 export * from './Era';
 export * from './Mint';
 export * from './NativeScript';

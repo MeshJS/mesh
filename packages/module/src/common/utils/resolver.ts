@@ -1,10 +1,11 @@
 import { AssetFingerprint, csl } from '@mesh/core';
+import { buildRewardAddress } from './builder';
 import {
-  toAddress, toBytes, toBaseAddress, toRewardAddress,
-  toEnterpriseAddress, toPlutusData,
+  toAddress, toBaseAddress, toBytes,
+  toEnterpriseAddress, toPlutusData, toRewardAddress,
 } from './converter';
 import {
-  deserializeAddress, deserializePlutusScript, deserializeTxBody,
+  deserializePlutusScript, deserializeTxBody,
 } from './deserializer';
 import type { Data } from '@mesh/common/types';
 
@@ -21,16 +22,16 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
   ).fingerprint();
 };
 
-export const resolveKeyHash = (bech32: string) => {
+export const resolvePaymentKeyHash = (bech32: string) => {
   try {
-    const keyHash = [
+    const paymentKeyHash = [
       toBaseAddress(bech32)?.payment_cred().to_keyhash(),
       toEnterpriseAddress(bech32)?.payment_cred().to_keyhash(),
       toRewardAddress(bech32)?.payment_cred().to_keyhash()
     ].find((kh) => kh !== undefined);
 
-    if (keyHash !== undefined)
-      return keyHash.to_hex();
+    if (paymentKeyHash !== undefined)
+      return paymentKeyHash.to_hex();
 
     throw new Error(`Couldn't resolve key hash from address: ${bech32}`);
   } catch (error) {
@@ -66,11 +67,14 @@ export const resolveScriptHash = (bech32: string) => {
 export const resolveStakeKey = (bech32: string) => {
   try {
     const address = toAddress(bech32);
-    const cborAddress = address.to_hex();
-    const cborStakeAddress =
-      `e${address.network_id()}${cborAddress.slice(58)}`;
+    const baseAddress = toBaseAddress(bech32);
+    const stakeKeyHash = baseAddress?.stake_cred().to_keyhash();
 
-    return deserializeAddress(cborStakeAddress).to_bech32();
+    if (stakeKeyHash !== undefined)
+      return buildRewardAddress(address.network_id(), stakeKeyHash)
+        .to_address();
+
+    throw new Error(`Couldn't resolve stake key from address: ${bech32}`);
   } catch (error) {
     throw new Error(`An error occurred during resolveStakeKey: ${error}.`);
   }
