@@ -25,7 +25,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
       if (status === 200) {
         return data.length > 0
-          ? paginateUTxOs(page + 1, [...utxos, data.map(toUTxO)])
+          ? paginateUTxOs(page + 1, [...utxos, ...data.map(toUTxO)])
           : utxos;
       }
 
