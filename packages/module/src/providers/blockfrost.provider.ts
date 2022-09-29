@@ -52,11 +52,11 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
   }
 
   async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
-    throw new Error('Method not implemented.');
+    throw new Error('fetchAssetMetadata not implemented.');
   }
 
   async fetchHandleAddress(_handle: string): Promise<string> {
-    throw new Error('Method not implemented.');
+    throw new Error('fetchHandleAddress not implemented.');
   }
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {

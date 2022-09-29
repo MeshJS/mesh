@@ -47,7 +47,7 @@ export class NodeWallet implements IInitiator, ISigner {
     return account.enterpriseAddress;
   }
 
-  getStakeKey(accountIndex = 0): string {
+  getStakeAddress(accountIndex = 0): string {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
     return account.rewardAddress;
@@ -62,7 +62,7 @@ export class NodeWallet implements IInitiator, ISigner {
   getUsedCollateral(
     _limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
   ): Promise<TransactionUnspentOutput[]> {
-    throw new Error('Method not implemented.');
+    throw new Error('getUsedCollateral not implemented.');
   }
 
   async getUsedUtxos(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
