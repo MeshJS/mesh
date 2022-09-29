@@ -112,6 +112,10 @@ export class NodeWallet implements IInitiator, ISigner {
       throw new Error(`[NodeWallet] An error occurred during signTx: ${error}.`);
     }
   }
+
+  static brew(strength = 256): string[] {
+    return EmbeddedWallet.generateMnemonic(strength);
+  }
 }
 
 const DEFAULT_PASSWORD = 'MARI0TIME';

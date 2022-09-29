@@ -1,8 +1,12 @@
+import { mnemonicToEntropy } from 'bip39';
 import { AssetFingerprint, csl } from '@mesh/core';
-import { buildRewardAddress } from './builder';
+import {
+  buildBip32PrivateKey, buildRewardAddress,
+} from './builder';
 import {
   toAddress, toBaseAddress, toBytes,
-  toEnterpriseAddress, toPlutusData, toRewardAddress,
+  toEnterpriseAddress, toPlutusData,
+  toRewardAddress,
 } from './converter';
 import {
   deserializePlutusScript, deserializeTxBody,
@@ -39,6 +43,16 @@ export const resolvePaymentKeyHash = (bech32: string) => {
   }
 };
 
+export const resolvePrivateKey = (words: string[]) => {
+  const entropy = mnemonicToEntropy(words.join(' '));
+  const bip32PrivateKey = buildBip32PrivateKey(entropy);
+  const bech32PrivateKey = bip32PrivateKey.to_bech32();
+
+  bip32PrivateKey.free();
+
+  return bech32PrivateKey;
+};
+
 export const resolveScriptAddress = (networkId: number, cborPlutusScript: string) => {
   const script = deserializePlutusScript(cborPlutusScript);
 
@@ -64,7 +78,7 @@ export const resolveScriptHash = (bech32: string) => {
   }
 };
 
-export const resolveStakeKey = (bech32: string) => {
+export const resolveStakeAddress = (bech32: string) => {
   try {
     const address = toAddress(bech32);
     const baseAddress = toBaseAddress(bech32);
@@ -76,7 +90,7 @@ export const resolveStakeKey = (bech32: string) => {
 
     throw new Error(`Couldn't resolve stake key from address: ${bech32}`);
   } catch (error) {
-    throw new Error(`An error occurred during resolveStakeKey: ${error}.`);
+    throw new Error(`An error occurred during resolveStakeAddress: ${error}.`);
   }
 };
 

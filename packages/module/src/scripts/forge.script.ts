@@ -1,10 +1,13 @@
 import { csl } from '@mesh/core';
-import { buildScriptPubkey } from '@mesh/common/utils';
+import {
+  buildScriptPubkey, resolvePaymentKeyHash,
+} from '@mesh/common/utils';
 import type { NativeScript } from '@mesh/common/types';
 
 export class ForgeScript {
   static withOneSignature(address: string): string {
-    return buildScriptPubkey(address).to_hex();
+    const keyHash = resolvePaymentKeyHash(address);
+    return buildScriptPubkey(keyHash).to_hex();
   }
 
   static withAtLeastNSignatures(
@@ -13,7 +16,8 @@ export class ForgeScript {
     const nativeScripts = csl.NativeScripts.new();
 
     addresses.forEach((address) => {
-      nativeScripts.add(buildScriptPubkey(address));
+      const keyHash = resolvePaymentKeyHash(address);
+      nativeScripts.add(buildScriptPubkey(keyHash));
     });
 
     const scriptNOfK = csl.ScriptNOfK.new(minimumRequired, nativeScripts);
@@ -24,7 +28,8 @@ export class ForgeScript {
     const nativeScripts = csl.NativeScripts.new();
 
     addresses.forEach((address) => {
-      nativeScripts.add(buildScriptPubkey(address));
+      const keyHash = resolvePaymentKeyHash(address);
+      nativeScripts.add(buildScriptPubkey(keyHash));
     });
 
     const scriptAny = csl.ScriptAny.new(nativeScripts);
@@ -35,7 +40,8 @@ export class ForgeScript {
     const nativeScripts = csl.NativeScripts.new();
 
     addresses.forEach((address) => {
-      nativeScripts.add(buildScriptPubkey(address));
+      const keyHash = resolvePaymentKeyHash(address);
+      nativeScripts.add(buildScriptPubkey(keyHash));
     });
 
     const scriptAll = csl.ScriptAll.new(nativeScripts);
