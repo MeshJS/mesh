@@ -17,8 +17,8 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
   async fetchAddressUtxos(address: string, asset?: string): Promise<UTxO[]> {
     try {
-      const { data, status } = await this._axiosInstance.get(
-        `address_info?_address=${address}`
+      const { data, status } = await this._axiosInstance.post(
+        'address_info', { _addresses: [address] }
       );
 
       if (status === 200) {
@@ -41,7 +41,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
                     } as Asset)
                 ),
               ],
-              dataHash: utxo.datum_hash,
+              dataHash: utxo.datum_hash ?? undefined,
             },
           })) as UTxO[];
 
@@ -75,26 +75,26 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return {
-          coinsPerUTxOSize: data.coins_per_utxo_size,
-          collateralPercent: data.collateral_percent,
-          decentralisation: data.decentralisation_param,
-          epoch: data.epoch_no,
-          keyDeposit: data.key_deposit,
-          maxBlockExMem: data.max_block_ex_mem.toString(),
-          maxBlockExSteps: data.max_block_ex_steps.toString(),
-          maxBlockHeaderSize: data.max_bh_size,
-          maxBlockSize: data.max_block_size,
-          maxCollateralInputs: data.max_collateral_inputs,
-          maxTxExMem: data.max_tx_ex_mem.toString(),
-          maxTxExSteps: data.max_tx_ex_steps.toString(),
-          maxTxSize: data.max_tx_size,
-          maxValSize: data.max_val_size.toString(),
-          minFeeA: data.min_fee_a,
-          minFeeB: data.min_fee_b,
-          minPoolCost: data.min_pool_cost,
-          poolDeposit: data.pool_deposit,
-          priceMem: data.price_mem,
-          priceStep: data.price_step,
+          coinsPerUTxOSize: data[0].coins_per_utxo_size,
+          collateralPercent: data[0].collateral_percent,
+          decentralisation: data[0].decentralisation,
+          epoch: data[0].epoch_no,
+          keyDeposit: data[0].key_deposit,
+          maxBlockExMem: data[0].max_block_ex_mem.toString(),
+          maxBlockExSteps: data[0].max_block_ex_steps.toString(),
+          maxBlockHeaderSize: data[0].max_bh_size,
+          maxBlockSize: data[0].max_block_size,
+          maxCollateralInputs: data[0].max_collateral_inputs,
+          maxTxExMem: data[0].max_tx_ex_mem.toString(),
+          maxTxExSteps: data[0].max_tx_ex_steps.toString(),
+          maxTxSize: data[0].max_tx_size,
+          maxValSize: data[0].max_val_size.toString(),
+          minFeeA: data[0].min_fee_a,
+          minFeeB: data[0].min_fee_b,
+          minPoolCost: data[0].min_pool_cost,
+          poolDeposit: data[0].pool_deposit,
+          priceMem: data[0].price_mem,
+          priceStep: data[0].price_step,
         } as Protocol;
 
       throw parseHttpError(data);
