@@ -5,6 +5,7 @@ export default function RunDemoButton({
   runDemoFn,
   loading,
   response,
+  label = 'Run code snippet',
   disabled = false,
 }) {
   return (
@@ -13,7 +14,7 @@ export default function RunDemoButton({
       style={loading ? 'warning' : response !== null ? 'success' : 'light'}
       disabled={loading || disabled}
     >
-      Run code snippet <PlayIcon className="w-4 h-8 ml-4" />
+      {label} <PlayIcon className="w-4 h-8 ml-4" />
     </Button>
   );
 }

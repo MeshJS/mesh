@@ -136,7 +136,7 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
 
   async function _getAssetUtxo({ scriptAddress, asset, datum }) {
     const blockfrostProvider = new BlockfrostProvider(
-      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREVIEW!,
+      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!,
       0
     );
     const utxos = await blockfrostProvider.fetchAddressUtxos(

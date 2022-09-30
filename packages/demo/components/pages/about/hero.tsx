@@ -30,7 +30,7 @@ export default function AboutHero() {
           <div>
             <h2 className="mb-1 text-lg font-bold">Version 1.0</h2>
             <p className="mb-1 text-sm text-gray-400">
-              We intend to release Mesh 1.0 on 22 Sept
+              We released Mesh 1.0 on 22 Sept
             </p>
             {/* <a
               href="#"

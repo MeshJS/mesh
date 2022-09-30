@@ -9,6 +9,7 @@ import {
   WalletIcon,
   ChevronDownIcon,
   PuzzlePieceIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -123,7 +124,7 @@ export default function Navbar() {
                         href={`/apis/browserwallet`}
                         title="Browser Wallet"
                         desc="Connect and perform wallet functions on Web3 dApps"
-                        icon={<WalletIcon className="w-5 h-5" />}
+                        icon={<BanknotesIcon className="w-5 h-5" />}
                         setShowSubmenuApi={setShowSubmenuApi}
                       />
                       <SubMenuLinks
@@ -136,7 +137,7 @@ export default function Navbar() {
                       <SubMenuLinks
                         href={`/apis/nodewallet`}
                         title="Node Wallet"
-                        desc="Wallet for backend"
+                        desc="Wallet for building applications"
                         icon={<WalletIcon className="w-5 h-5" />}
                         setShowSubmenuApi={setShowSubmenuApi}
                       />

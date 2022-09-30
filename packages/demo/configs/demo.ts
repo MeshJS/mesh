@@ -1,33 +1,41 @@
 export const demoAddresses = {
   mainnet:
-    'addr1qywk2r75gu5e56zawmdp2pk8x74l5waandqaw7d0t5ag9us9kqxxhxdp82mrwmfud2rffkk87ufxh25qu08xj5z6qlgs96hv9k',
+    'addr1v9vx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c93pyfx',
   testnet:
-    'addr_test1qp2k7wnshzngpqw0xmy33hvexw4aeg60yr79x3yeeqt3s2uvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysdp6yv3',
+    'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',
 };
 
 export const demoMnemonic = [
-  "amateur",
-  "foam",
-  "hunt",
-  "entry",
-  "boil",
-  "solution",
-  "woman",
-  "coast",
-  "couple",
-  "leopard",
-  "dilemma",
-  "neglect",
-  "identify",
-  "truly",
-  "route",
-  "amused",
-  "view",
-  "slow",
-  "budget",
-  "ordinary",
-  "jealous",
-  "stable",
-  "gauge",
-  "camp"
-]
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+  'solution',
+];
+
+export const demoPrivateKey =
+  'xprv1cqa46gk29plgkg98upclnjv5t425fcpl4rgf9mq2txdxuga7jfq5shk7np6l55nj00sl3m4syzna3uwgrwppdm0azgy9d8zahyf32s62klfyhe0ayyxkc7x92nv4s77fa0v25tufk9tnv7x6dgexe9kdz5gpeqgu';
+
+export const demoCLIKey = {
+  skey: '5820aaca553a7b95b38b5d9b82a5daa7a27ac8e34f3cf27152a978f4576520dd6503',
+  vkey: '5820be925c5bc555ad5b5d0ea5c671b16fcb03023f0aa4b15b288e5ca59955f99bd7',
+};

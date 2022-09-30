@@ -1,13 +1,21 @@
 import ApisLayout from '../common/layout';
+import GenerateWallet from './generateWallet';
+import Hero from './hero';
 import LoadWallet from './loadWallet';
+import SignData from './signData';
+import SignTx from './signTx';
 
 export default function NodeWallet() {
   const sidebarItems = [
-    { label: 'Get installed wallets', to: 'getInstallWallets' },
+    { label: 'Generate wallet', to: 'generateWallet' },
+    { label: 'Load wallet', to: 'loadWallet' },
+    { label: 'Create & sign transactions', to: 'signTx' },
+    { label: 'Sign data', to: 'signData' },
   ];
+
   return (
     <ApisLayout sidebarItems={sidebarItems}>
-      {/* <Hero /> */}
+      <Hero />
       <Main />
     </ApisLayout>
   );
@@ -16,8 +24,10 @@ export default function NodeWallet() {
 function Main() {
   return (
     <>
+      <GenerateWallet />
       <LoadWallet />
-      
+      <SignTx />
+      <SignData />
     </>
   );
 }

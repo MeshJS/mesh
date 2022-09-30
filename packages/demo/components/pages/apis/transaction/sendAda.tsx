@@ -123,7 +123,6 @@ function Right({ userInput, updateField }) {
 
     try {
       const tx = new Transaction({ initiator: wallet });
-
       for (const recipient of userInput) {
         if (recipient.assets.lovelace) {
           tx.sendLovelace(
@@ -132,7 +131,6 @@ function Right({ userInput, updateField }) {
           );
         }
       }
-
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);

@@ -45,11 +45,15 @@ export const WalletProvider = ({ children }) => {
 
   const connectWallet = async (walletName: string) => {
     setConnecting(true);
-    const _wallet = await BrowserWallet.enable(walletName);
-    if (_wallet) {
-      setWallet(_wallet);
-      setWalletNameConnected(walletName);
-      setWalletConnected(true);
+    try {
+      const _wallet = await BrowserWallet.enable(walletName);
+      if (_wallet) {
+        setWallet(_wallet);
+        setWalletNameConnected(walletName);
+        setWalletConnected(true);
+      }
+    } catch (error) {
+      console.error('connectWallet', error);
     }
     setConnecting(false);
   };
