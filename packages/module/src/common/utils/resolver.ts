@@ -5,8 +5,7 @@ import {
 } from './builder';
 import {
   toAddress, toBaseAddress, toBytes,
-  toEnterpriseAddress, toPlutusData,
-  toRewardAddress,
+  toEnterpriseAddress, toPlutusData, toRewardAddress,
 } from './converter';
 import {
   deserializePlutusScript, deserializeTxBody,
@@ -31,15 +30,14 @@ export const resolvePaymentKeyHash = (bech32: string) => {
     const paymentKeyHash = [
       toBaseAddress(bech32)?.payment_cred().to_keyhash(),
       toEnterpriseAddress(bech32)?.payment_cred().to_keyhash(),
-      toRewardAddress(bech32)?.payment_cred().to_keyhash()
     ].find((kh) => kh !== undefined);
 
     if (paymentKeyHash !== undefined)
       return paymentKeyHash.to_hex();
 
-    throw new Error(`Couldn't resolve key hash from address: ${bech32}`);
+    throw new Error(`Couldn't resolve payment key hash from address: ${bech32}`);
   } catch (error) {
-    throw new Error(`An error occurred during resolveKeyHash: ${error}.`);
+    throw new Error(`An error occurred during resolvePaymentKeyHash: ${error}.`);
   }
 };
 
@@ -88,9 +86,25 @@ export const resolveStakeAddress = (bech32: string) => {
       return buildRewardAddress(address.network_id(), stakeKeyHash)
         .to_address();
 
-    throw new Error(`Couldn't resolve stake key from address: ${bech32}`);
+    throw new Error(`Couldn't resolve stake address from address: ${bech32}`);
   } catch (error) {
     throw new Error(`An error occurred during resolveStakeAddress: ${error}.`);
+  }
+};
+
+export const resolveStakeKeyHash = (bech32: string) => {
+  try {
+    const stakeKeyHash = [
+      toBaseAddress(bech32)?.stake_cred().to_keyhash(),
+      toRewardAddress(bech32)?.payment_cred().to_keyhash(),
+    ].find((kh) => kh !== undefined);
+
+    if (stakeKeyHash !== undefined)
+      return stakeKeyHash.to_hex();
+
+    throw new Error(`Couldn't resolve stake key hash from address: ${bech32}`);
+  } catch (error) {
+    throw new Error(`An error occurred during resolveStakeKeyHash: ${error}.`);
   }
 };
 
