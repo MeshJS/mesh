@@ -1,6 +1,6 @@
 import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
-import { IFetcher, IInitiator, ISigner } from '@mesh/common/contracts';
+import { IFetcher, IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeTx, toAddress, toTxUnspentOutput,
 } from '@mesh/common/utils';
@@ -8,12 +8,14 @@ import { EmbeddedWallet } from './embedded.service';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { DataSignature } from '@mesh/common/types';
 
-export class NodeWallet implements IInitiator, ISigner {
+export class NodeWallet implements IInitiator, ISigner, ISubmitter {
   private readonly _fetcher: IFetcher;
+  private readonly _submitter: ISubmitter;
   private readonly _wallet: EmbeddedWallet;
 
   constructor(options: CreateNodeWalletOptions) {
     this._fetcher = options.fetcher;
+    this._submitter = options.submitter;
 
     switch (options.key.type) {
       case 'mnemonic':
@@ -113,6 +115,10 @@ export class NodeWallet implements IInitiator, ISigner {
     }
   }
 
+  submitTx(tx: string): Promise<string> {
+    return this._submitter.submitTx(tx);
+  }
+
   static brew(strength = 256): string[] {
     return EmbeddedWallet.generateMnemonic(strength);
   }
@@ -123,6 +129,7 @@ const DEFAULT_PASSWORD = 'MARI0TIME';
 type CreateNodeWalletOptions = {
   networkId: number;
   fetcher: IFetcher;
+  submitter: ISubmitter;
   key: {
     type: 'root';
     bech32: string;
