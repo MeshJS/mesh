@@ -1,5 +1,4 @@
 import axios, { AxiosInstance } from 'axios';
-import { SUPPORTED_NETWORKS } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { parseHttpError, toBytes } from '@mesh/common/utils';
 import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
@@ -7,9 +6,8 @@ import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
 export class BlockfrostProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(projectId: string, networkId: number, version = 0) {
-    const network = SUPPORTED_NETWORKS.get(networkId) ?? 'testnet';
-
+  constructor(projectId: string, version = 0) {
+    const network = projectId.slice(0, 7); 
     this._axiosInstance = axios.create({
       baseURL: `https://cardano-${network}.blockfrost.io/api/v${version}`,
       headers: { project_id: projectId },

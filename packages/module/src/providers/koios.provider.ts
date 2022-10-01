@@ -1,5 +1,4 @@
 import axios, { AxiosInstance } from 'axios';
-import { SUPPORTED_NETWORKS } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { parseHttpError, toBytes } from '@mesh/common/utils';
 import type { Asset, AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
@@ -7,9 +6,7 @@ import type { Asset, AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
 export class KoiosProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(networkId: number, version = 0) {
-    const network = SUPPORTED_NETWORKS.get(networkId) === 'mainnet' ? 'api' : 'testnet';
-
+  constructor(network: 'api' | 'testnet' | 'guild', version = 0) {
     this._axiosInstance = axios.create({
       baseURL: `https://${network}.koios.rest/api/v${version}`,
     });
@@ -106,6 +103,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
   async submitTx(tx: string): Promise<string> {
     try {
       const headers = { 'Content-Type': 'application/cbor' };
+
       const { data, status } = await this._axiosInstance.post(
         'submittx', toBytes(tx), { headers },
       );
