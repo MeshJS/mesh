@@ -36,7 +36,8 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
         this._wallet = new EmbeddedWallet(
           options.networkId,
           EmbeddedWallet.encryptSigningKeys(
-            options.key.payment, options.key.stake,
+            options.key.payment,
+            options.key.stake ?? 'f0'.repeat(34),
             DEFAULT_PASSWORD,
           ),
         );
@@ -136,7 +137,7 @@ type CreateAppWalletOptions = {
   } | {
     type: 'cli';
     payment: string;
-    stake: string;
+    stake?: string;
   } | {
     type: 'mnemonic';
     words: string[];
