@@ -1,17 +1,17 @@
 import React, { createContext, useState, useContext, useMemo } from 'react';
-import { NodeWallet } from '@martifylabs/mesh';
+import { AppWallet } from '@martifylabs/mesh';
 
 const WalletContext = createContext({
-  wallet: {} as NodeWallet,
-  setWallet: (wallet: NodeWallet) => {},
+  wallet: {} as AppWallet,
+  setWallet: (wallet: AppWallet) => {},
   walletNetwork: 0,
   setWalletNetwork: (network: number) => {},
   walletConnected: false,
   setWalletConnected: (bool: boolean) => {},
 });
 
-export const NodeWalletProvider = ({ children }) => {
-  const [wallet, setWallet] = useState<NodeWallet>({} as NodeWallet);
+export const AppWalletProvider = ({ children }) => {
+  const [wallet, setWallet] = useState<AppWallet>({} as AppWallet);
   const [walletNetwork, setWalletNetwork] = useState<number>(0);
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
 
@@ -36,6 +36,6 @@ export const NodeWalletProvider = ({ children }) => {
   );
 };
 
-export default function useNodeWallet() {
+export default function useAppWallet() {
   return useContext(WalletContext);
 }

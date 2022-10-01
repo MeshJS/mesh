@@ -135,7 +135,7 @@ export default function Navbar() {
                         setShowSubmenuApi={setShowSubmenuApi}
                       />
                       <SubMenuLinks
-                        href={`/apis/nodewallet`}
+                        href={`/apis/AppWallet`}
                         title="Node Wallet"
                         desc="Wallet for building applications"
                         icon={<WalletIcon className="w-5 h-5" />}

@@ -29,7 +29,7 @@ export default function Hero() {
         <div className="col-span-2">
           <p>
             Whether you are building a minting script, or an application that
-            requires multi-signature, <code>NodeWallet</code> is all you need to
+            requires multi-signature, <code>AppWallet</code> is all you need to
             get started.
           </p>
 

@@ -8,12 +8,12 @@ import { EmbeddedWallet } from './embedded.service';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { DataSignature } from '@mesh/common/types';
 
-export class NodeWallet implements IInitiator, ISigner, ISubmitter {
+export class AppWallet implements IInitiator, ISigner, ISubmitter {
   private readonly _fetcher: IFetcher;
   private readonly _submitter: ISubmitter;
   private readonly _wallet: EmbeddedWallet;
 
-  constructor(options: CreateNodeWalletOptions) {
+  constructor(options: CreateAppWalletOptions) {
     this._fetcher = options.fetcher;
     this._submitter = options.submitter;
 
@@ -80,7 +80,7 @@ export class NodeWallet implements IInitiator, ISigner, ISubmitter {
     try {
       return this._wallet.signData(accountIndex, DEFAULT_PASSWORD, address, payload);
     } catch (error) {
-      throw new Error(`[NodeWallet] An error occurred during signData: ${error}.`);
+      throw new Error(`[AppWallet] An error occurred during signData: ${error}.`);
     }
   }
 
@@ -111,7 +111,7 @@ export class NodeWallet implements IInitiator, ISigner, ISubmitter {
 
       return signedTx;
     } catch (error) {
-      throw new Error(`[NodeWallet] An error occurred during signTx: ${error}.`);
+      throw new Error(`[AppWallet] An error occurred during signTx: ${error}.`);
     }
   }
 
@@ -126,7 +126,7 @@ export class NodeWallet implements IInitiator, ISigner, ISubmitter {
 
 const DEFAULT_PASSWORD = 'MARI0TIME';
 
-type CreateNodeWalletOptions = {
+type CreateAppWalletOptions = {
   networkId: number;
   fetcher: IFetcher;
   submitter: ISubmitter;

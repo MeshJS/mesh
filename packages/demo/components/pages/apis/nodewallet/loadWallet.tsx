@@ -4,13 +4,13 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { NodeWallet, BlockfrostProvider } from '@martifylabs/mesh';
+import { AppWallet, BlockfrostProvider } from '@martifylabs/mesh';
 import {
   demoMnemonic,
   demoPrivateKey,
   demoCLIKey,
 } from '../../../../configs/demo';
-import useNodeWallet from '../../../../contexts/nodewallet';
+import useAppWallet from '../../../../contexts/AppWallet';
 import Input from '../../../ui/input';
 import Textarea from '../../../ui/textarea';
 import ButtonGroup from '../../../ui/buttongroup';
@@ -27,7 +27,7 @@ export default function LoadWallet() {
   return (
     <SectionTwoCol
       sidebarTo="loadWallet"
-      header="Load NodeWallet"
+      header="Load AppWallet"
       leftFn={Left(mnemonic, network, privatekey)}
       rightFn={Right(
         demoMethod,
@@ -49,10 +49,10 @@ function Left(mnemonic, network, privatekey) {
     _mnemonic = JSON.stringify(JSON.parse(mnemonic));
   } catch (e) {}
 
-  let codeCommon = `import { NodeWallet } from '@martifylabs/mesh';\n\n`;
+  let codeCommon = `import { AppWallet } from '@martifylabs/mesh';\n\n`;
 
   let code1 = codeCommon;
-  code1 += `const wallet = new NodeWallet({\n`;
+  code1 += `const wallet = new AppWallet({\n`;
   code1 += `  networkId: ${network},\n`;
   code1 += `  fetcher: fetcherProvider,\n`;
   code1 += `  key: {\n`;
@@ -64,7 +64,7 @@ function Left(mnemonic, network, privatekey) {
   let code2 = `const address = wallet.getPaymentAddress();`;
 
   let code3 = codeCommon;
-  code3 += `const wallet = new NodeWallet({\n`;
+  code3 += `const wallet = new AppWallet({\n`;
   code3 += `  networkId: ${network},\n`;
   code3 += `  fetcher: fetcherProvider,\n`;
   code3 += `  key: {\n`;
@@ -109,7 +109,7 @@ function Right(
   setPrivatekey
 ) {
   const [loading, setLoading] = useState<boolean>(false);
-  const { setWallet, setWalletNetwork, setWalletConnected } = useNodeWallet();
+  const { setWallet, setWalletNetwork, setWalletConnected } = useAppWallet();
   const [responseAddress, setResponseAddress] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
 
@@ -135,7 +135,7 @@ function Right(
 
       try {
         if (_mnemonic.length) {
-          const _wallet = new NodeWallet({
+          const _wallet = new AppWallet({
             networkId: network,
             fetcher: fetcherProvider,
             key: {
@@ -155,7 +155,7 @@ function Right(
     }
     if (demoMethod == 1) {
       try {
-        const _wallet = new NodeWallet({
+        const _wallet = new AppWallet({
           networkId: network,
           fetcher: fetcherProvider,
           key: {
@@ -174,7 +174,7 @@ function Right(
     }
     if (demoMethod == 2) {
       try {
-        const _wallet = new NodeWallet({
+        const _wallet = new AppWallet({
           networkId: network,
           fetcher: fetcherProvider,
           key: {
@@ -270,7 +270,7 @@ function InputTable({
             Provide the {demoMethod == 0 && 'mnemonic phrases'}
             {demoMethod == 1 && 'private keys'}
             {demoMethod == 2 && 'CLI generated keys'} to recover your wallet.
-            After initializing the <code>NodeWallet</code>, we will get the
+            After initializing the <code>AppWallet</code>, we will get the
             wallet's payment address.
           </p>
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">

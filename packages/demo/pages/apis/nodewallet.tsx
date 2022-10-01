@@ -1,17 +1,17 @@
 import type { NextPage } from 'next';
-import NodeWallet from '../../components/pages/apis/nodewallet';
+import AppWallet from '../../components/pages/apis/AppWallet';
 import Metatags from '../../components/site/metatags';
 
-const NodeWalletPage: NextPage = () => {
+const AppWalletPage: NextPage = () => {
   return (
     <>
       <Metatags
         title="Node Wallet APIs"
         description="Supercharged backend wallet."
       />
-      <NodeWallet />
+      <AppWallet />
     </>
   );
 };
 
-export default NodeWalletPage;
+export default AppWalletPage;

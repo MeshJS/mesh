@@ -5,7 +5,7 @@ import LoadWallet from './loadWallet';
 import SignData from './signData';
 import SignTx from './signTx';
 
-export default function NodeWallet() {
+export default function AppWallet() {
   const sidebarItems = [
     { label: 'Generate wallet', to: 'generateWallet' },
     { label: 'Load wallet', to: 'loadWallet' },

@@ -10,7 +10,7 @@ import {
   ForgeScript,
 } from '@martifylabs/mesh';
 import type { Mint, AssetMetadata } from '@martifylabs/mesh';
-import useNodeWallet from '../../../../contexts/nodewallet';
+import useAppWallet from '../../../../contexts/AppWallet';
 import { demoAddresses } from '../../../../configs/demo';
 import Input from '../../../ui/input';
 import Link from 'next/link';
@@ -44,7 +44,7 @@ function Left() {
 }
 
 function Right() {
-  const { wallet, walletNetwork, walletConnected } = useNodeWallet();
+  const { wallet, walletNetwork, walletConnected } = useAppWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);

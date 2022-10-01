@@ -5,11 +5,11 @@ import type { AppProps } from 'next/app';
 import { WalletProvider } from '../contexts/wallet';
 import Navbar from '../components/site/navbar';
 import Footer from '../components/site/footer';
-import { NodeWalletProvider } from '../contexts/nodewallet';
+import { AppWalletProvider } from '../contexts/AppWallet';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <NodeWalletProvider>
+    <AppWalletProvider>
       <WalletProvider>
         <div className="cursor-default">
           <header>
@@ -21,7 +21,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           <Footer />
         </div>
       </WalletProvider>
-    </NodeWalletProvider>
+    </AppWalletProvider>
   );
 }
 
