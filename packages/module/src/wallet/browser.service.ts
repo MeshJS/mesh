@@ -4,9 +4,11 @@ import {
 } from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeAddress, deserializeTx, deserializeTxWitnessSet,
-  deserializeTxUnspentOutput, deserializeValue, fromBytes,
-  fromTxUnspentOutput, fromValue, resolveFingerprint, toUTF8, toAddress,
+  deserializeAddress, deserializeTx,
+  deserializeTxWitnessSet, deserializeTxUnspentOutput,
+  deserializeValue, fromBytes, fromTxUnspentOutput,
+  fromUTF8, fromValue, resolveFingerprint, toAddress,
+  toUTF8,
 } from '@mesh/common/utils';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { Asset, AssetExtended, DataSignature, UTxO, Wallet } from '@mesh/common/types';
@@ -84,7 +86,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
   signData(address: string, payload: string): Promise<DataSignature> {
     const signerAddress = toAddress(address).to_hex();
-    return this._walletInstance.signData(signerAddress, payload);
+    return this._walletInstance.signData(signerAddress, fromUTF8(payload));
   }
 
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
