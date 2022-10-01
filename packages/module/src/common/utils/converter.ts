@@ -24,7 +24,11 @@ export const toRewardAddress = (bech32: string) => csl.RewardAddress.from_addres
 
 export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 
-export const toBytes = (hex: string) => Buffer.from(hex, 'hex') as Uint8Array;
+export const toBytes = (hex: string) => {
+  if (hex.length % 2 === 0 && hex.match(/[0-9a-fA-F]/g))
+    return Buffer.from(hex, 'hex') as Uint8Array;
+  return Buffer.from(hex, 'utf-8');
+};
 
 /* -----------------[ Lovelace ]----------------- */
 
