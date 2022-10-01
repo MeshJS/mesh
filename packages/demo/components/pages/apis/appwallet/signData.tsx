@@ -4,8 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { EmbeddedWallet } from '@martifylabs/mesh';
-import useAppWallet from '../../../../contexts/AppWallet';
+import useAppWallet from '../../../../contexts/appWallet';
 import Input from '../../../ui/input';
 
 export default function SignData() {
@@ -36,7 +35,7 @@ function Left() {
 }
 
 function Right(payload, setPayload) {
-  const { wallet, walletNetwork, walletConnected } = useAppWallet();
+  const { wallet, walletConnected } = useAppWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
 

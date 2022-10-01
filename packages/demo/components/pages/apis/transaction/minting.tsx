@@ -158,6 +158,26 @@ function Left({ userInput }) {
   codeSnippet2 += `  asset,\n`;
   codeSnippet2 += `);`;
 
+  let codeSnippetNative = ``;
+  codeSnippetNative += `import type { NativeScript } from '@martifylabs/mesh';\n`;
+  codeSnippetNative += `\n`;
+  codeSnippetNative += `const nativeScript: NativeScript = {\n`;
+  codeSnippetNative += `  type: 'all',\n`;
+  codeSnippetNative += `  scripts:\n`;
+  codeSnippetNative += `  [\n`;
+  codeSnippetNative += `    {\n`;
+  codeSnippetNative += `      type: 'before',\n`;
+  codeSnippetNative += `      slot: '<insert slot here>'\n`;
+  codeSnippetNative += `    },\n`;
+  codeSnippetNative += `    {\n`;
+  codeSnippetNative += `      type: 'sig',\n`;
+  codeSnippetNative += `      keyHash: '<insert keyHash here>'\n`;
+  codeSnippetNative += `    }\n`;
+  codeSnippetNative += `  ]\n`;
+  codeSnippetNative += `};\n`;
+  codeSnippetNative += `\n`;
+  codeSnippetNative += `const forgingScript = ForgeScript.fromNativeScript(nativeScript);\n`;
+
   return (
     <>
       <p>
@@ -170,6 +190,12 @@ function Left({ userInput }) {
       <Codeblock data={codeSnippet2} isJson={false} />
       <p>Here is the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
+      <p>
+        Additionally, you can include <code>NativeScript</code> to define the
+        forging script (for example if you want to have a policy locking
+        script), you can do this:
+      </p>
+      <Codeblock data={codeSnippetNative} isJson={false} />
     </>
   );
 }

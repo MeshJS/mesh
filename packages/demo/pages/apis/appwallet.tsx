@@ -1,13 +1,13 @@
 import type { NextPage } from 'next';
-import AppWallet from '../../components/pages/apis/AppWallet';
+import AppWallet from '../../components/pages/apis/appwallet';
 import Metatags from '../../components/site/metatags';
 
 const AppWalletPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="Node Wallet APIs"
-        description="Supercharged backend wallet."
+        title="App Wallet APIs"
+        description="Supercharged wallet for building amazing applications."
       />
       <AppWallet />
     </>

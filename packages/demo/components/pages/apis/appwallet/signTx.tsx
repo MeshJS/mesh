@@ -4,29 +4,57 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import {
-  Transaction,
-  BlockfrostProvider,
-  ForgeScript,
-} from '@martifylabs/mesh';
+import { Transaction, ForgeScript } from '@martifylabs/mesh';
 import type { Mint, AssetMetadata } from '@martifylabs/mesh';
-import useAppWallet from '../../../../contexts/AppWallet';
+import useAppWallet from '../../../../contexts/appWallet';
 import { demoAddresses } from '../../../../configs/demo';
 import Input from '../../../ui/input';
 import Link from 'next/link';
 
 export default function SignTx() {
+  const [address, setAddress] = useState<string>(demoAddresses.testnet);
+
   return (
     <SectionTwoCol
       sidebarTo="signTx"
       header="Create & sign transactions"
-      leftFn={Left()}
-      rightFn={Right()}
+      leftFn={Left(address)}
+      rightFn={Right(address, setAddress)}
     />
   );
 }
 
-function Left() {
+function Left(address) {
+  let code1 = '';
+  code1 += `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
+  code1 += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n`;
+  code1 += `\n`;
+  code1 += `const walletAddress = wallet.getPaymentAddress();\n`;
+  code1 += `const forgingScript = ForgeScript.withOneSignature(walletAddress);\n`;
+  code1 += `\n`;
+  code1 += `const assetMetadata1: AssetMetadata = {\n`;
+  code1 += `  name: 'Mesh Token',\n`;
+  code1 += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
+  code1 += `  mediaType: 'image/jpg',\n`;
+  code1 += `  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',\n`;
+  code1 += `};\n`;
+  code1 += `const asset1: Mint = {\n`;
+  code1 += `  assetName: 'MeshToken',\n`;
+  code1 += `  assetQuantity: '1',\n`;
+  code1 += `  metadata: assetMetadata1,\n`;
+  code1 += `  label: '721',\n`;
+  code1 += `  recipient: {\n`;
+  code1 += `    address: '${address}',\n`;
+  code1 += `  },\n`;
+  code1 += `};\n`;
+  code1 += `\n`;
+  code1 += `const tx = new Transaction({ initiator: wallet });\n`;
+  code1 += `tx.mintAsset(forgingScript, asset1);\n`;
+  code1 += `\n`;
+  code1 += `const unsignedTx = await tx.build();\n`;
+  code1 += `const signedTx = await wallet.signTx(unsignedTx, false);\n`;
+  code1 += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <>
       <p>
@@ -35,20 +63,16 @@ function Left() {
         <Link href="/apis/transaction">Transaction</Link> to learn more about
         building transactions.
       </p>
-      <Codeblock
-        data={``}
-        isJson={false}
-      />
+      <Codeblock data={code1} isJson={false} />
     </>
   );
 }
 
-function Right() {
+function Right(address, setAddress) {
   const { wallet, walletNetwork, walletConnected } = useAppWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const [address, setAddress] = useState<string>(demoAddresses.testnet);
 
   useEffect(() => {
     async function init() {
@@ -68,13 +92,8 @@ function Right() {
     setLoading(true);
 
     try {
-      const fetcherProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!,
-        walletNetwork
-      );
-
-      const address = wallet.getPaymentAddress();
-      const forgingScript = ForgeScript.withOneSignature(address);
+      const walletAddress = wallet.getPaymentAddress();
+      const forgingScript = ForgeScript.withOneSignature(walletAddress);
 
       const assetMetadata1: AssetMetadata = {
         name: 'Mesh Token',
@@ -97,7 +116,7 @@ function Right() {
 
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx, false);
-      const txHash = await fetcherProvider.submitTx(signedTx);
+      const txHash = await wallet.submitTx(signedTx);
 
       setResponse(txHash);
     } catch (error) {

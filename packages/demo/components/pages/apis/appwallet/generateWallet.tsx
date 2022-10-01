@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { EmbeddedWallet } from '@martifylabs/mesh';
+import { AppWallet } from '@martifylabs/mesh';
 
 export default function GenerateWallet() {
   return (
@@ -32,7 +32,7 @@ function Left() {
         . These mnemonic phrases allow you to recover your wallet.
       </p>
       <Codeblock
-        data={`const mnemonic = EmbeddedWallet.generateMnemonic();`}
+        data={`import { AppWallet } from '@martifylabs/mesh';\n\nconst mnemonic = AppWallet.brew();`}
         isJson={false}
       />
     </>
@@ -45,7 +45,7 @@ function Right() {
 
   async function runDemoGetMnemonic() {
     setLoading(true);
-    const mnemonic = EmbeddedWallet.generateMnemonic();
+    const mnemonic = AppWallet.brew();
     setResponseMnemonic(mnemonic);
     setLoading(false);
   }

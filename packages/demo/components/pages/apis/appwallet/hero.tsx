@@ -18,7 +18,7 @@ export default function Hero() {
             <div className="p-2 mr-4">
               <WalletIcon className="w-16 h-16" />
             </div>
-            <span>Node Wallet</span>
+            <span>App Wallet</span>
           </div>
         </h2>
         <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">

@@ -5,7 +5,7 @@ import type { AppProps } from 'next/app';
 import { WalletProvider } from '../contexts/wallet';
 import Navbar from '../components/site/navbar';
 import Footer from '../components/site/footer';
-import { AppWalletProvider } from '../contexts/AppWallet';
+import { AppWalletProvider } from '../contexts/appWallet';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (

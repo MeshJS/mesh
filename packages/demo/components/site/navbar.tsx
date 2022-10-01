@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
   PuzzlePieceIcon,
   BanknotesIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -135,10 +136,17 @@ export default function Navbar() {
                         setShowSubmenuApi={setShowSubmenuApi}
                       />
                       <SubMenuLinks
-                        href={`/apis/AppWallet`}
-                        title="Node Wallet"
-                        desc="Wallet for building applications"
+                        href={`/apis/appwallet`}
+                        title="App Wallet"
+                        desc="Wallet for building amazing applications"
                         icon={<WalletIcon className="w-5 h-5" />}
+                        setShowSubmenuApi={setShowSubmenuApi}
+                      />
+                      <SubMenuLinks
+                        href={`/apis/resolvers`}
+                        title="Resolvers"
+                        desc="Functions that you need while building dApps"
+                        icon={<WrenchScrewdriverIcon className="w-5 h-5" />}
                         setShowSubmenuApi={setShowSubmenuApi}
                       />
                     </ul>
