@@ -14,7 +14,7 @@ import useAppWallet from '../../../../contexts/appWallet';
 import Input from '../../../ui/input';
 import Textarea from '../../../ui/textarea';
 import ButtonGroup from '../../../ui/buttongroup';
-import FetcherProviderCodeSnippet from '../common/fetcherProvider';
+import BlockchainProviderCodeSnippet from '../common/blockchainProvider';
 
 export default function LoadWallet() {
   const [demoMethod, setDemoMethod] = useState<number>(0);
@@ -62,7 +62,8 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
   let code1 = codeCommon;
   code1 += `const wallet = new AppWallet({\n`;
   code1 += `  networkId: ${network},\n`;
-  code1 += `  fetcher: fetcherProvider,\n`;
+  code1 += `  fetcher: blockchainProvider,\n`;
+  code1 += `  submitter: blockchainProvider,\n`;
   code1 += `  key: {\n`;
   code1 += `    type: 'mnemonic',\n`;
   code1 += `    words: ${_mnemonic},\n`;
@@ -74,7 +75,8 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
   let code3 = codeCommon;
   code3 += `const wallet = new AppWallet({\n`;
   code3 += `  networkId: ${network},\n`;
-  code3 += `  fetcher: fetcherProvider,\n`;
+  code3 += `  fetcher: blockchainProvider,\n`;
+  code3 += `  submitter: blockchainProvider,\n`;
   code3 += `  key: {\n`;
   code3 += `    type: 'root',\n`;
   code3 += `    bech32: '${privatekey}',\n`;
@@ -84,7 +86,8 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
   let code4 = codeCommon;
   code4 += `const wallet = new AppWallet({\n`;
   code4 += `  networkId: ${network},\n`;
-  code4 += `  fetcher: fetcherProvider,\n`;
+  code4 += `  fetcher: blockchainProvider,\n`;
+  code4 += `  submitter: blockchainProvider,\n`;
   code4 += `  key: {\n`;
   code4 += `    type: 'cli',\n`;
   code4 += `    payment: '${paymentSkey}',\n`;
@@ -101,7 +104,7 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
         <b>private keys</b>, and <b>Cardano CLI generated keys</b>.
       </p>
       <p>Lets import a fetcher provider:</p>
-      <FetcherProviderCodeSnippet />
+      <BlockchainProviderCodeSnippet />
       <h3>Mnemonic phrases</h3>
       <p>We can load wallet with mnemonic phrases:</p>
       <Codeblock data={code1} isJson={false} />
@@ -161,7 +164,7 @@ function Right(
     setWalletConnected(false);
     // setWallet(null); // TODO help
 
-    const fetcherProvider = new BlockfrostProvider(
+    const blockchainProvider = new BlockfrostProvider(
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
     );
 
@@ -177,8 +180,8 @@ function Right(
         if (_mnemonic.length) {
           const _wallet = new AppWallet({
             networkId: network,
-            fetcher: fetcherProvider,
-            submitter: fetcherProvider,
+            fetcher: blockchainProvider,
+            submitter: blockchainProvider,
             key: {
               type: 'mnemonic',
               words: _mnemonic,
@@ -198,8 +201,8 @@ function Right(
       try {
         const _wallet = new AppWallet({
           networkId: network,
-          fetcher: fetcherProvider,
-          submitter: fetcherProvider,
+          fetcher: blockchainProvider,
+          submitter: blockchainProvider,
           key: {
             type: 'root',
             bech32: privatekey,
@@ -225,8 +228,8 @@ function Right(
         }
         const _wallet = new AppWallet({
           networkId: network,
-          fetcher: fetcherProvider,
-          submitter: fetcherProvider,
+          fetcher: blockchainProvider,
+          submitter: blockchainProvider,
           key: key,
         });
         setWallet(_wallet);

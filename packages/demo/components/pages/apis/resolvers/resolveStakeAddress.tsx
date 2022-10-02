@@ -4,18 +4,18 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { resolveScriptHash } from '@martifylabs/mesh';
+import { resolveStakeAddress } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
 
-export default function ResolveScriptHash() {
+export default function ResolveStakeAddress() {
   const [userinput, setUserinput] = useState<string>(
-    'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8'
+    'addr_test1qzl2r3fpmav0fmh0vrry0e0tmzxxqwv32sylnlty2jj8dwg636sfudakhsh65qggs4ttjjsk8fuu3fkd65uaxcxv0tfqv3z0y3'
   );
 
   return (
     <SectionTwoCol
-      sidebarTo="resolveScriptHash"
-      header="Resolve Script Hash"
+      sidebarTo="resolveStakeAddress"
+      header="Resolve Stake Address"
       leftFn={Left(userinput)}
       rightFn={Right(userinput, setUserinput)}
     />
@@ -23,14 +23,13 @@ export default function ResolveScriptHash() {
 }
 
 function Left(userinput) {
-  let code = `const hash = resolveScriptHash('${userinput}');`;
+  let code = `const hash = resolveStakeAddress('${userinput}');`;
 
   return (
     <>
       <p>
-        Provide the Plutus script address, and <code>resolveScriptHash</code>{' '}
-        will return a script hash. This script hash can be use for building
-        minting transaction with Plutus contract.
+        Provide a stake address, and <code>resolveStakeAddress</code> will
+        return the pub key hash of the stake address. This...
       </p>
       <Codeblock data={code} isJson={false} />
     </>
@@ -47,7 +46,7 @@ function Right(userinput, setUserinput) {
     setResponse(null);
     setResponseError(null);
     try {
-      const hash = resolveScriptHash(userinput);
+      const hash = resolveStakeAddress(userinput);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -61,8 +60,8 @@ function Right(userinput, setUserinput) {
         <Input
           value={userinput}
           onChange={(e) => setUserinput(e.target.value)}
-          placeholder="Plutus script address"
-          label="Plutus script address"
+          placeholder="Address"
+          label="Address"
         />
         <RunDemoButton
           runDemoFn={runDemo}

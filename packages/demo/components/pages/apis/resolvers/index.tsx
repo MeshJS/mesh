@@ -5,18 +5,22 @@ import ResolveFingerprint from './resolveFingerprint';
 import ResolvePrivateKey from './resolvePrivateKey';
 import ResolveScriptAddress from './resolveScriptAddress';
 import ResolveScriptHash from './resolveScriptHash';
+import ResolvePaymentKeyHash from './resolvePaymentKeyHash';
+import ResolveStakeAddress from './resolveStakeAddress';
+import ResolveStakeKeyHash from './resolveStakeKeyHash';
+import ResolveTxHash from './resolveTxHash';
 
 export default function Resolvers() {
   const sidebarItems = [
-    { label: 'Resolve Data Hash', to: 'resolveDataHash' },
-    { label: 'Resolve Fingerprint', to: 'resolveFingerprint' },
-    { label: 'Resolve Payment Key Hash', to: 'resolvePaymentKeyHash' },
-    { label: 'Resolve Private Key', to: 'resolvePrivateKey' },
-    { label: 'Resolve Script Address', to: 'resolveScriptAddress' },
-    { label: 'Resolve Script Hash', to: 'resolveScriptHash' },
-    { label: 'Resolve Stake Address', to: 'resolveStakeAddress' },
-    { label: 'Resolve Stake Key Hash', to: 'resolveStakeKeyHash' },
-    { label: 'Resolve Tx Hash', to: 'resolveTxHash' },
+    { label: 'Data Hash', to: 'resolveDataHash' },
+    { label: 'Fingerprint', to: 'resolveFingerprint' },
+    { label: 'Payment Key Hash', to: 'resolvePaymentKeyHash' },
+    { label: 'Private Key', to: 'resolvePrivateKey' },
+    { label: 'Script Address', to: 'resolveScriptAddress' },
+    { label: 'Script Hash', to: 'resolveScriptHash' },
+    { label: 'Stake Address', to: 'resolveStakeAddress' },
+    { label: 'Stake Key Hash', to: 'resolveStakeKeyHash' },
+    { label: 'Tx Hash', to: 'resolveTxHash' },
   ];
 
   // resolveDataHash
@@ -51,9 +55,13 @@ function Main() {
     <>
       <ResolveDataHash />
       <ResolveFingerprint />
+      <ResolvePaymentKeyHash />
       <ResolvePrivateKey />
       <ResolveScriptAddress />
       <ResolveScriptHash />
+      <ResolveStakeAddress />
+      <ResolveStakeKeyHash />
+      <ResolveTxHash />
     </>
   );
 }

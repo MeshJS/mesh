@@ -4,40 +4,40 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { resolveScriptHash } from '@martifylabs/mesh';
-import Input from '../../../ui/input';
+import {
+  resolveTxHash,
+  Transaction,
+  AppWallet,
+  BlockfrostProvider,
+} from '@martifylabs/mesh';
+import { demoAddresses, demoPrivateKey } from '../../../../configs/demo';
 
-export default function ResolveScriptHash() {
-  const [userinput, setUserinput] = useState<string>(
-    'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8'
-  );
-
+export default function ResolveTxHash() {
   return (
     <SectionTwoCol
-      sidebarTo="resolveScriptHash"
-      header="Resolve Script Hash"
-      leftFn={Left(userinput)}
-      rightFn={Right(userinput, setUserinput)}
+      sidebarTo="resolveTxHash"
+      header="Resolve Transaction Hash"
+      leftFn={Left()}
+      rightFn={Right()}
     />
   );
 }
 
-function Left(userinput) {
-  let code = `const hash = resolveScriptHash('${userinput}');`;
+function Left() {
+  let code = `const hash = resolveTxHash();`;
 
   return (
     <>
       <p>
-        Provide the Plutus script address, and <code>resolveScriptHash</code>{' '}
-        will return a script hash. This script hash can be use for building
-        minting transaction with Plutus contract.
+        Provide a stake address, and <code>resolveTxHash</code> will return the
+        pub key hash of the stake address. This...
       </p>
       <Codeblock data={code} isJson={false} />
     </>
   );
 }
 
-function Right(userinput, setUserinput) {
+function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
@@ -47,7 +47,21 @@ function Right(userinput, setUserinput) {
     setResponse(null);
     setResponseError(null);
     try {
-      const hash = resolveScriptHash(userinput);
+      const blockchainProvider = new BlockfrostProvider(
+        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+      );
+      const wallet = new AppWallet({
+        networkId: 0,
+        fetcher: blockchainProvider,
+        key: {
+          type: 'root',
+          bech32: demoPrivateKey,
+        },
+      });
+      const tx = new Transaction({ initiator: wallet });
+      tx.sendLovelace(demoAddresses.testnet, '1500000');
+      const unsignedTx = await tx.build();
+      const hash = resolveTxHash(unsignedTx);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -58,12 +72,6 @@ function Right(userinput, setUserinput) {
   return (
     <>
       <Card>
-        <Input
-          value={userinput}
-          onChange={(e) => setUserinput(e.target.value)}
-          placeholder="Plutus script address"
-          label="Plutus script address"
-        />
         <RunDemoButton
           runDemoFn={runDemo}
           loading={loading}

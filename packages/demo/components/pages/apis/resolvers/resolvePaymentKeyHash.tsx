@@ -4,18 +4,17 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { resolveScriptHash } from '@martifylabs/mesh';
+import { resolvePaymentKeyHash } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
+import { demoAddresses } from '../../../../configs/demo';
 
-export default function ResolveScriptHash() {
-  const [userinput, setUserinput] = useState<string>(
-    'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8'
-  );
+export default function ResolvePaymentKeyHash() {
+  const [userinput, setUserinput] = useState<string>(demoAddresses.testnet);
 
   return (
     <SectionTwoCol
-      sidebarTo="resolveScriptHash"
-      header="Resolve Script Hash"
+      sidebarTo="resolvePaymentKeyHash"
+      header="Resolve Payment Key Hash"
       leftFn={Left(userinput)}
       rightFn={Right(userinput, setUserinput)}
     />
@@ -23,14 +22,14 @@ export default function ResolveScriptHash() {
 }
 
 function Left(userinput) {
-  let code = `const hash = resolveScriptHash('${userinput}');`;
+  let code = `const hash = resolvePaymentKeyHash('${userinput}');`;
 
   return (
     <>
       <p>
-        Provide the Plutus script address, and <code>resolveScriptHash</code>{' '}
-        will return a script hash. This script hash can be use for building
-        minting transaction with Plutus contract.
+        Provide an address, and <code>resolvePaymentKeyHash</code> will return
+        the pub key hash of the payment key. This key hash is useful for building
+        the NativeScript.
       </p>
       <Codeblock data={code} isJson={false} />
     </>
@@ -47,7 +46,7 @@ function Right(userinput, setUserinput) {
     setResponse(null);
     setResponseError(null);
     try {
-      const hash = resolveScriptHash(userinput);
+      const hash = resolvePaymentKeyHash(userinput);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -61,8 +60,8 @@ function Right(userinput, setUserinput) {
         <Input
           value={userinput}
           onChange={(e) => setUserinput(e.target.value)}
-          placeholder="Plutus script address"
-          label="Plutus script address"
+          placeholder="Address"
+          label="Address"
         />
         <RunDemoButton
           runDemoFn={runDemo}

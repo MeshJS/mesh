@@ -121,6 +121,13 @@ export default function Navbar() {
                 >
                   <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
                     <ul>
+                    <SubMenuLinks
+                        href={`/apis/appwallet`}
+                        title="App Wallet"
+                        desc="Wallet for building amazing applications"
+                        icon={<WalletIcon className="w-5 h-5" />}
+                        setShowSubmenuApi={setShowSubmenuApi}
+                      />
                       <SubMenuLinks
                         href={`/apis/browserwallet`}
                         title="Browser Wallet"
@@ -133,13 +140,6 @@ export default function Navbar() {
                         title="Transaction"
                         desc="Build transactions, minting, redeem from smart contracts"
                         icon={<PuzzlePieceIcon className="w-5 h-5" />}
-                        setShowSubmenuApi={setShowSubmenuApi}
-                      />
-                      <SubMenuLinks
-                        href={`/apis/appwallet`}
-                        title="App Wallet"
-                        desc="Wallet for building amazing applications"
-                        icon={<WalletIcon className="w-5 h-5" />}
                         setShowSubmenuApi={setShowSubmenuApi}
                       />
                       <SubMenuLinks
