@@ -3,9 +3,21 @@ import ResolveDataHash from './resolveDataHash';
 import Hero from './hero';
 import ResolveFingerprint from './resolveFingerprint';
 import ResolvePrivateKey from './resolvePrivateKey';
+import ResolveScriptAddress from './resolveScriptAddress';
+import ResolveScriptHash from './resolveScriptHash';
 
 export default function Resolvers() {
-  const sidebarItems = [{ label: 'Datum to DataHash', to: 'resolveDataHash' }];
+  const sidebarItems = [
+    { label: 'Resolve Data Hash', to: 'resolveDataHash' },
+    { label: 'Resolve Fingerprint', to: 'resolveFingerprint' },
+    { label: 'Resolve Payment Key Hash', to: 'resolvePaymentKeyHash' },
+    { label: 'Resolve Private Key', to: 'resolvePrivateKey' },
+    { label: 'Resolve Script Address', to: 'resolveScriptAddress' },
+    { label: 'Resolve Script Hash', to: 'resolveScriptHash' },
+    { label: 'Resolve Stake Address', to: 'resolveStakeAddress' },
+    { label: 'Resolve Stake Key Hash', to: 'resolveStakeKeyHash' },
+    { label: 'Resolve Tx Hash', to: 'resolveTxHash' },
+  ];
 
   // resolveDataHash
   // - you give it a Data object it will calculate the hash
@@ -40,6 +52,8 @@ function Main() {
       <ResolveDataHash />
       <ResolveFingerprint />
       <ResolvePrivateKey />
+      <ResolveScriptAddress />
+      <ResolveScriptHash />
     </>
   );
 }

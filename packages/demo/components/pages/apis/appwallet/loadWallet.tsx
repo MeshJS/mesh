@@ -127,7 +127,8 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
       />
       <p>
         We can get the <code>cborHex</code> from the <code>signing.skey</code>{' '}
-        file, and load wallet with Cardano CLI generated skeys:
+        file, and load wallet with Cardano CLI generated skeys. Stake key is
+        optional, but without it, you cannot sign staking transactions.
       </p>
       <Codeblock data={code4} isJson={false} />
     </>
@@ -285,15 +286,7 @@ function Right(
           label="Load wallet and get address"
         />
         <RunDemoResult response={responseAddress} label="Wallet's address" />
-
-        {responseError !== null && (
-          <>
-            <p>
-              <b>Result:</b>
-            </p>
-            <Codeblock data={responseError} />
-          </>
-        )}
+        <RunDemoResult response={responseError} label="Error" />
       </Card>
     </>
   );

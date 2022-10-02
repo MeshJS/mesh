@@ -138,14 +138,7 @@ function Right(address, setAddress) {
           disabled={!walletConnected}
         />
         <RunDemoResult response={response} />
-        {responseError !== null && (
-          <>
-            <p>
-              <b>Result:</b>
-            </p>
-            <Codeblock data={responseError} />
-          </>
-        )}
+        <RunDemoResult response={responseError} label="Error" />
       </Card>
     </>
   );

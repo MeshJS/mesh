@@ -4,19 +4,19 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { resolveFingerprint } from '@martifylabs/mesh';
+import { resolveScriptAddress } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
 
-export default function ResolveFingerprint() {
-  const [userinput, setUserinput] = useState<string>(
-    '426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69'
+export default function ResolveScriptAddress() {
+  const [userinput, setUserinput] = useState<number>(0);
+  const [userinput2, setUserinput2] = useState<string>(
+    '4e4d01000033222220051200120011'
   );
-  const [userinput2, setUserinput2] = useState<string>('4d657368546f6b656e');
 
   return (
     <SectionTwoCol
-      sidebarTo="resolveFingerprint"
-      header="Resolve Fingerprint"
+      sidebarTo="resolveScriptAddress"
+      header="Resolve Script Address"
       leftFn={Left(userinput, userinput2)}
       rightFn={Right(userinput, setUserinput, userinput2, setUserinput2)}
     />
@@ -24,24 +24,19 @@ export default function ResolveFingerprint() {
 }
 
 function Left(userinput, userinput2) {
+  let code = `const hash = resolveScriptAddress(${userinput}, '${userinput2}');`;
+
   return (
     <>
       <p>
-        <code>resolveFingerprint</code> takes policy ID and asset name, and
-        return asset fingerprint based on{' '}
-        <a
-          href="https://cips.cardano.org/cips/cip14/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-14
-        </a>
-        .
+        Provide the Plutus script in CBOR, and <code>resolveScriptAddress</code>{' '}
+        will return a bech32 address of the script.
       </p>
-      <Codeblock
-        data={`const hash = resolveFingerprint(\n  '${userinput}',\n  '${userinput2}'\n);`}
-        isJson={false}
-      />
+      <p>
+        For example, we can get the address of the <code>always succeed</code>{' '}
+        smart contract.
+      </p>
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -55,11 +50,8 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
-
     try {
-      const policyId = userinput;
-      const assetName = userinput2;
-      const hash = resolveFingerprint(policyId, assetName);
+      const hash = resolveScriptAddress(userinput, userinput2);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -73,14 +65,15 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
         <Input
           value={userinput}
           onChange={(e) => setUserinput(e.target.value)}
-          placeholder="Policy ID"
-          label="Policy ID"
+          placeholder="Network ID"
+          label="Network ID"
+          type="number"
         />
         <Input
           value={userinput2}
           onChange={(e) => setUserinput2(e.target.value)}
-          placeholder="Asset name"
-          label="Asset name"
+          placeholder="Plutus script CBOR"
+          label="Plutus script CBOR"
         />
         <RunDemoButton
           runDemoFn={runDemo}

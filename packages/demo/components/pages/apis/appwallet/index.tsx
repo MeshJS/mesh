@@ -9,7 +9,7 @@ export default function AppWallet() {
   const sidebarItems = [
     { label: 'Generate wallet', to: 'generateWallet' },
     { label: 'Load wallet', to: 'loadWallet' },
-    { label: 'Create & sign transactions', to: 'signTx' },
+    { label: 'Sign transactions', to: 'signTx' },
     { label: 'Sign data', to: 'signData' },
   ];
 

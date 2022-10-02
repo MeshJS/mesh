@@ -4,19 +4,18 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { resolvePrivateKey } from '@martifylabs/mesh';
-import { demoMnemonic } from '../../../../configs/demo';
-import Textarea from '../../../ui/textarea';
+import { resolveScriptHash } from '@martifylabs/mesh';
+import Input from '../../../ui/input';
 
-export default function ResolvePrivateKey() {
+export default function ResolveScriptHash() {
   const [userinput, setUserinput] = useState<string>(
-    JSON.stringify(demoMnemonic, null, 2)
+    'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8'
   );
 
   return (
     <SectionTwoCol
-      sidebarTo="resolvePrivateKey"
-      header="Resolve Private Key"
+      sidebarTo="resolveScriptHash"
+      header="Resolve Script Hash"
       leftFn={Left(userinput)}
       rightFn={Right(userinput, setUserinput)}
     />
@@ -24,18 +23,17 @@ export default function ResolvePrivateKey() {
 }
 
 function Left(userinput) {
-  let _mnemonic = JSON.stringify(demoMnemonic);
-  try {
-    _mnemonic = JSON.stringify(JSON.parse(userinput));
-  } catch (e) {}
-
-  let code = `const dataHash = resolvePrivateKey(${_mnemonic});`;
+  let code = `const hash = resolveScriptHash('${userinput}');`;
 
   return (
     <>
       <p>
-        Provide the mnemonic phrases and <code>resolvePrivateKey</code> will
-        return a bech32 private key.
+        Provide the Plutus script address, and <code>resolveScriptHash</code>{' '}
+        will return a script hash.
+      </p>
+      <p>
+        For example, we can get the address of the <code>always succeed</code>{' '}
+        smart contract.
       </p>
       <Codeblock data={code} isJson={false} />
     </>
@@ -51,31 +49,23 @@ function Right(userinput, setUserinput) {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
-    
-    let _mnemonic = [];
     try {
-      _mnemonic = JSON.parse(userinput);
-    } catch (e) {
-      setResponseError('Mnemonic input is not a valid array.');
-    }
-
-    try {
-      const dataHash = resolvePrivateKey(_mnemonic);
-      setResponse(dataHash);
+      const hash = resolveScriptHash(userinput);
+      setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);
     }
-
     setLoading(false);
   }
 
   return (
     <>
       <Card>
-        <Textarea
+        <Input
           value={userinput}
           onChange={(e) => setUserinput(e.target.value)}
-          rows={8}
+          placeholder="Plutus script address"
+          label="Plutus script address"
         />
         <RunDemoButton
           runDemoFn={runDemo}

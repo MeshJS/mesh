@@ -16,12 +16,12 @@ export default function Hero() {
           Helpful functions that you need while building dApps
         </p>
       </header>
-      <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
+      {/* <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
         <div className="col-span-2">
           <p>Converting to data hashes or key hashes.</p>
           <p className="font-medium">Lets see what what resolvers can do.</p>
         </div>
-      </div>
+      </div> */}
     </>
   );
 }
