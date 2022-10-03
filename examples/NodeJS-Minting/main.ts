@@ -16,7 +16,6 @@ const demoCLIKey = {
   stakeSkey:
     '582097c458f19a3111c3b965220b1bef7d548fd75bc140a7f0a4f080e03cce604f0e',
 };
-
 const networkId = 0;
 const blockfrostKey = 'BLOCKFROST_KEY_HERE';
 

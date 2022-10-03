@@ -200,7 +200,7 @@ const GuideNextjsPage: NextPage = () => {
             Then, initialize Typescript which is require to compile a
             TypeScript:
           </p>
-          <Codeblock data={`tsc --init`} isJson={false} />
+          <Codeblock data={`npx tsc --init`} isJson={false} />
           <p>
             After that, open the <code>tsconfig.json</code> file and define the
             following configurations:
@@ -221,7 +221,7 @@ const GuideNextjsPage: NextPage = () => {
             for our NFTs:
           </p>
           <Codeblock data={codeMetadata} isJson={false} />
-          <h3>2. Create a list of recipients of those NFTs</h3>
+          <h3>2. Create a list of recipients</h3>
           <p>
             Create a file named <code>recipients.ts</code> and specify the list
             of recipients:
@@ -232,7 +232,7 @@ const GuideNextjsPage: NextPage = () => {
           </h3>
           <p>
             Lets create a file named <code>main.ts</code> and import the
-            packages and files we need:
+            packages we need and the files we have created:
           </p>
           <Codeblock data={codeImport} isJson={false} />
           <h3>4. Define variables</h3>
