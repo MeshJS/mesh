@@ -73,6 +73,6 @@ async function main() {
   }
 }
 
-if (blockfrostKey != 'BLOCKFROST_KEY_HERE') {
+if (blockfrostKey !== 'BLOCKFROST_KEY_HERE') {
   await main();
 }

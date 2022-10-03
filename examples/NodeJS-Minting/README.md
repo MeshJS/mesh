@@ -1,4 +1,4 @@
-# Mint with Nodejs
+# Mint with NodeJS
 
 To start:
 ```

@@ -16,12 +16,10 @@ import type { Asset, AssetExtended, DataSignature, UTxO, Wallet } from '@mesh/co
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private constructor(private readonly _walletInstance: WalletInstance) {}
 
-  static supportedWallets = SUPPORTED_WALLETS;
-
   static getInstalledWallets(): Wallet[] {
     if (window.cardano === undefined) return [];
 
-    return BrowserWallet.supportedWallets
+    return SUPPORTED_WALLETS
       .filter((sw) => window.cardano[sw] !== undefined)
       .map((sw) => ({
         name: window.cardano[sw].name,
@@ -178,7 +176,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private static resolveInstance(walletName: string) {
     if (window.cardano === undefined) return undefined;
 
-    const wallet = BrowserWallet.supportedWallets
+    const wallet = SUPPORTED_WALLETS
       .map((sw) => window.cardano[sw])
       .filter((sw) => sw !== undefined)
       .find((sw) => sw.name.toLowerCase() === walletName.toLowerCase());
