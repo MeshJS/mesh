@@ -28,6 +28,18 @@ export default function AboutHero() {
         </div>
         <div className="grid gap-8 pt-8 lg:pt-12 mt-8 lg:mt-12 border-t border-gray-600 sm:grid-cols-2 lg:grid-cols-4">
           <div>
+            <h2 className="mb-1 text-lg font-bold">App Wallet released</h2>
+            <p className="mb-1 text-sm text-gray-400">
+              Wallet for building your amazing apps
+            </p>
+            <Link href="/apis/appwallet">
+              <span className="link">
+                Read more
+                <ArrowRightIcon className="ml-1 w-5 h-5" />
+              </span>
+            </Link>
+          </div>
+          <div>
             <h2 className="mb-1 text-lg font-bold">Version 1.0</h2>
             <p className="mb-1 text-sm text-gray-400">
               We released Mesh 1.0 on 22 Sept

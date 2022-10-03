@@ -24,7 +24,7 @@ export default function ResolveScriptAddress() {
 }
 
 function Left(userinput, userinput2) {
-  let code = `const hash = resolveScriptAddress(${userinput}, '${userinput2}');`;
+  let code = `import { resolveScriptAddress } from '@martifylabs/mesh';\nconst hash = resolveScriptAddress(${userinput}, '${userinput2}');`;
 
   return (
     <>

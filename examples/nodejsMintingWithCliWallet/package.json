@@ -1,0 +1,16 @@
+{
+  "name": "mesh-mint-nodejs",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "@martifylabs/mesh": "^1.0.0"
+  },
+  "scripts": {
+    "start": "tsc && node ./dist/main.js"
+  }
+}

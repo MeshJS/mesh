@@ -11,7 +11,7 @@ export default function ResolveFingerprint() {
   const [userinput, setUserinput] = useState<string>(
     '426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69'
   );
-  const [userinput2, setUserinput2] = useState<string>('4d657368546f6b656e');
+  const [userinput2, setUserinput2] = useState<string>('meshtoken');
 
   return (
     <SectionTwoCol
@@ -39,7 +39,7 @@ function Left(userinput, userinput2) {
         .
       </p>
       <Codeblock
-        data={`const hash = resolveFingerprint(\n  '${userinput}',\n  '${userinput2}'\n);`}
+        data={`import { resolveFingerprint } from '@martifylabs/mesh';\nconst hash = resolveFingerprint(\n  '${userinput}',\n  '${userinput2}'\n);`}
         isJson={false}
       />
     </>

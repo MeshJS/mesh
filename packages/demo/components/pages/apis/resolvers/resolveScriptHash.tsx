@@ -23,7 +23,7 @@ export default function ResolveScriptHash() {
 }
 
 function Left(userinput) {
-  let code = `const hash = resolveScriptHash('${userinput}');`;
+  let code = `import { resolveScriptHash } from '@martifylabs/mesh';\nconst hash = resolveScriptHash('${userinput}');`;
 
   return (
     <>

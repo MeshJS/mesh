@@ -23,13 +23,14 @@ export default function ResolveStakeKeyHash() {
 }
 
 function Left(userinput) {
-  let code = `const hash = resolveStakeKeyHash('${userinput}');`;
+  let code = `import { resolveStakeKeyHash } from '@martifylabs/mesh';\nconst hash = resolveStakeKeyHash('${userinput}');`;
 
   return (
     <>
       <p>
         Provide a stake address, and <code>resolveStakeKeyHash</code> will
-        return the pub key hash of the stake address. This...
+        return the pub key hash of the stake address. This key hash is useful
+        for building the NativeScript.
       </p>
       <Codeblock data={code} isJson={false} />
     </>

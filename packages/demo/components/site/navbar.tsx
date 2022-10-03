@@ -19,7 +19,6 @@ export default function Navbar() {
   const [darkMode, setDarkMode] = useLocalStorage('darkmode', false);
   const [isSSR, setIsSSR] = useState(true);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [showSubmenuApi, setShowSubmenuApi] = useState(false);
 
   useEffect(() => {
     setIsSSR(false);
@@ -106,54 +105,10 @@ export default function Navbar() {
           >
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
               <NavLink href="/guides" label="Guides" />
-              <li
-                onMouseEnter={() => setShowSubmenuApi(true)}
-                onMouseLeave={() => setShowSubmenuApi(false)}
-              >
-                <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-                  APIs{' '}
-                  <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
-                </button>
-                <div
-                  className={`grid ${
-                    !showSubmenuApi && 'hidden'
-                  } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
-                >
-                  <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
-                    <ul>
-                    <SubMenuLinks
-                        href={`/apis/appwallet`}
-                        title="App Wallet"
-                        desc="Wallet for building amazing applications"
-                        icon={<WalletIcon className="w-5 h-5" />}
-                        setShowSubmenuApi={setShowSubmenuApi}
-                      />
-                      <SubMenuLinks
-                        href={`/apis/browserwallet`}
-                        title="Browser Wallet"
-                        desc="Connect and perform wallet functions on Web3 dApps"
-                        icon={<BanknotesIcon className="w-5 h-5" />}
-                        setShowSubmenuApi={setShowSubmenuApi}
-                      />
-                      <SubMenuLinks
-                        href={`/apis/transaction`}
-                        title="Transaction"
-                        desc="Build transactions, minting, redeem from smart contracts"
-                        icon={<PuzzlePieceIcon className="w-5 h-5" />}
-                        setShowSubmenuApi={setShowSubmenuApi}
-                      />
-                      <SubMenuLinks
-                        href={`/apis/resolvers`}
-                        title="Resolvers"
-                        desc="Functions that you need while building dApps"
-                        icon={<WrenchScrewdriverIcon className="w-5 h-5" />}
-                        setShowSubmenuApi={setShowSubmenuApi}
-                      />
-                    </ul>
-                  </div>
-                </div>
-              </li>
-              <NavLink href="/about" label="About" />
+              <SubMenuApi />
+              <SubMenuAbout />
+
+              {/* <NavLink href="/about" label="About" /> */}
             </ul>
           </div>
         </div>
@@ -162,7 +117,91 @@ export default function Navbar() {
   );
 }
 
-function SubMenuLinks({ href, title, desc, icon, setShowSubmenuApi }) {
+function SubMenuApi() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        APIs <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
+            <SubMenuLinks
+              href={`/apis/appwallet`}
+              title="App Wallet"
+              desc="Wallet for building amazing applications"
+              icon={<WalletIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/browserwallet`}
+              title="Browser Wallet"
+              desc="Connect and perform wallet functions on Web3 dApps"
+              icon={<BanknotesIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/transaction`}
+              title="Transaction"
+              desc="Build transactions, minting, redeem from smart contracts"
+              icon={<PuzzlePieceIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/resolvers`}
+              title="Resolvers"
+              desc="Functions that you need while building dApps"
+              icon={<WrenchScrewdriverIcon className="w-5 h-5" />}
+            />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuAbout() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        About <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
+            <SubMenuLinks
+              href={`/about`}
+              title="About Mesh"
+              desc="Information and common questions about Mesh"
+              icon={<WalletIcon className="w-5 h-5" />}
+            />
+            {/* <SubMenuLinks
+              href={`/about/cips`}
+              title="Implemented CIPs"
+              desc="Mesh adhere to standards"
+              icon={<BanknotesIcon className="w-5 h-5" />}
+            /> */}
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuLinks({ href, title, desc, icon }) {
   return (
     <li>
       <Link href={href}>

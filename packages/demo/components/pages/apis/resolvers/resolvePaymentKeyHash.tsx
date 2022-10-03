@@ -22,7 +22,7 @@ export default function ResolvePaymentKeyHash() {
 }
 
 function Left(userinput) {
-  let code = `const hash = resolvePaymentKeyHash('${userinput}');`;
+  let code = `import { resolvePaymentKeyHash } from '@martifylabs/mesh';\nconst hash = resolvePaymentKeyHash('${userinput}');`;
 
   return (
     <>

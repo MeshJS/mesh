@@ -23,13 +23,13 @@ export default function ResolveStakeAddress() {
 }
 
 function Left(userinput) {
-  let code = `const hash = resolveStakeAddress('${userinput}');`;
+  let code = `import { resolveStakeAddress } from '@martifylabs/mesh';\nconst hash = resolveStakeAddress('${userinput}');`;
 
   return (
     <>
       <p>
-        Provide a stake address, and <code>resolveStakeAddress</code> will
-        return the pub key hash of the stake address. This...
+        Provide a wallet address, and <code>resolveStakeAddress</code> will
+        return a staking address in bech32 format.
       </p>
       <Codeblock data={code} isJson={false} />
     </>

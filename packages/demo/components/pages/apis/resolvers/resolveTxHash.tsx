@@ -24,13 +24,19 @@ export default function ResolveTxHash() {
 }
 
 function Left() {
-  let code = `const hash = resolveTxHash();`;
+  let code = `import { resolveTxHash } from '@martifylabs/mesh';\n`;
+  code += `const tx = new Transaction({ initiator: wallet });\n`;
+  code += `tx.sendLovelace(demoAddresses.testnet, '1500000');\n`;
+  code += `const unsignedTx = await tx.build();\n`;
+  code += `const hash1 = resolveTxHash(unsignedTx);\n`;
+  code += `const signedTx = await wallet.signTx(unsignedTx, false);\n`;
+  code += `const hash2 = resolveTxHash(signedTx);\n`;
 
   return (
     <>
       <p>
         Provide a stake address, and <code>resolveTxHash</code> will return the
-        pub key hash of the stake address. This...
+        transaction hash.
       </p>
       <Codeblock data={code} isJson={false} />
     </>
@@ -62,6 +68,8 @@ function Right() {
       tx.sendLovelace(demoAddresses.testnet, '1500000');
       const unsignedTx = await tx.build();
       const hash = resolveTxHash(unsignedTx);
+      const signedTx = await wallet.signTx(unsignedTx, false);
+      // const hash2 = resolveTxHash(signedTx);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);

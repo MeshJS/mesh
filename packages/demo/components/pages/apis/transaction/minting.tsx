@@ -13,6 +13,7 @@ import { demoAddresses } from '../../../../configs/demo';
 import { Transaction, ForgeScript, AssetMetadata } from '@martifylabs/mesh';
 import type { Mint } from '@martifylabs/mesh';
 import Textarea from '../../../ui/textarea';
+import Link from 'next/link';
 
 const defaultMetadata = {
   name: 'Mesh Token',
@@ -196,6 +197,11 @@ function Left({ userInput }) {
         script), you can do this:
       </p>
       <Codeblock data={codeSnippetNative} isJson={false} />
+      <p>
+        As for the <code>keyHash</code>, you can get it using{' '}
+        <code>resolvePaymentKeyHash</code>, see{' '}
+        <Link href="/apis/resolvers">Resolvers</Link>.
+      </p>
     </>
   );
 }

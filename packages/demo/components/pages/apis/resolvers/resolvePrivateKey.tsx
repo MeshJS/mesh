@@ -29,13 +29,13 @@ function Left(userinput) {
     _mnemonic = JSON.stringify(JSON.parse(userinput));
   } catch (e) {}
 
-  let code = `const dataHash = resolvePrivateKey(${_mnemonic});`;
+  let code = `import { resolvePrivateKey } from '@martifylabs/mesh';\nconst dataHash = resolvePrivateKey(${_mnemonic});`;
 
   return (
     <>
       <p>
         Provide the mnemonic phrases and <code>resolvePrivateKey</code> will
-        return a bech32 private key.
+        return a private key.
       </p>
       <Codeblock data={code} isJson={false} />
     </>
