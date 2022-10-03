@@ -76,13 +76,15 @@ export class EmbeddedWallet {
     unsignedTx: string, partialSign: boolean,
   ): Vkeywitnesses {
     try {
+      const txHash = deserializeTxHash(
+        resolveTxHash(unsignedTx)
+      );
+
       return this.accountContext(accountIndex, password, (paymentKey, stakeKey) => {
           const signatures = csl.Vkeywitnesses.new();
           const signers = EmbeddedWallet.resolveSigners(
             unsignedTx, utxos, paymentKey.to_public().hash().to_hex()
           );
-          const txBody = deserializeTx(unsignedTx).body().to_hex();
-          const txHash = deserializeTxHash(resolveTxHash(txBody));
 
           signers.forEach((tkh: string) => {
             if (tkh === paymentKey.to_public().hash().to_hex()) {

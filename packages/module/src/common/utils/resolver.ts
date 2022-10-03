@@ -8,7 +8,7 @@ import {
   toEnterpriseAddress, toPlutusData, toRewardAddress,
 } from './converter';
 import {
-  deserializePlutusScript, deserializeTxBody,
+  deserializePlutusScript, deserializeTx,
 } from './deserializer';
 import type { Data } from '@mesh/common/types';
 
@@ -84,7 +84,7 @@ export const resolveStakeAddress = (bech32: string) => {
 
     if (stakeKeyHash !== undefined)
       return buildRewardAddress(address.network_id(), stakeKeyHash)
-        .to_address();
+        .to_address().to_bech32();
 
     throw new Error(`Couldn't resolve stake address from address: ${bech32}`);
   } catch (error) {
@@ -108,8 +108,8 @@ export const resolveStakeKeyHash = (bech32: string) => {
   }
 };
 
-export const resolveTxHash = (cborTxBody: string) => {
-  const txBody = deserializeTxBody(cborTxBody);
+export const resolveTxHash = (cborTx: string) => {
+  const txBody = deserializeTx(cborTx).body();
   const txHash = csl.hash_transaction(txBody);
   return txHash.to_hex();
 };
