@@ -61,6 +61,7 @@ function Right() {
       const wallet = new AppWallet({
         networkId: 0,
         fetcher: blockchainProvider,
+        submitter: blockchainProvider,
         key: {
           type: 'root',
           bech32: demoPrivateKey,

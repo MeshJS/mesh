@@ -219,18 +219,18 @@ function Right(
     }
     if (demoMethod == 2) {
       try {
-        let key = {
-          type: 'cli',
-          payment: paymentSkey,
-        };
-        if (stakeSkey && stakeSkey.length > 0) {
-          key['stake'] = stakeSkey;
-        }
+        const stake = stakeSkey?.length > 0
+          ? stakeSkey
+          : undefined;
         const _wallet = new AppWallet({
           networkId: network,
           fetcher: blockchainProvider,
           submitter: blockchainProvider,
-          key: key,
+          key: {
+            type: 'cli',
+            payment: paymentSkey,
+            stake,
+          },
         });
         setWallet(_wallet);
         setWalletNetwork(network);
