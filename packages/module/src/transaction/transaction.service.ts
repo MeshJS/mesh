@@ -37,6 +37,14 @@ export class Transaction {
     this._txInputsBuilder = csl.TxInputsBuilder.new();
   }
 
+  get fee(): string {
+    return this._txBuilder.min_fee().to_str();
+  }
+
+  get size(): number {
+    return this._txBuilder.full_size();
+  }
+
   async build(): Promise<string> {
     try {
       if (this.notVisited('redeemValue') === false) {
