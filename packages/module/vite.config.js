@@ -7,7 +7,7 @@ import wasm from 'vite-plugin-wasm';
 export default defineConfig({
   build: {
     lib: {
-      entry: './src/index.ts',
+      fileName: '[name]',
       formats: ['cjs', 'es'],
     },
     rollupOptions: {
@@ -16,6 +16,10 @@ export default defineConfig({
         '@emurgo/cardano-serialization-lib-nodejs',
         'axios', 'bip39', 'nanoid',
       ],
+      input: {
+        index: resolve(__dirname, 'src/index.ts'),
+        hooks: resolve(__dirname, 'src/hooks/index.ts'),
+      },
       plugins: [
         typescript(),
       ]
