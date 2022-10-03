@@ -35,8 +35,8 @@ function Left() {
   return (
     <>
       <p>
-        Provide a stake address, and <code>resolveTxHash</code> will return the
-        transaction hash.
+        Provide a <code>cborTx</code>, <code>resolveTxHash</code> will
+        return the transaction hash.
       </p>
       <Codeblock data={code} isJson={false} />
     </>

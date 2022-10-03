@@ -11,6 +11,12 @@ const GuidesPage: NextPage = () => {
       link: '/guides/nextjs',
       thumbnail: '/guides/nextjs.png',
     },
+    {
+        title: 'Minting on Node.js',
+        desc: 'Load a CLI generated key and mint assets on Node.js',
+        link: '/guides/mintingonnodejs',
+        thumbnail: '/guides/nodejs.jpg',
+      },
     // {
     //   title: 'Start a NestJS backend',
     //   desc: 'WIP',

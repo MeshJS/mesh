@@ -10,7 +10,7 @@ export default function BlockchainProviderCodeSnippet() {
 
   let codeBF = `import { BlockfrostProvider } from '@martifylabs/mesh';\n\n`;
   codeBF += `const blockchainProvider = new BlockfrostProvider(\n`;
-  codeBF += `  'BLOCKFROST_API_KEY',\n`;
+  codeBF += `  '<BLOCKFROST_API_KEY>',\n`;
   codeBF += `);`;
 
   let codeKoios = `import { KoiosProvider } from '@martifylabs/mesh';\n\n`;

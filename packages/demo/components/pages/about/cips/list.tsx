@@ -1,3 +1,5 @@
+import Codeblock from "../../../ui/codeblock";
+
 export default function List() {
   return (
     <section className="bg-gray-50 dark:bg-gray-900">
@@ -12,7 +14,12 @@ export default function List() {
           </p>
         </div>
         <div className="space-y-8 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 xl:gap-8 md:space-y-0">
-          <Card title="title" content={<>hello</>} />
+          <Card title="CIP25" content={<>
+
+            <Codeblock data={``} isJson={false} />
+          
+            import <code>AssetMetadata</code>
+          </>} />
         </div>
       </div>
     </section>
