@@ -138,7 +138,7 @@ const GuideNextjsPage: NextPage = () => {
           <code>AppWallet</code> on Node.js. You can check out the full code in
           our{' '}
           <a
-            href="https://github.com/MartifyLabs/mesh/tree/main/NodeJS-Minting"
+            href="https://github.com/MartifyLabs/mesh/tree/main/examples/NodeJS-Minting"
             target="_blank"
             rel="noreferrer"
           >
