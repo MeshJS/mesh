@@ -46,11 +46,10 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippetGetAssetUtxo += `async function _getAssetUtxo({ scriptAddress, asset, datum }) {\n`;
   codeSnippetGetAssetUtxo += `  const blockfrostProvider = new BlockfrostProvider(\n`;
   codeSnippetGetAssetUtxo += `    'BLOCKFROST_API_KEY_PREVIEW',\n`;
-  codeSnippetGetAssetUtxo += `    0\n`;
   codeSnippetGetAssetUtxo += `  );\n`;
-  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAssetUtxosFromAddress(\n`;
-  codeSnippetGetAssetUtxo += `    asset,\n`;
-  codeSnippetGetAssetUtxo += `    scriptAddress\n`;
+  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAddressUtxos(\n`;
+  codeSnippetGetAssetUtxo += `    scriptAddress,\n`;
+  codeSnippetGetAssetUtxo += `    asset\n`;
   codeSnippetGetAssetUtxo += `  );\n`;
   codeSnippetGetAssetUtxo += `  const dataHash = resolveDataHash(datum);\n`;
   codeSnippetGetAssetUtxo += `  let utxo = utxos.find((utxo: any) => {\n`;
@@ -136,12 +135,11 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
 
   async function _getAssetUtxo({ scriptAddress, asset, datum }) {
     const blockfrostProvider = new BlockfrostProvider(
-      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREVIEW!,
-      0
+      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
     );
-    const utxos = await blockfrostProvider.fetchAssetUtxosFromAddress(
-      asset,
-      scriptAddress
+    const utxos = await blockfrostProvider.fetchAddressUtxos(
+      scriptAddress,
+      asset
     );
     const dataHash = resolveDataHash(datum);
     let utxo = utxos.find((utxo: any) => {
@@ -210,14 +208,7 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
           )}
         </>
       )}
-      {responseError !== null && (
-        <>
-          <p>
-            <b>Result:</b>
-          </p>
-          <Codeblock data={responseError} />
-        </>
-      )}
+      <RunDemoResult response={responseError} label="Error" />
     </Card>
   );
 }

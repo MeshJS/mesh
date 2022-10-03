@@ -24,7 +24,12 @@ export const toRewardAddress = (bech32: string) => csl.RewardAddress.from_addres
 
 export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 
-export const toBytes = (hex: string) => Buffer.from(hex, 'hex') as Uint8Array;
+export const toBytes = (hex: string) => {
+  if (hex.length % 2 === 0 && /^[0-9A-F]*$/i.test(hex))
+    return Buffer.from(hex, 'hex') as Uint8Array;
+
+  return Buffer.from(hex, 'utf-8');
+};
 
 /* -----------------[ Lovelace ]----------------- */
 
@@ -162,7 +167,12 @@ export const toUnitInterval = (float: string) => {
 
 /* -----------------[ UTF-8 ]----------------- */
 
-export const fromUTF8 = (utf8: string) => fromBytes(Buffer.from(utf8, 'utf-8'));
+export const fromUTF8 = (utf8: string) => {
+  if (utf8.length % 2 === 0 && /^[0-9A-F]*$/i.test(utf8))
+    return utf8;
+
+  return fromBytes(Buffer.from(utf8, 'utf-8'));
+};
 
 export const toUTF8 = (hex: string) => Buffer.from(hex, 'hex').toString('utf-8');
 

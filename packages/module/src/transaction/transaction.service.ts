@@ -8,8 +8,8 @@ import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators'
 import {
   buildDataCost, buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializeNativeScript, deserializePlutusScript,
-  fromTxUnspentOutput, fromUTF8, resolveKeyHash, toAddress, toBytes, toPlutusData,
-  toRedeemer, toTxUnspentOutput, toValue,
+  fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash, toAddress, toBytes,
+  toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
@@ -35,6 +35,14 @@ export class Transaction {
     this._protocolParameters = options.parameters ?? DEFAULT_PROTOCOL_PARAMETERS;
     this._txBuilder = buildTxBuilder(options.parameters);
     this._txInputsBuilder = csl.TxInputsBuilder.new();
+  }
+
+  get fee(): string {
+    return this._txBuilder.min_fee().to_str();
+  }
+
+  get size(): number {
+    return this._txBuilder.full_size();
   }
 
   async build(): Promise<string> {
@@ -224,7 +232,7 @@ export class Transaction {
   setRequiredSigners(addresses: string[]) {
     const signatures = Array.from(new Set(
       addresses
-        .map((address) => resolveKeyHash(address))
+        .map((address) => resolvePaymentKeyHash(address))
         .map((keyHash) => deserializeEd25519KeyHash(keyHash))
     ));
 
@@ -262,7 +270,7 @@ export class Transaction {
       && this._totalBurns.size > 0
       && this.notVisited('setTxInputs')
     ) {
-      const utxos = await this._initiator.getAvailableUtxos();
+      const utxos = await this._initiator.getUsedUtxos();
       const inputs = largestFirstMultiAsset(this._totalBurns,
         utxos.map((utxo) => fromTxUnspentOutput(utxo)),
       ).map((utxo) => toTxUnspentOutput(utxo));
@@ -289,7 +297,7 @@ export class Transaction {
 
   private async addCollateralIfNeeded() {
     if (this._initiator && this.notVisited('setCollateral')) {
-      const collateral = await this._initiator.getCollateralInput();
+      const collateral = await this._initiator.getUsedCollateral();
       this._txBuilder.set_collateral(buildTxInputsBuilder(collateral));
     }
   }
@@ -297,7 +305,7 @@ export class Transaction {
   private async addRequiredSignersIfNeeded() {
     if (this._initiator && this.notVisited('setRequiredSigners')) {
       const usedAddress = await this._initiator.getUsedAddress();
-      const keyHash = resolveKeyHash(usedAddress.to_bech32());
+      const keyHash = resolvePaymentKeyHash(usedAddress.to_bech32());
       this._txBuilder.add_required_signer(deserializeEd25519KeyHash(keyHash));
     }
   }
@@ -353,7 +361,7 @@ export class Transaction {
       return txUnspentOutputs;
 
     const availableUtxos = await this._initiator
-      .getAvailableUtxos();
+      .getUsedUtxos();
 
     availableUtxos.forEach((utxo) => {
       txUnspentOutputs.add(utxo);

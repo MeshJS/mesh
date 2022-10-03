@@ -14,7 +14,7 @@ export default function Footer() {
     },
     {
       icon: <SvgGithub className="w-5 h-5" />,
-      link: 'https://github.com/MartifyLabs',
+      link: 'https://github.com/MartifyLabs/mesh',
     },
   ];
   return (

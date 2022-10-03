@@ -1,7 +1,7 @@
-import { AxiosError } from 'axios';
+import axios from 'axios';
 
 export const parseHttpError = (error: unknown): string => {
-  if (error instanceof AxiosError) {
+  if (axios.isAxiosError(error)) {
     if (error.response) {
       return JSON.stringify({
         data: error.response.data,

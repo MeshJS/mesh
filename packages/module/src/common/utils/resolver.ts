@@ -1,10 +1,14 @@
+import { mnemonicToEntropy } from 'bip39';
 import { AssetFingerprint, csl } from '@mesh/core';
 import {
-  toAddress, toBytes, toBaseAddress, toRewardAddress,
-  toEnterpriseAddress, toPlutusData,
+  buildBip32PrivateKey, buildRewardAddress,
+} from './builder';
+import {
+  toAddress, toBaseAddress, toBytes,
+  toEnterpriseAddress, toPlutusData, toRewardAddress,
 } from './converter';
 import {
-  deserializeAddress, deserializePlutusScript, deserializeTxBody,
+  deserializePlutusScript, deserializeTx,
 } from './deserializer';
 import type { Data } from '@mesh/common/types';
 
@@ -21,21 +25,30 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
   ).fingerprint();
 };
 
-export const resolveKeyHash = (bech32: string) => {
+export const resolvePaymentKeyHash = (bech32: string) => {
   try {
-    const keyHash = [
+    const paymentKeyHash = [
       toBaseAddress(bech32)?.payment_cred().to_keyhash(),
       toEnterpriseAddress(bech32)?.payment_cred().to_keyhash(),
-      toRewardAddress(bech32)?.payment_cred().to_keyhash()
     ].find((kh) => kh !== undefined);
 
-    if (keyHash !== undefined)
-      return keyHash.to_hex();
+    if (paymentKeyHash !== undefined)
+      return paymentKeyHash.to_hex();
 
-    throw new Error(`Couldn't resolve key hash from address: ${bech32}`);
+    throw new Error(`Couldn't resolve payment key hash from address: ${bech32}`);
   } catch (error) {
-    throw new Error(`An error occurred during resolveKeyHash: ${error}.`);
+    throw new Error(`An error occurred during resolvePaymentKeyHash: ${error}.`);
   }
+};
+
+export const resolvePrivateKey = (words: string[]) => {
+  const entropy = mnemonicToEntropy(words.join(' '));
+  const bip32PrivateKey = buildBip32PrivateKey(entropy);
+  const bech32PrivateKey = bip32PrivateKey.to_bech32();
+
+  bip32PrivateKey.free();
+
+  return bech32PrivateKey;
 };
 
 export const resolveScriptAddress = (networkId: number, cborPlutusScript: string) => {
@@ -63,21 +76,40 @@ export const resolveScriptHash = (bech32: string) => {
   }
 };
 
-export const resolveStakeKey = (bech32: string) => {
+export const resolveStakeAddress = (bech32: string) => {
   try {
     const address = toAddress(bech32);
-    const cborAddress = address.to_hex();
-    const cborStakeAddress =
-      `e${address.network_id()}${cborAddress.slice(58)}`;
+    const baseAddress = toBaseAddress(bech32);
+    const stakeKeyHash = baseAddress?.stake_cred().to_keyhash();
 
-    return deserializeAddress(cborStakeAddress).to_bech32();
+    if (stakeKeyHash !== undefined)
+      return buildRewardAddress(address.network_id(), stakeKeyHash)
+        .to_address().to_bech32();
+
+    throw new Error(`Couldn't resolve stake address from address: ${bech32}`);
   } catch (error) {
-    throw new Error(`An error occurred during resolveStakeKey: ${error}.`);
+    throw new Error(`An error occurred during resolveStakeAddress: ${error}.`);
   }
 };
 
-export const resolveTxHash = (cborTxBody: string) => {
-  const txBody = deserializeTxBody(cborTxBody);
+export const resolveStakeKeyHash = (bech32: string) => {
+  try {
+    const stakeKeyHash = [
+      toBaseAddress(bech32)?.stake_cred().to_keyhash(),
+      toRewardAddress(bech32)?.payment_cred().to_keyhash(),
+    ].find((kh) => kh !== undefined);
+
+    if (stakeKeyHash !== undefined)
+      return stakeKeyHash.to_hex();
+
+    throw new Error(`Couldn't resolve stake key hash from address: ${bech32}`);
+  } catch (error) {
+    throw new Error(`An error occurred during resolveStakeKeyHash: ${error}.`);
+  }
+};
+
+export const resolveTxHash = (cborTx: string) => {
+  const txBody = deserializeTx(cborTx).body();
   const txHash = csl.hash_transaction(txBody);
   return txHash.to_hex();
 };

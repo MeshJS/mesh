@@ -1,21 +1,8 @@
-import { useEffect, useState } from 'react';
 import Button from '../../../ui/button';
 import useWallet from '../../../../contexts/wallet';
-import { BrowserWallet } from '@martifylabs/mesh';
-import type { Wallet } from '@martifylabs/mesh';
 
 export default function ConnectCipWallet() {
   const { connecting, walletNameConnected, connectWallet, availableWallets } = useWallet();
-  // const [availableWallets, setAvailableWallets] = useState<
-  //   Wallet[] | undefined
-  // >(undefined);
-
-  // useEffect(() => {
-  //   async function init() {
-  //     setAvailableWallets(BrowserWallet.getInstalledWallets());
-  //   }
-  //   init();
-  // }, []);
 
   return (
     <>

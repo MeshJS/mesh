@@ -1,6 +1,7 @@
 import ApisLayout from '../common/layout';
 import Burning from './burning';
 import DesignDatum from './datum';
+// import GetSize from './getSize';
 import Hero from './hero';
 import LockAssets from './lockAssets';
 import Minting from './minting';
@@ -36,6 +37,7 @@ function Main() {
       <Burning />
       <LockAssets />
       <UnlockAssets />
+      {/* <GetSize /> */}
       <DesignDatum />
     </>
   );

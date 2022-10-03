@@ -1,12 +1,12 @@
 import Codeblock from '../../../ui/codeblock';
 
-export default function RunDemoResult({ response }) {
+export default function RunDemoResult({ response, label = 'Result' }) {
   return (
     <>
       {response !== null && (
         <>
           <p>
-            <b>Result:</b>
+            <b>{label}:</b>
           </p>
           <Codeblock data={response} />
         </>

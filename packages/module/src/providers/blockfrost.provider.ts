@@ -1,5 +1,4 @@
 import axios, { AxiosInstance } from 'axios';
-import { SUPPORTED_NETWORKS } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { parseHttpError, toBytes } from '@mesh/common/utils';
 import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
@@ -7,48 +6,55 @@ import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
 export class BlockfrostProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(projectId: string, networkId: number, version = 0) {
-    const network = SUPPORTED_NETWORKS.get(networkId) ?? 'testnet';
-
+  constructor(projectId: string, version = 0) {
+    const network = projectId.slice(0, 7); 
     this._axiosInstance = axios.create({
       baseURL: `https://cardano-${network}.blockfrost.io/api/v${version}`,
       headers: { project_id: projectId },
     });
   }
 
-  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
-    throw new Error('Method not implemented.');
-  }
+  async fetchAddressUtxos(address: string, asset?: string): Promise<UTxO[]> {
+    const filter = asset !== undefined ? `/${asset}` : '';
+    const url = `addresses/${address}/utxos` + filter;
 
-  async fetchAssetUtxosFromAddress(asset: string, address: string): Promise<UTxO[]> {
-    try {
-      const { data, status } = await this._axiosInstance.get(
-        `addresses/${address}/utxos/${asset}`
-      );
+    const paginateUTxOs = async (page = 1, utxos: UTxO[] = []): Promise<UTxO[]> => {
+      const { data, status } = await this._axiosInstance.get(`${url}?page=${page}`);
 
-      if (status === 200)
-        return data.map((utxo) => (
-        {
-          input: {
-            outputIndex: utxo.output_index,
-            txHash: utxo.tx_hash,
-          },
-          output: {
-            address: address,
-            amount: utxo.amount,
-            dataHash: utxo.data_hash ?? undefined,
-          },
-        }
-      ) as UTxO);
+      if (status === 200) {
+        return data.length > 0
+          ? paginateUTxOs(page + 1, [...utxos, ...data.map(toUTxO)])
+          : utxos;
+      }
 
       throw parseHttpError(data);
+    };
+
+    const toUTxO = (bfUTxO): UTxO => ({
+      input: {
+        outputIndex: bfUTxO.output_index,
+        txHash: bfUTxO.tx_hash,
+      },
+      output: {
+        address: address,
+        amount: bfUTxO.amount,
+        dataHash: bfUTxO.data_hash ?? undefined,
+      },
+    });
+
+    try {
+      return await paginateUTxOs();
     } catch (error) {
       throw parseHttpError(error);
     }
   }
 
+  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
+    throw new Error('fetchAssetMetadata not implemented.');
+  }
+
   async fetchHandleAddress(_handle: string): Promise<string> {
-    throw new Error('Method not implemented.');
+    throw new Error('fetchHandleAddress not implemented.');
   }
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {

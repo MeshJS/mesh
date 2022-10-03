@@ -1,55 +1,27 @@
-# Mesh
+![Mesh Logo](https://mesh.martify.io/logo-mesh/mesh.png)
 
-> Rapidly build Web3 apps on the Cardano blockchain
+Mesh is an open-source library to make building dApps accessible. Whether you're a beginner developer, startup, web3 market leader, or a large enterprise, Mesh makes web3 development easy with reliable, scalable, and well-engineered APIs & developer tools.
 
 Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
-## Steps to get started building Web3 dApps with Mesh
+## Guides and documentations
 
-#### 1. Create a new Next.js app:
-```sh
-yarn create next-app --typescript .
-```
+- [Start a Web3 app on Next.js](https://mesh.martify.io/guides/nextjs)
+- [CIP30 wallets intergration](https://mesh.martify.io/apis/browserwallet)
+- [Transaction building, minting, burning, smart contracts and more](https://mesh.martify.io/apis/transaction)
 
-#### 2. Install the `@martifylabs/mesh` package:
-```sh
-yarn add @martifylabs/mesh
-```
+## Why use Mesh
+- Always up to date - Vasil ready, developed closely as the network updates so your app will always works
+- Simple to use - Check out our [guides](https://mesh.martify.io/guides), you will get started in less than 10 mins
+- Adopts best practices - implemented various CIPs and package is well build (no hacking and tweaking needed to get it to work)
+- Thoroughly tested - Mesh is used by developers and learners, built by developers with solid software engineering background
+- Integrates with Cardano projects - Koios, Blockfrost, ADA Handle (and more), you pick what you want to use for your app
+- Well documented - We focus on documentation so you can use it, our [Playground](https://mesh.martify.io/) is built so you can see how it works
 
-#### 3. In `next.config.js`, add `webpack`:
-```js
-const nextConfig = {
-  ...
-  webpack: function (config, options) {
-    config.experiments = {
-      asyncWebAssembly: true,
-    };
-    return config;
-  },
-};
-```
+[Find out more](https://mesh.martify.io/about)
 
-<details><summary>See example</summary>
-<p>
+## How can you contribute?
 
-Example of `next.config.js`:
-```js
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  webpack: function (config, options) {
-    config.experiments = {
-      asyncWebAssembly: true,
-    };
-    return config;
-  },
-};
-module.exports = nextConfig;
-
-```
-</p>
-</details>
-
-#### 4. Import Mesh and start development
-
-Check the [guides](https://mesh.martify.io/guides) to learn more.
+- Build something - try Mesh by implementing your Web 3.0 project (recommended [starter guide](https://mesh.martify.io/guides/nextjs))
+- Inform others - Tell others about Mesh, and star the [Github repo](https://github.com/MartifyLabs/mesh) :star:
+- Write ups - documentations and guides

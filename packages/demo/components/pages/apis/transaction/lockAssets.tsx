@@ -183,14 +183,7 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
           )}
         </>
       )}
-      {responseError !== null && (
-        <>
-          <p>
-            <b>Result:</b>
-          </p>
-          <Codeblock data={responseError} />
-        </>
-      )}
+      <RunDemoResult response={responseError} label="Error" />
     </Card>
   );
 }

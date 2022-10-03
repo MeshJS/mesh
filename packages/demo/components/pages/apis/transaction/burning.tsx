@@ -185,14 +185,7 @@ function Right({ userInput, updateField, walletAssets }) {
           )}
         </>
       )}
-      {responseError !== null && (
-        <>
-          <p>
-            <b>Result:</b>
-          </p>
-          <Codeblock data={responseError} />
-        </>
-      )}
+      <RunDemoResult response={responseError} label="Error" />
     </Card>
   );
 }

@@ -1,11 +1,11 @@
 import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
-  fromUTF8, toAddress, toBytes, toPlutusData,
-  toTxUnspentOutput, toUnitInterval,
+  fromUTF8, toAddress, toBytes,
+  toPlutusData, toTxUnspentOutput,
+  toUnitInterval,
 } from './converter';
 import { deserializeEd25519KeyHash } from './deserializer';
-import { resolveKeyHash } from './resolver';
 import type {
   BaseAddress, Bip32PrivateKey, DataCost,
   Ed25519KeyHash, EnterpriseAddress, RewardAddress, TransactionBuilder,
@@ -56,9 +56,9 @@ export const buildRewardAddress = (
   );
 };
 
-export const buildScriptPubkey = (address: string) => {
+export const buildScriptPubkey = (keyHash: string) => {
   const scriptPubkey = csl.ScriptPubkey.new(
-    deserializeEd25519KeyHash(resolveKeyHash(address)),
+    deserializeEd25519KeyHash(keyHash),
   );
   return csl.NativeScript.new_script_pubkey(scriptPubkey);
 };
