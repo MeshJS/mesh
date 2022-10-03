@@ -31,7 +31,8 @@ function Left() {
   code += `const hash1 = resolveTxHash(unsignedTx);\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx, false);\n`;
   code += `const hash2 = resolveTxHash(signedTx);\n`;
-  code += `// hash1 == hash2`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+  code += `// txHash == hash1 == hash2`;
 
   return (
     <>
