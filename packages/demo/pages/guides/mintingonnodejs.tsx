@@ -237,15 +237,16 @@ const GuideNextjsPage: NextPage = () => {
           <Codeblock data={codeImport} isJson={false} />
           <h3>4. Define variables</h3>
           <p>
-            Next, lets define some variables we will need for this minting
-            example:
+            Next, lets define some variables we will need for minting. You
+            should be using your own wallet if you want to mint a collection of
+            your own. For this example, these are the variables we need:
           </p>
           <Codeblock data={codeVar} isJson={false} />
           <h3>5. Build the minting transaction</h3>
           <p>
             In this guide, we are building a minting transaction, but it could
-            be any transactions. Learn more at{' '}
-            <Link href="/apis/transaction">Transaction</Link>.
+            be any transactions.{' '}
+            <Link href="/apis/transaction">Learn more about Transaction</Link>.
           </p>
           <p>
             Firstly, we need a blockchain provider, in this guide, we will
@@ -257,18 +258,30 @@ const GuideNextjsPage: NextPage = () => {
             isJson={false}
           />
           <p>
-            Next, initialize the <code>AppWallet</code> and its forging script:
+            Next, lets initialize the <code>AppWallet</code> and its forging
+            script. In this example, we initialize using CLI generated keys, but
+            you can also load your wallet with private key and mnemonic phrases.{' '}
+            <Link href="/apis/appwallet">Learn more about AppWallet</Link>.
           </p>
           <Codeblock data={codeWallet} isJson={false} />
           <p>
             Then, lets create a new <code>Transaction</code>, loop through each
-            recipient, and mint an assets with <code>mintAsset</code>:
+            recipient, and mint an assets with <code>mintAsset</code> (
+            <Link href="/apis/transaction">
+              Learn more about minting transactions
+            </Link>
+            ):
           </p>
           <Codeblock data={codeTransaction} isJson={false} />
           <p>Finally, lets sign and submit the transaction:</p>
           <Codeblock data={codeSign} isJson={false} />
           <p>To execute the script, run the following on your Terminal:</p>
           <Codeblock data={`yarn start`} isJson={false} />
+          <p>
+            For a successful transaction, you should get a transaction hash, you
+            should have minted multiple assets in a single transaction, and sent
+            them to multiple recipients.
+          </p>
           <p>
             You can check out the full code in our{' '}
             <a
