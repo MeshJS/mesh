@@ -6,7 +6,7 @@ const TransactionPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="Transaction APIs"
+        title="Transaction"
         description="Create transactions, minting and interacting with smart contracts"
       />
       <Transaction />

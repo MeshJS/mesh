@@ -9,14 +9,10 @@ export default function BlockchainProviderCodeSnippet() {
   );
 
   let codeBF = `import { BlockfrostProvider } from '@martifylabs/mesh';\n\n`;
-  codeBF += `const blockchainProvider = new BlockfrostProvider(\n`;
-  codeBF += `  '<BLOCKFROST_API_KEY>',\n`;
-  codeBF += `);`;
+  codeBF += `const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');`;
 
   let codeKoios = `import { KoiosProvider } from '@martifylabs/mesh';\n\n`;
-  codeKoios += `const blockchainProvider = new KoiosProvider(\n`;
-  codeKoios += `  '<api,testnet,guild>'\n`;
-  codeKoios += `);`;
+  codeKoios += `const blockchainProvider = new KoiosProvider('<api,testnet,guild>');`;
 
   let code = codeBF;
   if (blockchainProvider == 'koios') {

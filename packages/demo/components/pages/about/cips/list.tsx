@@ -1,4 +1,5 @@
-import Codeblock from "../../../ui/codeblock";
+import Link from 'next/link';
+import Codeblock from '../../../ui/codeblock';
 
 export default function List() {
   return (
@@ -6,31 +7,111 @@ export default function List() {
       <div className="py-8 px-4 mx-auto max-w-screen-xl sm:py-16 lg:px-6">
         <div className="mx-auto max-w-screen-md text-center mb-8 lg:mb-16">
           <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
-            Cardano Improvement Proposals Implemented
+            Cardano Improvement Proposals{' '}
+            <span
+              style={{
+                borderRadius: '1em 0 1em 0',
+                backgroundImage:
+                  'linear-gradient(-100deg, rgba(0, 255, 20, 0.2), rgba(0, 255, 20, 0.7) 95%, rgba(0, 255, 20, 0.1))',
+              }}
+            >
+              Implemented
+            </span>
           </h2>
           <p className="font-light text-gray-500 dark:text-gray-400 sm:text-xl">
             Mesh ensures your dApp adheres to the standards provided by the
-            Cardano Community
+            Cardano Community.
           </p>
         </div>
-        <div className="space-y-8 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 xl:gap-8 md:space-y-0">
-          <Card title="CIP25" content={<>
-
-            <Codeblock data={``} isJson={false} />
-          
-            import <code>AssetMetadata</code>
-          </>} />
+        <div className="space-y-8 md:grid md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 md:gap-8 xl:gap-8 md:space-y-0">
+          <Card
+            title="CIP-2: Coin Selection"
+            content={
+              <>
+                <p>
+                  Adopted <code>CoinSelectionStrategyCIP2</code> from Cardano
+                  Serialization Lib.
+                </p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-8: Message Signing"
+            content={
+              <>
+                <p>
+                  Use your wallat to sign message with{' '}
+                  <code>wallet.signData</code>, see{' '}
+                  <Link href="/apis/appwallet">App Wallet</Link> and{' '}
+                  <Link href="/apis/browserwallet">Browser Wallet</Link>.
+                </p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-14: Asset Fingerprint"
+            content={
+              <>
+                <p>
+                  Get asset fingerprint with <code>resolveFingerprint</code>,{' '}
+                  see <Link href="/apis/resolvers">Resolvers</Link>.
+                </p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-25: NFT Metadata"
+            content={
+              <>
+                <p>
+                  Import <code>AssetMetadata</code> to adhere to the NFT
+                  metadata standards, see{' '}
+                  <Link href="/apis/transaction">Transaction</Link>.
+                </p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-1852: Hierarchy for Deterministic Wallets"
+            content={
+              <>
+                <p></p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-1853: Hierarchy for Deterministic Stake Pool Cold Keys"
+            content={
+              <>
+                <p></p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-1855: Forging Policy Keys"
+            content={
+              <>
+                <p></p>
+              </>
+            }
+          />
         </div>
       </div>
     </section>
   );
 }
 
-function Card({title, content}) {
+function Card({ title, content }) {
   return (
     <div className="p-6 bg-white rounded shadow dark:bg-gray-800">
       <h3 className="mb-2 text-xl font-bold dark:text-white">{title}</h3>
-      <p className="font-light text-gray-500 dark:text-gray-400">{content}</p>
+      <div className="font-light text-gray-500 dark:text-gray-400 format">
+        {content}
+      </div>
     </div>
   );
+}
+
+{
+  /* <Codeblock data={``} isJson={false} /> */
 }

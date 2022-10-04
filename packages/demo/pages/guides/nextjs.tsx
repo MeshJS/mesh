@@ -18,6 +18,7 @@ const GuideNextjsPage: NextPage = () => {
       <Metatags
         title="Start a Web3 app on Next.js"
         description="A step-by-step guide to setup a Next.js web application, connect wallet and browse wallet's assets."
+        image="https://mesh.martify.io/guides/nextjs.png"
       />
       <GuidesLayout
         title="Start a Web3 app on Next.js"

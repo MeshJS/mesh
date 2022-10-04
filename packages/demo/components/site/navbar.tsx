@@ -11,6 +11,7 @@ import {
   PuzzlePieceIcon,
   BanknotesIcon,
   WrenchScrewdriverIcon,
+  LinkIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -153,6 +154,12 @@ function SubMenuApi() {
               icon={<PuzzlePieceIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
+              href={`/apis/providers`}
+              title="Providers"
+              desc="Speed up development with these service providers"
+              icon={<LinkIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
               href={`/apis/resolvers`}
               title="Resolvers"
               desc="Functions that you need while building dApps"
@@ -188,12 +195,12 @@ function SubMenuAbout() {
               desc="Information and common questions about Mesh"
               icon={<WalletIcon className="w-5 h-5" />}
             />
-            {/* <SubMenuLinks
+            <SubMenuLinks
               href={`/about/cips`}
               title="Implemented CIPs"
               desc="Mesh adhere to standards"
               icon={<BanknotesIcon className="w-5 h-5" />}
-            /> */}
+            />
           </ul>
         </div>
       </div>
