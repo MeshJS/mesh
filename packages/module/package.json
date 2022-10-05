@@ -72,11 +72,13 @@
   "dependencies": {
     "@emurgo/cardano-message-signing-browser": "1.0.1",
     "@emurgo/cardano-message-signing-nodejs": "1.0.1",
-    "@emurgo/cardano-serialization-lib-browser": "11.0.5",
-    "@emurgo/cardano-serialization-lib-nodejs": "11.0.5",
+    "@emurgo/cardano-serialization-lib-browser": "11.1.0",
+    "@emurgo/cardano-serialization-lib-nodejs": "11.1.0",
     "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
     "bip39": "3.0.4",
-    "nanoid": "3.3.4"
+    "nanoid": "3.3.4",
+    "react": "18.2.0",
+    "zod": "3.19.1"
   }
 }

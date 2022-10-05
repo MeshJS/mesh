@@ -14,7 +14,7 @@ export default defineConfig({
       external: [
         '@emurgo/cardano-message-signing-nodejs',
         '@emurgo/cardano-serialization-lib-nodejs',
-        'axios', 'bip39', 'nanoid',
+        'axios', 'bip39', 'nanoid', 'react', 'zod',
       ],
       input: {
         index: resolve(__dirname, 'src/index.ts'),
