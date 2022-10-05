@@ -2,16 +2,15 @@ import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
   fromUTF8, toAddress, toBytes,
-  toPlutusData, toTxUnspentOutput,
-  toUnitInterval,
+  toPlutusData, toTxUnspentOutput, toUnitInterval,
 } from './converter';
-import { deserializeEd25519KeyHash } from './deserializer';
+import { deserializeEd25519KeyHash, deserializePlutusScript } from './deserializer';
 import type {
   BaseAddress, Bip32PrivateKey, DataCost,
   Ed25519KeyHash, EnterpriseAddress, RewardAddress, TransactionBuilder,
   TransactionOutputBuilder, TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
-import type { Data, UTxO } from '@mesh/common/types';
+import type { Data, PlutusScript, UTxO } from '@mesh/common/types';
 
 export const buildBaseAddress = (
   networkId: number,
@@ -125,17 +124,28 @@ export const buildTxInputsBuilder = (
 };
 
 export const buildTxOutputBuilder = (
-  address: string, datum?: Data,
+  address: string, data?: Data, script?: PlutusScript
 ): TransactionOutputBuilder => {
-  if (datum === undefined)
-    return csl.TransactionOutputBuilder.new()
-      .with_address(toAddress(address));
+  let txOutputBuilder = csl.TransactionOutputBuilder.new()
+    .with_address(toAddress(address));
 
-  const plutusData = toPlutusData(datum);
-  const dataHash = csl.hash_plutus_data(plutusData);
+  if (data) {
+    const plutusData = toPlutusData(data);
 
-  return csl.TransactionOutputBuilder.new()
-    .with_address(toAddress(address))
-    .with_plutus_data(plutusData)
-    .with_data_hash(dataHash);
+    txOutputBuilder = txOutputBuilder
+      .with_data_hash(csl.hash_plutus_data(plutusData))
+      .with_plutus_data(plutusData);
+  }
+
+  if (script) {
+    const plutusScript = deserializePlutusScript(
+      script.code, script.version,
+    );
+
+    txOutputBuilder = txOutputBuilder.with_script_ref(
+      csl.ScriptRef.new_plutus_script(plutusScript),
+    );
+  }
+
+  return txOutputBuilder;
 };
