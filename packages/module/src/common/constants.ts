@@ -32,6 +32,11 @@ export const DEFAULT_PROTOCOL_PARAMETERS: Protocol = {
 
 export const HARDENED_KEY_START = 0x80000000;
 
+export const LANGUAGE_VERSIONS = {
+  V1: csl.Language.new_plutus_v1(),
+  V2: csl.Language.new_plutus_v2(),
+};
+
 export const POLICY_ID_LENGTH = 56;
 
 export const REDEEMER_TAGS = {

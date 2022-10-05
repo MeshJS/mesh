@@ -8,6 +8,7 @@ export * from './DataSignature';
 export * from './Era';
 export * from './Mint';
 export * from './NativeScript';
+export * from './PlutusScript';
 export * from './Protocol';
 export * from './Recipient';
 export * from './UTxO';
