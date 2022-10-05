@@ -10,7 +10,7 @@ import {
 import {
   deserializePlutusScript, deserializeTx,
 } from './deserializer';
-import type { Data } from '@mesh/common/types';
+import type { Data, LanguageVersion } from '@mesh/common/types';
 
 export const resolveDataHash = (data: Data) => {
   const plutusData = toPlutusData(data);
@@ -51,11 +51,15 @@ export const resolvePrivateKey = (words: string[]) => {
   return bech32PrivateKey;
 };
 
-export const resolveScriptAddress = (networkId: number, cborPlutusScript: string) => {
-  const script = deserializePlutusScript(cborPlutusScript);
+export const resolveScriptAddress = (
+  networkId: number,
+  plutusScriptHex: string,
+  languageVersion: LanguageVersion = 'V1',
+) => {
+  const plutusScript = deserializePlutusScript(plutusScriptHex, languageVersion);
 
   const enterpriseAddress = csl.EnterpriseAddress.new(networkId,
-    csl.StakeCredential.from_scripthash(script.hash()),
+    csl.StakeCredential.from_scripthash(plutusScript.hash()),
   );
 
   return enterpriseAddress.to_address().to_bech32();
@@ -108,8 +112,8 @@ export const resolveStakeKeyHash = (bech32: string) => {
   }
 };
 
-export const resolveTxHash = (cborTx: string) => {
-  const txBody = deserializeTx(cborTx).body();
+export const resolveTxHash = (txHex: string) => {
+  const txBody = deserializeTx(txHex).body();
   const txHash = csl.hash_transaction(txBody);
   return txHash.to_hex();
 };
