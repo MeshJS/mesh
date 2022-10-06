@@ -8,6 +8,25 @@ import { EmbeddedWallet } from './embedded.service';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type { DataSignature } from '@mesh/common/types';
 
+const DEFAULT_PASSWORD = 'MARI0TIME';
+
+export type CreateAppWalletOptions = {
+  networkId: number;
+  fetcher: IFetcher;
+  submitter: ISubmitter;
+  key: {
+    type: 'root';
+    bech32: string;
+  } | {
+    type: 'cli';
+    payment: string;
+    stake?: string;
+  } | {
+    type: 'mnemonic';
+    words: string[];
+  };
+};
+
 export class AppWallet implements IInitiator, ISigner, ISubmitter {
   private readonly _fetcher: IFetcher;
   private readonly _submitter: ISubmitter;
@@ -124,22 +143,3 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     return EmbeddedWallet.generateMnemonic(strength);
   }
 }
-
-const DEFAULT_PASSWORD = 'MARI0TIME';
-
-type CreateAppWalletOptions = {
-  networkId: number;
-  fetcher: IFetcher;
-  submitter: ISubmitter;
-  key: {
-    type: 'root';
-    bech32: string;
-  } | {
-    type: 'cli';
-    payment: string;
-    stake?: string;
-  } | {
-    type: 'mnemonic';
-    words: string[];
-  };
-};

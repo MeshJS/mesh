@@ -4,14 +4,15 @@ import {
 } from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeAddress, deserializeTx,
-  deserializeTxWitnessSet, deserializeTxUnspentOutput,
-  deserializeValue, fromBytes, fromTxUnspentOutput,
-  fromUTF8, fromValue, resolveFingerprint, toAddress,
-  toUTF8,
+  deserializeAddress, deserializeTx, deserializeTxWitnessSet,
+  deserializeTxUnspentOutput, deserializeValue, fromBytes,
+  fromTxUnspentOutput, fromUTF8, fromValue, resolveFingerprint,
+  toAddress, toUTF8,
 } from '@mesh/common/utils';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
-import type { Asset, AssetExtended, DataSignature, UTxO, Wallet } from '@mesh/common/types';
+import type {
+  Asset, AssetExtended, DataSignature, UTxO, Wallet,
+} from '@mesh/common/types';
 
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private constructor(private readonly _walletInstance: WalletInstance) {}
@@ -174,7 +175,8 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   private static resolveInstance(walletName: string) {
-    if (window.cardano === undefined) return undefined;
+    if (window.cardano === undefined)
+      return undefined;
 
     const wallet = SUPPORTED_WALLETS
       .map((sw) => window.cardano[sw])

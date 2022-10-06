@@ -18,7 +18,7 @@ export default defineConfig({
       ],
       input: {
         index: resolve(__dirname, 'src/index.ts'),
-        hooks: resolve(__dirname, 'src/hooks/index.ts'),
+        react: resolve(__dirname, 'src/react/index.ts'),
       },
       plugins: [
         typescript(),
