@@ -17,7 +17,7 @@ function Left() {
   return (
     <>
       <p>
-        Requests user to sign the provided transaction. The wallet should ask
+        Requests user to sign the provided transaction (<code>tx</code>). The wallet should ask
         the user for permission, and if given, try to sign the supplied body and
         return a signed transaction. <code>partialSign</code> should be{' '}
         <code>true</code> if the transaction provided requires multiple
@@ -25,7 +25,7 @@ function Left() {
         to learn more on how to use this API.
       </p>
       <Codeblock
-        data={`const signedTx = await wallet.signTx();`}
+        data={`const signedTx = await wallet.signTx(tx, partialSign?);`}
         isJson={false}
       />
     </>

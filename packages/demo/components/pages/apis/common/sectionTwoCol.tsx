@@ -6,7 +6,7 @@ export default function SectionTwoCol({
   leftFn,
   rightFn,
   isH3 = false,
-  badge,
+  badge = <></>,
 }) {
   return (
     <Element name={sidebarTo}>
