@@ -1,14 +1,19 @@
 import { csl } from '@mesh/core';
-import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '@mesh/common/constants';
+import {
+  LANGUAGE_VERSIONS, POLICY_ID_LENGTH, REDEEMER_TAGS,
+} from '@mesh/common/constants';
 import {
   deserializeDataHash, deserializePlutusData,
-  deserializeScriptHash, deserializeScriptRef,
-  deserializeTxHash,
+  deserializePlutusScript, deserializeScriptHash,
+  deserializeScriptRef, deserializeTxHash,
 } from './deserializer';
 import type {
-  PlutusData, Redeemer, RedeemerTag, TransactionUnspentOutput, Value,
+  PlutusData, Redeemer, RedeemerTag,
+  ScriptRef, TransactionUnspentOutput, Value,
 } from '@mesh/core';
-import type { Action, Asset, Data, UTxO } from '@mesh/common/types';
+import type {
+  Action, Asset, Data, NativeScript, PlutusScript, UTxO,
+} from '@mesh/common/types';
 
 /* -----------------[ Address ]----------------- */
 
@@ -93,6 +98,45 @@ export const toRedeemer = (action: Action): Redeemer => {
       csl.BigNum.from_str(action.budget.steps.toString())
     )
   );
+};
+
+/* -----------------[ ScriptRef ]----------------- */
+
+export const fromScriptRef = (scriptRef: ScriptRef): PlutusScript | NativeScript => {
+  if (scriptRef.is_plutus_script()) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const plutusScript = scriptRef.plutus_script()!;
+
+    return {
+      code: plutusScript.to_hex(),
+      version: Object.keys(LANGUAGE_VERSIONS).find(
+        key => LANGUAGE_VERSIONS[key] === plutusScript.language_version(),
+      ),
+    } as PlutusScript;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const nativeScript = scriptRef.native_script()!;
+
+  return JSON.parse(
+    nativeScript.to_json(),
+  ) as NativeScript;
+};
+
+export const toScriptRef = (script: PlutusScript | NativeScript): ScriptRef => {
+  if ('code' in script) {
+    const plutusScript = deserializePlutusScript(
+      script.code, script.version,
+    );
+
+    return csl.ScriptRef.new_plutus_script(plutusScript);
+  }
+
+  const nativeScript = csl.NativeScript.from_json(
+    JSON.stringify(script),
+  );
+
+  return csl.ScriptRef.new_native_script(nativeScript);
 };
 
 /* -----------------[ TransactionUnspentOutput ]----------------- */
