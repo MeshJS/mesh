@@ -4,7 +4,7 @@ import {
   fromUTF8, toAddress, toBytes,
   toPlutusData, toTxUnspentOutput, toUnitInterval,
 } from './converter';
-import { deserializeEd25519KeyHash, deserializePlutusScript } from './deserializer';
+import { deserializePlutusScript } from './deserializer';
 import type {
   BaseAddress, Bip32PrivateKey, DataCost,
   Ed25519KeyHash, EnterpriseAddress, RewardAddress, TransactionBuilder,
@@ -55,10 +55,8 @@ export const buildRewardAddress = (
   );
 };
 
-export const buildScriptPubkey = (keyHash: string) => {
-  const scriptPubkey = csl.ScriptPubkey.new(
-    deserializeEd25519KeyHash(keyHash),
-  );
+export const buildScriptPubkey = (keyHash: Ed25519KeyHash) => {
+  const scriptPubkey = csl.ScriptPubkey.new(keyHash);
   return csl.NativeScript.new_script_pubkey(scriptPubkey);
 };
 

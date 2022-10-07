@@ -1,12 +1,14 @@
 import { csl } from '@mesh/core';
 import {
-  buildScriptPubkey, resolvePaymentKeyHash,
+  buildScriptPubkey, deserializeEd25519KeyHash, resolvePaymentKeyHash,
 } from '@mesh/common/utils';
 import type { NativeScript } from '@mesh/common/types';
 
 export class ForgeScript {
   static withOneSignature(address: string): string {
-    const keyHash = resolvePaymentKeyHash(address);
+    const keyHash = deserializeEd25519KeyHash(
+      resolvePaymentKeyHash(address),
+    );
     return buildScriptPubkey(keyHash).to_hex();
   }
 
@@ -16,7 +18,9 @@ export class ForgeScript {
     const nativeScripts = csl.NativeScripts.new();
 
     addresses.forEach((address) => {
-      const keyHash = resolvePaymentKeyHash(address);
+      const keyHash = deserializeEd25519KeyHash(
+        resolvePaymentKeyHash(address),
+      );
       nativeScripts.add(buildScriptPubkey(keyHash));
     });
 
@@ -28,7 +32,9 @@ export class ForgeScript {
     const nativeScripts = csl.NativeScripts.new();
 
     addresses.forEach((address) => {
-      const keyHash = resolvePaymentKeyHash(address);
+      const keyHash = deserializeEd25519KeyHash(
+        resolvePaymentKeyHash(address),
+      );
       nativeScripts.add(buildScriptPubkey(keyHash));
     });
 
@@ -40,7 +46,9 @@ export class ForgeScript {
     const nativeScripts = csl.NativeScripts.new();
 
     addresses.forEach((address) => {
-      const keyHash = resolvePaymentKeyHash(address);
+      const keyHash = deserializeEd25519KeyHash(
+        resolvePaymentKeyHash(address),
+      );
       nativeScripts.add(buildScriptPubkey(keyHash));
     });
 
