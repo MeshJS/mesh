@@ -8,6 +8,7 @@ import Minting from './minting';
 import SendAda from './sendAda';
 import SendAssets from './sendAssets';
 import UnlockAssets from './unlockAssets';
+import UsingRedeemer from './redeemer';
 
 export default function Transaction() {
   const sidebarItems = [
@@ -18,6 +19,7 @@ export default function Transaction() {
     { label: 'Lock assets on smart contract', to: 'lockAssets' },
     { label: 'Unlock assets on smart contract', to: 'unlockAssets' },
     { label: 'Designing datum', to: 'datum' },
+    { label: 'Using redeemer', to: 'redeemer' },
   ];
 
   return (
@@ -39,6 +41,7 @@ function Main() {
       <UnlockAssets />
       {/* <GetSize /> */}
       <DesignDatum />
+      <UsingRedeemer />
     </>
   );
 }
