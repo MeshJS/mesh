@@ -10,7 +10,7 @@ import {
 import {
   deserializePlutusScript, deserializeTx,
 } from './deserializer';
-import type { Data, LanguageVersion } from '@mesh/common/types';
+import type { Data, LanguageVersion, NativeScript } from '@mesh/common/types';
 
 export const resolveDataHash = (data: Data) => {
   const plutusData = toPlutusData(data);
@@ -65,7 +65,13 @@ export const resolveScriptAddress = (
   return enterpriseAddress.to_address().to_bech32();
 };
 
-export const resolveScriptHash = (bech32: string) => {
+export const resolveNativeScriptHash = (script: NativeScript) => {
+  return csl.NativeScript.from_json(
+    JSON.stringify(script),
+  ).hash().to_hex();
+};
+
+export const resolvePlutusScriptHash = (bech32: string) => {
   try {
     const enterpriseAddress = toEnterpriseAddress(bech32);
     const scriptHash = enterpriseAddress?.payment_cred()
