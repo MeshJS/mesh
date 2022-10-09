@@ -1,6 +1,6 @@
 import { csl } from '@mesh/core';
 import type { Costmdls } from '@mesh/core';
-import type { Budget, Era, Protocol } from './types';
+import type { Budget, Era, Network, Protocol } from './types';
 
 export const DEFAULT_REDEEMER_BUDGET: Budget = {
   mem: 7000000,
@@ -45,6 +45,15 @@ export const REDEEMER_TAGS = {
   REWARD: csl.RedeemerTag.new_reward(),
   SPEND: csl.RedeemerTag.new_spend(),
 };
+
+export const SLOT_PER_EPOCH = '432000';
+
+export const SUPPORTED_CLOCKS = new Map<Network, `${number}:${number}`>([
+  ['testnet', '128:1619295616'],
+  ['preview', '16:1661385600'],
+  ['preprod', '16:1660953600'],
+  ['mainnet', '256:1616795091'],
+]);
 
 export const SUPPORTED_COST_MODELS = new Map<Era, Costmdls>([
   ['ALONZO', csl.TxBuilderConstants.plutus_alonzo_cost_models()],

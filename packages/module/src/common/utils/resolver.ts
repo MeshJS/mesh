@@ -1,6 +1,9 @@
 import { mnemonicToEntropy } from 'bip39';
 import { AssetFingerprint, csl } from '@mesh/core';
 import {
+  SLOT_PER_EPOCH, SUPPORTED_CLOCKS,
+} from '@mesh/common/constants';
+import {
   buildBip32PrivateKey, buildRewardAddress,
 } from './builder';
 import {
@@ -11,13 +14,29 @@ import {
   deserializePlutusScript, deserializeTx,
 } from './deserializer';
 import type {
-  Data, NativeScript, PlutusScript,
+  Data, NativeScript, Network, PlutusScript,
 } from '@mesh/common/types';
 
 export const resolveDataHash = (data: Data) => {
   const plutusData = toPlutusData(data);
   const dataHash = csl.hash_plutus_data(plutusData);
   return dataHash.to_hex();
+};
+
+export const resolveEpochNo = (network: Network, milliseconds = Date.now()) => {
+  if (SUPPORTED_CLOCKS.has(network)) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const [epoch, slot] = SUPPORTED_CLOCKS.get(network)!.split(':');
+
+    return csl.BigNum
+      .from_str(milliseconds.toString())
+      .checked_sub(csl.BigNum.from_str(slot))
+      .div_floor(csl.BigNum.from_str(SLOT_PER_EPOCH))
+      .checked_add(csl.BigNum.from_str(epoch))
+      .to_str();
+  }
+
+  throw new Error(`Couldn't resolve EpochNo for network: ${network}`);
 };
 
 export const resolveFingerprint = (policyId: string, assetName: string) => {
@@ -82,6 +101,27 @@ export const resolvePrivateKey = (words: string[]) => {
   bip32PrivateKey.free();
 
   return bech32PrivateKey;
+};
+
+export const resolveSlotNo = (network: Network, milliseconds = Date.now()) => {
+  if (SUPPORTED_CLOCKS.has(network)) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const [_, slot] = SUPPORTED_CLOCKS.get(network)!.split(':');
+
+    const epochCurrentTime = csl.BigNum
+      .from_str(milliseconds.toString())
+      .checked_sub(csl.BigNum.from_str(slot));
+    
+    const epochEndTime = epochCurrentTime
+      .div_floor(csl.BigNum.from_str(SLOT_PER_EPOCH))
+      .checked_mul(csl.BigNum.from_str(SLOT_PER_EPOCH));
+
+    return epochCurrentTime
+      .checked_sub(epochEndTime)
+      .to_str();
+  }
+
+  throw new Error(`Couldn't resolve SlotNo for network: ${network}`);
 };
 
 export const resolveStakeAddress = (bech32: string) => {
