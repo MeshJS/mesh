@@ -10,9 +10,7 @@ import type {
   TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
-import type {
-  Data, NativeScript, PlutusScript, UTxO,
-} from '@mesh/common/types';
+import type { Recipient, UTxO } from '@mesh/common/types';
 
 export const buildBaseAddress = (
   networkId: number,
@@ -95,14 +93,13 @@ export const buildTxBuilder = (
     .max_tx_size(parameters.maxTxSize)
     .max_value_size(parseInt(parameters.maxValSize, 10))
     .pool_deposit(csl.BigNum.from_str(parameters.poolDeposit))
-    .prefer_pure_change(false)
     .build();
 
   return csl.TransactionBuilder.new(txBuilderConfig);
 };
 
 export const buildTxInputsBuilder = (
-  utxos: unknown[],
+  utxos: Array<unknown>,
 ): TxInputsBuilder => {
   const txInputsBuilder = csl.TxInputsBuilder.new();
 
@@ -124,22 +121,21 @@ export const buildTxInputsBuilder = (
 };
 
 export const buildTxOutputBuilder = (
-  address: string, datum?: Data,
-  script?: PlutusScript | NativeScript,
+  recipient: Recipient,
 ): TransactionOutputBuilder => {
   let txOutputBuilder = csl.TransactionOutputBuilder.new()
-    .with_address(toAddress(address));
+    .with_address(toAddress(recipient.address));
 
-  if (datum) {
-    const plutusData = toPlutusData(datum);
+  if (recipient.datum) {
+    const plutusData = toPlutusData(recipient.datum);
 
     txOutputBuilder = txOutputBuilder
       .with_data_hash(csl.hash_plutus_data(plutusData))
       .with_plutus_data(plutusData);
   }
 
-  if (script) {
-    const scriptRef = toScriptRef(script);
+  if (recipient.script) {
+    const scriptRef = toScriptRef(recipient.script);
 
     txOutputBuilder = txOutputBuilder
       .with_script_ref(scriptRef);

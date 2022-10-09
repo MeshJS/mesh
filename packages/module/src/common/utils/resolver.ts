@@ -10,7 +10,9 @@ import {
 import {
   deserializePlutusScript, deserializeTx,
 } from './deserializer';
-import type { Data, LanguageVersion, NativeScript } from '@mesh/common/types';
+import type {
+  Data, NativeScript, PlutusScript,
+} from '@mesh/common/types';
 
 export const resolveDataHash = (data: Data) => {
   const plutusData = toPlutusData(data);
@@ -23,6 +25,12 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
     toBytes(policyId),
     toBytes(assetName)
   ).fingerprint();
+};
+
+export const resolveNativeScriptHash = (script: NativeScript) => {
+  return csl.NativeScript.from_json(
+    JSON.stringify(script),
+  ).hash().to_hex();
 };
 
 export const resolvePaymentKeyHash = (bech32: string) => {
@@ -41,34 +49,14 @@ export const resolvePaymentKeyHash = (bech32: string) => {
   }
 };
 
-export const resolvePrivateKey = (words: string[]) => {
-  const entropy = mnemonicToEntropy(words.join(' '));
-  const bip32PrivateKey = buildBip32PrivateKey(entropy);
-  const bech32PrivateKey = bip32PrivateKey.to_bech32();
-
-  bip32PrivateKey.free();
-
-  return bech32PrivateKey;
-};
-
-export const resolveScriptAddress = (
-  networkId: number,
-  plutusScriptHex: string,
-  languageVersion: LanguageVersion = 'V1',
-) => {
-  const plutusScript = deserializePlutusScript(plutusScriptHex, languageVersion);
+export const resolvePlutusScriptAddress = (script: PlutusScript, networkId = 0) => {
+  const plutusScript = deserializePlutusScript(script.code, script.version);
 
   const enterpriseAddress = csl.EnterpriseAddress.new(networkId,
     csl.StakeCredential.from_scripthash(plutusScript.hash()),
   );
 
   return enterpriseAddress.to_address().to_bech32();
-};
-
-export const resolveNativeScriptHash = (script: NativeScript) => {
-  return csl.NativeScript.from_json(
-    JSON.stringify(script),
-  ).hash().to_hex();
 };
 
 export const resolvePlutusScriptHash = (bech32: string) => {
@@ -84,6 +72,16 @@ export const resolvePlutusScriptHash = (bech32: string) => {
   } catch (error) {
     throw new Error(`An error occurred during resolveScriptHash: ${error}.`);
   }
+};
+
+export const resolvePrivateKey = (words: string[]) => {
+  const entropy = mnemonicToEntropy(words.join(' '));
+  const bip32PrivateKey = buildBip32PrivateKey(entropy);
+  const bech32PrivateKey = bip32PrivateKey.to_bech32();
+
+  bip32PrivateKey.free();
+
+  return bech32PrivateKey;
 };
 
 export const resolveStakeAddress = (bech32: string) => {
