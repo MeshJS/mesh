@@ -8,8 +8,8 @@ import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators'
 import {
   buildDataCost, buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializeNativeScript, deserializePlutusScript,
-  fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash, toAddress, toBytes,
-  toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
+  fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash, resolveStakeKeyHash,
+  toAddress, toBytes, toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
@@ -235,7 +235,11 @@ export class Transaction {
   setRequiredSigners(addresses: string[]) {
     const signatures = Array.from(new Set(
       addresses
-        .map((address) => resolvePaymentKeyHash(address))
+        .map((address) => {
+          return address.startsWith('addr')
+            ? resolvePaymentKeyHash(address)
+            : resolveStakeKeyHash(address);
+        })
         .map((keyHash) => deserializeEd25519KeyHash(keyHash))
     ));
 
