@@ -151,8 +151,7 @@ export class Transaction {
 
   @Checkpoint()
   sendAssets(
-    address: string, assets: Asset[],
-    options = {} as Partial<LockValueOptions>,
+    recipient: Recipient, assets: Asset[],
   ): Transaction {
     const amount = toValue(assets);
     const multiAsset = amount.multiasset();
@@ -160,7 +159,9 @@ export class Transaction {
     if (amount.is_zero() || multiAsset === undefined)
       return this;
 
-    const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
+    const txOutputBuilder = buildTxOutputBuilder(
+      recipient,
+    );
 
     const txOutput = txOutputBuilder.next()
       .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
@@ -173,10 +174,11 @@ export class Transaction {
   }
 
   sendLovelace(
-    address: string, lovelace: string,
-    options = {} as Partial<LockValueOptions>,
+    recipient: Recipient, lovelace: string,
   ): Transaction {
-    const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
+    const txOutputBuilder = buildTxOutputBuilder(
+      recipient,
+    );
 
     const txOutput = txOutputBuilder.next()
       .with_coin(csl.BigNum.from_str(lovelace))
@@ -189,11 +191,12 @@ export class Transaction {
 
   @Checkpoint()
   sendValue(
-    address: string, value: UTxO,
-    options = {} as Partial<LockValueOptions>,
+    recipient: Recipient, value: UTxO,
   ): Transaction {
     const amount = toValue(value.output.amount);
-    const txOutputBuilder = buildTxOutputBuilder(address, options.datum);
+    const txOutputBuilder = buildTxOutputBuilder(
+      recipient,
+    );
 
     const txOutput = txOutputBuilder.next()
       .with_value(amount)
@@ -377,8 +380,7 @@ export class Transaction {
 
       if (multiAsset !== undefined) {
         const txOutputBuilder = buildTxOutputBuilder(
-          recipient.address,
-          recipient.datum,
+          recipient,
         );
 
         const txOutput = txOutputBuilder.next()
@@ -403,10 +405,6 @@ type CreateTxOptions = {
   era: Era;
   initiator: IInitiator;
   parameters: Protocol;
-};
-
-type LockValueOptions = {
-  datum: Data;
 };
 
 type RedeemValueOptions = {
