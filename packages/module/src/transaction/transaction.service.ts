@@ -71,7 +71,7 @@ export class Transaction {
     this._txBuilder.add_mint_asset(
       deserializeNativeScript(forgeScript),
       csl.AssetName.new(toBytes(asset.unit.slice(POLICY_ID_LENGTH))),
-      csl.Int.new_negative(csl.BigNum.from_str(totalQuantity)),
+      csl.Int.new_negative(csl.BigNum.from_str(asset.quantity)),
     );
 
     this._totalBurns.set(asset.unit, totalQuantity);
@@ -102,7 +102,7 @@ export class Transaction {
     this._txBuilder.add_mint_asset(
       deserializeNativeScript(forgeScript),
       csl.AssetName.new(toBytes(fromUTF8(mint.assetName))),
-      csl.Int.new(totalQuantity),
+      csl.Int.new(csl.BigNum.from_str(asset.quantity)),
     );
 
     if (this._recipients.has(mint.recipient))
