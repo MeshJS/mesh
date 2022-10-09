@@ -9,6 +9,8 @@ import ResolvePaymentKeyHash from './resolvePaymentKeyHash';
 import ResolveStakeAddress from './resolveStakeAddress';
 import ResolveStakeKeyHash from './resolveStakeKeyHash';
 import ResolveTxHash from './resolveTxHash';
+import ResolveEpochNo from './resolveEpochNo';
+import ResolveSlotNo from './resolveSlotNo';
 
 export default function Resolvers() {
   const sidebarItems = [
@@ -21,6 +23,8 @@ export default function Resolvers() {
     { label: 'Stake Address', to: 'resolveStakeAddress' },
     { label: 'Stake Key Hash', to: 'resolveStakeKeyHash' },
     { label: 'Tx Hash', to: 'resolveTxHash' },
+    { label: 'Slot Number', to: 'resolveSlotNo' },
+    { label: 'Epoch Number', to: 'resolveEpochNo' },
   ];
 
   // resolveDataHash
@@ -62,6 +66,8 @@ function Main() {
       <ResolveStakeAddress />
       <ResolveStakeKeyHash />
       <ResolveTxHash />
+      <ResolveSlotNo />
+      <ResolveEpochNo />
     </>
   );
 }

@@ -1,5 +1,7 @@
 import axios from 'axios';
 import type { UTxO } from '@mesh/common/types';
+import { deserializeTx } from '@mesh/common/utils';
+import { csl } from '@mesh/core';
 const minaFrontendUrl = 'http://localhost:4000/';
 const minaBackendUrl = 'http://localhost:5000/';
 const loginUrl = `${minaFrontendUrl}access`;
@@ -19,6 +21,7 @@ export class MinaWallet {
     return appId;
   }
 
+  // TODO, popup blocker issue, need to create html modal instead
   static async openMinaFrontend(url: string) {
     const appId = this.getAppId();
     if (url.includes('?')) {
@@ -113,11 +116,27 @@ export class MinaWallet {
     const userWalletsMeta = await this.get('wallet/getuserwalletsmeta');
     console.log('userWalletsMeta', userWalletsMeta);
     if (userWalletsMeta) {
-      return await this.openMinaFrontend(
+      const txSignatures = await this.openMinaFrontend(
         `${signtxUrl}?unsignedTx=${unsignedTx}&partialSign=${partialSign}`
       );
+
+      if (txSignatures instanceof csl.Vkeywitnesses) {
+        const tx = deserializeTx(unsignedTx);
+        const txWitnessSet = tx.witness_set();
+
+        txWitnessSet.set_vkeys(txSignatures);
+
+        const signedTx = csl.Transaction.new(
+          tx.body(),
+          txWitnessSet,
+          tx.auxiliary_data()
+        ).to_hex();
+        console.log('signedTx', signedTx);
+        return signedTx;
+      }
     } else {
       return undefined;
     }
   }
+
 }
