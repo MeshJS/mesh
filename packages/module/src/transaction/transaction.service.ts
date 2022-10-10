@@ -250,8 +250,18 @@ export class Transaction {
     return this;
   }
 
-  setTimeToLive(slot: string): Transaction {
-    this._txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot));
+  setTimeToStart(slot: string): Transaction {
+    this._txBuilder.set_validity_start_interval_bignum(
+      csl.BigNum.from_str(slot),
+    );
+
+    return this;
+  }
+
+  setTimeToExpire(slot: string): Transaction {
+    this._txBuilder.set_ttl_bignum(
+      csl.BigNum.from_str(slot),
+    );
 
     return this;
   }
