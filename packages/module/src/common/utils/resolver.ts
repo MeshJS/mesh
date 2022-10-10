@@ -1,8 +1,6 @@
 import { mnemonicToEntropy } from 'bip39';
 import { AssetFingerprint, csl } from '@mesh/core';
-import {
-  SLOT_PER_EPOCH, SUPPORTED_CLOCKS,
-} from '@mesh/common/constants';
+import { SUPPORTED_CLOCKS } from '@mesh/common/constants';
 import {
   buildBip32PrivateKey, buildRewardAddress,
 } from './builder';
@@ -25,15 +23,18 @@ export const resolveDataHash = (data: Data) => {
 
 export const resolveEpochNo = (network: Network, milliseconds = Date.now()) => {
   if (SUPPORTED_CLOCKS.has(network)) {
+    const [
+      epoch, _, systemStart, epochLength,
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const [epoch, slot] = SUPPORTED_CLOCKS.get(network)!.split(':');
+    ] = SUPPORTED_CLOCKS.get(network)!.split(':');
 
-    return csl.BigNum
+    return parseInt(csl.BigNum
       .from_str(milliseconds.toString())
-      .checked_sub(csl.BigNum.from_str(slot))
-      .div_floor(csl.BigNum.from_str(SLOT_PER_EPOCH))
+      .div_floor(csl.BigNum.from_str('1000'))
+      .checked_sub(csl.BigNum.from_str(systemStart))
+      .div_floor(csl.BigNum.from_str(epochLength))
       .checked_add(csl.BigNum.from_str(epoch))
-      .to_str();
+      .to_str(), 10);
   }
 
   throw new Error(`Couldn't resolve EpochNo for network: ${network}`);
@@ -106,18 +107,13 @@ export const resolvePrivateKey = (words: string[]) => {
 export const resolveSlotNo = (network: Network, milliseconds = Date.now()) => {
   if (SUPPORTED_CLOCKS.has(network)) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const [_, slot] = SUPPORTED_CLOCKS.get(network)!.split(':');
+    const [_, slot, systemStart] = SUPPORTED_CLOCKS.get(network)!.split(':');
 
-    const epochCurrentTime = csl.BigNum
+    return csl.BigNum
       .from_str(milliseconds.toString())
-      .checked_sub(csl.BigNum.from_str(slot));
-    
-    const epochEndTime = epochCurrentTime
-      .div_floor(csl.BigNum.from_str(SLOT_PER_EPOCH))
-      .checked_mul(csl.BigNum.from_str(SLOT_PER_EPOCH));
-
-    return epochCurrentTime
-      .checked_sub(epochEndTime)
+      .div_floor(csl.BigNum.from_str('1000'))
+      .checked_sub(csl.BigNum.from_str(systemStart))
+      .checked_add(csl.BigNum.from_str(slot))
       .to_str();
   }
 

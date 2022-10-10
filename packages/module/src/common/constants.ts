@@ -46,13 +46,11 @@ export const REDEEMER_TAGS = {
   SPEND: csl.RedeemerTag.new_spend(),
 };
 
-export const SLOT_PER_EPOCH = '432000';
-
-export const SUPPORTED_CLOCKS = new Map<Network, `${number}:${number}`>([
-  ['testnet', '128:1619295616'],
-  ['preview', '16:1661385600'],
-  ['preprod', '16:1660953600'],
-  ['mainnet', '256:1616795091'],
+export const SUPPORTED_CLOCKS = new Map<Network, `${number}:${number}:${number}:${number}`>([
+  ['testnet', '74:1598400:1595967616:432000'],
+  ['preview', '0:0:1660003200:86400'],
+  ['preprod', '0:0:1654041600:432000'],
+  ['mainnet', '208:4492800:1596059091:432000'],
 ]);
 
 export const SUPPORTED_COST_MODELS = new Map<Era, Costmdls>([
