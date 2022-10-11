@@ -1,7 +1,12 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
-import { parseHttpError, toBytes } from '@mesh/common/utils';
-import type { Asset, AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
+import {
+  deserializeNativeScript, parseHttpError, toBytes, toScriptRef,
+} from '@mesh/common/utils';
+import type {
+  Asset, AssetMetadata, NativeScript,
+  PlutusScript, Protocol, UTxO,
+} from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
@@ -13,10 +18,31 @@ export class KoiosProvider implements IFetcher, ISubmitter {
   }
 
   async fetchAddressUtxos(address: string, asset?: string): Promise<UTxO[]> {
+    const resolveScriptRef = (kScriptRef): string | undefined => {
+      if (kScriptRef !== undefined) {
+        const script = kScriptRef.type.startsWith('plutus')
+          ? {
+              code: kScriptRef.bytes,
+              version: kScriptRef.type.replace('plutus', ''),
+            } as PlutusScript
+          : JSON.parse(
+              deserializeNativeScript(kScriptRef.bytes).to_json()
+            ) as NativeScript;
+
+        return toScriptRef(script).to_hex();
+      }
+
+      return kScriptRef;
+    };
+
     try {
       const { data, status } = await this._axiosInstance.post(
         'address_info', { _addresses: [address] }
       );
+
+      if (status === 404) {
+        return [];
+      }
 
       if (status === 200) {
         const utxos = data
@@ -39,6 +65,8 @@ export class KoiosProvider implements IFetcher, ISubmitter {
                 ),
               ],
               dataHash: utxo.datum_hash ?? undefined,
+              plutusData: utxo.inline_datum.bytes ?? undefined,
+              scriptRef: resolveScriptRef(utxo.reference_script),
             },
           })) as UTxO[];
 
