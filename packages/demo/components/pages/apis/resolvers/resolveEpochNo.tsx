@@ -5,7 +5,6 @@ import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
 import { resolveEpochNo } from '@martifylabs/mesh';
-import Input from '../../../ui/input';
 import Select from '../../../ui/select';
 
 export default function ResolveEpochNo() {
@@ -24,12 +23,12 @@ export default function ResolveEpochNo() {
 function Left(userinput) {
   let code1 = `import { resolveEpochNo } from '@martifylabs/mesh';\n`;
 
-  let code2 = `${code1}const epochNo = resolveEpochNo('${userinput}');`;
+  let code2 = `${code1}const epoch = resolveEpochNo('${userinput}');`;
 
   let code3 = `${code1}`;
   code3 += `let oneYearFromNow = new Date();\n`;
   code3 += `oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);\n`;
-  code3 += `const epochNo = resolveEpochNo('${userinput}', oneYearFromNow.getTime());`;
+  code3 += `const epoch = resolveEpochNo('${userinput}', oneYearFromNow.getTime());`;
 
   return (
     <>
@@ -65,11 +64,11 @@ function Right(userinput, setUserinput) {
 
     // let oneYearFromNow = new Date();
     // oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
-    // const epochNo = resolveEpochNo('mainnet', oneYearFromNow.getTime());
+    // const epoch = resolveEpochNo('mainnet', oneYearFromNow.getTime());
 
     try {
-      const epochNo = resolveEpochNo(userinput);
-      setResponse(epochNo);
+      const epoch = resolveEpochNo(userinput);
+      setResponse(epoch);
     } catch (error) {
       setResponseError(`${error}`);
     }

@@ -192,14 +192,15 @@ function Left({ userInput }) {
       <p>Here is the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        Additionally, you can include <code>NativeScript</code> to define the
-        forging script (for example if you want to have a policy locking
-        script), you can do this:
+        Additionally, you can define the forging script with{' '}
+        <code>NativeScript</code>. For example if you want to have a policy
+        locking script, you can do this:
       </p>
       <Codeblock data={codeSnippetNative} isJson={false} />
       <p>
-        As for the <code>keyHash</code>, you can get it using{' '}
-        <code>resolvePaymentKeyHash</code>, see{' '}
+        You can get the <code>keyHash</code> with{' '}
+        <code>resolvePaymentKeyHash</code>. As for <code>slot</code>, get it
+        using <code>resolveSlotNo</code>. See{' '}
         <Link href="/apis/resolvers">Resolvers</Link>.
       </p>
     </>

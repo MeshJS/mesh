@@ -59,7 +59,15 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippetGetAssetUtxo += `}\n`;
 
   let codeSnippetCreateTx = `const tx = new Transaction({ initiator: wallet })\n`;
-  codeSnippetCreateTx += `  .redeemValue('${script}', assetUtxo, { datum: '${inputDatum}' })\n`;
+  codeSnippetCreateTx += `  .redeemValue({\n`;
+  codeSnippetCreateTx += `    value: assetUtxo,\n`;
+  codeSnippetCreateTx += `    script: {\n`;
+  codeSnippetCreateTx += `      version: 'V1',\n`;
+  codeSnippetCreateTx += `      code: '${script}',\n`;
+  codeSnippetCreateTx += `    },\n`;
+  codeSnippetCreateTx += `    datum: '${inputDatum}',\n`;
+  codeSnippetCreateTx += `  })\n`;
+
   codeSnippetCreateTx += `  .sendValue(address, assetUtxo)\n`;
   codeSnippetCreateTx += `  .setRequiredSigners([address]);\n`;
 
@@ -169,9 +177,17 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
       const address = await wallet.getChangeAddress();
 
       const tx = new Transaction({ initiator: wallet })
-        .redeemValue(script, assetUtxo, { datum: inputDatum })
+        // .redeemValue(script, assetUtxo, { datum: inputDatum })
+        .redeemValue({
+          value: assetUtxo,
+          script: {
+            version: 'V1',
+            code: script,
+          },
+          datum: inputDatum,
+        })
         .sendValue(address, assetUtxo)
-        .setRequiredSigners([address]);
+        // .setRequiredSigners([address]);
 
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx, true);

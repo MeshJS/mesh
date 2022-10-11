@@ -147,7 +147,15 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
       console.log(111, Object.keys(userInput[0].assets)[0]);
       updateUserStorage('lockedAssetUnit', Object.keys(userInput[0].assets)[0]);
 
-      tx.sendAssets(scriptAddress, assets, { datum: inputDatum });
+      // tx.sendAssets(scriptAddress, assets, { datum: inputDatum });
+      tx.sendAssets(
+        {
+          address: scriptAddress,
+          datum: inputDatum,
+        },
+        assets
+      );
+
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);

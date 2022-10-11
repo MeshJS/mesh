@@ -5,7 +5,6 @@ import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
 import { resolveSlotNo } from '@martifylabs/mesh';
-import Input from '../../../ui/input';
 import Select from '../../../ui/select';
 
 export default function ResolveSlotNo() {
@@ -24,12 +23,12 @@ export default function ResolveSlotNo() {
 function Left(userinput) {
   let code1 = `import { resolveSlotNo } from '@martifylabs/mesh';\n`;
 
-  let code2 = `${code1}const epochNo = resolveSlotNo('${userinput}');`;
+  let code2 = `${code1}const slot = resolveSlotNo('${userinput}');`;
 
   let code3 = `${code1}`;
   code3 += `let oneYearFromNow = new Date();\n`;
   code3 += `oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);\n`;
-  code3 += `const epochNo = resolveSlotNo('${userinput}', oneYearFromNow.getTime());`;
+  code3 += `const slot = resolveSlotNo('${userinput}', oneYearFromNow.getTime());`;
 
   return (
     <>
@@ -67,11 +66,11 @@ function Right(userinput, setUserinput) {
 
     // let oneYearFromNow = new Date();
     // oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
-    // const epochNo = resolveSlotNo('mainnet', oneYearFromNow.getTime());
+    // const slot = resolveSlotNo('mainnet', oneYearFromNow.getTime());
 
     try {
-      const epochNo = resolveSlotNo(userinput);
-      setResponse(epochNo);
+      const slot = resolveSlotNo(userinput);
+      setResponse(slot);
     } catch (error) {
       setResponseError(`${error}`);
     }
