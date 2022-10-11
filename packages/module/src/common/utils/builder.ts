@@ -1,16 +1,22 @@
 import { csl } from '@mesh/core';
-import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
-  fromUTF8, toAddress, toBytes, toPlutusData,
-  toScriptRef, toTxUnspentOutput, toUnitInterval,
+  DEFAULT_PROTOCOL_PARAMETERS,
+} from '@mesh/common/constants';
+import {
+  fromScriptRef, fromUTF8, toAddress, toBytes,
+  toPlutusData, toScriptRef, toTxUnspentOutput,
+  toUnitInterval,
 } from './converter';
 import type {
-  BaseAddress, Bip32PrivateKey, DataCost,
-  Ed25519KeyHash, EnterpriseAddress, RewardAddress,
-  TransactionBuilder, TransactionOutputBuilder,
+  BaseAddress, Bip32PrivateKey, DataCost,DatumSource,
+  Ed25519KeyHash, EnterpriseAddress, PlutusScriptSource,
+  RewardAddress, TransactionBuilder, TransactionOutputBuilder,
   TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
-import type { Recipient, UTxO } from '@mesh/common/types';
+import type {
+  Data, PlutusScript, Recipient, UTxO,
+} from '@mesh/common/types';
+import { deserializePlutusScript } from './deserializer';
 
 export const buildBaseAddress = (
   networkId: number,
@@ -39,6 +45,22 @@ export const buildDataCost = (
   );
 };
 
+export const buildDatumSource = (
+  datum: Data | UTxO,
+): DatumSource => {
+  if (typeof datum === 'object' && 'input' in datum) {
+    const utxo = toTxUnspentOutput(datum);
+    if (utxo.output().has_plutus_data())
+      return csl.DatumSource.new_ref_input(utxo.input());
+
+    throw new Error(
+      `No datum reference found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
+    );
+  }
+
+  return csl.DatumSource.new(toPlutusData(datum));
+};
+
 export const buildEnterpriseAddress = (
   networkId: number, paymentKeyHash: Ed25519KeyHash,
 ): EnterpriseAddress => {
@@ -52,6 +74,36 @@ export const buildRewardAddress = (
 ): RewardAddress => {
   return csl.RewardAddress.new(networkId,
     csl.StakeCredential.from_keyhash(stakeKeyHash),
+  );
+};
+
+export const buildPlutusScriptSource = (
+  script: PlutusScript | UTxO,
+): PlutusScriptSource => {
+  if ('code' in script) {
+    return csl.PlutusScriptSource.new(
+      deserializePlutusScript(script.code, script.version),
+    );
+  }
+
+  const utxo = toTxUnspentOutput(script);
+  if (utxo.output().has_script_ref()) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const scriptRef = utxo.output().script_ref()!;
+    if (scriptRef.is_plutus_script()) {
+      const plutusScript = fromScriptRef(scriptRef) as PlutusScript;
+      const scriptHash = deserializePlutusScript(
+        plutusScript.code, plutusScript.version,
+      ).hash();
+
+      return csl.PlutusScriptSource.new_ref_input(
+        scriptHash, utxo.input(),
+      );
+    }
+  }
+
+  throw new Error(
+    `No plutus script reference found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
   );
 };
 

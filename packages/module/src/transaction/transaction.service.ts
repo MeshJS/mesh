@@ -6,14 +6,15 @@ import {
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
-  buildDataCost, buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
-  deserializeEd25519KeyHash, deserializeNativeScript, deserializePlutusScript,
-  fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash, resolveStakeKeyHash,
-  toAddress, toBytes, toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
+  buildDataCost, buildDatumSource, buildPlutusScriptSource, buildTxBuilder,
+  buildTxInputsBuilder, buildTxOutputBuilder, deserializeEd25519KeyHash,
+  deserializeNativeScript, fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash,
+  resolveStakeKeyHash, toAddress, toBytes, toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
-  Action, Asset, Data, Era, Mint, Protocol, Quantity, Recipient, Unit, UTxO,
+  Action, Asset, Data, Era, Mint, Protocol,
+  PlutusScript, Quantity, Recipient, Unit, UTxO,
 } from '@mesh/common/types';
 
 @Trackable
@@ -117,18 +118,19 @@ export class Transaction {
   }
 
   @Checkpoint()
-  redeemValue(
-    plutusScript: string, value: UTxO,
-    options = {} as Partial<RedeemValueOptions>,
-  ): Transaction {
-    const utxo = toTxUnspentOutput(value);
-    const datum: Data = options.datum ?? {
-      alternative: 0, fields: [],
-    };
+  redeemValue(options: {
+    value: UTxO | Mint,
+    script: PlutusScript | UTxO,
+    datum: Data | UTxO,
+    redeemer?: Action,
+  }): Transaction {
+    if ('assetName' in options.value)
+      throw new Error('Plutus Minting is not implemented yet...');
+
     const redeemer: Action = {
+      tag: 'SPEND',
       budget: DEFAULT_REDEEMER_BUDGET,
       index: this._txInputsBuilder.inputs().len(),
-      tag: 'SPEND',
       data: {
         alternative: 0,
         fields: [],
@@ -136,9 +138,10 @@ export class Transaction {
       ...options.redeemer,
     };
 
-    const plutusWitness = csl.PlutusWitness.new(
-      deserializePlutusScript(plutusScript),
-      toPlutusData(datum),
+    const utxo = toTxUnspentOutput(options.value);
+    const plutusWitness = csl.PlutusWitness.new_with_ref(
+      buildPlutusScriptSource(options.script),
+      buildDatumSource(options.datum),
       toRedeemer(redeemer),
     );
 
@@ -416,12 +419,7 @@ export class Transaction {
 }
 
 type CreateTxOptions = {
-  era: Era;
   initiator: IInitiator;
   parameters: Protocol;
-};
-
-type RedeemValueOptions = {
-  datum: Data;
-  redeemer: Action;
+  era: Era;
 };
