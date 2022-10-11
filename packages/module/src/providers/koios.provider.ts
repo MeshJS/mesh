@@ -19,7 +19,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
   async fetchAddressUtxos(address: string, asset?: string): Promise<UTxO[]> {
     const resolveScriptRef = (kScriptRef): string | undefined => {
-      if (kScriptRef !== undefined) {
+      if (kScriptRef) {
         const script = kScriptRef.type.startsWith('plutus')
           ? {
               code: kScriptRef.bytes,
@@ -32,7 +32,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         return toScriptRef(script).to_hex();
       }
 
-      return kScriptRef;
+      return undefined;
     };
 
     try {

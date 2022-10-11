@@ -42,7 +42,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     };
 
     const resolveScriptRef = async (scriptHash): Promise<string | undefined> => {
-      if (scriptHash !== undefined) {
+      if (scriptHash) {
         const { data, status } = await this._axiosInstance.get(
           `scripts/${scriptHash}`,
         );
@@ -61,7 +61,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
         throw parseHttpError(data);
       }
 
-      return scriptHash;
+      return undefined;
     };
 
     const toUTxO = async (bfUTxO): Promise<UTxO> => ({
