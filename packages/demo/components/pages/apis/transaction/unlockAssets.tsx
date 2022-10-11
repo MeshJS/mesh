@@ -68,7 +68,7 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippetCreateTx += `    datum: '${inputDatum}',\n`;
   codeSnippetCreateTx += `  })\n`;
 
-  codeSnippetCreateTx += `  .sendValue(address, assetUtxo)\n`;
+  codeSnippetCreateTx += `  .sendValue({ address: address }, assetUtxo)\n`;
   codeSnippetCreateTx += `  .setRequiredSigners([address]);\n`;
 
   let codeSnippetSign = `const unsignedTx = await tx.build();\n`;
@@ -181,13 +181,13 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
         .redeemValue({
           value: assetUtxo,
           script: {
-            version: 'V1',
+            version: 'V2',
             code: script,
           },
           datum: inputDatum,
         })
-        .sendValue(address, assetUtxo)
-        // .setRequiredSigners([address]);
+        .sendValue({ address: address }, assetUtxo)
+        .setRequiredSigners([address]);
 
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx, true);

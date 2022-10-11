@@ -80,17 +80,24 @@ function Left({ userInput, inputDatum }) {
       return assetId != 'lovelace';
     });
     if (nativeAssets.length) {
-      codeSnippet += `\n  .sendAssets(\n    "${scriptAddress}",`;
-      codeSnippet += `\n    [`;
+      // codeSnippet += `\n  .sendAssets(\n    "${scriptAddress}",`;
+
+      codeSnippet += `\n`;
+      codeSnippet += `  .sendAssets(\n`;
+      codeSnippet += `    {\n`;
+      codeSnippet += `      address: scriptAddress,\n`;
+      codeSnippet += `      datum: '${inputDatum}',\n`;
+      codeSnippet += `    },\n`;
+
+      codeSnippet += `    [`;
       for (const asset of nativeAssets) {
         codeSnippet += `\n      {`;
         codeSnippet += `\n        unit: "${asset}",`;
         codeSnippet += `\n        quantity: "1",`;
-        codeSnippet += `\n      },`;
+        codeSnippet += `\n      },\n`;
       }
-      codeSnippet += `\n    ],\n`;
-      codeSnippet += `    { datum: '${inputDatum}' }`;
-      codeSnippet += `\n  )`;
+      codeSnippet += `    ],\n`;
+      codeSnippet += `  )`;
     }
   }
   codeSnippet += `;\n`;
@@ -146,8 +153,6 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
 
       console.log(111, Object.keys(userInput[0].assets)[0]);
       updateUserStorage('lockedAssetUnit', Object.keys(userInput[0].assets)[0]);
-
-      // tx.sendAssets(scriptAddress, assets, { datum: inputDatum });
       tx.sendAssets(
         {
           address: scriptAddress,

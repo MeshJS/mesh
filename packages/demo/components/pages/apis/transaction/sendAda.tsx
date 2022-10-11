@@ -82,10 +82,10 @@ export default function SendAda() {
 function Left({ userInput }) {
   let codeSnippet = `const tx = new Transaction({ initiator: wallet });\n`;
   for (const recipient of userInput) {
-    codeSnippet += `tx.sendLovelace(\n`;
-    codeSnippet += `  { address: '${recipient.address}' },\n`;
-    codeSnippet += `  '${recipient.assets.lovelace}'\n`;
-    codeSnippet += `);\n`;
+    codeSnippet += `  .sendLovelace(\n`;
+    codeSnippet += `    { address: '${recipient.address}' },\n`;
+    codeSnippet += `    '${recipient.assets.lovelace}'\n`;
+    codeSnippet += `  )\n`;
   }
   codeSnippet += `;\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
@@ -99,7 +99,7 @@ function Left({ userInput }) {
         recipients, append:
       </p>
       <Codeblock
-        data={`tx.sendLovelace({address: string}, lovelace: string);`}
+        data={`tx.sendLovelace({ address: string }, lovelace: string);`}
         isJson={false}
       />
       <p>
