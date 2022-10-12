@@ -9,9 +9,9 @@ import {
   buildDataCost, buildDatumSource, buildPlutusScriptSource,
   buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializeNativeScript,
-  deserializePlutusScript, fromTxUnspentOutput, fromUTF8,
-  resolvePaymentKeyHash, resolveStakeKeyHash, toAddress, toBytes,
-  toPlutusData, toRedeemer, toTxUnspentOutput, toValue,
+  fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash,
+  resolveStakeKeyHash, toAddress, toBytes,
+  toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
@@ -126,14 +126,6 @@ export class Transaction {
     datum: Data | UTxO,
     redeemer?: Action,
   }): Transaction {
-    const isPlutusData = (data): data is Data => {
-      return typeof data !== 'object' || 'alternative' in data;
-    };
-
-    const isPlutusV1 = (script): script is PlutusScript => {
-      return 'version' in script && script.version === 'V1';
-    };
-
     if ('assetName' in options.value)
       throw new Error('Plutus Minting is not implemented yet...');
 
@@ -149,17 +141,11 @@ export class Transaction {
     };
 
     const utxo = toTxUnspentOutput(options.value);
-    const witness = isPlutusV1(options.script) && isPlutusData(options.datum)
-      ? csl.PlutusWitness.new(
-          deserializePlutusScript(options.script.code, options.script.version),
-          toPlutusData(options.datum),
-          toRedeemer(redeemer),
-        )
-      : csl.PlutusWitness.new_with_ref(
-        buildPlutusScriptSource(options.script),
-        buildDatumSource(options.datum),
-        toRedeemer(redeemer),
-      );
+    const witness = csl.PlutusWitness.new_with_ref(
+      buildPlutusScriptSource(options.script),
+      buildDatumSource(options.datum),
+      toRedeemer(redeemer),
+    );
 
     this._txInputsBuilder.add_plutus_script_input(
       witness, utxo.input(), utxo.output().amount(),

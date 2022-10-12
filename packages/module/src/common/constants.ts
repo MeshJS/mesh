@@ -58,10 +58,10 @@ export const SUPPORTED_COST_MODELS = new Map<Era, Costmdls>([
   ['BABBAGE', csl.TxBuilderConstants.plutus_vasil_cost_models()],
 ]);
 
-export const SUPPORTED_HANDLES = new Map<number, string>([
-  [csl.NetworkInfo.testnet().network_id(), '8d18d786e92776c824607fd8e193ec535c79dc61ea2405ddf3b09fe3'],
-  [csl.NetworkInfo.mainnet().network_id(), 'f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a'],
-]);
+export const SUPPORTED_HANDLES: Record<number, string> = {
+  [csl.NetworkInfo.testnet().network_id()]: '8d18d786e92776c824607fd8e193ec535c79dc61ea2405ddf3b09fe3',
+  [csl.NetworkInfo.mainnet().network_id()]: 'f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a',
+};
 
 export const SUPPORTED_WALLETS = [
   'eternl',

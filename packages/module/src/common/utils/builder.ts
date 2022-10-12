@@ -48,17 +48,18 @@ export const buildDataCost = (
 export const buildDatumSource = (
   datum: Data | UTxO,
 ): DatumSource => {
-  if (typeof datum === 'object' && 'input' in datum) {
-    const utxo = toTxUnspentOutput(datum);
-    if (utxo.output().has_plutus_data())
-      return csl.DatumSource.new_ref_input(utxo.input());
-
-    throw new Error(
-      `No datum reference found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
-    );
+  if (typeof datum !== 'object' || !('input' in datum)) {
+    return csl.DatumSource.new(toPlutusData(datum));
   }
 
-  return csl.DatumSource.new(toPlutusData(datum));
+  const utxo = toTxUnspentOutput(datum);
+  if (utxo.output().has_plutus_data()) {
+    return csl.DatumSource.new_ref_input(utxo.input());
+  }
+
+  throw new Error(
+    `No inline datum found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
+  );
 };
 
 export const buildEnterpriseAddress = (
@@ -175,6 +176,11 @@ export const buildTxInputsBuilder = (
 export const buildTxOutputBuilder = (
   recipient: Recipient,
 ): TransactionOutputBuilder => {
+  if (typeof recipient === 'string') {
+    return csl.TransactionOutputBuilder.new()
+      .with_address(toAddress(recipient));
+  }
+
   let txOutputBuilder = csl.TransactionOutputBuilder.new()
     .with_address(toAddress(recipient.address));
 
