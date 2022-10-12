@@ -181,7 +181,7 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
         .redeemValue({
           value: assetUtxo,
           script: {
-            version: 'V2',
+            version: 'V1',
             code: script,
           },
           datum: inputDatum,

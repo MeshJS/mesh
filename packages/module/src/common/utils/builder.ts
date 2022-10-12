@@ -152,7 +152,7 @@ export const buildTxBuilder = (
 };
 
 export const buildTxInputsBuilder = (
-  utxos: Array<unknown>,
+  utxos: unknown[],
 ): TxInputsBuilder => {
   const txInputsBuilder = csl.TxInputsBuilder.new();
 
@@ -185,18 +185,24 @@ export const buildTxOutputBuilder = (
     .with_address(toAddress(recipient.address));
 
   if (recipient.datum) {
-    const plutusData = toPlutusData(recipient.datum);
+    const { value, inline } = recipient.datum;
+
+    const plutusData = toPlutusData(value);
 
     txOutputBuilder = txOutputBuilder
-      .with_data_hash(csl.hash_plutus_data(plutusData))
-      .with_plutus_data(plutusData);
+      .with_data_hash(csl.hash_plutus_data(plutusData));
+
+    if (inline) {
+      txOutputBuilder = txOutputBuilder
+        .with_plutus_data(plutusData);
+    }
   }
 
   if (recipient.script) {
-    const scriptRef = toScriptRef(recipient.script);
+    const reference = toScriptRef(recipient.script);
 
     txOutputBuilder = txOutputBuilder
-      .with_script_ref(scriptRef);
+      .with_script_ref(reference);
   }
 
   return txOutputBuilder;

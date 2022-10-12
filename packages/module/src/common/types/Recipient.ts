@@ -4,6 +4,9 @@ import { PlutusScript } from './PlutusScript';
 
 export type Recipient = string | {
   address: string;
-  datum?: Data;
+  datum?: {
+    value: Data;
+    inline?: boolean;
+  };
   script?: PlutusScript | NativeScript;
 };

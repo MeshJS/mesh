@@ -156,7 +156,9 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
       tx.sendAssets(
         {
           address: scriptAddress,
-          datum: inputDatum,
+          datum: {
+            value: inputDatum,
+          },
         },
         assets
       );
