@@ -86,9 +86,10 @@ function Left({ userInput, inputDatum }) {
       codeSnippet += `  .sendAssets(\n`;
       codeSnippet += `    {\n`;
       codeSnippet += `      address: scriptAddress,\n`;
-      codeSnippet += `      datum: '${inputDatum}',\n`;
+      codeSnippet += `      datum: {\n`;
+      codeSnippet += `        value: '${inputDatum}',\n`;
+      codeSnippet += `      },\n`;
       codeSnippet += `    },\n`;
-
       codeSnippet += `    [`;
       for (const asset of nativeAssets) {
         codeSnippet += `\n      {`;
@@ -150,6 +151,12 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
           quantity: '1',
         })
       );
+
+      if (assets.length == 0) {
+        setState(0);
+        setResponseError(`No assets selected for locking.`);
+        return;
+      }
 
       console.log(111, Object.keys(userInput[0].assets)[0]);
       updateUserStorage('lockedAssetUnit', Object.keys(userInput[0].assets)[0]);

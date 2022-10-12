@@ -161,7 +161,7 @@ function Right(
     setLoading(true);
     setResponseError(null);
     setResponseAddress(null);
-    setWallet({});
+    setWallet({} as AppWallet);
 
     const blockchainProvider = new BlockfrostProvider(
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
