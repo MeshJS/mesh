@@ -110,7 +110,7 @@ export const fromScriptRef = (scriptRef: ScriptRef): PlutusScript | NativeScript
     return {
       code: plutusScript.to_hex(),
       version: Object.keys(LANGUAGE_VERSIONS).find(
-        key => LANGUAGE_VERSIONS[key] === plutusScript.language_version(),
+        key => LANGUAGE_VERSIONS[key].tohex() === plutusScript.language_version().to_hex(),
       ),
     } as PlutusScript;
   }
