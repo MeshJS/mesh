@@ -96,10 +96,18 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       const walletWitnessSet = await this._walletInstance.signTx(
         unsignedTx, partialSign,
       );
+      
+      const txSignatures = txWitnessSet
+        .vkeys() ?? csl.Vkeywitnesses.new();
 
-      const txSignatures = deserializeTxWitnessSet(walletWitnessSet).vkeys();
-      if (txSignatures !== undefined)
-        txWitnessSet.set_vkeys(txSignatures);
+      const newSignatures = deserializeTxWitnessSet(walletWitnessSet)
+        .vkeys() ?? csl.Vkeywitnesses.new();
+
+      for (let index = 0; index < txSignatures.len(); index += 1) {
+        newSignatures.add(txSignatures.get(index));
+      }
+
+      txWitnessSet.set_vkeys(newSignatures);
 
       const signedTx = fromBytes(
         csl.Transaction.new(

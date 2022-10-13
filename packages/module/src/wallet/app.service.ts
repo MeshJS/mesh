@@ -113,15 +113,21 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
       const utxos = await this._fetcher
         .fetchAddressUtxos(account.enterpriseAddress) ?? [];
 
-      const txSignatures = this._wallet.signTx(
+      const newSignatures = this._wallet.signTx(
         accountIndex, DEFAULT_PASSWORD, utxos,
         unsignedTx, partialSign,
       );
 
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = tx.witness_set();
+      const txSignatures = txWitnessSet
+        .vkeys() ?? csl.Vkeywitnesses.new();
 
-      txWitnessSet.set_vkeys(txSignatures);
+      for (let index = 0; index < txSignatures.len(); index += 1) {
+        newSignatures.add(txSignatures.get(index));
+      }
+
+      txWitnessSet.set_vkeys(newSignatures);
 
       const signedTx = csl.Transaction.new(
         tx.body(),
