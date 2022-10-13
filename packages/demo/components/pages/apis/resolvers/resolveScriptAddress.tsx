@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { resolveScriptAddress } from '@martifylabs/mesh';
+import { resolvePlutusScriptAddress } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
 
 export default function ResolveScriptAddress() {
@@ -15,7 +15,7 @@ export default function ResolveScriptAddress() {
 
   return (
     <SectionTwoCol
-      sidebarTo="resolveScriptAddress"
+      sidebarTo="resolvePlutusScriptAddress"
       header="Resolve Script Address"
       leftFn={Left(userinput, userinput2)}
       rightFn={Right(userinput, setUserinput, userinput2, setUserinput2)}
@@ -24,12 +24,12 @@ export default function ResolveScriptAddress() {
 }
 
 function Left(userinput, userinput2) {
-  let code = `import { resolveScriptAddress } from '@martifylabs/mesh';\nconst hash = resolveScriptAddress(${userinput}, '${userinput2}');`;
+  let code = `import { resolvePlutusScriptAddress } from '@martifylabs/mesh';\nconst hash = resolvePlutusScriptAddress({ code:${userinput}, version: 'V1' }, '${userinput2}');`;
 
   return (
     <>
       <p>
-        Provide the Plutus script in CBOR, and <code>resolveScriptAddress</code>{' '}
+        Provide the Plutus script in CBOR, and <code>resolvePlutusScriptAddress</code>{' '}
         will return a bech32 address of the script.
       </p>
       <p>
@@ -51,7 +51,10 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
     setResponse(null);
     setResponseError(null);
     try {
-      const hash = resolveScriptAddress(userinput, userinput2);
+      const hash = resolvePlutusScriptAddress({
+        code: userinput,
+        version: 'V1',
+      }, userinput2);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);

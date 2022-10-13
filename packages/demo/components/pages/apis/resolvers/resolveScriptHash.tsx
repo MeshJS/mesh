@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../common/sectionTwoCol';
 import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
-import { resolveScriptHash } from '@martifylabs/mesh';
+import { resolvePlutusScriptHash } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
 
 export default function ResolveScriptHash() {
@@ -14,8 +14,8 @@ export default function ResolveScriptHash() {
 
   return (
     <SectionTwoCol
-      sidebarTo="resolveScriptHash"
-      header="Resolve Script Hash"
+      sidebarTo="resolvePlutusScriptHash"
+      header="Resolve Plutus Script Hash"
       leftFn={Left(userinput)}
       rightFn={Right(userinput, setUserinput)}
     />
@@ -23,7 +23,7 @@ export default function ResolveScriptHash() {
 }
 
 function Left(userinput) {
-  let code = `import { resolveScriptHash } from '@martifylabs/mesh';\nconst hash = resolveScriptHash('${userinput}');`;
+  let code = `import { resolvePlutusScriptHash } from '@martifylabs/mesh';\nconst hash = resolvePlutusScriptHash('${userinput}');`;
 
   return (
     <>
@@ -47,7 +47,7 @@ function Right(userinput, setUserinput) {
     setResponse(null);
     setResponseError(null);
     try {
-      const hash = resolveScriptHash(userinput);
+      const hash = resolvePlutusScriptHash(userinput);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);
