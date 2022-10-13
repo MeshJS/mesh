@@ -30,7 +30,8 @@ export default function List() {
               <>
                 <p>
                   Adopted <code>Coin Selection Strategies</code> from Cardano
-                  Serialization Lib.
+                  Serialization Lib into{' '}
+                  <Link href="/apis/transaction">Transaction</Link>.
                 </p>
               </>
             }
@@ -53,7 +54,7 @@ export default function List() {
             content={
               <>
                 <p>
-                  Get asset fingerprint with <code>resolveFingerprint</code>,{' '}
+                  Get asset fingerprint with <code>resolveFingerprint</code>,
                   see <Link href="/apis/resolvers">Resolvers</Link>.
                 </p>
               </>
@@ -76,8 +77,8 @@ export default function List() {
             content={
               <>
                 <p>
-                  <Link href="/apis/browserwallet">Browser Wallet</Link>
-                  is compatible with <code>CIP-30</code> wallets.
+                  <Link href="/apis/browserwallet">Browser Wallet</Link> is
+                  compatible with <code>CIP-30</code> wallets.
                 </p>
               </>
             }
@@ -87,9 +88,8 @@ export default function List() {
             content={
               <>
                 <p>
-                  <Link href="/apis/transaction">Transaction</Link>
-                  allow users to reference datums when redeem from{' '}
-                  a V2 plutus script.
+                  <Link href="/apis/transaction">Transaction</Link> allow users
+                  to reference datums when redeem from a V2 plutus script.
                 </p>
               </>
             }
@@ -99,9 +99,8 @@ export default function List() {
             content={
               <>
                 <p>
-                  <Link href="/apis/transaction">Transaction</Link>
-                  allow users to attach inline datums to transaction{' '}
-                  output.
+                  <Link href="/apis/transaction">Transaction</Link> allow users
+                  to attach inline datums to transaction output.
                 </p>
               </>
             }
@@ -111,9 +110,9 @@ export default function List() {
             content={
               <>
                 <p>
-                  <Link href="/apis/transaction">Transaction</Link>
-                  allow users to reference a plutus script instead of{' '}
-                  suppling the whole script as part of the transaction..
+                  <Link href="/apis/transaction">Transaction</Link> allow users
+                  to reference a plutus script instead of suppling the whole
+                  script as part of the transaction..
                 </p>
               </>
             }
@@ -123,9 +122,8 @@ export default function List() {
             content={
               <>
                 <p>
-                  <Link href="/apis/appwallet">App Wallet</Link>
-                  follows <code>CIP-1852</code> for deriving Stake
-                  and Payment Keys.
+                  <Link href="/apis/appwallet">App Wallet</Link> follows{' '}
+                  <code>CIP-1852</code> for deriving Stake and Payment Keys.
                 </p>
               </>
             }
@@ -140,7 +138,7 @@ function Card({ title, content }) {
   return (
     <div className="p-6 bg-white rounded shadow dark:bg-gray-800">
       <h3 className="mb-2 text-xl font-bold dark:text-white">{title}</h3>
-      <div className="font-light text-gray-500 dark:text-gray-400 format">
+      <div className="font-light text-gray-500 dark:text-gray-400 format dark:format-invert">
         {content}
       </div>
     </div>

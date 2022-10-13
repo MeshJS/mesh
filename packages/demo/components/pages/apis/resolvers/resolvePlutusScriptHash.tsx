@@ -7,7 +7,7 @@ import RunDemoResult from '../common/runDemoResult';
 import { resolvePlutusScriptHash } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
 
-export default function ResolveScriptHash() {
+export default function ResolvePlutusScriptHash() {
   const [userinput, setUserinput] = useState<string>(
     'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8'
   );

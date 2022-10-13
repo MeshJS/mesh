@@ -6,8 +6,9 @@ import RunDemoButton from '../common/runDemoButton';
 import RunDemoResult from '../common/runDemoResult';
 import { resolvePlutusScriptAddress } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
+import type { PlutusScript } from '@martifylabs/mesh';
 
-export default function ResolveScriptAddress() {
+export default function ResolvePlutusScriptAddress() {
   const [userinput, setUserinput] = useState<number>(0);
   const [userinput2, setUserinput2] = useState<string>(
     '4e4d01000033222220051200120011'
@@ -24,13 +25,22 @@ export default function ResolveScriptAddress() {
 }
 
 function Left(userinput, userinput2) {
-  let code = `import { resolvePlutusScriptAddress } from '@martifylabs/mesh';\nconst hash = resolvePlutusScriptAddress({ code:${userinput}, version: 'V1' }, '${userinput2}');`;
+
+  let code = `import { resolvePlutusScriptAddress } from '@martifylabs/mesh';\n`;
+  code += `import type { PlutusScript } from '@martifylabs/mesh';\n\n`;
+
+  code += `const script: PlutusScript = {\n`;
+  code += `  code: '${userinput2}',\n`;
+  code += `  version: 'V1',\n`;
+  code += `};\n`;
+  code += `const hash = resolvePlutusScriptAddress(script, ${userinput});\n`;
 
   return (
     <>
       <p>
-        Provide the Plutus script in CBOR, and <code>resolvePlutusScriptAddress</code>{' '}
-        will return a bech32 address of the script.
+        Provide the Plutus script in CBOR, and{' '}
+        <code>resolvePlutusScriptAddress</code> will return a bech32 address of
+        the script.
       </p>
       <p>
         For example, we can get the address of the <code>always succeed</code>{' '}
@@ -51,10 +61,11 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
     setResponse(null);
     setResponseError(null);
     try {
-      const hash = resolvePlutusScriptAddress({
-        code: userinput,
+      const script: PlutusScript = {
+        code: userinput2,
         version: 'V1',
-      }, userinput2);
+      };
+      const hash = resolvePlutusScriptAddress(script, userinput);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);
