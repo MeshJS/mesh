@@ -29,7 +29,7 @@ export default function List() {
             content={
               <>
                 <p>
-                  Adopted <code>CoinSelectionStrategyCIP2</code> from Cardano
+                  Adopted <code>Coin Selection Strategies</code> from Cardano
                   Serialization Lib.
                 </p>
               </>
@@ -72,26 +72,61 @@ export default function List() {
             }
           />
           <Card
+            title="CIP-30: Cardano dApp-Wallet Web Bridge"
+            content={
+              <>
+                <p>
+                  <Link href="/apis/browserwallet">Browser Wallet</Link>
+                  is compatible with <code>CIP-30</code> wallets.
+                </p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-31: Reference inputs"
+            content={
+              <>
+                <p>
+                  <Link href="/apis/transaction">Transaction</Link>
+                  allow users to reference datums when redeem from{' '}
+                  a V2 plutus script.
+                </p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-32: Inline datums"
+            content={
+              <>
+                <p>
+                  <Link href="/apis/transaction">Transaction</Link>
+                  allow users to attach inline datums to transaction{' '}
+                  output.
+                </p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-33: Reference scripts"
+            content={
+              <>
+                <p>
+                  <Link href="/apis/transaction">Transaction</Link>
+                  allow users to reference a plutus script instead of{' '}
+                  suppling the whole script as part of the transaction..
+                </p>
+              </>
+            }
+          />
+          <Card
             title="CIP-1852: Hierarchy for Deterministic Wallets"
             content={
               <>
-                <p></p>
-              </>
-            }
-          />
-          <Card
-            title="CIP-1853: Hierarchy for Deterministic Stake Pool Cold Keys"
-            content={
-              <>
-                <p></p>
-              </>
-            }
-          />
-          <Card
-            title="CIP-1855: Forging Policy Keys"
-            content={
-              <>
-                <p></p>
+                <p>
+                  <Link href="/apis/appwallet">App Wallet</Link>
+                  follows <code>CIP-1852</code> for deriving Stake
+                  and Payment Keys.
+                </p>
               </>
             }
           />
