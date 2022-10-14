@@ -8,9 +8,9 @@ import { useEffect, useState } from 'react';
 
 import {
   AppWallet,
-  BlockfrostProvider,
   ForgeScript,
   Transaction,
+  BlockfrostProvider,
 } from '@martifylabs/mesh';
 import type { Mint, AssetMetadata } from '@martifylabs/mesh';
 import useWallet from '../../contexts/wallet';
@@ -90,7 +90,10 @@ function DemoSection() {
       const changeAddress = await wallet.getChangeAddress(); // todo abdel look here - since we cant simply just pass change address, as it might not have the utxo needed
       const utxos = await wallet.getUtxos();
       // const changeAddress = 'addr_test1qp2k7wnshzngpqw0xmy33hvexw4aeg60yr79x3yeeqt3s2uvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysdp6yv3'; // await wallet.getChangeAddress();
-      const appWalletSignedTx = await applicationSideCreateTx(changeAddress, utxos);
+      const appWalletSignedTx = await applicationSideCreateTx(
+        changeAddress,
+        utxos
+      );
       const signedTx = await wallet.signTx(appWalletSignedTx, true);
       // const txHash = await applicationSideSignTx(signedTx); // todo need to mask metadata and replace it
       const txHash = await wallet.submitTx(signedTx);
@@ -102,14 +105,14 @@ function DemoSection() {
   }
 
   async function applicationSideCreateTx(recipientAddress, utxos) {
-    // const blockfrostProvider = new BlockfrostProvider(
-    //   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-    // );
-    // const utxos = await blockfrostProvider.fetchAddressUtxos(
-    //   recipientAddress, // todo abdel look here - how to know which address?
-    //   'lovelace'
-    // );
     console.log('utxos', utxos);
+
+    const txOutput = [
+      {
+        unit: 'lovelace',
+        quantity: '10000000',
+      },
+    ];
 
     const appWalletAddress = appWallet.getPaymentAddress();
     const forgingScript = ForgeScript.withOneSignature(appWalletAddress);
@@ -133,12 +136,8 @@ function DemoSection() {
     const tx = new Transaction({ initiator: appWallet }); // todo abdel look here - this has changed from `wallet` to `appWallet` as it makes more sense for this tx to be built by appWallet
     tx.setTxInputs(utxos); // todo abdel look here - how to know which wallet to get UTXOs that contain that assets we need?
     tx.mintAsset(forgingScript, asset);
-    tx.sendLovelace(
-      {
-        address: appWalletAddress,
-      },
-      '10000000'
-    );
+    tx.sendLovelace(appWalletAddress, '10000000');
+    tx.setChangeAddress(recipientAddress);
 
     const unsignedTx = await tx.build();
     const appWalletSignedTx = await appWallet.signTx(unsignedTx, true);
