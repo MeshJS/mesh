@@ -3,13 +3,14 @@ import {
   LANGUAGE_VERSIONS, POLICY_ID_LENGTH, REDEEMER_TAGS,
 } from '@mesh/common/constants';
 import {
-  deserializeDataHash, deserializePlutusData,
-  deserializePlutusScript, deserializeScriptHash,
-  deserializeScriptRef, deserializeTxHash,
+  deserializeDataHash, deserializeEd25519KeyHash,
+  deserializePlutusData, deserializePlutusScript,
+  deserializeScriptHash, deserializeScriptRef,
+  deserializeTxHash,
 } from './deserializer';
 import type {
-  PlutusData, Redeemer, RedeemerTag,
-  ScriptRef, TransactionUnspentOutput, Value,
+  RedeemerTag, ScriptRef,
+  TransactionUnspentOutput, Value,
 } from '@mesh/core';
 import type {
   Action, Asset, Data, NativeScript, PlutusScript, UTxO,
@@ -33,7 +34,7 @@ export const toBytes = (hex: string) => {
   if (hex.length % 2 === 0 && /^[0-9A-F]*$/i.test(hex))
     return Buffer.from(hex, 'hex') as Uint8Array;
 
-  return Buffer.from(hex, 'utf-8');
+  return Buffer.from(hex, 'utf-8') as Uint8Array;
 };
 
 /* -----------------[ Lovelace ]----------------- */
@@ -42,9 +43,62 @@ export const fromLovelace = (lovelace: number) => lovelace / 1_000_000;
 
 export const toLovelace = (ada: number) => ada * 1_000_000;
 
+/* -----------------[ NativeScript ]----------------- */
+
+export const toNativeScript = (script: NativeScript) => {
+  const toNativeScripts = (scripts: NativeScript[]) => {
+    const nativeScripts = csl.NativeScripts.new();
+
+    scripts.forEach((script) => {
+      nativeScripts.add(toNativeScript(script));
+    });
+
+    return nativeScripts;
+  };
+
+  switch (script.type) {
+    case 'all':
+      return csl.NativeScript.new_script_all(
+        csl.ScriptAll.new(
+          toNativeScripts(script.scripts),
+        ),
+      );
+    case 'any':
+      return csl.NativeScript.new_script_any(
+        csl.ScriptAny.new(
+          toNativeScripts(script.scripts),
+        ),
+      );
+    case 'atLeast':
+      return csl.NativeScript.new_script_n_of_k(
+        csl.ScriptNOfK.new(
+          script.required, toNativeScripts(script.scripts),
+        ),
+      );
+    case 'after':
+      return csl.NativeScript.new_timelock_start(
+        csl.TimelockStart.new_timelockstart(
+          csl.BigNum.from_str(script.slot),
+        ),
+      );
+    case 'before':
+      return csl.NativeScript.new_timelock_expiry(
+        csl.TimelockExpiry.new_timelockexpiry(
+          csl.BigNum.from_str(script.slot),
+        ),
+      );
+    case 'sig':
+      return csl.NativeScript.new_script_pubkey(
+        csl.ScriptPubkey.new(
+          deserializeEd25519KeyHash(script.keyHash),
+        ),
+      );
+  }
+};
+
 /* -----------------[ PlutusData ]----------------- */
 
-export const toPlutusData = (data: Data): PlutusData => {
+export const toPlutusData = (data: Data) => {
   const toPlutusList = (data: Data[]) => {
     const plutusList = csl.PlutusList.new();
     data.forEach((element) => {
@@ -86,7 +140,7 @@ export const toPlutusData = (data: Data): PlutusData => {
 
 /* -----------------[ Redeemer ]----------------- */
 
-export const toRedeemer = (action: Action): Redeemer => {
+export const toRedeemer = (action: Action) => {
   const lookupRedeemerTag = (key: string) => REDEEMER_TAGS[key] as RedeemerTag;
 
   return csl.Redeemer.new(
@@ -102,7 +156,7 @@ export const toRedeemer = (action: Action): Redeemer => {
 
 /* -----------------[ ScriptRef ]----------------- */
 
-export const fromScriptRef = (scriptRef: ScriptRef): PlutusScript | NativeScript => {
+export const fromScriptRef = (scriptRef: ScriptRef) => {
   if (scriptRef.is_plutus_script()) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const plutusScript = scriptRef.plutus_script()!;
@@ -123,7 +177,7 @@ export const fromScriptRef = (scriptRef: ScriptRef): PlutusScript | NativeScript
   ) as NativeScript;
 };
 
-export const toScriptRef = (script: PlutusScript | NativeScript): ScriptRef => {
+export const toScriptRef = (script: PlutusScript | NativeScript) => {
   if ('code' in script) {
     const plutusScript = deserializePlutusScript(
       script.code, script.version,
@@ -143,7 +197,7 @@ export const toScriptRef = (script: PlutusScript | NativeScript): ScriptRef => {
 
 export const fromTxUnspentOutput = (
   txUnspentOutput: TransactionUnspentOutput
-): UTxO => {
+) => {
   const dataHash = txUnspentOutput.output().has_data_hash()
     ? txUnspentOutput.output().data_hash()?.to_hex()
     : undefined;
@@ -166,7 +220,7 @@ export const fromTxUnspentOutput = (
       amount: fromValue(txUnspentOutput.output().amount()),
       dataHash, plutusData, scriptRef,
     },
-  };
+  } as UTxO;
 };
 
 export const toTxUnspentOutput = (utxo: UTxO) => {
