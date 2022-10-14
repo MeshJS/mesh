@@ -12,11 +12,18 @@ const GuidesPage: NextPage = () => {
       thumbnail: '/guides/nextjs.png',
     },
     {
-        title: 'Minting on Node.js',
-        desc: 'Load a CLI generated key and mint assets on Node.js',
-        link: '/guides/mintingonnodejs',
-        thumbnail: '/guides/nodejs.jpg',
-      },
+      title: 'Minting on Node.js',
+      desc: 'Load a CLI generated key and mint assets on Node.js.',
+      link: '/guides/mintingonnodejs',
+      thumbnail: '/guides/nodejs.jpg',
+    },
+    {
+      title: 'Multi-signature Transactions',
+      desc: 'Learn about multi-sig transaction, build a minting transaction involving AppWallet and BrowserWallet.',
+      link: '/guides/multisigminting',
+      thumbnail: '/guides/key-gb17103099_640.jpg',
+    },
+
     // {
     //   title: 'Start a NestJS backend',
     //   desc: 'WIP',
