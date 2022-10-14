@@ -30,11 +30,11 @@ export const toRewardAddress = (bech32: string) => csl.RewardAddress.from_addres
 
 export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 
-export const toBytes = (hex: string) => {
+export const toBytes = (hex: string): Uint8Array => {
   if (hex.length % 2 === 0 && /^[0-9A-F]*$/i.test(hex))
-    return Buffer.from(hex, 'hex') as Uint8Array;
+    return Buffer.from(hex, 'hex');
 
-  return Buffer.from(hex, 'utf-8') as Uint8Array;
+  return Buffer.from(hex, 'utf-8');
 };
 
 /* -----------------[ Lovelace ]----------------- */
@@ -44,6 +44,72 @@ export const fromLovelace = (lovelace: number) => lovelace / 1_000_000;
 export const toLovelace = (ada: number) => ada * 1_000_000;
 
 /* -----------------[ NativeScript ]----------------- */
+
+export const fromNativeScript = (script: csl.NativeScript) => {
+  const fromNativeScripts = (scripts: csl.NativeScripts) => {
+    const nativeScripts = new Array<NativeScript>();
+
+    for (let index = 0; index < scripts.len(); index += 1) {
+      nativeScripts.push(fromNativeScript(scripts.get(index)));
+    }
+
+    return nativeScripts;
+  };
+
+  switch (script.kind()) {
+    case csl.NativeScriptKind.ScriptAll: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const scriptAll = script.as_script_all()!;
+      return <NativeScript>{
+        type: 'all',
+        scripts: fromNativeScripts(scriptAll.native_scripts()),
+      };
+    }
+    case csl.NativeScriptKind.ScriptAny: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const scriptAny = script.as_script_any()!;
+      return <NativeScript>{
+        type: 'any',
+        scripts: fromNativeScripts(scriptAny.native_scripts()),
+      };
+    }
+    case csl.NativeScriptKind.ScriptNOfK: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const scriptNOfK = script.as_script_n_of_k()!;
+      return <NativeScript>{
+        type: 'atLeast',
+        required: scriptNOfK.n(),
+        scripts: fromNativeScripts(scriptNOfK.native_scripts()),
+      };
+    }
+    case csl.NativeScriptKind.TimelockStart: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const timelockStart = script.as_timelock_start()!;
+      return <NativeScript>{
+        type: 'after',
+        slot: timelockStart.slot_bignum().to_str(),
+      };
+    }
+    case csl.NativeScriptKind.TimelockExpiry: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const timelockExpiry = script.as_timelock_expiry()!;
+      return <NativeScript>{
+        type: 'before',
+        slot: timelockExpiry.slot_bignum().to_str(),
+      };
+    }
+    case csl.NativeScriptKind.ScriptPubkey: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const scriptPubkey = script.as_script_pubkey()!;
+      return <NativeScript>{
+        type: 'sig',
+        keyHash: scriptPubkey.addr_keyhash().to_hex(),
+      };
+    }
+    default:
+      throw new Error(`Script Kind: ${script.kind()}, is not supported`);
+  }
+};
 
 export const toNativeScript = (script: NativeScript) => {
   const toNativeScripts = (scripts: NativeScript[]) => {
@@ -141,7 +207,7 @@ export const toPlutusData = (data: Data) => {
 /* -----------------[ Redeemer ]----------------- */
 
 export const toRedeemer = (action: Action) => {
-  const lookupRedeemerTag = (key: string) => REDEEMER_TAGS[key] as RedeemerTag;
+  const lookupRedeemerTag = (key: string): RedeemerTag => REDEEMER_TAGS[key];
 
   return csl.Redeemer.new(
     lookupRedeemerTag(action.tag),
@@ -161,20 +227,18 @@ export const fromScriptRef = (scriptRef: ScriptRef) => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const plutusScript = scriptRef.plutus_script()!;
 
-    return {
+    return <PlutusScript>{
       code: plutusScript.to_hex(),
       version: Object.keys(LANGUAGE_VERSIONS).find(
         key => LANGUAGE_VERSIONS[key].tohex() === plutusScript.language_version().to_hex(),
       ),
-    } as PlutusScript;
+    };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const nativeScript = scriptRef.native_script()!;
 
-  return JSON.parse(
-    nativeScript.to_json(),
-  ) as NativeScript;
+  return fromNativeScript(nativeScript);
 };
 
 export const toScriptRef = (script: PlutusScript | NativeScript) => {
@@ -208,7 +272,7 @@ export const fromTxUnspentOutput = (
     ? txUnspentOutput.output().script_ref()?.to_hex()
     : undefined;
 
-  return {
+  return <UTxO>{
     input: {
       outputIndex: txUnspentOutput.input().index(),
       txHash: txUnspentOutput.input().transaction_id().to_hex(),
@@ -218,7 +282,7 @@ export const fromTxUnspentOutput = (
       amount: fromValue(txUnspentOutput.output().amount()),
       dataHash, plutusData, scriptRef,
     },
-  } as UTxO;
+  };
 };
 
 export const toTxUnspentOutput = (utxo: UTxO) => {

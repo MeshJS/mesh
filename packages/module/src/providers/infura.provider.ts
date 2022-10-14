@@ -28,7 +28,7 @@ export class InfuraProvider implements IUploader {
       );
 
       if (status === 200)
-        return data as string;
+        return data;
 
       throw parseHttpError(data);
     } catch (error) {

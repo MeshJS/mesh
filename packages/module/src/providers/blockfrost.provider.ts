@@ -100,7 +100,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return {
+        return <Protocol>{
           coinsPerUTxOSize: data.coins_per_utxo_word,
           collateralPercent: data.collateral_percent,
           decentralisation: data.decentralisation_param,
@@ -121,7 +121,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
           poolDeposit: data.pool_deposit,
           priceMem: data.price_mem,
           priceStep: data.price_step,
-        } as Protocol;
+        };
 
       throw parseHttpError(data);
     } catch (error) {
@@ -137,7 +137,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return data as string;
+        return data;
 
       throw parseHttpError(data);
     } catch (error) {

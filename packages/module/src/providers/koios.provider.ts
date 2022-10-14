@@ -1,11 +1,11 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeNativeScript, parseHttpError, toBytes, toScriptRef,
+  deserializeNativeScript, fromNativeScript,
+  parseHttpError, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  Asset, AssetMetadata, NativeScript,
-  PlutusScript, Protocol, UTxO,
+  Asset, AssetMetadata, PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
@@ -25,9 +25,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
               code: kScriptRef.bytes,
               version: kScriptRef.type.replace('plutus', ''),
             } as PlutusScript
-          : JSON.parse(
-              deserializeNativeScript(kScriptRef.bytes).to_json()
-            ) as NativeScript;
+          : fromNativeScript(
+              deserializeNativeScript(kScriptRef.bytes)
+            );
 
         return toScriptRef(script).to_hex();
       }
@@ -99,7 +99,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return {
+        return <Protocol>{
           coinsPerUTxOSize: data[0].coins_per_utxo_size,
           collateralPercent: data[0].collateral_percent,
           decentralisation: data[0].decentralisation,
@@ -120,7 +120,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
           poolDeposit: data[0].pool_deposit,
           priceMem: data[0].price_mem,
           priceStep: data[0].price_step,
-        } as Protocol;
+        };
 
       throw parseHttpError(data);
     } catch (error) {
@@ -137,7 +137,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 202)
-        return data as string;
+        return data;
 
       throw parseHttpError(data);
     } catch (error) {
