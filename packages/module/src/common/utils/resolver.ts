@@ -5,8 +5,8 @@ import {
   buildBip32PrivateKey, buildRewardAddress,
 } from './builder';
 import {
-  toAddress, toBaseAddress, toBytes,
-  toEnterpriseAddress, toPlutusData, toRewardAddress,
+  toAddress, toBaseAddress, toBytes, toEnterpriseAddress,
+  toNativeScript, toPlutusData, toRewardAddress,
 } from './converter';
 import {
   deserializePlutusScript, deserializeTx,
@@ -48,9 +48,7 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
 };
 
 export const resolveNativeScriptHash = (script: NativeScript) => {
-  return csl.NativeScript.from_json(
-    JSON.stringify(script),
-  ).hash().to_hex();
+  return toNativeScript(script).hash().to_hex();
 };
 
 export const resolvePaymentKeyHash = (bech32: string) => {

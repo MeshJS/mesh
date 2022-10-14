@@ -186,11 +186,9 @@ export const toScriptRef = (script: PlutusScript | NativeScript) => {
     return csl.ScriptRef.new_plutus_script(plutusScript);
   }
 
-  const nativeScript = csl.NativeScript.from_json(
-    JSON.stringify(script),
+  return csl.ScriptRef.new_native_script(
+    toNativeScript(script),
   );
-
-  return csl.ScriptRef.new_native_script(nativeScript);
 };
 
 /* -----------------[ TransactionUnspentOutput ]----------------- */

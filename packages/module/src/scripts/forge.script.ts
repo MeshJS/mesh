@@ -1,6 +1,7 @@
 import { csl } from '@mesh/core';
 import {
-  buildScriptPubkey, deserializeEd25519KeyHash, resolvePaymentKeyHash,
+  buildScriptPubkey, deserializeEd25519KeyHash,
+  resolvePaymentKeyHash, toNativeScript,
 } from '@mesh/common/utils';
 import type { NativeScript } from '@mesh/common/types';
 
@@ -57,7 +58,6 @@ export class ForgeScript {
   }
 
   static fromNativeScript(script: NativeScript): string {
-    const json = JSON.stringify(script);
-    return csl.NativeScript.from_json(json).to_hex();
+    return toNativeScript(script).to_hex();
   }
 }

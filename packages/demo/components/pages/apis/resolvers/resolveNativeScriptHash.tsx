@@ -58,7 +58,6 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
       const keyHash = resolvePaymentKeyHash(
         'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr'
       );
-      console.log(11, slot, keyHash);
 
       const nativeScript: NativeScript = {
         type: 'all',
@@ -73,9 +72,8 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
           },
         ],
       };
-      console.log(22, nativeScript);
 
-      const hash = resolveNativeScriptHash(nativeScript); // error here
+      const hash = resolveNativeScriptHash(nativeScript);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);
