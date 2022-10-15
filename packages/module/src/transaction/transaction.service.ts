@@ -350,12 +350,11 @@ export class Transaction {
     }
 
     if (this.notVisited('redeemValue') === false) {
-      const costModels =
-        this._era && SUPPORTED_COST_MODELS.get(this._era)
-          ? SUPPORTED_COST_MODELS.get(this._era)
-          : csl.TxBuilderConstants.plutus_vasil_cost_models();
+      const costModels = this._era !== undefined
+        ? SUPPORTED_COST_MODELS[this._era]
+        : SUPPORTED_COST_MODELS.BABBAGE;
 
-      this._txBuilder.calc_script_data_hash(costModels ?? csl.Costmdls.new());
+      this._txBuilder.calc_script_data_hash(costModels);
     }
   }
 

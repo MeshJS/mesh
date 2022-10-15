@@ -46,17 +46,22 @@ export const REDEEMER_TAGS = {
   SPEND: csl.RedeemerTag.new_spend(),
 };
 
-export const SUPPORTED_CLOCKS = new Map<Network, `${number}:${number}:${number}:${number}`>([
-  ['testnet', '74:1598400:1595967616:432000'],
-  ['preview', '0:0:1660003200:86400'],
-  ['preprod', '0:0:1654041600:432000'],
-  ['mainnet', '208:4492800:1596059091:432000'],
-]);
+export const SUPPORTED_CLOCKS: Record<Network, [
+  epoch: string,
+  slot: string,
+  systemStart: string,
+  epochLength: string,
+]> = {
+  testnet: ['74', '1598400', '1595967616', '432000'],
+  preview: ['0', '0', '1660003200', '86400'],
+  preprod: ['0', '0', '1654041600', '432000'],
+  mainnet: ['208', '4492800', '1596059091', '432000'],
+};
 
-export const SUPPORTED_COST_MODELS = new Map<Era, Costmdls>([
-  ['ALONZO', csl.TxBuilderConstants.plutus_alonzo_cost_models()],
-  ['BABBAGE', csl.TxBuilderConstants.plutus_vasil_cost_models()],
-]);
+export const SUPPORTED_COST_MODELS: Record<Era, Costmdls> = {
+  ALONZO: csl.TxBuilderConstants.plutus_alonzo_cost_models(),
+  BABBAGE: csl.TxBuilderConstants.plutus_vasil_cost_models(),
+};
 
 export const SUPPORTED_HANDLES: Record<number, string> = {
   [csl.NetworkInfo.testnet().network_id()]: '8d18d786e92776c824607fd8e193ec535c79dc61ea2405ddf3b09fe3',
@@ -64,8 +69,5 @@ export const SUPPORTED_HANDLES: Record<number, string> = {
 };
 
 export const SUPPORTED_WALLETS = [
-  'eternl',
-  'flint',
-  'nami',
-  'nufi',
+  'eternl', 'flint', 'nami', 'nufi',
 ];

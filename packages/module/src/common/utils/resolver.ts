@@ -22,11 +22,10 @@ export const resolveDataHash = (data: Data) => {
 };
 
 export const resolveEpochNo = (network: Network, milliseconds = Date.now()) => {
-  if (SUPPORTED_CLOCKS.has(network)) {
+  if (SUPPORTED_CLOCKS[network]) {
     const [
       epoch, _, systemStart, epochLength,
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    ] = SUPPORTED_CLOCKS.get(network)!.split(':');
+    ] = SUPPORTED_CLOCKS[network];
 
     return parseInt(csl.BigNum
       .from_str(milliseconds.toString())
@@ -107,9 +106,8 @@ export const resolveScriptRef = (script: PlutusScript | NativeScript) => {
 };
 
 export const resolveSlotNo = (network: Network, milliseconds = Date.now()) => {
-  if (SUPPORTED_CLOCKS.has(network)) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const [_, slot, systemStart] = SUPPORTED_CLOCKS.get(network)!.split(':');
+  if (SUPPORTED_CLOCKS[network]) {
+    const [_, slot, systemStart] = SUPPORTED_CLOCKS[network];
 
     return csl.BigNum
       .from_str(milliseconds.toString())
