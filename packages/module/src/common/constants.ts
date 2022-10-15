@@ -3,8 +3,8 @@ import type { Costmdls } from '@mesh/core';
 import type { Budget, Era, Network, Protocol } from './types';
 
 export const DEFAULT_REDEEMER_BUDGET: Budget = {
-  mem: 7000000,
-  steps: 3000000000,
+  mem: 7_000_000,
+  steps: 3_000_000_000,
 };
 
 export const DEFAULT_PROTOCOL_PARAMETERS: Protocol = {

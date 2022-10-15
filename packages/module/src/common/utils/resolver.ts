@@ -6,7 +6,7 @@ import {
 } from './builder';
 import {
   toAddress, toBaseAddress, toBytes, toEnterpriseAddress,
-  toNativeScript, toPlutusData, toRewardAddress,
+  toNativeScript, toPlutusData, toRewardAddress, toScriptRef,
 } from './converter';
 import {
   deserializePlutusScript, deserializeTx,
@@ -100,6 +100,10 @@ export const resolvePrivateKey = (words: string[]) => {
   bip32PrivateKey.free();
 
   return bech32PrivateKey;
+};
+
+export const resolveScriptRef = (script: PlutusScript | NativeScript) => {
+  return toScriptRef(script).to_hex();
 };
 
 export const resolveSlotNo = (network: Network, milliseconds = Date.now()) => {

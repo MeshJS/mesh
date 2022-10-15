@@ -230,7 +230,7 @@ export const fromScriptRef = (scriptRef: ScriptRef) => {
     return <PlutusScript>{
       code: plutusScript.to_hex(),
       version: Object.keys(LANGUAGE_VERSIONS).find(
-        key => LANGUAGE_VERSIONS[key].tohex() === plutusScript.language_version().to_hex(),
+        key => LANGUAGE_VERSIONS[key].to_hex() === plutusScript.language_version().to_hex(),
       ),
     };
   }
