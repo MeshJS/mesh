@@ -179,7 +179,7 @@ function DemoSection() {
   }
 
   // async function applicationSideSignTx(signedTx) {
-  //   // todo update metadata with real metadata
+  //   // todo update metadata with real metadata // setAssetMetadata()
   //   const appWalletSignedTx = await appWallet.signTx(signedTx, true);
   //   const txHash = await appWallet.submitTx(appWalletSignedTx);
   //   return txHash;

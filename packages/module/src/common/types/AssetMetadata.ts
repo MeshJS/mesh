@@ -2,7 +2,8 @@ import type { MetadataStandard, Files } from '@mesh/core';
 
 export type AssetMetadata =
   | FungibleAssetMetadata
-  | NonFungibleAssetMetadata;
+  | NonFungibleAssetMetadata
+  | CommunityRoyalties;
 
 export type FungibleAssetMetadata = MetadataStandard & {
   ticker: string;
@@ -18,17 +19,25 @@ export type NonFungibleAssetMetadata =
 
 type AudioAssetMetadata = MetadataStandard & Files;
 
-export type ImageAssetMetadata = MetadataStandard & Files & {
-  artists?: [{
-    name: string;
-    twitter?: `https://twitter.com/${string}`;
-  }];
-  attributes?: {
-    [key: string]: string;
+export type ImageAssetMetadata = MetadataStandard &
+  Files & {
+    artists?: [
+      {
+        name: string;
+        twitter?: `https://twitter.com/${string}`;
+      }
+    ];
+    attributes?: {
+      [key: string]: string;
+    };
+    traits?: string[];
   };
-  traits?: string[];
-};
 
 type SmartAssetMetadata = MetadataStandard & Files;
 
 type VideoAssetMetadata = MetadataStandard & Files;
+
+export type CommunityRoyalties = {
+  rate: string;
+  addr: string | string[];
+};

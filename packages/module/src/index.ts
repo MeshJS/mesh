@@ -6,3 +6,4 @@ export * from './providers';
 export * from './scripts';
 export * from './transaction';
 export * from './wallet';
+export * from './react';
