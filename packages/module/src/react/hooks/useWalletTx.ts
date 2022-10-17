@@ -17,7 +17,8 @@ export const useWalletTx = (options: {
     if (hasConnectedWallet) {
       return new Transaction({
         initiator: connectedWalletInstance,
-        era, parameters,
+        parameters,
+        era,
       });
     }
 

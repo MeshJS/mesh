@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { WalletContext } from '@mesh/react/contexts';
 
 export const useLovelace = () => {
-  const [lovelace, setLovelace] = useState<string>('0');
+  const [lovelace, setLovelace] = useState<string>();
   const {
     hasConnectedWallet,
     connectedWalletName,

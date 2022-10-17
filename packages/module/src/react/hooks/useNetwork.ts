@@ -1,8 +1,8 @@
 import { useContext, useEffect, useState } from 'react';
 import { WalletContext } from '@mesh/react/contexts';
 
-export const  useNetwork = () => {
-  const [networkId, setNetworkId] = useState<number>(0);
+export const useNetwork = () => {
+  const [networkId, setNetworkId] = useState<number>();
   const {
     hasConnectedWallet,
     connectedWalletName,

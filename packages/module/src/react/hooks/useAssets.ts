@@ -3,7 +3,7 @@ import { WalletContext } from '@mesh/react/contexts';
 import type { Asset } from '@mesh/common/types';
 
 export const useAssets = () => {
-  const [asstes, setAsstes] = useState<Asset[]>([]);
+  const [asstes, setAsstes] = useState<Asset[]>();
   const {
     hasConnectedWallet,
     connectedWalletName,

@@ -10,6 +10,7 @@ interface WalletContext {
   connectingWallet: boolean,
   connectWallet?: (walletName: string) => Promise<void>,
   disconnect?: () => void,
+  error?: unknown,
 }
 
 const defaultWallet = {
@@ -23,29 +24,34 @@ const [meshStorage, setMeshStorage] = useLocalStorage<{
 }>('meshBrowserWallet', defaultWallet);
 
 const useWalletStore = () => {
-  const [connectingWallet, setConnectingWallet] = useState<boolean>(false);
+  const [error, setError] = useState<unknown>(undefined);
+
+  const [connectingWallet, setConnectingWallet] =
+    useState<boolean>(false);
 
   const [connectedWalletInstance, setConnectedWalletInstance] =
-  useState<BrowserWallet>(meshStorage.walletInstance);
+    useState<BrowserWallet>(meshStorage.walletInstance);
 
   const [connectedWalletName, setConnectedWalletName] =
-  useState<string>(meshStorage.walletName);
-  
+    useState<string>(meshStorage.walletName);
+
   const connectWallet = useCallback(async (walletName: string) => {
     setConnectingWallet(true);
-    
+
     try {
       const walletInstance = await BrowserWallet.enable(walletName);
-      setConnectedWalletName(walletName);
       setConnectedWalletInstance(walletInstance);
+      setConnectedWalletName(walletName);
+      setError(undefined);
       setMeshStorage({
         walletInstance,
         walletName,
       });
     } catch (error) {
+      setError(error);
       console.error(error);
     }
-    
+
     setConnectingWallet(false);
   }, []);
 
@@ -63,6 +69,7 @@ const useWalletStore = () => {
     connectingWallet,
     connectWallet,
     disconnect,
+    error,
   };
 };
 
