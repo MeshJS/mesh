@@ -87,32 +87,57 @@ function DemoSection() {
     setLoading(true);
 
     try {
-      const changeAddress = await wallet.getChangeAddress(); // todo abdel look here - since we cant simply just pass change address, as it might not have the utxo needed
+      const changeAddress = await wallet.getChangeAddress();
       const utxos = await wallet.getUtxos();
-      // const changeAddress = 'addr_test1qp2k7wnshzngpqw0xmy33hvexw4aeg60yr79x3yeeqt3s2uvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysdp6yv3'; // await wallet.getChangeAddress();
       const appWalletSignedTx = await applicationSideCreateTx(
         changeAddress,
         utxos
       );
       const signedTx = await wallet.signTx(appWalletSignedTx, true);
-      // const txHash = await applicationSideSignTx(signedTx); // todo need to mask metadata and replace it
-      const txHash = await wallet.submitTx(signedTx);
-      setResponse(txHash);
+      // const txHash = await applicationSideSignTx(signedTx);
+      // const txHash = await wallet.submitTx(signedTx);
+      // setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
     }
     setLoading(false);
   }
 
+  function maskValue(value: string | number) {
+    if (typeof value === 'string') {
+      return new Array(value.length + 1).join('#');
+    } else {
+      // not sure if converting number to string will cause fee different
+      return value;
+    }
+  }
+
+  function maskMetadata(metadata: AssetMetadata): AssetMetadata {
+    const maskedMetadata = {};
+    for (const key in metadata) {
+      let thisValue = metadata[key];
+
+      if (thisValue.constructor === Array) {
+        maskedMetadata[key] = [];
+        for (const i in thisValue) {
+          let thisListValue = thisValue[i];
+          maskedMetadata[key].push(maskValue(thisListValue));
+        }
+      } else if (typeof thisValue === 'object') {
+        maskedMetadata[key] = {};
+        for (const subKey in thisValue) {
+          let maskedValue = maskValue(thisValue[subKey]);
+          maskedMetadata[key][subKey] = maskedValue;
+        }
+      } else {
+        maskedMetadata[key] = maskValue(thisValue);
+      }
+    }
+    return maskedMetadata;
+  }
+
   async function applicationSideCreateTx(recipientAddress, utxos) {
     console.log('utxos', utxos);
-
-    const txOutput = [
-      {
-        unit: 'lovelace',
-        quantity: '10000000',
-      },
-    ];
 
     const appWalletAddress = appWallet.getPaymentAddress();
     const forgingScript = ForgeScript.withOneSignature(appWalletAddress);
@@ -122,19 +147,28 @@ function DemoSection() {
       image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
       mediaType: 'image/jpg',
       description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+      array: ['red', 'blue', 1],
+      objects: {
+        yes: 1,
+        no: 'string',
+        na: 'str',
+      },
     };
+    const maskedMetadata = maskMetadata(assetMetadata);
+    console.log('assetMetadata', assetMetadata);
+    console.log('maskedMetadata', maskedMetadata);
     const asset: Mint = {
       assetName: 'MeshToken',
       assetQuantity: '1',
-      metadata: assetMetadata,
+      metadata: maskedMetadata,
       label: '721',
       recipient: {
         address: recipientAddress,
       },
     };
 
-    const tx = new Transaction({ initiator: appWallet }); // todo abdel look here - this has changed from `wallet` to `appWallet` as it makes more sense for this tx to be built by appWallet
-    tx.setTxInputs(utxos); // todo abdel look here - how to know which wallet to get UTXOs that contain that assets we need?
+    const tx = new Transaction({ initiator: appWallet });
+    tx.setTxInputs(utxos);
     tx.mintAsset(forgingScript, asset);
     tx.sendLovelace(appWalletAddress, '10000000');
     tx.setChangeAddress(recipientAddress);
@@ -145,6 +179,7 @@ function DemoSection() {
   }
 
   // async function applicationSideSignTx(signedTx) {
+  //   // todo update metadata with real metadata
   //   const appWalletSignedTx = await appWallet.signTx(signedTx, true);
   //   const txHash = await appWallet.submitTx(appWalletSignedTx);
   //   return txHash;
