@@ -1,0 +1,20 @@
+import { useContext, useEffect, useState } from 'react';
+import { WalletContext } from '@mesh/react/contexts';
+
+export const  useNetwork = () => {
+  const [networkId, setNetworkId] = useState<number>(0);
+  const {
+    hasConnectedWallet,
+    connectedWalletName,
+    connectedWalletInstance,
+  } = useContext(WalletContext);
+
+  useEffect(() => {
+    if (hasConnectedWallet) {
+      connectedWalletInstance.getNetworkId()
+        .then(setNetworkId);
+    }
+  }, [connectedWalletName]);
+
+  return networkId;
+};
