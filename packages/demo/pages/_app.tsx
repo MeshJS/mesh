@@ -6,6 +6,7 @@ import { WalletProvider } from '../contexts/wallet';
 import Navbar from '../components/site/navbar';
 import Footer from '../components/site/footer';
 import { AppWalletProvider } from '../contexts/appWallet';
+// import { WalletProvider } from '@martifylabs/mesh/react';
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (

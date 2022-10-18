@@ -1,0 +1,14 @@
+{
+  "name": "@martifylabs/mesh-react",
+  "description": "UI components and hooks you need for building web3 apps on Cardano.",
+  "homepage": "https://mesh.martify.io",
+  "author": "MartifyLabs",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@heroicons/react": "^2.0.12",
+    "@martifylabs/mesh": "^1.1.0-beta.6",
+    "flowbite": "^1.5.3"
+  }
+}
