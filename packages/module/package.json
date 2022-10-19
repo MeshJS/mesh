@@ -19,8 +19,8 @@
     "plutus",
     "utxo"
   ],
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
+  "main": "dist/mesh.cjs",
+  "module": "dist/mesh.js",
   "typings": "dist/index.d.ts",
   "files": [
     "dist",
@@ -49,12 +49,8 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./react": {
-      "import": "./dist/react.js",
-      "require": "./dist/react.cjs"
+      "import": "./dist/mesh.js",
+      "require": "./dist/mesh.cjs"
     }
   },
   "devDependencies": {
@@ -78,7 +74,6 @@
     "axios": "0.27.2",
     "bip39": "3.0.4",
     "nanoid": "3.3.4",
-    "react": "18.2.0",
     "zod": "3.19.1"
   }
 }
