@@ -1,5 +1,5 @@
 import { useCallback, useContext, useState } from 'react';
-import { WalletContext } from '@mesh/react/contexts';
+import { WalletContext } from '@mesh/contexts';
 
 export const useWalletSubmit = () => {
   const [error, setError] = useState<unknown>();

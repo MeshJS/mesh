@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
-import { WalletContext } from '@mesh/react/contexts';
-import type { Asset } from '@mesh/common/types';
+import { WalletContext } from '@mesh/contexts';
+import type { Asset } from '@martifylabs/mesh';
 
 export const useAssets = () => {
   const [asstes, setAsstes] = useState<Asset[]>();

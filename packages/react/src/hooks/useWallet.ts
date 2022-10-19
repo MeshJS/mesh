@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { WalletContext } from '@mesh/react/contexts';
+import { WalletContext } from '@mesh/contexts';
 
 export const useWallet = () => {
   const {
@@ -12,7 +12,7 @@ export const useWallet = () => {
 
   if (connectWallet === undefined || disconnect === undefined) {
     throw new Error(
-      "Can't call useWallet outside of the WalletProvider context",
+      'Can\'t call useWallet outside of the WalletProvider context',
     );
   }
 

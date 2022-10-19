@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
-import { WalletContext } from '@mesh/react/contexts';
-import { Transaction } from '@mesh/transaction';
-import type { Era, Protocol } from '@mesh/common/types';
+import { Transaction } from '@martifylabs/mesh';
+import { WalletContext } from '@mesh/contexts';
+import type { Era, Protocol } from '@martifylabs/mesh';
 
 export const useWalletTx = (options: {
   era?: Era, parameters?: Protocol,

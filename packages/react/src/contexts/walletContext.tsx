@@ -1,16 +1,16 @@
 import { createContext, useCallback, useState } from 'react';
 import { BrowserWallet } from '@martifylabs/mesh';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useLocalStorage } from '@mesh/utils';
 
 interface WalletContext {
-  hasAvailableWallets: boolean;
-  hasConnectedWallet: boolean;
-  connectedWalletInstance: BrowserWallet;
-  connectedWalletName: string;
-  connectingWallet: boolean;
-  connectWallet?: (walletName: string) => Promise<void>;
-  disconnect?: () => void;
-  error?: unknown;
+  hasAvailableWallets: boolean,
+  hasConnectedWallet: boolean,
+  connectedWalletInstance: BrowserWallet,
+  connectedWalletName: string,
+  connectingWallet: boolean,
+  connectWallet?: (walletName: string) => Promise<void>,
+  disconnect?: () => void,
+  error?: unknown,
 }
 
 const defaultWallet = {
@@ -26,14 +26,14 @@ const [meshStorage, setMeshStorage] = useLocalStorage<{
 const useWalletStore = () => {
   const [error, setError] = useState<unknown>(undefined);
 
-  const [connectingWallet, setConnectingWallet] = useState<boolean>(false);
+  const [connectingWallet, setConnectingWallet] =
+    useState<boolean>(false);
 
   const [connectedWalletInstance, setConnectedWalletInstance] =
     useState<BrowserWallet>(meshStorage.walletInstance);
 
-  const [connectedWalletName, setConnectedWalletName] = useState<string>(
-    meshStorage.walletName
-  );
+  const [connectedWalletName, setConnectedWalletName] =
+    useState<string>(meshStorage.walletName);
 
   const connectWallet = useCallback(async (walletName: string) => {
     setConnectingWallet(true);
@@ -85,6 +85,8 @@ export const WalletProvider = ({ children }) => {
   const store = useWalletStore();
 
   return (
-    <WalletContext.Provider value={store}>{children}</WalletContext.Provider>
+    <WalletContext.Provider value={store}>
+      {children}
+    </WalletContext.Provider>
   );
 };
