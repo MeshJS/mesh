@@ -17,7 +17,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     });
   }
 
-  async fetchAddressUtxos(address: string, asset?: string): Promise<UTxO[]> {
+  async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const resolveScriptRef = (kScriptRef): string | undefined => {
       if (kScriptRef) {
         const script = kScriptRef.type.startsWith('plutus')

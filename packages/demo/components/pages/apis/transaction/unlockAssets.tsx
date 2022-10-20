@@ -48,7 +48,7 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippetGetAssetUtxo += `  const blockfrostProvider = new BlockfrostProvider(\n`;
   codeSnippetGetAssetUtxo += `    'BLOCKFROST_API_KEY',\n`;
   codeSnippetGetAssetUtxo += `  );\n`;
-  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAddressUtxos(\n`;
+  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAddressUTxOs(\n`;
   codeSnippetGetAssetUtxo += `    scriptAddress,\n`;
   codeSnippetGetAssetUtxo += `    asset\n`;
   codeSnippetGetAssetUtxo += `  );\n`;
@@ -146,7 +146,7 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
     const blockfrostProvider = new BlockfrostProvider(
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
     );
-    const utxos = await blockfrostProvider.fetchAddressUtxos(
+    const utxos = await blockfrostProvider.fetchAddressUTxOs(
       scriptAddress,
       asset
     );

@@ -1,4 +1,4 @@
-import { csl, largestFirstMultiAsset } from '@mesh/core';
+import { csl, largestFirst, largestFirstMultiAsset } from '@mesh/core';
 import {
   DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
   POLICY_ID_LENGTH, SUPPORTED_COST_MODELS,
@@ -292,7 +292,7 @@ export class Transaction {
       && this._totalBurns.size > 0
       && this.notVisited('setTxInputs')
     ) {
-      const utxos = await this._initiator.getUsedUtxos();
+      const utxos = await this._initiator.getUsedUTxOs();
       const inputs = largestFirstMultiAsset(this._totalBurns,
         utxos.map((utxo) => fromTxUnspentOutput(utxo)),
       ).map((utxo) => toTxUnspentOutput(utxo));
@@ -310,8 +310,8 @@ export class Transaction {
 
   private async addChangeAddress() {
     if (this._initiator && this._changeAddress === undefined) {
-      const change = await this._initiator.getUsedAddress();
-      this._txBuilder.add_change_if_needed(change);
+      const address = await this._initiator.getUsedAddress();
+      this._txBuilder.add_change_if_needed(address);
     } else if (this._changeAddress !== undefined) {
       this._txBuilder.add_change_if_needed(this._changeAddress);
     }
@@ -326,8 +326,8 @@ export class Transaction {
 
   private async addRequiredSignersIfNeeded() {
     if (this._initiator && this.notVisited('setRequiredSigners')) {
-      const usedAddress = await this._initiator.getUsedAddress();
-      const keyHash = resolvePaymentKeyHash(usedAddress.to_bech32());
+      const address = await this._initiator.getUsedAddress();
+      const keyHash = resolvePaymentKeyHash(address.to_bech32());
       this._txBuilder.add_required_signer(deserializeEd25519KeyHash(keyHash));
     }
   }
@@ -336,17 +336,18 @@ export class Transaction {
     this._txBuilder.set_inputs(this._txInputsBuilder);
 
     if (this.notVisited('setTxInputs')) {
-      const availableUtxos = await this.getAvailableUtxos();
-
       const includeMultiAsset = !this.notVisited('mintAsset')
         || !this.notVisited('sendAssets')
         || !this.notVisited('sendValue');
 
+      const selectedUTxOs = await this.not_enough_ADA_leftover(includeMultiAsset);
+      const availableUTxOs = await this.filterAvailableUTxOs(selectedUTxOs);
+      
       const coinSelectionStrategy = includeMultiAsset
         ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
-      this._txBuilder.add_inputs_from(availableUtxos, coinSelectionStrategy);
+      this._txBuilder.add_inputs_from(availableUTxOs, coinSelectionStrategy);
     }
 
     if (this.notVisited('redeemValue') === false) {
@@ -375,20 +376,54 @@ export class Transaction {
     this.addMintOutputs();
   }
 
-  private async getAvailableUtxos() {
+  private async filterAvailableUTxOs(selectedUTxOs: UTxO[] = []) {
     const txUnspentOutputs = csl.TransactionUnspentOutputs.new();
 
     if (this._initiator === undefined)
       return txUnspentOutputs;
 
-    const availableUtxos = await this._initiator
-      .getUsedUtxos();
+    const allUTxOs = await this._initiator
+      .getUsedUTxOs();
 
-    availableUtxos.forEach((utxo) => {
-      txUnspentOutputs.add(utxo);
-    });
+    allUTxOs
+      .filter((au) => {
+        return (
+          selectedUTxOs.find(
+            (su) => su.input.txHash === au.input().transaction_id().to_hex()
+          ) === undefined
+        );
+      })
+      .forEach((utxo) => {
+        txUnspentOutputs.add(utxo);
+      });
 
     return txUnspentOutputs;
+  }
+
+  // TODO: remove this as soon as CSL coin selection get fixed!
+  private async not_enough_ADA_leftover(includeMultiAsset: boolean) {
+    if (this._initiator === undefined || includeMultiAsset === false)
+      return [];
+
+    const utxos = await this._initiator.getUsedUTxOs();
+
+    const selection = largestFirst('5000000',
+      utxos.map((utxo) => fromTxUnspentOutput(utxo)),
+    );
+
+    const inputs = selection
+      .map((utxo) => toTxUnspentOutput(utxo));
+
+    inputs
+      .forEach((utxo) => {
+        this._txBuilder.add_input(
+          utxo.output().address(),
+          utxo.input(),
+          utxo.output().amount(),
+        );
+      });
+
+    return selection;
   }
 
   private addMintOutputs() {

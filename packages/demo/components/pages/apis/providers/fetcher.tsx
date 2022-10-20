@@ -80,7 +80,7 @@ function fetchAddressUtxosLeft({
   fetchAddressUtxosAddress,
   fetchAddressUtxosAsset,
 }) {
-  let code1 = `await ${fetcherName}.fetchAddressUtxos(\n`;
+  let code1 = `await ${fetcherName}.fetchAddressUTxOs(\n`;
   code1 += `  '${fetchAddressUtxosAddress}',\n`;
   if (fetchAddressUtxosAsset.length > 0) {
     code1 += `  '${fetchAddressUtxosAsset}',\n`;
@@ -113,7 +113,7 @@ function fetchAddressUtxosRight({
     setResponse(null);
     setResponseError(null);
     try {
-      const res = await fetcher.fetchAddressUtxos(
+      const res = await fetcher.fetchAddressUTxOs(
         fetchAddressUtxosAddress,
         fetchAddressUtxosAsset
       );

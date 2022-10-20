@@ -79,8 +79,8 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   async getUtxos(): Promise<UTxO[]> {
-    const deserializedUtxos = await this.getUsedUtxos();
-    return deserializedUtxos.map((du) => fromTxUnspentOutput(du));
+    const deserializedUTxOs = await this.getUsedUTxOs();
+    return deserializedUTxOs.map((du) => fromTxUnspentOutput(du));
   }
 
   signData(address: string, payload: string): Promise<DataSignature> {
@@ -95,7 +95,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       const walletWitnessSet = await this._walletInstance
         .signTx(unsignedTx, partialSign);
-      
+
       const txSignatures = deserializeTxWitnessSet(walletWitnessSet)
         .vkeys() ?? csl.Vkeywitnesses.new();
 
@@ -131,7 +131,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }
 
-  async getUsedUtxos(): Promise<TransactionUnspentOutput[]> {
+  async getUsedUTxOs(): Promise<TransactionUnspentOutput[]> {
     const utxos = (await this._walletInstance.getUtxos()) ?? [];
     return utxos.map((u) => deserializeTxUnspentOutput(u));
   }

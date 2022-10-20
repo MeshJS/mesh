@@ -1,16 +1,36 @@
 import { csl } from './CSL';
 import type { Quantity, Unit, UTxO } from '@mesh/common/types';
 
+export const largestFirst = (quantity: Quantity, initialUTxOSet: UTxO[]) => {
+  const sortedUTxOs = initialUTxOSet
+    .filter((utxo) => multiAssetUTxO(utxo) === false)
+    .sort(largestLovelaceQuantity);
+
+  const requestedOutputSet = new Map<Unit, Quantity>([
+    ['lovelace', quantity],
+  ]);
+
+  const selection = selectValue(
+    sortedUTxOs, requestedOutputSet,
+  );
+
+  console.log({
+    sortedUTxOs, selection
+  });
+
+  return selection;
+};
+
 export const largestFirstMultiAsset = (
   requestedOutputSet: Map<Unit, Quantity>,
   initialUTxOSet: UTxO[],
 ): UTxO[] => {
-  const sortedMultiAssetUTxO = initialUTxOSet
+  const sortedMultiAssetUTxOs = initialUTxOSet
     .filter(multiAssetUTxO)
     .sort(largestLovelaceQuantity);
 
   const selection = selectValue(
-    sortedMultiAssetUTxO,
+    sortedMultiAssetUTxOs,
     requestedOutputSet,
   );
 
@@ -25,7 +45,7 @@ const enoughValueHasBeenSelected = (
       assets, (asset) => ({ unit: asset[0], quantity: csl.BigNum.from_str(asset[1]) }),
     )
     .every((asset) => {
-      selection
+      return selection
         .filter((utxo) => {
           return utxo.output.amount
             .find((a) => a.unit === asset.unit) !== undefined;
@@ -53,7 +73,7 @@ const largestLovelaceQuantity = (
     utxoB.output.amount.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0',
   );
 
-  return aLovelaceQuantity.compare(bLovelaceQuantity);
+  return bLovelaceQuantity.compare(aLovelaceQuantity);
 };
 
 const multiAssetUTxO = (utxo: UTxO): boolean => utxo.output.amount.length > 1;

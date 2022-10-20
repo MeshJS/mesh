@@ -19,7 +19,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     });
   }
 
-  async fetchAddressUtxos(address: string, asset?: string): Promise<UTxO[]> {
+  async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : '';
     const url = `addresses/${address}/utxos` + filter;
 

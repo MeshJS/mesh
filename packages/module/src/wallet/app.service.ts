@@ -87,11 +87,11 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     throw new Error('getUsedCollateral not implemented.');
   }
 
-  async getUsedUtxos(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
+  async getUsedUTxOs(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
     const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
 
     const utxos = await this._fetcher
-      .fetchAddressUtxos(account.enterpriseAddress) ?? [];
+      .fetchAddressUTxOs(account.enterpriseAddress) ?? [];
 
     return utxos.map((utxo) => toTxUnspentOutput(utxo));
   }
@@ -111,7 +111,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
       const account = this._wallet
         .getAccount(accountIndex, DEFAULT_PASSWORD);
       const utxos = await this._fetcher
-        .fetchAddressUtxos(account.enterpriseAddress) ?? [];
+        .fetchAddressUTxOs(account.enterpriseAddress) ?? [];
 
       const newSignatures = this._wallet.signTx(
         accountIndex, DEFAULT_PASSWORD, utxos,
