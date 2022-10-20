@@ -54,7 +54,7 @@ export default function Minting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1 || field == 'metadata') {
+      if (value >= 1 || field == 'metadata' || field == 'assetName') {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {

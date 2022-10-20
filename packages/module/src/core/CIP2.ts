@@ -14,10 +14,6 @@ export const largestFirst = (quantity: Quantity, initialUTxOSet: UTxO[]) => {
     sortedUTxOs, requestedOutputSet,
   );
 
-  console.log({
-    sortedUTxOs, selection
-  });
-
   return selection;
 };
 

@@ -11,8 +11,9 @@ import {
   ForgeScript,
   Transaction,
   BlockfrostProvider,
+  largestFirst,
 } from '@martifylabs/mesh';
-import type { Mint, AssetMetadata } from '@martifylabs/mesh';
+import type { Mint, AssetMetadata, Unit, Quantity } from '@martifylabs/mesh';
 import useWallet from '../../contexts/wallet';
 import RunDemoButton from '../../components/pages/apis/common/runDemoButton';
 import RunDemoResult from '../../components/pages/apis/common/runDemoResult';
@@ -54,6 +55,8 @@ const GuideMultisigMintingPage: NextPage = () => {
 };
 
 function DemoSection() {
+  const browserWalletSignFirst = true;
+
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -76,32 +79,6 @@ function DemoSection() {
     }
     init();
   }, []);
-
-  async function clientStartMinting() {
-    const walletNetwork = await wallet.getNetworkId();
-    if (walletNetwork != 0) {
-      setResponseError(`Connect with a Testnet wallet.`);
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const changeAddress = await wallet.getChangeAddress();
-      const utxos = await wallet.getUtxos();
-      const appWalletSignedTx = await applicationSideCreateTx(
-        changeAddress,
-        utxos
-      );
-      const signedTx = await wallet.signTx(appWalletSignedTx, true);
-      // const txHash = await applicationSideSignTx(signedTx);
-      // const txHash = await wallet.submitTx(signedTx);
-      // setResponse(txHash);
-    } catch (error) {
-      setResponseError(`${error}`);
-    }
-    setLoading(false);
-  }
 
   function maskValue(value: string | number) {
     if (typeof value === 'string') {
@@ -136,54 +113,105 @@ function DemoSection() {
     return maskedMetadata;
   }
 
+  const assetMetadata: AssetMetadata = {
+    name: 'Mesh Token',
+    image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
+    mediaType: 'image/jpg',
+    description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+    array: ['red', 'blue', 1],
+    objects: {
+      yes: 1,
+      no: 'string',
+      na: 'str',
+    },
+  };
+  const maskedMetadata = maskMetadata(assetMetadata);
+
+  async function clientStartMinting() {
+    const walletNetwork = await wallet.getNetworkId();
+    if (walletNetwork != 0) {
+      setResponseError(`Connect with a Testnet wallet.`);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const changeAddress = await wallet.getChangeAddress();
+      const utxos = await wallet.getUtxos();
+      const unsignedTx = await applicationSideCreateTx(changeAddress, utxos);
+      const signedTx = await wallet.signTx(unsignedTx, true);
+      if (browserWalletSignFirst) {
+        const appWalletSignedTx = await applicationSideSignTx(
+          signedTx,
+          changeAddress
+        );
+        const txHash = await wallet.submitTx(appWalletSignedTx);
+        setResponse(txHash);
+      } else {
+        const txHash = await wallet.submitTx(signedTx);
+        setResponse(txHash);
+      }
+    } catch (error) {
+      setResponseError(`${error}`);
+    }
+    setLoading(false);
+  }
+
   async function applicationSideCreateTx(recipientAddress, utxos) {
     console.log('utxos', utxos);
+
+    const costLovelace = '10000000';
 
     const appWalletAddress = appWallet.getPaymentAddress();
     const forgingScript = ForgeScript.withOneSignature(appWalletAddress);
 
-    const assetMetadata: AssetMetadata = {
-      name: 'Mesh Token',
-      image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
-      mediaType: 'image/jpg',
-      description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
-      array: ['red', 'blue', 1],
-      objects: {
-        yes: 1,
-        no: 'string',
-        na: 'str',
-      },
-    };
-    const maskedMetadata = maskMetadata(assetMetadata);
-    console.log('assetMetadata', assetMetadata);
-    console.log('maskedMetadata', maskedMetadata);
     const asset: Mint = {
       assetName: 'MeshToken',
       assetQuantity: '1',
-      metadata: maskedMetadata,
+      metadata: assetMetadata,
       label: '721',
       recipient: {
         address: recipientAddress,
       },
     };
 
+    // client utxo select utxo
+    const selectedUtxos = largestFirst(costLovelace, utxos);
+
     const tx = new Transaction({ initiator: appWallet });
-    tx.setTxInputs(utxos);
+    tx.setTxInputs(selectedUtxos); // todo: how to select UTXO smartly even though using tx.setTxInputs(utxos);. because we get these utxos from browser wallet, need it. to make payment
     tx.mintAsset(forgingScript, asset);
-    tx.sendLovelace(appWalletAddress, '10000000');
+    tx.sendLovelace(appWalletAddress, costLovelace);
     tx.setChangeAddress(recipientAddress);
 
     const unsignedTx = await tx.build();
-    const appWalletSignedTx = await appWallet.signTx(unsignedTx, true);
-    return appWalletSignedTx;
+
+    if (browserWalletSignFirst) {
+      return unsignedTx;
+    } else {
+      const appWalletSignedTx = await appWallet.signTx(unsignedTx, true);
+      return appWalletSignedTx;
+    }
   }
 
-  // async function applicationSideSignTx(signedTx) {
-  //   // todo update metadata with real metadata // setAssetMetadata()
-  //   const appWalletSignedTx = await appWallet.signTx(signedTx, true);
-  //   const txHash = await appWallet.submitTx(appWalletSignedTx);
-  //   return txHash;
-  // }
+  async function applicationSideSignTx(signedTx, recipientAddress) {
+    // const asset: Mint = {
+    //   assetName: 'MeshToken',
+    //   assetQuantity: '1',
+    //   metadata: assetMetadata,
+    //   label: '721',
+    //   recipient: {
+    //     address: recipientAddress,
+    //   },
+    // };
+    // todo: update metadata with real metadata - `updateAssetMetadata(asset)` in Transaction
+    // tx?.updateAssetMetadata(asset);
+
+    const appWalletSignedTx = await appWallet.signTx(signedTx, true);
+    // const txHash = await appWallet.submitTx(appWalletSignedTx);
+    return appWalletSignedTx;
+  }
 
   return (
     <Element name="demo">
