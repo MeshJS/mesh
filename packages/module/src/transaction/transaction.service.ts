@@ -40,10 +40,6 @@ export class Transaction {
     this._txInputsBuilder = csl.TxInputsBuilder.new();
   }
 
-  get fee(): string {
-    return this._txBuilder.min_fee().to_str();
-  }
-
   get size(): number {
     return this._txBuilder.full_size();
   }
@@ -336,14 +332,15 @@ export class Transaction {
     this._txBuilder.set_inputs(this._txInputsBuilder);
 
     if (this.notVisited('setTxInputs')) {
-      const includeMultiAsset = !this.notVisited('mintAsset')
+      const hasMultiAsset = !this.notVisited('mintAsset')
         || !this.notVisited('sendAssets')
         || !this.notVisited('sendValue');
 
-      const selectedUTxOs = await this.not_enough_ADA_leftover(includeMultiAsset);
+      // insure change holds enough ADA to cover multiasset.
+      const selectedUTxOs = await this.selectLovelaceUTxOs(hasMultiAsset);
       const availableUTxOs = await this.filterAvailableUTxOs(selectedUTxOs);
       
-      const coinSelectionStrategy = includeMultiAsset
+      const coinSelectionStrategy = hasMultiAsset
         ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
         : csl.CoinSelectionStrategyCIP2.LargestFirst;
 
@@ -400,9 +397,8 @@ export class Transaction {
     return txUnspentOutputs;
   }
 
-  // TODO: remove this as soon as CSL coin selection get fixed!
-  private async not_enough_ADA_leftover(includeMultiAsset: boolean) {
-    if (this._initiator === undefined || includeMultiAsset === false)
+  private async selectLovelaceUTxOs(hasMultiAsset: boolean) {
+    if (this._initiator === undefined || hasMultiAsset === false)
       return [];
 
     const utxos = await this._initiator.getUsedUTxOs();

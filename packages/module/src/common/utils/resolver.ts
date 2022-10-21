@@ -152,6 +152,16 @@ export const resolveStakeKeyHash = (bech32: string) => {
   }
 };
 
+export const resolveTxFees = (
+  txSize: number, minFeeA: number, minFeeB: number,
+) => {
+  const fees = BigInt(minFeeA)
+    * BigInt(txSize)
+    + BigInt(minFeeB);
+
+  return fees.toString();
+};
+
 export const resolveTxHash = (txHex: string) => {
   const txBody = deserializeTx(txHex).body();
   const txHash = csl.hash_transaction(txBody);

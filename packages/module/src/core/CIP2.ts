@@ -1,10 +1,25 @@
 import { csl } from './CSL';
+import {
+  DEFAULT_PROTOCOL_PARAMETERS,
+} from '@mesh/common/constants';
+import { resolveTxFees } from '@mesh/common/utils';
 import type { Quantity, Unit, UTxO } from '@mesh/common/types';
 
-export const largestFirst = (quantity: Quantity, initialUTxOSet: UTxO[]) => {
+export const largestFirst = (
+  lovelace: Quantity, initialUTxOSet: UTxO[], includeTxFees = false,
+  { maxTxSize, minFeeA, minFeeB } = DEFAULT_PROTOCOL_PARAMETERS,
+): UTxO[] => {
   const sortedUTxOs = initialUTxOSet
     .filter((utxo) => multiAssetUTxO(utxo) === false)
     .sort(largestLovelaceQuantity);
+
+  const maxTxFees = csl.BigNum.from_str(
+    resolveTxFees(maxTxSize, minFeeA, minFeeB),
+  );
+
+  const quantity = includeTxFees
+    ? csl.BigNum.from_str(lovelace).checked_add(maxTxFees).to_str()
+    : lovelace;
 
   const requestedOutputSet = new Map<Unit, Quantity>([
     ['lovelace', quantity],
@@ -18,12 +33,25 @@ export const largestFirst = (quantity: Quantity, initialUTxOSet: UTxO[]) => {
 };
 
 export const largestFirstMultiAsset = (
-  requestedOutputSet: Map<Unit, Quantity>,
-  initialUTxOSet: UTxO[],
+  requestedOutputSet: Map<Unit, Quantity>, initialUTxOSet: UTxO[],
+  includeTxFees = false, parameters = DEFAULT_PROTOCOL_PARAMETERS,
 ): UTxO[] => {
   const sortedMultiAssetUTxOs = initialUTxOSet
     .filter(multiAssetUTxO)
     .sort(largestLovelaceQuantity);
+
+  const lovelace = requestedOutputSet.get('lovelace') ?? '0';
+
+  const { maxTxSize, minFeeA, minFeeB } = parameters;
+  const maxTxFees = csl.BigNum.from_str(
+    resolveTxFees(maxTxSize, minFeeA, minFeeB),
+  );
+
+  const quantity = includeTxFees
+    ? csl.BigNum.from_str(lovelace).checked_add(maxTxFees).to_str()
+    : lovelace;
+
+  requestedOutputSet.set('lovelace', quantity);
 
   const selection = selectValue(
     sortedMultiAssetUTxOs,
@@ -72,7 +100,9 @@ const largestLovelaceQuantity = (
   return bLovelaceQuantity.compare(aLovelaceQuantity);
 };
 
-const multiAssetUTxO = (utxo: UTxO): boolean => utxo.output.amount.length > 1;
+const multiAssetUTxO = (
+  utxo: UTxO,
+): boolean => utxo.output.amount.length > 1;
 
 const selectValue = (
   inputUTxO: UTxO[],
