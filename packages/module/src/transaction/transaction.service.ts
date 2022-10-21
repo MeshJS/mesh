@@ -6,12 +6,11 @@ import {
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
-  buildDataCost, buildDatumSource, buildPlutusScriptSource,
-  buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
-  deserializeEd25519KeyHash, deserializeNativeScript,
-  fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash,
-  resolveStakeKeyHash, toAddress, toBytes,
-  toRedeemer, toTxUnspentOutput, toValue,
+  buildDataCost, buildDatumSource, buildPlutusScriptSource, buildTxBuilder,
+  buildTxInputsBuilder, buildTxOutputBuilder, deserializeEd25519KeyHash,
+  deserializeNativeScript, deserializeTx, fromTxUnspentOutput, fromUTF8,
+  resolvePaymentKeyHash, resolveStakeKeyHash, toAddress, toBytes, toRedeemer,
+  toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
@@ -42,6 +41,31 @@ export class Transaction {
 
   get size(): number {
     return this._txBuilder.full_size();
+  }
+
+  static assignMetadata(tx: string, metadata: Record<string, unknown>): string {
+    const oldTx = deserializeTx(tx);
+
+    const generalTxMetadata = csl.GeneralTransactionMetadata.new();
+    Object.entries(metadata).forEach(([MetadataLabel, Metadata]) => {
+      generalTxMetadata.insert(
+        csl.BigNum.from_str(MetadataLabel),
+        csl.encode_json_str_to_metadatum(
+          JSON.stringify(Metadata), csl.MetadataJsonSchema.NoConversions,
+        ),
+      );
+    });
+
+    const auxiliaryData = csl.AuxiliaryData.new();
+    auxiliaryData.set_metadata(generalTxMetadata);
+
+    const newTx = csl.Transaction.new(
+      oldTx.body(),
+      oldTx.witness_set(),
+      auxiliaryData,
+    ).to_hex();
+
+    return newTx;
   }
 
   async build(): Promise<string> {
@@ -223,17 +247,17 @@ export class Transaction {
     return this;
   }
 
-  setMetadata(key: number, json: string): Transaction {
+  setMetadata(key: number, value: unknown): Transaction {
     this._txBuilder.add_json_metadatum_with_schema(
-      csl.BigNum.from_str(key.toString()),
-      json, csl.MetadataJsonSchema.NoConversions,
+      csl.BigNum.from_str(key.toString()), JSON.stringify(value),
+      csl.MetadataJsonSchema.NoConversions,
     );
 
     return this;
   }
 
   @Checkpoint()
-  setRequiredSigners(addresses: string[]) {
+  setRequiredSigners(addresses: string[]): Transaction {
     const signatures = Array.from(new Set(
       addresses
         .map((address) => {
