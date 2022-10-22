@@ -13,7 +13,7 @@ import {
   BlockfrostProvider,
   largestFirst,
 } from '@martifylabs/mesh';
-import type { Mint, AssetMetadata, Unit, Quantity } from '@martifylabs/mesh';
+import type { Mint, AssetMetadata } from '@martifylabs/mesh';
 import useWallet from '../../contexts/wallet';
 import RunDemoButton from '../../components/pages/apis/common/runDemoButton';
 import RunDemoResult from '../../components/pages/apis/common/runDemoResult';
@@ -31,6 +31,7 @@ const GuideMultisigMintingPage: NextPage = () => {
     { label: 'Connect wallet (client)', to: 'clientConnect' },
     { label: 'Build transaction (application)', to: 'applicationBuildtx' },
     { label: 'Sign transaction (client)', to: 'clientSigntx' },
+    { label: 'Sign transaction (application)', to: 'applicationSigntx' },
   ];
 
   return (
@@ -50,6 +51,7 @@ const GuideMultisigMintingPage: NextPage = () => {
         <ClientConnectWallet />
         <ApplicationBuildTx />
         <ClientSigntx />
+        <ApplicationSigntx />
       </GuidesLayout>
     </>
   );
@@ -85,13 +87,13 @@ function DemoSection() {
     if (typeof value === 'string') {
       return new Array(value.length + 1).join('#');
     } else {
-      // not sure if converting number to string will cause fee different
       return value;
     }
   }
 
   function maskMetadata(metadata: AssetMetadata): AssetMetadata {
-    const maskedMetadata = {};
+    const maskedMetadata: { [key: string]: any } = {};
+
     for (const key in metadata) {
       let thisValue = metadata[key];
 
@@ -119,12 +121,6 @@ function DemoSection() {
     image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
     mediaType: 'image/jpg',
     description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
-    array: ['red', 'blue', 1],
-    objects: {
-      yes: 1,
-      no: 'string',
-      na: 'str',
-    },
   };
   const maskedMetadata = maskMetadata(assetMetadata);
 
@@ -163,8 +159,6 @@ function DemoSection() {
   async function applicationSideCreateTx(recipientAddress, utxos) {
     console.log('utxos', utxos);
 
-    const costLovelace = '10000000';
-
     const appWalletAddress = appWallet.getPaymentAddress();
     const forgingScript = ForgeScript.withOneSignature(appWalletAddress);
 
@@ -179,10 +173,11 @@ function DemoSection() {
     };
 
     // client utxo select utxo
+    const costLovelace = '10000000';
     const selectedUtxos = largestFirst(costLovelace, utxos, true);
 
     const tx = new Transaction({ initiator: appWallet });
-    tx.setTxInputs(selectedUtxos); // todo: how to select UTXO smartly even though using tx.setTxInputs(utxos);. because we get these utxos from browser wallet, need it. to make payment
+    tx.setTxInputs(selectedUtxos);
     tx.mintAsset(forgingScript, asset);
     tx.sendLovelace(bankWalletAddress, costLovelace);
     tx.setChangeAddress(recipientAddress);
@@ -193,7 +188,10 @@ function DemoSection() {
   }
 
   async function applicationSideSignTx(signedTx) {
-    const appWalletSignedTx = await appWallet.signTx(signedTx, true);
+    const txWithMetadata = Transaction.assignMetadata(signedTx, {
+      721: assetMetadata,
+    });
+    const appWalletSignedTx = await appWallet.signTx(txWithMetadata, true);
     return appWalletSignedTx;
   }
 
@@ -221,7 +219,6 @@ function DemoSection() {
       ) : (
         <ConnectCipWallet />
       )}
-      <RunDemoResult response={response} label="Result" />
       <RunDemoResult response={responseError} label="Error" />
       <br />
       <br />
@@ -263,22 +260,94 @@ function ClientConnectWallet() {
         <code>BrowserWallet</code>:
       </p>
       <Codeblock data={code1} isJson={false} />
-      <p>
-        Then, we can get their address with <code>getChangeAddress</code>:
-      </p>
+      <p>Then, we get client's wallet address and UTXOs:</p>
       <Codeblock
-        data={`const clientChangeAddress = await wallet.getChangeAddress();`}
+        data={`const changeAddress = await wallet.getChangeAddress();\nconst utxos = await wallet.getUtxos();`}
         isJson={false}
       />
       <p>
-        This change address is required as we will send it to the application
-        wallet to build the minting transaction.
+        This change address will be the address receiving the minted NFTs and
+        the transaction change. We also need to pass the client's wallet UTXOs
+        for the transaction's inputs.
       </p>
     </Element>
   );
 }
 
 function ApplicationBuildTx() {
+  let code1 = `const blockchainProvider = new BlockfrostProvider(\n`;
+  code1 += `  '<blockfrost key here>'\n`;
+  code1 += `);\n`;
+  code1 += `\n`;
+  code1 += `const appWallet = new AppWallet({\n`;
+  code1 += `  networkId: 0,\n`;
+  code1 += `  fetcher: blockchainProvider,\n`;
+  code1 += `  submitter: blockchainProvider,\n`;
+  code1 += `  key: {\n`;
+  code1 += `    type: 'mnemonic',\n`;
+  code1 += `    words: yourMnemonic,\n`;
+  code1 += `  },\n`;
+  code1 += `});\n`;
+
+  let code2 = `const assetMetadata: AssetMetadata = {\n`;
+  code2 += `  name: 'Mesh Token',\n`;
+  code2 += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
+  code2 += `  mediaType: 'image/jpg',\n`;
+  code2 += `  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',\n`;
+  code2 += `};\n`;
+
+  let code3 = `function maskValue(value: string | number) {\n`;
+  code3 += `  if (typeof value === 'string') {\n`;
+  code3 += `    return new Array(value.length + 1).join('#');\n`;
+  code3 += `  } else {\n`;
+  code3 += `    return value;\n`;
+  code3 += `  }\n`;
+  code3 += `}\n`;
+  code3 += `\n`;
+  code3 += `function maskMetadata(metadata: AssetMetadata): AssetMetadata {\n`;
+  code3 += `  const maskedMetadata: { [key: string]: any } = {};\n`;
+  code3 += `\n`;
+  code3 += `  for (const key in metadata) {\n`;
+  code3 += `    let thisValue = metadata[key];\n`;
+  code3 += `\n`;
+  code3 += `    if (thisValue.constructor === Array) {\n`;
+  code3 += `      maskedMetadata[key] = [];\n`;
+  code3 += `      for (const i in thisValue) {\n`;
+  code3 += `        let thisListValue = thisValue[i];\n`;
+  code3 += `        maskedMetadata[key].push(maskValue(thisListValue));\n`;
+  code3 += `      }\n`;
+  code3 += `    } else if (typeof thisValue === 'object') {\n`;
+  code3 += `      maskedMetadata[key] = {};\n`;
+  code3 += `      for (const subKey in thisValue) {\n`;
+  code3 += `        let maskedValue = maskValue(thisValue[subKey]);\n`;
+  code3 += `        maskedMetadata[key][subKey] = maskedValue;\n`;
+  code3 += `      }\n`;
+  code3 += `    } else {\n`;
+  code3 += `      maskedMetadata[key] = maskValue(thisValue);\n`;
+  code3 += `    }\n`;
+  code3 += `  }\n`;
+  code3 += `  return maskedMetadata;\n`;
+  code3 += `}\n`;
+  code3 += `\n\nconst maskedMetadata = maskMetadata(assetMetadata);`;
+
+  let code4 = `const asset: Mint = {\n`;
+  code4 += `  assetName: 'MeshToken',\n`;
+  code4 += `  assetQuantity: '1',\n`;
+  code4 += `  metadata: maskedMetadata,\n`;
+  code4 += `  label: '721',\n`;
+  code4 += `  recipient: {\n`;
+  code4 += `    address: recipientAddress,\n`;
+  code4 += `  },\n`;
+  code4 += `};\n`;
+
+  let code5 = `const bankWalletAddress = 'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx';\n\n`;
+  code5 += `const tx = new Transaction({ initiator: appWallet });\n`;
+  code5 += `tx.setTxInputs(selectedUtxos);\n`;
+  code5 += `tx.mintAsset(forgingScript, asset);\n`;
+  code5 += `tx.sendLovelace(bankWalletAddress, costLovelace);\n`;
+  code5 += `tx.setChangeAddress(recipientAddress);\n`;
+  code5 += `const unsignedTx = await tx.build();\n`;
+
   return (
     <Element name="applicationBuildtx">
       <h2>Build transaction (application)</h2>
@@ -286,6 +355,15 @@ function ApplicationBuildTx() {
         In this guide, we won't be showing how to set up RESTful APIs and
         backend servers. There are thousands of tutorials on YouTube, we
         recommend building your backend server with{' '}
+        <a
+          href="https://vercel.com/docs/rest-api"
+          rel="noreferrer"
+          className="link"
+          target="_blank"
+        >
+          Vercel API
+        </a>{' '}
+        or{' '}
         <a
           href="https://www.youtube.com/results?search_query=nestjs"
           rel="noreferrer"
@@ -296,7 +374,42 @@ function ApplicationBuildTx() {
         </a>
         .
       </p>
-      <p></p>
+      <p>
+        First, we initialize the a blockchain provider and{' '}
+        <code>AppWallet</code>:
+      </p>
+      <Codeblock data={code1} isJson={false} />
+      <p>
+        Let's define the forging script, here we used the first wallet address,
+        but you can also define using <code>NativeScript</code>:
+      </p>
+      <Codeblock
+        data={`const appWalletAddress = appWallet.getPaymentAddress();\nconst forgingScript = ForgeScript.withOneSignature(appWalletAddress);`}
+        isJson={false}
+      />
+      <p>Next, we define the NFT metadata:</p>
+      <Codeblock data={code2} isJson={false} />
+      <p>
+        We can mask the NFT metadata so client don't see the NFT's metadata
+        during signing:
+      </p>
+      <Codeblock data={code3} isJson={false} />
+      <p>
+        Then, we create the <code>Mint</code> to define the asset with the
+        masked metadata:
+      </p>
+      <Codeblock data={code4} isJson={false} />
+      <p>
+        Finally, we are ready to create the transaction. Instead of setting
+        every UTXOs as inputs, we can use <code>largestFirst</code> to get just
+        enought UTXOs required for this transaction:
+      </p>
+      <Codeblock
+        data={`const costLovelace = '10000000';\nconst selectedUtxos = largestFirst(costLovelace, utxos, true);`}
+        isJson={false}
+      />
+      <p>Then, let's create the transaction.</p>
+      <Codeblock data={code5} isJson={false} />
     </Element>
   );
 }
@@ -305,19 +418,33 @@ function ClientSigntx() {
   return (
     <Element name="clientSigntx">
       <h2>Sign transaction (client)</h2>
+      <p>We need the client's signature to send the payment:</p>
+      <Codeblock
+        data={`const signedTx = await wallet.signTx(unsignedTx, true);`}
+        isJson={false}
+      />
+    </Element>
+  );
+}
+
+function ApplicationSigntx() {
+  let code1 = `const txWithMetadata = Transaction.assignMetadata(signedTx, {\n`;
+  code1 += `  721: assetMetadata,\n`;
+  code1 += `});\n`;
+
+  let code2 = `const appWalletSignedTx = await appWallet.signTx(txWithMetadata, true);\n`;
+  code2 += `const txHash = await appWallet.submitTx(appWalletSignedTx);\n`;
+
+  return (
+    <Element name="applicationSigntx">
+      <h2>Sign transaction (application)</h2>
+      <p>Firstly, let's update the metadata to the actual asset's metadata:</p>
+      <Codeblock data={code1} isJson={false} />
       <p>
-        We need the client's signature to send the lovelace amount from the
-        client's wallet to another wallet.
+        Finally, sign the transaction with the application wallet and submit the
+        transaction:
       </p>
-      <Codeblock
-        data={`const signedTx = await wallet.signTx(appWalletSignedTx, true);`}
-        isJson={false}
-      />
-      <p>Submit the minting transaction:</p>
-      <Codeblock
-        data={`const txHash = await wallet.submitTx(signedTx);`}
-        isJson={false}
-      />
+      <Codeblock data={code2} isJson={false} />
     </Element>
   );
 }
