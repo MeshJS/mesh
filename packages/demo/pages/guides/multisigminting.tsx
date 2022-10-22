@@ -12,7 +12,6 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
-  assignMetadata,
 } from '@martifylabs/mesh';
 import type { Mint, AssetMetadata, Unit, Quantity } from '@martifylabs/mesh';
 import useWallet from '../../contexts/wallet';
@@ -199,8 +198,7 @@ function DemoSection() {
   }
 
   async function applicationSideSignTx(signedTx, recipientAddress) {
-    // todo, update metadata here
-    assetMetadata(signedTx, assetMetadata)
+    Transaction.assignMetadata(signedTx, { 721: assetMetadata })
 
     const appWalletSignedTx = await appWallet.signTx(signedTx, true);
     // const txHash = await appWallet.submitTx(appWalletSignedTx);

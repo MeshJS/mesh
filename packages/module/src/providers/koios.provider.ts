@@ -40,10 +40,6 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         'address_info', { _addresses: [address] }
       );
 
-      if (status === 404) {
-        return [];
-      }
-
       if (status === 200) {
         const utxos = data
           .flatMap((info: { utxo_set: [] }) => info.utxo_set)
@@ -80,7 +76,8 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
       throw parseHttpError(data);
     } catch (error) {
-      throw parseHttpError(error);
+      console.error(error);
+      return [];
     }
   }
 

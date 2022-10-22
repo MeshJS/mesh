@@ -4,8 +4,7 @@ import {
   parseHttpError, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AssetMetadata, NativeScript,
-  PlutusScript, Protocol, UTxO,
+  AssetMetadata, NativeScript, PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class BlockfrostProvider implements IFetcher, ISubmitter {
@@ -27,10 +26,6 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       const { data, status } = await this._axiosInstance.get(
         `${url}?page=${page}`,
       );
-
-      if (status === 404) {
-        return utxos;
-      }
 
       if (status === 200) {
         return data.length > 0
@@ -81,7 +76,8 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     try {
       return await paginateUTxOs();
     } catch (error) {
-      throw parseHttpError(error);
+      console.error(error);
+      return [];
     }
   }
 
