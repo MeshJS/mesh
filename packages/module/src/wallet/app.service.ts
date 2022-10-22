@@ -5,7 +5,10 @@ import {
   deserializeTx, toAddress, toTxUnspentOutput,
 } from '@mesh/common/utils';
 import { EmbeddedWallet } from './embedded.service';
-import type { Address, TransactionUnspentOutput } from '@mesh/core';
+import type {
+  Address, TransactionUnspentOutput,
+  TransactionWitnessSet, Vkeywitnesses,
+} from '@mesh/core';
 import type { DataSignature } from '@mesh/common/types';
 
 const DEFAULT_PASSWORD = 'MARI0TIME';
@@ -88,10 +91,10 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   async getUsedUTxOs(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
-    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
-
+    const account = this._wallet
+      .getAccount(accountIndex, DEFAULT_PASSWORD);
     const utxos = await this._fetcher
-      .fetchAddressUTxOs(account.enterpriseAddress) ?? [];
+      .fetchAddressUTxOs(account.enterpriseAddress);
 
     return utxos.map((utxo) => toTxUnspentOutput(utxo));
   }
@@ -107,11 +110,38 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   async signTx(
     unsignedTx: string, partialSign = false, accountIndex = 0,
   ): Promise<string> {
+    const combineTxSignatures = (
+      txWitnessSet: TransactionWitnessSet, newSignatures: Vkeywitnesses,
+    ) => {
+      const txSignatures = txWitnessSet.vkeys();
+
+      if (txSignatures) {
+        const signatures = new Set<string>();
+
+        for (let index = 0; index < txSignatures.len(); index += 1) {
+          signatures.add(txSignatures.get(index).to_hex());
+        }
+
+        for (let index = 0; index < newSignatures.len(); index += 1) {
+          signatures.add(newSignatures.get(index).to_hex());
+        }
+
+        const allSignatures = csl.Vkeywitnesses.new();
+        signatures.forEach((witness) => {
+          allSignatures.add(csl.Vkeywitness.from_hex(witness));
+        });
+
+        return allSignatures;
+      }
+
+      return newSignatures;
+    };
+
     try {
       const account = this._wallet
         .getAccount(accountIndex, DEFAULT_PASSWORD);
       const utxos = await this._fetcher
-        .fetchAddressUTxOs(account.enterpriseAddress) ?? [];
+        .fetchAddressUTxOs(account.enterpriseAddress);
 
       const newSignatures = this._wallet.signTx(
         accountIndex, DEFAULT_PASSWORD, utxos,
@@ -120,14 +150,12 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
 
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = tx.witness_set();
-      const txSignatures = txWitnessSet
-        .vkeys() ?? csl.Vkeywitnesses.new();
 
-      for (let index = 0; index < txSignatures.len(); index += 1) {
-        newSignatures.add(txSignatures.get(index));
-      }
+      const txSignatures = combineTxSignatures(
+        txWitnessSet, newSignatures,
+      );
 
-      txWitnessSet.set_vkeys(newSignatures);
+      txWitnessSet.set_vkeys(txSignatures);
 
       const signedTx = csl.Transaction.new(
         tx.body(),

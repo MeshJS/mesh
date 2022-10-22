@@ -141,18 +141,19 @@ function DemoSection() {
       const changeAddress = await wallet.getChangeAddress();
       const utxos = await wallet.getUtxos();
       const unsignedTx = await applicationSideCreateTx(changeAddress, utxos);
-      const signedTx = await wallet.signTx(unsignedTx, true);
+      // const txWithMetadata = Transaction.assignMetadata(unsignedTx, { 721: assetMetadata });
+
+      let signedTx = '';
       if (browserWalletSignFirst) {
-        const appWalletSignedTx = await applicationSideSignTx(
-          signedTx,
-          changeAddress
-        );
-        const txHash = await wallet.submitTx(appWalletSignedTx);
-        setResponse(txHash);
+        signedTx = await wallet.signTx(unsignedTx, true);
+        signedTx = await applicationSideSignTx(signedTx);
       } else {
-        const txHash = await wallet.submitTx(signedTx);
-        setResponse(txHash);
+        signedTx = await applicationSideSignTx(unsignedTx);
+        signedTx = await wallet.signTx(signedTx, true);
       }
+
+      const txHash = await blockchainProvider.submitTx(signedTx);
+      setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
     }
@@ -178,8 +179,7 @@ function DemoSection() {
     };
 
     // client utxo select utxo
-    const selectedUtxos = largestFirst(costLovelace, utxos);
-    console.log('selectedUtxos', selectedUtxos)
+    const selectedUtxos = largestFirst(costLovelace, utxos, true);
 
     const tx = new Transaction({ initiator: appWallet });
     tx.setTxInputs(selectedUtxos); // todo: how to select UTXO smartly even though using tx.setTxInputs(utxos);. because we get these utxos from browser wallet, need it. to make payment
@@ -189,19 +189,11 @@ function DemoSection() {
 
     const unsignedTx = await tx.build();
 
-    if (browserWalletSignFirst) {
-      return unsignedTx;
-    } else {
-      const appWalletSignedTx = await appWallet.signTx(unsignedTx, true);
-      return appWalletSignedTx;
-    }
+    return unsignedTx;
   }
 
-  async function applicationSideSignTx(signedTx, recipientAddress) {
-    Transaction.assignMetadata(signedTx, { 721: assetMetadata })
-
+  async function applicationSideSignTx(signedTx) {
     const appWalletSignedTx = await appWallet.signTx(signedTx, true);
-    // const txHash = await appWallet.submitTx(appWalletSignedTx);
     return appWalletSignedTx;
   }
 

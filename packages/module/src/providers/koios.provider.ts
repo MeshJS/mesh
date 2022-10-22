@@ -76,7 +76,6 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
       throw parseHttpError(data);
     } catch (error) {
-      console.error(error);
       return [];
     }
   }

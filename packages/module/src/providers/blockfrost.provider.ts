@@ -4,7 +4,8 @@ import {
   parseHttpError, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AssetMetadata, NativeScript, PlutusScript, Protocol, UTxO,
+  AssetMetadata, NativeScript,
+  PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class BlockfrostProvider implements IFetcher, ISubmitter {
@@ -76,7 +77,6 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     try {
       return await paginateUTxOs();
     } catch (error) {
-      console.error(error);
       return [];
     }
   }
