@@ -12,6 +12,7 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
+  assignMetadata,
 } from '@martifylabs/mesh';
 import type { Mint, AssetMetadata, Unit, Quantity } from '@martifylabs/mesh';
 import useWallet from '../../contexts/wallet';
@@ -23,6 +24,7 @@ import { demoMnemonic } from '../../configs/demo';
 const blockchainProvider = new BlockfrostProvider(
   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
 );
+const bankWalletAddress = `addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx`;
 
 const GuideMultisigMintingPage: NextPage = () => {
   const sidebarItems = [
@@ -169,7 +171,7 @@ function DemoSection() {
     const asset: Mint = {
       assetName: 'MeshToken',
       assetQuantity: '1',
-      metadata: assetMetadata,
+      metadata: maskedMetadata,
       label: '721',
       recipient: {
         address: recipientAddress,
@@ -178,11 +180,12 @@ function DemoSection() {
 
     // client utxo select utxo
     const selectedUtxos = largestFirst(costLovelace, utxos);
+    console.log('selectedUtxos', selectedUtxos)
 
     const tx = new Transaction({ initiator: appWallet });
     tx.setTxInputs(selectedUtxos); // todo: how to select UTXO smartly even though using tx.setTxInputs(utxos);. because we get these utxos from browser wallet, need it. to make payment
     tx.mintAsset(forgingScript, asset);
-    tx.sendLovelace(appWalletAddress, costLovelace);
+    tx.sendLovelace(bankWalletAddress, costLovelace);
     tx.setChangeAddress(recipientAddress);
 
     const unsignedTx = await tx.build();
@@ -196,17 +199,8 @@ function DemoSection() {
   }
 
   async function applicationSideSignTx(signedTx, recipientAddress) {
-    // const asset: Mint = {
-    //   assetName: 'MeshToken',
-    //   assetQuantity: '1',
-    //   metadata: assetMetadata,
-    //   label: '721',
-    //   recipient: {
-    //     address: recipientAddress,
-    //   },
-    // };
-    // todo: update metadata with real metadata - `updateAssetMetadata(asset)` in Transaction
-    // tx?.updateAssetMetadata(asset);
+    // todo, update metadata here
+    assetMetadata(signedTx, assetMetadata)
 
     const appWalletSignedTx = await appWallet.signTx(signedTx, true);
     // const txHash = await appWallet.submitTx(appWalletSignedTx);

@@ -33,7 +33,7 @@ const GuidesPage: NextPage = () => {
     {
       title: 'Integrate your Smart Contract to a Web App',
       desc: 'A step-by-step guide to integrate your Cardano Smart Contract to a web application.',
-      link: '/guides/importyourSC',
+      link: '/guides/smartcontract',
       thumbnail: '/guides/smart-contracts.jpg',
     },
     // {
