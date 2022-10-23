@@ -195,17 +195,18 @@ function DemoSection() {
 
   async function applicationSideSignTx(signedTx) {
     const appWalletSignedTx = await appWallet.signTx(signedTx, true);
+    return appWalletSignedTx;
 
     // todo need to add policy and asset
-    const txWithMetadata = Transaction.assignMetadata(appWalletSignedTx, {
-      721: {
-        [policy]: {
-          // todo how to resolve policy on mesh?
-          [assetName]: assetMetadata,
-        },
-      },
-    });
-    return txWithMetadata;
+    // const txWithMetadata = Transaction.assignMetadata(appWalletSignedTx, {
+    //   721: {
+    //     [policy]: {
+    //       // todo how to resolve policy on mesh?
+    //       [assetName]: assetMetadata,
+    //     },
+    //   },
+    // });
+    // return txWithMetadata;
   }
 
   return (

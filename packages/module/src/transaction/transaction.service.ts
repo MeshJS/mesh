@@ -6,11 +6,11 @@ import {
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
-  buildDataCost, buildDatumSource, buildGeneralTxMetadata,
-  buildPlutusScriptSource, buildTxBuilder, buildTxInputsBuilder,
-  buildTxOutputBuilder, deserializeEd25519KeyHash, deserializeNativeScript,
-  deserializeTx, fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash,
-  resolveStakeKeyHash, toAddress, toBytes, toRedeemer, toTxUnspentOutput, toValue,
+  buildDataCost, buildDatumSource, buildPlutusScriptSource,
+  buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
+  deserializeEd25519KeyHash, deserializeNativeScript, deserializeTx,
+  fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash, resolveStakeKeyHash,
+  toAddress, toBytes, toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
@@ -48,7 +48,20 @@ export class Transaction {
     const txMetadata = tx.auxiliary_data()?.metadata();
 
     if (txMetadata !== undefined) {
+      const mockMetadata = csl.GeneralTransactionMetadata.new();
+      for (let index = 0; index < txMetadata.len(); index += 1) {
+        const label = txMetadata.keys().get(index);
+        const metadatum = txMetadata.get(label);
+
+        mockMetadata.insert(
+          label, csl.TransactionMetadatum.from_hex(
+            '0'.repeat((metadatum?.to_hex() ?? '').length),
+          ),
+        );
+      }
+
       const txAuxData = tx.auxiliary_data();
+      txAuxData?.set_metadata(mockMetadata);
 
       return csl.Transaction.new(
         tx.body(), tx.witness_set(), txAuxData,

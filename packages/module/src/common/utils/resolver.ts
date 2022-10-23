@@ -1,6 +1,8 @@
 import { mnemonicToEntropy } from 'bip39';
 import { AssetFingerprint, csl } from '@mesh/core';
-import { SUPPORTED_CLOCKS } from '@mesh/common/constants';
+import {
+  SUPPORTED_CLOCKS, DEFAULT_PROTOCOL_PARAMETERS,
+} from '@mesh/common/constants';
 import {
   buildBip32PrivateKey, buildRewardAddress,
 } from './builder';
@@ -153,7 +155,9 @@ export const resolveStakeKeyHash = (bech32: string) => {
 };
 
 export const resolveTxFees = (
-  txSize: number, minFeeA: number, minFeeB: number,
+  txSize: number,
+  minFeeA = DEFAULT_PROTOCOL_PARAMETERS.minFeeA,
+  minFeeB = DEFAULT_PROTOCOL_PARAMETERS.minFeeB,
 ) => {
   const fees = BigInt(minFeeA)
     * BigInt(txSize)
