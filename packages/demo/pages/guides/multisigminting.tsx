@@ -12,6 +12,7 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
+  resolveMetadata,
 } from '@martifylabs/mesh';
 import type { Mint, AssetMetadata } from '@martifylabs/mesh';
 import useWallet from '../../contexts/wallet';
@@ -116,13 +117,24 @@ function DemoSection() {
     return maskedMetadata;
   }
 
+  let policy = `d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527`;
+  let assetName = `MeshToken`;
+
   const assetMetadata: AssetMetadata = {
     name: 'Mesh Token',
     image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
     mediaType: 'image/jpg',
     description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
   };
+  const metadataHash = resolveMetadata({
+    721: {
+      [policy]: { // todo: how to resolve policy ID?
+        [assetName]: assetMetadata,
+      },
+    },
+  });
   const maskedMetadata = maskMetadata(assetMetadata);
+  console.log("metadataHash", metadataHash)
 
   async function clientStartMinting() {
     const walletNetwork = await wallet.getNetworkId();
@@ -137,7 +149,6 @@ function DemoSection() {
       const changeAddress = await wallet.getChangeAddress();
       const utxos = await wallet.getUtxos();
       const unsignedTx = await applicationSideCreateTx(changeAddress, utxos);
-      // const txWithMetadata = Transaction.assignMetadata(unsignedTx, { 721: assetMetadata });
 
       let signedTx = '';
       if (browserWalletSignFirst) {
@@ -181,6 +192,7 @@ function DemoSection() {
     tx.mintAsset(forgingScript, asset);
     tx.sendLovelace(bankWalletAddress, costLovelace);
     tx.setChangeAddress(recipientAddress);
+    tx.setAuxiliaryDataHash(metadataHash); // todo need to set this aux data hash
 
     const unsignedTx = await tx.build();
 
@@ -188,11 +200,19 @@ function DemoSection() {
   }
 
   async function applicationSideSignTx(signedTx) {
-    const txWithMetadata = Transaction.assignMetadata(signedTx, {
-      721: assetMetadata,
+    const appWalletSignedTx = await appWallet.signTx(signedTx, true);
+    console.log('assetMetadata', assetMetadata);
+    console.log('maskedMetadata', maskedMetadata);
+    
+    // todo need to add policy and asset
+    const txWithMetadata = Transaction.assignMetadata(appWalletSignedTx, {
+      721: {
+        [policy]: { // todo how to resolve policy on mesh?
+          [assetName]: assetMetadata,
+        },
+      },
     });
-    const appWalletSignedTx = await appWallet.signTx(txWithMetadata, true);
-    return appWalletSignedTx;
+    return txWithMetadata;
   }
 
   return (

@@ -102,6 +102,16 @@ export class Transaction {
     return this;
   }
 
+  setAuxiliaryDataHash(hash: string){
+    const auxDataHash = csl.AuxiliaryDataHash.from_bytes(
+      Buffer.from(hash, 'hex'),
+    );
+    // todo: need to set this hash of the original metadata
+    // dont have set_auxiliary_data_hash in txBuilder
+    // used to `set_auxiliary_data_hash` to csl.TransactionBody.new()
+    // this._txBuilder.set_auxiliary_data_hash(auxDataHash);
+  }
+
   @Checkpoint()
   mintAsset(forgeScript: string, mint: Mint): Transaction {
     const toAsset = (forgeScript: string, mint: Mint): Asset => {
