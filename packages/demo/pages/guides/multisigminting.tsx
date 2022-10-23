@@ -126,15 +126,16 @@ function DemoSection() {
     mediaType: 'image/jpg',
     description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
   };
+  // todo how to easy construct this to use `resolveMetadata`?
   const metadataHash = resolveMetadata({
     721: {
-      [policy]: { // todo: how to resolve policy ID?
+      [policy]: {
+        // todo: how to resolve policy ID with mesh?
         [assetName]: assetMetadata,
       },
     },
   });
   const maskedMetadata = maskMetadata(assetMetadata);
-  console.log("metadataHash", metadataHash)
 
   async function clientStartMinting() {
     const walletNetwork = await wallet.getNetworkId();
@@ -159,6 +160,7 @@ function DemoSection() {
         signedTx = await wallet.signTx(signedTx, true);
       }
 
+      // todo: remove this, do submittx after appsign, and set to browser sign first
       const txHash = await blockchainProvider.submitTx(signedTx);
       setResponse(txHash);
     } catch (error) {
@@ -203,11 +205,12 @@ function DemoSection() {
     const appWalletSignedTx = await appWallet.signTx(signedTx, true);
     console.log('assetMetadata', assetMetadata);
     console.log('maskedMetadata', maskedMetadata);
-    
+
     // todo need to add policy and asset
     const txWithMetadata = Transaction.assignMetadata(appWalletSignedTx, {
       721: {
-        [policy]: { // todo how to resolve policy on mesh?
+        [policy]: {
+          // todo how to resolve policy on mesh?
           [assetName]: assetMetadata,
         },
       },
@@ -218,14 +221,22 @@ function DemoSection() {
   return (
     <Element name="demo">
       <h2>See it in action</h2>
-      <p>Before we begin, let's see it in action.</p>
       <p>
-        In this demo, we will connect our wallet and request for a minting
-        transaction. Then, the <code>AppWallet</code> will build the
-        transaction, and we will sign it with our wallet. Finally, the{' '}
-        <code>AppWallet</code> will sign the transaction and submit it to the
-        blockchain. Note: this demo is on <code>preprod</code> network only.
+        In this guide, we will connect our CIP wallet (
+        <Link href="/apis/browserwallet">
+          <code>BrowserWallet</code>
+        </Link>
+        ) to request for a minting transaction. Then, the backend application
+        wallet (
+        <Link href="/apis/appwallet">
+          <code>AppWallet</code>
+        </Link>
+        ) will build the transaction, and we will sign it with our wallet.
+        Finally, the application wallet will sign the transaction and submit it
+        to the blockchain. Note: this demo is on <code>preprod</code> network
+        only.
       </p>
+      <p>Let's see it in action.</p>
       {walletConnected ? (
         <>
           <RunDemoButton
@@ -255,8 +266,10 @@ function IntroSection() {
         blockchain. You can think of it like a husband and wife savings account,
         where both signatures are required to spend the funds, preventing one
         spouse from spending the money without the approval of the other. For a
-        multi-sig transaction, you can include 2 or more required signers, and
-        these signers can be wallets or Plutus script.
+        multi-sig transaction, you can include 2 or more required signers, these
+        signers can be wallets (
+        <Link href="/apis/browserwallet">Browser Wallet</Link> or{' '}
+        <Link href="/apis/appwallet">App Wallet</Link>) or Plutus script.
       </p>
       <p>
         In this guide, we will build a multi-sig transaction for minting. There
@@ -276,8 +289,15 @@ function ClientConnectWallet() {
     <Element name="clientConnect">
       <h2>Connect wallet (client)</h2>
       <p>
-        From a web application, users can connect their wallet with{' '}
-        <code>BrowserWallet</code>:
+        In this section, we will connect client's wallet and obtain their wallet
+        address and UTXO.
+      </p>
+      <p>
+        Users can connect their wallet with{' '}
+        <Link href="/apis/browserwallet">
+          <code>BrowserWallet</code>
+        </Link>
+        :
       </p>
       <Codeblock data={code1} isJson={false} />
       <p>Then, we get client's wallet address and UTXOs:</p>
@@ -286,9 +306,9 @@ function ClientConnectWallet() {
         isJson={false}
       />
       <p>
-        This change address will be the address receiving the minted NFTs and
-        the transaction change. We also need to pass the client's wallet UTXOs
-        for the transaction's inputs.
+        The change address will be the address receiving the minted NFTs and the
+        transaction's change. We will need the client's wallet UTXOs to build
+        the minting transaction.
       </p>
     </Element>
   );
@@ -371,6 +391,7 @@ function ApplicationBuildTx() {
   return (
     <Element name="applicationBuildtx">
       <h2>Build transaction (application)</h2>
+      <p>In this section, we will build the minting transaction.</p>
       <p>
         In this guide, we won't be showing how to set up RESTful APIs and
         backend servers. There are thousands of tutorials on YouTube, we
@@ -395,19 +416,29 @@ function ApplicationBuildTx() {
         .
       </p>
       <p>
-        First, we initialize the a blockchain provider and{' '}
-        <code>AppWallet</code>:
+        First, we initialize the{' '}
+        <Link href="/apis/providers">blockchain provider</Link> and{' '}
+        <Link href="/apis/appwallet">
+          <code>AppWallet</code>
+        </Link>
+        . In this example, we use mnemonic, but you can initialize a wallet with
+        mnemonic phrases, private keys, and Cardano CLI generated keys, see{' '}
+        <Link href="/apis/appwallet">App Wallet</Link>.
       </p>
       <Codeblock data={code1} isJson={false} />
       <p>
-        Let's define the forging script, here we used the first wallet address,
-        but you can also define using <code>NativeScript</code>:
+        Next, let's define the forging script, here we used the first wallet
+        address, but you can also define using <code>NativeScript</code>, see{' '}
+        <Link href="/apis/transaction">Transaction - Minting assets</Link>:
       </p>
       <Codeblock
         data={`const appWalletAddress = appWallet.getPaymentAddress();\nconst forgingScript = ForgeScript.withOneSignature(appWalletAddress);`}
         isJson={false}
       />
-      <p>Next, we define the NFT metadata:</p>
+      <p>
+        Then, we define the <code>AssetMetadata</code> which contains the NFT
+        metadata:
+      </p>
       <Codeblock data={code2} isJson={false} />
       <p>
         We can mask the NFT metadata so client don't see the NFT's metadata
@@ -415,20 +446,25 @@ function ApplicationBuildTx() {
       </p>
       <Codeblock data={code3} isJson={false} />
       <p>
-        Then, we create the <code>Mint</code> to define the asset with the
-        masked metadata:
+        After that, we create the <code>Mint</code> object to define the asset
+        with the masked metadata:
       </p>
       <Codeblock data={code4} isJson={false} />
       <p>
-        Finally, we are ready to create the transaction. Instead of setting
-        every UTXOs as inputs, we can use <code>largestFirst</code> to get just
-        enought UTXOs required for this transaction:
+        Finally, we are ready to create the transaction. Instead of using every
+        UTXOs from the client's wallet as transaction's inputs, we can use{' '}
+        <code>largestFirst</code> to get the UTXOs required for this
+        transaction:
       </p>
       <Codeblock
         data={`const costLovelace = '10000000';\nconst selectedUtxos = largestFirst(costLovelace, utxos, true);`}
         isJson={false}
       />
-      <p>Then, let's create the transaction.</p>
+      <p>
+        Let's create the transaction. In this example, we send the payment to{' '}
+        <code>bankWalletAddress</code>, and mint the NFT to{' '}
+        <code>recipientAddress</code>.
+      </p>
       <Codeblock data={code5} isJson={false} />
     </Element>
   );
@@ -438,7 +474,11 @@ function ClientSigntx() {
   return (
     <Element name="clientSigntx">
       <h2>Sign transaction (client)</h2>
-      <p>We need the client's signature to send the payment:</p>
+      <p>
+        In this section, we need the client's signature to send the payment to
+        the <code>bankWalletAddress</code>. The client's CIP wallet will open
+        and prompts for payment password.
+      </p>
       <Codeblock
         data={`const signedTx = await wallet.signTx(unsignedTx, true);`}
         isJson={false}
@@ -448,6 +488,7 @@ function ClientSigntx() {
 }
 
 function ApplicationSigntx() {
+  // todo: update code
   let code1 = `const txWithMetadata = Transaction.assignMetadata(signedTx, {\n`;
   code1 += `  721: assetMetadata,\n`;
   code1 += `});\n`;
@@ -455,16 +496,21 @@ function ApplicationSigntx() {
   let code2 = `const appWalletSignedTx = await appWallet.signTx(txWithMetadata, true);\n`;
   code2 += `const txHash = await appWallet.submitTx(appWalletSignedTx);\n`;
 
+  // todo update guides
   return (
     <Element name="applicationSigntx">
       <h2>Sign transaction (application)</h2>
-      <p>Firstly, let's update the metadata to the actual asset's metadata:</p>
+      <p>
+        In this section, the application wallet will counter sign the
+        transaction and update the asset's metadata with the actual metadata.
+      </p>
+      {/* <p>Firstly, let's update the metadata to the actual asset's metadata:</p>
       <Codeblock data={code1} isJson={false} />
       <p>
         Finally, sign the transaction with the application wallet and submit the
         transaction:
       </p>
-      <Codeblock data={code2} isJson={false} />
+      <Codeblock data={code2} isJson={false} /> */}
     </Element>
   );
 }

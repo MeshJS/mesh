@@ -108,8 +108,8 @@ export class Transaction {
     );
     // todo: need to set this hash of the original metadata
     // dont have set_auxiliary_data_hash in txBuilder
-    // used to `set_auxiliary_data_hash` to csl.TransactionBody.new()
-    // this._txBuilder.set_auxiliary_data_hash(auxDataHash);
+    // used to `rawTxBody.set_auxiliary_data_hash` where rawTxBody is csl.TransactionBody.new()
+    // ??.set_auxiliary_data_hash(auxDataHash);
   }
 
   @Checkpoint()
