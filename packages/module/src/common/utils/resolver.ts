@@ -5,7 +5,6 @@ import {
   buildBip32PrivateKey, buildRewardAddress,
 } from './builder';
 import {
-  fromBytes,
   toAddress, toBaseAddress, toBytes, toEnterpriseAddress,
   toNativeScript, toPlutusData, toRewardAddress, toScriptRef,
 } from './converter';
@@ -45,26 +44,6 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
     toBytes(policyId),
     toBytes(assetName)
   ).fingerprint();
-};
-
-// todo: clean up and confirm
-export const resolveMetadata = (metadata: Record<string, unknown>) => {
-  
-  const aux = csl.AuxiliaryData.new();
-
-  const generalMetadata = csl.GeneralTransactionMetadata.new();
-  Object.entries(metadata).forEach(([MetadataLabel, Metadata]) => {
-    generalMetadata.insert(
-      csl.BigNum.from_str(MetadataLabel),
-      csl.encode_json_str_to_metadatum(JSON.stringify(Metadata), 0),
-    );
-  });
-
-  aux.set_metadata(generalMetadata);
-
-  const metadataHash = csl.hash_auxiliary_data(aux);
-  // return Buffer.from(metadataHash.to_bytes(), 'hex').toString('hex');
-  return fromBytes(metadataHash.to_bytes())
 };
 
 export const resolveNativeScriptHash = (script: NativeScript) => {

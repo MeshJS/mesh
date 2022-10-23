@@ -3,6 +3,7 @@ import {
   DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH, SUPPORTED_WALLETS,
 } from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
+import { mergeSignatures } from '@mesh/common/helpers';
 import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
@@ -93,11 +94,16 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = tx.witness_set();
 
-      const walletWitnessSet = await this._walletInstance
+      const newWitnessSet = await this._walletInstance
         .signTx(unsignedTx, partialSign);
 
-      const txSignatures = deserializeTxWitnessSet(walletWitnessSet)
+      const newSignatures = deserializeTxWitnessSet(newWitnessSet)
         .vkeys() ?? csl.Vkeywitnesses.new();
+
+      const txSignatures = mergeSignatures(
+        txWitnessSet,
+        newSignatures,
+      );
 
       txWitnessSet.set_vkeys(txSignatures);
 

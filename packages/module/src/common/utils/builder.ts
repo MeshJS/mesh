@@ -70,6 +70,21 @@ export const buildEnterpriseAddress = (
   );
 };
 
+export const buildGeneralTxMetadata = (metadata: Record<string, unknown>) => {
+  const generalTxMetadata = csl.GeneralTransactionMetadata.new();
+
+  Object.entries(metadata).forEach(([MetadataLabel, Metadata]) => {
+    generalTxMetadata.insert(
+      csl.BigNum.from_str(MetadataLabel),
+      csl.encode_json_str_to_metadatum(
+        JSON.stringify(Metadata), csl.MetadataJsonSchema.NoConversions,
+      ),
+    );
+  });
+
+  return generalTxMetadata;
+};
+
 export const buildRewardAddress = (
   networkId: number, stakeKeyHash: Ed25519KeyHash,
 ): RewardAddress => {

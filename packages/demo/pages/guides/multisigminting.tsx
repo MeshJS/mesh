@@ -12,7 +12,6 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
-  resolveMetadata,
 } from '@martifylabs/mesh';
 import type { Mint, AssetMetadata } from '@martifylabs/mesh';
 import useWallet from '../../contexts/wallet';
@@ -126,16 +125,7 @@ function DemoSection() {
     mediaType: 'image/jpg',
     description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
   };
-  // todo how to easy construct this to use `resolveMetadata`?
-  const metadataHash = resolveMetadata({
-    721: {
-      [policy]: {
-        // todo: how to resolve policy ID with mesh?
-        [assetName]: assetMetadata,
-      },
-    },
-  });
-  const maskedMetadata = maskMetadata(assetMetadata);
+  // const maskedMetadata = maskMetadata(assetMetadata);
 
   async function clientStartMinting() {
     const walletNetwork = await wallet.getNetworkId();
@@ -150,11 +140,14 @@ function DemoSection() {
       const changeAddress = await wallet.getChangeAddress();
       const utxos = await wallet.getUtxos();
       const unsignedTx = await applicationSideCreateTx(changeAddress, utxos);
+      const originalMetadata = Transaction.readMetadata(unsignedTx);
+      const fakeTx = Transaction.maskMetadata(unsignedTx);
 
       let signedTx = '';
       if (browserWalletSignFirst) {
-        signedTx = await wallet.signTx(unsignedTx, true);
-        signedTx = await applicationSideSignTx(signedTx);
+        signedTx = await wallet.signTx(fakeTx, true);
+        const legitTx = Transaction.writeMetadata(signedTx, originalMetadata);
+        signedTx = await applicationSideSignTx(legitTx);
       } else {
         signedTx = await applicationSideSignTx(unsignedTx);
         signedTx = await wallet.signTx(signedTx, true);
@@ -178,7 +171,7 @@ function DemoSection() {
     const asset: Mint = {
       assetName: 'MeshToken',
       assetQuantity: '1',
-      metadata: maskedMetadata,
+      metadata: assetMetadata,
       label: '721',
       recipient: {
         address: recipientAddress,
@@ -194,7 +187,6 @@ function DemoSection() {
     tx.mintAsset(forgingScript, asset);
     tx.sendLovelace(bankWalletAddress, costLovelace);
     tx.setChangeAddress(recipientAddress);
-    tx.setAuxiliaryDataHash(metadataHash); // todo need to set this aux data hash
 
     const unsignedTx = await tx.build();
 
@@ -203,8 +195,6 @@ function DemoSection() {
 
   async function applicationSideSignTx(signedTx) {
     const appWalletSignedTx = await appWallet.signTx(signedTx, true);
-    console.log('assetMetadata', assetMetadata);
-    console.log('maskedMetadata', maskedMetadata);
 
     // todo need to add policy and asset
     const txWithMetadata = Transaction.assignMetadata(appWalletSignedTx, {

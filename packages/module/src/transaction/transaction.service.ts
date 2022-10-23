@@ -6,11 +6,11 @@ import {
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
-  buildDataCost, buildDatumSource, buildPlutusScriptSource, buildTxBuilder,
-  buildTxInputsBuilder, buildTxOutputBuilder, deserializeEd25519KeyHash,
-  deserializeNativeScript, deserializeTx, fromTxUnspentOutput, fromUTF8,
-  resolvePaymentKeyHash, resolveStakeKeyHash, toAddress, toBytes, toRedeemer,
-  toTxUnspentOutput, toValue,
+  buildDataCost, buildDatumSource, buildGeneralTxMetadata,
+  buildPlutusScriptSource, buildTxBuilder, buildTxInputsBuilder,
+  buildTxOutputBuilder, deserializeEd25519KeyHash, deserializeNativeScript,
+  deserializeTx, fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash,
+  resolveStakeKeyHash, toAddress, toBytes, toRedeemer, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
@@ -43,29 +43,38 @@ export class Transaction {
     return this._txBuilder.full_size();
   }
 
-  static assignMetadata(tx: string, metadata: Record<string, unknown>): string {
-    const oldTx = deserializeTx(tx);
+  static maskMetadata(cborTx: string) {
+    const tx = deserializeTx(cborTx);
+    const txMetadata = tx.auxiliary_data()?.metadata();
 
-    const generalTxMetadata = csl.GeneralTransactionMetadata.new();
-    Object.entries(metadata).forEach(([MetadataLabel, Metadata]) => {
-      generalTxMetadata.insert(
-        csl.BigNum.from_str(MetadataLabel),
-        csl.encode_json_str_to_metadatum(
-          JSON.stringify(Metadata), csl.MetadataJsonSchema.NoConversions,
-        ),
-      );
-    });
+    if (txMetadata !== undefined) {
+      const txAuxData = tx.auxiliary_data();
 
-    const auxiliaryData = csl.AuxiliaryData.new();
-    auxiliaryData.set_metadata(generalTxMetadata);
+      return csl.Transaction.new(
+        tx.body(), tx.witness_set(), txAuxData,
+      ).to_hex();
+    }
 
-    const newTx = csl.Transaction.new(
-      oldTx.body(),
-      oldTx.witness_set(),
-      auxiliaryData,
+    return cborTx;
+  }
+
+  static readMetadata(cborTx: string) {
+    const tx = deserializeTx(cborTx);
+    return tx.auxiliary_data()?.metadata()?.to_hex() ?? '';
+  }
+
+  static writeMetadata(cborTx: string, cborTxMetadata: string) {
+    const tx = deserializeTx(cborTx);
+    const txAuxData = tx.auxiliary_data()
+      ?? csl.AuxiliaryData.new();
+
+    txAuxData.set_metadata(
+      csl.GeneralTransactionMetadata.from_hex(cborTxMetadata),
+    );
+
+    return csl.Transaction.new(
+      tx.body(), tx.witness_set(), txAuxData,
     ).to_hex();
-
-    return newTx;
   }
 
   async build(): Promise<string> {
@@ -100,16 +109,6 @@ export class Transaction {
     this._totalBurns.set(asset.unit, totalQuantity);
 
     return this;
-  }
-
-  setAuxiliaryDataHash(hash: string){
-    const auxDataHash = csl.AuxiliaryDataHash.from_bytes(
-      Buffer.from(hash, 'hex'),
-    );
-    // todo: need to set this hash of the original metadata
-    // dont have set_auxiliary_data_hash in txBuilder
-    // used to `rawTxBody.set_auxiliary_data_hash` where rawTxBody is csl.TransactionBody.new()
-    // ??.set_auxiliary_data_hash(auxDataHash);
   }
 
   @Checkpoint()

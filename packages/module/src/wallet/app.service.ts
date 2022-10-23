@@ -1,13 +1,13 @@
 import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import { IFetcher, IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
+import { mergeSignatures } from '@mesh/common/helpers';
 import {
   deserializeTx, toAddress, toTxUnspentOutput,
 } from '@mesh/common/utils';
 import { EmbeddedWallet } from './embedded.service';
 import type {
   Address, TransactionUnspentOutput,
-  TransactionWitnessSet, Vkeywitnesses,
 } from '@mesh/core';
 import type { DataSignature } from '@mesh/common/types';
 
@@ -110,33 +110,6 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   async signTx(
     unsignedTx: string, partialSign = false, accountIndex = 0,
   ): Promise<string> {
-    const combineTxSignatures = (
-      txWitnessSet: TransactionWitnessSet, newSignatures: Vkeywitnesses,
-    ) => {
-      const txSignatures = txWitnessSet.vkeys();
-
-      if (txSignatures) {
-        const signatures = new Set<string>();
-
-        for (let index = 0; index < txSignatures.len(); index += 1) {
-          signatures.add(txSignatures.get(index).to_hex());
-        }
-
-        for (let index = 0; index < newSignatures.len(); index += 1) {
-          signatures.add(newSignatures.get(index).to_hex());
-        }
-
-        const allSignatures = csl.Vkeywitnesses.new();
-        signatures.forEach((witness) => {
-          allSignatures.add(csl.Vkeywitness.from_hex(witness));
-        });
-
-        return allSignatures;
-      }
-
-      return newSignatures;
-    };
-
     try {
       const account = this._wallet
         .getAccount(accountIndex, DEFAULT_PASSWORD);
@@ -144,15 +117,16 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
         .fetchAddressUTxOs(account.enterpriseAddress);
 
       const newSignatures = this._wallet.signTx(
-        accountIndex, DEFAULT_PASSWORD, utxos,
-        unsignedTx, partialSign,
+        accountIndex, DEFAULT_PASSWORD,
+        utxos, unsignedTx, partialSign,
       );
 
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = tx.witness_set();
 
-      const txSignatures = combineTxSignatures(
-        txWitnessSet, newSignatures,
+      const txSignatures = mergeSignatures(
+        txWitnessSet,
+        newSignatures,
       );
 
       txWitnessSet.set_vkeys(txSignatures);
