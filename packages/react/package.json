@@ -40,7 +40,7 @@
     "babel-plugin-module-resolver": "^4.1.0"
   },
   "peerDependencies": {
-    "@martifylabs/mesh": "1.1.0-beta.7",
+    "@martifylabs/mesh": "1.1.0-beta.8",
     "react": "17.x | 18.x",
     "react-dom": "17.x | 18.x"
   }
