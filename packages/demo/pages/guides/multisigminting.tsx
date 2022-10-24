@@ -57,9 +57,9 @@ const GuideMultisigMintingPage: NextPage = () => {
   );
 };
 
-function DemoSection() {
-  const browserWalletSignFirst = true;
+let originalMetadata = '';
 
+function DemoSection() {
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -83,49 +83,12 @@ function DemoSection() {
     init();
   }, []);
 
-  function maskValue(value: string | number) {
-    if (typeof value === 'string') {
-      return new Array(value.length + 1).join('#');
-    } else {
-      return value;
-    }
-  }
-
-  function maskMetadata(metadata: AssetMetadata): AssetMetadata {
-    const maskedMetadata: { [key: string]: any } = {};
-
-    for (const key in metadata) {
-      let thisValue = metadata[key];
-
-      if (thisValue.constructor === Array) {
-        maskedMetadata[key] = [];
-        for (const i in thisValue) {
-          let thisListValue = thisValue[i];
-          maskedMetadata[key].push(maskValue(thisListValue));
-        }
-      } else if (typeof thisValue === 'object') {
-        maskedMetadata[key] = {};
-        for (const subKey in thisValue) {
-          let maskedValue = maskValue(thisValue[subKey]);
-          maskedMetadata[key][subKey] = maskedValue;
-        }
-      } else {
-        maskedMetadata[key] = maskValue(thisValue);
-      }
-    }
-    return maskedMetadata;
-  }
-
-  let policy = `d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527`;
-  let assetName = `MeshToken`;
-
   const assetMetadata: AssetMetadata = {
     name: 'Mesh Token',
     image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
     mediaType: 'image/jpg',
     description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
   };
-  // const maskedMetadata = maskMetadata(assetMetadata);
 
   async function clientStartMinting() {
     const walletNetwork = await wallet.getNetworkId();
@@ -137,24 +100,13 @@ function DemoSection() {
     setLoading(true);
 
     try {
-      const changeAddress = await wallet.getChangeAddress();
+      const recipientAddress = await wallet.getChangeAddress();
       const utxos = await wallet.getUtxos();
-      const unsignedTx = await applicationSideCreateTx(changeAddress, utxos);
-      const originalMetadata = Transaction.readMetadata(unsignedTx);
-      const fakeTx = Transaction.maskMetadata(unsignedTx);
+      const maskedTx = await applicationSideCreateTx(recipientAddress, utxos);
 
-      let signedTx = '';
-      if (browserWalletSignFirst) {
-        signedTx = await wallet.signTx(fakeTx, true);
-        const legitTx = Transaction.writeMetadata(signedTx, originalMetadata);
-        signedTx = await applicationSideSignTx(legitTx);
-      } else {
-        signedTx = await applicationSideSignTx(unsignedTx);
-        signedTx = await wallet.signTx(signedTx, true);
-      }
+      const signedTx = await wallet.signTx(maskedTx, true);
+      const txHash = await applicationSideSignTx(signedTx);
 
-      // todo: remove this, do submittx after appsign, and set to browser sign first
-      const txHash = await blockchainProvider.submitTx(signedTx);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -163,8 +115,6 @@ function DemoSection() {
   }
 
   async function applicationSideCreateTx(recipientAddress, utxos) {
-    console.log('utxos', utxos);
-
     const appWalletAddress = appWallet.getPaymentAddress();
     const forgingScript = ForgeScript.withOneSignature(appWalletAddress);
 
@@ -190,23 +140,21 @@ function DemoSection() {
 
     const unsignedTx = await tx.build();
 
-    return unsignedTx;
+    const _originalMetadata = Transaction.readMetadata(unsignedTx);
+    originalMetadata = _originalMetadata;
+    const maskedTx = Transaction.maskMetadata(unsignedTx);
+
+    return maskedTx;
   }
 
   async function applicationSideSignTx(signedTx) {
-    const appWalletSignedTx = await appWallet.signTx(signedTx, true);
-    return appWalletSignedTx;
-
-    // todo need to add policy and asset
-    // const txWithMetadata = Transaction.assignMetadata(appWalletSignedTx, {
-    //   721: {
-    //     [policy]: {
-    //       // todo how to resolve policy on mesh?
-    //       [assetName]: assetMetadata,
-    //     },
-    //   },
-    // });
-    // return txWithMetadata;
+    const signedOriginalTx = Transaction.writeMetadata(
+      signedTx,
+      originalMetadata
+    );
+    const appWalletSignedTx = await appWallet.signTx(signedOriginalTx, true);
+    const txHash = await appWallet.submitTx(appWalletSignedTx);
+    return txHash;
   }
 
   return (
@@ -293,13 +241,13 @@ function ClientConnectWallet() {
       <Codeblock data={code1} isJson={false} />
       <p>Then, we get client's wallet address and UTXOs:</p>
       <Codeblock
-        data={`const changeAddress = await wallet.getChangeAddress();\nconst utxos = await wallet.getUtxos();`}
+        data={`const recipientAddress = await wallet.getChangeAddress();\nconst utxos = await wallet.getUtxos();`}
         isJson={false}
       />
       <p>
         The change address will be the address receiving the minted NFTs and the
-        transaction's change. We will need the client's wallet UTXOs to build
-        the minting transaction.
+        transaction's change. Additionally, we will need the client's wallet
+        UTXOs to build the minting transaction.
       </p>
     </Element>
   );
@@ -320,64 +268,41 @@ function ApplicationBuildTx() {
   code1 += `  },\n`;
   code1 += `});\n`;
 
-  let code2 = `const assetMetadata: AssetMetadata = {\n`;
+  let code2 = `const assetName = 'MeshToken';\n\n`;
+  code2 += `const assetMetadata: AssetMetadata = {\n`;
   code2 += `  name: 'Mesh Token',\n`;
   code2 += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
   code2 += `  mediaType: 'image/jpg',\n`;
   code2 += `  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',\n`;
   code2 += `};\n`;
 
-  let code3 = `function maskValue(value: string | number) {\n`;
-  code3 += `  if (typeof value === 'string') {\n`;
-  code3 += `    return new Array(value.length + 1).join('#');\n`;
-  code3 += `  } else {\n`;
-  code3 += `    return value;\n`;
-  code3 += `  }\n`;
-  code3 += `}\n`;
-  code3 += `\n`;
-  code3 += `function maskMetadata(metadata: AssetMetadata): AssetMetadata {\n`;
-  code3 += `  const maskedMetadata: { [key: string]: any } = {};\n`;
-  code3 += `\n`;
-  code3 += `  for (const key in metadata) {\n`;
-  code3 += `    let thisValue = metadata[key];\n`;
-  code3 += `\n`;
-  code3 += `    if (thisValue.constructor === Array) {\n`;
-  code3 += `      maskedMetadata[key] = [];\n`;
-  code3 += `      for (const i in thisValue) {\n`;
-  code3 += `        let thisListValue = thisValue[i];\n`;
-  code3 += `        maskedMetadata[key].push(maskValue(thisListValue));\n`;
-  code3 += `      }\n`;
-  code3 += `    } else if (typeof thisValue === 'object') {\n`;
-  code3 += `      maskedMetadata[key] = {};\n`;
-  code3 += `      for (const subKey in thisValue) {\n`;
-  code3 += `        let maskedValue = maskValue(thisValue[subKey]);\n`;
-  code3 += `        maskedMetadata[key][subKey] = maskedValue;\n`;
-  code3 += `      }\n`;
-  code3 += `    } else {\n`;
-  code3 += `      maskedMetadata[key] = maskValue(thisValue);\n`;
-  code3 += `    }\n`;
-  code3 += `  }\n`;
-  code3 += `  return maskedMetadata;\n`;
-  code3 += `}\n`;
-  code3 += `\n\nconst maskedMetadata = maskMetadata(assetMetadata);`;
+  let code3 = ``;
+  code3 += `const asset: Mint = {\n`;
+  code3 += `  assetName: assetName,\n`;
+  code3 += `  assetQuantity: '1',\n`;
+  code3 += `  metadata: assetMetadata,\n`;
+  code3 += `  label: '721',\n`;
+  code3 += `  recipient: {\n`;
+  code3 += `    address: recipientAddress,\n`;
+  code3 += `  },\n`;
+  code3 += `};\n`;
 
-  let code4 = `const asset: Mint = {\n`;
-  code4 += `  assetName: 'MeshToken',\n`;
-  code4 += `  assetQuantity: '1',\n`;
-  code4 += `  metadata: maskedMetadata,\n`;
-  code4 += `  label: '721',\n`;
-  code4 += `  recipient: {\n`;
-  code4 += `    address: recipientAddress,\n`;
-  code4 += `  },\n`;
-  code4 += `};\n`;
+  let code4 = ``;
+  code4 += `const costLovelace = '10000000';\n`;
+  code4 += `const selectedUtxos = largestFirst(costLovelace, utxos, true);\n`;
+  code4 += `const bankWalletAddress = 'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx';`;
 
-  let code5 = `const bankWalletAddress = 'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx';\n\n`;
+  let code5 = ``;
   code5 += `const tx = new Transaction({ initiator: appWallet });\n`;
   code5 += `tx.setTxInputs(selectedUtxos);\n`;
   code5 += `tx.mintAsset(forgingScript, asset);\n`;
   code5 += `tx.sendLovelace(bankWalletAddress, costLovelace);\n`;
   code5 += `tx.setChangeAddress(recipientAddress);\n`;
   code5 += `const unsignedTx = await tx.build();\n`;
+
+  let code6 = `const originalMetadata = Transaction.readMetadata(unsignedTx);\n`;
+  code6 += `// you want to store 'assetName' and 'originalMetadata' into the database so you can retrive it later\n`;
+  code6 += `const maskedTx = Transaction.maskMetadata(unsignedTx);`;
 
   return (
     <Element name="applicationBuildtx">
@@ -412,9 +337,9 @@ function ApplicationBuildTx() {
         <Link href="/apis/appwallet">
           <code>AppWallet</code>
         </Link>
-        . In this example, we use mnemonic, but you can initialize a wallet with
-        mnemonic phrases, private keys, and Cardano CLI generated keys, see{' '}
-        <Link href="/apis/appwallet">App Wallet</Link>.
+        . In this example, we use mnemonic to restore our wallet, but you can
+        initialize a wallet with mnemonic phrases, private keys, and Cardano CLI
+        generated keys, see <Link href="/apis/appwallet">App Wallet</Link>.
       </p>
       <Codeblock data={code1} isJson={false} />
       <p>
@@ -428,35 +353,36 @@ function ApplicationBuildTx() {
       />
       <p>
         Then, we define the <code>AssetMetadata</code> which contains the NFT
-        metadata:
+        metadata. In a NFT collection mint, you would need a selection algorithm
+        and a database to select available NFTs.
       </p>
       <Codeblock data={code2} isJson={false} />
       <p>
-        We can mask the NFT metadata so client don't see the NFT's metadata
-        during signing:
+        After that, we create the <code>Mint</code> object:
       </p>
       <Codeblock data={code3} isJson={false} />
-      <p>
-        After that, we create the <code>Mint</code> object to define the asset
-        with the masked metadata:
-      </p>
-      <Codeblock data={code4} isJson={false} />
       <p>
         Finally, we are ready to create the transaction. Instead of using every
         UTXOs from the client's wallet as transaction's inputs, we can use{' '}
         <code>largestFirst</code> to get the UTXOs required for this
-        transaction:
+        transaction. In this transaction, we send the payment to a predefined
+        wallet address (<code>bankWalletAddress</code>).
       </p>
-      <Codeblock
-        data={`const costLovelace = '10000000';\nconst selectedUtxos = largestFirst(costLovelace, utxos, true);`}
-        isJson={false}
-      />
-      <p>
-        Let's create the transaction. In this example, we send the payment to{' '}
-        <code>bankWalletAddress</code>, and mint the NFT to{' '}
-        <code>recipientAddress</code>.
-      </p>
+      <Codeblock data={code4} isJson={false} />
+      <p>Let's create the transaction.</p>
       <Codeblock data={code5} isJson={false} />
+      <p>
+        Instead of sending the transaction containing the actual metadata, we
+        will mask the metadata so clients do not know the content of the NFT.
+        First we extract the original metadata's CBOR with{' '}
+        <code>Transaction.readMetadata</code>, and execute{' '}
+        <code>Transaction.maskMetadata</code> to create a masked transaction.
+      </p>
+      <Codeblock data={code6} isJson={false} />
+      <p>
+        We will send the transaction CBOR (<code>maskedTx</code>) to the client
+        for signing.
+      </p>
     </Element>
   );
 }
@@ -467,41 +393,51 @@ function ClientSigntx() {
       <h2>Sign transaction (client)</h2>
       <p>
         In this section, we need the client's signature to send the payment to
-        the <code>bankWalletAddress</code>. The client's CIP wallet will open
-        and prompts for payment password.
+        the <code>bankWalletAddress</code>. The client's wallet will open and
+        prompts for payment password. Note that the partial sign is set to{' '}
+        <code>true</code>.
       </p>
       <Codeblock
-        data={`const signedTx = await wallet.signTx(unsignedTx, true);`}
+        data={`const signedTx = await wallet.signTx(maskedTx, true);`}
         isJson={false}
       />
+      <p>
+        We will send the <code>signedTx</code> to the backend to complete the
+        transaction.
+      </p>
     </Element>
   );
 }
 
 function ApplicationSigntx() {
-  // todo: update code
-  let code1 = `const txWithMetadata = Transaction.assignMetadata(signedTx, {\n`;
-  code1 += `  721: assetMetadata,\n`;
-  code1 += `});\n`;
+  let code1 = `// here you want to retrieve the 'originalMetadata' from the database\n`;
+  code1 += `const signedOriginalTx = Transaction.writeMetadata(\n`;
+  code1 += `  signedTx,\n`;
+  code1 += `  originalMetadata\n`;
+  code1 += `);`;
 
-  let code2 = `const appWalletSignedTx = await appWallet.signTx(txWithMetadata, true);\n`;
-  code2 += `const txHash = await appWallet.submitTx(appWalletSignedTx);\n`;
+  let code2 = `const appWalletSignedTx = await appWallet.signTx(signedOriginalTx, true);\n`;
+  code2 += `const txHash = await appWallet.submitTx(appWalletSignedTx);`;
 
-  // todo update guides
   return (
     <Element name="applicationSigntx">
       <h2>Sign transaction (application)</h2>
       <p>
-        In this section, the application wallet will counter sign the
-        transaction and update the asset's metadata with the actual metadata.
+        In this section, we will update the asset's metadata with the actual
+        metadata, and the application wallet will counter sign the transaction.
       </p>
-      {/* <p>Firstly, let's update the metadata to the actual asset's metadata:</p>
+      <p>
+        Let's update the metadata to the actual asset's metadata. We retrieve
+        the <code>originalMetadata</code> from the database and update the
+        metadata with <code>Transaction.writeMetadata</code>.
+      </p>
       <Codeblock data={code1} isJson={false} />
       <p>
-        Finally, sign the transaction with the application wallet and submit the
+        Sign the transaction with the application wallet and submit the
         transaction:
       </p>
-      <Codeblock data={code2} isJson={false} /> */}
+      <Codeblock data={code2} isJson={false} />
+      <p>Voila! You can build any multi-sig transactions!</p>
     </Element>
   );
 }
