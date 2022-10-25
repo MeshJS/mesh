@@ -15,7 +15,7 @@
     "@headlessui/react": "^1.6.6",
     "@heroicons/react": "^2.0.10",
     "@martifylabs/mesh": "1.1.0-beta.8",
-    "@martifylabs/mesh-react": "0.1.0-beta.3",
+    "@martifylabs/mesh-react": "0.1.0-beta.4",
     "copy-to-clipboard": "^3.3.2",
     "flowbite": "^1.5.3",
     "flowbite-react": "^0.1.10",
