@@ -1,6 +1,7 @@
 {
   "plugins": [
-    ["babel-plugin-module-resolver",
+    [
+      "babel-plugin-module-resolver",
       {
         "alias": {
           "@mesh": "./src"
@@ -9,7 +10,12 @@
     ]
   ],
   "presets": [
-    "@babel/preset-react",
+    [
+      "@babel/preset-react",
+      {
+        "runtime": "automatic"
+      }
+    ],
     "@babel/preset-typescript"
   ]
 }

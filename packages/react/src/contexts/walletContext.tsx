@@ -2,8 +2,12 @@ import { createContext, useCallback, useState } from 'react';
 import { BrowserWallet } from '@martifylabs/mesh';
 import { useLocalStorage } from '@mesh/utils';
 
+const INITIAL_STATE = {
+  walletInstance: {} as BrowserWallet,
+  walletName: '',
+};
+
 interface WalletContext {
-  hasAvailableWallets: boolean,
   hasConnectedWallet: boolean,
   connectedWalletInstance: BrowserWallet,
   connectedWalletName: string,
@@ -13,18 +17,11 @@ interface WalletContext {
   error?: unknown,
 }
 
-const defaultWallet = {
-  walletInstance: {} as BrowserWallet,
-  walletName: '',
-};
-
-const [meshStorage, setMeshStorage] = useLocalStorage<{
-  walletInstance: BrowserWallet;
-  walletName: string;
-}>('meshBrowserWallet', defaultWallet);
-
 const useWalletStore = () => {
   const [error, setError] = useState<unknown>(undefined);
+
+  const [meshStorage, setMeshStorage] =
+    useLocalStorage('meshWallet', INITIAL_STATE);
 
   const [connectingWallet, setConnectingWallet] =
     useState<boolean>(false);
@@ -56,13 +53,12 @@ const useWalletStore = () => {
   }, []);
 
   const disconnect = useCallback(() => {
-    setMeshStorage(defaultWallet);
-    setConnectedWalletName(defaultWallet.walletName);
-    setConnectedWalletInstance(defaultWallet.walletInstance);
+    setMeshStorage(INITIAL_STATE);
+    setConnectedWalletName(INITIAL_STATE.walletName);
+    setConnectedWalletInstance(INITIAL_STATE.walletInstance);
   }, []);
 
   return {
-    hasAvailableWallets: BrowserWallet.getInstalledWallets().length > 0,
     hasConnectedWallet: Object.keys(connectedWalletInstance).length > 0,
     connectedWalletInstance,
     connectedWalletName,
@@ -74,10 +70,9 @@ const useWalletStore = () => {
 };
 
 export const WalletContext = createContext<WalletContext>({
-  hasAvailableWallets: BrowserWallet.getInstalledWallets().length > 0,
-  hasConnectedWallet: Object.keys(meshStorage.walletInstance).length > 0,
-  connectedWalletInstance: meshStorage.walletInstance,
-  connectedWalletName: meshStorage.walletName,
+  hasConnectedWallet: false,
+  connectedWalletInstance: INITIAL_STATE.walletInstance,
+  connectedWalletName: INITIAL_STATE.walletName,
   connectingWallet: false,
 });
 

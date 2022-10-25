@@ -7,9 +7,12 @@ import {
 } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 
+import { useAvailableWallets, useWallet, WalletProvider } from '@martifylabs/mesh-react';
+
 export default function Home() {
   return (
     <>
+      <Hooks />
       <Hero />
       <Features />
     </>
@@ -124,5 +127,31 @@ function Features() {
         </div>
       </div>
     </section>
+  );
+}
+function Wallets() {
+  const { connect, name } = useWallet();
+
+  const wallets = useAvailableWallets().map((w, i) => (
+    <li key={i}>
+      <button onClick={() => connect(w.name)}>
+        {w.name}
+      </button>
+    </li>
+  ));
+
+  return (
+    <div>
+      <p>Connected: {name}</p>
+      <ul>{wallets}</ul>
+    </div>
+  );
+};
+
+function Hooks() {
+  return (
+    <WalletProvider>
+      <Wallets />
+    </WalletProvider>
   );
 }
