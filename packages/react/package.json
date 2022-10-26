@@ -33,11 +33,13 @@
     }
   },
   "devDependencies": {
-    "@babel/core": "^7.19.3",
-    "@babel/preset-react": "^7.18.6",
-    "@babel/preset-typescript": "^7.18.6",
+    "@babel/core": "7.19.3",
+    "@babel/preset-react": "7.18.6",
+    "@babel/preset-typescript": "7.18.6",
     "@preconstruct/cli": "2.2.2",
-    "babel-plugin-module-resolver": "^4.1.0"
+    "autoprefixer": "10.4.12",
+    "babel-plugin-module-resolver": "4.1.0",
+    "postcss": "8.4.18"
   },
   "peerDependencies": {
     "@martifylabs/mesh": "1.1.0-beta.8",
