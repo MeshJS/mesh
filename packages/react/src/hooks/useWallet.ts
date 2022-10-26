@@ -3,6 +3,7 @@ import { WalletContext } from '@mesh/contexts';
 
 export const useWallet = () => {
   const {
+    hasConnectedWallet,
     connectedWalletName,
     connectingWallet,
     connectWallet,
@@ -17,6 +18,7 @@ export const useWallet = () => {
   }
 
   return {
+    connected: hasConnectedWallet,
     name: connectedWalletName,
     connecting: connectingWallet,
     connect: connectWallet,

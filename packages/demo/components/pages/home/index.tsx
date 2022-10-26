@@ -7,7 +7,7 @@ import {
 } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 
-import { useAddress, useAvailableWallets, useWallet, MeshProvider } from '@martifylabs/mesh-react';
+import { useAddress, useWalletList, useWallet, MeshProvider } from '@martifylabs/mesh-react';
 
 export default function Home() {
   return (
@@ -133,7 +133,7 @@ function Wallets() {
   const address = useAddress();
   const { connect, name } = useWallet();
 
-  const wallets = useAvailableWallets().map((w, i) => (
+  const wallets = useWalletList().map((w, i) => (
     <li key={i}>
       <button onClick={() => connect(w.name)}>
         {w.name}
