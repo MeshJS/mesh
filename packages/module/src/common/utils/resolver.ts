@@ -1,7 +1,7 @@
 import { mnemonicToEntropy } from 'bip39';
 import { AssetFingerprint, csl } from '@mesh/core';
 import {
-  SUPPORTED_CLOCKS, DEFAULT_PROTOCOL_PARAMETERS,
+  SUPPORTED_CLOCKS, DEFAULT_PROTOCOL_PARAMETERS, SUPPORTED_LANGUAGE_VIEWS,
 } from '@mesh/common/constants';
 import {
   buildBip32PrivateKey, buildRewardAddress,
@@ -14,7 +14,7 @@ import {
   deserializePlutusScript, deserializeTx,
 } from './deserializer';
 import type {
-  Data, NativeScript, Network, PlutusScript,
+  Data, Era, LanguageVersion, NativeScript, Network, PlutusScript,
 } from '@mesh/common/types';
 
 export const resolveDataHash = (data: Data) => {
@@ -46,6 +46,10 @@ export const resolveFingerprint = (policyId: string, assetName: string) => {
     toBytes(policyId),
     toBytes(assetName)
   ).fingerprint();
+};
+
+export const resolveLanguageView = (era: Era, version: LanguageVersion) => {
+  return SUPPORTED_LANGUAGE_VIEWS[era][version];
 };
 
 export const resolveNativeScriptHash = (script: NativeScript) => {
