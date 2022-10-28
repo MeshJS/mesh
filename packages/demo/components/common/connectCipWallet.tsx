@@ -1,5 +1,5 @@
-import Button from '../../../ui/button';
-import useWallet from '../../../../contexts/wallet';
+import Button from '../ui/button';
+import useWallet from '../../contexts/wallet';
 
 export default function ConnectCipWallet() {
   const { connecting, walletNameConnected, connectWallet, availableWallets } = useWallet();

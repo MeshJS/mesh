@@ -1,5 +1,4 @@
 import { WalletIcon } from '@heroicons/react/24/solid';
-import Codeblock from '../../../ui/codeblock';
 
 export default function Hero() {
   let codeSnippet = '';

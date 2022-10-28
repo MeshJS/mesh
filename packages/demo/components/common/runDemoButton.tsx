@@ -1,5 +1,5 @@
 import { PlayIcon } from '@heroicons/react/24/solid';
-import Button from '../../../ui/button';
+import Button from '../ui/button';
 
 export default function RunDemoButton({
   runDemoFn,

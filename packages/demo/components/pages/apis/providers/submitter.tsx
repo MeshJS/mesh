@@ -1,5 +1,5 @@
 import Codeblock from '../../../ui/codeblock';
-import SectionTwoCol from '../common/sectionTwoCol';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import { BadgeSubmitter } from './badges';
 
 export default function Submitter({ submitter, submitterName }) {

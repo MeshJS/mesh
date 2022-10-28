@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function GetBalance() {
   return (
@@ -25,10 +25,6 @@ function Left() {
         Returns a list of assets in the wallet. This API will return every
         assets in the wallet.
       </p>
-      <Codeblock
-        data={`const balance = await wallet.getBalance();`}
-        isJson={false}
-      />
     </>
   );
 }
@@ -48,6 +44,10 @@ function Right() {
     <>
       {hasAvailableWallets && (
         <Card>
+          <Codeblock
+            data={`const balance = await wallet.getBalance();`}
+            isJson={false}
+          />
           {walletConnected ? (
             <>
               <RunDemoButton

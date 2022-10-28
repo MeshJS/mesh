@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import { Transaction, Asset } from '@martifylabs/mesh';
-import FetchSelectAssets from '../common/fetchSelectAssets';
+import FetchSelectAssets from '../../../common/fetchSelectAssets';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -226,7 +226,7 @@ function InputTable({ userInput, updateField, inputDatum, setInputDatum }) {
           Lock assets in smart contract
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Define a datum and select assets to lock in smart contract. Note:
-            this demo only works on <code>preview</code> network.
+            this demo only works on <code>preprod</code> network.
           </p>
         </caption>
         <thead className="thead">

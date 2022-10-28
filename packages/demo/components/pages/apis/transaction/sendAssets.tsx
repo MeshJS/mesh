@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import FetchSelectAssets from '../common/fetchSelectAssets';
+import FetchSelectAssets from '../../../common/fetchSelectAssets';
 import { Transaction } from '@martifylabs/mesh';
 import type { Asset } from '@martifylabs/mesh';
 
@@ -91,14 +91,14 @@ function Left({ userInput }) {
   codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
     if ('lovelace' in recipient.assets && recipient.assets.lovelace > 0) {
-      codeSnippet += `\n  .sendLovelace(\n    { address: '${recipient.address}' },\n    '${recipient.assets.lovelace}'\n  )`;
+      codeSnippet += `\n  .sendLovelace(\n    '${recipient.address}',\n    '${recipient.assets.lovelace}'\n  )`;
     }
 
     let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
       return assetId != 'lovelace' && recipient.assets[assetId] > 0;
     });
     if (nativeAssets.length) {
-      codeSnippet += `\n  .sendAssets(\n    { address: '${recipient.address}' },`;
+      codeSnippet += `\n  .sendAssets(\n    '${recipient.address}',`;
       codeSnippet += `\n    [`;
       for (const asset of nativeAssets) {
         if (recipient.assets[asset] > 0) {

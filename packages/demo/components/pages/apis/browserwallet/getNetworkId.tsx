@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function GetNetworkId() {
   return (
@@ -27,10 +27,6 @@ function Left() {
         Those other network ID values are not governed by CIP-30. This result
         will stay the same unless the connected account has changed.
       </p>
-      <Codeblock
-        data={`const networkId = await wallet.getNetworkId();`}
-        isJson={false}
-      />
     </>
   );
 }
@@ -50,6 +46,10 @@ function Right() {
     <>
       {hasAvailableWallets && (
         <Card>
+          <Codeblock
+            data={`const networkId = await wallet.getNetworkId();`}
+            isJson={false}
+          />
           {walletConnected ? (
             <>
               <RunDemoButton

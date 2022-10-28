@@ -1,12 +1,9 @@
-import ButtonGroup from '../../../ui/buttongroup';
-import Codeblock from '../../../ui/codeblock';
-import useLocalStorage from '../../../../hooks/useLocalStorage';
+import ButtonGroup from '../ui/buttongroup';
+import Codeblock from '../ui/codeblock';
+import { useState } from 'react';
 
 export default function BlockchainProviderCodeSnippet() {
-  const [blockchainProvider, setBlockchainProvider] = useLocalStorage(
-    'blockchainProvider',
-    'blockfrost'
-  );
+  const [blockchainProvider, setBlockchainProvider] = useState('blockfrost');
 
   let codeBF = `import { BlockfrostProvider } from '@martifylabs/mesh';\n\n`;
   codeBF += `const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');`;

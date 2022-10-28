@@ -1,6 +1,6 @@
-import { Link, Element } from 'react-scroll';
+import { Link } from 'react-scroll';
 
-export default function ApisSidebar({ sidebarItems }) {
+export default function CommonSidebar({ sidebarItems }) {
   return (
     <div className="hidden mb-6 mr-6 xl:block lg:w-72">
       <div className="sticky top-24">

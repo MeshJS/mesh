@@ -1,4 +1,4 @@
-import ApisLayout from '../common/layout';
+import CommonLayout from '../../../common/layout';
 import ResolveDataHash from './resolveDataHash';
 import Hero from './hero';
 import ResolveFingerprint from './resolveFingerprint';
@@ -30,10 +30,10 @@ export default function Resolvers() {
   ];
 
   return (
-    <ApisLayout sidebarItems={sidebarItems}>
+    <CommonLayout sidebarItems={sidebarItems}>
       <Hero />
       <Main />
-    </ApisLayout>
+    </CommonLayout>
   );
 }
 

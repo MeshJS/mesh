@@ -14,13 +14,13 @@ const GuidesPage: NextPage = () => {
     {
       title: 'Minting on Node.js',
       desc: 'Load a CLI generated key and mint assets on Node.js.',
-      link: '/guides/mintingonnodejs',
+      link: '/guides/minting-on-nodejs',
       thumbnail: '/guides/nodejs.jpg',
     },
     {
       title: 'Multi-signature Transactions',
       desc: 'Learn about multi-sig transaction, build a minting transaction involving AppWallet and BrowserWallet.',
-      link: '/guides/multisigminting',
+      link: '/guides/multisig-minting',
       thumbnail: '/guides/key-gb17103099_640.jpg',
     },
     // {

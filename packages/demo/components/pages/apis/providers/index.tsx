@@ -1,4 +1,4 @@
-import ApisLayout from '../common/layout';
+import CommonLayout from '../../../common/layout';
 import Blockfrost from './blockfrost';
 import Hero from './hero';
 import Koios from './koios';
@@ -11,10 +11,10 @@ export default function Resolvers() {
   ];
 
   return (
-    <ApisLayout sidebarItems={sidebarItems}>
+    <CommonLayout sidebarItems={sidebarItems}>
       <Hero />
       <Main />
-    </ApisLayout>
+    </CommonLayout>
   );
 }
 

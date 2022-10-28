@@ -1,7 +1,7 @@
 import type { AssetExtended } from '@martifylabs/mesh';
 import { useEffect, useState } from 'react';
-import useWallet from '../../../../contexts/wallet';
-import Button from '../../../ui/button';
+import useWallet from '../../contexts/wallet';
+import Button from '../ui/button';
 
 export default function FetchSelectAssets({
   index,

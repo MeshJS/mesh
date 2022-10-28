@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import SectionTwoCol from '../common/sectionTwoCol';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
 import { resolvePlutusScriptAddress } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
 import type { PlutusScript } from '@martifylabs/mesh';

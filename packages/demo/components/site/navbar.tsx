@@ -11,7 +11,11 @@ import {
   PuzzlePieceIcon,
   BanknotesIcon,
   WrenchScrewdriverIcon,
-  LinkIcon,
+  BoltIcon,
+  RocketLaunchIcon,
+  CpuChipIcon,
+  PaintBrushIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -107,8 +111,8 @@ export default function Navbar() {
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
               <NavLink href="/guides" label="Guides" />
               <SubMenuApi />
+              <SubMenuReact />
               <SubMenuAbout />
-
               {/* <NavLink href="/about" label="About" /> */}
             </ul>
           </div>
@@ -157,7 +161,7 @@ function SubMenuApi() {
               href={`/apis/providers`}
               title="Providers"
               desc="Speed up development with these service providers"
-              icon={<LinkIcon className="w-5 h-5" />}
+              icon={<CpuChipIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/apis/resolvers`}
@@ -200,6 +204,54 @@ function SubMenuAbout() {
               title="Implemented CIPs"
               desc="Mesh adhere to standards"
               icon={<BanknotesIcon className="w-5 h-5" />}
+            />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuReact() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        React <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
+            <SubMenuLinks
+              href={`/react/getting-started`}
+              title="Getting Started"
+              desc="Everything you need to build web3 app on React"
+              icon={<RocketLaunchIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/react/starter-templates`}
+              title="Starter Templates"
+              desc="Kick start your projects with our templates using CLI"
+              icon={<DocumentTextIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/react/ui-components`}
+              title="UI Components"
+              desc="UI components to speed up your app development"
+              icon={<PaintBrushIcon                className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/react/wallet-hooks`}
+              title="Wallet Hooks"
+              desc="Hooks for interacting with connected wallet"
+              icon={<BoltIcon className="w-5 h-5" />}
             />
           </ul>
         </div>

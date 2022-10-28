@@ -1,5 +1,5 @@
 import Codeblock from '../../../ui/codeblock';
-import SectionTwoCol from '../common/sectionTwoCol';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 
 export default function SetTimeLimit() {
   return (
@@ -46,7 +46,8 @@ function Left() {
       <Codeblock data={code1} isJson={false} />
       <p>
         Then, we set the TTL with <code>setTimeToExpire</code> and providing the{' '}
-        <code>slot</code>:
+        <code>slot</code>, this means that if the transaction is submitted after
+        after <code>slot</code> will not be valid.
       </p>
       <Codeblock data={codeExpire} isJson={false} />
       <p>
@@ -56,6 +57,11 @@ function Left() {
         <code>slot</code>:
       </p>
       <Codeblock data={codeValid} isJson={false} />
+      <p>
+        Note that, if you are using a policy locking script, you must define{' '}
+        <code>setTimeToExpire</code> before the expiry; otherwise, you will
+        catch the <code>ScriptWitnessNotValidatingUTXOW</code> error.
+      </p>
     </>
   );
 }

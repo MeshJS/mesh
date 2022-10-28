@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import {
   Transaction,
@@ -69,7 +69,7 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippetCreateTx += `    datum: '${inputDatum}',\n`;
   codeSnippetCreateTx += `  })\n`;
 
-  codeSnippetCreateTx += `  .sendValue({ address: address }, assetUtxo)\n`;
+  codeSnippetCreateTx += `  .sendValue(address, assetUtxo)\n`;
   codeSnippetCreateTx += `  .setRequiredSigners([address]);\n`;
 
   let codeSnippetSign = `const unsignedTx = await tx.build();\n`;
@@ -186,7 +186,7 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
           },
           datum: inputDatum,
         })
-        .sendValue({ address: address }, assetUtxo)
+        .sendValue(address, assetUtxo)
         .setRequiredSigners([address]);
 
       const unsignedTx = await tx.build();

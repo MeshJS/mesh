@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function GetPolicyIds() {
   return (
@@ -22,10 +22,6 @@ function Left() {
   return (
     <>
       <p>Return a list of assets' policy ID.</p>
-      <Codeblock
-        data={`const policyIds = await wallet.getPolicyIds();`}
-        isJson={false}
-      />
     </>
   );
 }
@@ -45,6 +41,10 @@ function Right() {
     <>
       {hasAvailableWallets && (
         <Card>
+          <Codeblock
+            data={`const policyIds = await wallet.getPolicyIds();`}
+            isJson={false}
+          />
           {walletConnected ? (
             <>
               <RunDemoButton

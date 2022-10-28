@@ -1,4 +1,4 @@
-import ApisLayout from '../common/layout';
+import CommonLayout from '../../../common/layout';
 import Burning from './burning';
 import DesignDatum from './datum';
 // import GetSize from './getSize';
@@ -23,10 +23,10 @@ export default function Transaction() {
   ];
 
   return (
-    <ApisLayout sidebarItems={sidebarItems}>
+    <CommonLayout sidebarItems={sidebarItems}>
       <Hero />
       <Main />
-    </ApisLayout>
+    </CommonLayout>
   );
 }
 

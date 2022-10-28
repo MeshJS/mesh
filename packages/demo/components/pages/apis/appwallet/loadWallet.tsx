@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import SectionTwoCol from '../common/sectionTwoCol';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
 import { AppWallet, BlockfrostProvider } from '@martifylabs/mesh';
 import {
   demoMnemonic,
@@ -14,7 +14,7 @@ import useAppWallet from '../../../../contexts/appWallet';
 import Input from '../../../ui/input';
 import Textarea from '../../../ui/textarea';
 import ButtonGroup from '../../../ui/buttongroup';
-import BlockchainProviderCodeSnippet from '../common/blockchainProvider';
+import BlockchainProviderCodeSnippet from '../../../common/blockchainProvider';
 
 export default function LoadWallet() {
   const [demoMethod, setDemoMethod] = useState<number>(0);

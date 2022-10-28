@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
@@ -83,7 +83,7 @@ function Left({ userInput }) {
   let codeSnippet = `const tx = new Transaction({ initiator: wallet });\n`;
   for (const recipient of userInput) {
     codeSnippet += `  .sendLovelace(\n`;
-    codeSnippet += `    { address: '${recipient.address}' },\n`;
+    codeSnippet += `    '${recipient.address}',\n`;
     codeSnippet += `    '${recipient.assets.lovelace}'\n`;
     codeSnippet += `  )\n`;
   }
@@ -99,7 +99,7 @@ function Left({ userInput }) {
         recipients, append:
       </p>
       <Codeblock
-        data={`tx.sendLovelace({ address: string }, lovelace: string);`}
+        data={`tx.sendLovelace(address: string, lovelace: string);`}
         isJson={false}
       />
       <p>

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
@@ -121,9 +121,7 @@ function Left({ userInput }) {
     codeSnippet += `  assetQuantity: '${recipient.quantity}',\n`;
     codeSnippet += `  metadata: assetMetadata${counter},\n`;
     codeSnippet += `  label: '${recipient.assetLabel}',\n`;
-    codeSnippet += `  recipient: {\n`;
-    codeSnippet += `    address: '${recipient.address}',\n`;
-    codeSnippet += `  },\n`;
+    codeSnippet += `  recipient: '${recipient.address}',\n`;
     codeSnippet += `};\n`;
     codeSnippet += `tx.mintAsset(\n`;
     codeSnippet += `  forgingScript,\n`;
@@ -150,9 +148,7 @@ function Left({ userInput }) {
   codeSnippet2 += `  assetQuantity: '1',\n`;
   codeSnippet2 += `  metadata: assetMetadata,\n`;
   codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: {\n`;
-  codeSnippet2 += `    address: '${demoAddresses.testnet}',\n`;
-  codeSnippet2 += `  },\n`;
+  codeSnippet2 += `  recipient: '${demoAddresses.testnet}' \n`;
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.mintAsset(\n`;
   codeSnippet2 += `  forgingScript,\n`;
@@ -243,9 +239,7 @@ function Right({ userInput, updateField }) {
           assetQuantity: recipient.quantity.toString(),
           metadata: assetMetadata,
           label: recipient.assetLabel,
-          recipient: {
-            address: recipient.address,
-          },
+          recipient: recipient.address,
         };
         tx.mintAsset(forgingScript, asset);
       }

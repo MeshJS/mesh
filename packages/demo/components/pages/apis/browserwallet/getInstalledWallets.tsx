@@ -2,9 +2,9 @@ import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import { BrowserWallet } from '@martifylabs/mesh';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 
 export default function GetInstalledWallets() {
   return (
@@ -25,7 +25,6 @@ function Left() {
         <code>icon</code> is provided to display wallet's icon on the user
         interface.
       </p>
-      <Codeblock data={`BrowserWallet.getInstalledWallets();`} isJson={false} />
     </>
   );
 }
@@ -42,6 +41,7 @@ function Right() {
   }
   return (
     <Card>
+      <Codeblock data={`BrowserWallet.getInstalledWallets();`} isJson={false} />
       <RunDemoButton
         runDemoFn={runDemo}
         loading={loading}
