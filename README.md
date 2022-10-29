@@ -16,7 +16,7 @@ Explore the features on [Mesh Playground](https://mesh.martify.io/).
 - Adopts best practices - implements various CIPs and package is well build (no hacking and tweaking needed to get it to work)
 - Thoroughly tested - Mesh is used by both developers and learners, and is being built by developers with solid software engineering backgrounds
 - Integrates with Cardano projects - Koios, Blockfrost, ADA Handle (and more), you can pick and choose freely what you want to use for your app
-- Well documented: we focus on documentation so you can use it with ease, and our [Playground](https://mesh.martify.io/) is built so you can see how it works
+- Well documented - we focus on documentation so you can use it with ease, and our [Playground](https://mesh.martify.io/) is built so you can see how it works
 
 [Find out more](https://mesh.martify.io/about)
 
