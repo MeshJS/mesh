@@ -7,8 +7,26 @@ import Navbar from '../components/site/navbar';
 import Footer from '../components/site/footer';
 import { AppWalletProvider } from '../contexts/appWallet';
 import { MeshProvider } from '@martifylabs/mesh-react';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import * as ga from '../lib/ga';
 
 function MyApp({ Component, pageProps }: AppProps) {
+  /**
+   * Google Analytics
+   */
+  const router = useRouter();
+  useEffect(() => {
+    const handleRouteChange = (url) => {
+      ga.pageview(url);
+      console.log('url', url);
+    };
+    router.events.on('routeChangeComplete', handleRouteChange);
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChange);
+    };
+  }, [router.events]);
+
   return (
     <MeshProvider>
       <AppWalletProvider>
