@@ -39,7 +39,7 @@ function Hero() {
               alleviate many problems from getting started, to building any
               product you can imagine.
             </p>
-            <Link href="/guides">
+            <Link href="/getting-started">
               <div className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 cursor-pointer">
                 Get started
                 <ChevronRightIcon className="w-5 h-5 ml-2 -mr-1" />
@@ -78,12 +78,12 @@ function Features() {
           <div>
             <CheckCircleIcon className="mx-auto mb-4 w-12 h-12 text-primary-600 dark:text-primary-500" />
             <h3 className="mb-2 text-xl font-bold dark:text-white">
-              Always up to date (Vasil ready)
+              Always up to date
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
               Mesh is developed closely to the network updates. By using Mesh,
               your application will always be ready for the latest network
-              changes.
+              changes, so you can focus on building your application.
             </p>
             <a
               href="https://github.com/MartifyLabs/mesh/releases"
@@ -103,9 +103,9 @@ function Features() {
               Getting started with dApp development has never been this easy.
               Mesh is built in a way so you can get started in as little time as
               possible. We've built Mesh to handle difficult blockchain
-              interaction so you can focus on your project.
+              interaction.
             </p>
-            <Link href="/guides">
+            <Link href="/getting-started">
               <div className="link">
                 Learn how to get started
                 <ChevronRightIcon className="ml-1 w-5 h-5" />
@@ -118,8 +118,9 @@ function Features() {
               Best practices
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh adopts many CIPs, and our package is only 24KB. Your dApp
-              will be responsive and adhere to standards.
+              Mesh adopts many CIPs, and our package is less than 400KB! This
+              means that your application is fast, responsive and adhere to
+              standards.
             </p>
             <Link href="/apis/browserwallet">
               <div className="link">

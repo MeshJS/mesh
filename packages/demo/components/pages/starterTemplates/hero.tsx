@@ -1,4 +1,4 @@
-import { DocumentTextIcon } from '@heroicons/react/24/solid';
+import { CubeTransparentIcon } from '@heroicons/react/24/solid';
 
 export default function Hero() {
   return (
@@ -7,7 +7,7 @@ export default function Hero() {
         <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
           <div className="flex items-center">
             <div className="p-2 mr-4">
-              <DocumentTextIcon className="w-16 h-16" />
+              <CubeTransparentIcon className="w-16 h-16" />
             </div>
             <span>Starter Templates</span>
           </div>

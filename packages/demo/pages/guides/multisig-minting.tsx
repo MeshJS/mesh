@@ -15,9 +15,9 @@ import {
 } from '@martifylabs/mesh';
 import type { Mint, AssetMetadata } from '@martifylabs/mesh';
 import useWallet from '../../contexts/wallet';
-import RunDemoButton from '../../components/pages/apis/common/runDemoButton';
-import RunDemoResult from '../../components/pages/apis/common/runDemoResult';
-import ConnectCipWallet from '../../components/pages/apis/common/connectCipWallet';
+import RunDemoButton from '../../components/common/runDemoButton';
+import RunDemoResult from '../../components/common/runDemoResult';
+import ConnectCipWallet from '../../components/common/connectCipWallet';
 import { demoMnemonic } from '../../configs/demo';
 
 const blockchainProvider = new BlockfrostProvider(

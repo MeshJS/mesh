@@ -1,5 +1,6 @@
 import CommonLayout from '../../../common/layout';
 import Burning from './burning';
+import CoinSelection from './coinSelection';
 import DesignDatum from './datum';
 // import GetSize from './getSize';
 import Hero from './hero';
@@ -20,6 +21,7 @@ export default function Transaction() {
     { label: 'Unlock assets on smart contract', to: 'unlockAssets' },
     { label: 'Designing datum', to: 'datum' },
     { label: 'Set time limit', to: 'setTimeLimit' },
+    { label: 'Coin Selection', to: 'coinSelection' },
   ];
 
   return (
@@ -42,6 +44,7 @@ function Main() {
       {/* <GetSize /> */}
       <DesignDatum />
       <SetTimeLimit />
+      <CoinSelection />
     </>
   );
 }

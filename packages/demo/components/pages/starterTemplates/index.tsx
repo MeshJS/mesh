@@ -1,4 +1,4 @@
-import CommonLayout from '../../../common/layout';
+import CommonLayout from '../../common/layout';
 import Hero from './hero';
 import StarterNextjs from './nextjs';
 

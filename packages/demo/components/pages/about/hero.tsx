@@ -28,11 +28,25 @@ export default function AboutHero() {
         </div>
         <div className="grid gap-8 pt-8 lg:pt-12 mt-8 lg:mt-12 border-t border-gray-600 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <h2 className="mb-1 text-lg font-bold">Resolvers released</h2>
+            <h2 className="mb-1 text-lg font-bold">Starter templates</h2>
             <p className="mb-1 text-sm text-gray-400">
-              Helpful functions that you need while building dApps
+              Start your project by installing with CLI
             </p>
-            <Link href="/apis/resolvers">
+            <Link href="/starter-templates">
+              <span className="link">
+                Learn more
+                <ArrowRightIcon className="ml-1 w-5 h-5" />
+              </span>
+            </Link>
+          </div>
+          <div>
+            <h2 className="mb-1 text-lg font-bold">
+              React components and hooks
+            </h2>
+            <p className="mb-1 text-sm text-gray-400">
+              Everything you need to build web3 apps
+            </p>
+            <Link href="/react">
               <span className="link">
                 Learn more
                 <ArrowRightIcon className="ml-1 w-5 h-5" />

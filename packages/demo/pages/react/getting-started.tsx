@@ -46,7 +46,7 @@ const ReactGetStartedPage: NextPage = () => {
           </p>
           <Codeblock data={`npx mesh create --starter nextjs`} isJson={false} />
           <p>
-            Visit <Link href="/react/starter-templates">Starter Templates</Link>{' '}
+            Visit <Link href="/starter-templates">Starter Templates</Link>{' '}
             and kick start your project with one of our starters.
           </p>
         </Element>

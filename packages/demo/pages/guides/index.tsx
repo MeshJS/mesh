@@ -67,12 +67,8 @@ const GuidesPage: NextPage = () => {
             Our Guides
           </h2>
           <p className="font-light text-gray-500 sm:text-xl dark:text-gray-400">
-            Mesh has been designed from the start for gradual adoption, and you
-            can use as little or as much as you need. Whether you want to build
-            an application to connect wallet and display what's in your wallet
-            or start a complex dApp to create transactions and interact with
-            Cardano blockchain and smart contracts; this section will help you
-            get started.
+            Whether you are new to web development or a seasoned blockchain
+            full-stack developer, these guides will help you get started.
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">

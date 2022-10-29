@@ -11,11 +11,10 @@ import {
 } from '@martifylabs/mesh';
 import Input from '../../../ui/input';
 import type { NativeScript } from '@martifylabs/mesh';
+import { demoAddresses } from '../../../../configs/demo';
 
 export default function ResolveNativeScriptHash() {
-  const [userinput, setUserinput] = useState<string>(
-    '426117329844ccb3b0ba877220ff06a5bdf21eab3fb33e2f3a3f8e69'
-  );
+  const [userinput, setUserinput] = useState<string>(demoAddresses.mainnet);
   const [userinput2, setUserinput2] = useState<string>('meshtoken');
 
   return (
@@ -29,13 +28,35 @@ export default function ResolveNativeScriptHash() {
 }
 
 function Left(userinput, userinput2) {
+  let code1 = `import { resolveNativeScriptHash, resolvePaymentKeyHash, resolveSlotNo } from '@martifylabs/mesh';\n\n`;
+  code1 += `const keyHash = resolvePaymentKeyHash('${userinput}');\n`;
+  code1 += `\n`;
+  code1 += `let oneYearFromNow = new Date();\n`;
+  code1 += `oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);\n`;
+  code1 += `const slot = resolveSlotNo('mainnet', oneYearFromNow.getTime());\n`;
+  code1 += `\n`;
+  code1 += `const nativeScript: NativeScript = {\n`;
+  code1 += `  type: 'all',\n`;
+  code1 += `  scripts: [\n`;
+  code1 += `    {\n`;
+  code1 += `      type: 'before',\n`;
+  code1 += `      slot: slot,\n`;
+  code1 += `    },\n`;
+  code1 += `    {\n`;
+  code1 += `      type: 'sig',\n`;
+  code1 += `      keyHash: keyHash,\n`;
+  code1 += `    },\n`;
+  code1 += `  ],\n`;
+  code1 += `};\n`;
+  code1 += `\n`;
+  code1 += `const hash = resolveNativeScriptHash(nativeScript);\n`;
+
   return (
     <>
       <p>
-        <code>resolveNativeScriptHash</code> takes policy ID and asset name, and
-        return asset fingerprint based on .
+        Converts <code>NativeScript</code> into hash.
       </p>
-      <Codeblock data={``} isJson={false} />
+      <Codeblock data={code1} isJson={false} />
     </>
   );
 }
@@ -51,13 +72,11 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
     setResponseError(null);
 
     try {
-      // const slot = userinput;
-      // const keyHash = userinput2;
+      const keyHash = resolvePaymentKeyHash(userinput);
 
-      const slot = resolveSlotNo('mainnet');
-      const keyHash = resolvePaymentKeyHash(
-        'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr'
-      );
+      let oneYearFromNow = new Date();
+      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+      const slot = resolveSlotNo('mainnet', oneYearFromNow.getTime());
 
       const nativeScript: NativeScript = {
         type: 'all',
@@ -87,14 +106,8 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
         <Input
           value={userinput}
           onChange={(e) => setUserinput(e.target.value)}
-          placeholder="Policy ID"
-          label="Policy ID"
-        />
-        <Input
-          value={userinput2}
-          onChange={(e) => setUserinput2(e.target.value)}
-          placeholder="Asset name"
-          label="Asset name"
+          placeholder="Address"
+          label="Address"
         />
         <RunDemoButton
           runDemoFn={runDemo}
