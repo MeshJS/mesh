@@ -405,16 +405,29 @@ export class Transaction {
   private async forgeAssetsIfNeeded() {
     await this.addBurnInputsIfNeeded();
 
-    this._totalMints.forEach((mint, unit) => {
-      this._txBuilder.add_json_metadatum(
-        csl.BigNum.from_str(mint.label),
-        JSON.stringify({
-          [`${unit.slice(0, POLICY_ID_LENGTH)}`]: {
-            [`${mint.assetName}`]: { ...mint.metadata },
+    Array
+      .from(this._totalMints, (mint) => ({
+        unit: mint[0],
+        data: mint[1],
+      }))
+      .map((mint) => ({
+        label: mint.data.label,
+        asset: {
+          [`${mint.unit.slice(0, POLICY_ID_LENGTH)}`]: {
+            [`${mint.data.assetName}`]: { ...mint.data.metadata },
           },
-        }),
-      );
-    });
+        },
+      }))
+      .reduce((metadatums, metadatum) => {
+        
+        return metadatums;
+      }, new Array<{ label: string; value: Record<string, unknown> }>())
+      .forEach((metadatum) => {
+        this._txBuilder.add_json_metadatum(
+          csl.BigNum.from_str(metadatum.label),
+          JSON.stringify(metadatum.value)
+        );
+      });
 
     this.addMintOutputs();
   }
