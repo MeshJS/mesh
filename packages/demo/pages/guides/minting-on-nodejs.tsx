@@ -110,9 +110,7 @@ const GuideMintingNodejsPage: NextPage = () => {
   codeTransaction += `    assetQuantity: '1',\n`;
   codeTransaction += `    metadata: assetMetadata,\n`;
   codeTransaction += `    label: '721',\n`;
-  codeTransaction += `    recipient: {\n`;
-  codeTransaction += `      address: recipientAddress,\n`;
-  codeTransaction += `    },\n`;
+  codeTransaction += `    recipient: recipientAddress\n`;
   codeTransaction += `  };\n`;
   codeTransaction += `  tx.mintAsset(forgingScript, asset);\n`;
   codeTransaction += `}\n`;

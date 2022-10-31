@@ -80,7 +80,7 @@ export default function SendAda() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `const tx = new Transaction({ initiator: wallet });\n`;
+  let codeSnippet = `const tx = new Transaction({ initiator: wallet })\n`;
   for (const recipient of userInput) {
     codeSnippet += `  .sendLovelace(\n`;
     codeSnippet += `    '${recipient.address}',\n`;

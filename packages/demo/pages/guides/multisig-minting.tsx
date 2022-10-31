@@ -123,9 +123,7 @@ function DemoSection() {
       assetQuantity: '1',
       metadata: assetMetadata,
       label: '721',
-      recipient: {
-        address: recipientAddress,
-      },
+      recipient: recipientAddress,
     };
 
     // client utxo select utxo
@@ -282,9 +280,7 @@ function ApplicationBuildTx() {
   code3 += `  assetQuantity: '1',\n`;
   code3 += `  metadata: assetMetadata,\n`;
   code3 += `  label: '721',\n`;
-  code3 += `  recipient: {\n`;
-  code3 += `    address: recipientAddress,\n`;
-  code3 += `  },\n`;
+  code3 += `  recipient: recipientAddress,\n`;
   code3 += `};\n`;
 
   let code4 = ``;

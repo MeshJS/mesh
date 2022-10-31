@@ -39,7 +39,7 @@ function Right() {
   return (
     <Card>
       <Codeblock
-        data={`const wallet = BrowserWallet.enable('${
+        data={`const wallet = await BrowserWallet.enable('${
           walletNameConnected ? walletNameConnected : 'eternl'
         }');`}
         isJson={false}
