@@ -14,7 +14,7 @@ import {
 } from '@mesh/common/utils';
 import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
 import type {
-  Action, Asset, Data, Era, Mint, Protocol,
+  Action, Asset, AssetMetadata, Data, Era, Mint, Protocol,
   PlutusScript, Quantity, Recipient, Unit, UTxO,
 } from '@mesh/common/types';
 
@@ -403,29 +403,57 @@ export class Transaction {
   }
 
   private async forgeAssetsIfNeeded() {
+    type Label = string;
+    type Metadata = Record<string, Record<string, AssetMetadata>>;
+    type Mintdata = { unit: string, data: Mint };
+
+    const createMetadata = (
+      mint: Mintdata, metadata?: Metadata,
+    ): Metadata => {
+      const assetPolicy = mint.unit.slice(0, POLICY_ID_LENGTH);
+      const assetName = mint.data.assetName;
+      const assetMetadata = mint.data.metadata;
+
+      if (metadata !== undefined) {
+        if (metadata[assetPolicy] !== undefined) {
+          metadata[assetPolicy] = {
+            [assetName]: assetMetadata,
+            ...metadata[assetPolicy],
+          };
+        } else {
+          metadata = {
+            [assetPolicy]: {
+              [assetName]: assetMetadata,
+            },
+            ...metadata,
+          };
+        }
+        return metadata;
+      }
+
+      return {
+        [assetPolicy]: {
+          [assetName]: assetMetadata,
+        },
+      };
+    };
+
     await this.addBurnInputsIfNeeded();
 
     Array
-      .from(this._totalMints, (mint) => ({
+      .from(this._totalMints, (mint) => (<Mintdata>{
         unit: mint[0],
         data: mint[1],
       }))
-      .map((mint) => ({
-        label: mint.data.label,
-        asset: {
-          [`${mint.unit.slice(0, POLICY_ID_LENGTH)}`]: {
-            [`${mint.data.assetName}`]: { ...mint.data.metadata },
-          },
-        },
-      }))
-      .reduce((metadatums, metadatum) => {
-        
-        return metadatums;
-      }, new Array<{ label: string; value: Record<string, unknown> }>())
-      .forEach((metadatum) => {
+      .reduce((metadatums, mint) => {
+        return metadatums.set(mint.data.label, createMetadata(
+          mint, metadatums.get(mint.data.label),
+        ));
+      }, new Map<Label, Metadata>)
+      .forEach((metadata, label) => {
         this._txBuilder.add_json_metadatum(
-          csl.BigNum.from_str(metadatum.label),
-          JSON.stringify(metadatum.value)
+          csl.BigNum.from_str(label),
+          JSON.stringify(metadata),
         );
       });
 
