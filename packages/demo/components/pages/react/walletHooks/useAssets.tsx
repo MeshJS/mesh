@@ -59,7 +59,7 @@ function Right() {
           assets.slice(0, 10).map((asset, i) => {
             return (
               <li key={i}>
-                <b>{asset.assetName}</b> (x{asset.quantity})
+                <b>{asset.unit}</b> (x{asset.quantity})
               </li>
             );
           })}

@@ -403,38 +403,43 @@ export class Transaction {
   }
 
   private async forgeAssetsIfNeeded() {
-    type Label = string;
-    type Metadata = Record<string, Record<string, AssetMetadata>>;
     type Mintdata = { unit: string, data: Mint };
+    type Metadata = Record<string, Record<string, AssetMetadata>>;
 
-    const createMetadata = (
-      mint: Mintdata, metadata?: Metadata,
-    ): Metadata => {
-      const assetPolicy = mint.unit.slice(0, POLICY_ID_LENGTH);
-      const assetName = mint.data.assetName;
-      const assetMetadata = mint.data.metadata;
+    const forge = (mint: Mintdata, meta?: Metadata): Metadata => {
+      const name = mint.data.assetName;
+      const metadata = mint.data.metadata;
+      const collection = mint.unit
+        .slice(0, POLICY_ID_LENGTH);
 
-      if (metadata !== undefined) {
-        if (metadata[assetPolicy] !== undefined) {
-          metadata[assetPolicy] = {
-            [assetName]: assetMetadata,
-            ...metadata[assetPolicy],
-          };
-        } else {
-          metadata = {
-            [assetPolicy]: {
-              [assetName]: assetMetadata,
-            },
-            ...metadata,
-          };
-        }
-        return metadata;
+      if (meta && meta[collection]) {
+        const {
+          [collection]: oldCollection, ...rest
+        } = meta;
+
+        const newCollection = {
+          [name]: metadata,
+          ...oldCollection,
+        };
+
+        return {
+          [collection]: {
+            ...newCollection,
+          }, ...rest,
+        };
+      }
+
+      if (meta !== undefined) {
+        return {
+          [collection]: {
+            [name]: metadata,
+          },
+          ...meta,
+        };
       }
 
       return {
-        [assetPolicy]: {
-          [assetName]: assetMetadata,
-        },
+        [collection]: { [name]: metadata },
       };
     };
 
@@ -446,10 +451,10 @@ export class Transaction {
         data: mint[1],
       }))
       .reduce((metadatums, mint) => {
-        return metadatums.set(mint.data.label, createMetadata(
+        return metadatums.set(mint.data.label, forge(
           mint, metadatums.get(mint.data.label),
         ));
-      }, new Map<Label, Metadata>)
+      }, new Map<string, Metadata>)
       .forEach((metadata, label) => {
         this._txBuilder.add_json_metadatum(
           csl.BigNum.from_str(label),
