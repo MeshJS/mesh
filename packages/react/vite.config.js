@@ -17,13 +17,13 @@ export default defineConfig({
       ],
       output: {
         globals: {
-            react: 'React', 'react-dom': 'ReactDOM',
+          react: 'React',
+          'react-dom': 'ReactDOM',
         },
       },
       plugins: [
         babel({
           babelHelpers: 'bundled',
-          exclude: 'node_modules/**',
           extensions: ['.ts', '.tsx'],
         }),
         typescript({
@@ -39,9 +39,6 @@ export default defineConfig({
     },
   },
   plugins: [
-    react({
-      jsxRuntime: 'automatic',
-      jsxImportSource: "@emotion/react",
-    }),
+    react(),
   ],
 });
