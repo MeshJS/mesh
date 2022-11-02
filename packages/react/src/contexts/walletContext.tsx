@@ -15,7 +15,7 @@ const INITIAL_STATE = {
   walletName: '', walletInstance: {} as BrowserWallet,
 };
 
-const useWalletStore = () => {
+export const useWalletStore = () => {
   const [error, setError] = useState<unknown>(undefined);
 
   const [connectingWallet, setConnectingWallet] =
@@ -65,13 +65,3 @@ export const WalletContext = createContext<WalletContext>({
   connectedWalletName: INITIAL_STATE.walletName,
   connectingWallet: false,
 });
-
-export const MeshProvider = ({ children }) => {
-  const store = useWalletStore();
-
-  return (
-    <WalletContext.Provider value={store}>
-      {children}
-    </WalletContext.Provider>
-  );
-};
