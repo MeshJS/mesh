@@ -109,5 +109,5 @@ dist
 .DS_Store
 
 _local
-
+.rollup.cache
 packages/cli

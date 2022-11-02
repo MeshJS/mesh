@@ -1,5 +1,6 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
+import babel from '@rollup/plugin-babel';
 import typescript from '@rollup/plugin-typescript';
 import react from '@vitejs/plugin-react';
 
@@ -16,13 +17,19 @@ export default defineConfig({
       ],
       output: {
         globals: {
-            react: 'React',
-            'react-dom': 'ReactDOM',
+            react: 'React', 'react-dom': 'ReactDOM',
         },
-    },
+      },
       plugins: [
-        typescript(),
-      ]
+        babel({
+          babelHelpers: 'bundled',
+          exclude: 'node_modules/**',
+          extensions: ['.ts', '.tsx'],
+        }),
+        typescript({
+          outputToFilesystem: false,
+        }),
+      ],
     },
     target: ['esnext'],
   },
@@ -32,6 +39,9 @@ export default defineConfig({
     },
   },
   plugins: [
-    react(),
+    react({
+      jsxRuntime: 'automatic',
+      jsxImportSource: "@emotion/react",
+    }),
   ],
 });

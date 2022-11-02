@@ -3,7 +3,7 @@
   "description": "React Hooks & Components you need for building dApps on Cardano.",
   "homepage": "https://mesh.martify.io",
   "author": "MartifyLabs",
-  "version": "0.1.0-beta.5",
+  "version": "0.1.0-beta.6",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -16,34 +16,56 @@
   "keywords": [
     "blockchain",
     "cardano",
-    "plutus",
     "react",
     "utxo"
   ],
-  "main": "dist/martifylabs-mesh-react.cjs.js",
-  "module": "dist/martifylabs-mesh-react.esm.js",
+  "main": "dist/mesh-react.cjs",
+  "module": "dist/mesh-react.js",
   "scripts": {
-    "build": "yarn preconstruct build",
-    "dev": "yarn preconstruct watch"
+    "build": "vite build",
+    "dev": "start-storybook -p 6006"
   },
   "exports": {
     ".": {
-      "import": "./dist/martifylabs-mesh-react.esm.js",
-      "require": "./dist/martifylabs-mesh-react.cjs.js"
+      "import": "./dist/mesh-react.js",
+      "require": "./dist/mesh-react.cjs"
+    }
+  },
+  "babelMacros": {
+    "twin": {
+      "config": "./tailwind.config.cjs",
+      "preset": "emotion"
     }
   },
   "devDependencies": {
-    "@babel/core": "7.19.3",
-    "@babel/preset-react": "7.18.6",
-    "@babel/preset-typescript": "7.18.6",
-    "@preconstruct/cli": "2.2.2",
+    "@babel/core": "7.19.6",
+    "@emotion/babel-plugin": "11.10.5",
+    "@rollup/plugin-babel": "6.0.2",
+    "@rollup/plugin-typescript": "9.0.2",
+    "@storybook/addon-actions": "6.5.13",
+    "@storybook/addon-essentials": "6.5.13",
+    "@storybook/addon-interactions": "6.5.13",
+    "@storybook/addon-links": "6.5.13",
+    "@storybook/builder-vite": "0.2.5",
+    "@storybook/react": "6.5.13",
+    "@storybook/testing-library": "0.0.13",
+    "@vitejs/plugin-react": "2.2.0",
     "autoprefixer": "10.4.12",
-    "babel-plugin-module-resolver": "4.1.0",
-    "postcss": "8.4.18"
+    "babel-loader": "8.2.5",
+    "babel-plugin-macros": "3.1.0",
+    "postcss": "8.4.18",
+    "rollup": "3.2.3",
+    "tailwindcss": "3.2.1",
+    "twin.macro": "3.0.0-rc.5",
+    "vite": "3.1.4"
   },
   "peerDependencies": {
-    "@martifylabs/mesh": "1.1.0-beta.9",
+    "@martifylabs/mesh": "1.1.0-beta.10",
     "react": "17.x || 18.x",
     "react-dom": "17.x || 18.x"
+  },
+  "dependencies": {
+    "@emotion/react": "11.10.5",
+    "@emotion/styled": "11.10.5"
   }
 }
