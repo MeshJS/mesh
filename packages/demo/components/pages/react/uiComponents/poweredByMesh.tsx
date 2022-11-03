@@ -1,7 +1,7 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { PoweredByMesh } from '@martifylabs/mesh-react';
+import { MeshBadge } from '@martifylabs/mesh-react';
 
 export default function UiPoweredByMesh() {
   return (
@@ -40,7 +40,7 @@ function Right() {
   return (
     <Card>
       <Codeblock data={code2} isJson={false} />
-      <PoweredByMesh />
+      <MeshBadge />
     </Card>
   );
 }

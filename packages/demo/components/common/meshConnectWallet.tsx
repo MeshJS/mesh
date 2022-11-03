@@ -1,9 +1,9 @@
-import { ConnectWallet } from '@martifylabs/mesh-react';
+import { SelectWallet } from '@martifylabs/mesh-react';
 
 export default function MeshConnectWallet() {
   return (
     <div className='mb-4'>
-      <ConnectWallet />
+      <SelectWallet />
     </div>
   );
 }
