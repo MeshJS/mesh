@@ -3,7 +3,7 @@ import { MeshLogo } from './MeshLogo';
 
 const StyledLink = tw.a`
   flex flex-col items-center max-w-fit p-1
-  border-solid border-current border-2 rounded-md
+  border-2 border-current border-solid rounded-md
   font-semibold text-xl text-stone-700 no-underline
 `;
 

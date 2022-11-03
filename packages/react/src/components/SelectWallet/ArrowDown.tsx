@@ -1,6 +1,6 @@
 import tw from 'twin.macro';
 
-const StyledArrowDown = tw.svg`h-4 ml-2`;
+const StyledArrowDown = tw.svg`h-6 ml-2`;
 
 export const ArrowDown = () => (
   <StyledArrowDown

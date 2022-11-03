@@ -2,19 +2,23 @@ import tw, { styled } from 'twin.macro';
 import { useState } from 'react';
 import { useWallet, useWalletList } from '@mesh/hooks';
 import { ArrowDown } from './ArrowDown';
+import { MenuItem } from './MenuItem';
 
-const StyledConnectButton = tw.button`
-  inline-flex justify-center
-  rounded-md border border-gray-100
+const StyledMenuButton = tw.button`
+  flex items-center justify-center
   bg-white bg-opacity-0
-  px-4 py-2
-  text-sm font-medium
-  shadow-sm hover:bg-opacity-20 bg-white/[.06]
-  backdrop-blur w-60
+  text-xl font-normal
+  border rounded-md
+  w-60 py-2 px-4
 `;
 
-const StyledMenu = styled.div(({ hidden }: { hidden: boolean }) => [
-  tw`z-10 absolute grid grid-cols-1 inline-flex justify-center rounded-md border border-gray-100 bg-white bg-opacity-0 px-4 py-2 text-sm font-medium shadow-sm hover:bg-opacity-20 bg-white/[.06] backdrop-blur w-60`,
+const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
+  tw`
+    z-10 absolute grid grid-cols-1 inline-flex justify-center
+    rounded-md border border-gray-100 bg-white bg-opacity-0
+    px-4 py-2 text-sm font-medium shadow-sm
+    hover:bg-opacity-20 bg-white/[.06] backdrop-blur w-60
+  `,
   hidden && tw`hidden`,
 ]);
 
@@ -23,44 +27,37 @@ const StyledMenuItem = tw.button`
 `;
 
 export const SelectWallet = () => {
-  const wallets = useWalletList();
+  const [hideMenu, setHideMenu] = useState(true);
 
   const {
-    connect, connected, name,
+    connect, connected, connecting, error, name,
   } = useWallet();
 
-  const [hidden, setHidden] = useState(true);
+  const walletList = useWalletList();
 
   return (
     <div
-      onMouseEnter={() => setHidden(false)}
-      onMouseLeave={() => setHidden(true)}
+      onMouseEnter={() => setHideMenu(false)}
+      onMouseLeave={() => setHideMenu(true)}
     >
-      <StyledConnectButton type="button" onClick={() => setHidden(!hidden)}>
-        {connected ? `Connected: ${name}` : 'Connect Wallet'} <ArrowDown />
-      </StyledConnectButton>
-      <StyledMenu hidden={hidden}>
-        {wallets.map((wallet, i) => {
+      <StyledMenuButton type="button" onClick={() => setHideMenu(!hideMenu)}>
+        {connected ? `Connected: ${name}` : 'Select Wallet'} <ArrowDown />
+      </StyledMenuButton>
+      <StyledMenuList hidden={false}>
+        {walletList.map((wallet, i) => {
           return (
             <StyledMenuItem
               key={i}
               onClick={() => {
                 connect(wallet.name);
-                setHidden(!hidden);
+                setHideMenu(!hideMenu);
               }}
             >
-              <div tw="flex-none">
-                <img src={wallet.icon} tw="h-7 mr-4" />
-              </div>
-              <div
-                tw={`flex-1 flex justify-start items-center h-full text-white font-normal	hover:font-bold`}
-              >
-                <span>{wallet.name}</span>
-              </div>
+              <MenuItem icon={wallet.icon} name={wallet.name} />
             </StyledMenuItem>
           );
         })}
-      </StyledMenu>
+      </StyledMenuList>
     </div>
   );
 };
