@@ -6,57 +6,58 @@ import { MenuItem } from './MenuItem';
 
 const StyledMenuButton = tw.button`
   flex items-center justify-center
-  bg-white bg-opacity-0
-  text-xl font-normal
-  border rounded-md
-  w-60 py-2 px-4
+  font-normal text-lg
+  border rounded-t-lg
+  w-60 px-4 py-2
+  shadow-sm
 `;
 
 const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
   tw`
-    z-10 absolute grid grid-cols-1 inline-flex justify-center
-    rounded-md border border-gray-100 bg-white bg-opacity-0
-    px-4 py-2 text-sm font-medium shadow-sm
-    hover:bg-opacity-20 bg-white/[.06] backdrop-blur w-60
+    shadow-sm backdrop-blur
+    border rounded-b-lg
+    text-center
+    absolute
+    w-60 
   `,
   hidden && tw`hidden`,
 ]);
 
-const StyledMenuItem = tw.button`
-  flex justify-evenly items-start p-2 w-full
-`;
-
 export const SelectWallet = () => {
-  const [hideMenu, setHideMenu] = useState(true);
+  const [hideMenuList, setHideMenuList] =
+    useState(true);
 
   const {
-    connect, connected, connecting, error, name,
+    connect, connected, name,
   } = useWallet();
 
   const walletList = useWalletList();
 
   return (
     <div
-      onMouseEnter={() => setHideMenu(false)}
-      onMouseLeave={() => setHideMenu(true)}
+      onMouseEnter={() => setHideMenuList(false)}
+      onMouseLeave={() => setHideMenuList(true)}
     >
-      <StyledMenuButton type="button" onClick={() => setHideMenu(!hideMenu)}>
-        {connected ? `Connected: ${name}` : 'Select Wallet'} <ArrowDown />
+      <StyledMenuButton type="button" onClick={() => setHideMenuList(!hideMenuList)}>
+        {connected
+          ? `Connected: ${name}`
+          : <>Select Wallet <ArrowDown /></>
+        }
       </StyledMenuButton>
-      <StyledMenuList hidden={false}>
-        {walletList.map((wallet, i) => {
-          return (
-            <StyledMenuItem
-              key={i}
-              onClick={() => {
+      <StyledMenuList hidden={hideMenuList}>
+      {walletList.length > 0
+        ? walletList.map((wallet, index) => (
+            <MenuItem
+              key={index}
+              icon={wallet.icon}
+              name={wallet.name}
+              connect={() => {
                 connect(wallet.name);
-                setHideMenu(!hideMenu);
+                setHideMenuList(!hideMenuList);
               }}
-            >
-              <MenuItem icon={wallet.icon} name={wallet.name} />
-            </StyledMenuItem>
-          );
-        })}
+            />
+          ))
+        : <span>No Wallet Found.</span>}
       </StyledMenuList>
     </div>
   );

@@ -1,20 +1,24 @@
 import tw from 'twin.macro';
 
 const StyledItem = tw.div`
-  flex
+  flex items-center
+  cursor-pointer
+  px-4 py-2
 `;
 
 const StyledIcon = tw.img`
-  flex-none h-7 mr-4
+  h-12 m-1 pr-2
 `;
 
 const StyledName = tw.span`
-  flex-1 flex justify-start items-center h-full text-white font-normal hover:font-bold
+  text-xl font-normal
 `;
 
-export const MenuItem = ({ icon, name }) => (
-  <StyledItem>
+export const MenuItem = ({ icon, name, connect }) => (
+  <StyledItem onClick={connect}>
     <StyledIcon src={icon} />
-    <StyledName>{name}</StyledName>
+    <StyledName>
+      {name.at(0).toUpperCase() + name.slice(1).toLowerCase()}
+    </StyledName>
   </StyledItem>
 );
