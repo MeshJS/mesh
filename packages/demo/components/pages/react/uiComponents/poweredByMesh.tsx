@@ -10,7 +10,7 @@ export default function UiPoweredByMesh() {
     <>
       <SectionTwoCol
         sidebarTo="poweredByMesh"
-        header="Powered by Mesh"
+        header="Powered by Mesh Badge"
         leftFn={Left()}
         rightFn={Right(darkMode, setDarkMode)}
       />
@@ -30,11 +30,11 @@ function Left() {
 }
 
 function Right(darkMode, setDarkMode) {
-  let code2 = `import { PoweredByMesh } from '@martifylabs/mesh-react';\n\n`;
+  let code2 = `import { MeshBadge } from '@martifylabs/mesh-react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  return (\n`;
   code2 += `    <>\n`;
-  code2 += `      <PoweredByMesh dark={${darkMode}} />\n`;
+  code2 += `      <MeshBadge dark={${darkMode}} />\n`;
   code2 += `    </>\n`;
   code2 += `  );\n`;
   code2 += `}\n`;
