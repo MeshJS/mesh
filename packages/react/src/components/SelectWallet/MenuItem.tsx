@@ -9,7 +9,7 @@ const StyledItem = tw.div`
 `;
 
 const StyledIcon = tw.img`
-  h-12 m-1 pr-2
+  h-8 m-1 pr-2
 `;
 
 const StyledName = tw.span`

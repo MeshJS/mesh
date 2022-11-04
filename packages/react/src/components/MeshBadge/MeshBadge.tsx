@@ -7,11 +7,11 @@ const StyledLink = tw.a`
   font-semibold text-xl text-stone-700 no-underline
 `;
 
-export const MeshBadge = () => (
+export const MeshBadge = ({ dark = false }) => (
   <StyledLink
+    style={{color: dark ? '#FFFFFF' : '#111111'}}
     href="https://mesh.martify.io/"
     rel="noopener noreferrer"
-    className="m-mesh-badge"
     target="_blank"
   >
     <MeshLogo />
