@@ -6,6 +6,10 @@ const StyledIcon = tw.img`
   h-6 m-2
 `;
 
+const StyledSmall = tw.span`
+  text-xs
+`;
+
 export const WalletBalance = ({ connected, name, connecting }) => {
   const wallet = useWalletList().find((wallet) => wallet.name === name);
   const balance = useLovelace();
@@ -13,7 +17,9 @@ export const WalletBalance = ({ connected, name, connecting }) => {
   return connected && balance && wallet?.icon ? (
     <>
       <StyledIcon src={wallet.icon} />
-      {parseInt(balance, 10) / 1_000_000} ₳
+      {/* {parseInt(balance, 10) / 1_000_000} */}
+      ₳{parseInt((parseInt(balance, 10) / 1_000_000), 10)}.
+      <StyledSmall>{balance.substr(balance.length - 6)}</StyledSmall>
     </>
   ) : connected && wallet?.icon ? (
     <>
