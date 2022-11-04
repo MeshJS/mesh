@@ -11,12 +11,12 @@ const GettingStartedPage: NextPage = () => {
       link: '/guides',
       thumbnail: '/getting-started/office-g8b03895cc_640.jpg',
     },
-    {
-      title: 'Starter Templates',
-      desc: 'Kick start your projects with our templates using CLI',
-      link: '/starter-templates',
-      thumbnail: '/getting-started/color-samples-g2e3c7e40c_1280.jpg',
-    },
+    // {
+    //   title: 'Starter Templates',
+    //   desc: 'Kick start your projects with our templates using CLI',
+    //   link: '/starter-templates',
+    //   thumbnail: '/getting-started/color-samples-g2e3c7e40c_1280.jpg',
+    // },
   ];
 
   return (

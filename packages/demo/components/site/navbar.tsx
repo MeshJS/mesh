@@ -149,12 +149,12 @@ function SubMenuGetStarted() {
               desc="Step by step guides to build on Cardano"
               icon={<DocumentTextIcon className="w-5 h-5" />}
             />
-            <SubMenuLinks
+            {/* <SubMenuLinks
               href={`/starter-templates`}
               title="Starter Templates"
               desc="Kick start your projects with our templates using CLI"
               icon={<CubeTransparentIcon className="w-5 h-5" />}
-            />
+            /> */}
           </ul>
         </div>
       </div>

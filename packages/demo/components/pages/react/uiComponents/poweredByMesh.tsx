@@ -20,8 +20,8 @@ function Left() {
   return (
     <>
       <p>
-        If you love Mesh, here's a little logo for you to embed on your
-        application.
+        If you love Mesh, here's a beautifully designed badge for you to embed
+        on your application.
       </p>
     </>
   );

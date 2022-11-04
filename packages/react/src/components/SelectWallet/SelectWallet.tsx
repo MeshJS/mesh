@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useWallet, useWalletList } from '@mesh/hooks';
 import { MenuItem } from './MenuItem';
 import { WalletBalance } from './WalletBalance';
+import { ConnectedMenuItem } from './ConnectedMenuItem';
 
 const StyledMenuButton = tw.button`
   flex items-center justify-center
@@ -23,12 +24,9 @@ const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
 ]);
 
 export const SelectWallet = () => {
-  const [hideMenuList, setHideMenuList] =
-    useState(true);
+  const [hideMenuList, setHideMenuList] = useState(true);
 
-  const {
-    connect, connected, name,
-  } = useWallet();
+  const { connect, connected, name, connecting, disconnect } = useWallet();
 
   const walletList = useWalletList();
 
@@ -37,12 +35,19 @@ export const SelectWallet = () => {
       onMouseEnter={() => setHideMenuList(false)}
       onMouseLeave={() => setHideMenuList(true)}
     >
-      <StyledMenuButton type="button" onClick={() => setHideMenuList(!hideMenuList)}>
-        <WalletBalance connected={connected} name={name} />
+      <StyledMenuButton
+        type="button"
+        onClick={() => setHideMenuList(!hideMenuList)}
+      >
+        <WalletBalance
+          connected={connected}
+          name={name}
+          connecting={connecting}
+        />
       </StyledMenuButton>
       <StyledMenuList hidden={hideMenuList}>
-      {walletList.length > 0
-        ? walletList.map((wallet, index) => (
+        {!connected && walletList.length > 0 ? (
+          walletList.map((wallet, index) => (
             <MenuItem
               key={index}
               icon={wallet.icon}
@@ -54,7 +59,18 @@ export const SelectWallet = () => {
               active={name === wallet.name}
             />
           ))
-        : <span>No Wallet Found.</span>}
+        ) : walletList.length === 0 ? (
+          <span>No Wallet Found.</span>
+        ) : (
+          <>
+            <ConnectedMenuItem
+              label="Disconnect"
+              onclick={() => {
+                disconnect();
+              }}
+            />
+          </>
+        )}
       </StyledMenuList>
     </div>
   );

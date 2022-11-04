@@ -3,7 +3,7 @@ import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import { useAddress } from '@martifylabs/mesh-react';
-import MeshConnectWallet from '../../../common/meshConnectWallet';
+import { SelectWallet } from '@martifylabs/mesh-react';
 
 export default function UseAddress() {
   return (
@@ -46,7 +46,7 @@ function Right() {
   return (
     <Card>
       <Codeblock data={code2} isJson={false} />
-      <MeshConnectWallet />
+      <SelectWallet />
       {address !== undefined && (
         <>
           <div>

@@ -34,7 +34,7 @@ const ReactGetStartedPage: NextPage = () => {
         sidebarItems={sidebarItems}
         image="/react/athlete-gca57603b5_1280.jpg"
       >
-        <Element name="installation">
+        {/* <Element name="installation">
           <h2>Install with CLI</h2>
           <p>
             The easiest way to get started building your own app is to use the
@@ -48,6 +48,23 @@ const ReactGetStartedPage: NextPage = () => {
           <p>
             Visit <Link href="/starter-templates">Starter Templates</Link>{' '}
             and kick start your project with one of our starters.
+          </p>
+        </Element> */}
+
+        <Element name="installation">
+          <h2>Install Mesh React</h2>
+          <p>
+            Mesh provide a collection of useful UI components, so you can easily
+            include web3 functionality and convenient utilities for your
+            application.
+          </p>
+          <p>
+            To start, install <code>mesh-react</code>:
+          </p>
+          <Codeblock data={`yarn add @martifylabs/mesh-react`} isJson={false} />
+          <p>
+            Next, let's add <code>MeshProvider</code> to the root of the
+            application.
           </p>
         </Element>
 
