@@ -11,6 +11,7 @@ export const MeshBadge = () => (
   <StyledLink
     href="https://mesh.martify.io/"
     rel="noopener noreferrer"
+    className="m-mesh-badge"
     target="_blank"
   >
     <MeshLogo />
