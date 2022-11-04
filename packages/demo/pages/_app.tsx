@@ -19,7 +19,6 @@ function MyApp({ Component, pageProps }: AppProps) {
   useEffect(() => {
     const handleRouteChange = (url) => {
       ga.pageview(url);
-      console.log('url', url);
     };
     router.events.on('routeChangeComplete', handleRouteChange);
     return () => {
