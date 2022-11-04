@@ -27,7 +27,7 @@ export default function AboutHero() {
           </a>
         </div>
         <div className="grid gap-8 pt-8 lg:pt-12 mt-8 lg:mt-12 border-t border-gray-600 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
+          {/* <div>
             <h2 className="mb-1 text-lg font-bold">Starter templates</h2>
             <p className="mb-1 text-sm text-gray-400">
               Start your project by installing with CLI
@@ -38,7 +38,7 @@ export default function AboutHero() {
                 <ArrowRightIcon className="ml-1 w-5 h-5" />
               </span>
             </Link>
-          </div>
+          </div> */}
           <div>
             <h2 className="mb-1 text-lg font-bold">
               React components and hooks
