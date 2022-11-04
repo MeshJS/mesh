@@ -1,9 +1,9 @@
 import tw from 'twin.macro';
 
-const StyledArrowDown = tw.svg`h-6 ml-2`;
+const StyledChevronDown = tw.svg`h-6 m-2`;
 
-export const ArrowDown = () => (
-  <StyledArrowDown
+export const ChevronDown = () => (
+  <StyledChevronDown
     fill="none"
     aria-hidden="true"
     viewBox="0 0 24 24"
@@ -16,5 +16,5 @@ export const ArrowDown = () => (
       strokeWidth="2"
       d="M19 9l-7 7-7-7"
     />
-  </StyledArrowDown>
+  </StyledChevronDown>
 );

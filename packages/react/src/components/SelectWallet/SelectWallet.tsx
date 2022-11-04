@@ -1,13 +1,13 @@
 import tw, { styled } from 'twin.macro';
 import { useState } from 'react';
 import { useWallet, useWalletList } from '@mesh/hooks';
-import { ArrowDown } from './ArrowDown';
 import { MenuItem } from './MenuItem';
+import { WalletBalance } from './WalletBalance';
 
 const StyledMenuButton = tw.button`
   flex items-center justify-center
   font-normal text-lg
-  border rounded-t-lg
+  border rounded-t-md
   w-60 px-4 py-2
   shadow-sm
 `;
@@ -15,10 +15,9 @@ const StyledMenuButton = tw.button`
 const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
   tw`
     shadow-sm backdrop-blur
-    border rounded-b-lg
+    border rounded-b-md
+    absolute w-60
     text-center
-    absolute
-    w-60 
   `,
   hidden && tw`hidden`,
 ]);
@@ -39,10 +38,7 @@ export const SelectWallet = () => {
       onMouseLeave={() => setHideMenuList(true)}
     >
       <StyledMenuButton type="button" onClick={() => setHideMenuList(!hideMenuList)}>
-        {connected
-          ? `Connected: ${name}`
-          : <>Select Wallet <ArrowDown /></>
-        }
+        <WalletBalance connected={connected} name={name} />
       </StyledMenuButton>
       <StyledMenuList hidden={hideMenuList}>
       {walletList.length > 0
@@ -55,6 +51,7 @@ export const SelectWallet = () => {
                 connect(wallet.name);
                 setHideMenuList(!hideMenuList);
               }}
+              active={name === wallet.name}
             />
           ))
         : <span>No Wallet Found.</span>}
