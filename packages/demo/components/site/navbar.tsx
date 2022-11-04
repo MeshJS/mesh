@@ -16,7 +16,6 @@ import {
   CpuChipIcon,
   PaintBrushIcon,
   DocumentTextIcon,
-  CubeTransparentIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -132,9 +131,9 @@ function SubMenuGetStarted() {
       onMouseLeave={() => setShowSubmenu(false)}
     >
       <Link href="/getting-started">
-      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-        Get Started <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
-      </button>
+        <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+          Get Started <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+        </button>
       </Link>
       <div
         className={`grid ${
