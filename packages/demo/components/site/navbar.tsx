@@ -16,6 +16,7 @@ import {
   CpuChipIcon,
   PaintBrushIcon,
   DocumentTextIcon,
+  HeartIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -243,6 +244,12 @@ function SubMenuAbout() {
               title="Implemented CIPs"
               desc="Mesh adhere to standards"
               icon={<BanknotesIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/about/support-us`}
+              title="Support Us"
+              desc="Ways you can support us!"
+              icon={<HeartIcon className="w-5 h-5" />}
             />
           </ul>
         </div>

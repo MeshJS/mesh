@@ -28,7 +28,7 @@ function Left() {
 }
 
 function Right() {
-  let code2 = `import { ConnectWallet } from '@martifylabs/mesh-react';\n\n`;
+  let code2 = `import { CardanoWallet } from '@martifylabs/mesh-react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  return (\n`;
   code2 += `    <>\n`;
