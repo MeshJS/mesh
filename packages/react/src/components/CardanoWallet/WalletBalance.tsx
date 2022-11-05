@@ -17,8 +17,7 @@ export const WalletBalance = ({ connected, name, connecting }) => {
   return connected && balance && wallet?.icon ? (
     <>
       <StyledIcon src={wallet.icon} />
-      {/* {parseInt(balance, 10) / 1_000_000} */}
-      ₳{parseInt((parseInt(balance, 10) / 1_000_000), 10)}.
+      ₳ {parseInt((parseInt(balance, 10) / 1_000_000).toString(), 10)}.
       <StyledSmall>{balance.substr(balance.length - 6)}</StyledSmall>
     </>
   ) : connected && wallet?.icon ? (
