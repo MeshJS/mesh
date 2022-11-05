@@ -12,11 +12,17 @@ const GuidesPage: NextPage = () => {
       thumbnail: '/guides/nextjs.png',
     },
     {
-        title: 'Minting on Node.js',
-        desc: 'Load a CLI generated key and mint assets on Node.js',
-        link: '/guides/mintingonnodejs',
-        thumbnail: '/guides/nodejs.jpg',
-      },
+      title: 'Minting on Node.js',
+      desc: 'Load a CLI generated key and mint assets on Node.js.',
+      link: '/guides/minting-on-nodejs',
+      thumbnail: '/guides/nodejs.jpg',
+    },
+    {
+      title: 'Multi-signature Transactions',
+      desc: 'Learn about multi-sig transaction, build a minting transaction involving AppWallet and BrowserWallet.',
+      link: '/guides/multisig-minting',
+      thumbnail: '/guides/key-gb17103099_640.jpg',
+    },
     // {
     //   title: 'Start a NestJS backend',
     //   desc: 'WIP',
@@ -24,10 +30,10 @@ const GuidesPage: NextPage = () => {
     //   thumbnail: '/guides/nextjs.png',
     // },
     // {
-    //   title: 'Lock and redeem assets with Smart Contracts',
-    //   desc: 'Coming soon...',
-    //   link: '/guides/coming-soon',
-    //   thumbnail: '/guides/nextjs.png',
+    //   title: 'Integrate your Smart Contract to a Web App',
+    //   desc: 'A step-by-step guide to integrate your Cardano Smart Contract to a web application.',
+    //   link: '/guides/smartcontract',
+    //   thumbnail: '/guides/smart-contracts.jpg',
     // },
     // {
     //   title: 'How to sign in to dApp with wallet',
@@ -61,12 +67,8 @@ const GuidesPage: NextPage = () => {
             Our Guides
           </h2>
           <p className="font-light text-gray-500 sm:text-xl dark:text-gray-400">
-            Mesh has been designed from the start for gradual adoption, and you
-            can use as little or as much as you need. Whether you want to build
-            an application to connect wallet and display what's in your wallet
-            or start a complex dApp to create transactions and interact with
-            Cardano blockchain and smart contracts; this section will help you
-            get started.
+            Whether you are new to web development or a seasoned blockchain
+            full-stack developer, these guides will help you get started.
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">

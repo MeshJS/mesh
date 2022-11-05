@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import {
   Transaction,
   BlockfrostProvider,
   resolveDataHash,
 } from '@martifylabs/mesh';
+import Link from 'next/link';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -45,9 +46,9 @@ function Left({ assetUnit, inputDatum }) {
   let codeSnippetGetAssetUtxo = `import { Transaction, BlockfrostProvider, resolveDataHash } from '@martifylabs/mesh';\n\n`;
   codeSnippetGetAssetUtxo += `async function _getAssetUtxo({ scriptAddress, asset, datum }) {\n`;
   codeSnippetGetAssetUtxo += `  const blockfrostProvider = new BlockfrostProvider(\n`;
-  codeSnippetGetAssetUtxo += `    'BLOCKFROST_API_KEY_PREVIEW',\n`;
+  codeSnippetGetAssetUtxo += `    'BLOCKFROST_API_KEY',\n`;
   codeSnippetGetAssetUtxo += `  );\n`;
-  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAddressUtxos(\n`;
+  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAddressUTxOs(\n`;
   codeSnippetGetAssetUtxo += `    scriptAddress,\n`;
   codeSnippetGetAssetUtxo += `    asset\n`;
   codeSnippetGetAssetUtxo += `  );\n`;
@@ -59,7 +60,15 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippetGetAssetUtxo += `}\n`;
 
   let codeSnippetCreateTx = `const tx = new Transaction({ initiator: wallet })\n`;
-  codeSnippetCreateTx += `  .redeemValue('${script}', assetUtxo, { datum: '${inputDatum}' })\n`;
+  codeSnippetCreateTx += `  .redeemValue({\n`;
+  codeSnippetCreateTx += `    value: assetUtxo,\n`;
+  codeSnippetCreateTx += `    script: {\n`;
+  codeSnippetCreateTx += `      version: 'V1',\n`;
+  codeSnippetCreateTx += `      code: '${script}',\n`;
+  codeSnippetCreateTx += `    },\n`;
+  codeSnippetCreateTx += `    datum: '${inputDatum}',\n`;
+  codeSnippetCreateTx += `  })\n`;
+
   codeSnippetCreateTx += `  .sendValue(address, assetUtxo)\n`;
   codeSnippetCreateTx += `  .setRequiredSigners([address]);\n`;
 
@@ -102,9 +111,9 @@ function Left({ assetUnit, inputDatum }) {
         First, let's create a function to fetch input UTXO from the script
         address. This input UTXO is needed for transaction builder. In this
         demo, we are using <code>BlockfrostProvider</code>, but this can be
-        interchange with other providers that Mesh provides. (We would have used{' '}
-        <code>KoiosProvider</code> here, but unfortunately Koios do not support{' '}
-        <code>preview</code> network.)
+        interchange with other providers that Mesh provides. We could have used{' '}
+        <code>KoiosProvider</code> here, see{' '}
+        <Link href="/apis/providers">Providers</Link>.
       </p>
       <Codeblock data={codeSnippetGetAssetUtxo} isJson={false} />
       <p>
@@ -137,7 +146,7 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
     const blockfrostProvider = new BlockfrostProvider(
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
     );
-    const utxos = await blockfrostProvider.fetchAddressUtxos(
+    const utxos = await blockfrostProvider.fetchAddressUTxOs(
       scriptAddress,
       asset
     );
@@ -169,7 +178,14 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
       const address = await wallet.getChangeAddress();
 
       const tx = new Transaction({ initiator: wallet })
-        .redeemValue(script, assetUtxo, { datum: inputDatum })
+        .redeemValue({
+          value: assetUtxo,
+          script: {
+            version: 'V1',
+            code: script,
+          },
+          datum: inputDatum,
+        })
         .sendValue(address, assetUtxo)
         .setRequiredSigners([address]);
 
@@ -200,6 +216,7 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
                 runDemoFn={runDemo}
                 loading={state == 1}
                 response={response}
+                label="Unlock asset"
               />
               <RunDemoResult response={response} />
             </>

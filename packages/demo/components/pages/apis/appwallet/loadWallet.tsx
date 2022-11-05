@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import SectionTwoCol from '../common/sectionTwoCol';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
 import { AppWallet, BlockfrostProvider } from '@martifylabs/mesh';
 import {
   demoMnemonic,
@@ -14,7 +14,7 @@ import useAppWallet from '../../../../contexts/appWallet';
 import Input from '../../../ui/input';
 import Textarea from '../../../ui/textarea';
 import ButtonGroup from '../../../ui/buttongroup';
-import BlockchainProviderCodeSnippet from '../common/blockchainProvider';
+import BlockchainProviderCodeSnippet from '../../../common/blockchainProvider';
 
 export default function LoadWallet() {
   const [demoMethod, setDemoMethod] = useState<number>(0);
@@ -153,7 +153,7 @@ function Right(
   setStakeSkey
 ) {
   const [loading, setLoading] = useState<boolean>(false);
-  const { setWallet, setWalletNetwork, setWalletConnected } = useAppWallet();
+  const { setWallet, setWalletNetwork } = useAppWallet();
   const [responseAddress, setResponseAddress] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
 
@@ -161,8 +161,7 @@ function Right(
     setLoading(true);
     setResponseError(null);
     setResponseAddress(null);
-    setWalletConnected(false);
-    // setWallet(null); // TODO help
+    setWallet({} as AppWallet);
 
     const blockchainProvider = new BlockfrostProvider(
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
@@ -189,7 +188,6 @@ function Right(
           });
           setWallet(_wallet);
           setWalletNetwork(network);
-          setWalletConnected(true);
           const address = _wallet.getPaymentAddress();
           setResponseAddress(address);
         }
@@ -210,7 +208,6 @@ function Right(
         });
         setWallet(_wallet);
         setWalletNetwork(network);
-        setWalletConnected(true);
         const address = _wallet.getPaymentAddress();
         setResponseAddress(address);
       } catch (error) {
@@ -219,9 +216,7 @@ function Right(
     }
     if (demoMethod == 2) {
       try {
-        const stake = stakeSkey?.length > 0
-          ? stakeSkey
-          : undefined;
+        const stake = stakeSkey?.length > 0 ? stakeSkey : undefined;
         const _wallet = new AppWallet({
           networkId: network,
           fetcher: blockchainProvider,
@@ -234,7 +229,6 @@ function Right(
         });
         setWallet(_wallet);
         setWalletNetwork(network);
-        setWalletConnected(true);
         const address = _wallet.getPaymentAddress();
         setResponseAddress(address);
       } catch (error) {

@@ -56,9 +56,9 @@ const Metatags = ({ title, keywords, description, image }) => {
 Metatags.defaultProps = {
   title: null,
   keywords:
-    'cardano, blockchain, solutions, plutus, eutxo, crypto, web3, metaverse, gaming, ecommerce, nfts, apis',
+    'developer, tools, cardano, blockchain, solutions, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis',
   description:
-    'Intuitive and easy-to-use tools and services to creators and companies who plan to build on Cardano.',
+    'Intuitive and easy-to-use tools and services to build amazing applications on Cardano.',
   image: null,
 };
 

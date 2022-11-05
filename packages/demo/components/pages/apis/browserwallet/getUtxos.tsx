@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function GetUtxos() {
   return (
@@ -26,10 +26,6 @@ function Left() {
         the wallet. ADA balance and multiasset value in each UTXO are specified
         in <code>amount</code>.
       </p>
-      <Codeblock
-        data={`const utxos = await wallet.getUtxos();`}
-        isJson={false}
-      />
     </>
   );
 }
@@ -49,6 +45,10 @@ function Right() {
     <>
       {hasAvailableWallets && (
         <Card>
+          <Codeblock
+            data={`const utxos = await wallet.getUtxos();`}
+            isJson={false}
+          />
           {walletConnected ? (
             <>
               <RunDemoButton

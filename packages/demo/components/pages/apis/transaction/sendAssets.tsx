@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import FetchSelectAssets from '../common/fetchSelectAssets';
+import FetchSelectAssets from '../../../common/fetchSelectAssets';
 import { Transaction } from '@martifylabs/mesh';
 import type { Asset } from '@martifylabs/mesh';
 
@@ -117,7 +117,8 @@ function Left({ userInput }) {
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
-  let codeSnippet1 = `let assets: Asset[] = [];\n`;
+  let codeSnippet1 = `import type { Asset } from '@martifylabs/mesh';\n\n`;
+  codeSnippet1 += `let assets: Asset[] = [];\n`;
   codeSnippet1 += `for (const asset of nativeAssets) {\n`;
   codeSnippet1 += `  let thisAsset = {\n`;
   codeSnippet1 += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
@@ -159,7 +160,7 @@ function Right({ userInput, updateField }) {
       for (const recipient of userInput) {
         if (recipient.assets.lovelace) {
           tx.sendLovelace(
-            recipient.address,
+            { address: recipient.address },
             recipient.assets.lovelace.toString()
           );
         }
@@ -175,7 +176,7 @@ function Right({ userInput, updateField }) {
             };
             assets.push(thisAsset);
           }
-          tx.sendAssets(recipient.address, assets);
+          tx.sendAssets({ address: recipient.address }, assets);
         }
       }
 

@@ -1,7 +1,12 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
-import { parseHttpError, toBytes } from '@mesh/common/utils';
-import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
+import {
+  parseHttpError, toBytes, toScriptRef,
+} from '@mesh/common/utils';
+import type {
+  AssetMetadata, NativeScript,
+  PlutusScript, Protocol, UTxO,
+} from '@mesh/common/types';
 
 export class BlockfrostProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
@@ -14,23 +19,48 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     });
   }
 
-  async fetchAddressUtxos(address: string, asset?: string): Promise<UTxO[]> {
+  async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : '';
     const url = `addresses/${address}/utxos` + filter;
 
     const paginateUTxOs = async (page = 1, utxos: UTxO[] = []): Promise<UTxO[]> => {
-      const { data, status } = await this._axiosInstance.get(`${url}?page=${page}`);
+      const { data, status } = await this._axiosInstance.get(
+        `${url}?page=${page}`,
+      );
 
       if (status === 200) {
         return data.length > 0
-          ? paginateUTxOs(page + 1, [...utxos, ...data.map(toUTxO)])
+          ? paginateUTxOs(page + 1, [...utxos, ...await Promise.all(data.map(toUTxO))])
           : utxos;
       }
 
       throw parseHttpError(data);
     };
 
-    const toUTxO = (bfUTxO): UTxO => ({
+    const resolveScriptRef = async (scriptHash): Promise<string | undefined> => {
+      if (scriptHash) {
+        const { data, status } = await this._axiosInstance.get(
+          `scripts/${scriptHash}`,
+        );
+
+        if (status === 200) {
+          const script = data.type.startsWith('plutus')
+            ? {
+                code: await this.fetchPlutusScriptCBOR(scriptHash),
+                version: data.type.replace('plutus', ''),
+              } as PlutusScript
+            : await this.fetchNativeScriptJSON(scriptHash);
+
+          return toScriptRef(script).to_hex();
+        }
+
+        throw parseHttpError(data);
+      }
+
+      return undefined;
+    };
+
+    const toUTxO = async (bfUTxO): Promise<UTxO> => ({
       input: {
         outputIndex: bfUTxO.output_index,
         txHash: bfUTxO.tx_hash,
@@ -39,13 +69,15 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
         address: address,
         amount: bfUTxO.amount,
         dataHash: bfUTxO.data_hash ?? undefined,
+        plutusData: bfUTxO.inline_datum ?? undefined,
+        scriptRef: await resolveScriptRef(bfUTxO.reference_script_hash),
       },
     });
 
     try {
       return await paginateUTxOs();
     } catch (error) {
-      throw parseHttpError(error);
+      return [];
     }
   }
 
@@ -64,7 +96,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return {
+        return <Protocol>{
           coinsPerUTxOSize: data.coins_per_utxo_word,
           collateralPercent: data.collateral_percent,
           decentralisation: data.decentralisation_param,
@@ -85,7 +117,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
           poolDeposit: data.pool_deposit,
           priceMem: data.price_mem,
           priceStep: data.price_step,
-        } as Protocol;
+        };
 
       throw parseHttpError(data);
     } catch (error) {
@@ -101,11 +133,33 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return data as string;
+        return data;
 
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  private async fetchPlutusScriptCBOR(scriptHash: string): Promise<string> {
+    const { data, status } = await this._axiosInstance.get(
+      `scripts/${scriptHash}/cbor`,
+    );
+
+    if (status === 200)
+      return data.cbor;
+
+    throw parseHttpError(data);
+  }
+
+  private async fetchNativeScriptJSON(scriptHash: string): Promise<NativeScript> {
+    const { data, status } = await this._axiosInstance.get(
+      `scripts/${scriptHash}/json`,
+    );
+
+    if (status === 200)
+      return data.json;
+
+    throw parseHttpError(data);
   }
 }

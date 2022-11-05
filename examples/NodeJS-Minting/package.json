@@ -1,5 +1,5 @@
 {
-  "name": "mesh-mint-nodejs",
+  "name": "nodejs-minting",
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import useWallet from '../../../../contexts/wallet';
 import Codeblock from '../../../ui/codeblock';
-import SectionTwoCol from '../common/sectionTwoCol';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import Card from '../../../ui/card';
 import Input from '../../../ui/input';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import ConnectCipWallet from '../common/connectCipWallet';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function SignData() {
   const [payload, setPayload] = useState<string>('mesh');
@@ -15,16 +15,13 @@ export default function SignData() {
     <SectionTwoCol
       sidebarTo="signData"
       header="Sign Data"
-      leftFn={Left(payload)}
+      leftFn={Left()}
       rightFn={Right(payload, setPayload)}
     />
   );
 }
 
-function Left(payload) {
-  let code = `const addresses = await wallet.getUsedAddresses();\n`;
-  code += `const signature = await wallet.signData(addresses[0], '${payload}');`;
-
+function Left() {
   return (
     <>
       <p>
@@ -46,7 +43,6 @@ function Left(payload) {
         to you as the developer which address you want to use in your
         application.
       </p>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -66,6 +62,10 @@ function Right(payload, setPayload) {
     setResponse(results);
     setLoading(false);
   }
+
+  let code = `const addresses = await wallet.getUsedAddresses();\n`;
+  code += `const signature = await wallet.signData(addresses[0], '${payload}');`;
+
   return (
     <Card>
       <Input
@@ -74,6 +74,7 @@ function Right(payload, setPayload) {
         placeholder="Payload"
         label="Payload"
       />
+      <Codeblock data={code} isJson={false} />
       {hasAvailableWallets && (
         <>
           {walletConnected ? (

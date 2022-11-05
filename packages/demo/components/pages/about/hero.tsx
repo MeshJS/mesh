@@ -27,6 +27,32 @@ export default function AboutHero() {
           </a>
         </div>
         <div className="grid gap-8 pt-8 lg:pt-12 mt-8 lg:mt-12 border-t border-gray-600 sm:grid-cols-2 lg:grid-cols-4">
+          {/* <div>
+            <h2 className="mb-1 text-lg font-bold">Starter templates</h2>
+            <p className="mb-1 text-sm text-gray-400">
+              Start your project by installing with CLI
+            </p>
+            <Link href="/starter-templates">
+              <span className="link">
+                Learn more
+                <ArrowRightIcon className="ml-1 w-5 h-5" />
+              </span>
+            </Link>
+          </div> */}
+          <div>
+            <h2 className="mb-1 text-lg font-bold">
+              React components and hooks
+            </h2>
+            <p className="mb-1 text-sm text-gray-400">
+              Everything you need to build web3 apps
+            </p>
+            <Link href="/react">
+              <span className="link">
+                Learn more
+                <ArrowRightIcon className="ml-1 w-5 h-5" />
+              </span>
+            </Link>
+          </div>
           <div>
             <h2 className="mb-1 text-lg font-bold">App Wallet released</h2>
             <p className="mb-1 text-sm text-gray-400">
@@ -34,7 +60,7 @@ export default function AboutHero() {
             </p>
             <Link href="/apis/appwallet">
               <span className="link">
-                Read more
+                Start implementing
                 <ArrowRightIcon className="ml-1 w-5 h-5" />
               </span>
             </Link>
@@ -44,13 +70,15 @@ export default function AboutHero() {
             <p className="mb-1 text-sm text-gray-400">
               We released Mesh 1.0 on 22 Sept
             </p>
-            {/* <a
-              href="#"
-              className="inline-flex items-center text-sm font-semibold text-primary-500 hover:underline"
+            <a
+              href="https://www.npmjs.com/package/@martifylabs/mesh"
+              rel="noreferrer"
+              className="link"
+              target="_blank"
             >
-              Read more
+              NPM page
               <ArrowRightIcon className="ml-1 w-5 h-5" />
-            </a> */}
+            </a>
           </div>
           {/* <div>
             <h2 className="mb-1 text-lg font-bold">Minting is ready</h2>

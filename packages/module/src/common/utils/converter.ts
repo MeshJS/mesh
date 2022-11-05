@@ -1,14 +1,20 @@
 import { csl } from '@mesh/core';
-import { POLICY_ID_LENGTH, REDEEMER_TAGS } from '@mesh/common/constants';
 import {
-  deserializeDataHash, deserializePlutusData,
+  LANGUAGE_VERSIONS, POLICY_ID_LENGTH, REDEEMER_TAGS,
+} from '@mesh/common/constants';
+import {
+  deserializeDataHash, deserializeEd25519KeyHash,
+  deserializePlutusData, deserializePlutusScript,
   deserializeScriptHash, deserializeScriptRef,
   deserializeTxHash,
 } from './deserializer';
 import type {
-  PlutusData, Redeemer, RedeemerTag, TransactionUnspentOutput, Value,
+  RedeemerTag, ScriptRef,
+  TransactionUnspentOutput, Value,
 } from '@mesh/core';
-import type { Action, Asset, Data, UTxO } from '@mesh/common/types';
+import type {
+  Action, Asset, Data, NativeScript, PlutusScript, UTxO,
+} from '@mesh/common/types';
 
 /* -----------------[ Address ]----------------- */
 
@@ -24,9 +30,9 @@ export const toRewardAddress = (bech32: string) => csl.RewardAddress.from_addres
 
 export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 
-export const toBytes = (hex: string) => {
+export const toBytes = (hex: string): Uint8Array => {
   if (hex.length % 2 === 0 && /^[0-9A-F]*$/i.test(hex))
-    return Buffer.from(hex, 'hex') as Uint8Array;
+    return Buffer.from(hex, 'hex');
 
   return Buffer.from(hex, 'utf-8');
 };
@@ -37,9 +43,128 @@ export const fromLovelace = (lovelace: number) => lovelace / 1_000_000;
 
 export const toLovelace = (ada: number) => ada * 1_000_000;
 
+/* -----------------[ NativeScript ]----------------- */
+
+export const fromNativeScript = (script: csl.NativeScript) => {
+  const fromNativeScripts = (scripts: csl.NativeScripts) => {
+    const nativeScripts = new Array<NativeScript>();
+
+    for (let index = 0; index < scripts.len(); index += 1) {
+      nativeScripts.push(fromNativeScript(scripts.get(index)));
+    }
+
+    return nativeScripts;
+  };
+
+  switch (script.kind()) {
+    case csl.NativeScriptKind.ScriptAll: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const scriptAll = script.as_script_all()!;
+      return <NativeScript>{
+        type: 'all',
+        scripts: fromNativeScripts(scriptAll.native_scripts()),
+      };
+    }
+    case csl.NativeScriptKind.ScriptAny: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const scriptAny = script.as_script_any()!;
+      return <NativeScript>{
+        type: 'any',
+        scripts: fromNativeScripts(scriptAny.native_scripts()),
+      };
+    }
+    case csl.NativeScriptKind.ScriptNOfK: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const scriptNOfK = script.as_script_n_of_k()!;
+      return <NativeScript>{
+        type: 'atLeast',
+        required: scriptNOfK.n(),
+        scripts: fromNativeScripts(scriptNOfK.native_scripts()),
+      };
+    }
+    case csl.NativeScriptKind.TimelockStart: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const timelockStart = script.as_timelock_start()!;
+      return <NativeScript>{
+        type: 'after',
+        slot: timelockStart.slot_bignum().to_str(),
+      };
+    }
+    case csl.NativeScriptKind.TimelockExpiry: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const timelockExpiry = script.as_timelock_expiry()!;
+      return <NativeScript>{
+        type: 'before',
+        slot: timelockExpiry.slot_bignum().to_str(),
+      };
+    }
+    case csl.NativeScriptKind.ScriptPubkey: {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const scriptPubkey = script.as_script_pubkey()!;
+      return <NativeScript>{
+        type: 'sig',
+        keyHash: scriptPubkey.addr_keyhash().to_hex(),
+      };
+    }
+    default:
+      throw new Error(`Script Kind: ${script.kind()}, is not supported`);
+  }
+};
+
+export const toNativeScript = (script: NativeScript) => {
+  const toNativeScripts = (scripts: NativeScript[]) => {
+    const nativeScripts = csl.NativeScripts.new();
+
+    scripts.forEach((script) => {
+      nativeScripts.add(toNativeScript(script));
+    });
+
+    return nativeScripts;
+  };
+
+  switch (script.type) {
+    case 'all':
+      return csl.NativeScript.new_script_all(
+        csl.ScriptAll.new(
+          toNativeScripts(script.scripts),
+        ),
+      );
+    case 'any':
+      return csl.NativeScript.new_script_any(
+        csl.ScriptAny.new(
+          toNativeScripts(script.scripts),
+        ),
+      );
+    case 'atLeast':
+      return csl.NativeScript.new_script_n_of_k(
+        csl.ScriptNOfK.new(
+          script.required, toNativeScripts(script.scripts),
+        ),
+      );
+    case 'after':
+      return csl.NativeScript.new_timelock_start(
+        csl.TimelockStart.new_timelockstart(
+          csl.BigNum.from_str(script.slot),
+        ),
+      );
+    case 'before':
+      return csl.NativeScript.new_timelock_expiry(
+        csl.TimelockExpiry.new_timelockexpiry(
+          csl.BigNum.from_str(script.slot),
+        ),
+      );
+    case 'sig':
+      return csl.NativeScript.new_script_pubkey(
+        csl.ScriptPubkey.new(
+          deserializeEd25519KeyHash(script.keyHash),
+        ),
+      );
+  }
+};
+
 /* -----------------[ PlutusData ]----------------- */
 
-export const toPlutusData = (data: Data): PlutusData => {
+export const toPlutusData = (data: Data) => {
   const toPlutusList = (data: Data[]) => {
     const plutusList = csl.PlutusList.new();
     data.forEach((element) => {
@@ -81,8 +206,8 @@ export const toPlutusData = (data: Data): PlutusData => {
 
 /* -----------------[ Redeemer ]----------------- */
 
-export const toRedeemer = (action: Action): Redeemer => {
-  const lookupRedeemerTag = (key: string) => REDEEMER_TAGS[key] as RedeemerTag;
+export const toRedeemer = (action: Action) => {
+  const lookupRedeemerTag = (key: string): RedeemerTag => REDEEMER_TAGS[key];
 
   return csl.Redeemer.new(
     lookupRedeemerTag(action.tag),
@@ -95,11 +220,46 @@ export const toRedeemer = (action: Action): Redeemer => {
   );
 };
 
+/* -----------------[ ScriptRef ]----------------- */
+
+export const fromScriptRef = (scriptRef: ScriptRef) => {
+  if (scriptRef.is_plutus_script()) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const plutusScript = scriptRef.plutus_script()!;
+
+    return <PlutusScript>{
+      code: plutusScript.to_hex(),
+      version: Object.keys(LANGUAGE_VERSIONS).find(
+        key => LANGUAGE_VERSIONS[key].to_hex() === plutusScript.language_version().to_hex(),
+      ),
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const nativeScript = scriptRef.native_script()!;
+
+  return fromNativeScript(nativeScript);
+};
+
+export const toScriptRef = (script: PlutusScript | NativeScript) => {
+  if ('code' in script) {
+    const plutusScript = deserializePlutusScript(
+      script.code, script.version,
+    );
+
+    return csl.ScriptRef.new_plutus_script(plutusScript);
+  }
+
+  return csl.ScriptRef.new_native_script(
+    toNativeScript(script),
+  );
+};
+
 /* -----------------[ TransactionUnspentOutput ]----------------- */
 
 export const fromTxUnspentOutput = (
   txUnspentOutput: TransactionUnspentOutput
-): UTxO => {
+) => {
   const dataHash = txUnspentOutput.output().has_data_hash()
     ? txUnspentOutput.output().data_hash()?.to_hex()
     : undefined;
@@ -112,7 +272,7 @@ export const fromTxUnspentOutput = (
     ? txUnspentOutput.output().script_ref()?.to_hex()
     : undefined;
 
-  return {
+  return <UTxO>{
     input: {
       outputIndex: txUnspentOutput.input().index(),
       txHash: txUnspentOutput.input().transaction_id().to_hex(),

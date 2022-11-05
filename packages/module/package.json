@@ -3,7 +3,7 @@
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://mesh.martify.io",
   "author": "MartifyLabs",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -19,8 +19,8 @@
     "plutus",
     "utxo"
   ],
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
+  "main": "dist/mesh.cjs",
+  "module": "dist/mesh.js",
   "typings": "dist/index.d.ts",
   "files": [
     "dist",
@@ -49,12 +49,8 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./hooks": {
-      "import": "./dist/hooks.js",
-      "require": "./dist/hooks.cjs"
+      "import": "./dist/mesh.js",
+      "require": "./dist/mesh.cjs"
     }
   },
   "devDependencies": {
@@ -72,11 +68,12 @@
   "dependencies": {
     "@emurgo/cardano-message-signing-browser": "1.0.1",
     "@emurgo/cardano-message-signing-nodejs": "1.0.1",
-    "@emurgo/cardano-serialization-lib-browser": "11.0.5",
-    "@emurgo/cardano-serialization-lib-nodejs": "11.0.5",
+    "@emurgo/cardano-serialization-lib-browser": "11.1.0",
+    "@emurgo/cardano-serialization-lib-nodejs": "11.1.0",
     "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
     "bip39": "3.0.4",
-    "nanoid": "3.3.4"
+    "nanoid": "3.3.4",
+    "zod": "3.19.1"
   }
 }

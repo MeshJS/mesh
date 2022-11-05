@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function GetLovelace() {
   return (
@@ -22,10 +22,6 @@ function Left() {
   return (
     <>
       <p>Return the lovelace balance in wallet. 1 ADA = 1000000 lovelace.</p>
-      <Codeblock
-        data={`const lovelace = await wallet.getLovelace();`}
-        isJson={false}
-      />
     </>
   );
 }
@@ -45,6 +41,10 @@ function Right() {
     <>
       {hasAvailableWallets && (
         <Card>
+          <Codeblock
+            data={`const lovelace = await wallet.getLovelace();`}
+            isJson={false}
+          />
           {walletConnected ? (
             <>
               <RunDemoButton

@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import { Transaction, Asset } from '@martifylabs/mesh';
-import FetchSelectAssets from '../common/fetchSelectAssets';
+import FetchSelectAssets from '../../../common/fetchSelectAssets';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -80,17 +80,25 @@ function Left({ userInput, inputDatum }) {
       return assetId != 'lovelace';
     });
     if (nativeAssets.length) {
-      codeSnippet += `\n  .sendAssets(\n    "${scriptAddress}",`;
-      codeSnippet += `\n    [`;
+      // codeSnippet += `\n  .sendAssets(\n    "${scriptAddress}",`;
+
+      codeSnippet += `\n`;
+      codeSnippet += `  .sendAssets(\n`;
+      codeSnippet += `    {\n`;
+      codeSnippet += `      address: scriptAddress,\n`;
+      codeSnippet += `      datum: {\n`;
+      codeSnippet += `        value: '${inputDatum}',\n`;
+      codeSnippet += `      },\n`;
+      codeSnippet += `    },\n`;
+      codeSnippet += `    [`;
       for (const asset of nativeAssets) {
         codeSnippet += `\n      {`;
         codeSnippet += `\n        unit: "${asset}",`;
         codeSnippet += `\n        quantity: "1",`;
-        codeSnippet += `\n      },`;
+        codeSnippet += `\n      },\n`;
       }
-      codeSnippet += `\n    ],\n`;
-      codeSnippet += `    { datum: '${inputDatum}' }`;
-      codeSnippet += `\n  )`;
+      codeSnippet += `    ],\n`;
+      codeSnippet += `  )`;
     }
   }
   codeSnippet += `;\n`;
@@ -144,10 +152,24 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
         })
       );
 
+      if (assets.length == 0) {
+        setState(0);
+        setResponseError(`No assets selected for locking.`);
+        return;
+      }
+
       console.log(111, Object.keys(userInput[0].assets)[0]);
       updateUserStorage('lockedAssetUnit', Object.keys(userInput[0].assets)[0]);
+      tx.sendAssets(
+        {
+          address: scriptAddress,
+          datum: {
+            value: inputDatum,
+          },
+        },
+        assets
+      );
 
-      tx.sendAssets(scriptAddress, assets, { datum: inputDatum });
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
@@ -204,7 +226,7 @@ function InputTable({ userInput, updateField, inputDatum, setInputDatum }) {
           Lock assets in smart contract
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Define a datum and select assets to lock in smart contract. Note:
-            this demo only works on <code>preview</code> network.
+            this demo only works on <code>preprod</code> network.
           </p>
         </caption>
         <thead className="thead">

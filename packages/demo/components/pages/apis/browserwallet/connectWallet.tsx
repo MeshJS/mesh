@@ -1,8 +1,8 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import SectionTwoCol from '../common/sectionTwoCol';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function ConnectWallet() {
   return (
@@ -16,7 +16,6 @@ export default function ConnectWallet() {
 }
 
 function Left() {
-  const { walletNameConnected } = useWallet();
   return (
     <>
       <p>
@@ -31,25 +30,21 @@ function Left() {
         available wallets, then provide the wallet <code>name</code> for which
         wallet the user would like to connect with.
       </p>
-      <Codeblock
-        data={`const wallet = BrowserWallet.enable('${
-          walletNameConnected ? walletNameConnected : 'eternl'
-        }');`}
-        isJson={false}
-      />
     </>
   );
 }
 
 function Right() {
-  const { hasAvailableWallets } = useWallet();
+  const { hasAvailableWallets, walletNameConnected } = useWallet();
   return (
-    <>
-      {hasAvailableWallets && (
-        <Card>
-          <ConnectCipWallet />
-        </Card>
-      )}
-    </>
+    <Card>
+      <Codeblock
+        data={`const wallet = await BrowserWallet.enable('${
+          walletNameConnected ? walletNameConnected : 'eternl'
+        }');`}
+        isJson={false}
+      />
+      {hasAvailableWallets && <ConnectCipWallet />}
+    </Card>
   );
 }

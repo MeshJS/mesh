@@ -1,4 +1,4 @@
-import ApisLayout from '../common/layout';
+import CommonLayout from '../../../common/layout';
 import GetInstalledWallets from './getInstalledWallets';
 import Hero from './hero';
 import ConnectWallet from './connectWallet';
@@ -37,10 +37,10 @@ export default function BrowserWallet() {
     { label: 'Get collection of assets', to: 'getPolicyIdAssets' },
   ];
   return (
-    <ApisLayout sidebarItems={sidebarItems}>
+    <CommonLayout sidebarItems={sidebarItems}>
       <Hero />
       <Main />
-    </ApisLayout>
+    </CommonLayout>
   );
 }
 

@@ -120,6 +120,7 @@ export default function AboutFaq() {
                       href="https://cardano.stackexchange.com/"
                       target="_blank"
                       rel="noreferrer"
+                      className="link"
                     >
                       cardano.stackexchange.com
                     </a>{' '}
@@ -131,6 +132,7 @@ export default function AboutFaq() {
                       href="https://github.com/MartifyLabs/mesh/issues"
                       target="_blank"
                       rel="noreferrer"
+                      className="link"
                     >
                       an issue
                     </a>
@@ -142,6 +144,7 @@ export default function AboutFaq() {
                       href="https://discord.gg/Z6AH9dahdH"
                       target="_blank"
                       rel="noreferrer"
+                      className="link"
                     >
                       Martify&apos;s
                     </a>
@@ -150,6 +153,7 @@ export default function AboutFaq() {
                       href="https://discord.gg/Va7DXqSSn8"
                       target="_blank"
                       rel="noreferrer"
+                      className="link"
                     >
                       Gimbalabs&apos;
                     </a>{' '}
@@ -158,6 +162,7 @@ export default function AboutFaq() {
                       href="https://discord.gg/inputoutput"
                       target="_blank"
                       rel="noreferrer"
+                      className="link"
                     >
                       IOG Technical Community&apos;s
                     </a>{' '}

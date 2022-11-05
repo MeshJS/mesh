@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
@@ -80,9 +80,12 @@ export default function SendAda() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `const tx = new Transaction({ initiator: wallet });`;
+  let codeSnippet = `const tx = new Transaction({ initiator: wallet })\n`;
   for (const recipient of userInput) {
-    codeSnippet += `\ntx.sendLovelace(\n  '${recipient.address}',\n  '${recipient.assets.lovelace}'\n)`;
+    codeSnippet += `  .sendLovelace(\n`;
+    codeSnippet += `    '${recipient.address}',\n`;
+    codeSnippet += `    '${recipient.assets.lovelace}'\n`;
+    codeSnippet += `  )\n`;
   }
   codeSnippet += `;\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
@@ -126,7 +129,7 @@ function Right({ userInput, updateField }) {
       for (const recipient of userInput) {
         if (recipient.assets.lovelace) {
           tx.sendLovelace(
-            recipient.address,
+            { address: recipient.address },
             recipient.assets.lovelace.toString()
           );
         }

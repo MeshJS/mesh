@@ -7,19 +7,15 @@ import wasm from 'vite-plugin-wasm';
 export default defineConfig({
   build: {
     lib: {
-      fileName: '[name]',
+      entry: './src/index.ts',
       formats: ['cjs', 'es'],
     },
     rollupOptions: {
       external: [
         '@emurgo/cardano-message-signing-nodejs',
         '@emurgo/cardano-serialization-lib-nodejs',
-        'axios', 'bip39', 'nanoid',
+        'axios', 'bip39', 'nanoid', 'zod',
       ],
-      input: {
-        index: resolve(__dirname, 'src/index.ts'),
-        hooks: resolve(__dirname, 'src/hooks/index.ts'),
-      },
       plugins: [
         typescript(),
       ]

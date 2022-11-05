@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
@@ -54,7 +54,7 @@ export default function Minting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1 || field == 'metadata') {
+      if (value >= 1 || field == 'metadata' || field == 'assetName') {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -121,9 +121,7 @@ function Left({ userInput }) {
     codeSnippet += `  assetQuantity: '${recipient.quantity}',\n`;
     codeSnippet += `  metadata: assetMetadata${counter},\n`;
     codeSnippet += `  label: '${recipient.assetLabel}',\n`;
-    codeSnippet += `  recipient: {\n`;
-    codeSnippet += `    address: '${recipient.address}',\n`;
-    codeSnippet += `  },\n`;
+    codeSnippet += `  recipient: '${recipient.address}',\n`;
     codeSnippet += `};\n`;
     codeSnippet += `tx.mintAsset(\n`;
     codeSnippet += `  forgingScript,\n`;
@@ -150,9 +148,7 @@ function Left({ userInput }) {
   codeSnippet2 += `  assetQuantity: '1',\n`;
   codeSnippet2 += `  metadata: assetMetadata,\n`;
   codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: {\n`;
-  codeSnippet2 += `    address: '${demoAddresses.testnet}',\n`;
-  codeSnippet2 += `  },\n`;
+  codeSnippet2 += `  recipient: '${demoAddresses.testnet}' \n`;
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.mintAsset(\n`;
   codeSnippet2 += `  forgingScript,\n`;
@@ -192,14 +188,15 @@ function Left({ userInput }) {
       <p>Here is the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        Additionally, you can include <code>NativeScript</code> to define the
-        forging script (for example if you want to have a policy locking
-        script), you can do this:
+        Additionally, you can define the forging script with{' '}
+        <code>NativeScript</code>. For example if you want to have a policy
+        locking script, you can do this:
       </p>
       <Codeblock data={codeSnippetNative} isJson={false} />
       <p>
-        As for the <code>keyHash</code>, you can get it using{' '}
-        <code>resolvePaymentKeyHash</code>, see{' '}
+        You can get the <code>keyHash</code> with{' '}
+        <code>resolvePaymentKeyHash</code>. As for <code>slot</code>, get it
+        using <code>resolveSlotNo</code>. See{' '}
         <Link href="/apis/resolvers">Resolvers</Link>.
       </p>
     </>
@@ -242,9 +239,7 @@ function Right({ userInput, updateField }) {
           assetQuantity: recipient.quantity.toString(),
           metadata: assetMetadata,
           label: recipient.assetLabel,
-          recipient: {
-            address: recipient.address,
-          },
+          recipient: recipient.address,
         };
         tx.mintAsset(forgingScript, asset);
       }

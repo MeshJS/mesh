@@ -5,7 +5,7 @@ export interface IInitiator {
   getUsedCollateral(
     limit?: number
   ): SometimesPromise<TransactionUnspentOutput[]>;
-  getUsedUtxos(): SometimesPromise<TransactionUnspentOutput[]>;
+  getUsedUTxOs(): SometimesPromise<TransactionUnspentOutput[]>;
 }
 
 type SometimesPromise<T> = Promise<T> | T;

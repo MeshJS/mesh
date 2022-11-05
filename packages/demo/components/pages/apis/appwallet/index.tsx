@@ -1,4 +1,4 @@
-import ApisLayout from '../common/layout';
+import CommonLayout from '../../../common/layout';
 import GenerateWallet from './generateWallet';
 import Hero from './hero';
 import LoadWallet from './loadWallet';
@@ -14,10 +14,10 @@ export default function AppWallet() {
   ];
 
   return (
-    <ApisLayout sidebarItems={sidebarItems}>
+    <CommonLayout sidebarItems={sidebarItems}>
       <Hero />
       <Main />
-    </ApisLayout>
+    </CommonLayout>
   );
 }
 

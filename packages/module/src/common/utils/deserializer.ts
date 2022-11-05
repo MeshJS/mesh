@@ -1,5 +1,7 @@
 import { csl } from '@mesh/core';
+import { LANGUAGE_VERSIONS } from '@mesh/common/constants';
 import { toBytes } from './converter';
+import type { LanguageVersion } from '@mesh/common/types';
 
 export const deserializeAddress = (address: string) => csl.Address
   .from_bytes(toBytes(address));
@@ -19,8 +21,10 @@ export const deserializeNativeScript = (nativeScript: string) => csl.NativeScrip
 export const deserializePlutusData = (plutusData: string) => csl.PlutusData
   .from_bytes(toBytes(plutusData));
 
-export const deserializePlutusScript = (plutusScript: string) => csl.PlutusScript
-  .from_bytes(toBytes(plutusScript));
+export const deserializePlutusScript = (
+  plutusScript: string, version: LanguageVersion,
+) => csl.PlutusScript
+  .from_bytes_with_version(toBytes(plutusScript), LANGUAGE_VERSIONS[version]);
 
 export const deserializeScriptRef = (scriptRef: string) => csl.ScriptRef
   .from_bytes(toBytes(scriptRef));

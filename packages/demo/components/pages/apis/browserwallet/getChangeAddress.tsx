@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function GetChangeAddress() {
   return (
@@ -27,10 +27,6 @@ function Left() {
         the connected wallet. This can be used as a generic receive address as
         well.
       </p>
-      <Codeblock
-        data={`const changeAddress = await wallet.getChangeAddress();`}
-        isJson={false}
-      />
     </>
   );
 }
@@ -50,6 +46,10 @@ function Right() {
     <>
       {hasAvailableWallets && (
         <Card>
+          <Codeblock
+            data={`const changeAddress = await wallet.getChangeAddress();`}
+            isJson={false}
+          />
           {walletConnected ? (
             <>
               <RunDemoButton
