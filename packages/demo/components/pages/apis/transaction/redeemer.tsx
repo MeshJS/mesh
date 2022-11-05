@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
-import SectionTwoCol from '../common/sectionTwoCol';
-import { resolveDataHash } from '@martifylabs/mesh';
-import type { Data } from '@martifylabs/mesh';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 
 export default function UsingRedeemer() {
   return (

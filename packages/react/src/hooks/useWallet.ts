@@ -22,7 +22,7 @@ export const useWallet = () => {
     connected: hasConnectedWallet,
     name: connectedWalletName,
     connecting: connectingWallet,
-    instance: connectedWalletInstance,
+    wallet: connectedWalletInstance,
     connect: connectWallet,
     disconnect,
     error,
