@@ -2,7 +2,6 @@ import CommonLayout from '../../../common/layout';
 import Burning from './burning';
 import CoinSelection from './coinSelection';
 import DesignDatum from './datum';
-// import GetSize from './getSize';
 import Hero from './hero';
 import LockAssets from './lockAssets';
 import Minting from './minting';
@@ -10,6 +9,7 @@ import SendAda from './sendAda';
 import SendAssets from './sendAssets';
 import SetTimeLimit from './setTimeLimit';
 import UnlockAssets from './unlockAssets';
+import UsingRedeemer from './redeemer';
 
 export default function Transaction() {
   const sidebarItems = [
@@ -20,6 +20,7 @@ export default function Transaction() {
     { label: 'Lock assets on smart contract', to: 'lockAssets' },
     { label: 'Unlock assets on smart contract', to: 'unlockAssets' },
     { label: 'Designing datum', to: 'datum' },
+    { label: 'Using redeemer', to: 'redeemer' },
     { label: 'Set time limit', to: 'setTimeLimit' },
     { label: 'Coin Selection', to: 'coinSelection' },
   ];
@@ -41,8 +42,8 @@ function Main() {
       <Burning />
       <LockAssets />
       <UnlockAssets />
-      {/* <GetSize /> */}
       <DesignDatum />
+      <UsingRedeemer />
       <SetTimeLimit />
       <CoinSelection />
     </>

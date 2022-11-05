@@ -1,6 +1,6 @@
 ![Mesh Logo](https://mesh.martify.io/logo-mesh/mesh.png)
 
-Mesh is an open-source library to make building dApps accessible. Whether you're a beginner developer, startup, web3 market leader, or a large enterprise, Mesh makes web3 development easy with reliable, scalable, and well-engineered APIs & developer tools.
+Mesh is an open-source library designed to make building dApps accessible. Whether you're a beginner developer, startup, web3 market leader, or a large enterprise, Mesh makes web3 development easy with reliable, scalable, and well-engineered APIs & developer tools.
 
 Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
@@ -14,12 +14,12 @@ Explore the features on [Mesh Playground](https://mesh.martify.io/).
 - [Resolvers - Helpful functions that you need while building dApps](https://mesh.martify.io/apis/resolvers)
 
 ## Why use Mesh
-- Always up to date - Vasil ready, developed closely as the network updates so your app will always works
-- Simple to use - Check out our [guides](https://mesh.martify.io/guides), you will get started in less than 10 mins
-- Adopts best practices - implemented various CIPs and package is well build (no hacking and tweaking needed to get it to work)
-- Thoroughly tested - Mesh is used by developers and learners, built by developers with solid software engineering background
-- Integrates with Cardano projects - Koios, Blockfrost, ADA Handle (and more), you pick what you want to use for your app
-- Well documented - We focus on documentation so you can use it, our [Playground](https://mesh.martify.io/) is built so you can see how it works
+- Always up to date - Vasil-ready, developed promptly as the network updates so your app always works
+- Simple to use - Check out our [guides](https://mesh.martify.io/guides) - you'll get started in less than 10 mins!
+- Adopts best practices - implements various CIPs and package is well build (no hacking and tweaking needed to get it to work)
+- Thoroughly tested - Mesh is used by both developers and learners, and is being built by developers with solid software engineering backgrounds
+- Integrates with Cardano projects - Koios, Blockfrost, ADA Handle (and more), you can pick and choose freely what you want to use for your app
+- Well documented - we focus on documentation so you can use it with ease, and our [Playground](https://mesh.martify.io/) is built so you can see how it works
 
 [Find out more](https://mesh.martify.io/about)
 
@@ -27,4 +27,4 @@ Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
 - Build something - try Mesh by implementing your Web 3.0 project (recommended [starter guide](https://mesh.martify.io/guides/nextjs))
 - Inform others - Tell others about Mesh, and star the [Github repo](https://github.com/MartifyLabs/mesh) :star:
-- Write ups - documentations and guides
+- Write ups - help with documentation and tutorial guides

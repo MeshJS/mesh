@@ -24,6 +24,11 @@ export default function Codeblock({
             {isJson ? JSON.stringify(data, null, 2) : data}
           </Highlight>
         )}
+        {language == 'language-hs' && (
+          <Highlight className={language}>
+            {isJson ? JSON.stringify(data, null, 2) : data}
+          </Highlight>
+        )}
       </pre>
     </div>
   );
