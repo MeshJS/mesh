@@ -1,7 +1,7 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { SelectWallet } from '@martifylabs/mesh-react';
+import { CardanoWallet } from '@martifylabs/mesh-react';
 
 export default function UiConnectWallet() {
   return (
@@ -32,7 +32,7 @@ function Right() {
   code2 += `export default function Page() {\n`;
   code2 += `  return (\n`;
   code2 += `    <>\n`;
-  code2 += `      <SelectWallet />\n`;
+  code2 += `      <CardanoWallet />\n`;
   code2 += `    </>\n`;
   code2 += `  );\n`;
   code2 += `}\n`;
@@ -40,7 +40,7 @@ function Right() {
   return (
     <Card>
       <Codeblock data={code2} isJson={false} />
-      <SelectWallet />
+      <CardanoWallet />
     </Card>
   );
 }

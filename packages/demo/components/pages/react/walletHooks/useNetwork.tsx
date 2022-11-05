@@ -3,7 +3,7 @@ import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import { useNetwork } from '@martifylabs/mesh-react';
-import { SelectWallet } from '@martifylabs/mesh-react';
+import { CardanoWallet } from '@martifylabs/mesh-react';
 
 export default function UseNetwork() {
   return (
@@ -44,7 +44,7 @@ function Right() {
   return (
     <Card>
       <Codeblock data={code2} isJson={false} />
-      <SelectWallet />
+      <CardanoWallet />
       {network !== undefined && (
         <>
           <div>

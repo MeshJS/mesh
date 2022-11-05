@@ -23,7 +23,7 @@ const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
   hidden && tw`hidden`,
 ]);
 
-export const SelectWallet = () => {
+export const CardanoWallet = () => {
   const [hideMenuList, setHideMenuList] = useState(true);
 
   const { connect, connected, name, connecting, disconnect } = useWallet();

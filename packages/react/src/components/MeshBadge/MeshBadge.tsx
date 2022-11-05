@@ -11,7 +11,7 @@ export const MeshBadge = ({ dark = false }) => (
   <StyledLink
     style={{
       color: dark ? '#EEEEEE' : '#111111',
-      backgroundColor: dark ? '#111111' : '#FFFFFF',
+      backgroundColor: dark ? '#111111' : '#EEEEEE',
     }}
     href="https://mesh.martify.io/"
     rel="noopener noreferrer"
