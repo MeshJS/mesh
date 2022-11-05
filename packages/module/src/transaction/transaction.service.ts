@@ -383,7 +383,7 @@ export class Transaction {
         || !this.notVisited('sendValue');
 
       // insure change holds enough ADA to cover multiasset.
-      const selectedUTxOs = await this.selectLovelaceUTxOs(hasMultiAsset);
+      const selectedUTxOs = await this.selectLovelaceUTxOs(false);
       const availableUTxOs = await this.filterAvailableUTxOs(selectedUTxOs);
       
       const coinSelectionStrategy = hasMultiAsset
