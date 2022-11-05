@@ -1,18 +1,10 @@
 import {
-  LockClosedIcon,
   ChevronRightIcon,
   BoltIcon,
   BeakerIcon,
   CheckCircleIcon,
 } from '@heroicons/react/24/solid';
 import Link from 'next/link';
-
-import {
-  useAddress,
-  useWalletList,
-  useWallet,
-  MeshProvider,
-} from '@martifylabs/mesh-react';
 
 export default function Home() {
   return (

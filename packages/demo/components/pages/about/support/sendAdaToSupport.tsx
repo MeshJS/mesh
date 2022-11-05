@@ -17,7 +17,7 @@ export default function SendAdaToSupport() {
             Support Financially
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
-            Thank you for supporting us financially!
+            Your support for this open-source SDK will go a long way. So tank you!
           </p>
           <SendPayment />
         </div>
@@ -27,18 +27,18 @@ export default function SendAdaToSupport() {
 }
 
 function SendPayment() {
-  const { connected, instance } = useWallet();
+  const { connected, wallet } = useWallet();
   const [amount, setAmount] = useState<number>(25);
   const [done, setDone] = useState<boolean>(false);
 
   async function makeTx() {
-    const tx = new Transaction({ initiator: instance }).sendLovelace(
+    const tx = new Transaction({ initiator: wallet }).sendLovelace(
       process.env.NEXT_PUBLIC_DONATE_ADA_ADDRESS!,
       (amount * 1000000).toString()
     );
     const unsignedTx = await tx.build();
-    const signedTx = await instance.signTx(unsignedTx);
-    const txHash = await instance.submitTx(signedTx);
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
     setDone(true);
   }
 
