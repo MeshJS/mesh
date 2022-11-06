@@ -21,7 +21,7 @@ export default function Hero() {
           </div>
         </h2>
         <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
-          Wallet for building transactions on your applications.
+          Wallet for building transactions in your applications.
         </p>
       </header>
       <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">

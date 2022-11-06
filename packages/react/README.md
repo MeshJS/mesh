@@ -8,7 +8,7 @@ Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
 - [Start a Web3 app on Next.js](https://mesh.martify.io/guides/nextjs)
 - [Minting on Node.js](https://mesh.martify.io/guides/mintingonnodejs)
-- [App Wallet - Wallet for building transactions on your applications](https://mesh.martify.io/apis/appwallet)
+- [App Wallet - Wallet for building transactions in your applications](https://mesh.martify.io/apis/appwallet)
 - [Browser Wallet - CIP30 wallets intergration](https://mesh.martify.io/apis/browserwallet)
 - [Transaction - Building, minting, burning, smart contracts and more](https://mesh.martify.io/apis/transaction)
 - [Resolvers - Helpful functions that you need while building dApps](https://mesh.martify.io/apis/resolvers)

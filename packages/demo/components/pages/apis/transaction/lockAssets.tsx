@@ -60,7 +60,7 @@ export default function LockAssets() {
   return (
     <SectionTwoCol
       sidebarTo="lockAssets"
-      header="Lock assets on smart contract"
+      header="Lock assets in smart contract"
       leftFn={Left({ userInput, inputDatum })}
       rightFn={Right({
         userInput,

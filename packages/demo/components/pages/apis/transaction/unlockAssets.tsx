@@ -35,7 +35,7 @@ export default function UnlockAssets() {
   return (
     <SectionTwoCol
       sidebarTo="unlockAssets"
-      header="Unlock assets on smart contract"
+      header="Unlock assets from smart contract"
       leftFn={Left({ assetUnit, inputDatum })}
       rightFn={Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum })}
     />

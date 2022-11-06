@@ -26,10 +26,13 @@ function Hero() {
               Build your dApp with ease on Cardano
             </h1>
             <p className="max-w-xl mx-auto mb-6 font-light text-gray-500 lg:mx-0 xl:mb-8 md:text-lg xl:text-xl dark:text-gray-400">
-              Mesh is an open-source library to make building dApps accessible.
+              {/* Mesh is an open-source library to make building dApps accessible.
               Whether Web3 application or minting a NFT collection; Mesh will
               alleviate many problems from getting started, to building any
-              product you can imagine.
+              product you can imagine. */}
+              Mesh is an open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain.
+              Ranging from wallet interactions to transaction building, it can power applications with varying
+              levels of complexity, limited only by your imagination.
             </p>
             <Link href="/getting-started">
               <div className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 cursor-pointer">
@@ -73,7 +76,7 @@ function Features() {
               Always up to date
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh is developed closely to the network updates. By using Mesh,
+              Mesh is developed closely to network updates. By using Mesh,
               your application will always be ready for the latest network
               changes, so you can focus on building your application.
             </p>
@@ -93,9 +96,7 @@ function Features() {
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
               Getting started with dApp development has never been this easy.
-              Mesh is built in a way so you can get started in as little time as
-              possible. We've built Mesh to handle difficult blockchain
-              interaction.
+              Mesh is conceived in a way that facilitates and speeds up development of decentralised applications.
             </p>
             <Link href="/getting-started">
               <div className="link">
@@ -110,8 +111,8 @@ function Features() {
               Best practices
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh adopts many CIPs, and our package is less than 400KB! This
-              means that your application is fast, responsive and adhere to
+              Mesh follows many CIPs that make it interoprable with other Cardano tools. In addition, the package is less than 400kB! This
+              means your application is fast, responsive and adheres to
               standards.
             </p>
             <Link href="/apis/browserwallet">
