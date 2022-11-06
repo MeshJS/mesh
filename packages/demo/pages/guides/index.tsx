@@ -29,12 +29,12 @@ const GuidesPage: NextPage = () => {
     //   link: '/guides/nestjs',
     //   thumbnail: '/guides/nextjs.png',
     // },
-    // {
-    //   title: 'Integrate your Smart Contract to a Web App',
-    //   desc: 'A step-by-step guide to integrate your Cardano Smart Contract to a web application.',
-    //   link: '/guides/smartcontract',
-    //   thumbnail: '/guides/smart-contracts.jpg',
-    // },
+    {
+      title: 'Integrate your Smart Contract to a Web App',
+      desc: 'A step-by-step guide to integrate your Cardano Smart Contract to a web application.',
+      link: '/guides/smartcontract',
+      thumbnail: '/guides/smart-contracts.jpg',
+    },
     // {
     //   title: 'How to sign in to dApp with wallet',
     //   desc: 'Coming soon...',
