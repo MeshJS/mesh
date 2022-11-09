@@ -20,7 +20,7 @@ export default function Footer() {
   return (
     <footer className="bg-gray-50 dark:bg-gray-800">
       <div className="p-4 py-6 mx-auto max-w-screen-xl md:p-8 lg:-10">
-        <div className="grid grid-cols-2 gap-8 lg:grid-cols-1">
+        <div className="grid grid-cols-1">
           <div className="">
             <div className="flex items-center mb-2 text-2xl font-semibold text-gray-900 sm:mb-0 dark:text-white">
               <div className="mr-2 h-8">

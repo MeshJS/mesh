@@ -17,7 +17,7 @@ export default function SendAdaToSupport() {
             Support Financially
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
-            Your support for this open-source SDK will go a long way. So tank you!
+            Your support for this open-source SDK will go a long way. So thank you!
           </p>
           <SendPayment />
         </div>

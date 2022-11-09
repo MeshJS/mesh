@@ -33,7 +33,7 @@ function Left(userinput, userinput2) {
   code += `  code: '${userinput2}',\n`;
   code += `  version: 'V1',\n`;
   code += `};\n`;
-  code += `const hash = resolvePlutusScriptAddress(script, ${userinput});\n`;
+  code += `const address = resolvePlutusScriptAddress(script, ${userinput});\n`;
 
   return (
     <>

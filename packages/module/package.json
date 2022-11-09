@@ -16,8 +16,7 @@
   "keywords": [
     "blockchain",
     "cardano",
-    "plutus",
-    "utxo"
+    "plutus"
   ],
   "main": "dist/mesh.cjs",
   "module": "dist/mesh.js",

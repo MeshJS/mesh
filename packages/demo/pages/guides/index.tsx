@@ -1,10 +1,9 @@
 import type { NextPage } from 'next';
-import Link from 'next/link';
 import Metatags from '../../components/site/metatags';
-import Card from '../../components/ui/card';
+import CardTitleDescImage from '../../components/ui/cardTitleDescImage';
 
 const GuidesPage: NextPage = () => {
-  const guides = [
+  const items = [
     {
       title: 'Start a Web3 app on Next.js',
       desc: "A step-by-step guide to setup a Next.js web application, connect wallet and browse wallet's assets.",
@@ -72,22 +71,15 @@ const GuidesPage: NextPage = () => {
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {guides.map((guide, i) => {
+          {items.map((item, i) => {
             return (
-              <Card className="cursor-pointer" key={i}>
-                <Link href={guide.link}>
-                  <img className="mb-5 rounded-lg" src={guide.thumbnail} />
-                </Link>
-                {/* <span className="bg-purple-100 text-purple-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded dark:bg-purple-200 dark:text-purple-900">
-                  Article
-                </span> */}
-                <h2 className="my-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                  {guide.title}
-                </h2>
-                <p className="mb-4 font-light text-gray-500 dark:text-gray-400">
-                  {guide.desc}
-                </p>
-              </Card>
+              <CardTitleDescImage
+                title={item.title}
+                desc={item.desc}
+                link={item.link}
+                thumbnail={item.thumbnail}
+                key={i}
+              />
             );
           })}
         </div>
