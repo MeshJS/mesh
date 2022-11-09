@@ -1,4 +1,4 @@
-import FeatureCli from './featureCLI';
+// import FeatureCli from './featureCLI';
 import FeatureReact from './featureReact';
 import FeatureTransaction from './featureTransaction';
 import Hero from './hero';
