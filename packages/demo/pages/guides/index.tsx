@@ -17,7 +17,7 @@ const GuidesPage: NextPage = () => {
       thumbnail: '/guides/nodejs.jpg',
     },
     {
-      title: 'Multi-signature tfransactions',
+      title: 'Multi-signature transactions',
       desc: 'Learn about multi-sig transaction, build a minting transaction involving AppWallet and BrowserWallet.',
       link: '/guides/multisig-minting',
       thumbnail: '/guides/key-gb17103099_640.jpg',
