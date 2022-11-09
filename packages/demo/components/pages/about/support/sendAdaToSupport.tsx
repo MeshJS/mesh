@@ -6,9 +6,9 @@ import { Transaction } from '@martifylabs/mesh';
 export default function SendAdaToSupport() {
   return (
     <section className="bg-white dark:bg-gray-900">
-      <div className="gap-8 items-center py-8 px-4 mx-auto max-w-screen-xl xl:gap-16 md:grid md:grid-cols-2 sm:py-16 lg:px-6">
+      <div className="gap-8 items-center py-8 px-4 mx-auto max-w-screen-xl xl:gap-16 md:grid md:grid-cols-2 sm:py-16 lg:px-6 format dark:format-invert">
         <img
-          className="w-full"
+          className="w-full hidden sm:block"
           src="/support/grasp-g76b6d77d5_640.jpg"
           alt="support"
         />
@@ -17,7 +17,8 @@ export default function SendAdaToSupport() {
             Support Financially
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
-            Your support for this open-source SDK will go a long way. So thank you!
+            Your support for this open-source SDK will go a long way. So thank
+            you!
           </p>
           <SendPayment />
         </div>
@@ -27,7 +28,7 @@ export default function SendAdaToSupport() {
 }
 
 function SendPayment() {
-  const { connected, wallet } = useWallet();
+  const { connected, wallet, hasAvailableWallets } = useWallet();
   const [amount, setAmount] = useState<number>(25);
   const [done, setDone] = useState<boolean>(false);
 
@@ -43,7 +44,9 @@ function SendPayment() {
   }
 
   return (
-    <div className="w-full bg-white rounded-lg shadow dark:border md:mt-0 sm:max-w-md xl:p-0 dark:bg-gray-800 dark:border-gray-700">
+    <>
+    {hasAvailableWallets && (
+      <div className="w-full bg-white rounded-lg shadow dark:border md:mt-0 sm:max-w-md xl:p-0 dark:bg-gray-800 dark:border-gray-700">
       <div className="p-6 space-y-4 md:space-y-6 sm:p-8">
         {!done && connected ? (
           <div className="space-y-4 md:space-y-6">
@@ -56,7 +59,6 @@ function SendPayment() {
                 type="number"
               />
             </div>
-
             <button
               className="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
               onClick={() => makeTx()}
@@ -82,5 +84,8 @@ function SendPayment() {
         )}
       </div>
     </div>
+    )}
+    </>
+    
   );
 }
