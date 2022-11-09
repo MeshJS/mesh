@@ -52,9 +52,9 @@ export default function FeatureTransaction() {
             Chainable Transaction Builder
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
-            With Mesh, you can chain to create complex transactions. You can
+            Mesh enables the creation of complex transactions. You can
             send ADA and NFTS to multiple addresses, lock and unlock from smart
-            contract, all with a single transaction.
+            contracts, all with a single transaction.
           </p>
           <Link href="/apis/transaction">
             <div className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 cursor-pointer">

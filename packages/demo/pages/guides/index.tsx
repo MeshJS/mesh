@@ -17,7 +17,7 @@ const GuidesPage: NextPage = () => {
       thumbnail: '/guides/nodejs.jpg',
     },
     {
-      title: 'Multi-signature tfransactions',
+      title: 'Multi-signature transactions',
       desc: 'Learn about multi-sig transaction, build a minting transaction involving AppWallet and BrowserWallet.',
       link: '/guides/multisig-minting',
       thumbnail: '/guides/key-gb17103099_640.jpg',
@@ -58,7 +58,7 @@ const GuidesPage: NextPage = () => {
     <>
       <Metatags
         title="Guides for Getting Started"
-        description="Build an application to display assets or a complex dApp to interact with Cardano blockchain and smart contracts; this section will help you get started."
+        description="Build an application to display assets or a complex dApp to interact with Cardano blockchain and smart contracts - this section will help you get started."
       />
       <div className="py-4 px-4 mx-auto max-w-screen-xl lg:py-8 lg:px-6">
         <div className="mx-auto max-w-screen-sm text-center mb-8 lg:mb-16">
