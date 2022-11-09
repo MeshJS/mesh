@@ -43,9 +43,7 @@ function Left(address) {
   code1 += `  assetQuantity: '1',\n`;
   code1 += `  metadata: assetMetadata1,\n`;
   code1 += `  label: '721',\n`;
-  code1 += `  recipient: {\n`;
-  code1 += `    address: '${address}',\n`;
-  code1 += `  },\n`;
+  code1 += `  recipient: '${address}'\n`;
   code1 += `};\n`;
   code1 += `\n`;
   code1 += `const tx = new Transaction({ initiator: wallet });\n`;

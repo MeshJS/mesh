@@ -43,26 +43,24 @@ function Right() {
   }
   return (
     <>
-      {hasAvailableWallets && (
-        <Card>
-          <Codeblock
-            data={`const utxos = await wallet.getUtxos();`}
-            isJson={false}
-          />
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={loading}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
-        </Card>
-      )}
+      <Card>
+        <Codeblock
+          data={`const utxos = await wallet.getUtxos();`}
+          isJson={false}
+        />
+        {walletConnected ? (
+          <>
+            <RunDemoButton
+              runDemoFn={runDemo}
+              loading={loading}
+              response={response}
+            />
+            <RunDemoResult response={response} />
+          </>
+        ) : (
+          hasAvailableWallets && <ConnectCipWallet />
+        )}
+      </Card>
     </>
   );
 }

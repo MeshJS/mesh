@@ -72,7 +72,6 @@ function Right() {
       const unsignedTx = await tx.build();
       const hash = resolveTxHash(unsignedTx);
       const signedTx = await wallet.signTx(unsignedTx, false);
-      // const hash2 = resolveTxHash(signedTx);
       setResponse(hash);
     } catch (error) {
       setResponseError(`${error}`);

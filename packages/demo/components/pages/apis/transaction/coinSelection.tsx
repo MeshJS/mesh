@@ -127,6 +127,8 @@ function Right() {
     }
   }
 
+  return (<></>)
+
   return (
     <Card>
       {hasAvailableWallets && (

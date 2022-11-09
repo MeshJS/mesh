@@ -4,18 +4,10 @@ Mesh is an open-source library to make building dApps accessible. Whether you're
 
 Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
-## Guides and documentations
-
-- [Start a Web3 app on Next.js](https://mesh.martify.io/guides/nextjs)
-- [Minting on Node.js](https://mesh.martify.io/guides/mintingonnodejs)
-- [App Wallet - Wallet for building transactions in your applications](https://mesh.martify.io/apis/appwallet)
-- [Browser Wallet - CIP30 wallets intergration](https://mesh.martify.io/apis/browserwallet)
-- [Transaction - Building, minting, burning, smart contracts and more](https://mesh.martify.io/apis/transaction)
-- [Resolvers - Helpful functions that you need while building dApps](https://mesh.martify.io/apis/resolvers)
-
 ## Why use Mesh
 - Always up to date - Vasil ready, developed closely as the network updates so your app will always works
 - Simple to use - Check out our [guides](https://mesh.martify.io/guides), you will get started in less than 10 mins
+- Everything you need to build Web3 - [React components](https://mesh.martify.io/react) like connecting wallet buttons, and useful React hooks; Mesh provides everything you need to build web3 apps
 - Adopts best practices - implemented various CIPs and package is well build (no hacking and tweaking needed to get it to work)
 - Thoroughly tested - Mesh is used by developers and learners, built by developers with solid software engineering background
 - Integrates with Cardano projects - Koios, Blockfrost, ADA Handle (and more), you pick what you want to use for your app
@@ -25,6 +17,7 @@ Explore the features on [Mesh Playground](https://mesh.martify.io/).
 
 ## How can you contribute?
 
+- [You can support Mesh!](https://mesh.martify.io/about/support-us)
 - Build something - try Mesh by implementing your Web 3.0 project (recommended [starter guide](https://mesh.martify.io/guides/nextjs))
 - Inform others - Tell others about Mesh, and star the [Github repo](https://github.com/MartifyLabs/mesh) :star:
 - Write ups - documentations and guides

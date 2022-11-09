@@ -39,26 +39,24 @@ function Right() {
   }
   return (
     <>
-      {hasAvailableWallets && (
-        <Card>
-          <Codeblock
-            data={`const usedAddresses = await wallet.getUsedAddresses();`}
-            isJson={false}
-          />
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={loading}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
-        </Card>
-      )}
+      <Card>
+        <Codeblock
+          data={`const usedAddresses = await wallet.getUsedAddresses();`}
+          isJson={false}
+        />
+        {walletConnected ? (
+          <>
+            <RunDemoButton
+              runDemoFn={runDemo}
+              loading={loading}
+              response={response}
+            />
+            <RunDemoResult response={response} />
+          </>
+        ) : (
+          hasAvailableWallets && <ConnectCipWallet />
+        )}
+      </Card>
     </>
   );
 }

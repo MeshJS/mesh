@@ -10,6 +10,7 @@ import { MeshProvider } from '@martifylabs/mesh-react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import * as ga from '../lib/ga';
+import Scroller from '../components/site/scroller';
 
 function MyApp({ Component, pageProps }: AppProps) {
   /**
@@ -38,6 +39,7 @@ function MyApp({ Component, pageProps }: AppProps) {
               <Component {...pageProps} />
             </main>
             <Footer />
+            <Scroller />
           </div>
         </WalletProvider>
       </AppWalletProvider>
