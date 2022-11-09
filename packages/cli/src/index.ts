@@ -1,10 +1,8 @@
 import chalk from 'chalk';
 import figlet from 'figlet';
 import {
-  createArgument,
-  createCommand,
-  createOption,
-  InvalidArgumentError,
+  createArgument, createCommand,
+  createOption, InvalidArgumentError,
 } from 'commander';
 import { create } from './actions';
 
@@ -19,6 +17,8 @@ const main = async () => {
       })
     )
   );
+
+  console.log('\n');
 
   const program = createCommand();
 
