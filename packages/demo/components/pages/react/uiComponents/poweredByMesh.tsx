@@ -23,7 +23,7 @@ function Left() {
     <>
       <p>
         If you love Mesh, here's a beautifully designed badge for you to embed
-        on your application.
+        in your application.
       </p>
     </>
   );

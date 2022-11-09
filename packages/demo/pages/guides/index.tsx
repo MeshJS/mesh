@@ -5,19 +5,19 @@ import CardTitleDescImage from '../../components/ui/cardTitleDescImage';
 const GuidesPage: NextPage = () => {
   const items = [
     {
-      title: 'Start a Web3 app on Next.js',
-      desc: "A step-by-step guide to setup a Next.js web application, connect wallet and browse wallet's assets.",
+      title: 'Develop your first Web3 App',
+      desc: "A step-by-step guide to setup a Next.js web application, add a wallet connection and browse assets.",
       link: '/guides/nextjs',
       thumbnail: '/guides/nextjs.png',
     },
     {
-      title: 'Minting on Node.js',
-      desc: 'Load a CLI generated key and mint assets on Node.js.',
+      title: 'Minting application',
+      desc: 'Load CLI generated keys and mint assets on Node.js.',
       link: '/guides/minting-on-nodejs',
       thumbnail: '/guides/nodejs.jpg',
     },
     {
-      title: 'Multi-signature Transactions',
+      title: 'Multi-signature tfransactions',
       desc: 'Learn about multi-sig transaction, build a minting transaction involving AppWallet and BrowserWallet.',
       link: '/guides/multisig-minting',
       thumbnail: '/guides/key-gb17103099_640.jpg',
@@ -28,12 +28,12 @@ const GuidesPage: NextPage = () => {
     //   link: '/guides/nestjs',
     //   thumbnail: '/guides/nextjs.png',
     // },
-    // {
-    //   title: 'Integrate your Smart Contract to a Web App',
-    //   desc: 'A step-by-step guide to integrate your Cardano Smart Contract to a web application.',
-    //   link: '/guides/smartcontract',
-    //   thumbnail: '/guides/smart-contracts.jpg',
-    // },
+    {
+      title: 'Integrate your Smart Contract to a Web App',
+      desc: 'A step-by-step guide to integrate your Cardano Smart Contract to a web application.',
+      link: '/guides/smartcontract',
+      thumbnail: '/guides/smart-contracts.jpg',
+    },
     // {
     //   title: 'How to sign in to dApp with wallet',
     //   desc: 'Coming soon...',

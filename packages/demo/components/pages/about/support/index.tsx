@@ -14,7 +14,7 @@ export default function SupportUs() {
               You can support Mesh!
             </h2>
             <p className="font-light text-gray-500 dark:text-gray-400 sm:text-xl">
-              Thank you for your interest in Mesh and would love to support us!
+              Thank you for your interest in Mesh, we appreciate any kind of support!
               <br />
               Here are some ways you can support us.
             </p>

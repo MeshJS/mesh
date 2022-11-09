@@ -53,20 +53,11 @@ const GuideNextjsPage: NextPage = () => {
             rel="noreferrer"
           >
             MDN JavaScript Reference
-          </a>{' '}
-          or my preferred method, by watching a few{' '}
-          <a
-            href="https://www.youtube.com/results?search_query=get+started+with+nextjs"
-            target="_blank"
-            rel="noreferrer"
-          >
-            videos from YouTube
-          </a>
-          .
+          </a>.
         </p>
         <p>To follow this guide you will also need a compiled Plutus Smart Contract, specifically its CBOR representation.
-           If you are not familiar whit this, we will soon be providing 
-          pre-built contracts for the most popular use cases.
+           If you are not familiar with this, check out <a href="https://github.com/MartifyLabs/mesh.plutus" target="_blank">Mesh.plutus</a>,
+           a repository written by the Mesh team, containing a selection of pre-built Smart Contracts for various use cases.
         </p>
 
         <Element name="systemsetup">
@@ -94,7 +85,7 @@ const GuideNextjsPage: NextPage = () => {
             <a href="https://nodejs.org/" target="_blank" rel="noreferrer">
               Node.js
             </a>{' '}
-            (as of writing v16.16.0).
+            (as of writing v18.12.1).
           </p>
 
           <h3>3. Yarn</h3>
@@ -118,7 +109,7 @@ const GuideNextjsPage: NextPage = () => {
 
           <h3>2. Create Next.js app</h3>
           <p>
-            From the menu options in on your Visual Studio Code, open the{' '}
+            From the options menu in on Visual Studio Code, open the{' '}
             <code>Terminal</code> and execute this command to create a new
             NextJs application:
           </p>
@@ -182,200 +173,44 @@ module.exports = nextConfig;
 
         <Element name="addawalletconnection">
           <h2>Add a wallet connection</h2>
-          <h3>1. Create a wallet context</h3>
+          <h3>1. Install @martifylabs/mesh-react package</h3>
+          <p>Install the latest version of Mesh-react with yarn:</p>
+          <Codeblock data={`yarn add @martifylabs/mesh-react`} isJson={false} />
+          <h3>2. Setup MeshProvider</h3>
           <p>
-            React context is an essential tool for building web applications. It
-            allow you to easily share state in your applications, so you can use
-            the data in any component within the app. This means that when the
-            user has connected their wallet, visiting different pages on the app
-            ensure their wallet is still connected.
-          </p>
-          <p>
-            Create a new folder named <code>contexts</code> and create a new
-            file named <code>wallet.tsx</code>. Open{' '}
-            <code>contexts/wallet.tsx</code> and insert the following codes:
-          </p>
-          <Codeblock
-            data={`import React, {
-  createContext,
-  useState,
-  useContext,
-  useMemo,
-  ReactNode,
-} from "react";
-import { BrowserWallet } from "@martifylabs/mesh";
-
-const WalletContext = createContext({
-  wallet: {} as BrowserWallet,
-  connecting: false,
-  walletNameConnected: "",
-  walletConnected: false,
-  connectWallet: async (walletName: string) => {},
-});
-
-export const WalletProvider = ({ children }: { children: ReactNode }) => {
-  const [wallet, setWallet] = useState<BrowserWallet>({} as BrowserWallet);
-  const [walletConnected, setWalletConnected] = useState<boolean>(false);
-  const [connecting, setConnecting] = useState<boolean>(false);
-  const [walletNameConnected, setWalletNameConnected] = useState<string>("");
-
-  const connectWallet = async (walletName: string) => {
-    setConnecting(true);
-    const _wallet = await BrowserWallet.enable(walletName);
-    if (_wallet) {
-      setWallet(_wallet);
-      setWalletNameConnected(walletName);
-      setWalletConnected(true);
-    }
-    setConnecting(false);
-  };
-
-  const memoedValue = useMemo(
-    () => ({
-      wallet,
-      connecting,
-      walletNameConnected,
-      walletConnected,
-      connectWallet,
-    }),
-    [wallet, walletConnected, connecting, walletNameConnected]
-  );
-
-  return (
-    <WalletContext.Provider value={memoedValue}>
-      {children}
-    </WalletContext.Provider>
-  );
-};
-
-export default function useWallet() {
-  return useContext(WalletContext);
-}`}
-            isJson={false}
-          />
-
-          <p>
-            Open <code>pages/_app.tsx</code> and include the{' '}
-            <code>WalletProvider</code>. Your <code>_app.tsx</code> should look
-            similar to this:
+            Open <code>pages/_app.tsx</code> and replace it with the following code:
           </p>
           <Codeblock
             data={`import "../styles/globals.css";
 import type { AppProps } from "next/app";
-import { WalletProvider } from "../contexts/wallet";
+import { MeshProvider } from "@martifylabs/mesh-react";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <WalletProvider>
+    <MeshProvider>
       <Component {...pageProps} />
-    </WalletProvider>
+    </MeshProvider>
   );
-}
+};
 
 export default MyApp;`}
             isJson={false}
           />
-
-          <h3>2. Create a connect wallet component</h3>
-          <p>
-            Lets create a connect wallet component to show users a few buttons
-            to connect wallets they have installed on their device. Clicking on
-            these buttons will ask the user for permission if not granted, and
-            proceed to connect the selected wallet. We will use the{' '}
-            <code>useWallet</code> we have previously created for connecting
-            wallet and maintaining states.
-          </p>
-          <p>
-            Create a new folder named <code>components</code> and create a new
-            file named <code>connectWallet.tsx</code>. Open{' '}
-            <code>components/connectWallet.tsx</code> and insert the following
-            codes:
-          </p>
+          <h3>3. Add a connect button to your website</h3>
+          <p>Open <code>pages/index.tsx</code> and replace it with the following: </p>
           <Codeblock
-            data={`import { useEffect, useState } from "react";
-import { BrowserWallet } from "@martifylabs/mesh";
-import type { Wallet } from "@martifylabs/mesh";
-import useWallet from "../contexts/wallet";
-
-export default function ConnectWallet() {
-  const [availableWallets, setAvailableWallets] = useState<
-    Wallet[] | undefined
-  >(undefined);
-  const { walletNameConnected, connecting, connectWallet, walletConnected } =
-    useWallet();
-
-  useEffect(() => {
-    async function init() {
-      setAvailableWallets(BrowserWallet.getInstalledWallets());
-    }
-    init();
-  }, []);
-
-  return (
-    <>
-      {availableWallets
-        ? availableWallets.length == 0
-          ? "No wallets found"
-          : availableWallets.map((wallet, i) => (
-              <button
-                key={i}
-                onClick={() => connectWallet(wallet.name)}
-                disabled={
-                  walletConnected ||
-                  connecting ||
-                  walletNameConnected == wallet.name
-                }
-                style={{
-                  fontWeight:
-                    walletNameConnected == wallet.name ? "bold" : "normal",
-                  margin: "8px",
-                  backgroundColor:
-                    walletNameConnected == wallet.name
-                      ? "green"
-                      : connecting
-                      ? "orange"
-                      : "grey",
-                }}
-              >
-                <img
-                  src={wallet.icon}
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                  }}
-                />
-                Connect with {wallet.name}
-              </button>
-            ))
-        : ""}
-    </>
-  );
-}`}
-            isJson={false}
-          />
-          <h3>3. Lets connect a wallet</h3>
-          <p>
-            Lastly, we link those components together, allowing users to choose
-            a wallet to connect.
-          </p>
-          <p>
-            Open <code>pages/index.tsx</code> and replace it with the following
-            codes:
-          </p>
-          <Codeblock
-            data={`import { useState } from "react";
+            data={`import { CardanoWallet, useWallet } from '@martifylabs/mesh-react';
+import { useState } from "react";
 import type { NextPage } from "next";
-import useWallet from "../contexts/wallet";
-import ConnectWallet from "../components/connectWallet";
 
 const Home: NextPage = () => {
-  const { wallet, walletConnected, connecting } = useWallet();
+  const { wallet, connected, connecting } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
 
   return (
     <div>
       <h1>Connect Wallet</h1>
-      <ConnectWallet />
+      <CardanoWallet />
     </div>
   );
 };
@@ -383,28 +218,25 @@ const Home: NextPage = () => {
 export default Home;`}
             isJson={false}
           />
-
-          <p>Start the development server and try it:</p>
-          <Codeblock data={`yarn run dev`} isJson={false} />
           <p>
-            Visit{' '}
+            Done! Now visit{' '}
             <a href="http://localhost:3000" target="_blank" rel="noreferrer">
               http://localhost:3000
             </a>{' '}
-            to connect available wallets.
+            to see your connect wallet button.
           </p>
-          <p>You now have working wallet connection component. Users can now navigate to your website and succesfully
-             connect their browser wallet.</p>
         </Element>
 
         <Element name="integrateSC">
           <h2>Integrate your Smart Contract</h2>
           <h3>1. Add your Plutus compiled code to the project</h3>
           <p>
-            Here we will need the compiled version of your Plutus Smart Contract. If you don't have any or don't know what this is, Mesh will
-            soon provide a selection of pre-built Smart Contracts that cover the most popular use cases. In this guide we will use the{' '}
-            <a href="https://github.com/MartifyLabs/mesh.plutus/blob/always-true/alwaystrue.plutus">Always True</a>{' '}
-            script, that, as its name suggests, always succeeds. 
+            Here we will need the compiled version of your Plutus Smart Contract. If you don't have any or don't know what this is, check out the
+            available pre-built Smart Contracts provided by the Mesh team <a href="https://github.com/MartifyLabs/mesh.plutus" target="_blank">here</a>
+            . In this guide we will use the{' '}
+            <a href="https://github.com/MartifyLabs/mesh.plutus/tree/always-true" target="_blank">Always True</a>{' '}
+            script, that, as its name suggests, always succeeds, but you can follow this guide with any of the pre-built Mesh smart contracts. 
+            Details for each contract are provided in their individual branch.
           </p>
           <p>
             Create a new folder named <code>config</code> and in it create a new
@@ -421,7 +253,7 @@ export const script: PlutusScript = {
 export const scriptAddr = resolvePlutusScriptAddress(script, 764824073);`}
             isJson={false}
           />
-          <p>The <code>code: </code> field is where you would to put the compiled CBOR code of your Smart Contract. If you are using
+          <p>The <code>code: </code> field is where you put the compiled CBOR code of your Smart Contract. If you are using
           a different Smart Contract to follow this guide, please replace the CBOR showed here with yours. Also, here our script is
           a V2 script, but feel free to modify this according to your needs.</p>
           <p>Note that here we use a Mesh resolver to get the address of the script. The resolver{' '}
@@ -487,7 +319,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
             data={`return (
   <div>
     <h1>Connect Wallet</h1>
-    <ConnectWallet />
+    <CardanoWallet />
     {walletConnected && (
       <>
         <h1>Lock funds in your Contract</h1>
@@ -589,14 +421,14 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
           in this guide we use the <code>Always True</code> script that works with any Datum and Redeemer, so here we construct the same Datum as
           when locking (has to be the same!) and a random Redeemer. Then we use the previously defined <code>_getAssetUtxo</code> function
           to fetch the UTxO we are trying to spend. Finally we build the unlock transaction in <code>tx</code> where we pass all the necessary fields
-          to unlock funds at a script.</p>
+          to unlock funds from a script.</p>
           <p>Finally, let's change the <code>return</code> function once more, to make it unlock funds this time.
-          Replace it with the following code</p>
+          Replace it with the following code:</p>
           <Codeblock
             data={`return (
   <div>
     <h1>Connect Wallet</h1>
-    <ConnectWallet />
+    <CardanoWallet />
     {walletConnected && (
       <>
         <h1>Unlock your funds from your Contract</h1>
