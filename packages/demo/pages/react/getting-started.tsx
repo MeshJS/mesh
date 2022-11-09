@@ -26,11 +26,11 @@ const ReactGetStartedPage: NextPage = () => {
     <>
       <Metatags
         title="Getting Started with Mesh and React"
-        description="Start building web3 applications, interact with your contracts using their wallets."
+        description="Start building web3 applications, interact with your contracts using your wallets."
       />
       <GuidesLayout
         title="Getting Started with Mesh and React"
-        desc="Start building web3 applications, interact with your contracts using their wallets."
+        desc="Start building web3 applications, interact with your contracts using your wallets."
         sidebarItems={sidebarItems}
         image="/react/athlete-gca57603b5_1280.jpg"
       >

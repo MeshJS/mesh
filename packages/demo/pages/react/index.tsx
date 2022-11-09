@@ -11,7 +11,7 @@ const ReactPage: NextPage = () => {
   const items = [
     {
       title: 'Getting Started',
-      desc: 'Start building web3 applications, interact with your contracts using their wallets.',
+      desc: 'Start building web3 applications, interact with your contracts using your wallets.',
       link: '/react/getting-started',
       // thumbnail: '/react/rocket-gdc66999bf_640.png',
       thumbnailHeroicon: <RocketLaunchIcon />,
@@ -25,7 +25,7 @@ const ReactPage: NextPage = () => {
     },
     {
       title: 'Wallet Hooks',
-      desc: 'React hooks for interacting with connected wallet.',
+      desc: 'React hooks for interacting with connected wallets.',
       link: '/react/wallet-hooks',
       // thumbnail: '/react/pocket-g7546ee58e_1280.jpg',
       thumbnailHeroicon: <BoltIcon />,
@@ -36,7 +36,7 @@ const ReactPage: NextPage = () => {
     <>
       <Metatags
         title="React components and hooks for your web3 apps"
-        description="Frontend components like connecting wallet buttons, and useful React hooks; Mesh provides everything you need to build web3 apps."
+        description="Frontend components for wallet connections, and useful React hooks to getting wallet states - Mesh provides everything you need to bring your Web3 user interface to life."
       />
       <div className="py-4 px-4 mx-auto max-w-screen-xl lg:py-8 lg:px-6">
         <div className="mx-auto max-w-screen-sm text-center mb-8 lg:mb-16">
@@ -44,9 +44,9 @@ const ReactPage: NextPage = () => {
             React
           </h2>
           <p className="font-light text-gray-500 sm:text-xl dark:text-gray-400">
-            Frontend components for connecting wallet buttons, and useful React
-            hooks for getting wallet's state; Mesh provides everything you need
-            to make your user interface come alive.
+            Frontend components for wallet connections, and useful React
+            hooks to getting wallet states - Mesh provides everything you need
+            to bring your Web3 user interface to life.
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">

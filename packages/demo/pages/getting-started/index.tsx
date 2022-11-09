@@ -10,7 +10,7 @@ const GettingStartedPage: NextPage = () => {
   const items = [
     {
       title: 'Guides',
-      desc: 'Step-by-step guides to start your projects and building on Cardano',
+      desc: 'Step-by-step guides to start your projects and build on Cardano',
       link: '/guides',
       thumbnailHeroicon: <DocumentTextIcon />,
     },
@@ -26,7 +26,7 @@ const GettingStartedPage: NextPage = () => {
     <>
       <Metatags
         title="Guides for Getting Started"
-        description="Build an application to display assets or a complex dApp to interact with Cardano blockchain and smart contracts; this section will help you get started."
+        description="Build an application to display assets or a complex dApp to interact with Cardano blockchain and smart contracts - this section will help you get started."
       />
       <div className="py-4 px-4 mx-auto max-w-screen-xl lg:py-8 lg:px-6">
         <div className="mx-auto max-w-screen-sm text-center mb-8 lg:mb-16">
@@ -38,7 +38,7 @@ const GettingStartedPage: NextPage = () => {
             can use as little or as much as you need. Whether you want to build
             an application to connect wallet and display what's in your wallet
             or start a complex dApp to create transactions and interact with
-            Cardano blockchain and smart contracts; this section will help you
+            Cardano blockchain and smart contracts - this section will help you
             get started.
           </p>
         </div>

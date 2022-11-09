@@ -23,7 +23,7 @@ export default function Reasons() {
               Always up to date
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh is developed closely to the network updates. By using Mesh,
+              Mesh is developed closely to network updates. By using Mesh,
               your application will always be ready for the latest network
               changes, so you can focus on building your application.
             </p>
@@ -43,9 +43,7 @@ export default function Reasons() {
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
               Getting started with dApp development has never been this easy.
-              Mesh is built in a way so you can get started in as little time as
-              possible. We've built Mesh to handle difficult blockchain
-              interaction.
+              Mesh is conceived in a way that facilitates and speeds up development of decentralised applications.
             </p>
             <Link href="/getting-started">
               <div className="link">
@@ -60,9 +58,9 @@ export default function Reasons() {
               Best practices
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh adopts many CIPs, and our package is 300KB! This means that
-              your application is fast, responsive and adhere to standards. Did
-              we forget to mention, it well-documented!
+              Mesh follows many CIPs that make it interoprable with other Cardano tools. In addition, the package is less than 300kB! This
+              means your application is fast, responsive and adheres to
+              standards.
             </p>
             <Link href="/apis/browserwallet">
               <div className="link">

@@ -22,9 +22,9 @@ export default function FeatureReact() {
             React Components
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
-            Frontend components for connecting wallet buttons, and useful React
-            hooks for getting wallet's state; Mesh provides everything you need
-            to make your user interface come alive.
+            Frontend components for wallet connections, and useful React
+            hooks to getting wallet states - Mesh provides everything you need
+            to bring your Web3 user interface to life.
           </p>
           <Link href="/react">
             <div className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 cursor-pointer">
