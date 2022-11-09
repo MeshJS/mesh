@@ -8,15 +8,15 @@ export default function List() {
         <div className="mx-auto max-w-screen-md text-center mb-8 lg:mb-16">
           <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
             Cardano Improvement Proposals{' '}
-            <span
+            {/* <span
               style={{
                 borderRadius: '1em 0 1em 0',
                 backgroundImage:
                   'linear-gradient(-100deg, rgba(0, 255, 20, 0.2), rgba(0, 255, 20, 0.7) 95%, rgba(0, 255, 20, 0.1))',
               }}
-            >
+            > */}
               Implemented
-            </span>
+            {/* </span> */}
           </h2>
           <p className="font-light text-gray-500 dark:text-gray-400 sm:text-xl">
             Mesh ensures your dApp adheres to the standards provided by the

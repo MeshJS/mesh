@@ -19,7 +19,7 @@ export default function JoinDiscord() {
           </a>
         </div>
         <img
-          className="w-full"
+          className="w-full hidden sm:block"
           src="/support/logo-g8677b0968_640.png"
           alt="support"
         />

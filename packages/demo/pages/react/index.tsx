@@ -1,27 +1,34 @@
+import {
+  BoltIcon,
+  PaintBrushIcon,
+  RocketLaunchIcon,
+} from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
-import Link from 'next/link';
 import Metatags from '../../components/site/metatags';
-import Card from '../../components/ui/card';
+import CardTitleDescImage from '../../components/ui/cardTitleDescImage';
 
 const ReactPage: NextPage = () => {
-  const guides = [
+  const items = [
     {
       title: 'Getting Started',
       desc: 'Start building web3 applications, interact with your contracts using their wallets.',
       link: '/react/getting-started',
-      thumbnail: '/react/rocket-gdc66999bf_640.png',
+      // thumbnail: '/react/rocket-gdc66999bf_640.png',
+      thumbnailHeroicon: <RocketLaunchIcon />,
     },
     {
       title: 'UI Components',
       desc: 'UI components to speed up your app development.',
       link: '/react/ui-components',
-      thumbnail: '/react/ux-g389fb9d2b_1280.jpg',
+      // thumbnail: '/react/ux-g389fb9d2b_1280.jpg',
+      thumbnailHeroicon: <PaintBrushIcon />,
     },
     {
       title: 'Wallet Hooks',
       desc: 'React hooks for interacting with connected wallet.',
       link: '/react/wallet-hooks',
-      thumbnail: '/react/pocket-g7546ee58e_1280.jpg',
+      // thumbnail: '/react/pocket-g7546ee58e_1280.jpg',
+      thumbnailHeroicon: <BoltIcon />,
     },
   ];
 
@@ -37,27 +44,21 @@ const ReactPage: NextPage = () => {
             React
           </h2>
           <p className="font-light text-gray-500 sm:text-xl dark:text-gray-400">
-            Frontend components like connecting wallet buttons, and useful React
-            hooks; Mesh provides everything you need to build web3 apps.
+            Frontend components for connecting wallet buttons, and useful React
+            hooks for getting wallet's state; Mesh provides everything you need
+            to make your user interface come alive.
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {guides.map((guide, i) => {
+          {items.map((item, i) => {
             return (
-              <Card className="cursor-pointer" key={i}>
-                <Link href={guide.link}>
-                  <img className="mb-5 rounded-lg" src={guide.thumbnail} />
-                </Link>
-                {/* <span className="bg-purple-100 text-purple-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded dark:bg-purple-200 dark:text-purple-900">
-                  Article
-                </span> */}
-                <h2 className="my-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                  {guide.title}
-                </h2>
-                <p className="mb-4 font-light text-gray-500 dark:text-gray-400">
-                  {guide.desc}
-                </p>
-              </Card>
+              <CardTitleDescImage
+                title={item.title}
+                desc={item.desc}
+                link={item.link}
+                thumbnailHeroicon={item.thumbnailHeroicon}
+                key={i}
+              />
             );
           })}
         </div>

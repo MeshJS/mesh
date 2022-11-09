@@ -4,6 +4,7 @@ import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import { useWallet } from '@martifylabs/mesh-react';
 import { CardanoWallet } from '@martifylabs/mesh-react';
+import Link from 'next/link';
 
 export default function UseWallet() {
   return (
@@ -17,7 +18,7 @@ export default function UseWallet() {
 }
 
 function Left() {
-  let code1 = `const { connected, name, connecting, connect, disconnect, error } = useWallet();`;
+  let code1 = `const { wallet, connected, name, connecting, connect, disconnect, error } = useWallet();`;
 
   return (
     <>
@@ -26,6 +27,12 @@ function Left() {
         connecting and disconnecting user wallet.
       </p>
       <Codeblock data={code1} isJson={false} />
+      <p>
+        <code>wallet</code> is a{' '}
+        <Link href="/apis/browserwallet">Browser Wallet</Link> instance, which
+        expose all CIP wallets functions from getting assets to signing
+        tranasction.
+      </p>
       <p>
         <code>connected</code>, a boolean, <code>true</code> if user's wallet is
         connected.
@@ -55,7 +62,7 @@ function Right() {
     useWallet();
   let code2 = `import { useWallet } from '@martifylabs/mesh-react';\n\n`;
   code2 += `export default function Page() {\n`;
-  code2 += `  const { connected, name, connecting, connect, disconnect, error } = useWallet();\n\n`;
+  code2 += `  const { wallet, connected, name, connecting, connect, disconnect, error } = useWallet();\n\n`;
   code2 += `  return (\n`;
   code2 += `    <div>\n`;
   code2 += `      <p>\n`;

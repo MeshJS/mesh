@@ -20,7 +20,7 @@ export default function FollowTwitter() {
           </a>
         </div>
         <img
-          className="w-full"
+          className="w-full hidden sm:block"
           src="/support/social-g6f05844cb_640.png"
           alt="support"
         />

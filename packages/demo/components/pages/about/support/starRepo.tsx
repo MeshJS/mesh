@@ -19,8 +19,13 @@ export default function StarRepo() {
           </a>
         </div>
         <img
-          className="w-full"
-          src="/support/github-gd22998fee_640.png"
+          className="w-full hidden dark:hidden sm:block"
+          src="/support/github-light.png"
+          alt="support"
+        />
+        <img
+          className="w-full hidden dark:sm:block"
+          src="/support/github-dark.png"
           alt="support"
         />
       </div>

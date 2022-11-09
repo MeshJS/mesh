@@ -16,8 +16,7 @@
   "keywords": [
     "blockchain",
     "cardano",
-    "react",
-    "utxo"
+    "react"
   ],
   "main": "dist/mesh-react.cjs",
   "module": "dist/mesh-react.js",
