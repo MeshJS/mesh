@@ -19,7 +19,7 @@ const GuideNextjsPage: NextPage = () => {
       <Metatags
         title="Use your Smart Contract with Mesh"
         description="A step-by-step guide to integrate your Cardano Smart Contract to a web application."
-        image="https://mesh.martify.io/guides/nextjs.png"
+        image="https://mesh.martify.io/guides/smart-contracts.jpg"
       />
       <GuidesLayout
         title="Use your Smart Contract with Mesh"
