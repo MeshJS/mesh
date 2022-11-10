@@ -18,7 +18,7 @@ const GuideNextjsPage: NextPage = () => {
       <Metatags
         title="Start a Web3 app on Next.js"
         description="A step-by-step guide to setup a Next.js web application, connect wallet and browse wallet's assets."
-        image="https://mesh.martify.io/guides/nextjs.png"
+        image="/guides/develop-first-web-app.png"
       />
       <GuidesLayout
         title="Start a Web3 app on Next.js"
@@ -304,7 +304,8 @@ export default Home;`}
           <p>
             Implement another component to display wallet&apos;s address and the
             amount of lovelace in your Next.js application. Check out the{' '}
-            <Link href="/apis/browserwallet">wallet</Link> page for more details.
+            <Link href="/apis/browserwallet">wallet</Link> page for more
+            details.
           </p>
         </Element>
       </GuidesLayout>

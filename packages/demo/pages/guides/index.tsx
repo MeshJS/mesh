@@ -6,52 +6,28 @@ const GuidesPage: NextPage = () => {
   const items = [
     {
       title: 'Develop your first Web3 App',
-      desc: "A step-by-step guide to setup a Next.js web application, add a wallet connection and browse assets.",
+      desc: 'A step-by-step guide to setup a Next.js web application, add a wallet connection and browse assets.',
       link: '/guides/nextjs',
-      thumbnail: '/guides/nextjs.png',
+      thumbnail: '/guides/develop-first-web-app.png',
     },
     {
-      title: 'Minting application',
+      title: 'Minting Application',
       desc: 'Load CLI generated keys and mint assets on Node.js.',
       link: '/guides/minting-on-nodejs',
-      thumbnail: '/guides/nodejs.jpg',
+      thumbnail: '/guides/minting-application.png',
     },
     {
-      title: 'Multi-signature transactions',
+      title: 'Multi-Signatures Transaction',
       desc: 'Learn about multi-sig transaction, build a minting transaction involving AppWallet and BrowserWallet.',
       link: '/guides/multisig-minting',
-      thumbnail: '/guides/key-gb17103099_640.jpg',
+      thumbnail: '/guides/multi-signatures-transaction.png',
     },
-    // {
-    //   title: 'Start a NestJS backend',
-    //   desc: 'WIP',
-    //   link: '/guides/nestjs',
-    //   thumbnail: '/guides/nextjs.png',
-    // },
     {
-      title: 'Integrate your Smart Contract to a Web App',
+      title: 'Integrating Smart Contract',
       desc: 'A step-by-step guide to integrate your Cardano Smart Contract to a web application.',
       link: '/guides/smart-contract',
-      thumbnail: '/guides/smart-contracts.jpg',
+      thumbnail: '/guides/integrating-smart-contract.png',
     },
-    // {
-    //   title: 'How to sign in to dApp with wallet',
-    //   desc: 'Coming soon...',
-    //   link: '/guides/coming-soon',
-    //   thumbnail: '/guides/nextjs.png',
-    // },
-    // {
-    //   title: 'Multi-signatures assets minting',
-    //   desc: 'Coming soon...',
-    //   link: '/guides/coming-soon',
-    //   thumbnail: '/guides/nextjs.png',
-    // },
-    // {
-    //   title: 'Multi-signatures transactions',
-    //   desc: 'Coming soon...',
-    //   link: '/guides/coming-soon',
-    //   thumbnail: '/guides/nextjs.png',
-    // },
   ];
 
   return (

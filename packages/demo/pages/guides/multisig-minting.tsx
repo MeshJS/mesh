@@ -37,11 +37,12 @@ const GuideMultisigMintingPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="Multi-signature Minting"
+        title="Multi-Signatures Transaction (Minting)"
         description="Create a multi-sig transaction and mint NFTs"
+        image='/guides/multi-signatures-transaction.png'
       />
       <GuidesLayout
-        title="Multi-signature Minting"
+        title="Multi-Signatures Transaction (Minting)"
         desc="Create a multi-sig transaction and mint NFTs"
         sidebarItems={sidebarItems}
         image="/guides/keys-g25a80b203_1280.jpg"

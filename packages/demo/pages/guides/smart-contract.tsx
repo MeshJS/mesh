@@ -19,7 +19,7 @@ const GuideNextjsPage: NextPage = () => {
       <Metatags
         title="Use your Smart Contract with Mesh"
         description="A step-by-step guide to integrate your Cardano Smart Contract to a web application."
-        image="https://mesh.martify.io/guides/smart-contracts.jpg"
+        image='/guides/integrating-smart-contract.png'
       />
       <GuidesLayout
         title="Use your Smart Contract with Mesh"
@@ -28,10 +28,13 @@ const GuideNextjsPage: NextPage = () => {
         image="/guides/blockchain.jpg"
       >
         <p>
-          Cardano introduced smart contract support in 2021 which allowed the creation of a number of decentralised applications. However the
-          knowledge required to develop such an app is very extensive and might be frightening for new developers or companies looking to 
-          build on Cardano. Mesh aims to solve this problem and here we are providing users with a comprehensive guide to facilitate their 
-          approach to Cardano development.
+          Cardano introduced smart contract support in 2021 which allowed the
+          creation of a number of decentralised applications. However the
+          knowledge required to develop such an app is very extensive and might
+          be frightening for new developers or companies looking to build on
+          Cardano. Mesh aims to solve this problem and here we are providing
+          users with a comprehensive guide to facilitate their approach to
+          Cardano development.
         </p>
         <p>
           Next.js and Mesh are JavaScript libraries, and so we will assume that
@@ -53,11 +56,18 @@ const GuideNextjsPage: NextPage = () => {
             rel="noreferrer"
           >
             MDN JavaScript Reference
-          </a>.
+          </a>
+          .
         </p>
-        <p>To follow this guide you will also need a compiled Plutus Smart Contract, specifically its CBOR representation.
-           If you are not familiar with this, check out <a href="https://github.com/MartifyLabs/mesh.plutus" target="_blank">Mesh.plutus</a>,
-           a repository written by the Mesh team, containing a selection of pre-built Smart Contracts for various use cases.
+        <p>
+          To follow this guide you will also need a compiled Plutus Smart
+          Contract, specifically its CBOR representation. If you are not
+          familiar with this, check out{' '}
+          <a href="https://github.com/MartifyLabs/mesh.plutus" target="_blank">
+            Mesh.plutus
+          </a>
+          , a repository written by the Mesh team, containing a selection of
+          pre-built Smart Contracts for various use cases.
         </p>
 
         <Element name="systemsetup">
@@ -166,8 +176,8 @@ module.exports = nextConfig;
           <h3>3. Congratulations</h3>
           <p>
             You just saved a few weeks of learning and several days trying to
-            get started. Your Next.js application is ready to accept wallet connections,
-            browse assets and make some transactions.
+            get started. Your Next.js application is ready to accept wallet
+            connections, browse assets and make some transactions.
           </p>
         </Element>
 
@@ -178,7 +188,8 @@ module.exports = nextConfig;
           <Codeblock data={`yarn add @martifylabs/mesh-react`} isJson={false} />
           <h3>2. Setup MeshProvider</h3>
           <p>
-            Open <code>pages/_app.tsx</code> and replace it with the following code:
+            Open <code>pages/_app.tsx</code> and replace it with the following
+            code:
           </p>
           <Codeblock
             data={`import "../styles/globals.css";
@@ -197,7 +208,9 @@ export default MyApp;`}
             isJson={false}
           />
           <h3>3. Add a connect button to your website</h3>
-          <p>Open <code>pages/index.tsx</code> and replace it with the following: </p>
+          <p>
+            Open <code>pages/index.tsx</code> and replace it with the following:{' '}
+          </p>
           <Codeblock
             data={`import { CardanoWallet, useWallet } from '@martifylabs/mesh-react';
 import { useState } from "react";
@@ -231,16 +244,31 @@ export default Home;`}
           <h2>Integrate your Smart Contract</h2>
           <h3>1. Add your Plutus compiled code to the project</h3>
           <p>
-            Here we will need the compiled version of your Plutus Smart Contract. If you don't have any or don't know what this is, check out the
-            available pre-built Smart Contracts provided by the Mesh team <a href="https://github.com/MartifyLabs/mesh.plutus" target="_blank">here</a>
+            Here we will need the compiled version of your Plutus Smart
+            Contract. If you don't have any or don't know what this is, check
+            out the available pre-built Smart Contracts provided by the Mesh
+            team{' '}
+            <a
+              href="https://github.com/MartifyLabs/mesh.plutus"
+              target="_blank"
+            >
+              here
+            </a>
             . In this guide we will use the{' '}
-            <a href="https://github.com/MartifyLabs/mesh.plutus/tree/always-true" target="_blank">Always True</a>{' '}
-            script, that, as its name suggests, always succeeds, but you can follow this guide with any of the pre-built Mesh smart contracts. 
+            <a
+              href="https://github.com/MartifyLabs/mesh.plutus/tree/always-true"
+              target="_blank"
+            >
+              Always True
+            </a>{' '}
+            script, that, as its name suggests, always succeeds, but you can
+            follow this guide with any of the pre-built Mesh smart contracts.
             Details for each contract are provided in their individual branch.
           </p>
           <p>
             Create a new folder named <code>config</code> and in it create a new
-            file named <code>contract.ts</code>. Open it and insert the following code:
+            file named <code>contract.ts</code>. Open it and insert the
+            following code:
           </p>
           <Codeblock
             data={`import { PlutusScript, resolvePlutusScriptAddress } from '@martifylabs/mesh';
@@ -253,35 +281,52 @@ export const script: PlutusScript = {
 export const scriptAddr = resolvePlutusScriptAddress(script, 764824073);`}
             isJson={false}
           />
-          <p>The <code>code: </code> field is where you put the compiled CBOR code of your Smart Contract. If you are using
-          a different Smart Contract to follow this guide, please replace the CBOR showed here with yours. Also, here our script is
-          a V2 script, but feel free to modify this according to your needs.</p>
-          <p>Note that here we use a Mesh resolver to get the address of the script. The resolver{' '}
-             <code>resolvePlutusScriptAddress</code> takes two arguments: a PlutusScript and an integer representing the Network Id. 
-             Here we use the mainnet network that has an Id of {' '}<code>764824073</code>, but feel free to change it according to your needs.
-             For more information see <a href="https://mesh.martify.io/apis/resolvers">Resolvers</a>.
+          <p>
+            The <code>code: </code> field is where you put the compiled CBOR
+            code of your Smart Contract. If you are using a different Smart
+            Contract to follow this guide, please replace the CBOR showed here
+            with yours. Also, here our script is a V2 script, but feel free to
+            modify this according to your needs.
           </p>
-          
+          <p>
+            Note that here we use a Mesh resolver to get the address of the
+            script. The resolver <code>resolvePlutusScriptAddress</code> takes
+            two arguments: a PlutusScript and an integer representing the
+            Network Id. Here we use the mainnet network that has an Id of{' '}
+            <code>764824073</code>, but feel free to change it according to your
+            needs. For more information see{' '}
+            <a href="https://mesh.martify.io/apis/resolvers">Resolvers</a>.
+          </p>
 
           <h3>2. See your Contract in action - Lock funds</h3>
           <p>
-            Now that we successfully imported our contract to the project, we can start using it in our web application.
+            Now that we successfully imported our contract to the project, we
+            can start using it in our web application.
           </p>
           <p>
-            Open <code>pages/index.tsx</code> and add the following two imports at the top of your file:
+            Open <code>pages/index.tsx</code> and add the following two imports
+            at the top of your file:
           </p>
           <Codeblock
             data={`import { script, scriptAddr } from "../config/contract";
 import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martifylabs/mesh';`}
             isJson={false}
           />
-          <p>Now we will use the Mesh transaction builder to build the locking transaction. Depending on your contract you 
-            will probably need to modify the value and datum fields, here we will be locking one <a href="https://cardanoscan.io/token/asset12hd46z28ypg6gm874jklfvcsvw8d8thy5875tc">Testtoken</a>
-            {' '} with a datum containing a simple integer.
-            Indeed, because the Always True contract does not depend on the datum value, we can put whatever datum we want, and to make it
-            simple we use an integer.
+          <p>
+            Now we will use the Mesh transaction builder to build the locking
+            transaction. Depending on your contract you will probably need to
+            modify the value and datum fields, here we will be locking one{' '}
+            <a href="https://cardanoscan.io/token/asset12hd46z28ypg6gm874jklfvcsvw8d8thy5875tc">
+              Testtoken
+            </a>{' '}
+            with a datum containing a simple integer. Indeed, because the Always
+            True contract does not depend on the datum value, we can put
+            whatever datum we want, and to make it simple we use an integer.
           </p>
-          <p>Add the following function to your <code>pages/index.tsx</code> file, right before the <code>return</code> part.</p>
+          <p>
+            Add the following function to your <code>pages/index.tsx</code>{' '}
+            file, right before the <code>return</code> part.
+          </p>
           <Codeblock
             data={`async function lockFunds() {
   if (wallet) {
@@ -309,12 +354,29 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
 };`}
             isJson={false}
           />
-          <p>If you are wondering, we use <code>policyId+hexTokenName</code> to create the <code>unit</code> field of the value. To get this unit
-          you can go to any Cardano explorer and search for your token, you'll see its policy id as well as token name both in plain text and
-          hex. For example the <a href="https://cardanoscan.io/token/asset12hd46z28ypg6gm874jklfvcsvw8d8thy5875tc">Testtoken</a> on mainnet
-          has a policy id of <code>22f20d5382cec46166b566821f16f79cb03ee1520c71e5f83a4b3f20</code> and a hex token name of <code>54657374746f6b656e</code>
-          which resuslts to <code>unit: 22f20d5382cec46166b566821f16f79cb03ee1520c71e5f83a4b3f2054657374746f6b656e</code></p>
-          <p>Now replace the <code>return</code> function with the following</p>
+          <p>
+            If you are wondering, we use <code>policyId+hexTokenName</code> to
+            create the <code>unit</code> field of the value. To get this unit
+            you can go to any Cardano explorer and search for your token, you'll
+            see its policy id as well as token name both in plain text and hex.
+            For example the{' '}
+            <a href="https://cardanoscan.io/token/asset12hd46z28ypg6gm874jklfvcsvw8d8thy5875tc">
+              Testtoken
+            </a>{' '}
+            on mainnet has a policy id of{' '}
+            <code>
+              22f20d5382cec46166b566821f16f79cb03ee1520c71e5f83a4b3f20
+            </code>{' '}
+            and a hex token name of <code>54657374746f6b656e</code>
+            which resuslts to{' '}
+            <code>
+              unit:
+              22f20d5382cec46166b566821f16f79cb03ee1520c71e5f83a4b3f2054657374746f6b656e
+            </code>
+          </p>
+          <p>
+            Now replace the <code>return</code> function with the following
+          </p>
           <Codeblock
             data={`return (
   <div>
@@ -339,8 +401,8 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
       </>
     )}
   </div>
-);`}      
-          isJson={false}
+);`}
+            isJson={false}
           />
           <p>
             Visit{' '}
@@ -350,20 +412,34 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
             to lock some funds.
           </p>
 
-          <p>We've now successfully locked an NFT in our script with a datum of value '42'. If you want to learn how to build 
-            more complex datum structures, check out{' '}
-            <a href="https://mesh.martify.io/apis/transaction">APIs - Transaction</a> docs in the<code>Designing datum</code> section.
+          <p>
+            We've now successfully locked an NFT in our script with a datum of
+            value '42'. If you want to learn how to build more complex datum
+            structures, check out{' '}
+            <a href="https://mesh.martify.io/apis/transaction">
+              APIs - Transaction
+            </a>{' '}
+            docs in the<code>Designing datum</code> section.
           </p>
 
           <h3>3. See your Contract in action - Unlock funds</h3>
-          <p>After successfully locking some funds, now it's time to unlock them. Here, in addition to the datum, we will need to construct
-            a redeemer. In this example we will use a simple integer, but feel free to modify it in accordance to what your contract requires.
+          <p>
+            After successfully locking some funds, now it's time to unlock them.
+            Here, in addition to the datum, we will need to construct a
+            redeemer. In this example we will use a simple integer, but feel
+            free to modify it in accordance to what your contract requires.
           </p>
-          <p>First let's fetch data from the blockchain at the script address to get the exact UTxO we are trying to spend. For this we will use 
-            <code>BlockfrostProvider</code>, but you can use any provider that Mesh supports, see{' '}
+          <p>
+            First let's fetch data from the blockchain at the script address to
+            get the exact UTxO we are trying to spend. For this we will use
+            <code>BlockfrostProvider</code>, but you can use any provider that
+            Mesh supports, see{' '}
             <a href="https://mesh.martify.io/apis/providers">Providers</a>.
-          </p>            
-          <p>Paste the following function right before your<code>return</code> section</p>
+          </p>
+          <p>
+            Paste the following function right before your<code>return</code>{' '}
+            section
+          </p>
           <Codeblock
             data={`async function _getAssetUtxo({scriptAddress, asset, datum}) {
   const blockfrostProvider = new BlockfrostProvider(
@@ -378,13 +454,20 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
     return utxo.output.dataHash == dataHash;
   });
   return utxo;
-};`}      
-          isJson={false}
+};`}
+            isJson={false}
           />
-          <p>The function <code>_getAssetUtxo</code> scans UTxOs at the <code>scriptAddress</code> and filters by datum hash to find the
-          exact UTxO we are trying to spend. We need this UTxO to build the unlocking transaction.</p> 
-          <p>Now we can build our unlocking transaction, paste the following function right before your <code>return</code> section.
-          Make sure to construct the same datum you used when locking the funds.</p>
+          <p>
+            The function <code>_getAssetUtxo</code> scans UTxOs at the{' '}
+            <code>scriptAddress</code> and filters by datum hash to find the
+            exact UTxO we are trying to spend. We need this UTxO to build the
+            unlocking transaction.
+          </p>
+          <p>
+            Now we can build our unlocking transaction, paste the following
+            function right before your <code>return</code> section. Make sure to
+            construct the same datum you used when locking the funds.
+          </p>
           <Codeblock
             data={`async function unlockFunds() {
   if (wallet) {
@@ -414,16 +497,25 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
     const txHash = await wallet.submitTx(signedTx);
     setLoading(false);
   }
-};`}      
-          isJson={false}
+};`}
+            isJson={false}
           />
-          <p>Let's take a look at what this function does. We first set our constants <code>addr, datumConstr, redeemer</code>, as explained previously
-          in this guide we use the <code>Always True</code> script that works with any Datum and Redeemer, so here we construct the same Datum as
-          when locking (has to be the same!) and a random Redeemer. Then we use the previously defined <code>_getAssetUtxo</code> function
-          to fetch the UTxO we are trying to spend. Finally we build the unlock transaction in <code>tx</code> where we pass all the necessary fields
-          to unlock funds from a script.</p>
-          <p>Finally, let's change the <code>return</code> function once more, to make it unlock funds this time.
-          Replace it with the following code:</p>
+          <p>
+            Let's take a look at what this function does. We first set our
+            constants <code>addr, datumConstr, redeemer</code>, as explained
+            previously in this guide we use the <code>Always True</code> script
+            that works with any Datum and Redeemer, so here we construct the
+            same Datum as when locking (has to be the same!) and a random
+            Redeemer. Then we use the previously defined{' '}
+            <code>_getAssetUtxo</code> function to fetch the UTxO we are trying
+            to spend. Finally we build the unlock transaction in <code>tx</code>{' '}
+            where we pass all the necessary fields to unlock funds from a
+            script.
+          </p>
+          <p>
+            Finally, let's change the <code>return</code> function once more, to
+            make it unlock funds this time. Replace it with the following code:
+          </p>
           <Codeblock
             data={`return (
   <div>
@@ -448,8 +540,8 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
       </>
     )}
   </div>
-);`}      
-          isJson={false}
+);`}
+            isJson={false}
           />
           <p>
             Visit{' '}
@@ -460,11 +552,20 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@martify
           </p>
 
           <h3>4. Explore further</h3>
-          <p>Congratulations, you've succesfully integrated your Smart Contract to a web application!</p>
-          <p>Now you may want to explore more complex datum/redeemer structures, V2 features, Plutus minting and more. 
-             Mesh supports each of these features and we are continuously working on adding more guides and expanding the docs.
-             If you have any issues please report them in our <a href="https://discord.gg/Z6AH9dahdH">Discord</a> server or open
-              an issue on <a href="https://github.com/MartifyLabs/mesh">Mesh's Github page</a>. </p>
+          <p>
+            Congratulations, you've succesfully integrated your Smart Contract
+            to a web application!
+          </p>
+          <p>
+            Now you may want to explore more complex datum/redeemer structures,
+            V2 features, Plutus minting and more. Mesh supports each of these
+            features and we are continuously working on adding more guides and
+            expanding the docs. If you have any issues please report them in our{' '}
+            <a href="https://discord.gg/Z6AH9dahdH">Discord</a> server or open
+            an issue on{' '}
+            <a href="https://github.com/MartifyLabs/mesh">Mesh's Github page</a>
+            .{' '}
+          </p>
         </Element>
       </GuidesLayout>
     </>

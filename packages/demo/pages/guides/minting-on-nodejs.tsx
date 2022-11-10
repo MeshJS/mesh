@@ -124,7 +124,7 @@ const GuideMintingNodejsPage: NextPage = () => {
       <Metatags
         title="Minting on Node.js"
         description="Load a CLI generated key and mint assets on Node.js"
-        image="https://mesh.martify.io/guides/nodejs.jpg"
+        image="/guides/minting-application.png"
       />
       <GuidesLayout
         title="Minting on Node.js"
