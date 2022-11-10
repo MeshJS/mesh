@@ -28,6 +28,8 @@ const Metatags = ({ title, keywords, description, image }) => {
       {image && <meta name="twitter:image:alt" content={title} />}
 
       <meta property="og:title" content={title} />
+      <meta property="og:type" content="article" />
+      <meta property="og:site_name" content="Mesh Playground by Martify Labs" />
       <meta property="og:description" content={description} />
       {image && (
         <meta property="og:image" content={`https://mesh.martify.io${image}`} />
@@ -64,7 +66,7 @@ const Metatags = ({ title, keywords, description, image }) => {
 };
 
 Metatags.defaultProps = {
-  title: 'Mesh',
+  title: undefined,
   keywords:
     'developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis',
   description:
