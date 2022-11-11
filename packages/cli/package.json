@@ -30,11 +30,14 @@
     "chalk": "4.1.2",
     "commander": "9.4.1",
     "figlet": "1.5.2",
-    "prompts": "2.4.2"
+    "got": "11.8.5",
+    "prompts": "2.4.2",
+    "tar": "6.1.12"
   },
   "devDependencies": {
     "@preconstruct/cli": "2.2.2",
     "@types/figlet": "1.5.5",
-    "@types/prompts": "2.4.1"
+    "@types/prompts": "2.4.1",
+    "@types/tar": "6.1.3"
   }
 }

@@ -1,9 +1,19 @@
+import got from 'got';
 import prompts from 'prompts';
+import { extract } from 'tar';
+import { promisify } from 'util';
+import { pipeline } from 'stream';
+import { existsSync, mkdirSync } from 'fs';
+import { execSync } from 'child_process';
+import {
+  logError, logInfo, resolvePkgManager,
+  setProjectName, tryGitInit,
+} from '../helpers';
 
 export const create = async (name, options) => {
   const template =
     options.template ??
-    (await select('What template do you want to use?', [
+    (await askUser('What template do you want to use?', [
       { title: 'Starter Project', value: 'starter' },
       { title: 'Multi-Sig Minting', value: 'minting' },
       { title: 'Smart-Contract Marketplace', value: 'marketplace' },
@@ -11,26 +21,38 @@ export const create = async (name, options) => {
 
   const framework =
     options.framework ??
-    (await select('What framework do you want to use?', [
+    (await askUser('What framework do you want to use?', [
       { title: 'Next.js', value: 'next' },
       { title: 'Gatsby', value: 'gatsby' },
     ]));
 
   const language =
     options.language ??
-    (await select('What language do you want to use?', [
+    (await askUser('What language do you want to use?', [
       { title: 'JavaScript', value: 'javascript' },
       { title: 'TypeScript', value: 'typescript' },
     ]));
 
-  await install(name, template, framework, language);
+  console.log('\n');
+
+  try {
+    createDirectory(name);
+
+    logInfo('📡 - Downloading files..., This might take a moment.');
+    await fetchRepository(template, framework, language);
+
+    logInfo('🏠 - Starting a new git repository...');
+    setProjectNameAndCommitChanges(name);
+
+    logInfo('🧶 - Installing project dependencies...');
+    installDependencies();
+  } catch (error) {
+    logError(error);
+    process.exit(1);
+  }
 };
 
-const install = async (name, template, framework, language) => {
-  
-};
-
-const select = async (question, choices) => {
+const askUser = async (question, choices) => {
   const response = await prompts(
     {
       type: 'select',
@@ -44,4 +66,54 @@ const select = async (question, choices) => {
   );
 
   return response.selection;
+};
+
+const createDirectory = (name) => {
+  const path = `${process.cwd()}/${name}`;
+
+  if (existsSync(path)) {
+    logError(`❗ A directory with name: "${name}" already exists.`);
+    process.exit(1);
+  }
+
+  if (mkdirSync(path, { recursive: true }) === undefined) {
+    logError('❌ Unable to create a project in current directory.');
+    process.exit(1);
+  }
+
+  logInfo('🏗️ - Creating a new mesh dApp in current directory...');
+  process.chdir(path);
+};
+
+const fetchRepository = async (template, framework, language) => {
+  const pipe = promisify(pipeline);
+  const name = `${template}-${framework}-${language}`;
+  const link = `https://codeload.github.com/MartifyLabs/${name}/tar.gz/main`;
+
+  await pipe(
+    got.stream(link),
+    extract(
+      { strip: 1 },
+      [`${name}-main`]
+    )
+  );
+};
+
+const installDependencies = () => {
+  try {
+    const pkgManager = resolvePkgManager();
+    execSync(`${pkgManager} install`, { stdio: [0, 1, 2] });
+  } catch (_) {
+    logError('🚫 Failed to install project dependencies, continuing...');
+  }
+}
+
+const setProjectNameAndCommitChanges = (name) => {
+  try {
+    setProjectName(process.cwd(), name);
+  } catch (_) {
+    logError('🚫 Failed to re-name package.json, continuing...');
+  }
+
+  tryGitInit();
 };

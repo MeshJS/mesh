@@ -5,6 +5,7 @@ import {
   createOption, InvalidArgumentError,
 } from 'commander';
 import { create } from './actions';
+import { logError, logSuccess } from './helpers';
 
 const main = async () => {
   console.clear();
@@ -12,8 +13,7 @@ const main = async () => {
   console.info(
     chalk.blue(
       figlet.textSync('Create Mesh dApp', {
-        horizontalLayout: 'full',
-        font: 'Speed',
+        font: 'Speed', horizontalLayout: 'full',
       })
     )
   );
@@ -37,7 +37,7 @@ const main = async () => {
 
           throw new InvalidArgumentError(
             chalk.redBright(
-              '🚫 Only letters, numbers, underscores and, hashes are allowed.',
+              '❗ Only letters, numbers, underscores and, hashes are allowed.',
             ),
           );
         })
@@ -68,10 +68,10 @@ const main = async () => {
 
 main()
   .then(() => {
-    console.info(chalk.greenBright('✨✨ Welcome to Web 3.0! ✨✨'));
+    logSuccess('✨✨ Welcome to Web 3.0! ✨✨');
     process.exit(0);
   })
   .catch((error) => {
-    console.error(error);
+    logError(error);
     process.exit(1);
   });
