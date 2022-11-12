@@ -1,5 +1,6 @@
 import Codeblock from '../../ui/codeblock';
 import SectionTwoCol from '../../common/sectionTwoCol';
+import Card from '../../ui/card';
 
 export default function CommonSection({
   title,
@@ -23,7 +24,7 @@ export default function CommonSection({
 
 function Left(desc, installCode, demoUrl, repoUrl) {
   return (
-    <>
+    <Card>
       {desc}
       <Codeblock data={installCode} isJson={false} />
       <div className="flex flex-col mb-8 lg:mb-16 space-y-4 sm:flex-row sm:justify-start sm:space-y-0 sm:space-x-4">
@@ -44,7 +45,7 @@ function Left(desc, installCode, demoUrl, repoUrl) {
           GitHub Repo
         </a>
       </div>
-    </>
+    </Card>
   );
 }
 
