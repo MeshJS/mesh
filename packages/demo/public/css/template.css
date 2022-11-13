@@ -108,6 +108,12 @@ body {
 .demo button {
   padding: 1rem;
   border-radius: 0.375rem;
+  font-size: 24px;
+}
+
+.demo button:disabled {
+  border: 1px solid #999999;
+  background-color: #cccccc;
 }
 
 @media (max-width: 600px) {
