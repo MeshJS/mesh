@@ -6,9 +6,9 @@ import { pipeline } from 'stream';
 import { existsSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';
 import {
-  logError, logInfo, resolvePkgManager,
-  setProjectName, tryGitInit,
+  resolvePkgManager, setProjectName, tryGitInit,
 } from '../helpers';
+import { logError, logInfo } from '../utils';
 
 export const create = async (name, options) => {
   const template =
@@ -29,8 +29,8 @@ export const create = async (name, options) => {
   const language =
     options.language ??
     (await askUser('What language do you want to use?', [
-      { title: 'JavaScript', value: 'javascript' },
-      { title: 'TypeScript', value: 'typescript' },
+      { title: 'JavaScript', value: 'js' },
+      { title: 'TypeScript', value: 'ts' },
     ]));
 
   console.log('\n');
@@ -87,7 +87,7 @@ const createDirectory = (name) => {
 
 const fetchRepository = async (template, framework, language) => {
   const pipe = promisify(pipeline);
-  const name = `${template}-${framework}-${language}`;
+  const name = `${template}-${framework}-${language}-template`;
   const link = `https://codeload.github.com/MartifyLabs/${name}/tar.gz/main`;
 
   await pipe(

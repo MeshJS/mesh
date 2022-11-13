@@ -5,7 +5,7 @@ import {
   createOption, InvalidArgumentError,
 } from 'commander';
 import { create } from './actions';
-import { logError, logSuccess } from './helpers';
+import { logError, logSuccess } from './utils';
 
 const main = async () => {
   console.clear();
