@@ -12,7 +12,7 @@ const items = [
     language: 'typescript',
     installCode: 'npx create-mesh-app starter-next-typescript',
     demoUrl: 'http://github.com',
-    repoUrl: 'http://github.com',
+    repoUrl: 'https://github.com/MartifyLabs/starter-next-ts-template',
     desc: (
       <p>
         Start a new project on Next.js. This starter template consist of{' '}
@@ -27,7 +27,7 @@ const items = [
     language: 'javascript',
     installCode: 'npx create-mesh-app starter-next-javacript',
     demoUrl: 'http://github.com',
-    repoUrl: 'http://github.com',
+    repoUrl: 'https://github.com/MartifyLabs/starter-next-js-template',
     desc: (
       <p>
         Start a new project on Next.js. This starter template consist of{' '}
@@ -35,36 +35,36 @@ const items = [
       </p>
     ),
   },
-  {
-    title: 'Starter Gatsby TypeScript',
-    template: 'starter',
-    framework: 'gatsby',
-    language: 'typescript',
-    installCode: 'npx create-mesh-app starter-gatsby-typescript',
-    demoUrl: 'http://github.com',
-    repoUrl: 'http://github.com',
-    desc: (
-      <p>
-        Start a new project on Gatsby. This starter template consist of{' '}
-        <code>MeshProvider</code> and <code>CardanoWallet</code> UI component.
-      </p>
-    ),
-  },
-  {
-    title: 'Starter Gatsby JavaScript',
-    template: 'starter',
-    framework: 'gatsby',
-    language: 'javascript',
-    installCode: 'npx create-mesh-app starter-gatsby-javacript',
-    demoUrl: 'http://github.com',
-    repoUrl: 'http://github.com',
-    desc: (
-      <p>
-        Start a new project on Gatsby. This starter template consist of{' '}
-        <code>MeshProvider</code> and <code>CardanoWallet</code> UI component.
-      </p>
-    ),
-  },
+  // {
+  //   title: 'Starter Gatsby TypeScript',
+  //   template: 'starter',
+  //   framework: 'gatsby',
+  //   language: 'typescript',
+  //   installCode: 'npx create-mesh-app starter-gatsby-typescript',
+  //   demoUrl: 'http://github.com',
+  //   repoUrl: 'http://github.com',
+  //   desc: (
+  //     <p>
+  //       Start a new project on Gatsby. This starter template consist of{' '}
+  //       <code>MeshProvider</code> and <code>CardanoWallet</code> UI component.
+  //     </p>
+  //   ),
+  // },
+  // {
+  //   title: 'Starter Gatsby JavaScript',
+  //   template: 'starter',
+  //   framework: 'gatsby',
+  //   language: 'javascript',
+  //   installCode: 'npx create-mesh-app starter-gatsby-javacript',
+  //   demoUrl: 'http://github.com',
+  //   repoUrl: 'http://github.com',
+  //   desc: (
+  //     <p>
+  //       Start a new project on Gatsby. This starter template consist of{' '}
+  //       <code>MeshProvider</code> and <code>CardanoWallet</code> UI component.
+  //     </p>
+  //   ),
+  // },
   {
     title: 'Minting Next.js TypeScript',
     template: 'minting',
@@ -72,8 +72,13 @@ const items = [
     language: 'typescript',
     installCode: 'npx create-mesh-app minting-next-typescript',
     demoUrl: 'http://github.com',
-    repoUrl: 'http://github.com',
-    desc: <p>Multi-sig minting.</p>,
+    repoUrl: 'https://github.com/MartifyLabs/minting-next-js-template',
+    desc: (
+      <p>
+        Multi-sig minting where backend will build the transaction and user sign
+        it on the frontend.
+      </p>
+    ),
   },
   {
     title: 'Minting Next.js JavaScript',
@@ -82,18 +87,21 @@ const items = [
     language: 'javascript',
     installCode: 'npx create-mesh-app minting-next-javascript',
     demoUrl: 'http://github.com',
-    repoUrl: 'http://github.com',
-    desc: <p>Multi-sig minting.</p>,
+    repoUrl: 'https://github.com/MartifyLabs/minting-next-ts-template',
+    desc: (
+      <p>
+        Multi-sig minting where backend will build the transaction and user sign
+        it on the frontend.
+      </p>
+    ),
   },
 ];
 
 export default function ReactStarterTemplates() {
   return (
-    <div className="flex justify-between lg:px-4 mx-auto w-full">
-      <article className="mx-auto w-full max-w-none format format-blue dark:format-invert px-4 pt-8 pb-32">
-        <Hero />
-        <Main />
-      </article>
+    <div className="mx-auto w-full max-w-none format format-blue dark:format-invert px-4 pt-8 pb-32">
+      <Hero />
+      <Main />
     </div>
   );
 }

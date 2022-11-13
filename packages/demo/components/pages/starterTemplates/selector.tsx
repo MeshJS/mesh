@@ -1,67 +1,4 @@
-const templates = [
-  {
-    title: 'Starter',
-    desc: 'A starter project with CardanoWallet dropdown button.',
-    cli: 'starter',
-    image: 'starter.png',
-  },
-  {
-    title: 'Minting',
-    desc: 'Create multi-sig transactions for minting tokens.',
-    cli: 'minting',
-    image: 'minting.png',
-  },
-  // {
-  //   title: 'Marketplace',
-  //   desc: 'marketplace allows anyone to buy and sell native assets such as NFTs.',
-  //   cli: 'marketplace'
-  // }
-];
-
-const frameworks = [
-  {
-    title: 'Next.js',
-    desc: 'Web development framework by Vercel enabling React-based web applications with server-side rendering.',
-    cli: 'next',
-    url: 'https://nextjs.org/',
-    image: 'nextjs.png',
-  },
-  {
-    title: 'Gatsby',
-    desc: 'Static site generator built on top of Node.js using React and GraphQL.',
-    cli: 'gatsby',
-    url: 'https://www.gatsbyjs.com/',
-    image: 'gatsby.png',
-  },
-];
-
-const languages = [
-  {
-    title: 'JavaScript',
-    desc: 'Programming language that allows you to implement complex features on web pages.',
-    cli: 'javascript',
-    image: 'javascript.png',
-  },
-  {
-    title: 'TypeScript',
-    desc: 'Syntactical superset of JavaScript that adds optional static typing.',
-    cli: 'typescript',
-    image: 'typescript.svg',
-  },
-];
-
-const repos = [
-  {
-    template: 'starter',
-    framework: 'next',
-    language: 'typescript',
-  },
-  {
-    template: 'starter',
-    framework: 'next',
-    language: 'javascript',
-  },
-];
+import { frameworks, templates, languages } from './data';
 
 export default function Selector({
   selectedTemplate,
@@ -81,13 +18,13 @@ export default function Selector({
         setSelected={setSelectedTemplate}
       />
 
-      <SelectSection
+      {/* <SelectSection
         title="Select a Framework"
         desc="Framework you want to build on."
         items={frameworks}
         selected={selectedFramework}
         setSelected={setSelectedFramework}
-      />
+      /> */}
 
       <SelectSection
         title="Select a Language"
@@ -113,7 +50,8 @@ function SelectSection({ title, desc, items, selected, setSelected }) {
           </p>
         </div>
         <div className="grid gap-8 mb-6 lg:mb-16 md:grid-cols-2">
-          {items.map((item, i) => {
+          {Object.keys(items).map((key, i) => {
+            const item = items[key];
             return (
               <SelectCard
                 item={item}

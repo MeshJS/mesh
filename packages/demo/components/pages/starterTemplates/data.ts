@@ -1,3 +1,18 @@
+export const templates = {
+  starter: {
+    title: 'Starter',
+    desc: 'A starter project with CardanoWallet dropdown button.',
+    cli: 'starter',
+    image: 'starter.png',
+  },
+  minting: {
+    title: 'Minting',
+    desc: 'Create multi-sig transactions for minting tokens.',
+    cli: 'minting',
+    image: 'minting.png',
+  },
+};
+
 export const languages = {
   javascript: {
     title: 'JavaScript',
@@ -21,11 +36,11 @@ export const frameworks = {
     url: 'https://nextjs.org/',
     image: 'nextjs.png',
   },
-  gatsby: {
-    title: 'Gatsby',
-    desc: 'Static site generator built on top of Node.js using React and GraphQL.',
-    cli: 'gatsby',
-    url: 'https://www.gatsbyjs.com/',
-    image: 'gatsby.png',
-  },
+  // gatsby: {
+  //   title: 'Gatsby',
+  //   desc: 'Static site generator built on top of Node.js using React and GraphQL.',
+  //   cli: 'gatsby',
+  //   url: 'https://www.gatsbyjs.com/',
+  //   image: 'gatsby.png',
+  // },
 };
