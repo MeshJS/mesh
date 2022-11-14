@@ -48,7 +48,7 @@ export const frameworks = {
     desc: 'Focus on page speed, snappy page loads and instant transitions instead of clunky static builds.',
     cli: 'remix',
     url: 'https://remix.run/',
-    image: 'remix.png',
+    image: 'remix.svg',
     comingsoon: true,
   },
   gatsby: {
