@@ -23,7 +23,7 @@ const main = async () => {
   const program = createCommand();
 
   program
-    .name('create-mesh-dapp')
+    .name('create-mesh-app')
     .description(
       'A quick and easy way to bootstrap your dApps on Cardano using Mesh.'
     )
