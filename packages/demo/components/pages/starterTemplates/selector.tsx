@@ -19,8 +19,8 @@ export default function Selector({
       />
 
       <SelectSection
-        title="Select a Framework"
-        desc="Framework you want to build on."
+        title="Select a Stack"
+        desc="The stack you want to build on."
         items={frameworks}
         selected={selectedFramework}
         setSelected={setSelectedFramework}
