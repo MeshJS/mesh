@@ -204,6 +204,12 @@ export const toPlutusData = (data: Data) => {
   }
 };
 
+/* -----------------[ PoolParams ]----------------- */
+
+export const toPoolParams = (_params) => {
+  return undefined;
+};
+
 /* -----------------[ Redeemer ]----------------- */
 
 export const toRedeemer = (action: Action) => {
@@ -314,7 +320,7 @@ export const toTxUnspentOutput = (utxo: UTxO) => {
 /* -----------------[ UnitInterval ]----------------- */
 
 export const toUnitInterval = (float: string) => {
-  const decimal = float.split('.')[1];
+  const decimal = float.split('.')[1] ?? '0';
 
   const numerator = `${parseInt(decimal, 10)}`;
   const denominator = '1' + '0'.repeat(decimal.length);

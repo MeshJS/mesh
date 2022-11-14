@@ -10,9 +10,11 @@ import {
   buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializeNativeScript, deserializeTx,
   fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash, resolveStakeKeyHash,
-  toAddress, toBytes, toRedeemer, toTxUnspentOutput, toValue,
+  toAddress, toBytes, toRedeemer, toRewardAddress, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
-import type { Address, TransactionBuilder, TxInputsBuilder } from '@mesh/core';
+import type {
+  Address, Certificates, TransactionBuilder, TxInputsBuilder, Withdrawals,
+} from '@mesh/core';
 import type {
   Action, Asset, AssetMetadata, Data, Era, Mint, Protocol,
   PlutusScript, Quantity, Recipient, Unit, UTxO,
@@ -29,18 +31,18 @@ export class Transaction {
   private readonly _initiator?: IInitiator;
   private readonly _protocolParameters: Protocol;
   private readonly _txBuilder: TransactionBuilder;
+  private readonly _txCertificates: Certificates;
   private readonly _txInputsBuilder: TxInputsBuilder;
+  private readonly _txWithdrawals: Withdrawals;
 
   constructor(options = {} as Partial<CreateTxOptions>) {
     this._era = options.era;
     this._initiator = options.initiator;
     this._protocolParameters = options.parameters ?? DEFAULT_PROTOCOL_PARAMETERS;
     this._txBuilder = buildTxBuilder(options.parameters);
+    this._txCertificates = csl.Certificates.new();
     this._txInputsBuilder = csl.TxInputsBuilder.new();
-  }
-
-  get size(): number {
-    return this._txBuilder.full_size();
+    this._txWithdrawals = csl.Withdrawals.new();
   }
 
   static maskMetadata(cborTx: string) {
@@ -90,11 +92,15 @@ export class Transaction {
     ).to_hex();
   }
 
+  get size(): number {
+    return this._txBuilder.full_size();
+  }
+
   async build(): Promise<string> {
     try {
       if (this.notVisited('redeemValue') === false) {
-        await this.addCollateralIfNeeded();
         await this.addRequiredSignersIfNeeded();
+        await this.addCollateralIfNeeded();
       }
 
       await this.forgeAssetsIfNeeded();
@@ -120,6 +126,21 @@ export class Transaction {
     );
 
     this._totalBurns.set(asset.unit, totalQuantity);
+
+    return this;
+  }
+
+  delegate(stakeAddress: string, poolId: string): Transaction {
+    const stakeDelegation = csl.Certificate.new_stake_delegation(
+      csl.StakeDelegation.new(
+        csl.StakeCredential.from_keyhash(
+          deserializeEd25519KeyHash(resolveStakeKeyHash(stakeAddress)),
+        ),
+        csl.Ed25519KeyHash.from_bech32(poolId),
+      ),
+    );
+
+    this._txCertificates.add(stakeDelegation);
 
     return this;
   }
@@ -192,6 +213,20 @@ export class Transaction {
     this._txInputsBuilder.add_plutus_script_input(
       witness, utxo.input(), utxo.output().amount(),
     );
+
+    return this;
+  }
+
+  registerPool(_poolParams): Transaction {
+    return this;
+  }
+
+  retirePool(poolId: string, epoch: number): Transaction {
+    const poolRetirement = csl.Certificate.new_pool_retirement(
+      csl.PoolRetirement.new(csl.Ed25519KeyHash.from_bech32(poolId), epoch),
+    );
+
+    this._txCertificates.add(poolRetirement);
 
     return this;
   }
@@ -324,6 +359,18 @@ export class Transaction {
           utxo.output().amount(),
         );
       });
+
+    return this;
+  }
+
+  withdraw(stakeAddress: string, lovelace: string): Transaction {
+    const address = toRewardAddress(stakeAddress);
+
+    if (address !== undefined) {
+      this._txWithdrawals.insert(
+        address, csl.BigNum.from_str(lovelace),
+      );
+    }
 
     return this;
   }
