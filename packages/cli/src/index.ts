@@ -52,13 +52,13 @@ const main = async () => {
     .addOption(
       createOption(
         '-s, --stack <STACK-NAME>',
-        `Choose a tech stack.`
+        `The tech stack you want to build on.`
       ).choices(['next', 'remix'])
     )
     .addOption(
       createOption(
         '-l, --language <LANGUAGE-NAME>',
-        `Select a language.`
+        `The language you want to use.`
       ).choices(['js', 'ts'])
     )
     .action(create);
