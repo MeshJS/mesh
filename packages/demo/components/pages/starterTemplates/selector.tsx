@@ -39,31 +39,29 @@ export default function Selector({
 
 function SelectSection({ title, desc, items, selected, setSelected }) {
   return (
-    <section className="bg-white dark:bg-gray-900">
-      <div className="px-4 mx-auto max-w-screen-xl lg:px-6">
-        <div className="mx-auto max-w-screen-sm text-center mb-8 lg:mb-16">
-          <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
-            {title}
-          </h2>
-          <p className="font-light text-gray-500 lg:mb-16 sm:text-xl dark:text-gray-400">
-            {desc}
-          </p>
-        </div>
-        <div className="grid gap-8 mb-6 lg:mb-16 md:grid-cols-2">
-          {Object.keys(items).map((key, i) => {
-            const item = items[key];
-            return (
-              <SelectCard
-                item={item}
-                selected={selected}
-                setSelected={setSelected}
-                key={i}
-              />
-            );
-          })}
-        </div>
+    <>
+      <div className="text-center">
+        <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
+          {title}
+        </h2>
+        <p className="font-light text-gray-500 lg:mb-16 mb-4 sm:text-xl dark:text-gray-400">
+          {desc}
+        </p>
       </div>
-    </section>
+      <div className="grid gap-8 mb-6 lg:mb-16 sm:grid-cols-2">
+        {Object.keys(items).map((key, i) => {
+          const item = items[key];
+          return (
+            <SelectCard
+              item={item}
+              selected={selected}
+              setSelected={setSelected}
+              key={i}
+            />
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -86,7 +84,7 @@ function SelectCard({ item, selected, setSelected }) {
       }}
     >
       <img
-        className="object-cover w-full rounded-t-lg md:h-auto md:w-48 md:rounded-none md:rounded-l-lg bg-white"
+        className="hidden md:block object-cover w-full rounded-t-lg md:h-auto md:w-48 md:rounded-none md:rounded-l-lg bg-white"
         src={`templates/${item.image}`}
         alt={item.title}
       />

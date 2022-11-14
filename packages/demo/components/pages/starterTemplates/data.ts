@@ -7,7 +7,7 @@ export const templates = {
   },
   minting: {
     title: 'Multi-sig Minting',
-    desc: 'Create multi-sig transactions for minting tokens.',
+    desc: 'Selling and minting tokens with multi-sig transactions.',
     cli: 'minting',
     image: 'minting.png',
   },
@@ -16,6 +16,13 @@ export const templates = {
     desc: `Start a new marketplace with Mesh's marketplace contract.`,
     cli: 'marketplace',
     image: 'marketplace.png',
+    comingsoon: true,
+  },
+  stakepool: {
+    title: 'Stake Pool',
+    desc: `A website for delegators to stake their ADA in your pool.`,
+    cli: 'stakepool',
+    image: 'stakepool.png',
     comingsoon: true,
   },
 };
@@ -61,7 +68,7 @@ export const frameworks = {
   },
   vite: {
     title: 'Vite',
-    desc: 'Bundle for production',
+    desc: 'Focuses on speed and performance by improving the development experience. Bundle for production.',
     cli: 'vite',
     url: 'https://vitejs.dev/',
     image: 'vite.svg',

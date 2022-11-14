@@ -3,6 +3,7 @@ import Selector from './selector';
 import Codeblock from '../../ui/codeblock';
 import { useState } from 'react';
 import { languages, frameworks } from './data';
+import Card from '../../ui/card';
 
 const items = [
   {
@@ -99,10 +100,12 @@ const items = [
 
 export default function ReactStarterTemplates() {
   return (
-    <div className="mx-auto w-full max-w-none format format-blue dark:format-invert px-4 pt-8 pb-32">
-      <Hero />
-      <Main />
-    </div>
+    <section className="bg-white dark:bg-gray-900 not-format">
+      <div className="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-12">
+        <Hero />
+        <Main />
+      </div>
+    </section>
   );
 }
 
@@ -132,7 +135,7 @@ function Main() {
   }, 0);
 
   return (
-    <div className="not-format">
+    <>
       <Selector
         selectedTemplate={selectedTemplate}
         setSelectedTemplate={setSelectedTemplate}
@@ -142,76 +145,61 @@ function Main() {
         setSelectedLanguage={setSelectedLanguage}
       />
 
-      <section className="bg-white dark:bg-gray-900">
-        <div className="px-4 mx-auto max-w-screen-xl lg:px-6">
-          <div className="mx-auto max-w-screen-sm text-center mb-8 lg:mb-16">
-            <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
-              Install Starter Templates with CLI
-            </h2>
-            <p className="font-light text-gray-500 lg:mb-16 sm:text-xl dark:text-gray-400">
-              {numberTemplates == 0 ? (
-                <>No starter templates found</>
-              ) : (
-                <>Kick start with one the of our starter templates</>
-              )}
-            </p>
-          </div>
-          <div className="grid gap-8 mb-6 lg:mb-16 md:grid-cols-2">
-            {items.filter(filter).map((item, i) => {
-              return (
-                <div
-                  className="p-6 bg-white rounded-lg border border-gray-200 shadow-md dark:bg-gray-800 dark:border-gray-700"
-                  key={i}
-                >
-                  <div className="flex flex-col items-center space-y-4 sm:flex-row sm:justify-start sm:space-y-0 sm:space-x-4">
-                    <h5 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                      {item.title}
-                    </h5>
+      <div className="text-center">
+        <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
+          Install Starter Templates with CLI
+        </h2>
+        <p className="font-light text-gray-500 lg:mb-16 mb-4 sm:text-xl dark:text-gray-400">
+          {numberTemplates == 0 ? (
+            <>No starter templates found</>
+          ) : (
+            <>Kick start with one the of our starter templates</>
+          )}
+        </p>
+      </div>
+      <div className="grid gap-8 mb-6 lg:mb-16 lg:grid-cols-2">
+        {items.filter(filter).map((item, i) => {
+          return (
+            <Card key={i}>
+              <div className="flex flex-col items-center space-y-4 sm:flex-row sm:justify-start sm:space-y-0 sm:space-x-4">
+                <h5 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                  {item.title}
+                </h5>
 
-                    <div className="flex flex-col space-y-4 sm:flex-row sm:justify-start sm:space-y-0 sm:space-x-4 right:0">
-                      <img
-                        className="object-cover w-12"
-                        src={`templates/${frameworks[item.framework].image}`}
-                        alt={item.title}
-                      />
-                      <img
-                        className="object-cover w-12"
-                        src={`templates/${languages[item.language].image}`}
-                        alt={item.title}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mb-3 font-normal text-gray-700 dark:text-gray-400 format dark:format-invert">
-                    {item.desc}
-                  </div>
-
-                  <Codeblock data={item.installCode} isJson={false} />
-
-                  <div className="flex flex-col mt-4 space-y-4 sm:flex-row sm:justify-start sm:space-y-0 sm:space-x-4">
-                    {/* <a
-                      href={item.demoUrl}
-                      className="inline-flex justify-center items-center py-3 px-5 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 no-underline"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Demo Site
-                    </a> */}
-                    <a
-                      href={item.repoUrl}
-                      className="inline-flex justify-center items-center py-3 px-5 text-base font-medium text-center text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:text-white dark:border-gray-700 dark:hover:bg-gray-700 dark:focus:ring-gray-800 no-underline"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      GitHub Repo
-                    </a>
-                  </div>
+                <div className="flex flex-col space-y-4 sm:flex-row sm:justify-start sm:space-y-0 sm:space-x-4 right:0">
+                  <img
+                    className="object-cover w-12"
+                    src={`templates/${frameworks[item.framework].image}`}
+                    alt={item.title}
+                  />
+                  <img
+                    className="object-cover w-12"
+                    src={`templates/${languages[item.language].image}`}
+                    alt={item.title}
+                  />
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-    </div>
+              </div>
+
+              <div className="mb-3 font-normal text-gray-700 dark:text-gray-400 format dark:format-invert">
+                {item.desc}
+              </div>
+
+              <Codeblock data={item.installCode} isJson={false} />
+
+              <div className="flex flex-col mt-4 space-y-4 sm:flex-row sm:justify-start sm:space-y-0 sm:space-x-4">
+                <a
+                  href={item.repoUrl}
+                  className="inline-flex justify-center items-center py-3 px-5 text-base font-medium text-center text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:text-white dark:border-gray-700 dark:hover:bg-gray-700 dark:focus:ring-gray-800 no-underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  GitHub Repo
+                </a>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </>
   );
 }
