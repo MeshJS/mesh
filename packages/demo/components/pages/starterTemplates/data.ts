@@ -6,10 +6,17 @@ export const templates = {
     image: 'starter.png',
   },
   minting: {
-    title: 'Minting',
+    title: 'Multi-sig Minting',
     desc: 'Create multi-sig transactions for minting tokens.',
     cli: 'minting',
     image: 'minting.png',
+  },
+  marketplace: {
+    title: 'Marketplace',
+    desc: `Start a new marketplace with Mesh's marketplace contract.`,
+    cli: 'marketplace',
+    image: 'marketplace.png',
+    comingsoon: true,
   },
 };
 
@@ -36,11 +43,28 @@ export const frameworks = {
     url: 'https://nextjs.org/',
     image: 'nextjs.png',
   },
-  // gatsby: {
-  //   title: 'Gatsby',
-  //   desc: 'Static site generator built on top of Node.js using React and GraphQL.',
-  //   cli: 'gatsby',
-  //   url: 'https://www.gatsbyjs.com/',
-  //   image: 'gatsby.png',
-  // },
+  remix: {
+    title: 'Remix',
+    desc: 'Focus on page speed, snappy page loads and instant transitions instead of clunky static builds.',
+    cli: 'remix',
+    url: 'https://remix.run/',
+    image: 'remix.png',
+    comingsoon: true,
+  },
+  gatsby: {
+    title: 'Gatsby',
+    desc: 'Static site generator built on top of Node.js using React and GraphQL.',
+    cli: 'gatsby',
+    url: 'https://www.gatsbyjs.com/',
+    image: 'gatsby.png',
+    comingsoon: true,
+  },
+  vite: {
+    title: 'Vite',
+    desc: 'Bundle for production',
+    cli: 'vite',
+    url: 'https://vitejs.dev/',
+    image: 'vite.svg',
+    comingsoon: true,
+  },
 };

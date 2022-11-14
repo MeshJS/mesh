@@ -18,13 +18,13 @@ export default function Selector({
         setSelected={setSelectedTemplate}
       />
 
-      {/* <SelectSection
+      <SelectSection
         title="Select a Framework"
         desc="Framework you want to build on."
         items={frameworks}
         selected={selectedFramework}
         setSelected={setSelectedFramework}
-      /> */}
+      />
 
       <SelectSection
         title="Select a Language"
@@ -76,9 +76,13 @@ function SelectCard({ item, selected, setSelected }) {
           ? 'border-green-400 border-2 '
           : 'dark:border-gray-700 '
       }
-      flex flex-col items-center rounded-lg border shadow-md md:flex-row md:max-w-xl hover:bg-gray-100 bg-white dark:bg-gray-800 dark:hover:bg-gray-700 cursor-pointer`}
+      flex flex-col items-center rounded-lg border shadow-md md:flex-row md:max-w-xl hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 ${
+        item.comingsoon == undefined && 'cursor-pointer'
+      }
+      `}
       onClick={() => {
-        setSelected(selected == item.cli ? undefined : item.cli);
+        item.comingsoon == undefined &&
+          setSelected(selected == item.cli ? undefined : item.cli);
       }}
     >
       <img
@@ -87,6 +91,11 @@ function SelectCard({ item, selected, setSelected }) {
         alt={item.title}
       />
       <div className="flex flex-col justify-between p-8 leading-normal">
+        {item.comingsoon && (
+          <span className="bg-blue-100 text-blue-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded dark:bg-blue-200 dark:text-blue-800 max-w-fit">
+            Coming soon
+          </span>
+        )}
         <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
           {item.title}
         </h5>
