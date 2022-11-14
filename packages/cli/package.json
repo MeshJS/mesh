@@ -1,13 +1,13 @@
 {
-  "name": "@martifylabs/create-mesh-dapp",
+  "name": "@martifylabs/create-mesh-app",
   "description": "A quick and easy way to bootstrap your dApps on Cardano using Mesh.",
   "homepage": "https://mesh.martify.io",
   "author": "MartifyLabs",
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "main": "dist/martifylabs-create-mesh-dapp.cjs.js",
+  "main": "dist/martifylabs-create-mesh-app.cjs.js",
   "bin": {
-    "create-mesh-dapp": "./bin/create-mesh-dapp"
+    "create-mesh-app": "./bin/create-mesh-app"
   },
   "repository": {
     "type": "git",

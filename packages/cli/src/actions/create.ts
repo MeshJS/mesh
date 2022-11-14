@@ -16,14 +16,14 @@ export const create = async (name, options) => {
     (await askUser('What template do you want to use?', [
       { title: 'Starter Project', value: 'starter' },
       { title: 'Multi-Sig Minting', value: 'minting' },
-      { title: 'Smart-Contract Marketplace', value: 'marketplace' },
+      { title: 'Smart-Contract Marketplace <COMING-SOON>', value: 'marketplace' },
     ]));
 
-  const framework =
-    options.framework ??
-    (await askUser('What framework do you want to use?', [
+  const stack =
+    options.stack ??
+    (await askUser('What Stack do you want to use?', [
       { title: 'Next.js', value: 'next' },
-      { title: 'Gatsby', value: 'gatsby' },
+      { title: 'Remix <COMING-SOON>', value: 'remix' },
     ]));
 
   const language =
@@ -39,7 +39,7 @@ export const create = async (name, options) => {
     createDirectory(name);
 
     logInfo('📡 - Downloading files..., This might take a moment.');
-    await fetchRepository(template, framework, language);
+    await fetchRepository(template, stack, language);
 
     logInfo('🏠 - Starting a new git repository...');
     setProjectNameAndCommitChanges(name);
@@ -85,9 +85,9 @@ const createDirectory = (name) => {
   process.chdir(path);
 };
 
-const fetchRepository = async (template, framework, language) => {
+const fetchRepository = async (template, stack, language) => {
   const pipe = promisify(pipeline);
-  const name = `${template}-${framework}-${language}-template`;
+  const name = `${template}-${stack}-${language}-template`;
   const link = `https://codeload.github.com/MartifyLabs/${name}/tar.gz/main`;
 
   await pipe(

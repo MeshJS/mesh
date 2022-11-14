@@ -51,15 +51,15 @@ const main = async () => {
     )
     .addOption(
       createOption(
-        '-f, --framework <FRAMEWORK-NAME>',
-        `Select a React framework.`
-      ).choices(['next', 'gatsby'])
+        '-s, --stack <STACK-NAME>',
+        `Choose a tech stack.`
+      ).choices(['next', 'remix'])
     )
     .addOption(
       createOption(
         '-l, --language <LANGUAGE-NAME>',
         `Select a language.`
-      ).choices(['javascript', 'typeScript'])
+      ).choices(['js', 'ts'])
     )
     .action(create);
 
