@@ -3,7 +3,7 @@
   "description": "React Hooks & Components you need for building dApps on Cardano.",
   "homepage": "https://mesh.martify.io",
   "author": "MartifyLabs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -20,6 +20,7 @@
   ],
   "main": "dist/mesh-react.cjs",
   "module": "dist/mesh-react.js",
+  "typings": "dist/index.d.ts",
   "scripts": {
     "build": "vite build",
     "dev": "start-storybook -p 6006"

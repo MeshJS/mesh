@@ -110,4 +110,3 @@ dist
 
 _local
 .rollup.cache
-packages/cli

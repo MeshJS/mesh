@@ -19,9 +19,9 @@ export const useWallet = () => {
   }
 
   return {
-    connected: hasConnectedWallet,
     name: connectedWalletName,
     connecting: connectingWallet,
+    connected: hasConnectedWallet,
     wallet: connectedWalletInstance,
     connect: connectWallet,
     disconnect,
