@@ -1,6 +1,6 @@
 import type { NextPage } from 'next';
 import Metatags from '../../components/site/metatags';
-import ReactUiComponents from '../../components/pages/starterTemplates';
+import ReactStarterTemplates from '../../components/pages/starterTemplates';
 
 const ReactStarterTemplatesPage: NextPage = () => {
   return (
@@ -9,7 +9,7 @@ const ReactStarterTemplatesPage: NextPage = () => {
         title="Starter Templates"
         description="Easiest way to kick start your project with one of our templates."
       />
-      <ReactUiComponents />
+      <ReactStarterTemplates />
     </>
   );
 };
