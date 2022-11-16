@@ -12,7 +12,7 @@ const items = [
     framework: 'next',
     language: 'typescript',
     installCode: 'npx create-mesh-app starter-next-typescript',
-    demoUrl: 'http://github.com',
+    demoUrl: 'http://starter-template.martify.io/',
     repoUrl: 'https://github.com/MartifyLabs/starter-next-ts-template',
     desc: (
       <p>
@@ -27,7 +27,7 @@ const items = [
     framework: 'next',
     language: 'javascript',
     installCode: 'npx create-mesh-app starter-next-javacript',
-    demoUrl: 'http://github.com',
+    demoUrl: 'http://starter-template.martify.io/',
     repoUrl: 'https://github.com/MartifyLabs/starter-next-js-template',
     desc: (
       <p>
@@ -72,7 +72,7 @@ const items = [
     framework: 'next',
     language: 'typescript',
     installCode: 'npx create-mesh-app minting-next-typescript',
-    demoUrl: 'http://github.com',
+    demoUrl: 'http://minting-template.martify.io/',
     repoUrl: 'https://github.com/MartifyLabs/minting-next-js-template',
     desc: (
       <p>
@@ -88,8 +88,8 @@ const items = [
     framework: 'next',
     language: 'javascript',
     installCode: 'npx create-mesh-app minting-next-javascript',
-    demoUrl: 'http://github.com',
-    repoUrl: 'https://github.com/MartifyLabs/minting-next-ts-template',
+    demoUrl: 'http://minting-template.martify.io/',
+    repoUrl: 'https://github.com/MartifyLabs/minting-next-js-template',
     desc: (
       <p>
         Sell native tokens with multi-sig minting; where the backend server will
@@ -189,6 +189,14 @@ function Main() {
               <Codeblock data={item.installCode} isJson={false} />
 
               <div className="flex flex-col mt-4 space-y-4 sm:flex-row sm:justify-start sm:space-y-0 sm:space-x-4">
+                <a
+                  href={item.demoUrl}
+                  className="inline-flex items-center justify-center px-4 py-2.5 text-base font-medium text-center text-white bg-primary-700 rounded-lg hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Live Demo
+                </a>
                 <a
                   href={item.repoUrl}
                   className="inline-flex justify-center items-center py-3 px-5 text-base font-medium text-center text-gray-900 rounded-lg border border-gray-300 hover:bg-gray-100 focus:ring-4 focus:ring-gray-100 dark:text-white dark:border-gray-700 dark:hover:bg-gray-700 dark:focus:ring-gray-800 no-underline"
