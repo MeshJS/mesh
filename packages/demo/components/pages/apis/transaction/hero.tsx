@@ -41,31 +41,5 @@ export default function Hero() {
         </div>
       </div>
     </>
-    // <section className="bg-white dark:bg-gray-900">
-    //   <div className="grid max-w-screen-xl px-4 py-8 mx-auto lg:gap-8 xl:gap-4 lg:py-16 lg:grid-cols-12">
-    //     <div className="mr-auto place-self-center lg:col-span-6">
-    //       <h1 className="max-w-2xl mb-4 text-4xl font-extrabold tracking-tight leading-none md:text-5xl xl:text-6xl dark:text-white">
-    //         Browser Wallet
-    //       </h1>
-    //       <p className="max-w-2xl mb-6 lg:mb-8 md:text-lg lg:text-xl typography">
-    //         For connecting, queries and performs wallet functions. These wallets
-    //         APIs are in accordance to{' '}
-    //         <a
-    //           href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030"
-    //           target="_blank"
-    //           rel="noreferrer"
-    //         >
-    //           CIP-30
-    //         </a>
-    //         , which defines the API for dApps to communicate with the user's
-    //         wallet. Additional utility functions provided for developers that
-    //         are useful for building dApps.
-    //       </p>
-    //     </div>
-    //     <div className="hidden lg:mt-0 lg:col-span-5 lg:flex">
-    //       <Codeblock data={codeSnippet} isJson={false} />
-    //     </div>
-    //   </div>
-    // </section>
   );
 }

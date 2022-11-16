@@ -1,6 +1,6 @@
 import type { NextPage } from 'next';
-import Transaction from '../../components/pages/apis/transaction';
-import Metatags from '../../components/site/metatags';
+import Transaction from '../../../components/pages/apis/transaction';
+import Metatags from '../../../components/site/metatags';
 
 const TransactionPage: NextPage = () => {
   return (
