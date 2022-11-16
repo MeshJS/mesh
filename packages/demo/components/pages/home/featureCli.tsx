@@ -4,7 +4,7 @@ import Card from '../../ui/card';
 import Codeblock from '../../ui/codeblock';
 
 export default function FeatureCli() {
-  let code1 = `npx create-mesh-app nextjs-ts-template`;
+  let code1 = `npx create-mesh-app starter-next-typescript`;
 
   return (
     <section className="bg-white dark:bg-gray-900">
@@ -14,13 +14,12 @@ export default function FeatureCli() {
             Get started in minutes
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
-            Set up entirely new application using the Mesh CLI. Choose the
-            language and framework of your choice, or choose one of our starter
-            kits.
+            Set up entirely new application using the Mesh CLI. Choose from one
+            of our starter kit, pick a language and framework of your choice.
           </p>
-          <Link href="/react">
+          <Link href="/starter-templates">
             <div className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 cursor-pointer">
-              Get started
+              Get started with templates
               <ChevronRightIcon className="ml-2 -mr-1 w-5 h-5" />
             </div>
           </Link>
