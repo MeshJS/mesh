@@ -10,6 +10,7 @@ export * from './Mint';
 export * from './NativeScript';
 export * from './Network';
 export * from './PlutusScript';
+export * from './PoolParams';
 export * from './Protocol';
 export * from './Recipient';
 export * from './UTxO';

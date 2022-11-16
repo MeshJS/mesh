@@ -13,7 +13,8 @@ import type {
   TransactionUnspentOutput, Value,
 } from '@mesh/core';
 import type {
-  Action, Asset, Data, NativeScript, PlutusScript, UTxO,
+  Action, Asset, Data, NativeScript,
+  PlutusScript, PoolParams, Relay, UTxO,
 } from '@mesh/common/types';
 
 /* -----------------[ Address ]----------------- */
@@ -206,8 +207,49 @@ export const toPlutusData = (data: Data) => {
 
 /* -----------------[ PoolParams ]----------------- */
 
-export const toPoolParams = (_params) => {
-  return undefined;
+export const toPoolParams = (_params: PoolParams) => {
+  return {} as csl.PoolParams;
+  // const toRelay = (relay: Relay) => {
+  //   switch (relay.type) {
+  //     case 'SingleHostAddr': {
+  //       const IPV4 = relay.IPV4
+  //         ? csl.Ipv4.new(new Uint8Array(relay.IPV4.split('.').map((b) => parseInt(b))))
+  //         : undefined;
+
+  //       const IPV6 = relay.IPV6
+  //         ? csl.Ipv6.new(toBytes(relay.IPV6.replaceAll(':', '')))
+  //         : undefined;
+
+  //       return csl.Relay.new_single_host_addr(
+  //         csl.SingleHostAddr.new(relay.port, IPV4, IPV6),
+  //       );
+  //     }
+  //     case 'SingleHostName':
+  //       return csl.Relay.new_single_host_name(
+  //         csl.SingleHostName.new(
+  //           relay.port, csl.DNSRecordAorAAAA.new(relay.domainName),
+  //         ),
+  //       );
+  //     case 'MultiHostName':
+  //       return csl.Relay.new_multi_host_name(
+  //         csl.MultiHostName.new(
+  //           csl.DNSRecordSRV.new(relay.domainName),
+  //         ),
+  //       );
+  //   }
+  // };
+
+  // return csl.PoolParams.new(
+  //   params.operator,
+  //   params.vrfKeyHash,
+  //   params.pledge,
+  //   params.cost,
+  //   params.margin,
+  //   params.rewardAddress,
+  //   params.owners,
+  //   params.relays,
+  //   params.metadata,
+  // );
 };
 
 /* -----------------[ Redeemer ]----------------- */

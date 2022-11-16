@@ -97,6 +97,10 @@ export const resolvePlutusScriptHash = (bech32: string) => {
   }
 };
 
+export const resolvePoolId = (hash: string) => {
+  return csl.Ed25519KeyHash.from_hex(hash).to_bech32('pool1');
+};
+
 export const resolvePrivateKey = (words: string[]) => {
   const entropy = mnemonicToEntropy(words.join(' '));
   const bip32PrivateKey = buildBip32PrivateKey(entropy);

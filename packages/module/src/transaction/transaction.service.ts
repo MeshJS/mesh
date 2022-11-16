@@ -10,14 +10,15 @@ import {
   buildTxBuilder, buildTxInputsBuilder, buildTxOutputBuilder,
   deserializeEd25519KeyHash, deserializeNativeScript, deserializeTx,
   fromTxUnspentOutput, fromUTF8, resolvePaymentKeyHash, resolveStakeKeyHash,
-  toAddress, toBytes, toRedeemer, toRewardAddress, toTxUnspentOutput, toValue,
+  toAddress, toBytes, toPoolParams, toRedeemer, toRewardAddress,
+  toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type {
   Address, Certificates, TransactionBuilder, TxInputsBuilder, Withdrawals,
 } from '@mesh/core';
 import type {
   Action, Asset, AssetMetadata, Data, Era, Mint, Protocol,
-  PlutusScript, Quantity, Recipient, Unit, UTxO,
+  PlutusScript, Quantity, Recipient, Unit, UTxO, PoolParams,
 } from '@mesh/common/types';
 
 @Trackable
@@ -130,17 +131,31 @@ export class Transaction {
     return this;
   }
 
-  delegate(stakeAddress: string, poolId: string): Transaction {
+  delegateStake(rewardAddress: string, poolId: string): Transaction {
     const stakeDelegation = csl.Certificate.new_stake_delegation(
       csl.StakeDelegation.new(
         csl.StakeCredential.from_keyhash(
-          deserializeEd25519KeyHash(resolveStakeKeyHash(stakeAddress)),
+          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress)),
         ),
         csl.Ed25519KeyHash.from_bech32(poolId),
       ),
     );
 
     this._txCertificates.add(stakeDelegation);
+
+    return this;
+  }
+
+  deregisterStake(rewardAddress: string): Transaction {
+    const stakeDeregistration = csl.Certificate.new_stake_deregistration(
+      csl.StakeDeregistration.new(
+        csl.StakeCredential.from_keyhash(
+          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress)),
+        ),
+      ),
+    );
+
+    this._txCertificates.add(stakeDeregistration);
 
     return this;
   }
@@ -217,13 +232,33 @@ export class Transaction {
     return this;
   }
 
-  registerPool(_poolParams): Transaction {
+  registerStake(rewardAddress: string): Transaction {
+    const stakeRegistration = csl.Certificate.new_stake_registration(
+      csl.StakeRegistration.new(
+        csl.StakeCredential.from_keyhash(
+          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress)),
+        ),
+      ),
+    );
+
+    this._txCertificates.add(stakeRegistration);
+
     return this;
   }
 
-  retirePool(poolId: string, epoch: number): Transaction {
+  registerPool(params: PoolParams): Transaction {
+    const poolRegistration = csl.Certificate.new_pool_registration(
+      csl.PoolRegistration.new(toPoolParams(params)),
+    );
+
+    this._txCertificates.add(poolRegistration);
+
+    return this;
+  }
+
+  retirePool(poolId: string, epochNo: number): Transaction {
     const poolRetirement = csl.Certificate.new_pool_retirement(
-      csl.PoolRetirement.new(csl.Ed25519KeyHash.from_bech32(poolId), epoch),
+      csl.PoolRetirement.new(csl.Ed25519KeyHash.from_bech32(poolId), epochNo),
     );
 
     this._txCertificates.add(poolRetirement);
@@ -363,8 +398,8 @@ export class Transaction {
     return this;
   }
 
-  withdraw(stakeAddress: string, lovelace: string): Transaction {
-    const address = toRewardAddress(stakeAddress);
+  withdrawRewards(rewardAddress: string, lovelace: string): Transaction {
+    const address = toRewardAddress(rewardAddress);
 
     if (address !== undefined) {
       this._txWithdrawals.insert(
@@ -423,6 +458,14 @@ export class Transaction {
 
   private async addTxInputsAsNeeded() {
     this._txBuilder.set_inputs(this._txInputsBuilder);
+
+    if (this._txCertificates.len() > 0) {
+      this._txBuilder.set_certs(this._txCertificates);
+    }
+
+    if (this._txWithdrawals.len() > 0) {
+      this._txBuilder.set_withdrawals(this._txWithdrawals);
+    }
 
     if (this.notVisited('setTxInputs')) {
       const hasMultiAsset = !this.notVisited('mintAsset')
