@@ -1,4 +1,4 @@
-// import FeatureCli from './featureCLI';
+import FeatureCli from './featureCli';
 import FeatureReact from './featureReact';
 import FeatureTransaction from './featureTransaction';
 import Hero from './hero';
@@ -11,7 +11,7 @@ export default function Home() {
       <Reasons />
       <FeatureReact />
       <FeatureTransaction />
-      {/* <FeatureCli /> */}
+      <FeatureCli />
     </>
   );
 }
