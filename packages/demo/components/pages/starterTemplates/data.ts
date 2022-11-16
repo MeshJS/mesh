@@ -1,7 +1,7 @@
 export const templates = {
   starter: {
     title: 'Starter',
-    desc: 'A starter project with CardanoWallet dropdown button.',
+    desc: 'A starter project with wallet integration.',
     cli: 'starter',
     image: 'starter.png',
   },
@@ -13,7 +13,7 @@ export const templates = {
   },
   marketplace: {
     title: 'Marketplace',
-    desc: `Start a new marketplace with Mesh's marketplace contract.`,
+    desc: `Start a new marketplace with prebuilt marketplace contract.`,
     cli: 'marketplace',
     image: 'marketplace.png',
     comingsoon: true,

@@ -14,12 +14,12 @@ const GettingStartedPage: NextPage = () => {
       link: '/guides',
       thumbnailHeroicon: <DocumentTextIcon />,
     },
-    // {
-    //   title: 'Starter Templates',
-    //   desc: 'Kick start your projects with our templates using CLI',
-    //   link: '/starter-templates',
-    //   thumbnailHeroicon: <CubeTransparentIcon />,
-    // },
+    {
+      title: 'Starter Templates',
+      desc: 'Kick start your projects with our templates using CLI',
+      link: '/starter-templates',
+      thumbnailHeroicon: <CubeTransparentIcon />,
+    },
   ];
 
   return (

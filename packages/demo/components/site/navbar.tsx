@@ -8,7 +8,6 @@ import {
   XMarkIcon,
   WalletIcon,
   ChevronDownIcon,
-  PuzzlePieceIcon,
   BanknotesIcon,
   WrenchScrewdriverIcon,
   BoltIcon,
@@ -19,14 +18,19 @@ import {
   HeartIcon,
   ShoppingCartIcon,
   CubeTransparentIcon,
+  PaperAirplaneIcon,
+  NewspaperIcon,
+  FireIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
+import { useRouter } from 'next/router';
 
 export default function Navbar() {
   const [darkMode, setDarkMode] = useLocalStorage('darkmode', false);
   const [isSSR, setIsSSR] = useState(true);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setIsSSR(false);
@@ -52,6 +56,10 @@ export default function Navbar() {
   useEffect(() => {
     setDarkTheme(darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    setShowMobileMenu(false);
+  }, [router.asPath]);
 
   return (
     <header>
@@ -114,8 +122,10 @@ export default function Navbar() {
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
               {/* <NavLink href="/guides" label="Guides" /> */}
               <SubMenuGetStarted />
-              <SubMenuApi />
+              <SubMenuWallet />
+              <SubMenuTransaction />
               <SubMenuReact />
+              <SubMenuApi />
               {/* <SubMenuSmartContracts /> */}
               <SubMenuAbout />
               {/* <NavLink href="/about" label="About" /> */}
@@ -147,16 +157,53 @@ function SubMenuGetStarted() {
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
             <SubMenuLinks
+              href={`/starter-templates`}
+              title="Starter Templates"
+              desc="Kick start your projects with our templates using CLI"
+              icon={<CubeTransparentIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
               href={`/guides`}
               title="Guides"
               desc="Step by step guides to build on Cardano"
               icon={<DocumentTextIcon className="w-5 h-5" />}
             />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuWallet() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Wallet <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
             <SubMenuLinks
-              href={`/starter-templates`}
-              title="Starter Templates"
-              desc="Kick start your projects with our templates using CLI"
-              icon={<CubeTransparentIcon className="w-5 h-5" />}
+              href={`/apis/appwallet`}
+              title="App Wallet"
+              desc="Wallet for building amazing applications"
+              icon={<WalletIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/browserwallet`}
+              title="Browser Wallet"
+              desc="Connect and perform wallet functions on Web3 dApps"
+              icon={<BanknotesIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
@@ -198,16 +245,16 @@ function SubMenuSmartContracts() {
   );
 }
 
-function SubMenuApi() {
+function SubMenuTransaction() {
   const [showSubmenu, setShowSubmenu] = useState(false);
   return (
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
     >
-      <Link href="/apis">
+      <Link href="/apis/transaction/basic">
         <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-          APIs <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+          Transaction <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
         </button>
       </Link>
       <div
@@ -218,23 +265,47 @@ function SubMenuApi() {
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
             <SubMenuLinks
-              href={`/apis/appwallet`}
-              title="App Wallet"
-              desc="Wallet for building amazing applications"
-              icon={<WalletIcon className="w-5 h-5" />}
+              href={`/apis/transaction/basic`}
+              title="Overview and send assets"
+              desc="Create transactions for sending assets"
+              icon={<PaperAirplaneIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
-              href={`/apis/browserwallet`}
-              title="Browser Wallet"
-              desc="Connect and perform wallet functions on Web3 dApps"
-              icon={<BanknotesIcon className="w-5 h-5" />}
+              href={`/apis/transaction/smart-contract`}
+              title="Interact with smart contracts"
+              desc="Create transactions to work with smart contracts"
+              icon={<NewspaperIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
-              href={`/apis/transaction`}
-              title="Transaction"
-              desc="Build transactions, minting, redeem from smart contracts"
-              icon={<PuzzlePieceIcon className="w-5 h-5" />}
+              href={`/apis/transaction/minting`}
+              title="Minting and burning assets"
+              desc="Using ForgeScript for minting and burning native assets"
+              icon={<FireIcon className="w-5 h-5" />}
             />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuApi() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Utilities <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
             <SubMenuLinks
               href={`/apis/providers`}
               title="Providers"

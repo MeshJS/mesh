@@ -16,8 +16,8 @@ const items = [
     repoUrl: 'https://github.com/MartifyLabs/starter-next-ts-template',
     desc: (
       <p>
-        Start a new project on Next.js. This starter template consist of{' '}
-        <code>MeshProvider</code> and <code>CardanoWallet</code> UI component.
+        Start a new project on Next.js. This starter template consists of a
+        connect wallet button and wallet integration.
       </p>
     ),
   },
@@ -31,8 +31,8 @@ const items = [
     repoUrl: 'https://github.com/MartifyLabs/starter-next-js-template',
     desc: (
       <p>
-        Start a new project on Next.js. This starter template consist of{' '}
-        <code>MeshProvider</code> and <code>CardanoWallet</code> UI component.
+        Start a new project on Next.js. This starter template consists of a
+        connect wallet button and wallet integration.
       </p>
     ),
   },
@@ -76,8 +76,9 @@ const items = [
     repoUrl: 'https://github.com/MartifyLabs/minting-next-js-template',
     desc: (
       <p>
-        Multi-sig minting where backend will build the transaction and user sign
-        it on the frontend.
+        Sell native tokens with multi-sig minting; where the backend server will
+        build the transaction, and the user signs the transaction on the
+        frontend.
       </p>
     ),
   },
@@ -91,8 +92,9 @@ const items = [
     repoUrl: 'https://github.com/MartifyLabs/minting-next-ts-template',
     desc: (
       <p>
-        Multi-sig minting where backend will build the transaction and user sign
-        it on the frontend.
+        Sell native tokens with multi-sig minting; where the backend server will
+        build the transaction, and the user signs the transaction on the
+        frontend.
       </p>
     ),
   },
