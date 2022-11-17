@@ -2,16 +2,19 @@ import { CardanoWallet, useWallet } from '@martifylabs/mesh-react';
 import { useState } from 'react';
 import Input from '../../../ui/input';
 import { Transaction } from '@martifylabs/mesh';
+import { createTransactionDonate } from '../../../../backend/support';
+import SvgSurprise from '../../../svgs/surpriseSvg';
 
 export default function SendAdaToSupport() {
   return (
     <section className="bg-white dark:bg-gray-900">
       <div className="gap-8 items-center py-8 px-4 mx-auto max-w-screen-xl xl:gap-16 md:grid md:grid-cols-2 sm:py-16 lg:px-6 format dark:format-invert">
-        <img
+        {/* <img
           className="w-full hidden sm:block"
           src="/support/grasp-g76b6d77d5_640.jpg"
           alt="support"
-        />
+        /> */}
+        <SvgSurprise className={`w-50 h-50 dark:fill-white fill-black`} />
         <div className="mt-4 md:mt-0">
           <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
             Support Financially
@@ -31,15 +34,39 @@ function SendPayment() {
   const [amount, setAmount] = useState<number>(25);
   const [done, setDone] = useState<boolean>(false);
   const { connected, wallet } = useWallet();
+  const [loading, setLoading] = useState<boolean>(false);
 
   async function makeTx() {
-    const tx = new Transaction({ initiator: wallet }).sendLovelace(
-      process.env.NEXT_PUBLIC_DONATE_ADA_ADDRESS!,
-      (amount * 1000000).toString()
+    setLoading(true);
+
+    // const tx = new Transaction({ initiator: wallet }).sendLovelace(
+    //   process.env.NEXT_PUBLIC_DONATE_ADA_ADDRESS!,
+    //   (amount * 1000000).toString()
+    // );
+    // const unsignedTx = await tx.build();
+    // const signedTx = await wallet.signTx(unsignedTx);
+    // const txHash = await wallet.submitTx(signedTx);
+
+    const network = await wallet.getNetworkId();
+
+    if (network != 1) {
+      setLoading(false);
+      setDone(false);
+      return;
+    }
+
+    const recipientAddress = await wallet.getChangeAddress();
+    const utxos = await wallet.getUtxos();
+    const { unsignedTx } = await createTransactionDonate(
+      recipientAddress,
+      amount,
+      utxos
     );
-    const unsignedTx = await tx.build();
-    const signedTx = await wallet.signTx(unsignedTx);
+    const signedTx = await wallet.signTx(unsignedTx, true);
     const txHash = await wallet.submitTx(signedTx);
+    console.log('txHash', txHash);
+
+    setLoading(false);
     setDone(true);
   }
 
@@ -60,8 +87,9 @@ function SendPayment() {
             <button
               className="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
               onClick={() => makeTx()}
+              disabled={loading}
             >
-              Donate ₳{amount}
+              {loading ? <>Building transaction...</> : <>Donate ₳{amount}</>}
             </button>
           </div>
         ) : (
