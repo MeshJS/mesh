@@ -84,7 +84,7 @@ function SelectCard({ item, selected, setSelected }) {
       }}
     >
       <img
-        className="hidden md:block object-cover w-full rounded-t-lg md:h-auto md:w-48 md:rounded-none md:rounded-l-lg bg-white"
+        className="hidden md:block object-cover rounded-t-lg md:h-auto md:w-48 md:rounded-none md:rounded-l-lg bg-white"
         src={`templates/${item.image}`}
         alt={item.title}
       />
