@@ -241,7 +241,7 @@ import { useWallet } from '@martifylabs/mesh-react';
 import { CardanoWallet } from '@martifylabs/mesh-react';
 
 const Home: NextPage = () => {
-  const { wallet } = useWallet();
+  const { connected, wallet } = useWallet();
   const [assets, setAssets] = useState<null | any>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
