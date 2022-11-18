@@ -11,9 +11,11 @@ export default function Hero() {
               Build your application with ease on Cardano
             </h1>
             <p className="max-w-xl mx-auto mb-6 font-light text-gray-500 lg:mx-0 xl:mb-8 md:text-lg xl:text-xl dark:text-gray-400">
-              Mesh is an open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain.
-              Ranging from wallet interactions to transaction building, it can power applications with varying
-              levels of complexity, limited only by your imagination.
+              Mesh is an open-source library providing numerous tools to easily
+              build powerful dApps on the Cardano blockchain. Ranging from
+              wallet interactions to transaction building, it can power
+              applications with varying levels of complexity, limited only by
+              your imagination.
             </p>
             <Link href="/getting-started">
               <div className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 cursor-pointer">
@@ -23,7 +25,7 @@ export default function Hero() {
             </Link>
           </div>
           <div className="hidden lg:block col-span-6">
-            <img
+            {/* <img
               src="/logo-mesh/black/logo-mesh-black-512x512.png"
               className="dark:hidden"
               alt="mockup"
@@ -32,7 +34,11 @@ export default function Hero() {
               src="/logo-mesh/white/logo-mesh-white-512x512.png"
               className="hidden dark:block"
               alt="mockup dark"
-            />
+            /> */}
+            <video className="w-full" autoPlay muted>
+              <source src="/home/starter-template-cli.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
           </div>
         </div>
       </div>
