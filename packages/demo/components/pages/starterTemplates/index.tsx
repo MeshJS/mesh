@@ -11,7 +11,7 @@ const items = [
     template: 'starter',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app starter-next-typescript',
+    installCode: 'npx create-mesh-app leap -t starter -s next -l ts',
     demoUrl: 'http://starter-template.martify.io/',
     repoUrl: 'https://github.com/MartifyLabs/starter-next-ts-template',
     desc: (
@@ -26,7 +26,7 @@ const items = [
     template: 'starter',
     framework: 'next',
     language: 'javascript',
-    installCode: 'npx create-mesh-app starter-next-javacript',
+    installCode: 'npx create-mesh-app leap -t starter -s next -l js',
     demoUrl: 'http://starter-template.martify.io/',
     repoUrl: 'https://github.com/MartifyLabs/starter-next-js-template',
     desc: (
@@ -71,7 +71,7 @@ const items = [
     template: 'minting',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app minting-next-typescript',
+    installCode: 'npx create-mesh-app leap -t minting -s next -l ts',
     demoUrl: 'http://minting-template.martify.io/',
     repoUrl: 'https://github.com/MartifyLabs/minting-next-js-template',
     desc: (
@@ -87,7 +87,7 @@ const items = [
     template: 'minting',
     framework: 'next',
     language: 'javascript',
-    installCode: 'npx create-mesh-app minting-next-javascript',
+    installCode: 'npx create-mesh-app leap -t minting -s next -l js',
     demoUrl: 'http://minting-template.martify.io/',
     repoUrl: 'https://github.com/MartifyLabs/minting-next-js-template',
     desc: (
