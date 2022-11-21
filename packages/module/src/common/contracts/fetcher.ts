@@ -1,6 +1,9 @@
-import type { AssetMetadata, Protocol, UTxO } from '@mesh/common/types';
+import type {
+  AccountStatus, AssetMetadata, Protocol, UTxO,
+} from '@mesh/common/types';
 
 export interface IFetcher {
+  fetchAccountStatus(address: string): Promise<AccountStatus>;
   fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>;
   fetchAssetMetadata(asset: string): Promise<AssetMetadata>;
   fetchHandleAddress(handle: string): Promise<string>;

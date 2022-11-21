@@ -324,8 +324,8 @@ export class Transaction {
     return this;
   }
 
-  setChangeAddress(address: string): Transaction {
-    this._changeAddress = toAddress(address);
+  setChangeAddress(changeAddress: string): Transaction {
+    this._changeAddress = toAddress(changeAddress);
 
     return this;
   }

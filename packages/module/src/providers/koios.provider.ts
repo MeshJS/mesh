@@ -2,10 +2,10 @@ import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeNativeScript, fromNativeScript,
-  parseHttpError, toBytes, toScriptRef,
+  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  Asset, AssetMetadata, PlutusScript, Protocol, UTxO,
+  AccountStatus, Asset, AssetMetadata, PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
@@ -15,6 +15,30 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     this._axiosInstance = axios.create({
       baseURL: `https://${network}.koios.rest/api/v${version}`,
     });
+  }
+
+  async fetchAccountStatus(address: string): Promise<AccountStatus> {
+    try {
+      const rewardAddress = address.startsWith('addr')
+        ? resolveRewardAddress(address)
+        : address;
+
+      const { data, status } = await this._axiosInstance.post(
+        'account_info', { _stake_addresses: [rewardAddress] }
+      );
+
+      if (status === 200) 
+        return <AccountStatus>{
+          active: data[0].status === 'registered',
+          poolId: data[0].delegated_pool,
+          rewards: data[0].rewards_available,
+          withdrawals: data[0].withdrawals,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {

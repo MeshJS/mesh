@@ -113,11 +113,10 @@ function Right({ userInput, setUserInput }) {
 
     try {
       const rewardAddresses = await wallet.getRewardAddresses();
-      const stakeAddress = rewardAddresses[0];
-      console.log("stakeAddress", stakeAddress)
+      const rewardAddress = rewardAddresses[0];
 
       const tx = new Transaction({ initiator: wallet });
-      tx.delegateStake(stakeAddress, userInput);
+      tx.delegateStake(rewardAddress, userInput);
 
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
@@ -125,7 +124,7 @@ function Right({ userInput, setUserInput }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(`${JSON.stringify(error)}`);
       setState(0);
     }
   }

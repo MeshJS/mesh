@@ -1,4 +1,5 @@
 export * from './Account';
+export * from './AccountStatus';
 export * from './Action';
 export * from './Asset';
 export * from './AssetExtended';
@@ -13,5 +14,6 @@ export * from './PlutusScript';
 export * from './PoolParams';
 export * from './Protocol';
 export * from './Recipient';
+export * from './Relay';
 export * from './UTxO';
 export * from './Wallet';

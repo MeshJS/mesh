@@ -1,10 +1,10 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  parseHttpError, toBytes, toScriptRef,
+  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AssetMetadata, NativeScript,
+  AccountStatus, AssetMetadata, NativeScript,
   PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
@@ -17,6 +17,30 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       baseURL: `https://cardano-${network}.blockfrost.io/api/v${version}`,
       headers: { project_id: projectId },
     });
+  }
+
+  async fetchAccountStatus(address: string): Promise<AccountStatus> {
+    const rewardAddress = address.startsWith('addr')
+      ? resolveRewardAddress(address)
+      : address;
+
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `accounts/${rewardAddress}`,
+      );
+
+      if (status === 200)
+        return <AccountStatus>{
+          active: data.active,
+          poolId: data.pool_id,
+          rewards: data.withdrawable_amount,
+          withdrawals: data.withdrawals_sum,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
