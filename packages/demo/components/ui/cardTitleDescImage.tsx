@@ -1,7 +1,5 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import Card from './card';
-import dynamic from 'next/dynamic';
 
 export default function CardTitleDescImage({
   title,
@@ -12,7 +10,7 @@ export default function CardTitleDescImage({
   thumbnailNotioly,
 }: {
   title;
-  desc;
+  desc?;
   link;
   thumbnailHeroicon?: any | undefined;
   thumbnail?: string | undefined;
@@ -44,9 +42,11 @@ export default function CardTitleDescImage({
           <h2 className="my-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
             {title}
           </h2>
-          <p className="mb-4 font-light text-gray-500 dark:text-gray-400">
-            {desc}
-          </p>
+          {desc && (
+            <p className="mb-4 font-light text-gray-500 dark:text-gray-400">
+              {desc}
+            </p>
+          )}
         </Card>
       </div>
     </Link>
