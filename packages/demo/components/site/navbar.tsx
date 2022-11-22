@@ -125,7 +125,9 @@ export default function Navbar() {
               <SubMenuWallet />
               <SubMenuTransaction />
               <SubMenuReact />
-              <SubMenuApi />
+              <NavLink href="/providers" label="Providers" />
+              <SubMenuUtilities />
+
               {/* <SubMenuSmartContracts /> */}
               <SubMenuAbout />
               {/* <NavLink href="/about" label="About" /> */}
@@ -289,7 +291,7 @@ function SubMenuTransaction() {
   );
 }
 
-function SubMenuApi() {
+function SubMenuUtilities() {
   const [showSubmenu, setShowSubmenu] = useState(false);
   return (
     <li
@@ -306,12 +308,6 @@ function SubMenuApi() {
       >
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
-            <SubMenuLinks
-              href={`/apis/providers`}
-              title="Providers"
-              desc="Speed up development with these service providers"
-              icon={<CpuChipIcon className="w-5 h-5" />}
-            />
             <SubMenuLinks
               href={`/apis/resolvers`}
               title="Resolvers"
@@ -412,7 +408,6 @@ function SubMenuReact() {
     </li>
   );
 }
-
 function SubMenuLinks({ href, title, desc, icon }) {
   return (
     <li>
