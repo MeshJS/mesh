@@ -81,5 +81,5 @@ export const SUPPORTED_HANDLES: Record<number, string> = {
 };
 
 export const SUPPORTED_WALLETS = [
-  'eternl', 'flint', 'nami', 'nufi',
+  'eternl', 'flint', 'nami', 'nufi','yoroi'
 ];
