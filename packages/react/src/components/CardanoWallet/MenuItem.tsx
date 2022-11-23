@@ -20,11 +20,16 @@ const StyledActive = tw.span`
   ml-auto
 `;
 
-export const MenuItem = ({ icon, name, connect, active }) => (
-  <StyledItem onClick={connect}>
-    <StyledIcon src={icon} />
+export const MenuItem = ({ icon, label, action, active }) => (
+  <StyledItem onClick={action}>
+    {icon && <StyledIcon src={icon} />}
     <StyledName>
-      {name.at(0).toUpperCase() + name.slice(1).toLowerCase()}
+      {label
+        .split(' ')
+        .map((word: string) => {
+          return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        })
+        .join(' ')}
     </StyledName>
     {active && (
       <StyledActive>
