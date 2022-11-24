@@ -47,8 +47,8 @@ function Right() {
     <Card>
       <Codeblock data={code2} isJson={false} />
       <StakeButton
-        checkAccountStatus={blockfrostProvider.fetchAccountStatus}
-        poolId={`pool1j5ykmf5a87myg947w2svnnj8f3evt8dqmvv624kugv9tcwwk8vr`}
+        checkAccountStatus={(ra) => blockfrostProvider.fetchAccountStatus(ra)}
+        poolId="pool1j5ykmf5a87myg947w2svnnj8f3evt8dqmvv624kugv9tcwwk8vr"
       />
     </Card>
   );

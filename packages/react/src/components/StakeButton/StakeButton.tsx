@@ -1,6 +1,8 @@
 import tw, { styled } from 'twin.macro';
 import { useEffect, useState } from 'react';
-import { useWallet, useWalletList, useWalletTx } from '@mesh/hooks';
+import {
+  useRewardAddress, useWallet, useWalletList, useWalletTx,
+} from '@mesh/hooks';
 import { ChevronDown } from '../ChevronDown';
 import { MenuItem } from '../MenuItem';
 import type { AccountStatus } from '@martifylabs/mesh';
@@ -73,20 +75,15 @@ export const StakeButton = ({ checkAccountStatus, poolId }) => {
 
 const Delegate = ({ wallet, poolId, check }) => {
   const tx = useWalletTx();
+  const rewardAddress = useRewardAddress();
   const [error, setError] = useState<unknown>();
   const [checking, setChecking] = useState(false);
-  const [rewardAddress, setRewardAddress] = useState('');
   const [accountStatus, setAccountStatus] = useState<AccountStatus>();
-
-  const getRewardAddress = async () => {
-    const rewardAddresses = await wallet.getRewardAddresses();
-    setRewardAddress(rewardAddresses[0]);
-  };
 
   const checkAccountStatus = async () => {
     try {
       setChecking(true);
-
+      console.log({check});
       const status = await check(rewardAddress);
       setAccountStatus(status);
 
@@ -98,12 +95,14 @@ const Delegate = ({ wallet, poolId, check }) => {
 
   const registerAddress = async () => {
     try {
-      const unsignedTx = await tx
-        .registerStake(rewardAddress)
-        .build();
+      if (rewardAddress) {
+        const unsignedTx = await tx
+          .registerStake(rewardAddress)
+          .build();
 
-      const signedTx = wallet.signTx(unsignedTx);
-      wallet.submitTx(signedTx);
+        const signedTx = await wallet.signTx(unsignedTx);
+        await wallet.submitTx(signedTx);
+      }
     } catch (error) {
       setError(error);
     }
@@ -111,21 +110,22 @@ const Delegate = ({ wallet, poolId, check }) => {
 
   const delegateStake = async () => {
     try {
-      const unsignedTx = await tx
-        .delegateStake(rewardAddress, poolId)
-        .build();
+      if (rewardAddress) {
+        const unsignedTx = await tx
+          .delegateStake(rewardAddress, poolId)
+          .build();
 
-      const signedTx = wallet.signTx(unsignedTx);
-      wallet.submitTx(signedTx);
+        const signedTx = await wallet.signTx(unsignedTx);
+        await wallet.submitTx(signedTx);
+      }
     } catch (error) {
       setError(error);
     }
   };
 
   useEffect(() => {
-    getRewardAddress()
-      .then(checkAccountStatus);
-  }, []);
+    checkAccountStatus();
+  }, [rewardAddress]);
 
   if (checking) {
     return <span>Checking...</span>

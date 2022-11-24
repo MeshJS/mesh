@@ -20,7 +20,6 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
   }
 
   async fetchAccountStatus(address: string): Promise<AccountStatus> {
-    console.log(1111, address)
     const rewardAddress = address.startsWith('addr')
       ? resolveRewardAddress(address)
       : address;
