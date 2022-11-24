@@ -2,6 +2,7 @@ import CommonLayout from '../../../common/layout';
 import UiConnectWallet from './connectWallet';
 import Hero from './hero';
 import UiPoweredByMesh from './poweredByMesh';
+import UiStakeButton from './stakeButton';
 
 export default function ReactUiComponents() {
   const sidebarItems = [
@@ -21,6 +22,7 @@ function Main() {
     <>
       <UiConnectWallet />
       <UiPoweredByMesh />
+      <UiStakeButton />
     </>
   );
 }
