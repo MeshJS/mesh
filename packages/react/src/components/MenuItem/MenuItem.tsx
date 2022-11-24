@@ -13,7 +13,8 @@ const StyledIcon = tw.img`
 `;
 
 const StyledName = tw.span`
-  text-xl font-normal
+  font-normal
+  text-xl
 `;
 
 const StyledActive = tw.span`

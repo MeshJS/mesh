@@ -1,6 +1,6 @@
 export type AccountStatus = {
   active: boolean;
-  poolId: string;
+  poolId?: string;
   rewards: string;
   withdrawals: string;
 };

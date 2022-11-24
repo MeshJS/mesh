@@ -1,7 +1,7 @@
 import tw, { styled } from 'twin.macro';
 import { useState } from 'react';
 import { useWallet, useWalletList } from '@mesh/hooks';
-import { MenuItem } from './MenuItem';
+import { MenuItem } from '../MenuItem';
 import { WalletBalance } from './WalletBalance';
 
 const StyledMenuButton = tw.button`
@@ -59,7 +59,7 @@ export const CardanoWallet = () => {
             />
           ))
           ) : wallets.length === 0 ? (
-            <span>No Wallet Found.</span>
+            <span>No Wallet Found</span>
           ) : (
             <>
               <MenuItem
