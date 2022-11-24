@@ -35,7 +35,7 @@ function MyApp({ Component, pageProps }: AppProps) {
             <header>
               <Navbar />
             </header>
-            <main className="pt-16 pb-16 lg:pb-24 bg-white dark:bg-gray-900">
+            <main className="pt-16 bg-white dark:bg-gray-900">
               <Component {...pageProps} />
             </main>
             <Footer />
