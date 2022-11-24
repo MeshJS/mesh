@@ -83,9 +83,11 @@ const Delegate = ({ wallet, poolId, check }) => {
   const checkAccountStatus = async () => {
     try {
       setChecking(true);
-      console.log({check});
-      const status = await check(rewardAddress);
-      setAccountStatus(status);
+      
+      if (rewardAddress) {
+        const status = await check(rewardAddress);
+        setAccountStatus(status);
+      }
 
       setChecking(false);
     } catch (error) {
