@@ -1,5 +1,5 @@
 export * from './Account';
-export * from './AccountStatus';
+export * from './AccountInfo';
 export * from './Action';
 export * from './Asset';
 export * from './AssetExtended';

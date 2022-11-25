@@ -4,7 +4,7 @@ import {
   parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountStatus, AssetMetadata, NativeScript,
+  AccountInfo, AssetMetadata, NativeScript,
   PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
@@ -19,7 +19,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     });
   }
 
-  async fetchAccountStatus(address: string): Promise<AccountStatus> {
+  async fetchAccountInfo(address: string): Promise<AccountInfo> {
     const rewardAddress = address.startsWith('addr')
       ? resolveRewardAddress(address)
       : address;
@@ -30,9 +30,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return <AccountStatus>{
+        return <AccountInfo>{
           active: data.active,
           poolId: data.pool_id,
+          balance: data.controlled_amount,
           rewards: data.withdrawable_amount,
           withdrawals: data.withdrawals_sum,
         };
@@ -52,11 +53,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
         `${url}?page=${page}`,
       );
 
-      if (status === 200) {
+      if (status === 200)
         return data.length > 0
           ? paginateUTxOs(page + 1, [...utxos, ...await Promise.all(data.map(toUTxO))])
           : utxos;
-      }
 
       throw parseHttpError(data);
     };

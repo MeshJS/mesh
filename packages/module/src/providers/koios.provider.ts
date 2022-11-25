@@ -5,7 +5,8 @@ import {
   parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountStatus, Asset, AssetMetadata, PlutusScript, Protocol, UTxO,
+  AccountInfo, Asset, AssetMetadata,
+  PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
@@ -17,7 +18,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     });
   }
 
-  async fetchAccountStatus(address: string): Promise<AccountStatus> {
+  async fetchAccountInfo(address: string): Promise<AccountInfo> {
     try {
       const rewardAddress = address.startsWith('addr')
         ? resolveRewardAddress(address)
@@ -28,9 +29,10 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200) 
-        return <AccountStatus>{
-          active: data[0].status === 'registered',
+        return <AccountInfo>{
           poolId: data[0].delegated_pool,
+          active: data[0].status === 'registered',
+          balance: data[0].total_balance.toString(),
           rewards: data[0].rewards_available,
           withdrawals: data[0].withdrawals,
         };
