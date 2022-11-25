@@ -10,7 +10,7 @@ export default function Codeblock({
   const { value, onCopy, hasCopied } = useClipboard(data);
 
   return (
-    <div className="max-h-screen overflow-auto relative">
+    <div className="max-h-screen overflow-auto relative not-format mb-4">
       <button
         type="button"
         className="text-gray-900 bg-white border border-gray-300 hover:bg-gray-100 focus:ring-4 font-medium rounded-lg text-sm px-1 py-1 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:border-gray-600 dark:focus:ring-gray-700 absolute right-1 top-1"
