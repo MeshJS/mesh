@@ -5,7 +5,7 @@ import {
 } from '@mesh/hooks';
 import { ChevronDown } from '../ChevronDown';
 import { MenuItem } from '../MenuItem';
-import type { AccountStatus } from '@martifylabs/mesh';
+import type { AccountInfo } from '@martifylabs/mesh';
 
 const StyledMenuButton = tw.button`
   flex items-center justify-center
@@ -25,12 +25,12 @@ const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
   hidden && tw`hidden`,
 ]);
 
-export const StakeButton = ({ checkAccountStatus, poolId }) => {
+export const StakeButton = ({ poolId, onCheck }) => {
   const wallets = useWalletList();
 
   const [hideMenuList, setHideMenuList] = useState(true);
 
-  const { connect, connecting, connected, name, wallet } = useWallet();
+  const { connect, connecting, connected, name } = useWallet();
 
   return (
     <div
@@ -42,7 +42,7 @@ export const StakeButton = ({ checkAccountStatus, poolId }) => {
         onClick={() => setHideMenuList(!hideMenuList)}
       >
         {connected ? (
-          <Delegate wallet={wallet} poolId={poolId} check={checkAccountStatus} />
+          <Delegate poolId={poolId} onCheck={onCheck} />
         ) : connecting ? (
           <>Connecting...</>
         ) : (
@@ -73,20 +73,21 @@ export const StakeButton = ({ checkAccountStatus, poolId }) => {
   );
 };
 
-const Delegate = ({ wallet, poolId, check }) => {
+const Delegate = ({ poolId, onCheck }) => {
   const tx = useWalletTx();
+  const { wallet } = useWallet();
   const rewardAddress = useRewardAddress();
   const [error, setError] = useState<unknown>();
   const [checking, setChecking] = useState(false);
-  const [accountStatus, setAccountStatus] = useState<AccountStatus>();
+  const [accountInfo, setAccountInfo] = useState<AccountInfo>();
 
   const checkAccountStatus = async () => {
     try {
       setChecking(true);
       
       if (rewardAddress) {
-        const status = await check(rewardAddress);
-        setAccountStatus(status);
+        const info = await onCheck(rewardAddress);
+        setAccountInfo(info);
       }
 
       setChecking(false);
@@ -133,8 +134,8 @@ const Delegate = ({ wallet, poolId, check }) => {
     return <span>Checking...</span>
   }
 
-  if (accountStatus?.active) {
-    return accountStatus.poolId === poolId
+  if (accountInfo?.active) {
+    return accountInfo.poolId === poolId
       ? <span>Stake Delegated</span>
       : <span onClick={delegateStake}>Delegate Stake</span>;
   }

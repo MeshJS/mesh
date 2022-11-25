@@ -31,7 +31,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return <AccountInfo>{
-          active: data.active,
+          active: data.active || data.active_epoch !== null,
           poolId: data.pool_id,
           balance: data.controlled_amount,
           rewards: data.withdrawable_amount,
