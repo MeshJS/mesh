@@ -104,7 +104,10 @@ const Delegate = ({ poolId, onCheck }) => {
     setProcessing(true);
     try {
       if (rewardAddress) {
-        const unsignedTx = await tx.registerStake(rewardAddress).build();
+        const unsignedTx = await tx
+          .registerStake(rewardAddress)
+          .delegateStake(rewardAddress, poolId)
+          .build();
 
         const signedTx = await wallet.signTx(unsignedTx);
         console.log('signedTx', signedTx);
