@@ -1,7 +1,10 @@
 import tw, { styled } from 'twin.macro';
 import { useEffect, useState } from 'react';
 import {
-  useRewardAddress, useWallet, useWalletList, useWalletTx,
+  useRewardAddress,
+  useWallet,
+  useWalletList,
+  useWalletTx,
 } from '@mesh/hooks';
 import { ChevronDown } from '../ChevronDown';
 import { MenuItem } from '../MenuItem';
@@ -51,7 +54,7 @@ export const StakeButton = ({ poolId, onCheck }) => {
           </>
         )}
       </StyledMenuButton>
-      <StyledMenuList hidden={hideMenuList}>
+      <StyledMenuList hidden={hideMenuList || connected}>
         {wallets.length > 0 ? (
           wallets.map((wallet, index) => (
             <MenuItem
@@ -80,11 +83,12 @@ const Delegate = ({ poolId, onCheck }) => {
   const [error, setError] = useState<unknown>();
   const [checking, setChecking] = useState(false);
   const [accountInfo, setAccountInfo] = useState<AccountInfo>();
+  const [processing, setProcessing] = useState(false);
 
   const checkAccountStatus = async () => {
     try {
       setChecking(true);
-      
+
       if (rewardAddress) {
         const info = await onCheck(rewardAddress);
         setAccountInfo(info);
@@ -97,17 +101,21 @@ const Delegate = ({ poolId, onCheck }) => {
   };
 
   const registerAddress = async () => {
+    setProcessing(true);
     try {
       if (rewardAddress) {
-        const unsignedTx = await tx
-          .registerStake(rewardAddress)
-          .build();
+        const unsignedTx = await tx.registerStake(rewardAddress).build();
 
         const signedTx = await wallet.signTx(unsignedTx);
-        await wallet.submitTx(signedTx);
+        console.log('signedTx', signedTx);
+        const txHash = await wallet.submitTx(signedTx);
+        console.log('txHash', txHash);
+        setProcessing(false);
       }
     } catch (error) {
+      console.error('error', error);
       setError(error);
+      setProcessing(false);
     }
   };
 
@@ -119,10 +127,14 @@ const Delegate = ({ poolId, onCheck }) => {
           .build();
 
         const signedTx = await wallet.signTx(unsignedTx);
-        await wallet.submitTx(signedTx);
+        const txHash = await wallet.submitTx(signedTx);
+        console.log('txHash', txHash);
+        setProcessing(false);
       }
     } catch (error) {
+      console.error('error', error);
       setError(error);
+      setProcessing(false);
     }
   };
 
@@ -131,13 +143,18 @@ const Delegate = ({ poolId, onCheck }) => {
   }, [rewardAddress]);
 
   if (checking) {
-    return <span>Checking...</span>
+    return <span>Checking...</span>;
+  }
+  if (processing) {
+    return <span>Loading...</span>;
   }
 
   if (accountInfo?.active) {
-    return accountInfo.poolId === poolId
-      ? <span>Stake Delegated</span>
-      : <span onClick={delegateStake}>Delegate Stake</span>;
+    return accountInfo.poolId === poolId ? (
+      <span>Stake Delegated</span>
+    ) : (
+      <span onClick={delegateStake}>Delegate Stake</span>
+    );
   }
 
   return <span onClick={registerAddress}>Register Address</span>;
