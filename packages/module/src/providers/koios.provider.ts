@@ -12,7 +12,7 @@ import type {
 export class KoiosProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(network: 'api' | 'testnet' | 'guild', version = 0) {
+  constructor(network: 'api' | 'preview' | 'preprod' | 'guild', version = 0) {
     this._axiosInstance = axios.create({
       baseURL: `https://${network}.koios.rest/api/v${version}`,
     });

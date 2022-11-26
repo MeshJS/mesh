@@ -13,13 +13,13 @@ export default function Koios() {
 
   useEffect(() => {
     async function load() {
-      const _koiosProvider = new KoiosProvider('testnet');
+      const _koiosProvider = new KoiosProvider('preview');
       setKoiosProvider(_koiosProvider);
     }
     load();
   }, []);
 
-  let code1 = `const koiosProvider = new KoiosProvider('<api,testnet,guild>');\n`;
+  let code1 = `const koiosProvider = new KoiosProvider('<api,preview,preprod,guild>');\n`;
 
   return (
     <>
