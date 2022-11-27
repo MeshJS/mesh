@@ -16,6 +16,7 @@ export const create = async (name, options) => {
     (await askUser('What template do you want to use?', [
       { title: 'Starter Project', value: 'starter' },
       { title: 'Multi-Sig Minting', value: 'minting' },
+      { title: 'Staking Button', value: 'staking' },
       { title: 'Smart-Contract Marketplace <COMING-SOON>', value: 'marketplace' },
     ]));
 
