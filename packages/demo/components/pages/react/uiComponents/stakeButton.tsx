@@ -1,8 +1,11 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { BlockfrostProvider } from '@martifylabs/mesh';
+import { KoiosProvider } from '@martifylabs/mesh';
 import { StakeButton } from '@martifylabs/mesh-react';
+import { useState } from 'react';
+import Input from '../../../ui/input';
+import Select from '../../../ui/select';
 
 export default function UiStakeButton() {
   return (
@@ -35,33 +38,55 @@ function Left() {
 }
 
 function Right() {
+  const [poolId, setPoolId] = useState(
+    'pool1j5ykmf5a87myg947w2svnnj8f3evt8dqmvv624kugv9tcwwk8vr'
+  );
+  const [networkId, setNetworkId] =
+    useState<'preprod' | 'api' | 'preview' | 'guild'>('preprod');
+
   let code2 = ``;
-  code2 += `import { BlockfrostProvider } from '@martifylabs/mesh';\n`;
+  code2 += `import { KoiosProvider } from '@martifylabs/mesh';\n`;
   code2 += `import { StakeButton } from '@martifylabs/mesh-react';\n`;
   code2 += `\n`;
   code2 += `export default function Page() {\n`;
-  code2 += `  // you can use any other providers here, e.g. KoiosProvider\n`;
-  code2 += `  const blockchainProvider = new BlockfrostProvider(\n`;
-  code2 += `    'YOUR KEY HERE'\n`;
-  code2 += `  );\n`;
+  code2 += `  // you can use any other providers here, e.g. BlockfrostProvider\n`;
+  code2 += `  const blockchainProvider = new KoiosProvider('${networkId}');\n`;
   code2 += `  return (\n`;
   code2 += `    <StakeButton\n`;
   code2 += `      onCheck={(address) => blockchainProvider.fetchAccountInfo(address)}\n`;
-  code2 += `      poolId="pool1j5ykmf5a87myg947w2svnnj8f3evt8dqmvv624kugv9tcwwk8vr"\n`;
+  code2 += `      poolId="${poolId}"\n`;
   code2 += `    />\n`;
   code2 += `  )\n`;
   code2 += `}\n`;
 
-  const blockchainProvider = new BlockfrostProvider(
-    process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-  );
+  const blockchainProvider = new KoiosProvider(networkId);
+
+  const options = {
+    api: 'api',
+    preview: 'preview',
+    preprod: 'preprod',
+    guild: 'guild',
+  };
 
   return (
     <Card>
       <Codeblock data={code2} isJson={false} />
+      <Select
+        id="network"
+        options={options}
+        value={networkId}
+        onChange={(e) => setNetworkId(e.target.value)}
+        label="Select Koios network"
+      />
+      <Input
+        value={poolId}
+        onChange={(e) => setPoolId(e.target.value)}
+        placeholder="Pool ID"
+        label="Pool ID"
+      />
       <StakeButton
         onCheck={(address) => blockchainProvider.fetchAccountInfo(address)}
-        poolId="pool1j5ykmf5a87myg947w2svnnj8f3evt8dqmvv624kugv9tcwwk8vr"
+        poolId={poolId}
       />
     </Card>
   );

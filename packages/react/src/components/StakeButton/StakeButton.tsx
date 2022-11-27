@@ -84,6 +84,7 @@ const Delegate = ({ poolId, onCheck }) => {
   const [checking, setChecking] = useState(false);
   const [accountInfo, setAccountInfo] = useState<AccountInfo>();
   const [processing, setProcessing] = useState(false);
+  const [done, setDone] = useState(false);
 
   const checkAccountStatus = async () => {
     try {
@@ -102,6 +103,7 @@ const Delegate = ({ poolId, onCheck }) => {
 
   const registerAddress = async () => {
     setProcessing(true);
+    setDone(false);
     try {
       if (rewardAddress) {
         const unsignedTx = await tx
@@ -110,19 +112,20 @@ const Delegate = ({ poolId, onCheck }) => {
           .build();
 
         const signedTx = await wallet.signTx(unsignedTx);
-        console.log('signedTx', signedTx);
         const txHash = await wallet.submitTx(signedTx);
         console.log('txHash', txHash);
-        setProcessing(false);
+        setDone(true);
       }
     } catch (error) {
       console.error('error', error);
       setError(error);
-      setProcessing(false);
     }
+    setProcessing(false);
   };
 
   const delegateStake = async () => {
+    setProcessing(true);
+    setDone(false);
     try {
       if (rewardAddress) {
         const unsignedTx = await tx
@@ -132,13 +135,13 @@ const Delegate = ({ poolId, onCheck }) => {
         const signedTx = await wallet.signTx(unsignedTx);
         const txHash = await wallet.submitTx(signedTx);
         console.log('txHash', txHash);
-        setProcessing(false);
+        setDone(true);
       }
     } catch (error) {
       console.error('error', error);
       setError(error);
-      setProcessing(false);
     }
+    setProcessing(false);
   };
 
   useEffect(() => {
@@ -150,6 +153,9 @@ const Delegate = ({ poolId, onCheck }) => {
   }
   if (processing) {
     return <span>Loading...</span>;
+  }
+  if (done) {
+    return <span>Stake Delegated</span>;
   }
 
   if (accountInfo?.active) {
