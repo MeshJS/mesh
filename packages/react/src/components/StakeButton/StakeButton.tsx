@@ -134,7 +134,6 @@ const Delegate = ({ poolId, onCheck }) => {
 
         const signedTx = await wallet.signTx(unsignedTx);
         const txHash = await wallet.submitTx(signedTx);
-        console.log('txHash', txHash);
         setDone(true);
       }
     } catch (error) {

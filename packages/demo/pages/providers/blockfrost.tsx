@@ -14,6 +14,7 @@ export default function ProvidersBlockfrost() {
   const sidebarItems = [
     { label: 'fetchProtocolParameters', to: 'fetchProtocolParameters' },
     { label: 'fetchAddressUtxos', to: 'fetchAddressUtxos' },
+    { label: 'fetchAccountInfo', to: 'fetchAccountInfo' },
     // { label: 'fetchAssetMetadata', to: 'fetchAssetMetadata' },
     { label: 'submitTx', to: 'submitTx' },
   ];

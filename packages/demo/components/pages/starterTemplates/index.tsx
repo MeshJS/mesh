@@ -98,6 +98,36 @@ const items = [
       </p>
     ),
   },
+  {
+    title: 'Stakepool Next.js TypeScript',
+    template: 'staking',
+    framework: 'next',
+    language: 'typescript',
+    installCode: 'npx create-mesh-app leap -t staking -s next -l ts',
+    demoUrl: 'http://staking-template.martify.io/',
+    repoUrl: 'https://github.com/MartifyLabs/staking-next-ts-template',
+    desc: (
+      <p>
+        Are you a stake pool operator? This starter template allows delegators
+        to connect their wallet and stake with your pool.
+      </p>
+    ),
+  },
+  {
+    title: 'Stakepool Next.js JavaScript',
+    template: 'staking',
+    framework: 'next',
+    language: 'javascript',
+    installCode: 'npx create-mesh-app leap -t staking -s next -l js',
+    demoUrl: 'http://staking-template.martify.io/',
+    repoUrl: 'https://github.com/MartifyLabs/staking-next-js-template',
+    desc: (
+      <p>
+        Are you a stake pool operator? This starter template allows delegators
+        to connect their wallet and stake with your pool.
+      </p>
+    ),
+  },
 ];
 
 export default function ReactStarterTemplates() {
