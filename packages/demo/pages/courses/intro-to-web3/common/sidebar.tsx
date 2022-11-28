@@ -31,7 +31,7 @@ export default function Sidebar({}) {
           url: 'install-vscode',
         },
         {
-          label: 'Install CIP wallet',
+          label: 'Install wallet',
           url: 'install-wallet',
         },
       ],

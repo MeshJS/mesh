@@ -1,29 +1,23 @@
 import type { NextPage } from 'next';
 import CourseLayout from '../../../../components/courses/layout';
-import Metatags from '../../../../components/site/metatags';
 import Codeblock from '../../../../components/ui/codeblock';
 import Sidebar from './../common/sidebar';
 
-const CoursesPage: NextPage = () => {
-  const title = 'Install Node.js';
-  const desc = `Before we build our first app, let's get Node.js, a JavaScript
-  runtime environment, and Node Package Module (NPM).`;
+const CoursesInstallNodejsPage: NextPage = () => {
   return (
-    <>
-      <Metatags title={title} description={desc} />
-      <CourseLayout
-        coursesSidebar={<Sidebar />}
-        title={title}
-        desc={desc}
-        youtubeId="EhOVLH3r2Go"
-      >
-        <Content />
-      </CourseLayout>
-    </>
+    <CourseLayout
+      coursesSidebar={<Sidebar />}
+      title={`Install Node.js`}
+      desc={`Before we build our first app, let's get Node.js, a JavaScript
+      runtime environment, and Node Package Module (NPM).`}
+      // youtubeId="EhOVLH3r2Go"
+    >
+      <Content />
+    </CourseLayout>
   );
 };
 
-export default CoursesPage;
+export default CoursesInstallNodejsPage;
 
 function Content() {
   return (
@@ -63,18 +57,18 @@ function Content() {
       <p>
         Installation of Node.js and NPM is straightforward using the installer
         package available at Node.js official web site.
-        <ul>
-          <li>
-            Download the installer from{' '}
-            <a href="https://nodejs.org/" target="_blank" rel="noreferrer">
-              Node.js
-            </a>
-          </li>
-          <li>Run the installer</li>
-          <li>Follow the installer steps</li>
-          <li>Restart your machine</li>
-        </ul>
       </p>
+      <ul>
+        <li>
+          Download the LTS installer from{' '}
+          <a href="https://nodejs.org/" target="_blank" rel="noreferrer">
+            Node.js
+          </a>
+        </li>
+        <li>Run the installer</li>
+        <li>Follow the installer steps</li>
+        <li>Restart your machine</li>
+      </ul>
       <p>
         Now, test Node.js by printing its version using the following command in
         Terminal:
@@ -89,15 +83,15 @@ function Content() {
         </a>{' '}
         is an alternative to the npm package manager, and we recommend to use
         yarn over npm because:
-        <ul>
-          <li>Yarn can install packages from local cache</li>
-          <li>Yarn binds versions of the package strongly</li>
-          <li>
-            Yarn installs packages in parallel, while npm installs one package
-            at a time
-          </li>
-        </ul>
       </p>
+      <ul>
+        <li>Yarn can install packages from local cache</li>
+        <li>Yarn binds versions of the package strongly</li>
+        <li>
+          Yarn installs packages in parallel, while npm installs one package at
+          a time
+        </li>
+      </ul>
 
       <p>To install yarn, run this command:</p>
       <Codeblock data={`npm install --global yarn`} isJson={false} />
