@@ -2,6 +2,7 @@ import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import { CardanoWallet } from '@martifylabs/mesh-react';
+import Link from 'next/link';
 
 export default function UiConnectWallet() {
   return (
@@ -20,8 +21,15 @@ function Left() {
   return (
     <>
       <p>
-        A dropdown component which allows the user to select a wallet to
-        connect.
+        In order for dApps to communicate with the user's wallet, we need a way
+        to connect to their wallet.
+      </p>
+      <p></p>
+      <p>
+        Add this <code>CardanoWallet</code> to allow the user to select a wallet
+        to connect to your dApp. After the wallet is connected, see{' '}
+        <Link href="/apis/browserwallet">Browser Wallet</Link> for a list of
+        CIP-30 APIs.
       </p>
     </>
   );

@@ -5,7 +5,7 @@ import type { Era, Protocol } from '@martifylabs/mesh';
 
 export const useWalletTx = (options: {
   era?: Era, parameters?: Protocol,
-}) => {
+} = {}) => {
   const { era, parameters } = options;
 
   const {

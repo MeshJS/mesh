@@ -2,19 +2,45 @@ import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeNativeScript, fromNativeScript,
-  parseHttpError, toBytes, toScriptRef,
+  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  Asset, AssetMetadata, PlutusScript, Protocol, UTxO,
+  AccountInfo, Asset, AssetMetadata,
+  PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(network: 'api' | 'testnet' | 'guild', version = 0) {
+  constructor(network: 'api' | 'preview' | 'preprod' | 'guild', version = 0) {
     this._axiosInstance = axios.create({
       baseURL: `https://${network}.koios.rest/api/v${version}`,
     });
+  }
+
+  async fetchAccountInfo(address: string): Promise<AccountInfo> {
+    try {
+      const rewardAddress = address.startsWith('addr')
+        ? resolveRewardAddress(address)
+        : address;
+
+      const { data, status } = await this._axiosInstance.post(
+        'account_info', { _stake_addresses: [rewardAddress] }
+      );
+
+      if (status === 200) 
+        return <AccountInfo>{
+          poolId: data[0].delegated_pool,
+          active: data[0].status === 'registered',
+          balance: data[0].total_balance.toString(),
+          rewards: data[0].rewards_available,
+          withdrawals: data[0].withdrawals,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {

@@ -16,6 +16,7 @@ export const create = async (name, options) => {
     (await askUser('What template do you want to use?', [
       { title: 'Starter Project', value: 'starter' },
       { title: 'Multi-Sig Minting', value: 'minting' },
+      { title: 'Staking Button', value: 'staking' },
       { title: 'Smart-Contract Marketplace <COMING-SOON>', value: 'marketplace' },
     ]));
 
@@ -42,7 +43,7 @@ export const create = async (name, options) => {
     await fetchRepository(template, stack, language);
 
     logInfo('🏠 - Starting a new git repository...');
-    setProjectNameAndCommitChanges(name);
+    setNameAndCommitChanges(name);
 
     logInfo('🧶 - Installing project dependencies...');
     installDependencies();
@@ -99,16 +100,7 @@ const fetchRepository = async (template, stack, language) => {
   );
 };
 
-const installDependencies = () => {
-  try {
-    const pkgManager = resolvePkgManager();
-    execSync(`${pkgManager} install`, { stdio: [0, 1, 2] });
-  } catch (_) {
-    logError('🚫 Failed to install project dependencies, continuing...');
-  }
-}
-
-const setProjectNameAndCommitChanges = (name) => {
+const setNameAndCommitChanges = (name) => {
   try {
     setProjectName(process.cwd(), name);
   } catch (_) {
@@ -117,3 +109,12 @@ const setProjectNameAndCommitChanges = (name) => {
 
   tryGitInit();
 };
+
+const installDependencies = () => {
+  try {
+    const pkgManager = resolvePkgManager();
+    execSync(`${pkgManager} install`, { stdio: [0, 1, 2] });
+  } catch (_) {
+    logError('🚫 Failed to install project dependencies, continuing...');
+  }
+}

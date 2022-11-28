@@ -1,6 +1,6 @@
 import tw from 'twin.macro';
 import { useLovelace, useWalletList } from '@mesh/hooks';
-import { ChevronDown } from './ChevronDown';
+import { ChevronDown } from '../ChevronDown';
 
 const StyledIcon = tw.img`
   h-6 m-2

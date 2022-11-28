@@ -7,7 +7,7 @@ export const useWalletList = () => {
 
   useEffect(() => {
     setWallets(BrowserWallet.getInstalledWallets());
-  }, [])
+  }, []);
 
   return wallets;
 };
