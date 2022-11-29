@@ -73,7 +73,7 @@ const items = [
     language: 'typescript',
     installCode: 'npx create-mesh-app leap -t minting -s next -l ts',
     demoUrl: 'http://minting-template.martify.io/',
-    repoUrl: 'https://github.com/MartifyLabs/minting-next-js-template',
+    repoUrl: 'https://github.com/MartifyLabs/minting-next-ts-template',
     desc: (
       <p>
         Sell native tokens with multi-sig minting; where the backend server will
@@ -95,6 +95,36 @@ const items = [
         Sell native tokens with multi-sig minting; where the backend server will
         build the transaction, and the user signs the transaction on the
         frontend.
+      </p>
+    ),
+  },
+  {
+    title: 'Stakepool Next.js TypeScript',
+    template: 'staking',
+    framework: 'next',
+    language: 'typescript',
+    installCode: 'npx create-mesh-app leap -t staking -s next -l ts',
+    demoUrl: 'http://staking-template.martify.io/',
+    repoUrl: 'https://github.com/MartifyLabs/staking-next-ts-template',
+    desc: (
+      <p>
+        Are you a stake pool operator? This starter template allows delegators
+        to connect their wallet and stake with your pool.
+      </p>
+    ),
+  },
+  {
+    title: 'Stakepool Next.js JavaScript',
+    template: 'staking',
+    framework: 'next',
+    language: 'javascript',
+    installCode: 'npx create-mesh-app leap -t staking -s next -l js',
+    demoUrl: 'http://staking-template.martify.io/',
+    repoUrl: 'https://github.com/MartifyLabs/staking-next-js-template',
+    desc: (
+      <p>
+        Are you a stake pool operator? This starter template allows delegators
+        to connect their wallet and stake with your pool.
       </p>
     ),
   },
@@ -149,7 +179,7 @@ function Main() {
 
       <div className="text-center">
         <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
-          Install Starter Templates with CLI
+          Install Starter Templates
         </h2>
         <p className="font-light text-gray-500 lg:mb-16 mb-4 sm:text-xl dark:text-gray-400">
           {numberTemplates == 0 ? (
@@ -204,6 +234,15 @@ function Main() {
                   rel="noreferrer"
                 >
                   GitHub Repo
+                </a>
+
+                <a
+                  href={`https://demeter.run/code?repository=${item.repoUrl}.git&template=${item.language}`}
+                  className="inline-flex justify-center items-center py-3 px-5 text-base font-medium text-center text-white rounded-lg border border-gray-300 bg-fuchsia-600 hover:bg-fuchsia-700 focus:ring-4 focus:ring-gray-100 no-underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Demeter
                 </a>
               </div>
             </Card>

@@ -10,7 +10,7 @@ export default function Footer() {
     },
     {
       icon: <SvgTwitter className="w-5 h-5" />,
-      link: 'https://twitter.com/MartifyLabs',
+      link: 'https://twitter.com/meshsdk',
     },
     {
       icon: <SvgGithub className="w-5 h-5" />,

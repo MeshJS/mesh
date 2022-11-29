@@ -11,18 +11,17 @@ export const templates = {
     cli: 'minting',
     image: 'minting.png',
   },
+  staking: {
+    title: 'Stake Pool',
+    desc: `A website for delegators to stake their ADA in your pool.`,
+    cli: 'staking',
+    image: 'stakepool.png',
+  },
   marketplace: {
     title: 'Marketplace',
     desc: `Start a new marketplace with prebuilt marketplace contract.`,
     cli: 'marketplace',
     image: 'marketplace.png',
-    comingsoon: true,
-  },
-  stakepool: {
-    title: 'Stake Pool',
-    desc: `A website for delegators to stake their ADA in your pool.`,
-    cli: 'stakepool',
-    image: 'stakepool.png',
     comingsoon: true,
   },
 };

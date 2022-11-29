@@ -14,6 +14,7 @@ export default function ProvidersKoios() {
   const sidebarItems = [
     { label: 'fetchProtocolParameters', to: 'fetchProtocolParameters' },
     { label: 'fetchAddressUtxos', to: 'fetchAddressUtxos' },
+    { label: 'fetchAccountInfo', to: 'fetchAccountInfo' },
     // { label: 'fetchAssetMetadata', to: 'fetchAssetMetadata' },
     { label: 'submitTx', to: 'submitTx' },
   ];
@@ -80,7 +81,7 @@ function Main() {
 
   useEffect(() => {
     async function load() {
-      const _koiosProvider = new KoiosProvider('testnet');
+      const _koiosProvider = new KoiosProvider('preprod');
       setKoiosProvider(_koiosProvider);
     }
     load();
