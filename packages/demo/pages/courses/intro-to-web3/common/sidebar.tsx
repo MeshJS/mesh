@@ -34,24 +34,9 @@ export default function Sidebar({}) {
           label: 'Install wallet',
           url: 'install-wallet',
         },
-      ],
-    },
-    {
-      type: 'submenu',
-      label: 'Templates & guides',
-      url: 'templates-guides',
-      children: [
         {
-          label: 'Guides',
-          url: 'guides',
-        },
-        {
-          label: 'Starter templates',
-          url: 'starter-templates',
-        },
-        {
-          label: 'Install starter template',
-          url: 'install-starter',
+          label: 'Create project',
+          url: 'create-project',
         },
       ],
     },
@@ -160,5 +145,5 @@ export default function Sidebar({}) {
     },
   ];
 
-  return <CoursesSidebar menu={menu} />;
+  return <CoursesSidebar root="/courses/intro-to-web3" menu={menu} />;
 }

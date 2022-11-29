@@ -1,7 +1,6 @@
 import type { NextPage } from 'next';
 import Link from 'next/link';
 import CourseLayout from '../../../../components/courses/layout';
-import Codeblock from '../../../../components/ui/codeblock';
 import Sidebar from './../common/sidebar';
 
 const CoursesInstallWalletPage: NextPage = () => {
@@ -50,11 +49,16 @@ function Content() {
         , a standard for dApps to communicate with the user's wallet.
       </p>
       <p>
+        So, go ahead and pick one wallet, and install its browser extensions. In
+        the spirit of decentralization, I would not suggest any wallet in this
+        course.
+      </p>
+      <p>
         On Mesh, all wallet APIs are accessible through{' '}
         <Link href="/apis/browserwallet">Browser Wallet</Link>, and developers
         can add{' '}
         <Link href="/react/ui-components">Connect Wallet React component</Link>{' '}
-        on their dApp.
+        on their dApp. We will deep dive into these later.
       </p>
       <h2>Set Up Your Wallet</h2>
       <p>
@@ -79,7 +83,9 @@ function Content() {
         entering your recovery phrase, it will prompt for a password, which is
         require whenever you need to sign a transaction.
       </p>
-      <h2>Change Network to <code>preprod</code></h2>
+      <h2>
+        Change Network to <code>preprod</code>
+      </h2>
       <p>On Cardano, there are a few networks:</p>
       <ul>
         <li>
