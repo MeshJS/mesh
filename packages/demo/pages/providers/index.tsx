@@ -10,10 +10,16 @@ const ProvidersPage: NextPage = () => {
       thumbnail: '/providers/blockfrost.png',
     },
     {
+      title: 'Tangocrypto',
+      link: '/providers/tangocrypto',
+      thumbnail: '/providers/tangocrypto.png',
+    },
+    {
       title: 'Koios',
       link: '/providers/koios',
       thumbnail: '/providers/koios.png',
     },
+
   ];
 
   return (
