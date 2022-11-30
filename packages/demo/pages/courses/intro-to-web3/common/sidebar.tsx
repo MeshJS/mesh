@@ -60,10 +60,10 @@ export default function Sidebar({}) {
       label: 'Basic transactions',
       url: 'basic-transactions',
       children: [
-        {
-          label: 'Lovelace from faucet',
-          url: 'get-lovelace',
-        },
+        // {
+        //   label: 'Lovelace from faucet',
+        //   url: 'get-lovelace',
+        // },
         {
           label: 'Send lovelace',
           url: 'send-lovelace',
