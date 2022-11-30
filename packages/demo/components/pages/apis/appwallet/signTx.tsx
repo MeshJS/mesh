@@ -118,7 +118,7 @@ function Right(address, setAddress) {
 
       setResponse(txHash);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
     }
     setLoading(false);
   }

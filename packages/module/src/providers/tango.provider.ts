@@ -58,7 +58,7 @@ export class TangoProvider implements IFetcher, ISubmitter {
       if (status === 200)
         return data.cursor !== null && data.cursor?.length > 0
           ? paginateUTxOs(data.cursor, [...utxos, ...data.data.map(toUTxO)])
-          : utxos;
+          : data.data.map(toUTxO);
 
       throw parseHttpError(data);
     };

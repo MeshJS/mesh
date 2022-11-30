@@ -82,7 +82,7 @@ function Right({ userInput, setUserInput }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${JSON.stringify(error)}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }
