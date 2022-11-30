@@ -3,7 +3,7 @@
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://mesh.martify.io",
   "author": "MartifyLabs",
-  "version": "1.2.0-beta.2",
+  "version": "1.2.0-beta.4",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -66,8 +66,8 @@
   "dependencies": {
     "@emurgo/cardano-message-signing-browser": "1.0.1",
     "@emurgo/cardano-message-signing-nodejs": "1.0.1",
-    "@emurgo/cardano-serialization-lib-browser": "11.1.0",
-    "@emurgo/cardano-serialization-lib-nodejs": "11.1.0",
+    "@emurgo/cardano-serialization-lib-browser": "11.1.1",
+    "@emurgo/cardano-serialization-lib-nodejs": "11.1.1",
     "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
     "bip39": "3.0.4",
