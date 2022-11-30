@@ -157,7 +157,7 @@ function Right({ userInput, updateField, walletAssets }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }

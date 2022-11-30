@@ -31,6 +31,7 @@ export const CardanoWallet = () => {
 
   return (
     <div
+      style={{ width: 'fit-content' }}
       onMouseEnter={() => setHideMenuList(false)}
       onMouseLeave={() => setHideMenuList(true)}
     >
