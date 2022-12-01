@@ -3,6 +3,7 @@ import CommonLayout from '../../components/common/layout';
 import InstallGatsby from '../../components/pages/migrateManualInstall/gatsby';
 import InstallNestjs from '../../components/pages/migrateManualInstall/nestjs';
 import InstallNextjs from '../../components/pages/migrateManualInstall/nextjs';
+import InstallWebpack from '../../components/pages/migrateManualInstall/webpack';
 import Metatags from '../../components/site/metatags';
 
 const MigrationManualPage: NextPage = () => {
@@ -10,6 +11,7 @@ const MigrationManualPage: NextPage = () => {
     { label: 'Next.js', to: 'nextjs' },
     { label: 'NestJS', to: 'nestjs' },
     { label: 'Gatsby', to: 'gatsby' },
+    { label: 'Webpack', to: 'webpack' },
   ];
 
   return (
@@ -34,6 +36,7 @@ const MigrationManualPage: NextPage = () => {
       <InstallNextjs />
       <InstallNestjs />
       <InstallGatsby />
+      <InstallWebpack />
     </CommonLayout>
   );
 };
