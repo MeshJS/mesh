@@ -7,6 +7,14 @@ export default function GuidesLayout({
   desc,
   sidebarItems,
   image,
+  authors,
+}: {
+  children;
+  title;
+  desc;
+  sidebarItems: { to: string; label: string }[];
+  image;
+  authors?: { url: string; image: string; name: string; about: string }[];
 }) {
   return (
     <main className="pb-16 lg:pb-24 bg-white dark:bg-gray-900">
@@ -32,7 +40,7 @@ export default function GuidesLayout({
               Sidebar
             </h3>
             <div className="mb-8">
-              <StickySidebar sidebarItems={sidebarItems} />
+              <StickySidebar sidebarItems={sidebarItems} authors={authors} />
             </div>
           </div>
         </aside>
