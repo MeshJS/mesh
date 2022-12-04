@@ -5,8 +5,8 @@ import React, {
   useMemo,
   useEffect,
 } from 'react';
-import { BrowserWallet } from '@martifylabs/mesh';
-import type { Wallet } from '@martifylabs/mesh';
+import { BrowserWallet } from 'meshjs';
+import type { Wallet } from 'meshjs';
 import useLocalStorage from '../hooks/useLocalStorage';
 
 const WalletContext = createContext({

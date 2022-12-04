@@ -1,4 +1,4 @@
-import type { AssetExtended } from '@martifylabs/mesh';
+import type { AssetExtended } from 'meshjs';
 import { useEffect, useState } from 'react';
 import useWallet from '../../contexts/wallet';
 import Button from '../ui/button';

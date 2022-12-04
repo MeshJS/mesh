@@ -12,8 +12,8 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
-} from '@martifylabs/mesh';
-import type { Mint, AssetMetadata } from '@martifylabs/mesh';
+} from 'meshjs';
+import type { Mint, AssetMetadata } from 'meshjs';
 import useWallet from '../../contexts/wallet';
 import RunDemoButton from '../../components/common/runDemoButton';
 import RunDemoResult from '../../components/common/runDemoResult';
@@ -220,7 +220,7 @@ function IntroSection() {
 }
 
 function ClientConnectWallet() {
-  let code1 = `import { BrowserWallet } from '@martifylabs/mesh';\n`;
+  let code1 = `import { BrowserWallet } from 'meshjs';\n`;
   code1 += `const wallet = await BrowserWallet.enable(walletName);`;
 
   return (

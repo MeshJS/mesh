@@ -5,8 +5,8 @@ import {
   resolvePaymentKeyHash,
   resolvePlutusScriptAddress,
   resolveDataHash,
-} from '@martifylabs/mesh';
-import type { Data, PlutusScript } from '@martifylabs/mesh';
+} from 'meshjs';
+import type { Data, PlutusScript } from 'meshjs';
 
 export default function useMarketplaceV1({ blockchainFetcher, network = 0 }) {
   const scriptCbor =

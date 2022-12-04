@@ -1,7 +1,7 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { KoiosProvider } from '@martifylabs/mesh';
+import { KoiosProvider } from 'meshjs';
 import { StakeButton } from '@martifylabs/mesh-react';
 import { useState } from 'react';
 import Input from '../../../ui/input';
@@ -45,7 +45,7 @@ function Right() {
     useState<'preprod' | 'api' | 'preview' | 'guild'>('preprod');
 
   let code2 = ``;
-  code2 += `import { KoiosProvider } from '@martifylabs/mesh';\n`;
+  code2 += `import { KoiosProvider } from 'meshjs';\n`;
   code2 += `import { StakeButton } from '@martifylabs/mesh-react';\n`;
   code2 += `\n`;
   code2 += `export default function Page() {\n`;

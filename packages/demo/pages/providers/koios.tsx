@@ -7,7 +7,7 @@ import {
   BadgeSubmitter,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
-import { KoiosProvider } from '@martifylabs/mesh';
+import { KoiosProvider } from 'meshjs';
 import Submitter from '../../components/pages/providers/submitter';
 
 export default function ProvidersKoios() {

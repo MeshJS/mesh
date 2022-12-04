@@ -11,8 +11,8 @@ import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
 import FetchSelectAssets from '../../../common/fetchSelectAssets';
-import { Transaction } from '@martifylabs/mesh';
-import type { Asset } from '@martifylabs/mesh';
+import { Transaction } from 'meshjs';
+import type { Asset } from 'meshjs';
 
 export default function SendAssets() {
   const { wallet, walletConnected } = useWallet();
@@ -85,8 +85,8 @@ export default function SendAssets() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction } from '@martifylabs/mesh';\n`;
-  codeSnippet += `import type { Asset } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction } from 'meshjs';\n`;
+  codeSnippet += `import type { Asset } from 'meshjs';\n\n`;
 
   codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
@@ -117,7 +117,7 @@ function Left({ userInput }) {
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
-  let codeSnippet1 = `import type { Asset } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet1 = `import type { Asset } from 'meshjs';\n\n`;
   codeSnippet1 += `let assets: Asset[] = [];\n`;
   codeSnippet1 += `for (const asset of nativeAssets) {\n`;
   codeSnippet1 += `  let thisAsset = {\n`;

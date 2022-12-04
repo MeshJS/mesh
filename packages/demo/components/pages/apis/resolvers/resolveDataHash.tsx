@@ -4,8 +4,8 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolveDataHash } from '@martifylabs/mesh';
-import type { Data } from '@martifylabs/mesh';
+import { resolveDataHash } from 'meshjs';
+import type { Data } from 'meshjs';
 import Input from '../../../ui/input';
 import Link from 'next/link';
 
@@ -30,8 +30,8 @@ function Left(userinput) {
     userinput = parseInt(userinput);
   }
   let code1 = '';
-  code1 += `import { resolveDataHash } from '@martifylabs/mesh';\n`;
-  code1 += `import type { Data } from '@martifylabs/mesh';\n`;
+  code1 += `import { resolveDataHash } from 'meshjs';\n`;
+  code1 += `import type { Data } from 'meshjs';\n`;
   code1 += `const datum: Data = ${
     isNumeric(userinput) ? userinput : `'${userinput}'`
   };\n`;

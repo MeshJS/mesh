@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
-import { BrowserWallet } from '@martifylabs/mesh';
+import { BrowserWallet } from 'meshjs';
 import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';

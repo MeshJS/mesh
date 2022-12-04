@@ -11,7 +11,7 @@ import {
   Transaction,
   BlockfrostProvider,
   resolveDataHash,
-} from '@martifylabs/mesh';
+} from 'meshjs';
 import Link from 'next/link';
 
 // always succeed
@@ -43,7 +43,7 @@ export default function UnlockAssets() {
 }
 
 function Left({ assetUnit, inputDatum }) {
-  let codeSnippetGetAssetUtxo = `import { Transaction, BlockfrostProvider, resolveDataHash } from '@martifylabs/mesh';\n\n`;
+  let codeSnippetGetAssetUtxo = `import { Transaction, BlockfrostProvider, resolveDataHash } from 'meshjs';\n\n`;
   codeSnippetGetAssetUtxo += `async function _getAssetUtxo({ scriptAddress, asset, datum }) {\n`;
   codeSnippetGetAssetUtxo += `  const blockfrostProvider = new BlockfrostProvider(\n`;
   codeSnippetGetAssetUtxo += `    'BLOCKFROST_API_KEY',\n`;

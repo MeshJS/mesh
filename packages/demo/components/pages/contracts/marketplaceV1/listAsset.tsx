@@ -6,7 +6,7 @@ import Button from '../../../ui/button';
 import { useWallet } from '@martifylabs/mesh-react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider } from '@martifylabs/mesh';
+import { BlockfrostProvider } from 'meshjs';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 
 const blockfrostProvider = new BlockfrostProvider(

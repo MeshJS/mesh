@@ -7,7 +7,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction } from '@martifylabs/mesh';
+import { Transaction } from 'meshjs';
 import Link from 'next/link';
 
 export default function RegisterStake() {
@@ -40,7 +40,7 @@ export default function RegisterStake() {
 }
 
 function Left({ userInput, rewardAddress }) {
-  let codeSnippet = `import { Transaction } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction } from 'meshjs';\n\n`;
 
   codeSnippet += `const rewardAddress = '${rewardAddress}';\n`;
   codeSnippet += `const poolId = '${userInput}';\n\n`;

@@ -12,7 +12,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        '@martifylabs/mesh',
+        'meshjs',
         'react', 'react-dom',
       ],
       output: {

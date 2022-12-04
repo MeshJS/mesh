@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolvePlutusScriptHash } from '@martifylabs/mesh';
+import { resolvePlutusScriptHash } from 'meshjs';
 import Input from '../../../ui/input';
 
 export default function ResolvePlutusScriptHash() {
@@ -23,7 +23,7 @@ export default function ResolvePlutusScriptHash() {
 }
 
 function Left(userinput) {
-  let code = `import { resolvePlutusScriptHash } from '@martifylabs/mesh';\nconst hash = resolvePlutusScriptHash('${userinput}');`;
+  let code = `import { resolvePlutusScriptHash } from 'meshjs';\nconst hash = resolvePlutusScriptHash('${userinput}');`;
 
   return (
     <>

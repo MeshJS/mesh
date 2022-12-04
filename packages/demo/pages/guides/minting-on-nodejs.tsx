@@ -71,8 +71,8 @@ const GuideMintingNodejsPage: NextPage = () => {
   codeImport += `  ForgeScript,\n`;
   codeImport += `  BlockfrostProvider,\n`;
   codeImport += `  resolveTxHash,\n`;
-  codeImport += `} from '@martifylabs/mesh';\n`;
-  codeImport += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n`;
+  codeImport += `} from 'meshjs';\n`;
+  codeImport += `import type { Mint, AssetMetadata } from 'meshjs';\n`;
   codeImport += `\n`;
   codeImport += `import { metadata } from './metadata.js';\n`;
   codeImport += `import { recipients } from './recipients.js';\n`;

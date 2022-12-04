@@ -8,7 +8,7 @@ import {
 } from '@mesh/hooks';
 import { ChevronDown } from '../ChevronDown';
 import { MenuItem } from '../MenuItem';
-import type { AccountInfo } from '@martifylabs/mesh';
+import type { AccountInfo } from 'meshjs';
 
 const StyledMenuButton = tw.button`
   flex items-center justify-center

@@ -4,8 +4,8 @@ import {
   Transaction,
   AppWallet,
   BlockfrostProvider,
-} from '@martifylabs/mesh';
-import type { AssetMetadata, Mint } from '@martifylabs/mesh';
+} from 'meshjs';
+import type { AssetMetadata, Mint } from 'meshjs';
 import { CardanoWallet, useWallet } from '@martifylabs/mesh-react';
 import Button from '../../../ui/button';
 import Card from '../../../ui/card';

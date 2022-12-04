@@ -7,7 +7,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction } from '@martifylabs/mesh';
+import { Transaction } from 'meshjs';
 
 export default function WithdrawRewards() {
   const { wallet, walletConnected } = useWallet();
@@ -39,7 +39,7 @@ export default function WithdrawRewards() {
 }
 
 function Left({ userInput, rewardAddress }) {
-  let codeSnippet = `import { Transaction } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction } from 'meshjs';\n\n`;
 
   codeSnippet += `const rewardAddress = '${rewardAddress}';\n`;
   codeSnippet += `const lovelace = '${userInput}';\n\n`;
