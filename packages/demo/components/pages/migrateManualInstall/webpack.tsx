@@ -7,9 +7,7 @@ export default function InstallWebpack() {
       sidebarTo="webpack"
       header="Webpack"
       leftFn={Left()}
-      rightFn={() => {
-        return <></>;
-      }}
+      rightFn={Right()}
     />
   );
 }
@@ -57,4 +55,8 @@ function Left() {
       <Codeblock data={code} isJson={false} />
     </>
   );
+}
+
+function Right() {
+  return <></>;
 }

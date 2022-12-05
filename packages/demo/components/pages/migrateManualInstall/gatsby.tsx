@@ -7,9 +7,7 @@ export default function InstallGatsby() {
       sidebarTo="gatsby"
       header="Gatsby"
       leftFn={Left()}
-      rightFn={() => {
-        return <></>;
-      }}
+      rightFn={Right()}
     />
   );
 }
@@ -48,4 +46,8 @@ function Left() {
       />
     </>
   );
+}
+
+function Right() {
+  return <></>;
 }

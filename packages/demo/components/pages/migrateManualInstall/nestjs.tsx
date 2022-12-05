@@ -7,9 +7,7 @@ export default function InstallNestjs() {
       sidebarTo="nestjs"
       header="NestJS"
       leftFn={Left()}
-      rightFn={() => {
-        return <></>;
-      }}
+      rightFn={Right()}
     />
   );
 }
@@ -23,4 +21,8 @@ function Left() {
       <p>That's all. Start building.</p>
     </>
   );
+}
+
+function Right() {
+  return <></>;
 }
