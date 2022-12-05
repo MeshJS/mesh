@@ -3,10 +3,10 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
 import Button from '../../../ui/button';
-import { useWallet } from '@meshjs/react';
+import { useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider } from '@meshjs/core';
+import { BlockfrostProvider } from '@meshsdk/core';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 
 const blockfrostProvider = new BlockfrostProvider(

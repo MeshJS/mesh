@@ -3,7 +3,7 @@ import { WalletIcon } from '@heroicons/react/24/solid';
 export default function Hero() {
   let codeSnippet = '';
   codeSnippet += `// import BrowserWallet\n`;
-  codeSnippet += `import { BrowserWallet } from '@meshjs/core';\n\n`;
+  codeSnippet += `import { BrowserWallet } from '@meshsdk/core';\n\n`;
   codeSnippet += `// connect to a wallet\n`;
   codeSnippet += `const wallet = await BrowserWallet.enable('eternl');\n\n`;
   codeSnippet += `// get assets in wallet\n`;

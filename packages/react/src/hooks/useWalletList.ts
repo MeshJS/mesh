@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BrowserWallet } from '@meshjs/core';
-import type { Wallet } from '@meshjs/core';
+import { BrowserWallet } from '@meshsdk/core';
+import type { Wallet } from '@meshsdk/core';
 
 export const useWalletList = () => {
   const [wallets, setWallets] = useState<Wallet[]>([]);

@@ -4,8 +4,8 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolveDataHash } from '@meshjs/core';
-import type { Data } from '@meshjs/core';
+import { resolveDataHash } from '@meshsdk/core';
+import type { Data } from '@meshsdk/core';
 import Input from '../../../ui/input';
 import Link from 'next/link';
 
@@ -30,8 +30,8 @@ function Left(userinput) {
     userinput = parseInt(userinput);
   }
   let code1 = '';
-  code1 += `import { resolveDataHash } from '@meshjs/core';\n`;
-  code1 += `import type { Data } from '@meshjs/core';\n`;
+  code1 += `import { resolveDataHash } from '@meshsdk/core';\n`;
+  code1 += `import type { Data } from '@meshsdk/core';\n`;
   code1 += `const datum: Data = ${
     isNumeric(userinput) ? userinput : `'${userinput}'`
   };\n`;

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import { Element } from 'react-scroll';
 import Fetcher from './fetcher';
-import { BlockfrostProvider } from '@meshjs/core';
+import { BlockfrostProvider } from '@meshsdk/core';
 import { BadgeFetcher, BadgeSubmitter } from './badges';
 import Submitter from './submitter';
 

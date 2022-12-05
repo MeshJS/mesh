@@ -1,7 +1,7 @@
-import { CardanoWallet, useWallet } from '@meshjs/react';
+import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import Input from '../../../ui/input';
-import { Transaction } from '@meshjs/core';
+import { Transaction } from '@meshsdk/core';
 import { createTransactionDonate } from '../../../../backend/support';
 import SvgSurprise from '../../../svgs/surpriseSvg';
 

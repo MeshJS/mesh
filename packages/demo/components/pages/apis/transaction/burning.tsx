@@ -7,8 +7,8 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction, ForgeScript } from '@meshjs/core';
-import type { Asset, AssetExtended } from '@meshjs/core';
+import { Transaction, ForgeScript } from '@meshsdk/core';
+import type { Asset, AssetExtended } from '@meshsdk/core';
 
 export default function Burning() {
   const { wallet, walletConnected } = useWallet();
@@ -72,8 +72,8 @@ export default function Burning() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@meshjs/core';\n`;
-  codeSnippet += `import type { Asset } from '@meshjs/core';\n\n`;
+  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
+  codeSnippet += `import type { Asset } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;

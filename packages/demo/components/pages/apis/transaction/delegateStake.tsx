@@ -7,7 +7,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction } from '@meshjs/core';
+import { Transaction } from '@meshsdk/core';
 
 export default function DelegateStake() {
   const { wallet, walletConnected } = useWallet();
@@ -39,7 +39,7 @@ export default function DelegateStake() {
 }
 
 function Left({ userInput, rewardAddress }) {
-  let codeSnippet = `import { Transaction } from '@meshjs/core';\n\n`;
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `const rewardAddress = '${rewardAddress}';\n`;
   codeSnippet += `const poolId = '${userInput}';\n\n`;

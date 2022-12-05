@@ -2,7 +2,7 @@ import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { useWalletList } from '@meshjs/react';
+import { useWalletList } from '@meshsdk/react';
 
 export default function UseWalletList() {
   return (
@@ -29,7 +29,7 @@ function Left() {
 
 function Right() {
   const wallets = useWalletList();
-  let code2 = `import { useWalletList } from '@meshjs/react';\n\n`;
+  let code2 = `import { useWalletList } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  const wallets = useWalletList();\n\n`;
   code2 += `  return (\n`;

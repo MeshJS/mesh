@@ -12,8 +12,8 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
-} from '@meshjs/core';
-import type { Mint, AssetMetadata } from '@meshjs/core';
+} from '@meshsdk/core';
+import type { Mint, AssetMetadata } from '@meshsdk/core';
 import useWallet from '../../contexts/wallet';
 import RunDemoButton from '../../components/common/runDemoButton';
 import RunDemoResult from '../../components/common/runDemoResult';
@@ -220,7 +220,7 @@ function IntroSection() {
 }
 
 function ClientConnectWallet() {
-  let code1 = `import { BrowserWallet } from '@meshjs/core';\n`;
+  let code1 = `import { BrowserWallet } from '@meshsdk/core';\n`;
   code1 += `const wallet = await BrowserWallet.enable(walletName);`;
 
   return (

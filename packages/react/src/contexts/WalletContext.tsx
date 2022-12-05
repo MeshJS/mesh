@@ -1,5 +1,5 @@
 import { createContext, useCallback, useState } from 'react';
-import { BrowserWallet } from '@meshjs/core';
+import { BrowserWallet } from '@meshsdk/core';
 
 interface WalletContext {
   hasConnectedWallet: boolean,

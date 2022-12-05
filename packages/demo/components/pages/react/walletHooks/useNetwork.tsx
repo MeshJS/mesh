@@ -2,8 +2,8 @@ import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { useNetwork } from '@meshjs/react';
-import { CardanoWallet } from '@meshjs/react';
+import { useNetwork } from '@meshsdk/react';
+import { CardanoWallet } from '@meshsdk/react';
 
 export default function UseNetwork() {
   return (
@@ -31,7 +31,7 @@ function Left() {
 
 function Right() {
   const network = useNetwork();
-  let code2 = `import { useNetwork } from '@meshjs/react';\n\n`;
+  let code2 = `import { useNetwork } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  const network = useNetwork();\n\n`;
   code2 += `  return (\n`;

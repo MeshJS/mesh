@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolveFingerprint } from '@meshjs/core';
+import { resolveFingerprint } from '@meshsdk/core';
 import Input from '../../../ui/input';
 
 export default function ResolveFingerprint() {
@@ -39,7 +39,7 @@ function Left(userinput, userinput2) {
         .
       </p>
       <Codeblock
-        data={`import { resolveFingerprint } from '@meshjs/core';\nconst hash = resolveFingerprint(\n  '${userinput}',\n  '${userinput2}'\n);`}
+        data={`import { resolveFingerprint } from '@meshsdk/core';\nconst hash = resolveFingerprint(\n  '${userinput}',\n  '${userinput2}'\n);`}
         isJson={false}
       />
     </>

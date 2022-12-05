@@ -2,8 +2,8 @@ import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { useWallet } from '@meshjs/react';
-import { CardanoWallet } from '@meshjs/react';
+import { useWallet } from '@meshsdk/react';
+import { CardanoWallet } from '@meshsdk/react';
 import Link from 'next/link';
 
 export default function UseWallet() {
@@ -60,7 +60,7 @@ function Left() {
 function Right() {
   const { connected, name, connecting, connect, disconnect, error } =
     useWallet();
-  let code2 = `import { useWallet } from '@meshjs/react';\n\n`;
+  let code2 = `import { useWallet } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  const { wallet, connected, name, connecting, connect, disconnect, error } = useWallet();\n\n`;
   code2 += `  return (\n`;

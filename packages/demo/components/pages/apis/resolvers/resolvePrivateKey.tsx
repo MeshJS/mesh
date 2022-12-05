@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolvePrivateKey } from '@meshjs/core';
+import { resolvePrivateKey } from '@meshsdk/core';
 import { demoMnemonic } from '../../../../configs/demo';
 import Textarea from '../../../ui/textarea';
 
@@ -29,7 +29,7 @@ function Left(userinput) {
     _mnemonic = JSON.stringify(JSON.parse(userinput));
   } catch (e) {}
 
-  let code = `import { resolvePrivateKey } from '@meshjs/core';\nconst dataHash = resolvePrivateKey(${_mnemonic});`;
+  let code = `import { resolvePrivateKey } from '@meshsdk/core';\nconst dataHash = resolvePrivateKey(${_mnemonic});`;
 
   return (
     <>

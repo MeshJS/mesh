@@ -1,5 +1,5 @@
 {
-  "name": "@meshjs/core",
+  "name": "@meshsdk/core",
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",

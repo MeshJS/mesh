@@ -14,8 +14,8 @@ import {
   ForgeScript,
   AssetMetadata,
   BlockfrostProvider,
-} from '@meshjs/core';
-import type { Mint } from '@meshjs/core';
+} from '@meshsdk/core';
+import type { Mint } from '@meshsdk/core';
 import Textarea from '../../../ui/textarea';
 import Link from 'next/link';
 
@@ -70,8 +70,8 @@ export default function GetSize() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@meshjs/core';\n`;
-  codeSnippet += `import type { Mint, AssetMetadata } from '@meshjs/core';\n\n`;
+  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
+  codeSnippet += `import type { Mint, AssetMetadata } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
@@ -136,7 +136,7 @@ function Left({ userInput }) {
   codeSnippet2 += `);`;
 
   let codeSnippetNative = ``;
-  codeSnippetNative += `import type { NativeScript } from '@meshjs/core';\n`;
+  codeSnippetNative += `import type { NativeScript } from '@meshsdk/core';\n`;
   codeSnippetNative += `\n`;
   codeSnippetNative += `const nativeScript: NativeScript = {\n`;
   codeSnippetNative += `  type: 'all',\n`;
