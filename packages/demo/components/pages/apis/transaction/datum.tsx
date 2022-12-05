@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { resolveDataHash } from 'meshjs';
-import type { Data } from 'meshjs';
+import { resolveDataHash } from '@meshjs/core';
+import type { Data } from '@meshjs/core';
 
 export default function DesignDatum() {
   return (
@@ -113,7 +113,7 @@ function Left({}) {
         <code>Data</code> type to help you design the datum.
       </p>
       <Codeblock
-        data={`import { resolveDataHash } from 'meshjs';\nimport type { Data } from 'meshjs';`}
+        data={`import { resolveDataHash } from '@meshjs/core';\nimport type { Data } from '@meshjs/core';`}
         isJson={false}
       />
 

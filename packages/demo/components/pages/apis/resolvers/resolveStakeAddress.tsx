@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolveRewardAddress } from 'meshjs';
+import { resolveRewardAddress } from '@meshjs/core';
 import Input from '../../../ui/input';
 
 export default function ResolveStakeAddress() {
@@ -23,7 +23,7 @@ export default function ResolveStakeAddress() {
 }
 
 function Left(userinput) {
-  let code = `import { resolveRewardAddress } from 'meshjs';\nconst rewardAddress = resolveRewardAddress('${userinput}');`;
+  let code = `import { resolveRewardAddress } from '@meshjs/core';\nconst rewardAddress = resolveRewardAddress('${userinput}');`;
 
   return (
     <>

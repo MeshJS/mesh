@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
-import { BrowserWallet } from 'meshjs';
+import { BrowserWallet } from '@meshjs/core';
 import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';

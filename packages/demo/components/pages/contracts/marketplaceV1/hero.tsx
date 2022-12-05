@@ -4,9 +4,9 @@ import {
   Transaction,
   AppWallet,
   BlockfrostProvider,
-} from 'meshjs';
-import type { AssetMetadata, Mint } from 'meshjs';
-import { CardanoWallet, useWallet } from 'meshjs-react';
+} from '@meshjs/core';
+import type { AssetMetadata, Mint } from '@meshjs/core';
+import { CardanoWallet, useWallet } from '@meshjs/react';
 import Button from '../../../ui/button';
 import Card from '../../../ui/card';
 import { useState } from 'react';

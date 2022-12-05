@@ -1,4 +1,4 @@
-import type { AssetExtended } from 'meshjs';
+import type { AssetExtended } from '@meshjs/core';
 import { useEffect, useState } from 'react';
 import useWallet from '../../contexts/wallet';
 import Button from '../ui/button';

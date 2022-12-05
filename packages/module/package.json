@@ -1,5 +1,5 @@
 {
-  "name": "meshjs",
+  "name": "@meshjs/core",
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
@@ -18,8 +18,8 @@
     "cardano",
     "plutus"
   ],
-  "main": "dist/mesh.cjs",
-  "module": "dist/mesh.js",
+  "main": "dist/core.cjs",
+  "module": "dist/core.js",
   "typings": "dist/index.d.ts",
   "files": [
     "dist"
@@ -47,8 +47,8 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/mesh.js",
-      "require": "./dist/mesh.cjs"
+      "import": "./dist/core.js",
+      "require": "./dist/core.cjs"
     }
   },
   "devDependencies": {

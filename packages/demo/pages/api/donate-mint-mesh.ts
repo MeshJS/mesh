@@ -5,8 +5,8 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
-} from 'meshjs';
-import type { Mint } from 'meshjs';
+} from '@meshjs/core';
+import type { Mint } from '@meshjs/core';
 
 const words = [
   'gratitude',

@@ -1,11 +1,11 @@
 import { ChevronRightIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 import Card from '../../ui/card';
-import { CardanoWallet } from 'meshjs-react';
+import { CardanoWallet } from '@meshjs/react';
 import Codeblock from '../../ui/codeblock';
 
 export default function FeatureReact() {
-  let code1 = `import { CardanoWallet } from 'meshjs-react';\n\n`;
+  let code1 = `import { CardanoWallet } from '@meshjs/react';\n\n`;
   code1 += `export default function Page() {\n`;
   code1 += `  return (\n`;
   code1 += `    <>\n`;

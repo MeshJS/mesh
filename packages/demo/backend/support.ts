@@ -1,5 +1,5 @@
 import { post } from './';
-import type { UTxO } from 'meshjs';
+import type { UTxO } from '@meshjs/core';
 
 export async function createTransactionDonate(
   recipientAddress: string,

@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolveEpochNo } from 'meshjs';
+import { resolveEpochNo } from '@meshjs/core';
 import Select from '../../../ui/select';
 
 export default function ResolveEpochNo() {
@@ -21,7 +21,7 @@ export default function ResolveEpochNo() {
 }
 
 function Left(userinput) {
-  let code1 = `import { resolveEpochNo } from 'meshjs';\n`;
+  let code1 = `import { resolveEpochNo } from '@meshjs/core';\n`;
 
   let code2 = `${code1}const epoch = resolveEpochNo('${userinput}');`;
 

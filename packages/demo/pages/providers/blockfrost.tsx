@@ -7,7 +7,7 @@ import {
   BadgeSubmitter,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
-import { BlockfrostProvider } from 'meshjs';
+import { BlockfrostProvider } from '@meshjs/core';
 import Submitter from '../../components/pages/providers/submitter';
 
 export default function ProvidersBlockfrost() {

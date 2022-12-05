@@ -10,8 +10,8 @@ import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import { Transaction, ForgeScript, AssetMetadata } from 'meshjs';
-import type { Mint } from 'meshjs';
+import { Transaction, ForgeScript, AssetMetadata } from '@meshjs/core';
+import type { Mint } from '@meshjs/core';
 import Textarea from '../../../ui/textarea';
 import Link from 'next/link';
 
@@ -94,8 +94,8 @@ export default function Minting() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from 'meshjs';\n`;
-  codeSnippet += `import type { Mint, AssetMetadata } from 'meshjs';\n\n`;
+  let codeSnippet = `import { Transaction, ForgeScript } from '@meshjs/core';\n`;
+  codeSnippet += `import type { Mint, AssetMetadata } from '@meshjs/core';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
@@ -156,7 +156,7 @@ function Left({ userInput }) {
   codeSnippet2 += `);`;
 
   let codeSnippetNative = ``;
-  codeSnippetNative += `import type { NativeScript } from 'meshjs';\n`;
+  codeSnippetNative += `import type { NativeScript } from '@meshjs/core';\n`;
   codeSnippetNative += `\n`;
   codeSnippetNative += `const nativeScript: NativeScript = {\n`;
   codeSnippetNative += `  type: 'all',\n`;

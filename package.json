@@ -1,20 +1,20 @@
 {
-  "name": "@workspace/root",
+  "name": "@meshjs/root",
   "homepage": "https://meshjs.dev",
-  "author": "MartifyLabs",
+  "author": "MeshJS",
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
     "bootstrap": "yarn install && yarn lerna bootstrap",
-    "start:cli": "lerna exec --scope @martifylabs/create-mesh-dapp -- yarn dev",
-    "start:demo": "lerna exec --scope @workspace/playground -- yarn dev",
-    "start:module": "lerna exec --scope meshjs -- yarn dev",
-    "start:react": "lerna exec --scope @martifylabs/mesh-react -- yarn dev",
+    "start:cli": "lerna exec --scope create-mesh-dapp -- yarn dev",
+    "start:demo": "lerna exec --scope @meshjs/playground -- yarn dev",
+    "start:module": "lerna exec --scope @meshjs/core -- yarn dev",
+    "start:react": "lerna exec --scope @meshjs/react -- yarn dev",
     "build": "lerna link && yarn build:module && yarn build:react && yarn build:demo",
-    "build:cli": "lerna exec --scope @martifylabs/create-mesh-dapp -- yarn build",
-    "build:demo": "lerna exec --scope @workspace/playground -- yarn build",
-    "build:module": "lerna exec --scope meshjs -- yarn build",
-    "build:react": "lerna exec --scope @martifylabs/mesh-react -- yarn build"
+    "build:cli": "lerna exec --scope create-mesh-dapp -- yarn build",
+    "build:demo": "lerna exec --scope @meshjs/playground -- yarn build",
+    "build:module": "lerna exec --scope @meshjs/core -- yarn build",
+    "build:react": "lerna exec --scope @meshjs/react -- yarn build"
   },
   "devDependencies": {
     "@types/jest": "28.1.6",

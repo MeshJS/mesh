@@ -4,8 +4,8 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { Transaction, ForgeScript } from 'meshjs';
-import type { Mint, AssetMetadata } from 'meshjs';
+import { Transaction, ForgeScript } from '@meshjs/core';
+import type { Mint, AssetMetadata } from '@meshjs/core';
 import useAppWallet from '../../../../contexts/appWallet';
 import { demoAddresses } from '../../../../configs/demo';
 import Input from '../../../ui/input';
@@ -26,8 +26,8 @@ export default function SignTx() {
 
 function Left(address) {
   let code1 = '';
-  code1 += `import { Transaction, ForgeScript } from 'meshjs';\n`;
-  code1 += `import type { Mint, AssetMetadata } from 'meshjs';\n`;
+  code1 += `import { Transaction, ForgeScript } from '@meshjs/core';\n`;
+  code1 += `import type { Mint, AssetMetadata } from '@meshjs/core';\n`;
   code1 += `\n`;
   code1 += `const walletAddress = wallet.getPaymentAddress();\n`;
   code1 += `const forgingScript = ForgeScript.withOneSignature(walletAddress);\n`;

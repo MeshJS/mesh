@@ -5,8 +5,8 @@ import React, {
   useMemo,
   useEffect,
 } from 'react';
-import { BrowserWallet } from 'meshjs';
-import type { Wallet } from 'meshjs';
+import { BrowserWallet } from '@meshjs/core';
+import type { Wallet } from '@meshjs/core';
 import useLocalStorage from '../hooks/useLocalStorage';
 
 const WalletContext = createContext({

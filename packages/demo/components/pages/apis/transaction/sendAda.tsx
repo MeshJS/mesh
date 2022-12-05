@@ -10,7 +10,7 @@ import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import { Transaction } from 'meshjs';
+import { Transaction } from '@meshjs/core';
 
 export default function SendAda() {
   const { wallet, walletConnected } = useWallet();
@@ -80,7 +80,7 @@ export default function SendAda() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction } from 'meshjs';\n\n`;
+  let codeSnippet = `import { Transaction } from '@meshjs/core';\n\n`;
   codeSnippet += `const tx = new Transaction({ initiator: wallet })\n`;
   for (const recipient of userInput) {
     codeSnippet += `  .sendLovelace(\n`;

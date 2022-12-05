@@ -13,7 +13,7 @@ export default function SetTimeLimit() {
 }
 
 function Left() {
-  let code1 = `import { resolveSlotNo } from 'meshjs';\n`;
+  let code1 = `import { resolveSlotNo } from '@meshjs/core';\n`;
   code1 += `let minutes = 5; // add 5 minutes\n`;
   code1 += `let nowDateTime = new Date();\n`;
   code1 += `let dateTimeAdd5Min = new Date(nowDateTime.getTime() + minutes*60000);\n`;

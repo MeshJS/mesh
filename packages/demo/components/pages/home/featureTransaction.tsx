@@ -14,7 +14,7 @@ export default function FeatureTransaction() {
   const [setTimeToExpire, setsetTimeToExpire] = useState<boolean>(false);
 
   let code = '';
-  code += `import { Transaction } from 'meshjs';\n\n`;
+  code += `import { Transaction } from '@meshjs/core';\n\n`;
   code += `const tx = new Transaction({ initiator: wallet })\n`;
   if (sendLovelace) {
     code += `  // see /apis/transaction/basic\n`;

@@ -12,7 +12,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        'meshjs',
+        '@meshjs/core',
         'react', 'react-dom',
       ],
       output: {

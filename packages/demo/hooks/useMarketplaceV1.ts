@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useWallet } from 'meshjs-react';
+import { useWallet } from '@meshjs/react';
 import {
   Transaction,
   resolvePaymentKeyHash,
   resolvePlutusScriptAddress,
   resolveDataHash,
-} from 'meshjs';
-import type { Data, PlutusScript } from 'meshjs';
+} from '@meshjs/core';
+import type { Data, PlutusScript } from '@meshjs/core';
 
 export default function useMarketplaceV1({ blockchainFetcher, network = 0 }) {
   const scriptCbor =

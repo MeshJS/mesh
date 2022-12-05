@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { AppWallet, BlockfrostProvider } from 'meshjs';
+import { AppWallet, BlockfrostProvider } from '@meshjs/core';
 import {
   demoMnemonic,
   demoPrivateKey,
@@ -57,7 +57,7 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
     _mnemonic = JSON.stringify(JSON.parse(mnemonic));
   } catch (e) {}
 
-  let codeCommon = `import { AppWallet } from 'meshjs';\n\n`;
+  let codeCommon = `import { AppWallet } from '@meshjs/core';\n\n`;
 
   let code1 = codeCommon;
   code1 += `const wallet = new AppWallet({\n`;

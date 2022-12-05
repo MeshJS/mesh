@@ -7,7 +7,7 @@ import {
   BadgeSubmitter,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
-import { TangoProvider } from 'meshjs';
+import { TangoProvider } from '@meshjs/core';
 import Submitter from '../../components/pages/providers/submitter';
 
 export default function ProvidersTangocrypto() {

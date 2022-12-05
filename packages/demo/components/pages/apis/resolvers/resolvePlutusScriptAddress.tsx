@@ -4,9 +4,9 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolvePlutusScriptAddress } from 'meshjs';
+import { resolvePlutusScriptAddress } from '@meshjs/core';
 import Input from '../../../ui/input';
-import type { PlutusScript } from 'meshjs';
+import type { PlutusScript } from '@meshjs/core';
 
 export default function ResolvePlutusScriptAddress() {
   const [userinput, setUserinput] = useState<number>(0);
@@ -26,8 +26,8 @@ export default function ResolvePlutusScriptAddress() {
 
 function Left(userinput, userinput2) {
 
-  let code = `import { resolvePlutusScriptAddress } from 'meshjs';\n`;
-  code += `import type { PlutusScript } from 'meshjs';\n\n`;
+  let code = `import { resolvePlutusScriptAddress } from '@meshjs/core';\n`;
+  code += `import type { PlutusScript } from '@meshjs/core';\n\n`;
 
   code += `const script: PlutusScript = {\n`;
   code += `  code: '${userinput2}',\n`;

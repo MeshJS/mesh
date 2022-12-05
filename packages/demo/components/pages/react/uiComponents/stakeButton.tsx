@@ -1,8 +1,8 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { KoiosProvider } from 'meshjs';
-import { StakeButton } from 'meshjs-react';
+import { KoiosProvider } from '@meshjs/core';
+import { StakeButton } from '@meshjs/react';
 import { useState } from 'react';
 import Input from '../../../ui/input';
 import Select from '../../../ui/select';
@@ -45,8 +45,8 @@ function Right() {
     useState<'preprod' | 'api' | 'preview' | 'guild'>('preprod');
 
   let code2 = ``;
-  code2 += `import { KoiosProvider } from 'meshjs';\n`;
-  code2 += `import { StakeButton } from 'meshjs-react';\n`;
+  code2 += `import { KoiosProvider } from '@meshjs/core';\n`;
+  code2 += `import { StakeButton } from '@meshjs/react';\n`;
   code2 += `\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  // you can use any other providers here, e.g. BlockfrostProvider\n`;

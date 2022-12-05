@@ -9,8 +9,8 @@ import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { largestFirstMultiAsset } from 'meshjs';
-import type { Unit, Quantity } from 'meshjs';
+import { largestFirstMultiAsset } from '@meshjs/core';
+import type { Unit, Quantity } from '@meshjs/core';
 
 export default function CoinSelection() {
   return (
@@ -24,13 +24,13 @@ export default function CoinSelection() {
 }
 
 function Left() {
-  let codeSnippet1 = `import { largestFirst } from 'meshjs';\n\n`;
+  let codeSnippet1 = `import { largestFirst } from '@meshjs/core';\n\n`;
   codeSnippet1 += `const utxos = await wallet.getUtxos();\n\n`;
   codeSnippet1 += `const costLovelace = '10000000';\n`;
   codeSnippet1 += `const selectedUtxos = largestFirst(costLovelace, utxos, true);`;
 
-  let codeSnippet2 = `import { largestFirstMultiAsset } from 'meshjs';\n`;
-  codeSnippet2 += `import type { Unit, Quantity } from 'meshjs';\n\n`;
+  let codeSnippet2 = `import { largestFirstMultiAsset } from '@meshjs/core';\n`;
+  codeSnippet2 += `import type { Unit, Quantity } from '@meshjs/core';\n\n`;
   codeSnippet2 += `const utxos = await wallet.getUtxos();\n\n`;
   codeSnippet2 += `const assetMap = new Map<Unit, Quantity>();\n`;
   codeSnippet2 += `assetMap.set(\n`;

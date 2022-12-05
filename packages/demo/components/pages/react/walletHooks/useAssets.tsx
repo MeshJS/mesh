@@ -2,8 +2,8 @@ import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { useAssets } from 'meshjs-react';
-import { CardanoWallet } from 'meshjs-react';
+import { useAssets } from '@meshjs/react';
+import { CardanoWallet } from '@meshjs/react';
 
 export default function UseAssets() {
   return (
@@ -33,7 +33,7 @@ function Left() {
 
 function Right() {
   const assets = useAssets();
-  let code2 = `import { useAssets } from 'meshjs-react';\n\n`;
+  let code2 = `import { useAssets } from '@meshjs/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  const assets = useAssets();\n\n`;
   code2 += `  return (\n`;

@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolvePaymentKeyHash } from 'meshjs';
+import { resolvePaymentKeyHash } from '@meshjs/core';
 import Input from '../../../ui/input';
 import { demoAddresses } from '../../../../configs/demo';
 
@@ -22,7 +22,7 @@ export default function ResolvePaymentKeyHash() {
 }
 
 function Left(userinput) {
-  let code = `import { resolvePaymentKeyHash } from 'meshjs';\nconst hash = resolvePaymentKeyHash('${userinput}');`;
+  let code = `import { resolvePaymentKeyHash } from '@meshjs/core';\nconst hash = resolvePaymentKeyHash('${userinput}');`;
 
   return (
     <>

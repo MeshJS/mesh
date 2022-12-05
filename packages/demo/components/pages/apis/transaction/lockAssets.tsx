@@ -7,7 +7,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction, Asset } from 'meshjs';
+import { Transaction, Asset } from '@meshjs/core';
 import FetchSelectAssets from '../../../common/fetchSelectAssets';
 
 // always succeed
@@ -73,7 +73,7 @@ export default function LockAssets() {
 }
 
 function Left({ userInput, inputDatum }) {
-  let codeSnippet = `import { Transaction, Asset } from 'meshjs';\n\n`;
+  let codeSnippet = `import { Transaction, Asset } from '@meshjs/core';\n\n`;
   codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
     let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {

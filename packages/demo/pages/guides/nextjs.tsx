@@ -237,8 +237,8 @@ export default MyApp;`}
           <Codeblock
             data={`import { useState } from "react";
 import type { NextPage } from "next";
-import { useWallet } from 'meshjs-react';
-import { CardanoWallet } from 'meshjs-react';
+import { useWallet } from '@meshjs/react';
+import { CardanoWallet } from '@meshjs/react';
 
 const Home: NextPage = () => {
   const { connected, wallet } = useWallet();

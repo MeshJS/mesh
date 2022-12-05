@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolveSlotNo } from 'meshjs';
+import { resolveSlotNo } from '@meshjs/core';
 import Select from '../../../ui/select';
 
 export default function ResolveSlotNo() {
@@ -21,7 +21,7 @@ export default function ResolveSlotNo() {
 }
 
 function Left(userinput) {
-  let code1 = `import { resolveSlotNo } from 'meshjs';\n`;
+  let code1 = `import { resolveSlotNo } from '@meshjs/core';\n`;
 
   let code2 = `${code1}const slot = resolveSlotNo('${userinput}');`;
 

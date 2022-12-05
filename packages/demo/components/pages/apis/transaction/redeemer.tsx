@@ -67,7 +67,7 @@ function Left({}) {
       </p>
 
       <Codeblock
-        data={`import { resolvePaymentKeyHash } from 'meshjs';\nimport type { Data } from 'meshjs';`}
+        data={`import { resolvePaymentKeyHash } from '@meshjs/core';\nimport type { Data } from '@meshjs/core';`}
         isJson={false}
       />
       <Codeblock

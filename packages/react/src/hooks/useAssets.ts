@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
 import { WalletContext } from '@mesh/contexts';
-import type { Asset } from 'meshjs';
+import type { Asset } from '@meshjs/core';
 
 export const useAssets = () => {
   const [asstes, setAsstes] = useState<Asset[]>();

@@ -1,5 +1,5 @@
 {
-  "name": "meshjs-react",
+  "name": "@meshjs/react",
   "description": "React Hooks & Components you need for building dApps on Cardano.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
@@ -18,8 +18,8 @@
     "cardano",
     "react"
   ],
-  "main": "dist/mesh-react.cjs",
-  "module": "dist/mesh-react.js",
+  "main": "dist/react.cjs",
+  "module": "dist/react.js",
   "typings": "dist/index.d.ts",
   "scripts": {
     "build": "vite build",
@@ -27,8 +27,8 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/mesh-react.js",
-      "require": "./dist/mesh-react.cjs"
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
     }
   },
   "babelMacros": {
@@ -61,9 +61,9 @@
     "vite": "3.1.4"
   },
   "peerDependencies": {
-    "react": "17.x || 18.x",
+    "@meshjs/core": "1.2.0-beta.4",
     "react-dom": "17.x || 18.x",
-    "meshjs": "1.2.0-beta.4"
+    "react": "17.x || 18.x"
   },
   "dependencies": {
     "styled-components": "5.3.6"
