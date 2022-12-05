@@ -133,12 +133,11 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
       if (status === 200) {
         const { minting_tx_metadata } = data[0];
-        const txMetadatumLabel = Object.keys(minting_tx_metadata)[0];
-        if (txMetadatumLabel === '721') {
-          const targetAssetMetadata =
-            minting_tx_metadata[txMetadatumLabel][_assetPolicyId][_assetName];
-          return <AssetMetadata>{ ...targetAssetMetadata };
-        }
+        const txMetadatumLabel = '721';
+
+        const targetAssetMetadata =
+          minting_tx_metadata[txMetadatumLabel][_assetPolicyId][_assetName];
+        return <AssetMetadata>{ ...targetAssetMetadata };
       }
       throw parseHttpError(data);
     } catch (error) {
