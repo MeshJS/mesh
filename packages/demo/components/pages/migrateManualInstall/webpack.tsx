@@ -46,10 +46,10 @@ function Left() {
     <>
       <h3>1. Install Buffer and Stream package</h3>
       <Codeblock data={`yarn add buffer stream`} isJson={false} />
-      <h3>2. Install @martifylabs/mesh package</h3>
+      <h3>2. Install MeshJS package</h3>
       <p>Install the latest version of Mesh with yarn:</p>
       <Codeblock
-        data={`yarn add @martifylabs/mesh @martifylabs/mesh-react`}
+        data={`yarn add meshjs meshjs-react`}
         isJson={false}
       />
       <h3>

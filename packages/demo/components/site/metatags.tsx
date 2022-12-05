@@ -22,7 +22,7 @@ const Metatags = ({ title, keywords, description, image }) => {
       {image && (
         <meta
           name="twitter:image"
-          content={`https://mesh.martify.io${image}`}
+          content={`https://meshjs.dev${image}`}
         />
       )}
       {image && <meta name="twitter:image:alt" content={title} />}
@@ -32,7 +32,7 @@ const Metatags = ({ title, keywords, description, image }) => {
       <meta property="og:site_name" content="Mesh Playground by Martify Labs" />
       <meta property="og:description" content={description} />
       {image && (
-        <meta property="og:image" content={`https://mesh.martify.io${image}`} />
+        <meta property="og:image" content={`https://meshjs.dev${image}`} />
       )}
 
       {/* favicon */}

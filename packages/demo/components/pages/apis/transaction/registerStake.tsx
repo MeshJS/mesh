@@ -67,7 +67,7 @@ function Left({ userInput, rewardAddress }) {
       <p>
         New address must "register" before they can delegate to stakepools. To
         check if a reward address has been register, use{' '}
-        <a href="https://mesh.martify.io/providers/blockfrost#fetchAccountInfo">
+        <a href="https://meshjs.dev/providers/blockfrost#fetchAccountInfo">
           blockchainProvider.fetchAccountInfo(rewardAddress)
         </a>
         . For example this account information, <code>active</code> shows the

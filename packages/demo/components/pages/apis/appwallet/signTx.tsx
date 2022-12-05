@@ -36,7 +36,7 @@ function Left(address) {
   code1 += `  name: 'Mesh Token',\n`;
   code1 += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
   code1 += `  mediaType: 'image/jpg',\n`;
-  code1 += `  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',\n`;
+  code1 += `  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',\n`;
   code1 += `};\n`;
   code1 += `const asset1: Mint = {\n`;
   code1 += `  assetName: 'MeshToken',\n`;
@@ -97,7 +97,7 @@ function Right(address, setAddress) {
         name: 'Mesh Token',
         image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
         mediaType: 'image/jpg',
-        description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+        description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
       };
       const asset1: Mint = {
         assetName: 'MeshToken',

@@ -63,7 +63,7 @@ const GuideNextjsPage: NextPage = () => {
           To follow this guide you will also need a compiled Plutus Smart
           Contract, specifically its CBOR representation. If you are not
           familiar with this, check out{' '}
-          <a href="https://github.com/MartifyLabs/mesh.plutus" target="_blank">
+          <a href="https://github.com/MeshJS/mesh.plutus" target="_blank">
             Mesh.plutus
           </a>
           , a repository written by the Mesh team, containing a selection of
@@ -146,9 +146,9 @@ const GuideNextjsPage: NextPage = () => {
 
         <Element name="setupmesh">
           <h2>Setup Mesh</h2>
-          <h3>1. Install @martifylabs/mesh package</h3>
+          <h3>1. Install MeshJS package</h3>
           <p>Install the latest version of Mesh with yarn:</p>
-          <Codeblock data={`yarn add @martifylabs/mesh`} isJson={false} />
+          <Codeblock data={`yarn add meshjs`} isJson={false} />
 
           <h3>
             2. Add webpack in <code>next.config.js</code>
@@ -183,9 +183,9 @@ module.exports = nextConfig;
 
         <Element name="addawalletconnection">
           <h2>Add a wallet connection</h2>
-          <h3>1. Install @martifylabs/mesh-react package</h3>
+          <h3>1. Install meshjs-react package</h3>
           <p>Install the latest version of Mesh-react with yarn:</p>
-          <Codeblock data={`yarn add @martifylabs/mesh-react`} isJson={false} />
+          <Codeblock data={`yarn add meshjs-react`} isJson={false} />
           <h3>2. Setup MeshProvider</h3>
           <p>
             Open <code>pages/_app.tsx</code> and replace it with the following
@@ -194,7 +194,7 @@ module.exports = nextConfig;
           <Codeblock
             data={`import "../styles/globals.css";
 import type { AppProps } from "next/app";
-import { MeshProvider } from "@martifylabs/mesh-react";
+import { MeshProvider } from "meshjs-react";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
@@ -212,7 +212,7 @@ export default MyApp;`}
             Open <code>pages/index.tsx</code> and replace it with the following:{' '}
           </p>
           <Codeblock
-            data={`import { CardanoWallet, useWallet } from '@martifylabs/mesh-react';
+            data={`import { CardanoWallet, useWallet } from 'meshjs-react';
 import { useState } from "react";
 import type { NextPage } from "next";
 
@@ -249,14 +249,14 @@ export default Home;`}
             out the available pre-built Smart Contracts provided by the Mesh
             team{' '}
             <a
-              href="https://github.com/MartifyLabs/mesh.plutus"
+              href="https://github.com/MeshJS/mesh.plutus"
               target="_blank"
             >
               here
             </a>
             . In this guide we will use the{' '}
             <a
-              href="https://github.com/MartifyLabs/mesh.plutus/tree/always-true"
+              href="https://github.com/MeshJS/mesh.plutus/tree/always-true"
               target="_blank"
             >
               Always True
@@ -295,7 +295,7 @@ export const scriptAddr = resolvePlutusScriptAddress(script, 764824073);`}
             Network Id. Here we use the mainnet network that has an Id of{' '}
             <code>764824073</code>, but feel free to change it according to your
             needs. For more information see{' '}
-            <a href="https://mesh.martify.io/apis/resolvers">Resolvers</a>.
+            <a href="https://meshjs.dev/apis/resolvers">Resolvers</a>.
           </p>
 
           <h3>2. See your Contract in action - Lock funds</h3>
@@ -416,7 +416,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from 'meshjs';
             We've now successfully locked an NFT in our script with a datum of
             value '42'. If you want to learn how to build more complex datum
             structures, check out{' '}
-            <a href="https://mesh.martify.io/apis/transaction">
+            <a href="https://meshjs.dev/apis/transaction">
               APIs - Transaction
             </a>{' '}
             docs in the<code>Designing datum</code> section.
@@ -434,7 +434,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from 'meshjs';
             get the exact UTxO we are trying to spend. For this we will use
             <code>BlockfrostProvider</code>, but you can use any provider that
             Mesh supports, see{' '}
-            <a href="https://mesh.martify.io/apis/providers">Providers</a>.
+            <a href="https://meshjs.dev/apis/providers">Providers</a>.
           </p>
           <p>
             Paste the following function right before your<code>return</code>{' '}
@@ -563,7 +563,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from 'meshjs';
             expanding the docs. If you have any issues please report them in our{' '}
             <a href="https://discord.gg/Z6AH9dahdH">Discord</a> server or open
             an issue on{' '}
-            <a href="https://github.com/MartifyLabs/mesh">Mesh's Github page</a>
+            <a href="https://github.com/MeshJS/mesh">Mesh's Github page</a>
             .{' '}
           </p>
         </Element>

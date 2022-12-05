@@ -3,7 +3,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
 import Button from '../../../ui/button';
-import { useWallet } from '@martifylabs/mesh-react';
+import { useWallet } from 'meshjs-react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import { BlockfrostProvider } from 'meshjs';

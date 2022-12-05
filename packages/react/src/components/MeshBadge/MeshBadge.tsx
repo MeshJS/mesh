@@ -13,7 +13,7 @@ export const MeshBadge = ({ dark = false }) => (
       color: dark ? '#EEEEEE' : '#111111',
       backgroundColor: dark ? '#111111' : '#EEEEEE',
     }}
-    href="https://mesh.martify.io/"
+    href="https://meshjs.dev/"
     rel="noopener noreferrer"
     target="_blank"
   >

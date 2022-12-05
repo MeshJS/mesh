@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useWallet } from '@martifylabs/mesh-react';
+import { useWallet } from 'meshjs-react';
 import {
   Transaction,
   resolvePaymentKeyHash,

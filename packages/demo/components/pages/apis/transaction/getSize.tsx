@@ -23,7 +23,7 @@ const defaultMetadata = {
   name: 'Mesh Token',
   image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
   mediaType: 'image/jpg',
-  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
 };
 
 export default function GetSize() {

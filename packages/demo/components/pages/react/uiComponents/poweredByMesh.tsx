@@ -1,7 +1,7 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { MeshBadge } from '@martifylabs/mesh-react';
+import { MeshBadge } from 'meshjs-react';
 import { useState } from 'react';
 
 export default function UiPoweredByMesh() {
@@ -30,7 +30,7 @@ function Left() {
 }
 
 function Right(darkMode, setDarkMode) {
-  let code2 = `import { MeshBadge } from '@martifylabs/mesh-react';\n\n`;
+  let code2 = `import { MeshBadge } from 'meshjs-react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  return (\n`;
   code2 += `    <>\n`;

@@ -81,7 +81,7 @@ export default function Navbar() {
           </a>
           <div className="flex items-center lg:order-2">
             <a
-              href="https://github.com/MartifyLabs/mesh"
+              href="https://github.com/MeshJS/mesh"
               target="_blank"
               rel="noreferrer"
               className="p-2 text-gray-500 rounded-lg hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700"

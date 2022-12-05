@@ -17,10 +17,10 @@ export default function InstallGatsby() {
 function Left() {
   return (
     <>
-      <h3>1. Install @martifylabs/mesh package</h3>
+      <h3>1. Install MeshJs package</h3>
       <p>Install the latest version of Mesh with yarn:</p>
       <Codeblock
-        data={`yarn add @martifylabs/mesh @martifylabs/mesh-react`}
+        data={`yarn add meshjs meshjs-react`}
         isJson={false}
       />
 
