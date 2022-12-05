@@ -1,5 +1,5 @@
 import { post } from './';
-import type { UTxO } from '@martifylabs/mesh';
+import type { UTxO } from 'meshjs';
 
 export async function createTransactionDonate(
   recipientAddress: string,

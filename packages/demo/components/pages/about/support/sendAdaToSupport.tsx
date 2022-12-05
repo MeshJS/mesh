@@ -1,7 +1,7 @@
-import { CardanoWallet, useWallet } from '@martifylabs/mesh-react';
+import { CardanoWallet, useWallet } from 'meshjs-react';
 import { useState } from 'react';
 import Input from '../../../ui/input';
-import { Transaction } from '@martifylabs/mesh';
+import { Transaction } from 'meshjs';
 import { createTransactionDonate } from '../../../../backend/support';
 import SvgSurprise from '../../../svgs/surpriseSvg';
 

@@ -13,7 +13,8 @@ import type {
   TransactionUnspentOutput, Value,
 } from '@mesh/core';
 import type {
-  Action, Asset, Data, NativeScript, PlutusScript, UTxO,
+  Action, Asset, Data, NativeScript,
+  PlutusScript, PoolParams, Relay, UTxO,
 } from '@mesh/common/types';
 
 /* -----------------[ Address ]----------------- */
@@ -204,6 +205,17 @@ export const toPlutusData = (data: Data) => {
   }
 };
 
+/* -----------------[ PoolParams ]----------------- */
+
+export const toPoolParams = (params: PoolParams) => {
+  const relays = csl.Relays.new();
+  params.relays.forEach((relay) => {
+    relays.add(toRelay(relay));
+  });
+  
+  throw new Error('toPoolParams not implemented.');
+};
+
 /* -----------------[ Redeemer ]----------------- */
 
 export const toRedeemer = (action: Action) => {
@@ -218,6 +230,42 @@ export const toRedeemer = (action: Action) => {
       csl.BigNum.from_str(action.budget.steps.toString())
     )
   );
+};
+
+/* -----------------[ Relay ]----------------- */
+
+export const toRelay = (relay: Relay) => {
+  switch (relay.type) {
+    case 'SingleHostAddr': {
+      const IPV4 = relay.IPV4
+        ? csl.Ipv4.new(
+          new Uint8Array(relay.IPV4.split('.').map((b) => parseInt(b))),
+        )
+        : undefined;
+
+      const IPV6 = relay.IPV6
+        ? csl.Ipv6.new(
+          toBytes(relay.IPV6.replaceAll(':', '')),
+        )
+        : undefined;
+
+      return csl.Relay.new_single_host_addr(
+        csl.SingleHostAddr.new(relay.port, IPV4, IPV6),
+      );
+    }
+    case 'SingleHostName':
+      return csl.Relay.new_single_host_name(
+        csl.SingleHostName.new(
+          relay.port, csl.DNSRecordAorAAAA.new(relay.domainName),
+        ),
+      );
+    case 'MultiHostName':
+      return csl.Relay.new_multi_host_name(
+        csl.MultiHostName.new(
+          csl.DNSRecordSRV.new(relay.domainName),
+        ),
+      );
+  }
 };
 
 /* -----------------[ ScriptRef ]----------------- */
@@ -314,7 +362,7 @@ export const toTxUnspentOutput = (utxo: UTxO) => {
 /* -----------------[ UnitInterval ]----------------- */
 
 export const toUnitInterval = (float: string) => {
-  const decimal = float.split('.')[1];
+  const decimal = float.split('.')[1] ?? '0';
 
   const numerator = `${parseInt(decimal, 10)}`;
   const denominator = '1' + '0'.repeat(decimal.length);

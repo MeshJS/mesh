@@ -117,7 +117,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       return signedTx;
     } catch (error) {
-      throw new Error(`[BrowserWallet] An error occurred during signTx: ${error}.`);
+      throw new Error(`[BrowserWallet] An error occurred during signTx: ${JSON.stringify(error)}.`);
     }
   }
 

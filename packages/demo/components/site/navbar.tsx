@@ -21,6 +21,7 @@ import {
   PaperAirplaneIcon,
   NewspaperIcon,
   FireIcon,
+  ArrowsPointingInIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -80,7 +81,7 @@ export default function Navbar() {
           </a>
           <div className="flex items-center lg:order-2">
             <a
-              href="https://github.com/MartifyLabs/mesh"
+              href="https://github.com/MeshJS/mesh"
               target="_blank"
               rel="noreferrer"
               className="p-2 text-gray-500 rounded-lg hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700"
@@ -146,11 +147,9 @@ function SubMenuGetStarted() {
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
     >
-      <Link href="/getting-started">
-        <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-          Get Started <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
-        </button>
-      </Link>
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Get Started <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
       <div
         className={`grid ${
           !showSubmenu && 'hidden'
@@ -169,6 +168,12 @@ function SubMenuGetStarted() {
               title="Guides"
               desc="Step by step guides to build on Cardano"
               icon={<DocumentTextIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/migration-manual-installation`}
+              title="Migration / Manual Installation"
+              desc="Install Mesh into your existing project"
+              icon={<WrenchScrewdriverIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
@@ -221,12 +226,10 @@ function SubMenuSmartContracts() {
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
     >
-      <Link href="/smart-contracts">
-        <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-          Smart Contracts{' '}
-          <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
-        </button>
-      </Link>
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Smart Contracts{' '}
+        <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
       <div
         className={`grid ${
           !showSubmenu && 'hidden'
@@ -254,11 +257,9 @@ function SubMenuTransaction() {
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
     >
-      <Link href="/apis/transaction/basic">
-        <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-          Transaction <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
-        </button>
-      </Link>
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Transaction <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
       <div
         className={`grid ${
           !showSubmenu && 'hidden'
@@ -269,13 +270,13 @@ function SubMenuTransaction() {
             <SubMenuLinks
               href={`/apis/transaction/basic`}
               title="Overview and send assets"
-              desc="Create transactions for sending assets"
+              desc="Transactions for sending assets"
               icon={<PaperAirplaneIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/apis/transaction/smart-contract`}
               title="Interact with smart contracts"
-              desc="Create transactions to work with smart contracts"
+              desc="Transactions to work with smart contracts"
               icon={<NewspaperIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
@@ -283,6 +284,12 @@ function SubMenuTransaction() {
               title="Minting and burning assets"
               desc="Using ForgeScript for minting and burning native assets"
               icon={<FireIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/transaction/staking`}
+              title="Staking and stake pool"
+              desc="Transactions for delegating ADA and managing stakepools"
+              icon={<ArrowsPointingInIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
@@ -328,11 +335,9 @@ function SubMenuAbout() {
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
     >
-      <Link href="/about">
-        <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-          About <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
-        </button>
-      </Link>
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        About <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
       <div
         className={`grid ${
           !showSubmenu && 'hidden'
@@ -372,11 +377,9 @@ function SubMenuReact() {
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
     >
-      <Link href="/react">
-        <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-          React <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
-        </button>
-      </Link>
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        React <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
       <div
         className={`grid ${
           !showSubmenu && 'hidden'

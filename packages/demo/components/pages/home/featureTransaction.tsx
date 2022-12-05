@@ -1,45 +1,73 @@
 import { ChevronRightIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
+import { useState } from 'react';
+import Button from '../../ui/button';
 import Card from '../../ui/card';
 import Codeblock from '../../ui/codeblock';
 
 export default function FeatureTransaction() {
+  const [sendLovelace, setsendLovelace] = useState<boolean>(true);
+  const [sendAssets, setsendAssets] = useState<boolean>(true);
+  const [mintAsset, setmintAsset] = useState<boolean>(false);
+  const [script, setscript] = useState<boolean>(false);
+  const [setTimeToStart, setsetTimeToStart] = useState<boolean>(false);
+  const [setTimeToExpire, setsetTimeToExpire] = useState<boolean>(false);
+
   let code = '';
-  code += `import { Transaction } from '@martifylabs/mesh';\n\n`;
+  code += `import { Transaction } from 'meshjs';\n\n`;
   code += `const tx = new Transaction({ initiator: wallet })\n`;
-  code += `  .sendLovelace(\n`;
-  code += `    'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',\n`;
-  code += `    '1000000'\n`;
-  code += `  )\n`;
-  code += `  .sendAssets(\n`;
-  code += `    'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',\n`;
-  code += `    [\n`;
-  code += `      {\n`;
-  code += `        unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
-  code += `        quantity: '1',\n`;
-  code += `      },\n`;
-  code += `    ]\n`;
-  code += `  )\n`;
-  code += `  .mintAsset(\n`;
-  code += `    forgingScript,\n`;
-  code += `    asset,\n`;
-  code += `  )\n`;
-  code += `  .sendAssets(\n`;
-  code += `    {\n`;
-  code += `      address: scriptAddress,\n`;
-  code += `      datum: {\n`;
-  code += `        value: 'supersecret',\n`;
-  code += `      },\n`;
-  code += `    },\n`;
-  code += `    [\n`;
-  code += `      {\n`;
-  code += `        unit: "64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e",\n`;
-  code += `        quantity: "1",\n`;
-  code += `      },\n`;
-  code += `    ],\n`;
-  code += `  )\n`;
-  code += `  .setTimeToStart(slot)\n`;
-  code += `;\n`;
+  if (sendLovelace) {
+    code += `  // see /apis/transaction/basic\n`;
+    code += `  .sendLovelace(\n`;
+    code += `    'addr_test1vpvx0sac...dh64kv0c7e4cxr',\n`;
+    code += `    '1000000'\n`;
+    code += `  )\n`;
+  }
+  if (sendAssets) {
+    code += `  // see /apis/transaction/basic\n`;
+    code += `  .sendAssets(\n`;
+    code += `    'addr_test1vpvx0sac...dh64kv0c7e4cxr',\n`;
+    code += `    [\n`;
+    code += `      {\n`;
+    code += `        unit: '64af286e2ad0df4de2e7de15f...6f6b656e',\n`;
+    code += `        quantity: '1',\n`;
+    code += `      },\n`;
+    code += `    ]\n`;
+    code += `  )\n`;
+  }
+  if (mintAsset) {
+    code += `  // see /apis/transaction/minting\n`;
+    code += `  .mintAsset(\n`;
+    code += `    forgingScript,\n`;
+    code += `    asset,\n`;
+    code += `  )\n`;
+  }
+  if (script) {
+    code += `  // see /apis/transaction/smart-contract\n`;
+    code += `  .sendAssets(\n`;
+    code += `    {\n`;
+    code += `      address: scriptAddress,\n`;
+    code += `      datum: {\n`;
+    code += `        value: 'supersecret',\n`;
+    code += `      },\n`;
+    code += `    },\n`;
+    code += `    [\n`;
+    code += `      {\n`;
+    code += `        unit: "64af286e2ad0df4de2e7de15f...6f6b656e",\n`;
+    code += `        quantity: "1",\n`;
+    code += `      },\n`;
+    code += `    ],\n`;
+    code += `  )\n`;
+  }
+  if (setTimeToStart) {
+    code += `  // see /apis/transaction/basic\n`;
+    code += `  .setTimeToStart(slot)\n`;
+  }
+  if (setTimeToExpire) {
+    code += `  // see /apis/transaction/basic\n`;
+    code += `  .setTimeToExpire(slot)\n`;
+  }
+  code += `;\n\n`;
   code += `const unsignedTx = await tx.build();\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
@@ -52,8 +80,8 @@ export default function FeatureTransaction() {
             Chainable Transaction Builder
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
-            Mesh enables the creation of complex transactions. You can
-            send ADA and NFTS to multiple addresses, lock and unlock from smart
+            Mesh enables the creation of complex transactions. You can send ADA
+            and NFTS to multiple addresses, lock and unlock from smart
             contracts, all with a single transaction.
           </p>
           <Link href="/apis/transaction">
@@ -64,6 +92,42 @@ export default function FeatureTransaction() {
           </Link>
         </div>
         <Card>
+          <Button
+            onClick={() => setsendLovelace(!sendLovelace)}
+            style={sendLovelace ? 'success' : 'primary'}
+          >
+            Send Lovelace
+          </Button>
+          <Button
+            onClick={() => setsendAssets(!sendAssets)}
+            style={sendAssets ? 'success' : 'primary'}
+          >
+            Send Asset
+          </Button>
+          <Button
+            onClick={() => setmintAsset(!mintAsset)}
+            style={mintAsset ? 'success' : 'primary'}
+          >
+            Mint Asset
+          </Button>
+          <Button
+            onClick={() => setscript(!script)}
+            style={script ? 'success' : 'primary'}
+          >
+            Lock in Smart Contract
+          </Button>
+          <Button
+            onClick={() => setsetTimeToStart(!setTimeToStart)}
+            style={setTimeToStart ? 'success' : 'primary'}
+          >
+            Set Time to Start
+          </Button>
+          <Button
+            onClick={() => setsetTimeToExpire(!setTimeToExpire)}
+            style={setTimeToExpire ? 'success' : 'primary'}
+          >
+            Set Time to Expire
+          </Button>
           <Codeblock data={code} isJson={false} />
         </Card>
       </div>

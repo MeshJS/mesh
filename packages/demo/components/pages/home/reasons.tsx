@@ -28,7 +28,7 @@ export default function Reasons() {
               changes, so you can focus on building your application.
             </p>
             <a
-              href="https://github.com/MartifyLabs/mesh/releases"
+              href="https://github.com/MeshJS/mesh/releases"
               className="link"
               rel="noreferrer"
             >

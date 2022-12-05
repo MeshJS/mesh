@@ -1,17 +1,17 @@
 {
-  "name": "@martifylabs/mesh-react",
+  "name": "meshjs-react",
   "description": "React Hooks & Components you need for building dApps on Cardano.",
-  "homepage": "https://mesh.martify.io",
-  "author": "MartifyLabs",
-  "version": "1.0.1",
+  "homepage": "https://meshjs.dev",
+  "author": "MeshJS",
+  "version": "1.1.1",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MartifyLabs/mesh.git"
+    "url": "git+https://github.com/MeshJS/mesh.git"
   },
   "bugs": {
-    "url": "https://github.com/MartifyLabs/mesh/issues"
+    "url": "https://github.com/MeshJS/mesh/issues"
   },
   "keywords": [
     "blockchain",
@@ -61,9 +61,9 @@
     "vite": "3.1.4"
   },
   "peerDependencies": {
-    "@martifylabs/mesh": "1.2.0",
     "react": "17.x || 18.x",
-    "react-dom": "17.x || 18.x"
+    "react-dom": "17.x || 18.x",
+    "meshjs": "1.2.0-beta.4"
   },
   "dependencies": {
     "styled-components": "5.3.6"

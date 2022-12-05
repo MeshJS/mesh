@@ -4,8 +4,8 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { Transaction, ForgeScript } from '@martifylabs/mesh';
-import type { Mint, AssetMetadata } from '@martifylabs/mesh';
+import { Transaction, ForgeScript } from 'meshjs';
+import type { Mint, AssetMetadata } from 'meshjs';
 import useAppWallet from '../../../../contexts/appWallet';
 import { demoAddresses } from '../../../../configs/demo';
 import Input from '../../../ui/input';
@@ -26,8 +26,8 @@ export default function SignTx() {
 
 function Left(address) {
   let code1 = '';
-  code1 += `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
-  code1 += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n`;
+  code1 += `import { Transaction, ForgeScript } from 'meshjs';\n`;
+  code1 += `import type { Mint, AssetMetadata } from 'meshjs';\n`;
   code1 += `\n`;
   code1 += `const walletAddress = wallet.getPaymentAddress();\n`;
   code1 += `const forgingScript = ForgeScript.withOneSignature(walletAddress);\n`;
@@ -36,7 +36,7 @@ function Left(address) {
   code1 += `  name: 'Mesh Token',\n`;
   code1 += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
   code1 += `  mediaType: 'image/jpg',\n`;
-  code1 += `  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',\n`;
+  code1 += `  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',\n`;
   code1 += `};\n`;
   code1 += `const asset1: Mint = {\n`;
   code1 += `  assetName: 'MeshToken',\n`;
@@ -97,7 +97,7 @@ function Right(address, setAddress) {
         name: 'Mesh Token',
         image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
         mediaType: 'image/jpg',
-        description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+        description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
       };
       const asset1: Mint = {
         assetName: 'MeshToken',
@@ -118,7 +118,7 @@ function Right(address, setAddress) {
 
       setResponse(txHash);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
     }
     setLoading(false);
   }

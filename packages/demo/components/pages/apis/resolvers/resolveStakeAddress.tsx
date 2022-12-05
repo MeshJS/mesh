@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolveStakeAddress } from '@martifylabs/mesh';
+import { resolveRewardAddress } from 'meshjs';
 import Input from '../../../ui/input';
 
 export default function ResolveStakeAddress() {
@@ -23,12 +23,12 @@ export default function ResolveStakeAddress() {
 }
 
 function Left(userinput) {
-  let code = `import { resolveStakeAddress } from '@martifylabs/mesh';\nconst hash = resolveStakeAddress('${userinput}');`;
+  let code = `import { resolveRewardAddress } from 'meshjs';\nconst rewardAddress = resolveRewardAddress('${userinput}');`;
 
   return (
     <>
       <p>
-        Provide a wallet address, and <code>resolveStakeAddress</code> will
+        Provide a wallet address, and <code>resolveRewardAddress</code> will
         return a staking address in bech32 format.
       </p>
       <Codeblock data={code} isJson={false} />
@@ -46,8 +46,8 @@ function Right(userinput, setUserinput) {
     setResponse(null);
     setResponseError(null);
     try {
-      const hash = resolveStakeAddress(userinput);
-      setResponse(hash);
+      const rewardAddress = resolveRewardAddress(userinput);
+      setResponse(rewardAddress);
     } catch (error) {
       setResponseError(`${error}`);
     }

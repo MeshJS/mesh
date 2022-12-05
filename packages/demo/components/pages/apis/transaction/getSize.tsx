@@ -14,8 +14,8 @@ import {
   ForgeScript,
   AssetMetadata,
   BlockfrostProvider,
-} from '@martifylabs/mesh';
-import type { Mint } from '@martifylabs/mesh';
+} from 'meshjs';
+import type { Mint } from 'meshjs';
 import Textarea from '../../../ui/textarea';
 import Link from 'next/link';
 
@@ -23,7 +23,7 @@ const defaultMetadata = {
   name: 'Mesh Token',
   image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
   mediaType: 'image/jpg',
-  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
 };
 
 export default function GetSize() {
@@ -70,8 +70,8 @@ export default function GetSize() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
-  codeSnippet += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction, ForgeScript } from 'meshjs';\n`;
+  codeSnippet += `import type { Mint, AssetMetadata } from 'meshjs';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
@@ -136,7 +136,7 @@ function Left({ userInput }) {
   codeSnippet2 += `);`;
 
   let codeSnippetNative = ``;
-  codeSnippetNative += `import type { NativeScript } from '@martifylabs/mesh';\n`;
+  codeSnippetNative += `import type { NativeScript } from 'meshjs';\n`;
   codeSnippetNative += `\n`;
   codeSnippetNative += `const nativeScript: NativeScript = {\n`;
   codeSnippetNative += `  type: 'all',\n`;

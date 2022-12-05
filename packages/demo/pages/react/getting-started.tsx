@@ -12,7 +12,7 @@ const ReactGetStartedPage: NextPage = () => {
   ];
 
   let codeMeshProvider = ``;
-  codeMeshProvider += `import { MeshProvider } from "@martifylabs/mesh-react";\n`;
+  codeMeshProvider += `import { MeshProvider } from "meshjs-react";\n`;
   codeMeshProvider += `\n`;
   codeMeshProvider += `function MyApp({ Component, pageProps }: AppProps) {\n`;
   codeMeshProvider += `  return (\n`;
@@ -61,7 +61,7 @@ const ReactGetStartedPage: NextPage = () => {
           <p>
             To start, install <code>mesh-react</code>:
           </p>
-          <Codeblock data={`yarn add @martifylabs/mesh-react`} isJson={false} />
+          <Codeblock data={`yarn add meshjs-react`} isJson={false} />
           <p>
             Next, let's add <code>MeshProvider</code> to the root of the
             application.

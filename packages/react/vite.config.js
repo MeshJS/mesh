@@ -12,13 +12,12 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        '@martifylabs/mesh',
+        'meshjs',
         'react', 'react-dom',
       ],
       output: {
         globals: {
           react: 'React',
-          'react-dom': 'ReactDOM',
         },
       },
       plugins: [

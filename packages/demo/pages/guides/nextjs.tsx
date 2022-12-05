@@ -143,10 +143,10 @@ const GuideNextjsPage: NextPage = () => {
 
         <Element name="setupmesh">
           <h2>Setup Mesh</h2>
-          <h3>1. Install @martifylabs/mesh package</h3>
+          <h3>1. Install MeshJS package</h3>
           <p>Install the latest version of Mesh with yarn:</p>
           <Codeblock
-            data={`yarn add @martifylabs/mesh @martifylabs/mesh-react`}
+            data={`yarn add meshjs meshjs-react`}
             isJson={false}
           />
 
@@ -203,7 +203,7 @@ module.exports = nextConfig;
           <Codeblock
             data={`import "../styles/globals.css";
 import type { AppProps } from "next/app";
-import { MeshProvider } from "@martifylabs/mesh-react";
+import { MeshProvider } from "meshjs-react";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
@@ -237,8 +237,8 @@ export default MyApp;`}
           <Codeblock
             data={`import { useState } from "react";
 import type { NextPage } from "next";
-import { useWallet } from '@martifylabs/mesh-react';
-import { CardanoWallet } from '@martifylabs/mesh-react';
+import { useWallet } from 'meshjs-react';
+import { CardanoWallet } from 'meshjs-react';
 
 const Home: NextPage = () => {
   const { connected, wallet } = useWallet();

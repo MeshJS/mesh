@@ -19,7 +19,11 @@ export default function Fetcher({ fetcher, fetcherName }) {
       'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e'
     );
   const [fetchProtocolParameters, setfetchProtocolParameters] =
-    useState<string>('');
+    useState<string>('10');
+  const [fetchAccountInfoAddress, setFetchAccountInfoAddress] =
+    useState<string>(
+      'stake_test1uzx0ksy9f4qnj2mzfdncqyjy84sszh64w43853nug5pedjgytgke9'
+    );
 
   return (
     <>
@@ -52,6 +56,21 @@ export default function Fetcher({ fetcher, fetcherName }) {
           setfetchAddressUtxosAddress,
           fetchAddressUtxosAsset,
           setfetchAddressUtxosAsset,
+        })}
+        isH3={true}
+        badge={<BadgeFetcher />}
+      />
+      <SectionTwoCol
+        sidebarTo="fetchAccountInfo"
+        header="fetchAccountInfo"
+        leftFn={fetchAccountInfoLeft({
+          fetcherName,
+          fetchAccountInfoAddress,
+        })}
+        rightFn={fetchAccountInfoRight({
+          fetcher,
+          fetchAccountInfoAddress,
+          setFetchAccountInfoAddress,
         })}
         isH3={true}
         badge={<BadgeFetcher />}
@@ -257,6 +276,59 @@ function fetchProtocolParametersRight({
           placeholder="Epoch"
           label="Epoch"
         />
+        <RunDemoButton
+          runDemoFn={runDemo}
+          loading={loading}
+          response={response}
+        />
+        <RunDemoResult response={response} />
+        <RunDemoResult response={responseError} label="Error" />
+      </Card>
+    </>
+  );
+}
+
+function fetchAccountInfoLeft({ fetcherName, fetchAccountInfoAddress }) {
+  let code1 = `await ${fetcherName}.fetchAddressUTxOs(\n`;
+  code1 += `  '${fetchAccountInfoAddress}',\n`;
+  code1 += `)`;
+  return (
+    <>
+      <p>Fetch account infomation</p>
+      <Codeblock data={code1} isJson={false} />
+    </>
+  );
+}
+function fetchAccountInfoRight({
+  fetcher,
+  fetchAccountInfoAddress,
+  setFetchAccountInfoAddress,
+}) {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [response, setResponse] = useState<null | any>(null);
+  const [responseError, setResponseError] = useState<null | any>(null);
+  async function runDemo() {
+    setLoading(true);
+    setResponse(null);
+    setResponseError(null);
+    try {
+      const res = await fetcher.fetchAccountInfo(fetchAccountInfoAddress);
+      setResponse(res);
+    } catch (error) {
+      setResponseError(`${error}`);
+    }
+    setLoading(false);
+  }
+  return (
+    <>
+      <Card>
+        <Input
+          value={fetchAccountInfoAddress}
+          onChange={(e) => setFetchAccountInfoAddress(e.target.value)}
+          placeholder="Reward Address"
+          label="Reward Address"
+        />
+
         <RunDemoButton
           runDemoFn={runDemo}
           loading={loading}

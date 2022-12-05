@@ -8,9 +8,9 @@ import {
   resolveNativeScriptHash,
   resolvePaymentKeyHash,
   resolveSlotNo,
-} from '@martifylabs/mesh';
+} from 'meshjs';
 import Input from '../../../ui/input';
-import type { NativeScript } from '@martifylabs/mesh';
+import type { NativeScript } from 'meshjs';
 import { demoAddresses } from '../../../../configs/demo';
 
 export default function ResolveNativeScriptHash() {
@@ -28,7 +28,7 @@ export default function ResolveNativeScriptHash() {
 }
 
 function Left(userinput, userinput2) {
-  let code1 = `import { resolveNativeScriptHash, resolvePaymentKeyHash, resolveSlotNo } from '@martifylabs/mesh';\n\n`;
+  let code1 = `import { resolveNativeScriptHash, resolvePaymentKeyHash, resolveSlotNo } from 'meshjs';\n\n`;
   code1 += `const keyHash = resolvePaymentKeyHash('${userinput}');\n`;
   code1 += `\n`;
   code1 += `let oneYearFromNow = new Date();\n`;

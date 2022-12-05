@@ -4,9 +4,9 @@ import {
   Transaction,
   AppWallet,
   BlockfrostProvider,
-} from '@martifylabs/mesh';
-import type { AssetMetadata, Mint } from '@martifylabs/mesh';
-import { CardanoWallet, useWallet } from '@martifylabs/mesh-react';
+} from 'meshjs';
+import type { AssetMetadata, Mint } from 'meshjs';
+import { CardanoWallet, useWallet } from 'meshjs-react';
 import Button from '../../../ui/button';
 import Card from '../../../ui/card';
 import { useState } from 'react';
@@ -90,7 +90,7 @@ function Demo() {
         name: 'Mesh Token',
         image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
         mediaType: 'image/jpg',
-        description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+        description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
       };
       const asset: Mint = {
         assetName: 'MeshToken',

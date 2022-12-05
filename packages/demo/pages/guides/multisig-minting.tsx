@@ -12,8 +12,8 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
-} from '@martifylabs/mesh';
-import type { Mint, AssetMetadata } from '@martifylabs/mesh';
+} from 'meshjs';
+import type { Mint, AssetMetadata } from 'meshjs';
 import useWallet from '../../contexts/wallet';
 import RunDemoButton from '../../components/common/runDemoButton';
 import RunDemoResult from '../../components/common/runDemoResult';
@@ -88,7 +88,7 @@ function DemoSection() {
     name: 'Mesh Token',
     image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
     mediaType: 'image/jpg',
-    description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+    description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
   };
 
   async function clientStartMinting() {
@@ -220,7 +220,7 @@ function IntroSection() {
 }
 
 function ClientConnectWallet() {
-  let code1 = `import { BrowserWallet } from '@martifylabs/mesh';\n`;
+  let code1 = `import { BrowserWallet } from 'meshjs';\n`;
   code1 += `const wallet = await BrowserWallet.enable(walletName);`;
 
   return (
@@ -272,7 +272,7 @@ function ApplicationBuildTx() {
   code2 += `  name: 'Mesh Token',\n`;
   code2 += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
   code2 += `  mediaType: 'image/jpg',\n`;
-  code2 += `  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',\n`;
+  code2 += `  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',\n`;
   code2 += `};\n`;
 
   let code3 = ``;

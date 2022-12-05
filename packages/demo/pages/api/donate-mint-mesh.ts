@@ -5,8 +5,8 @@ import {
   Transaction,
   BlockfrostProvider,
   largestFirst,
-} from '@martifylabs/mesh';
-import type { Mint } from '@martifylabs/mesh';
+} from 'meshjs';
+import type { Mint } from 'meshjs';
 
 const words = [
   'gratitude',

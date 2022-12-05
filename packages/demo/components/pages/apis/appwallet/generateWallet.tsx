@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { AppWallet } from '@martifylabs/mesh';
+import { AppWallet } from 'meshjs';
 
 export default function GenerateWallet() {
   return (
@@ -32,7 +32,7 @@ function Left() {
         . These mnemonic phrases allow you to recover your wallet.
       </p>
       <Codeblock
-        data={`import { AppWallet } from '@martifylabs/mesh';\n\nconst mnemonic = AppWallet.brew();`}
+        data={`import { AppWallet } from 'meshjs';\n\nconst mnemonic = AppWallet.brew();`}
         isJson={false}
       />
     </>

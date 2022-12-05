@@ -14,8 +14,7 @@ export default function AboutHero() {
             enterprise-ready, well engineered, and professionally designed SDK,
             Mesh. With over 20+ components crafted ready for Vasil and many more
             in the pipeline, building a Web 3.0 application has never been this
-            easy. At Martify, we don't just build tools that work, we ensure
-            they are optimized and beneficial to a wide array of applications.
+            easy.
           </p>
           <a
             href="https://discord.gg/Z6AH9dahdH"
@@ -27,6 +26,19 @@ export default function AboutHero() {
           </a>
         </div>
         <div className="grid gap-8 pt-8 lg:pt-12 mt-8 lg:mt-12 border-t border-gray-600 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <h2 className="mb-1 text-lg font-bold">Version 1.3</h2>
+            <p className="mb-1 text-sm text-gray-400">We are not MeshJS</p>
+            <a
+              href="https://www.npmjs.com/package/meshjs"
+              rel="noreferrer"
+              className="link"
+              target="_blank"
+            >
+              NPM page
+              <ArrowRightIcon className="ml-1 w-5 h-5" />
+            </a>
+          </div>
           <div>
             <h2 className="mb-1 text-lg font-bold">Starter templates</h2>
             <p className="mb-1 text-sm text-gray-400">
@@ -54,21 +66,9 @@ export default function AboutHero() {
             </Link>
           </div>
           <div>
-            <h2 className="mb-1 text-lg font-bold">App Wallet released</h2>
-            <p className="mb-1 text-sm text-gray-400">
-              Wallet for building your amazing apps
-            </p>
-            <Link href="/apis/appwallet">
-              <span className="link">
-                Start implementing
-                <ArrowRightIcon className="ml-1 w-5 h-5" />
-              </span>
-            </Link>
-          </div>
-          <div>
             <h2 className="mb-1 text-lg font-bold">Version 1.0</h2>
             <p className="mb-1 text-sm text-gray-400">
-              We released Mesh 1.0 on 22 Sept
+              We released Mesh 1.0 on Sept 22, 2022
             </p>
             <a
               href="https://www.npmjs.com/package/@martifylabs/mesh"

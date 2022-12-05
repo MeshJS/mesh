@@ -10,7 +10,7 @@ import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import { Transaction } from '@martifylabs/mesh';
+import { Transaction } from 'meshjs';
 
 export default function SendAda() {
   const { wallet, walletConnected } = useWallet();
@@ -80,7 +80,8 @@ export default function SendAda() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `const tx = new Transaction({ initiator: wallet })\n`;
+  let codeSnippet = `import { Transaction } from 'meshjs';\n\n`;
+  codeSnippet += `const tx = new Transaction({ initiator: wallet })\n`;
   for (const recipient of userInput) {
     codeSnippet += `  .sendLovelace(\n`;
     codeSnippet += `    '${recipient.address}',\n`;
@@ -140,7 +141,7 @@ function Right({ userInput, updateField }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }

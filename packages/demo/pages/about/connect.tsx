@@ -41,7 +41,7 @@ const AboutConnectPage: NextPage = () => {
             </a>
 
             <a
-              href="https://twitter.com/MartifyLabs"
+              href="https://twitter.com/meshsdk"
               rel="noreferrer"
               target="_blank"
             >

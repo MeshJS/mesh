@@ -7,13 +7,14 @@ import {
   BadgeSubmitter,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
-import { BlockfrostProvider } from '@martifylabs/mesh';
+import { BlockfrostProvider } from 'meshjs';
 import Submitter from '../../components/pages/providers/submitter';
 
 export default function ProvidersBlockfrost() {
   const sidebarItems = [
     { label: 'fetchProtocolParameters', to: 'fetchProtocolParameters' },
     { label: 'fetchAddressUtxos', to: 'fetchAddressUtxos' },
+    { label: 'fetchAccountInfo', to: 'fetchAccountInfo' },
     // { label: 'fetchAssetMetadata', to: 'fetchAssetMetadata' },
     { label: 'submitTx', to: 'submitTx' },
   ];

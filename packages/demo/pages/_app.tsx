@@ -6,7 +6,7 @@ import { WalletProvider } from '../contexts/wallet';
 import Navbar from '../components/site/navbar';
 import Footer from '../components/site/footer';
 import { AppWalletProvider } from '../contexts/appWallet';
-import { MeshProvider } from '@martifylabs/mesh-react';
+import { MeshProvider } from 'meshjs-react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import * as ga from '../lib/ga';

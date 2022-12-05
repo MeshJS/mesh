@@ -97,6 +97,10 @@ export const resolvePlutusScriptHash = (bech32: string) => {
   }
 };
 
+export const resolvePoolId = (hash: string) => {
+  return csl.Ed25519KeyHash.from_hex(hash).to_bech32('pool1');
+};
+
 export const resolvePrivateKey = (words: string[]) => {
   const entropy = mnemonicToEntropy(words.join(' '));
   const bip32PrivateKey = buildBip32PrivateKey(entropy);
@@ -126,7 +130,7 @@ export const resolveSlotNo = (network: Network, milliseconds = Date.now()) => {
   throw new Error(`Couldn't resolve SlotNo for network: ${network}`);
 };
 
-export const resolveStakeAddress = (bech32: string) => {
+export const resolveRewardAddress = (bech32: string) => {
   try {
     const address = toAddress(bech32);
     const baseAddress = toBaseAddress(bech32);
@@ -136,9 +140,9 @@ export const resolveStakeAddress = (bech32: string) => {
       return buildRewardAddress(address.network_id(), stakeKeyHash)
         .to_address().to_bech32();
 
-    throw new Error(`Couldn't resolve stake address from address: ${bech32}`);
+    throw new Error(`Couldn't resolve reward address from address: ${bech32}`);
   } catch (error) {
-    throw new Error(`An error occurred during resolveStakeAddress: ${error}.`);
+    throw new Error(`An error occurred during resolveRewardAddress: ${error}.`);
   }
 };
 

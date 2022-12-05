@@ -5,10 +5,10 @@ import { useState } from 'react';
 export default function BlockchainProviderCodeSnippet() {
   const [blockchainProvider, setBlockchainProvider] = useState('blockfrost');
 
-  let codeBF = `import { BlockfrostProvider } from '@martifylabs/mesh';\n\n`;
+  let codeBF = `import { BlockfrostProvider } from 'meshjs';\n\n`;
   codeBF += `const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');`;
 
-  let codeKoios = `import { KoiosProvider } from '@martifylabs/mesh';\n\n`;
+  let codeKoios = `import { KoiosProvider } from 'meshjs';\n\n`;
   codeKoios += `const blockchainProvider = new KoiosProvider('<api,testnet,guild>');`;
 
   let code = codeBF;

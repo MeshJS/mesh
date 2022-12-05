@@ -1,10 +1,10 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  parseHttpError, toBytes, toScriptRef,
+  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AssetMetadata, NativeScript,
+  AccountInfo, AssetMetadata, NativeScript,
   PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
@@ -19,6 +19,31 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     });
   }
 
+  async fetchAccountInfo(address: string): Promise<AccountInfo> {
+    const rewardAddress = address.startsWith('addr')
+      ? resolveRewardAddress(address)
+      : address;
+
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `accounts/${rewardAddress}`,
+      );
+
+      if (status === 200)
+        return <AccountInfo>{
+          active: data.active || data.active_epoch !== null,
+          poolId: data.pool_id,
+          balance: data.controlled_amount,
+          rewards: data.withdrawable_amount,
+          withdrawals: data.withdrawals_sum,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : '';
     const url = `addresses/${address}/utxos` + filter;
@@ -28,11 +53,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
         `${url}?page=${page}`,
       );
 
-      if (status === 200) {
+      if (status === 200)
         return data.length > 0
           ? paginateUTxOs(page + 1, [...utxos, ...await Promise.all(data.map(toUTxO))])
           : utxos;
-      }
 
       throw parseHttpError(data);
     };

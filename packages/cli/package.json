@@ -1,9 +1,9 @@
 {
   "name": "create-mesh-app",
   "description": "A quick and easy way to bootstrap your dApps on Cardano using Mesh.",
-  "homepage": "https://mesh.martify.io",
-  "author": "MartifyLabs",
-  "version": "1.0.0",
+  "homepage": "https://meshjs.dev",
+  "author": "MeshJS",
+  "version": "1.0.3",
   "license": "Apache-2.0",
   "main": "dist/create-mesh-app.cjs.js",
   "bin": {
@@ -11,10 +11,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MartifyLabs/mesh.git"
+    "url": "git+https://github.com/MeshJS/mesh.git"
   },
   "bugs": {
-    "url": "https://github.com/MartifyLabs/mesh/issues"
+    "url": "https://github.com/MeshJS/mesh/issues"
   },
   "keywords": [
     "blockchain",
