@@ -12,7 +12,7 @@ const items = [
     framework: 'next',
     language: 'typescript',
     installCode: 'npx create-mesh-app leap -t starter -s next -l ts',
-    demoUrl: 'http://starter-template.martify.io/',
+    demoUrl: 'http://starter-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/starter-next-ts-template',
     desc: (
       <p>
@@ -27,7 +27,7 @@ const items = [
     framework: 'next',
     language: 'javascript',
     installCode: 'npx create-mesh-app leap -t starter -s next -l js',
-    demoUrl: 'http://starter-template.martify.io/',
+    demoUrl: 'http://starter-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/starter-next-js-template',
     desc: (
       <p>
@@ -72,7 +72,7 @@ const items = [
     framework: 'next',
     language: 'typescript',
     installCode: 'npx create-mesh-app leap -t minting -s next -l ts',
-    demoUrl: 'http://minting-template.martify.io/',
+    demoUrl: 'http://minting-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/minting-next-ts-template',
     desc: (
       <p>
@@ -88,7 +88,7 @@ const items = [
     framework: 'next',
     language: 'javascript',
     installCode: 'npx create-mesh-app leap -t minting -s next -l js',
-    demoUrl: 'http://minting-template.martify.io/',
+    demoUrl: 'http://minting-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/minting-next-js-template',
     desc: (
       <p>
@@ -104,7 +104,7 @@ const items = [
     framework: 'next',
     language: 'typescript',
     installCode: 'npx create-mesh-app leap -t staking -s next -l ts',
-    demoUrl: 'http://staking-template.martify.io/',
+    demoUrl: 'http://staking-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/staking-next-ts-template',
     desc: (
       <p>
@@ -119,7 +119,7 @@ const items = [
     framework: 'next',
     language: 'javascript',
     installCode: 'npx create-mesh-app leap -t staking -s next -l js',
-    demoUrl: 'http://staking-template.martify.io/',
+    demoUrl: 'http://staking-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/staking-next-js-template',
     desc: (
       <p>

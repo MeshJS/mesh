@@ -15,7 +15,7 @@ export default function JoinDiscord() {
             target="_blank"
             rel="noreferrer"
           >
-            Join Martify's Discord server
+            Join Mesh's Discord server
           </a>
         </div>
         <img

@@ -28,12 +28,12 @@ const GuidesPage: NextPage = () => {
       link: '/guides/smart-contract',
       thumbnail: '/guides/integrating-smart-contract.png',
     },
-    {
-      title: 'Minting Reference Token',
-      desc: 'Something to describe this guide',
-      link: '/guides/minting-reference-token',
-      thumbnail: '/guides/?.png',
-    },
+    // {
+    //   title: 'Minting Reference Token',
+    //   desc: 'Something to describe this guide',
+    //   link: '/guides/minting-reference-token',
+    //   thumbnail: '/guides/?.png',
+    // },
   ];
 
   return (
