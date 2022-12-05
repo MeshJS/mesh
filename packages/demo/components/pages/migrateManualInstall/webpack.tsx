@@ -20,8 +20,6 @@ function Left() {
   code += `const webpack = require('webpack');\n`;
   code += `\n`;
   code += `module.exports = {\n`;
-  code += `  mode: "production",\n`;
-  code += `  entry: "./src/index.js",\n`;
   code += `  resolve: {\n`;
   code += `    fallback: {\n`;
   code += `      buffer: require.resolve("buffer"),\n`;
@@ -36,10 +34,6 @@ function Left() {
   code += `  experiments: {\n`;
   code += `    asyncWebAssembly: true,\n`;
   code += `  },\n`;
-  code += `  output: {\n`;
-  code += `    filename: "main.js",\n`;
-  code += `    path: path.resolve(__dirname, "public"),\n`;
-  code += `  },\n`;
   code += `};\n`;
 
   return (
@@ -49,14 +43,14 @@ function Left() {
       <h3>2. Install MeshJS package</h3>
       <p>Install the latest version of Mesh with yarn:</p>
       <Codeblock
-        data={`yarn add meshjs meshjs-react`}
+        data={`yarn add @meshsdk/core @meshsdk/react`}
         isJson={false}
       />
       <h3>
-        3. Add webpack in <code>webpack.config.cjs</code>
+        3. Update <code>webpack.config.cjs</code>
       </h3>
       <p>
-        Create a new file name <code>webpack.config.cjs</code> and provide the
+        Change your <code>webpack.config.cjs</code> and provide the
         following configurations. Your <code>webpack.config.cjs</code> should
         look like this:
       </p>
