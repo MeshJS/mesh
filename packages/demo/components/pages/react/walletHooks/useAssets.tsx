@@ -2,8 +2,8 @@ import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { useAssets } from '@martifylabs/mesh-react';
-import { CardanoWallet } from '@martifylabs/mesh-react';
+import { useAssets } from '@meshsdk/react';
+import { CardanoWallet } from '@meshsdk/react';
 
 export default function UseAssets() {
   return (
@@ -33,7 +33,7 @@ function Left() {
 
 function Right() {
   const assets = useAssets();
-  let code2 = `import { useAssets } from '@martifylabs/mesh-react';\n\n`;
+  let code2 = `import { useAssets } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  const assets = useAssets();\n\n`;
   code2 += `  return (\n`;

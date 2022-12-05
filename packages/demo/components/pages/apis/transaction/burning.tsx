@@ -7,8 +7,8 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction, ForgeScript } from '@martifylabs/mesh';
-import type { Asset, AssetExtended } from '@martifylabs/mesh';
+import { Transaction, ForgeScript } from '@meshsdk/core';
+import type { Asset, AssetExtended } from '@meshsdk/core';
 
 export default function Burning() {
   const { wallet, walletConnected } = useWallet();
@@ -26,7 +26,7 @@ export default function Burning() {
     {
       unit: '8f78a4388b1a3e1a1435257e9356fa0c2cc0d3a5999d63b5886c964354657374746f6b656e',
       policyId: '8f78a4388b1a3e1a1435257e9356fa0c2cc0d3a5999d63b5886c9643',
-      assetName: 'MartifyToken',
+      assetName: 'MeshToken',
       fingerprint: 'asset1mdkjgeufm9lk4yzszckq6r7t5p4vzhwz2dz90k',
       quantity: '5',
     },
@@ -72,8 +72,8 @@ export default function Burning() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
-  codeSnippet += `import type { Asset } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
+  codeSnippet += `import type { Asset } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;

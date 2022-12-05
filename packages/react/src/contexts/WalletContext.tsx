@@ -1,5 +1,5 @@
 import { createContext, useCallback, useState } from 'react';
-import { BrowserWallet } from '@martifylabs/mesh';
+import { BrowserWallet } from '@meshsdk/core';
 
 interface WalletContext {
   hasConnectedWallet: boolean,

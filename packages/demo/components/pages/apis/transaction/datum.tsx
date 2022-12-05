@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { resolveDataHash } from '@martifylabs/mesh';
-import type { Data } from '@martifylabs/mesh';
+import { resolveDataHash } from '@meshsdk/core';
+import type { Data } from '@meshsdk/core';
 
 export default function DesignDatum() {
   return (
@@ -113,7 +113,7 @@ function Left({}) {
         <code>Data</code> type to help you design the datum.
       </p>
       <Codeblock
-        data={`import { resolveDataHash } from '@martifylabs/mesh';\nimport type { Data } from '@martifylabs/mesh';`}
+        data={`import { resolveDataHash } from '@meshsdk/core';\nimport type { Data } from '@meshsdk/core';`}
         isJson={false}
       />
 

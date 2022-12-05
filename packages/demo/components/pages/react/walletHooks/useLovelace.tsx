@@ -2,8 +2,8 @@ import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { useLovelace } from '@martifylabs/mesh-react';
-import { CardanoWallet } from '@martifylabs/mesh-react';
+import { useLovelace } from '@meshsdk/react';
+import { CardanoWallet } from '@meshsdk/react';
 
 export default function UseLovelace() {
   return (
@@ -31,7 +31,7 @@ function Left() {
 
 function Right() {
   const lovelace = useLovelace();
-  let code2 = `import { useLovelace } from '@martifylabs/mesh-react';\n\n`;
+  let code2 = `import { useLovelace } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  const lovelace = useLovelace();\n\n`;
   code2 += `  return (\n`;

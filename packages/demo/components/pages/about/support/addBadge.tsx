@@ -1,8 +1,7 @@
-// import { MeshBadge } from '@martifylabs/mesh-react';
 import Codeblock from '../../../ui/codeblock';
 
 export default function AddBadge() {
-  let code2 = `import { MeshBadge } from '@martifylabs/mesh-react';\n\n`;
+  let code2 = `import { MeshBadge } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  return (\n`;
   code2 += `    <>\n`;

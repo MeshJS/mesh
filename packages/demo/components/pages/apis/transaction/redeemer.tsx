@@ -67,7 +67,7 @@ function Left({}) {
       </p>
 
       <Codeblock
-        data={`import { resolvePaymentKeyHash } from '@martifylabs/mesh';\nimport type { Data } from '@martifylabs/mesh';`}
+        data={`import { resolvePaymentKeyHash } from '@meshsdk/core';\nimport type { Data } from '@meshsdk/core';`}
         isJson={false}
       />
       <Codeblock

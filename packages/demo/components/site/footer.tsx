@@ -14,7 +14,7 @@ export default function Footer() {
     },
     {
       icon: <SvgGithub className="w-5 h-5" />,
-      link: 'https://github.com/MartifyLabs/mesh',
+      link: 'https://github.com/MeshJS/mesh',
     },
   ];
   return (
@@ -157,11 +157,7 @@ export default function Footer() {
         </div>
         <hr className="my-6 border-gray-200 sm:mx-auto dark:border-gray-700 lg:my-8" />
         <span className="block text-sm text-center text-gray-500 dark:text-gray-400">
-          © 2021-2022{' '}
-          <a href="https://martify.io/" className="hover:underline">
-            Mesh™ by Martify Labs
-          </a>
-          . All Rights Reserved.
+          © 2022-2023 Mesh™. All Rights Reserved.
         </span>
       </div>
     </footer>

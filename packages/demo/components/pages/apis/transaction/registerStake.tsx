@@ -7,7 +7,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction } from '@martifylabs/mesh';
+import { Transaction } from '@meshsdk/core';
 import Link from 'next/link';
 
 export default function RegisterStake() {
@@ -40,7 +40,7 @@ export default function RegisterStake() {
 }
 
 function Left({ userInput, rewardAddress }) {
-  let codeSnippet = `import { Transaction } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `const rewardAddress = '${rewardAddress}';\n`;
   codeSnippet += `const poolId = '${userInput}';\n\n`;
@@ -67,7 +67,7 @@ function Left({ userInput, rewardAddress }) {
       <p>
         New address must "register" before they can delegate to stakepools. To
         check if a reward address has been register, use{' '}
-        <a href="https://mesh.martify.io/providers/blockfrost#fetchAccountInfo">
+        <a href="https://meshjs.dev/providers/blockfrost#fetchAccountInfo">
           blockchainProvider.fetchAccountInfo(rewardAddress)
         </a>
         . For example this account information, <code>active</code> shows the

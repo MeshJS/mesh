@@ -37,21 +37,21 @@ const GuideMintingNodejsPage: NextPage = () => {
   codeMetadata += `    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",\n`;
   codeMetadata += `    mediaType: "image/jpg",\n`;
   codeMetadata += `    description: "Just a purple coin.",\n`;
-  codeMetadata += `    artist: "This NFT is minted by Mesh (https://mesh.martify.io/).",\n`;
+  codeMetadata += `    artist: "This NFT is minted by Mesh (https://meshjs.dev/).",\n`;
   codeMetadata += `  },\n`;
   codeMetadata += `  MeshToken02: {\n`;
   codeMetadata += `    name: "Mesh Token 2",\n`;
   codeMetadata += `    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",\n`;
   codeMetadata += `    mediaType: "image/jpg",\n`;
   codeMetadata += `    description: "This is suppose to be a gold coin.",\n`;
-  codeMetadata += `    artist: "This NFT is minted by Mesh (https://mesh.martify.io/).",\n`;
+  codeMetadata += `    artist: "This NFT is minted by Mesh (https://meshjs.dev/).",\n`;
   codeMetadata += `  },\n`;
   codeMetadata += `  MeshToken03: {\n`;
   codeMetadata += `    name: "Mesh Token 3",\n`;
   codeMetadata += `    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",\n`;
   codeMetadata += `    mediaType: "image/jpg",\n`;
   codeMetadata += `    description: "A coin with a M on it.",\n`;
-  codeMetadata += `    artist: "This NFT is minted by Mesh (https://mesh.martify.io/).",\n`;
+  codeMetadata += `    artist: "This NFT is minted by Mesh (https://meshjs.dev/).",\n`;
   codeMetadata += `  },\n`;
   codeMetadata += `};`;
 
@@ -71,8 +71,8 @@ const GuideMintingNodejsPage: NextPage = () => {
   codeImport += `  ForgeScript,\n`;
   codeImport += `  BlockfrostProvider,\n`;
   codeImport += `  resolveTxHash,\n`;
-  codeImport += `} from '@martifylabs/mesh';\n`;
-  codeImport += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n`;
+  codeImport += `} from '@meshsdk/core';\n`;
+  codeImport += `import type { Mint, AssetMetadata } from '@meshsdk/core';\n`;
   codeImport += `\n`;
   codeImport += `import { metadata } from './metadata.js';\n`;
   codeImport += `import { recipients } from './recipients.js';\n`;
@@ -134,16 +134,7 @@ const GuideMintingNodejsPage: NextPage = () => {
       >
         <p>
           In this guide, we will be minting some assets with{' '}
-          <code>AppWallet</code> on Node.js. You can check out the full code in
-          our{' '}
-          <a
-            href="https://github.com/MartifyLabs/mesh/tree/main/examples/NodeJS-Minting"
-            target="_blank"
-            rel="noreferrer"
-          >
-            GitHub repo
-          </a>
-          .
+          <code>AppWallet</code> on Node.js.
         </p>
         <Element name="systemsetup">
           <h2>System setup</h2>
@@ -192,7 +183,7 @@ const GuideMintingNodejsPage: NextPage = () => {
             package:
           </p>
           <Codeblock
-            data={`yarn add --dev typescript && yarn add @martifylabs/mesh`}
+            data={`yarn add --dev typescript && yarn add meshjs`}
             isJson={false}
           />
           <p>
@@ -280,17 +271,6 @@ const GuideMintingNodejsPage: NextPage = () => {
             For a successful transaction, you should get a transaction hash, you
             should have minted multiple assets in a single transaction, and sent
             them to multiple recipients.
-          </p>
-          <p>
-            You can check out the full code in our{' '}
-            <a
-              href="https://github.com/MartifyLabs/mesh/tree/main/examples/NodeJS-Minting"
-              target="_blank"
-              rel="noreferrer"
-            >
-              GitHub repo
-            </a>
-            .
           </p>
         </Element>
       </GuidesLayout>

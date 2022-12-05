@@ -1,16 +1,21 @@
 import Head from 'next/head';
 
 const Metatags = ({ title, keywords, description, image }) => {
+  if (description === undefined) {
+    description =
+      'Intuitive and easy-to-use Web3 development framework to build amazing applications on Cardano.';
+  }
+  if (keywords === undefined) {
+    keywords =
+      'developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis';
+  }
+
   return (
     <Head>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta charSet="utf-8" />
 
-      <title>
-        {title
-          ? title + ' - Mesh Playground by Martify Labs'
-          : 'Mesh Playground by Martify Labs'}
-      </title>
+      <title>{title ? title + ' - Mesh Playground' : 'Mesh Playground'}</title>
 
       <meta name="keywords" content={keywords} />
       <meta name="description" content={description} />
@@ -20,19 +25,16 @@ const Metatags = ({ title, keywords, description, image }) => {
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       {image && (
-        <meta
-          name="twitter:image"
-          content={`https://mesh.martify.io${image}`}
-        />
+        <meta name="twitter:image" content={`https://meshjs.dev${image}`} />
       )}
       {image && <meta name="twitter:image:alt" content={title} />}
 
       <meta property="og:title" content={title} />
       <meta property="og:type" content="article" />
-      <meta property="og:site_name" content="Mesh Playground by Martify Labs" />
+      <meta property="og:site_name" content="Mesh Playground" />
       <meta property="og:description" content={description} />
       {image && (
-        <meta property="og:image" content={`https://mesh.martify.io${image}`} />
+        <meta property="og:image" content={`https://meshjs.dev${image}`} />
       )}
 
       {/* favicon */}

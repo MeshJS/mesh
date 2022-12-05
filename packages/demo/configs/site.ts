@@ -1,1 +1,1 @@
-export const rootUrl = 'https://mesh.martify.io';
+export const rootUrl = 'https://meshjs.dev';

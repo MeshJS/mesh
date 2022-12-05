@@ -2,8 +2,8 @@ import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { useAddress } from '@martifylabs/mesh-react';
-import { CardanoWallet } from '@martifylabs/mesh-react';
+import { useAddress } from '@meshsdk/react';
+import { CardanoWallet } from '@meshsdk/react';
 
 export default function UseAddress() {
   return (
@@ -35,7 +35,7 @@ function Left() {
 
 function Right() {
   const address = useAddress();
-  let code2 = `import { useAddress } from '@martifylabs/mesh-react';\n\n`;
+  let code2 = `import { useAddress } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  const address = useAddress();\n\n`;
   code2 += `  return (\n`;
