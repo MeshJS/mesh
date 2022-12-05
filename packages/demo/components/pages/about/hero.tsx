@@ -71,7 +71,7 @@ export default function AboutHero() {
               We released Mesh 1.0 on Sept 22, 2022
             </p>
             <a
-              href="https://www.npmjs.com/package/@martifylabs/mesh"
+              href="https://www.npmjs.com/package/@meshsdk/core"
               rel="noreferrer"
               className="link"
               target="_blank"

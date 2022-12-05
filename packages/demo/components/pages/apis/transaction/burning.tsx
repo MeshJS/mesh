@@ -26,7 +26,7 @@ export default function Burning() {
     {
       unit: '8f78a4388b1a3e1a1435257e9356fa0c2cc0d3a5999d63b5886c964354657374746f6b656e',
       policyId: '8f78a4388b1a3e1a1435257e9356fa0c2cc0d3a5999d63b5886c9643',
-      assetName: 'MartifyToken',
+      assetName: 'MeshToken',
       fingerprint: 'asset1mdkjgeufm9lk4yzszckq6r7t5p4vzhwz2dz90k',
       quantity: '5',
     },
