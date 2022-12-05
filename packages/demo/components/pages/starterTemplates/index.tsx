@@ -237,7 +237,7 @@ function Main() {
                 </a>
 
                 <a
-                  href={`https://demeter.run/code?repository=${item.repoUrl}.git&template=${item.language}`}
+                  href={`https://demeter.run/code?repository=${item.repoUrl}.git&template=typescript`}
                   className="inline-flex justify-center items-center py-3 px-5 text-base font-medium text-center text-white rounded-lg border border-gray-300 bg-fuchsia-600 hover:bg-fuchsia-700 focus:ring-4 focus:ring-gray-100 no-underline"
                   target="_blank"
                   rel="noreferrer"
