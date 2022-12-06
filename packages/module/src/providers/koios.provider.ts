@@ -1,12 +1,20 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeNativeScript, fromNativeScript,
-  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
+  deserializeNativeScript,
+  fromNativeScript,
+  parseHttpError,
+  resolveRewardAddress,
+  toBytes,
+  toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, Asset, AssetMetadata,
-  PlutusScript, Protocol, UTxO,
+  AccountInfo,
+  Asset,
+  AssetMetadata,
+  PlutusScript,
+  Protocol,
+  UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
@@ -24,11 +32,11 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         ? resolveRewardAddress(address)
         : address;
 
-      const { data, status } = await this._axiosInstance.post(
-        'account_info', { _stake_addresses: [rewardAddress] }
-      );
+      const { data, status } = await this._axiosInstance.post('account_info', {
+        _stake_addresses: [rewardAddress],
+      });
 
-      if (status === 200) 
+      if (status === 200)
         return <AccountInfo>{
           poolId: data[0].delegated_pool,
           active: data[0].status === 'registered',
@@ -47,13 +55,11 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     const resolveScriptRef = (kScriptRef): string | undefined => {
       if (kScriptRef) {
         const script = kScriptRef.type.startsWith('plutus')
-          ? {
+          ? ({
               code: kScriptRef.bytes,
               version: kScriptRef.type.replace('plutus', ''),
-            } as PlutusScript
-          : fromNativeScript(
-              deserializeNativeScript(kScriptRef.bytes)
-            );
+            } as PlutusScript)
+          : fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
 
         return toScriptRef(script).to_hex();
       }
@@ -62,9 +68,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     };
 
     try {
-      const { data, status } = await this._axiosInstance.post(
-        'address_info', { _addresses: [address] }
-      );
+      const { data, status } = await this._axiosInstance.post('address_info', {
+        _addresses: [address],
+      });
 
       if (status === 200) {
         const utxos = data
@@ -106,8 +112,41 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
-    throw new Error('fetchAssetMetadata not implemented.');
+  convertStringToHex = (string: string) => {
+    let convertedString = '';
+    for (const letter of string) {
+      const hex = letter.charCodeAt(0).toString(16).slice(-4);
+      convertedString += hex;
+    }
+    return convertedString;
+  };
+
+  async fetchAssetMetadata(
+    _assetPolicyId: string,
+    _assetName: string
+  ): Promise<AssetMetadata> {
+    try {
+      const assetNameInHex = this.convertStringToHex(_assetName);
+      const { data, status } = await this._axiosInstance.get(
+        `asset_info?_asset_policy=${_assetPolicyId}&_asset_name=${assetNameInHex}`
+      );
+
+      if (status === 200) {
+        const { minting_tx_metadata } = data[0];
+        const txMetadatumLabel = '721';
+
+        const targetAssetMetadata =
+          minting_tx_metadata[txMetadatumLabel][_assetPolicyId][_assetName];
+        return <AssetMetadata>{
+          totalSupply: data[0].total_supply,
+          fingerprint: data[0].fingerprint,
+          ...targetAssetMetadata,
+        };
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchHandleAddress(_handle: string): Promise<string> {
@@ -155,11 +194,12 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       const headers = { 'Content-Type': 'application/cbor' };
 
       const { data, status } = await this._axiosInstance.post(
-        'submittx', toBytes(tx), { headers },
+        'submittx',
+        toBytes(tx),
+        { headers }
       );
 
-      if (status === 202)
-        return data;
+      if (status === 202) return data;
 
       throw parseHttpError(data);
     } catch (error) {
