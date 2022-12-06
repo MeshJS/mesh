@@ -89,7 +89,7 @@ const createDirectory = (name) => {
 const fetchRepository = async (template, stack, language) => {
   const pipe = promisify(pipeline);
   const name = `${template}-${stack}-${language}-template`;
-  const link = `https://codeload.github.com/MartifyLabs/${name}/tar.gz/main`;
+  const link = `https://codeload.github.com/MeshJS/${name}/tar.gz/main`;
 
   await pipe(
     got.stream(link),

@@ -79,9 +79,9 @@ const GuideNextjsPage: NextPage = () => {
             , you should see <code>Hello World!</code>.
           </p>
 
-          <h3>2. Install @martifylabs/mesh package</h3>
+          <h3>2. Install MeshJS package</h3>
           <p>Install the latest version of Mesh with yarn:</p>
-          <Codeblock data={`yarn add @martifylabs/mesh`} isJson={false} />
+          <Codeblock data={`yarn add @meshsdk/core`} isJson={false} />
         </Element>
       </GuidesLayout>
     </>

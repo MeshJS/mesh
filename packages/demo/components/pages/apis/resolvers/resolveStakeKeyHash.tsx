@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
-import { resolveStakeKeyHash } from '@martifylabs/mesh';
+import { resolveStakeKeyHash } from '@meshsdk/core';
 import Input from '../../../ui/input';
 
 export default function ResolveStakeKeyHash() {
@@ -23,7 +23,7 @@ export default function ResolveStakeKeyHash() {
 }
 
 function Left(userinput) {
-  let code = `import { resolveStakeKeyHash } from '@martifylabs/mesh';\nconst hash = resolveStakeKeyHash('${userinput}');`;
+  let code = `import { resolveStakeKeyHash } from '@meshsdk/core';\nconst hash = resolveStakeKeyHash('${userinput}');`;
 
   return (
     <>

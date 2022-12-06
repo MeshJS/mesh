@@ -9,7 +9,7 @@ import {
   Transaction,
   AppWallet,
   BlockfrostProvider,
-} from '@martifylabs/mesh';
+} from '@meshsdk/core';
 import { demoAddresses, demoPrivateKey } from '../../../../configs/demo';
 
 export default function ResolveTxHash() {
@@ -24,7 +24,7 @@ export default function ResolveTxHash() {
 }
 
 function Left() {
-  let code = `import { resolveTxHash } from '@martifylabs/mesh';\n`;
+  let code = `import { resolveTxHash } from '@meshsdk/core';\n`;
   code += `const tx = new Transaction({ initiator: wallet });\n`;
   code += `tx.sendLovelace(demoAddresses.testnet, '1500000');\n`;
   code += `const unsignedTx = await tx.build();\n`;

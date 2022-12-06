@@ -1,9 +1,46 @@
 import { Link } from 'react-scroll';
 
-export default function StickySidebar({ sidebarItems }) {
+export default function StickySidebar({
+  sidebarItems,
+  authors,
+}: {
+  sidebarItems: { to: string; label: string }[];
+  authors?: { url: string; image: string; name: string; about: string }[];
+}) {
   return (
     <div className="hidden mb-6 xl:block lg:w-72">
       <div className="sticky top-20">
+        {authors && (
+          <div className="p-6 mb-6 text-gray-500 rounded-lg border border-gray-200 dark:border-gray-700 dark:text-gray-400">
+            {authors &&
+              authors!.map((author, i) => {
+                return (
+                  <a
+                    href={author.url}
+                    className="flex items-center mb-4"
+                    target="_blank"
+                    rel="noreferrer"
+                    key={i}
+                  >
+                    <div className="mr-3 shrink-0">
+                      <img
+                        className="mt-1 w-8 h-8 rounded-full"
+                        src={author.image}
+                        alt={author.name}
+                      />
+                    </div>
+                    <div className="mr-3">
+                      <span className="block font-medium text-gray-900 dark:text-white">
+                        {author.name}
+                      </span>
+                      <span className="text-sm">{author.about}</span>
+                    </div>
+                  </a>
+                );
+              })}
+          </div>
+        )}
+
         <aside aria-labelledby="categories-label">
           <h3 id="categories-label" className="sr-only">
             Topics

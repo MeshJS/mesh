@@ -7,7 +7,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction } from '@martifylabs/mesh';
+import { Transaction } from '@meshsdk/core';
 
 export default function DeregisterStake() {
   const { wallet, walletConnected } = useWallet();
@@ -36,7 +36,7 @@ export default function DeregisterStake() {
 }
 
 function Left({ rewardAddress }) {
-  let codeSnippet = `import { Transaction } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `const rewardAddress = '${rewardAddress}';\n\n`;
 

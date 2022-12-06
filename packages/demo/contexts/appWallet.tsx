@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useMemo } from 'react';
-import { AppWallet } from '@martifylabs/mesh';
+import { AppWallet } from '@meshsdk/core';
 
 const WalletContext = createContext({
   wallet: {} as AppWallet,

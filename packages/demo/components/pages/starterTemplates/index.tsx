@@ -12,8 +12,8 @@ const items = [
     framework: 'next',
     language: 'typescript',
     installCode: 'npx create-mesh-app leap -t starter -s next -l ts',
-    demoUrl: 'http://starter-template.martify.io/',
-    repoUrl: 'https://github.com/MartifyLabs/starter-next-ts-template',
+    demoUrl: 'http://starter-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/starter-next-ts-template',
     desc: (
       <p>
         Start a new project on Next.js. This starter template consists of a
@@ -27,8 +27,8 @@ const items = [
     framework: 'next',
     language: 'javascript',
     installCode: 'npx create-mesh-app leap -t starter -s next -l js',
-    demoUrl: 'http://starter-template.martify.io/',
-    repoUrl: 'https://github.com/MartifyLabs/starter-next-js-template',
+    demoUrl: 'http://starter-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/starter-next-js-template',
     desc: (
       <p>
         Start a new project on Next.js. This starter template consists of a
@@ -72,8 +72,8 @@ const items = [
     framework: 'next',
     language: 'typescript',
     installCode: 'npx create-mesh-app leap -t minting -s next -l ts',
-    demoUrl: 'http://minting-template.martify.io/',
-    repoUrl: 'https://github.com/MartifyLabs/minting-next-ts-template',
+    demoUrl: 'http://minting-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/minting-next-ts-template',
     desc: (
       <p>
         Sell native tokens with multi-sig minting; where the backend server will
@@ -88,8 +88,8 @@ const items = [
     framework: 'next',
     language: 'javascript',
     installCode: 'npx create-mesh-app leap -t minting -s next -l js',
-    demoUrl: 'http://minting-template.martify.io/',
-    repoUrl: 'https://github.com/MartifyLabs/minting-next-js-template',
+    demoUrl: 'http://minting-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/minting-next-js-template',
     desc: (
       <p>
         Sell native tokens with multi-sig minting; where the backend server will
@@ -104,8 +104,8 @@ const items = [
     framework: 'next',
     language: 'typescript',
     installCode: 'npx create-mesh-app leap -t staking -s next -l ts',
-    demoUrl: 'http://staking-template.martify.io/',
-    repoUrl: 'https://github.com/MartifyLabs/staking-next-ts-template',
+    demoUrl: 'http://staking-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/staking-next-ts-template',
     desc: (
       <p>
         Are you a stake pool operator? This starter template allows delegators
@@ -119,8 +119,8 @@ const items = [
     framework: 'next',
     language: 'javascript',
     installCode: 'npx create-mesh-app leap -t staking -s next -l js',
-    demoUrl: 'http://staking-template.martify.io/',
-    repoUrl: 'https://github.com/MartifyLabs/staking-next-js-template',
+    demoUrl: 'http://staking-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/staking-next-js-template',
     desc: (
       <p>
         Are you a stake pool operator? This starter template allows delegators
@@ -237,7 +237,7 @@ function Main() {
                 </a>
 
                 <a
-                  href={`https://demeter.run/code?repository=${item.repoUrl}.git&template=${item.language}`}
+                  href={`https://demeter.run/code?repository=${item.repoUrl}.git&template=typescript`}
                   className="inline-flex justify-center items-center py-3 px-5 text-base font-medium text-center text-white rounded-lg border border-gray-300 bg-fuchsia-600 hover:bg-fuchsia-700 focus:ring-4 focus:ring-gray-100 no-underline"
                   target="_blank"
                   rel="noreferrer"

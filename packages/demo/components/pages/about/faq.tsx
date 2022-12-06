@@ -70,10 +70,34 @@ export default function AboutFaq() {
                 </>
               }
             />
+            <Item
+              header="Why is Mesh open source?"
+              body={
+                <>
+                  <p>
+                    During the early days of the World Wide Web, CERN{' '}
+                    <a
+                      href="https://home.web.cern.ch/science/computing/birth-web/licensing-web"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      put the web technology in the public domain
+                    </a>
+                    , available with an open licence. Through these actions,
+                    making the software required to run a web server freely
+                    available, and open-source code library, the web was allowed
+                    to flourish. In the same way, providing Mesh and its
+                    technology, allowing anyone to build, is key to widespread
+                    Cardano adoption.
+                  </p>
+                </>
+              }
+            />
           </div>
           <div>
             <Item
-              header="Is Mesh open source and open for contributions?"
+              header="Is Mesh open for contributions?"
               body={
                 <>
                   <p>
@@ -94,15 +118,6 @@ export default function AboutFaq() {
                       target="_blank"
                     >
                       Discord server
-                    </a>{' '}
-                    or email us at{' '}
-                    <a
-                      href="mailto:contact@martify.io"
-                      rel="noreferrer"
-                      className="link"
-                      target="_blank"
-                    >
-                      contact@martify.io
                     </a>
                     .
                   </p>
@@ -129,7 +144,7 @@ export default function AboutFaq() {
                   <p>
                     If you don't receive an answer, please file{' '}
                     <a
-                      href="https://github.com/MartifyLabs/mesh/issues"
+                      href="https://github.com/MeshJS/mesh/issues"
                       target="_blank"
                       rel="noreferrer"
                       className="link"
@@ -146,7 +161,7 @@ export default function AboutFaq() {
                       rel="noreferrer"
                       className="link"
                     >
-                      Martify&apos;s
+                      Mesh&apos;s
                     </a>
                     ,{' '}
                     <a
@@ -177,19 +192,6 @@ export default function AboutFaq() {
               header="Who are behind Mesh?"
               body={
                 <>
-                  <p>
-                    Mesh has been created and is continuously developed by{' '}
-                    <a
-                      href="https://martify.io/"
-                      rel="noreferrer"
-                      className="link"
-                      target="_blank"
-                    >
-                      Martify Labs
-                    </a>
-                    . We build intuitive and well-engineered tools and services
-                    for creators and companies who plan to develop on Cardano.
-                  </p>
                   <p>
                     As Mesh is open source, the people in the Cardano
                     development community are a part of this journey. We look
@@ -233,7 +235,7 @@ export default function AboutFaq() {
                     </a>
                     . If you wish to build a site like this, we have a{' '}
                     <a
-                      href="https://mesh.martify.io/guides/nextjs"
+                      href="https://meshjs.dev/guides/nextjs"
                       rel="noreferrer"
                       className="link"
                       target="_blank"
