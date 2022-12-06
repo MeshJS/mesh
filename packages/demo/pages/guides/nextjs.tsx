@@ -146,7 +146,7 @@ const GuideNextjsPage: NextPage = () => {
           <h3>1. Install MeshJS package</h3>
           <p>Install the latest version of Mesh with yarn:</p>
           <Codeblock
-            data={`yarn add meshjs meshjs-react`}
+            data={`yarn add @meshsdk/core @meshsdk/react`}
             isJson={false}
           />
 
@@ -203,7 +203,7 @@ module.exports = nextConfig;
           <Codeblock
             data={`import "../styles/globals.css";
 import type { AppProps } from "next/app";
-import { MeshProvider } from "meshjs-react";
+import { MeshProvider } from "@meshsdk/react";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (

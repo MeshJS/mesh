@@ -41,7 +41,7 @@ function Left() {
       <h3>2. Install MeshJS package</h3>
       <p>Install the latest version of Mesh with yarn:</p>
       <Codeblock
-        data={`yarn add @meshsdk/core @meshsdk/react`}
+        data={`yarn add @meshsdk/core`}
         isJson={false}
       />
       <h3>

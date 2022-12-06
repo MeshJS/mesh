@@ -17,7 +17,7 @@ function Left() {
     <>
       <h3>1. Install MeshJS package</h3>
       <p>Install the latest version of Mesh with yarn:</p>
-      <Codeblock data={`yarn add meshjs meshjs-react`} isJson={false} />
+      <Codeblock data={`yarn add @meshsdk/core @meshsdk/react`} isJson={false} />
 
       <h3>
         2. Add webpack in <code>next.config.js</code>

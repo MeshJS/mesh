@@ -148,7 +148,7 @@ const GuideNextjsPage: NextPage = () => {
           <h2>Setup Mesh</h2>
           <h3>1. Install MeshJS package</h3>
           <p>Install the latest version of Mesh with yarn:</p>
-          <Codeblock data={`yarn add meshjs`} isJson={false} />
+          <Codeblock data={`yarn add @meshsdk/core`} isJson={false} />
 
           <h3>
             2. Add webpack in <code>next.config.js</code>
@@ -183,9 +183,9 @@ module.exports = nextConfig;
 
         <Element name="addawalletconnection">
           <h2>Add a wallet connection</h2>
-          <h3>1. Install meshjs-react package</h3>
+          <h3>1. Install @meshsdk/react package</h3>
           <p>Install the latest version of Mesh-react with yarn:</p>
-          <Codeblock data={`yarn add meshjs-react`} isJson={false} />
+          <Codeblock data={`yarn add @meshsdk/core-react`} isJson={false} />
           <h3>2. Setup MeshProvider</h3>
           <p>
             Open <code>pages/_app.tsx</code> and replace it with the following
@@ -194,7 +194,7 @@ module.exports = nextConfig;
           <Codeblock
             data={`import "../styles/globals.css";
 import type { AppProps } from "next/app";
-import { MeshProvider } from "meshjs-react";
+import { MeshProvider } from "@meshsdk/react";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (

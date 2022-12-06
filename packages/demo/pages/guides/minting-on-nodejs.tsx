@@ -183,7 +183,7 @@ const GuideMintingNodejsPage: NextPage = () => {
             package:
           </p>
           <Codeblock
-            data={`yarn add --dev typescript && yarn add meshjs`}
+            data={`yarn add --dev typescript && yarn add @meshsdk/core`}
             isJson={false}
           />
           <p>
