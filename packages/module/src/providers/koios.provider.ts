@@ -1,20 +1,12 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeNativeScript,
-  fromNativeScript,
-  parseHttpError,
-  resolveRewardAddress,
-  toBytes,
-  toScriptRef,
+  deserializeNativeScript, fromNativeScript,
+  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo,
-  Asset,
-  AssetMetadata,
-  PlutusScript,
-  Protocol,
-  UTxO,
+  AccountInfo, Asset, AssetMetadata,
+  PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
@@ -32,9 +24,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         ? resolveRewardAddress(address)
         : address;
 
-      const { data, status } = await this._axiosInstance.post('account_info', {
-        _stake_addresses: [rewardAddress],
-      });
+      const { data, status } = await this._axiosInstance.post(
+        'account_info', { _stake_addresses: [rewardAddress] },
+      );
 
       if (status === 200)
         return <AccountInfo>{
@@ -55,10 +47,10 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     const resolveScriptRef = (kScriptRef): string | undefined => {
       if (kScriptRef) {
         const script = kScriptRef.type.startsWith('plutus')
-          ? ({
+          ? <PlutusScript>{
               code: kScriptRef.bytes,
               version: kScriptRef.type.replace('plutus', ''),
-            } as PlutusScript)
+            }
           : fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
 
         return toScriptRef(script).to_hex();
@@ -68,12 +60,12 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     };
 
     try {
-      const { data, status } = await this._axiosInstance.post('address_info', {
-        _addresses: [address],
-      });
+      const { data, status } = await this._axiosInstance.post(
+        'address_info', { _addresses: [address] },
+      );
 
       if (status === 200) {
-        const utxos = data
+        const utxos = <UTxO[]>data
           .flatMap((info: { utxo_set: [] }) => info.utxo_set)
           .map((utxo) => ({
             input: {
@@ -86,17 +78,17 @@ export class KoiosProvider implements IFetcher, ISubmitter {
                 { unit: 'lovelace', quantity: utxo.value },
                 ...utxo.asset_list.map(
                   (a) =>
-                    ({
+                    <Asset>{
                       unit: `${a.policy_id}${a.asset_name}`,
                       quantity: `${a.quantity}`,
-                    } as Asset)
+                    }
                 ),
               ],
               dataHash: utxo.datum_hash ?? undefined,
               plutusData: utxo.inline_datum.bytes ?? undefined,
               scriptRef: resolveScriptRef(utxo.reference_script),
             },
-          })) as UTxO[];
+          }));
 
         return asset !== undefined
           ? utxos.filter(
@@ -112,23 +104,10 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     }
   }
 
-  convertStringToHex = (string: string) => {
-    let convertedString = '';
-    for (const letter of string) {
-      const hex = letter.charCodeAt(0).toString(16).slice(-4);
-      convertedString += hex;
-    }
-    return convertedString;
-  };
-
-  async fetchAssetMetadata(
-    _assetPolicyId: string,
-    _assetName: string
-  ): Promise<AssetMetadata> {
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
-      const assetNameInHex = this.convertStringToHex(_assetName);
       const { data, status } = await this._axiosInstance.get(
-        `asset_info?_asset_policy=${_assetPolicyId}&_asset_name=${assetNameInHex}`
+        `asset_info?_asset_policy=${asset}&_asset_name=${asset}`
       );
 
       if (status === 200) {
@@ -136,7 +115,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         const txMetadatumLabel = '721';
 
         const targetAssetMetadata =
-          minting_tx_metadata[txMetadatumLabel][_assetPolicyId][_assetName];
+          minting_tx_metadata[txMetadatumLabel][asset][asset];
         return <AssetMetadata>{
           totalSupply: data[0].total_supply,
           fingerprint: data[0].fingerprint,
@@ -156,7 +135,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
   async fetchProtocolParameters(epoch: number): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        `epoch_params?_epoch_no=${epoch}`
+        `epoch_params?_epoch_no=${epoch}`,
       );
 
       if (status === 200)
@@ -194,12 +173,11 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       const headers = { 'Content-Type': 'application/cbor' };
 
       const { data, status } = await this._axiosInstance.post(
-        'submittx',
-        toBytes(tx),
-        { headers }
+        'submittx', toBytes(tx), { headers },
       );
 
-      if (status === 202) return data;
+      if (status === 202)
+        return data;
 
       throw parseHttpError(data);
     } catch (error) {
