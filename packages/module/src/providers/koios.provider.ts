@@ -137,7 +137,11 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
         const targetAssetMetadata =
           minting_tx_metadata[txMetadatumLabel][_assetPolicyId][_assetName];
-        return <AssetMetadata>{ ...targetAssetMetadata };
+        return <AssetMetadata>{
+          totalSupply: data[0].total_supply,
+          fingerprint: data[0].fingerprint,
+          ...targetAssetMetadata,
+        };
       }
       throw parseHttpError(data);
     } catch (error) {
