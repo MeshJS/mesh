@@ -143,6 +143,8 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
         const targetAssetMetadata = data.onchain_metadata;
 
         return <AssetMetadata>{
+          policyId: data.policy_id,
+          mintingTxHash: data.initial_mint_tx_hash,
           totalSupply: data.quantity,
           fingerprint: data.fingerprint,
           ...targetAssetMetadata,
