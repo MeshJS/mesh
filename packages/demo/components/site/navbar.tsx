@@ -12,7 +12,6 @@ import {
   WrenchScrewdriverIcon,
   BoltIcon,
   RocketLaunchIcon,
-  CpuChipIcon,
   PaintBrushIcon,
   DocumentTextIcon,
   HeartIcon,
@@ -268,7 +267,7 @@ function SubMenuTransaction() {
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
             <SubMenuLinks
-              href={`/apis/transaction/basic`}
+              href={`/apis/transaction`}
               title="Overview and send assets"
               desc="Transactions for sending assets"
               icon={<PaperAirplaneIcon className="w-5 h-5" />}
@@ -411,6 +410,7 @@ function SubMenuReact() {
     </li>
   );
 }
+
 function SubMenuLinks({ href, title, desc, icon }) {
   return (
     <li>

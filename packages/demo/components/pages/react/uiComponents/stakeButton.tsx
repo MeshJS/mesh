@@ -39,10 +39,10 @@ function Left() {
 
 function Right() {
   const [poolId, setPoolId] = useState(
-    'pool1j5ykmf5a87myg947w2svnnj8f3evt8dqmvv624kugv9tcwwk8vr'
+    'pool1mhww3q6d7qssj5j2add05r7cyr7znyswe2g6vd23anpx5sh6z8d'
   );
   const [networkId, setNetworkId] =
-    useState<'preprod' | 'api' | 'preview' | 'guild'>('preprod');
+    useState<'preprod' | 'api' | 'preview' | 'guild'>('api');
 
   let code2 = ``;
   code2 += `import { KoiosProvider } from '@meshsdk/core';\n`;

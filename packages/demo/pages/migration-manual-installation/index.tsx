@@ -18,7 +18,8 @@ const MigrationManualPage: NextPage = () => {
     <CommonLayout sidebarItems={sidebarItems}>
       <Metatags
         title="Install Mesh into your existing project"
-        description="Build an application to display assets or a complex dApp to interact with Cardano blockchain and smart contracts - this section will help you get started."
+        description="Use Mesh into your existing project, you can
+        choose the stack and configure them."
       />
 
       <div className="py-4 px-4 mx-auto max-w-screen-xl lg:py-8 lg:px-6">

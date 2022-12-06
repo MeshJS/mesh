@@ -15,7 +15,7 @@ export default function DelegateStake() {
     'pool1mhww3q6d7qssj5j2add05r7cyr7znyswe2g6vd23anpx5sh6z8d'
   );
   const [rewardAddress, setRewardAddress] = useState<string>(
-    'stake_test1uzx0ksy9f4qnj2mzfdncqyjy84sszh64w43853nug5pedjgytgke9'
+    'stake1qdzmqvfdnxsn4a3hd57x435madswynt4hqw8n7f2pdq05g4995re'
   );
 
   useEffect(() => {

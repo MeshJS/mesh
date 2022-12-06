@@ -23,18 +23,16 @@ export default function Reasons() {
               Always up to date
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh is developed closely to network updates. By using Mesh,
-              your application will always be ready for the latest network
-              changes, so you can focus on building your application.
+              Mesh is developed closely to network updates. By using Mesh, your
+              application will always be ready for the latest network changes,
+              so you can focus on building your application.
             </p>
-            <a
-              href="https://github.com/MeshJS/mesh/releases"
-              className="link"
-              rel="noreferrer"
-            >
-              Check out our change logs
-              <ChevronRightIcon className="ml-1 w-5 h-5" />
-            </a>
+            <Link href="/about">
+              <div className="link">
+                Learn more about Mesh
+                <ChevronRightIcon className="ml-1 w-5 h-5" />
+              </div>
+            </Link>
           </div>
           <div>
             <BoltIcon className="mx-auto mb-4 w-12 h-12 text-primary-600 dark:text-primary-500" />
@@ -43,7 +41,8 @@ export default function Reasons() {
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
               Getting started with dApp development has never been this easy.
-              Mesh is conceived in a way that facilitates and speeds up development of decentralised applications.
+              Mesh is conceived in a way that facilitates and speeds up
+              development of decentralised applications.
             </p>
             <Link href="/getting-started">
               <div className="link">
@@ -58,11 +57,12 @@ export default function Reasons() {
               Best practices
             </h3>
             <p className="mb-4 text-gray-500 dark:text-gray-400">
-              Mesh follows many CIPs that make it interoprable with other Cardano tools. In addition, the package is less than 300kB! This
+              Mesh follows many CIPs that make it interoprable with other
+              Cardano tools. In addition, the package is less than 300kB! This
               means your application is fast, responsive and adheres to
               standards.
             </p>
-            <Link href="/apis/browserwallet">
+            <Link href="/apis">
               <div className="link">
                 Explore our APIs
                 <ChevronRightIcon className="ml-1 w-5 h-5" />

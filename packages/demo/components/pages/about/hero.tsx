@@ -30,7 +30,7 @@ export default function AboutHero() {
             <h2 className="mb-1 text-lg font-bold">Version 1.3</h2>
             <p className="mb-1 text-sm text-gray-400">We are now MeshJS</p>
             <a
-              href="https://www.npmjs.com/package/meshjs"
+              href="https://www.npmjs.com/package/@meshsdk/core"
               rel="noreferrer"
               className="link"
               target="_blank"
