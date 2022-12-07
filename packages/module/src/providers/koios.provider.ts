@@ -1,20 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
+import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeNativeScript,
-  fromNativeScript,
-  parseHttpError,
-  resolveRewardAddress,
-  toBytes,
-  toScriptRef,
+  deserializeNativeScript, fromNativeScript, fromUTF8,
+  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo,
-  Asset,
-  AssetMetadata,
-  PlutusScript,
-  Protocol,
-  UTxO,
+  AccountInfo, Asset, AssetMetadata,
+  PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
@@ -32,9 +25,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         ? resolveRewardAddress(address)
         : address;
 
-      const { data, status } = await this._axiosInstance.post('account_info', {
-        _stake_addresses: [rewardAddress],
-      });
+      const { data, status } = await this._axiosInstance.post(
+        'account_info', { _stake_addresses: [rewardAddress] },
+      );
 
       if (status === 200)
         return <AccountInfo>{
@@ -68,9 +61,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     };
 
     try {
-      const { data, status } = await this._axiosInstance.post('address_info', {
-        _addresses: [address],
-      });
+      const { data, status } = await this._axiosInstance.post(
+        'address_info', { _addresses: [address] },
+      );
 
       if (status === 200) {
         const utxos = <UTxO[]>data
@@ -126,7 +119,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         const txMetadatumLabel = '721';
 
         const targetAssetMetadata =
-          minting_tx_metadata[txMetadatumLabel][asset][asset];
+          minting_tx_metadata[txMetadatumLabel][policy][assetName];
         return <AssetMetadata>{
           policyId: data[0].policy_id,
           mintingTxHash: data[0].minting_tx_hash,
@@ -141,15 +134,16 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchHandleAddress(_handle: string): Promise<string> {
+  async fetchHandleAddress(handle: string): Promise<string> {
     try {
-      const handleInHex = this.convertStringToHex(_handle);
+      const assetName = fromUTF8(handle.replace('$', ''));
       const { data, status } = await this._axiosInstance.get(
-        `asset_address_list?_asset_policy=f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a&_asset_name=${handleInHex}`
+        `asset_address_list?_asset_policy=${SUPPORTED_HANDLES[1]}&_asset_name=${assetName}`,
       );
-      if (status === 200) {
-        return <string>data[0].payment_address;
-      }
+
+      if (status === 200)
+        return data[0].payment_address;
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
@@ -197,12 +191,11 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       const headers = { 'Content-Type': 'application/cbor' };
 
       const { data, status } = await this._axiosInstance.post(
-        'submittx',
-        toBytes(tx),
-        { headers }
+        'submittx', toBytes(tx), { headers },
       );
 
-      if (status === 202) return data;
+      if (status === 202)
+        return data;
 
       throw parseHttpError(data);
     } catch (error) {

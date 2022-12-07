@@ -1,7 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
+import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
+  fromUTF8, parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
   AccountInfo, AssetMetadata, NativeScript,
@@ -31,8 +32,8 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return <AccountInfo>{
-          active: data.active || data.active_epoch !== null,
           poolId: data.pool_id,
+          active: data.active || data.active_epoch !== null,
           balance: data.controlled_amount,
           rewards: data.withdrawable_amount,
           withdrawals: data.withdrawals_sum,
@@ -111,16 +112,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
         `assets/${asset}`,
       );
 
-      if (status === 200) {
-        console.log({data})
-        
-        const targetAssetMetadata = data.onchain_metadata;
-        console.log({targetAssetMetadata})
-        
+      if (status === 200)
         return <AssetMetadata>{
-          ...targetAssetMetadata,
+          ...data.onchain_metadata,
         };
-      }
 
       throw parseHttpError(data);
     } catch (error) {
@@ -128,15 +123,16 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchHandleAddress(_handle: string): Promise<string> {
+  async fetchHandleAddress(handle: string): Promise<string> {
     try {
-      const handleInHex = this.convertStringToHex(_handle);
+      const assetName = fromUTF8(handle.replace('$', ''));
       const { data, status } = await this._axiosInstance.get(
-        `assets/f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a${handleInHex}/addresses`
+        `assets/${SUPPORTED_HANDLES[1]}${assetName}/addresses`,
       );
-      if (status === 200) {
-        return <string>data[0].address;
-      }
+
+      if (status === 200)
+        return data[0].address;
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
