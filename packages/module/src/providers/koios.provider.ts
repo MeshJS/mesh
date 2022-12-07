@@ -55,10 +55,10 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     const resolveScriptRef = (kScriptRef): string | undefined => {
       if (kScriptRef) {
         const script = kScriptRef.type.startsWith('plutus')
-          ? ({
+          ? <PlutusScript>{
               code: kScriptRef.bytes,
               version: kScriptRef.type.replace('plutus', ''),
-            } as PlutusScript)
+            }
           : fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
 
         return toScriptRef(script).to_hex();
@@ -73,7 +73,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       });
 
       if (status === 200) {
-        const utxos = data
+        const utxos = <UTxO[]>data
           .flatMap((info: { utxo_set: [] }) => info.utxo_set)
           .map((utxo) => ({
             input: {
@@ -86,17 +86,17 @@ export class KoiosProvider implements IFetcher, ISubmitter {
                 { unit: 'lovelace', quantity: utxo.value },
                 ...utxo.asset_list.map(
                   (a) =>
-                    ({
+                    <Asset>{
                       unit: `${a.policy_id}${a.asset_name}`,
                       quantity: `${a.quantity}`,
-                    } as Asset)
+                    }
                 ),
               ],
               dataHash: utxo.datum_hash ?? undefined,
-              plutusData: utxo.inline_datum.bytes ?? undefined,
+              plutusData: utxo.inline_datum?.bytes ?? undefined,
               scriptRef: resolveScriptRef(utxo.reference_script),
             },
-          })) as UTxO[];
+          }));
 
         return asset !== undefined
           ? utxos.filter(
@@ -112,31 +112,21 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     }
   }
 
-  convertStringToHex = (string: string) => {
-    let convertedString = '';
-    for (const letter of string) {
-      const hex = letter.charCodeAt(0).toString(16).slice(-4);
-      convertedString += hex;
-    }
-    return convertedString;
-  };
-
-  async fetchAssetMetadata(
-    _assetPolicyId: string,
-    _assetName: string
-  ): Promise<AssetMetadata> {
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
-      const assetNameInHex = this.convertStringToHex(_assetName);
+      const policy = asset.substring(0, 56);
+      const assetName = asset.substring(56);
       const { data, status } = await this._axiosInstance.get(
-        `asset_info?_asset_policy=${_assetPolicyId}&_asset_name=${assetNameInHex}`
+        `asset_info?_asset_policy=${policy}&_asset_name=${assetName}`
       );
+      console.log({ data, status });
 
       if (status === 200) {
         const { minting_tx_metadata } = data[0];
         const txMetadatumLabel = '721';
 
         const targetAssetMetadata =
-          minting_tx_metadata[txMetadatumLabel][_assetPolicyId][_assetName];
+          minting_tx_metadata[txMetadatumLabel][asset][asset];
         return <AssetMetadata>{
           policyId: data[0].policy_id,
           mintingTxHash: data[0].minting_tx_hash,

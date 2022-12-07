@@ -70,7 +70,7 @@ const GuideNextjsPage: NextPage = () => {
           </p>
           <Codeblock data={`await app.listen(5000);`} isJson={false} />
           <p>You can start the server with:</p>
-          <Codeblock data={`yarn run start:dev`} isJson={false} />
+          <Codeblock data={`npm run start:dev`} isJson={false} />
           <p>
             Visit{' '}
             <a href="http://localhost:5000" target="_blank" rel="noreferrer">
@@ -80,8 +80,8 @@ const GuideNextjsPage: NextPage = () => {
           </p>
 
           <h3>2. Install MeshJS package</h3>
-          <p>Install the latest version of Mesh with yarn:</p>
-          <Codeblock data={`yarn add @meshsdk/core`} isJson={false} />
+          <p>Install the latest version of Mesh with npm:</p>
+          <Codeblock data={`npm install @meshsdk/core`} isJson={false} />
         </Element>
       </GuidesLayout>
     </>

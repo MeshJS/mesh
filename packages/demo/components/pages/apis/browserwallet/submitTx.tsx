@@ -32,7 +32,7 @@ function Right() {
   return (
     <Card>
       <Codeblock
-        data={`const txHash = await wallet.submitTx();`}
+        data={`const txHash = await wallet.submitTx(signedTx);`}
         isJson={false}
       />
       <p>

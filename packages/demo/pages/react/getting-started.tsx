@@ -61,7 +61,7 @@ const ReactGetStartedPage: NextPage = () => {
           <p>
             To start, install <code>mesh-react</code>:
           </p>
-          <Codeblock data={`yarn add @meshsdk/core-react`} isJson={false} />
+          <Codeblock data={`npm install @meshsdk/core-react`} isJson={false} />
           <p>
             Next, let's add <code>MeshProvider</code> to the root of the
             application.

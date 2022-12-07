@@ -1,18 +1,11 @@
 import axios, { AxiosInstance } from 'axios';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  parseHttpError,
-  resolveRewardAddress,
-  toBytes,
-  toScriptRef,
+  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo,
-  AssetMetadata,
-  NativeScript,
-  PlutusScript,
-  Protocol,
-  UTxO,
+  AccountInfo, AssetMetadata, NativeScript,
+  PlutusScript, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export class BlockfrostProvider implements IFetcher, ISubmitter {
@@ -33,7 +26,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
     try {
       const { data, status } = await this._axiosInstance.get(
-        `accounts/${rewardAddress}`
+        `accounts/${rewardAddress}`,
       );
 
       if (status === 200)
@@ -55,39 +48,31 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     const filter = asset !== undefined ? `/${asset}` : '';
     const url = `addresses/${address}/utxos` + filter;
 
-    const paginateUTxOs = async (
-      page = 1,
-      utxos: UTxO[] = []
-    ): Promise<UTxO[]> => {
+    const paginateUTxOs = async (page = 1, utxos: UTxO[] = []): Promise<UTxO[]> => {
       const { data, status } = await this._axiosInstance.get(
-        `${url}?page=${page}`
+        `${url}?page=${page}`,
       );
 
       if (status === 200)
         return data.length > 0
-          ? paginateUTxOs(page + 1, [
-              ...utxos,
-              ...(await Promise.all(data.map(toUTxO))),
-            ])
+          ? paginateUTxOs(page + 1, [...utxos, ...await Promise.all(data.map(toUTxO))])
           : utxos;
 
       throw parseHttpError(data);
     };
 
-    const resolveScriptRef = async (
-      scriptHash
-    ): Promise<string | undefined> => {
+    const resolveScriptRef = async (scriptHash): Promise<string | undefined> => {
       if (scriptHash) {
         const { data, status } = await this._axiosInstance.get(
-          `scripts/${scriptHash}`
+          `scripts/${scriptHash}`,
         );
 
         if (status === 200) {
           const script = data.type.startsWith('plutus')
-            ? ({
+            ? <PlutusScript>{
                 code: await this.fetchPlutusScriptCBOR(scriptHash),
                 version: data.type.replace('plutus', ''),
-              } as PlutusScript)
+              }
             : await this.fetchNativeScriptJSON(scriptHash);
 
           return toScriptRef(script).to_hex();
@@ -120,36 +105,23 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     }
   }
 
-  convertStringToHex = (string: string) => {
-    let convertedString = '';
-    for (const letter of string) {
-      const hex = letter.charCodeAt(0).toString(16).slice(-4);
-      convertedString += hex;
-    }
-    return convertedString;
-  };
-
-  async fetchAssetMetadata(
-    _assetPolicyId: string,
-    _assetName: string
-  ): Promise<AssetMetadata> {
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
-      const assetNameInHex = this.convertStringToHex(_assetName);
       const { data, status } = await this._axiosInstance.get(
-        `assets/${_assetPolicyId}${assetNameInHex}`
+        `assets/${asset}`,
       );
 
       if (status === 200) {
+        console.log({data})
+        
         const targetAssetMetadata = data.onchain_metadata;
-
+        console.log({targetAssetMetadata})
+        
         return <AssetMetadata>{
-          policyId: data.policy_id,
-          mintingTxHash: data.initial_mint_tx_hash,
-          totalSupply: data.quantity,
-          fingerprint: data.fingerprint,
           ...targetAssetMetadata,
         };
       }
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
@@ -174,7 +146,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        `epochs/${isNaN(epoch) ? 'latest' : epoch}/parameters`
+        `epochs/${isNaN(epoch) ? 'latest' : epoch}/parameters`,
       );
 
       if (status === 200)
@@ -211,12 +183,11 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     try {
       const headers = { 'Content-Type': 'application/cbor' };
       const { data, status } = await this._axiosInstance.post(
-        'tx/submit',
-        toBytes(tx),
-        { headers }
+        'tx/submit', toBytes(tx), { headers },
       );
 
-      if (status === 200) return data;
+      if (status === 200)
+        return data;
 
       throw parseHttpError(data);
     } catch (error) {
@@ -226,22 +197,22 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
   private async fetchPlutusScriptCBOR(scriptHash: string): Promise<string> {
     const { data, status } = await this._axiosInstance.get(
-      `scripts/${scriptHash}/cbor`
+      `scripts/${scriptHash}/cbor`,
     );
 
-    if (status === 200) return data.cbor;
+    if (status === 200)
+      return data.cbor;
 
     throw parseHttpError(data);
   }
 
-  private async fetchNativeScriptJSON(
-    scriptHash: string
-  ): Promise<NativeScript> {
+  private async fetchNativeScriptJSON(scriptHash: string): Promise<NativeScript> {
     const { data, status } = await this._axiosInstance.get(
-      `scripts/${scriptHash}/json`
+      `scripts/${scriptHash}/json`,
     );
 
-    if (status === 200) return data.json;
+    if (status === 200)
+      return data.json;
 
     throw parseHttpError(data);
   }

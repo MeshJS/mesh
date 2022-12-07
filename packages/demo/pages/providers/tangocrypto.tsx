@@ -33,7 +33,13 @@ export default function ProvidersTangocrypto() {
 }
 
 function Hero() {
-  let code1 = `const tangocryptoProvider = new TangoProvider('<TANGOCRYPTO_API_KEY>');\n`;
+  let codeTango = `import { TangoProvider } from '@meshsdk/core';\n\n`;
+  codeTango += `const tangocryptoProvider = new TangoProvider(\n`;
+  codeTango += `  '<mainnet,testnet>',\n`;
+  codeTango += `  '<TANGOCRYPTO_APP_ID>'\n`;
+  codeTango += `  '<TANGOCRYPTO_API_KEY>'\n`;
+  codeTango += `);`;
+
   return (
     <header className="mb-4 lg:mb-6">
       <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
@@ -58,7 +64,7 @@ function Hero() {
             access information stored on the blockchain.
           </p>
           <p>Get started:</p>
-          <Codeblock data={code1} isJson={false} />
+          <Codeblock data={codeTango} isJson={false} />
         </div>
         <div className="col-span-1"></div>
       </div>

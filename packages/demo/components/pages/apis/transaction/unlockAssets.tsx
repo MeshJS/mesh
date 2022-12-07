@@ -7,11 +7,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import {
-  Transaction,
-  BlockfrostProvider,
-  resolveDataHash,
-} from '@meshsdk/core';
+import { Transaction, resolveDataHash, KoiosProvider } from '@meshsdk/core';
 import Link from 'next/link';
 
 // always succeed
@@ -43,23 +39,31 @@ export default function UnlockAssets() {
 }
 
 function Left({ assetUnit, inputDatum }) {
-  let codeSnippetGetAssetUtxo = `import { Transaction, BlockfrostProvider, resolveDataHash } from '@meshsdk/core';\n\n`;
+  let codeSnippetGetAssetUtxo = ``;
   codeSnippetGetAssetUtxo += `async function _getAssetUtxo({ scriptAddress, asset, datum }) {\n`;
-  codeSnippetGetAssetUtxo += `  const blockfrostProvider = new BlockfrostProvider(\n`;
-  codeSnippetGetAssetUtxo += `    'BLOCKFROST_API_KEY',\n`;
-  codeSnippetGetAssetUtxo += `  );\n`;
-  codeSnippetGetAssetUtxo += `  const utxos = await blockfrostProvider.fetchAddressUTxOs(\n`;
+  codeSnippetGetAssetUtxo += `  const koios = new KoiosProvider('preprod');\n\n`;
+  codeSnippetGetAssetUtxo += `  const utxos = await koios.fetchAddressUTxOs(\n`;
   codeSnippetGetAssetUtxo += `    scriptAddress,\n`;
   codeSnippetGetAssetUtxo += `    asset\n`;
-  codeSnippetGetAssetUtxo += `  );\n`;
-  codeSnippetGetAssetUtxo += `  const dataHash = resolveDataHash(datum);\n`;
+  codeSnippetGetAssetUtxo += `  );\n\n`;
+  codeSnippetGetAssetUtxo += `  const dataHash = resolveDataHash(datum);\n\n`;
   codeSnippetGetAssetUtxo += `  let utxo = utxos.find((utxo: any) => {\n`;
   codeSnippetGetAssetUtxo += `    return utxo.output.dataHash == dataHash;\n`;
-  codeSnippetGetAssetUtxo += `  });\n`;
+  codeSnippetGetAssetUtxo += `  });\n\n`;
   codeSnippetGetAssetUtxo += `  return utxo;\n`;
   codeSnippetGetAssetUtxo += `}\n`;
 
-  let codeSnippetCreateTx = `const tx = new Transaction({ initiator: wallet })\n`;
+  let codeSnippetCallAssetUtxo = '';
+  codeSnippetCallAssetUtxo += `// fetch input UTXO\n`;
+  codeSnippetCallAssetUtxo += `const assetUtxo = await _getAssetUtxo({\n`;
+  codeSnippetCallAssetUtxo += `  scriptAddress: '${scriptAddress}',\n`;
+  codeSnippetCallAssetUtxo += `  asset: '${assetUnit}',\n`;
+  codeSnippetCallAssetUtxo += `  datum: '${inputDatum}',\n`;
+  codeSnippetCallAssetUtxo += `});`;
+
+  let codeSnippetCreateTx = '';
+  codeSnippetCreateTx += `// create the unlock asset transaction\n`;
+  codeSnippetCreateTx += `const tx = new Transaction({ initiator: wallet })\n`;
   codeSnippetCreateTx += `  .redeemValue({\n`;
   codeSnippetCreateTx += `    value: assetUtxo,\n`;
   codeSnippetCreateTx += `    script: {\n`;
@@ -69,11 +73,12 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippetCreateTx += `    datum: '${inputDatum}',\n`;
   codeSnippetCreateTx += `  })\n`;
 
-  codeSnippetCreateTx += `  .sendValue(address, assetUtxo)\n`;
+  codeSnippetCreateTx += `  .sendValue(address, assetUtxo) // address is recipient address\n`;
   codeSnippetCreateTx += `  .setRequiredSigners([address]);\n`;
 
   let codeSnippetSign = `const unsignedTx = await tx.build();\n`;
-  codeSnippetSign += `const signedTx = await wallet.signTx(unsignedTx, true); // partial sign is true\n`;
+  codeSnippetSign += `// note that the partial sign is set to true\n`;
+  codeSnippetSign += `const signedTx = await wallet.signTx(unsignedTx, true);\n`;
 
   let codeSnippet = ``;
 
@@ -90,7 +95,6 @@ function Left({ assetUnit, inputDatum }) {
   codeSnippet += `// get wallet change address\n`;
   codeSnippet += `const address = await wallet.getChangeAddress();\n\n`;
 
-  codeSnippet += `// create transaction\n`;
   codeSnippet += codeSnippetCreateTx;
   codeSnippet += `\n`;
 
@@ -100,22 +104,26 @@ function Left({ assetUnit, inputDatum }) {
   return (
     <>
       <p>
-        In this section, you can create transactions to unlock the assets with a
-        redeemer that corresponds to the datum. Define the corresponding code to
-        create the datum, only a transaction with the corrent datum hash is able
-        to unlock the asset. Define the <code>unit</code> of the locked asset to
-        search for the UTXO in the smart contract, which is required for the
-        transaction's input.
+        As we may have locked assets in the contract, you can create
+        transactions to unlock the assets with a redeemer that corresponds to
+        the datum. Define the corresponding code to create the datum, only a
+        transaction with the corrent datum hash is able to unlock the asset.
+        Define the <code>unit</code> of the locked asset to search for the UTXO
+        in the smart contract, which is required for the transaction's input.
       </p>
       <p>
         First, let's create a function to fetch input UTXO from the script
         address. This input UTXO is needed for transaction builder. In this
-        demo, we are using <code>BlockfrostProvider</code>, but this can be
-        interchange with other providers that Mesh provides. We could have used{' '}
-        <code>KoiosProvider</code> here, see{' '}
+        demo, we are using <code>KoiosProvider</code>, but this can be
+        interchange with other providers that Mesh provides, see{' '}
         <Link href="/apis/providers">Providers</Link>.
       </p>
       <Codeblock data={codeSnippetGetAssetUtxo} isJson={false} />
+      <p>
+        Then, we query the script address for the UTXO that contain the data
+        hash:
+      </p>
+      <Codeblock data={codeSnippetCallAssetUtxo} isJson={false} />
       <p>
         Then, we create the transaction.{' '}
         <code>4e4d01000033222220051200120011</code> is the script CBOR for{' '}
@@ -143,14 +151,16 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
   const { wallet, walletConnected, hasAvailableWallets } = useWallet();
 
   async function _getAssetUtxo({ scriptAddress, asset, datum }) {
-    const blockfrostProvider = new BlockfrostProvider(
-      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-    );
-    const utxos = await blockfrostProvider.fetchAddressUTxOs(
+    // const blockfrostProvider = new BlockfrostProvider(
+    //   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+    // );
+    const blockchainProvider = new KoiosProvider('preprod');
+    const utxos = await blockchainProvider.fetchAddressUTxOs(
       scriptAddress,
       asset
     );
     const dataHash = resolveDataHash(datum);
+
     let utxo = utxos.find((utxo: any) => {
       return utxo.output.dataHash == dataHash;
     });
@@ -262,8 +272,8 @@ function InputTable({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
               <Input
                 value={assetUnit}
                 onChange={(e) => setAssetUnit(e.target.value)}
-                placeholder="Datum"
-                label="Datum"
+                placeholder="Unit"
+                label="Unit"
               />
             </td>
           </tr>

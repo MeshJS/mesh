@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import SvgDiscord from '../svgs/discord';
 import SvgGithub from '../svgs/github';
 import SvgTwitter from '../svgs/twitter';
@@ -18,7 +19,7 @@ export default function Footer() {
     },
   ];
   return (
-    <footer className="bg-gray-50 dark:bg-gray-800">
+    <footer className="bg-gray-50 dark:bg-gray-800 mt-4">
       <div className="p-4 py-6 mx-auto max-w-screen-xl md:p-8 lg:-10">
         <div className="grid grid-cols-1">
           <div className="">
@@ -38,7 +39,8 @@ export default function Footer() {
               Mesh
             </div>
             <p className="my-4 font-light text-gray-500 dark:text-gray-400">
-              Mesh is an open-source library to advance Web3 development on Cardano.
+              Mesh is an open-source library to advance Web3 development on
+              Cardano.
             </p>
             <ul className="flex mt-5 space-x-6">
               {socials.map((social, i) => {
@@ -48,6 +50,8 @@ export default function Footer() {
                       href={social.link}
                       className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-gray-400"
                       key={i}
+                      target="_blank"
+                      rel="noreferrer"
                     >
                       {social.icon}
                     </a>
@@ -56,110 +60,94 @@ export default function Footer() {
               })}
             </ul>
           </div>
-          {/* <div className="lg:mx-auto">
-            <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
-              Company
-            </h2>
-            <ul className="text-gray-500 dark:text-gray-400">
-              <li className="mb-4">
-                <a href="#" className=" hover:underline">
-                  About
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Careers
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Brand Center
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Blog
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div className="lg:mx-auto">
-            <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
-              Help center
-            </h2>
-            <ul className="text-gray-500 dark:text-gray-400">
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Discord Server
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Twitter
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Contact Us
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div className="lg:mx-auto">
-            <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
-              Legal
-            </h2>
-            <ul className="text-gray-500 dark:text-gray-400">
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Privacy Policy
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Licensing
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Terms
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div className="lg:mx-auto">
-            <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
-              Download
-            </h2>
-            <ul className="text-gray-500 dark:text-gray-400">
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  iOS
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Android
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  Windows
-                </a>
-              </li>
-              <li className="mb-4">
-                <a href="#" className="hover:underline">
-                  MacOS
-                </a>
-              </li>
-            </ul>
-          </div> */}
         </div>
+
+        <Sitemap />
+
         <hr className="my-6 border-gray-200 sm:mx-auto dark:border-gray-700 lg:my-8" />
         <span className="block text-sm text-center text-gray-500 dark:text-gray-400">
-          © 2022-2023 Mesh™. All Rights Reserved.
+          © {new Date().getFullYear()} Mesh.{' '}
+          <a
+            href="https://github.com/MeshJS/mesh/blob/main/LICENSE.md"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Apache-2.0 license
+          </a>
+          .
         </span>
       </div>
     </footer>
+  );
+}
+
+function Sitemap() {
+  return (
+    <div className="p-4 py-6 mx-auto max-w-screen-xl md:p-8 lg:p-10">
+      <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-4">
+        <div>
+          <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+            Get Started
+          </h2>
+          <ul className="text-gray-500 dark:text-gray-400">
+            <SitemapLinks href="/starter-templates" label="Starter Templates" />
+            <SitemapLinks href="/guides" label="Guides" />
+            <SitemapLinks
+              href="/migration-manual-installation"
+              label="Migration / Manual Installation"
+            />
+          </ul>
+        </div>
+        <div>
+          <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+            Core APIs
+          </h2>
+          <ul className="text-gray-500 dark:text-gray-400">
+            <SitemapLinks href="/apis/appwallet" label="App Wallet" />
+            <SitemapLinks href="/apis/browserwallet" label="Browser Wallet" />
+            <SitemapLinks href="/apis/transaction" label="Send Assets" />
+            <SitemapLinks
+              href="/apis/transaction/smart-contract"
+              label="Smart Contracts"
+            />
+            <SitemapLinks
+              href="/apis/transaction/minting"
+              label="Minting and Burning Assets"
+            />
+            <SitemapLinks href="/apis/transaction/staking" label="Stake Pool" />
+            <SitemapLinks href="/apis/resolvers" label="Resolvers" />
+          </ul>
+        </div>
+        <div>
+          <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+            Useful building blocks
+          </h2>
+          <ul className="text-gray-500 dark:text-gray-400">
+            <SitemapLinks href="/react" label="React Components" />
+            <SitemapLinks href="/providers" label="Providers" />
+          </ul>
+        </div>
+        <div>
+          <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+            About Mesh
+          </h2>
+          <ul className="text-gray-500 dark:text-gray-400">
+            <SitemapLinks href="/about" label="FAQ" />
+            <SitemapLinks href="/about/cips" label="Implemented CIPs" />
+            <SitemapLinks href="/about/support-us" label="Support Us" />
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SitemapLinks({ href, label }) {
+  return (
+    <li className="mb-4">
+      <Link href={href}>
+        <div className="hover:underline cursor-pointer">{label}</div>
+      </Link>
+    </li>
   );
 }

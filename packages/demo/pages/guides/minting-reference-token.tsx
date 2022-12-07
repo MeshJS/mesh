@@ -51,7 +51,7 @@ const GuideMintingReferenceTokenPage: NextPage = () => {
 
           <h3>1. do this first</h3>
           <p>about this task</p>
-          <Codeblock data={`npm install --global yarn`} isJson={false} />
+          <Codeblock data={`// do something`} isJson={false} />
 
           <h3>2. then do this</h3>
           <p>some more things here</p>
@@ -61,7 +61,7 @@ const GuideMintingReferenceTokenPage: NextPage = () => {
         <Element name="projectsetup">
           <h2>another main component</h2>
           <p>Firstly, you need to bla bla bla</p>
-          <Codeblock data={`yarn init .`} isJson={false} />
+          <Codeblock data={`// do something`} isJson={false} />
         </Element>
       </GuidesLayout>
     </>

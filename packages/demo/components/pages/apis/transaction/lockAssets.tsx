@@ -9,6 +9,7 @@ import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import { Transaction, Asset } from '@meshsdk/core';
 import FetchSelectAssets from '../../../common/fetchSelectAssets';
+import Link from 'next/link';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -74,14 +75,17 @@ export default function LockAssets() {
 
 function Left({ userInput, inputDatum }) {
   let codeSnippet = `import { Transaction, Asset } from '@meshsdk/core';\n\n`;
+
+  codeSnippet += `// this is the script address of always succeed contract\n`;
+  codeSnippet += `const scriptAddress = '${scriptAddress}';\n\n`;
+
   codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
+
   for (const recipient of userInput) {
     let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
       return assetId != 'lovelace';
     });
     if (nativeAssets.length) {
-      // codeSnippet += `\n  .sendAssets(\n    "${scriptAddress}",`;
-
       codeSnippet += `\n`;
       codeSnippet += `  .sendAssets(\n`;
       codeSnippet += `    {\n`;
@@ -90,9 +94,9 @@ function Left({ userInput, inputDatum }) {
       codeSnippet += `        value: '${inputDatum}',\n`;
       codeSnippet += `      },\n`;
       codeSnippet += `    },\n`;
-      codeSnippet += `    [`;
+      codeSnippet += `    [\n`;
       for (const asset of nativeAssets) {
-        codeSnippet += `\n      {`;
+        codeSnippet += `      {`;
         codeSnippet += `\n        unit: "${asset}",`;
         codeSnippet += `\n        quantity: "1",`;
         codeSnippet += `\n      },\n`;
@@ -101,10 +105,18 @@ function Left({ userInput, inputDatum }) {
       codeSnippet += `  )`;
     }
   }
-  codeSnippet += `;\n`;
+  codeSnippet += `;\n\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
+
+  let codeResolver = `import { resolvePlutusScriptAddress } from '@meshsdk/core';\n`;
+  codeResolver += `import type { PlutusScript } from '@meshsdk/core';\n\n`;
+  codeResolver += `const script: PlutusScript = {\n`;
+  codeResolver += `  code: '${script}',\n`;
+  codeResolver += `  version: 'V1',\n`;
+  codeResolver += `};\n\n`;
+  codeResolver += `const scriptAddress = resolvePlutusScriptAddress(script, 0);\n`;
 
   return (
     <>
@@ -118,9 +130,19 @@ function Left({ userInput, inputDatum }) {
         <code>always succeed</code> smart contract, where unlocking assets
         requires the correct datum. In practice, multiple assets (both native
         assets and lovelace) can be sent to the contract in a single
-        transaction; in this demo, we restrict to only one asset.
+        transaction.
       </p>
-      <p>Here's the full code:</p>
+      <p>
+        If you do not have the script address, in Mesh, we can resolve the
+        script address with{' '}
+        <Link href="/apis/resolvers#resolvePlutusScriptAddress">
+          Resolve Script Address
+        </Link>{' '}
+        from the script's CBOR (<code>4e4d01000033222220051200120011</code>).
+        Here's how you can do it:
+      </p>
+      <Codeblock data={codeResolver} isJson={false} />
+      <p>To lock assets in this contract, here's the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
         If the transaction is successful, you may want to copy one of the
@@ -158,7 +180,6 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
         return;
       }
 
-      console.log(111, Object.keys(userInput[0].assets)[0]);
       updateUserStorage('lockedAssetUnit', Object.keys(userInput[0].assets)[0]);
       tx.sendAssets(
         {

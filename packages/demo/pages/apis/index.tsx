@@ -1,9 +1,11 @@
 import {
   BanknotesIcon,
-  CpuChipIcon,
-  PuzzlePieceIcon,
+  NewspaperIcon,
+  PaperAirplaneIcon,
   WalletIcon,
   WrenchScrewdriverIcon,
+  FireIcon,
+  ArrowsPointingInIcon,
 } from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
 import Metatags from '../../components/site/metatags';
@@ -24,16 +26,28 @@ const ReactPage: NextPage = () => {
       thumbnailHeroicon: <BanknotesIcon />,
     },
     {
-      title: 'Transaction',
-      desc: 'Build transactions, minting, redeem from smart contracts',
+      title: 'Basic Transaction',
+      desc: 'Transactions for sending assets',
       link: '/apis/transaction',
-      thumbnailHeroicon: <PuzzlePieceIcon />,
+      thumbnailHeroicon: <PaperAirplaneIcon />,
     },
     {
-      title: 'Providers',
-      desc: 'Speed up development with these service providers',
-      link: '/apis/providers',
-      thumbnailHeroicon: <CpuChipIcon />,
+      title: 'Interact with smart contracts',
+      desc: 'Transactions to work with smart contracts',
+      link: '/apis/transaction/smart-contract',
+      thumbnailHeroicon: <NewspaperIcon />,
+    },
+    {
+      title: 'Minting and burning assets',
+      desc: 'Using ForgeScript for minting and burning native assets',
+      link: '/apis/transaction/minting',
+      thumbnailHeroicon: <FireIcon />,
+    },
+    {
+      title: 'Staking and stake pool',
+      desc: 'Transactions for delegating ADA and managing stakepools',
+      link: '/apis/transaction/staking',
+      thumbnailHeroicon: <ArrowsPointingInIcon />,
     },
     {
       title: 'Resolvers',

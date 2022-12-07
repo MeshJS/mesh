@@ -8,7 +8,6 @@ import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import { Transaction } from '@meshsdk/core';
-import Link from 'next/link';
 
 export default function RegisterStake() {
   const { wallet, walletConnected } = useWallet();
@@ -16,7 +15,7 @@ export default function RegisterStake() {
     'pool1mhww3q6d7qssj5j2add05r7cyr7znyswe2g6vd23anpx5sh6z8d'
   );
   const [rewardAddress, setRewardAddress] = useState<string>(
-    'stake_test1uzx0ksy9f4qnj2mzfdncqyjy84sszh64w43853nug5pedjgytgke9'
+    'stake1qdzmqvfdnxsn4a3hd57x435madswynt4hqw8n7f2pdq05g4995re'
   );
 
   useEffect(() => {
@@ -56,7 +55,7 @@ function Left({ userInput, rewardAddress }) {
   let code2 = ``;
   code2 += `{\n`;
   code2 += `  "active": true,\n`;
-  code2 += `  "poolId": "pool19658g9m7a6e7vtky76aefcwmm75wegf9xs3t024s38l87rqq4ky",\n`;
+  code2 += `  "poolId": "${userInput}",\n`;
   code2 += `  "balance": "389290551",\n`;
   code2 += `  "rewards": "0",\n`;
   code2 += `  "withdrawals": "0"\n`;

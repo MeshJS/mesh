@@ -1,6 +1,7 @@
 import {
   CubeTransparentIcon,
   DocumentTextIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
 import Metatags from '../../components/site/metatags';
@@ -19,6 +20,12 @@ const GettingStartedPage: NextPage = () => {
       desc: 'Kick start your projects with our templates using CLI',
       link: '/starter-templates',
       thumbnailHeroicon: <CubeTransparentIcon />,
+    },
+    {
+      title: 'Migration / Manual Installation',
+      desc: 'Use Mesh into your existing project, you can choose the stack and configure them.',
+      link: '/migration-manual-installation',
+      thumbnailHeroicon: <WrenchScrewdriverIcon />,
     },
   ];
 

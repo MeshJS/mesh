@@ -99,23 +99,24 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
 
   return (
     <>
-      <p>
-        With Mesh, you can initialize a wallet with <b>mnemonic phrases</b>,{' '}
-        <b>private keys</b>, and <b>Cardano CLI generated keys</b>.
-      </p>
-      <p>Lets import a fetcher provider:</p>
+      <p>With Mesh, you can initialize a wallet with:</p>
+      <ul>
+        <li>mnemonic phrases</li>
+        <li>Cardano CLI generated keys</li>
+        <li>private keys</li>
+      </ul>
+      <p>Lets import a blockchain provider:</p>
       <BlockchainProviderCodeSnippet />
       <h3>Mnemonic phrases</h3>
       <p>We can load wallet with mnemonic phrases:</p>
       <Codeblock data={code1} isJson={false} />
       <p>
-        With the <code>wallet</code>, you can sign transactions, we will see how
-        to do next, for now lets get the wallet's address:
+        With the <code>wallet</code> loaded, you can sign transactions, we will
+        see how to do this in the next section, for now lets get the wallet's
+        address:
       </p>
       <Codeblock data={code2} isJson={false} />
-      <h3>Private keys</h3>
-      <p>We can load wallet with private keys:</p>
-      <Codeblock data={code3} isJson={false} />
+
       <h3>Cardano CLI generated skeys</h3>
       <p>
         We can load wallet with CLI generated keys by providing the{' '}
@@ -134,6 +135,10 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
         optional, but without it, you cannot sign staking transactions.
       </p>
       <Codeblock data={code4} isJson={false} />
+
+      <h3>Private keys</h3>
+      <p>We can load wallet with private keys:</p>
+      <Codeblock data={code3} isJson={false} />
     </>
   );
 }
