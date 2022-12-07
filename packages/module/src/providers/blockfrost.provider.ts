@@ -157,7 +157,18 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
   }
 
   async fetchHandleAddress(_handle: string): Promise<string> {
-    throw new Error('fetchHandleAddress not implemented.');
+    try {
+      const handleInHex = this.convertStringToHex(_handle);
+      const { data, status } = await this._axiosInstance.get(
+        `assets/f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a${handleInHex}/addresses`
+      );
+      if (status === 200) {
+        return <string>data[0].address;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
