@@ -82,7 +82,7 @@ function Content() {
         <code>✨✨ Welcome to Web 3.0! ✨✨</code>
       </p>
       <p>To start the local web server, from the Terminal, run:</p>
-      <Codeblock data={'yarn run dev'} isJson={false} />
+      <Codeblock data={'npm run dev'} isJson={false} />
       <p>Reading the Terminal it should show</p>
       <p>
         <code>

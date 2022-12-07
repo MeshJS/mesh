@@ -76,25 +76,6 @@ function Content() {
       <Codeblock data={`node -v`} isJson={false} />
       <p>and test npm by printing its version using command:</p>
       <Codeblock data={`npm -v`} isJson={false} />
-      <h2>Install Yarn Package Manager</h2>
-      <p>
-        <a href="https://yarnpkg.com/" target="_blank" rel="noreferrer">
-          Yarn
-        </a>{' '}
-        is an alternative to the npm package manager, and we recommend to use
-        yarn over npm because:
-      </p>
-      <ul>
-        <li>Yarn can install packages from local cache</li>
-        <li>Yarn binds versions of the package strongly</li>
-        <li>
-          Yarn installs packages in parallel, while npm installs one package at
-          a time
-        </li>
-      </ul>
-
-      <p>To install yarn, run this command:</p>
-      <Codeblock data={`npm install --global yarn`} isJson={false} />
       <p>You are done with installation.</p>
     </>
   );

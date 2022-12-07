@@ -37,11 +37,11 @@ function Left() {
   return (
     <>
       <h3>1. Install Buffer and Stream package</h3>
-      <Codeblock data={`yarn add buffer stream`} isJson={false} />
+      <Codeblock data={`npm install buffer stream`} isJson={false} />
       <h3>2. Install MeshJS package</h3>
-      <p>Install the latest version of Mesh with yarn:</p>
+      <p>Install the latest version of Mesh with npm:</p>
       <Codeblock
-        data={`yarn add @meshsdk/core`}
+        data={`npm install @meshsdk/core`}
         isJson={false}
       />
       <h3>

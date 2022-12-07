@@ -75,7 +75,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
         isH3={true}
         badge={<BadgeFetcher />}
       />
-      {/* <SectionTwoCol
+      <SectionTwoCol
         sidebarTo="fetchAssetMetadata"
         header="fetchAssetMetadata"
         leftFn={fetchAssetMetadataLeft({
@@ -89,7 +89,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
         })}
         isH3={true}
         badge={<BadgeFetcher />}
-      /> */}
+      />
     </>
   );
 }
@@ -176,8 +176,8 @@ function fetchAssetMetadataLeft({ fetcherName, fetchAssetMetadataAsset }) {
   return (
     <>
       <p>
-        Fetch the asset metadata by providing <code>asset</code>, where it is
-        the concatenation of policy ID and asset.
+        Fetch the asset metadata by providing asset's <code>unit</code>, which
+        is the concatenation of policy ID and asset name in hex.
       </p>
       <Codeblock data={code1} isJson={false} />
     </>

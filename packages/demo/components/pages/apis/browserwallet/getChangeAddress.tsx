@@ -24,8 +24,7 @@ function Left() {
       <p>
         Returns an address owned by the wallet that should be used as a change
         address to return leftover assets during transaction creation back to
-        the connected wallet. This can be used as a generic receive address as
-        well.
+        the connected wallet.
       </p>
     </>
   );

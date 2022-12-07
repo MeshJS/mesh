@@ -112,11 +112,12 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200) {
+        console.log({data})
+        
         const targetAssetMetadata = data.onchain_metadata;
-
+        console.log({targetAssetMetadata})
+        
         return <AssetMetadata>{
-          totalSupply: data.quantity,
-          fingerprint: data.fingerprint,
           ...targetAssetMetadata,
         };
       }

@@ -16,8 +16,8 @@ function Left() {
   return (
     <>
       <h3>1. Install MeshJS package</h3>
-      <p>Install the latest version of Mesh with yarn:</p>
-      <Codeblock data={`yarn add @meshsdk/core`} isJson={false} />
+      <p>Install the latest version of Mesh with npm:</p>
+      <Codeblock data={`npm install @meshsdk/core`} isJson={false} />
       <p>That's all. Start building.</p>
     </>
   );

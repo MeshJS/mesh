@@ -268,7 +268,7 @@ function SubMenuTransaction() {
           <ul>
             <SubMenuLinks
               href={`/apis/transaction`}
-              title="Overview and send assets"
+              title="Send assets"
               desc="Transactions for sending assets"
               icon={<PaperAirplaneIcon className="w-5 h-5" />}
             />

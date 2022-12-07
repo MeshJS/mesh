@@ -15,7 +15,7 @@ export default function ProvidersBlockfrost() {
     { label: 'fetchProtocolParameters', to: 'fetchProtocolParameters' },
     { label: 'fetchAddressUtxos', to: 'fetchAddressUtxos' },
     { label: 'fetchAccountInfo', to: 'fetchAccountInfo' },
-    // { label: 'fetchAssetMetadata', to: 'fetchAssetMetadata' },
+    { label: 'fetchAssetMetadata', to: 'fetchAssetMetadata' },
     { label: 'submitTx', to: 'submitTx' },
   ];
 

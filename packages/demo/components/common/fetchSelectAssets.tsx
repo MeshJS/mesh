@@ -51,67 +51,26 @@ export default function FetchSelectAssets({
         Select assets
       </label>
       {loadingAssets && <div className="mb-2">Fetching assets...</div>}
-      <div className="grid grid-cols-1 px-4 lg:grid-cols-2 lg:gap-2">
-        {walletAssets.map((asset, i) => {
-          return (
-            <Button
-              key={i}
-              onClick={() => selectAssetFn(index, asset.unit)}
-              className="truncate"
-              style={
-                asset.unit in selectedAssets && selectedAssets[asset.unit]
-                  ? 'success'
-                  : 'light'
-              }
-            >
-              {asset.assetName}
-            </Button>
-          );
-        })}
+      <div className="overflow-y-auto	max-h-96">
+        <div className="grid grid-cols-1 px-4 lg:grid-cols-2 lg:gap-2">
+          {walletAssets.map((asset, i) => {
+            return (
+              <Button
+                key={i}
+                onClick={() => selectAssetFn(index, asset.unit)}
+                className="truncate"
+                style={
+                  asset.unit in selectedAssets && selectedAssets[asset.unit]
+                    ? 'success'
+                    : 'light'
+                }
+              >
+                {asset.assetName}
+              </Button>
+            );
+          })}
+        </div>
       </div>
     </>
   );
-
-  // return (
-  //   <>
-  //     {walletConnected && (
-  //       <>
-  //         {state == 2 ? (
-  //           <>
-  //             <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4">
-  //               {walletAssets.map((asset, i) => {
-  //                 return (
-  //                   <Button
-  //                     key={i}
-  //                     onClick={() => selectAssetFn(index, asset.unit)}
-  //                     style={
-  //                       asset.unit in selectedAssets &&
-  //                       selectedAssets[asset.unit]
-  //                         ? 'success'
-  //                         : 'light'
-  //                     }
-  //                   >
-  //                     {asset.assetName}
-  //                   </Button>
-  //                 );
-  //               })}
-  //             </div>
-  //           </>
-  //         ) : (
-  //           <>
-  //             <Button
-  //               onClick={() => loadAssets()}
-  //               disabled={state == 1}
-  //               style={
-  //                 state == 1 ? 'warning' : state == 2 ? 'success' : 'light'
-  //               }
-  //             >
-  //               Fetch wallet assets
-  //             </Button>
-  //           </>
-  //         )}
-  //       </>
-  //     )}
-  //   </>
-  // );
 }

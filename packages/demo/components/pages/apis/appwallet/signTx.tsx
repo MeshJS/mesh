@@ -50,7 +50,7 @@ function Left(address) {
   code1 += `tx.mintAsset(forgingScript, asset1);\n`;
   code1 += `\n`;
   code1 += `const unsignedTx = await tx.build();\n`;
-  code1 += `const signedTx = await wallet.signTx(unsignedTx, false);\n`;
+  code1 += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code1 += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
@@ -113,7 +113,7 @@ function Right(address, setAddress) {
       tx.mintAsset(forgingScript, asset1);
 
       const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx, false);
+      const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
 
       setResponse(txHash);

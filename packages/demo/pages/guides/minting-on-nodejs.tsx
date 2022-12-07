@@ -163,27 +163,18 @@ const GuideMintingNodejsPage: NextPage = () => {
             </a>{' '}
             (as of writing v16.16.0).
           </p>
-
-          <h3>3. Yarn</h3>
-          <p>
-            Yarn is a software packaging system developed for the Node.js
-            JavaScript runtime environment. Install Yarn through the npm package
-            manager, which comes bundled with Node.js when you install it on
-            your system. Run this command on your system Terminal:
-          </p>
-          <Codeblock data={`npm install --global yarn`} isJson={false} />
         </Element>
 
         <Element name="projectsetup">
           <h2>Project setup</h2>
           <p>Firstly, create a new folder, and initialize a Node.js project:</p>
-          <Codeblock data={`yarn init .`} isJson={false} />
+          <Codeblock data={`npm init .`} isJson={false} />
           <p>
             Next, install the <code>typescript</code> and <code>Mesh</code>{' '}
             package:
           </p>
           <Codeblock
-            data={`yarn add --dev typescript && yarn add @meshsdk/core`}
+            data={`npm install --dev typescript && npm install @meshsdk/core`}
             isJson={false}
           />
           <p>
@@ -266,7 +257,7 @@ const GuideMintingNodejsPage: NextPage = () => {
           <p>Finally, lets sign and submit the transaction:</p>
           <Codeblock data={codeSign} isJson={false} />
           <p>To execute the script, run the following on your Terminal:</p>
-          <Codeblock data={`yarn start`} isJson={false} />
+          <Codeblock data={`npm start`} isJson={false} />
           <p>
             For a successful transaction, you should get a transaction hash, you
             should have minted multiple assets in a single transaction, and sent
