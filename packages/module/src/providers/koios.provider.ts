@@ -85,7 +85,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
                 ),
               ],
               dataHash: utxo.datum_hash ?? undefined,
-              plutusData: utxo.inline_datum.bytes ?? undefined,
+              plutusData: utxo.inline_datum?.bytes ?? undefined,
               scriptRef: resolveScriptRef(utxo.reference_script),
             },
           }));
