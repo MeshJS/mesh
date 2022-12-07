@@ -128,6 +128,8 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         const targetAssetMetadata =
           minting_tx_metadata[txMetadatumLabel][asset][asset];
         return <AssetMetadata>{
+          policyId: data[0].policy_id,
+          mintingTxHash: data[0].minting_tx_hash,
           totalSupply: data[0].total_supply,
           fingerprint: data[0].fingerprint,
           ...targetAssetMetadata,
@@ -140,7 +142,18 @@ export class KoiosProvider implements IFetcher, ISubmitter {
   }
 
   async fetchHandleAddress(_handle: string): Promise<string> {
-    throw new Error('fetchHandleAddress not implemented.');
+    try {
+      const handleInHex = this.convertStringToHex(_handle);
+      const { data, status } = await this._axiosInstance.get(
+        `asset_address_list?_asset_policy=f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a&_asset_name=${handleInHex}`
+      );
+      if (status === 200) {
+        return <string>data[0].payment_address;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchProtocolParameters(epoch: number): Promise<Protocol> {
