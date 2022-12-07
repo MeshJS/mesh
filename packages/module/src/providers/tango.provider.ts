@@ -120,8 +120,21 @@ export class TangoProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
-    throw new Error('fetchAssetMetadata not implemented.');
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `assets/${asset}`,
+      );
+
+      if (status === 200)
+        return <AssetMetadata>{
+          ...data.metadata[0][721]?.json,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchHandleAddress(handle: string): Promise<string> {

@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { SUPPORTED_HANDLES } from '@mesh/common/constants';
+import { POLICY_ID_LENGTH, SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeNativeScript, fromNativeScript, fromUTF8,
@@ -107,27 +107,20 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
-      const policy = asset.substring(0, 56);
-      const assetName = asset.substring(56);
+      const policyId = asset.slice(0, POLICY_ID_LENGTH);
+      const assetName = asset.includes('.')
+        ? fromUTF8(asset.split('.')[1])
+        : asset.slice(POLICY_ID_LENGTH);
+
       const { data, status } = await this._axiosInstance.get(
-        `asset_info?_asset_policy=${policy}&_asset_name=${assetName}`
+        `asset_info?_asset_policy=${policyId}&_asset_name=${assetName}`,
       );
-      console.log({ data, status });
 
-      if (status === 200) {
-        const { minting_tx_metadata } = data[0];
-        const txMetadatumLabel = '721';
-
-        const targetAssetMetadata =
-          minting_tx_metadata[txMetadatumLabel][policy][assetName];
+      if (status === 200)
         return <AssetMetadata>{
-          policyId: data[0].policy_id,
-          mintingTxHash: data[0].minting_tx_hash,
-          totalSupply: data[0].total_supply,
-          fingerprint: data[0].fingerprint,
-          ...targetAssetMetadata,
+          ...data[0].minting_tx_metadata[721][policyId][assetName],
         };
-      }
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);

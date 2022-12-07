@@ -2,7 +2,9 @@ import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  fromUTF8, parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
+  fromUTF8, parseHttpError,
+  resolveRewardAddress,
+  toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
   AccountInfo, AssetMetadata, NativeScript,
