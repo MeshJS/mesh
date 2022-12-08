@@ -1,9 +1,9 @@
 import axios, { AxiosInstance } from 'axios';
-import { SUPPORTED_HANDLES } from '@mesh/common/constants';
+import { POLICY_ID_LENGTH, SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeNativeScript, fromNativeScript, fromUTF8,
-  parseHttpError, resolveRewardAddress, toScriptRef,
+  parseHttpError, resolveRewardAddress, toScriptRef, toUTF8,
 } from '@mesh/common/utils';
 import type {
   AccountInfo, Asset, AssetMetadata,
@@ -122,13 +122,18 @@ export class TangoProvider implements IFetcher, ISubmitter {
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
+      const policyId = asset.slice(0, POLICY_ID_LENGTH);
+      const assetName = asset.includes('.')
+        ? fromUTF8(asset.split('.')[1])
+        : asset.slice(POLICY_ID_LENGTH);
+
       const { data, status } = await this._axiosInstance.get(
         `assets/${asset}`,
       );
 
       if (status === 200)
         return <AssetMetadata>{
-          ...data.metadata[0][721]?.json,
+          ...data.metadata[0]?.json[policyId][toUTF8(assetName)],
         };
 
       throw parseHttpError(data);

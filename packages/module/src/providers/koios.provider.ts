@@ -3,7 +3,7 @@ import { POLICY_ID_LENGTH, SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeNativeScript, fromNativeScript, fromUTF8,
-  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
+  parseHttpError, resolveRewardAddress, toBytes, toScriptRef, toUTF8,
 } from '@mesh/common/utils';
 import type {
   AccountInfo, Asset, AssetMetadata,
@@ -118,7 +118,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return <AssetMetadata>{
-          ...data[0].minting_tx_metadata[721][policyId][assetName],
+          ...data[0].minting_tx_metadata[721][policyId][toUTF8(assetName)],
         };
 
       throw parseHttpError(data);
