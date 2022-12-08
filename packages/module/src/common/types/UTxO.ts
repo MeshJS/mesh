@@ -1,3 +1,4 @@
+import { Responses } from '@blockfrost/blockfrost-js';
 import { Asset } from './Asset';
 
 export type UTxO = {
@@ -13,3 +14,6 @@ export type UTxO = {
     scriptRef?: string;
   };
 };
+
+export type BlockfrostUtxos = Responses['address_utxo_content'];
+export type BlockfrostEpoch = Responses['epoch_param_content'];

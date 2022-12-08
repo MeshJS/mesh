@@ -64,6 +64,7 @@
     "vitest": "0.22.1"
   },
   "dependencies": {
+    "@blockfrost/blockfrost-js": "5.2.0",
     "@emurgo/cardano-message-signing-browser": "1.0.1",
     "@emurgo/cardano-message-signing-nodejs": "1.0.1",
     "@emurgo/cardano-serialization-lib-browser": "11.1.1",
