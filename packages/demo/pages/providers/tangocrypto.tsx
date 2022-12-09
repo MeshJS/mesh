@@ -9,14 +9,19 @@ import {
 import Fetcher from '../../components/pages/providers/fetcher';
 import { TangoProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
+import ButtonGroup from '../../components/ui/buttongroup';
 
 export default function ProvidersTangocrypto() {
   const sidebarItems = [
-    { label: 'fetchProtocolParameters', to: 'fetchProtocolParameters' },
-    { label: 'fetchAddressUtxos', to: 'fetchAddressUtxos' },
-    { label: 'fetchAccountInfo', to: 'fetchAccountInfo' },
-    { label: 'submitTx', to: 'submitTx' },
+    { label: 'Fetch Account Info', to: 'fetchAccountInfo' },
+    // { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
+    { label: 'Fetch Asset Metadata', to: 'fetchAssetMetadata' },
+    { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
+    { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
+    { label: 'Fetch Protocol Parameters', to: 'fetchProtocolParameters' },
+    { label: 'Submit Tx', to: 'submitTx' },
   ];
+  const [network, setNetwork] = useState<string>('preprod');
 
   return (
     <>
@@ -25,14 +30,14 @@ export default function ProvidersTangocrypto() {
         description="Accessing and processing information stored on the blockchain"
       />
       <CommonLayout sidebarItems={sidebarItems}>
-        <Hero />
-        <Main />
+        <Hero network={network} setNetwork={setNetwork} />
+        <Main network={network} />
       </CommonLayout>
     </>
   );
 }
 
-function Hero() {
+function Hero({ network, setNetwork }) {
   let codeTango = `import { TangoProvider } from '@meshsdk/core';\n\n`;
   codeTango += `const tangocryptoProvider = new TangoProvider(\n`;
   codeTango += `  '<mainnet,testnet>',\n`;
@@ -65,6 +70,22 @@ function Hero() {
           </p>
           <p>Get started:</p>
           <Codeblock data={codeTango} isJson={false} />
+          <p>Choose network for this demo:</p>
+          <ButtonGroup
+            items={[
+              {
+                key: 'mainnet',
+                label: 'Mainnet',
+                onClick: () => setNetwork('mainnet'),
+              },
+              {
+                key: 'preprod',
+                label: 'Preprod',
+                onClick: () => setNetwork('preprod'),
+              },
+            ]}
+            currentSelected={network}
+          />
         </div>
         <div className="col-span-1"></div>
       </div>
@@ -72,21 +93,30 @@ function Hero() {
   );
 }
 
-function Main() {
+function Main({ network }) {
   const [tangocryptoProvider, setTangocryptoProvider] =
     useState<TangoProvider | null>(null);
 
   useEffect(() => {
     async function load() {
-      const _provider = new TangoProvider(
-        'testnet',
-        process.env.NEXT_PUBLIC_TANGOCRYPTO_API_ID_TESTNET!,
-        process.env.NEXT_PUBLIC_TANGOCRYPTO_API_KEY_TESTNET!
-      );
-      setTangocryptoProvider(_provider);
+      if (network === 'mainnet') {
+        const _provider = new TangoProvider(
+          'mainnet',
+          process.env.NEXT_PUBLIC_TANGOCRYPTO_API_ID_MAINNET!,
+          process.env.NEXT_PUBLIC_TANGOCRYPTO_API_KEY_MAINNET!
+        );
+        setTangocryptoProvider(_provider);
+      } else if (network === 'preprod') {
+        const _provider = new TangoProvider(
+          'testnet',
+          process.env.NEXT_PUBLIC_TANGOCRYPTO_API_ID_TESTNET!,
+          process.env.NEXT_PUBLIC_TANGOCRYPTO_API_KEY_TESTNET!
+        );
+        setTangocryptoProvider(_provider);
+      }
     }
     load();
-  }, []);
+  }, [network]);
 
   return (
     <>

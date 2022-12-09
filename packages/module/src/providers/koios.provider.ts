@@ -2,12 +2,22 @@ import axios, { AxiosInstance } from 'axios';
 import { POLICY_ID_LENGTH, SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeNativeScript, fromNativeScript, fromUTF8,
-  parseHttpError, resolveRewardAddress, toBytes, toScriptRef, toUTF8,
+  deserializeNativeScript,
+  fromNativeScript,
+  fromUTF8,
+  parseHttpError,
+  resolveRewardAddress,
+  toBytes,
+  toScriptRef,
+  toUTF8,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, Asset, AssetMetadata,
-  PlutusScript, Protocol, UTxO,
+  AccountInfo,
+  Asset,
+  AssetMetadata,
+  PlutusScript,
+  Protocol,
+  UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, ISubmitter {
@@ -25,9 +35,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         ? resolveRewardAddress(address)
         : address;
 
-      const { data, status } = await this._axiosInstance.post(
-        'account_info', { _stake_addresses: [rewardAddress] },
-      );
+      const { data, status } = await this._axiosInstance.post('account_info', {
+        _stake_addresses: [rewardAddress],
+      });
 
       if (status === 200)
         return <AccountInfo>{
@@ -61,9 +71,9 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     };
 
     try {
-      const { data, status } = await this._axiosInstance.post(
-        'address_info', { _addresses: [address] },
-      );
+      const { data, status } = await this._axiosInstance.post('address_info', {
+        _addresses: [address],
+      });
 
       if (status === 200) {
         const utxos = <UTxO[]>data
@@ -105,6 +115,35 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     }
   }
 
+  async fetchAssetAddresses(
+    asset: string
+  ): Promise<{ address: string; quantity: string }[]> {
+    try {
+      const policyId = asset.slice(0, POLICY_ID_LENGTH);
+      const assetName = asset.includes('.')
+        ? fromUTF8(asset.split('.')[1])
+        : asset.slice(POLICY_ID_LENGTH);
+
+      const { data, status } = await this._axiosInstance.get(
+        `asset_address_list?_asset_policy=${policyId}&_asset_name=${assetName}`
+      );
+      console.log('data', data);
+
+      if (status === 200) {
+        return data.map((item, i) => {
+          return {
+            address: item.payment_address,
+            quantity: item.quantity,
+          };
+        });
+      }
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
       const policyId = asset.slice(0, POLICY_ID_LENGTH);
@@ -113,7 +152,7 @@ export class KoiosProvider implements IFetcher, ISubmitter {
         : asset.slice(POLICY_ID_LENGTH);
 
       const { data, status } = await this._axiosInstance.get(
-        `asset_info?_asset_policy=${policyId}&_asset_name=${assetName}`,
+        `asset_info?_asset_policy=${policyId}&_asset_name=${assetName}`
       );
 
       if (status === 200)
@@ -131,11 +170,10 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     try {
       const assetName = fromUTF8(handle.replace('$', ''));
       const { data, status } = await this._axiosInstance.get(
-        `asset_address_list?_asset_policy=${SUPPORTED_HANDLES[1]}&_asset_name=${assetName}`,
+        `asset_address_list?_asset_policy=${SUPPORTED_HANDLES[1]}&_asset_name=${assetName}`
       );
 
-      if (status === 200)
-        return data[0].payment_address;
+      if (status === 200) return data[0].payment_address;
 
       throw parseHttpError(data);
     } catch (error) {
@@ -184,11 +222,12 @@ export class KoiosProvider implements IFetcher, ISubmitter {
       const headers = { 'Content-Type': 'application/cbor' };
 
       const { data, status } = await this._axiosInstance.post(
-        'submittx', toBytes(tx), { headers },
+        'submittx',
+        toBytes(tx),
+        { headers }
       );
 
-      if (status === 202)
-        return data;
+      if (status === 202) return data;
 
       throw parseHttpError(data);
     } catch (error) {

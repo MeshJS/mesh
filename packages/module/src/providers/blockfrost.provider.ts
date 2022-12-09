@@ -107,6 +107,21 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       return [];
     }
   }
+  
+  async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `assets/${asset}/addresses`,
+      );
+
+      if (status === 200)
+        return data;
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {

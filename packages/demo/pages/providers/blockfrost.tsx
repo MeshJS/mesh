@@ -9,15 +9,19 @@ import {
 import Fetcher from '../../components/pages/providers/fetcher';
 import { BlockfrostProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
+import ButtonGroup from '../../components/ui/buttongroup';
 
 export default function ProvidersBlockfrost() {
   const sidebarItems = [
-    { label: 'fetchProtocolParameters', to: 'fetchProtocolParameters' },
-    { label: 'fetchAddressUtxos', to: 'fetchAddressUtxos' },
-    { label: 'fetchAccountInfo', to: 'fetchAccountInfo' },
-    { label: 'fetchAssetMetadata', to: 'fetchAssetMetadata' },
-    { label: 'submitTx', to: 'submitTx' },
+    { label: 'Fetch Account Info', to: 'fetchAccountInfo' },
+    // { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
+    { label: 'Fetch Asset Metadata', to: 'fetchAssetMetadata' },
+    { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
+    { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
+    { label: 'Fetch Protocol Parameters', to: 'fetchProtocolParameters' },
+    { label: 'Submit Tx', to: 'submitTx' },
   ];
+  const [network, setNetwork] = useState<string>('preprod');
 
   return (
     <>
@@ -26,14 +30,14 @@ export default function ProvidersBlockfrost() {
         description="Accessing and processing information stored on the blockchain"
       />
       <CommonLayout sidebarItems={sidebarItems}>
-        <Hero />
-        <Main />
+        <Hero network={network} setNetwork={setNetwork} />
+        <Main network={network} />
       </CommonLayout>
     </>
   );
 }
 
-function Hero() {
+function Hero({ network, setNetwork }) {
   let code1 = `const blockfrostProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');\n`;
   return (
     <header className="mb-4 lg:mb-6">
@@ -59,6 +63,22 @@ function Hero() {
           </p>
           <p>Get started:</p>
           <Codeblock data={code1} isJson={false} />
+          <p>Choose network for this demo:</p>
+          <ButtonGroup
+            items={[
+              {
+                key: 'mainnet',
+                label: 'Mainnet',
+                onClick: () => setNetwork('mainnet'),
+              },
+              {
+                key: 'preprod',
+                label: 'Preprod',
+                onClick: () => setNetwork('preprod'),
+              },
+            ]}
+            currentSelected={network}
+          />
         </div>
         <div className="col-span-1"></div>
       </div>
@@ -66,19 +86,23 @@ function Hero() {
   );
 }
 
-function Main() {
+function Main({ network }) {
   const [blockfrostProvider, setBlockfrostProvider] =
     useState<BlockfrostProvider | null>(null);
 
   useEffect(() => {
     async function load() {
       const _blockfrostProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+        network == 'mainnet'
+          ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_MAINNET!
+          : network == 'preprod'
+          ? process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+          : ''
       );
       setBlockfrostProvider(_blockfrostProvider);
     }
     load();
-  }, []);
+  }, [network]);
 
   return (
     <>

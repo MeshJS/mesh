@@ -7,6 +7,30 @@ import RunDemoResult from '../../common/runDemoResult';
 import Input from '../../ui/input';
 import { demoAddresses } from '../../../configs/demo';
 import { BadgeFetcher } from './badges';
+import {
+  fetchAssetAddressesLeft,
+  fetchAssetAddressesRight,
+} from './fetchers/fetchAssetAddresses';
+import {
+  fetchAddressUtxosLeft,
+  fetchAddressUtxosRight,
+} from './fetchers/fetchAddressUtxos';
+import {
+  fetchAssetMetadataLeft,
+  fetchAssetMetadataRight,
+} from './fetchers/fetchAssetMetadata';
+import {
+  fetchProtocolParametersLeft,
+  fetchProtocolParametersRight,
+} from './fetchers/fetchProtocolParameters';
+import {
+  fetchAccountInfoLeft,
+  fetchAccountInfoRight,
+} from './fetchers/fetchAccountInfo';
+import {
+  fetchHandleAddressLeft,
+  fetchHandleAddressRight,
+} from './fetchers/fetchHandleAddress';
 
 export default function Fetcher({ fetcher, fetcherName }) {
   const [fetchAddressUtxosAddress, setfetchAddressUtxosAddress] =
@@ -18,6 +42,10 @@ export default function Fetcher({ fetcher, fetcherName }) {
     useState<string>(
       'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e'
     );
+  const [fetchAssetAddressesAsset, setfetchAssetAddressesAsset] =
+    useState<string>(
+      'f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a6a696e676c6573'
+    );
   const [fetchProtocolParameters, setfetchProtocolParameters] =
     useState<string>('10');
   const [fetchAccountInfoAddress, setFetchAccountInfoAddress] =
@@ -25,19 +53,55 @@ export default function Fetcher({ fetcher, fetcherName }) {
       'stake_test1uzx0ksy9f4qnj2mzfdncqyjy84sszh64w43853nug5pedjgytgke9'
     );
 
+  const [fetchHandleAddressHandle, setfetchHandleAddressHandle] =
+    useState<string>(
+      'jingles'
+    );
+
   return (
     <>
       <SectionTwoCol
-        sidebarTo="fetchProtocolParameters"
-        header="fetchProtocolParameters"
-        leftFn={fetchProtocolParametersLeft({
+        sidebarTo="fetchAccountInfo"
+        header="fetchAccountInfo"
+        leftFn={fetchAccountInfoLeft({
           fetcherName,
-          fetchProtocolParameters,
+          fetchAccountInfoAddress,
         })}
-        rightFn={fetchProtocolParametersRight({
+        rightFn={fetchAccountInfoRight({
           fetcher,
-          fetchProtocolParameters,
-          setfetchProtocolParameters,
+          fetchAccountInfoAddress,
+          setFetchAccountInfoAddress,
+        })}
+        isH3={true}
+        badge={<BadgeFetcher />}
+      />
+      {/* <SectionTwoCol
+        sidebarTo="fetchAssetAddresses"
+        header="fetchAssetAddresses"
+        leftFn={fetchAssetAddressesLeft({
+          fetcherName,
+          fetchAssetAddressesAsset,
+        })}
+        rightFn={fetchAssetAddressesRight({
+          fetcher,
+          fetchAssetAddressesAsset,
+          setfetchAssetAddressesAsset,
+        })}
+        isH3={true}
+        badge={<BadgeFetcher />}
+      /> */}
+
+      <SectionTwoCol
+        sidebarTo="fetchAssetMetadata"
+        header="fetchAssetMetadata"
+        leftFn={fetchAssetMetadataLeft({
+          fetcherName,
+          fetchAssetMetadataAsset,
+        })}
+        rightFn={fetchAssetMetadataRight({
+          fetcher,
+          fetchAssetMetadataAsset,
+          setfetchAssetMetadataAsset,
         })}
         isH3={true}
         badge={<BadgeFetcher />}
@@ -61,282 +125,35 @@ export default function Fetcher({ fetcher, fetcherName }) {
         badge={<BadgeFetcher />}
       />
       <SectionTwoCol
-        sidebarTo="fetchAccountInfo"
-        header="fetchAccountInfo"
-        leftFn={fetchAccountInfoLeft({
+        sidebarTo="fetchHandleAddress"
+        header="fetchHandleAddress"
+        leftFn={fetchHandleAddressLeft({
           fetcherName,
-          fetchAccountInfoAddress,
+          fetchHandleAddressHandle,
         })}
-        rightFn={fetchAccountInfoRight({
+        rightFn={fetchHandleAddressRight({
           fetcher,
-          fetchAccountInfoAddress,
-          setFetchAccountInfoAddress,
+          fetchHandleAddressHandle,
+          setfetchHandleAddressHandle,
         })}
         isH3={true}
         badge={<BadgeFetcher />}
       />
       <SectionTwoCol
-        sidebarTo="fetchAssetMetadata"
-        header="fetchAssetMetadata"
-        leftFn={fetchAssetMetadataLeft({
+        sidebarTo="fetchProtocolParameters"
+        header="fetchProtocolParameters"
+        leftFn={fetchProtocolParametersLeft({
           fetcherName,
-          fetchAssetMetadataAsset,
+          fetchProtocolParameters,
         })}
-        rightFn={fetchAssetMetadataRight({
+        rightFn={fetchProtocolParametersRight({
           fetcher,
-          fetchAssetMetadataAsset,
-          setfetchAssetMetadataAsset,
+          fetchProtocolParameters,
+          setfetchProtocolParameters,
         })}
         isH3={true}
         badge={<BadgeFetcher />}
       />
-    </>
-  );
-}
-
-function fetchAddressUtxosLeft({
-  fetcherName,
-  fetchAddressUtxosAddress,
-  fetchAddressUtxosAsset,
-}) {
-  let code1 = `await ${fetcherName}.fetchAddressUTxOs(\n`;
-  code1 += `  '${fetchAddressUtxosAddress}',\n`;
-  if (fetchAddressUtxosAsset.length > 0) {
-    code1 += `  '${fetchAddressUtxosAsset}',\n`;
-  }
-  code1 += `)`;
-  return (
-    <>
-      <p>
-        Fetch UTXOs in the provided <code>address</code>. Optionally, you can
-        filter UTXOs containing a particular asset by providing{' '}
-        <code>asset</code>, where it is the concatenation of policy ID and
-        asset.
-      </p>
-      <Codeblock data={code1} isJson={false} />
-    </>
-  );
-}
-function fetchAddressUtxosRight({
-  fetcher,
-  fetchAddressUtxosAddress,
-  setfetchAddressUtxosAddress,
-  fetchAddressUtxosAsset,
-  setfetchAddressUtxosAsset,
-}) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [response, setResponse] = useState<null | any>(null);
-  const [responseError, setResponseError] = useState<null | any>(null);
-  async function runDemo() {
-    setLoading(true);
-    setResponse(null);
-    setResponseError(null);
-    try {
-      const res = await fetcher.fetchAddressUTxOs(
-        fetchAddressUtxosAddress,
-        fetchAddressUtxosAsset
-      );
-      setResponse(res);
-    } catch (error) {
-      setResponseError(`${error}`);
-    }
-    setLoading(false);
-  }
-  return (
-    <>
-      <Card>
-        <Input
-          value={fetchAddressUtxosAddress}
-          onChange={(e) => setfetchAddressUtxosAddress(e.target.value)}
-          placeholder="Address"
-          label="Address"
-        />
-        <Input
-          value={fetchAddressUtxosAsset}
-          onChange={(e) => setfetchAddressUtxosAsset(e.target.value)}
-          placeholder="Asset"
-          label="Asset"
-        />
-        <RunDemoButton
-          runDemoFn={runDemo}
-          loading={loading}
-          response={response}
-        />
-        <RunDemoResult response={response} />
-        <RunDemoResult response={responseError} label="Error" />
-      </Card>
-    </>
-  );
-}
-
-function fetchAssetMetadataLeft({ fetcherName, fetchAssetMetadataAsset }) {
-  let code1 = `await ${fetcherName}.fetchAssetMetadata(\n`;
-  code1 += `  '${fetchAssetMetadataAsset}',\n`;
-  code1 += `)`;
-  return (
-    <>
-      <p>
-        Fetch the asset metadata by providing asset's <code>unit</code>, which
-        is the concatenation of policy ID and asset name in hex.
-      </p>
-      <Codeblock data={code1} isJson={false} />
-    </>
-  );
-}
-function fetchAssetMetadataRight({
-  fetcher,
-  fetchAssetMetadataAsset,
-  setfetchAssetMetadataAsset,
-}) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [response, setResponse] = useState<null | any>(null);
-  const [responseError, setResponseError] = useState<null | any>(null);
-  async function runDemo() {
-    setLoading(true);
-    setResponse(null);
-    setResponseError(null);
-    try {
-      const res = await fetcher.fetchAssetMetadata(fetchAssetMetadataAsset);
-      setResponse(res);
-    } catch (error) {
-      setResponseError(`${error}`);
-    }
-    setLoading(false);
-  }
-  return (
-    <>
-      <Card>
-        <Input
-          value={fetchAssetMetadataAsset}
-          onChange={(e) => setfetchAssetMetadataAsset(e.target.value)}
-          placeholder="Asset"
-          label="Asset"
-        />
-        <RunDemoButton
-          runDemoFn={runDemo}
-          loading={loading}
-          response={response}
-        />
-        <RunDemoResult response={response} />
-        <RunDemoResult response={responseError} label="Error" />
-      </Card>
-    </>
-  );
-}
-
-function fetchProtocolParametersLeft({ fetcherName, fetchProtocolParameters }) {
-  let code1 = `await ${fetcherName}.fetchProtocolParameters(`;
-  if (fetchProtocolParameters.length > 0) {
-    code1 += `${fetchProtocolParameters}`;
-  }
-  code1 += `)`;
-  return (
-    <>
-      <p>
-        Fetch the latest protocol parameters. Optionally, you can provide an
-        epoch number to fetch the protocol parameters of that epoch.
-      </p>
-      <Codeblock data={code1} isJson={false} />
-    </>
-  );
-}
-function fetchProtocolParametersRight({
-  fetcher,
-  fetchProtocolParameters,
-  setfetchProtocolParameters,
-}) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [response, setResponse] = useState<null | any>(null);
-  const [responseError, setResponseError] = useState<null | any>(null);
-  async function runDemo() {
-    setLoading(true);
-    setResponse(null);
-    setResponseError(null);
-    try {
-      if (fetchProtocolParameters.length > 0) {
-        const res = await fetcher.fetchProtocolParameters(
-          parseInt(fetchProtocolParameters)
-        );
-        setResponse(res);
-      } else {
-        const res = await fetcher.fetchProtocolParameters();
-        setResponse(res);
-      }
-    } catch (error) {
-      setResponseError(`${error}`);
-    }
-    setLoading(false);
-  }
-  return (
-    <>
-      <Card>
-        <Input
-          value={fetchProtocolParameters}
-          onChange={(e) => setfetchProtocolParameters(e.target.value)}
-          placeholder="Epoch"
-          label="Epoch"
-        />
-        <RunDemoButton
-          runDemoFn={runDemo}
-          loading={loading}
-          response={response}
-        />
-        <RunDemoResult response={response} />
-        <RunDemoResult response={responseError} label="Error" />
-      </Card>
-    </>
-  );
-}
-
-function fetchAccountInfoLeft({ fetcherName, fetchAccountInfoAddress }) {
-  let code1 = `await ${fetcherName}.fetchAddressUTxOs(\n`;
-  code1 += `  '${fetchAccountInfoAddress}',\n`;
-  code1 += `)`;
-  return (
-    <>
-      <p>Fetch account infomation</p>
-      <Codeblock data={code1} isJson={false} />
-    </>
-  );
-}
-function fetchAccountInfoRight({
-  fetcher,
-  fetchAccountInfoAddress,
-  setFetchAccountInfoAddress,
-}) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [response, setResponse] = useState<null | any>(null);
-  const [responseError, setResponseError] = useState<null | any>(null);
-  async function runDemo() {
-    setLoading(true);
-    setResponse(null);
-    setResponseError(null);
-    try {
-      const res = await fetcher.fetchAccountInfo(fetchAccountInfoAddress);
-      setResponse(res);
-    } catch (error) {
-      setResponseError(`${error}`);
-    }
-    setLoading(false);
-  }
-  return (
-    <>
-      <Card>
-        <Input
-          value={fetchAccountInfoAddress}
-          onChange={(e) => setFetchAccountInfoAddress(e.target.value)}
-          placeholder="Reward Address"
-          label="Reward Address"
-        />
-
-        <RunDemoButton
-          runDemoFn={runDemo}
-          loading={loading}
-          response={response}
-        />
-        <RunDemoResult response={response} />
-        <RunDemoResult response={responseError} label="Error" />
-      </Card>
     </>
   );
 }
