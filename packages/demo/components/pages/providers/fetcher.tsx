@@ -2,10 +2,10 @@ import { useState } from 'react';
 import SectionTwoCol from '../../common/sectionTwoCol';
 import { demoAddresses } from '../../../configs/demo';
 import { BadgeFetcher } from './badges';
-// import {
-//   fetchAssetAddressesLeft,
-//   fetchAssetAddressesRight,
-// } from './fetchers/fetchAssetAddresses';
+import {
+  fetchAssetAddressesLeft,
+  fetchAssetAddressesRight,
+} from './fetchers/fetchAssetAddresses';
 import {
   fetchAddressUtxosLeft,
   fetchAddressUtxosRight,
@@ -68,7 +68,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
         isH3={true}
         badge={<BadgeFetcher />}
       />
-      {/* <SectionTwoCol
+      <SectionTwoCol
         sidebarTo="fetchAssetAddresses"
         header="fetchAssetAddresses"
         leftFn={fetchAssetAddressesLeft({
@@ -82,7 +82,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
         })}
         isH3={true}
         badge={<BadgeFetcher />}
-      /> */}
+      />
 
       <SectionTwoCol
         sidebarTo="fetchAssetMetadata"

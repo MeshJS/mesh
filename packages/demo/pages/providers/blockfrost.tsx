@@ -14,7 +14,7 @@ import ButtonGroup from '../../components/ui/buttongroup';
 export default function ProvidersBlockfrost() {
   const sidebarItems = [
     { label: 'Fetch Account Info', to: 'fetchAccountInfo' },
-    // { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
+    { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
     { label: 'Fetch Asset Metadata', to: 'fetchAssetMetadata' },
     { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
     { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
