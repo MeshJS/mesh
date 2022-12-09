@@ -1,7 +1,13 @@
+import { useEffect, useState } from 'react';
 import { ChevronRightIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 
 export default function Hero() {
+  const [isSSR, setIsSSR] = useState(true);
+  useEffect(() => {
+    setIsSSR(false);
+  }, []);
+
   return (
     <section className="bg-white dark:bg-gray-900">
       <div className="max-w-screen-xl px-4 py-8 mx-auto lg:py-16">
@@ -25,20 +31,25 @@ export default function Hero() {
             </Link>
           </div>
           <div className="hidden lg:block col-span-6">
-            {/* <img
-              src="/logo-mesh/black/logo-mesh-black-512x512.png"
-              className="dark:hidden"
-              alt="mockup"
-            />
-            <img
-              src="/logo-mesh/white/logo-mesh-white-512x512.png"
-              className="hidden dark:block"
-              alt="mockup dark"
-            /> */}
-            <video className="w-full" autoPlay muted>
-              <source src="/home/starter-template-cli.mp4" type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
+            {!isSSR ? (
+              <video className="w-full" autoPlay muted>
+                <source src="/home/starter-template-cli.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            ) : (
+              <>
+                <img
+                  src="/logo-mesh/black/logo-mesh-black-512x512.png"
+                  className="dark:hidden"
+                  alt="mockup"
+                />
+                <img
+                  src="/logo-mesh/white/logo-mesh-white-512x512.png"
+                  className="hidden dark:block"
+                  alt="mockup dark"
+                />
+              </>
+            )}
           </div>
         </div>
       </div>

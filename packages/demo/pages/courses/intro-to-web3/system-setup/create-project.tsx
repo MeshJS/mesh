@@ -22,7 +22,11 @@ export default CoursesCreateProjectPage;
 function Content() {
   return (
     <>
-      <p></p>
+      <p>
+        The front-end of your application is the user interface that users will
+        interact with. This can be built using any web development framework. In
+        this course, we will be building it on Next.js.
+      </p>
 
       <h3>Prepare Workspace</h3>
       <p>Let's get started!</p>
@@ -97,17 +101,22 @@ function Content() {
         . You should see the starter template, with a connect wallet component
         in the middle.
       </p>
+
       <figure>
         <img src="/courses/intro-to-web3/mesh-starter-template.png" alt="" />
         <figcaption>Next.js starter template on web browser</figcaption>
       </figure>
 
-      {/* <Codeblock
-        data={
-          'ready - started server on 0.0.0.0:3000, url: http://localhost:3000'
-        }
-        isJson={false}
-      /> */}
+      <p>
+        Click on the <code>Connect Wallet</code> button, you should be able to
+        see a list of wallets you have installed on your device. Choose a wallet
+        to connect. If you have any trouble getting your wallet to connect, you
+        may need to enable dApp access from your wallet interface.
+      </p>
+      <p>
+        If you have successfully connected your wallet, the wallet component
+        should show the connected wallet's logo.
+      </p>
     </>
   );
 }

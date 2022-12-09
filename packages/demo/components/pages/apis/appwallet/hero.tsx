@@ -33,7 +33,7 @@ export default function Hero() {
           </p>
 
           <p className="font-medium">
-            In this section, you will initialize a wallet and use it to sign
+            In this section, you will learn how to initialize a wallet and use it to sign
             transactions.
           </p>
         </div>

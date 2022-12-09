@@ -21,6 +21,7 @@ import {
   NewspaperIcon,
   FireIcon,
   ArrowsPointingInIcon,
+  CloudIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -125,7 +126,7 @@ export default function Navbar() {
               <SubMenuWallet />
               <SubMenuTransaction />
               <SubMenuReact />
-              <NavLink href="/providers" label="Providers" />
+              {/* <NavLink href="/providers" label="Providers" /> */}
               <SubMenuUtilities />
 
               {/* <SubMenuSmartContracts /> */}
@@ -314,6 +315,12 @@ function SubMenuUtilities() {
       >
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
+            <SubMenuLinks
+              href={`/providers`}
+              title="Providers"
+              desc="Services provided by the Cardano developer community"
+              icon={<CloudIcon className="w-5 h-5" />}
+            />
             <SubMenuLinks
               href={`/apis/resolvers`}
               title="Resolvers"

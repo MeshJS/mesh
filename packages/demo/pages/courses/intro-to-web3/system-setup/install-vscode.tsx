@@ -27,16 +27,37 @@ function Content() {
         easy. It is available for Windows, macOS, and Linux operating systems.
       </p>
       <p>
-        Download the{' '}
-        <a
-          href="https://code.visualstudio.com/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Visual Studio Code installer
-        </a>{' '}
-        and follow the platform-specific guides:
+        To install Visual Studio Code, you will need to download the appropriate
+        installer for your operating system from the official Visual Studio Code
+        website. Once the download is complete, you can run the installer and
+        follow the on-screen instructions to complete the installation.
       </p>
+
+      <p>Here is a brief overview of the steps you will need to follow:</p>
+      <ol>
+        <li>
+          Go to the official{' '}
+          <a
+            href="https://code.visualstudio.com/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Visual Studio Code website
+          </a>
+          .
+        </li>
+        <li>Click on the "Download" button to download the latest version.</li>
+        <li>
+          Once the download is complete, run the installer and follow the
+          on-screen instructions to complete the installation.
+        </li>
+      </ol>
+      <p>
+        Keep in mind that the exact steps may vary depending on your operating
+        system, so you may need to consult the official Visual Studio Code
+        documentation for more detailed instructions.
+      </p>
+
       <ul>
         <li>
           <a
@@ -98,7 +119,7 @@ function Content() {
           </a>
         </li>
       </ul>
-      <h2>Install Useful Extensions</h2>
+      <h3>Install Useful Extensions</h3>
       <p>
         Visual Studio Code{' '}
         <a
