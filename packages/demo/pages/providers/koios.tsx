@@ -79,7 +79,7 @@ function Hero({ network, setNetwork }) {
               {
                 key: 'mainnet',
                 label: 'Mainnet',
-                onClick: () => setNetwork('mainnet'),
+                onClick: () => setNetwork('api'),
               },
               {
                 key: 'preprod',
@@ -102,9 +102,7 @@ function Main({ network }) {
 
   useEffect(() => {
     async function load() {
-      const _koiosProvider = new KoiosProvider(
-        network === 'mainnet' ? 'api' : network
-      );
+      const _koiosProvider = new KoiosProvider(network);
       setKoiosProvider(_koiosProvider);
     }
     load();
