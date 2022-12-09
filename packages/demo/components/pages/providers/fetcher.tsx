@@ -1,16 +1,11 @@
 import { useState } from 'react';
-import Codeblock from '../../ui/codeblock';
-import Card from '../../ui/card';
 import SectionTwoCol from '../../common/sectionTwoCol';
-import RunDemoButton from '../../common/runDemoButton';
-import RunDemoResult from '../../common/runDemoResult';
-import Input from '../../ui/input';
 import { demoAddresses } from '../../../configs/demo';
 import { BadgeFetcher } from './badges';
-import {
-  fetchAssetAddressesLeft,
-  fetchAssetAddressesRight,
-} from './fetchers/fetchAssetAddresses';
+// import {
+//   fetchAssetAddressesLeft,
+//   fetchAssetAddressesRight,
+// } from './fetchers/fetchAssetAddresses';
 import {
   fetchAddressUtxosLeft,
   fetchAddressUtxosRight,
@@ -54,9 +49,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
     );
 
   const [fetchHandleAddressHandle, setfetchHandleAddressHandle] =
-    useState<string>(
-      'jingles'
-    );
+    useState<string>('jingles');
 
   return (
     <>
