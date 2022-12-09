@@ -39,7 +39,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
     );
   const [fetchAssetAddressesAsset, setfetchAssetAddressesAsset] =
     useState<string>(
-      'f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a6a696e676c6573'
+      'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e'
     );
   const [fetchProtocolParameters, setfetchProtocolParameters] =
     useState<string>('10');
