@@ -121,6 +121,11 @@ export class TangoProvider implements IFetcher, ISubmitter {
   }
   
   async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+    const toAddress = (item) => ({
+      address: item.address,
+      quantity: item.quantity.toString(),
+    });
+
     const paginateAddresses = async <T>(cursor = '', addresses: T[] = []): Promise<T[]> => {
       const { data, status } = await this._axiosInstance.get(
         `assets/${asset}/addresses?size=100&cursor=${cursor}`,
@@ -128,8 +133,8 @@ export class TangoProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
       return data.cursor !== null && data.cursor?.length > 0
-        ? paginateAddresses(data.cursor, [...addresses, ...data.data])
-        : data.data;
+        ? paginateAddresses(data.cursor, [...addresses, ...data.data.map(toAddress)])
+        : data.data.map(toAddress);
 
       throw parseHttpError(data);
     };
