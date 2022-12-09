@@ -2,8 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  fromUTF8, parseHttpError,
-  resolveRewardAddress,
+  fromUTF8, parseHttpError, resolveRewardAddress,
   toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
@@ -107,19 +106,25 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       return [];
     }
   }
-  
+
   async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
-    try {
+    const paginateAddresses = async <T>(page = 1, addresses: T[] = []): Promise<T[]> => {
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}/addresses`,
+        `assets/${asset}/addresses?page=${page}`,
       );
 
       if (status === 200)
-        return data;
+        return data.length > 0
+          ? paginateAddresses(page + 1, [...addresses, ...data])
+          : addresses;
 
       throw parseHttpError(data);
+    };
+
+    try {
+      return await paginateAddresses<{ address: string; quantity: string }>();
     } catch (error) {
-      throw parseHttpError(error);
+      return [];
     }
   }
 

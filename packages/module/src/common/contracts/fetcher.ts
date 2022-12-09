@@ -1,8 +1,5 @@
 import type {
-  AccountInfo,
-  AssetMetadata,
-  Protocol,
-  UTxO,
+  AccountInfo, AssetMetadata, Protocol, UTxO,
 } from '@mesh/common/types';
 
 export interface IFetcher {

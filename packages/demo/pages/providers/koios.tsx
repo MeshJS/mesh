@@ -103,7 +103,7 @@ function Main({ network }) {
   useEffect(() => {
     async function load() {
       const _koiosProvider = new KoiosProvider(
-        network == 'mainnet' ? 'api' : network == 'preprod' ? 'preprod' : ''
+        network === 'mainnet' ? 'api' : network
       );
       setKoiosProvider(_koiosProvider);
     }
