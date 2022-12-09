@@ -112,7 +112,7 @@ function Left({ userInput }) {
       codeSnippet += `\n  )`;
     }
   }
-  codeSnippet += `;\n`;
+  codeSnippet += `;\n\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;

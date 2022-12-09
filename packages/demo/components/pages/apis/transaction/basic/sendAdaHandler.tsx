@@ -1,55 +1,26 @@
-import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../../../common/connectCipWallet';
-import Input from '../../../ui/input';
-import Button from '../../../ui/button';
-import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses } from '../../../../configs/demo';
-import { Transaction } from '@meshsdk/core';
+import { useState } from 'react';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
+import useWallet from '../../../../../contexts/wallet';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
+import { KoiosProvider, Transaction } from '@meshsdk/core';
+import Link from 'next/link';
 
-export default function SendAda() {
-  const { wallet, walletConnected } = useWallet();
+export default function SendAdaHandler() {
   const [userInput, setUserInput] = useState<
     { address: string; assets: { lovelace: number } }[]
   >([
     {
-      address: demoAddresses.testnet,
+      address: 'jingles',
       assets: {
         lovelace: 1000000,
       },
     },
-    {
-      address: 'ANOTHER ADDRESS HERE',
-      assets: {
-        lovelace: 1500000,
-      },
-    },
   ]);
-
-  useEffect(() => {
-    async function init() {
-      const newRecipents = [
-        {
-          address:
-            (await wallet.getNetworkId()) === 1
-              ? demoAddresses.mainnet
-              : demoAddresses.testnet,
-          assets: {
-            lovelace: 1000000,
-          },
-        },
-      ];
-      setUserInput(newRecipents);
-    }
-    if (walletConnected) {
-      init();
-    }
-  }, [walletConnected]);
 
   function updateField(action, index, field, value) {
     let updated = [...userInput];
@@ -71,8 +42,8 @@ export default function SendAda() {
 
   return (
     <SectionTwoCol
-      sidebarTo="sendAda"
-      header="Send ADA to Addresses"
+      sidebarTo="sendAdaHandler"
+      header="Send Assets to Handler"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />
@@ -80,37 +51,38 @@ export default function SendAda() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n\n`;
-  codeSnippet += `const tx = new Transaction({ initiator: wallet })\n`;
-  for (const recipient of userInput) {
-    codeSnippet += `  .sendLovelace(\n`;
-    codeSnippet += `    '${recipient.address}',\n`;
-    codeSnippet += `    '${recipient.assets.lovelace}'\n`;
-    codeSnippet += `  )\n`;
-  }
-  codeSnippet += `;\n\n`;
-  codeSnippet += `const unsignedTx = await tx.build();\n`;
-  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
+  let code2 = `import { KoiosProvider, Transaction } from '@meshsdk/core';\n\n`;
+  code2 += `const koios = new KoiosProvider('api');\n`;
+  code2 += `\n`;
+  code2 += `const tx = new Transaction({ initiator: wallet })\n`;
+  code2 += `  .sendLovelace(\n`;
+  code2 += `    await koios.fetchHandleAddress('${userInput[0].address}'),\n`;
+  code2 += `    '${userInput[0].assets.lovelace}'\n`;
+  code2 += `);\n\n`;
+  code2 += `const unsignedTx = await tx.build();\n`;
+  code2 += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  code2 += `const txHash = await wallet.submitTx(signedTx);\n`;
+
+  let code1 = `import { KoiosProvider } from '@meshsdk/core';\n\n`;
+  code1 += `const koios = new KoiosProvider('api');\n`;
+  code1 += `const address = await koios.fetchHandleAddress('${userInput[0].address}');`;
 
   return (
     <>
       <p>
-        You can chain the component to send to multiple recipients. For each
-        recipients, append:
+        We can get the{' '}
+        <a href="https://adahandle.com/" target="_blank" rel="noreferrer">
+          ADA Handle
+        </a>
+        's address with{' '}
+        <Link href="/apis/resolvers">Resolvers - fetchHandleAddress</Link>:
       </p>
-      <Codeblock
-        data={`tx.sendLovelace(address: string, lovelace: string);`}
-        isJson={false}
-      />
+      <Codeblock data={code1} isJson={false} />
       <p>
-        <code>.build()</code> construct the transaction and returns a
-        transaction CBOR. Behind the scene, it selects necessary inputs
-        belonging to the wallet, calculate the fee for this transaction and
-        return remaining assets to the change address. Use{' '}
-        <code>wallet.signTx()</code> to sign transaction CBOR.
+        Next, we can create a transactions, for instance, lets send some lovelace to{' '}
+        {userInput[0].address}:
       </p>
-      <Codeblock data={codeSnippet} isJson={false} />
+      <Codeblock data={code2} isJson={false} />
     </>
   );
 }
@@ -126,15 +98,13 @@ function Right({ userInput, updateField }) {
     setResponseError(null);
 
     try {
+      const koiosProvider = new KoiosProvider('api');
+
       const tx = new Transaction({ initiator: wallet });
-      for (const recipient of userInput) {
-        if (recipient.assets.lovelace) {
-          tx.sendLovelace(
-            recipient.address,
-            recipient.assets.lovelace.toString()
-          );
-        }
-      }
+      tx.sendLovelace(
+        await koiosProvider.fetchHandleAddress('jingles'),
+        userInput[0].assets.lovelace.toString()
+      );
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
@@ -175,10 +145,9 @@ function InputTable({ userInput, updateField }) {
     <div className="overflow-x-auto relative">
       <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 m-0">
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Send ADA to recipients
+          Send ADA to handler
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Add or remove recipients, input the address and the amount ADA to
-            send.
+            Note: this demo only works on mainnet.
           </p>
         </caption>
         <thead className="thead">
@@ -196,26 +165,13 @@ function InputTable({ userInput, updateField }) {
                 key={i}
               >
                 <td>
-                  <div className="flex">
-                    <div className="flex-1 items-center pt-2">
-                      Recipient #{i + 1}
-                    </div>
-                    <div className="flex-none">
-                      <Button
-                        onClick={() => updateField('remove', i)}
-                        style="error"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
                   <Input
                     value={row.address}
                     onChange={(e) =>
                       updateField('update', i, 'address', e.target.value)
                     }
-                    placeholder="Address"
-                    label="Address"
+                    placeholder="Handler"
+                    label="Handler"
                   />
                   <Input
                     value={row.assets.lovelace}
@@ -230,14 +186,6 @@ function InputTable({ userInput, updateField }) {
               </tr>
             );
           })}
-          <tr>
-            <td colSpan={3}>
-              <Button onClick={() => updateField('add')}>
-                <PlusCircleIcon className="m-0 mr-2 w-4 h-4" />
-                Add recipient
-              </Button>
-            </td>
-          </tr>
         </tbody>
       </table>
     </div>
