@@ -21,6 +21,7 @@ import {
   NewspaperIcon,
   FireIcon,
   ArrowsPointingInIcon,
+  CloudIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -125,7 +126,7 @@ export default function Navbar() {
               <SubMenuWallet />
               <SubMenuTransaction />
               <SubMenuReact />
-              <NavLink href="/providers" label="Providers" />
+              {/* <NavLink href="/providers" label="Providers" /> */}
               <SubMenuUtilities />
 
               {/* <SubMenuSmartContracts /> */}
@@ -145,6 +146,7 @@ function SubMenuGetStarted() {
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
         Get Started <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
@@ -187,6 +189,7 @@ function SubMenuWallet() {
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
         Wallet <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
@@ -224,6 +227,7 @@ function SubMenuSmartContracts() {
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
         Smart Contracts{' '}
@@ -255,6 +259,7 @@ function SubMenuTransaction() {
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
         Transaction <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
@@ -268,7 +273,7 @@ function SubMenuTransaction() {
           <ul>
             <SubMenuLinks
               href={`/apis/transaction`}
-              title="Overview and send assets"
+              title="Send assets"
               desc="Transactions for sending assets"
               icon={<PaperAirplaneIcon className="w-5 h-5" />}
             />
@@ -303,6 +308,7 @@ function SubMenuUtilities() {
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
         Utilities <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
@@ -314,6 +320,12 @@ function SubMenuUtilities() {
       >
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
+            <SubMenuLinks
+              href={`/providers`}
+              title="Providers"
+              desc="Services provided by the Cardano developer community"
+              icon={<CloudIcon className="w-5 h-5" />}
+            />
             <SubMenuLinks
               href={`/apis/resolvers`}
               title="Resolvers"
@@ -333,6 +345,7 @@ function SubMenuAbout() {
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
         About <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
@@ -375,6 +388,7 @@ function SubMenuReact() {
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
         React <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />

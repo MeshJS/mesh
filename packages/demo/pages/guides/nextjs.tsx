@@ -94,15 +94,6 @@ const GuideNextjsPage: NextPage = () => {
             </a>{' '}
             (as of writing v16.16.0).
           </p>
-
-          <h3>3. Yarn</h3>
-          <p>
-            Yarn is a software packaging system developed for the Node.js
-            JavaScript runtime environment. Install Yarn through the npm package
-            manager, which comes bundled with Node.js when you install it on
-            your system. Run this command on your system Terminal:
-          </p>
-          <Codeblock data={`npm install --global yarn`} isJson={false} />
         </Element>
 
         <Element name="setupnextjs">
@@ -121,7 +112,7 @@ const GuideNextjsPage: NextPage = () => {
             NextJs application:
           </p>
           <Codeblock
-            data={`yarn create next-app --typescript .`}
+            data={`npx create-next-app@latest --typescript .`}
             isJson={false}
           />
 
@@ -130,7 +121,7 @@ const GuideNextjsPage: NextPage = () => {
             After the installation is complete, start the development server
             with:
           </p>
-          <Codeblock data={`yarn run dev`} isJson={false} />
+          <Codeblock data={`npm run dev`} isJson={false} />
           <p>
             Visit{' '}
             <a href="http://localhost:3000" target="_blank" rel="noreferrer">
@@ -144,9 +135,9 @@ const GuideNextjsPage: NextPage = () => {
         <Element name="setupmesh">
           <h2>Setup Mesh</h2>
           <h3>1. Install MeshJS package</h3>
-          <p>Install the latest version of Mesh with yarn:</p>
+          <p>Install the latest version of Mesh with npm:</p>
           <Codeblock
-            data={`yarn add @meshsdk/core @meshsdk/react`}
+            data={`npm install @meshsdk/core @meshsdk/react`}
             isJson={false}
           />
 
@@ -291,7 +282,7 @@ export default Home;`}
           />
 
           <p>Start the development server and try it:</p>
-          <Codeblock data={`yarn run dev`} isJson={false} />
+          <Codeblock data={`npm run dev`} isJson={false} />
           <p>
             Visit{' '}
             <a href="http://localhost:3000" target="_blank" rel="noreferrer">

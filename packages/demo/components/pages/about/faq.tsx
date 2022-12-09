@@ -75,6 +75,11 @@ export default function AboutFaq() {
               body={
                 <>
                   <p>
+                    Building on Cardano is like the early days of the Internet,
+                    where people are discussing the different protocols, like
+                    and how to handle HTTPS and IP addresses.
+                  </p>
+                  <p>
                     During the early days of the World Wide Web, CERN{' '}
                     <a
                       href="https://home.web.cern.ch/science/computing/birth-web/licensing-web"
@@ -87,9 +92,11 @@ export default function AboutFaq() {
                     , available with an open licence. Through these actions,
                     making the software required to run a web server freely
                     available, and open-source code library, the web was allowed
-                    to flourish. In the same way, providing Mesh and its
-                    technology, allowing anyone to build, is key to widespread
-                    Cardano adoption.
+                    to flourish.
+                  </p>
+                  <p>
+                    In the same way, providing Mesh and its technology, allowing
+                    anyone to build, is key to widespread Cardano adoption.
                   </p>
                 </>
               }

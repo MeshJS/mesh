@@ -34,7 +34,8 @@ function Content() {
         >
           runtime environment
         </a>{' '}
-        for developing server-side web applications. Node.js runs on the{' '}
+        , It allows developers to run JavaScript on the server side, creating
+        web applications that can generate dynamic content. Node.js runs on the{' '}
         <a
           href="https://en.wikipedia.org/wiki/V8_(JavaScript_engine)"
           target="_blank"
@@ -42,60 +43,68 @@ function Content() {
         >
           V8 JavaScript Engine
         </a>{' '}
-        and executes JavaScript code outside a web browser, uses an
+        and executes JavaScript code outside a web browser. Node.js uses an
         event-driven, non-blocking I/O model that makes it lightweight and
-        efficient.
+        efficient, perfect for data-intensive real-time applications that run
+        across distributed devices.
       </p>
       <p>
         <a href="https://www.npmjs.com/" target="_blank" rel="noreferrer">
           NPM
         </a>{' '}
         is the package module which helps javascript developers install
-        dependencies effectively.
+        dependencies effectively. It stands for Node Package Manager and it's a
+        command-line tool that comes with Node.js that allows developers to
+        install and manage a wide variety of third-party JavaScript libraries
+        and packages for use in their own projects. It also makes it easy for
+        developers to share and reuse code by publishing their own packages to
+        the NPM registry, which is a public repository of packages of
+        open-source code. NPM is an essential part of the Node.js ecosystem and
+        is widely used by developers to streamline their workflow and build
+        powerful applications. NPM is the default package manager for Node.js.
       </p>
-      <h2>Installation of Node.js and NPM</h2>
+      <h3>Installation of Node.js and NPM</h3>
       <p>
         Installation of Node.js and NPM is straightforward using the installer
         package available at Node.js official web site.
       </p>
-      <ul>
+      <p>
+        To install Node.js, you will need to download the appropriate installer
+        for your operating system from the official Node.js website. Once the
+        download is complete, you can run the installer and follow the on-screen
+        instructions to complete the installation.
+      </p>
+      <p>Here is a brief overview of the steps you will need to follow:</p>
+      <ol>
         <li>
-          Download the LTS installer from{' '}
+          Go to the official{' '}
           <a href="https://nodejs.org/" target="_blank" rel="noreferrer">
             Node.js
-          </a>
+          </a>{' '}
+          website
         </li>
-        <li>Run the installer</li>
-        <li>Follow the installer steps</li>
-        <li>Restart your machine</li>
-      </ul>
+        <li>
+          Click on the "Download" button to download the LTS version of Node.js.
+        </li>
+        <li>
+          Once the download is complete, run the installer and follow the
+          on-screen instructions to complete the installation.
+        </li>
+      </ol>
       <p>
-        Now, test Node.js by printing its version using the following command in
-        Terminal:
+        Keep in mind that the exact steps may vary depending on your operating
+        system, so you may need to consult the official Node.js documentation
+        for more detailed instructions.
+      </p>
+      <p>
+        Once the installation is complete, you can verify that Node.js has been
+        successfully installed by opening a command prompt or terminal window
+        and typing:
       </p>
       <Codeblock data={`node -v`} isJson={false} />
       <p>and test npm by printing its version using command:</p>
       <Codeblock data={`npm -v`} isJson={false} />
-      <h2>Install Yarn Package Manager</h2>
-      <p>
-        <a href="https://yarnpkg.com/" target="_blank" rel="noreferrer">
-          Yarn
-        </a>{' '}
-        is an alternative to the npm package manager, and we recommend to use
-        yarn over npm because:
-      </p>
-      <ul>
-        <li>Yarn can install packages from local cache</li>
-        <li>Yarn binds versions of the package strongly</li>
-        <li>
-          Yarn installs packages in parallel, while npm installs one package at
-          a time
-        </li>
-      </ul>
-
-      <p>To install yarn, run this command:</p>
-      <Codeblock data={`npm install --global yarn`} isJson={false} />
-      <p>You are done with installation.</p>
+      <p>You should see the Node and NPM version you have installed.</p>
     </>
   );
 }

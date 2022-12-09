@@ -31,6 +31,13 @@ function Left() {
         </a>
         . These mnemonic phrases allow you to recover your wallet.
       </p>
+      <p>
+        Once you have your mnemonic phrase, you can use it to generate your
+        deterministic keys. See <code>Load AppWallet</code> in the following
+        section on loading a mnemonic phrase. It will typically generate a
+        series of private keys and corresponding public keys, which you can use
+        to manage your cryptocurrencies.
+      </p>
       <Codeblock
         data={`import { AppWallet } from '@meshsdk/core';\n\nconst mnemonic = AppWallet.brew();`}
         isJson={false}

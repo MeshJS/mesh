@@ -17,7 +17,7 @@ export default function GuidesLayout({
   authors?: { url: string; image: string; name: string; about: string }[];
 }) {
   return (
-    <main className="pb-16 lg:pb-24 bg-white dark:bg-gray-900">
+    <main className="pb-16 lg:pb-24 bg-white dark:bg-gray-900 mb-4">
       <header
         style={{ backgroundImage: `url(${image})` }}
         className={`w-full h-[460px] xl:h-[537px] bg-no-repeat bg-cover bg-center bg-blend-darken relative`}

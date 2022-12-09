@@ -41,7 +41,7 @@ export default function List() {
             content={
               <>
                 <p>
-                  Use your wallat to sign message with{' '}
+                  Use your wallet to sign message with{' '}
                   <code>wallet.signData</code>, see{' '}
                   <Link href="/apis/appwallet">App Wallet</Link> and{' '}
                   <Link href="/apis/browserwallet">Browser Wallet</Link>.

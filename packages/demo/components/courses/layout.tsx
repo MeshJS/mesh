@@ -18,7 +18,7 @@ export default function CourseLayout({
       <Metatags title={title} description={desc} />
       <div className="flex">
         <div className="hidden lg:block">{coursesSidebar}</div>
-        <div className="w-full h-full bg-gray-50 lg:ml-64 dark:bg-gray-900">
+        <div className="w-full h-full bg-gray-50 lg:ml-64 dark:bg-gray-900 pb-8">
           <main>
             {youtubeId && (
               <div className="w-full">

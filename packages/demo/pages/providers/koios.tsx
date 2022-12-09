@@ -9,15 +9,20 @@ import {
 import Fetcher from '../../components/pages/providers/fetcher';
 import { KoiosProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
+import ButtonGroup from '../../components/ui/buttongroup';
 
 export default function ProvidersKoios() {
   const sidebarItems = [
-    { label: 'fetchProtocolParameters', to: 'fetchProtocolParameters' },
-    { label: 'fetchAddressUtxos', to: 'fetchAddressUtxos' },
-    { label: 'fetchAccountInfo', to: 'fetchAccountInfo' },
-    // { label: 'fetchAssetMetadata', to: 'fetchAssetMetadata' },
-    { label: 'submitTx', to: 'submitTx' },
+    { label: 'Fetch Account Info', to: 'fetchAccountInfo' },
+    { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
+    { label: 'Fetch Asset Metadata', to: 'fetchAssetMetadata' },
+    { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
+    { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
+    { label: 'Fetch Protocol Parameters', to: 'fetchProtocolParameters' },
+    { label: 'Submit Tx', to: 'submitTx' },
   ];
+
+  const [network, setNetwork] = useState<string>('preprod');
 
   return (
     <>
@@ -26,14 +31,14 @@ export default function ProvidersKoios() {
         description="Accessing and processing information stored on the blockchain"
       />
       <CommonLayout sidebarItems={sidebarItems}>
-        <Hero />
-        <Main />
+        <Hero network={network} setNetwork={setNetwork} />
+        <Main network={network} />
       </CommonLayout>
     </>
   );
 }
 
-function Hero() {
+function Hero({ network, setNetwork }) {
   let code1 = `const koiosProvider = new KoiosProvider('<api,testnet,guild>');\n`;
 
   return (
@@ -68,6 +73,22 @@ function Hero() {
           ></iframe>
           <p>Get started:</p>
           <Codeblock data={code1} isJson={false} />
+          <p>Choose network for this demo:</p>
+          <ButtonGroup
+            items={[
+              {
+                key: 'mainnet',
+                label: 'Mainnet',
+                onClick: () => setNetwork('api'),
+              },
+              {
+                key: 'preprod',
+                label: 'Preprod',
+                onClick: () => setNetwork('preprod'),
+              },
+            ]}
+            currentSelected={network}
+          />
         </div>
         <div className="col-span-1"></div>
       </div>
@@ -75,17 +96,17 @@ function Hero() {
   );
 }
 
-function Main() {
+function Main({ network }) {
   const [koiosProvider, setKoiosProvider] =
     useState<KoiosProvider | null>(null);
 
   useEffect(() => {
     async function load() {
-      const _koiosProvider = new KoiosProvider('preprod');
+      const _koiosProvider = new KoiosProvider(network);
       setKoiosProvider(_koiosProvider);
     }
     load();
-  }, []);
+  }, [network]);
 
   return (
     <>

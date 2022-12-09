@@ -1,11 +1,14 @@
 import axios, { AxiosInstance } from 'axios';
+import { POLICY_ID_LENGTH, SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  AccountInfo, UTxO, AssetMetadata, Protocol, Asset,
-} from '@mesh/common/types';
-import {
-  fromUTF8, parseHttpError, resolveRewardAddress,
+  deserializeNativeScript, fromNativeScript, fromUTF8,
+  parseHttpError, resolveRewardAddress, toScriptRef, toUTF8,
 } from '@mesh/common/utils';
+import type {
+  AccountInfo, Asset, AssetMetadata,
+  PlutusScript, Protocol, UTxO,
+} from '@mesh/common/types';
 
 export class TangoProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
@@ -64,7 +67,7 @@ export class TangoProvider implements IFetcher, ISubmitter {
     };
 
     const toAssets = (value: number, multiAsset): Asset[] => {
-      const assets = [{
+      const assets: Asset[] = [{
         unit: 'lovelace',
         quantity: value.toString(),
       }];
@@ -81,6 +84,21 @@ export class TangoProvider implements IFetcher, ISubmitter {
       return assets;
     };
 
+    const resolveScriptRef = (tScriptRef): string | undefined => {
+      if (tScriptRef) {
+        const script = tScriptRef.type.startsWith('plutus')
+          ? <PlutusScript>{
+              code: tScriptRef.code,
+              version: tScriptRef.type.replace('plutus', ''),
+            }
+          : fromNativeScript(deserializeNativeScript(tScriptRef.json));
+
+        return toScriptRef(script).to_hex();
+      }
+
+      return undefined;
+    };
+
     const toUTxO = (tUTxO): UTxO => ({
       input: {
         outputIndex: tUTxO.index,
@@ -89,6 +107,9 @@ export class TangoProvider implements IFetcher, ISubmitter {
       output: {
         address: address,
         amount: toAssets(tUTxO.value, tUTxO.assets),
+        dataHash: undefined,
+        plutusData: tUTxO.inline_datum?.value_raw ?? undefined,
+        scriptRef: resolveScriptRef(tUTxO.reference_script),
       },
     });
 
@@ -98,13 +119,69 @@ export class TangoProvider implements IFetcher, ISubmitter {
       return [];
     }
   }
+  
+  async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+    const toAddress = (item) => ({
+      address: item.address,
+      quantity: item.quantity.toString(),
+    });
 
-  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
-    throw new Error('fetchAssetMetadata not implemented.');
+    const paginateAddresses = async <T>(cursor = '', addresses: T[] = []): Promise<T[]> => {
+      const { data, status } = await this._axiosInstance.get(
+        `assets/${asset}/addresses?size=100&cursor=${cursor}`,
+      );
+
+      if (status === 200)
+      return data.cursor !== null && data.cursor?.length > 0
+        ? paginateAddresses(data.cursor, [...addresses, ...data.data.map(toAddress)])
+        : data.data.map(toAddress);
+
+      throw parseHttpError(data);
+    };
+
+    try {
+      return await paginateAddresses<{ address: string; quantity: string }>();
+    } catch (error) {
+      return [];
+    }
   }
 
-  async fetchHandleAddress(_handle: string): Promise<string> {
-    throw new Error('fetchHandleAddress not implemented.');
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+    try {
+      const policyId = asset.slice(0, POLICY_ID_LENGTH);
+      const assetName = asset.includes('.')
+        ? fromUTF8(asset.split('.')[1])
+        : asset.slice(POLICY_ID_LENGTH);
+
+      const { data, status } = await this._axiosInstance.get(
+        `assets/${asset}`,
+      );
+
+      if (status === 200)
+        return <AssetMetadata>{
+          ...data.metadata[0]?.json[policyId][toUTF8(assetName)],
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchHandleAddress(handle: string): Promise<string> {
+    try {
+      const assetName = fromUTF8(handle.replace('$', ''));
+      const { data, status } = await this._axiosInstance.get(
+        `assets/${SUPPORTED_HANDLES[1]}${assetName}/addresses`,
+      );
+
+      if (status === 200)
+        return data.data[0].address;
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchProtocolParameters(epoch: number): Promise<Protocol> {

@@ -7,18 +7,18 @@ From the root folder...
 #### 1. Setup
 Run:
 ```sh
-yarn install
+npm install
 ```
 
 #### 2. Start module building
 Run:
 ```sh
-yarn run start:module
+npm run start:module
 ```
 
 #### 3. Start Playground
 Open a new Terminal and:
 ```sh
-yarn run start:demo
+npm run start:demo
 ```
 and visit [http://localhost:3000/](http://localhost:3000/)

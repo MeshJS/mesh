@@ -35,6 +35,10 @@ export default function Sidebar({}) {
           url: 'install-wallet',
         },
         {
+          label: 'Install GitHub',
+          url: 'install-github',
+        },
+        {
           label: 'Create project',
           url: 'create-project',
         },

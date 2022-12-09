@@ -1,7 +1,9 @@
 import axios, { AxiosInstance } from 'axios';
+import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  parseHttpError, resolveRewardAddress, toBytes, toScriptRef,
+  fromUTF8, parseHttpError, resolveRewardAddress,
+  toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
   AccountInfo, AssetMetadata, NativeScript,
@@ -12,7 +14,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
   constructor(projectId: string, version = 0) {
-    const network = projectId.slice(0, 7); 
+    const network = projectId.slice(0, 7);
     this._axiosInstance = axios.create({
       baseURL: `https://cardano-${network}.blockfrost.io/api/v${version}`,
       headers: { project_id: projectId },
@@ -31,8 +33,8 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return <AccountInfo>{
-          active: data.active || data.active_epoch !== null,
           poolId: data.pool_id,
+          active: data.active || data.active_epoch !== null,
           balance: data.controlled_amount,
           rewards: data.withdrawable_amount,
           withdrawals: data.withdrawals_sum,
@@ -69,10 +71,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
         if (status === 200) {
           const script = data.type.startsWith('plutus')
-            ? {
+            ? <PlutusScript>{
                 code: await this.fetchPlutusScriptCBOR(scriptHash),
                 version: data.type.replace('plutus', ''),
-              } as PlutusScript
+              }
             : await this.fetchNativeScriptJSON(scriptHash);
 
           return toScriptRef(script).to_hex();
@@ -105,18 +107,64 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchAssetMetadata(_asset: string): Promise<AssetMetadata> {
-    throw new Error('fetchAssetMetadata not implemented.');
+  async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+    const paginateAddresses = async <T>(page = 1, addresses: T[] = []): Promise<T[]> => {
+      const { data, status } = await this._axiosInstance.get(
+        `assets/${asset}/addresses?page=${page}`,
+      );
+
+      if (status === 200)
+        return data.length > 0
+          ? paginateAddresses(page + 1, [...addresses, ...data])
+          : addresses;
+
+      throw parseHttpError(data);
+    };
+
+    try {
+      return await paginateAddresses<{ address: string; quantity: string }>();
+    } catch (error) {
+      return [];
+    }
   }
 
-  async fetchHandleAddress(_handle: string): Promise<string> {
-    throw new Error('fetchHandleAddress not implemented.');
+  async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `assets/${asset}`,
+      );
+
+      if (status === 200)
+        return <AssetMetadata>{
+          ...data.onchain_metadata,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchHandleAddress(handle: string): Promise<string> {
+    try {
+      const assetName = fromUTF8(handle.replace('$', ''));
+      const { data, status } = await this._axiosInstance.get(
+        `assets/${SUPPORTED_HANDLES[1]}${assetName}/addresses`,
+      );
+
+      if (status === 200)
+        return data[0].address;
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        `epochs/${isNaN(epoch) ? 'latest' : epoch}/parameters`
+        `epochs/${isNaN(epoch) ? 'latest' : epoch}/parameters`,
       );
 
       if (status === 200)
