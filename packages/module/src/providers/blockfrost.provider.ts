@@ -2,8 +2,8 @@ import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  fromUTF8, parseHttpError, resolveRewardAddress,
-  toBytes, toScriptRef,
+  fromUTF8, parseAssetUnit, parseHttpError,
+  resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
   AccountInfo, AssetMetadata, NativeScript,
@@ -109,8 +109,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
   async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
     const paginateAddresses = async <T>(page = 1, addresses: T[] = []): Promise<T[]> => {
+      const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}/addresses?page=${page}`,
+        `assets/${policyId}${assetName}/addresses?page=${page}`,
       );
 
       if (status === 200)
@@ -130,8 +131,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
+      const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}`,
+        `assets/${policyId}${assetName}`,
       );
 
       if (status === 200)

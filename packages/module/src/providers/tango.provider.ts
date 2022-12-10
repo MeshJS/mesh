@@ -1,9 +1,10 @@
 import axios, { AxiosInstance } from 'axios';
-import { POLICY_ID_LENGTH, SUPPORTED_HANDLES } from '@mesh/common/constants';
+import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeNativeScript, fromNativeScript, fromUTF8,
-  parseHttpError, resolveRewardAddress, toScriptRef, toUTF8,
+  deserializeNativeScript, fromNativeScript,
+  fromUTF8, parseAssetUnit, parseHttpError,
+  resolveRewardAddress, toScriptRef, toUTF8,
 } from '@mesh/common/utils';
 import type {
   AccountInfo, Asset, AssetMetadata,
@@ -127,14 +128,15 @@ export class TangoProvider implements IFetcher, ISubmitter {
     });
 
     const paginateAddresses = async <T>(cursor = '', addresses: T[] = []): Promise<T[]> => {
+      const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}/addresses?size=100&cursor=${cursor}`,
+        `assets/${policyId}${assetName}/addresses?size=100&cursor=${cursor}`,
       );
 
       if (status === 200)
-      return data.cursor !== null && data.cursor?.length > 0
-        ? paginateAddresses(data.cursor, [...addresses, ...data.data.map(toAddress)])
-        : data.data.map(toAddress);
+        return data.cursor !== null && data.cursor?.length > 0
+          ? paginateAddresses(data.cursor, [...addresses, ...data.data.map(toAddress)])
+          : data.data.map(toAddress);
 
       throw parseHttpError(data);
     };
@@ -148,13 +150,9 @@ export class TangoProvider implements IFetcher, ISubmitter {
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
-      const policyId = asset.slice(0, POLICY_ID_LENGTH);
-      const assetName = asset.includes('.')
-        ? fromUTF8(asset.split('.')[1])
-        : asset.slice(POLICY_ID_LENGTH);
-
+      const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}`,
+        `assets/${policyId}${assetName}`,
       );
 
       if (status === 200)
@@ -227,8 +225,7 @@ export class TangoProvider implements IFetcher, ISubmitter {
         'transactions/submit', { tx }, { headers },
       );
 
-      if (status === 200)
-        return data.tx_id;
+      if (status === 200) return data.tx_id;
 
       throw parseHttpError(data);
     } catch (error) {
