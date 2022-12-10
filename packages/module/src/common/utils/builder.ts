@@ -1,6 +1,6 @@
 import { csl } from '@mesh/core';
 import {
-  DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_PROTOCOL_PARAMETERS, LANGUAGE_VERSIONS,
 } from '@mesh/common/constants';
 import {
   fromScriptRef, fromUTF8, toAddress, toBytes,
@@ -112,8 +112,8 @@ export const buildPlutusScriptSource = (
         plutusScript.code, plutusScript.version,
       ).hash();
 
-      return csl.PlutusScriptSource.new_ref_input(
-        scriptHash, utxo.input(),
+      return csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+        scriptHash, utxo.input(), LANGUAGE_VERSIONS[plutusScript.version],
       );
     }
   }
