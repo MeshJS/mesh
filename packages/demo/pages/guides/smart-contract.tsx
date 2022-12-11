@@ -176,7 +176,7 @@ module.exports = nextConfig;
           <h2>Add a wallet connection</h2>
           <h3>1. Install @meshsdk/react package</h3>
           <p>Install the latest version of Mesh-react with npm:</p>
-          <Codeblock data={`npm install @meshsdk/core-react`} isJson={false} />
+          <Codeblock data={`npm install @meshsdk/react`} isJson={false} />
           <h3>2. Setup MeshProvider</h3>
           <p>
             Open <code>pages/_app.tsx</code> and replace it with the following
@@ -370,7 +370,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
   <div>
     <h1>Connect Wallet</h1>
     <CardanoWallet />
-    {walletConnected && (
+    {connected && (
       <>
         <h1>Lock funds in your Contract</h1>
         
