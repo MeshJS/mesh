@@ -97,6 +97,12 @@ const GuideNextjsPage: NextPage = () => {
             </a>{' '}
             (as of writing v18.12.1).
           </p>
+          <h3>3. Yarn</h3>
+          <p>
+            To follow this guide you will to install Yarn. Do it with the following command:
+          </p>
+            <Codeblock data={`npm install yarn`} isJson={false} />
+          
         </Element>
 
         <Element name="setupnextjs">
@@ -176,7 +182,7 @@ module.exports = nextConfig;
           <h2>Add a wallet connection</h2>
           <h3>1. Install @meshsdk/react package</h3>
           <p>Install the latest version of Mesh-react with npm:</p>
-          <Codeblock data={`npm install @meshsdk/core-react`} isJson={false} />
+          <Codeblock data={`yarn add @meshsdk/react`} isJson={false} />
           <h3>2. Setup MeshProvider</h3>
           <p>
             Open <code>pages/_app.tsx</code> and replace it with the following
@@ -266,7 +272,7 @@ export const script: PlutusScript = {
     version: 'V2',
 };
 
-export const scriptAddr = resolvePlutusScriptAddress(script, 764824073);`}
+export const scriptAddr = resolvePlutusScriptAddress(script, 1);`}
             isJson={false}
           />
           <p>
@@ -281,8 +287,8 @@ export const scriptAddr = resolvePlutusScriptAddress(script, 764824073);`}
             script. The resolver <code>resolvePlutusScriptAddress</code> takes
             two arguments: a PlutusScript and an integer representing the
             Network Id. Here we use the mainnet network that has an Id of{' '}
-            <code>764824073</code>, but feel free to change it according to your
-            needs. For more information see{' '}
+            <code>1</code>, but feel free to change it according to your
+            needs (For Testnet, Preview or PreProd use <code>0</code>). For more information see{' '}
             <a href="https://meshjs.dev/apis/resolvers">Resolvers</a>.
           </p>
 
@@ -319,7 +325,10 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
             data={`async function lockFunds() {
   if (wallet) {
     const addr = (await wallet.getUsedAddresses())[0];
-    const d: Data = 42;
+    const d: Data = {
+      alternative: 0,
+      fields: [42],
+    };
     const tx = new Transaction({ initiator: wallet })
       .sendAssets(
         {
@@ -370,7 +379,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
   <div>
     <h1>Connect Wallet</h1>
     <CardanoWallet />
-    {walletConnected && (
+    {connected && (
       <>
         <h1>Lock funds in your Contract</h1>
         
@@ -431,7 +440,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
   const blockfrostProvider = new BlockfrostProvider(
     '<blockfrostApiKey>',
   );
-  const utxos = await blockfrostProvider.fetchAddressUtxos(
+  const utxos = await blockfrostProvider.fetchAddressUTxOs(
     scriptAddress,
     asset
   );
@@ -459,8 +468,16 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
   if (wallet) {
     setLoading(true);
     const addr = (await wallet.getUsedAddresses())[0];
-    const datumConstr: Data = 42;
-    const redeemer = 21;
+    const d: Data = {
+      alternative: 0,
+      fields: [42],
+    };
+    const redeemer = {
+      data: {
+        alternative: 0,
+        fields: [21],
+      },
+    };
     
     const assetUtxo = await _getAssetUtxo({
       scriptAddress: scriptAddr, 
@@ -507,7 +524,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
   <div>
     <h1>Connect Wallet</h1>
     <CardanoWallet />
-    {walletConnected && (
+    {connected && (
       <>
         <h1>Unlock your funds from your Contract</h1>
         
