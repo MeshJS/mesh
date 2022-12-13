@@ -231,7 +231,16 @@ export default function AboutFaq() {
                     >
                       Next.js
                     </a>{' '}
-                    and designed with{' '}
+                    , powered by{' '}
+                    <a
+                      href="https://vercel.com/?utm_source=[meshjs]&utm_campaign=oss"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      Vercel
+                    </a>{' '}
+                    , and designed with{' '}
                     <a
                       href="https://flowbite.com/"
                       rel="noreferrer"

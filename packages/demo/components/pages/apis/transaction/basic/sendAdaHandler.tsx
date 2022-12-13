@@ -79,8 +79,8 @@ function Left({ userInput }) {
       </p>
       <Codeblock data={code1} isJson={false} />
       <p>
-        Next, we can create a transactions, for instance, lets send some lovelace to{' '}
-        {userInput[0].address}:
+        Next, we can create a transactions, for instance, lets send some
+        lovelace to {userInput[0].address}:
       </p>
       <Codeblock data={code2} isJson={false} />
     </>
@@ -102,7 +102,7 @@ function Right({ userInput, updateField }) {
 
       const tx = new Transaction({ initiator: wallet });
       tx.sendLovelace(
-        await koiosProvider.fetchHandleAddress('jingles'),
+        await koiosProvider.fetchHandleAddress(userInput[0].address),
         userInput[0].assets.lovelace.toString()
       );
       const unsignedTx = await tx.build();
