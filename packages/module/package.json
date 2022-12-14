@@ -3,7 +3,7 @@
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
-  "version": "1.2.1-beta.1",
+  "version": "1.2.1-beta.2",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
