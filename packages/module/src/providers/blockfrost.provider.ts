@@ -1,13 +1,20 @@
 import axios, { AxiosInstance } from 'axios';
-import { SUPPORTED_HANDLES } from '@mesh/common/constants';
+import { POLICY_ID_LENGTH, SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  fromUTF8, parseHttpError, resolveRewardAddress,
-  toBytes, toScriptRef,
+  fromUTF8,
+  parseHttpError,
+  resolveRewardAddress,
+  toBytes,
+  toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, AssetMetadata, NativeScript,
-  PlutusScript, Protocol, UTxO,
+  AccountInfo,
+  AssetMetadata,
+  NativeScript,
+  PlutusScript,
+  Protocol,
+  UTxO,
 } from '@mesh/common/types';
 
 export class BlockfrostProvider implements IFetcher, ISubmitter {
@@ -28,7 +35,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
     try {
       const { data, status } = await this._axiosInstance.get(
-        `accounts/${rewardAddress}`,
+        `accounts/${rewardAddress}`
       );
 
       if (status === 200)
@@ -50,23 +57,31 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     const filter = asset !== undefined ? `/${asset}` : '';
     const url = `addresses/${address}/utxos` + filter;
 
-    const paginateUTxOs = async (page = 1, utxos: UTxO[] = []): Promise<UTxO[]> => {
+    const paginateUTxOs = async (
+      page = 1,
+      utxos: UTxO[] = []
+    ): Promise<UTxO[]> => {
       const { data, status } = await this._axiosInstance.get(
-        `${url}?page=${page}`,
+        `${url}?page=${page}`
       );
 
       if (status === 200)
         return data.length > 0
-          ? paginateUTxOs(page + 1, [...utxos, ...await Promise.all(data.map(toUTxO))])
+          ? paginateUTxOs(page + 1, [
+              ...utxos,
+              ...(await Promise.all(data.map(toUTxO))),
+            ])
           : utxos;
 
       throw parseHttpError(data);
     };
 
-    const resolveScriptRef = async (scriptHash): Promise<string | undefined> => {
+    const resolveScriptRef = async (
+      scriptHash
+    ): Promise<string | undefined> => {
       if (scriptHash) {
         const { data, status } = await this._axiosInstance.get(
-          `scripts/${scriptHash}`,
+          `scripts/${scriptHash}`
         );
 
         if (status === 200) {
@@ -107,10 +122,15 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
-    const paginateAddresses = async <T>(page = 1, addresses: T[] = []): Promise<T[]> => {
+  async fetchAssetAddresses(
+    asset: string
+  ): Promise<{ address: string; quantity: string }[]> {
+    const paginateAddresses = async <T>(
+      page = 1,
+      addresses: T[] = []
+    ): Promise<T[]> => {
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}/addresses?page=${page}`,
+        `assets/${asset}/addresses?page=${page}`
       );
 
       if (status === 200)
@@ -130,13 +150,21 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
+      const policyId = asset.slice(0, POLICY_ID_LENGTH);
+      const assetName = asset.includes('.')
+        ? fromUTF8(asset.split('.')[1])
+        : asset.slice(POLICY_ID_LENGTH);
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}`,
+        `assets/${policyId}${assetName}`
       );
 
       if (status === 200)
         return <AssetMetadata>{
           ...data.onchain_metadata,
+          fingerprint: data.fingerprint,
+          totalSupply: data.quantity,
+          mintingTxHash: data.initial_mint_tx_hash,
+          mintCount: data.mint_or_burn_count,
         };
 
       throw parseHttpError(data);
@@ -149,11 +177,10 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     try {
       const assetName = fromUTF8(handle.replace('$', ''));
       const { data, status } = await this._axiosInstance.get(
-        `assets/${SUPPORTED_HANDLES[1]}${assetName}/addresses`,
+        `assets/${SUPPORTED_HANDLES[1]}${assetName}/addresses`
       );
 
-      if (status === 200)
-        return data[0].address;
+      if (status === 200) return data[0].address;
 
       throw parseHttpError(data);
     } catch (error) {
@@ -164,7 +191,7 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        `epochs/${isNaN(epoch) ? 'latest' : epoch}/parameters`,
+        `epochs/${isNaN(epoch) ? 'latest' : epoch}/parameters`
       );
 
       if (status === 200)
@@ -201,11 +228,12 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     try {
       const headers = { 'Content-Type': 'application/cbor' };
       const { data, status } = await this._axiosInstance.post(
-        'tx/submit', toBytes(tx), { headers },
+        'tx/submit',
+        toBytes(tx),
+        { headers }
       );
 
-      if (status === 200)
-        return data;
+      if (status === 200) return data;
 
       throw parseHttpError(data);
     } catch (error) {
@@ -215,22 +243,22 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
   private async fetchPlutusScriptCBOR(scriptHash: string): Promise<string> {
     const { data, status } = await this._axiosInstance.get(
-      `scripts/${scriptHash}/cbor`,
+      `scripts/${scriptHash}/cbor`
     );
 
-    if (status === 200)
-      return data.cbor;
+    if (status === 200) return data.cbor;
 
     throw parseHttpError(data);
   }
 
-  private async fetchNativeScriptJSON(scriptHash: string): Promise<NativeScript> {
+  private async fetchNativeScriptJSON(
+    scriptHash: string
+  ): Promise<NativeScript> {
     const { data, status } = await this._axiosInstance.get(
-      `scripts/${scriptHash}/json`,
+      `scripts/${scriptHash}/json`
     );
 
-    if (status === 200)
-      return data.json;
+    if (status === 200) return data.json;
 
     throw parseHttpError(data);
   }
