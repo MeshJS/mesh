@@ -46,7 +46,7 @@ export class Transaction {
     this._txWithdrawals = csl.Withdrawals.new();
   }
 
-  static maskMetadata(cborTx: string) {
+  static maskMetadata(cborTx: string, era: Era = 'ALONZO') {
     const tx = deserializeTx(cborTx);
     const txMetadata = tx.auxiliary_data()?.metadata();
 
@@ -64,7 +64,13 @@ export class Transaction {
       }
 
       const txAuxData = tx.auxiliary_data();
-      txAuxData?.set_metadata(mockMetadata);
+
+      if (txAuxData !== undefined) {
+        txAuxData.set_metadata(mockMetadata);
+        txAuxData.set_prefer_alonzo_format(
+          era === 'ALONZO',
+        );
+      }
 
       return csl.Transaction.new(
         tx.body(), tx.witness_set(), txAuxData,
@@ -79,13 +85,17 @@ export class Transaction {
     return tx.auxiliary_data()?.metadata()?.to_hex() ?? '';
   }
 
-  static writeMetadata(cborTx: string, cborTxMetadata: string) {
+  static writeMetadata(cborTx: string, cborTxMetadata: string, era: Era = 'ALONZO') {
     const tx = deserializeTx(cborTx);
     const txAuxData = tx.auxiliary_data()
       ?? csl.AuxiliaryData.new();
 
     txAuxData.set_metadata(
       csl.GeneralTransactionMetadata.from_hex(cborTxMetadata),
+    );
+
+    txAuxData.set_prefer_alonzo_format(
+      era === 'ALONZO',
     );
 
     return csl.Transaction.new(
