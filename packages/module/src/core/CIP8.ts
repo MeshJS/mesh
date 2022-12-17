@@ -1,10 +1,15 @@
 import {
   AlgorithmId, BigNum, COSESign1Builder,
-  CBORValue, COSEKey, HeaderMap, Headers,
-  Int, KeyType, Label, ProtectedHeaderMap,
+  COSESign1, CBORValue, COSEKey, HeaderMap,
+  Headers, Int, KeyType, Label, ProtectedHeaderMap,
 } from '@emurgo/cardano-message-signing-nodejs';
-import { fromBytes, toBytes } from '@mesh/common/utils';
-import type { Address, PrivateKey } from './CSL';
+import {
+  deserializeAddress, deserializeEd25519Signature,
+  deserializePublicKey, fromBytes, fromUTF8,
+  resolveStakeKeyHash, toBytes,
+} from '@mesh/common/utils';
+import type { DataSignature } from '@mesh/common/types';
+import type { Address, PrivateKey, PublicKey } from '@mesh/core';
 
 export const signMessage = (
   message: Message, signer: Signer,
@@ -16,6 +21,70 @@ export const signMessage = (
     coseKey: fromBytes(coseKey.to_bytes()),
     coseSign1: fromBytes(coseSign1.to_bytes()),
   };
+};
+
+export const checkSignature = (
+  message: string, signer: string,
+  { key, signature }: DataSignature, 
+) => {
+  const coseKey = COSEKey.from_bytes(toBytes(key));
+  const coseSign1 = COSESign1.from_bytes(toBytes(signature));
+
+  if (message?.length > 0) {
+    const payload = fromBytes(coseSign1.payload() ?? new Uint8Array());
+    if (fromUTF8(message) !== payload) return false;
+  }
+
+  if (signer?.length > 0) {
+    const protectedHeaders = coseSign1
+      .headers().protected()
+      .deserialized_headers();
+
+    const signerAddress = protectedHeaders
+      .header(Label.new_text('address'))?.as_bytes();
+
+    if (signerAddress === undefined) {
+      throw new Error('Couldn\'t find a signer address in signature');
+    }
+
+    const signerKey = coseKey.key_id();
+
+    if (signerKey === undefined) {
+      throw new Error('Couldn\'t find a signer key in signature');
+    }
+
+    const address = deserializeAddress(fromBytes(signerAddress));
+    const publicKey = deserializePublicKey(fromBytes(signerKey));
+
+    if (checkAddress(signer, address, publicKey) === false) {
+      throw new Error('Couldn\'t check signature because of address mismatch');
+    }
+
+    const ed25519Signature = deserializeEd25519Signature(
+      fromBytes(coseSign1.signature()),
+    );
+
+    const data = coseSign1.signed_data().to_bytes();
+    return publicKey.verify(data, ed25519Signature);
+  }
+
+  return false;
+};
+
+const checkAddress = (
+  signer: string,
+  address: Address,
+  publicKey: PublicKey,
+) => {
+  if (signer !== address.to_bech32())
+    return false;
+
+  try {
+    const keyHash = resolveStakeKeyHash(signer);
+    return keyHash === publicKey.hash().to_hex();
+  } catch (error) {
+    return false;
+  }
 };
 
 const createCOSEKey = (signer: Signer) => {
