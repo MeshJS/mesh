@@ -5,7 +5,7 @@ import Codeblock from '../../components/ui/codeblock';
 import { Element } from 'react-scroll';
 import Metatags from '../../components/site/metatags';
 
-import { generateNonce, BrowserWallet, checkSignature } from '@meshsdk/core';
+import { BrowserWallet, checkSignature } from '@meshsdk/core';
 import RunDemoButton from '../../components/common/runDemoButton';
 
 import { CardanoWallet, useWallet } from '@meshsdk/react';
@@ -21,7 +21,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
       const signerAddress = (await wallet.getRewardAddresses())[0];
       console.log('signerAddress', signerAddress);
 
-      const nonce = await generateNonce();
+      const nonce = 'await generateNonce()';
       console.log('nonce', nonce);
 
       const signature = await wallet.signData(signerAddress, nonce);
@@ -33,7 +33,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   }
 
   async function backendStep1(signerAddress) {
-    const nonce = await generateNonce();
+    const nonce = 'await generateNonce()';
     console.log(112, nonce);
   }
 
