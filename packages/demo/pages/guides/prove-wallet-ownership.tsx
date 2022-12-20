@@ -100,9 +100,9 @@ const GuideLoginWithWalletPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="cryptographically prove ownership"
+        title="Cryptographically Prove Wallet Ownership"
         description="Login"
-        image="/guides/develop-first-web-app.png"
+        image="/guides/cryptographically-prove-wallet-ownership.png"
       />
       <GuidesLayout
         title="Cryptographically Prove Wallet Ownership"
