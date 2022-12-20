@@ -64,7 +64,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippet1 += `async function frontendStep1() {\n`;
   codeSnippet1 += `  if (connected) {\n`;
   codeSnippet1 += `    const userAddress = (await wallet.getRewardAddresses())[0];\n\n `;
-  codeSnippet1 += `    // do: axios to pass the 'userAddress' to the backend\n`;
+  codeSnippet1 += `    // do: send request with 'userAddress' to the backend\n`;
   codeSnippet1 += `  }\n`;
   codeSnippet1 += `}\n`;
 
@@ -81,7 +81,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippet3 += `  try {\n`;
   codeSnippet3 += `    const userAddress = (await wallet.getRewardAddresses())[0];\n`;
   codeSnippet3 += `    const signature = await wallet.signData(userAddress, nonce);\n\n`;
-  codeSnippet3 += `    // do: axios to pass 'signature' and 'userAddress' to the backend\n`;
+  codeSnippet3 += `    // do: send request with 'signature' and 'userAddress' to the backend\n`;
   codeSnippet3 += `  } catch (error) {\n`;
   codeSnippet3 += `    // catch error if user refuse to sign\n`;
   codeSnippet3 += `  }\n`;
