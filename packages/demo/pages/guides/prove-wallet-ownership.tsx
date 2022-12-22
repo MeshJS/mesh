@@ -1,13 +1,9 @@
 import type { NextPage } from 'next';
-import Link from 'next/link';
 import GuidesLayout from '../../components/pages/guides/layout';
 import Codeblock from '../../components/ui/codeblock';
 import { Element } from 'react-scroll';
 import Metatags from '../../components/site/metatags';
-
 import { checkSignature, generateNonce } from '@meshsdk/core';
-import RunDemoButton from '../../components/common/runDemoButton';
-
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../components/common/runDemoResult';
@@ -18,6 +14,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   const [response, setResponse] = useState<null | any>(null);
 
   const sidebarItems = [
+    { label: 'How does It Work?', to: 'howwork' },
     { label: 'Client: Connect wallet and get staking address', to: 'step1' },
     { label: 'Server: Generate nonce and store in database', to: 'step2' },
     { label: 'Client: Verify ownership by signing the nonce', to: 'step3' },
@@ -203,6 +200,12 @@ const GuideLoginWithWalletPage: NextPage = () => {
             user's authorization on a off-chain action, for example, performing
             in-game trading.
           </li>
+          <li>
+            <b>Off chain account flow</b>. If you need to display certain data
+            that is off-chain or on a website only to a particular user
+            identified by their wallet, you could use a message as a means of
+            doing so.
+          </li>
         </ul>
 
         <Element name="demo">
@@ -217,6 +220,45 @@ const GuideLoginWithWalletPage: NextPage = () => {
           <p>
             You will get <code>true</code> if the nonce has been signed by the
             user's wallet.
+          </p>
+        </Element>
+
+        <Element name="howwork">
+          <h2>How does It Work?</h2>
+
+          <img
+            src="/guides/cryptographically-prove-wallet-ownership-process.png"
+            width="100%"
+          />
+
+          <p>
+            By signing a message, you are affirming that you are in control of
+            the wallet address linked to the Blockchain, and thus can prove
+            ownership of it.
+          </p>
+
+          <p>There are 4 ingredients to signing a message:</p>
+
+          <ul>
+            <li>user wallet address</li>
+            <li>private key</li>
+            <li>public key</li>
+            <li>message to sign</li>
+          </ul>
+
+          <p>
+            To check if a user owns a certain address on a Web3 site, one needs
+            to provide a message and have the user "sign" it. This "signature"
+            is generated using the message, the user's private key, the public
+            key, and a cryptographic algorithm.
+          </p>
+
+          <p>
+            To ensure the signature is valid, the same cryptographic algorithm
+            is applied to the message and the public key is obtained. You may be
+            wondering how this is secure, and the answer is that without the
+            private key, the validation of the message and the public key cannot
+            be cryptographically matched, thereby confirming ownership.
           </p>
         </Element>
 
