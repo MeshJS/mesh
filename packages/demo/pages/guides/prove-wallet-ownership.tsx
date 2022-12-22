@@ -22,6 +22,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
     { label: 'Server: Generate nonce and store in database', to: 'step2' },
     { label: 'Client: Verify ownership by signing the nonce', to: 'step3' },
     { label: 'Server: Verify signature', to: 'step4' },
+    { label: 'Put them all together', to: 'step5' },
   ];
 
   async function frontendStep1() {
@@ -61,7 +62,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   }
 
   let codeSnippet1 = `const { wallet, connected } = useWallet();\n\n`;
-  codeSnippet1 += `async function frontendStep1() {\n`;
+  codeSnippet1 += `async function frontendStartLoginProcess() {\n`;
   codeSnippet1 += `  if (connected) {\n`;
   codeSnippet1 += `    const userAddress = (await wallet.getRewardAddresses())[0];\n\n `;
   codeSnippet1 += `    // do: send request with 'userAddress' to the backend\n`;
@@ -69,7 +70,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippet1 += `}\n`;
 
   let codeSnippet2 = `import { generateNonce } from '@meshsdk/core';\n\n`;
-  codeSnippet2 += `async function backendStep1(userAddress) {\n`;
+  codeSnippet2 += `async function backendGetNonce(userAddress) {\n`;
   codeSnippet2 += `  // do: if new user, create new user model in the database\n\n`;
   codeSnippet2 += `  const nonce = generateNonce('Sign to login in to Mesh: ');\n\n`;
   codeSnippet2 += `  // do: store 'nonce' in user model in the database\n\n`;
@@ -77,7 +78,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippet2 += `}\n`;
 
   let codeSnippet3 = ``;
-  codeSnippet3 += `async function frontendStep2(nonce) {\n`;
+  codeSnippet3 += `async function frontendSignMessage(nonce) {\n`;
   codeSnippet3 += `  try {\n`;
   codeSnippet3 += `    const userAddress = (await wallet.getRewardAddresses())[0];\n`;
   codeSnippet3 += `    const signature = await wallet.signData(userAddress, nonce);\n\n`;
@@ -88,7 +89,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippet3 += `}\n`;
 
   let codeSnippet4 = `import { checkSignature } from '@meshsdk/core';\n\n`;
-  codeSnippet4 += `async function backendStep2(userAddress, signature) {\n`;
+  codeSnippet4 += `async function backendVerifySignature(userAddress, signature) {\n`;
   codeSnippet4 += `  // do: get 'nonce' from user (database) using 'userAddress'\n\n`;
   codeSnippet4 += `  const result = checkSignature(nonce, userAddress, signature);\n\n`;
   codeSnippet4 += `  // do: update 'nonce' in the database with another random string\n\n`;
@@ -96,6 +97,64 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippet4 += `  // if could be creating a valid JSON Web Token (JWT) or session\n`;
   codeSnippet4 += `  // if could be something offchain\n`;
   codeSnippet4 += `}\n`;
+
+  let codeSnippetClient = `import { CardanoWallet, useWallet } from '@meshsdk/react';\n\n`;
+  codeSnippetClient += `export default function Page() {\n`;
+  codeSnippetClient += `  const { wallet, connected } = useWallet();\n`;
+  codeSnippetClient += `  \n`;
+  codeSnippetClient += `  async function frontendStartLoginProcess() {\n`;
+  codeSnippetClient += `    if (connected) {\n`;
+  codeSnippetClient += `      const userAddress = (await wallet.getRewardAddresses())[0];\n`;
+  codeSnippetClient += `      const nonce = await backendGetNonce(userAddress);\n`;
+  codeSnippetClient += `      await signMessage(nonce);\n`;
+  codeSnippetClient += `    }\n`;
+  codeSnippetClient += `  }\n`;
+  codeSnippetClient += `  \n`;
+  codeSnippetClient += `  async function frontendSignMessage(nonce) {\n`;
+  codeSnippetClient += `    try {\n`;
+  codeSnippetClient += `      const userAddress = (await wallet.getRewardAddresses())[0];\n`;
+  codeSnippetClient += `      const signature = await wallet.signData(userAddress, nonce);\n`;
+  codeSnippetClient += `      await backendVerifySignature(userAddress, signature);\n`;
+  codeSnippetClient += `    } catch (error) {\n`;
+  codeSnippetClient += `      setState(0);\n`;
+  codeSnippetClient += `    }\n`;
+  codeSnippetClient += `  }\n\n`;
+  codeSnippetClient += `  return (\n`;
+  codeSnippetClient += `    <>\n`;
+  codeSnippetClient += `      <CardanoWallet\n`;
+  codeSnippetClient += `        label="Sign In With Cardano"\n`;
+  codeSnippetClient += `        customCSS={{ width: '20rem' }}\n`;
+  codeSnippetClient += `        onConnected={() => frontendStartLoginProcess()}\n`;
+  codeSnippetClient += `      />\n`;
+  codeSnippetClient += `    </>\n`;
+  codeSnippetClient += `  );\n`;
+  codeSnippetClient += `}\n`;
+
+  let codeSnippetServer = ``;
+  codeSnippetServer += `import { checkSignature, generateNonce } from '@meshsdk/core';\n`;
+  codeSnippetServer += `\n`;
+  codeSnippetServer += `async function backendGetNonce(userAddress) {\n`;
+  codeSnippetServer += `  const nonce = generateNonce('Sign to login in to Mesh: ');\n`;
+  codeSnippetServer += `  return nonce;\n`;
+  codeSnippetServer += `}\n`;
+  codeSnippetServer += `\n`;
+  codeSnippetServer += `async function backendVerifySignature(userAddress, signature) {\n`;
+  codeSnippetServer += `  // do: get 'nonce' from database\n\n`;
+  codeSnippetServer += `  const result = checkSignature(nonce, userAddress, signature);\n`;
+  codeSnippetServer += `  if(result){\n`;
+  codeSnippetServer += `    // create JWT or approve certain process\n`;
+  codeSnippetServer += `  }\n`;
+  codeSnippetServer += `  else{\n`;
+  codeSnippetServer += `    // prompt user that signature is not correct\n`;
+  codeSnippetServer += `  }\n`;
+  codeSnippetServer += `}\n`;
+
+  let codeSnippetWallet = ``;
+  codeSnippetWallet += `<CardanoWallet\n`;
+  codeSnippetWallet += `  label="Sign In With Cardano"\n`;
+  codeSnippetWallet += `  customCSS={{ width: '20rem' }}\n`;
+  codeSnippetWallet += `  onConnected={() => frontendStartLoginProcess()}\n`;
+  codeSnippetWallet += `/>\n`;
 
   return (
     <>
@@ -149,19 +208,6 @@ const GuideLoginWithWalletPage: NextPage = () => {
         <Element name="demo">
           <h2>Demo</h2>
           <p>Try the demo. Sign in with your Cardano wallet.</p>
-          {/* {connected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={frontendStep1}
-                loading={state == 1}
-                response={response}
-                label="Verify wallet"
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <CardanoWallet />
-          )} */}
           <CardanoWallet
             label="Sign In With Cardano"
             customCSS={{ width: '20rem' }}
@@ -175,7 +221,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
         </Element>
 
         <Element name="step1">
-          <h2>Client: Connect wallet and get staking address</h2>
+          <h2>Client: Connect Wallet and Get Staking Address</h2>
           <p>
             The User model stored in the database of the backend server must
             have two compulsory fields: public address and nonce. Furthermore,
@@ -200,7 +246,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
         </Element>
 
         <Element name="step2">
-          <h2>Server: Generate nonce and store in database</h2>
+          <h2>Server: Generate Nonce and Store in Database</h2>
 
           <p>
             We first need to generate a new nonce, which is initialized as a
@@ -261,7 +307,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
         </Element>
 
         <Element name="step4">
-          <h2>Server: Verify signature</h2>
+          <h2>Server: Verify Signature</h2>
 
           <p>
             When the backend receives the request, it retrieves the users from
@@ -293,6 +339,34 @@ const GuideLoginWithWalletPage: NextPage = () => {
             that their account is safe.
           </p>
           <Codeblock data={codeSnippet4} isJson={false} />
+        </Element>
+
+        <Element name="step5">
+          <h2>Put Them All Together</h2>
+          <p>
+            Lets put them all together. Your frontend code should contain two
+            functions <code>frontendStartLoginProcess()</code> and{' '}
+            <code>frontendSignMessage(nonce)</code>.
+          </p>
+          <p>
+            For sign in with wallet, you can use the <code>CardanoWallet</code>{' '}
+            React UI component to connect and sign in with wallet:
+          </p>
+          <Codeblock data={codeSnippetWallet} isJson={false} />
+          <p>Putting the frontend codes together might looks like this:</p>
+          <Codeblock data={codeSnippetClient} isJson={false} />
+          <p>
+            And the server side code should have 2 REST endpoints,{' '}
+            <code>backendGetNonce(userAddress)</code> and{' '}
+            <code>backendVerifySignature(userAddress, signature)</code>, the
+            code might look like this:
+          </p>
+          <Codeblock data={codeSnippetServer} isJson={false} />
+          <p>
+            There you go! Although this guide shows you how you can sign in with
+            wallet, you can use this technique to authenticate any user's
+            actions.
+          </p>
         </Element>
       </GuidesLayout>
     </>
