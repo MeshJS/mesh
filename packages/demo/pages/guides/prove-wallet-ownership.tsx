@@ -14,7 +14,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   const [response, setResponse] = useState<null | any>(null);
 
   const sidebarItems = [
-    { label: 'How does It Work?', to: 'howwork' },
+    { label: 'How does it work?', to: 'howwork' },
     { label: 'Client: Connect wallet and get staking address', to: 'step1' },
     { label: 'Server: Generate nonce and store in database', to: 'step2' },
     { label: 'Client: Verify ownership by signing the nonce', to: 'step3' },
@@ -25,26 +25,19 @@ const GuideLoginWithWalletPage: NextPage = () => {
   async function frontendStep1() {
     if (connected) {
       setState(1);
-
       const userAddress = (await wallet.getRewardAddresses())[0];
-      console.log('userAddress', userAddress);
-
       await backendStep1(userAddress);
     }
   }
 
   async function backendStep1(userAddress) {
     const nonce = generateNonce('Sign to login in to Mesh: ');
-    console.log('nonce', nonce);
-
     await frontendStep2(userAddress, nonce);
   }
 
   async function frontendStep2(userAddress, nonce) {
     try {
       const signature = await wallet.signData(userAddress, nonce);
-      console.log('signature', signature);
-
       await backendStep2(userAddress, nonce, signature);
     } catch (error) {
       setState(0);
@@ -53,7 +46,6 @@ const GuideLoginWithWalletPage: NextPage = () => {
 
   async function backendStep2(userAddress, nonce, signature) {
     const result = checkSignature(nonce, userAddress, signature);
-    console.log('result', result);
     setResponse(result);
     setState(0);
   }
