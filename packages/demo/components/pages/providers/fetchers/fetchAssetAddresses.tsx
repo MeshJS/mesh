@@ -15,8 +15,8 @@ export function fetchAssetAddressesLeft({
   return (
     <>
       <p>
-        Fetch the asset metadata by providing asset's <code>unit</code>, which
-        is the concatenation of policy ID and asset name in hex.
+        Fetch a list of a addresses containing a specific <code>asset</code>{' '}
+        where it is the concatenation of policy ID and asset.
       </p>
       <Codeblock data={code1} isJson={false} />
     </>

@@ -7,7 +7,7 @@ export default function Codeblock({
   language = 'language-js',
   isJson = true,
 }) {
-  const { value, onCopy, hasCopied } = useClipboard(data);
+  const { value, onCopy, hasCopied } = useClipboard(JSON.stringify(data, null, 2));
 
   return (
     <div className="max-h-96 overflow-auto relative not-format mb-4">

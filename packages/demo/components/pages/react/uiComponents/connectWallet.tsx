@@ -24,7 +24,6 @@ function Left() {
         In order for dApps to communicate with the user's wallet, we need a way
         to connect to their wallet.
       </p>
-      <p></p>
       <p>
         Add this <code>CardanoWallet</code> to allow the user to select a wallet
         to connect to your dApp. After the wallet is connected, see{' '}
