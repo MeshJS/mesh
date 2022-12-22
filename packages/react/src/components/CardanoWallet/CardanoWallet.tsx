@@ -1,5 +1,5 @@
 import tw, { styled } from 'twin.macro';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWallet, useWalletList } from '@mesh/hooks';
 import { MenuItem } from '../MenuItem';
 import { WalletBalance } from './WalletBalance';
@@ -8,7 +8,7 @@ const StyledMenuButton = tw.button`
   flex items-center justify-center
   font-normal text-lg
   border rounded-t-md
-  w-60 px-4 py-2
+  px-4 py-2
   shadow-sm
 `;
 
@@ -28,15 +28,26 @@ export const CardanoWallet = ({
     fontSize: '1.125rem',
     borderColor: '#E5E7EB',
     color: 'inherit',
+    width: '15rem',
   },
+  label = 'Connect Wallet',
+  onConnected = undefined,
 }: {
   customCSS?: {};
+  label?: string;
+  onConnected?: any;
 }) => {
   const wallets = useWalletList();
 
   const [hideMenuList, setHideMenuList] = useState(true);
 
   const { connect, connecting, connected, disconnect, name } = useWallet();
+
+  useEffect(() => {
+    if (connected && onConnected) {
+      onConnected();
+    }
+  }, [connected]);
 
   return (
     <div
@@ -52,15 +63,26 @@ export const CardanoWallet = ({
           borderRadius: customCSS['borderRadius'],
           fontSize: customCSS['fontSize'],
           color: customCSS['color'],
+          width: customCSS['width'],
         }}
       >
         <WalletBalance
           name={name}
           connected={connected}
           connecting={connecting}
+          label={label}
         />
       </StyledMenuButton>
-      <StyledMenuList hidden={hideMenuList}>
+      <StyledMenuList
+        hidden={hideMenuList}
+        style={{
+          borderColor: customCSS['borderColor'],
+          borderRadius: customCSS['borderRadius'],
+          fontSize: customCSS['fontSize'],
+          color: customCSS['color'],
+          width: customCSS['width'],
+        }}
+      >
         {!connected && wallets.length > 0 ? (
           wallets.map((wallet, index) => (
             <MenuItem

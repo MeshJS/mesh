@@ -148,7 +148,8 @@ const GuideLoginWithWalletPage: NextPage = () => {
 
         <Element name="demo">
           <h2>Demo</h2>
-          {connected ? (
+          <p>Try the demo. Sign in with your Cardano wallet.</p>
+          {/* {connected ? (
             <>
               <RunDemoButton
                 runDemoFn={frontendStep1}
@@ -160,10 +161,16 @@ const GuideLoginWithWalletPage: NextPage = () => {
             </>
           ) : (
             <CardanoWallet />
-          )}
+          )} */}
+          <CardanoWallet
+            label="Sign In With Cardano"
+            customCSS={{ width: '20rem' }}
+            onConnected={() => frontendStep1()}
+          />
+          <RunDemoResult response={response} label="Signature is valid" />
           <p>
-            Try this demo. You will get <code>true</code> if the nonce has been
-            signed by the user's wallet.
+            You will get <code>true</code> if the nonce has been signed by the
+            user's wallet.
           </p>
         </Element>
 
