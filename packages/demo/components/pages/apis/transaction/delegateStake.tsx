@@ -31,7 +31,7 @@ export default function DelegateStake() {
   return (
     <SectionTwoCol
       sidebarTo="delegateStake"
-      header="Delegate ADA to stakepool"
+      header="Delegate ADA to Stakepool"
       leftFn={Left({ userInput, rewardAddress })}
       rightFn={Right({ userInput, setUserInput })}
     />

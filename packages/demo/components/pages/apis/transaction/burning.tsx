@@ -64,7 +64,7 @@ export default function Burning() {
   return (
     <SectionTwoCol
       sidebarTo="burning"
-      header="Burning assets"
+      header="Burning Assets"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField, walletAssets })}
     />

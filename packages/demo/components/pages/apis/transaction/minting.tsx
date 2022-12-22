@@ -86,7 +86,7 @@ export default function Minting() {
   return (
     <SectionTwoCol
       sidebarTo="minting"
-      header="Minting assets"
+      header="Minting Assets"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />

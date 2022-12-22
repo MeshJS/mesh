@@ -9,6 +9,21 @@
       <loc>https://meshjs.dev/guides</loc>
   </url>
   <url>
+      <loc>https://meshjs.dev/guides/nextjs</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/guides/minting-on-nodejs</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/guides/multisig-minting</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/guides/smart-contract</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/guides/prove-wallet-ownership</loc>
+  </url>
+  <url>
       <loc>https://meshjs.dev/migration-manual-installation</loc>
   </url>
   <url>

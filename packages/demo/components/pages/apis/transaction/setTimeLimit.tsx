@@ -5,7 +5,7 @@ export default function SetTimeLimit() {
   return (
     <SectionTwoCol
       sidebarTo="setTimeLimit"
-      header="Set start and expire time"
+      header="Set Start and Expire Time"
       leftFn={Left()}
       rightFn={Right()}
     />

@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
-import Input from '../../../ui/input';
-import Button from '../../../ui/button';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
+import useWallet from '../../../../../contexts/wallet';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
+import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses, demoCLIKey } from '../../../../configs/demo';
 import {
-  AppWallet,
-  Transaction,
-  ForgeScript,
-  AssetMetadata,
-  BlockfrostProvider,
-} from '@meshsdk/core';
-import type { Mint } from '@meshsdk/core';
-import Textarea from '../../../ui/textarea';
+  demoAddresses,
+  demoPlutusMintingScript,
+} from '../../../../../configs/demo';
+import { Transaction, ForgeScript, AssetMetadata } from '@meshsdk/core';
+import type { Mint, Action } from '@meshsdk/core';
+import Textarea from '../../../../ui/textarea';
 import Link from 'next/link';
+import { PlutusScript } from '@meshsdk/core';
 
 const defaultMetadata = {
   name: 'Mesh Token',
@@ -26,7 +26,9 @@ const defaultMetadata = {
   description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
 };
 
-export default function GetSize() {
+export default function PlutusMinting() {
+  const { wallet, walletConnected } = useWallet();
+
   const [userInput, setUserInput] = useState<{}[]>([
     {
       address: demoAddresses.testnet,
@@ -39,6 +41,12 @@ export default function GetSize() {
 
   async function updateField(action, index, field, value) {
     let _address = demoAddresses.testnet;
+    if (walletConnected) {
+      _address =
+        (await wallet.getNetworkId()) === 1
+          ? demoAddresses.mainnet
+          : demoAddresses.testnet;
+    }
 
     let updated = [...userInput];
     if (action == 'add') {
@@ -50,7 +58,7 @@ export default function GetSize() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1 || field == 'metadata') {
+      if (value >= 1 || field == 'metadata' || field == 'assetName') {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -59,10 +67,30 @@ export default function GetSize() {
     setUserInput(updated);
   }
 
+  useEffect(() => {
+    async function init() {
+      const usedAddress = await wallet.getUsedAddresses();
+      const address = usedAddress[0];
+      let updated = [
+        {
+          address: address,
+          assetName: 'MeshToken',
+          metadata: JSON.stringify(defaultMetadata, null, 2),
+          assetLabel: '721',
+          quantity: 1,
+        },
+      ];
+      setUserInput(updated);
+    }
+    if (walletConnected) {
+      init();
+    }
+  }, [walletConnected]);
+
   return (
     <SectionTwoCol
-      sidebarTo="getSize"
-      header="Get Transaction Size"
+      sidebarTo="plutusminting"
+      header="Minting Assets with Smart Contract"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />
@@ -70,114 +98,9 @@ export default function GetSize() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
-  codeSnippet += `import type { Mint, AssetMetadata } from '@meshsdk/core';\n\n`;
-
-  codeSnippet += `// prepare forgingScript\n`;
-  codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet += `const address = usedAddress[0];\n`;
-  codeSnippet += `const forgingScript = ForgeScript.withOneSignature(address);\n\n`;
-
-  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n\n`;
-
-  let counter = 1;
-  for (const recipient of userInput) {
-    let _metadata = JSON.stringify(
-      { error: 'Not a valid javascript object' },
-      null,
-      2
-    );
-    try {
-      _metadata = JSON.stringify(JSON.parse(recipient.metadata), null, 2);
-    } catch (error) {}
-    codeSnippet += `// define asset#${counter} metadata\n`;
-    codeSnippet += `const assetMetadata${counter}: AssetMetadata = ${_metadata};\n`;
-    codeSnippet += `const asset${counter}: Mint = {\n`;
-    codeSnippet += `  assetName: '${recipient.assetName}',\n`;
-    codeSnippet += `  assetQuantity: '${recipient.quantity}',\n`;
-    codeSnippet += `  metadata: assetMetadata${counter},\n`;
-    codeSnippet += `  label: '${recipient.assetLabel}',\n`;
-    codeSnippet += `  recipient: {\n`;
-    codeSnippet += `    address: '${recipient.address}',\n`;
-    codeSnippet += `  },\n`;
-    codeSnippet += `};\n`;
-    codeSnippet += `tx.mintAsset(\n`;
-    codeSnippet += `  forgingScript,\n`;
-    codeSnippet += `  asset${counter},\n`;
-    codeSnippet += `);\n\n`;
-    counter++;
-  }
-
-  codeSnippet += `const unsignedTx = await tx.build();\n`;
-  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
-
-  let codeSnippet1 = `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet1 += `const address = usedAddress[0];\n`;
-  codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
-
-  let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
-    defaultMetadata,
-    null,
-    2
-  )};\n`;
-  codeSnippet2 += `const asset: Mint = {\n`;
-  codeSnippet2 += `  assetName: 'MeshToken',\n`;
-  codeSnippet2 += `  assetQuantity: '1',\n`;
-  codeSnippet2 += `  metadata: assetMetadata,\n`;
-  codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: {\n`;
-  codeSnippet2 += `    address: '${demoAddresses.testnet}',\n`;
-  codeSnippet2 += `  },\n`;
-  codeSnippet2 += `};\n`;
-  codeSnippet2 += `tx.mintAsset(\n`;
-  codeSnippet2 += `  forgingScript,\n`;
-  codeSnippet2 += `  asset,\n`;
-  codeSnippet2 += `);`;
-
-  let codeSnippetNative = ``;
-  codeSnippetNative += `import type { NativeScript } from '@meshsdk/core';\n`;
-  codeSnippetNative += `\n`;
-  codeSnippetNative += `const nativeScript: NativeScript = {\n`;
-  codeSnippetNative += `  type: 'all',\n`;
-  codeSnippetNative += `  scripts:\n`;
-  codeSnippetNative += `  [\n`;
-  codeSnippetNative += `    {\n`;
-  codeSnippetNative += `      type: 'before',\n`;
-  codeSnippetNative += `      slot: '<insert slot here>'\n`;
-  codeSnippetNative += `    },\n`;
-  codeSnippetNative += `    {\n`;
-  codeSnippetNative += `      type: 'sig',\n`;
-  codeSnippetNative += `      keyHash: '<insert keyHash here>'\n`;
-  codeSnippetNative += `    }\n`;
-  codeSnippetNative += `  ]\n`;
-  codeSnippetNative += `};\n`;
-  codeSnippetNative += `\n`;
-  codeSnippetNative += `const forgingScript = ForgeScript.fromNativeScript(nativeScript);\n`;
-
   return (
     <>
-      <p>
-        Firstly, we need to define the <code>forgingScript</code> with{' '}
-        <code>ForgeScript</code>. We use the first wallet address as the
-        "minting address" (you can use other addresses).
-      </p>
-      <Codeblock data={codeSnippet1} isJson={false} />
-      <p>Then, we define the metadata.</p>
-      <Codeblock data={codeSnippet2} isJson={false} />
-      <p>Here is the full code:</p>
-      <Codeblock data={codeSnippet} isJson={false} />
-      <p>
-        Additionally, you can include <code>NativeScript</code> to define the
-        forging script (for example if you want to have a policy locking
-        script), you can do this:
-      </p>
-      <Codeblock data={codeSnippetNative} isJson={false} />
-      <p>
-        As for the <code>keyHash</code>, you can get it using{' '}
-        <code>resolvePaymentKeyHash</code>, see{' '}
-        <Link href="/apis/resolvers">Resolvers</Link>.
-      </p>
+      <p></p>
     </>
   );
 }
@@ -186,81 +109,81 @@ function Right({ userInput, updateField }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
+  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
 
   async function runDemo() {
     setState(1);
     setResponseError(null);
 
-    try {
-      const blockchainProvider = new BlockfrostProvider(process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!);
+    // try {
+    const script: PlutusScript = {
+      code: demoPlutusMintingScript,
+      version: 'V2',
+    };
+    const redeemer: Partial<Action> = {
+      data: { alternative: 0, fields: [] },
+      tag: 'MINT',
+    };
 
-      const wallet = new AppWallet({
-        networkId: 0,
-        fetcher: blockchainProvider,
-        submitter: blockchainProvider,
-        key: {
-          type: 'cli',
-          payment: demoCLIKey.paymentSkey,
-          stake: demoCLIKey.stakeSkey,
-        },
-      });
+    const tx = new Transaction({ initiator: wallet });
 
-      const walletAddress = wallet.getPaymentAddress();
-      const forgingScript = ForgeScript.withOneSignature(walletAddress);
-
-      const tx = new Transaction({ initiator: wallet });
-
-      for (const recipient of userInput) {
-        let assetMetadata: undefined | AssetMetadata = undefined;
-        try {
-          assetMetadata = JSON.parse(recipient.metadata);
-        } catch (error) {
-          setResponseError(
-            'Problem parsing metadata. Must be a valid JavaScript object.'
-          );
-          setState(0);
-        }
-        if (assetMetadata == undefined) {
-          return;
-        }
-
-        const asset: Mint = {
-          assetName: recipient.assetName,
-          assetQuantity: recipient.quantity.toString(),
-          metadata: assetMetadata,
-          label: recipient.assetLabel,
-          recipient: {
-            address: recipient.address,
-          },
-        };
-        tx.mintAsset(forgingScript, asset);
+    for (const recipient of userInput) {
+      let assetMetadata: undefined | AssetMetadata = undefined;
+      try {
+        assetMetadata = JSON.parse(recipient.metadata);
+      } catch (error) {
+        setResponseError(
+          'Problem parsing metadata. Must be a valid JavaScript object.'
+        );
+        setState(0);
+      }
+      if (assetMetadata == undefined) {
+        return;
       }
 
-      // const unsignedTx = await tx.build();
-      // const signedTx = await wallet.signTx(unsignedTx);
-      // const txHash = await wallet.submitTx(signedTx);
-      
-      // const size = tx.size;
-      // console.log(11, size);
-      // const fee = tx.fee;
-      // console.log(22, fee);
-      // setResponse(size);
-      setState(2);
-    } catch (error) {
-      setResponseError(`${error}`);
-      setState(0);
+      const asset: Mint = {
+        assetName: recipient.assetName,
+        assetQuantity: recipient.quantity.toString(),
+        metadata: assetMetadata,
+        label: recipient.assetLabel,
+        recipient: recipient.address,
+      };
+      console.log({ script });
+      console.log({ redeemer });
+      console.log({ asset });
+      tx.mintAsset(script, asset, redeemer); // abdel: error here
     }
+
+    const unsignedTx = await tx.build();
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
+    setResponse(txHash);
+    setState(2);
+    // } catch (error) {
+    //   setResponseError(JSON.stringify(error));
+    //   setState(0);
+    // }
   }
 
   return (
     <Card>
       <InputTable userInput={userInput} updateField={updateField} />
-      <RunDemoButton
-        runDemoFn={runDemo}
-        loading={state == 1}
-        response={response}
-      />
-      <RunDemoResult response={response} />
+      {hasAvailableWallets && (
+        <>
+          {walletConnected ? (
+            <>
+              <RunDemoButton
+                runDemoFn={runDemo}
+                loading={state == 1}
+                response={response}
+              />
+              <RunDemoResult response={response} />
+            </>
+          ) : (
+            <ConnectCipWallet />
+          )}
+        </>
+      )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );
