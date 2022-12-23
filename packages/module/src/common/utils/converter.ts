@@ -9,8 +9,8 @@ import {
   deserializeTxHash,
 } from './deserializer';
 import type {
-  RedeemerTag, ScriptRef,
-  TransactionUnspentOutput, Value,
+  PlutusData, PlutusList, PlutusMap, RedeemerTag,
+  ScriptRef, TransactionUnspentOutput, Value,
 } from '@mesh/core';
 import type {
   Action, Asset, Data, NativeScript,
@@ -164,6 +164,58 @@ export const toNativeScript = (script: NativeScript) => {
 };
 
 /* -----------------[ PlutusData ]----------------- */
+
+export const fromPlutusData = (plutusData: PlutusData) => {
+  const fromPlutusList = (plutusList: PlutusList) => {
+    const dataList: Data[] = [];
+    for (let index = 0; index < plutusList.len(); index += 1) {
+      dataList.push(fromPlutusData(plutusList.get(index)));
+    }
+
+    return dataList;
+  };
+
+  const fromPlutusMap = (plutusMap: PlutusMap) => {
+    const dataMap = new Map<Data, Data>();
+    for (let index = 0; index < plutusMap.len(); index += 1) {
+      const key = plutusMap.keys().get(index);
+      const value = plutusMap.get(key) ?? csl.PlutusData
+        .from_hex(fromUTF8('NO_ITEM_FOUND_INSIDE_GOLD_ROOM'));
+
+      dataMap.set(
+        fromPlutusData(key),
+        fromPlutusData(value),
+      );
+    }
+
+    return dataMap;
+  };
+
+  switch (plutusData.kind()) {
+    case csl.PlutusDataKind.Bytes:
+      return fromBytes(plutusData.as_bytes() ?? new Uint8Array());
+    case csl.PlutusDataKind.Integer:
+      return parseInt(plutusData.as_integer()?.to_str() ?? '0', 10);
+    case csl.PlutusDataKind.List:
+      return fromPlutusList(plutusData.as_list() ?? csl.PlutusList.new());
+    case csl.PlutusDataKind.Map:
+      return fromPlutusMap(plutusData.as_map() ?? csl.PlutusMap.new());
+    case csl.PlutusDataKind.ConstrPlutusData:
+      return <Data>{
+        alternative: parseInt(
+          plutusData.as_constr_plutus_data()?.alternative().to_str() ?? '0',
+          10,
+        ),
+        fields: fromPlutusList(
+          plutusData.as_constr_plutus_data()?.data() ?? csl.PlutusList.new(),
+        ),
+      };
+    default:
+      throw new Error(
+        `PlutusData Kind: ${plutusData.kind()}, is not supported`,
+      );
+  }
+};
 
 export const toPlutusData = (data: Data) => {
   const toPlutusList = (data: Data[]) => {
