@@ -8,8 +8,7 @@ export default function Codeblock({
   isJson = true,
 }) {
   const { value, onCopy, hasCopied } = useClipboard(
-    // JSON.stringify(data, null, 2)
-    data
+    isJson ? JSON.stringify(data, null, 2) : data
   );
 
   return (
