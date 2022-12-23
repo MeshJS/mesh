@@ -112,7 +112,10 @@ export class Transaction {
 
   async build(): Promise<string> {
     try {
-      if (this.notVisited('redeemValue') === false) {
+      if (
+        this._mintBuilder.has_plutus_scripts() ||
+        this.notVisited('redeemValue') === false
+      ) {
         await this.addRequiredSignersIfNeeded();
         await this.addCollateralIfNeeded();
       }
@@ -129,7 +132,7 @@ export class Transaction {
 
   burnAsset(
     forgeScript: string | PlutusScript | UTxO,
-    asset: Asset, redeemer?: Action,
+    asset: Asset, redeemer?: Partial<Action>,
   ): Transaction {
     const totalQuantity = this._totalBurns.has(asset.unit)
       ? csl.BigNum.from_str(this._totalBurns.get(asset.unit) ?? '0')
@@ -179,7 +182,7 @@ export class Transaction {
   @Checkpoint()
   mintAsset(
     forgeScript: string | PlutusScript | UTxO,
-    mint: Mint, redeemer?: Action,
+    mint: Mint, redeemer?: Partial<Action>,
   ): Transaction {
     const toAsset = (
       forgeScript: string | PlutusScript | UTxO, mint: Mint,
@@ -531,7 +534,10 @@ export class Transaction {
       this._txBuilder.add_inputs_from(availableUTxOs, coinSelectionStrategy);
     }
 
-    if (this.notVisited('redeemValue') === false) {
+    if (
+      this._txBuilder.get_mint_builder() ||
+      this.notVisited('redeemValue') === false
+    ) {
       const costModels = this._era !== undefined
         ? SUPPORTED_COST_MODELS[this._era]
         : SUPPORTED_COST_MODELS.BABBAGE;

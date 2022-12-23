@@ -1,6 +1,6 @@
 import { csl } from '@mesh/core';
 import {
-  DEFAULT_PROTOCOL_PARAMETERS, LANGUAGE_VERSIONS,
+  DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET, LANGUAGE_VERSIONS,
 } from '@mesh/common/constants';
 import {
   fromScriptRef, fromUTF8, toAddress, toBytes,
@@ -89,7 +89,7 @@ export const buildGeneralTxMetadata = (metadata: Record<string, unknown>) => {
 
 export const buildMintWitness = (
   script: string | PlutusScript | UTxO,
-  redeemer?: Action,
+  redeemer?: Partial<Action>,
 ): MintWitness => {
   if (typeof script === 'string') {
     return csl.MintWitness.new_native_script(
@@ -104,7 +104,15 @@ export const buildMintWitness = (
     throw new Error('Minting redeemer\'s tag must be defined as \'MINT\'');
 
   return csl.MintWitness.new_plutus_script(
-    buildPlutusScriptSource(script), toRedeemer(redeemer),
+    buildPlutusScriptSource(script), toRedeemer({
+      tag: 'MINT', index: 0,
+      budget: DEFAULT_REDEEMER_BUDGET,
+      data: {
+        alternative: 0,
+        fields: [],
+      },
+      ...redeemer,
+    }),
   );
 };
 

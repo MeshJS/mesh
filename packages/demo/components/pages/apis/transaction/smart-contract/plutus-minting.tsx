@@ -121,7 +121,6 @@ function Right({ userInput, updateField }) {
       version: 'V2',
     };
     const redeemer: Partial<Action> = {
-      data: { alternative: 0, fields: [] },
       tag: 'MINT',
     };
 
@@ -148,10 +147,7 @@ function Right({ userInput, updateField }) {
         label: recipient.assetLabel,
         recipient: recipient.address,
       };
-      console.log({ script });
-      console.log({ redeemer });
-      console.log({ asset });
-      tx.mintAsset(script, asset, redeemer); // abdel: error here
+      tx.mintAsset(script, asset, redeemer);
     }
 
     const unsignedTx = await tx.build();
