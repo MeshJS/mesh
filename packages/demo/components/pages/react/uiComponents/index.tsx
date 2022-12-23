@@ -24,7 +24,7 @@ function Main() {
     <>
       <UiConnectWallet />
       <UiStakeButton />
-      <UiAssetViewer />
+      {/* <UiAssetViewer /> */}
       <UiPoweredByMesh />
     </>
   );
