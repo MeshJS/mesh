@@ -13,9 +13,15 @@ import {
   demoAddresses,
   demoPlutusMintingScript,
 } from '../../../../../configs/demo';
-import { Transaction } from '@meshsdk/core';
-import type { Mint, Action, PlutusScript, AssetMetadata } from '@meshsdk/core';
+import {
+  Transaction,
+  Mint,
+  Action,
+  PlutusScript,
+  AssetMetadata,
+} from '@meshsdk/core';
 import Textarea from '../../../../ui/textarea';
+import Link from 'next/link';
 
 const defaultMetadata = {
   name: 'Mesh Token',
@@ -103,7 +109,7 @@ export default function PlutusMinting() {
 
 function Left({ userInput }) {
   let codeSnippet = `import { Transaction } from '@meshsdk/core';\n`;
-  codeSnippet += `import type { AssetMetadata, Mint, Action, PlutusScript } from '@meshsdk/core';\n\n`;
+  codeSnippet += `import { AssetMetadata, Mint, Action, PlutusScript } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `const script: PlutusScript = {\n`;
   codeSnippet += `  code: plutusMintingScriptCbor,\n`;
@@ -146,7 +152,7 @@ function Left({ userInput }) {
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
-  let codeSnippetScript = `import type { Action, PlutusScript } from '@meshsdk/core';\n\n`;
+  let codeSnippetScript = `import { Action, PlutusScript } from '@meshsdk/core';\n\n`;
   codeSnippetScript += `const script: PlutusScript = {\n`;
   codeSnippetScript += `  code: plutusMintingScriptCbor,\n`;
   codeSnippetScript += `  version: 'V2',\n`;
@@ -155,7 +161,7 @@ function Left({ userInput }) {
   codeSnippetScript += `  tag: 'MINT',\n`;
   codeSnippetScript += `};\n`;
 
-  let codeSnippetTx = `import type { AssetMetadata, Mint } from '@meshsdk/core';\n\n`;
+  let codeSnippetTx = `import { AssetMetadata, Mint } from '@meshsdk/core';\n\n`;
   codeSnippetTx += `const assetMetadata1: AssetMetadata = {\n`;
   codeSnippetTx += `  "name": "Mesh Token",\n`;
   codeSnippetTx += `  ...\n`;
@@ -195,9 +201,12 @@ function Left({ userInput }) {
       </p>
 
       <p>
-        Then, we define the assets and its metadata, and add the{' '}
-        <code>script</code> (<code>PlutusScript</code>), <code>redeemer</code> (
-        <code>Action</code>), and the
+        Then, we{' '}
+        <Link href="/apis/transaction/smart-contract#plutusminting">
+          define the assets and its metadata
+        </Link>
+        , and add the <code>script</code> (<code>PlutusScript</code>),{' '}
+        <code>redeemer</code> (<code>Action</code>), and the
         <code>asset</code> (<code>Mint</code>) to the transaction:
       </p>
       <Codeblock data={codeSnippetTx} isJson={false} />
