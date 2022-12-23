@@ -54,7 +54,13 @@ export default function Minting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1 || field == 'metadata' || field == 'assetName') {
+      if (
+        field == 'metadata' ||
+        field == 'assetName' ||
+        field == 'address' ||
+        field == 'assetLabel' ||
+        field == 'quantity'
+      ) {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -177,6 +183,14 @@ function Left({ userInput }) {
 
   return (
     <>
+      <p>
+        In this section, we will see how to mint native assets with a{' '}
+        <code>ForgeScript</code>. For minting assets with smart contract, visit{' '}
+        <Link href="/apis/transaction/smart-contract#plutusminting">
+          Transaction - Smart Contract - Minting Assets with Smart Contract
+        </Link>
+        .
+      </p>
       <p>
         Firstly, we need to define the <code>forgingScript</code> with{' '}
         <code>ForgeScript</code>. We use the first wallet address as the

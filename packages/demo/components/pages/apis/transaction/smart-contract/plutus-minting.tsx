@@ -13,11 +13,9 @@ import {
   demoAddresses,
   demoPlutusMintingScript,
 } from '../../../../../configs/demo';
-import { Transaction, ForgeScript, AssetMetadata } from '@meshsdk/core';
-import type { Mint, Action } from '@meshsdk/core';
+import { Transaction } from '@meshsdk/core';
+import type { Mint, Action, PlutusScript, AssetMetadata } from '@meshsdk/core';
 import Textarea from '../../../../ui/textarea';
-import Link from 'next/link';
-import { PlutusScript } from '@meshsdk/core';
 
 const defaultMetadata = {
   name: 'Mesh Token',
@@ -58,7 +56,13 @@ export default function PlutusMinting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1 || field == 'metadata' || field == 'assetName') {
+      if (
+        field == 'metadata' ||
+        field == 'assetName' ||
+        field == 'address' ||
+        field == 'assetLabel' ||
+        field == 'quantity'
+      ) {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -98,9 +102,108 @@ export default function PlutusMinting() {
 }
 
 function Left({ userInput }) {
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n`;
+  codeSnippet += `import type { AssetMetadata, Mint, Action, PlutusScript } from '@meshsdk/core';\n\n`;
+
+  codeSnippet += `const script: PlutusScript = {\n`;
+  codeSnippet += `  code: plutusMintingScriptCbor,\n`;
+  codeSnippet += `  version: 'V2',\n`;
+  codeSnippet += `};\n\n`;
+  codeSnippet += `const redeemer: Partial<Action> = {\n`;
+  codeSnippet += `  tag: 'MINT',\n`;
+  codeSnippet += `};\n\n`;
+
+  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n\n`;
+
+  let counter = 1;
+  for (const recipient of userInput) {
+    let _metadata = JSON.stringify(
+      { error: 'Not a valid javascript object' },
+      null,
+      2
+    );
+    try {
+      _metadata = JSON.stringify(JSON.parse(recipient.metadata), null, 2);
+    } catch (error) {}
+    codeSnippet += `// define asset#${counter} metadata\n`;
+    codeSnippet += `const assetMetadata${counter}: AssetMetadata = ${_metadata};\n`;
+    codeSnippet += `const asset${counter}: Mint = {\n`;
+    codeSnippet += `  assetName: '${recipient.assetName}',\n`;
+    codeSnippet += `  assetQuantity: '${recipient.quantity}',\n`;
+    codeSnippet += `  metadata: assetMetadata${counter},\n`;
+    codeSnippet += `  label: '${recipient.assetLabel}',\n`;
+    codeSnippet += `  recipient: '${recipient.address}',\n`;
+    codeSnippet += `};\n`;
+    codeSnippet += `tx.mintAsset(\n`;
+    codeSnippet += `  script,\n`;
+    codeSnippet += `  asset${counter},\n`;
+    codeSnippet += `  redeemer,\n`;
+    codeSnippet += `);\n\n`;
+    counter++;
+  }
+
+  codeSnippet += `const unsignedTx = await tx.build();\n`;
+  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
+
+  let codeSnippetScript = `import type { Action, PlutusScript } from '@meshsdk/core';\n\n`;
+  codeSnippetScript += `const script: PlutusScript = {\n`;
+  codeSnippetScript += `  code: plutusMintingScriptCbor,\n`;
+  codeSnippetScript += `  version: 'V2',\n`;
+  codeSnippetScript += `};\n\n`;
+  codeSnippetScript += `const redeemer: Partial<Action> = {\n`;
+  codeSnippetScript += `  tag: 'MINT',\n`;
+  codeSnippetScript += `};\n`;
+
+  let codeSnippetTx = `import type { AssetMetadata, Mint } from '@meshsdk/core';\n\n`;
+  codeSnippetTx += `const assetMetadata1: AssetMetadata = {\n`;
+  codeSnippetTx += `  "name": "Mesh Token",\n`;
+  codeSnippetTx += `  ...\n`;
+  codeSnippetTx += `}\n\n`;
+  codeSnippetTx += `const asset: Mint = {\n`;
+  codeSnippetTx += `  assetName: 'MeshToken',\n`;
+  codeSnippetTx += `  ...\n`;
+  codeSnippetTx += `}\n\n`;
+  codeSnippetTx += `tx.mintAsset(script, asset, redeemer);\n`;
+
   return (
     <>
-      <p></p>
+      <p>
+        In this demo, we will use a Plutus Script to mint tokens. This script is
+        designed to always succeed, meaning that anyone can sign and mint tokens
+        with it, as there are no validation on this script.
+      </p>
+
+      <p>
+        Firstly, we create a new <code>PlutusScript</code> and redeemer (
+        <code>Action</code>):
+      </p>
+
+      <Codeblock data={codeSnippetScript} isJson={false} />
+
+      <p>
+        You can get the always succeed Plutus script CBOR (to replace{' '}
+        <code>plutusMintingScriptCbor</code>) from this{' '}
+        <a
+          href="https://gist.github.com/jinglescode/23d173ea382a0d3589cdf5170c0aca60"
+          target="_blank"
+          rel="noreferrer"
+        >
+          gist
+        </a>
+        .
+      </p>
+
+      <p>
+        Then, we define the assets and its metadata, and add the{' '}
+        <code>script</code> (<code>PlutusScript</code>), <code>redeemer</code> (
+        <code>Action</code>), and the
+        <code>asset</code> (<code>Mint</code>) to the transaction:
+      </p>
+      <Codeblock data={codeSnippetTx} isJson={false} />
+
+      <p>Here is the full code:</p>
+      <Codeblock data={codeSnippet} isJson={false} />
     </>
   );
 }
@@ -115,50 +218,50 @@ function Right({ userInput, updateField }) {
     setState(1);
     setResponseError(null);
 
-    // try {
-    const script: PlutusScript = {
-      code: demoPlutusMintingScript,
-      version: 'V2',
-    };
-    const redeemer: Partial<Action> = {
-      tag: 'MINT',
-    };
-
-    const tx = new Transaction({ initiator: wallet });
-
-    for (const recipient of userInput) {
-      let assetMetadata: undefined | AssetMetadata = undefined;
-      try {
-        assetMetadata = JSON.parse(recipient.metadata);
-      } catch (error) {
-        setResponseError(
-          'Problem parsing metadata. Must be a valid JavaScript object.'
-        );
-        setState(0);
-      }
-      if (assetMetadata == undefined) {
-        return;
-      }
-
-      const asset: Mint = {
-        assetName: recipient.assetName,
-        assetQuantity: recipient.quantity.toString(),
-        metadata: assetMetadata,
-        label: recipient.assetLabel,
-        recipient: recipient.address,
+    try {
+      const script: PlutusScript = {
+        code: demoPlutusMintingScript,
+        version: 'V2',
       };
-      tx.mintAsset(script, asset, redeemer);
-    }
+      const redeemer: Partial<Action> = {
+        tag: 'MINT',
+      };
 
-    const unsignedTx = await tx.build();
-    const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await wallet.submitTx(signedTx);
-    setResponse(txHash);
-    setState(2);
-    // } catch (error) {
-    //   setResponseError(JSON.stringify(error));
-    //   setState(0);
-    // }
+      const tx = new Transaction({ initiator: wallet });
+
+      for (const recipient of userInput) {
+        let assetMetadata: undefined | AssetMetadata = undefined;
+        try {
+          assetMetadata = JSON.parse(recipient.metadata);
+        } catch (error) {
+          setResponseError(
+            'Problem parsing metadata. Must be a valid JavaScript object.'
+          );
+          setState(0);
+        }
+        if (assetMetadata == undefined) {
+          return;
+        }
+
+        const asset: Mint = {
+          assetName: recipient.assetName,
+          assetQuantity: recipient.quantity.toString(),
+          metadata: assetMetadata,
+          label: recipient.assetLabel,
+          recipient: recipient.address,
+        };
+        tx.mintAsset(script, asset, redeemer);
+      }
+
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx);
+      const txHash = await wallet.submitTx(signedTx);
+      setResponse(txHash);
+      setState(2);
+    } catch (error) {
+      setResponseError(JSON.stringify(error));
+      setState(0);
+    }
   }
 
   return (
