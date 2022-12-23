@@ -312,7 +312,7 @@ export class Transaction {
 
   @Checkpoint()
   sendAssets(
-    recipient: Recipient, assets: Asset[],
+    recipient: Recipient, assets: Asset[], lovelace?: string
   ): Transaction {
     const amount = toValue(assets);
     const multiAsset = amount.multiasset();
@@ -324,10 +324,17 @@ export class Transaction {
       recipient,
     );
 
-    const txOutput = txOutputBuilder.next()
-      .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
+    const tx = txOutputBuilder.next();
+
+    if (lovelace) {
+      tx.with_coin_and_asset(csl.BigNum.from_str(lovelace), multiAsset);
+    } else {
+      tx.with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
         buildDataCost(this._protocolParameters.coinsPerUTxOSize),
-      ).build();
+      );
+    }
+      
+    const txOutput =  tx.build();
 
     this._txBuilder.add_output(txOutput);
 
