@@ -4,16 +4,14 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import { Transaction } from '@meshsdk/core';
 
 export default function WithdrawRewards() {
-  const { wallet, walletConnected } = useWallet();
-  const [userInput, setUserInput] = useState<string>(
-    '1000000'
-  );
+  const { wallet, connected } = useWallet();
+  const [userInput, setUserInput] = useState<string>('1000000');
   const [rewardAddress, setRewardAddress] = useState<string>(
     'stake_test1uzx0ksy9f4qnj2mzfdncqyjy84sszh64w43853nug5pedjgytgke9'
   );
@@ -23,10 +21,10 @@ export default function WithdrawRewards() {
       const rewardAddresses = await wallet.getRewardAddresses();
       setRewardAddress(rewardAddresses[0]);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   return (
     <SectionTwoCol
@@ -63,7 +61,7 @@ function Right({ userInput, setUserInput }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
@@ -95,22 +93,20 @@ function Right({ userInput, setUserInput }) {
         placeholder="lovelace amount"
         label="lovelace amount"
       />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
+
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );

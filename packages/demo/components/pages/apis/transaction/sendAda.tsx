@@ -4,16 +4,16 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
 import { Transaction } from '@meshsdk/core';
+import { useWallet, useWalletList } from '@meshsdk/react';
 
 export default function SendAda() {
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<
     { address: string; assets: { lovelace: number } }[]
   >([
@@ -46,10 +46,10 @@ export default function SendAda() {
       ];
       setUserInput(newRecipents);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   function updateField(action, index, field, value) {
     let updated = [...userInput];
@@ -119,7 +119,9 @@ function Right({ userInput, updateField }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
+  const wallets = useWalletList();
+  const hasAvailableWallets = wallets.length > 0;
 
   async function runDemo() {
     setState(1);
@@ -151,7 +153,7 @@ function Right({ userInput, updateField }) {
       <InputTable userInput={userInput} updateField={updateField} />
       {hasAvailableWallets && (
         <>
-          {walletConnected ? (
+          {connected ? (
             <>
               <RunDemoButton
                 runDemoFn={runDemo}

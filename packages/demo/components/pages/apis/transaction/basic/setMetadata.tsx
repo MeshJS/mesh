@@ -4,11 +4,10 @@ import Card from '../../../../ui/card';
 import RunDemoButton from '../../../../common/runDemoButton';
 import RunDemoResult from '../../../../common/runDemoResult';
 import SectionTwoCol from '../../../../common/sectionTwoCol';
-import useWallet from '../../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../../common/connectCipWallet';
 import Input from '../../../../ui/input';
 import { Transaction } from '@meshsdk/core';
-import Link from 'next/link';
 import { demoAddresses } from '../../../../../configs/demo';
 
 export default function TxSetMetadata() {
@@ -80,15 +79,13 @@ function Right({ userInput, setUserInput }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
     setResponseError(null);
 
     try {
-      console.log('walletConnected', walletConnected, demoAddresses.testnet);
-
       const tx = new Transaction({ initiator: wallet });
       tx.sendLovelace(demoAddresses.testnet, '1000000');
       tx.setMetadata(0, userInput);
@@ -113,21 +110,18 @@ function Right({ userInput, setUserInput }) {
         placeholder="Metadata"
         label="Metadata"
       />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>

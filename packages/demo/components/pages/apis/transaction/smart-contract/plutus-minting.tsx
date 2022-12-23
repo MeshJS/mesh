@@ -4,7 +4,7 @@ import Card from '../../../../ui/card';
 import RunDemoButton from '../../../../common/runDemoButton';
 import RunDemoResult from '../../../../common/runDemoResult';
 import SectionTwoCol from '../../../../common/sectionTwoCol';
-import useWallet from '../../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../../common/connectCipWallet';
 import Input from '../../../../ui/input';
 import Button from '../../../../ui/button';
@@ -31,7 +31,7 @@ const defaultMetadata = {
 };
 
 export default function PlutusMinting() {
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
 
   const [userInput, setUserInput] = useState<{}[]>([
     {
@@ -45,7 +45,7 @@ export default function PlutusMinting() {
 
   async function updateField(action, index, field, value) {
     let _address = demoAddresses.testnet;
-    if (walletConnected) {
+    if (connected) {
       _address =
         (await wallet.getNetworkId()) === 1
           ? demoAddresses.mainnet
@@ -92,10 +92,10 @@ export default function PlutusMinting() {
       ];
       setUserInput(updated);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   return (
     <SectionTwoCol
@@ -221,7 +221,7 @@ function Right({ userInput, updateField }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
@@ -276,21 +276,18 @@ function Right({ userInput, updateField }) {
   return (
     <Card>
       <InputTable userInput={userInput} updateField={updateField} />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>

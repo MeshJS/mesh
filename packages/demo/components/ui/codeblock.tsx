@@ -7,7 +7,10 @@ export default function Codeblock({
   language = 'language-js',
   isJson = true,
 }) {
-  const { value, onCopy, hasCopied } = useClipboard(JSON.stringify(data, null, 2));
+  const { value, onCopy, hasCopied } = useClipboard(
+    // JSON.stringify(data, null, 2)
+    data
+  );
 
   return (
     <div className="max-h-96 overflow-auto relative not-format mb-4">
@@ -18,7 +21,7 @@ export default function Codeblock({
       >
         <DocumentDuplicateIcon className="w-4 h-4" />
       </button>
-      <pre className="">
+      <pre>
         {language == 'language-js' && (
           <Highlight className={language}>
             {isJson ? JSON.stringify(data, null, 2) : data}

@@ -1,14 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../../../common/connectCipWallet';
-import Input from '../../../ui/input';
-import Button from '../../../ui/button';
-import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
+import { useWallet } from '@meshsdk/react';
 import { largestFirstMultiAsset } from '@meshsdk/core';
 import type { Unit, Quantity } from '@meshsdk/core';
 
@@ -98,7 +91,7 @@ function Right() {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
@@ -127,26 +120,5 @@ function Right() {
     }
   }
 
-  return (<></>)
-
-  return (
-    <Card>
-      {hasAvailableWallets && (
-        <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
-        </>
-      )}
-    </Card>
-  );
+  return <></>;
 }

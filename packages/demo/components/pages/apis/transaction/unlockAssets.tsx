@@ -4,11 +4,12 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import { Transaction, resolveDataHash, KoiosProvider } from '@meshsdk/core';
 import Link from 'next/link';
+import useDemo from '../../../../contexts/demo';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -16,7 +17,7 @@ const scriptAddress =
   'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
 
 export default function UnlockAssets() {
-  const { userStorage } = useWallet();
+  const { userStorage } = useDemo();
   const [inputDatum, setInputDatum] = useState<string>('supersecret'); // user input for datum
   const [assetUnit, setAssetUnit] = useState<string>(
     '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e'
@@ -148,7 +149,7 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function _getAssetUtxo({ scriptAddress, asset, datum }) {
     // const blockfrostProvider = new BlockfrostProvider(
@@ -218,22 +219,19 @@ function Right({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
         inputDatum={inputDatum}
         setInputDatum={setInputDatum}
       />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-                label="Unlock asset"
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+            label="Unlock asset"
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>

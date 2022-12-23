@@ -2,7 +2,7 @@ import '../styles/globals.css';
 import '../styles/highlight/stackoverflow-dark.css';
 import '../styles/custom.css';
 import type { AppProps } from 'next/app';
-import { WalletProvider } from '../contexts/wallet';
+import { DemoProvider } from '../contexts/demo';
 import Navbar from '../components/site/navbar';
 import Footer from '../components/site/footer';
 import { AppWalletProvider } from '../contexts/appWallet';
@@ -30,7 +30,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   return (
     <MeshProvider>
       <AppWalletProvider>
-        <WalletProvider>
+        <DemoProvider>
           <div className="cursor-default">
             <header>
               <Navbar />
@@ -41,7 +41,7 @@ function MyApp({ Component, pageProps }: AppProps) {
             <Footer />
             <Scroller />
           </div>
-        </WalletProvider>
+        </DemoProvider>
       </AppWalletProvider>
     </MeshProvider>
   );

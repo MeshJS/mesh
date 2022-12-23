@@ -205,7 +205,6 @@ const GuideLoginWithWalletPage: NextPage = () => {
           <p>Try the demo. Sign in with your Cardano wallet.</p>
           <CardanoWallet
             label="Sign In With Cardano"
-            customCSS={{ width: '20rem' }}
             onConnected={() => frontendStep1()}
           />
           <RunDemoResult response={response} label="Signature is valid" />
