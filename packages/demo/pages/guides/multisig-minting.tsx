@@ -14,7 +14,7 @@ import {
   largestFirst,
 } from '@meshsdk/core';
 import type { Mint, AssetMetadata } from '@meshsdk/core';
-import useWallet from '../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import RunDemoButton from '../../components/common/runDemoButton';
 import RunDemoResult from '../../components/common/runDemoResult';
 import ConnectCipWallet from '../../components/common/connectCipWallet';
@@ -39,7 +39,7 @@ const GuideMultisigMintingPage: NextPage = () => {
       <Metatags
         title="Multi-Signatures Transaction (Minting)"
         description="Create a multi-sig transaction and mint NFTs"
-        image='/guides/multi-signatures-transaction.png'
+        image="/guides/multi-signatures-transaction.png"
       />
       <GuidesLayout
         title="Multi-Signatures Transaction (Minting)"
@@ -65,7 +65,7 @@ function DemoSection() {
   const [responseError, setResponseError] = useState<null | any>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
   const [appWallet, setAppWallet] = useState<AppWallet>({} as AppWallet);
 
   useEffect(() => {
@@ -175,7 +175,7 @@ function DemoSection() {
         only.
       </p>
       <p>Let's see it in action.</p>
-      {walletConnected ? (
+      {connected ? (
         <>
           <RunDemoButton
             runDemoFn={clientStartMinting}

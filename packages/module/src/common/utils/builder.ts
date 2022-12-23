@@ -1,22 +1,24 @@
 import { csl } from '@mesh/core';
 import {
-  DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET, LANGUAGE_VERSIONS,
 } from '@mesh/common/constants';
 import {
   fromScriptRef, fromUTF8, toAddress, toBytes,
-  toPlutusData, toScriptRef, toTxUnspentOutput,
-  toUnitInterval,
+  toPlutusData, toRedeemer, toScriptRef,
+  toTxUnspentOutput, toUnitInterval,
 } from './converter';
 import type {
-  BaseAddress, Bip32PrivateKey, DataCost,DatumSource,
-  Ed25519KeyHash, EnterpriseAddress, PlutusScriptSource,
-  RewardAddress, TransactionBuilder, TransactionOutputBuilder,
-  TransactionUnspentOutput, TxInputsBuilder,
+  BaseAddress, Bip32PrivateKey, DataCost, DatumSource,
+  Ed25519KeyHash, EnterpriseAddress, MintWitness,
+  PlutusScriptSource, RewardAddress, TransactionBuilder,
+  TransactionOutputBuilder, TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
 import type {
-  Data, PlutusScript, Recipient, UTxO,
+  Action, Data, PlutusScript, Recipient, UTxO,
 } from '@mesh/common/types';
-import { deserializePlutusScript } from './deserializer';
+import {
+  deserializeNativeScript, deserializePlutusScript,
+} from './deserializer';
 
 export const buildBaseAddress = (
   networkId: number,
@@ -85,6 +87,35 @@ export const buildGeneralTxMetadata = (metadata: Record<string, unknown>) => {
   return generalTxMetadata;
 };
 
+export const buildMintWitness = (
+  script: string | PlutusScript | UTxO,
+  redeemer?: Partial<Action>,
+): MintWitness => {
+  if (typeof script === 'string') {
+    return csl.MintWitness.new_native_script(
+      deserializeNativeScript(script),
+    );
+  }
+
+  if (redeemer === undefined)
+    throw new Error('Minting with plutus requires a redeemer to be defined');
+
+  if (redeemer.tag !== 'MINT')
+    throw new Error('Minting redeemer\'s tag must be defined as \'MINT\'');
+
+  return csl.MintWitness.new_plutus_script(
+    buildPlutusScriptSource(script), toRedeemer({
+      tag: 'MINT', index: 0,
+      budget: DEFAULT_REDEEMER_BUDGET,
+      data: {
+        alternative: 0,
+        fields: [],
+      },
+      ...redeemer,
+    }),
+  );
+};
+
 export const buildRewardAddress = (
   networkId: number, stakeKeyHash: Ed25519KeyHash,
 ): RewardAddress => {
@@ -112,8 +143,8 @@ export const buildPlutusScriptSource = (
         plutusScript.code, plutusScript.version,
       ).hash();
 
-      return csl.PlutusScriptSource.new_ref_input(
-        scriptHash, utxo.input(),
+      return csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+        scriptHash, utxo.input(), LANGUAGE_VERSIONS[plutusScript.version],
       );
     }
   }

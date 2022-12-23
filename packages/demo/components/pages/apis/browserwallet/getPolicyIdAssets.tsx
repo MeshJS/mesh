@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 
@@ -37,7 +37,7 @@ function Left({ policyId }) {
 function Right({ policyId, setPolicyId }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setLoading(true);
@@ -57,21 +57,18 @@ function Right({ policyId, setPolicyId }) {
         data={`const assets = await wallet.getPolicyIdAssets('${policyId}');`}
         isJson={false}
       />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={loading}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={loading}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
     </Card>
   );

@@ -28,6 +28,12 @@ const GuidesPage: NextPage = () => {
       link: '/guides/smart-contract',
       thumbnail: '/guides/integrating-smart-contract.png',
     },
+    {
+      title: 'Prove Wallet Ownership',
+      desc: 'Cryptographically prove the ownership of a wallet by signing a piece of data using data sign.',
+      link: '/guides/prove-wallet-ownership',
+      thumbnail: '/guides/cryptographically-prove-wallet-ownership.png',
+    },
     // {
     //   title: 'Minting Reference Token',
     //   desc: 'Something to describe this guide',

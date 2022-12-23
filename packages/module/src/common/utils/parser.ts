@@ -1,4 +1,15 @@
 import axios from 'axios';
+import { fromUTF8 } from './converter';
+import { POLICY_ID_LENGTH } from '../constants';
+
+export const parseAssetUnit = (unit: string) => {
+  const policyId = unit.slice(0, POLICY_ID_LENGTH);
+  const assetName = unit.includes('.')
+    ? fromUTF8(unit.split('.')[1])
+    : unit.slice(POLICY_ID_LENGTH);
+
+  return { policyId, assetName };
+};
 
 export const parseHttpError = (error: unknown): string => {
   if (axios.isAxiosError(error)) {

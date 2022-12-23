@@ -10,12 +10,14 @@ const Metatags = ({ title, keywords, description, image }) => {
       'developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis';
   }
 
+  title = title + ' - MeshJS';
+
   return (
     <Head>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta charSet="utf-8" />
 
-      <title>{title ? title + ' - Mesh Playground' : 'Mesh Playground'}</title>
+      <title>{title}</title>
 
       <meta name="keywords" content={keywords} />
       <meta name="description" content={description} />
@@ -24,6 +26,7 @@ const Metatags = ({ title, keywords, description, image }) => {
       <meta name="twitter:site" content="@meshsdk" />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
+      <meta name="twitter:creator" content="@meshsdk" />
       {image && (
         <meta name="twitter:image" content={`https://meshjs.dev${image}`} />
       )}
@@ -68,7 +71,7 @@ const Metatags = ({ title, keywords, description, image }) => {
 };
 
 Metatags.defaultProps = {
-  title: undefined,
+  title: 'Mesh - Web3 Development Made Easy',
   keywords:
     'developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis',
   description:

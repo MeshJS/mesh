@@ -4,14 +4,14 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import { Transaction, ForgeScript } from '@meshsdk/core';
 import type { Asset, AssetExtended } from '@meshsdk/core';
 
 export default function Burning() {
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<{}>({
     '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
   });
@@ -37,10 +37,10 @@ export default function Burning() {
       const _assets = await wallet.getAssets();
       setWalletAssets(_assets.slice(0, 9));
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   function updateField(action, unit, value) {
     let updated = { ...userInput };
@@ -64,7 +64,7 @@ export default function Burning() {
   return (
     <SectionTwoCol
       sidebarTo="burning"
-      header="Burning assets"
+      header="Burning Assets"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField, walletAssets })}
     />
@@ -130,7 +130,7 @@ function Right({ userInput, updateField, walletAssets }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
@@ -169,22 +169,20 @@ function Right({ userInput, updateField, walletAssets }) {
         updateField={updateField}
         walletAssets={walletAssets}
       />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
+
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );

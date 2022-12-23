@@ -1,4 +1,5 @@
 import CommonLayout from '../../../common/layout';
+import UiAssetViewer from './assetViewer';
 import UiConnectWallet from './connectWallet';
 import Hero from './hero';
 import UiPoweredByMesh from './poweredByMesh';
@@ -23,6 +24,7 @@ function Main() {
     <>
       <UiConnectWallet />
       <UiStakeButton />
+      {/* <UiAssetViewer /> */}
       <UiPoweredByMesh />
     </>
   );

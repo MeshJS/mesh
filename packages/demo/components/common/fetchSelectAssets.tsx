@@ -1,6 +1,6 @@
 import type { AssetExtended } from '@meshsdk/core';
 import { useEffect, useState } from 'react';
-import useWallet from '../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import Button from '../ui/button';
 
 export default function FetchSelectAssets({
@@ -8,7 +8,7 @@ export default function FetchSelectAssets({
   selectedAssets,
   selectAssetFn,
 }) {
-  const { wallet, walletConnected, connecting } = useWallet();
+  const { wallet, connected, connecting } = useWallet();
   const [loadingAssets, setLoadingAssets] = useState<boolean>(false);
   const [walletAssets, setWalletAssets] = useState<AssetExtended[]>([
     {
@@ -34,13 +34,13 @@ export default function FetchSelectAssets({
       setWalletAssets(assets);
       setLoadingAssets(false);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   useEffect(() => {
-    if (connecting && !walletConnected) {
+    if (connecting && !connected) {
       setWalletAssets([]);
     }
   }, [connecting]);

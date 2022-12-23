@@ -1,22 +1,26 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
-import Input from '../../../ui/input';
-import Button from '../../../ui/button';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
+import { useWallet } from '@meshsdk/react';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
+import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses, demoCLIKey } from '../../../../configs/demo';
 import {
-  AppWallet,
+  demoAddresses,
+  demoPlutusMintingScript,
+} from '../../../../../configs/demo';
+import {
   Transaction,
-  ForgeScript,
+  Mint,
+  Action,
+  PlutusScript,
   AssetMetadata,
-  BlockfrostProvider,
 } from '@meshsdk/core';
-import type { Mint } from '@meshsdk/core';
-import Textarea from '../../../ui/textarea';
+import Textarea from '../../../../ui/textarea';
 import Link from 'next/link';
 
 const defaultMetadata = {
@@ -26,7 +30,9 @@ const defaultMetadata = {
   description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
 };
 
-export default function GetSize() {
+export default function PlutusMinting() {
+  const { wallet, connected } = useWallet();
+
   const [userInput, setUserInput] = useState<{}[]>([
     {
       address: demoAddresses.testnet,
@@ -39,6 +45,12 @@ export default function GetSize() {
 
   async function updateField(action, index, field, value) {
     let _address = demoAddresses.testnet;
+    if (connected) {
+      _address =
+        (await wallet.getNetworkId()) === 1
+          ? demoAddresses.mainnet
+          : demoAddresses.testnet;
+    }
 
     let updated = [...userInput];
     if (action == 'add') {
@@ -50,7 +62,13 @@ export default function GetSize() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1 || field == 'metadata') {
+      if (
+        field == 'metadata' ||
+        field == 'assetName' ||
+        field == 'address' ||
+        field == 'assetLabel' ||
+        field == 'quantity'
+      ) {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -59,10 +77,30 @@ export default function GetSize() {
     setUserInput(updated);
   }
 
+  useEffect(() => {
+    async function init() {
+      const usedAddress = await wallet.getUsedAddresses();
+      const address = usedAddress[0];
+      let updated = [
+        {
+          address: address,
+          assetName: 'MeshToken',
+          metadata: JSON.stringify(defaultMetadata, null, 2),
+          assetLabel: '721',
+          quantity: 1,
+        },
+      ];
+      setUserInput(updated);
+    }
+    if (connected) {
+      init();
+    }
+  }, [connected]);
+
   return (
     <SectionTwoCol
-      sidebarTo="getSize"
-      header="Get Transaction Size"
+      sidebarTo="plutusminting"
+      header="Minting Assets with Smart Contract"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />
@@ -70,13 +108,16 @@ export default function GetSize() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
-  codeSnippet += `import type { Mint, AssetMetadata } from '@meshsdk/core';\n\n`;
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n`;
+  codeSnippet += `import { AssetMetadata, Mint, Action, PlutusScript } from '@meshsdk/core';\n\n`;
 
-  codeSnippet += `// prepare forgingScript\n`;
-  codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet += `const address = usedAddress[0];\n`;
-  codeSnippet += `const forgingScript = ForgeScript.withOneSignature(address);\n\n`;
+  codeSnippet += `const script: PlutusScript = {\n`;
+  codeSnippet += `  code: plutusMintingScriptCbor,\n`;
+  codeSnippet += `  version: 'V2',\n`;
+  codeSnippet += `};\n\n`;
+  codeSnippet += `const redeemer: Partial<Action> = {\n`;
+  codeSnippet += `  tag: 'MINT',\n`;
+  codeSnippet += `};\n\n`;
 
   codeSnippet += `const tx = new Transaction({ initiator: wallet });\n\n`;
 
@@ -97,13 +138,12 @@ function Left({ userInput }) {
     codeSnippet += `  assetQuantity: '${recipient.quantity}',\n`;
     codeSnippet += `  metadata: assetMetadata${counter},\n`;
     codeSnippet += `  label: '${recipient.assetLabel}',\n`;
-    codeSnippet += `  recipient: {\n`;
-    codeSnippet += `    address: '${recipient.address}',\n`;
-    codeSnippet += `  },\n`;
+    codeSnippet += `  recipient: '${recipient.address}',\n`;
     codeSnippet += `};\n`;
     codeSnippet += `tx.mintAsset(\n`;
-    codeSnippet += `  forgingScript,\n`;
+    codeSnippet += `  script,\n`;
     codeSnippet += `  asset${counter},\n`;
+    codeSnippet += `  redeemer,\n`;
     codeSnippet += `);\n\n`;
     counter++;
   }
@@ -112,72 +152,67 @@ function Left({ userInput }) {
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
-  let codeSnippet1 = `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet1 += `const address = usedAddress[0];\n`;
-  codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
+  let codeSnippetScript = `import { Action, PlutusScript } from '@meshsdk/core';\n\n`;
+  codeSnippetScript += `const script: PlutusScript = {\n`;
+  codeSnippetScript += `  code: plutusMintingScriptCbor,\n`;
+  codeSnippetScript += `  version: 'V2',\n`;
+  codeSnippetScript += `};\n\n`;
+  codeSnippetScript += `const redeemer: Partial<Action> = {\n`;
+  codeSnippetScript += `  tag: 'MINT',\n`;
+  codeSnippetScript += `};\n`;
 
-  let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
-    defaultMetadata,
-    null,
-    2
-  )};\n`;
-  codeSnippet2 += `const asset: Mint = {\n`;
-  codeSnippet2 += `  assetName: 'MeshToken',\n`;
-  codeSnippet2 += `  assetQuantity: '1',\n`;
-  codeSnippet2 += `  metadata: assetMetadata,\n`;
-  codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: {\n`;
-  codeSnippet2 += `    address: '${demoAddresses.testnet}',\n`;
-  codeSnippet2 += `  },\n`;
-  codeSnippet2 += `};\n`;
-  codeSnippet2 += `tx.mintAsset(\n`;
-  codeSnippet2 += `  forgingScript,\n`;
-  codeSnippet2 += `  asset,\n`;
-  codeSnippet2 += `);`;
-
-  let codeSnippetNative = ``;
-  codeSnippetNative += `import type { NativeScript } from '@meshsdk/core';\n`;
-  codeSnippetNative += `\n`;
-  codeSnippetNative += `const nativeScript: NativeScript = {\n`;
-  codeSnippetNative += `  type: 'all',\n`;
-  codeSnippetNative += `  scripts:\n`;
-  codeSnippetNative += `  [\n`;
-  codeSnippetNative += `    {\n`;
-  codeSnippetNative += `      type: 'before',\n`;
-  codeSnippetNative += `      slot: '<insert slot here>'\n`;
-  codeSnippetNative += `    },\n`;
-  codeSnippetNative += `    {\n`;
-  codeSnippetNative += `      type: 'sig',\n`;
-  codeSnippetNative += `      keyHash: '<insert keyHash here>'\n`;
-  codeSnippetNative += `    }\n`;
-  codeSnippetNative += `  ]\n`;
-  codeSnippetNative += `};\n`;
-  codeSnippetNative += `\n`;
-  codeSnippetNative += `const forgingScript = ForgeScript.fromNativeScript(nativeScript);\n`;
+  let codeSnippetTx = `import { AssetMetadata, Mint } from '@meshsdk/core';\n\n`;
+  codeSnippetTx += `const assetMetadata1: AssetMetadata = {\n`;
+  codeSnippetTx += `  "name": "Mesh Token",\n`;
+  codeSnippetTx += `  ...\n`;
+  codeSnippetTx += `}\n\n`;
+  codeSnippetTx += `const asset: Mint = {\n`;
+  codeSnippetTx += `  assetName: 'MeshToken',\n`;
+  codeSnippetTx += `  ...\n`;
+  codeSnippetTx += `}\n\n`;
+  codeSnippetTx += `tx.mintAsset(script, asset, redeemer);\n`;
 
   return (
     <>
       <p>
-        Firstly, we need to define the <code>forgingScript</code> with{' '}
-        <code>ForgeScript</code>. We use the first wallet address as the
-        "minting address" (you can use other addresses).
+        In this demo, we will use a Plutus Script to mint tokens. This script is
+        designed to always succeed, meaning that anyone can sign and mint tokens
+        with it, as there are no validation on this script.
       </p>
-      <Codeblock data={codeSnippet1} isJson={false} />
-      <p>Then, we define the metadata.</p>
-      <Codeblock data={codeSnippet2} isJson={false} />
+
+      <p>
+        Firstly, we create a new <code>PlutusScript</code> and redeemer (
+        <code>Action</code>):
+      </p>
+
+      <Codeblock data={codeSnippetScript} isJson={false} />
+
+      <p>
+        You can get the always succeed Plutus script CBOR (to replace{' '}
+        <code>plutusMintingScriptCbor</code>) from this{' '}
+        <a
+          href="https://gist.github.com/jinglescode/23d173ea382a0d3589cdf5170c0aca60"
+          target="_blank"
+          rel="noreferrer"
+        >
+          gist
+        </a>
+        .
+      </p>
+
+      <p>
+        Then, we{' '}
+        <Link href="/apis/transaction/smart-contract#plutusminting">
+          define the assets and its metadata
+        </Link>
+        , and add the <code>script</code> (<code>PlutusScript</code>),{' '}
+        <code>redeemer</code> (<code>Action</code>), and the
+        <code>asset</code> (<code>Mint</code>) to the transaction:
+      </p>
+      <Codeblock data={codeSnippetTx} isJson={false} />
+
       <p>Here is the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
-      <p>
-        Additionally, you can include <code>NativeScript</code> to define the
-        forging script (for example if you want to have a policy locking
-        script), you can do this:
-      </p>
-      <Codeblock data={codeSnippetNative} isJson={false} />
-      <p>
-        As for the <code>keyHash</code>, you can get it using{' '}
-        <code>resolvePaymentKeyHash</code>, see{' '}
-        <Link href="/apis/resolvers">Resolvers</Link>.
-      </p>
     </>
   );
 }
@@ -186,27 +221,20 @@ function Right({ userInput, updateField }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
     setResponseError(null);
 
     try {
-      const blockchainProvider = new BlockfrostProvider(process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!);
-
-      const wallet = new AppWallet({
-        networkId: 0,
-        fetcher: blockchainProvider,
-        submitter: blockchainProvider,
-        key: {
-          type: 'cli',
-          payment: demoCLIKey.paymentSkey,
-          stake: demoCLIKey.stakeSkey,
-        },
-      });
-
-      const walletAddress = wallet.getPaymentAddress();
-      const forgingScript = ForgeScript.withOneSignature(walletAddress);
+      const script: PlutusScript = {
+        code: demoPlutusMintingScript,
+        version: 'V2',
+      };
+      const redeemer: Partial<Action> = {
+        tag: 'MINT',
+      };
 
       const tx = new Transaction({ initiator: wallet });
 
@@ -229,25 +257,18 @@ function Right({ userInput, updateField }) {
           assetQuantity: recipient.quantity.toString(),
           metadata: assetMetadata,
           label: recipient.assetLabel,
-          recipient: {
-            address: recipient.address,
-          },
+          recipient: recipient.address,
         };
-        tx.mintAsset(forgingScript, asset);
+        tx.mintAsset(script, asset, redeemer);
       }
 
-      // const unsignedTx = await tx.build();
-      // const signedTx = await wallet.signTx(unsignedTx);
-      // const txHash = await wallet.submitTx(signedTx);
-      
-      // const size = tx.size;
-      // console.log(11, size);
-      // const fee = tx.fee;
-      // console.log(22, fee);
-      // setResponse(size);
+      const unsignedTx = await tx.build();
+      const signedTx = await wallet.signTx(unsignedTx);
+      const txHash = await wallet.submitTx(signedTx);
+      setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }
@@ -255,12 +276,19 @@ function Right({ userInput, updateField }) {
   return (
     <Card>
       <InputTable userInput={userInput} updateField={updateField} />
-      <RunDemoButton
-        runDemoFn={runDemo}
-        loading={state == 1}
-        response={response}
-      />
-      <RunDemoResult response={response} />
+
+      {connected ? (
+        <>
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
+        </>
+      ) : (
+        <ConnectCipWallet />
+      )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );

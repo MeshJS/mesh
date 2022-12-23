@@ -4,12 +4,13 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import { Transaction, Asset } from '@meshsdk/core';
 import FetchSelectAssets from '../../../common/fetchSelectAssets';
 import Link from 'next/link';
+import useDemo from '../../../../contexts/demo';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -17,7 +18,7 @@ const scriptAddress =
   'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
 
 export default function LockAssets() {
-  const { walletConnected } = useWallet();
+  const { connected } = useWallet();
   const [inputDatum, setInputDatum] = useState<string>('supersecret'); // user input for datum
   const [userInput, setUserInput] = useState<
     { assets: { [unit: string]: string } }[]
@@ -39,10 +40,10 @@ export default function LockAssets() {
       ];
       setUserInput(newRecipents);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   function updateField(action, index, field, value) {
     let updated = [...userInput];
@@ -61,7 +62,7 @@ export default function LockAssets() {
   return (
     <SectionTwoCol
       sidebarTo="lockAssets"
-      header="Lock assets in smart contract"
+      header="Lock Assets in Smart Contract"
       leftFn={Left({ userInput, inputDatum })}
       rightFn={Right({
         userInput,
@@ -157,8 +158,8 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets, updateUserStorage } =
-    useWallet();
+  const { wallet, connected } = useWallet();
+  const { updateUserStorage } = useDemo();
 
   async function runDemo() {
     setState(1);
@@ -210,22 +211,20 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
         inputDatum={inputDatum}
         setInputDatum={setInputDatum}
       />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
+
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );

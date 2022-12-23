@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
@@ -23,7 +23,7 @@ const defaultMetadata = {
 };
 
 export default function Minting() {
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
 
   const [userInput, setUserInput] = useState<{}[]>([
     {
@@ -37,7 +37,7 @@ export default function Minting() {
 
   async function updateField(action, index, field, value) {
     let _address = demoAddresses.testnet;
-    if (walletConnected) {
+    if (connected) {
       _address =
         (await wallet.getNetworkId()) === 1
           ? demoAddresses.mainnet
@@ -54,7 +54,13 @@ export default function Minting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1 || field == 'metadata' || field == 'assetName') {
+      if (
+        field == 'metadata' ||
+        field == 'assetName' ||
+        field == 'address' ||
+        field == 'assetLabel' ||
+        field == 'quantity'
+      ) {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -78,15 +84,15 @@ export default function Minting() {
       ];
       setUserInput(updated);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   return (
     <SectionTwoCol
       sidebarTo="minting"
-      header="Minting assets"
+      header="Minting Assets"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />
@@ -178,6 +184,14 @@ function Left({ userInput }) {
   return (
     <>
       <p>
+        In this section, we will see how to mint native assets with a{' '}
+        <code>ForgeScript</code>. For minting assets with smart contract, visit{' '}
+        <Link href="/apis/transaction/smart-contract#plutusminting">
+          Transaction - Smart Contract - Minting Assets with Smart Contract
+        </Link>
+        .
+      </p>
+      <p>
         Firstly, we need to define the <code>forgingScript</code> with{' '}
         <code>ForgeScript</code>. We use the first wallet address as the
         "minting address" (you can use other addresses).
@@ -207,7 +221,7 @@ function Right({ userInput, updateField }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
@@ -258,21 +272,17 @@ function Right({ userInput, updateField }) {
   return (
     <Card>
       <InputTable userInput={userInput} updateField={updateField} />
-      {hasAvailableWallets && (
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>

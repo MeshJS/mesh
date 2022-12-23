@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import Codeblock from '../../../ui/codeblock';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import Card from '../../../ui/card';
@@ -50,16 +50,16 @@ function Left() {
 function Right(payload, setPayload) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setLoading(true);
-    // const addresses = await wallet.getRewardAddresses();
-    const addresses = await wallet.getUsedAddresses();
-    console.log('addresses', addresses);
-    let results = await wallet.signData(addresses[0], payload);
-
-    setResponse(results);
+    try {
+      // const addresses = await wallet.getRewardAddresses();
+      const addresses = await wallet.getUsedAddresses();
+      let results = await wallet.signData(addresses[0], payload);
+      setResponse(results);
+    } catch (error) {}
     setLoading(false);
   }
 
@@ -75,21 +75,18 @@ function Right(payload, setPayload) {
         label="Payload"
       />
       <Codeblock data={code} isJson={false} />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={loading}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={loading}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
     </Card>
   );
