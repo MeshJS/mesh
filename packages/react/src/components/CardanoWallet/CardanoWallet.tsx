@@ -22,21 +22,7 @@ const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
   hidden && tw`hidden`,
 ]);
 
-export const CardanoWallet = ({
-  customCSS = {
-    borderRadius: '0.375rem',
-    fontSize: '1.125rem',
-    borderColor: '#E5E7EB',
-    color: 'inherit',
-    width: '15rem',
-  },
-  label = 'Connect Wallet',
-  onConnected = undefined,
-}: {
-  customCSS?: {};
-  label?: string;
-  onConnected?: any;
-}) => {
+export const CardanoWallet = ({ label = 'Connect Wallet', onConnected }) => {
   const wallets = useWalletList();
 
   const [hideMenuList, setHideMenuList] = useState(true);
@@ -57,14 +43,8 @@ export const CardanoWallet = ({
     >
       <StyledMenuButton
         type="button"
+        className="mr-wallet-button"
         onClick={() => setHideMenuList(!hideMenuList)}
-        style={{
-          borderColor: customCSS['borderColor'],
-          borderRadius: customCSS['borderRadius'],
-          fontSize: customCSS['fontSize'],
-          color: customCSS['color'],
-          width: customCSS['width'],
-        }}
       >
         <WalletBalance
           name={name}
@@ -75,13 +55,7 @@ export const CardanoWallet = ({
       </StyledMenuButton>
       <StyledMenuList
         hidden={hideMenuList}
-        style={{
-          borderColor: customCSS['borderColor'],
-          borderRadius: customCSS['borderRadius'],
-          fontSize: customCSS['fontSize'],
-          color: customCSS['color'],
-          width: customCSS['width'],
-        }}
+        className="mr-menu-list"
       >
         {!connected && wallets.length > 0 ? (
           wallets.map((wallet, index) => (

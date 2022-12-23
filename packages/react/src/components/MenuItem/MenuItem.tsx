@@ -24,7 +24,7 @@ const StyledActive = tw.span`
 export const MenuItem = ({ icon, label, action, active }) => (
   <StyledItem onClick={action}>
     {icon && <StyledIcon src={icon} />}
-    <StyledName>
+    <StyledName className='mr-menu-item'>
       {label
         .split(' ')
         .map((word: string) => {
