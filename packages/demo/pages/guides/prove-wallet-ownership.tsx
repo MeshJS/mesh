@@ -111,7 +111,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippetClient += `  return (\n`;
   codeSnippetClient += `    <>\n`;
   codeSnippetClient += `      <CardanoWallet\n`;
-  codeSnippetClient += `        label="Sign In With Cardano"\n`;
+  codeSnippetClient += `        label="Cardano Sign In"\n`;
   codeSnippetClient += `        onConnected={() => frontendStartLoginProcess()}\n`;
   codeSnippetClient += `      />\n`;
   codeSnippetClient += `    </>\n`;
@@ -139,7 +139,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
 
   let codeSnippetWallet = ``;
   codeSnippetWallet += `<CardanoWallet\n`;
-  codeSnippetWallet += `  label="Sign In With Cardano"\n`;
+  codeSnippetWallet += `  label="Cardano Sign In"\n`;
   codeSnippetWallet += `  onConnected={() => frontendStartLoginProcess()}\n`;
   codeSnippetWallet += `/>\n`;
 
@@ -202,7 +202,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
           <h2>Demo</h2>
           <p>Try the demo. Sign in with your Cardano wallet.</p>
           <CardanoWallet
-            label="Sign In With Cardano"
+            label="Cardano Sign In"
             onConnected={() => frontendStep1()}
           />
           <RunDemoResult response={response} label="Signature is valid" />

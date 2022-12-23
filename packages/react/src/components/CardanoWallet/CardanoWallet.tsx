@@ -8,7 +8,7 @@ const StyledMenuButton = tw.button`
   flex items-center justify-center
   font-normal text-lg
   border rounded-t-md
-  px-4 py-2
+  w-60 px-4 py-2
   shadow-sm
 `;
 
@@ -22,7 +22,13 @@ const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
   hidden && tw`hidden`,
 ]);
 
-export const CardanoWallet = ({ label = 'Connect Wallet', onConnected }) => {
+export const CardanoWallet = ({
+  label = 'Connect Wallet',
+  onConnected = undefined
+}: {
+  label?: string,
+  onConnected?: Function
+}) => {
   const wallets = useWalletList();
 
   const [hideMenuList, setHideMenuList] = useState(true);
