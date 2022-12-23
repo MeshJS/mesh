@@ -112,7 +112,6 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippetClient += `    <>\n`;
   codeSnippetClient += `      <CardanoWallet\n`;
   codeSnippetClient += `        label="Sign In With Cardano"\n`;
-  codeSnippetClient += `        customCSS={{ width: '20rem' }}\n`;
   codeSnippetClient += `        onConnected={() => frontendStartLoginProcess()}\n`;
   codeSnippetClient += `      />\n`;
   codeSnippetClient += `    </>\n`;
@@ -141,7 +140,6 @@ const GuideLoginWithWalletPage: NextPage = () => {
   let codeSnippetWallet = ``;
   codeSnippetWallet += `<CardanoWallet\n`;
   codeSnippetWallet += `  label="Sign In With Cardano"\n`;
-  codeSnippetWallet += `  customCSS={{ width: '20rem' }}\n`;
   codeSnippetWallet += `  onConnected={() => frontendStartLoginProcess()}\n`;
   codeSnippetWallet += `/>\n`;
 
