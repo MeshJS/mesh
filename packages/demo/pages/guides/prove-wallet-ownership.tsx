@@ -383,7 +383,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
             For sign in with wallet, you can use the <code>CardanoWallet</code>{' '}
             React UI component to connect and sign in with wallet:
           </p>
-          <Codeblock data={codeSnippetWallet} isJson={false} />
+          <Codeblock data={codeSnippetWallet} isJson={false} language='language-html' />
           <p>Putting the frontend codes together might looks like this:</p>
           <Codeblock data={codeSnippetClient} isJson={false} />
           <p>

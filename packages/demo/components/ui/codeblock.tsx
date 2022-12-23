@@ -21,7 +21,7 @@ export default function Codeblock({
         <DocumentDuplicateIcon className="w-4 h-4" />
       </button>
       <pre>
-        {language == 'language-js' && (
+        {/* {language == 'language-js' && (
           <Highlight className={language}>
             {isJson ? JSON.stringify(data, null, 2) : data}
           </Highlight>
@@ -30,7 +30,10 @@ export default function Codeblock({
           <Highlight className={language}>
             {isJson ? JSON.stringify(data, null, 2) : data}
           </Highlight>
-        )}
+        )} */}
+        <Highlight className={language}>
+          {isJson ? JSON.stringify(data, null, 2) : data}
+        </Highlight>
       </pre>
     </div>
   );
