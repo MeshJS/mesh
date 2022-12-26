@@ -10,8 +10,8 @@ import RegisterStake from '../../../components/pages/apis/transaction/registerSt
 
 const TransactionStakingPage: NextPage = () => {
   const sidebarItems = [
-    { label: 'Register Stake', to: 'registerStake' },
     { label: 'Delegate Stake', to: 'delegateStake' },
+    { label: 'Register Stake', to: 'registerStake' },
 
     // { label: 'Withdraw Rewards', to: 'withdrawRewards' },
     // { label: 'Deregister Stake', to: 'deregisterStake' },

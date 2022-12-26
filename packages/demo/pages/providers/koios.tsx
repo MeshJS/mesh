@@ -39,7 +39,7 @@ export default function ProvidersKoios() {
 }
 
 function Hero({ network, setNetwork }) {
-  let code1 = `const koiosProvider = new KoiosProvider('<api,testnet,guild>');\n`;
+  let code1 = `import { KoiosProvider } from '@meshsdk/core';\n\nconst koiosProvider = new KoiosProvider('<api,testnet,guild>');\n`;
 
   return (
     <header className="mb-4 lg:mb-6">

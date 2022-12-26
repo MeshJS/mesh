@@ -159,16 +159,16 @@ function SubMenuGetStarted() {
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
             <SubMenuLinks
-              href={`/starter-templates`}
-              title="Starter Templates"
-              desc="Kick start your projects with our templates using CLI"
-              icon={<CubeTransparentIcon className="w-5 h-5" />}
-            />
-            <SubMenuLinks
               href={`/guides`}
               title="Guides"
               desc="Step by step guides to build on Cardano"
               icon={<DocumentTextIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/starter-templates`}
+              title="Starter Templates"
+              desc="Kick start your projects with our templates using CLI"
+              icon={<CubeTransparentIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/migration-manual-installation`}

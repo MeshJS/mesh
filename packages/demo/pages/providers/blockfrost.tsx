@@ -38,7 +38,7 @@ export default function ProvidersBlockfrost() {
 }
 
 function Hero({ network, setNetwork }) {
-  let code1 = `const blockfrostProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');\n`;
+  let code1 = `import { BlockfrostProvider } from '@meshsdk/core';\n\nconst blockfrostProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');\n`;
   return (
     <header className="mb-4 lg:mb-6">
       <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
