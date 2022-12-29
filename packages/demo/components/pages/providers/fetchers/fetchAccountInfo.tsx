@@ -16,6 +16,7 @@ export function fetchAccountInfoLeft({ fetcherName, fetchAccountInfoAddress }) {
     </>
   );
 }
+
 export function fetchAccountInfoRight({
   fetcher,
   fetchAccountInfoAddress,

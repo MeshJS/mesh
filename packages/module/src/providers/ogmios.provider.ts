@@ -38,6 +38,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
       client.addEventListener('message', (response: MessageEvent<string>) => {
         try {
           const { result } = JSON.parse(response.data);
+          console.log({result})
 
           if (result.EvaluationResult) {
             resolve(result.EvaluationResult);
