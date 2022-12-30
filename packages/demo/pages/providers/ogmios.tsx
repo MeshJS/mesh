@@ -44,7 +44,7 @@ function Hero({ network, setNetwork }) {
   let code1 = `const ogmiosProvider = new OgmiosProvider();\n`;
 
   const ogmiosProvider = new OgmiosProvider(
-    'wss://ogmios-api.preview.dandelion.link'
+    'wss://ogmios-api.testnet.dandelion.link'
   );
 
   async function test() {
@@ -63,7 +63,6 @@ function Hero({ network, setNetwork }) {
 
   useEffect(() => {
     if (connected) {
-      console.log('load');
       ogmiosProvider.onNextTx((tx) => {
         console.log(111, 'ogmiosProvider.onNextTx', tx);
       });

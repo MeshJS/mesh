@@ -16,7 +16,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
       if (result === null) {
         return this.send(client, 'AwaitAcquire', {});
       }
-      
+
       if (result.AwaitAcquired === undefined) {
         callback(result);
       }
@@ -38,7 +38,6 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
       client.addEventListener('message', (response: MessageEvent<string>) => {
         try {
           const { result } = JSON.parse(response.data);
-          console.log({result})
 
           if (result.EvaluationResult) {
             resolve(result.EvaluationResult);
