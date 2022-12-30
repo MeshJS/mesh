@@ -320,14 +320,18 @@ export class Transaction {
     if (amount.is_zero() || multiAsset === undefined)
       return this;
 
-    const txOutputBuilder = buildTxOutputBuilder(
+    const txOutputAmountBuilder = buildTxOutputBuilder(
       recipient,
-    );
+    ).next();
 
-    const txOutput = txOutputBuilder.next()
-      .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
-        buildDataCost(this._protocolParameters.coinsPerUTxOSize),
-      ).build();
+    const txOutput = amount.coin().is_zero()
+      ? txOutputAmountBuilder
+          .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
+            buildDataCost(this._protocolParameters.coinsPerUTxOSize),
+          ).build()
+      : txOutputAmountBuilder
+          .with_coin_and_asset(amount.coin(), multiAsset)
+          .build();
 
     this._txBuilder.add_output(txOutput);
 
