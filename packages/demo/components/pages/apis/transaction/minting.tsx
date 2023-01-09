@@ -208,10 +208,16 @@ function Left({ userInput }) {
       </p>
       <Codeblock data={codeSnippetNative} isJson={false} />
       <p>
-        You can get the <code>keyHash</code> with{' '}
-        <code>resolvePaymentKeyHash</code>. As for <code>slot</code>, get it
-        using <code>resolveSlotNo</code>. See{' '}
+        To get the <code>keyHash</code>, use the{' '}
+        <code>resolvePaymentKeyHash()</code>. To get the slot, use the{' '}
+        <code>resolveSlotNo()</code>. See{' '}
         <Link href="/apis/resolvers">Resolvers</Link>.
+      </p>
+      <p>
+        Note: If you were expecting a particular Policy ID but received an
+        entirely different one, try switching the order
+        of the objects inside the <code>scripts</code> as the order of the
+        objects matters and must match the order used before.
       </p>
     </>
   );

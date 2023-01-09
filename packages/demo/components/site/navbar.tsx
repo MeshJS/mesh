@@ -428,7 +428,7 @@ function SubMenuReact() {
 function SubMenuLinks({ href, title, desc, icon }) {
   return (
     <li>
-      <Link href={href}>
+      <a href={href}>
         <div className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
           <div className="p-2 mr-4 bg-white rounded-lg shadow dark:bg-gray-700">
             {icon}
@@ -440,7 +440,7 @@ function SubMenuLinks({ href, title, desc, icon }) {
             </div>
           </div>
         </div>
-      </Link>
+      </a>
     </li>
   );
 }

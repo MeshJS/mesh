@@ -12,6 +12,12 @@ const GuideCustomProviderPage: NextPage = () => {
     { label: 'Implement Constructor and Functions', to: 'implement' },
   ];
 
+  // - What is a Mesh Provider?
+  // - Provider Types
+  // - Why you may want to implement your own Provider?
+  // - Look at an existing provider implementation
+  // - Implement a custom GraphQL fetcher
+
   return (
     <>
       <Metatags
