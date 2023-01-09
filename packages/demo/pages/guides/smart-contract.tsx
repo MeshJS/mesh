@@ -413,7 +413,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
             We've now successfully locked an NFT in our script with a datum of
             value '42'. If you want to learn how to build more complex datum
             structures, check out{' '}
-            <a href="https://meshjs.dev/apis/transaction">APIs - Transaction</a>{' '}
+            <a href="https://meshjs.dev/apis/transaction/smart-contract#datum">APIs - Transaction</a>{' '}
             docs in the<code>Designing datum</code> section.
           </p>
 
@@ -468,7 +468,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
   if (wallet) {
     setLoading(true);
     const addr = (await wallet.getUsedAddresses())[0];
-    const d: Data = {
+    const datumConstr: Data = {
       alternative: 0,
       fields: [42],
     };
