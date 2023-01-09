@@ -60,6 +60,18 @@
       <loc>https://meshjs.dev/providers</loc>
   </url>
   <url>
+      <loc>https://meshjs.dev/providers/blockfrost</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/providers/tangocrypto</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/providers/koios</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/providers/ogmios</loc>
+  </url>
+  <url>
       <loc>https://meshjs.dev/apis/resolvers</loc>
   </url>
   <url>
