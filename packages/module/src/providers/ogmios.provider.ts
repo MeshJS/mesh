@@ -1,4 +1,5 @@
 import { IEvaluator, ISubmitter } from '@mesh/common/contracts';
+import type { Action } from '@mesh/common/types';
 
 export class OgmiosProvider implements IEvaluator, ISubmitter {
   constructor(
@@ -27,7 +28,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
     return () => client.close();
   }
 
-  async evaluateTx(tx: string): Promise<object> {
+  async evaluateTx(tx: string): Promise<Omit<Action, 'data'>[]> {
     const client = await this.open();
     
     this.send(client, 'EvaluateTx', {
