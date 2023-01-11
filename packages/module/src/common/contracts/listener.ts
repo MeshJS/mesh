@@ -1,3 +1,3 @@
 export interface IListener {
-  onTxConfirmed(hash: string, callback: () => void, limit?: number): void;
+  onTxConfirmed(txHash: string, callback: () => void, limit?: number): void;
 }
