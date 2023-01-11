@@ -49,7 +49,7 @@ export class Transaction {
     this._txWithdrawals = csl.Withdrawals.new();
   }
 
-  static maskMetadata(cborTx: string, era: Era = 'ALONZO') {
+  static maskMetadata(cborTx: string, era: Era = 'BABBAGE') {
     const tx = deserializeTx(cborTx);
     const txMetadata = tx.auxiliary_data()?.metadata();
 
@@ -88,7 +88,7 @@ export class Transaction {
     return tx.auxiliary_data()?.metadata()?.to_hex() ?? '';
   }
 
-  static writeMetadata(cborTx: string, cborTxMetadata: string, era: Era = 'ALONZO') {
+  static writeMetadata(cborTx: string, cborTxMetadata: string, era: Era = 'BABBAGE') {
     const tx = deserializeTx(cborTx);
     const txAuxData = tx.auxiliary_data()
       ?? csl.AuxiliaryData.new();
