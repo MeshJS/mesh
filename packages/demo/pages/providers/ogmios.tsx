@@ -6,11 +6,10 @@ import {
   BadgeEvaluator,
   BadgeSubmitter,
 } from '../../components/pages/providers/badges';
-import { OgmiosProvider, Transaction } from '@meshsdk/core';
+import { OgmiosProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
 // import ButtonGroup from '../../components/ui/buttongroup';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
-import Button from '../../components/ui/button';
 
 export default function ProvidersOgmios() {
   const sidebarItems = [
@@ -43,31 +42,31 @@ function Hero({ network, setNetwork }) {
 
   let code1 = `const ogmiosProvider = new OgmiosProvider();\n`;
 
-  const ogmiosProvider = new OgmiosProvider(
-    'wss://ogmios-api.testnet.dandelion.link'
-  );
+  // const ogmiosProvider = new OgmiosProvider(
+  //   'wss://ogmios-api.testnet.dandelion.link'
+  // );
 
-  async function test() {
-    const tx = new Transaction({ initiator: wallet }).sendLovelace(
-      'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx',
-      '1000000'
-    );
-    const unsignedTx = await tx.build();
-    const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await ogmiosProvider.submitTx(signedTx);
-    console.log({ txHash });
+  // async function test() {
+  //   const tx = new Transaction({ initiator: wallet }).sendLovelace(
+  //     'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx',
+  //     '1000000'
+  //   );
+  //   const unsignedTx = await tx.build();
+  //   const signedTx = await wallet.signTx(unsignedTx);
+  //   const txHash = await ogmiosProvider.submitTx(signedTx);
+  //   console.log({ txHash });
 
-    // const res = await ogmiosProvider.evaluateTx(signedTx);
-    // console.log({ res });
-  }
+  //   // const res = await ogmiosProvider.evaluateTx(signedTx);
+  //   // console.log({ res });
+  // }
 
-  useEffect(() => {
-    if (connected) {
-      ogmiosProvider.onNextTx((tx) => {
-        console.log(111, 'ogmiosProvider.onNextTx', tx);
-      });
-    }
-  }, [connected]);
+  // useEffect(() => {
+  //   if (connected) {
+  //     ogmiosProvider.onNextTx((tx) => {
+  //       console.log(111, 'ogmiosProvider.onNextTx', tx);
+  //     });
+  //   }
+  // }, [connected]);
 
   return (
     <header className="mb-4 lg:mb-6">
@@ -84,37 +83,19 @@ function Hero({ network, setNetwork }) {
         mini-protocols via JSON/RPC.
       </p>
 
-      <CardanoWallet />
-
-      <Button onClick={() => test()}>test</Button>
+      {/* <CardanoWallet />
+      <Button onClick={() => test()}>test</Button> */}
 
       <div className="grid grid-cols-1 px-4 lg:grid-cols-2 lg:gap-16 pb-16">
         <div className="col-span-1 xl:col-auto">
-          {/* <p>
-            <a href="https://blockfrost.io/" target="_blank" rel="noreferrer">
-              Blockfrost
+          <p>
+            Browse the{' '}
+            <a href="https://ogmios.dev/" target="_blank" rel="noreferrer">
+              Ogmios
             </a>{' '}
-            provides restful APIs which allows your app to access information
-            stored on the blockchain.
+            website. Get started:
           </p>
-          <p>Get started:</p>
           <Codeblock data={code1} isJson={false} />
-          <p>Choose network for this demo:</p>
-          <ButtonGroup
-            items={[
-              {
-                key: 'mainnet',
-                label: 'Mainnet',
-                onClick: () => setNetwork('mainnet'),
-              },
-              {
-                key: 'preprod',
-                label: 'Preprod',
-                onClick: () => setNetwork('preprod'),
-              },
-            ]}
-            currentSelected={network}
-          /> */}
         </div>
         <div className="col-span-1"></div>
       </div>
