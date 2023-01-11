@@ -151,21 +151,21 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
 
       if (status === 200)
         return <BlockInfo>{
-          confirmations: data.num_confirmations,
-          epoch: data.epoch_no,
-          epochSlot: data.epoch_slot.toString(),
-          fees: data.total_fees ?? '',
-          hash: data.hash,
-          nextBlock: data.child_hash ?? '',
-          operationalCertificate: data.op_cert,
-          output: data.total_output ?? '0',
-          previousBlock: data.parent_hash,
-          size: data.block_size,
-          slot: data.abs_slot.toString(),
-          slotLeader: data.pool ?? '',
-          time: data.block_time,
-          txCount: data.tx_count,
-          VRFKey: data.vrf_key,
+          confirmations: data[0].num_confirmations,
+          epoch: data[0].epoch_no,
+          epochSlot: data[0].epoch_slot.toString(),
+          fees: data[0].total_fees ?? '',
+          hash: data[0].hash,
+          nextBlock: data[0].child_hash ?? '',
+          operationalCertificate: data[0].op_cert,
+          output: data[0].total_output ?? '0',
+          previousBlock: data[0].parent_hash,
+          size: data[0].block_size,
+          slot: data[0].abs_slot.toString(),
+          slotLeader: data[0].pool ?? '',
+          time: data[0].block_time,
+          txCount: data[0].tx_count,
+          VRFKey: data[0].vrf_key,
         };
 
       throw parseHttpError(data);
@@ -234,15 +234,15 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
 
       if (status === 200)
         return <TransactionInfo>{
-          block: data.block_hash,
-          deposit: data.deposit,
-          fees: data.fee,
-          hash: data.tx_hash,
-          index: data.tx_block_index,
-          invalidAfter: data.invalid_after?.toString() ?? '',
-          invalidBefore: data.invalid_before?.toString() ?? '',
-          slot: data.absolute_slot.toString(),
-          size: data.tx_size,
+          block: data[0].block_hash,
+          deposit: data[0].deposit,
+          fees: data[0].fee,
+          hash: data[0].tx_hash,
+          index: data[0].tx_block_index,
+          invalidAfter: data[0].invalid_after?.toString() ?? '',
+          invalidBefore: data[0].invalid_before?.toString() ?? '',
+          slot: data[0].absolute_slot.toString(),
+          size: data[0].tx_size,
         };
 
       throw parseHttpError(data);
