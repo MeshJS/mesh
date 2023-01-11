@@ -17,13 +17,13 @@ export const templates = {
     cli: 'staking',
     image: 'stakepool.png',
   },
-  marketplace: {
-    title: 'Marketplace',
-    desc: `Start a new marketplace with prebuilt marketplace contract.`,
-    cli: 'marketplace',
-    image: 'marketplace.png',
-    comingsoon: true,
-  },
+  // marketplace: {
+  //   title: 'Marketplace',
+  //   desc: `Start a new marketplace with prebuilt marketplace contract.`,
+  //   cli: 'marketplace',
+  //   image: 'marketplace.png',
+  //   comingsoon: true,
+  // },
 };
 
 export const languages = {

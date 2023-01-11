@@ -83,8 +83,9 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippet4 += `  const result = checkSignature(nonce, userAddress, signature);\n\n`;
   codeSnippet4 += `  // do: update 'nonce' in the database with another random string\n\n`;
   codeSnippet4 += `  // do: do what you need after user proof ownership\n`;
-  codeSnippet4 += `  // if could be creating a valid JSON Web Token (JWT) or session\n`;
-  codeSnippet4 += `  // if could be something offchain\n`;
+  codeSnippet4 += `  // it could be creating a valid JSON Web Token (JWT) or session\n`;
+  codeSnippet4 += `  // it could be doing something offchain\n`;
+  codeSnippet4 += `  // it could just be updating something in the database\n`;
   codeSnippet4 += `}\n`;
 
   let codeSnippetClient = `import { CardanoWallet, useWallet } from '@meshsdk/react';\n\n`;
@@ -111,7 +112,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippetClient += `  return (\n`;
   codeSnippetClient += `    <>\n`;
   codeSnippetClient += `      <CardanoWallet\n`;
-  codeSnippetClient += `        label="Cardano Sign In"\n`;
+  codeSnippetClient += `        label="Sign In with Cardano"\n`;
   codeSnippetClient += `        onConnected={() => frontendStartLoginProcess()}\n`;
   codeSnippetClient += `      />\n`;
   codeSnippetClient += `    </>\n`;
@@ -139,7 +140,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
 
   let codeSnippetWallet = ``;
   codeSnippetWallet += `<CardanoWallet\n`;
-  codeSnippetWallet += `  label="Cardano Sign In"\n`;
+  codeSnippetWallet += `  label="Sign In with Cardano"\n`;
   codeSnippetWallet += `  onConnected={() => frontendStartLoginProcess()}\n`;
   codeSnippetWallet += `/>\n`;
 
@@ -147,7 +148,8 @@ const GuideLoginWithWalletPage: NextPage = () => {
     <>
       <Metatags
         title="Cryptographically Prove Wallet Ownership"
-        description="Login"
+        description="Cryptographically prove the ownership of a wallet by
+        signing a piece of data using data sign."
         image="/guides/cryptographically-prove-wallet-ownership.png"
       />
       <GuidesLayout
@@ -202,7 +204,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
           <h2>Demo</h2>
           <p>Try the demo. Sign in with your Cardano wallet.</p>
           <CardanoWallet
-            label="Cardano Sign In"
+            label="Sign In with Cardano"
             onConnected={() => frontendStep1()}
           />
           <RunDemoResult response={response} label="Signature is valid" />

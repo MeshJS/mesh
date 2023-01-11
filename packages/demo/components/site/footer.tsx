@@ -145,9 +145,9 @@ function Sitemap() {
 function SitemapLinks({ href, label }) {
   return (
     <li className="mb-4">
-      <Link href={href}>
+      <a href={href}>
         <div className="hover:underline cursor-pointer">{label}</div>
-      </Link>
+      </a>
     </li>
   );
 }
