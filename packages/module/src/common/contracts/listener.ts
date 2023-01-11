@@ -1,3 +1,3 @@
 export interface IListener {
-  onNextTx(callback: (tx: unknown) => void): Promise<() => void>;
+  onTxConfirmed(hash: string, callback: () => void, limit?: number): void;
 }
