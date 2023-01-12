@@ -1,17 +1,17 @@
 import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
-import { IFetcher, IListener, ISubmitter } from '@mesh/common/contracts';
+import { IEvaluator, IFetcher, IListener, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeNativeScript, fromNativeScript,
   fromUTF8, parseAssetUnit, parseHttpError,
   resolveRewardAddress, toScriptRef, toUTF8,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, Asset, AssetMetadata, BlockInfo,
+  AccountInfo, Action, Asset, AssetMetadata, BlockInfo,
   PlutusScript, Protocol, TransactionInfo, UTxO,
 } from '@mesh/common/types';
 
-export class TangoProvider implements IFetcher, IListener, ISubmitter {
+export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
   constructor(
@@ -23,6 +23,28 @@ export class TangoProvider implements IFetcher, IListener, ISubmitter {
       baseURL: `https://cardano-${network}.tangocrypto.com/${appId}/v${version}`,
       headers: { 'x-api-key': appKey },
     });
+  }
+
+  async evaluateTx(tx: string): Promise<Omit<Action, 'data'>[]> {
+    try {
+      const { data, status } = await this._axiosInstance.post(
+        'transactions/evaluate', { tx, utxos: [] },
+      );
+
+      if (status === 200) 
+        return data.redeemers.map((redeemer) => <Omit<Action, 'data'>>({
+          index: redeemer.index,
+          tag: redeemer.purpose.toUpperCase(),
+          budget: {
+            mem: redeemer.unit_mem,
+            steps: redeemer.unit_steps,
+          },
+        }));
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
