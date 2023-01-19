@@ -77,7 +77,7 @@ const enoughValueHasBeenSelected = (
         .reduce((selectedQuantity, utxo) => {
           const utxoQuantity = utxo.output.amount
             .reduce(
-              (quantity, a) => quantity.checked_add(csl.BigNum.from_str(a.quantity)),
+              (quantity, a) => quantity.checked_add(csl.BigNum.from_str(asset.unit === a.unit ? a.quantity : '0')),
               csl.BigNum.from_str('0'),
             );
 
