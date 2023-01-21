@@ -108,7 +108,7 @@ function Main({ network }) {
 
   useEffect(() => {
     async function load() {
-      const _provider = new OgmiosProvider();
+      const _provider = new OgmiosProvider('preprod');
       setProvider(_provider);
     }
     load();

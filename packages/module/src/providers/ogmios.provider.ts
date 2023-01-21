@@ -1,10 +1,18 @@
+import { SUPPORTED_OGMIOS_LINKS } from '@mesh/common/constants';
 import { IEvaluator, ISubmitter } from '@mesh/common/contracts';
-import type { Action } from '@mesh/common/types';
+import { Action, isNetwork, Network } from '@mesh/common/types';
 
 export class OgmiosProvider implements IEvaluator, ISubmitter {
-  constructor(
-    private readonly _ogmiosURL = 'wss://ogmios-api.mainnet.dandelion.link',
-  ) {}
+  private readonly _baseUrl: string;
+
+  constructor(baseUrl: string);
+  constructor(network: Network);
+  
+  constructor(args: string | Network) {
+    this._baseUrl = isNetwork(args)
+      ? SUPPORTED_OGMIOS_LINKS[args]
+      : args;
+  }
 
   async evaluateTx(tx: string): Promise<Omit<Action, 'data'>[]> {
     const client = await this.open();
@@ -79,8 +87,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
 
           if (result.SubmitSuccess) {
             resolve(result.SubmitSuccess.txId);
-          }
-          else {
+          } else {
             reject(result.SubmitFail);
           }
 
@@ -93,7 +100,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   }
 
   private async open(): Promise<WebSocket> {
-    const client = new WebSocket(this._ogmiosURL);
+    const client = new WebSocket(this._baseUrl);
 
     await new Promise((resolve) => {
       client.addEventListener('open', () => resolve(true), { once: true });

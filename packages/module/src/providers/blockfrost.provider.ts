@@ -13,12 +13,20 @@ import type {
 export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(projectId: string, version = 0) {
-    const network = projectId.slice(0, 7);
-    this._axiosInstance = axios.create({
-      baseURL: `https://cardano-${network}.blockfrost.io/api/v${version}`,
-      headers: { project_id: projectId },
-    });
+  constructor(baseUrl: string);
+  constructor(projectId: string, version?: number);
+
+  constructor(...args: unknown[]) {
+    if (args.length === 1 && typeof args[0] === 'string' && args[0].startsWith('http')) {
+      this._axiosInstance = axios.create({ baseURL: args[0] });
+    } else {
+      const projectId = args[0] as string;
+      const network = projectId.slice(0, 7);
+      this._axiosInstance = axios.create({
+        baseURL: `https://cardano-${network}.blockfrost.io/api/v${args[1] ?? 0}`,
+        headers: { project_id: projectId },
+      });
+    }
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {

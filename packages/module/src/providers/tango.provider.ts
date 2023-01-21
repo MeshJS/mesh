@@ -179,7 +179,7 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
 
       if (status === 200)
         return <AssetMetadata>{
-          ...data.metadata[0]?.json[policyId][toUTF8(assetName)],
+          ...data.metadata.find((m) => m.label === 721)?.json[policyId][toUTF8(assetName)],
         };
 
       throw parseHttpError(data);
