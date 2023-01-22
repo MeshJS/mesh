@@ -81,10 +81,10 @@ export const SUPPORTED_HANDLES: Record<number, string> = {
 };
 
 export const SUPPORTED_OGMIOS_LINKS: Record<Network, string> = {
-  mainnet: 'https://ogmios-api.mainnet.dandelion.link',
-  preprod: 'https://ogmios-api.iohk-preprod.dandelion.link',
+  mainnet: 'wss://ogmios-api.mainnet.dandelion.link',
+  preprod: 'wss://ogmios-api.iohk-preprod.dandelion.link',
   preview: '__TBD_SOON_TM__',
-  testnet: 'https://ogmios-api.testnet.dandelion.link',
+  testnet: 'wss://ogmios-api.testnet.dandelion.link',
 };
 
 export const SUPPORTED_WALLETS = [

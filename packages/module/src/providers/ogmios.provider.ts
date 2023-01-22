@@ -8,10 +8,10 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   constructor(baseUrl: string);
   constructor(network: Network);
   
-  constructor(args: string | Network) {
-    this._baseUrl = isNetwork(args)
-      ? SUPPORTED_OGMIOS_LINKS[args]
-      : args;
+  constructor(...args: unknown[]) {
+    this._baseUrl = isNetwork(args[0])
+      ? SUPPORTED_OGMIOS_LINKS[args[0]]
+      : args[0] as string;
   }
 
   async evaluateTx(tx: string): Promise<Omit<Action, 'data'>[]> {
