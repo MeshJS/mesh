@@ -44,6 +44,8 @@ export default function ProvidersBlockfrost() {
 
 function Hero({ network, setNetwork }) {
   let code1 = `const blockfrostProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');\n`;
+  let code2 = `const blockfrostProvider = new BlockfrostProvider('<BLOCKFROST_URL>');\n`;
+
   return (
     <header className="mb-4 lg:mb-6">
       <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
@@ -65,10 +67,14 @@ function Hero({ network, setNetwork }) {
               Blockfrost
             </a>{' '}
             provides restful APIs which allows your app to access information
-            stored on the blockchain.
+            stored on the blockchain. Get started:
           </p>
-          <p>Get started:</p>
           <Codeblock data={code1} isJson={false} />
+          <p>
+            If you are using a privately hosted Blockfrost instance, you can set
+            the URL in the parameter:
+          </p>
+          <Codeblock data={code2} isJson={false} />
           <p>Choose network for this demo:</p>
           <ButtonGroup
             items={[

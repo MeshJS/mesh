@@ -44,7 +44,7 @@ export default function ProvidersKoios() {
 }
 
 function Hero({ network, setNetwork }) {
-  let code1 = `const koiosProvider = new KoiosProvider('<api,testnet,guild>');\n`;
+  let code1 = `const koiosProvider = new KoiosProvider('<'api'|'preview'|'preprod'|'guild'>');\n`;
 
   return (
     <header className="mb-4 lg:mb-6">
@@ -91,6 +91,16 @@ function Hero({ network, setNetwork }) {
                 key: 'preprod',
                 label: 'Preprod',
                 onClick: () => setNetwork('preprod'),
+              },
+              {
+                key: 'preview',
+                label: 'Preview',
+                onClick: () => setNetwork('preview'),
+              },
+              {
+                key: 'guild',
+                label: 'Guild',
+                onClick: () => setNetwork('guild'),
               },
             ]}
             currentSelected={network}

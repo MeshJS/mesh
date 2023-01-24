@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import SectionTwoCol from '../../common/sectionTwoCol';
 import { demoAddresses } from '../../../configs/demo';
-import { BadgeListener } from './badges';
+import { BadgeEvaluator } from './badges';
 import {
   onTxConfirmedLeft,
   onTxConfirmedRight,
 } from './listener/onTxConfirmed';
-import { onNextTxLeft, onNextTxRight } from './listener/onNextTx';
 import { useWallet } from '@meshsdk/react';
 
-export default function Listener({ listener, listenerName }) {
+export default function Evaluator({ evaluator, evaluatorName }) {
   const { wallet, connected } = useWallet();
   const [address, setAddress] = useState<string>(demoAddresses.testnet);
   const [lovelace, setLovelace] = useState<string>('5000000');
@@ -29,7 +28,7 @@ export default function Listener({ listener, listenerName }) {
 
   return (
     <>
-      <SectionTwoCol
+      {/* <SectionTwoCol
         sidebarTo="onTxConfirmed"
         header="onTxConfirmed"
         leftFn={onTxConfirmedLeft({
@@ -45,8 +44,8 @@ export default function Listener({ listener, listenerName }) {
           setLovelace,
         })}
         isH3={true}
-        badge={<BadgeListener />}
-      />
+        badge={<BadgeEvaluator />}
+      /> */}
     </>
   );
 }

@@ -8,14 +8,14 @@ import { Transaction } from '@meshsdk/core';
 import { useWallet, CardanoWallet } from '@meshsdk/react';
 import { ArrowPathIcon, CheckIcon } from '@heroicons/react/24/solid';
 
-export function onTxConfirmedLeft({ listenerName, address, lovelace }) {
+export function evaluateTxLeft({ listenerName, txHash }) {
   let code1 = `const tx = new Transaction({ initiator: wallet });\n`;
-  code1 += `tx.sendLovelace('${address}', '${lovelace}');\n`;
-  code1 += `\n`;
-  code1 += `const unsignedTx = await tx.build();\n`;
-  code1 += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  code1 += `const txHash = await wallet.submitTx(signedTx);\n`;
-  code1 += `\n`;
+  // code1 += `tx.sendLovelace('${address}', '${lovelace}');\n`;
+  // code1 += `\n`;
+  // code1 += `const unsignedTx = await tx.build();\n`;
+  // code1 += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  // code1 += `const txHash = await wallet.submitTx(signedTx);\n`;
+  // code1 += `\n`;
   code1 += `${listenerName}.onTxConfirmed(txHash, () => {\n`;
   code1 += `  console.log('Transaction confirmed');\n`;
   code1 += `});\n`;
@@ -31,12 +31,10 @@ export function onTxConfirmedLeft({ listenerName, address, lovelace }) {
   );
 }
 
-export function onTxConfirmedRight({
+export function evaluateTxRight({
   listener,
-  address,
-  setAddress,
-  lovelace,
-  setLovelace,
+  txHash,
+  setTxHash,
 }) {
   const { wallet, connected } = useWallet();
 
@@ -54,7 +52,7 @@ export function onTxConfirmedRight({
 
     try {
       const tx = new Transaction({ initiator: wallet });
-      tx.sendLovelace(address, lovelace);
+      // tx.sendLovelace(address, lovelace);
 
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
@@ -75,18 +73,6 @@ export function onTxConfirmedRight({
   return (
     <>
       <Card>
-        <Input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="Address"
-          label="Address"
-        />
-        <Input
-          value={lovelace}
-          onChange={(e) => setLovelace(e.target.value)}
-          placeholder="Lovelace"
-          label="Lovelace"
-        />
 
         {connected ? (
           <RunDemoButton
@@ -97,33 +83,6 @@ export function onTxConfirmedRight({
         ) : (
           <CardanoWallet />
         )}
-
-        {txWaitingConfrim === false && (
-          <div className="flex items-center h-12 gap-x-2">
-            <ArrowPathIcon className="w-6 h-6 animate-spin" />
-            <span>Transaction pending confirmation</span>
-          </div>
-        )}
-        {txWaitingConfrim === true && (
-          <div className="flex items-center h-12 gap-x-2">
-            <CheckIcon className="w-6 h-6 text-green-500" />
-            <span>Transaction confirmed</span>
-          </div>
-        )}
-
-        {/* {txWaitingConfrim === false && (
-          <RunDemoResult
-            response="Transaction pending confirmation"
-            label="Transaction status"
-          />
-        )}
-
-        {txWaitingConfrim === true && (
-          <RunDemoResult
-            response="Transaction confirmed"
-            label="Transaction status"
-          />
-        )} */}
 
         <RunDemoResult response={response} label="Transaction hash" />
         <RunDemoResult response={responseError} label="Error" />

@@ -6,21 +6,15 @@ import {
   BadgeEvaluator,
   BadgeSubmitter,
 } from '../../components/pages/providers/badges';
-import { OgmiosProvider } from '@meshsdk/core';
+import { OgmiosProvider, Transaction } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
-// import ButtonGroup from '../../components/ui/buttongroup';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
+import Button from '../../components/ui/button';
+import Evaluator from '../../components/pages/providers/evaluator';
+import ButtonGroup from '../../components/ui/buttongroup';
 
 export default function ProvidersOgmios() {
-  const sidebarItems = [
-    // { label: 'Fetch Account Info', to: 'fetchAccountInfo' },
-    // { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
-    // { label: 'Fetch Asset Metadata', to: 'fetchAssetMetadata' },
-    // { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
-    // { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
-    // { label: 'Fetch Protocol Parameters', to: 'fetchProtocolParameters' },
-    { label: 'Submit Tx', to: 'submitTx' },
-  ];
+  const sidebarItems = [{ label: 'Submit Tx', to: 'submitTx' }];
   const [network, setNetwork] = useState<string>('preprod');
 
   return (
@@ -42,31 +36,33 @@ function Hero({ network, setNetwork }) {
 
   let code1 = `const ogmiosProvider = new OgmiosProvider();\n`;
 
-  // const ogmiosProvider = new OgmiosProvider(
-  //   'wss://ogmios-api.testnet.dandelion.link'
-  // );
+  const ogmiosProvider = new OgmiosProvider(network);
 
-  // async function test() {
-  //   const tx = new Transaction({ initiator: wallet }).sendLovelace(
-  //     'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx',
-  //     '1000000'
-  //   );
-  //   const unsignedTx = await tx.build();
-  //   const signedTx = await wallet.signTx(unsignedTx);
-  //   const txHash = await ogmiosProvider.submitTx(signedTx);
-  //   console.log({ txHash });
+  async function test() {
+    const tx = new Transaction({ initiator: wallet }).sendLovelace(
+      'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx',
+      '1000000'
+    );
+    const unsignedTx = await tx.build();
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await ogmiosProvider.submitTx(signedTx);
+    console.log('txHash', { txHash });
 
-  //   // const res = await ogmiosProvider.evaluateTx(signedTx);
-  //   // console.log({ res });
-  // }
+    // const res = await ogmiosProvider.evaluateTx(signedTx);
+    // console.log('ogmiosProvider.evaluateTx', { res });
 
-  // useEffect(() => {
-  //   if (connected) {
-  //     ogmiosProvider.onNextTx((tx) => {
-  //       console.log(111, 'ogmiosProvider.onNextTx', tx);
-  //     });
-  //   }
-  // }, [connected]);
+    ogmiosProvider.evaluateTx(signedTx).then(function (tx) {
+      console.log('ogmiosProvider.evaluateTx', tx);
+    });
+  }
+
+  useEffect(() => {
+    if (connected) {
+      ogmiosProvider.onNextTx((tx) => {
+        console.log('ogmiosProvider.onNextTx', tx);
+      });
+    }
+  }, [connected]);
 
   return (
     <header className="mb-4 lg:mb-6">
@@ -83,21 +79,46 @@ function Hero({ network, setNetwork }) {
         mini-protocols via JSON/RPC.
       </p>
 
-      {/* <CardanoWallet />
-      <Button onClick={() => test()}>test</Button> */}
-
       <div className="grid grid-cols-1 px-4 lg:grid-cols-2 lg:gap-16 pb-16">
         <div className="col-span-1 xl:col-auto">
           <p>
-            Browse the{' '}
+            Ogmios is a lightweight bridge interface for cardano-node. It offers
+            a WebSockets API that enables local clients to speak Ouroboros'
+            mini-protocols via JSON/RPC. Ogmios is a fast and lightweight
+            solution that can be deployed alongside relays to create entry
+            points on the Cardano network for various types of applications.
+            (reference:{' '}
             <a href="https://ogmios.dev/" target="_blank" rel="noreferrer">
-              Ogmios
-            </a>{' '}
-            website. Get started:
+              ogmios.dev
+            </a>
+            )
           </p>
+          <p>Get started:</p>
           <Codeblock data={code1} isJson={false} />
+
+          <p>Choose network for this demo:</p>
+          <ButtonGroup
+            items={[
+              {
+                key: 'mainnet',
+                label: 'Mainnet',
+                onClick: () => setNetwork('mainnet'),
+              },
+              {
+                key: 'preprod',
+                label: 'Preprod',
+                onClick: () => setNetwork('preprod'),
+              },
+            ]}
+            currentSelected={network}
+          />
         </div>
-        <div className="col-span-1"></div>
+        <div className="col-span-1">
+          <h3>to remove, test only</h3>
+
+          <CardanoWallet />
+          <Button onClick={() => test()}>test</Button>
+        </div>
       </div>
     </header>
   );
@@ -116,7 +137,7 @@ function Main({ network }) {
 
   return (
     <>
-      {/* <Fetcher fetcher={provider} fetcherName="provider" /> */}
+      <Evaluator evaluator={provider} evaluatorName="ogmiosProvider" />
       <Submitter submitter={provider} submitterName="ogmiosProvider" />
     </>
   );
