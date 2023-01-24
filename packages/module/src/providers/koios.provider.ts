@@ -14,10 +14,18 @@ import type {
 export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(network: 'api' | 'preview' | 'preprod' | 'guild', version = 0) {
-    this._axiosInstance = axios.create({
-      baseURL: `https://${network}.koios.rest/api/v${version}`,
-    });
+  constructor(baseUrl: string);
+  constructor(network: 'api' | 'preview' | 'preprod' | 'guild', version?: number);
+
+  constructor(...args: unknown[]) {
+    if (typeof args[0] === 'string' && args[0].startsWith('http')) {
+      this._axiosInstance = axios.create({ baseURL: args[0] });
+    } else {
+      this._axiosInstance = axios.create({
+        baseURL: `https://${args[0]}.koios.rest/api/v${args[1] ?? 0}`,
+      });
+    }
+    
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
