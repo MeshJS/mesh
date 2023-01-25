@@ -2,16 +2,13 @@ import { useEffect, useState } from 'react';
 import SectionTwoCol from '../../common/sectionTwoCol';
 import { demoAddresses } from '../../../configs/demo';
 import { BadgeEvaluator } from './badges';
-import {
-  onTxConfirmedLeft,
-  onTxConfirmedRight,
-} from './listener/onTxConfirmed';
+import { evaluateTxLeft, evaluateTxRight } from './evaluator/evaluateTx';
 import { useWallet } from '@meshsdk/react';
 
 export default function Evaluator({ evaluator, evaluatorName }) {
   const { wallet, connected } = useWallet();
   const [address, setAddress] = useState<string>(demoAddresses.testnet);
-  const [lovelace, setLovelace] = useState<string>('5000000');
+  // const [lovelace, setLovelace] = useState<string>('5000000');
 
   useEffect(() => {
     async function init() {
@@ -28,24 +25,18 @@ export default function Evaluator({ evaluator, evaluatorName }) {
 
   return (
     <>
-      {/* <SectionTwoCol
-        sidebarTo="onTxConfirmed"
-        header="onTxConfirmed"
-        leftFn={onTxConfirmedLeft({
-          listenerName,
-          address,
-          lovelace,
+      <SectionTwoCol
+        sidebarTo="evaluateTx"
+        header="evaluateTx"
+        leftFn={evaluateTxLeft({
+          evaluatorName,
         })}
-        rightFn={onTxConfirmedRight({
-          listener,
-          address,
-          setAddress,
-          lovelace,
-          setLovelace,
+        rightFn={evaluateTxRight({
+          evaluator,
         })}
         isH3={true}
         badge={<BadgeEvaluator />}
-      /> */}
+      />
     </>
   );
 }

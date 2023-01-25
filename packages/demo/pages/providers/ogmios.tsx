@@ -6,15 +6,16 @@ import {
   BadgeEvaluator,
   BadgeSubmitter,
 } from '../../components/pages/providers/badges';
-import { OgmiosProvider, Transaction } from '@meshsdk/core';
+import { OgmiosProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
-import { CardanoWallet, useWallet } from '@meshsdk/react';
-import Button from '../../components/ui/button';
 import Evaluator from '../../components/pages/providers/evaluator';
 import ButtonGroup from '../../components/ui/buttongroup';
 
 export default function ProvidersOgmios() {
-  const sidebarItems = [{ label: 'Submit Tx', to: 'submitTx' }];
+  const sidebarItems = [
+    { label: 'Evaluate Tx', to: 'evaluateTx' },
+    { label: 'Submit Tx', to: 'submitTx' },
+  ];
   const [network, setNetwork] = useState<string>('preprod');
 
   return (
@@ -32,37 +33,7 @@ export default function ProvidersOgmios() {
 }
 
 function Hero({ network, setNetwork }) {
-  const { wallet, connected } = useWallet();
-
   let code1 = `const ogmiosProvider = new OgmiosProvider();\n`;
-
-  const ogmiosProvider = new OgmiosProvider(network);
-
-  async function test() {
-    const tx = new Transaction({ initiator: wallet }).sendLovelace(
-      'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx',
-      '1000000'
-    );
-    const unsignedTx = await tx.build();
-    const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await ogmiosProvider.submitTx(signedTx);
-    console.log('txHash', { txHash });
-
-    // const res = await ogmiosProvider.evaluateTx(signedTx);
-    // console.log('ogmiosProvider.evaluateTx', { res });
-
-    ogmiosProvider.evaluateTx(signedTx).then(function (tx) {
-      console.log('ogmiosProvider.evaluateTx', tx);
-    });
-  }
-
-  useEffect(() => {
-    if (connected) {
-      ogmiosProvider.onNextTx((tx) => {
-        console.log('ogmiosProvider.onNextTx', tx);
-      });
-    }
-  }, [connected]);
 
   return (
     <header className="mb-4 lg:mb-6">
@@ -113,12 +84,7 @@ function Hero({ network, setNetwork }) {
             currentSelected={network}
           />
         </div>
-        <div className="col-span-1">
-          <h3>to remove, test only</h3>
-
-          <CardanoWallet />
-          <Button onClick={() => test()}>test</Button>
-        </div>
+        <div className="col-span-1"></div>
       </div>
     </header>
   );
