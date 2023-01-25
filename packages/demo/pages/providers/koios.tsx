@@ -44,7 +44,8 @@ export default function ProvidersKoios() {
 }
 
 function Hero({ network, setNetwork }) {
-  let code1 = `const koiosProvider = new KoiosProvider('<'api'|'preview'|'preprod'|'guild'>');\n`;
+  let code1 = `const koiosProvider = new KoiosProvider('<api|preview|preprod|guild>');\n`;
+  let code2 = `const koiosProvider = new KoiosProvider('<KOIOS_URL>');\n`;
 
   return (
     <header className="mb-4 lg:mb-6">
@@ -79,6 +80,11 @@ function Hero({ network, setNetwork }) {
           ></iframe>
           <p>Get started:</p>
           <Codeblock data={code1} isJson={false} />
+          <p>
+            If you are using a privately hosted instance, you can set the URL in
+            the parameter:
+          </p>
+          <Codeblock data={code2} isJson={false} />
           <p>Choose network for this demo:</p>
           <ButtonGroup
             items={[
