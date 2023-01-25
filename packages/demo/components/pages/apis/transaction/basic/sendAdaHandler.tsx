@@ -75,7 +75,7 @@ function Left({ userInput }) {
           ADA Handle
         </a>
         's address with{' '}
-        <Link href="/apis/resolvers">Resolvers - fetchHandleAddress</Link>:
+        <code>fetchHandleAddress()</code>:
       </p>
       <Codeblock data={code1} isJson={false} />
       <p>

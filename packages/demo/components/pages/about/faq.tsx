@@ -55,11 +55,10 @@ export default function AboutFaq() {
                   </ul>
                   <p>
                     Like a well-woven fabric, Mesh connects business goals with
-                    technology stacks. It enables developers (<i>resource</i>)
-                    to build applications (<i>product</i>) according to project
-                    requirements (<i>business</i>) on the blockchain (
-                    <i>technology</i>). Mesh is filling the gap by making
-                    product development accessible on Cardano.
+                    technology stacks. It enables developers to build
+                    applications according to project requirements on the
+                    blockchain. Mesh is filling the gap by making product
+                    development accessible on Cardano.
                   </p>
                   <p>
                     Whether you're a new developer, startup, Web3 market leader,
@@ -149,18 +148,6 @@ export default function AboutFaq() {
                     and tagged it with <code>mesh</code>.
                   </p>
                   <p>
-                    If you don't receive an answer, please file{' '}
-                    <a
-                      href="https://github.com/MeshJS/mesh/issues"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="link"
-                    >
-                      an issue
-                    </a>
-                    , and we will help you out.
-                  </p>
-                  <p>
                     You can also ask questions on{' '}
                     <a
                       href="https://discord.gg/Z6AH9dahdH"
@@ -200,13 +187,31 @@ export default function AboutFaq() {
               body={
                 <>
                   <p>
-                    As Mesh is open source, the people in the Cardano
-                    development community are a part of this journey. We look
-                    forward to more developers and writers joining us to develop
-                    this fantastic tool further. The users of Cardano
-                    applications are also a part of Mesh, as they make it
-                    possible for developers to build, adapt and improve current
-                    and future applications.
+                    As Mesh is an open-source library, this SDK belongs to the
+                    Cardano development community. We look forward to more
+                    developers and writers joining us to develop this fantastic
+                    tool further. The users of Cardano applications are also a
+                    part of Mesh, as they make it possible for developers to
+                    build, adapt and improve current and future applications.
+                    Mesh SDK is started by{' '}
+                    <a
+                      href="https://twitter.com/jinglescode"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      Jingles
+                    </a>{' '}
+                    and{' '}
+                    <a
+                      href="https://twitter.com/abdelkrimdev"
+                      rel="noreferrer"
+                      className="link"
+                      target="_blank"
+                    >
+                      Abdelkrim
+                    </a>
+                    .
                   </p>
                 </>
               }

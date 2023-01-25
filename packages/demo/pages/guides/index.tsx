@@ -34,6 +34,13 @@ const GuidesPage: NextPage = () => {
       link: '/guides/prove-wallet-ownership',
       thumbnail: '/guides/cryptographically-prove-wallet-ownership.png',
     },
+    {
+      title: 'Implement Custom Provider',
+      desc: 'Build custom Providers that provides API to access and process information provided by services.',
+      link: '/guides/custom-provider',
+      thumbnail: '/guides/implement-custom-provider.png',
+    },
+
     // {
     //   title: 'Minting Reference Token',
     //   desc: 'Something to describe this guide',

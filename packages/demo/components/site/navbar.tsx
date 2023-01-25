@@ -159,16 +159,16 @@ function SubMenuGetStarted() {
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
             <SubMenuLinks
-              href={`/starter-templates`}
-              title="Starter Templates"
-              desc="Kick start your projects with our templates using CLI"
-              icon={<CubeTransparentIcon className="w-5 h-5" />}
-            />
-            <SubMenuLinks
               href={`/guides`}
               title="Guides"
               desc="Step by step guides to build on Cardano"
               icon={<DocumentTextIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/starter-templates`}
+              title="Starter Templates"
+              desc="Kick start your projects with our templates using CLI"
+              icon={<CubeTransparentIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/migration-manual-installation`}
@@ -428,7 +428,7 @@ function SubMenuReact() {
 function SubMenuLinks({ href, title, desc, icon }) {
   return (
     <li>
-      <Link href={href}>
+      <a href={href}>
         <div className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
           <div className="p-2 mr-4 bg-white rounded-lg shadow dark:bg-gray-700">
             {icon}
@@ -440,7 +440,7 @@ function SubMenuLinks({ href, title, desc, icon }) {
             </div>
           </div>
         </div>
-      </Link>
+      </a>
     </li>
   );
 }
