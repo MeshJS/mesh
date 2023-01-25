@@ -49,7 +49,7 @@ export class Transaction {
     this._txWithdrawals = csl.Withdrawals.new();
   }
 
-  static maskMetadata(cborTx: string, era: Era = 'ALONZO') {
+  static maskMetadata(cborTx: string, era: Era = 'BABBAGE') {
     const tx = deserializeTx(cborTx);
     const txMetadata = tx.auxiliary_data()?.metadata();
 
@@ -88,7 +88,7 @@ export class Transaction {
     return tx.auxiliary_data()?.metadata()?.to_hex() ?? '';
   }
 
-  static writeMetadata(cborTx: string, cborTxMetadata: string, era: Era = 'ALONZO') {
+  static writeMetadata(cborTx: string, cborTxMetadata: string, era: Era = 'BABBAGE') {
     const tx = deserializeTx(cborTx);
     const txAuxData = tx.auxiliary_data()
       ?? csl.AuxiliaryData.new();
@@ -328,14 +328,18 @@ export class Transaction {
     if (amount.is_zero() || multiAsset === undefined)
       return this;
 
-    const txOutputBuilder = buildTxOutputBuilder(
+    const txOutputAmountBuilder = buildTxOutputBuilder(
       recipient,
-    );
+    ).next();
 
-    const txOutput = txOutputBuilder.next()
-      .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
-        buildDataCost(this._protocolParameters.coinsPerUTxOSize),
-      ).build();
+    const txOutput = amount.coin().is_zero()
+      ? txOutputAmountBuilder
+          .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
+            buildDataCost(this._protocolParameters.coinsPerUTxOSize),
+          ).build()
+      : txOutputAmountBuilder
+          .with_coin_and_asset(amount.coin(), multiAsset)
+          .build();
 
     this._txBuilder.add_output(txOutput);
 

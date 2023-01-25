@@ -24,6 +24,12 @@ export const templates = {
   //   image: 'marketplace.png',
   //   comingsoon: true,
   // },
+  signin: {
+    title: 'Sign In with Wallet',
+    desc: `Cryptographically prove the ownership of a wallet.`,
+    cli: 'signin',
+    image: 'signin.png',
+  },
 };
 
 export const languages = {

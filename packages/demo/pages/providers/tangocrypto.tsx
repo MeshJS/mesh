@@ -5,21 +5,29 @@ import Codeblock from '../../components/ui/codeblock';
 import {
   BadgeFetcher,
   BadgeSubmitter,
+  BadgeListener,
+  BadgeEvaluator,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
 import { TangoProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
 import ButtonGroup from '../../components/ui/buttongroup';
+import Listener from '../../components/pages/providers/listener';
+import Evaluator from '../../components/pages/providers/evaluator';
 
 export default function ProvidersTangocrypto() {
   const sidebarItems = [
     { label: 'Fetch Account Info', to: 'fetchAccountInfo' },
+    { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
     { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
     { label: 'Fetch Asset Metadata', to: 'fetchAssetMetadata' },
-    { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
+    { label: 'Fetch Block Info', to: 'fetchBlockInfo' },
     { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
     { label: 'Fetch Protocol Parameters', to: 'fetchProtocolParameters' },
+    { label: 'Fetch Transaction Info', to: 'fetchTxInfo' },
     { label: 'Submit Tx', to: 'submitTx' },
+    { label: 'On Transaction Confirmed', to: 'onTxConfirmed' },
+    { label: 'Evaluate Tx', to: 'evaluateTx' },
   ];
   const [network, setNetwork] = useState<string>('preprod');
 
@@ -40,7 +48,7 @@ export default function ProvidersTangocrypto() {
 function Hero({ network, setNetwork }) {
   let codeTango = `import { TangoProvider } from '@meshsdk/core';\n\n`;
   codeTango += `const tangocryptoProvider = new TangoProvider(\n`;
-  codeTango += `  '<mainnet,testnet>',\n`;
+  codeTango += `  '<mainnet|testnet>',\n`;
   codeTango += `  '<TANGOCRYPTO_APP_ID>'\n`;
   codeTango += `  '<TANGOCRYPTO_API_KEY>'\n`;
   codeTango += `);`;
@@ -52,6 +60,8 @@ function Hero({ network, setNetwork }) {
         <span className="ml-2">
           <BadgeFetcher />
           <BadgeSubmitter />
+          <BadgeListener />
+          <BadgeEvaluator />
         </span>
       </h2>
       <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
@@ -127,6 +137,14 @@ function Main({ network }) {
       <Submitter
         submitter={tangocryptoProvider}
         submitterName="tangocryptoProvider"
+      />
+      <Listener
+        listener={tangocryptoProvider}
+        listenerName="tangocryptoProvider"
+      />
+      <Evaluator
+        evaluator={tangocryptoProvider}
+        evaluatorName="tangocryptoProvider"
       />
     </>
   );

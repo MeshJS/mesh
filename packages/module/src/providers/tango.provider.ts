@@ -1,17 +1,17 @@
 import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
-import { IFetcher, ISubmitter } from '@mesh/common/contracts';
+import { IEvaluator, IFetcher, IListener, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeNativeScript, fromNativeScript,
   fromUTF8, parseAssetUnit, parseHttpError,
   resolveRewardAddress, toScriptRef, toUTF8,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, Asset, AssetMetadata,
-  PlutusScript, Protocol, UTxO,
+  AccountInfo, Action, Asset, AssetMetadata, BlockInfo,
+  PlutusScript, Protocol, TransactionInfo, UTxO,
 } from '@mesh/common/types';
 
-export class TangoProvider implements IFetcher, ISubmitter {
+export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
   constructor(
@@ -23,6 +23,28 @@ export class TangoProvider implements IFetcher, ISubmitter {
       baseURL: `https://cardano-${network}.tangocrypto.com/${appId}/v${version}`,
       headers: { 'x-api-key': appKey },
     });
+  }
+
+  async evaluateTx(tx: string): Promise<Omit<Action, 'data'>[]> {
+    try {
+      const { data, status } = await this._axiosInstance.post(
+        'transactions/evaluate', { tx, utxos: [] },
+      );
+
+      if (status === 200) 
+        return data.redeemers.map((redeemer) => <Omit<Action, 'data'>>({
+          index: redeemer.index,
+          tag: redeemer.purpose.toUpperCase(),
+          budget: {
+            mem: redeemer.unit_mem,
+            steps: redeemer.unit_steps,
+          },
+        }));
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -157,7 +179,38 @@ export class TangoProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return <AssetMetadata>{
-          ...data.metadata[0]?.json[policyId][toUTF8(assetName)],
+          ...data.metadata.find((m) => m.label === 721)?.json[policyId][toUTF8(assetName)],
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchBlockInfo(hash: string): Promise<BlockInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `blocks/${hash}`,
+      );
+
+      if (status === 200)
+        return <BlockInfo>{
+          confirmations: data.confirmations,
+          epoch: data.epoch_no,
+          epochSlot: data.epoch_slot_no.toString(),
+          fees: data.fees.toString(),
+          hash: data.hash,
+          nextBlock: data.next_block.toString() ?? '',
+          operationalCertificate: data.op_cert,
+          output: data.out_sum.toString() ?? '0',
+          previousBlock: data.previous_block.toString(),
+          size: data.size,
+          slot: data.slot_no.toString(),
+          slotLeader: data.slot_leader ?? '',
+          time: Date.parse(data.time),
+          txCount: data.tx_count,
+          VRFKey: data.vrf_key,
         };
 
       throw parseHttpError(data);
@@ -216,6 +269,49 @@ export class TangoProvider implements IFetcher, ISubmitter {
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchTxInfo(hash: string): Promise<TransactionInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `transactions/${hash}`,
+      );
+
+      if (status === 200)
+        return <TransactionInfo>{
+          block: data.block.hash,
+          deposit: data.deposit,
+          fees: data.fee,
+          hash: data.hash,
+          index: data.block_index,
+          invalidAfter: data.invalid_hereafter ?? '',
+          invalidBefore: data.invalid_before ?? '',
+          slot: data.block.slot_no.toString(),
+          size: data.size,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  onTxConfirmed(txHash: string, callback: () => void, limit = 20): void {
+    let attempts = 0;
+
+    const checkTx = setInterval(() => {
+      if (attempts >= limit)
+        clearInterval(checkTx);
+
+      this.fetchTxInfo(txHash).then((txInfo) => {
+        this.fetchBlockInfo(txInfo.block).then((blockInfo) => {
+          if (blockInfo?.confirmations > 0) {
+            clearInterval(checkTx);
+            callback();
+          }
+        }).catch(() => { attempts += 1; });
+      }).catch(() => { attempts += 1; });
+    }, 5_000);
   }
 
   async submitTx(tx: string): Promise<string> {

@@ -9,7 +9,7 @@ export default function BlockchainProviderCodeSnippet() {
   codeBF += `const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');`;
 
   let codeKoios = `import { KoiosProvider } from '@meshsdk/core';\n\n`;
-  codeKoios += `const blockchainProvider = new KoiosProvider('<api,preprod,preview>');`;
+  codeKoios += `const blockchainProvider = new KoiosProvider('<'api'|'preview'|'preprod'|'guild'>');`;
 
   let codeTango = `import { TangoProvider } from '@meshsdk/core';\n\n`;
   codeTango += `const blockchainProvider = new TangoProvider(\n`;

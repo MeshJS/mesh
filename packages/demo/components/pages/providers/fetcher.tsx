@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import SectionTwoCol from '../../common/sectionTwoCol';
 import { demoAddresses } from '../../../configs/demo';
 import { BadgeFetcher } from './badges';
@@ -26,8 +26,16 @@ import {
   fetchHandleAddressLeft,
   fetchHandleAddressRight,
 } from './fetchers/fetchHandleAddress';
+import { useWallet } from '@meshsdk/react';
+import { fetchTxInfoLeft, fetchTxInfoRight } from './fetchers/fetchTxInfo';
+import {
+  fetchBlockInfoLeft,
+  fetchBlockInfoRight,
+} from './fetchers/fetchBlockInfo';
 
 export default function Fetcher({ fetcher, fetcherName }) {
+  const { wallet, connected } = useWallet();
+
   const [fetchAddressUtxosAddress, setfetchAddressUtxosAddress] =
     useState<string>(demoAddresses.testnet);
   const [fetchAddressUtxosAsset, setfetchAddressUtxosAsset] = useState<string>(
@@ -51,6 +59,26 @@ export default function Fetcher({ fetcher, fetcherName }) {
   const [fetchHandleAddressHandle, setfetchHandleAddressHandle] =
     useState<string>('jingles');
 
+  const [txHash, setTxHash] = useState<string>(
+    'f4ec9833a3bf95403d395f699bc564938f3419537e7fb5084425d3838a4b6159'
+  );
+  const [block, setBlock] = useState<string>(
+    '79f60880b097ec7dabb81f75f0b52fedf5e922d4f779a11c0c432dcf22c56089'
+  );
+
+  // useEffect(() => {
+  //   async function init() {
+  //     setTxHash(
+  //       (await wallet.getNetworkId()) === 1
+  //         ? '84a1d1a9f8fb3e7b4f3d1bb04ece750fe2697e74b7916804c2f179870eb34f17'
+  //         : 'f4ec9833a3bf95403d395f699bc564938f3419537e7fb5084425d3838a4b6159'
+  //     );
+  //   }
+  //   if (connected) {
+  //     init();
+  //   }
+  // }, [connected]);
+
   return (
     <>
       <SectionTwoCol
@@ -68,6 +96,26 @@ export default function Fetcher({ fetcher, fetcherName }) {
         isH3={true}
         badge={<BadgeFetcher />}
       />
+
+      <SectionTwoCol
+        sidebarTo="fetchAddressUtxos"
+        header="fetchAddressUtxos"
+        leftFn={fetchAddressUtxosLeft({
+          fetcherName,
+          fetchAddressUtxosAddress,
+          fetchAddressUtxosAsset,
+        })}
+        rightFn={fetchAddressUtxosRight({
+          fetcher,
+          fetchAddressUtxosAddress,
+          setfetchAddressUtxosAddress,
+          fetchAddressUtxosAsset,
+          setfetchAddressUtxosAsset,
+        })}
+        isH3={true}
+        badge={<BadgeFetcher />}
+      />
+
       <SectionTwoCol
         sidebarTo="fetchAssetAddresses"
         header="fetchAssetAddresses"
@@ -99,24 +147,23 @@ export default function Fetcher({ fetcher, fetcherName }) {
         isH3={true}
         badge={<BadgeFetcher />}
       />
+
       <SectionTwoCol
-        sidebarTo="fetchAddressUtxos"
-        header="fetchAddressUtxos"
-        leftFn={fetchAddressUtxosLeft({
+        sidebarTo="fetchBlockInfo"
+        header="fetchBlockInfo"
+        leftFn={fetchBlockInfoLeft({
           fetcherName,
-          fetchAddressUtxosAddress,
-          fetchAddressUtxosAsset,
+          block,
         })}
-        rightFn={fetchAddressUtxosRight({
+        rightFn={fetchBlockInfoRight({
           fetcher,
-          fetchAddressUtxosAddress,
-          setfetchAddressUtxosAddress,
-          fetchAddressUtxosAsset,
-          setfetchAddressUtxosAsset,
+          block,
+          setBlock,
         })}
         isH3={true}
         badge={<BadgeFetcher />}
       />
+
       <SectionTwoCol
         sidebarTo="fetchHandleAddress"
         header="fetchHandleAddress"
@@ -143,6 +190,21 @@ export default function Fetcher({ fetcher, fetcherName }) {
           fetcher,
           fetchProtocolParameters,
           setfetchProtocolParameters,
+        })}
+        isH3={true}
+        badge={<BadgeFetcher />}
+      />
+      <SectionTwoCol
+        sidebarTo="fetchTxInfo"
+        header="fetchTxInfo"
+        leftFn={fetchTxInfoLeft({
+          fetcherName,
+          txHash,
+        })}
+        rightFn={fetchTxInfoRight({
+          fetcher,
+          txHash,
+          setTxHash,
         })}
         isH3={true}
         badge={<BadgeFetcher />}

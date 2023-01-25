@@ -17,7 +17,7 @@ export const create = async (name, options) => {
       { title: 'Starter Project', value: 'starter' },
       { title: 'Multi-Sig Minting', value: 'minting' },
       { title: 'Stake-Pool Website', value: 'staking' },
-      { title: 'Smart-Contract Marketplace <COMING-SOON>', value: 'marketplace' },
+      { title: 'Cardano Sign-In', value: 'signin' },
     ]));
 
   const stack =

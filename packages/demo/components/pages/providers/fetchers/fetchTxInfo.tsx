@@ -5,23 +5,22 @@ import Card from '../../../ui/card';
 import Codeblock from '../../../ui/codeblock';
 import Input from '../../../ui/input';
 
-export function fetchAccountInfoLeft({ fetcherName, fetchAccountInfoAddress }) {
-  let code1 = `await ${fetcherName}.fetchAddressUTxOs(\n`;
-  code1 += `  '${fetchAccountInfoAddress}',\n`;
+export function fetchTxInfoLeft({ fetcherName, txHash }) {
+  let code1 = `await ${fetcherName}.fetchTxInfo(\n`;
+  code1 += `  '${txHash}',\n`;
   code1 += `)`;
   return (
     <>
-      <p>Fetch account infomation</p>
+      <p>
+        Fetch transaction infomation. Only confirmed transaction can be
+        retrieved.
+      </p>
       <Codeblock data={code1} isJson={false} />
     </>
   );
 }
 
-export function fetchAccountInfoRight({
-  fetcher,
-  fetchAccountInfoAddress,
-  setFetchAccountInfoAddress,
-}) {
+export function fetchTxInfoRight({ fetcher, txHash, setTxHash }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
@@ -30,7 +29,7 @@ export function fetchAccountInfoRight({
     setResponse(null);
     setResponseError(null);
     try {
-      const res = await fetcher.fetchAccountInfo(fetchAccountInfoAddress);
+      const res = await fetcher.fetchTxInfo(txHash);
       setResponse(res);
     } catch (error) {
       setResponseError(`${error}`);
@@ -41,10 +40,10 @@ export function fetchAccountInfoRight({
     <>
       <Card>
         <Input
-          value={fetchAccountInfoAddress}
-          onChange={(e) => setFetchAccountInfoAddress(e.target.value)}
-          placeholder="Reward Address"
-          label="Reward Address"
+          value={txHash}
+          onChange={(e) => setTxHash(e.target.value)}
+          placeholder="Transaction hash"
+          label="Transaction hash"
         />
 
         <RunDemoButton

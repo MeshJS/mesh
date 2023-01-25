@@ -5,23 +5,22 @@ import Card from '../../../ui/card';
 import Codeblock from '../../../ui/codeblock';
 import Input from '../../../ui/input';
 
-export function fetchAccountInfoLeft({ fetcherName, fetchAccountInfoAddress }) {
-  let code1 = `await ${fetcherName}.fetchAddressUTxOs(\n`;
-  code1 += `  '${fetchAccountInfoAddress}',\n`;
+export function fetchBlockInfoLeft({ fetcherName, block }) {
+  let code1 = `await ${fetcherName}.fetchBlockInfo(\n`;
+  code1 += `  '${block}',\n`;
   code1 += `)`;
   return (
     <>
-      <p>Fetch account infomation</p>
+      <p>
+        Fetch block infomation. You can get the hash from{' '}
+        <code>fetchTxInfo()</code>.
+      </p>
       <Codeblock data={code1} isJson={false} />
     </>
   );
 }
 
-export function fetchAccountInfoRight({
-  fetcher,
-  fetchAccountInfoAddress,
-  setFetchAccountInfoAddress,
-}) {
+export function fetchBlockInfoRight({ fetcher, block, setBlock }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
@@ -30,7 +29,7 @@ export function fetchAccountInfoRight({
     setResponse(null);
     setResponseError(null);
     try {
-      const res = await fetcher.fetchAccountInfo(fetchAccountInfoAddress);
+      const res = await fetcher.fetchBlockInfo(block);
       setResponse(res);
     } catch (error) {
       setResponseError(`${error}`);
@@ -41,10 +40,10 @@ export function fetchAccountInfoRight({
     <>
       <Card>
         <Input
-          value={fetchAccountInfoAddress}
-          onChange={(e) => setFetchAccountInfoAddress(e.target.value)}
-          placeholder="Reward Address"
-          label="Reward Address"
+          value={block}
+          onChange={(e) => setBlock(e.target.value)}
+          placeholder="Block hash"
+          label="Block hash"
         />
 
         <RunDemoButton

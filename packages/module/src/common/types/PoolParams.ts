@@ -1,14 +1,14 @@
 import { Relay } from './Relay';
 
 export type PoolParams = {
+  VRFKeyHash: string;
   operator: string;
-  vrfKeyHash: string;
   pledge: string;
   cost: string;
   margin: number;
-  rewardAddress: string;
   relays: Relay[];
   owners: string[];
+  rewardAddress: string;
   metadata?: PoolMetadata;
 };
 

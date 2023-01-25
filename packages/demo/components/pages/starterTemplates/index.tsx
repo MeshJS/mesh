@@ -128,6 +128,34 @@ const items = [
       </p>
     ),
   },
+  {
+    title: 'Sign In Next.js TypeScript',
+    template: 'signin',
+    framework: 'next',
+    language: 'typescript',
+    installCode: 'npx create-mesh-app leap -t signin -s next -l ts',
+    demoUrl: 'http://signin-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/signin-next-ts-template',
+    desc: (
+      <p>
+        Cryptographically prove the ownership of a wallet by signing a piece of data using data sign.
+      </p>
+    ),
+  },
+  {
+    title: 'Sign In Next.js JavaScript',
+    template: 'signin',
+    framework: 'next',
+    language: 'javascript',
+    installCode: 'npx create-mesh-app leap -t signin -s next -l js',
+    demoUrl: 'http://signin-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/signin-next-js-template',
+    desc: (
+      <p>
+        Cryptographically prove the ownership of a wallet by signing a piece of data using data sign.
+      </p>
+    ),
+  },
 ];
 
 export default function ReactStarterTemplates() {

@@ -1,23 +1,31 @@
 import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
-import { IFetcher, ISubmitter } from '@mesh/common/contracts';
+import { IFetcher, IListener, ISubmitter } from '@mesh/common/contracts';
 import {
   deserializeNativeScript, fromNativeScript, fromUTF8,
   parseAssetUnit, parseHttpError, resolveRewardAddress,
   toBytes, toScriptRef, toUTF8,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, Asset, AssetMetadata,
-  PlutusScript, Protocol, UTxO,
+  AccountInfo, Asset, AssetMetadata, BlockInfo,
+  PlutusScript, Protocol, TransactionInfo, UTxO,
 } from '@mesh/common/types';
 
-export class KoiosProvider implements IFetcher, ISubmitter {
+export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(network: 'api' | 'preview' | 'preprod' | 'guild', version = 0) {
-    this._axiosInstance = axios.create({
-      baseURL: `https://${network}.koios.rest/api/v${version}`,
-    });
+  constructor(baseUrl: string);
+  constructor(network: 'api' | 'preview' | 'preprod' | 'guild', version?: number);
+
+  constructor(...args: unknown[]) {
+    if (typeof args[0] === 'string' && args[0].startsWith('http')) {
+      this._axiosInstance = axios.create({ baseURL: args[0] });
+    } else {
+      this._axiosInstance = axios.create({
+        baseURL: `https://${args[0]}.koios.rest/api/v${args[1] ?? 0}`,
+      });
+    }
+    
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -143,6 +151,37 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     }
   }
 
+  async fetchBlockInfo(hash: string): Promise<BlockInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.post(
+        'block_info', { _block_hashes: [hash] }
+      );
+
+      if (status === 200)
+        return <BlockInfo>{
+          confirmations: data[0].num_confirmations,
+          epoch: data[0].epoch_no,
+          epochSlot: data[0].epoch_slot.toString(),
+          fees: data[0].total_fees ?? '',
+          hash: data[0].hash,
+          nextBlock: data[0].child_hash ?? '',
+          operationalCertificate: data[0].op_cert,
+          output: data[0].total_output ?? '0',
+          previousBlock: data[0].parent_hash,
+          size: data[0].block_size,
+          slot: data[0].abs_slot.toString(),
+          slotLeader: data[0].pool ?? '',
+          time: data[0].block_time,
+          txCount: data[0].tx_count,
+          VRFKey: data[0].vrf_key,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   async fetchHandleAddress(handle: string): Promise<string> {
     try {
       const assetName = fromUTF8(handle.replace('$', ''));
@@ -193,6 +232,49 @@ export class KoiosProvider implements IFetcher, ISubmitter {
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchTxInfo(hash: string): Promise<TransactionInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.post(
+        'tx_info', { _tx_hashes: [hash] },
+      );
+
+      if (status === 200)
+        return <TransactionInfo>{
+          block: data[0].block_hash,
+          deposit: data[0].deposit,
+          fees: data[0].fee,
+          hash: data[0].tx_hash,
+          index: data[0].tx_block_index,
+          invalidAfter: data[0].invalid_after?.toString() ?? '',
+          invalidBefore: data[0].invalid_before?.toString() ?? '',
+          slot: data[0].absolute_slot.toString(),
+          size: data[0].tx_size,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  onTxConfirmed(txHash: string, callback: () => void, limit = 20): void {
+    let attempts = 0;
+
+    const checkTx = setInterval(() => {
+      if (attempts >= limit)
+        clearInterval(checkTx);
+
+      this.fetchTxInfo(txHash).then((txInfo) => {
+        this.fetchBlockInfo(txInfo.block).then((blockInfo) => {
+          if (blockInfo?.confirmations > 0) {
+            clearInterval(checkTx);
+            callback();
+          }
+        }).catch(() => { attempts += 1; });
+      }).catch(() => { attempts += 1; });
+    }, 5_000);
   }
 
   async submitTx(tx: string): Promise<string> {

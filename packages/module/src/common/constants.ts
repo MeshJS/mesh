@@ -80,6 +80,13 @@ export const SUPPORTED_HANDLES: Record<number, string> = {
   [csl.NetworkInfo.mainnet().network_id()]: 'f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a',
 };
 
+export const SUPPORTED_OGMIOS_LINKS: Record<Network, string> = {
+  mainnet: 'wss://ogmios-api.mainnet.dandelion.link',
+  preprod: 'wss://ogmios-api.iohk-preprod.dandelion.link',
+  preview: '__TBD_SOON_TM__',
+  testnet: 'wss://ogmios-api.testnet.dandelion.link',
+};
+
 export const SUPPORTED_WALLETS = [
   'begin', 'eternl', 'flint', 'nami', 'nufi', 'gerowallet', 'typhoncip30',
 ];
