@@ -17,10 +17,20 @@ export function evaluateTxLeft({ evaluatorName }) {
   demoResults += `    "index": 0,\n`;
   demoResults += `    "tag": "SPEND",\n`;
   demoResults += `    "budget": {\n`;
-  demoResults += `      "mem": 1700\n`;
+  demoResults += `      "mem": 1700,\n`;
+  demoResults += `      "steps": 368100\n`;
   demoResults += `    }\n`;
   demoResults += `  }\n`;
   demoResults += `]\n`;
+
+  let codeRedeemer = ``;
+  codeRedeemer += `const redeemer = {\n`;
+  codeRedeemer += `  data: { alternative: 0, fields: [...] },\n`;
+  codeRedeemer += `  budget: {\n`;
+  codeRedeemer += `    mem: 1700,\n`;
+  codeRedeemer += `    steps: 368100,\n`;
+  codeRedeemer += `  },\n`;
+  codeRedeemer += `};\n`;
 
   return (
     <>
@@ -39,6 +49,11 @@ export function evaluateTxLeft({ evaluatorName }) {
         contract.
       </p>
       <Codeblock data={demoResults} isJson={false} />
+      <p>
+        With the <code>mem</code> and <code>steps</code>, you can refine the
+        budget for the redeemer. For example:
+      </p>
+      <Codeblock data={codeRedeemer} isJson={false} />
     </>
   );
 }
