@@ -34,7 +34,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
                   tag: key.split(':')[0].toUpperCase(),
                   budget: {
                     mem: result.EvaluationResult[key].memory,
-                    steps: result.EvaluationResult[key].cpu,
+                    steps: result.EvaluationResult[key].steps,
                   },
                 }
               )
