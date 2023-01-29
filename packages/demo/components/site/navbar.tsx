@@ -22,6 +22,7 @@ import {
   FireIcon,
   ArrowsPointingInIcon,
   CloudIcon,
+  FilmIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -360,7 +361,7 @@ function SubMenuAbout() {
             <SubMenuLinks
               href={`/about`}
               title="About Mesh"
-              desc="Information and common questions about Mesh"
+              desc="Information and Q&A"
               icon={<WalletIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
@@ -374,6 +375,18 @@ function SubMenuAbout() {
               title="Support Us"
               desc="Ways you can support us!"
               icon={<HeartIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/about/media-kit`}
+              title="Media Kit"
+              desc="Logos and assets"
+              icon={<FilmIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/about/references`}
+              title="References"
+              desc="Articles about Mesh"
+              icon={<NewspaperIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
