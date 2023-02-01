@@ -1,6 +1,10 @@
 import type { NextPage } from 'next';
 import Button from '../../components/ui/button';
-import { BlockfrostProvider, Transaction } from '@meshsdk/core';
+import {
+  BlockfrostProvider,
+  Transaction,
+  resolveRewardAddress,
+} from '@meshsdk/core';
 import { useState } from 'react';
 import Codeblock from '../../components/ui/codeblock';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
@@ -53,24 +57,25 @@ const AsriaPage: NextPage = () => {
         addressesUnits[address].assets.push(unit);
       }
       setProcessedNumAssets(i);
+
+      if (i > 9) {
+        break;
+      }
     }
 
-    setAddressesAssets(addressesUnits);
+    // setAddressesAssets(addressesUnits);
     setStage(stages.gottenAddresses);
 
-    await getStakeAddresses();
+    await getStakeAddresses(addressesUnits);
   }
 
-  async function getStakeAddresses() {
+  async function getStakeAddresses(addressesUnits) {
     setStage(stages.gettingStakeAddresses);
-    const blockchainProvider = new BlockfrostProvider(bfMain);
 
     let stakeAddresses = {};
     let counter = 0;
-    for (let address in addressesAssets) {
-      await timeout(300);
-      const bfAddress = await blockchainProvider.fetchSpecificAddress(address);
-      const stakeAddress = bfAddress.stake_address;
+    for (let address in addressesUnits) {
+      const stakeAddress = resolveRewardAddress(address);
       if (!(stakeAddress in stakeAddresses)) {
         stakeAddresses[stakeAddress] = {
           addresses: [],
@@ -81,7 +86,7 @@ const AsriaPage: NextPage = () => {
 
       stakeAddresses[stakeAddress].addresses.push(address);
       stakeAddresses[stakeAddress].assets.push(
-        ...addressesAssets[address].assets
+        ...addressesUnits[address].assets
       );
 
       let amountPay = stakeAddresses[stakeAddress].assets.length * payPerNFT;

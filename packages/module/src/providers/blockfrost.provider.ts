@@ -269,22 +269,6 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async fetchSpecificAddress(address: string): Promise<{ address:string; stake_address:string; }> {
-    try {
-      
-      const { data, status } = await this._axiosInstance.get(
-        `addresses/${address}`,
-      );
-
-      if (status === 200)
-        return data;
-
-      throw parseHttpError(data);
-    } catch (error) {
-      throw parseHttpError(error);
-    }
-  }
-
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
       const { data, status } = await this._axiosInstance.get(
