@@ -16,6 +16,8 @@ const AsriaPage: NextPage = () => {
     gettingAssets: 'gettingAssets',
     gettingAddresses: 'gettingAddresses',
     gottenAddresses: 'gottenAddresses',
+    gettingStakeAddresses: 'gettingStakeAddresses',
+    gottenStakeAddresses: 'gottenStakeAddresses',
     createTransaction: 'createTransaction',
     transactionComplete: 'transactionComplete',
   };
@@ -25,6 +27,7 @@ const AsriaPage: NextPage = () => {
   const [stage, setStage] = useState(stages.init);
   const [numAssetsFound, setNumAssetsFound] = useState(0);
   const [processednumAssets, setProcessedNumAssets] = useState(0);
+  const [processedAddresses, setProcessedAddresses] = useState(0);
   const [addressesAssets, setAddressesAssets] = useState({});
   const [txHash, setTxHash] = useState('');
 
@@ -38,35 +41,71 @@ const AsriaPage: NextPage = () => {
     let addressesUnits = {};
     for (let i = 0; i < assets.length; i++) {
       const unit = assets[i].unit;
+      await timeout(300);
       const unitAddresses = await blockchainProvider.fetchAssetAddresses(unit);
       if (unitAddresses.length == 1) {
         const address = unitAddresses[0].address;
         if (!(address in addressesUnits)) {
           addressesUnits[address] = {
             assets: [],
-            amountReward: 0,
           };
         }
         addressesUnits[address].assets.push(unit);
-
-        let amountPay = addressesUnits[address].assets.length * payPerNFT;
-        let bonus =
-          Math.floor(addressesUnits[address].assets.length / 4) *
-          bonusPerNFTSet;
-        addressesUnits[address].amountReward = amountPay + bonus;
       }
       setProcessedNumAssets(i);
     }
 
     setAddressesAssets(addressesUnits);
     setStage(stages.gottenAddresses);
+
+    await getStakeAddresses();
+  }
+
+  async function getStakeAddresses() {
+    setStage(stages.gettingStakeAddresses);
+    const blockchainProvider = new BlockfrostProvider(bfMain);
+
+    let stakeAddresses = {};
+    let counter = 0;
+    for (let address in addressesAssets) {
+      await timeout(300);
+      const bfAddress = await blockchainProvider.fetchSpecificAddress(address);
+      const stakeAddress = bfAddress.stake_address;
+      if (!(stakeAddress in stakeAddresses)) {
+        stakeAddresses[stakeAddress] = {
+          addresses: [],
+          assets: [],
+          amountReward: 0,
+        };
+      }
+
+      stakeAddresses[stakeAddress].addresses.push(address);
+      stakeAddresses[stakeAddress].assets.push(
+        ...addressesAssets[address].assets
+      );
+
+      let amountPay = stakeAddresses[stakeAddress].assets.length * payPerNFT;
+      let bonus =
+        Math.floor(stakeAddresses[stakeAddress].assets.length / 4) *
+        bonusPerNFTSet;
+      stakeAddresses[stakeAddress].amountReward = amountPay + bonus;
+
+      counter += 1;
+      setProcessedAddresses(counter);
+    }
+
+    console.log('stakeAddresses', stakeAddresses);
+    setAddressesAssets(stakeAddresses);
+
+    setStage(stages.gottenStakeAddresses);
   }
 
   async function createTx() {
     setStage(stages.createTransaction);
     const tx = new Transaction({ initiator: wallet });
-    for (let address in addressesAssets) {
-      const addressAssets = addressesAssets[address];
+    for (let stakeAddress in addressesAssets) {
+      const addressAssets = addressesAssets[stakeAddress];
+      const address = addressAssets.addresses[0];
       tx.sendLovelace(address, addressAssets.amountReward.toString());
     }
 
@@ -77,6 +116,10 @@ const AsriaPage: NextPage = () => {
     setStage(stages.transactionComplete);
   }
 
+  function timeout(delay: number) {
+    return new Promise((res) => setTimeout(res, delay));
+  }
+
   return (
     <>
       <section className="bg-white dark:bg-gray-900">
@@ -85,7 +128,8 @@ const AsriaPage: NextPage = () => {
             <Button onClick={() => getHolders()}>Get Holders</Button>
           )}
 
-          <p>Stage: {stage}</p>
+          {/* <p>Stage: {stage}</p> */}
+
           {stage == stages.gettingAddresses && (
             <p>Num. assets found: {numAssetsFound}</p>
           )}
@@ -94,8 +138,8 @@ const AsriaPage: NextPage = () => {
             <p>Num. assets processed: {processednumAssets}</p>
           )}
 
-          {Object.keys(addressesAssets).length > 0 && (
-            <p>Num. addresses: {Object.keys(addressesAssets).length}</p>
+          {processedAddresses > 0 && (
+            <p>Num. addresses processed: {processedAddresses}</p>
           )}
 
           {Object.keys(addressesAssets).length > 0 && (
@@ -105,7 +149,7 @@ const AsriaPage: NextPage = () => {
             </>
           )}
 
-          {stage == stages.gottenAddresses && (
+          {stage == stages.gottenStakeAddresses && (
             <p>
               Total Reward in ADA:{' '}
               {Object.keys(addressesAssets).reduce(function (
@@ -119,7 +163,7 @@ const AsriaPage: NextPage = () => {
               ADA
             </p>
           )}
-          {stage == stages.gottenAddresses && (
+          {stage == stages.gottenStakeAddresses && (
             <>
               {connected ? (
                 <Button onClick={() => createTx()}>Create transaction</Button>

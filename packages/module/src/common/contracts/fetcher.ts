@@ -14,5 +14,6 @@ export interface IFetcher {
   fetchBlockInfo(hash: string): Promise<BlockInfo>;
   fetchHandleAddress(handle: string): Promise<string>;
   fetchProtocolParameters(epoch: number): Promise<Protocol>;
+  fetchSpecificAddress(address: string): Promise<{ address:string; stake_address:string; }>;
   fetchTxInfo(hash: string): Promise<TransactionInfo>;
 }

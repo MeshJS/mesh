@@ -276,6 +276,11 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
     }
   }
 
+  async fetchSpecificAddress(address: string): Promise<{ address:string; stake_address:string; }> {
+    console.log(address);
+    return {address:'', stake_address:''};
+  }
+
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
       const { data, status } = await this._axiosInstance.get(
