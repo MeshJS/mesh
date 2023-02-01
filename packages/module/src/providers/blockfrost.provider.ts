@@ -6,7 +6,7 @@ import {
   resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, AssetMetadata, BlockInfo, NativeScript,
+  AccountInfo, Asset, AssetMetadata, BlockInfo, NativeScript,
   PlutusScript, Protocol, TransactionInfo, UTxO,
 } from '@mesh/common/types';
 
@@ -153,6 +153,37 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchAssetsSpecificPolicy(policyId: string): Promise<Asset[]> {
+
+    const paginateAssets = async (page = 1, assets: Asset[] = []): Promise<Asset[]> => {
+      
+      const { data, status } = await this._axiosInstance.get(
+        `assets/policy/${policyId}?page=${page}`,
+      );
+
+      if (status === 200){
+        const tmpAssets = data.map((asset) => {
+          return {
+            unit: asset.asset,
+            quantity: asset.quantity,
+          }
+        });
+        return data.length > 0
+          ? paginateAssets(page + 1, [...assets, ...tmpAssets])
+          : assets;
+      }
+
+      throw parseHttpError(data);
+    };
+
+    try {
+      return await paginateAssets();
+    } catch (error) {
+      return [];
+    }
+
   }
 
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {

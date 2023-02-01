@@ -1,5 +1,5 @@
 import type {
-  AccountInfo, AssetMetadata, BlockInfo,
+  AccountInfo, Asset, AssetMetadata, BlockInfo,
   Protocol, UTxO, TransactionInfo,
 } from '@mesh/common/types';
 
@@ -10,6 +10,7 @@ export interface IFetcher {
     asset: string,
   ): Promise<{ address: string; quantity: string }[]>;
   fetchAssetMetadata(asset: string): Promise<AssetMetadata>;
+  fetchAssetsSpecificPolicy(policyId: string): Promise<Asset[]>;
   fetchBlockInfo(hash: string): Promise<BlockInfo>;
   fetchHandleAddress(handle: string): Promise<string>;
   fetchProtocolParameters(epoch: number): Promise<Protocol>;
