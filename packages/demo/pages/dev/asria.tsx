@@ -57,10 +57,6 @@ const AsriaPage: NextPage = () => {
         addressesUnits[address].assets.push(unit);
       }
       setProcessedNumAssets(i);
-
-      if (i > 9) {
-        break;
-      }
     }
 
     // setAddressesAssets(addressesUnits);
