@@ -187,6 +187,12 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  async fetchCollectionAssets(
+    policyId: string, cursor = 1,
+  ): Promise<{ assets: Asset[]; next: string | number | null }> {
+    throw new Error('Method not implemented.');
+  }
+
   async fetchHandleAddress(handle: string): Promise<string> {
     try {
       const assetName = fromUTF8(handle.replace('$', ''));

@@ -155,37 +155,6 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async fetchAssetsSpecificPolicy(policyId: string): Promise<Asset[]> {
-
-    const paginateAssets = async (page = 1, assets: Asset[] = []): Promise<Asset[]> => {
-      
-      const { data, status } = await this._axiosInstance.get(
-        `assets/policy/${policyId}?page=${page}`,
-      );
-
-      if (status === 200){
-        const tmpAssets = data.map((asset) => {
-          return {
-            unit: asset.asset,
-            quantity: asset.quantity,
-          }
-        });
-        return data.length > 0
-          ? paginateAssets(page + 1, [...assets, ...tmpAssets])
-          : assets;
-      }
-
-      throw parseHttpError(data);
-    };
-
-    try {
-      return await paginateAssets();
-    } catch (error) {
-      return [];
-    }
-
-  }
-
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
       const { data, status } = await this._axiosInstance.get(
@@ -214,6 +183,29 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
+    }
+  }
+
+  async fetchCollectionAssets(
+    policyId: string, cursor = 1,
+  ): Promise<{ assets: Asset[]; next: string | number | null }> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `assets/policy/${policyId}?page=${cursor}`,
+      );
+
+      if (status === 200)
+        return {
+          assets: data.map((asset) => ({
+            unit: asset.asset,
+            quantity: asset.quantity,
+          })),
+          next: data.length === 100 ? cursor + 1 : null,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      return { assets: [], next: null };
     }
   }
 
