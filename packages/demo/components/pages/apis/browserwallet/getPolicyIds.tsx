@@ -40,6 +40,12 @@ function Right() {
   return (
     <>
       <Card>
+        <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Get Policy IDs
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Get a list of policy IDs from all assets in wallet
+          </p>
+        </div>
         <Codeblock
           data={`const policyIds = await wallet.getPolicyIds();`}
           isJson={false}

@@ -60,6 +60,12 @@ function Right() {
   return (
     <>
       <Card>
+        <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Generate Wallet
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Generate new mnemonic phrases for your wallet
+          </p>
+        </div>
         <RunDemoButton
           runDemoFn={runDemoGetMnemonic}
           loading={loading}

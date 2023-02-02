@@ -47,6 +47,12 @@ function Right({ policyId, setPolicyId }) {
   }
   return (
     <Card>
+      <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+        Get a Collection of Assets
+        <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          Get a list of assets belonging to the policy ID
+        </p>
+      </div>
       <Input
         value={policyId}
         onChange={(e) => setPolicyId(e.target.value)}
