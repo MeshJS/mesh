@@ -32,6 +32,10 @@ import {
   fetchBlockInfoLeft,
   fetchBlockInfoRight,
 } from './fetchers/fetchBlockInfo';
+import {
+  fetchCollectionAssetsLeft,
+  fetchCollectionAssetsRight,
+} from './fetchers/fetchCollectionAssets';
 
 export default function Fetcher({ fetcher, fetcherName }) {
   const { wallet, connected } = useWallet();
@@ -65,6 +69,10 @@ export default function Fetcher({ fetcher, fetcherName }) {
   const [block, setBlock] = useState<string>(
     '79f60880b097ec7dabb81f75f0b52fedf5e922d4f779a11c0c432dcf22c56089'
   );
+  const [policyId, setPolicyId] = useState<string>(
+    'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527'
+  );
+  const [cursor, setCursor] = useState<string>('1');
 
   // useEffect(() => {
   //   async function init() {
@@ -159,6 +167,25 @@ export default function Fetcher({ fetcher, fetcherName }) {
           fetcher,
           block,
           setBlock,
+        })}
+        isH3={true}
+        badge={<BadgeFetcher />}
+      />
+
+      <SectionTwoCol
+        sidebarTo="fetchCollectionAssets"
+        header="fetchCollectionAssets"
+        leftFn={fetchCollectionAssetsLeft({
+          fetcherName,
+          policyId,
+          cursor,
+        })}
+        rightFn={fetchCollectionAssetsRight({
+          fetcher,
+          policyId,
+          setPolicyId,
+          cursor,
+          setCursor,
         })}
         isH3={true}
         badge={<BadgeFetcher />}
