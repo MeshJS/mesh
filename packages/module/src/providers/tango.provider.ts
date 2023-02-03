@@ -188,11 +188,6 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
     }
   }
 
-  async fetchAssetsSpecificPolicy(policyId: string): Promise<Asset[]> {
-    console.log(policyId);
-    return [];
-  }
-
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
       const { data, status } = await this._axiosInstance.get(
@@ -225,7 +220,8 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
   }
 
   async fetchCollectionAssets(
-    policyId: string, cursor = '',
+    policyId: string,
+    cursor = '',
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     try {
       const { data, status } = await this._axiosInstance.get(

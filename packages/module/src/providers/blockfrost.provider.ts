@@ -187,7 +187,8 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
   }
 
   async fetchCollectionAssets(
-    policyId: string, cursor = 1,
+    policyId: string,
+    cursor = 1,
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     try {
       const { data, status } = await this._axiosInstance.get(

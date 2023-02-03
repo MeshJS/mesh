@@ -151,11 +151,6 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async fetchAssetsSpecificPolicy(policyId: string): Promise<Asset[]> {
-    console.log(policyId);
-    return [];
-  }
-
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
       const { data, status } = await this._axiosInstance.post(
@@ -188,9 +183,27 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   }
 
   async fetchCollectionAssets(
-    policyId: string, cursor = 1,
+    policyId: string,
+    cursor = 0,
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
-    throw new Error('Method not implemented.');
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `asset_policy_info?_asset_policy=${policyId}&limit=100&offset=${cursor}`
+      );
+
+      if (status === 200)
+        return {
+          assets: data.map((asset) => ({
+            unit: `${policyId}${asset.asset_name}`,
+            quantity: asset.total_supply,
+          })),
+          next: data.length === 100 ? cursor + 100 : null,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchHandleAddress(handle: string): Promise<string> {
