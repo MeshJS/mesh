@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import { useWallet } from '@meshsdk/react';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction, ForgeScript } from '@martifylabs/mesh';
-import type { Asset, AssetExtended } from '@martifylabs/mesh';
+import { Transaction, ForgeScript } from '@meshsdk/core';
+import type { Asset, AssetExtended } from '@meshsdk/core';
 
 export default function Burning() {
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<{}>({
     '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
   });
@@ -26,7 +26,7 @@ export default function Burning() {
     {
       unit: '8f78a4388b1a3e1a1435257e9356fa0c2cc0d3a5999d63b5886c964354657374746f6b656e',
       policyId: '8f78a4388b1a3e1a1435257e9356fa0c2cc0d3a5999d63b5886c9643',
-      assetName: 'MartifyToken',
+      assetName: 'MeshToken',
       fingerprint: 'asset1mdkjgeufm9lk4yzszckq6r7t5p4vzhwz2dz90k',
       quantity: '5',
     },
@@ -37,10 +37,10 @@ export default function Burning() {
       const _assets = await wallet.getAssets();
       setWalletAssets(_assets.slice(0, 9));
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   function updateField(action, unit, value) {
     let updated = { ...userInput };
@@ -64,7 +64,7 @@ export default function Burning() {
   return (
     <SectionTwoCol
       sidebarTo="burning"
-      header="Burning assets"
+      header="Burning Assets"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField, walletAssets })}
     />
@@ -72,8 +72,8 @@ export default function Burning() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
-  codeSnippet += `import type { Asset } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
+  codeSnippet += `import type { Asset } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
@@ -130,7 +130,7 @@ function Right({ userInput, updateField, walletAssets }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
@@ -157,7 +157,7 @@ function Right({ userInput, updateField, walletAssets }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }
@@ -169,22 +169,20 @@ function Right({ userInput, updateField, walletAssets }) {
         updateField={updateField}
         walletAssets={walletAssets}
       />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
+
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );

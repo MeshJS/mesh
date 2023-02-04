@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import SectionTwoCol from '../common/sectionTwoCol';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import { resolvePaymentKeyHash } from '@martifylabs/mesh';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import { resolvePaymentKeyHash } from '@meshsdk/core';
 import Input from '../../../ui/input';
 import { demoAddresses } from '../../../../configs/demo';
 
@@ -22,7 +22,7 @@ export default function ResolvePaymentKeyHash() {
 }
 
 function Left(userinput) {
-  let code = `import { resolvePaymentKeyHash } from '@martifylabs/mesh';\nconst hash = resolvePaymentKeyHash('${userinput}');`;
+  let code = `import { resolvePaymentKeyHash } from '@meshsdk/core';\nconst hash = resolvePaymentKeyHash('${userinput}');`;
 
   return (
     <>

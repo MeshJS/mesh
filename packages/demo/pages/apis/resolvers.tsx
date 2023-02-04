@@ -6,7 +6,7 @@ const ResolversPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="Resolvers APIs"
+        title="Resolvers"
         description="Help functions that you need while building dApps"
       />
       <Resolvers />

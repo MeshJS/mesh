@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import { Transaction } from '@martifylabs/mesh';
+import { Transaction } from '@meshsdk/core';
+import { useWallet, useWalletList } from '@meshsdk/react';
 
 export default function SendAda() {
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<
     { address: string; assets: { lovelace: number } }[]
   >([
@@ -46,10 +46,10 @@ export default function SendAda() {
       ];
       setUserInput(newRecipents);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   function updateField(action, index, field, value) {
     let updated = [...userInput];
@@ -80,11 +80,15 @@ export default function SendAda() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `const tx = new Transaction({ initiator: wallet });`;
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n\n`;
+  codeSnippet += `const tx = new Transaction({ initiator: wallet })\n`;
   for (const recipient of userInput) {
-    codeSnippet += `\ntx.sendLovelace(\n  '${recipient.address}',\n  '${recipient.assets.lovelace}'\n)`;
+    codeSnippet += `  .sendLovelace(\n`;
+    codeSnippet += `    '${recipient.address}',\n`;
+    codeSnippet += `    '${recipient.assets.lovelace}'\n`;
+    codeSnippet += `  )\n`;
   }
-  codeSnippet += `;\n`;
+  codeSnippet += `;\n\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
@@ -115,7 +119,9 @@ function Right({ userInput, updateField }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
+  const wallets = useWalletList();
+  const hasAvailableWallets = wallets.length > 0;
 
   async function runDemo() {
     setState(1);
@@ -137,7 +143,7 @@ function Right({ userInput, updateField }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }
@@ -147,7 +153,7 @@ function Right({ userInput, updateField }) {
       <InputTable userInput={userInput} updateField={updateField} />
       {hasAvailableWallets && (
         <>
-          {walletConnected ? (
+          {connected ? (
             <>
               <RunDemoButton
                 runDemoFn={runDemo}

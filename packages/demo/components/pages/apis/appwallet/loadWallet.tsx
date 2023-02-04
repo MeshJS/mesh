@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import SectionTwoCol from '../common/sectionTwoCol';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import { AppWallet, BlockfrostProvider } from '@martifylabs/mesh';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import { AppWallet, BlockfrostProvider } from '@meshsdk/core';
 import {
   demoMnemonic,
   demoPrivateKey,
@@ -14,7 +14,7 @@ import useAppWallet from '../../../../contexts/appWallet';
 import Input from '../../../ui/input';
 import Textarea from '../../../ui/textarea';
 import ButtonGroup from '../../../ui/buttongroup';
-import BlockchainProviderCodeSnippet from '../common/blockchainProvider';
+import BlockchainProviderCodeSnippet from '../../../common/blockchainProvider';
 
 export default function LoadWallet() {
   const [demoMethod, setDemoMethod] = useState<number>(0);
@@ -57,7 +57,7 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
     _mnemonic = JSON.stringify(JSON.parse(mnemonic));
   } catch (e) {}
 
-  let codeCommon = `import { AppWallet } from '@martifylabs/mesh';\n\n`;
+  let codeCommon = `import { AppWallet } from '@meshsdk/core';\n\n`;
 
   let code1 = codeCommon;
   code1 += `const wallet = new AppWallet({\n`;
@@ -99,23 +99,24 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
 
   return (
     <>
-      <p>
-        With Mesh, you can initialize a wallet with <b>mnemonic phrases</b>,{' '}
-        <b>private keys</b>, and <b>Cardano CLI generated keys</b>.
-      </p>
-      <p>Lets import a fetcher provider:</p>
+      <p>With Mesh, you can initialize a wallet with:</p>
+      <ul>
+        <li>mnemonic phrases</li>
+        <li>Cardano CLI generated keys</li>
+        <li>private keys</li>
+      </ul>
+      <p>Lets import a blockchain provider:</p>
       <BlockchainProviderCodeSnippet />
       <h3>Mnemonic phrases</h3>
       <p>We can load wallet with mnemonic phrases:</p>
       <Codeblock data={code1} isJson={false} />
       <p>
-        With the <code>wallet</code>, you can sign transactions, we will see how
-        to do next, for now lets get the wallet's address:
+        With the <code>wallet</code> loaded, you can sign transactions, we will
+        see how to do this in the next section, for now lets get the wallet's
+        address:
       </p>
       <Codeblock data={code2} isJson={false} />
-      <h3>Private keys</h3>
-      <p>We can load wallet with private keys:</p>
-      <Codeblock data={code3} isJson={false} />
+
       <h3>Cardano CLI generated skeys</h3>
       <p>
         We can load wallet with CLI generated keys by providing the{' '}
@@ -134,6 +135,10 @@ function Left(mnemonic, network, privatekey, paymentSkey, stakeSkey) {
         optional, but without it, you cannot sign staking transactions.
       </p>
       <Codeblock data={code4} isJson={false} />
+
+      <h3>Private keys</h3>
+      <p>We can load wallet with private keys:</p>
+      <Codeblock data={code3} isJson={false} />
     </>
   );
 }
@@ -153,7 +158,7 @@ function Right(
   setStakeSkey
 ) {
   const [loading, setLoading] = useState<boolean>(false);
-  const { setWallet, setWalletNetwork, setWalletConnected } = useAppWallet();
+  const { setWallet, setWalletNetwork } = useAppWallet();
   const [responseAddress, setResponseAddress] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
 
@@ -161,8 +166,7 @@ function Right(
     setLoading(true);
     setResponseError(null);
     setResponseAddress(null);
-    setWalletConnected(false);
-    // setWallet(null); // TODO help
+    setWallet({} as AppWallet);
 
     const blockchainProvider = new BlockfrostProvider(
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
@@ -189,7 +193,6 @@ function Right(
           });
           setWallet(_wallet);
           setWalletNetwork(network);
-          setWalletConnected(true);
           const address = _wallet.getPaymentAddress();
           setResponseAddress(address);
         }
@@ -210,7 +213,6 @@ function Right(
         });
         setWallet(_wallet);
         setWalletNetwork(network);
-        setWalletConnected(true);
         const address = _wallet.getPaymentAddress();
         setResponseAddress(address);
       } catch (error) {
@@ -219,9 +221,7 @@ function Right(
     }
     if (demoMethod == 2) {
       try {
-        const stake = stakeSkey?.length > 0
-          ? stakeSkey
-          : undefined;
+        const stake = stakeSkey?.length > 0 ? stakeSkey : undefined;
         const _wallet = new AppWallet({
           networkId: network,
           fetcher: blockchainProvider,
@@ -234,7 +234,6 @@ function Right(
         });
         setWallet(_wallet);
         setWalletNetwork(network);
-        setWalletConnected(true);
         const address = _wallet.getPaymentAddress();
         setResponseAddress(address);
       } catch (error) {

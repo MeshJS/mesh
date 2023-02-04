@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import Codeblock from '../../../ui/codeblock';
-import SectionTwoCol from '../common/sectionTwoCol';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 import Card from '../../../ui/card';
 import Input from '../../../ui/input';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import ConnectCipWallet from '../common/connectCipWallet';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function SignData() {
   const [payload, setPayload] = useState<string>('mesh');
@@ -15,16 +15,13 @@ export default function SignData() {
     <SectionTwoCol
       sidebarTo="signData"
       header="Sign Data"
-      leftFn={Left(payload)}
+      leftFn={Left()}
       rightFn={Right(payload, setPayload)}
     />
   );
 }
 
-function Left(payload) {
-  let code = `const addresses = await wallet.getUsedAddresses();\n`;
-  code += `const signature = await wallet.signData(addresses[0], '${payload}');`;
-
+function Left() {
   return (
     <>
       <p>
@@ -46,7 +43,6 @@ function Left(payload) {
         to you as the developer which address you want to use in your
         application.
       </p>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -54,41 +50,49 @@ function Left(payload) {
 function Right(payload, setPayload) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setLoading(true);
-    // const addresses = await wallet.getRewardAddresses();
-    const addresses = await wallet.getUsedAddresses();
-    console.log('addresses', addresses);
-    let results = await wallet.signData(addresses[0], payload);
-
-    setResponse(results);
+    try {
+      // const addresses = await wallet.getRewardAddresses();
+      const addresses = await wallet.getUsedAddresses();
+      let results = await wallet.signData(addresses[0], payload);
+      setResponse(results);
+    } catch (error) {}
     setLoading(false);
   }
+
+  let code = `const addresses = await wallet.getUsedAddresses();\n`;
+  code += `const signature = await wallet.signData(addresses[0], '${payload}');`;
+
   return (
     <Card>
+      <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+        Sign Data
+        <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          Use connected wallet to sign a payload
+        </p>
+      </div>
       <Input
         value={payload}
         onChange={(e) => setPayload(e.target.value)}
         placeholder="Payload"
         label="Payload"
       />
-      {hasAvailableWallets && (
+      <Codeblock data={code} isJson={false} />
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={loading}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={loading}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
     </Card>
   );

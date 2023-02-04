@@ -8,17 +8,31 @@ import {
   XMarkIcon,
   WalletIcon,
   ChevronDownIcon,
-  PuzzlePieceIcon,
   BanknotesIcon,
   WrenchScrewdriverIcon,
+  BoltIcon,
+  RocketLaunchIcon,
+  PaintBrushIcon,
+  DocumentTextIcon,
+  HeartIcon,
+  ShoppingCartIcon,
+  CubeTransparentIcon,
+  PaperAirplaneIcon,
+  NewspaperIcon,
+  FireIcon,
+  ArrowsPointingInIcon,
+  CloudIcon,
+  FilmIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
+import { useRouter } from 'next/router';
 
 export default function Navbar() {
   const [darkMode, setDarkMode] = useLocalStorage('darkmode', false);
   const [isSSR, setIsSSR] = useState(true);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setIsSSR(false);
@@ -45,6 +59,10 @@ export default function Navbar() {
     setDarkTheme(darkMode);
   }, [darkMode]);
 
+  useEffect(() => {
+    setShowMobileMenu(false);
+  }, [router.asPath]);
+
   return (
     <header>
       <nav className="border-gray-200 px-4 lg:px-6 py-2.5 fixed z-30 w-full border-b dark:border-gray-700 bg-white/80 backdrop-blur dark:bg-gray-800/80">
@@ -64,7 +82,7 @@ export default function Navbar() {
           </a>
           <div className="flex items-center lg:order-2">
             <a
-              href="https://github.com/MartifyLabs/mesh"
+              href="https://github.com/MeshJS/mesh"
               target="_blank"
               rel="noreferrer"
               className="p-2 text-gray-500 rounded-lg hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700"
@@ -104,10 +122,16 @@ export default function Navbar() {
             id="mobile-menu-2`}
           >
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
-              <NavLink href="/guides" label="Guides" />
-              <SubMenuApi />
-              <SubMenuAbout />
+              {/* <NavLink href="/guides" label="Guides" /> */}
+              <SubMenuGetStarted />
+              <SubMenuWallet />
+              <SubMenuTransaction />
+              <SubMenuReact />
+              {/* <NavLink href="/providers" label="Providers" /> */}
+              <SubMenuUtilities />
 
+              {/* <SubMenuSmartContracts /> */}
+              <SubMenuAbout />
               {/* <NavLink href="/about" label="About" /> */}
             </ul>
           </div>
@@ -117,16 +141,61 @@ export default function Navbar() {
   );
 }
 
-function SubMenuApi() {
+function SubMenuGetStarted() {
   const [showSubmenu, setShowSubmenu] = useState(false);
   return (
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
-        APIs <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+        Get Started <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
       </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
+            <SubMenuLinks
+              href={`/guides`}
+              title="Guides"
+              desc="Step by step guides to build on Cardano"
+              icon={<DocumentTextIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/starter-templates`}
+              title="Starter Templates"
+              desc="Kick start your projects with our templates using CLI"
+              icon={<CubeTransparentIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/migration-manual-installation`}
+              title="Migration / Manual Installation"
+              desc="Install Mesh into your existing project"
+              icon={<WrenchScrewdriverIcon className="w-5 h-5" />}
+            />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuWallet() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Wallet <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+
       <div
         className={`grid ${
           !showSubmenu && 'hidden'
@@ -146,11 +215,117 @@ function SubMenuApi() {
               desc="Connect and perform wallet functions on Web3 dApps"
               icon={<BanknotesIcon className="w-5 h-5" />}
             />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuSmartContracts() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Smart Contracts{' '}
+        <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
+            <SubMenuLinks
+              href={`/smart-contracts/marketplace-v1`}
+              title="Marketplace"
+              desc="Build a NFT marketplace effortlessly."
+              icon={<ShoppingCartIcon className="w-5 h-5" />}
+            />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuTransaction() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Transaction <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
             <SubMenuLinks
               href={`/apis/transaction`}
-              title="Transaction"
-              desc="Build transactions, minting, redeem from smart contracts"
-              icon={<PuzzlePieceIcon className="w-5 h-5" />}
+              title="Send assets"
+              desc="Transactions for sending assets"
+              icon={<PaperAirplaneIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/transaction/smart-contract`}
+              title="Interact with smart contracts"
+              desc="Transactions to work with smart contracts"
+              icon={<NewspaperIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/transaction/minting`}
+              title="Minting and burning assets"
+              desc="Using ForgeScript for minting and burning native assets"
+              icon={<FireIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/transaction/staking`}
+              title="Staking and stake pool"
+              desc="Transactions for delegating ADA and managing stakepools"
+              icon={<ArrowsPointingInIcon className="w-5 h-5" />}
+            />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuUtilities() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        Utilities <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
+            <SubMenuLinks
+              href={`/providers`}
+              title="Providers"
+              desc="Services provided by the Cardano developer community"
+              icon={<CloudIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/apis/resolvers`}
@@ -171,6 +346,7 @@ function SubMenuAbout() {
     <li
       onMouseEnter={() => setShowSubmenu(true)}
       onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
     >
       <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
         About <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
@@ -185,15 +361,76 @@ function SubMenuAbout() {
             <SubMenuLinks
               href={`/about`}
               title="About Mesh"
-              desc="Information and common questions about Mesh"
+              desc="Information and Q&A"
               icon={<WalletIcon className="w-5 h-5" />}
             />
-            {/* <SubMenuLinks
+            <SubMenuLinks
               href={`/about/cips`}
               title="Implemented CIPs"
               desc="Mesh adhere to standards"
               icon={<BanknotesIcon className="w-5 h-5" />}
-            /> */}
+            />
+            <SubMenuLinks
+              href={`/about/support-us`}
+              title="Support Us"
+              desc="Ways you can support us!"
+              icon={<HeartIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/about/media-kit`}
+              title="Media Kit"
+              desc="Logos and assets"
+              icon={<FilmIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/about/references`}
+              title="References"
+              desc="Articles about Mesh"
+              icon={<NewspaperIcon className="w-5 h-5" />}
+            />
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function SubMenuReact() {
+  const [showSubmenu, setShowSubmenu] = useState(false);
+  return (
+    <li
+      onMouseEnter={() => setShowSubmenu(true)}
+      onMouseLeave={() => setShowSubmenu(false)}
+      onClick={() => setShowSubmenu(!showSubmenu)}
+    >
+      <button className="flex justify-between items-center py-2 pr-4 pl-3 w-full font-medium text-gray-700 border-b border-gray-100 lg:w-auto hover:bg-gray-50 lg:hover:bg-transparent lg:border-0 lg:hover:text-primary-600 lg:p-0 dark:text-gray-400 lg:dark:hover:text-primary-500 dark:hover:bg-gray-700 dark:hover:text-white lg:dark:hover:bg-transparent dark:border-gray-700">
+        React <ChevronDownIcon className="ml-1 w-5 h-5 lg:w-4 lg:h-4" />
+      </button>
+      <div
+        className={`grid ${
+          !showSubmenu && 'hidden'
+        } absolute z-10 w-full bg-white border border-gray-100 shadow-md dark:border-gray-700 lg:rounded-lg lg:w-auto lg:grid-cols-1 dark:bg-gray-700`}
+      >
+        <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
+          <ul>
+            <SubMenuLinks
+              href={`/react/getting-started`}
+              title="Getting Started"
+              desc="Everything you need to build web3 app on React"
+              icon={<RocketLaunchIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/react/ui-components`}
+              title="UI Components"
+              desc="UI components to speed up your app development"
+              icon={<PaintBrushIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/react/wallet-hooks`}
+              title="Wallet Hooks"
+              desc="Hooks for interacting with connected wallet"
+              icon={<BoltIcon className="w-5 h-5" />}
+            />
           </ul>
         </div>
       </div>
@@ -204,7 +441,7 @@ function SubMenuAbout() {
 function SubMenuLinks({ href, title, desc, icon }) {
   return (
     <li>
-      <Link href={href}>
+      <a href={href}>
         <div className="flex items-center p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
           <div className="p-2 mr-4 bg-white rounded-lg shadow dark:bg-gray-700">
             {icon}
@@ -216,7 +453,7 @@ function SubMenuLinks({ href, title, desc, icon }) {
             </div>
           </div>
         </div>
-      </Link>
+      </a>
     </li>
   );
 }

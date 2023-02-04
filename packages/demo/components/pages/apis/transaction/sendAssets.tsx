@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import { useWallet } from '@meshsdk/react';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import FetchSelectAssets from '../common/fetchSelectAssets';
-import { Transaction } from '@martifylabs/mesh';
-import type { Asset } from '@martifylabs/mesh';
+import FetchSelectAssets from '../../../common/fetchSelectAssets';
+import { Transaction } from '@meshsdk/core';
+import type { Asset } from '@meshsdk/core';
 
 export default function SendAssets() {
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<
     { address: string; assets: { [unit: string]: number } }[]
   >([
@@ -47,10 +47,10 @@ export default function SendAssets() {
       ];
       setUserInput(newRecipents);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   function updateField(action, index, field, value) {
     let updated = [...userInput];
@@ -85,8 +85,8 @@ export default function SendAssets() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction } from '@martifylabs/mesh';\n`;
-  codeSnippet += `import type { Asset } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n`;
+  codeSnippet += `import type { Asset } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
   for (const recipient of userInput) {
@@ -112,12 +112,13 @@ function Left({ userInput }) {
       codeSnippet += `\n  )`;
     }
   }
-  codeSnippet += `;\n`;
+  codeSnippet += `;\n\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
-  let codeSnippet1 = `let assets: Asset[] = [];\n`;
+  let codeSnippet1 = `import type { Asset } from '@meshsdk/core';\n\n`;
+  codeSnippet1 += `let assets: Asset[] = [];\n`;
   codeSnippet1 += `for (const asset of nativeAssets) {\n`;
   codeSnippet1 += `  let thisAsset = {\n`;
   codeSnippet1 += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
@@ -147,7 +148,7 @@ function Right({ userInput, updateField }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
@@ -159,7 +160,7 @@ function Right({ userInput, updateField }) {
       for (const recipient of userInput) {
         if (recipient.assets.lovelace) {
           tx.sendLovelace(
-            recipient.address,
+            { address: recipient.address },
             recipient.assets.lovelace.toString()
           );
         }
@@ -175,7 +176,7 @@ function Right({ userInput, updateField }) {
             };
             assets.push(thisAsset);
           }
-          tx.sendAssets(recipient.address, assets);
+          tx.sendAssets({ address: recipient.address }, assets);
         }
       }
 
@@ -185,7 +186,7 @@ function Right({ userInput, updateField }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }
@@ -193,21 +194,17 @@ function Right({ userInput, updateField }) {
   return (
     <Card>
       <InputTable userInput={userInput} updateField={updateField} />
-      {hasAvailableWallets && (
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>
@@ -215,7 +212,7 @@ function Right({ userInput, updateField }) {
 }
 
 function InputTable({ userInput, updateField }) {
-  const { walletConnected } = useWallet();
+  const { connected } = useWallet();
 
   function selectAsset(id, unit) {
     if (unit in userInput[id].assets) {

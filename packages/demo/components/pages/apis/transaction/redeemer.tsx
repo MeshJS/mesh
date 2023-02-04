@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
-import SectionTwoCol from '../common/sectionTwoCol';
-import { resolveDataHash } from '@martifylabs/mesh';
-import type { Data } from '@martifylabs/mesh';
+import SectionTwoCol from '../../../common/sectionTwoCol';
 
 export default function UsingRedeemer() {
   return (
@@ -53,8 +51,13 @@ function Left({}) {
     thirdRedeemer += '};\n';
     setCodeSnippetThirdRedeemer(thirdRedeemer);
     let txWithRedeemer = 'const tx = new Transaction({ initiator: wallet })\n';
-    txWithRedeemer +=
-      "  .redeemValue('4e4d01000033222220051200120011', assetUtxo, { datum: 'supersecret', redeemer: redeemer })\n";
+    // txWithRedeemer +=
+    //   "  .redeemValue('4e4d01000033222220051200120011', assetUtxo, { datum: 'supersecret', redeemer: redeemer })\n";
+    txWithRedeemer += `  .redeemValue(\n`;
+    txWithRedeemer += `    '4e4d01000033222220051200120011',\n`;
+    txWithRedeemer += `    assetUtxo,\n`;
+    txWithRedeemer += `    { datum: 'supersecret', redeemer: redeemer }\n`;
+    txWithRedeemer += `  )\n`;
     txWithRedeemer += '  .sendValue(address, assetUtxo)\n';
     txWithRedeemer += '  .setRequiredSigners([address]);';
     setCodeSnippetRedeemer(txWithRedeemer);
@@ -69,7 +72,7 @@ function Left({}) {
       </p>
 
       <Codeblock
-        data={`import { resolvePaymentKeyHash } from '@martifylabs/mesh';\nimport type { Data } from '@martifylabs/mesh';`}
+        data={`import { resolvePaymentKeyHash } from '@meshsdk/core';\nimport type { Data } from '@meshsdk/core';`}
         isJson={false}
       />
       <Codeblock
@@ -96,6 +99,9 @@ function Left({}) {
       </p>
       <Codeblock data={codeSnippetThirdRedeemer} isJson={false} />
       <h3>Transaction construction</h3>
+      <p>
+        We can define the redeemer in <code>redeemValue</code>:
+      </p>
       <Codeblock data={codeSnippetRedeemer} isJson={false} />
     </>
   );

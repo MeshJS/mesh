@@ -6,7 +6,7 @@ const AppWalletPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="App Wallet APIs"
+        title="App Wallet"
         description="Supercharged wallet for building amazing applications."
       />
       <AppWallet />

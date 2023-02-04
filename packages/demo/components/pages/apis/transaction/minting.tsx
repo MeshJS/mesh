@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import { useWallet } from '@meshsdk/react';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 import Button from '../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../configs/demo';
-import { Transaction, ForgeScript, AssetMetadata } from '@martifylabs/mesh';
-import type { Mint } from '@martifylabs/mesh';
+import { Transaction, ForgeScript, AssetMetadata } from '@meshsdk/core';
+import type { Mint } from '@meshsdk/core';
 import Textarea from '../../../ui/textarea';
 import Link from 'next/link';
 
@@ -19,11 +19,11 @@ const defaultMetadata = {
   name: 'Mesh Token',
   image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
   mediaType: 'image/jpg',
-  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
 };
 
 export default function Minting() {
-  const { wallet, walletConnected } = useWallet();
+  const { wallet, connected } = useWallet();
 
   const [userInput, setUserInput] = useState<{}[]>([
     {
@@ -37,7 +37,7 @@ export default function Minting() {
 
   async function updateField(action, index, field, value) {
     let _address = demoAddresses.testnet;
-    if (walletConnected) {
+    if (connected) {
       _address =
         (await wallet.getNetworkId()) === 1
           ? demoAddresses.mainnet
@@ -54,7 +54,13 @@ export default function Minting() {
         quantity: 1,
       });
     } else if (action == 'update') {
-      if (value >= 1 || field == 'metadata') {
+      if (
+        field == 'metadata' ||
+        field == 'assetName' ||
+        field == 'address' ||
+        field == 'assetLabel' ||
+        field == 'quantity'
+      ) {
         updated[index][field] = value;
       }
     } else if (action == 'remove') {
@@ -78,15 +84,15 @@ export default function Minting() {
       ];
       setUserInput(updated);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   return (
     <SectionTwoCol
       sidebarTo="minting"
-      header="Minting assets"
+      header="Minting Assets"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />
@@ -94,8 +100,8 @@ export default function Minting() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
-  codeSnippet += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
+  codeSnippet += `import type { Mint, AssetMetadata } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
@@ -121,9 +127,7 @@ function Left({ userInput }) {
     codeSnippet += `  assetQuantity: '${recipient.quantity}',\n`;
     codeSnippet += `  metadata: assetMetadata${counter},\n`;
     codeSnippet += `  label: '${recipient.assetLabel}',\n`;
-    codeSnippet += `  recipient: {\n`;
-    codeSnippet += `    address: '${recipient.address}',\n`;
-    codeSnippet += `  },\n`;
+    codeSnippet += `  recipient: '${recipient.address}',\n`;
     codeSnippet += `};\n`;
     codeSnippet += `tx.mintAsset(\n`;
     codeSnippet += `  forgingScript,\n`;
@@ -150,9 +154,7 @@ function Left({ userInput }) {
   codeSnippet2 += `  assetQuantity: '1',\n`;
   codeSnippet2 += `  metadata: assetMetadata,\n`;
   codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: {\n`;
-  codeSnippet2 += `    address: '${demoAddresses.testnet}',\n`;
-  codeSnippet2 += `  },\n`;
+  codeSnippet2 += `  recipient: '${demoAddresses.testnet}' \n`;
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.mintAsset(\n`;
   codeSnippet2 += `  forgingScript,\n`;
@@ -160,7 +162,7 @@ function Left({ userInput }) {
   codeSnippet2 += `);`;
 
   let codeSnippetNative = ``;
-  codeSnippetNative += `import type { NativeScript } from '@martifylabs/mesh';\n`;
+  codeSnippetNative += `import type { NativeScript } from '@meshsdk/core';\n`;
   codeSnippetNative += `\n`;
   codeSnippetNative += `const nativeScript: NativeScript = {\n`;
   codeSnippetNative += `  type: 'all',\n`;
@@ -182,6 +184,14 @@ function Left({ userInput }) {
   return (
     <>
       <p>
+        In this section, we will see how to mint native assets with a{' '}
+        <code>ForgeScript</code>. For minting assets with smart contract, visit{' '}
+        <Link href="/apis/transaction/smart-contract#plutusminting">
+          Transaction - Smart Contract - Minting Assets with Smart Contract
+        </Link>
+        .
+      </p>
+      <p>
         Firstly, we need to define the <code>forgingScript</code> with{' '}
         <code>ForgeScript</code>. We use the first wallet address as the
         "minting address" (you can use other addresses).
@@ -192,15 +202,22 @@ function Left({ userInput }) {
       <p>Here is the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        Additionally, you can include <code>NativeScript</code> to define the
-        forging script (for example if you want to have a policy locking
-        script), you can do this:
+        Additionally, you can define the forging script with{' '}
+        <code>NativeScript</code>. For example if you want to have a policy
+        locking script, you can do this:
       </p>
       <Codeblock data={codeSnippetNative} isJson={false} />
       <p>
-        As for the <code>keyHash</code>, you can get it using{' '}
-        <code>resolvePaymentKeyHash</code>, see{' '}
+        To get the <code>keyHash</code>, use the{' '}
+        <code>resolvePaymentKeyHash()</code>. To get the slot, use the{' '}
+        <code>resolveSlotNo()</code>. See{' '}
         <Link href="/apis/resolvers">Resolvers</Link>.
+      </p>
+      <p>
+        Note: If you were expecting a particular Policy ID but received an
+        entirely different one, try switching the order
+        of the objects inside the <code>scripts</code> as the order of the
+        objects matters and must match the order used before.
       </p>
     </>
   );
@@ -210,7 +227,7 @@ function Right({ userInput, updateField }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setState(1);
@@ -242,9 +259,7 @@ function Right({ userInput, updateField }) {
           assetQuantity: recipient.quantity.toString(),
           metadata: assetMetadata,
           label: recipient.assetLabel,
-          recipient: {
-            address: recipient.address,
-          },
+          recipient: recipient.address,
         };
         tx.mintAsset(forgingScript, asset);
       }
@@ -255,7 +270,7 @@ function Right({ userInput, updateField }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }
@@ -263,21 +278,17 @@ function Right({ userInput, updateField }) {
   return (
     <Card>
       <InputTable userInput={userInput} updateField={updateField} />
-      {hasAvailableWallets && (
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>

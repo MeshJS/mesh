@@ -1,30 +1,28 @@
 {
-  "name": "@martifylabs/mesh",
+  "name": "@meshsdk/core",
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
-  "homepage": "https://mesh.martify.io",
-  "author": "MartifyLabs",
-  "version": "1.1.0",
+  "homepage": "https://meshjs.dev",
+  "author": "MeshJS",
+  "version": "1.4.1",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MartifyLabs/mesh.git"
+    "url": "git+https://github.com/MeshJS/mesh.git"
   },
   "bugs": {
-    "url": "https://github.com/MartifyLabs/mesh/issues"
+    "url": "https://github.com/MeshJS/mesh/issues"
   },
   "keywords": [
     "blockchain",
     "cardano",
-    "plutus",
-    "utxo"
+    "plutus"
   ],
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
+  "main": "dist/core.cjs",
+  "module": "dist/core.js",
   "typings": "dist/index.d.ts",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "engines": {
     "node": ">=16"
@@ -49,12 +47,8 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./hooks": {
-      "import": "./dist/hooks.js",
-      "require": "./dist/hooks.cjs"
+      "import": "./dist/core.js",
+      "require": "./dist/core.cjs"
     }
   },
   "devDependencies": {
@@ -72,11 +66,12 @@
   "dependencies": {
     "@emurgo/cardano-message-signing-browser": "1.0.1",
     "@emurgo/cardano-message-signing-nodejs": "1.0.1",
-    "@emurgo/cardano-serialization-lib-browser": "11.0.5",
-    "@emurgo/cardano-serialization-lib-nodejs": "11.0.5",
+    "@emurgo/cardano-serialization-lib-browser": "11.2.1",
+    "@emurgo/cardano-serialization-lib-nodejs": "11.2.1",
     "@emurgo/cip14-js": "3.0.1",
     "axios": "0.27.2",
     "bip39": "3.0.4",
-    "nanoid": "3.3.4"
+    "nanoid": "3.3.4",
+    "zod": "3.19.1"
   }
 }

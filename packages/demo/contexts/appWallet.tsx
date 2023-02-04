@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useMemo } from 'react';
-import { AppWallet } from '@martifylabs/mesh';
+import { AppWallet } from '@meshsdk/core';
 
 const WalletContext = createContext({
   wallet: {} as AppWallet,
@@ -7,15 +7,15 @@ const WalletContext = createContext({
   walletNetwork: 0,
   setWalletNetwork: (network: number) => {},
   walletConnected: false,
-  setWalletConnected: (bool: boolean) => {},
 });
 
 export const AppWalletProvider = ({ children }) => {
   const [wallet, setWallet] = useState<AppWallet>({} as AppWallet);
   const [walletNetwork, setWalletNetwork] = useState<number>(0);
-  const [walletConnected, setWalletConnected] = useState<boolean>(false);
 
-  // const walletConnected = wallet != {}; // TODO help
+  const walletConnected = useMemo(() => {
+    return Object.keys(wallet).length == 0 ? false : true;
+  }, [wallet]);
 
   const memoedValue = useMemo(
     () => ({
@@ -24,7 +24,6 @@ export const AppWalletProvider = ({ children }) => {
       walletNetwork,
       setWalletNetwork,
       walletConnected,
-      setWalletConnected,
     }),
     [wallet, walletNetwork, walletConnected]
   );

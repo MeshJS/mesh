@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import { useWallet } from '@meshsdk/react';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
 
 export default function GetPolicyIdAssets() {
@@ -30,10 +30,6 @@ function Left({ policyId }) {
         belongs to the policy ID, an empty list is returned. Query for a list of
         assets&apos; policy ID with <code>wallet.getPolicyIds()</code>.
       </p>
-      <Codeblock
-        data={`const assets = await wallet.getPolicyIdAssets('${policyId}');`}
-        isJson={false}
-      />
     </>
   );
 }
@@ -41,7 +37,7 @@ function Left({ policyId }) {
 function Right({ policyId, setPolicyId }) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setLoading(true);
@@ -51,27 +47,34 @@ function Right({ policyId, setPolicyId }) {
   }
   return (
     <Card>
+      <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+        Get a Collection of Assets
+        <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          Get a list of assets belonging to the policy ID
+        </p>
+      </div>
       <Input
         value={policyId}
         onChange={(e) => setPolicyId(e.target.value)}
         placeholder="Policy ID"
         label="Policy ID"
       />
-      {hasAvailableWallets && (
+      <Codeblock
+        data={`const assets = await wallet.getPolicyIdAssets('${policyId}');`}
+        isJson={false}
+      />
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={loading}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={loading}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
     </Card>
   );

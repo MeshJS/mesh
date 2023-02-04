@@ -1,10 +1,9 @@
 import { WalletIcon } from '@heroicons/react/24/solid';
-import Codeblock from '../../../ui/codeblock';
 
 export default function Hero() {
   let codeSnippet = '';
   codeSnippet += `// import BrowserWallet\n`;
-  codeSnippet += `import { BrowserWallet } from '@martifylabs/mesh';\n\n`;
+  codeSnippet += `import { BrowserWallet } from '@meshsdk/core';\n\n`;
   codeSnippet += `// connect to a wallet\n`;
   codeSnippet += `const wallet = await BrowserWallet.enable('eternl');\n\n`;
   codeSnippet += `// get assets in wallet\n`;
@@ -22,7 +21,7 @@ export default function Hero() {
           </div>
         </h2>
         <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
-          Wallet for building transactions on your applications.
+          Wallet for building transactions in your applications.
         </p>
       </header>
       <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
@@ -34,7 +33,7 @@ export default function Hero() {
           </p>
 
           <p className="font-medium">
-            In this section, you will initialize a wallet and use it to sign
+            In this section, you will learn how to initialize a wallet and use it to sign
             transactions.
           </p>
         </div>

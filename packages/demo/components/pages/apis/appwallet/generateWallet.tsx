@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import SectionTwoCol from '../common/sectionTwoCol';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import { AppWallet } from '@martifylabs/mesh';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import { AppWallet } from '@meshsdk/core';
 
 export default function GenerateWallet() {
   return (
@@ -31,8 +31,15 @@ function Left() {
         </a>
         . These mnemonic phrases allow you to recover your wallet.
       </p>
+      <p>
+        Once you have your mnemonic phrase, you can use it to generate your
+        deterministic keys. See <code>Load AppWallet</code> in the following
+        section on loading a mnemonic phrase. It will typically generate a
+        series of private keys and corresponding public keys, which you can use
+        to manage your cryptocurrencies.
+      </p>
       <Codeblock
-        data={`import { AppWallet } from '@martifylabs/mesh';\n\nconst mnemonic = AppWallet.brew();`}
+        data={`import { AppWallet } from '@meshsdk/core';\n\nconst mnemonic = AppWallet.brew();`}
         isJson={false}
       />
     </>
@@ -53,6 +60,12 @@ function Right() {
   return (
     <>
       <Card>
+        <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Generate Wallet
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Generate new mnemonic phrases for your wallet
+          </p>
+        </div>
         <RunDemoButton
           runDemoFn={runDemoGetMnemonic}
           loading={loading}

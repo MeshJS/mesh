@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import SectionTwoCol from '../common/sectionTwoCol';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import { Transaction, ForgeScript } from '@martifylabs/mesh';
-import type { Mint, AssetMetadata } from '@martifylabs/mesh';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import { Transaction, ForgeScript } from '@meshsdk/core';
+import type { Mint, AssetMetadata } from '@meshsdk/core';
 import useAppWallet from '../../../../contexts/appWallet';
 import { demoAddresses } from '../../../../configs/demo';
 import Input from '../../../ui/input';
@@ -26,8 +26,8 @@ export default function SignTx() {
 
 function Left(address) {
   let code1 = '';
-  code1 += `import { Transaction, ForgeScript } from '@martifylabs/mesh';\n`;
-  code1 += `import type { Mint, AssetMetadata } from '@martifylabs/mesh';\n`;
+  code1 += `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
+  code1 += `import type { Mint, AssetMetadata } from '@meshsdk/core';\n`;
   code1 += `\n`;
   code1 += `const walletAddress = wallet.getPaymentAddress();\n`;
   code1 += `const forgingScript = ForgeScript.withOneSignature(walletAddress);\n`;
@@ -36,23 +36,21 @@ function Left(address) {
   code1 += `  name: 'Mesh Token',\n`;
   code1 += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
   code1 += `  mediaType: 'image/jpg',\n`;
-  code1 += `  description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',\n`;
+  code1 += `  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',\n`;
   code1 += `};\n`;
   code1 += `const asset1: Mint = {\n`;
   code1 += `  assetName: 'MeshToken',\n`;
   code1 += `  assetQuantity: '1',\n`;
   code1 += `  metadata: assetMetadata1,\n`;
   code1 += `  label: '721',\n`;
-  code1 += `  recipient: {\n`;
-  code1 += `    address: '${address}',\n`;
-  code1 += `  },\n`;
+  code1 += `  recipient: '${address}'\n`;
   code1 += `};\n`;
   code1 += `\n`;
   code1 += `const tx = new Transaction({ initiator: wallet });\n`;
   code1 += `tx.mintAsset(forgingScript, asset1);\n`;
   code1 += `\n`;
   code1 += `const unsignedTx = await tx.build();\n`;
-  code1 += `const signedTx = await wallet.signTx(unsignedTx, false);\n`;
+  code1 += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code1 += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
@@ -99,7 +97,7 @@ function Right(address, setAddress) {
         name: 'Mesh Token',
         image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
         mediaType: 'image/jpg',
-        description: 'This NFT is minted by Mesh (https://mesh.martify.io/).',
+        description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
       };
       const asset1: Mint = {
         assetName: 'MeshToken',
@@ -115,12 +113,12 @@ function Right(address, setAddress) {
       tx.mintAsset(forgingScript, asset1);
 
       const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx, false);
+      const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
 
       setResponse(txHash);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
     }
     setLoading(false);
   }

@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
-import RunDemoButton from '../common/runDemoButton';
-import RunDemoResult from '../common/runDemoResult';
-import SectionTwoCol from '../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
-import ConnectCipWallet from '../common/connectCipWallet';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import { useWallet } from '@meshsdk/react';
+import ConnectCipWallet from '../../../common/connectCipWallet';
 import Input from '../../../ui/input';
-import { Transaction, Asset } from '@martifylabs/mesh';
-import FetchSelectAssets from '../common/fetchSelectAssets';
+import { Transaction, Asset } from '@meshsdk/core';
+import FetchSelectAssets from '../../../common/fetchSelectAssets';
+import Link from 'next/link';
+import useDemo from '../../../../contexts/demo';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -16,7 +18,7 @@ const scriptAddress =
   'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8';
 
 export default function LockAssets() {
-  const { walletConnected } = useWallet();
+  const { connected } = useWallet();
   const [inputDatum, setInputDatum] = useState<string>('supersecret'); // user input for datum
   const [userInput, setUserInput] = useState<
     { assets: { [unit: string]: string } }[]
@@ -38,10 +40,10 @@ export default function LockAssets() {
       ];
       setUserInput(newRecipents);
     }
-    if (walletConnected) {
+    if (connected) {
       init();
     }
-  }, [walletConnected]);
+  }, [connected]);
 
   function updateField(action, index, field, value) {
     let updated = [...userInput];
@@ -60,7 +62,7 @@ export default function LockAssets() {
   return (
     <SectionTwoCol
       sidebarTo="lockAssets"
-      header="Lock assets on smart contract"
+      header="Lock Assets in Smart Contract"
       leftFn={Left({ userInput, inputDatum })}
       rightFn={Right({
         userInput,
@@ -73,30 +75,49 @@ export default function LockAssets() {
 }
 
 function Left({ userInput, inputDatum }) {
-  let codeSnippet = `import { Transaction, Asset } from '@martifylabs/mesh';\n\n`;
+  let codeSnippet = `import { Transaction, Asset } from '@meshsdk/core';\n\n`;
+
+  codeSnippet += `// this is the script address of always succeed contract\n`;
+  codeSnippet += `const scriptAddress = '${scriptAddress}';\n\n`;
+
   codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
+
   for (const recipient of userInput) {
     let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
       return assetId != 'lovelace';
     });
     if (nativeAssets.length) {
-      codeSnippet += `\n  .sendAssets(\n    "${scriptAddress}",`;
-      codeSnippet += `\n    [`;
+      codeSnippet += `\n`;
+      codeSnippet += `  .sendAssets(\n`;
+      codeSnippet += `    {\n`;
+      codeSnippet += `      address: scriptAddress,\n`;
+      codeSnippet += `      datum: {\n`;
+      codeSnippet += `        value: '${inputDatum}',\n`;
+      codeSnippet += `      },\n`;
+      codeSnippet += `    },\n`;
+      codeSnippet += `    [\n`;
       for (const asset of nativeAssets) {
-        codeSnippet += `\n      {`;
+        codeSnippet += `      {`;
         codeSnippet += `\n        unit: "${asset}",`;
         codeSnippet += `\n        quantity: "1",`;
-        codeSnippet += `\n      },`;
+        codeSnippet += `\n      },\n`;
       }
-      codeSnippet += `\n    ],\n`;
-      codeSnippet += `    { datum: '${inputDatum}' }`;
-      codeSnippet += `\n  )`;
+      codeSnippet += `    ],\n`;
+      codeSnippet += `  )`;
     }
   }
-  codeSnippet += `;\n`;
+  codeSnippet += `;\n\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
+
+  let codeResolver = `import { resolvePlutusScriptAddress } from '@meshsdk/core';\n`;
+  codeResolver += `import type { PlutusScript } from '@meshsdk/core';\n\n`;
+  codeResolver += `const script: PlutusScript = {\n`;
+  codeResolver += `  code: '${script}',\n`;
+  codeResolver += `  version: 'V1',\n`;
+  codeResolver += `};\n\n`;
+  codeResolver += `const scriptAddress = resolvePlutusScriptAddress(script, 0);\n`;
 
   return (
     <>
@@ -110,9 +131,19 @@ function Left({ userInput, inputDatum }) {
         <code>always succeed</code> smart contract, where unlocking assets
         requires the correct datum. In practice, multiple assets (both native
         assets and lovelace) can be sent to the contract in a single
-        transaction; in this demo, we restrict to only one asset.
+        transaction.
       </p>
-      <p>Here's the full code:</p>
+      <p>
+        If you do not have the script address, in Mesh, we can resolve the
+        script address with{' '}
+        <Link href="/apis/resolvers#resolvePlutusScriptAddress">
+          Resolve Script Address
+        </Link>{' '}
+        from the script's CBOR (<code>4e4d01000033222220051200120011</code>).
+        Here's how you can do it:
+      </p>
+      <Codeblock data={codeResolver} isJson={false} />
+      <p>To lock assets in this contract, here's the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
         If the transaction is successful, you may want to copy one of the
@@ -127,8 +158,8 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets, updateUserStorage } =
-    useWallet();
+  const { wallet, connected } = useWallet();
+  const { updateUserStorage } = useDemo();
 
   async function runDemo() {
     setState(1);
@@ -144,17 +175,30 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
         })
       );
 
-      console.log(111, Object.keys(userInput[0].assets)[0]);
-      updateUserStorage('lockedAssetUnit', Object.keys(userInput[0].assets)[0]);
+      if (assets.length == 0) {
+        setState(0);
+        setResponseError(`No assets selected for locking.`);
+        return;
+      }
 
-      tx.sendAssets(scriptAddress, assets, { datum: inputDatum });
+      updateUserStorage('lockedAssetUnit', Object.keys(userInput[0].assets)[0]);
+      tx.sendAssets(
+        {
+          address: scriptAddress,
+          datum: {
+            value: inputDatum,
+          },
+        },
+        assets
+      );
+
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      setResponseError(`${error}`);
+      setResponseError(JSON.stringify(error));
       setState(0);
     }
   }
@@ -167,22 +211,20 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
         inputDatum={inputDatum}
         setInputDatum={setInputDatum}
       />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={state == 1}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={state == 1}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
+
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );
@@ -204,7 +246,7 @@ function InputTable({ userInput, updateField, inputDatum, setInputDatum }) {
           Lock assets in smart contract
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Define a datum and select assets to lock in smart contract. Note:
-            this demo only works on <code>preview</code> network.
+            this demo only works on <code>preprod</code> network.
           </p>
         </caption>
         <thead className="thead">

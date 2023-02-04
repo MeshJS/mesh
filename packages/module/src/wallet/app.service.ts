@@ -1,12 +1,34 @@
 import { csl } from '@mesh/core';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import { IFetcher, IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
+import { mergeSignatures } from '@mesh/common/helpers';
 import {
   deserializeTx, toAddress, toTxUnspentOutput,
 } from '@mesh/common/utils';
 import { EmbeddedWallet } from './embedded.service';
-import type { Address, TransactionUnspentOutput } from '@mesh/core';
+import type {
+  Address, TransactionUnspentOutput,
+} from '@mesh/core';
 import type { DataSignature } from '@mesh/common/types';
+
+const DEFAULT_PASSWORD = 'MARI0TIME';
+
+export type CreateAppWalletOptions = {
+  networkId: number;
+  fetcher: IFetcher;
+  submitter: ISubmitter;
+  key: {
+    type: 'root';
+    bech32: string;
+  } | {
+    type: 'cli';
+    payment: string;
+    stake?: string;
+  } | {
+    type: 'mnemonic';
+    words: string[];
+  };
+};
 
 export class AppWallet implements IInitiator, ISigner, ISubmitter {
   private readonly _fetcher: IFetcher;
@@ -50,7 +72,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     return account.enterpriseAddress;
   }
 
-  getStakeAddress(accountIndex = 0): string {
+  getRewardAddress(accountIndex = 0): string {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
     return account.rewardAddress;
@@ -68,11 +90,11 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     throw new Error('getUsedCollateral not implemented.');
   }
 
-  async getUsedUtxos(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
-    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
-
+  async getUsedUTxOs(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
+    const account = this._wallet
+      .getAccount(accountIndex, DEFAULT_PASSWORD);
     const utxos = await this._fetcher
-      .fetchAddressUtxos(account.enterpriseAddress) ?? [];
+      .fetchAddressUTxOs(account.enterpriseAddress);
 
     return utxos.map((utxo) => toTxUnspentOutput(utxo));
   }
@@ -92,15 +114,20 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
       const account = this._wallet
         .getAccount(accountIndex, DEFAULT_PASSWORD);
       const utxos = await this._fetcher
-        .fetchAddressUtxos(account.enterpriseAddress) ?? [];
+        .fetchAddressUTxOs(account.enterpriseAddress);
 
-      const txSignatures = this._wallet.signTx(
-        accountIndex, DEFAULT_PASSWORD, utxos,
-        unsignedTx, partialSign,
+      const newSignatures = this._wallet.signTx(
+        accountIndex, DEFAULT_PASSWORD,
+        utxos, unsignedTx, partialSign,
       );
 
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = tx.witness_set();
+
+      const txSignatures = mergeSignatures(
+        txWitnessSet,
+        newSignatures,
+      );
 
       txWitnessSet.set_vkeys(txSignatures);
 
@@ -124,22 +151,3 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     return EmbeddedWallet.generateMnemonic(strength);
   }
 }
-
-const DEFAULT_PASSWORD = 'MARI0TIME';
-
-type CreateAppWalletOptions = {
-  networkId: number;
-  fetcher: IFetcher;
-  submitter: ISubmitter;
-  key: {
-    type: 'root';
-    bech32: string;
-  } | {
-    type: 'cli';
-    payment: string;
-    stake?: string;
-  } | {
-    type: 'mnemonic';
-    words: string[];
-  };
-};

@@ -7,9 +7,17 @@ export default function GuidesLayout({
   desc,
   sidebarItems,
   image,
+  authors,
+}: {
+  children;
+  title;
+  desc;
+  sidebarItems: { to: string; label: string }[];
+  image;
+  authors?: { url: string; image: string; name: string; about: string }[];
 }) {
   return (
-    <main className="pb-16 lg:pb-24 bg-white dark:bg-gray-900">
+    <main className="pb-16 lg:pb-24 bg-white dark:bg-gray-900 mb-4">
       <header
         style={{ backgroundImage: `url(${image})` }}
         className={`w-full h-[460px] xl:h-[537px] bg-no-repeat bg-cover bg-center bg-blend-darken relative`}
@@ -22,7 +30,7 @@ export default function GuidesLayout({
           <p className="text-lg font-normal text-gray-300">{desc}</p>
         </div>
       </header>
-      <Card className="flex relative z-20 justify-between p-6 -m-36 mx-0 max-w-screen-xl xl:-m-32 xl:p-9 xl:mx-auto">
+      <div className="flex relative z-20 justify-between p-6 -m-36 mx-4 max-w-screen-xl bg-white dark:bg-gray-800 xl:-m-32 xl:p-9 xl:mx-auto rounded-lg border border-gray-200 shadow-md dark:border-gray-700">
         <article className="xl:w-[828px] w-full max-w-none format format-blue dark:format-invert">
           {children}
         </article>
@@ -32,11 +40,11 @@ export default function GuidesLayout({
               Sidebar
             </h3>
             <div className="mb-8">
-              <StickySidebar sidebarItems={sidebarItems} />
+              <StickySidebar sidebarItems={sidebarItems} authors={authors} />
             </div>
           </div>
         </aside>
-      </Card>
+      </div>
     </main>
   );
 }

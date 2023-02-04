@@ -35,11 +35,11 @@ export class EmbeddedWallet {
         this._networkId, stakeKey.to_public().hash(),
       ).to_address().to_bech32();
 
-        return {
+        return <Account>{
           baseAddress,
           enterpriseAddress,
           rewardAddress,
-        } as Account;
+        };
       }
     );
   }
@@ -63,7 +63,7 @@ export class EmbeddedWallet {
             coseSign1: signature, coseKey: key
           } = signMessage(message, signer);
 
-          return { signature, key } as DataSignature;
+          return <DataSignature>{ signature, key };
         }
       );
     } catch (error) {

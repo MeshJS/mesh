@@ -1,17 +1,24 @@
 import { csl } from '@mesh/core';
-import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import {
-  fromUTF8, toAddress, toBytes,
-  toPlutusData, toTxUnspentOutput,
-  toUnitInterval,
+  DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET, LANGUAGE_VERSIONS,
+} from '@mesh/common/constants';
+import {
+  fromScriptRef, fromUTF8, toAddress, toBytes,
+  toPlutusData, toRedeemer, toScriptRef,
+  toTxUnspentOutput, toUnitInterval,
 } from './converter';
-import { deserializeEd25519KeyHash } from './deserializer';
 import type {
-  BaseAddress, Bip32PrivateKey, DataCost,
-  Ed25519KeyHash, EnterpriseAddress, RewardAddress, TransactionBuilder,
+  BaseAddress, Bip32PrivateKey, DataCost, DatumSource,
+  Ed25519KeyHash, EnterpriseAddress, MintWitness,
+  PlutusScriptSource, RewardAddress, TransactionBuilder,
   TransactionOutputBuilder, TransactionUnspentOutput, TxInputsBuilder,
 } from '@mesh/core';
-import type { Data, UTxO } from '@mesh/common/types';
+import type {
+  Action, Data, PlutusScript, Recipient, UTxO,
+} from '@mesh/common/types';
+import {
+  deserializeNativeScript, deserializePlutusScript,
+} from './deserializer';
 
 export const buildBaseAddress = (
   networkId: number,
@@ -40,11 +47,72 @@ export const buildDataCost = (
   );
 };
 
+export const buildDatumSource = (
+  datum: Data | UTxO,
+): DatumSource => {
+  if (typeof datum !== 'object' || !('input' in datum)) {
+    return csl.DatumSource.new(toPlutusData(datum));
+  }
+
+  const utxo = toTxUnspentOutput(datum);
+  if (utxo.output().has_plutus_data()) {
+    return csl.DatumSource.new_ref_input(utxo.input());
+  }
+
+  throw new Error(
+    `No inline datum found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
+  );
+};
+
 export const buildEnterpriseAddress = (
   networkId: number, paymentKeyHash: Ed25519KeyHash,
 ): EnterpriseAddress => {
   return csl.EnterpriseAddress.new(networkId,
     csl.StakeCredential.from_keyhash(paymentKeyHash),
+  );
+};
+
+export const buildGeneralTxMetadata = (metadata: Record<string, unknown>) => {
+  const generalTxMetadata = csl.GeneralTransactionMetadata.new();
+
+  Object.entries(metadata).forEach(([MetadataLabel, Metadata]) => {
+    generalTxMetadata.insert(
+      csl.BigNum.from_str(MetadataLabel),
+      csl.encode_json_str_to_metadatum(
+        JSON.stringify(Metadata), csl.MetadataJsonSchema.NoConversions,
+      ),
+    );
+  });
+
+  return generalTxMetadata;
+};
+
+export const buildMintWitness = (
+  script: string | PlutusScript | UTxO,
+  redeemer?: Partial<Action>,
+): MintWitness => {
+  if (typeof script === 'string') {
+    return csl.MintWitness.new_native_script(
+      deserializeNativeScript(script),
+    );
+  }
+
+  if (redeemer === undefined)
+    throw new Error('Minting with plutus requires a redeemer to be defined');
+
+  if (redeemer.tag !== 'MINT')
+    throw new Error('Minting redeemer\'s tag must be defined as \'MINT\'');
+
+  return csl.MintWitness.new_plutus_script(
+    buildPlutusScriptSource(script), toRedeemer({
+      tag: 'MINT', index: 0,
+      budget: DEFAULT_REDEEMER_BUDGET,
+      data: {
+        alternative: 0,
+        fields: [],
+      },
+      ...redeemer,
+    }),
   );
 };
 
@@ -56,10 +124,38 @@ export const buildRewardAddress = (
   );
 };
 
-export const buildScriptPubkey = (keyHash: string) => {
-  const scriptPubkey = csl.ScriptPubkey.new(
-    deserializeEd25519KeyHash(keyHash),
+export const buildPlutusScriptSource = (
+  script: PlutusScript | UTxO,
+): PlutusScriptSource => {
+  if ('code' in script) {
+    return csl.PlutusScriptSource.new(
+      deserializePlutusScript(script.code, script.version),
+    );
+  }
+
+  const utxo = toTxUnspentOutput(script);
+  if (utxo.output().has_script_ref()) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const scriptRef = utxo.output().script_ref()!;
+    if (scriptRef.is_plutus_script()) {
+      const plutusScript = fromScriptRef(scriptRef) as PlutusScript;
+      const scriptHash = deserializePlutusScript(
+        plutusScript.code, plutusScript.version,
+      ).hash();
+
+      return csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+        scriptHash, utxo.input(), LANGUAGE_VERSIONS[plutusScript.version],
+      );
+    }
+  }
+
+  throw new Error(
+    `No plutus script reference found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
   );
+};
+
+export const buildScriptPubkey = (keyHash: Ed25519KeyHash) => {
+  const scriptPubkey = csl.ScriptPubkey.new(keyHash);
   return csl.NativeScript.new_script_pubkey(scriptPubkey);
 };
 
@@ -96,7 +192,6 @@ export const buildTxBuilder = (
     .max_tx_size(parameters.maxTxSize)
     .max_value_size(parseInt(parameters.maxValSize, 10))
     .pool_deposit(csl.BigNum.from_str(parameters.poolDeposit))
-    .prefer_pure_change(false)
     .build();
 
   return csl.TransactionBuilder.new(txBuilderConfig);
@@ -125,17 +220,36 @@ export const buildTxInputsBuilder = (
 };
 
 export const buildTxOutputBuilder = (
-  address: string, datum?: Data,
+  recipient: Recipient,
 ): TransactionOutputBuilder => {
-  if (datum === undefined)
+  if (typeof recipient === 'string') {
     return csl.TransactionOutputBuilder.new()
-      .with_address(toAddress(address));
+      .with_address(toAddress(recipient));
+  }
 
-  const plutusData = toPlutusData(datum);
-  const dataHash = csl.hash_plutus_data(plutusData);
+  let txOutputBuilder = csl.TransactionOutputBuilder.new()
+    .with_address(toAddress(recipient.address));
 
-  return csl.TransactionOutputBuilder.new()
-    .with_address(toAddress(address))
-    .with_plutus_data(plutusData)
-    .with_data_hash(dataHash);
+  if (recipient.datum) {
+    const { value, inline } = recipient.datum;
+
+    const plutusData = toPlutusData(value);
+
+    txOutputBuilder = txOutputBuilder
+      .with_data_hash(csl.hash_plutus_data(plutusData));
+
+    if (inline) {
+      txOutputBuilder = txOutputBuilder
+        .with_plutus_data(plutusData);
+    }
+  }
+
+  if (recipient.script) {
+    const reference = toScriptRef(recipient.script);
+
+    txOutputBuilder = txOutputBuilder
+      .with_script_ref(reference);
+  }
+
+  return txOutputBuilder;
 };
