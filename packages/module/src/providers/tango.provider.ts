@@ -219,6 +219,30 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
     }
   }
 
+  async fetchCollectionAssets(
+    policyId: string,
+    cursor = '',
+  ): Promise<{ assets: Asset[]; next: string | number | null }> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `policies/${policyId}/assets?size=100&cursor=${cursor}`,
+      );
+
+      if (status === 200)
+        return {
+          assets: data.data.map((asset) => ({
+            unit: `${asset.policy_id}${asset.asset_name}`,
+            quantity: asset.quantity,
+          })),
+          next: data.cursor,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      return { assets: [], next: null };
+    }
+  }
+
   async fetchHandleAddress(handle: string): Promise<string> {
     try {
       const assetName = fromUTF8(handle.replace('$', ''));

@@ -9,7 +9,7 @@ export function fetchAssetAddressesLeft({
   fetcherName,
   fetchAssetAddressesAsset,
 }) {
-  let code1 = `await ${fetcherName}.fetchAssetAddress(\n`;
+  let code1 = `await ${fetcherName}.fetchAssetAddresses(\n`;
   code1 += `  '${fetchAssetAddressesAsset}',\n`;
   code1 += `)`;
   return (

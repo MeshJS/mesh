@@ -44,6 +44,12 @@ function Right() {
   return (
     <>
       <Card>
+        <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Get UTXOs
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Get UTXOs of the connected wallet
+          </p>
+        </div>
         <Codeblock
           data={`const utxos = await wallet.getUtxos();`}
           isJson={false}

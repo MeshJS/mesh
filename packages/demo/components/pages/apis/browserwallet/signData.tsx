@@ -68,6 +68,12 @@ function Right(payload, setPayload) {
 
   return (
     <Card>
+      <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+        Sign Data
+        <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          Use connected wallet to sign a payload
+        </p>
+      </div>
       <Input
         value={payload}
         onChange={(e) => setPayload(e.target.value)}

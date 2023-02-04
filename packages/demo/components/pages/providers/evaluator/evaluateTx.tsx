@@ -119,10 +119,14 @@ export function evaluateTxRight({ evaluator }) {
   return (
     <>
       <Card>
-        <p>
-          Unlock an asset from the always succeed to check how much it takes to
-          execute this transaction.
-        </p>
+        <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Evaluate Transaction
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Unlock an asset from the always succeed to check how much it takes
+            to execute this transaction.
+          </p>
+        </div>
+
         {connected ? (
           <>
             <RunDemoButton

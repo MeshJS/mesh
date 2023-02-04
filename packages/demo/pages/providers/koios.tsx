@@ -20,6 +20,7 @@ export default function ProvidersKoios() {
     { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
     { label: 'Fetch Asset Metadata', to: 'fetchAssetMetadata' },
     { label: 'Fetch Block Info', to: 'fetchBlockInfo' },
+    { label: 'Fetch Collection Assets', to: 'fetchCollectionAssets' },
     { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
     { label: 'Fetch Protocol Parameters', to: 'fetchProtocolParameters' },
     { label: 'Fetch Transaction Info', to: 'fetchTxInfo' },
