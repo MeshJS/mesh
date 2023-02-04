@@ -87,6 +87,11 @@ export const SUPPORTED_OGMIOS_LINKS: Record<Network, string> = {
   testnet: 'wss://ogmios-api.testnet.dandelion.link',
 };
 
+export const SUPPORTED_STABLECOINS = {
+  DJED: '8db269c3ec630e06ae29f74bc39edd1f87c819f1056206e879a1cd61446a65644d6963726f555344',
+  iUSD: 'f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b6988069555344',
+};
+
 export const SUPPORTED_WALLETS = [
   'begin', 'eternl', 'flint', 'nami', 'nufi', 'gerowallet', 'typhoncip30',
 ];

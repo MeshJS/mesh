@@ -1,7 +1,7 @@
 import { csl, largestFirst, largestFirstMultiAsset } from '@mesh/core';
 import {
   DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
-  POLICY_ID_LENGTH, SUPPORTED_COST_MODELS,
+  POLICY_ID_LENGTH, SUPPORTED_COST_MODELS, SUPPORTED_STABLECOINS,
 } from '@mesh/common/constants';
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
@@ -19,7 +19,7 @@ import type {
 } from '@mesh/core';
 import type {
   Action, Asset, AssetMetadata, Data, Era, Mint, Protocol,
-  PlutusScript, Quantity, Recipient, Unit, UTxO, PoolParams,
+  PlutusScript, PoolParams, Quantity, Recipient, Stablecoin, Unit, UTxO,
 } from '@mesh/common/types';
 
 @Trackable
@@ -366,6 +366,17 @@ export class Transaction {
       .build();
 
     this._txBuilder.add_output(txOutput);
+
+    return this;
+  }
+
+  sendStablecoin(
+    recipient: Recipient, ticker: Stablecoin, amount: string,
+  ): Transaction {
+    this.sendAssets(recipient, [{
+      quantity: amount,
+      unit: SUPPORTED_STABLECOINS[ticker],
+    }]);
 
     return this;
   }
