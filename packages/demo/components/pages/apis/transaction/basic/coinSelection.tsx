@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import SectionTwoCol from '../../../common/sectionTwoCol';
+import Codeblock from '../../../../ui/codeblock';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
 import { useWallet } from '@meshsdk/react';
 import { largestFirstMultiAsset } from '@meshsdk/core';
 import type { Unit, Quantity } from '@meshsdk/core';

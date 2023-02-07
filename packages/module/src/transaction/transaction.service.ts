@@ -370,6 +370,14 @@ export class Transaction {
     return this;
   }
 
+  /**
+   * Adds stable coins transaction output to the transaction.
+   * @param {Recipient} recipient The recipient of the transaction.
+   * @param {Stablecoin} ticker The ticker of the stablecoin to send.
+   * @param {string} amount The amount of the stablecoin to send.
+   * @returns {Transaction} The Transaction object.
+   * @see {@link https://meshjs.dev/apis/transaction#sendStablecoin}
+   */
   sendStablecoin(
     recipient: Recipient, ticker: Stablecoin, amount: string,
   ): Transaction {
