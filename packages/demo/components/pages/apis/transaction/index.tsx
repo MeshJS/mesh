@@ -1,13 +1,13 @@
 import CommonLayout from '../../../common/layout';
 import Burning from './burning';
-import CoinSelection from './coinSelection';
+import CoinSelection from './basic/coinSelection';
 import DesignDatum from './datum';
 import Hero from './hero';
 import LockAssets from './lockAssets';
 import Minting from './minting';
-import SendAda from './sendAda';
-import SendAssets from './sendAssets';
-import SetTimeLimit from './setTimeLimit';
+import SendAda from './basic/sendAda';
+import SendAssets from './basic/sendAssets';
+import SetTimeLimit from './basic/setTimeLimit';
 import UnlockAssets from './unlockAssets';
 import UsingRedeemer from './redeemer';
 
