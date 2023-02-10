@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
 import { useWallet } from '@meshsdk/react';
-import ConnectCipWallet from '../../../common/connectCipWallet';
-import Input from '../../../ui/input';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
 import { Transaction, Asset } from '@meshsdk/core';
-import FetchSelectAssets from '../../../common/fetchSelectAssets';
+import FetchSelectAssets from '../../../../common/fetchSelectAssets';
 import Link from 'next/link';
-import useDemo from '../../../../contexts/demo';
+import useDemo from '../../../../../contexts/demo';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -163,6 +163,7 @@ function Right({ userInput, updateField, inputDatum, setInputDatum }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {

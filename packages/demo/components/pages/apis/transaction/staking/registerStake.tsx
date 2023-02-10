@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
 import { useWallet } from '@meshsdk/react';
-import ConnectCipWallet from '../../../common/connectCipWallet';
-import Input from '../../../ui/input';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
 import { Transaction } from '@meshsdk/core';
 
-export default function DelegateStake() {
+export default function RegisterStake() {
   const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<string>(
     'pool1mhww3q6d7qssj5j2add05r7cyr7znyswe2g6vd23anpx5sh6z8d'
@@ -30,8 +30,8 @@ export default function DelegateStake() {
 
   return (
     <SectionTwoCol
-      sidebarTo="delegateStake"
-      header="Delegate ADA to Stakepool"
+      sidebarTo="registerStake"
+      header="Register Stake Address"
       leftFn={Left({ userInput, rewardAddress })}
       rightFn={Right({ userInput, setUserInput })}
     />
@@ -45,19 +45,37 @@ function Left({ userInput, rewardAddress }) {
   codeSnippet += `const poolId = '${userInput}';\n\n`;
 
   codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
+  codeSnippet += `tx.registerStake(rewardAddress);\n`;
   codeSnippet += `tx.delegateStake(rewardAddress, poolId);\n\n`;
 
   codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
+  let code2 = ``;
+  code2 += `{\n`;
+  code2 += `  "active": true,\n`;
+  code2 += `  "poolId": "${userInput}",\n`;
+  code2 += `  "balance": "389290551",\n`;
+  code2 += `  "rewards": "0",\n`;
+  code2 += `  "withdrawals": "0"\n`;
+  code2 += `}\n`;
+
   return (
     <>
       <p>
-        Delegation is the process by which ADA holders delegate the stake
-        associated with their ADA to a stake pool. Doing so, this allows ADA
-        holders to participate in the network and be rewarded in proportion to
-        the amount of stake delegated.
+        New address must "register" before they can delegate to stakepools. To
+        check if a reward address has been register, use{' '}
+        <a href="https://meshjs.dev/providers/blockfrost#fetchAccountInfo">
+          blockchainProvider.fetchAccountInfo(rewardAddress)
+        </a>
+        . For example this account information, <code>active</code> shows the
+        address is registered.
+      </p>
+      <Codeblock data={code2} isJson={false} />
+      <p>
+        You can chain with <code>delegateStake()</code> to register and delegate
+        to a stake pool.
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
     </>
@@ -72,6 +90,7 @@ function Right({ userInput, setUserInput }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {
@@ -79,6 +98,7 @@ function Right({ userInput, setUserInput }) {
       const rewardAddress = rewardAddresses[0];
 
       const tx = new Transaction({ initiator: wallet });
+      tx.registerStake(rewardAddress);
       tx.delegateStake(rewardAddress, userInput);
 
       const unsignedTx = await tx.build();
@@ -100,7 +120,6 @@ function Right({ userInput, setUserInput }) {
         placeholder="Pool ID"
         label="Pool ID"
       />
-
       {connected ? (
         <>
           <RunDemoButton
@@ -113,7 +132,6 @@ function Right({ userInput, setUserInput }) {
       ) : (
         <ConnectCipWallet />
       )}
-
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );

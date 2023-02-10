@@ -2,11 +2,11 @@ import { NewspaperIcon } from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
 import CommonLayout from '../../../components/common/layout';
 import CommonHero from '../../../components/pages/apis/transaction/commonHero';
-import DesignDatum from '../../../components/pages/apis/transaction/datum';
-import LockAssets from '../../../components/pages/apis/transaction/lockAssets';
-import UsingRedeemer from '../../../components/pages/apis/transaction/redeemer';
+import DesignDatum from '../../../components/pages/apis/transaction/smart-contract/datum';
+import LockAssets from '../../../components/pages/apis/transaction/smart-contract/lockAssets';
+import UsingRedeemer from '../../../components/pages/apis/transaction/smart-contract/redeemer';
 import PlutusMinting from '../../../components/pages/apis/transaction/smart-contract/plutus-minting';
-import UnlockAssets from '../../../components/pages/apis/transaction/unlockAssets';
+import UnlockAssets from '../../../components/pages/apis/transaction/smart-contract/unlockAssets';
 import Metatags from '../../../components/site/metatags';
 
 const TransactionMintingPage: NextPage = () => {

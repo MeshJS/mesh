@@ -11,7 +11,6 @@ import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../../configs/demo';
 import { Transaction } from '@meshsdk/core';
-import type { Asset, Stablecoin } from '@meshsdk/core';
 import Select from '../../../../ui/select';
 
 export default function SendStablecoin() {
@@ -77,11 +76,11 @@ function Left({ userInput }) {
 
   codeSnippet += `const tx = new Transaction({ initiator: wallet })\n`;
   for (const recipient of userInput) {
-    codeSnippet += `tx.sendStablecoin(\n`;
-    codeSnippet += `  '${recipient.address}', \n`;
-    codeSnippet += `  '${recipient.stablecoin}', \n`;
-    codeSnippet += `  '${recipient.quantity}'\n`;
-    codeSnippet += `);\n`;
+    codeSnippet += `  .sendStablecoin(\n`;
+    codeSnippet += `    '${recipient.address}', \n`;
+    codeSnippet += `    '${recipient.stablecoin}', \n`;
+    codeSnippet += `    '${recipient.quantity}'\n`;
+    codeSnippet += `  )\n`;
   }
   codeSnippet += `;\n\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
@@ -116,6 +115,7 @@ function Right({ userInput, updateField }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {
