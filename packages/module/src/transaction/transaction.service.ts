@@ -1,7 +1,7 @@
 import { csl, keepRelevant, largestFirstMultiAsset } from '@mesh/core';
 import {
   DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
-  POLICY_ID_LENGTH, SUPPORTED_COST_MODELS, SUPPORTED_STABLECOINS,
+  POLICY_ID_LENGTH, SUPPORTED_COST_MODELS, SUPPORTED_TOKENS,
 } from '@mesh/common/constants';
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
@@ -19,7 +19,7 @@ import type {
 } from '@mesh/core';
 import type {
   Action, Asset, AssetMetadata, Data, Era, Mint, Protocol,
-  PlutusScript, PoolParams, Quantity, Recipient, Stablecoin, Unit, UTxO,
+  PlutusScript, PoolParams, Quantity, Recipient, Token, Unit, UTxO,
 } from '@mesh/common/types';
 
 @Trackable
@@ -382,17 +382,17 @@ export class Transaction {
   /**
    * Adds stable coins transaction output to the transaction.
    * @param {Recipient} recipient The recipient of the transaction.
-   * @param {Stablecoin} ticker The ticker of the stablecoin to send.
-   * @param {string} amount The amount of the stablecoin to send.
+   * @param {Token} ticker The ticker of the token to send.
+   * @param {string} amount The amount of the token to send.
    * @returns {Transaction} The Transaction object.
-   * @see {@link https://meshjs.dev/apis/transaction#sendStablecoin}
+   * @see {@link https://meshjs.dev/apis/transaction#sendToken}
    */
-  sendStablecoin(
-    recipient: Recipient, ticker: Stablecoin, amount: string,
+  sendToken(
+    recipient: Recipient, ticker: Token, amount: string,
   ): Transaction {
     this.sendAssets(recipient, [{
       quantity: amount,
-      unit: SUPPORTED_STABLECOINS[ticker],
+      unit: SUPPORTED_TOKENS[ticker],
     }]);
 
     return this;

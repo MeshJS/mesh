@@ -16,7 +16,7 @@ export * from './PoolParams';
 export * from './Protocol';
 export * from './Recipient';
 export * from './Relay';
-export * from './Stablecoin';
+export * from './Token';
 export * from './TransactionInfo';
 export * from './UTxO';
 export * from './Wallet';
