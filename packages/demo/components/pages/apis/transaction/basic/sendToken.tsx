@@ -1,36 +1,27 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
 import { useWallet } from '@meshsdk/react';
-import ConnectCipWallet from '../../../common/connectCipWallet';
-import Input from '../../../ui/input';
-import Button from '../../../ui/button';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
+import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses } from '../../../../configs/demo';
-import FetchSelectAssets from '../../../common/fetchSelectAssets';
+import { demoAddresses } from '../../../../../configs/demo';
 import { Transaction } from '@meshsdk/core';
-import type { Asset } from '@meshsdk/core';
+import Select from '../../../../ui/select';
 
-export default function SendAssets() {
+export default function SendToken() {
   const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<
-    { address: string; assets: { [unit: string]: number } }[]
+    { address: string; token: string; quantity: number }[]
   >([
     {
       address: demoAddresses.testnet,
-      assets: {
-        lovelace: 1000000,
-        '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
-      },
-    },
-    {
-      address: 'ANOTHER ADDRESS HERE',
-      assets: {
-        lovelace: 1500000,
-      },
+      token: 'DJED',
+      quantity: 1000000,
     },
   ]);
 
@@ -42,7 +33,8 @@ export default function SendAssets() {
             (await wallet.getNetworkId()) === 1
               ? demoAddresses.mainnet
               : demoAddresses.testnet,
-          assets: {},
+          token: 'DJED',
+          quantity: 1000000,
         },
       ];
       setUserInput(newRecipents);
@@ -55,19 +47,9 @@ export default function SendAssets() {
   function updateField(action, index, field, value) {
     let updated = [...userInput];
     if (action == 'add') {
-      updated.push({ address: '', assets: { lovelace: 1000000 } });
+      updated.push({ address: '', token: 'DJED', quantity: 0 });
     } else if (action == 'update') {
-      if (field == 'address') {
-        updated[index].address = value;
-      } else {
-        if (value == 0) {
-          delete updated[index].assets[field];
-        } else {
-          if (value >= 0) {
-            updated[index].assets[field] = value;
-          }
-        }
-      }
+      updated[index][field] = value;
     } else if (action == 'remove') {
       updated.splice(index, 1);
     }
@@ -76,8 +58,8 @@ export default function SendAssets() {
 
   return (
     <SectionTwoCol
-      sidebarTo="sendAssets"
-      header="Send Multiple Assets to Addresses"
+      sidebarTo="sendToken"
+      header="Send Token to Addresses"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />
@@ -85,59 +67,35 @@ export default function SendAssets() {
 }
 
 function Left({ userInput }) {
-  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n`;
-  codeSnippet += `import type { Asset } from '@meshsdk/core';\n\n`;
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n\n`;
 
-  codeSnippet += `const tx = new Transaction({ initiator: wallet })`;
+  codeSnippet += `const tx = new Transaction({ initiator: wallet })\n`;
   for (const recipient of userInput) {
-    if ('lovelace' in recipient.assets && recipient.assets.lovelace > 0) {
-      codeSnippet += `\n  .sendLovelace(\n    '${recipient.address}',\n    '${recipient.assets.lovelace}'\n  )`;
-    }
-
-    let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
-      return assetId != 'lovelace' && recipient.assets[assetId] > 0;
-    });
-    if (nativeAssets.length) {
-      codeSnippet += `\n  .sendAssets(\n    '${recipient.address}',`;
-      codeSnippet += `\n    [`;
-      for (const asset of nativeAssets) {
-        if (recipient.assets[asset] > 0) {
-          codeSnippet += `\n      {`;
-          codeSnippet += `\n        unit: '${asset}',`;
-          codeSnippet += `\n        quantity: '1',`;
-          codeSnippet += `\n      },`;
-        }
-      }
-      codeSnippet += `\n    ]`;
-      codeSnippet += `\n  )`;
-    }
+    codeSnippet += `  .sendToken(\n`;
+    codeSnippet += `    '${recipient.address}', \n`;
+    codeSnippet += `    '${recipient.token}', \n`;
+    codeSnippet += `    '${recipient.quantity}'\n`;
+    codeSnippet += `  )\n`;
   }
   codeSnippet += `;\n\n`;
   codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
-  let codeSnippet1 = `import type { Asset } from '@meshsdk/core';\n\n`;
-  codeSnippet1 += `let assets: Asset[] = [];\n`;
-  codeSnippet1 += `for (const asset of nativeAssets) {\n`;
-  codeSnippet1 += `  let thisAsset = {\n`;
-  codeSnippet1 += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
-  codeSnippet1 += `    quantity: '1',\n`;
-  codeSnippet1 += `  };\n`;
-  codeSnippet1 += `  assets.push(thisAsset);\n`;
-  codeSnippet1 += `}\n`;
-  codeSnippet1 += `tx.sendAssets(recipient.address, assets);`;
-
   return (
     <>
       <p>
-        For each recipients, we define a list of <code>Asset</code> to send:
+        We can chain <code>sendToken()</code> to send to multiple recipients.
+        For each recipients, append:
       </p>
-      <Codeblock data={codeSnippet1} isJson={false} />
+      <Codeblock
+        data={`tx.sendToken(recipient: Recipient, ticker: token, amount: string);`}
+        isJson={false}
+      />
       <p>
-        We can chain a series of <code>tx.sendAssets()</code> and{' '}
-        <code>tx.sendLovelace()</code> to send multiple assets to multiple
-        recipients.
+        Like <code>sendAssets()</code>, we can chain <code>sendToken()</code>{' '}
+        along side <code>tx.sendAssets()</code> to send multiple assets to
+        multiple recipients.
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
     </>
@@ -152,32 +110,18 @@ function Right({ userInput, updateField }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {
       const tx = new Transaction({ initiator: wallet });
 
       for (const recipient of userInput) {
-        if (recipient.assets.lovelace) {
-          tx.sendLovelace(
-            { address: recipient.address },
-            recipient.assets.lovelace.toString()
-          );
-        }
-        let nativeAssets = Object.keys(recipient.assets).filter((assetId) => {
-          return assetId != 'lovelace';
-        });
-        if (nativeAssets.length) {
-          let assets: Asset[] = [];
-          for (const asset of nativeAssets) {
-            let thisAsset: Asset = {
-              unit: asset,
-              quantity: '1',
-            };
-            assets.push(thisAsset);
-          }
-          tx.sendAssets({ address: recipient.address }, assets);
-        }
+        tx.sendToken(
+          recipient.address,
+          recipient.token,
+          recipient.quantity.toString()
+        );
       }
 
       const unsignedTx = await tx.build();
@@ -186,6 +130,7 @@ function Right({ userInput, updateField }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
+      console.error(error);
       setResponseError(JSON.stringify(error));
       setState(0);
     }
@@ -212,24 +157,13 @@ function Right({ userInput, updateField }) {
 }
 
 function InputTable({ userInput, updateField }) {
-  const { connected } = useWallet();
-
-  function selectAsset(id, unit) {
-    if (unit in userInput[id].assets) {
-      updateField('update', id, unit, 0);
-    } else {
-      updateField('update', id, unit, 1);
-    }
-  }
-
   return (
     <div className="overflow-x-auto relative">
       <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 m-0">
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Send multi-assets to recipients
+          Send tokens to recipients
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Add or remove recipients, input the address and the amount ADA to
-            send.
+            Add or remove recipients, input the address and the amount tokens to send.
           </p>
         </caption>
         <thead className="thead">
@@ -268,22 +202,55 @@ function InputTable({ userInput, updateField }) {
                     placeholder="Address"
                     label="Address"
                   />
+
+                  <Select
+                    id="resolveSlotNoNetwork"
+                    options={{
+                      DJED: 'DJED',
+                      iUSD: 'iUSD',
+                      LQ: 'LQ',
+                      MIN: 'MIN',
+                      NTX: 'NTX',
+                      iBTC: 'iBTC',
+                      iETH: 'iETH',
+                      MILK: 'MILK',
+                      AGIX: 'AGIX',
+                      MELD: 'MELD',
+                      INDY: 'INDY',
+                      CLAY: 'CLAY',
+                      MCOS: 'MCOS',
+                      DING: 'DING',
+                      GERO: 'GERO',
+                      NMKR: 'NMKR',
+                      PAVIA: 'PAVIA',
+                      HOSKY: 'HOSKY',
+                      YUMMI: 'YUMMI',
+                      C3: 'C3',
+                      GREENS: 'GREENS',
+                      GENS: 'GENS',
+                      SOCIETY: 'SOCIETY',
+                      SHEN: 'SHEN',
+                      WMT: 'WMT',
+                      COPI: 'COPI',
+                      GIMBAL: 'GIMBAL',
+                      SUNDAE: 'SUNDAE',
+                    }}
+                    value={row.token}
+                    onChange={(e) =>
+                      updateField('update', i, 'token', e.target.value)
+                    }
+                    label="Select token"
+                  />
+
                   <Input
-                    value={'lovelace' in row.assets ? row.assets.lovelace : 0}
+                    value={row.quantity}
                     type="number"
                     onChange={(e) =>
-                      updateField('update', i, 'lovelace', e.target.value)
+                      updateField('update', i, 'quantity', e.target.value)
                     }
                     placeholder="Amount in Lovelace"
-                    label="Lovelace"
+                    label="Quantity"
                   />
-                  <>
-                    <FetchSelectAssets
-                      index={i}
-                      selectedAssets={row.assets}
-                      selectAssetFn={selectAsset}
-                    />
-                  </>
                 </td>
               </tr>
             );

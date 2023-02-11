@@ -1,5 +1,5 @@
-import Codeblock from '../../../ui/codeblock';
-import SectionTwoCol from '../../../common/sectionTwoCol';
+import Codeblock from '../../../../ui/codeblock';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
 
 export default function SetTimeLimit() {
   return (

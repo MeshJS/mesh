@@ -107,7 +107,7 @@ function HowItWorksSection() {
       </p>
       <p>
         <code>IFetcher</code> and <code>ISubmitter</code> are implemented in the{' '}
-        <code>KoiosProvider</code> class using the the <code>implement</code>{' '}
+        <code>KoiosProvider</code> class using the <code>implement</code>{' '}
         keyword:
       </p>
       <Codeblock

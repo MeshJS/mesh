@@ -83,6 +83,7 @@ function Right({ userInput, setUserInput }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {

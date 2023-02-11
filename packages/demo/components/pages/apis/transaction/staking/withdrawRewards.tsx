@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
 import { useWallet } from '@meshsdk/react';
-import ConnectCipWallet from '../../../common/connectCipWallet';
-import Input from '../../../ui/input';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
 import { Transaction } from '@meshsdk/core';
 
 export default function WithdrawRewards() {
@@ -65,6 +65,7 @@ function Right({ userInput, setUserInput }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {

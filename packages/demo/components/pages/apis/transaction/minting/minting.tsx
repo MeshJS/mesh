@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
 import { useWallet } from '@meshsdk/react';
-import ConnectCipWallet from '../../../common/connectCipWallet';
-import Input from '../../../ui/input';
-import Button from '../../../ui/button';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
+import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses } from '../../../../configs/demo';
+import { demoAddresses } from '../../../../../configs/demo';
 import { Transaction, ForgeScript, AssetMetadata } from '@meshsdk/core';
 import type { Mint } from '@meshsdk/core';
-import Textarea from '../../../ui/textarea';
+import Textarea from '../../../../ui/textarea';
 import Link from 'next/link';
 
 const defaultMetadata = {
@@ -231,6 +231,7 @@ function Right({ userInput, updateField }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {

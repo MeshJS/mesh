@@ -1,12 +1,12 @@
 import { ArrowsPointingInIcon } from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
 import CommonLayout from '../../../components/common/layout';
-import DelegateStake from '../../../components/pages/apis/transaction/delegateStake';
+import DelegateStake from '../../../components/pages/apis/transaction/staking/delegateStake';
 import CommonHero from '../../../components/pages/apis/transaction/commonHero';
 import Metatags from '../../../components/site/metatags';
-import RegisterStake from '../../../components/pages/apis/transaction/registerStake';
-// import DeregisterStake from '../../../components/pages/apis/transaction/deregisterStake';
-// import WithdrawRewards from '../../../components/pages/apis/transaction/withdrawRewards';
+import RegisterStake from '../../../components/pages/apis/transaction/staking/registerStake';
+// import DeregisterStake from '../../../components/pages/apis/transaction/staking/deregisterStake';
+// import WithdrawRewards from '../../../components/pages/apis/transaction/staking/withdrawRewards';
 
 const TransactionStakingPage: NextPage = () => {
   const sidebarItems = [

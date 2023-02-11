@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
-import Input from '../../../ui/input';
-import Button from '../../../ui/button';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Input from '../../../../ui/input';
+import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses, demoCLIKey } from '../../../../configs/demo';
+import { demoAddresses, demoCLIKey } from '../../../../../configs/demo';
 import {
   AppWallet,
   Transaction,
@@ -16,7 +16,7 @@ import {
   BlockfrostProvider,
 } from '@meshsdk/core';
 import type { Mint } from '@meshsdk/core';
-import Textarea from '../../../ui/textarea';
+import Textarea from '../../../../ui/textarea';
 import Link from 'next/link';
 
 const defaultMetadata = {

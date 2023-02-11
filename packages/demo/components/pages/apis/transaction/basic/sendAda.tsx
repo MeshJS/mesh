@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
-import ConnectCipWallet from '../../../common/connectCipWallet';
-import Input from '../../../ui/input';
-import Button from '../../../ui/button';
+import Codeblock from '../../../../ui/codeblock';
+import Card from '../../../../ui/card';
+import RunDemoButton from '../../../../common/runDemoButton';
+import RunDemoResult from '../../../../common/runDemoResult';
+import SectionTwoCol from '../../../../common/sectionTwoCol';
+import ConnectCipWallet from '../../../../common/connectCipWallet';
+import Input from '../../../../ui/input';
+import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses } from '../../../../configs/demo';
+import { demoAddresses } from '../../../../../configs/demo';
 import { Transaction } from '@meshsdk/core';
 import { useWallet, useWalletList } from '@meshsdk/react';
 
@@ -21,12 +21,6 @@ export default function SendAda() {
       address: demoAddresses.testnet,
       assets: {
         lovelace: 1000000,
-      },
-    },
-    {
-      address: 'ANOTHER ADDRESS HERE',
-      assets: {
-        lovelace: 1500000,
       },
     },
   ]);
@@ -125,6 +119,7 @@ function Right({ userInput, updateField }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {
