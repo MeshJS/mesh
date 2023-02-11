@@ -54,10 +54,10 @@ function Left() {
   code4 += `): UTxO[]\n`;
 
   let codeKeepRelevant = ``;
-  codeKeepRelevant += `import { largestFirstMultiAsset, keepRelevant } from '@meshsdk/core';\n`;
+  codeKeepRelevant += `import { keepRelevant } from '@meshsdk/core';\n`;
   codeKeepRelevant += `import type { Unit, Quantity } from '@meshsdk/core';\n`;
   codeKeepRelevant += `\n`;
-  codeKeepRelevant += `const utxos = await wallet.getUtxos();\n`;
+  codeKeepRelevant += `const utxos = await wallet.getUtxos();\n\n`;
   codeKeepRelevant += `const assetMap = new Map<Unit, Quantity>();\n`;
   codeKeepRelevant += `assetMap.set(\n`;
   codeKeepRelevant += `  'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e',\n`;
@@ -71,10 +71,10 @@ function Left() {
   codeKeepRelevant += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
 
   let codeKeepRelevantDesc = ``;
-  codeKeepRelevantDesc += `keepRelevant = (;\n`;
+  codeKeepRelevantDesc += `keepRelevant = (\n`;
   codeKeepRelevantDesc += `  requestedOutputSet: Map<Unit, Quantity>,\n`;
-  codeKeepRelevantDesc += `  initialUTxOSet: UTxO[],;\n`;
-  codeKeepRelevantDesc += `  minimumLovelaceRequired = '5000000',;\n`;
+  codeKeepRelevantDesc += `  initialUTxOSet: UTxO[],\n`;
+  codeKeepRelevantDesc += `  minimumLovelaceRequired = '5000000',\n`;
   codeKeepRelevantDesc += `);\n`;
 
   return (
