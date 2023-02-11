@@ -23,12 +23,6 @@ export default function SendAda() {
         lovelace: 1000000,
       },
     },
-    {
-      address: 'ANOTHER ADDRESS HERE',
-      assets: {
-        lovelace: 1500000,
-      },
-    },
   ]);
 
   useEffect(() => {

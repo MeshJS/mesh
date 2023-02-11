@@ -13,20 +13,15 @@ import { demoAddresses } from '../../../../../configs/demo';
 import { Transaction } from '@meshsdk/core';
 import Select from '../../../../ui/select';
 
-export default function SendStablecoin() {
+export default function SendToken() {
   const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<
-    { address: string; stablecoin: string; quantity: number }[]
+    { address: string; token: string; quantity: number }[]
   >([
     {
       address: demoAddresses.testnet,
-      stablecoin: 'DJED',
-      quantity: 10,
-    },
-    {
-      address: 'ANOTHER ADDRESS HERE',
-      stablecoin: 'iUSD',
-      quantity: 15,
+      token: 'DJED',
+      quantity: 1000000,
     },
   ]);
 
@@ -38,8 +33,8 @@ export default function SendStablecoin() {
             (await wallet.getNetworkId()) === 1
               ? demoAddresses.mainnet
               : demoAddresses.testnet,
-          stablecoin: 'DJED',
-          quantity: 10,
+          token: 'DJED',
+          quantity: 1000000,
         },
       ];
       setUserInput(newRecipents);
@@ -52,7 +47,7 @@ export default function SendStablecoin() {
   function updateField(action, index, field, value) {
     let updated = [...userInput];
     if (action == 'add') {
-      updated.push({ address: '', stablecoin: 'DJED', quantity: 1 });
+      updated.push({ address: '', token: 'DJED', quantity: 0 });
     } else if (action == 'update') {
       updated[index][field] = value;
     } else if (action == 'remove') {
@@ -63,8 +58,8 @@ export default function SendStablecoin() {
 
   return (
     <SectionTwoCol
-      sidebarTo="sendStablecoin"
-      header="Send Stable Coins to Addresses"
+      sidebarTo="sendToken"
+      header="Send Token to Addresses"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />
@@ -76,9 +71,9 @@ function Left({ userInput }) {
 
   codeSnippet += `const tx = new Transaction({ initiator: wallet })\n`;
   for (const recipient of userInput) {
-    codeSnippet += `  .sendStablecoin(\n`;
+    codeSnippet += `  .sendToken(\n`;
     codeSnippet += `    '${recipient.address}', \n`;
-    codeSnippet += `    '${recipient.stablecoin}', \n`;
+    codeSnippet += `    '${recipient.token}', \n`;
     codeSnippet += `    '${recipient.quantity}'\n`;
     codeSnippet += `  )\n`;
   }
@@ -90,17 +85,17 @@ function Left({ userInput }) {
   return (
     <>
       <p>
-        We can chain <code>sendStablecoin()</code> to send to multiple
-        recipients. For each recipients, append:
+        We can chain <code>sendToken()</code> to send to multiple recipients.
+        For each recipients, append:
       </p>
       <Codeblock
-        data={`tx.sendStablecoin(recipient: Recipient, ticker: Stablecoin, amount: string,);`}
+        data={`tx.sendToken(recipient: Recipient, ticker: token, amount: string);`}
         isJson={false}
       />
       <p>
-        Like <code>sendLovelace()</code>, we can chain{' '}
-        <code>sendStablecoin()</code> along side <code>tx.sendAssets()</code> to
-        send multiple assets to multiple recipients.
+        Like <code>sendAssets()</code>, we can chain <code>sendToken()</code>{' '}
+        along side <code>tx.sendAssets()</code> to send multiple assets to
+        multiple recipients.
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
     </>
@@ -122,9 +117,9 @@ function Right({ userInput, updateField }) {
       const tx = new Transaction({ initiator: wallet });
 
       for (const recipient of userInput) {
-        tx.sendStablecoin(
+        tx.sendToken(
           recipient.address,
-          recipient.stablecoin,
+          recipient.token,
           recipient.quantity.toString()
         );
       }
@@ -135,7 +130,7 @@ function Right({ userInput, updateField }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
-      console.error(error)
+      console.error(error);
       setResponseError(JSON.stringify(error));
       setState(0);
     }
@@ -166,10 +161,9 @@ function InputTable({ userInput, updateField }) {
     <div className="overflow-x-auto relative">
       <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 m-0">
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Send stable coins to recipients
+          Send tokens to recipients
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Add or remove recipients, input the address and the amount stable
-            coins to send.
+            Add or remove recipients, input the address and the amount tokens to send.
           </p>
         </caption>
         <thead className="thead">
@@ -214,12 +208,37 @@ function InputTable({ userInput, updateField }) {
                     options={{
                       DJED: 'DJED',
                       iUSD: 'iUSD',
+                      LQ: 'LQ',
+                      MIN: 'MIN',
+                      NTX: 'NTX',
+                      iBTC: 'iBTC',
+                      iETH: 'iETH',
+                      MILK: 'MILK',
+                      AGIX: 'AGIX',
+                      MELD: 'MELD',
+                      INDY: 'INDY',
+                      CLAY: 'CLAY',
+                      MCOS: 'MCOS',
+                      DING: 'DING',
+                      GERO: 'GERO',
+                      NMKR: 'NMKR',
+                      PAVIA: 'PAVIA',
+                      HOSKY: 'HOSKY',
+                      YUMMI: 'YUMMI',
+                      C3: 'C3',
+                      GREENS: 'GREENS',
+                      GENS: 'GENS',
+                      SOCIETY: 'SOCIETY',
+                      SHEN: 'SHEN',
+                      WMT: 'WMT',
+                      COPI: 'COPI',
+                      GIMBAL: 'GIMBAL',
                     }}
-                    value={row.stablecoin}
+                    value={row.token}
                     onChange={(e) =>
-                      updateField('update', i, 'stablecoin', e.target.value)
+                      updateField('update', i, 'token', e.target.value)
                     }
-                    label="Select network"
+                    label="Select token"
                   />
 
                   <Input

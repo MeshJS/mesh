@@ -26,12 +26,6 @@ export default function SendAssets() {
         '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
       },
     },
-    {
-      address: 'ANOTHER ADDRESS HERE',
-      assets: {
-        lovelace: 1500000,
-      },
-    },
   ]);
 
   useEffect(() => {
