@@ -74,10 +74,12 @@ function Left() {
 
   return (
     <>
-      <p>
-        There are three coin selection algorithm, one for selecting lovelace,
-        another for selecting multiple assets.
-      </p>
+      <p>There are three coin selection algorithms:</p>
+      <ul>
+        <li>Keep Relevant</li>
+        <li>Largest First</li>
+        <li>Largest First Multi-Asset</li>
+      </ul>
       <h3>Keep Relevant</h3>
       <p>
         <code>keepRelevant</code> is a two steps coin selection algorithm. First
@@ -92,7 +94,7 @@ function Left() {
         Here is an example how you can use <code>keepRelevant()</code>:
       </p>
       <Codeblock data={codeKeepRelevant} isJson={false} />
-      
+
       <h3>Largest First</h3>
       <p>
         To select UTXOs for transaction that only requires lovelace, use{' '}
@@ -101,7 +103,7 @@ function Left() {
       <Codeblock data={code3} isJson={false} />
       <p>For example, selecting the UTXOs for sending 10000000 lovelace:</p>
       <Codeblock data={codeSnippet1} isJson={false} />
-      
+
       <h3>Largest First Multi-Asset</h3>
       <p>
         <code>largestFirstMultiAsset</code> allows you to select native assets
