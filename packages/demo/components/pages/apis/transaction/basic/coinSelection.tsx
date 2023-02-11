@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import Codeblock from '../../../../ui/codeblock';
 import SectionTwoCol from '../../../../common/sectionTwoCol';
-import { useWallet } from '@meshsdk/react';
-import { largestFirstMultiAsset } from '@meshsdk/core';
-import type { Unit, Quantity } from '@meshsdk/core';
+// import { useWallet } from '@meshsdk/react';
+// import { largestFirstMultiAsset, keepRelevant } from '@meshsdk/core';
+// import type { Unit, Quantity } from '@meshsdk/core';
+// import ConnectCipWallet from '../../../../common/connectCipWallet';
 
 export default function CoinSelection() {
   return (
@@ -53,12 +53,47 @@ function Left() {
   code4 += `  includeTxFees = false, parameters = DEFAULT_PROTOCOL_PARAMETERS,\n`;
   code4 += `): UTxO[]\n`;
 
+  let codeKeepRelevant = ``;
+  codeKeepRelevant += `import { largestFirstMultiAsset, keepRelevant } from '@meshsdk/core';\n`;
+  codeKeepRelevant += `import type { Unit, Quantity } from '@meshsdk/core';\n`;
+  codeKeepRelevant += `\n`;
+  codeKeepRelevant += `const utxos = await wallet.getUtxos();\n`;
+  codeKeepRelevant += `const assetMap = new Map<Unit, Quantity>();\n`;
+  codeKeepRelevant += `assetMap.set(\n`;
+  codeKeepRelevant += `  'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e',\n`;
+  codeKeepRelevant += `  '1'\n`;
+  codeKeepRelevant += `);\n`;
+  codeKeepRelevant += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
+
+  let codeKeepRelevantDesc = ``;
+  codeKeepRelevantDesc += `keepRelevant = (;\n`;
+  codeKeepRelevantDesc += `  requestedOutputSet: Map<Unit, Quantity>,\n`;
+  codeKeepRelevantDesc += `  initialUTxOSet: UTxO[],;\n`;
+  codeKeepRelevantDesc += `  minimumLovelaceRequired = '5000000',;\n`;
+  codeKeepRelevantDesc += `);\n`;
+
   return (
     <>
       <p>
-        There are two coin selection algorithm, one for selecting lovelace,
+        There are three coin selection algorithm, one for selecting lovelace,
         another for selecting multiple assets.
       </p>
+      <h3>Keep Relevant</h3>
+      <p>
+        <code>keepRelevant</code> is a two steps coin selection algorithm. First
+        it tries to eliminate all the the irrelevant UTxOs from the initial
+        UTxOs set. Then, it will check if we have enough lovelace to cover all
+        the multiassts we got in our UTxO selection; if the selected UTxOs
+        doesn't have enough lovelace, it will try to pickup the largest lovelace
+        UTxO from the wallet.
+      </p>
+      <Codeblock data={codeKeepRelevantDesc} isJson={false} />
+      <p>
+        Here is an example how you can use <code>keepRelevant()</code>:
+      </p>
+      <Codeblock data={codeKeepRelevant} isJson={false} />
+      
+      <h3>Largest First</h3>
       <p>
         To select UTXOs for transaction that only requires lovelace, use{' '}
         <code>largestFirst</code>.
@@ -66,6 +101,8 @@ function Left() {
       <Codeblock data={code3} isJson={false} />
       <p>For example, selecting the UTXOs for sending 10000000 lovelace:</p>
       <Codeblock data={codeSnippet1} isJson={false} />
+      
+      <h3>Largest First Multi-Asset</h3>
       <p>
         <code>largestFirstMultiAsset</code> allows you to select native assets
         by defining a <code>Map</code> of required assets.
@@ -88,37 +125,46 @@ function Left() {
 }
 
 function Right() {
-  const [state, setState] = useState<number>(0);
-  const [response, setResponse] = useState<null | any>(null);
-  const [responseError, setResponseError] = useState<null | any>(null);
-  const { wallet, connected } = useWallet();
+  // const [state, setState] = useState<number>(0);
+  // const [response, setResponse] = useState<null | any>(null);
+  // const [responseError, setResponseError] = useState<null | any>(null);
+  // const { wallet, connected } = useWallet();
 
-  async function runDemo() {
-    setState(1);
-    setResponseError(null);
+  // async function runDemo() {
+  //   console.log(111, keepRelevant);
+  //   console.log(222, largestFirstMultiAsset);
 
-    const utxos = await wallet.getUtxos();
-    console.log('all utxos', utxos);
-    const assetMap = new Map<Unit, Quantity>();
-    assetMap.set(
-      'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e',
-      // '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',
-      '1'
-    );
-    // assetMap.set(
-    //   'lovelace',
-    //   '10000000'
-    // );
-    const selectedUtxos = largestFirstMultiAsset(assetMap, utxos, true);
-    console.log('selectedUtxos', selectedUtxos);
+  //   setState(1);
+  //   setResponseError(null);
 
-    try {
-      setState(2);
-    } catch (error) {
-      setResponseError(`${error}`);
-      setState(0);
-    }
-  }
+  //   const utxos = await wallet.getUtxos();
+  //   console.log('all utxos', utxos);
+  //   const assetMap = new Map<Unit, Quantity>();
+  //   assetMap.set(
+  //     'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e',
+  //     '1'
+  //   );
+  //   // assetMap.set(
+  //   //   'lovelace',
+  //   //   '10000000'
+  //   // );
+  //   // const selectedUtxos = largestFirstMultiAsset(assetMap, utxos, true);
+  //   const selectedUtxos = keepRelevant(assetMap, utxos);
 
-  return <></>;
+  //   console.log('selectedUtxos', selectedUtxos);
+
+  //   try {
+  //     setState(2);
+  //   } catch (error) {
+  //     setResponseError(`${error}`);
+  //     setState(0);
+  //   }
+  // }
+
+  return (
+    <>
+      {/* <ConnectCipWallet />
+      <button onClick={() => runDemo()}>test</button> */}
+    </>
+  );
 }
