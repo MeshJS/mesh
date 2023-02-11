@@ -88,7 +88,7 @@ function Left() {
       <h3>Keep Relevant</h3>
       <p>
         <code>keepRelevant</code> is a two steps coin selection algorithm. First
-        it tries to eliminate all the the irrelevant UTxOs from the initial
+        it tries to eliminate all the irrelevant UTxOs from the initial
         UTxOs set. Then, it will check if we have enough lovelace to cover all
         the multiassts we got in our UTxO selection; if the selected UTxOs
         doesn't have enough lovelace, it will try to pickup the largest lovelace

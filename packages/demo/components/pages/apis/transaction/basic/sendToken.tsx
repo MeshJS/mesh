@@ -233,6 +233,7 @@ function InputTable({ userInput, updateField }) {
                       WMT: 'WMT',
                       COPI: 'COPI',
                       GIMBAL: 'GIMBAL',
+                      SUNDAE: 'SUNDAE',
                     }}
                     value={row.token}
                     onChange={(e) =>
