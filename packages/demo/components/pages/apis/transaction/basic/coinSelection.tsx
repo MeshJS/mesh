@@ -63,6 +63,11 @@ function Left() {
   codeKeepRelevant += `  'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e',\n`;
   codeKeepRelevant += `  '1'\n`;
   codeKeepRelevant += `);\n`;
+  codeKeepRelevant += `// if you need to include lovelace\n`;
+  codeKeepRelevant += `assetMap.set(\n`;
+  codeKeepRelevant += `  'lovelace',\n`;
+  codeKeepRelevant += `  '10000000'\n`;
+  codeKeepRelevant += `);\n\n`;
   codeKeepRelevant += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
 
   let codeKeepRelevantDesc = ``;
