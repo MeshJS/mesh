@@ -138,7 +138,8 @@ const items = [
     repoUrl: 'https://github.com/MeshJS/signin-next-ts-template',
     desc: (
       <p>
-        Cryptographically prove the ownership of a wallet by signing a piece of data using data sign.
+        Cryptographically prove the ownership of a wallet by signing a piece of
+        data using data sign.
       </p>
     ),
   },
@@ -152,7 +153,24 @@ const items = [
     repoUrl: 'https://github.com/MeshJS/signin-next-js-template',
     desc: (
       <p>
-        Cryptographically prove the ownership of a wallet by signing a piece of data using data sign.
+        Cryptographically prove the ownership of a wallet by signing a piece of
+        data using data sign.
+      </p>
+    ),
+  },
+  {
+    title: 'Ecommerce Next.js TypeScript',
+    template: 'ecommerce',
+    framework: 'next',
+    language: 'typescript',
+    installCode: 'npx create-mesh-app leap -t ecommerce -s next -l js',
+    demoUrl: 'http://ecommerce-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/ecommerce-next-js-template',
+    desc: (
+      <p>
+        A starter template for Ecommerce store, where customers can pay with
+        Cardano stable coins such as DJED, a receipt will be minted to the
+        customer's wallet and you will fulfil their order.
       </p>
     ),
   },

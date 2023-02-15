@@ -30,6 +30,12 @@ export const templates = {
     cli: 'signin',
     image: 'signin.png',
   },
+  ecommerce: {
+    title: 'Ecommerce Store',
+    desc: `An ecommerce store where customers can pay with Cardano stable coins.`,
+    cli: 'ecommerce',
+    image: 'ecommerce.png',
+  },
 };
 
 export const languages = {
