@@ -122,7 +122,14 @@ export default function useMarketplaceV1({ blockchainFetcher, network = 0 }) {
         datum: datumConstr,
       });
 
-      const tx = new Transaction({ initiator: wallet })
+      if(assetUtxo === undefined){
+        throw 'No listing found.';
+      }
+      
+      const parameters = await blockchainFetcher.fetchProtocolParameters(118);
+      console.log('parameters', parameters);
+
+      const tx = new Transaction({ initiator: wallet, parameters: parameters })
         .redeemValue({
           value: assetUtxo,
           script: script,
@@ -135,6 +142,9 @@ export default function useMarketplaceV1({ blockchainFetcher, network = 0 }) {
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx, true);
       const txHash = await wallet.submitTx(signedTx);
+
+      // const txHash = await blockchainFetcher.submitTx(signedTx);
+
       return txHash;
     }
   }
