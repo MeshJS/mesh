@@ -6,12 +6,14 @@ import Button from '../../../ui/button';
 import { useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider } from '@meshsdk/core';
+import { BlockfrostProvider, KoiosProvider } from '@meshsdk/core';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 
-const blockfrostProvider = new BlockfrostProvider(
-  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-);
+// const blockchainFetcher = new BlockfrostProvider(
+//   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+// );
+
+const blockchainFetcher = new KoiosProvider('preview');
 
 export default function MarketplaceCancelAsset() {
   return (
@@ -37,7 +39,7 @@ function Left() {
 function Right() {
   const { connected } = useWallet();
   const { cancelListing } = useMarketplaceV1({
-    blockchainFetcher: blockfrostProvider,
+    blockchainFetcher: blockchainFetcher,
     network: 0,
   });
   const [loading, setLoading] = useState<boolean>(false);
@@ -62,6 +64,7 @@ function Right() {
       //   '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a42';
       // const assetId = '4d657368546f6b656e';
       // const listPriceInLovelace = 10000000;
+
       const txHash = await cancelListing({
         policyId: userLocalStorage.policyId,
         assetId: userLocalStorage.assetId,
