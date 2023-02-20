@@ -385,7 +385,7 @@ function SubMenuAbout() {
             <SubMenuLinks
               href={`/about/references`}
               title="References"
-              desc="Articles about Mesh"
+              desc="Articles and Testimonials"
               icon={<NewspaperIcon className="w-5 h-5" />}
             />
           </ul>
