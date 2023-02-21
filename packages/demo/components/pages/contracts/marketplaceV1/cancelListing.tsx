@@ -9,11 +9,11 @@ import RunDemoResult from '../../../common/runDemoResult';
 import { BlockfrostProvider, KoiosProvider } from '@meshsdk/core';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 
-// const blockchainFetcher = new BlockfrostProvider(
-//   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-// );
+const blockchainFetcher = new BlockfrostProvider(
+  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+);
 
-const blockchainFetcher = new KoiosProvider('preview');
+// const blockchainFetcher = new KoiosProvider('preview');
 
 export default function MarketplaceCancelAsset() {
   return (
