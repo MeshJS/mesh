@@ -126,10 +126,10 @@ export default function useMarketplaceV1({ blockchainFetcher, network = 0 }) {
         throw 'No listing found.';
       }
       
-      const parameters = await blockchainFetcher.fetchProtocolParameters(118);
-      console.log('parameters', parameters);
+      // const parameters = await blockchainFetcher.fetchProtocolParameters(118);
+      // console.log('parameters', parameters);
 
-      const tx = new Transaction({ initiator: wallet, parameters: parameters })
+      const tx = new Transaction({ initiator: wallet })
         .redeemValue({
           value: assetUtxo,
           script: script,
