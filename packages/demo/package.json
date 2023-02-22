@@ -14,8 +14,8 @@
   "dependencies": {
     "@headlessui/react": "^1.6.6",
     "@heroicons/react": "^2.0.10",
-    "@meshsdk/core": "1.5.0",
-    "@meshsdk/react": "1.1.5",
+    "@meshsdk/core": "1.5.1",
+    "@meshsdk/react": "1.1.6",
     "copy-to-clipboard": "^3.3.2",
     "flowbite": "^1.5.3",
     "flowbite-react": "^0.1.10",
