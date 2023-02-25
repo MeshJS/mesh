@@ -39,8 +39,19 @@ function Left() {
     <>
       <p>
         Returns a list of assets in the wallet. This API will return every
-        assets in the wallet, example:
+        assets in the wallet. Each asset is an object with the following
+        properties:
       </p>
+      <ul>
+        <li>
+          A unit is provided to display asset's name on the user interface.
+        </li>
+        <li>
+          A quantity is provided to display asset's quantity on the user
+          interface.
+        </li>
+      </ul>
+      <p>Example:</p>
       <Codeblock data={codeSample} isJson={false} />
     </>
   );

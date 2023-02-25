@@ -33,8 +33,8 @@ export default function BrowserWallet() {
     { label: 'Sign data', to: 'signData' },
     { label: 'Sign transaction', to: 'signTx' },
     { label: 'Submit transaction', to: 'submitTx' },
-    { label: 'Get lovelace', to: 'getLovelace' },
     { label: 'Get assets', to: 'getAssets' },
+    { label: 'Get lovelace', to: 'getLovelace' },
     { label: 'Get policy IDs', to: 'getPolicyIds' },
     { label: 'Get collection of assets', to: 'getPolicyIdAssets' },
   ];
@@ -62,8 +62,8 @@ function Main() {
       <SignData />
       <SignTx />
       <SubmitTransaction />
-      <GetLovelace />
       <GetAssets />
+      <GetLovelace />
       <GetPolicyIds />
       <GetPolicyIdAssets />
     </>

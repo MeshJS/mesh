@@ -19,6 +19,19 @@ export default function GetCollateral() {
 }
 
 function Left() {
+  let example = ``;
+  example += `[\n`;
+  example += `  {\n`;
+  example += `    "input": {\n`;
+  example += `      "outputIndex": 1,\n`;
+  example += `      "txHash": "ff8d1e97c60989b4f...02ee937595ad741ff597af1"\n`;
+  example += `    },\n`;
+  example += `    "output": {\n`;
+  example += `      "address": "addr_test1qzm...z0fr8c3grjmysm5e6yx",\n`;
+  example += `      "amount": [ { "unit": "lovelace", "quantity": "5000000" } ]\n`;
+  example += `    }\n`;
+  example += `  }\n`;
+  example += `]\n`;
   return (
     <>
       <p>
@@ -36,6 +49,8 @@ function Left() {
         would sum up to a smaller total ADA value, instead in a case like that
         an error message must be returned.
       </p>
+      <p>Example of a response returned by this endpoint:</p>
+      <Codeblock data={example} isJson={false} />
     </>
   );
 }

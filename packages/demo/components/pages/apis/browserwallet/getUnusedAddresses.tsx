@@ -19,10 +19,18 @@ export default function GetUnusedAddresses() {
 }
 
 function Left() {
+  let example = ``;
+  example+=`[\n`;
+  example+=`  "addr_test1qzk9x08mtre4jp8f7j8zu8802...r8c3grjmys7fl22c",\n`;
+  example+=`  "addr_test1qrmf35xyw2petfr0e0p4at0r7...8sc3grjmysm73dk8",\n`;
+  example+=`  "addr_test1qq6ts58hdaasd2q78fdjj0arm...i8c3grjmys85k8mf",\n`;
+  example+=`]\n`;
   return (
     <>
-      <p>Returns a list of unused addresses controlled by the wallet.</p>
+      <p>Returns a list of unused addresses controlled by the wallet. For example:</p>
+      <Codeblock data={example} isJson={false} />
     </>
+    
   );
 }
 
