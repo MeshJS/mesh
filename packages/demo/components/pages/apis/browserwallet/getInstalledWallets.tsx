@@ -18,13 +18,29 @@ export default function GetInstalledWallets() {
 }
 
 function Left() {
+  let example = ``;
+  example += `[\n`;
+  example += `  {\n`;
+  example += `    "name": "eternl",\n`;
+  example += `    "icon": "data:image/png;base64,ICONBASE64HERE=",\n`;
+  example += `    "version": "0.1.0"\n`;
+  example += `  }\n`;
+  example += `]\n`;
+
   return (
     <>
       <p>
-        Returns a list of wallets installed on user's device. An{' '}
-        <code>icon</code> is provided to display wallet's icon on the user
-        interface.
+        Returns a list of wallets installed on user's device. Each wallet is an object with the following properties:
       </p>
+      <ul>
+        <li>A name is provided to display wallet's name on the user interface.</li>
+        <li>A version is provided to display wallet's version on the user interface.</li>
+        <li>An icon is provided to display wallet's icon on the user interface.</li>
+      </ul>
+      <p>
+        Example:
+      </p>
+      <Codeblock data={example} isJson={false} />
     </>
   );
 }

@@ -19,9 +19,19 @@ export default function GetRewardAddresses() {
 }
 
 function Left() {
+  let example = ``;
+  example += `[\n`;
+  example += `  "stake_test1uzx0ksy9f4qnj2mzfdncqyjy84sszh64w43853nug5pedjgytgke9"\n`;
+  example += `]\n`;
+
   return (
     <>
-      <p>Returns a list of reward addresses owned by the wallet.</p>
+      <p>
+        Returns a list of reward addresses owned by the wallet. A reward address
+        is a stake address that is used to receive rewards from staking,
+        generally starts from `stake` prefix. Example:
+      </p>
+      <Codeblock data={example} isJson={false} />
     </>
   );
 }

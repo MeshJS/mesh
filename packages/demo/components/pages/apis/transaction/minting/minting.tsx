@@ -140,8 +140,13 @@ function Left({ userInput }) {
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
-  let codeSnippet1 = `const usedAddress = await wallet.getUsedAddresses();\n`;
+  let codeSnippet1 = ``;
+  codeSnippet1 += `// use browser wallet to get address\n`;
+  codeSnippet1 += `const usedAddress = await wallet.getUsedAddresses();\n`;
   codeSnippet1 += `const address = usedAddress[0];\n`;
+  codeSnippet1 += `// use app wallet to get address\n`;
+  codeSnippet1 += `const address = wallet.getPaymentAddress();\n\n`;
+  codeSnippet1 += `// create forgingScript\n`;
   codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
 
   let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
@@ -210,8 +215,8 @@ function Left({ userInput }) {
       <p>
         To get the <code>keyHash</code>, use the{' '}
         <code>resolvePaymentKeyHash()</code>. To get the slot, use the{' '}
-        <code>resolveSlotNo()</code>. See{' '}
-        <Link href="/apis/resolvers">Resolvers</Link>.
+        <code>resolveSlotNo()</code>. Check out{' '}
+        <Link href="/apis/resolvers">Resolvers</Link> on how to use these functions.
       </p>
       <p>
         Note: If you were expecting a particular Policy ID but received an

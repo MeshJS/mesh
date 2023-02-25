@@ -7,11 +7,11 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 
-export default function GetUtxos() {
+export default function GetCollateral() {
   return (
     <SectionTwoCol
-      sidebarTo="getUtxos"
-      header="Get UTXOs"
+      sidebarTo="getCollateral"
+      header="Get Collateral"
       leftFn={Left()}
       rightFn={Right()}
     />
@@ -23,30 +23,33 @@ function Left() {
   example += `[\n`;
   example += `  {\n`;
   example += `    "input": {\n`;
-  example += `      "outputIndex": 0,\n`;
-  example += `      "txHash": "16dcbb1f93b4f9d5e...9106c7b121463c210ba"\n`;
+  example += `      "outputIndex": 1,\n`;
+  example += `      "txHash": "ff8d1e97c60989b4f...02ee937595ad741ff597af1"\n`;
   example += `    },\n`;
   example += `    "output": {\n`;
-  example += `      "address": "addr_test1qzag7whju08xwrq...z0fr8c3grjmysgaw9y8",\n`;
-  example += `      "amount": [\n`;
-  example += `        {\n`;
-  example += `          "unit": "lovelace",\n`;
-  example += `          "quantity": "1314550"\n`;
-  example += `        },\n`;
-  example += `        {\n`;
-  example += `          "unit": "f05c91a850...3d824d657368546f6b656e3032",\n`;
-  example += `          "quantity": "1"\n`;
-  example += `        }\n`;
-  example += `      ]\n`;
+  example += `      "address": "addr_test1qzm...z0fr8c3grjmysm5e6yx",\n`;
+  example += `      "amount": [ { "unit": "lovelace", "quantity": "5000000" } ]\n`;
   example += `    }\n`;
   example += `  }\n`;
   example += `]\n`;
   return (
     <>
       <p>
-        Return a list of all UTXOs (unspent transaction outputs) controlled by
-        the wallet. For example:
+        This function shall return a list of one or more UTXOs (unspent
+        transaction outputs) controlled by the wallet that are required to reach
+        AT LEAST the combined ADA value target specified in amount AND the best
+        suitable to be used as collateral inputs for transactions with plutus
+        script inputs (pure ADA-only UTXOs).
       </p>
+      <p>
+        If this cannot be attained, an error message with an explanation of the
+        blocking problem shall be returned. NOTE: wallets are free to return
+        UTXOs that add up to a greater total ADA value than requested in the
+        amount parameter, but wallets must never return any result where UTXOs
+        would sum up to a smaller total ADA value, instead in a case like that
+        an error message must be returned.
+      </p>
+      <p>Example of a response returned by this endpoint:</p>
       <Codeblock data={example} isJson={false} />
     </>
   );
@@ -59,7 +62,7 @@ function Right() {
 
   async function runDemo() {
     setLoading(true);
-    let results = await wallet.getUtxos();
+    let results = await wallet.getCollateral();
     setResponse(results);
     setLoading(false);
   }
@@ -67,13 +70,14 @@ function Right() {
     <>
       <Card>
         <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Get UTXOs
+          Get Collateral
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Get UTXOs of the connected wallet
+            Get list of UTXOs that used as collateral inputs for transactions
+            with plutus script inputs
           </p>
         </div>
         <Codeblock
-          data={`const utxos = await wallet.getUtxos();`}
+          data={`const collateralUtxos = await wallet.getCollateral();`}
           isJson={false}
         />
         {connected ? (

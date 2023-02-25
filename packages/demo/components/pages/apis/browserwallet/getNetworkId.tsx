@@ -22,8 +22,8 @@ function Left() {
   return (
     <>
       <p>
-        Returns the network ID of the currently connected account. 0 is testnet
-        and 1 is mainnet but other networks can possibly be returned by wallets.
+        Returns the network ID of the currently connected account. <code>0</code> is testnet
+        and <code>1</code> is mainnet but other networks can possibly be returned by wallets.
         Those other network ID values are not governed by CIP-30. This result
         will stay the same unless the connected account has changed.
       </p>

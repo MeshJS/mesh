@@ -163,9 +163,9 @@ const items = [
     template: 'ecommerce',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app leap -t ecommerce -s next -l js',
+    installCode: 'npx create-mesh-app leap -t ecommerce -s next -l ts',
     demoUrl: 'http://ecommerce-template.meshjs.dev/',
-    repoUrl: 'https://github.com/MeshJS/ecommerce-next-js-template',
+    repoUrl: 'https://github.com/MeshJS/ecommerce-next-ts-template',
     desc: (
       <p>
         A starter template for Ecommerce store, where customers can pay with
