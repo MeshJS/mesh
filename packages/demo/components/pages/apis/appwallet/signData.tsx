@@ -14,15 +14,21 @@ export default function SignData() {
     <SectionTwoCol
       sidebarTo="signData"
       header="Sign Data"
-      leftFn={Left()}
+      leftFn={Left(payload)}
       rightFn={Right(payload, setPayload)}
     />
   );
 }
 
-function Left() {
+function Left(payload) {
   let code = `const address = wallet.getPaymentAddress();\n`;
-  code += `const signature = wallet.signData(address, payload);`;
+  code += `const signature = wallet.signData(address, '${payload}');`;
+
+  let example = ``;
+  example += `{\n`;
+  example += `  "signature": "845846a2012...f9119a18e8977d436385cecb08",\n`;
+  example += `  "key": "a4010103272006215...b81a7f6ed4fa29cc7b33186c"\n`;
+  example += `}\n`;
 
   return (
     <>
@@ -30,6 +36,8 @@ function Left() {
         Sign data allows you to sign a payload to identify the wallet ownership.
       </p>
       <Codeblock data={code} isJson={false} />
+      <p>Example of a response from the endpoint:</p>
+      <Codeblock data={example} isJson={false} />
     </>
   );
 }
