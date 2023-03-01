@@ -1,9 +1,9 @@
 import { FireIcon } from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
 import CommonLayout from '../../../components/common/layout';
-import Burning from '../../../components/pages/apis/transaction/burning';
+import Burning from '../../../components/pages/apis/transaction/minting/burning';
 import CommonHero from '../../../components/pages/apis/transaction/commonHero';
-import Minting from '../../../components/pages/apis/transaction/minting';
+import Minting from '../../../components/pages/apis/transaction/minting/minting';
 import Metatags from '../../../components/site/metatags';
 
 const TransactionMintingPage: NextPage = () => {

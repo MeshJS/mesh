@@ -1,24 +1,32 @@
 import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
-import { IFetcher, ISubmitter } from '@mesh/common/contracts';
+import { IFetcher, IListener, ISubmitter } from '@mesh/common/contracts';
 import {
-  fromUTF8, parseHttpError, resolveRewardAddress,
-  toBytes, toScriptRef,
+  fromUTF8, parseAssetUnit, parseHttpError,
+  resolveRewardAddress, toBytes, toScriptRef,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, AssetMetadata, NativeScript,
-  PlutusScript, Protocol, UTxO,
+  AccountInfo, Asset, AssetMetadata, BlockInfo, NativeScript,
+  PlutusScript, Protocol, TransactionInfo, UTxO,
 } from '@mesh/common/types';
 
-export class BlockfrostProvider implements IFetcher, ISubmitter {
+export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(projectId: string, version = 0) {
-    const network = projectId.slice(0, 7);
-    this._axiosInstance = axios.create({
-      baseURL: `https://cardano-${network}.blockfrost.io/api/v${version}`,
-      headers: { project_id: projectId },
-    });
+  constructor(baseUrl: string);
+  constructor(projectId: string, version?: number);
+
+  constructor(...args: unknown[]) {
+    if (typeof args[0] === 'string' && args[0].startsWith('http')) {
+      this._axiosInstance = axios.create({ baseURL: args[0] });
+    } else {
+      const projectId = args[0] as string;
+      const network = projectId.slice(0, 7);
+      this._axiosInstance = axios.create({
+        baseURL: `https://cardano-${network}.blockfrost.io/api/v${args[1] ?? 0}`,
+        headers: { project_id: projectId },
+      });
+    }
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -109,8 +117,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
   async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
     const paginateAddresses = async <T>(page = 1, addresses: T[] = []): Promise<T[]> => {
+      const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}/addresses?page=${page}`,
+        `assets/${policyId}${assetName}/addresses?page=${page}`,
       );
 
       if (status === 200)
@@ -130,8 +139,9 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
+      const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
-        `assets/${asset}`,
+        `assets/${policyId}${assetName}`,
       );
 
       if (status === 200)
@@ -142,6 +152,61 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
+    }
+  }
+
+  async fetchBlockInfo(hash: string): Promise<BlockInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `blocks/${hash}`,
+      );
+
+      if (status === 200)
+        return <BlockInfo>{
+          confirmations: data.confirmations,
+          epoch: data.epoch,
+          epochSlot: data.epoch_slot.toString(),
+          fees: data.fees,
+          hash: data.hash,
+          nextBlock: data.next_block ?? '',
+          operationalCertificate: data.op_cert,
+          output: data.output ?? '0',
+          previousBlock: data.previous_block,
+          size: data.size,
+          slot: data.slot.toString(),
+          slotLeader: data.slot_leader ?? '',
+          time: data.time,
+          txCount: data.tx_count,
+          VRFKey: data.block_vrf,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchCollectionAssets(
+    policyId: string,
+    cursor = 1,
+  ): Promise<{ assets: Asset[]; next: string | number | null }> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `assets/policy/${policyId}?page=${cursor}`,
+      );
+
+      if (status === 200)
+        return {
+          assets: data.map((asset) => ({
+            unit: asset.asset,
+            quantity: asset.quantity,
+          })),
+          next: data.length === 100 ? cursor + 1 : null,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      return { assets: [], next: null };
     }
   }
 
@@ -195,6 +260,49 @@ export class BlockfrostProvider implements IFetcher, ISubmitter {
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchTxInfo(hash: string): Promise<TransactionInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `txs/${hash}`,
+      );
+
+      if (status === 200)
+        return <TransactionInfo>{
+          block: data.block,
+          deposit: data.deposit,
+          fees: data.fees,
+          hash: data.hash,
+          index: data.index,
+          invalidAfter: data.invalid_hereafter ?? '',
+          invalidBefore: data.invalid_before ?? '',
+          slot: data.slot.toString(),
+          size: data.size,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  onTxConfirmed(txHash: string, callback: () => void, limit = 20): void {
+    let attempts = 0;
+
+    const checkTx = setInterval(() => {
+      if (attempts >= limit)
+        clearInterval(checkTx);
+
+      this.fetchTxInfo(txHash).then((txInfo) => {
+        this.fetchBlockInfo(txInfo.block).then((blockInfo) => {
+          if (blockInfo?.confirmations > 0) {
+            clearInterval(checkTx);
+            callback();
+          }
+        }).catch(() => { attempts += 1; });
+      }).catch(() => { attempts += 1; });
+    }, 5_000);
   }
 
   async submitTx(tx: string): Promise<string> {

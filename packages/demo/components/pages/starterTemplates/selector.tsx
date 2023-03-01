@@ -18,21 +18,21 @@ export default function Selector({
         setSelected={setSelectedTemplate}
       />
 
-      <SelectSection
+      {/* <SelectSection
         title="Select a Stack"
         desc="The stack you want to build on."
         items={frameworks}
         selected={selectedFramework}
         setSelected={setSelectedFramework}
-      />
+      /> */}
 
-      <SelectSection
+      {/* <SelectSection
         title="Select a Language"
         desc="Programming language for your project."
         items={languages}
         selected={selectedLanguage}
         setSelected={setSelectedLanguage}
-      />
+      /> */}
     </div>
   );
 }

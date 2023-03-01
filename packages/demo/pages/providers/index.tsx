@@ -19,7 +19,11 @@ const ProvidersPage: NextPage = () => {
       link: '/providers/koios',
       thumbnail: '/providers/koios.png',
     },
-
+    {
+      title: 'Ogmios',
+      link: '/providers/ogmios',
+      thumbnail: '/providers/ogmios.png',
+    },
   ];
 
   return (

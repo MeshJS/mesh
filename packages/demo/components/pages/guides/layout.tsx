@@ -30,7 +30,7 @@ export default function GuidesLayout({
           <p className="text-lg font-normal text-gray-300">{desc}</p>
         </div>
       </header>
-      <Card className="flex relative z-20 justify-between p-6 -m-36 mx-0 max-w-screen-xl xl:-m-32 xl:p-9 xl:mx-auto">
+      <div className="flex relative z-20 justify-between p-6 -m-36 mx-4 max-w-screen-xl bg-white dark:bg-gray-800 xl:-m-32 xl:p-9 xl:mx-auto rounded-lg border border-gray-200 shadow-md dark:border-gray-700">
         <article className="xl:w-[828px] w-full max-w-none format format-blue dark:format-invert">
           {children}
         </article>
@@ -44,7 +44,7 @@ export default function GuidesLayout({
             </div>
           </div>
         </aside>
-      </Card>
+      </div>
     </main>
   );
 }

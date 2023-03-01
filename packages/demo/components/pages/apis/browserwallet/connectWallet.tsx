@@ -1,7 +1,8 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet, useWalletList } from '@meshsdk/react';
+
 import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function ConnectWallet() {
@@ -35,16 +36,24 @@ function Left() {
 }
 
 function Right() {
-  const { hasAvailableWallets, walletNameConnected } = useWallet();
+  const { name } = useWallet();
+
   return (
     <Card>
+      <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+        Connect Wallet
+        <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          Connect to a CIP30 compatible wallet
+        </p>
+      </div>
+
       <Codeblock
         data={`const wallet = await BrowserWallet.enable('${
-          walletNameConnected ? walletNameConnected : 'eternl'
+          name ? name : 'eternl'
         }');`}
         isJson={false}
       />
-      {hasAvailableWallets && <ConnectCipWallet />}
+      {<ConnectCipWallet />}
     </Card>
   );
 }

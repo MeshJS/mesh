@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import Codeblock from '../../../ui/codeblock';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import Card from '../../../ui/card';
@@ -22,6 +22,11 @@ export default function SignData() {
 }
 
 function Left() {
+  let example = ``;
+  example+=`{\n`;
+  example+=`  "signature": "845846a2012...f9119a18e8977d436385cecb08",\n`;
+  example+=`  "key": "a4010103272006215...b81a7f6ed4fa29cc7b33186c"\n`;
+  example+=`}\n`;
   return (
     <>
       <p>
@@ -39,10 +44,14 @@ function Left() {
       <p>
         Here, we get the first wallet's address with{' '}
         <code>wallet.getUsedAddresses()</code>, alternativelly you can use
-        reward addresses (<code>getRewardAddresses</code>) too. It's really up
+        reward addresses (<code>getRewardAddresses()</code>) too. It's really up
         to you as the developer which address you want to use in your
         application.
       </p>
+      <p>
+        Example of a response from the endpoint:
+      </p>
+      <Codeblock data={example} isJson={false} />
     </>
   );
 }
@@ -50,16 +59,16 @@ function Left() {
 function Right(payload, setPayload) {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setLoading(true);
-    // const addresses = await wallet.getRewardAddresses();
-    const addresses = await wallet.getUsedAddresses();
-    console.log('addresses', addresses);
-    let results = await wallet.signData(addresses[0], payload);
-
-    setResponse(results);
+    try {
+      // const addresses = await wallet.getRewardAddresses();
+      const addresses = await wallet.getUsedAddresses();
+      let results = await wallet.signData(addresses[0], payload);
+      setResponse(results);
+    } catch (error) {}
     setLoading(false);
   }
 
@@ -68,6 +77,12 @@ function Right(payload, setPayload) {
 
   return (
     <Card>
+      <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+        Sign Data
+        <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          Use connected wallet to sign a payload
+        </p>
+      </div>
       <Input
         value={payload}
         onChange={(e) => setPayload(e.target.value)}
@@ -75,21 +90,18 @@ function Right(payload, setPayload) {
         label="Payload"
       />
       <Codeblock data={code} isJson={false} />
-      {hasAvailableWallets && (
+
+      {connected ? (
         <>
-          {walletConnected ? (
-            <>
-              <RunDemoButton
-                runDemoFn={runDemo}
-                loading={loading}
-                response={response}
-              />
-              <RunDemoResult response={response} />
-            </>
-          ) : (
-            <ConnectCipWallet />
-          )}
+          <RunDemoButton
+            runDemoFn={runDemo}
+            loading={loading}
+            response={response}
+          />
+          <RunDemoResult response={response} />
         </>
+      ) : (
+        <ConnectCipWallet />
       )}
     </Card>
   );

@@ -30,3 +30,7 @@ Explore the features on [Mesh Playground](https://meshjs.dev/).
 - [Support us](https://meshjs.dev/about/support-us)
 - Build something - try Mesh by implementing your Web 3.0 project (recommended [starter guide](https://meshjs.dev/guides/nextjs))
 - Inform others - Tell others about Mesh, and star the [Github repo](https://github.com/MeshJS/mesh) :star:
+
+<hr/>
+
+![Vercel Logo](https://www.datocms-assets.com/31049/1618983297-powered-by-vercel.svg)

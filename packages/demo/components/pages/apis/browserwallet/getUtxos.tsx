@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function GetUtxos() {
@@ -19,13 +19,35 @@ export default function GetUtxos() {
 }
 
 function Left() {
+  let example = ``;
+  example += `[\n`;
+  example += `  {\n`;
+  example += `    "input": {\n`;
+  example += `      "outputIndex": 0,\n`;
+  example += `      "txHash": "16dcbb1f93b4f9d5e...9106c7b121463c210ba"\n`;
+  example += `    },\n`;
+  example += `    "output": {\n`;
+  example += `      "address": "addr_test1qzag7whju08xwrq...z0fr8c3grjmysgaw9y8",\n`;
+  example += `      "amount": [\n`;
+  example += `        {\n`;
+  example += `          "unit": "lovelace",\n`;
+  example += `          "quantity": "1314550"\n`;
+  example += `        },\n`;
+  example += `        {\n`;
+  example += `          "unit": "f05c91a850...3d824d657368546f6b656e3032",\n`;
+  example += `          "quantity": "1"\n`;
+  example += `        }\n`;
+  example += `      ]\n`;
+  example += `    }\n`;
+  example += `  }\n`;
+  example += `]\n`;
   return (
     <>
       <p>
         Return a list of all UTXOs (unspent transaction outputs) controlled by
-        the wallet. ADA balance and multiasset value in each UTXO are specified
-        in <code>amount</code>.
+        the wallet. For example:
       </p>
+      <Codeblock data={example} isJson={false} />
     </>
   );
 }
@@ -33,7 +55,7 @@ function Left() {
 function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setLoading(true);
@@ -44,11 +66,17 @@ function Right() {
   return (
     <>
       <Card>
+        <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Get UTXOs
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Get UTXOs of the connected wallet
+          </p>
+        </div>
         <Codeblock
           data={`const utxos = await wallet.getUtxos();`}
           isJson={false}
         />
-        {walletConnected ? (
+        {connected ? (
           <>
             <RunDemoButton
               runDemoFn={runDemo}
@@ -58,7 +86,7 @@ function Right() {
             <RunDemoResult response={response} />
           </>
         ) : (
-          hasAvailableWallets && <ConnectCipWallet />
+          <ConnectCipWallet />
         )}
       </Card>
     </>

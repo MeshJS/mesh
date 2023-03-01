@@ -17,20 +17,19 @@ export const create = async (name, options) => {
       { title: 'Starter Project', value: 'starter' },
       { title: 'Multi-Sig Minting', value: 'minting' },
       { title: 'Stake-Pool Website', value: 'staking' },
-      { title: 'Smart-Contract Marketplace <COMING-SOON>', value: 'marketplace' },
+      { title: 'Cardano Sign-In', value: 'signin' },
+      { title: 'E-Commerce Store', value: 'ecommerce' },
     ]));
 
   const stack =
     options.stack ??
     (await askUser('What Stack do you want to use?', [
       { title: 'Next.js', value: 'next' },
-      { title: 'Remix <COMING-SOON>', value: 'remix' },
     ]));
 
   const language =
     options.language ??
     (await askUser('What language do you want to use?', [
-      { title: 'JavaScript', value: 'js' },
       { title: 'TypeScript', value: 'ts' },
     ]));
 

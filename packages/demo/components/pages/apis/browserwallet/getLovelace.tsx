@@ -4,7 +4,7 @@ import Card from '../../../ui/card';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useWallet from '../../../../contexts/wallet';
+import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../common/connectCipWallet';
 
 export default function GetLovelace() {
@@ -29,7 +29,7 @@ function Left() {
 function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-  const { wallet, walletConnected, hasAvailableWallets } = useWallet();
+  const { wallet, connected } = useWallet();
 
   async function runDemo() {
     setLoading(true);
@@ -40,11 +40,17 @@ function Right() {
   return (
     <>
       <Card>
+        <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Get Lovelace
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Get amount of ADA in connected wallet
+          </p>
+        </div>
         <Codeblock
           data={`const lovelace = await wallet.getLovelace();`}
           isJson={false}
         />
-        {walletConnected ? (
+        {connected ? (
           <>
             <RunDemoButton
               runDemoFn={runDemo}
@@ -54,7 +60,7 @@ function Right() {
             <RunDemoResult response={response} />
           </>
         ) : (
-          hasAvailableWallets && <ConnectCipWallet />
+          <ConnectCipWallet />
         )}
       </Card>
     </>

@@ -1,5 +1,5 @@
 import tw, { styled } from 'twin.macro';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWallet, useWalletList } from '@mesh/hooks';
 import { MenuItem } from '../MenuItem';
 import { WalletBalance } from './WalletBalance';
@@ -22,12 +22,24 @@ const StyledMenuList = styled.div(({ hidden }: { hidden: boolean }) => [
   hidden && tw`hidden`,
 ]);
 
-export const CardanoWallet = () => {
+export const CardanoWallet = ({
+  label = 'Connect Wallet',
+  onConnected = undefined
+}: {
+  label?: string,
+  onConnected?: Function
+}) => {
   const wallets = useWalletList();
 
   const [hideMenuList, setHideMenuList] = useState(true);
 
   const { connect, connecting, connected, disconnect, name } = useWallet();
+
+  useEffect(() => {
+    if (connected && onConnected) {
+      onConnected();
+    }
+  }, [connected]);
 
   return (
     <div
@@ -37,15 +49,20 @@ export const CardanoWallet = () => {
     >
       <StyledMenuButton
         type="button"
+        className="mr-wallet-button"
         onClick={() => setHideMenuList(!hideMenuList)}
       >
         <WalletBalance
           name={name}
           connected={connected}
           connecting={connecting}
+          label={label}
         />
       </StyledMenuButton>
-      <StyledMenuList hidden={hideMenuList}>
+      <StyledMenuList
+        hidden={hideMenuList}
+        className="mr-menu-list"
+      >
         {!connected && wallets.length > 0 ? (
           wallets.map((wallet, index) => (
             <MenuItem
@@ -59,18 +76,18 @@ export const CardanoWallet = () => {
               active={name === wallet.name}
             />
           ))
-          ) : wallets.length === 0 ? (
-            <span>No Wallet Found</span>
-          ) : (
-            <>
-              <MenuItem
-                active={false}
-                label="disconnect"
-                action={disconnect}
-                icon={undefined}
-              />
-            </>
-          )}
+        ) : wallets.length === 0 ? (
+          <span>No Wallet Found</span>
+        ) : (
+          <>
+            <MenuItem
+              active={false}
+              label="disconnect"
+              action={disconnect}
+              icon={undefined}
+            />
+          </>
+        )}
       </StyledMenuList>
     </div>
   );

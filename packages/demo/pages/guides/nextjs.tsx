@@ -156,6 +156,7 @@ const nextConfig = {
   webpack: function (config, options) {
     config.experiments = {
       asyncWebAssembly: true,
+      layers: true,
     };
     return config;
   },
@@ -289,6 +290,22 @@ export default Home;`}
               http://localhost:3000
             </a>{' '}
             to connect available wallets and view the assets in wallet.
+          </p>
+
+          <p>
+            If you are new to Cardano, you will first have to download one of
+            the Cardano wallets. <i>Tall Nupinks</i> has written a detailed{' '}
+            <a
+              href="https://cutedumborcs.substack.com/p/cardano-wallets-101"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Cardano Wallets 101
+            </a>{' '}
+            guide to help you understand the fundamentals of a Cardano wallet,
+            including its features and how it works. With this guide, you will
+            be able to make an informed decision on the best Cardano wallet for
+            your needs.
           </p>
 
           <h3>3. Try on your own</h3>
