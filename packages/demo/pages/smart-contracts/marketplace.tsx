@@ -6,7 +6,7 @@ const SmartContractsMarketplaceV1: NextPage = () => {
   return (
     <>
       <Metatags
-        title="Marketplace Contract V1"
+        title="Marketplace Contract"
         description="A marketplace where you can buy and sell NFTs"
       />
       <ContractsMarketplaceV1 />
