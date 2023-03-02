@@ -100,8 +100,8 @@ function Right() {
         network: 'preprod',
         signer: wallet,
         submitter: blockchainProvider,
-        owner:
-          'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',
+        version: 'V1',
+        owner: 'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',
       });
       console.log('marketplace', marketplace);
 
