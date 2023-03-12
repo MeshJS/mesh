@@ -16,7 +16,43 @@ const SaleAction = pstruct({
 
 const feeDenominator = phoist( pInt( 1_000_000 ) )
 
-const contract = pfn([
+/**
+ * ## Usage
+ * 
+ * ### Before compilation
+ * 
+ * make sure you pass the paramters to the term.
+ * 
+ *  ```ts
+ *  const myAppliedContract = contract
+ *  .$(
+ *       PPubKeyHash.from("<your pkh here>")
+ *  )
+ *  .$( pInt( 3000 ) ) // your fee numerator here
+ *  ```
+ * > **NOTE** the fee numerator is in the order of millions
+ * > so in the example above `3000` implies a fee of `3000/1_000_000` (or `0.003`)
+ * > which in a scale from `0` to `1` implies a fee of `0.3%`
+ * 
+ * ### compile
+ * first adapt it to the standard
+ * ```ts
+ * const untypedValidator = makeValidator( myAppliedContract );
+ * ```
+ * then comile it
+ * ```ts
+ * const myCompiledMarketplace = compile( untypedValidator )
+ * ```
+ * 
+ * ### use it offchain
+ *  ```ts
+ *  const myMarketplaceScript = new Script(
+ *      ScriptType.PlutusV2,
+ *      myCompiledMarketplace 
+ *  );
+ * ```
+**/
+export const contract = pfn([
     PPubKeyHash.type, // owner
     int, // feeNumerator
     NFTSale.type,
@@ -162,4 +198,5 @@ const contract = pfn([
         .onClose( _ => tx.signatories.some( sale.seller.eqTerm ) )
 
     }))))
-)
+
+);
