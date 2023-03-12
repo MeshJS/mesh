@@ -1,202 +1,201 @@
-import { pstruct, pfn, PCurrencySymbol, PScriptContext, PTokenName, bool, int, pBool, PPubKeyHash, pisEmpty, plet, pmatch, perror, plam, PTxInInfo, list, punConstrData, precursiveList, fn, pif, pdelay, phoist, pInt } from "@harmoniclabs/plu-ts";
+import {
+  bool, compile, fn, int, list, makeValidator, pBool,
+  PCurrencySymbol, pdelay, perror, pfn, phoist, pif,
+  pInt, pisEmpty, plam, plet, pmatch, PPubKeyHash,
+  precursiveList, PScriptContext, pstruct, PTokenName,
+  PTxInInfo, punConstrData, Script, ScriptType,
+} from "@harmoniclabs/plu-ts";
+import { PlutusScript, resolvePaymentKeyHash } from "@meshsdk/core";
 
 const NFTSale = pstruct({
-    NFTSale: {
-        seller: PPubKeyHash.type,
-        price:  int,
-        policy: PCurrencySymbol.type,
-        tokenName: PTokenName.type
-    }
+  NFTSale: {
+    seller: PPubKeyHash.type,
+    price: int,
+    policy: PCurrencySymbol.type,
+    tokenName: PTokenName.type
+  }
 });
 
 const SaleAction = pstruct({
-    Buy: {},
-    Close: {}
+  Buy: {},
+  Close: {}
 });
 
-const feeDenominator = phoist( pInt( 1_000_000 ) )
+const feeDenominator = phoist(pInt(1_000_000))
 
-/**
- * ## Usage
- * 
- * ### Before compilation
- * 
- * make sure you pass the paramters to the term.
- * 
- *  ```ts
- *  const myAppliedContract = contract
- *  .$(
- *       PPubKeyHash.from("<your pkh here>")
- *  )
- *  .$( pInt( 3000 ) ) // your fee numerator here
- *  ```
- * > **NOTE** the fee numerator is in the order of millions
- * > so in the example above `3000` implies a fee of `3000/1_000_000` (or `0.003`)
- * > which in a scale from `0` to `1` implies a fee of `0.3%`
- * 
- * ### compile
- * first adapt it to the standard
- * ```ts
- * const untypedValidator = makeValidator( myAppliedContract );
- * ```
- * then comile it
- * ```ts
- * const myCompiledMarketplace = compile( untypedValidator )
- * ```
- * 
- * ### use it offchain
- *  ```ts
- *  const myMarketplaceScript = new Script(
- *      ScriptType.PlutusV2,
- *      myCompiledMarketplace 
- *  );
- * ```
-**/
-export const contract = pfn([
-    PPubKeyHash.type, // owner
-    int, // feeNumerator
-    NFTSale.type,
-    SaleAction.type,
-    PScriptContext.type
-],  bool)
-(( 
+const contract = pfn([
+  PPubKeyHash.type, // owner
+  int, // feeNumerator
+  NFTSale.type,
+  SaleAction.type,
+  PScriptContext.type
+], bool)
+  ((
     owner, feeNumerator,
     datum, action, ctx
-) =>
-    ctx.extract("txInfo").in( ({ txInfo }) => 
-    datum.extract("seller","price","policy","tokenName").in( sale =>
+  ) =>
+    ctx.extract("txInfo").in(({ txInfo }) =>
+      datum.extract("seller", "price", "policy", "tokenName").in(sale =>
 
-    plet(
-        plam( PTxInInfo.type, bool )
-        ( _in => _in.extract("resolved").in( ({ resolved }) =>
-            resolved.extract("address").in( ({ address }) =>
-                punConstrData.$( address as any ).fst.eq( 0 ) // MUST be the first constructor (PPubKeyHash) 
-            ))
-        )
-    ).in( isInputFromPubKeyHash =>
+        plet(
+          plam(PTxInInfo.type, bool)
+            (_in => _in.extract("resolved").in(({ resolved }) =>
+              resolved.extract("address").in(({ address }) =>
+                punConstrData.$(address as any).fst.eq(0) // MUST be the first constructor (PPubKeyHash) 
+              ))
+            )
+        ).in(isInputFromPubKeyHash =>
 
-    txInfo.extract("signatories","outputs","inputs").in( tx => {
+          txInfo.extract("signatories", "outputs", "inputs").in(tx => {
 
-        const nftSentToSigner = tx.outputs.some( _out => 
-            _out.extract("value","address").in( out => {
+            const nftSentToSigner = tx.outputs.some(_out =>
+              _out.extract("value", "address").in(out => {
 
                 const outToBuyer = plet(
-                    tx.signatories.head
-                ).in( buyer => 
-                    out.address.extract("credential").in( ({ credential }) =>
-                    
-                        pmatch( credential )
-                        .onPPubKeyCredential( _ => _.extract("pkh").in( ({ pkh }) => pkh.eq( buyer )) )
-                        ._( _ => perror( bool ) )
+                  tx.signatories.head
+                ).in(buyer =>
+                  out.address.extract("credential").in(({ credential }) =>
 
-                    )
+                    pmatch(credential)
+                      .onPPubKeyCredential(_ => _.extract("pkh").in(({ pkh }) => pkh.eq(buyer)))
+                      ._(_ => perror(bool))
+
+                  )
                 );
 
-                const valueIncludesNFT = out.value.some( entry =>
-                    entry.fst.eq( sale.policy )
+                const valueIncludesNFT = out.value.some(entry =>
+                  entry.fst.eq(sale.policy)
                     .and(
-                        plet( entry.snd ).in( assets => 
-                            assets.some( assetEntry =>
-                                assetEntry.fst.eq( sale.tokenName )
-                                .and(
-                                    assetEntry.snd.eq( 1 )
-                                ) 
+                      plet(entry.snd).in(assets =>
+                        assets.some(assetEntry =>
+                          assetEntry.fst.eq(sale.tokenName)
+                            .and(
+                              assetEntry.snd.eq(1)
                             )
                         )
+                      )
                     )
                 )
 
-                return pisEmpty.$( tx.signatories.tail )
-                .and(  outToBuyer )
-                .and(  valueIncludesNFT );
-            })
-        );
+                return pisEmpty.$(tx.signatories.tail)
+                  .and(outToBuyer)
+                  .and(valueIncludesNFT);
+              })
+            );
 
-        const paidToSeller = tx.outputs.some( _out =>
-            _out.extract("value","address").in( out => {
+            const paidToSeller = tx.outputs.some(_out =>
+              _out.extract("value", "address").in(out => {
 
-                const outValueGtEqPrice = out.value.some( entry =>
-                    entry.fst.eq("")
+                const outValueGtEqPrice = out.value.some(entry =>
+                  entry.fst.eq("")
                     .and(
-                        entry.snd // assets
+                      entry.snd // assets
                         .head // first asset (only on in ADA entry)
                         .snd  // quantity
-                        .gtEq( sale.price )
-                    ) 
+                        .gtEq(sale.price)
+                    )
                 );
 
-                const outToSeller = out.address.extract("credential").in( ({ credential }) =>
-                    pmatch( credential )
-                    .onPPubKeyCredential( _ => _.extract("pkh").in( ({ pkh }) => pkh.eq( sale.seller ) ))
-                    ._( _ => perror( bool ))
+                const outToSeller = out.address.extract("credential").in(({ credential }) =>
+                  pmatch(credential)
+                    .onPPubKeyCredential(_ => _.extract("pkh").in(({ pkh }) => pkh.eq(sale.seller)))
+                    ._(_ => perror(bool))
                 );
 
-                return outValueGtEqPrice.and( outToSeller );
-            })
-        );
-        
-        const noInputScript = plam( list( PTxInInfo.type ), bool )
-        ( inputs =>
-            inputs.every( isInputFromPubKeyHash )
-        )
+                return outValueGtEqPrice.and(outToSeller);
+              })
+            );
 
-        // prvent double spending attck
-        const onlyScriptInputIsOwn = precursiveList( bool, PTxInInfo.type )
-            .$( _self => pdelay( pBool( false ) ) ) // caseNil
-            .$(
+            const noInputScript = plam(list(PTxInInfo.type), bool)
+              (inputs =>
+                inputs.every(isInputFromPubKeyHash)
+              )
+
+            // prvent double spending attck
+            const onlyScriptInputIsOwn = precursiveList(bool, PTxInInfo.type)
+              .$(_self => pdelay(pBool(false))) // caseNil
+              .$(
                 pfn([
-                    fn([ list( PTxInInfo.type ) ], bool ),
-                    PTxInInfo.type,
-                    list( PTxInInfo.type )
-                ],  bool)
-                (( self, head, tail ) => 
-                    pif( bool ).$( isInputFromPubKeyHash.$( head ) )
-                    .then( self.$( tail ) as any )
-                    .else(
+                  fn([list(PTxInInfo.type)], bool),
+                  PTxInInfo.type,
+                  list(PTxInInfo.type)
+                ], bool)
+                  ((self, head, tail) =>
+                    pif(bool).$(isInputFromPubKeyHash.$(head))
+                      .then(self.$(tail) as any)
+                      .else(
                         /*
                           we could add a check for the input to be from this actual script
-
+ 
                           however since we are validating for the inputs to contain a single script input
                           it implies that it has to be this one (since the validator is runnig)
                         */
-                        noInputScript.$( tail )
-                    )
-                )
-            )
-            .$( tx.inputs );
+                        noInputScript.$(tail)
+                      )
+                  )
+              )
+              .$(tx.inputs);
 
-        const paidFee = tx.outputs.some( _out => 
-            _out.extract("address","value").in( out => {
+            const paidFee = tx.outputs.some(_out =>
+              _out.extract("address", "value").in(out => {
 
-                const goingToMarketplaceOwner = 
-                out.address.extract("credential").in( ({ credential: ownerCreds }) =>
-                    pmatch( ownerCreds )
-                    .onPPubKeyCredential( _ => _.extract("pkh").in( ({ pkh }) => pkh.eq( owner ) ))
-                    ._( _ => perror( bool ) )
-                );
+                const goingToMarketplaceOwner =
+                  out.address.extract("credential").in(({ credential: ownerCreds }) =>
+                    pmatch(ownerCreds)
+                      .onPPubKeyCredential(_ => _.extract("pkh").in(({ pkh }) => pkh.eq(owner)))
+                      ._(_ => perror(bool))
+                  );
 
-                const _paidFee = out.value.some( entry => 
-                    entry.fst.eq("")
+                const _paidFee = out.value.some(entry =>
+                  entry.fst.eq("")
                     .and(
-                        entry.snd.head.snd.gtEq(
-                            sale.price.mult( feeNumerator ).div( feeDenominator )
-                        )
+                      entry.snd.head.snd.gtEq(
+                        sale.price.mult(feeNumerator).div(feeDenominator)
+                      )
                     )
                 )
 
-                return goingToMarketplaceOwner.and( _paidFee );
-            })
-        );
+                return goingToMarketplaceOwner.and(_paidFee);
+              })
+            );
 
-        return pmatch( action )
-        .onBuy( _ =>
-            nftSentToSigner
-            .and( paidToSeller )
-            .and( onlyScriptInputIsOwn )
-            .and( paidFee )
-        )
-        .onClose( _ => tx.signatories.some( sale.seller.eqTerm ) )
+            return pmatch(action)
+              .onBuy(_ =>
+                nftSentToSigner
+                  .and(paidToSeller)
+                  .and(onlyScriptInputIsOwn)
+                  .and(paidFee)
+              )
+              .onClose(_ => tx.signatories.some(sale.seller.eqTerm))
 
-    }))))
+          }))))
 
-);
+  );
+
+/** 
+ * > **NOTE** The fee numerator is in the order of millions
+ * > for example `3000` implies a fee of `3000/1_000_000` (or `0.003`)
+ * > which in a scale from `0` to `1` implies a fee of `0.3%`
+ */
+const compileMarketplace = (owner: OwnerAddress, percentage: number) => {
+  const appliedContract = contract
+    .$(
+      PPubKeyHash.from(resolvePaymentKeyHash(owner))
+    )
+    .$(
+      pInt(percentage)
+    );
+
+  const untypedValidator = makeValidator(appliedContract);
+  return compile(untypedValidator);
+};
+
+export const buildPlutusScript = (owner: OwnerAddress, percentage: number): PlutusScript => ({
+  version: 'V2' as const,
+  code: new Script(
+    ScriptType.PlutusV2,
+    compileMarketplace(owner, percentage),
+  ).cbor.toString()
+});
+
+export type OwnerAddress = string;
