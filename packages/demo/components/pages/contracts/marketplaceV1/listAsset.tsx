@@ -106,10 +106,9 @@ function Right() {
     setResponse(null);
     setResponseError(null);
 
-    // try {
-      const blockchainProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-      );
+    const blockchainProvider = new BlockfrostProvider(
+      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+    );
 
       const marketplace = new BasicMarketplace({
         fetcher: blockchainProvider,
@@ -122,21 +121,19 @@ function Right() {
       });
       console.log('marketplace', marketplace);
 
-      const address = (await wallet.getUsedAddresses())[0];
-      const policyId =
-        'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527';
-      const assetId = '4d657368546f6b656e';
-      const price = '10000000';
+    const address = await wallet.getChangeAddress();
+    const policyId =
+      'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527';
+    const assetId = '4d657368546f6b656e';
+    const price = 10000000;
 
-      const res = await marketplace.listAsset(
-        address,
-        policyId + assetId,
-        price
-      );
-      console.log('listAsset res', res);
-    // } catch (error) {
-    //   setResponseError(`${error}`);
-    // }
+    const txHash = await marketplace.listAsset(
+      address,
+      policyId + assetId,
+      price
+    );
+
+    setResponse(txHash);
     setLoading(false);
   }
 

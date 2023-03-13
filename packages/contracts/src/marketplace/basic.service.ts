@@ -23,7 +23,7 @@ export class BasicMarketplace {
     this._submitter = options.submitter;
   }
 
-  async delistAsset(address: string, asset: string, price: string) {
+  async delistAsset(address: string, asset: string, price: number) {
     const { policyId, assetName } = parseAssetUnit(asset);
     const tx = await this.buildTx();
 
@@ -61,7 +61,7 @@ export class BasicMarketplace {
     return this._submitter.submitTx(signedTx);
   }
 
-  async listAsset(address: string, asset: string, price: string) {
+  async listAsset(address: string, asset: string, price: number) {
     const { policyId, assetName } = parseAssetUnit(asset);
     const tx = await this.buildTx();
 
@@ -91,7 +91,7 @@ export class BasicMarketplace {
     return this._submitter.submitTx(signedTx);
   }
 
-  async purchaseAsset(address: string, asset: string, price: string) {
+  async purchaseAsset(address: string, asset: string, price: number) {
     const { policyId, assetName } = parseAssetUnit(asset);
     const tx = await this.buildTx();
 
@@ -122,14 +122,14 @@ export class BasicMarketplace {
         datum, redeemer,
       })
       .sendValue(this._initiator.getUsedAddress().to_bech32(), assetUTxO)
-      .sendLovelace(address, price)
+      .sendLovelace(address, price.toString())
 
     const unsignedTx = await tx.build();
     const signedTx = await this._signer.signTx(unsignedTx, true);
     return this._submitter.submitTx(signedTx);
   }
 
-  async relistAsset(address: string, asset: string, oldPrice: string, newPrice: string) {
+  async relistAsset(address: string, asset: string, oldPrice: number, newPrice: number) {
     const { policyId, assetName } = parseAssetUnit(asset);
     const tx = await this.buildTx();
 

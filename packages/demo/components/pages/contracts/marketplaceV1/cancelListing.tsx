@@ -6,8 +6,8 @@ import Button from '../../../ui/button';
 import { useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-// import { BlockfrostProvider } from '@meshsdk/core';
-import { getMarketplace, asset, price } from './config';
+import { BlockfrostProvider } from '@meshsdk/core';
+import { BasicMarketplace } from '@meshsdk/contracts';
 
 // const blockchainFetcher = new BlockfrostProvider(
 //   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
@@ -55,14 +55,33 @@ function Right() {
     setResponse(null);
     setResponseError(null);
 
-    try {
-      const marketplace = getMarketplace(wallet);
-      const address = (await wallet.getUsedAddresses())[0];
-      const txHash = await marketplace.delistAsset(address, asset, price);
-      setResponse(txHash);
-    } catch (error) {
-      setResponseError(`${error}`);
-    }
+    const blockchainProvider = new BlockfrostProvider(
+      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+    );
+
+    const marketplace = new BasicMarketplace({
+      fetcher: blockchainProvider,
+      initiator: wallet,
+      network: 'preprod',
+      signer: wallet,
+      submitter: blockchainProvider,
+      percentage: 25000, // 2.5%
+      owner: 'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',
+    });
+
+    const address = await wallet.getChangeAddress();
+    const policyId =
+      'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527';
+    const assetId = '4d657368546f6b656e';
+    const price = 10000000;
+
+    const txHash = await marketplace.delistAsset(
+      address,
+      policyId + assetId,
+      price
+    );
+
+    setResponse(txHash);
     setLoading(false);
   }
 

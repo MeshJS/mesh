@@ -3,7 +3,7 @@ import {
   PCurrencySymbol, pdelay, perror, pfn, phoist, pif,
   pInt, pisEmpty, plam, plet, pmatch, PPubKeyHash,
   precursiveList, PScriptContext, pstruct, PTokenName,
-  PTxInInfo, punConstrData, Script, ScriptType,
+  PTxInInfo, punConstrData, Script,
 } from "@harmoniclabs/plu-ts";
 import { PlutusScript, resolvePaymentKeyHash } from "@meshsdk/core";
 
@@ -193,7 +193,7 @@ const compileMarketplace = (owner: OwnerAddress, percentage: number) => {
 export const buildPlutusScript = (owner: OwnerAddress, percentage: number): PlutusScript => ({
   version: 'V2' as const,
   code: new Script(
-    ScriptType.PlutusV2,
+    "PlutusScriptV2" as any,
     compileMarketplace(owner, percentage),
   ).cbor.toString()
 });
