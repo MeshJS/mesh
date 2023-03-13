@@ -1,5 +1,4 @@
 import { LinkIcon } from '@heroicons/react/24/solid';
-import Link from 'next/link';
 import { Element } from 'react-scroll';
 import { useClipboard } from '../../hooks/useCopyClipboard';
 import { useRouter } from 'next/router';

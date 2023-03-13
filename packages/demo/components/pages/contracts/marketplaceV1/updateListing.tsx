@@ -1,17 +1,13 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
 import Button from '../../../ui/button';
-import { useWallet } from '@meshsdk/react';
-import { useState } from 'react';
+import { CardanoWallet, useWallet } from '@meshsdk/react';
+import { useEffect, useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider } from '@meshsdk/core';
+import { getMarketplace, asset, price } from './config';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
-
-const blockfrostProvider = new BlockfrostProvider(
-  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-);
+import Input from '../../../ui/input';
 
 export default function MarketplaceUpdateListing() {
   return (
@@ -27,54 +23,75 @@ export default function MarketplaceUpdateListing() {
 }
 
 function Left() {
+  let code = `async marketplace.relistAsset(\n`;
+  code += `  address: string,\n`;
+  code += `  asset: string,\n`;
+  code += `  oldPrice: number\n`;
+  code += `  newPrice: number\n`;
+  code += `)`;
   return (
     <>
-      <p>Update Price</p>
+      <p>
+        Update a listing on the marketplace. For the contract, the seller can
+        update the listing price.
+      </p>
+      <p>It is important to update the updated listing price in a database.</p>
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }
 
 function Right() {
   const { connected, wallet } = useWallet();
-  const { updateListing } = useMarketplaceV1({
-    blockchainFetcher: blockfrostProvider,
-    network: 0,
-  });
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshUseMarketplaceV1',
+    'meshMarketplaceDemo',
     {}
   );
+  const [listPrice, updateListPrice] = useState<number>(price);
+  const [sellerAddress, updateSellerAddress] =
+    useState<string>('SELLER ADDRESS');
+  const [newListPrice, updateNewListPrice] = useState<number>(20000000);
 
   let code1 = ``;
+  code1 += `const txHash = await marketplace.relistAsset(\n`;
+  code1 += `  '${sellerAddress}',\n`;
+  code1 += `  '${asset}',\n`;
+  code1 += `  ${listPrice},\n`;
+  code1 += `  ${newListPrice}\n`;
+  code1 += `);\n`;
+
+  useEffect(() => {
+    if (userLocalStorage.listPrice) {
+      updateListPrice(userLocalStorage.listPrice);
+      updateNewListPrice(userLocalStorage.listPrice + 10000000);
+    }
+    if (userLocalStorage.sellerAddress) {
+      updateSellerAddress(userLocalStorage.sellerAddress);
+    }
+  }, []);
 
   async function rundemo() {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
 
-    console.log('userLocalStorage', userLocalStorage, userLocalStorage.assetId);
-
     try {
-      const txHash = await updateListing({
-        policyId: userLocalStorage.policyId,
-        assetId: userLocalStorage.assetId,
-        listPriceInLovelace: userLocalStorage.listPriceInLovelace,
-        quantity: userLocalStorage.quantity,
-        updatedPriceInLovelace: userLocalStorage.listPriceInLovelace + 5000000,
-      });
+      const marketplace = getMarketplace(wallet);
+      const txHash = await marketplace.relistAsset(
+        sellerAddress,
+        asset,
+        listPrice,
+        newListPrice
+      );
+      setResponse(txHash);
 
       setUserlocalStorage({
-        sellerAddress: userLocalStorage.sellerAddress,
-        policyId: userLocalStorage.policyId,
-        assetId: userLocalStorage.assetId,
-        listPriceInLovelace: userLocalStorage.listPriceInLovelace + 5000000,
-        quantity: userLocalStorage.quantity,
+        sellerAddress: sellerAddress,
+        listPrice: newListPrice,
       });
-
-      setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
     }
@@ -83,8 +100,27 @@ function Right() {
 
   return (
     <Card>
+      <Input
+        value={sellerAddress}
+        onChange={(e) => updateSellerAddress(e.target.value)}
+        placeholder="Seller address"
+        label="Seller address"
+      />
+      <Input
+        value={listPrice}
+        onChange={(e) => updateListPrice(e.target.value)}
+        placeholder="Listed price in Lovelace"
+        label="Listed price in Lovelace"
+      />
+      <Input
+        value={newListPrice}
+        onChange={(e) => updateNewListPrice(e.target.value)}
+        placeholder="New listing price in Lovelace"
+        label="New listing price in Lovelace"
+      />
+
       <Codeblock data={code1} isJson={false} />
-      {connected && (
+      {connected ? (
         <>
           <Button
             onClick={() => rundemo()}
@@ -97,6 +133,8 @@ function Right() {
           </Button>
           <RunDemoResult response={response} />
         </>
+      ) : (
+        <CardanoWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>
