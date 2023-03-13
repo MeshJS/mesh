@@ -1,19 +1,17 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
+// import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
 import Button from '../../../ui/button';
 import { useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider, KoiosProvider } from '@meshsdk/core';
-import useLocalStorage from '../../../../hooks/useLocalStorage';
+// import { BlockfrostProvider } from '@meshsdk/core';
+import { getMarketplace, asset, price } from './config';
 
-const blockchainFetcher = new BlockfrostProvider(
-  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-);
-
-// const blockchainFetcher = new KoiosProvider('preview');
+// const blockchainFetcher = new BlockfrostProvider(
+//   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+// );
 
 export default function MarketplaceCancelAsset() {
   return (
@@ -37,18 +35,18 @@ function Left() {
 }
 
 function Right() {
-  const { connected } = useWallet();
-  const { cancelListing } = useMarketplaceV1({
-    blockchainFetcher: blockchainFetcher,
-    network: 0,
-  });
+  const { connected, wallet } = useWallet();
+  // const { cancelListing } = useMarketplaceV1({
+  //   blockchainFetcher: blockchainFetcher,
+  //   network: 0,
+  // });
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshUseMarketplaceV1',
-    {}
-  );
+  // const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
+  //   'meshUseMarketplaceV1',
+  //   {}
+  // );
 
   let code1 = ``;
 
@@ -57,25 +55,41 @@ function Right() {
     setResponse(null);
     setResponseError(null);
 
-    console.log('userLocalStorage', userLocalStorage, userLocalStorage.assetId);
-
     try {
-      // const policyId =
-      //   '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a42';
-      // const assetId = '4d657368546f6b656e';
-      // const listPriceInLovelace = 10000000;
-
-      const txHash = await cancelListing({
-        policyId: userLocalStorage.policyId,
-        assetId: userLocalStorage.assetId,
-        listPriceInLovelace: userLocalStorage.listPriceInLovelace,
-      });
+      const marketplace = getMarketplace(wallet);
+      const address = (await wallet.getUsedAddresses())[0];
+      const txHash = await marketplace.delistAsset(address, asset, price);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
     }
     setLoading(false);
   }
+
+  // async function rundemo() {
+  //   setLoading(true);
+  //   setResponse(null);
+  //   setResponseError(null);
+
+  //   console.log('userLocalStorage', userLocalStorage, userLocalStorage.assetId);
+
+  //   try {
+  //     // const policyId =
+  //     //   '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a42';
+  //     // const assetId = '4d657368546f6b656e';
+  //     // const listPriceInLovelace = 10000000;
+
+  //     const txHash = await cancelListing({
+  //       policyId: userLocalStorage.policyId,
+  //       assetId: userLocalStorage.assetId,
+  //       listPriceInLovelace: userLocalStorage.listPriceInLovelace,
+  //     });
+  //     setResponse(txHash);
+  //   } catch (error) {
+  //     setResponseError(`${error}`);
+  //   }
+  //   setLoading(false);
+  // }
 
   return (
     <Card>

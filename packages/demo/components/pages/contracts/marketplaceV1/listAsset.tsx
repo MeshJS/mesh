@@ -1,18 +1,19 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
+// import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
 import Button from '../../../ui/button';
 import { useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import { BlockfrostProvider } from '@meshsdk/core';
-import useLocalStorage from '../../../../hooks/useLocalStorage';
+// import useLocalStorage from '../../../../hooks/useLocalStorage';
+import { getMarketplace, asset, price } from './config';
 import { BasicMarketplace } from '@meshsdk/contracts';
 
-const blockfrostProvider = new BlockfrostProvider(
-  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-);
+// const blockfrostProvider = new BlockfrostProvider(
+//   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+// );
 
 export default function MarketplaceListAsset() {
   return (
@@ -37,19 +38,35 @@ function Left() {
 
 function Right() {
   const { connected, wallet } = useWallet();
-  const { listAsset } = useMarketplaceV1({
-    blockchainFetcher: blockfrostProvider,
-    network: 0,
-  });
+  // const { listAsset } = useMarketplaceV1({
+  //   blockchainFetcher: blockfrostProvider,
+  //   network: 0,
+  // });
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshUseMarketplaceV1',
-    {}
-  );
+  // const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
+  //   'meshUseMarketplaceV1',
+  //   {}
+  // );
 
   let code1 = ``;
+
+  // async function rundemo() {
+  //   setLoading(true);
+  //   setResponse(null);
+  //   setResponseError(null);
+
+  //   try {
+  //     const marketplace = getMarketplace(wallet);
+  //     const address = (await wallet.getUsedAddresses())[0];
+  //     const txHash = await marketplace.listAsset(address, asset, price);
+  //     setResponse(txHash);
+  //   } catch (error) {
+  //     setResponseError(`${error}`);
+  //   }
+  //   setLoading(false);
+  // }
 
   // async function rundemo_v1() {
   //   setLoading(true);
