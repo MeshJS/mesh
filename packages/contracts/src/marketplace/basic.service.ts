@@ -10,6 +10,8 @@ export class BasicMarketplace {
   private _fetcher: IFetcher;
   private _initiator: IInitiator;
   private _network: Network;
+  private _owner: string;
+  private _percentage: number;
   private _script: PlutusScript;
   private _signer: ISigner;
   private _submitter: ISubmitter;
@@ -18,6 +20,8 @@ export class BasicMarketplace {
     this._fetcher = options.fetcher;
     this._initiator = options.initiator;
     this._network = options.network;
+    this._owner = options.owner;
+    this._percentage = options.percentage;
     this._script = buildPlutusScript(options.owner, options.percentage);
     this._signer = options.signer;
     this._submitter = options.submitter;
@@ -115,14 +119,19 @@ export class BasicMarketplace {
       asset, resolveDataHash(datum),
     );
 
+    const buyerAddress = await this._initiator.getUsedAddress();
+
+    const { marketFees } = this.splitAmount(price);
+
     tx
       .redeemValue({
         value: assetUTxO,
         script: this._script,
         datum, redeemer,
       })
-      .sendValue(this._initiator.getUsedAddress().to_bech32(), assetUTxO)
+      .sendValue(buyerAddress.to_bech32(), assetUTxO)
       .sendLovelace(address, price.toString())
+      .sendLovelace(this._owner, marketFees.toString())
 
     const unsignedTx = await tx.build();
     const signedTx = await this._signer.signTx(unsignedTx, true);
@@ -216,6 +225,14 @@ export class BasicMarketplace {
 
     return utxo;
   }
+
+  private splitAmount(price: number) {
+    const minFees = 1_000_000;
+    const marketFees = Math.max((this._percentage / 1_000_000) * price, minFees);
+    const netPrice = price - marketFees;
+    
+    return { marketFees, netPrice };
+  };
 }
 
 type CreateMarketplaceOptions = {
