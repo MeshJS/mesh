@@ -1,11 +1,13 @@
 import {
+    Address,
   bool, compile, fn, int, list, makeValidator, pBool,
   PCurrencySymbol, pdelay, perror, pfn, phoist, pif,
   pInt, pisEmpty, plam, plet, pmatch, PPubKeyHash,
   precursiveList, PScriptContext, pstruct, PTokenName,
+  ptraceIfFalse,
   PTxInInfo, punConstrData, Script,
 } from "@harmoniclabs/plu-ts";
-import { PlutusScript, resolvePaymentKeyHash } from "@meshsdk/core";
+import { PlutusScript } from "@meshsdk/core";
 
 const NFTSale = pstruct({
   NFTSale: {
@@ -77,9 +79,9 @@ const contract = pfn([
                     )
                 )
 
-                return pisEmpty.$(tx.signatories.tail)
-                  .and(outToBuyer)
-                  .and(valueIncludesNFT);
+                return ptraceIfFalse.$("multiple signatories").$(pisEmpty.$(tx.signatories.tail))
+                  .and(ptraceIfFalse.$("outToBuyer").$(outToBuyer))
+                  .and(ptraceIfFalse.$("valueIncludesNFT").$(valueIncludesNFT));
               })
             );
 
@@ -102,7 +104,8 @@ const contract = pfn([
                     ._(_ => perror(bool))
                 );
 
-                return outValueGtEqPrice.and(outToSeller);
+                return ptraceIfFalse.$("outValueGtEqPrice").$(outValueGtEqPrice)
+                    .and(ptraceIfFalse.$("outToSeller").$(outToSeller));
               })
             );
 
@@ -161,10 +164,10 @@ const contract = pfn([
 
             return pmatch(action)
               .onBuy(_ =>
-                nftSentToSigner
-                  .and(paidToSeller)
-                  .and(onlyScriptInputIsOwn)
-                  .and(paidFee)
+                  ptraceIfFalse.$("nftSentToSigner").$( nftSentToSigner )
+                  .and(ptraceIfFalse.$("paidToSeller").$(paidToSeller))
+                  .and(ptraceIfFalse.$("onlyScriptInputIsOwn").$(onlyScriptInputIsOwn))
+                  .and(ptraceIfFalse.$("paidFee").$(paidFee))
               )
               .onClose(_ => tx.signatories.some(sale.seller.eqTerm))
 
@@ -180,7 +183,9 @@ const contract = pfn([
 const compileMarketplace = (owner: OwnerAddress, percentage: number) => {
   const appliedContract = contract
     .$(
-      PPubKeyHash.from(resolvePaymentKeyHash(owner))
+        PPubKeyHash.from(
+            Address.fromString( owner ).paymentCreds.hash.toBuffer()
+        )
     )
     .$(
       pInt(percentage)
