@@ -1,10 +1,8 @@
 import {
-    Address,
-  bool, compile, fn, int, list, makeValidator, pBool,
-  PCurrencySymbol, pdelay, perror, pfn, phoist, pif,
-  pInt, pisEmpty, plam, plet, pmatch, PPubKeyHash,
-  precursiveList, PScriptContext, pstruct, PTokenName,
-  ptraceIfFalse,
+  Address, bool, compile, int, makeValidator, 
+  PCurrencySymbol, perror, pfn, phoist, pInt,
+  pisEmpty, plam, plet, pmatch, PPubKeyHash,
+  PScriptContext, pstruct, PTokenName, ptraceIfFalse,
   PTxInInfo, punConstrData, Script,
 } from "@harmoniclabs/plu-ts";
 import { PlutusScript } from "@meshsdk/core";
@@ -46,7 +44,7 @@ const contract = pfn([
                 punConstrData.$(address as any).fst.eq(0) // MUST be the first constructor (PPubKeyHash) 
               ))
             )
-        ).in(isInputFromPubKeyHash =>
+        ).in(_ =>
 
           txInfo.extract("signatories", "outputs", "inputs").in(tx => {
 
@@ -109,35 +107,35 @@ const contract = pfn([
               })
             );
 
-            const noInputScript = plam(list(PTxInInfo.type), bool)
-              (inputs =>
-                inputs.every(isInputFromPubKeyHash)
-              )
+            // const noInputScript = plam(list(PTxInInfo.type), bool)
+            //   (inputs =>
+            //     inputs.every(isInputFromPubKeyHash)
+            //   )
 
             // prvent double spending attck
-            const onlyScriptInputIsOwn = precursiveList(bool, PTxInInfo.type)
-              .$(_self => pdelay(pBool(false))) // caseNil
-              .$(
-                pfn([
-                  fn([list(PTxInInfo.type)], bool),
-                  PTxInInfo.type,
-                  list(PTxInInfo.type)
-                ], bool)
-                  ((self, head, tail) =>
-                    pif(bool).$(isInputFromPubKeyHash.$(head))
-                      .then(self.$(tail) as any)
-                      .else(
-                        /*
-                          we could add a check for the input to be from this actual script
+            // const onlyScriptInputIsOwn = precursiveList(bool, PTxInInfo.type)
+            //   .$(_self => pdelay(pBool(false))) // caseNil
+            //   .$(
+            //     pfn([
+            //       fn([list(PTxInInfo.type)], bool),
+            //       PTxInInfo.type,
+            //       list(PTxInInfo.type)
+            //     ], bool)
+            //       ((self, head, tail) =>
+            //         pif(bool).$(isInputFromPubKeyHash.$(head))
+            //           .then(self.$(tail) as any)
+            //           .else(
+            //             /*
+            //               we could add a check for the input to be from this actual script
  
-                          however since we are validating for the inputs to contain a single script input
-                          it implies that it has to be this one (since the validator is runnig)
-                        */
-                        noInputScript.$(tail)
-                      )
-                  )
-              )
-              .$(tx.inputs);
+            //               however since we are validating for the inputs to contain a single script input
+            //               it implies that it has to be this one (since the validator is runnig)
+            //             */
+            //             noInputScript.$(tail)
+            //           )
+            //       )
+            //   )
+            //   .$(tx.inputs);
 
             const paidFee = tx.outputs.some(_out =>
               _out.extract("address", "value").in(out => {
@@ -166,7 +164,7 @@ const contract = pfn([
               .onBuy(_ =>
                   ptraceIfFalse.$("nftSentToSigner").$( nftSentToSigner )
                   .and(ptraceIfFalse.$("paidToSeller").$(paidToSeller))
-                  .and(ptraceIfFalse.$("onlyScriptInputIsOwn").$(onlyScriptInputIsOwn))
+                  // .and(ptraceIfFalse.$("onlyScriptInputIsOwn").$(onlyScriptInputIsOwn))
                   .and(ptraceIfFalse.$("paidFee").$(paidFee))
               )
               .onClose(_ => tx.signatories.some(sale.seller.eqTerm))
