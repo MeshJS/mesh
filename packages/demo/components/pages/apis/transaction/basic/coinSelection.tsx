@@ -9,7 +9,7 @@ export default function CoinSelection() {
   return (
     <SectionTwoCol
       sidebarTo="coinSelection"
-      header="Coin Selection"
+      header="Coin selection"
       leftFn={Left()}
       rightFn={Right()}
     />

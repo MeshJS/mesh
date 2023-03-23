@@ -68,6 +68,28 @@ export default function Hero() {
             <li>updating listing</li>
             <li>cancel listing</li>
           </ul>
+          <p>
+            Do check out the{' '}
+            <Link href="/guides/custom-marketplace">guide</Link> and the{' '}
+            <Link href="/starter-templates">marketplace starter kit</Link> that
+            might help you get started. This contract is written in{' '}
+            <a
+              href="https://pluts.harmoniclabs.tech/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              plu-ts
+            </a>
+            , you can{' '}
+            <a
+              href="https://github.com/MeshJS/mesh/blob/main/packages/contracts/src/marketplace/contract.ts"
+              target="_blank"
+              rel="noreferrer"
+            >
+              view the contract on GitHub
+            </a>
+            .
+          </p>
         </div>
         <div className="col-span-2">
           <h3>Initialize the Marketplace</h3>
@@ -80,10 +102,14 @@ export default function Hero() {
           <p>
             You can define the <code>fetcher</code> and <code>submitter</code>{' '}
             with one of our <Link href="/providers">blockchain providers</Link>{' '}
-            or use your own custom provider. The{' '}
+            or use your own custom provider. We use these <code>fetcher</code>{' '}
+            and <code>submitter</code> to query for locked UTxO and submit
+            transactions. The{' '}
             <Link href="/apis/browserwallet">connected wallet</Link> are defined
             in the <code>initiator</code> and <code>signer</code>. The network
-            can defined in <code>network</code>.
+            can defined in <code>network</code>, it has to be one of the
+            following values:{' '}
+            <code>"testnet" | "preview" | "preprod" | "mainnet"</code>
           </p>
           <p>
             The <code>owner</code> is the address of the marketplace owner which

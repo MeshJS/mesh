@@ -8,12 +8,16 @@ import UsingRedeemer from '../../../components/pages/apis/transaction/smart-cont
 import PlutusMinting from '../../../components/pages/apis/transaction/smart-contract/plutus-minting';
 import UnlockAssets from '../../../components/pages/apis/transaction/smart-contract/unlockAssets';
 import Metatags from '../../../components/site/metatags';
+import InlineDatum from '../../../components/pages/apis/transaction/smart-contract/inlineDatum';
+import ReferenceScript from '../../../components/pages/apis/transaction/smart-contract/referenceScript';
 
 const TransactionMintingPage: NextPage = () => {
   const sidebarItems = [
     { label: 'Lock assets in smart contract', to: 'lockAssets' },
     { label: 'Unlock assets from smart contract', to: 'unlockAssets' },
     { label: 'Minting assets with smart contract', to: 'plutusminting' },
+    { label: 'Inline datum', to: 'inlineDatum' },
+    { label: 'Reference script', to: 'referenceScript' },
     { label: 'Designing datum', to: 'datum' },
     { label: 'Using redeemer', to: 'redeemer' },
   ];
@@ -33,6 +37,8 @@ const TransactionMintingPage: NextPage = () => {
         <LockAssets />
         <UnlockAssets />
         <PlutusMinting />
+        <InlineDatum />
+        <ReferenceScript />
         <DesignDatum />
         <UsingRedeemer />
       </CommonLayout>

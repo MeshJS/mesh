@@ -35,8 +35,14 @@ function Left() {
         Update a listing on the marketplace. For the contract, the seller can
         update the listing price.
       </p>
-      <p>It is important to update the updated listing price in a database.</p>
+      <p>
+        <code>address</code> is the seller's address. <code>asset</code> is the
+        listed asset's <code>unit</code>. <code>oldPrice</code> is the listed
+        price in Lovelace. <code>newPrice</code> is the updated listed price in
+        Lovelace.
+      </p>
       <Codeblock data={code} isJson={false} />
+      <p>It is important to update the updated listing price in a database.</p>
     </>
   );
 }

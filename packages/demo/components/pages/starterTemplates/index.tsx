@@ -11,7 +11,7 @@ const items = [
     template: 'starter',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app leap -t starter -s next -l ts',
+    installCode: 'npx create-mesh-app project-name -t starter -s next -l ts',
     demoUrl: 'http://starter-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/starter-next-ts-template',
     desc: (
@@ -26,7 +26,7 @@ const items = [
     template: 'starter',
     framework: 'next',
     language: 'javascript',
-    installCode: 'npx create-mesh-app leap -t starter -s next -l js',
+    installCode: 'npx create-mesh-app project-name -t starter -s next -l js',
     demoUrl: 'http://starter-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/starter-next-js-template',
     desc: (
@@ -71,7 +71,7 @@ const items = [
     template: 'minting',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app leap -t minting -s next -l ts',
+    installCode: 'npx create-mesh-app project-name -t minting -s next -l ts',
     demoUrl: 'http://minting-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/minting-next-ts-template',
     desc: (
@@ -87,7 +87,7 @@ const items = [
     template: 'minting',
     framework: 'next',
     language: 'javascript',
-    installCode: 'npx create-mesh-app leap -t minting -s next -l js',
+    installCode: 'npx create-mesh-app project-name -t minting -s next -l js',
     demoUrl: 'http://minting-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/minting-next-js-template',
     desc: (
@@ -103,7 +103,7 @@ const items = [
     template: 'staking',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app leap -t staking -s next -l ts',
+    installCode: 'npx create-mesh-app project-name -t staking -s next -l ts',
     demoUrl: 'http://staking-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/staking-next-ts-template',
     desc: (
@@ -118,7 +118,7 @@ const items = [
     template: 'staking',
     framework: 'next',
     language: 'javascript',
-    installCode: 'npx create-mesh-app leap -t staking -s next -l js',
+    installCode: 'npx create-mesh-app project-name -t staking -s next -l js',
     demoUrl: 'http://staking-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/staking-next-js-template',
     desc: (
@@ -133,7 +133,7 @@ const items = [
     template: 'signin',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app leap -t signin -s next -l ts',
+    installCode: 'npx create-mesh-app project-name -t signin -s next -l ts',
     demoUrl: 'http://signin-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/signin-next-ts-template',
     desc: (
@@ -148,7 +148,7 @@ const items = [
     template: 'signin',
     framework: 'next',
     language: 'javascript',
-    installCode: 'npx create-mesh-app leap -t signin -s next -l js',
+    installCode: 'npx create-mesh-app project-name -t signin -s next -l js',
     demoUrl: 'http://signin-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/signin-next-js-template',
     desc: (
@@ -163,7 +163,7 @@ const items = [
     template: 'ecommerce',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app leap -t ecommerce -s next -l ts',
+    installCode: 'npx create-mesh-app project-name -t ecommerce -s next -l ts',
     demoUrl: 'http://ecommerce-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/ecommerce-next-ts-template',
     desc: (
@@ -171,6 +171,21 @@ const items = [
         A starter template for Ecommerce store, where customers can pay with
         Cardano stable coins such as DJED, a receipt will be minted to the
         customer's wallet and you will fulfil their order.
+      </p>
+    ),
+  },
+  {
+    title: 'Marketplace Next.js TypeScript',
+    template: 'marketplace',
+    framework: 'next',
+    language: 'typescript',
+    installCode: 'npx create-mesh-app project-name -t marketplace -s next -l ts',
+    demoUrl: 'http://marketplace-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/marketplace-next-ts-template',
+    desc: (
+      <p>
+        Whether you are building a marketplace for your business or for your
+        clients, we have you covered. Get started in minutes.
       </p>
     ),
   },

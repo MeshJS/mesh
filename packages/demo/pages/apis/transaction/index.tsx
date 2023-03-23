@@ -10,6 +10,9 @@ import SendAda from '../../../components/pages/apis/transaction/basic/sendAda';
 import SendAssets from '../../../components/pages/apis/transaction/basic/sendAssets';
 import SetTimeLimit from '../../../components/pages/apis/transaction/basic/setTimeLimit';
 import Metatags from '../../../components/site/metatags';
+import SetCollateral from '../../../components/pages/apis/transaction/basic/setCollateral';
+import SetRequiredSigners from '../../../components/pages/apis/transaction/basic/setRequiredSigners';
+import SendValue from '../../../components/pages/apis/transaction/basic/sendValue';
 
 const TransactionPage: NextPage = () => {
   const sidebarItems = [
@@ -17,10 +20,25 @@ const TransactionPage: NextPage = () => {
     { label: 'Send multi-assets', to: 'sendAssets' },
     { label: 'Send tokens', to: 'sendToken' },
     { label: 'Send assets to Handler', to: 'sendAdaHandler' },
+    { label: 'Send value', to: 'sendValue' },
+    { label: 'Coin selection', to: 'coinSelection' },
+    { label: 'Set collateral', to: 'setCollateral' },
+    { label: 'Set required signers', to: 'setRequiredSigners' },
     { label: 'Set time limit', to: 'setTimeLimit' },
     { label: 'Set metadata', to: 'setMetadata' },
-    { label: 'Coin Selection', to: 'coinSelection' },
   ];
+
+  let codeRecipient = ``;
+  codeRecipient += `type Recipient =\n`;
+  codeRecipient += `  | string\n`;
+  codeRecipient += `  | {\n`;
+  codeRecipient += `      address: string;\n`;
+  codeRecipient += `      datum?: {\n`;
+  codeRecipient += `        value: Data;\n`;
+  codeRecipient += `        inline?: boolean;\n`;
+  codeRecipient += `      };\n`;
+  codeRecipient += `      script?: PlutusScript | NativeScript;\n`;
+  codeRecipient += `    };\n`;
 
   return (
     <>
@@ -33,14 +51,17 @@ const TransactionPage: NextPage = () => {
           title="Transactions"
           desc="Create transactions for sending assets."
           icon={<PaperAirplaneIcon className="w-16 h-16" />}
-        />
+        ></CommonHero>
         <SendAda />
         <SendAssets />
         <SendToken />
         <SendAdaHandler />
+        <SendValue />
+        <CoinSelection />
+        <SetCollateral />
+        <SetRequiredSigners />
         <SetTimeLimit />
         <TxSetMetadata />
-        <CoinSelection />
       </CommonLayout>
     </>
   );

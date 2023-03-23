@@ -40,6 +40,12 @@ const GuidesPage: NextPage = () => {
       link: '/guides/custom-provider',
       thumbnail: '/guides/implement-custom-provider.png',
     },
+    {
+      title: 'Build your NFT marketplace',
+      desc: 'Whether you are building a marketplace for your business or for your clients, we have you covered. Get started in minutes.',
+      link: '/guides/custom-marketplace',
+      thumbnail: '/guides/custom-marketplace.png',
+    },
 
     // {
     //   title: 'Minting Reference Token',

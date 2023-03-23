@@ -1,4 +1,14 @@
-export default function CommonHero({ title, desc, icon }) {
+export default function CommonHero({
+  children,
+  title,
+  desc,
+  icon,
+}: {
+  children?;
+  title: string;
+  desc: string;
+  icon;
+}) {
   return (
     <>
       <header className="mb-4 lg:mb-6">
@@ -11,6 +21,7 @@ export default function CommonHero({ title, desc, icon }) {
         <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
           {desc}
         </p>
+        {children && children}
       </header>
     </>
   );

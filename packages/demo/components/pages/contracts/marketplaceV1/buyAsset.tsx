@@ -35,6 +35,11 @@ function Left() {
         the listed price in ADA and the buyer will receive the asset.
       </p>
       <Codeblock data={code} isJson={false} />
+      <p>
+        <code>address</code> is the seller's address. <code>asset</code> is the
+        listed asset's <code>unit</code>. <code>price</code> is the listed price
+        in Lovelace.
+      </p>
     </>
   );
 }

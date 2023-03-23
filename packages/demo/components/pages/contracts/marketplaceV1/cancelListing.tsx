@@ -34,6 +34,11 @@ function Left() {
         Cancel a listing on the marketplace. The seller can cancel the listing
         at any time. The seller will receive the listed asset back.
       </p>
+      <p>
+        <code>address</code> is the seller's address. <code>asset</code> is the
+        listed asset's <code>unit</code>. <code>price</code> is the listed price
+        in Lovelace.
+      </p>
       <Codeblock data={code} isJson={false} />
     </>
   );

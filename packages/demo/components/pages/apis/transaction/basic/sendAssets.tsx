@@ -122,8 +122,15 @@ function Left({ userInput }) {
   codeSnippet1 += `}\n`;
   codeSnippet1 += `tx.sendAssets(recipient.address, assets);`;
 
+  let codeParams = `tx.sendAssets(recipient: Recipient, assets: Asset[])`;
+
   return (
     <>
+      <p>
+        Use <code>sendAssets()</code> to send native assets to one or more
+        recipients:
+      </p>
+      <Codeblock data={codeParams} isJson={false} />
       <p>
         For each recipients, we define a list of <code>Asset</code> to send:
       </p>

@@ -9,6 +9,15 @@ import useLocalStorage from '../../../../hooks/useLocalStorage';
 import { getMarketplace, asset, price } from './config';
 import Input from '../../../ui/input';
 
+import {
+  BlockfrostProvider,
+  AppWallet,
+  largestFirstMultiAsset,
+  largestFirst,
+  Transaction,
+  keepRelevant,
+} from '@meshsdk/core';
+
 export default function MarketplaceListAsset() {
   return (
     <>
@@ -38,11 +47,17 @@ function Left() {
         price at any time.
       </p>
       <p>
+        <code>address</code> is the seller's address, here we use the first Used
+        Addresses of the connected wallet. <code>asset</code> is the asset's{' '}
+        <code>unit</code> to be listed. <code>price</code> is the listing price
+        in Lovelace.
+      </p>
+      <Codeblock data={code} isJson={false} />
+      <p>
         It is important to save the listing infomation (asset, seller address
         and listing price) in a database. This is needed to
         update/cancel/purchase the listing.
       </p>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -110,7 +125,9 @@ function Right() {
           </Button>
           <RunDemoResult response={response} />
         </>
-      ) : <CardanoWallet />}
+      ) : (
+        <CardanoWallet />
+      )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );
