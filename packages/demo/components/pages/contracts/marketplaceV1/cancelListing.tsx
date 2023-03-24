@@ -1,17 +1,13 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
 import Button from '../../../ui/button';
-import { useWallet } from '@meshsdk/react';
-import { useState } from 'react';
+import { CardanoWallet, useWallet } from '@meshsdk/react';
+import { useEffect, useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider } from '@meshsdk/core';
+import { getMarketplace, asset, price } from './config';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
-
-const blockfrostProvider = new BlockfrostProvider(
-  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-);
+import Input from '../../../ui/input';
 
 export default function MarketplaceCancelAsset() {
   return (
@@ -27,46 +23,69 @@ export default function MarketplaceCancelAsset() {
 }
 
 function Left() {
+  let code = `async marketplace.delistAsset(\n`;
+  code += `  address: string,\n`;
+  code += `  asset: string,\n`;
+  code += `  price: number\n`;
+  code += `)`;
   return (
     <>
-      <p>Cancel Listing</p>
+      <p>
+        Cancel a listing on the marketplace. The seller can cancel the listing
+        at any time. The seller will receive the listed asset back.
+      </p>
+      <p>
+        <code>address</code> is the seller's address. <code>asset</code> is the
+        listed asset's <code>unit</code>. <code>price</code> is the listed price
+        in Lovelace.
+      </p>
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }
 
 function Right() {
-  const { connected } = useWallet();
-  const { cancelListing } = useMarketplaceV1({
-    blockchainFetcher: blockfrostProvider,
-    network: 0,
-  });
+  const { connected, wallet } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshUseMarketplaceV1',
+    'meshMarketplaceDemo',
     {}
   );
 
+  const [listPrice, updateListPrice] = useState<number>(price);
+  const [sellerAddress, updateSellerAddress] =
+    useState<string>('SELLER ADDRESS');
+
   let code1 = ``;
+  code1 += `const txHash = await marketplace.delistAsset(\n`;
+  code1 += `  '${sellerAddress}',\n`;
+  code1 += `  '${asset}',\n`;
+  code1 += `  ${listPrice}\n`;
+  code1 += `);`;
+
+  useEffect(() => {
+    if (userLocalStorage.listPrice) {
+      updateListPrice(userLocalStorage.listPrice);
+    }
+    if (userLocalStorage.sellerAddress) {
+      updateSellerAddress(userLocalStorage.sellerAddress);
+    }
+  }, []);
 
   async function rundemo() {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
 
-    console.log('userLocalStorage', userLocalStorage, userLocalStorage.assetId);
-
     try {
-      // const policyId =
-      //   '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a42';
-      // const assetId = '4d657368546f6b656e';
-      // const listPriceInLovelace = 10000000;
-      const txHash = await cancelListing({
-        policyId: userLocalStorage.policyId,
-        assetId: userLocalStorage.assetId,
-        listPriceInLovelace: userLocalStorage.listPriceInLovelace,
-      });
+      const marketplace = getMarketplace(wallet);
+      const txHash = await marketplace.delistAsset(
+        sellerAddress,
+        asset,
+        listPrice
+      );
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -76,8 +95,21 @@ function Right() {
 
   return (
     <Card>
+      <Input
+        value={sellerAddress}
+        onChange={(e) => updateSellerAddress(e.target.value)}
+        placeholder="Seller address"
+        label="Seller address"
+      />
+      <Input
+        value={listPrice}
+        onChange={(e) => updateListPrice(e.target.value)}
+        placeholder="Listing price in Lovelace"
+        label="Listing price in Lovelace"
+      />
+
       <Codeblock data={code1} isJson={false} />
-      {connected && (
+      {connected ? (
         <>
           <Button
             onClick={() => rundemo()}
@@ -90,6 +122,8 @@ function Right() {
           </Button>
           <RunDemoResult response={response} />
         </>
+      ) : (
+        <CardanoWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>

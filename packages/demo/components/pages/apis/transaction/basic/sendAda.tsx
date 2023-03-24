@@ -94,7 +94,7 @@ function Left({ userInput }) {
         recipients, append:
       </p>
       <Codeblock
-        data={`tx.sendLovelace(address: string, lovelace: string);`}
+        data={`tx.sendLovelace(address: Recipient, lovelace: string);`}
         isJson={false}
       />
       <p>

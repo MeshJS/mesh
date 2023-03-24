@@ -36,6 +36,12 @@ export const templates = {
     cli: 'ecommerce',
     image: 'ecommerce.png',
   },
+  marketplace: {
+    title: 'Marketplace',
+    desc: `A NFT marketplace is a digital platform that allows users to buy and sell NFTs`,
+    cli: 'marketplace',
+    image: 'marketplace.png',
+  },
 };
 
 export const languages = {
