@@ -234,6 +234,10 @@ function Mongodb() {
           <code>MONGODB_URI</code> field in your <code>.env.local</code> file
         </li>
         <li>
+          Replace <code>{`<password>`}</code> with the password you have created
+          for your database
+        </li>
+        <li>
           Copy the name you have created for your database in the{' '}
           <code>MONGODB_DBNAME</code> field in your <code>.env.local</code> file
         </li>

@@ -29,6 +29,7 @@ function Left() {
   code += `  oldPrice: number\n`;
   code += `  newPrice: number\n`;
   code += `)`;
+  
   return (
     <>
       <p>

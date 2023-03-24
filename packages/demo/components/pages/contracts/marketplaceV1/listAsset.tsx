@@ -79,7 +79,7 @@ function Right() {
   code1 += `const txHash = await marketplace.listAsset(\n`;
   code1 += `  sellerAddress,\n`;
   code1 += `  '${asset}',\n`;
-  code1 += `  ${price}\n`;
+  code1 += `  ${listPrice}\n`;
   code1 += `);`;
 
   async function rundemo() {

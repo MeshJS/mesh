@@ -248,7 +248,7 @@ function InputTable({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Define the datum and asset's unit to unlock assets in smart
             contract. Note: give some time for the transaction to confirm before
-            attempt unlocking. This demo only works on <code>preview</code>{' '}
+            attempt unlocking. This demo only works on <code>preprod</code>{' '}
             network.
           </p>
         </caption>
