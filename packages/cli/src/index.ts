@@ -47,7 +47,7 @@ const main = async () => {
       createOption(
         '-t, --template <TEMPLATE-NAME>',
         `The template to start your project from.`
-      ).choices(['starter', 'minting', 'staking', 'ecommerce', 'signin'])
+      ).choices(['starter', 'minting', 'staking', 'ecommerce', 'signin', 'marketplace'])
     )
     .addOption(
       createOption(
