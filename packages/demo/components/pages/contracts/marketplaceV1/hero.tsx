@@ -1,19 +1,12 @@
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
-import {
-  ForgeScript,
-  Transaction,
-  AppWallet,
-  BlockfrostProvider,
-} from '@meshsdk/core';
-import type { AssetMetadata, Mint } from '@meshsdk/core';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import Button from '../../../ui/button';
 import Card from '../../../ui/card';
 import { useState } from 'react';
-import { demoMnemonic } from '../../../../configs/demo';
 import RunDemoResult from '../../../common/runDemoResult';
 import Codeblock from '../../../ui/codeblock';
 import Link from 'next/link';
+import mintMeshToken from '../../../common/mintMeshToken';
 
 export default function Hero() {
   let codeInit = ``;
@@ -134,55 +127,6 @@ function Demo() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
 
-  async function mintMeshToken() {
-    setLoading(true);
-    try {
-      const blockchainProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-      );
-
-      const mintingWallet = new AppWallet({
-        networkId: 0,
-        fetcher: blockchainProvider,
-        submitter: blockchainProvider,
-        key: {
-          type: 'mnemonic',
-          words: demoMnemonic,
-        },
-      });
-
-      const usedAddress = await wallet.getUsedAddresses();
-      const address = usedAddress[0];
-      const forgingScript = ForgeScript.withOneSignature(
-        mintingWallet.getPaymentAddress()
-      );
-
-      const tx = new Transaction({ initiator: wallet });
-
-      const assetMetadata: AssetMetadata = {
-        name: 'Mesh Token',
-        image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
-        mediaType: 'image/jpg',
-        description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
-      };
-      const asset: Mint = {
-        assetName: 'MeshToken',
-        assetQuantity: '1',
-        metadata: assetMetadata,
-        label: '721',
-        recipient: address,
-      };
-      tx.mintAsset(forgingScript, asset);
-
-      const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx, true);
-      const signedTx2 = await mintingWallet.signTx(signedTx, true);
-      const txHash = await wallet.submitTx(signedTx2);
-      setResponse(txHash);
-    } catch (error) {}
-    setLoading(false);
-  }
-
   return (
     <Card>
       <h3>Try the demo</h3>
@@ -196,7 +140,7 @@ function Demo() {
         <>
           <p>Next, mint a Mesh Token. We will use list this NFT for sale.</p>
           <Button
-            onClick={() => mintMeshToken()}
+            onClick={() => mintMeshToken({ setLoading, setResponse, wallet })}
             style={
               loading ? 'warning' : response !== null ? 'success' : 'light'
             }
