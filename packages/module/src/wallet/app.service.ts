@@ -34,6 +34,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   private readonly _fetcher: IFetcher;
   private readonly _submitter: ISubmitter;
   private readonly _wallet: EmbeddedWallet;
+  private readonly _hasStake: boolean = true;
 
   constructor(options: CreateAppWalletOptions) {
     this._fetcher = options.fetcher;
@@ -55,6 +56,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
         );
         break;
       case 'cli':
+        this._hasStake = options.key.stake !== undefined;
         this._wallet = new EmbeddedWallet(
           options.networkId,
           EmbeddedWallet.encryptSigningKeys(
@@ -69,7 +71,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   getPaymentAddress(accountIndex = 0): string {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
-    return account.enterpriseAddress;
+    return this._hasStake ? account.baseAddress : account.enterpriseAddress;
   }
 
   getRewardAddress(accountIndex = 0): string {
@@ -81,7 +83,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   getUsedAddress(accountIndex = 0): Address {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
-    return toAddress(account.enterpriseAddress);
+    return toAddress(this._hasStake ? account.baseAddress : account.enterpriseAddress);
   }
 
   getUsedCollateral(
@@ -94,7 +96,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
     const utxos = await this._fetcher
-      .fetchAddressUTxOs(account.enterpriseAddress);
+      .fetchAddressUTxOs(this._hasStake ? account.baseAddress : account.enterpriseAddress);
 
     return utxos.map((utxo) => toTxUnspentOutput(utxo));
   }
@@ -114,7 +116,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
       const account = this._wallet
         .getAccount(accountIndex, DEFAULT_PASSWORD);
       const utxos = await this._fetcher
-        .fetchAddressUTxOs(account.enterpriseAddress);
+        .fetchAddressUTxOs(this._hasStake ? account.baseAddress : account.enterpriseAddress);
 
       const newSignatures = this._wallet.signTx(
         accountIndex, DEFAULT_PASSWORD,
