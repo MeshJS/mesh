@@ -67,10 +67,12 @@ function getVestingScriptCbor() {
     [VestingDatum.type, data, PScriptContext.type],
     bool
   )((datum, _redeemer, ctx) => {
+    // inlined
     const signedByBeneficiary = ctx.tx.signatories.some(
       datum.beneficiary.eqTerm
     );
 
+    // inlined
     const deadlineReached = pmatch(ctx.tx.interval.from.bound)
       .onPFinite(({ _0: lowerInterval }) => datum.deadline.ltEq(lowerInterval))
       ._((_) => pBool(false));
@@ -690,22 +692,25 @@ function VestingLock() {
         version: 'V2',
       };
       const scriptAddress = resolvePlutusScriptAddress(script, 0);
+      console.log('scriptAddress', scriptAddress);
 
       const address = (await wallet.getUsedAddresses())[0];
-      const walletKeyhash = resolvePaymentKeyHash(address);
 
       const nowPosix = Date.now();
       console.log('nowPosix', nowPosix);
 
-      const datumMap: Data = new Map<Data, Data>();
-      datumMap.set('beneficiary', walletKeyhash);
-      datumMap.set('deadline', nowPosix + 10_000);
+      const datum: Data = {
+        alternative: 0,
+        fields: [resolvePaymentKeyHash(address), nowPosix + 10_000],
+      };
+      console.log('datum', resolvePaymentKeyHash(address), nowPosix + 10_000);
 
       const tx = new Transaction({ initiator: wallet }).sendLovelace(
         {
           address: scriptAddress,
           datum: {
-            value: datumMap,
+            value: datum,
+            inline: true,
           },
         },
         '2000000'
@@ -763,29 +768,15 @@ function VestingUnlock() {
         version: 'V2',
       };
       const scriptAddress = resolvePlutusScriptAddress(script, 0);
-
       const address = (await wallet.getUsedAddresses())[0];
-      const walletKeyhash = resolvePaymentKeyHash(address);
 
-      const nowPosix = Date.now();
-      console.log('nowPosix', nowPosix);
-
-      const datumMap: Data = new Map<Data, Data>();
-      datumMap.set('beneficiary', walletKeyhash);
-      datumMap.set('deadline', nowPosix + 10_000);
-
-      const datumConstr: Data = {
+      const datum: Data = {
         alternative: 0,
-        fields: [42],
+        fields: [resolvePaymentKeyHash(address), 1681052219252],
       };
-      const redeemer = {
-        data: {
-          alternative: 0,
-          fields: [21],
-        },
-      };
+
       const blockchainProvider = new KoiosProvider('preprod');
-      const dataHash = resolveDataHash(walletKeyhash);
+      const dataHash = resolveDataHash(datum);
       const utxos = await blockchainProvider.fetchAddressUTxOs(
         scriptAddress,
         'lovelace'
@@ -793,13 +784,18 @@ function VestingUnlock() {
       let utxo = utxos.find((utxo: any) => {
         return utxo.output.dataHash == dataHash;
       });
+      console.log('utxo', utxo);
 
       if (utxo) {
+        const redeemer = {
+          data: 0,
+        };
+
         const tx = new Transaction({ initiator: wallet })
           .redeemValue({
             value: utxo,
             script: script,
-            datum: datumConstr,
+            datum: datum,
             redeemer: redeemer,
           })
           .sendValue(address, utxo)
