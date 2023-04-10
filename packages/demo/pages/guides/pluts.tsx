@@ -22,6 +22,8 @@ import {
   data,
   PScriptContext,
   pmatch,
+
+  pdelay,pStr,ptraceIfFalse
 } from '@harmoniclabs/plu-ts';
 
 import {
@@ -30,7 +32,7 @@ import {
   resolveDataHash,
   resolvePaymentKeyHash,
   Transaction,
-  Data,
+  Data,BlockfrostProvider
 } from '@meshsdk/core';
 import type { PlutusScript } from '@meshsdk/core';
 import { useWallet } from '@meshsdk/react';
@@ -63,22 +65,50 @@ function getVestingScriptCbor() {
     },
   });
 
-  const contract = pfn(
-    [VestingDatum.type, data, PScriptContext.type],
-    bool
-  )((datum, _redeemer, ctx) => {
-    // inlined
-    const signedByBeneficiary = ctx.tx.signatories.some(
+  // const contract = pfn(
+  //   [VestingDatum.type, data, PScriptContext.type],
+  //   bool
+  // )((datum, _redeemer, ctx) => {
+  //   // inlined
+  //   const signedByBeneficiary = ctx.tx.signatories.some(
+  //     datum.beneficiary.eqTerm
+  //   );
+
+  //   // inlined
+  //   const deadlineReached = pmatch(ctx.tx.interval.from.bound)
+  //     .onPFinite(({ _0: lowerInterval }) => datum.deadline.ltEq(lowerInterval))
+  //     ._((_) => pBool(false));
+
+  //   return signedByBeneficiary.and(deadlineReached);
+  // });
+
+  function pdelayedStr( str: string )
+{
+  return pdelay( pStr( str ) );
+}
+
+const contract = pfn(
+  [VestingDatum.type, data, PScriptContext.type],
+  bool
+)((datum, _redeemer, ctx) => {
+  
+  const signedByBeneficiary =
+  ptraceIfFalse.$(pdelayedStr("missing beneficiary")).$(
+    ctx.tx.signatories.some(
       datum.beneficiary.eqTerm
-    );
+    )
+  );
 
-    // inlined
-    const deadlineReached = pmatch(ctx.tx.interval.from.bound)
-      .onPFinite(({ _0: lowerInterval }) => datum.deadline.ltEq(lowerInterval))
-      ._((_) => pBool(false));
+  const deadlineReached =
+  ptraceIfFalse.$(pdelayedStr("be patient :)")).$(
+    pmatch(ctx.tx.interval.from.bound)
+    .onPFinite(({ _0: lowerInterval }) => datum.deadline.ltEq(lowerInterval))
+    ._((_) => pBool(false))
+  );
 
-    return signedByBeneficiary.and(deadlineReached);
-  });
+  return signedByBeneficiary.and(deadlineReached);
+});
+
 
   const untypedValidator = makeValidator(contract);
   const compiledContract = compile(untypedValidator);
@@ -768,14 +798,19 @@ function VestingUnlock() {
         version: 'V2',
       };
       const scriptAddress = resolvePlutusScriptAddress(script, 0);
+      console.log("scriptAddress", scriptAddress)
       const address = (await wallet.getUsedAddresses())[0];
 
       const datum: Data = {
         alternative: 0,
-        fields: [resolvePaymentKeyHash(address), 1681052219252],
+        fields: [resolvePaymentKeyHash(address), 1681146278850],
       };
 
-      const blockchainProvider = new KoiosProvider('preprod');
+      // const blockchainProvider = new KoiosProvider('preprod');
+      const blockchainProvider = new BlockfrostProvider(
+        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+      );
+
       const dataHash = resolveDataHash(datum);
       const utxos = await blockchainProvider.fetchAddressUTxOs(
         scriptAddress,
@@ -795,7 +830,7 @@ function VestingUnlock() {
           .redeemValue({
             value: utxo,
             script: script,
-            datum: datum,
+            datum: utxo,
             redeemer: redeemer,
           })
           .sendValue(address, utxo)
@@ -803,7 +838,8 @@ function VestingUnlock() {
 
         const unsignedTx = await tx.build();
         const signedTx = await wallet.signTx(unsignedTx, true);
-        const txHash = await wallet.submitTx(signedTx);
+        // const txHash = await wallet.submitTx(signedTx);
+        const txHash = await blockchainProvider.submitTx(signedTx)
 
         setResponse(txHash);
       } else {
