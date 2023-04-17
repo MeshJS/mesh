@@ -14,7 +14,8 @@ export type NonFungibleAssetMetadata =
   | AudioAssetMetadata
   | ImageAssetMetadata
   | SmartAssetMetadata
-  | VideoAssetMetadata;
+  | VideoAssetMetadata
+  | RoyaltyMetadata;
 
 type AudioAssetMetadata = MetadataStandard & Files;
 
@@ -32,3 +33,8 @@ export type ImageAssetMetadata = MetadataStandard & Files & {
 type SmartAssetMetadata = MetadataStandard & Files;
 
 type VideoAssetMetadata = MetadataStandard & Files;
+
+export type RoyaltyMetadata = {
+  rate: string;
+  address: string;
+};

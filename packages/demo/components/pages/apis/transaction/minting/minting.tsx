@@ -277,6 +277,17 @@ function Right({ userInput, updateField }) {
           label: recipient.assetLabel,
           recipient: recipient.address,
         };
+        
+        // example minting Royalty token
+        // const _assetMetadata : AssetMetadata = { rate: '0.2', addr: recipient.address };
+        // const asset: Mint = {
+        //   assetName: '',
+        //   assetQuantity: recipient.quantity.toString(),
+        //   metadata: _assetMetadata,
+        //   label: '777',
+        //   recipient: recipient.address,
+        // };
+
         tx.mintAsset(forgingScript, asset);
       }
 
@@ -286,6 +297,7 @@ function Right({ userInput, updateField }) {
       setResponse(txHash);
       setState(2);
     } catch (error) {
+      console.log(error);
       setResponseError(JSON.stringify(error));
       setState(0);
     }
