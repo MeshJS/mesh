@@ -1952,10 +1952,10 @@
   dependencies:
     "@harmoniclabs/uint8array-utils" "^1.0.0"
 
-"@harmoniclabs/plu-ts@^0.3.0-dev6":
-  version "0.3.0-dev6"
-  resolved "https://registry.yarnpkg.com/@harmoniclabs/plu-ts/-/plu-ts-0.3.0-dev6.tgz#53fa60d19fb244d72ad0102b80fbef738f2fa5e6"
-  integrity sha512-C72ihPTmR9/jwTzxC2U2S/GTyFN5PQyTu0HV1CxGze/2HL0VGiyOYM+1HI739Vt9CHh+NQyE/kFzweYXiQOw1A==
+"@harmoniclabs/plu-ts@^0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@harmoniclabs/plu-ts/-/plu-ts-0.3.0.tgz#516d2724b2de970d834843078b290792958e0357"
+  integrity sha512-QSjl1KATiJlQxIaLResZvZEtUoWhQqqTr85EQLgukXyIeCd3zAdURqCVL+nKzdyV3kjmTueqqgxzWVdi8SDqNQ==
   dependencies:
     "@harmoniclabs/uint8array-utils" "^1.0.0"
 

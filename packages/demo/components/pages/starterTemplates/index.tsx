@@ -179,13 +179,29 @@ const items = [
     template: 'marketplace',
     framework: 'next',
     language: 'typescript',
-    installCode: 'npx create-mesh-app project-name -t marketplace -s next -l ts',
+    installCode:
+      'npx create-mesh-app project-name -t marketplace -s next -l ts',
     demoUrl: 'http://marketplace-template.meshjs.dev/',
     repoUrl: 'https://github.com/MeshJS/marketplace-next-ts-template',
     desc: (
       <p>
         Whether you are building a marketplace for your business or for your
         clients, we have you covered. Get started in minutes.
+      </p>
+    ),
+  },
+  {
+    title: 'plu-ts Next.js TypeScript',
+    template: 'pluts',
+    framework: 'next',
+    language: 'typescript',
+    installCode: 'npx create-mesh-app project-name -t pluts -s next -l ts',
+    demoUrl: 'http://pluts-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/pluts-next-ts-template',
+    desc: (
+      <p>
+        Get started to write smart contracts on Cardano with plu-ts and deploy
+        your app with Mesh.
       </p>
     ),
   },
