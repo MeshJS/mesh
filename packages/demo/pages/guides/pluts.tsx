@@ -148,7 +148,7 @@ const GuidePlutsPage: NextPage = () => {
       <Metatags
         title="End to End Guide with plu-ts"
         description="A guide to deploying an app with smart contract written in plu-ts in TypeScript."
-        image="/guides/develop-first-web-app.png"
+        image="/guides/pluts.png"
       />
       <GuidesLayout
         title="End to End Guide with plu-ts"
@@ -203,7 +203,7 @@ function IntroSection() {
           rel="noreferrer"
         >
           Hello plu-ts
-        </a>
+        </a>{' '}
         example. You can get the entire source code for this guide on{' '}
         <a
           href="https://github.com/MeshJS/pluts-next-ts-template"
@@ -704,8 +704,8 @@ function HelloWorldScript() {
           Hello plu-ts
         </a>{' '}
         smart contract. Unlike the Always Succeed script, this script will only
-        be able to unlock if we redeem with <code>Hello plu-ts</code>. Let's
-        learn how we can do that.
+        be able to unlock if we redeem with a string <code>Hello plu-ts</code>{' '}
+        in our redeemer. Let's learn how we can do that.
       </p>
 
       <p>Let's import the necessary modules from plu-ts:</p>
