@@ -87,6 +87,16 @@ function Left({ userInput }) {
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
 
+  let codeRecipient = ``;
+  codeRecipient += `Recipient = string | {\n`;
+  codeRecipient += `  address: string;\n`;
+  codeRecipient += `  datum?: {\n`;
+  codeRecipient += `      value: Data;\n`;
+  codeRecipient += `      inline?: boolean | undefined;\n`;
+  codeRecipient += `  } | undefined;\n`;
+  codeRecipient += `  script?: NativeScript | PlutusScript | undefined;\n`;
+  codeRecipient += `}\n`;
+
   return (
     <>
       <p>
@@ -97,6 +107,14 @@ function Left({ userInput }) {
         data={`tx.sendLovelace(address: Recipient, lovelace: string);`}
         isJson={false}
       />
+
+      <p>
+        Where <code>Recipient</code> is a string or an object with the following
+        properties:
+      </p>
+
+      <Codeblock data={codeRecipient} isJson={false} />
+
       <p>
         <code>.build()</code> construct the transaction and returns a
         transaction CBOR. Behind the scene, it selects necessary inputs

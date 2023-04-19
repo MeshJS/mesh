@@ -216,13 +216,23 @@ function Left({ userInput }) {
         To get the <code>keyHash</code>, use the{' '}
         <code>resolvePaymentKeyHash()</code>. To get the slot, use the{' '}
         <code>resolveSlotNo()</code>. Check out{' '}
-        <Link href="/apis/resolvers">Resolvers</Link> on how to use these functions.
+        <Link href="/apis/resolvers">Resolvers</Link> on how to use these
+        functions.
+      </p>
+      <p>
+        Note: if you are using a policy locking script, you must define{' '}
+        <code>setTimeToExpire</code> before the expiry; otherwise, you will
+        catch the <code>ScriptWitnessNotValidatingUTXOW</code> error. See{' '}
+        <Link href="/apis/transaction#setTimeLimit">
+          Transaction - setTimeLimit
+        </Link>
+        .
       </p>
       <p>
         Note: If you were expecting a particular Policy ID but received an
-        entirely different one, try switching the order
-        of the objects inside the <code>scripts</code> as the order of the
-        objects matters and must match the order used before.
+        entirely different one, try switching the order of the objects inside
+        the <code>scripts</code> as the order of the objects matters and must
+        match the order used before.
       </p>
     </>
   );

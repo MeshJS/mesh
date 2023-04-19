@@ -42,6 +42,12 @@ export const templates = {
     cli: 'marketplace',
     image: 'marketplace.png',
   },
+  pluts: {
+    title: 'pluts',
+    desc: `Write your smart contracts in plu-ts and deploy your app on the Cardano blockchain with Mesh SDK.`,
+    cli: 'pluts',
+    image: 'pluts.png',
+  },
 };
 
 export const languages = {

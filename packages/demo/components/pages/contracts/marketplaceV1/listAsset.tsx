@@ -9,15 +9,6 @@ import useLocalStorage from '../../../../hooks/useLocalStorage';
 import { getMarketplace, asset, price } from './config';
 import Input from '../../../ui/input';
 
-import {
-  BlockfrostProvider,
-  AppWallet,
-  largestFirstMultiAsset,
-  largestFirst,
-  Transaction,
-  keepRelevant,
-} from '@meshsdk/core';
-
 export default function MarketplaceListAsset() {
   return (
     <>
