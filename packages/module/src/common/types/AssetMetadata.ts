@@ -1,8 +1,9 @@
-import type { MetadataStandard, Files } from '@mesh/core';
+import type { MetadataStandard, Files, RoyaltiesStandard } from '@mesh/core';
 
 export type AssetMetadata =
   | FungibleAssetMetadata
-  | NonFungibleAssetMetadata;
+  | NonFungibleAssetMetadata
+  | RoyaltiesStandard;
 
 export type FungibleAssetMetadata = MetadataStandard & {
   ticker: string;
@@ -14,8 +15,7 @@ export type NonFungibleAssetMetadata =
   | AudioAssetMetadata
   | ImageAssetMetadata
   | SmartAssetMetadata
-  | VideoAssetMetadata
-  | RoyaltyMetadata;
+  | VideoAssetMetadata;
 
 type AudioAssetMetadata = MetadataStandard & Files;
 
@@ -33,8 +33,3 @@ export type ImageAssetMetadata = MetadataStandard & Files & {
 type SmartAssetMetadata = MetadataStandard & Files;
 
 type VideoAssetMetadata = MetadataStandard & Files;
-
-export type RoyaltyMetadata = {
-  rate: string;
-  address: string;
-};

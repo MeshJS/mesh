@@ -7,5 +7,5 @@ export type Mint = {
   assetQuantity: Quantity;
   metadata: AssetMetadata;
   recipient: Recipient;
-  label: '20' | '721' | string;
+  label: '20' | '721' | '777' | `${number}`;
 };
