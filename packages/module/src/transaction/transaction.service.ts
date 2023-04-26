@@ -654,7 +654,7 @@ export class Transaction {
 
   private async forgeAssetsIfNeeded() {
     type Mintdata = { unit: string, data: Mint };
-    type Metadata = Record<string, Record<string, AssetMetadata>> | any;
+    type Metadata = Record<string, Record<string, AssetMetadata>>;
 
     const forge = (mint: Mintdata, meta?: Metadata): Metadata => {
       const name = mint.data.assetName;
@@ -662,8 +662,8 @@ export class Transaction {
       const collection = mint.unit
         .slice(0, POLICY_ID_LENGTH);
 
-      if(mint.data.label == '777'){
-        return metadata;
+      if(mint.data.label === '777') {
+        return metadata as any; // TODO: fix this
       }
 
       if (meta && meta[collection]) {
