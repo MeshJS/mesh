@@ -277,6 +277,7 @@ function Right({ userInput, updateField }) {
           label: recipient.assetLabel,
           recipient: recipient.address,
         };
+
         tx.mintAsset(forgingScript, asset);
       }
 
