@@ -35,7 +35,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
     try {
       const { data, status } = await this._axiosInstance.get(
-        `accounts/${rewardAddress}`
+        `accounts/${address}`
       );
 
       if (status === 200){
