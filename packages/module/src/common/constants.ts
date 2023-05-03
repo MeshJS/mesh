@@ -53,8 +53,8 @@ export const SUPPORTED_CLOCKS: Record<Network, [
   epochLength: string,
 ]> = {
   testnet: ['74', '1598400', '1595967616', '432000'],
-  preview: ['0', '0', '1660003200', '86400'],
-  preprod: ['0', '0', '1654041600', '432000'],
+  preview: ['183', '15811222', '1682467200', '86400'],
+  preprod: ['65', '26438400', '1682121600', '432000'],
   mainnet: ['208', '4492800', '1596059091', '432000'],
 };
 
@@ -479,5 +479,5 @@ export const SUPPORTED_TOKENS = {
 };
 
 export const SUPPORTED_WALLETS = [
-  'begin', 'eternl', 'flint', 'nami', 'nufi', 'gerowallet', 'typhoncip30',
+  'begin', 'eternl', 'flint', 'lace', 'nami', 'nufi', 'gerowallet', 'typhoncip30',
 ];
