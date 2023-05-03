@@ -23,7 +23,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   constructor(network: string, key: string) {
     this._axiosInstance = axios.create({
-      baseURL: `https://${network}.gomaestro-api.org/v0`,
+      baseURL: `https://${network}.gomaestro-api.org/`,
       headers: { 'api-key': key },
     });
     console.log('network', network)

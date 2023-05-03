@@ -120,7 +120,24 @@ function Main({ network }) {
 
   useEffect(() => {
     async function load() {
-      const _provider = new MaestroProvider(network, 'nUuoNxLMvVN23OsfhwgzUfK47RlbZset');
+
+      var key
+      console.log("choosing a key");
+      switch (network) {
+        case 'mainnet':
+            key = 'ccZ9KkyDdOJ9OyC4TNgFBlw773bWImGV';
+            break;
+        case 'preprod':
+            key = 'nUuoNxLMvVN23OsfhwgzUfK47RlbZset';
+            break;
+        case 'preview':
+            key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+            break;
+        default:
+            console.log("unknown network");
+            break;
+    }
+      const _provider = new MaestroProvider(network, key);
       setProvider(_provider);
     }
     load();
