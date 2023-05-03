@@ -126,7 +126,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
 
-    throw new Error('not implemented.');
+    //throw new Error('not implemented.');
 
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
@@ -135,12 +135,20 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return <AssetMetadata>{
-          ...data.onchain_metadata,
+      console.log('data', data)
+      return <AssetMetadata>{
+          //...data.onchain_metadata,
+          name: data.asset_standards.cip25_metadata.name,
+          image: data.asset_standards.cip25_metadata.image,
+          mediaType: data.asset_standards.cip25_metadata.mediaType,
+          description: data.asset_standards.cip25_metadata.description,
+
+
         };
 
       throw parseHttpError(data);
     } catch (error) {
+      console.log('error parsing')
       throw parseHttpError(error);
     }
   }
