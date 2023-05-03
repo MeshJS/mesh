@@ -120,7 +120,7 @@ function Main({ network }) {
 
   useEffect(() => {
     async function load() {
-      const _provider = new MaestroProvider('preprod', 'nUuoNxLMvVN23OsfhwgzUfK47RlbZset');
+      const _provider = new MaestroProvider(network, 'nUuoNxLMvVN23OsfhwgzUfK47RlbZset');
       setProvider(_provider);
     }
     load();
