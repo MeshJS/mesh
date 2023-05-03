@@ -34,18 +34,20 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       : address;
 
     try {
+      const request = `accounts/${rewardAddress}`
+      console.log(request)
       const { data, status } = await this._axiosInstance.get(
-        `accounts/${rewardAddress}`
+        request
       );
 
       if (status === 200){
         console.log('data', data)
         return <AccountInfo>{
-          poolId: data.pool_id,
+          poolId: data.delegated_pool,
           active: data.active || data.active_epoch !== null,
-          balance: data.controlled_amount,
-          rewards: data.withdrawable_amount,
-          withdrawals: data.withdrawals_sum,
+          balance: data.total_balance.toString(),
+          rewards: data.total_rewarded.toString(),
+          withdrawals: data.total_withdrawn.toString(),
         };}
 
       throw parseHttpError(data);
