@@ -142,8 +142,6 @@ export class MaestroProvider implements IFetcher, ISubmitter {
           image: data.asset_standards.cip25_metadata.image,
           mediaType: data.asset_standards.cip25_metadata.mediaType,
           description: data.asset_standards.cip25_metadata.description,
-
-
         };
 
       throw parseHttpError(data);
@@ -195,10 +193,11 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
+        console.log('data', data)
         return {
           assets: data.map((asset) => ({
-            unit: asset.asset,
-            quantity: asset.quantity,
+            unit: policyId + asset.asset_name,
+            quantity: asset.total_supply,
           })),
           next: data.length === 100 ? cursor + 1 : null,
         };
