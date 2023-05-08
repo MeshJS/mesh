@@ -34,8 +34,8 @@ const ProvidersPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="Guides for Getting Started"
-        description="Build an application to display assets or a complex dApp to interact with Cardano blockchain and smart contracts - this section will help you get started."
+        title="Providers"
+        description="Providers are services provided by the Cardano developer community, to help you ship your apps faster."
       />
       <div className="py-4 px-4 mx-auto max-w-screen-xl lg:py-8 lg:px-6">
         <div className="mx-auto max-w-screen-sm text-center mb-8 lg:mb-16">
