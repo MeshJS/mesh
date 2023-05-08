@@ -10,11 +10,17 @@ import Input from '../../../../ui/input';
 import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../../configs/demo';
-import { Transaction, ForgeScript, AssetMetadata } from '@meshsdk/core';
-import type { Mint } from '@meshsdk/core';
+import {
+  Transaction,
+  ForgeScript,
+  AssetMetadata,
+  NativeScript,
+  Mint,
+  resolvePaymentKeyHash,
+  resolveNativeScriptHash,
+} from '@meshsdk/core';
 import Textarea from '../../../../ui/textarea';
 import Link from 'next/link';
-import { resolveNativeScriptHash } from '@meshsdk/core';
 
 const defaultMetadata = {
   name: 'Mesh Token',
@@ -23,8 +29,10 @@ const defaultMetadata = {
   description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
 };
 
-export default function Minting() {
+export default function MintingNativeScript() {
   const { wallet, connected } = useWallet();
+
+  const [slot, setSlot] = useState<string>('99999999');
 
   const [userInput, setUserInput] = useState<{}[]>([
     {
@@ -92,22 +100,38 @@ export default function Minting() {
 
   return (
     <SectionTwoCol
-      sidebarTo="minting"
-      header="Minting Assets"
-      leftFn={Left({ userInput })}
-      rightFn={Right({ userInput, updateField })}
+      sidebarTo="mintingNativeScript"
+      header="Minting Assets with Native Script"
+      leftFn={Left({ userInput, slot })}
+      rightFn={Right({ userInput, updateField, slot, setSlot })}
     />
   );
 }
 
-function Left({ userInput }) {
-  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
-  codeSnippet += `import type { Mint, AssetMetadata } from '@meshsdk/core';\n\n`;
+function Left({ userInput, slot }) {
+  let codeSnippet = `import { Transaction, ForgeScript, Mint, AssetMetadata, resolvePaymentKeyHash } from '@meshsdk/core';\n\n`;
 
   codeSnippet += `// prepare forgingScript\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet += `const address = usedAddress[0];\n`;
-  codeSnippet += `const forgingScript = ForgeScript.withOneSignature(address);\n\n`;
+  codeSnippet += `const address = usedAddress[0];\n\n`;
+
+  codeSnippet += `const keyHash = resolvePaymentKeyHash(address);\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const nativeScript: NativeScript = {\n`;
+  codeSnippet += `  type: 'all',\n`;
+  codeSnippet += `  scripts: [\n`;
+  codeSnippet += `    {\n`;
+  codeSnippet += `      type: 'before',\n`;
+  codeSnippet += `      slot: '${slot}',\n`;
+  codeSnippet += `    },\n`;
+  codeSnippet += `    {\n`;
+  codeSnippet += `      type: 'sig',\n`;
+  codeSnippet += `      keyHash: keyHash,\n`;
+  codeSnippet += `    },\n`;
+  codeSnippet += `  ],\n`;
+  codeSnippet += `};\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const forgingScript = ForgeScript.fromNativeScript(nativeScript);\n\n`;
 
   codeSnippet += `const tx = new Transaction({ initiator: wallet });\n\n`;
 
@@ -137,35 +161,11 @@ function Left({ userInput }) {
     counter++;
   }
 
+  codeSnippet += `tx.setTimeToExpire('${slot}');\n\n`;
+
   codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
-
-  let codeSnippet1 = ``;
-  codeSnippet1 += `// use browser wallet to get address\n`;
-  codeSnippet1 += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet1 += `const address = usedAddress[0];\n`;
-  codeSnippet1 += `// use app wallet to get address\n`;
-  codeSnippet1 += `const address = wallet.getPaymentAddress();\n\n`;
-  codeSnippet1 += `// create forgingScript\n`;
-  codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
-
-  let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
-    defaultMetadata,
-    null,
-    2
-  )};\n`;
-  codeSnippet2 += `const asset: Mint = {\n`;
-  codeSnippet2 += `  assetName: 'MeshToken',\n`;
-  codeSnippet2 += `  assetQuantity: '1',\n`;
-  codeSnippet2 += `  metadata: assetMetadata,\n`;
-  codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: '${demoAddresses.testnet}' \n`;
-  codeSnippet2 += `};\n`;
-  codeSnippet2 += `tx.mintAsset(\n`;
-  codeSnippet2 += `  forgingScript,\n`;
-  codeSnippet2 += `  asset,\n`;
-  codeSnippet2 += `);`;
 
   let codeSnippetNative = ``;
   codeSnippetNative += `import type { NativeScript } from '@meshsdk/core';\n`;
@@ -190,28 +190,45 @@ function Left({ userInput }) {
   return (
     <>
       <p>
-        In this section, we will see how to mint native assets with a{' '}
-        <code>ForgeScript</code>. For minting assets with smart contract, visit{' '}
-        <Link href="/apis/transaction/smart-contract#plutusminting">
-          Transaction - Smart Contract - Minting Assets with Smart Contract
+        Additionally, you can define the forging script with{' '}
+        <code>NativeScript</code>. For example if you want to have a policy
+        locking script, you can create a new <code>ForgeScript</code> with{' '}
+        <code>NativeScript</code>:
+      </p>
+      <Codeblock data={codeSnippetNative} isJson={false} />
+      <p>
+        To get the <code>keyHash</code>, use the{' '}
+        <code>resolvePaymentKeyHash()</code>. To get the slot, use the{' '}
+        <code>resolveSlotNo()</code>. Check out{' '}
+        <Link href="/apis/resolvers">Resolvers</Link> on how to use these
+        functions.
+      </p>
+      <p>
+        Important: if you are using a policy locking script, you must define{' '}
+        <code>setTimeToExpire</code> before the expiry; otherwise, you will
+        catch the <code>ScriptWitnessNotValidatingUTXOW</code> error. See{' '}
+        <Link href="/apis/transaction#setTimeLimit">
+          Transaction - setTimeLimit
         </Link>
         .
       </p>
       <p>
-        Firstly, we need to define the <code>forgingScript</code> with{' '}
-        <code>ForgeScript</code>. We use the first wallet address as the
-        "minting address" (you can use other addresses).
+        You can get the policy ID for this Native Script with{' '}
+        <code>resolveNativeScriptHash</code>:
       </p>
-      <Codeblock data={codeSnippet1} isJson={false} />
-      <p>Then, we define the metadata.</p>
-      <Codeblock data={codeSnippet2} isJson={false} />
+
+      <Codeblock
+        data={`const policyId = resolveNativeScriptHash(nativeScript);`}
+        isJson={false}
+      />
+
       <p>Here is the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
     </>
   );
 }
 
-function Right({ userInput, updateField }) {
+function Right({ userInput, updateField, slot, setSlot }) {
   const [state, setState] = useState<number>(0);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
@@ -225,7 +242,23 @@ function Right({ userInput, updateField }) {
     try {
       const usedAddress = await wallet.getUsedAddresses();
       const address = usedAddress[0];
-      const forgingScript = ForgeScript.withOneSignature(address);
+      const keyHash = resolvePaymentKeyHash(address);
+
+      const nativeScript: NativeScript = {
+        type: 'all',
+        scripts: [
+          {
+            type: 'before',
+            slot: slot,
+          },
+          {
+            type: 'sig',
+            keyHash: keyHash,
+          },
+        ],
+      };
+
+      const forgingScript = ForgeScript.fromNativeScript(nativeScript);
 
       const tx = new Transaction({ initiator: wallet });
 
@@ -254,6 +287,8 @@ function Right({ userInput, updateField }) {
         tx.mintAsset(forgingScript, asset);
       }
 
+      tx.setTimeToExpire(slot);
+
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await wallet.submitTx(signedTx);
@@ -267,7 +302,12 @@ function Right({ userInput, updateField }) {
 
   return (
     <Card>
-      <InputTable userInput={userInput} updateField={updateField} />
+      <InputTable
+        userInput={userInput}
+        updateField={updateField}
+        slot={slot}
+        setSlot={setSlot}
+      />
       {connected ? (
         <>
           <RunDemoButton
@@ -285,12 +325,12 @@ function Right({ userInput, updateField }) {
   );
 }
 
-function InputTable({ userInput, updateField }) {
+function InputTable({ userInput, updateField, slot, setSlot }) {
   return (
     <div className="overflow-x-auto relative">
       <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 m-0">
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Mint assets and send to recipients
+          Mint assets Native Script
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Add or remove recipients, input the address and define the asset
             metadata to mint and send to recipients.
@@ -408,6 +448,16 @@ function InputTable({ userInput, updateField }) {
                 <PlusCircleIcon className="m-0 mr-2 w-4 h-4" />
                 Add recipient
               </Button>
+            </td>
+          </tr>
+          <tr>
+            <td colSpan={3}>
+              <Input
+                value={slot}
+                onChange={(e) => setSlot(e.target.value)}
+                placeholder="Slot"
+                label="Slot"
+              />
             </td>
           </tr>
         </tbody>

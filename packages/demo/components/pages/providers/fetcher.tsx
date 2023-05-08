@@ -54,7 +54,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
       'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e'
     );
   const [fetchProtocolParameters, setfetchProtocolParameters] =
-    useState<string>('10');
+    useState<string>('');
   const [fetchAccountInfoAddress, setFetchAccountInfoAddress] =
     useState<string>(
       'stake_test1uzx0ksy9f4qnj2mzfdncqyjy84sszh64w43853nug5pedjgytgke9'
