@@ -1,7 +1,7 @@
 import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
+// import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import { resolveMedia } from '@meshsdk/react';
+// import { resolveMedia } from '@meshsdk/react';
 
 export default function UiResolveMedia() {
   return (
@@ -30,7 +30,7 @@ function Left() {
         isJson={false}
       />
 
-      <Card>
+      {/* <Card>
         <p>Get IPFS URL with Infura:</p>
         <Codeblock
           data={`<img\n  src={resolveMedia(\n    'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n  )}\n/>`}
@@ -72,7 +72,7 @@ function Left() {
           src={resolveMedia('QmbL9tkVZE8fND3oupLW2ctRgK2C4xHqzcWvEN8MW4k9Ge')}
           className="w-96 h-96"
         ></iframe>
-      </Card>
+      </Card> */}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import type { NextPage } from 'next';
-import GuidesLayout from '../../../components/pages/guides/layout';
-import Metatags from '../../../components/site/metatags';
+import GuidesLayout from '../layout';
+import Metatags from '../../../../components/site/metatags';
 import Hero from './hero';
 import Init from './init';
 import SendADA from './sendAda';
