@@ -2,13 +2,13 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Element } from 'react-scroll';
 
-import Codeblock from '../../../components/ui/codeblock';
-import RunDemoButton from '../../../components/common/runDemoButton';
-import RunDemoResult from '../../../components/common/runDemoResult';
+import Codeblock from '../../../../components/ui/codeblock';
+import RunDemoButton from '../../../../components/common/runDemoButton';
+import RunDemoResult from '../../../../components/common/runDemoResult';
 import { loadWallet } from './functions';
 import { AssetMetadata, ForgeScript, Mint, Transaction } from '@meshsdk/core';
-import { demoAddresses } from '../../../configs/demo';
-import ShowMoreDetails from '../../../components/common/showMoreDetails';
+import { demoAddresses } from '../../../../configs/demo';
+import ShowMoreDetails from '../../../../components/common/showMoreDetails';
 
 export default function MintToken() {
   const [response, setResponse] = useState<null | any>(null);
