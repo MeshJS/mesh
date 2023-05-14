@@ -1,7 +1,7 @@
-import { csl, largestFirst, largestFirstMultiAsset } from '@mesh/core';
+import { csl, keepRelevant, largestFirstMultiAsset } from '@mesh/core';
 import {
   DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
-  POLICY_ID_LENGTH, SUPPORTED_COST_MODELS,
+  POLICY_ID_LENGTH, SUPPORTED_COST_MODELS, SUPPORTED_TOKENS,
 } from '@mesh/common/constants';
 import { IInitiator } from '@mesh/common/contracts';
 import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
@@ -19,12 +19,13 @@ import type {
 } from '@mesh/core';
 import type {
   Action, Asset, AssetMetadata, Data, Era, Mint, Protocol,
-  PlutusScript, Quantity, Recipient, Unit, UTxO, PoolParams,
+  PlutusScript, PoolParams, Quantity, Recipient, Token, Unit, UTxO,
 } from '@mesh/common/types';
 
 @Trackable
 export class Transaction {
   private _changeAddress?: Address;
+  private _txOutputs = new Map<Unit, Quantity>();
   private _recipients = new Map<Recipient, Asset[]>();
   private _totalBurns = new Map<Unit, Quantity>();
   private _totalMints = new Map<Unit, Mint>();
@@ -136,7 +137,7 @@ export class Transaction {
   ): Transaction {
     const totalQuantity = this._totalBurns.has(asset.unit)
       ? csl.BigNum.from_str(this._totalBurns.get(asset.unit) ?? '0')
-          .checked_add(csl.BigNum.from_str(asset.quantity)).to_str()
+        .checked_add(csl.BigNum.from_str(asset.quantity)).to_str()
       : asset.quantity;
 
     this._mintBuilder.add_asset(
@@ -334,12 +335,16 @@ export class Transaction {
 
     const txOutput = amount.coin().is_zero()
       ? txOutputAmountBuilder
-          .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
-            buildDataCost(this._protocolParameters.coinsPerUTxOSize),
-          ).build()
+        .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
+          buildDataCost(this._protocolParameters.coinsPerUTxOSize),
+        ).build()
       : txOutputAmountBuilder
-          .with_coin_and_asset(amount.coin(), multiAsset)
-          .build();
+        .with_coin_and_asset(amount.coin(), multiAsset)
+        .build();
+
+    assets.forEach((asset) => {
+      this.setTxOutput(asset);
+    });
 
     this._txBuilder.add_output(txOutput);
 
@@ -365,7 +370,30 @@ export class Transaction {
       .with_coin(csl.BigNum.from_str(lovelace))
       .build();
 
+    this.setTxOutput({
+      unit: 'lovelace', quantity: lovelace,
+    });
+
     this._txBuilder.add_output(txOutput);
+
+    return this;
+  }
+
+  /**
+   * Adds stable coins transaction output to the transaction.
+   * @param {Recipient} recipient The recipient of the transaction.
+   * @param {Token} ticker The ticker of the token to send.
+   * @param {string} amount The amount of the token to send.
+   * @returns {Transaction} The Transaction object.
+   * @see {@link https://meshjs.dev/apis/transaction#sendToken}
+   */
+  sendToken(
+    recipient: Recipient, ticker: Token, amount: string,
+  ): Transaction {
+    this.sendAssets(recipient, [{
+      quantity: amount,
+      unit: SUPPORTED_TOKENS[ticker],
+    }]);
 
     return this;
   }
@@ -389,6 +417,10 @@ export class Transaction {
     const txOutput = txOutputBuilder.next()
       .with_value(amount)
       .build();
+
+    value.output.amount.forEach((asset) => {
+      this.setTxOutput(asset);
+    });
 
     this._txBuilder.add_output(txOutput);
 
@@ -574,6 +606,23 @@ export class Transaction {
   }
 
   private async addTxInputsAsNeeded() {
+    if (this.notVisited('setTxInputs')) {
+      const availableUTxOs = await this.filterAvailableUTxOs();
+      
+      const txInputs = keepRelevant(
+        this._txOutputs, availableUTxOs.map((au) => fromTxUnspentOutput(au))
+      );
+
+      txInputs
+        .map((utxo) => toTxUnspentOutput(utxo))
+        .forEach((utxo) => {
+            this._txInputsBuilder.add_input(
+              utxo.output().address(), utxo.input(),
+              utxo.output().amount(),
+            );
+          });
+    }
+
     this._txBuilder.set_inputs(this._txInputsBuilder);
 
     if (
@@ -589,22 +638,6 @@ export class Transaction {
 
     if (this._txWithdrawals.len() > 0) {
       this._txBuilder.set_withdrawals(this._txWithdrawals);
-    }
-
-    if (this.notVisited('setTxInputs')) {
-      const hasMultiAsset = !this.notVisited('mintAsset')
-        || !this.notVisited('sendAssets')
-        || !this.notVisited('sendValue');
-
-      // insure change holds enough ADA to cover multiasset.
-      const selectedUTxOs = await this.selectLovelaceUTxOs(false);
-      const availableUTxOs = await this.filterAvailableUTxOs(selectedUTxOs);
-      
-      const coinSelectionStrategy = hasMultiAsset
-        ? csl.CoinSelectionStrategyCIP2.LargestFirstMultiAsset
-        : csl.CoinSelectionStrategyCIP2.LargestFirst;
-
-      this._txBuilder.add_inputs_from(availableUTxOs, coinSelectionStrategy);
     }
 
     if (
@@ -628,6 +661,10 @@ export class Transaction {
       const metadata = mint.data.metadata;
       const collection = mint.unit
         .slice(0, POLICY_ID_LENGTH);
+
+      if(mint.data.label === '777') {
+        return metadata as any; // TODO: fix this
+      }
 
       if (meta && meta[collection]) {
         const {
@@ -683,52 +720,20 @@ export class Transaction {
   }
 
   private async filterAvailableUTxOs(selectedUTxOs: UTxO[] = []) {
-    const txUnspentOutputs = csl.TransactionUnspentOutputs.new();
-
     if (this._initiator === undefined)
-      return txUnspentOutputs;
+      return [];
 
     const allUTxOs = await this._initiator
       .getUsedUTxOs();
 
-    allUTxOs
+    return allUTxOs
       .filter((au) => {
         return (
           selectedUTxOs.find(
             (su) => su.input.txHash === au.input().transaction_id().to_hex()
           ) === undefined
         );
-      })
-      .forEach((utxo) => {
-        txUnspentOutputs.add(utxo);
       });
-
-    return txUnspentOutputs;
-  }
-
-  private async selectLovelaceUTxOs(hasMultiAsset: boolean) {
-    if (this._initiator === undefined || hasMultiAsset === false)
-      return [];
-
-    const utxos = await this._initiator.getUsedUTxOs();
-
-    const selection = largestFirst('5000000',
-      utxos.map((utxo) => fromTxUnspentOutput(utxo)),
-    );
-
-    const inputs = selection
-      .map((utxo) => toTxUnspentOutput(utxo));
-
-    inputs
-      .forEach((utxo) => {
-        this._txBuilder.add_input(
-          utxo.output().address(),
-          utxo.input(),
-          utxo.output().amount(),
-        );
-      });
-
-    return selection;
   }
 
   private addMintOutputs() {
@@ -756,6 +761,18 @@ export class Transaction {
       (this as unknown as TrackableObject).__visits
         .includes(checkpoint) === false
     );
+  }
+
+  private setTxOutput(asset: Asset) {
+    const existingQuantity = csl.BigNum.from_str(
+      this._txOutputs.get(asset.unit) ?? '0',      
+    );
+
+    const totalQuantity = existingQuantity
+      .checked_add(csl.BigNum.from_str(asset.quantity))
+      .to_str();
+
+    this._txOutputs.set(asset.unit, totalQuantity);
   }
 }
 

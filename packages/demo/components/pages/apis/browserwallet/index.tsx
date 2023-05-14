@@ -16,6 +16,7 @@ import GetLovelace from './getLovelace';
 import GetAssets from './getAssets';
 import GetPolicyIds from './getPolicyIds';
 import GetPolicyIdAssets from './getPolicyIdAssets';
+import GetCollateral from './getCollateral';
 
 export default function BrowserWallet() {
   const sidebarItems = [
@@ -23,16 +24,17 @@ export default function BrowserWallet() {
     { label: 'Connect wallet', to: 'connectWallet' },
     { label: 'Get balance', to: 'getBalance' },
     { label: 'Get change address', to: 'getChangeAddress' },
+    { label: 'Get collateral', to: 'getCollateral' },
     { label: 'Get network ID', to: 'getNetworkId' },
     { label: 'Get reward addresses', to: 'getRewardAddresses' },
-    { label: 'Get used addresses', to: 'getUsedAddresses' },
     { label: 'Get unused addresses', to: 'getUnusedAddresses' },
+    { label: 'Get used addresses', to: 'getUsedAddresses' },
     { label: 'Get UTXOs', to: 'getUtxos' },
     { label: 'Sign data', to: 'signData' },
     { label: 'Sign transaction', to: 'signTx' },
     { label: 'Submit transaction', to: 'submitTx' },
-    { label: 'Get lovelace', to: 'getLovelace' },
     { label: 'Get assets', to: 'getAssets' },
+    { label: 'Get lovelace', to: 'getLovelace' },
     { label: 'Get policy IDs', to: 'getPolicyIds' },
     { label: 'Get collection of assets', to: 'getPolicyIdAssets' },
   ];
@@ -51,16 +53,17 @@ function Main() {
       <ConnectWallet />
       <GetBalance />
       <GetChangeAddress />
+      <GetCollateral />
       <GetNetworkId />
       <GetRewardAddresses />
-      <GetUsedAddresses />
       <GetUnusedAddresses />
+      <GetUsedAddresses />
       <GetUtxos />
       <SignData />
       <SignTx />
       <SubmitTransaction />
-      <GetLovelace />
       <GetAssets />
+      <GetLovelace />
       <GetPolicyIds />
       <GetPolicyIdAssets />
     </>

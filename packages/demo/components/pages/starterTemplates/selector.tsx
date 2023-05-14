@@ -26,13 +26,13 @@ export default function Selector({
         setSelected={setSelectedFramework}
       /> */}
 
-      <SelectSection
+      {/* <SelectSection
         title="Select a Language"
         desc="Programming language for your project."
         items={languages}
         selected={selectedLanguage}
         setSelected={setSelectedLanguage}
-      />
+      /> */}
     </div>
   );
 }

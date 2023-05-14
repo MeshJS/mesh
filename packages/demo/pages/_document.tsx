@@ -21,6 +21,10 @@ export default function Document() {
           `,
           }}
         />
+        <script
+          async
+          src="https://platform.twitter.com/widgets.js"
+        ></script>
       </Head>
       <body className="bg-white dark:bg-gray-900">
         <Main />

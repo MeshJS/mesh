@@ -8,7 +8,7 @@ const ReactPage: NextPage = () => {
     {
       title: 'Markplace',
       desc: 'Build a NFT marketplace effortlessly.',
-      link: '/smart-contracts/marketplace-v1',
+      link: '/smart-contracts/marketplace',
       // thumbnail: '/react/rocket-gdc66999bf_640.png',
       thumbnailHeroicon: <ShoppingCartIcon />,
     },

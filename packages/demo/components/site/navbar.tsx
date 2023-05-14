@@ -127,6 +127,8 @@ export default function Navbar() {
               <SubMenuWallet />
               <SubMenuTransaction />
               <SubMenuReact />
+              <SubMenuSmartContracts />
+
               {/* <NavLink href="/providers" label="Providers" /> */}
               <SubMenuUtilities />
 
@@ -242,7 +244,7 @@ function SubMenuSmartContracts() {
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
             <SubMenuLinks
-              href={`/smart-contracts/marketplace-v1`}
+              href={`/smart-contracts/marketplace`}
               title="Marketplace"
               desc="Build a NFT marketplace effortlessly."
               icon={<ShoppingCartIcon className="w-5 h-5" />}
@@ -385,7 +387,7 @@ function SubMenuAbout() {
             <SubMenuLinks
               href={`/about/references`}
               title="References"
-              desc="Articles about Mesh"
+              desc="Articles and Testimonials"
               icon={<NewspaperIcon className="w-5 h-5" />}
             />
           </ul>

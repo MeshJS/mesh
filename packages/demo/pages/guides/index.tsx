@@ -40,6 +40,24 @@ const GuidesPage: NextPage = () => {
       link: '/guides/custom-provider',
       thumbnail: '/guides/implement-custom-provider.png',
     },
+    {
+      title: 'Build your NFT marketplace',
+      desc: 'Whether you are building a marketplace for your business or for your clients, we have you covered. Get started in minutes.',
+      link: '/guides/custom-marketplace',
+      thumbnail: '/guides/custom-marketplace.png',
+    },
+    {
+      title: 'End to End Guide with plu-ts',
+      desc: 'A guide to deploying an app with smart contract written in plu-ts in TypeScript.',
+      link: '/guides/pluts',
+      thumbnail: '/guides/pluts.png',
+    },
+    {
+      title: 'Smart Contract Transactions',
+      desc: 'Build a marketplace with Plutus (Haskell), where users can list their assets for sale and purchase the listed assets.',
+      link: '/guides/smart-contract-transactions',
+      thumbnail: '/guides/smart-contract-transactions.png',
+    },
 
     // {
     //   title: 'Minting Reference Token',

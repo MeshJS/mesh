@@ -22,6 +22,11 @@ export default function SignData() {
 }
 
 function Left() {
+  let example = ``;
+  example+=`{\n`;
+  example+=`  "signature": "845846a2012...f9119a18e8977d436385cecb08",\n`;
+  example+=`  "key": "a4010103272006215...b81a7f6ed4fa29cc7b33186c"\n`;
+  example+=`}\n`;
   return (
     <>
       <p>
@@ -39,10 +44,14 @@ function Left() {
       <p>
         Here, we get the first wallet's address with{' '}
         <code>wallet.getUsedAddresses()</code>, alternativelly you can use
-        reward addresses (<code>getRewardAddresses</code>) too. It's really up
+        reward addresses (<code>getRewardAddresses()</code>) too. It's really up
         to you as the developer which address you want to use in your
         application.
       </p>
+      <p>
+        Example of a response from the endpoint:
+      </p>
+      <Codeblock data={example} isJson={false} />
     </>
   );
 }

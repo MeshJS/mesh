@@ -12,10 +12,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@harmoniclabs/plu-ts": "^0.3.0",
     "@headlessui/react": "^1.6.6",
     "@heroicons/react": "^2.0.10",
-    "@meshsdk/core": "1.4.1",
-    "@meshsdk/react": "1.1.4",
+    "@meshsdk/contracts": "1.0.0-beta.3",
+    "@meshsdk/core": "1.5.3",
+    "@meshsdk/react": "1.1.7",
     "copy-to-clipboard": "^3.3.2",
     "flowbite": "^1.5.3",
     "flowbite-react": "^0.1.10",

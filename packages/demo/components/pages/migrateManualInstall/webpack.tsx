@@ -31,6 +31,7 @@ function Left() {
   code += `  ],\n`;
   code += `  experiments: {\n`;
   code += `    asyncWebAssembly: true,\n`;
+  code += `    layers: true,\n`;
   code += `  },\n`;
   code += `};\n`;
 

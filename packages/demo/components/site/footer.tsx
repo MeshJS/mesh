@@ -123,7 +123,9 @@ function Sitemap() {
             Useful building blocks
           </h2>
           <ul className="text-gray-500 dark:text-gray-400">
-            <SitemapLinks href="/react" label="React Components" />
+            <SitemapLinks href="/react" label="React" />
+            <SitemapLinks href="/react/ui-components" label="React UI Components" />
+            <SitemapLinks href="/react/wallet-hooks" label="React Hooks" />
             <SitemapLinks href="/providers" label="Providers" />
           </ul>
         </div>
@@ -135,6 +137,8 @@ function Sitemap() {
             <SitemapLinks href="/about" label="FAQ" />
             <SitemapLinks href="/about/cips" label="Implemented CIPs" />
             <SitemapLinks href="/about/support-us" label="Support Us" />
+            <SitemapLinks href="/about/media-kit" label="Media Kit" />
+            <SitemapLinks href="/about/references" label="References" />
           </ul>
         </div>
       </div>

@@ -3,7 +3,37 @@ import {
   DEFAULT_PROTOCOL_PARAMETERS,
 } from '@mesh/common/constants';
 import { resolveTxFees } from '@mesh/common/utils';
-import type { Quantity, Unit, UTxO } from '@mesh/common/types';
+import type { Protocol, Quantity, Unit, UTxO } from '@mesh/common/types';
+
+export const keepRelevant = (
+  requestedOutputSet: Map<Unit, Quantity>, initialUTxOSet: UTxO[],
+  minimumLovelaceRequired = '5000000',
+) => {
+  const requestedLovelace = csl.BigNum
+    .from_str(requestedOutputSet.get('lovelace') ?? '0')
+    .checked_add(csl.BigNum.from_str(minimumLovelaceRequired));
+
+  const multiAsset = initialUTxOSet.filter((utxo) =>
+    utxo.output.amount
+      .filter((asset) => asset.unit !== 'lovelace')
+      .some((asset) => requestedOutputSet.has(asset.unit))
+  );
+
+  const selectedLovelace = selectedLovelaceQuantity(multiAsset);
+
+  const lovelace = selectedLovelace.less_than(requestedLovelace)
+    ? remainingLovelace(
+        requestedLovelace.clamped_sub(selectedLovelace).to_str(),
+        initialUTxOSet.filter((iu) => {
+          return !multiAsset.map((su) => su.input.txHash).includes(iu.input.txHash);
+        }))
+    : [];
+
+  return [
+    ...lovelace,
+    ...multiAsset,
+  ];
+};
 
 export const largestFirst = (
   lovelace: Quantity, initialUTxOSet: UTxO[], includeTxFees = false,
@@ -40,15 +70,11 @@ export const largestFirstMultiAsset = (
     .filter(multiAssetUTxO)
     .sort(largestLovelaceQuantity);
 
+  const txFees = maxTxFees(parameters);
   const lovelace = requestedOutputSet.get('lovelace') ?? '0';
 
-  const { maxTxSize, minFeeA, minFeeB } = parameters;
-  const maxTxFees = csl.BigNum.from_str(
-    resolveTxFees(maxTxSize, minFeeA, minFeeB),
-  );
-
   const quantity = includeTxFees
-    ? csl.BigNum.from_str(lovelace).checked_add(maxTxFees).to_str()
+    ? csl.BigNum.from_str(lovelace).checked_add(txFees).to_str()
     : lovelace;
 
   requestedOutputSet.set('lovelace', quantity);
@@ -100,9 +126,41 @@ const largestLovelaceQuantity = (
   return bLovelaceQuantity.compare(aLovelaceQuantity);
 };
 
+const maxTxFees = (parameters: Protocol) => {
+  const { maxTxSize, minFeeA, minFeeB } = parameters;
+
+  return csl.BigNum.from_str(
+    resolveTxFees(maxTxSize, minFeeA, minFeeB),
+  );
+};
+
 const multiAssetUTxO = (
   utxo: UTxO,
 ): boolean => utxo.output.amount.length > 1;
+
+const selectedLovelaceQuantity = (multiAsset: UTxO[]) => {
+  return multiAsset.reduce((sum, utxo) => {
+    const lovelace = utxo.output.amount.find(
+      (asset) => asset.unit === 'lovelace'
+    )?.quantity ?? '0';
+
+    return sum.checked_add(csl.BigNum.from_str(lovelace));
+  }, csl.BigNum.from_str('0'));
+};
+
+const remainingLovelace = (quantity: Quantity, initialUTxOSet: UTxO[]) => {
+  const sortedUTxOs = initialUTxOSet.sort(largestLovelaceQuantity);
+
+  const requestedOutputSet = new Map<Unit, Quantity>([
+    ['lovelace', quantity],
+  ]);
+
+  const selection = selectValue(
+    sortedUTxOs, requestedOutputSet,
+  );
+
+  return selection;
+};
 
 const selectValue = (
   inputUTxO: UTxO[],
