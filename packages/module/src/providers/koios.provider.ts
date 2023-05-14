@@ -283,7 +283,7 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  onTxConfirmed(txHash: string, callback: () => void, limit = 20): void {
+  onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
     const checkTx = setInterval(() => {
