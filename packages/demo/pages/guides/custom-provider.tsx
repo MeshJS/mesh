@@ -22,12 +22,12 @@ const GuideCustomProviderPage: NextPage = () => {
     <>
       <Metatags
         title="Implement Custom Provider"
-        description="Build custom Providers that provides API to access and process information provided by services."
+        description="Build custom Providers that provides an API to access and process information provided by services."
         image="/guides/implement-custom-provider.png"
       />
       <GuidesLayout
         title="Implement Custom Provider"
-        desc="Build custom Providers that provides API to access and process information provided by services."
+        desc="Build custom Providers that provides an API to access and process information provided by services."
         sidebarItems={sidebarItems}
         image="/guides/service-g2192fe835_640.jpg"
       >
@@ -64,9 +64,9 @@ function IntroSection() {
       </p>
       <p>
         You can customize a provider to utilize GraphQL, cardano-cli, or
-        websocket with Mesh SDK. Whatever the query method is to obtain the
-        data, as long as the output of the function is compatible with the
-        interface, it will work perfectly with Mesh SDK.
+        websocket with Mesh SDK. Whatever the query method used to obtain the
+        data, it will work perfectly with Mesh SDK so long as the output of the function 
+        is compatible with the interface.
       </p>
       <p>
         This guide will show us how to make a custom provider and how to
@@ -91,16 +91,16 @@ function HowItWorksSection() {
 
   return (
     <Element name="howworks">
-      <h2>How It Works?</h2>
+      <h2>How Does It Work?</h2>
       <p>
-        JavaScript Interfaces is a structure that defines the contract in a
-        application. It defines the syntax for classes to follow. Classes which
+        JavaScript interfaces are structures that define the interface of an
+        application: they are used to define the syntax for classes to follow. Thus, any classes which
         are based on an interface must abide by the structure laid out in the
         interface.
       </p>
       <p>
-        All providers have one or more Interface(s). For example, the{' '}
-        <code>KoiosProvider</code> Class is implementing the{' '}
+        All providers have one or more interface(s). For example, the{' '}
+        <code>KoiosProvider</code> Class implements the{' '}
         <code>IFetcher</code> and <code>ISubmitter</code> interfaces, thus{' '}
         <code>KoiosProvider</code> needs to strictly conform to the structure of
         these two interfaces.
@@ -115,7 +115,7 @@ function HowItWorksSection() {
         isJson={false}
       />
       <p>
-        To see the latest list of interfaces used by Mesh, visit the GitHub
+        To see the latest up-to-date list of interfaces used by Mesh, visit the GitHub
         repo,{' '}
         <a
           href="https://github.com/MeshJS/mesh/tree/main/packages/module/src/common/contracts"
@@ -130,7 +130,7 @@ function HowItWorksSection() {
         To create a custom provider class, one must create functions with the
         same name, input parameters, and return type as the list of defined
         methods for each interface. Doing so will allow the functions to work as
-        expected, for building transactions and many other functions provided in
+        expected when building transactions and any of the other many functions provided in
         Mesh.
       </p>
       <p>
@@ -253,13 +253,13 @@ function StarterSection() {
         </a>{' '}
         to see a list of providers.
       </p>
-      <p>This code base can be used as a starting point:</p>
+      <p>This code base below can be used as a starting point:</p>
       <Codeblock data={code} isJson={false} />
       <p>
-        However, it may no longer be valid when the interface is updated. It is
-        essential to note that the interface you require may not be{' '}
+        However, please note that it may no longer be valid when the interface is updated. It is
+        also important to note that the interface you require may not be{' '}
         <code>IFetcher</code> or <code>ISubmitter</code>, but rather other
-        interfaces depending on the purpose of the provider you are
+        interfaces, depending on the purpose of the provider you are
         implementing.
       </p>
     </Element>
@@ -318,13 +318,13 @@ function ImplementSection() {
       <p>To start, we want to define the constructor.</p>
       <p>
         A constructor is a special function that creates and initializes a
-        Class. This constructor gets called when an object is created using the{' '}
+        class. This constructor gets called when an object is created using the{' '}
         <code>new</code> keyword. The purpose of a constructor is to create a
         new object and set values for any existing object properties.
       </p>
       <p>
         When setting up a provider, it is usually necessary to provide some
-        basic information, such as which network should it be connected to and
+        basic information, such as which network it should be connected to and
         if an API key is required.
       </p>
       <p>
@@ -337,12 +337,12 @@ function ImplementSection() {
         provided by the user.
       </p>
       <p>
-        Next, we can define each functions that is required by the interface. To
-        do this, you must understand the following:
+        Next, we can define each function that is required by the interface. To
+        do this, you must understand the answers to the following:
       </p>
       <ul>
         <li>how to query the blockchain provider?</li>
-        <li>what are the input parameters of the inteface?</li>
+        <li>what are the input parameters of the interface?</li>
         <li>
           what are the input parameters needed to query the blockchain provider?
         </li>
@@ -351,19 +351,19 @@ function ImplementSection() {
       </ul>
       <p>
         By knowing the inputs and outputs of both the interface and the
-        blockchain provider, create the function that maps the data from the
+        blockchain provider, one can create the functions that map the data correctly from the
         blockchain provider to the interface's required data type.
       </p>
       <p>
-        For example, we implemeted the <code>fetchProtocolParameters()</code>{' '}
+        For example, below we have implemeted the <code>fetchProtocolParameters()</code>{' '}
         for <code>KoiosProvider</code> to map the responses returned from Koios,
-        and transform the output into the required <code>Protocol</code> data
-        type, this function is used for fetching Protocol Parameters:
+        transforming the output into the required <code>Protocol</code> data
+        type.  This function is used for fetching protocol parameters:
       </p>
       <Codeblock data={codePP} isJson={false} />
       <p>
-        Do the same for every functions specified by the interface, and test
-        them out.
+        To complete implementation of your custom provider, simply do the same for every function
+        specified by the interface and test that they work as expected.
       </p>
       <p>
         If you think that the provider you have implemented will benefit the
