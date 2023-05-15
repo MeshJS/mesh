@@ -1,5 +1,5 @@
 import CommonLayout from '../../../common/layout';
-import UiAssetViewer from './assetViewer';
+// import UiResolveMedia from './resolveMedia';
 import UiConnectWallet from './connectWallet';
 import Hero from './hero';
 import UiPoweredByMesh from './poweredByMesh';
@@ -10,6 +10,7 @@ export default function ReactUiComponents() {
     { label: 'Connect wallet', to: 'connectWallet' },
     { label: 'Stake ADA', to: 'stakeButton' },
     { label: 'Powered by Mesh', to: 'poweredByMesh' },
+    // { label: 'Resolve Media', to: 'resolveMedia' },
   ];
   return (
     <CommonLayout sidebarItems={sidebarItems}>
@@ -24,8 +25,8 @@ function Main() {
     <>
       <UiConnectWallet />
       <UiStakeButton />
-      {/* <UiAssetViewer /> */}
       <UiPoweredByMesh />
+      {/* <UiResolveMedia /> */}
     </>
   );
 }

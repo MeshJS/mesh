@@ -15,7 +15,7 @@ export default function List() {
                   'linear-gradient(-100deg, rgba(0, 255, 20, 0.2), rgba(0, 255, 20, 0.7) 95%, rgba(0, 255, 20, 0.1))',
               }}
             > */}
-              Implemented
+            Implemented
             {/* </span> */}
           </h2>
           <p className="font-light text-gray-500 dark:text-gray-400 sm:text-xl">
@@ -68,6 +68,20 @@ export default function List() {
                   Import <code>AssetMetadata</code> to adhere to the NFT
                   metadata standards, see{' '}
                   <Link href="/apis/transaction">Transaction</Link>.
+                </p>
+              </>
+            }
+          />
+          <Card
+            title="CIP-27: Royalties Standard"
+            content={
+              <>
+                <p>
+                  Learn how to{' '}
+                  <Link href="/apis/transaction/minting#mintingRoyaltyToken">
+                    mint royalty token
+                  </Link>
+                  .
                 </p>
               </>
             }

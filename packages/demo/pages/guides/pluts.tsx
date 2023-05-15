@@ -231,6 +231,9 @@ function IntroSection() {
         can connect their wallets and interact with a smart contract, end-to-end
         written in TypeScript.
       </p>
+
+      <iframe className="aspect-video w-full" src="https://www.youtube.com/embed/TdVVOqWpL4o"></iframe>
+
     </>
   );
 }
