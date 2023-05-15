@@ -1,0 +1,13 @@
+{
+  "names": {
+    "_": "de6177ee8f62e948c41d22fe76b62d0a6bf7aeb3d54653f9cb472bfbb4d08fe5",
+    "mesh": "de6177ee8f62e948c41d22fe76b62d0a6bf7aeb3d54653f9cb472bfbb4d08fe5"
+  },
+  "relays": {
+    "de6177ee8f62e948c41d22fe76b62d0a6bf7aeb3d54653f9cb472bfbb4d08fe5": [
+      "wss://relay.damus.io",
+      "wss://relay.nostr.band",
+      "wss://relay.snort.social"
+    ]
+  }
+}

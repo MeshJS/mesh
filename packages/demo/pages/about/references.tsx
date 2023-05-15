@@ -9,7 +9,7 @@ const ReferencesPage: NextPage = () => {
         <div className="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
           <div className="px-4 mx-auto mb-8 text-center md:mb-16 lg:px-0">
             <h2 className="mb-4 text-3xl tracking-tight font-extrabold text-gray-900 md:text-4xl dark:text-white">
-              References
+              Interviews
             </h2>
             <p className="font-light text-gray-500 sm:text-xl dark:text-gray-400 mb-4"></p>
             <div className="grid grid-cols-3 gap-2">
@@ -36,12 +36,12 @@ export default ReferencesPage;
 function ListofReferences() {
   return (
     <>
-    <CardLink
+      <CardLink
         title="Mesh Interview"
         desc="Cardano Foundation - Mar 2023"
         url="https://developers.cardano.org/blog/2023-03-21-march"
       />
-    
+
       <CardLink
         title="Multi-sig Minting Tutorial"
         desc="EMURGO Academy - Feb 2023"
