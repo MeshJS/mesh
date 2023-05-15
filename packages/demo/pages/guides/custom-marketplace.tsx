@@ -103,7 +103,7 @@ function Mongodb() {
       <p>
         MongoDB is a popular, open-source, document-oriented database management
         system. It is designed to store and manage large volumes of unstructured
-        or semi-structured data, such as JSON documents, and provide high
+        or semi-structured data, such as JSON documents, and provides high
         performance and scalability.
       </p>
       <p>
@@ -117,7 +117,7 @@ function Mongodb() {
         The easiest way to get started with MongoDB is by using the Atlas
         developer data platform. A free tier is available with basic database
         functionalities. This free tier is more than enough for the purposes of
-        this article.{' '}
+        this tutorial.{' '}
         <a
           href="https://account.mongodb.com/account/register"
           target="_blank"
@@ -173,7 +173,7 @@ function Mongodb() {
       <p>
         You must add your IP address to the IP access list before you can
         connect to your cluster. You can add <code>0.0.0.0/0</code> to access
-        from any IP address (not recommend after productionize).
+        from any IP address (not recommended for production).
       </p>
       <p>
         An IP is a unique numeric identifier for a device connecting to a
@@ -275,7 +275,7 @@ function Marketplace() {
       <p>Lets go through what each of these options mean:</p>
       <ul>
         <li>
-          <b>fetcher: </b>Use one of our{' '}
+          <b>fetcher: </b>Using one of our{' '}
           <Link href="/providers">blockchain providers</Link>, we use the
           fetcher to query for the locked UTxO.
         </li>
