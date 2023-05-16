@@ -23,9 +23,10 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   constructor(network: string, key: string) {
     this._axiosInstance = axios.create({
-      baseURL: `https://${network}.gomaestro-api.org`,
+      baseURL: `https://${network}.gomaestro-api.org/`,
       headers: { 'api-key': key },
     });
+    console.log('network', network)
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -34,18 +35,20 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       : address;
 
     try {
+      const request = `accounts/${rewardAddress}`
+      console.log(request)
       const { data, status } = await this._axiosInstance.get(
-        `accounts/${rewardAddress}`
+        request
       );
 
       if (status === 200){
         console.log('data', data)
         return <AccountInfo>{
-          poolId: data.pool_id,
+          poolId: data.delegated_pool,
           active: data.active || data.active_epoch !== null,
-          balance: data.controlled_amount,
-          rewards: data.withdrawable_amount,
-          withdrawals: data.withdrawals_sum,
+          balance: data.total_balance.toString(),
+          rewards: data.total_rewarded.toString(),
+          withdrawals: data.total_withdrawn.toString(),
         };}
 
       throw parseHttpError(data);
@@ -123,7 +126,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
 
-    throw new Error('not implemented.');
+    //throw new Error('not implemented.');
 
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
@@ -132,12 +135,18 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        return <AssetMetadata>{
-          ...data.onchain_metadata,
+      console.log('data', data)
+      return <AssetMetadata>{
+          //...data.onchain_metadata,
+          name: data.asset_standards.cip25_metadata.name,
+          image: data.asset_standards.cip25_metadata.image,
+          mediaType: data.asset_standards.cip25_metadata.mediaType,
+          description: data.asset_standards.cip25_metadata.description,
         };
 
       throw parseHttpError(data);
     } catch (error) {
+      console.log('error parsing')
       throw parseHttpError(error);
     }
   }
@@ -184,10 +193,11 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
+        console.log('data', data)
         return {
           assets: data.map((asset) => ({
-            unit: asset.asset,
-            quantity: asset.quantity,
+            unit: policyId + asset.asset_name,
+            quantity: asset.total_supply,
           })),
           next: data.length === 100 ? cursor + 1 : null,
         };
