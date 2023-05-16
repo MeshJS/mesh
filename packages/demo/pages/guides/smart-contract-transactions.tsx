@@ -67,8 +67,8 @@ function IntroSection() {
     <>
       <p>
         In this guide, we will build a marketplace where users can list their
-        assets for sale and purchase the listed assets. Seller can update or
-        cancel the listing at any time. The contract is written in Haskell, it
+        assets for sale and purchase the listed assets. The seller can update or
+        cancel the listing at any time. The contract is written in Haskell, and it
         is open-source and available on{' '}
         <a
           href="https://github.com/MeshJS/mesh.plutus/tree/marketplace"
@@ -81,7 +81,7 @@ function IntroSection() {
       </p>
       <p>
         If you would like to try out the demo in this guide, you can mint a Mesh
-        token which we will be using it for listing on this marketplace demo.
+        token which we will use for listing on this marketplace demo.
         Connect your wallet and mint the token on preprod/preview testnet.
       </p>
 
@@ -108,7 +108,7 @@ function IntroSection() {
       )}
 
       <p>
-        If you have the Mesh token, we can list it on the marketplace in this
+        If you now have the Mesh token, we can list it on the marketplace in this
         demo.
       </p>
     </>
@@ -135,7 +135,7 @@ function Init() {
         />
         <p>
           Let's say we are testing our marketplace implementation on{' '}
-          <code>proprod</code>, we can resolve the Plutus script address with{' '}
+          <code>preprod</code>, we can resolve the Plutus script address with{' '}
           <code>resolvePlutusScriptAddress</code> where we input the{' '}
           <code>PlutusScript</code> and define the <code>network</code> (in our
           demo we use <code>0</code> for testnet):
@@ -261,8 +261,8 @@ function ListAsset() {
       <h2>Listing Asset for Sale</h2>
 
       <p>
-        Firstly, we get the user's wallet address, this address is the seller's
-        address. We can acquired the first wallet's address from the connected
+        Firstly, we get the user's wallet address: this address is the seller's
+        address. We can acquire the first wallet's address from the connected
         wallet with <code>getUsedAddresses()</code>:
       </p>
       <Codeblock data={codeAddress} isJson={false} />
@@ -272,7 +272,7 @@ function ListAsset() {
         Lastly, we create a transaction that uses <code>sendAssets()</code>, to
         send the asset for sale to the script address with the datum we have
         defined. <code>policyId + assetId</code> is the asset name in hex. We
-        build the transaction, the seller sign the transaction and submit the
+        build the transaction, the seller signs the transaction and submits the
         transaction to the blockchain.
       </p>
       <Codeblock data={codeTransaction} isJson={false} />
@@ -445,7 +445,7 @@ function CancelListing() {
         For cancel, update and purchase endpoints, we need the UTxO in the
         script address as inputs to create the transaction. We use{' '}
         <code>fetchAddressUTxOs()</code> from one of the{' '}
-        <Link href="/providers">providers</Link> to query for UTxO that contain
+        <Link href="/providers">providers</Link> to query for UTxOs that contain
         the asset of our interest. Next, we filter the UTxO list by the datum
         hash, which we can get from the datum with{' '}
         <code>resolveDataHash()</code> (see{' '}
@@ -457,7 +457,7 @@ function CancelListing() {
 
       <Codeblock data={codegetAssetUtxo} isJson={false} />
 
-      <p>Next, we define the redeemer for cancel listing:</p>
+      <p>Next, we define the redeemer for cancelling the listing:</p>
 
       <Codeblock data={codeRedeemer} isJson={false} />
 
@@ -465,7 +465,7 @@ function CancelListing() {
         Finally, we can build the transaction with the following code. We use
         the <code>redeemValue()</code> method to redeem the UTxO in the script
         address, and send the value back to the seller's address. We also need
-        to set the required signers to the seller's address.
+        to set the "required signers" to include just the seller's address.
       </p>
 
       <Codeblock data={codeTransaction} isJson={false} />
@@ -618,8 +618,8 @@ function PurchaseListing() {
         A key feature of a marketplace is the ability to purchase the listed
         asset from the seller. The purchase endpoint will take the asset, the
         price and the seller address as parameters. These parameters will be
-        used to create the datum for the validator. With a successful purchase
-        will transfer the asset to the buyer and the listed price to the seller.
+        used to create the datum for the validator. A successful purchase
+        will result in the transfer of the asset to the buyer and the listed price to the seller.
       </p>
 
       <p>First, we need the buyer's address to send the asset to:</p>
@@ -860,7 +860,7 @@ function UpdateListing() {
       <p>
         Give the demo a try! Try updating the listing. Just simplicity for this
         demo, we will update the price to the same price, but in a real
-        application, you would update the price to a new price.
+        application you would update the price to a new price.
       </p>
 
       {connected ? (
@@ -896,8 +896,8 @@ function OutroSection() {
   return (
     <>
       <p>
-        And there you go! I hope this is a good starting point for you to build
-        any apps that uses smart contracts.
+        And there you go! I hope this is a good starting point for you to start building
+        your own apps that use smart contracts!
       </p>
     </>
   );

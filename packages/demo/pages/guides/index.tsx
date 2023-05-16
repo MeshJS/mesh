@@ -36,7 +36,7 @@ const GuidesPage: NextPage = () => {
     },
     {
       title: 'Implement Custom Provider',
-      desc: 'Build custom Providers that provides API to access and process information provided by services.',
+      desc: 'Build custom Providers that provides an API to access and process information provided by services.',
       link: '/guides/custom-provider',
       thumbnail: '/guides/implement-custom-provider.png',
     },
@@ -48,7 +48,7 @@ const GuidesPage: NextPage = () => {
     },
     {
       title: 'End to End Guide with plu-ts',
-      desc: 'A guide to deploying an app with smart contract written in plu-ts in TypeScript.',
+      desc: 'A guide to deploying an app with a smart contract written in plu-ts in TypeScript.',
       link: '/guides/pluts',
       thumbnail: '/guides/pluts.png',
     },
