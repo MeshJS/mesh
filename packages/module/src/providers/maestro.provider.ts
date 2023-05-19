@@ -229,37 +229,48 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
 
-    throw new Error('not implemented.');
+    if (!isNaN(epoch)) throw new Error('Maestro only supports fetching Protocol parameters of the latest epoch.')
+
+    // Decimal numbers in Maestro are given as ratio of two numbers represented by string of format "firstNumber/secondNumber".
+    const decimalFromRationalString = (str: string): number => {
+      const forwardSlashIndex = str.indexOf("/");
+      return parseInt(str.slice(0, forwardSlashIndex)) / parseInt(str.slice(forwardSlashIndex + 1));
+    }
 
     try {
-      const { data, status } = await this._axiosInstance.get(
-        `epochs/${isNaN(epoch) ? 'latest' : epoch}/parameters`
-      );
+      const { data, status } = await this._axiosInstance.get("protocol-params");
+      if (status === 200) {
+        try {
+          const { data: epochData, status: epochStatus } = await this._axiosInstance.get("epochs/current");
 
-      if (status === 200)
-        return <Protocol>{
-          coinsPerUTxOSize: data.coins_per_utxo_word,
-          collateralPercent: data.collateral_percent,
-          decentralisation: data.decentralisation_param,
-          epoch: data.epoch,
-          keyDeposit: data.key_deposit,
-          maxBlockExMem: data.max_block_ex_mem,
-          maxBlockExSteps: data.max_block_ex_steps,
-          maxBlockHeaderSize: data.max_block_header_size,
-          maxBlockSize: data.max_block_size,
-          maxCollateralInputs: data.max_collateral_inputs,
-          maxTxExMem: data.max_tx_ex_mem,
-          maxTxExSteps: data.max_tx_ex_steps,
-          maxTxSize: data.max_tx_size,
-          maxValSize: data.max_val_size,
-          minFeeA: data.min_fee_a,
-          minFeeB: data.min_fee_b,
-          minPoolCost: data.min_pool_cost,
-          poolDeposit: data.pool_deposit,
-          priceMem: data.price_mem,
-          priceStep: data.price_step,
-        };
-
+          if (epochStatus === 200)
+            return <Protocol>{
+              coinsPerUTxOSize: data.coins_per_utxo_byte,
+              collateralPercent: parseInt(data.collateral_percentage),
+              decentralisation: 0,  // Deprecated in Babbage era.
+              epoch: parseInt(epochData.epoch_no),
+              keyDeposit: data.stake_key_deposit,
+              maxBlockExMem: data.max_execution_units_per_block.memory,
+              maxBlockExSteps: data.max_execution_units_per_block.steps,
+              maxBlockHeaderSize: parseInt(data.max_block_header_size),
+              maxBlockSize: parseInt(data.max_block_body_size),
+              maxCollateralInputs: parseInt(data.max_collateral_inputs),
+              maxTxExMem: data.max_execution_units_per_transaction.memory,
+              maxTxExSteps: data.max_execution_units_per_transaction.steps,
+              maxTxSize: parseInt(data.max_tx_size),
+              maxValSize: data.max_value_size,
+              minFeeA: data.min_fee_constant,
+              minFeeB: data.min_fee_coefficient,
+              minPoolCost: data.min_pool_cost,
+              poolDeposit: data.pool_deposit,
+              priceMem: decimalFromRationalString(data.prices.memory),
+              priceStep: decimalFromRationalString(data.prices.steps),
+            };
+          throw parseHttpError(data);
+        } catch (error) {
+          throw parseHttpError(error);
+        }
+      }
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
