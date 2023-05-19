@@ -23,7 +23,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   constructor(network: string, key: string) {
     this._axiosInstance = axios.create({
-      baseURL: `https://${network}.gomaestro-api.org/`,
+      baseURL: `https://${network}.gomaestro-api.org/v0`,
       headers: { 'api-key': key },
     });
     console.log('network', network)
@@ -41,7 +41,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
         request
       );
 
-      if (status === 200){
+      if (status === 200) {
         console.log('data', data)
         return <AccountInfo>{
           poolId: data.delegated_pool,
@@ -49,7 +49,8 @@ export class MaestroProvider implements IFetcher, ISubmitter {
           balance: data.total_balance.toString(),
           rewards: data.total_rewarded.toString(),
           withdrawals: data.total_withdrawn.toString(),
-        };}
+        };
+      }
 
       throw parseHttpError(data);
     } catch (error) {
@@ -75,9 +76,9 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       if (status === 200)
         return data.length > 0
           ? paginateUTxOs(page + 1, [
-              ...utxos,
-              ...(await Promise.all(data.map(toUTxO))),
-            ])
+            ...utxos,
+            ...(await Promise.all(data.map(toUTxO))),
+          ])
           : utxos;
 
       throw parseHttpError(data);
@@ -135,14 +136,14 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-      console.log('data', data)
+        console.log('data', data)
       return <AssetMetadata>{
-          //...data.onchain_metadata,
-          name: data.asset_standards.cip25_metadata.name,
-          image: data.asset_standards.cip25_metadata.image,
-          mediaType: data.asset_standards.cip25_metadata.mediaType,
-          description: data.asset_standards.cip25_metadata.description,
-        };
+        //...data.onchain_metadata,
+        name: data.asset_standards.cip25_metadata.name,
+        image: data.asset_standards.cip25_metadata.image,
+        mediaType: data.asset_standards.cip25_metadata.mediaType,
+        description: data.asset_standards.cip25_metadata.description,
+      };
 
       throw parseHttpError(data);
     } catch (error) {
@@ -194,13 +195,13 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         console.log('data', data)
-        return {
-          assets: data.map((asset) => ({
-            unit: policyId + asset.asset_name,
-            quantity: asset.total_supply,
-          })),
-          next: data.length === 100 ? cursor + 1 : null,
-        };
+      return {
+        assets: data.map((asset) => ({
+          unit: policyId + asset.asset_name,
+          quantity: asset.total_supply,
+        })),
+        next: data.length === 100 ? cursor + 1 : null,
+      };
 
       throw parseHttpError(data);
     } catch (error) {
@@ -314,18 +315,15 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async submitTx(tx: string): Promise<string> {
-
-    throw new Error('not implemented.');
-
     try {
       const headers = { 'Content-Type': 'application/cbor' };
       const { data, status } = await this._axiosInstance.post(
-        'tx/submit',
+        'transactions',
         toBytes(tx),
         { headers }
       );
 
-      if (status === 200) return data;
+      if (status === 202) return data;
 
       throw parseHttpError(data);
     } catch (error) {
@@ -333,5 +331,5 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     }
   }
 
-  
+
 }
