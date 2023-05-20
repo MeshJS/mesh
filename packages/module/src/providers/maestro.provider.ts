@@ -245,24 +245,24 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
           if (epochStatus === 200)
             return <Protocol>{
-              coinsPerUTxOSize: data.coins_per_utxo_byte,
+              coinsPerUTxOSize: data.coins_per_utxo_byte.toString(),
               collateralPercent: parseInt(data.collateral_percentage),
               decentralisation: 0,  // Deprecated in Babbage era.
               epoch: parseInt(epochData.epoch_no),
-              keyDeposit: data.stake_key_deposit,
-              maxBlockExMem: data.max_execution_units_per_block.memory,
-              maxBlockExSteps: data.max_execution_units_per_block.steps,
+              keyDeposit: data.stake_key_deposit.toString(),
+              maxBlockExMem: data.max_execution_units_per_block.memory.toString(),
+              maxBlockExSteps: data.max_execution_units_per_block.steps.toString(),
               maxBlockHeaderSize: parseInt(data.max_block_header_size),
               maxBlockSize: parseInt(data.max_block_body_size),
               maxCollateralInputs: parseInt(data.max_collateral_inputs),
-              maxTxExMem: data.max_execution_units_per_transaction.memory,
-              maxTxExSteps: data.max_execution_units_per_transaction.steps,
+              maxTxExMem: data.max_execution_units_per_transaction.memory.toString(),
+              maxTxExSteps: data.max_execution_units_per_transaction.steps.toString(),
               maxTxSize: parseInt(data.max_tx_size),
-              maxValSize: data.max_value_size,
-              minFeeA: data.min_fee_constant,
-              minFeeB: data.min_fee_coefficient,
-              minPoolCost: data.min_pool_cost,
-              poolDeposit: data.pool_deposit,
+              maxValSize: data.max_value_size.toString(),
+              minFeeA: data.min_fee_coefficient,
+              minFeeB: data.min_fee_constant,
+              minPoolCost: data.min_pool_cost.toString(),
+              poolDeposit: data.pool_deposit.toString(),
               priceMem: decimalFromRationalString(data.prices.memory),
               priceStep: decimalFromRationalString(data.prices.steps),
             };
@@ -279,20 +279,22 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
-      const { data, status } = await this._axiosInstance.get(`txs/${hash}`);
+      const { data, status } = await this._axiosInstance.get(`transactions/${hash}`);
 
-      if (status === 200)
+      if (status === 200) {
         return <TransactionInfo>{
-          block: data.block,
+          block: data.block_hash,
           deposit: data.deposit,
           fees: data.fees,
           hash: data.hash,
-          index: data.index,
+          index: data.block_tx_index,
           invalidAfter: data.invalid_hereafter ?? '',
           invalidBefore: data.invalid_before ?? '',
           slot: data.slot.toString(),
           size: data.size,
         };
+
+      }
 
       throw parseHttpError(data);
     } catch (error) {
