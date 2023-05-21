@@ -83,11 +83,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
         `addresses/${address}/utxos?page=${page}`
       );
       if (status === 200) {
-        console.log("raw data...")
-        console.log(data)
         let pageUTxOs: UTxO[] = data.map(toUTxO);
-        console.log("logging mapped utxos...")
-        console.log(pageUTxOs)
         if (asset !== undefined && asset !== '')
           pageUTxOs = pageUTxOs.filter((utxo) => utxo.output.amount.some((a) => a.unit === asset));
         return data.length > 0
