@@ -220,14 +220,13 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200)
-        console.log('data', data)
-      return {
-        assets: data.map((asset) => ({
-          unit: policyId + asset.asset_name,
-          quantity: asset.total_supply,
-        })),
-        next: data.length === 100 ? cursor + 1 : null,
-      };
+        return {
+          assets: data.map((asset) => ({
+            unit: policyId + asset.asset_name,
+            quantity: asset.total_supply.toString(),
+          })),
+          next: data.length === 100 ? cursor + 1 : null,
+        };
 
       throw parseHttpError(data);
     } catch (error) {
