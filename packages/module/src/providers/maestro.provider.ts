@@ -7,12 +7,15 @@ import {
   parseHttpError,
   resolveRewardAddress,
   toBytes,
+  toScriptRef,
 } from '@mesh/common/utils';
 import type {
   AccountInfo,
   Asset,
   AssetMetadata,
   BlockInfo,
+  NativeScript,
+  PlutusScript,
   Protocol,
   TransactionInfo,
   UTxO,
@@ -59,34 +62,61 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
+    const resolveScript = (utxo: MaestroUTxO) => {
+      if (utxo.reference_script) {
+        const script =
+          utxo.reference_script.type === "native"
+            ? <NativeScript>utxo.reference_script.json
+            : <PlutusScript>{
+              code: utxo.reference_script.bytes,
+              version: utxo.reference_script.type.replace('plutusv', 'V')
+            }
+        return toScriptRef(script).to_hex()
 
-    throw new Error('not implemented.');
-
-    const filter = asset !== undefined ? `/${asset}` : '';
-    const url = `addresses/${address}/utxos` + filter;
-
+      } else return undefined
+    }
     const paginateUTxOs = async (
       page = 1,
       utxos: UTxO[] = []
     ): Promise<UTxO[]> => {
       const { data, status } = await this._axiosInstance.get(
-        `${url}?page=${page}`
+        `addresses/${address}/utxos?page=${page}`
       );
-
-      if (status === 200)
+      if (status === 200) {
+        console.log("raw data...")
+        console.log(data)
+        let pageUTxOs: UTxO[] = data.map(toUTxO);
+        console.log("logging mapped utxos...")
+        console.log(pageUTxOs)
+        if (asset !== undefined && asset !== '')
+          pageUTxOs = pageUTxOs.filter((utxo) => utxo.output.amount.some((a) => a.unit === asset));
         return data.length > 0
           ? paginateUTxOs(page + 1, [
             ...utxos,
-            ...(await Promise.all(data.map(toUTxO))),
+            ...pageUTxOs,
           ])
           : utxos;
+      }
 
       throw parseHttpError(data);
     };
 
-    const toUTxO = async (utxos) => {
-      console.log(utxos);
-    }
+    const toUTxO = (utxo: MaestroUTxO): UTxO => ({
+      input: {
+        outputIndex: utxo.index,
+        txHash: utxo.tx_hash,
+      },
+      output: {
+        address: address,
+        amount: utxo.assets.map((asset) => ({
+          unit: asset.unit.replace("#", ""),
+          quantity: asset.quantity.toString(),
+        })),
+        dataHash: utxo.datum?.hash,
+        plutusData: utxo.datum?.bytes,
+        scriptRef: resolveScript(utxo),
+      },
+    });
 
     try {
       return await paginateUTxOs();
@@ -346,3 +376,37 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
 
 }
+
+type MaestroDatumOptionType = "hash" | "inline";
+
+type MaestroDatumOption = {
+  type: MaestroDatumOptionType;
+  hash: string;
+  bytes?: string; // Hex encoded datum CBOR bytes (`null` if datum type is `hash` and corresponding datum bytes have not been seen on-chain).
+  json?: Json;
+};
+
+type MaestroScriptType = "native" | "plutusv1" | "plutusv2";
+
+type Json = any;
+
+type MaestroScript = {
+  hash: string;
+  type: MaestroScriptType;
+  bytes?: string; // Script bytes (`null` if `native` script).
+  json?: Json;
+};
+
+type MaestroAsset = {
+  unit: string;
+  quantity: number;
+};
+
+type MaestroUTxO = {
+  tx_hash: string;
+  index: number;
+  assets: Array<MaestroAsset>;
+  address: string;
+  datum?: MaestroDatumOption;
+  reference_script?: MaestroScript;
+};
