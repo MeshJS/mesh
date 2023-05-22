@@ -156,9 +156,6 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
-
-    //throw new Error('not implemented.');
-
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
@@ -167,11 +164,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
       if (status === 200)
         return <AssetMetadata>{
-          //...data.onchain_metadata,
-          name: data.asset_standards.cip25_metadata.name,
-          image: data.asset_standards.cip25_metadata.image,
-          mediaType: data.asset_standards.cip25_metadata.mediaType,
-          description: data.asset_standards.cip25_metadata.description,
+          ...data.asset_standards.cip25_metadata, ...data.asset_standards.cip68_metadata,
         };
 
       throw parseHttpError(data);
@@ -305,6 +298,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
+    throw new Error('not implemented.');
     try {
       const { data, status } = await this._axiosInstance.get(`transactions/${hash}`);
 
@@ -330,6 +324,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   onTxConfirmed(txHash: string, callback: () => void, limit = 20): void {
+    throw new Error('not implemented.');
     let attempts = 0;
 
     const checkTx = setInterval(() => {
