@@ -117,31 +117,39 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchAssetAddresses(
-    asset: string
-  ): Promise<{ address: string; quantity: string }[]> {
-
-    throw new Error('not implemented.');
-
-    const paginateAddresses = async <T>(
+  async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+    const paginateAddresses = async (
       page = 1,
-      addresses: T[] = []
-    ): Promise<T[]> => {
+      addresses: { address: string; quantity: string }[] = []
+    ): Promise<{ address: string; quantity: string }[]> => {
       const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
         `assets/${policyId}${assetName}/addresses?page=${page}`
       );
 
-      if (status === 200)
+      if (status === 200) {
+        const addrWithQuantity: { address: string; quantity: string }[] = []
+        for (const addr of data) {
+          const thisAddrUTxOs = await this.fetchAddressUTxOs(addr, asset)
+          let totalAsset = 0
+          for (const thisAddrUTxO of thisAddrUTxOs) {
+            for (const assetAmnt of thisAddrUTxO.output.amount) {
+              if (assetAmnt.unit === asset) totalAsset += parseInt(assetAmnt.quantity)
+            }
+          }
+          addrWithQuantity.push({ address: addr, quantity: totalAsset.toString() })
+        }
         return data.length > 0
-          ? paginateAddresses(page + 1, [...addresses, ...data])
+          ? paginateAddresses(page + 1, [...addresses, ...addrWithQuantity])
           : addresses;
+
+      }
 
       throw parseHttpError(data);
     };
 
     try {
-      return await paginateAddresses<{ address: string; quantity: string }>();
+      return await paginateAddresses();
     } catch (error) {
       return [];
     }
