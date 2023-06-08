@@ -353,7 +353,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     try {
       const headers = { 'Content-Type': 'application/cbor' };
       const { data, status } = await this._axiosInstance.post(
-        'transactions',
+        'txmanager',
         toBytes(tx),
         { headers }
       );
