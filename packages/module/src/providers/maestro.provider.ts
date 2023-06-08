@@ -298,25 +298,25 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
-    throw new Error('not implemented.');
     try {
       const { data, status } = await this._axiosInstance.get(`transactions/${hash}`);
 
       if (status === 200) {
-        return <TransactionInfo>{
-          block: data.block_hash,
-          deposit: data.deposit,
-          fees: data.fees,
-          hash: data.hash,
-          index: data.block_tx_index,
-          invalidAfter: data.invalid_hereafter ?? '',
-          invalidBefore: data.invalid_before ?? '',
-          slot: data.slot.toString(),
-          size: data.size,
-        };
-
+        const { data: txCborData, status: txCborFetchStatus } = await this._axiosInstance.get(`transactions/${hash}/cbor`);
+        if (txCborFetchStatus === 200) {
+          return <TransactionInfo>{
+            block: data.block_hash,
+            deposit: data.deposit.toString(),
+            fees: data.fee.toString(),
+            hash: data.tx_hash,
+            index: data.block_tx_index,
+            invalidAfter: data.invalid_hereafter ?? '',
+            invalidBefore: data.invalid_before ?? '',
+            slot: data.block_absolute_slot.toString(),
+            size: txCborData.cbor.length / 2 - 1,
+          };
+        }
       }
-
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
@@ -324,28 +324,21 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   onTxConfirmed(txHash: string, callback: () => void, limit = 20): void {
-    throw new Error('not implemented.');
     let attempts = 0;
 
     const checkTx = setInterval(() => {
-      if (attempts >= limit) clearInterval(checkTx);
+      if (attempts >= limit)
+        clearInterval(checkTx);
 
-      this.fetchTxInfo(txHash)
-        .then((txInfo) => {
-          this.fetchBlockInfo(txInfo.block)
-            .then((blockInfo) => {
-              if (blockInfo?.confirmations > 0) {
-                clearInterval(checkTx);
-                callback();
-              }
-            })
-            .catch(() => {
-              attempts += 1;
-            });
-        })
-        .catch(() => {
-          attempts += 1;
-        });
+      this._axiosInstance.get(`txmanager/${txHash}`).then(({ data: txData, status }) => {
+        if (status !== 200) {
+          throw parseHttpError(txData);
+        }
+        if (txData.state == "Confirmed") {
+          clearInterval(checkTx);
+          callback();
+        } // else attemps += 1 // ?
+      }).catch(() => { attempts += 1; });
     }, 5_000);
   }
 
@@ -365,8 +358,6 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       throw parseHttpError(error);
     }
   }
-
-
 }
 
 type MaestroDatumOptionType = "hash" | "inline";
