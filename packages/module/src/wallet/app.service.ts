@@ -66,6 +66,12 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     }
   }
 
+  getBaseAddress(accountIndex = 0): string {
+    const account = this._wallet
+      .getAccount(accountIndex, DEFAULT_PASSWORD);
+    return account.baseAddress;
+  }
+
   getPaymentAddress(accountIndex = 0): string {
     const account = this._wallet
       .getAccount(accountIndex, DEFAULT_PASSWORD);
