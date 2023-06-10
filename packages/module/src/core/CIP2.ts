@@ -25,7 +25,11 @@ export const keepRelevant = (
     ? remainingLovelace(
         requestedLovelace.clamped_sub(selectedLovelace).to_str(),
         initialUTxOSet.filter((iu) => {
-          return !multiAsset.map((su) => su.input.txHash).includes(iu.input.txHash);
+        return !multiAsset.some(
+            (su) =>
+              su.input.txHash === iu.input.txHash &&
+              su.input.outputIndex === iu.input.outputIndex
+          );
         }))
     : [];
 
