@@ -25,7 +25,7 @@ export const keepRelevant = (
     ? remainingLovelace(
         requestedLovelace.clamped_sub(selectedLovelace).to_str(),
         initialUTxOSet.filter((iu) => {
-        return !multiAsset.some(
+          return !multiAsset.some(
             (su) =>
               su.input.txHash === iu.input.txHash &&
               su.input.outputIndex === iu.input.outputIndex
