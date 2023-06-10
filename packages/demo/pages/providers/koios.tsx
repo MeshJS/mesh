@@ -5,21 +5,27 @@ import Codeblock from '../../components/ui/codeblock';
 import {
   BadgeFetcher,
   BadgeSubmitter,
+  BadgeListener,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
 import { KoiosProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
 import ButtonGroup from '../../components/ui/buttongroup';
+import Listener from '../../components/pages/providers/listener';
 
 export default function ProvidersKoios() {
   const sidebarItems = [
     { label: 'Fetch Account Info', to: 'fetchAccountInfo' },
+    { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
     { label: 'Fetch Asset Addresses', to: 'fetchAssetAddresses' },
     { label: 'Fetch Asset Metadata', to: 'fetchAssetMetadata' },
-    { label: 'Fetch Address Utxos', to: 'fetchAddressUtxos' },
+    { label: 'Fetch Block Info', to: 'fetchBlockInfo' },
+    { label: 'Fetch Collection Assets', to: 'fetchCollectionAssets' },
     { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
     { label: 'Fetch Protocol Parameters', to: 'fetchProtocolParameters' },
+    { label: 'Fetch Transaction Info', to: 'fetchTxInfo' },
     { label: 'Submit Tx', to: 'submitTx' },
+    { label: 'On Transaction Confirmed', to: 'onTxConfirmed' },
   ];
 
   const [network, setNetwork] = useState<string>('preprod');
@@ -39,7 +45,8 @@ export default function ProvidersKoios() {
 }
 
 function Hero({ network, setNetwork }) {
-  let code1 = `const koiosProvider = new KoiosProvider('<api,testnet,guild>');\n`;
+  let code1 = `const koiosProvider = new KoiosProvider('${network}');\n`;
+  let code2 = `const koiosProvider = new KoiosProvider('<KOIOS_URL>');\n`;
 
   return (
     <header className="mb-4 lg:mb-6">
@@ -48,6 +55,7 @@ function Hero({ network, setNetwork }) {
         <span className="ml-2">
           <BadgeFetcher />
           <BadgeSubmitter />
+          <BadgeListener />
         </span>
       </h2>
       <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
@@ -72,12 +80,13 @@ function Hero({ network, setNetwork }) {
             allowFullScreen
           ></iframe>
           <p>Get started:</p>
-          <Codeblock data={code1} isJson={false} />
-          <p>Choose network for this demo:</p>
+
+          <p>There are 4 network that Koios provides:</p>
+
           <ButtonGroup
             items={[
               {
-                key: 'mainnet',
+                key: 'api',
                 label: 'Mainnet',
                 onClick: () => setNetwork('api'),
               },
@@ -86,9 +95,28 @@ function Hero({ network, setNetwork }) {
                 label: 'Preprod',
                 onClick: () => setNetwork('preprod'),
               },
+              {
+                key: 'preview',
+                label: 'Preview',
+                onClick: () => setNetwork('preview'),
+              },
+              {
+                key: 'guild',
+                label: 'Guild',
+                onClick: () => setNetwork('guild'),
+              },
             ]}
             currentSelected={network}
           />
+
+          <Codeblock data={code1} isJson={false} />
+          <p>
+            If you are using a privately hosted instance, you can set the URL in
+            the parameter:
+          </p>
+          <Codeblock data={code2} isJson={false} />
+          <p>Choose network for this demo:</p>
+          
         </div>
         <div className="col-span-1"></div>
       </div>
@@ -112,6 +140,7 @@ function Main({ network }) {
     <>
       <Fetcher fetcher={koiosProvider} fetcherName="koiosProvider" />
       <Submitter submitter={koiosProvider} submitterName="koiosProvider" />
+      <Listener listener={koiosProvider} listenerName="koiosProvider" />
     </>
   );
 }

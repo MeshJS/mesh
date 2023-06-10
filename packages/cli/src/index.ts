@@ -47,19 +47,19 @@ const main = async () => {
       createOption(
         '-t, --template <TEMPLATE-NAME>',
         `The template to start your project from.`
-      ).choices(['starter', 'minting', 'staking', 'marketplace'])
+      ).choices(['starter', 'minting', 'staking', 'ecommerce', 'signin', 'marketplace'])
     )
     .addOption(
       createOption(
         '-s, --stack <STACK-NAME>',
         `The tech stack you want to build on.`
-      ).choices(['next', 'remix'])
+      ).choices(['next'])
     )
     .addOption(
       createOption(
         '-l, --language <LANGUAGE-NAME>',
         `The language you want to use.`
-      ).choices(['js', 'ts'])
+      ).choices(['ts'])
     )
     .action(create);
 

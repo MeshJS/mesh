@@ -109,6 +109,7 @@ body {
   padding: 1rem;
   border-radius: 0.375rem;
   font-size: 24px;
+  cursor: pointer;
 }
 
 .demo button:disabled {

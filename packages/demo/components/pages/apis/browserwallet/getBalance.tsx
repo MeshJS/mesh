@@ -39,8 +39,19 @@ function Left() {
     <>
       <p>
         Returns a list of assets in the wallet. This API will return every
-        assets in the wallet, example:
+        assets in the wallet. Each asset is an object with the following
+        properties:
       </p>
+      <ul>
+        <li>
+          A unit is provided to display asset's name on the user interface.
+        </li>
+        <li>
+          A quantity is provided to display asset's quantity on the user
+          interface.
+        </li>
+      </ul>
+      <p>Example:</p>
       <Codeblock data={codeSample} isJson={false} />
     </>
   );
@@ -60,6 +71,12 @@ function Right() {
   return (
     <>
       <Card>
+        <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+          Get Balance
+          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            Get all assets in the connected wallet
+          </p>
+        </div>
         <Codeblock
           data={`const balance = await wallet.getBalance();`}
           isJson={false}

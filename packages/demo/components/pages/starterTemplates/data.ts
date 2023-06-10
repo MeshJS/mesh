@@ -17,12 +17,36 @@ export const templates = {
     cli: 'staking',
     image: 'stakepool.png',
   },
+  // marketplace: {
+  //   title: 'Marketplace',
+  //   desc: `Start a new marketplace with prebuilt marketplace contract.`,
+  //   cli: 'marketplace',
+  //   image: 'marketplace.png',
+  //   comingsoon: true,
+  // },
+  signin: {
+    title: 'Sign In with Wallet',
+    desc: `Cryptographically prove the ownership of a wallet.`,
+    cli: 'signin',
+    image: 'signin.png',
+  },
+  ecommerce: {
+    title: 'Ecommerce Store',
+    desc: `An ecommerce store where customers can pay with Cardano stable coins.`,
+    cli: 'ecommerce',
+    image: 'ecommerce.png',
+  },
   marketplace: {
     title: 'Marketplace',
-    desc: `Start a new marketplace with prebuilt marketplace contract.`,
+    desc: `A NFT marketplace is a digital platform that allows users to buy and sell NFTs`,
     cli: 'marketplace',
     image: 'marketplace.png',
-    comingsoon: true,
+  },
+  pluts: {
+    title: 'plu-ts',
+    desc: `Write your smart contracts in plu-ts and deploy your app on the Cardano blockchain with Mesh SDK.`,
+    cli: 'pluts',
+    image: 'pluts.png',
   },
 };
 

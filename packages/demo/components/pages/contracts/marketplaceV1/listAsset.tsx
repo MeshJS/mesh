@@ -1,17 +1,13 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
 import Button from '../../../ui/button';
-import { useWallet } from '@meshsdk/react';
+import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider } from '@meshsdk/core';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
-
-const blockfrostProvider = new BlockfrostProvider(
-  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-);
+import { getMarketplace, asset, price } from './config';
+import Input from '../../../ui/input';
 
 export default function MarketplaceListAsset() {
   return (
@@ -27,28 +23,55 @@ export default function MarketplaceListAsset() {
 }
 
 function Left() {
+  let code = `async marketplace.listAsset(\n`;
+  code += `  address: string,\n`;
+  code += `  asset: string,\n`;
+  code += `  price: number\n`;
+  code += `)`;
+
   return (
     <>
-      <p>List NFT</p>
+      <p>
+        List an asset on the marketplace. This will allow other users to buy the
+        asset. The seller will receive the listing price in ADA. The seller can
+        cancel the listing at any time. The seller can also update the listing
+        price at any time.
+      </p>
+      <p>
+        <code>address</code> is the seller's address, here we use the first Used
+        Addresses of the connected wallet. <code>asset</code> is the asset's{' '}
+        <code>unit</code> to be listed. <code>price</code> is the listing price
+        in Lovelace.
+      </p>
+      <Codeblock data={code} isJson={false} />
+      <p>
+        It is important to save the listing infomation (asset, seller address
+        and listing price) in a database. This is needed to
+        update/cancel/purchase the listing.
+      </p>
     </>
   );
 }
 
 function Right() {
   const { connected, wallet } = useWallet();
-  const { listAsset } = useMarketplaceV1({
-    blockchainFetcher: blockfrostProvider,
-    network: 0,
-  });
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshUseMarketplaceV1',
+    'meshMarketplaceDemo',
     {}
   );
+  const [listPrice, updateListPrice] = useState<number>(price);
 
   let code1 = ``;
+  code1 += `const { wallet } = useWallet();\n`;
+  code1 += `const sellerAddress = (await wallet.getUsedAddresses())[0];\n`;
+  code1 += `const txHash = await marketplace.listAsset(\n`;
+  code1 += `  sellerAddress,\n`;
+  code1 += `  '${asset}',\n`;
+  code1 += `  ${listPrice}\n`;
+  code1 += `);`;
 
   async function rundemo() {
     setLoading(true);
@@ -56,26 +79,14 @@ function Right() {
     setResponseError(null);
 
     try {
-      const policyId =
-        'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527';
-      const assetId = '4d657368546f6b656e';
-      const listPriceInLovelace = 10000000;
-      const quantity = 1;
-      const txHash = await listAsset({
-        policyId,
-        assetId,
-        listPriceInLovelace,
-        quantity,
-      });
+      const marketplace = getMarketplace(wallet);
+      const address = (await wallet.getUsedAddresses())[0];
+      const txHash = await marketplace.listAsset(address, asset, price);
       setResponse(txHash);
 
-      const sellerAddress = (await wallet.getUsedAddresses())[0];
       setUserlocalStorage({
-        sellerAddress,
-        policyId,
-        assetId,
-        listPriceInLovelace,
-        quantity,
+        sellerAddress: address,
+        listPrice: price,
       });
     } catch (error) {
       setResponseError(`${error}`);
@@ -85,8 +96,14 @@ function Right() {
 
   return (
     <Card>
+      <Input
+        value={listPrice}
+        onChange={(e) => updateListPrice(e.target.value)}
+        placeholder="Listing price in Lovelace"
+        label="Listing price in Lovelace"
+      />
       <Codeblock data={code1} isJson={false} />
-      {connected && (
+      {connected ? (
         <>
           <Button
             onClick={() => rundemo()}
@@ -95,10 +112,12 @@ function Right() {
             }
             disabled={loading}
           >
-            List NFT
+            List Mesh Token
           </Button>
           <RunDemoResult response={response} />
         </>
+      ) : (
+        <CardanoWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>

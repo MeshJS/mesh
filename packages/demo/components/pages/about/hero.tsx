@@ -25,7 +25,7 @@ export default function AboutHero() {
             <ArrowRightIcon className="ml-2 -mr-1 w-5 h-5" />
           </a> */}
         </div>
-        <div className="grid gap-8 pt-8 lg:pt-12 mt-8 lg:mt-12 border-t border-gray-600 sm:grid-cols-2 lg:grid-cols-4">
+        {/* <div className="grid gap-8 pt-8 lg:pt-12 mt-8 lg:mt-12 border-t border-gray-600 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <h2 className="mb-1 text-lg font-bold">Version 1.3</h2>
             <p className="mb-1 text-sm text-gray-400">We are now MeshJS</p>
@@ -80,46 +80,7 @@ export default function AboutHero() {
               <ArrowRightIcon className="ml-1 w-5 h-5" />
             </a>
           </div>
-          {/* <div>
-            <h2 className="mb-1 text-lg font-bold">Minting is ready</h2>
-            <p className="mb-1 text-sm text-gray-400">
-              Flowbite aims to achieve net-zero emissions
-            </p>
-            <a
-              href="#"
-              className="inline-flex items-center text-sm font-semibold text-primary-500 hover:underline"
-            >
-              Read more
-              <ArrowRightIcon className="ml-1 w-5 h-5" />
-            </a>
-          </div>
-          <div>
-            <h2 className="mb-1 text-lg font-bold">Embedded wallet</h2>
-            <p className="mb-1 text-sm text-gray-400">
-              Embedded wallet can generate keys and import CLI wallets
-            </p>
-            <a
-              href="#"
-              className="inline-flex items-center text-sm font-semibold text-primary-500 hover:underline"
-            >
-              Read more
-              <ArrowRightIcon className="ml-1 w-5 h-5" />
-            </a>
-          </div>
-          <div>
-            <h2 className="mb-1 text-lg font-bold">2022 plans</h2>
-            <p className="mb-1 text-sm text-gray-400">
-              Investing in the future of Africa
-            </p>
-            <a
-              href="#"
-              className="inline-flex items-center text-sm font-semibold text-primary-500 hover:underline"
-            >
-              Read more
-              <ArrowRightIcon className="ml-1 w-5 h-5" />
-            </a>
-          </div> */}
-        </div>
+        </div> */}
       </div>
     </section>
   );

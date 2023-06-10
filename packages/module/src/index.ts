@@ -1,7 +1,12 @@
 export * from './common/contracts';
 export * from './common/types';
-export { generateNonce } from './common/helpers';
+export {
+  generateNonce,
+  readPlutusData,
+  readTransaction,
+} from './common/helpers';
 export * from './common/utils/resolver';
+export * from './common/utils/parser';
 export * from './core/CIP2';
 export { checkSignature } from './core/CIP8';
 export * from './providers';

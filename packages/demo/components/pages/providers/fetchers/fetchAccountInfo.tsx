@@ -6,7 +6,7 @@ import Codeblock from '../../../ui/codeblock';
 import Input from '../../../ui/input';
 
 export function fetchAccountInfoLeft({ fetcherName, fetchAccountInfoAddress }) {
-  let code1 = `await ${fetcherName}.fetchAddressUTxOs(\n`;
+  let code1 = `await ${fetcherName}.fetchAccountInfo(\n`;
   code1 += `  '${fetchAccountInfoAddress}',\n`;
   code1 += `)`;
   return (
@@ -16,6 +16,7 @@ export function fetchAccountInfoLeft({ fetcherName, fetchAccountInfoAddress }) {
     </>
   );
 }
+
 export function fetchAccountInfoRight({
   fetcher,
   fetchAccountInfoAddress,

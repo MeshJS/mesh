@@ -11,7 +11,7 @@ export default function FeatureCli() {
       <div className="gap-8 items-center py-8 px-4 mx-auto max-w-screen-xl xl:gap-16 md:grid md:grid-cols-2 sm:py-16 lg:px-6 format dark:format-invert">
         <div className="mt-4 md:mt-0">
           <h2 className="mb-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
-            Get started in minutes
+            Get Started in Minutes
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
             Set up entirely new application using the Mesh CLI. Choose from one
@@ -25,7 +25,20 @@ export default function FeatureCli() {
           </Link>
         </div>
         <Card>
+          <h3>Starter Templates</h3>
+          <p>
+            Kick start your new Web3 project with one of our templates with a
+            single CLI command.
+          </p>
           <Codeblock data={code1} isJson={false} />
+          <a
+            href="http://starter-template.meshjs.dev/"
+            className="inline-flex justify-center items-center py-3 px-5 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 no-underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Live Demo
+          </a>
         </Card>
       </div>
     </section>

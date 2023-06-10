@@ -37,10 +37,16 @@ function Left() {
 
 function Right() {
   const { name } = useWallet();
-  const wallets = useWalletList();
-  const hasAvailableWallets = wallets.length > 0;
+
   return (
     <Card>
+      <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+        Connect Wallet
+        <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          Connect to a CIP30 compatible wallet
+        </p>
+      </div>
+
       <Codeblock
         data={`const wallet = await BrowserWallet.enable('${
           name ? name : 'eternl'

@@ -1,19 +1,33 @@
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
-import {
-  ForgeScript,
-  Transaction,
-  AppWallet,
-  BlockfrostProvider,
-} from '@meshsdk/core';
-import type { AssetMetadata, Mint } from '@meshsdk/core';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import Button from '../../../ui/button';
 import Card from '../../../ui/card';
 import { useState } from 'react';
-import { demoMnemonic } from '../../../../configs/demo';
 import RunDemoResult from '../../../common/runDemoResult';
+import Codeblock from '../../../ui/codeblock';
+import Link from 'next/link';
+import mintMeshToken from '../../../common/mintMeshToken';
 
 export default function Hero() {
+  let codeInit = ``;
+  codeInit += `import { BasicMarketplace } from '@meshsdk/contracts';\n`;
+  codeInit += `import { KoiosProvider } from '@meshsdk/core';\n`;
+  codeInit += `import { useWallet } from '@meshsdk/react';\n`;
+  codeInit += `\n`;
+  codeInit += `const blockchainProvider = new KoiosProvider('preprod');\n`;
+  codeInit += `\n`;
+  codeInit += `const { wallet } = useWallet();\n`;
+  codeInit += `\n`;
+  codeInit += `const marketplace = new BasicMarketplace({\n`;
+  codeInit += `  fetcher: blockchainProvider,\n`;
+  codeInit += `  initiator: wallet,\n`;
+  codeInit += `  network: 'preprod',\n`;
+  codeInit += `  signer: wallet,\n`;
+  codeInit += `  submitter: blockchainProvider,\n`;
+  codeInit += `  percentage: 25000, // 2.5%\n`;
+  codeInit += `  owner: 'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',\n`;
+  codeInit += `});\n`;
+
   return (
     <>
       <header className="mb-4 lg:mb-6">
@@ -39,16 +53,68 @@ export default function Hero() {
           </p>
           <p>
             There are 4 actions (or endpoints) available to interact with this
-            smart contract; 1) list asset, 2) buy asset, 3) updating listing,
-            and 4) cancel listing.
+            smart contract:
+          </p>
+          <ul>
+            <li>list asset</li>
+            <li>buy asset</li>
+            <li>updating listing</li>
+            <li>cancel listing</li>
+          </ul>
+          <p>
+            Do check out the{' '}
+            <Link href="/guides/custom-marketplace">guide</Link> and the{' '}
+            <Link href="/starter-templates">marketplace starter kit</Link> that
+            might help you get started. This contract is written in{' '}
+            <a
+              href="https://pluts.harmoniclabs.tech/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              plu-ts
+            </a>
+            , you can{' '}
+            <a
+              href="https://github.com/MeshJS/mesh/blob/main/packages/contracts/src/marketplace/contract.ts"
+              target="_blank"
+              rel="noreferrer"
+            >
+              view the contract on GitHub
+            </a>
+            .
+          </p>
+        </div>
+        <div className="col-span-2">
+          <h3>Initialize the Marketplace</h3>
+          <p>
+            Utilizing the Marketplace contract requires a blockchain provider
+            and a connected browser wallet. Here is an example how we can
+            initialize the Marketplace.
+          </p>
+          <Codeblock data={codeInit} isJson={false} />
+          <p>
+            You can define the <code>fetcher</code> and <code>submitter</code>{' '}
+            with one of our <Link href="/providers">blockchain providers</Link>{' '}
+            or use your own custom provider. We use these <code>fetcher</code>{' '}
+            and <code>submitter</code> to query for locked UTxO and submit
+            transactions. The{' '}
+            <Link href="/apis/browserwallet">connected wallet</Link> are defined
+            in the <code>initiator</code> and <code>signer</code>. The network
+            can defined in <code>network</code>, it has to be one of the
+            following values:{' '}
+            <code>"testnet" | "preview" | "preprod" | "mainnet"</code>
           </p>
           <p>
-            The marketplace can be configured to allow all policy IDs or only
-            allow certain policy IDs to be listed.
+            The <code>owner</code> is the address of the marketplace owner which
+            will receive the marketplace fee. The <code>percentage</code> is the
+            percentage of the sale price that the marketplace <code>owner</code>{' '}
+            will take. Note that, the fee numerator is in the order of millions,
+            for example <code>3000</code> implies a fee of{' '}
+            <code>3000/1_000_000</code> (or <code>0.003</code>) implies a fee of{' '}
+            <code>0.3%</code>.
           </p>
-          <p className="font-medium">
-            This page explains and show how it works and how it can be used.
-          </p>
+        </div>
+        <div className="col-span-2">
           <Demo />
         </div>
       </div>
@@ -60,55 +126,6 @@ function Demo() {
   const { wallet, connected } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
-
-  async function mintMeshToken() {
-    setLoading(true);
-    try {
-      const blockchainProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-      );
-
-      const mintingWallet = new AppWallet({
-        networkId: 0,
-        fetcher: blockchainProvider,
-        submitter: blockchainProvider,
-        key: {
-          type: 'mnemonic',
-          words: demoMnemonic,
-        },
-      });
-
-      const usedAddress = await wallet.getUsedAddresses();
-      const address = usedAddress[0];
-      const forgingScript = ForgeScript.withOneSignature(
-        mintingWallet.getPaymentAddress()
-      );
-
-      const tx = new Transaction({ initiator: wallet });
-
-      const assetMetadata: AssetMetadata = {
-        name: 'Mesh Token',
-        image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
-        mediaType: 'image/jpg',
-        description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
-      };
-      const asset: Mint = {
-        assetName: 'MeshToken',
-        assetQuantity: '1',
-        metadata: assetMetadata,
-        label: '721',
-        recipient: address,
-      };
-      tx.mintAsset(forgingScript, asset);
-
-      const unsignedTx = await tx.build();
-      const signedTx = await wallet.signTx(unsignedTx, true);
-      const signedTx2 = await mintingWallet.signTx(signedTx, true);
-      const txHash = await wallet.submitTx(signedTx2);
-      setResponse(txHash);
-    } catch (error) {}
-    setLoading(false);
-  }
 
   return (
     <Card>
@@ -123,7 +140,7 @@ function Demo() {
         <>
           <p>Next, mint a Mesh Token. We will use list this NFT for sale.</p>
           <Button
-            onClick={() => mintMeshToken()}
+            onClick={() => mintMeshToken({ setLoading, setResponse, wallet })}
             style={
               loading ? 'warning' : response !== null ? 'success' : 'light'
             }

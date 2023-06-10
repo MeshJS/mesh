@@ -24,6 +24,9 @@
       <loc>https://meshjs.dev/guides/prove-wallet-ownership</loc>
   </url>
   <url>
+      <loc>https://meshjs.dev/guides/custom-provider</loc>
+  </url>
+  <url>
       <loc>https://meshjs.dev/migration-manual-installation</loc>
   </url>
   <url>
@@ -54,7 +57,22 @@
       <loc>https://meshjs.dev/react/wallet-hooks</loc>
   </url>
   <url>
+      <loc>https://meshjs.dev/smart-contracts/marketplace</loc>
+  </url>
+  <url>
       <loc>https://meshjs.dev/providers</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/providers/blockfrost</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/providers/tangocrypto</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/providers/koios</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/providers/ogmios</loc>
   </url>
   <url>
       <loc>https://meshjs.dev/apis/resolvers</loc>
@@ -67,5 +85,11 @@
   </url>
   <url>
       <loc>https://meshjs.dev/about/support-us</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/about/media-kit</loc>
+  </url>
+  <url>
+      <loc>https://meshjs.dev/about/references</loc>
   </url>
 </urlset>

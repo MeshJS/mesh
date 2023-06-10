@@ -69,13 +69,13 @@ function Left({ userInput }) {
 
   return (
     <>
+      <p>Send assets to a handler.</p>
       <p>
         We can get the{' '}
         <a href="https://adahandle.com/" target="_blank" rel="noreferrer">
           ADA Handle
         </a>
-        's address with{' '}
-        <Link href="/apis/resolvers">Resolvers - fetchHandleAddress</Link>:
+        's address with <code>fetchHandleAddress()</code>:
       </p>
       <Codeblock data={code1} isJson={false} />
       <p>
@@ -95,6 +95,7 @@ function Right({ userInput, updateField }) {
 
   async function runDemo() {
     setState(1);
+    setResponse(null);
     setResponseError(null);
 
     try {

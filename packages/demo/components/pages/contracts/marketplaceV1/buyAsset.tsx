@@ -1,17 +1,13 @@
 import Codeblock from '../../../ui/codeblock';
 import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
-import useMarketplaceV1 from '../../../../hooks/useMarketplaceV1';
 import Button from '../../../ui/button';
-import { useWallet } from '@meshsdk/react';
-import { useState } from 'react';
+import { CardanoWallet, useWallet } from '@meshsdk/react';
+import { useEffect, useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider } from '@meshsdk/core';
+import { getMarketplace, asset, price } from './config';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
-
-const blockfrostProvider = new BlockfrostProvider(
-  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-);
+import Input from '../../../ui/input';
 
 export default function MarketplaceBuyAsset() {
   return (
@@ -27,47 +23,68 @@ export default function MarketplaceBuyAsset() {
 }
 
 function Left() {
+  let code = `async marketplace.purchaseAsset(\n`;
+  code += `  address: string,\n`;
+  code += `  asset: string,\n`;
+  code += `  price: number\n`;
+  code += `)`;
   return (
     <>
-      <p>Buy Asset</p>
+      <p>
+        Purchase a listed asset from the marketplace. The seller will receive
+        the listed price in ADA and the buyer will receive the asset.
+      </p>
+      <Codeblock data={code} isJson={false} />
+      <p>
+        <code>address</code> is the seller's address. <code>asset</code> is the
+        listed asset's <code>unit</code>. <code>price</code> is the listed price
+        in Lovelace.
+      </p>
     </>
   );
 }
 
 function Right() {
-  const { connected } = useWallet();
-  const { buyAsset } = useMarketplaceV1({
-    blockchainFetcher: blockfrostProvider,
-    network: 0,
-  });
+  const { connected, wallet } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshUseMarketplaceV1',
+    'meshMarketplaceDemo',
     {}
   );
+  const [listPrice, updateListPrice] = useState<number>(price);
+  const [sellerAddress, updateSellerAddress] =
+    useState<string>('SELLER ADDRESS');
 
   let code1 = ``;
+  code1 += `const txHash = await marketplace.purchaseAsset(\n`;
+  code1 += `  '${sellerAddress}',\n`;
+  code1 += `  '${asset}',\n`;
+  code1 += `  ${listPrice}\n`;
+  code1 += `);\n`;
+
+  useEffect(() => {
+    if (userLocalStorage.listPrice) {
+      updateListPrice(userLocalStorage.listPrice);
+    }
+    if (userLocalStorage.sellerAddress) {
+      updateSellerAddress(userLocalStorage.sellerAddress);
+    }
+  }, []);
 
   async function rundemo() {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
 
-    console.log("userLocalStorage", userLocalStorage);
-
     try {
-      // const policyId =
-      //   '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a42';
-      // const assetId = '4d657368546f6b656e';
-      // const listPriceInLovelace = 10000000;
-      const txHash = await buyAsset({
-        policyId: userLocalStorage.policyId,
-        assetId: userLocalStorage.assetId,
-        listPriceInLovelace: userLocalStorage.listPriceInLovelace,
-        sellerAddr: userLocalStorage.sellerAddress
-      });
+      const marketplace = getMarketplace(wallet);
+      const txHash = await marketplace.purchaseAsset(
+        sellerAddress,
+        asset,
+        listPrice
+      );
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -77,8 +94,20 @@ function Right() {
 
   return (
     <Card>
+      <Input
+        value={sellerAddress}
+        onChange={(e) => updateSellerAddress(e.target.value)}
+        placeholder="Seller address"
+        label="Seller address"
+      />
+      <Input
+        value={listPrice}
+        onChange={(e) => updateListPrice(e.target.value)}
+        placeholder="Listed price in Lovelace"
+        label="Listed price in Lovelace"
+      />
       <Codeblock data={code1} isJson={false} />
-      {connected && (
+      {connected ? (
         <>
           <Button
             onClick={() => rundemo()}
@@ -87,10 +116,12 @@ function Right() {
             }
             disabled={loading}
           >
-            Buy Asset
+            Purchase Listed Mesh Token
           </Button>
           <RunDemoResult response={response} />
         </>
+      ) : (
+        <CardanoWallet />
       )}
       <RunDemoResult response={responseError} label="Error" />
     </Card>

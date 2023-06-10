@@ -1,0 +1,42 @@
+{
+  "name": "@meshsdk/contracts",
+  "description": "Prebuilt Smart-Contracts you need for building dApps on Cardano.",
+  "homepage": "https://meshjs.dev",
+  "author": "MeshJS",
+  "version": "1.0.0-beta.3",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MeshJS/mesh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MeshJS/mesh/issues"
+  },
+  "keywords": [
+    "blockchain",
+    "cardano",
+    "plutus"
+  ],
+  "scripts": {
+    "dev": "vitest",
+    "test": "vitest run",
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "lint": "tsc",
+    "release": "yarn build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.26.0",
+    "tsup": "6.6.3",
+    "vitest": "0.28.4"
+  },
+  "peerDependencies": {
+    "@meshsdk/core": "1.5.3"
+  },
+  "dependencies": {
+    "@harmoniclabs/plu-ts": "0.2.2"
+  }
+}

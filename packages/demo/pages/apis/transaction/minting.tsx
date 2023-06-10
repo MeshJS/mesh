@@ -1,15 +1,19 @@
 import { FireIcon } from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
 import CommonLayout from '../../../components/common/layout';
-import Burning from '../../../components/pages/apis/transaction/burning';
+import Burning from '../../../components/pages/apis/transaction/minting/burning';
 import CommonHero from '../../../components/pages/apis/transaction/commonHero';
-import Minting from '../../../components/pages/apis/transaction/minting';
+import Minting from '../../../components/pages/apis/transaction/minting/minting';
 import Metatags from '../../../components/site/metatags';
+import MintingNativeScript from '../../../components/pages/apis/transaction/minting/mintingNativeScript';
+import MintingRoyaltyToken from '../../../components/pages/apis/transaction/minting/mintingRoyaltyToken';
 
 const TransactionMintingPage: NextPage = () => {
   const sidebarItems = [
     { label: 'Minting assets', to: 'minting' },
     { label: 'Burning assets', to: 'burning' },
+    { label: 'Minting with Native Script', to: 'mintingNativeScript' },
+    { label: 'Minting Royalty Token', to: 'mintingRoyaltyToken' },
   ];
 
   return (
@@ -26,6 +30,8 @@ const TransactionMintingPage: NextPage = () => {
         />
         <Minting />
         <Burning />
+        <MintingNativeScript />
+        <MintingRoyaltyToken />
       </CommonLayout>
     </>
   );
