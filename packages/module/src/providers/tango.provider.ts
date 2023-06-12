@@ -156,7 +156,7 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
           amount: [
             { unit: 'lovelace', quantity: input.value.toString() },
             ...input.assets.map((a) => ({
-              unit: `${a.policy_id}${toUTF8(a.asset_name)}`,
+              unit: `${a.policy_id}${fromUTF8(a.asset_name)}`,
               quantity: a.quantity.toString(),
             })),
           ],
@@ -168,7 +168,7 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
           amount: [
             { unit: 'lovelace', quantity: output.value.toString() },
             ...output.assets.map((a) => ({
-              unit: `${a.policy_id}${toUTF8(a.asset_name)}`,
+              unit: `${a.policy_id}${fromUTF8(a.asset_name)}`,
               quantity: a.quantity.toString(),
             })),
           ],
