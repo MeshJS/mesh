@@ -8,7 +8,7 @@ import {
 } from '@mesh/common/utils';
 import type {
   AccountInfo, Asset, AssetMetadata, BlockInfo,
-  PlutusScript, Protocol, TransactionInfo, UTxO,
+  PlutusScript, Protocol, TransactionInfo, UTxO, TxUTxOs,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, IListener, ISubmitter {
@@ -113,6 +113,57 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
       return [];
     }
   }
+
+  async fetchTransactionUTxOs(hash: string): Promise<TxUTxOs> {
+    try {
+      const { data, status } = await this._axiosInstance.post('tx_utxos', {
+        _tx_hashes: [hash],
+      });
+  
+      if (status === 200 && data.length > 0) {
+        const tx = data[0];
+  
+        const inputs = tx.inputs.map((input) => ({
+          address: input.payment_addr.bech32,
+          amount: [
+            { unit: 'lovelace', quantity: input.value },
+            ...input.asset_list.map((a) => ({
+              unit: `${a.policy_id}${a.asset_name}`,
+              quantity: `${a.quantity}`,
+            })),
+          ],
+          output_index: input.tx_index,
+        }));
+  
+        const outputs = tx.outputs.map((output) => ({
+          address: output.payment_addr.bech32,
+          amount: [
+            { unit: 'lovelace', quantity: output.value },
+            ...output.asset_list.map((a) => ({
+              unit: `${a.policy_id}${a.asset_name}`,
+              quantity: `${a.quantity}`,
+            })),
+          ],
+          output_index: output.tx_index,
+        }));
+  
+        const txUTxOs: TxUTxOs = {
+          inputs,
+          outputs,
+        };
+
+        return txUTxOs;
+      }
+  
+      throw parseHttpError(data);
+    } catch (error) {
+      const txUTxOs: TxUTxOs = {
+        inputs: [],
+        outputs: []
+      };
+      return txUTxOs;
+    }
+  } 
 
   async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
     try {

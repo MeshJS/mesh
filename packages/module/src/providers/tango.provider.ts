@@ -8,7 +8,7 @@ import {
 } from '@mesh/common/utils';
 import type {
   AccountInfo, Action, Asset, AssetMetadata, BlockInfo,
-  PlutusScript, Protocol, TransactionInfo, UTxO,
+  PlutusScript, Protocol, TransactionInfo, UTxO, TxUTxOs,
 } from '@mesh/common/types';
 
 export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitter {
@@ -140,6 +140,56 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
       return await paginateUTxOs();
     } catch (error) {
       return [];
+    }
+  }
+
+  async fetchTransactionUTxOs(hash: string): Promise<TxUTxOs> {
+    try {
+      const url = `transactions/${hash}/utxos`;
+      const { data, status } = await this._axiosInstance.get(url);
+  
+      if (status === 200 && Object.keys(data).length > 0) {
+        const tx = data;
+  
+        const inputs = tx.inputs.map((input) => ({
+          address: input.address,
+          amount: [
+            { unit: 'lovelace', quantity: input.value.toString() },
+            ...input.assets.map((a) => ({
+              unit: `${a.policy_id}${toUTF8(a.asset_name)}`,
+              quantity: a.quantity.toString(),
+            })),
+          ],
+          output_index: input.index,
+        }));
+  
+        const outputs = tx.outputs.map((output) => ({
+          address: output.address,
+          amount: [
+            { unit: 'lovelace', quantity: output.value.toString() },
+            ...output.assets.map((a) => ({
+              unit: `${a.policy_id}${toUTF8(a.asset_name)}`,
+              quantity: a.quantity.toString(),
+            })),
+          ],
+          output_index: output.index,
+        }));
+  
+        const txUTxOs: TxUTxOs = {
+          inputs,
+          outputs,
+        };
+
+        return txUTxOs;
+      }
+  
+      throw parseHttpError(data);
+    } catch (error) {
+      const txUTxOs: TxUTxOs = {
+        inputs: [],
+        outputs: [],
+      };
+      return txUTxOs;
     }
   }
   

@@ -7,7 +7,7 @@ import {
 } from '@mesh/common/utils';
 import type {
   AccountInfo, Asset, AssetMetadata, BlockInfo, NativeScript,
-  PlutusScript, Protocol, TransactionInfo, UTxO,
+  PlutusScript, Protocol, TransactionInfo, UTxO, TxUTxOs,
 } from '@mesh/common/types';
 
 export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
@@ -112,6 +112,46 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       return await paginateUTxOs();
     } catch (error) {
       return [];
+    }
+  }
+
+  async fetchTransactionUTxOs(hash: string): Promise<TxUTxOs> {
+    const url = `txs/${hash}/utxos`;
+
+    const toTxUTxO = async (tx: TxUTxOs): Promise<TxUTxOs> => ({
+      inputs:
+        tx.inputs.length > 0
+          ? tx.inputs.map((input) => ({
+              address: input.address,
+              amount: input.amount,
+              output_index: input.output_index,
+            }))
+          : [],
+      outputs:
+        tx.outputs.length > 0
+          ? tx.outputs.map((output) => ({
+              address: output.address,
+              amount: output.amount,
+              output_index: output.output_index,
+            }))
+          : [],
+    });
+
+    try {
+      const { data, status } = await this._axiosInstance.get(url);
+
+      if (status === 200) {
+        const utxos = await toTxUTxO(data);
+        return utxos;
+      }
+
+      throw parseHttpError(data);
+    } catch (error) {
+      const txUTxOs: TxUTxOs = {
+        inputs: [],
+        outputs: []
+      };
+      return txUTxOs;
     }
   }
 

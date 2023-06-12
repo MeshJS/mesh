@@ -18,5 +18,6 @@ export * from './Recipient';
 export * from './Relay';
 export * from './Token';
 export * from './TransactionInfo';
+export * from './TxUTxOs';
 export * from './UTxO';
 export * from './Wallet';
