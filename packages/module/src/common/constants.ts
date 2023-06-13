@@ -479,5 +479,5 @@ export const SUPPORTED_TOKENS = {
 };
 
 export const SUPPORTED_WALLETS = [
-  'begin', 'eternl', 'flint', 'lace', 'nami', 'nufi', 'gerowallet', 'typhoncip30',
+  'begin', 'eternl', 'flint', 'lace', 'nami', 'nufi', 'gerowallet', 'typhoncip30', 'vespr'
 ];
