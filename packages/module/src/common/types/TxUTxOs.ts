@@ -4,19 +4,23 @@ export type TxUTxOs = {
   inputs: {
     address: string;
     amount: Asset[];
-    output_index: number;
+    outputIndex: number;
+    txHash: string;
   }[];
   outputs: {
     address: string;
     amount: Asset[];
-    output_index: number;
+    outputIndex: number;
+    dataHash?: string;
+    plutusData?: string;
+    scriptRef?: string;
   }[];
 };
 
 export type TxInput = {
   address: string;
   amount: number;
-  assets: { [key: string]: number };
+  assets: { [key: string]: number; };
 };
 
 export type TxOutput = {

@@ -16,7 +16,7 @@ import {
   deserializePlutusScript, deserializeTx,
 } from './deserializer';
 import type {
-  Asset, Data, Era, LanguageVersion, NativeScript, Network, PlutusScript, TxInput, TxMetadata, TxOutput,
+  Asset, Data, Era, LanguageVersion, NativeScript, Network, PlutusScript, TxInput, TxMetadata, TxOutput, UTxO,
 } from '@mesh/common/types';
 
 export const resolveDataHash = (data: Data) => {
@@ -185,178 +185,202 @@ export const resolveTxHash = (txHex: string) => {
 export const decodeTransaction = async (
   transactionHex: string,
   provider: IFetcher
-): Promise<{ input: TxInput[], recipient: TxOutput[], metadata: TxMetadata, fee: number }> => {
-  const txInputs: {
-    [key: string]: { amount: number; assets: { [key: string]: number } };
-  } = {};
-  const txOutputs: {
-    [key: string]: { amount: number; assets: { [key: string]: number } };
-  } = {};
+): Promise<{input: TxInput[]; recipient: TxOutput[]; metadata: TxMetadata; fee: number; utxos: UTxO[];
+}> => {
+  try {
+    const txInputs: Record<string, TxInput> = {};
+    const txOutputs: Record<string, TxOutput> = {};
+    const utxos: UTxO[] = [];
 
-  const transaction = csl.Transaction.from_hex(transactionHex);
-  const transaction_body = transaction.body();
-  const outputs = transaction_body.outputs();
-  const inputs = transaction_body.inputs();
+    const transaction = csl.Transaction.from_hex(transactionHex);
+    if (!transaction) {
+      throw new Error('Invalid transaction');
+    }
+    const transactionBody = transaction.body();
+    const outputs = transactionBody.outputs();
+    const inputs = transactionBody.inputs();
 
-  for (let inputIndex = 0; inputIndex < inputs.len(); inputIndex++) {
-    const input = inputs.get(inputIndex);
-    const txIndex = input.index();
-    const txHash = input.transaction_id().to_hex();
+    for (let inputIndex = 0; inputIndex < inputs.len(); inputIndex++) {
+      const input = inputs.get(inputIndex);
+      const txIndex = input.index();
+      const txHash = input.transaction_id().to_hex();
 
-    const txUTxOs = await provider.fetchTransactionUTxOs(txHash);
-    const txInput = txUTxOs?.outputs.find(
-      (output) => output.output_index === txIndex
-    );
+      const txUTxOs = await provider.fetchTransactionUTxOs(txHash);
+      if (txUTxOs.inputs.length === 0 && txUTxOs.outputs.length === 0) {
+        throw new Error('Provider transaction data is missing');
+      }
 
-    if (txInput && !txInputs[txInput.address]) {
-      txInputs[txInput.address] = {
-        amount: 0,
-        assets: {},
-      };
+      const txInput = txUTxOs?.outputs.find(
+        (output) => output.outputIndex === txIndex
+      );
+
+      if (txInput && !txInputs[txInput.address]) {
+        txInputs[txInput.address] = {
+          address: txInput.address,
+          amount: 0,
+          assets: {},
+        };
+      }
+
+      if (txInput) {
+        const txUTXO: UTxO = {
+          input: {
+            outputIndex: txIndex,
+            txHash: txHash,
+          },
+          output: {
+            address: txInput.address,
+            amount: txInput.amount,
+            dataHash: txInput.dataHash,
+            plutusData: txInput.plutusData,
+            scriptRef: txInput.scriptRef,
+          },
+        };
+
+        utxos.push(txUTXO);
+      }
+
+      const inputAddress = txInput?.address;
+      if (inputAddress && txInputs[inputAddress]) {
+        txInput.amount?.forEach((amount: Asset) => {
+          if (amount.unit === 'lovelace') {
+            txInputs[inputAddress].amount += parseInt(amount.quantity);
+          } else {
+            const assetName = amount.unit.slice(56);
+            const unit = amount.unit.slice(0, 56) + '.' + toUTF8(assetName);
+            txInputs[inputAddress].assets[unit] =
+              (txInputs[inputAddress].assets[unit] || 0) +
+              parseInt(amount.quantity);
+          }
+        });
+      }
     }
 
-    const inputAddress = txInput?.address;
-    if (inputAddress && txInputs[inputAddress]) {
-      txInput?.amount?.forEach((amount: Asset) => {
-        if (amount.unit === 'lovelace') {
-          txInputs[inputAddress].amount += parseInt(amount.quantity);
-        } else {
-          const assetName = amount.unit.slice(56);
-          const unit = amount.unit.slice(0, 56) + '.' + toUTF8(assetName);
-          txInputs[inputAddress].assets[unit] =
-            (txInputs[inputAddress].assets[unit] || 0) +
-            parseInt(amount.quantity);
-        }
-      });
-    }
-  }
+    for (let outputIndex = 0; outputIndex < outputs.len(); outputIndex++) {
+      const outputTransaction = outputs.get(outputIndex);
+      const outputAddress = outputTransaction.address().to_bech32().toString();
 
-  for (let outputIndex = 0; outputIndex < outputs.len(); outputIndex++) {
-    const outputTransaction = outputs.get(outputIndex);
-    const outputAddress = outputTransaction.address().to_bech32().toString();
+      if (!txOutputs[outputAddress]) {
+        txOutputs[outputAddress] = {
+          address: outputAddress,
+          amount: 0,
+          assets: {},
+        };
+      }
 
-    if (!txOutputs[outputAddress]) {
-      txOutputs[outputAddress] = {
-        amount: 0,
-        assets: {},
-      };
-    }
+      txOutputs[outputAddress].amount += parseInt(
+        outputTransaction.amount().coin().to_str()
+      );
 
-    txOutputs[outputAddress].amount += parseInt(
-      outputTransaction.amount().coin().to_str()
-    );
+      if (outputTransaction.amount().multiasset()) {
+        const multiAssets = outputTransaction.amount().multiasset();
 
-    if (outputTransaction.amount().multiasset()) {
-      const multiAssets = outputTransaction.amount().multiasset();
+        if (multiAssets) {
+          const multiAssetKeys = multiAssets.keys();
 
-      if (multiAssets) {
-        const multiAssetKeys = multiAssets.keys();
+          for (
+            let assetsKeyIndex = 0;
+            assetsKeyIndex < multiAssetKeys.len();
+            assetsKeyIndex++
+          ) {
+            const assetsKey = multiAssetKeys.get(assetsKeyIndex);
+            const assets = multiAssets.get(assetsKey);
 
-        for (
-          let assetsKeyIndex = 0;
-          assetsKeyIndex < multiAssetKeys.len();
-          assetsKeyIndex++
-        ) {
-          const assetsKey = multiAssetKeys.get(assetsKeyIndex);
-          const assets = multiAssets.get(assetsKey);
+            if (assets) {
+              const assetKeys = assets.keys();
+              const policyId = assetsKey.to_hex();
 
-          if (assets) {
-            const assetKeys = assets.keys();
-            const policyId = assetsKey.to_hex();
+              for (
+                let assetKeyIndex = 0;
+                assetKeyIndex < assetKeys.len();
+                assetKeyIndex++
+              ) {
+                const asset = assetKeys.get(assetKeyIndex);
+                const assetNum = assets.get(asset);
+                const unit = policyId + '.' + toUTF8(fromBytes(asset.name()));
 
-            for (
-              let assetKeyIndex = 0;
-              assetKeyIndex < assetKeys.len();
-              assetKeyIndex++
-            ) {
-              const asset = assetKeys.get(assetKeyIndex);
-              const assetNum = assets.get(asset);
-              const unit = policyId + '.' + toUTF8(fromBytes(asset.name()));
-
-              txOutputs[outputAddress].assets[unit] = parseInt(
-                assetNum?.to_str() || '0'
-              );
+                txOutputs[outputAddress].assets[unit] = parseInt(
+                  assetNum?.to_str() || '0'
+                );
+              }
             }
           }
         }
       }
     }
-  }
 
-  const auxiliary_data = transaction.auxiliary_data();
-  const metadata: { [key: string]: string } = {};
+    const auxiliary_data = transaction.auxiliary_data();
+    const metadata: TxMetadata = {};
 
-  if (auxiliary_data) {
-    const _metadata = auxiliary_data.metadata();
+    if (auxiliary_data) {
+      const _metadata = auxiliary_data.metadata();
 
-    if (_metadata) {
-      const metadataKeys = _metadata.keys();
+      if (_metadata) {
+        const metadataKeys = _metadata.keys();
 
-      for (
-        let metadataKeyIndex = 0;
-        metadataKeyIndex < metadataKeys.len();
-        metadataKeyIndex++
-      ) {
-        const metadataKey = metadataKeys.get(metadataKeyIndex);
-        const metadataRaw = _metadata.get(metadataKey);
-        if (metadataRaw) {
-          const metadataJson = JSON.parse(
-            csl.decode_metadatum_to_json_str(metadataRaw, 0)
-          );
-          metadata[metadataKey.to_str()] = metadataJson;
-        }
-      }
-    }
-  }
-
-  for (const senderAddress in txInputs) {
-    if (txOutputs[senderAddress]) {
-      txInputs[senderAddress].amount -= txOutputs[senderAddress].amount;
-      txOutputs[senderAddress].amount = 0;
-
-      for (const unit in txOutputs[senderAddress].assets) {
-        if (txInputs[senderAddress].assets[unit]) {
-          txInputs[senderAddress].assets[unit] -=
-            txOutputs[senderAddress].assets[unit];
-          txOutputs[senderAddress].assets[unit] = 0;
-          delete txOutputs[senderAddress].assets[unit];
-
-          if (txInputs[senderAddress].assets[unit] === 0) {
-            delete txInputs[senderAddress].assets[unit];
+        for (
+          let metadataKeyIndex = 0;
+          metadataKeyIndex < metadataKeys.len();
+          metadataKeyIndex++
+        ) {
+          const metadataKey = metadataKeys.get(metadataKeyIndex);
+          const metadataRaw = _metadata.get(metadataKey);
+          if (metadataRaw) {
+            const metadataJson = JSON.parse(
+              csl.decode_metadatum_to_json_str(metadataRaw, 0)
+            );
+            metadata[metadataKey.to_str()] = metadataJson;
           }
         }
       }
     }
+
+    for (const senderAddress in txInputs) {
+      if (txOutputs[senderAddress]) {
+        txInputs[senderAddress].amount -= txOutputs[senderAddress].amount;
+        txOutputs[senderAddress].amount = 0;
+
+        for (const unit in txOutputs[senderAddress].assets) {
+          if (txInputs[senderAddress].assets[unit]) {
+            txInputs[senderAddress].assets[unit] -=
+              txOutputs[senderAddress].assets[unit];
+            txOutputs[senderAddress].assets[unit] = 0;
+            delete txOutputs[senderAddress].assets[unit];
+
+            if (txInputs[senderAddress].assets[unit] === 0) {
+              delete txInputs[senderAddress].assets[unit];
+            }
+          }
+        }
+      }
+    }
+
+    const txOutputsFinal = Object.values(txOutputs).filter(
+      (value) => value.amount > 0 || Object.keys(value.assets).length > 0
+    );
+    const txInputsFinal = Object.values(txInputs);
+
+    let inputValue = 0;
+    let outputValue = 0;
+
+    for (const r of txOutputsFinal) {
+      outputValue += r.amount;
+    }
+
+    for (const s of txInputsFinal) {
+      inputValue += s.amount;
+    }
+
+    const fee = inputValue - outputValue;
+
+    return {
+      input: txInputsFinal,
+      recipient: txOutputsFinal,
+      metadata,
+      fee,
+      utxos,
+    };
+  } catch (error) {
+    throw new Error(`An error occurred during decodeTransaction: ${error}.`);
   }
-
-  const txOutputsFinal = Object.entries(txOutputs)
-    .filter(
-      ([_, value]) => value.amount > 0 || Object.keys(value.assets).length > 0
-    )
-    .map(([key, value]) => ({ address: key, ...value }));
-
-  const txInputsFinal = Object.entries(txInputs).map(([key, value]) => ({
-    address: key,
-    ...value,
-  }));
-
-  let inputValue = 0;
-  let outputValue = 0;
-
-  for (const r of txOutputsFinal) {
-    outputValue += r.amount;
-  }
-
-  for (const s of txInputsFinal) {
-    inputValue += s.amount;
-  }
-
-  const fee = inputValue - outputValue;
-
-  return {
-    input: txInputsFinal,
-    recipient: txOutputsFinal,
-    metadata,
-    fee
-  };
 };

@@ -144,6 +144,21 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
   }
 
   async fetchTransactionUTxOs(hash: string): Promise<TxUTxOs> {
+    const resolveScriptRef = (tScriptRef): string | undefined => {
+      if (tScriptRef) {
+        const script = tScriptRef.type.startsWith('plutus')
+          ? <PlutusScript>{
+              code: tScriptRef.code,
+              version: tScriptRef.type.replace('plutus', ''),
+            }
+          : fromNativeScript(deserializeNativeScript(tScriptRef.json));
+
+        return toScriptRef(script).to_hex();
+      }
+
+      return undefined;
+    };
+
     try {
       const url = `transactions/${hash}/utxos`;
       const { data, status } = await this._axiosInstance.get(url);
@@ -160,7 +175,8 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
               quantity: a.quantity.toString(),
             })),
           ],
-          output_index: input.index,
+          outputIndex: input.index,
+          txHash: input.hash
         }));
   
         const outputs = tx.outputs.map((output) => ({
@@ -172,7 +188,10 @@ export class TangoProvider implements IEvaluator, IFetcher, IListener, ISubmitte
               quantity: a.quantity.toString(),
             })),
           ],
-          output_index: output.index,
+          outputIndex: output.index,
+          dataHash: undefined,
+          plutusData: output.inline_datum?.value_raw ?? undefined,
+          scriptRef: resolveScriptRef(output.reference_script),
         }));
   
         const txUTxOs: TxUTxOs = {

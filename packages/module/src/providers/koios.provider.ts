@@ -115,8 +115,23 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   }
 
   async fetchTransactionUTxOs(hash: string): Promise<TxUTxOs> {
+    const resolveScriptRef = (kScriptRef): string | undefined => {
+      if (kScriptRef) {
+        const script = kScriptRef.type.startsWith('plutus')
+          ? <PlutusScript>{
+              code: kScriptRef.bytes,
+              version: kScriptRef.type.replace('plutus', ''),
+            }
+          : fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
+
+        return toScriptRef(script).to_hex();
+      }
+
+      return undefined;
+    };
+
     try {
-      const { data, status } = await this._axiosInstance.post('tx_utxos', {
+      const { data, status } = await this._axiosInstance.post('tx_info', {
         _tx_hashes: [hash],
       });
   
@@ -132,7 +147,8 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
               quantity: `${a.quantity}`,
             })),
           ],
-          output_index: input.tx_index,
+          outputIndex: input.tx_index,
+          txHash: input.tx_hash,
         }));
   
         const outputs = tx.outputs.map((output) => ({
@@ -144,7 +160,10 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
               quantity: `${a.quantity}`,
             })),
           ],
-          output_index: output.tx_index,
+          outputIndex: output.tx_index,
+          dataHash: output.datum_hash ?? undefined,
+          plutusData: output.inline_datum?.bytes ?? undefined,
+          scriptRef: resolveScriptRef(output.reference_script),
         }));
   
         const txUTxOs: TxUTxOs = {

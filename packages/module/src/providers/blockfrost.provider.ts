@@ -118,22 +118,51 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
   async fetchTransactionUTxOs(hash: string): Promise<TxUTxOs> {
     const url = `txs/${hash}/utxos`;
 
-    const toTxUTxO = async (tx: TxUTxOs): Promise<TxUTxOs> => ({
+    const resolveScriptRef = async (
+      scriptHash
+    ): Promise<string | undefined> => {
+      if (scriptHash) {
+        const { data, status } = await this._axiosInstance.get(
+          `scripts/${scriptHash}`
+        );
+
+        if (status === 200) {
+          const script = data.type.startsWith('plutus')
+            ? <PlutusScript>{
+                code: await this.fetchPlutusScriptCBOR(scriptHash),
+                version: data.type.replace('plutus', ''),
+              }
+            : await this.fetchNativeScriptJSON(scriptHash);
+
+          return toScriptRef(script).to_hex();
+        }
+
+        throw parseHttpError(data);
+      }
+
+      return undefined;
+    };
+
+    const toTxUTxO = async (tx): Promise<TxUTxOs> => ({
       inputs:
         tx.inputs.length > 0
           ? tx.inputs.map((input) => ({
               address: input.address,
               amount: input.amount,
-              output_index: input.output_index,
+              outputIndex: input.output_index,
+              txHash: input.tx_hash,
             }))
           : [],
       outputs:
         tx.outputs.length > 0
-          ? tx.outputs.map((output) => ({
+          ? await Promise.all(tx.outputs.map(async (output) => ({
               address: output.address,
               amount: output.amount,
-              output_index: output.output_index,
-            }))
+              outputIndex: output.output_index,
+              dataHash: output.data_hash ?? undefined,
+              plutusData: output.inline_datum ?? undefined,
+              scriptRef: await resolveScriptRef(output.reference_script_hash),
+            })))
           : [],
     });
 
