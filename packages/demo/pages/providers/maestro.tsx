@@ -122,7 +122,7 @@ function Main({ network }) {
     async function load() {
 
       var key
-      console.log("choosing a key");
+      console.log("choosing the key");
       switch (network) {
         case 'mainnet':
             key = 'ccZ9KkyDdOJ9OyC4TNgFBlw773bWImGV';
