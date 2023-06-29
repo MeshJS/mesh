@@ -34,18 +34,20 @@ function Left({}) {
   return (
     <>
       <p>
-        Adding entire script(s) in the transaction, this increases the
-        transaction size. Therefore, we can store script reference in a UTxO,
-        doing so allows us to use UTxO to build future transactions without
-        having to include the entire script. Doing so reduces the size of the
-        transaction, which allows you to spend from multiple scripts within one
+        Validation requires access to any scripts that are involved, but adding
+        entire scripts to transactions increases the transaction size and can
+        lead to bloating of the blockchain.  A useful solution is to instead store
+        script references in a UTxO, which allows us to later use that UTxO to
+        build future transactions without having to include the entire script.
+        Thus we can reduce the size of the transaction, which may allow us to 
+        send (for example) multiple scripts within one
         transaction without exceeding the maximum transaction size.
       </p>
       <Codeblock data={codeExample} isJson={false} />
       <p>
-        Simply define the <code>script</code> into the <code>Recipient</code>{' '}
+        Simply define the <code>script</code> as the <code>Recipient</code>{' '}
         input parameter. This works for every{' '}
-        <Link href="/apis/transaction">transaction endpoints</Link> (i.e.{' '}
+        <Link href="/apis/transaction">transaction endpoints</Link> (e.g..{' '}
         <code>sendLovelace()</code>, <code>sendAssets()</code>,{' '}
         <code>sendValue()</code>).
       </p>

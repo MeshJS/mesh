@@ -37,21 +37,21 @@ const GuideMintingNodejsPage: NextPage = () => {
   codeMetadata += `    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",\n`;
   codeMetadata += `    mediaType: "image/jpg",\n`;
   codeMetadata += `    description: "Just a purple coin.",\n`;
-  codeMetadata += `    artist: "This NFT is minted by Mesh (https://meshjs.dev/).",\n`;
+  codeMetadata += `    artist: "This NFT was minted by Mesh (https://meshjs.dev/).",\n`;
   codeMetadata += `  },\n`;
   codeMetadata += `  MeshToken02: {\n`;
   codeMetadata += `    name: "Mesh Token 2",\n`;
   codeMetadata += `    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",\n`;
   codeMetadata += `    mediaType: "image/jpg",\n`;
   codeMetadata += `    description: "This is suppose to be a gold coin.",\n`;
-  codeMetadata += `    artist: "This NFT is minted by Mesh (https://meshjs.dev/).",\n`;
+  codeMetadata += `    artist: "This NFT was minted by Mesh (https://meshjs.dev/).",\n`;
   codeMetadata += `  },\n`;
   codeMetadata += `  MeshToken03: {\n`;
   codeMetadata += `    name: "Mesh Token 3",\n`;
   codeMetadata += `    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",\n`;
   codeMetadata += `    mediaType: "image/jpg",\n`;
   codeMetadata += `    description: "A coin with a M on it.",\n`;
-  codeMetadata += `    artist: "This NFT is minted by Mesh (https://meshjs.dev/).",\n`;
+  codeMetadata += `    artist: "This NFT was minted by Mesh (https://meshjs.dev/).",\n`;
   codeMetadata += `  },\n`;
   codeMetadata += `};`;
 

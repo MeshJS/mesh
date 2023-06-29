@@ -88,7 +88,7 @@ function DemoSection() {
     name: 'Mesh Token',
     image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
     mediaType: 'image/jpg',
-    description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
+    description: 'This NFT was minted by Mesh (https://meshjs.dev/).',
   };
 
   async function clientStartMinting() {
@@ -272,7 +272,7 @@ function ApplicationBuildTx() {
   code2 += `  name: 'Mesh Token',\n`;
   code2 += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
   code2 += `  mediaType: 'image/jpg',\n`;
-  code2 += `  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',\n`;
+  code2 += `  description: 'This NFT was minted by Mesh (https://meshjs.dev/).',\n`;
   code2 += `};\n`;
 
   let code3 = ``;

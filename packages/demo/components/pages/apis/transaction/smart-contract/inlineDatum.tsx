@@ -34,10 +34,9 @@ function Left({}) {
   return (
     <>
       <p>
-        Datums can be attached to UTxO outputs, doing so allow us to use UTxO to
-        hold extra data. This will allow much simpler communication of datum
-        values between users, without spending transaction provides the actual
-        datum. You can learn more from{' '}
+        It is possible to attach a "datum" (piece of data) <i>inline</i> to a UTxO outputs, which
+        allows us to use the UTxO to hold information which we can then use without having
+        to spend it (as with normal UTxOs).  You can learn more from{' '}
         <a
           href="https://cips.cardano.org/cips/cip32/"
           target="_blank"
@@ -48,15 +47,15 @@ function Left({}) {
         .
       </p>
       <p>
-        An example to create a UTxO with inline datum you can do the following:
+        Here's an example of creating a UTxO with inline datum:
       </p>
       <Codeblock data={codeExample} isJson={false} />
       <p>
-        You simply have to define the <code>datum</code> field in the{' '}
-        <code>Recipient</code> input parameter, with the data to specify (
-        <code>value</code>) and set <code>inline</code> to <code>true</code>.
+        As you can see, you simply have to define the <code>datum</code> field in the{' '}
+        <code>Recipient</code> input parameter, including a (
+        <code>value</code>) and setting <code>inline</code> to <code>true</code>.
         This works for every{' '}
-        <Link href="/apis/transaction">transaction endpoints</Link> (i.e.{' '}
+        <Link href="/apis/transaction">transaction endpoint</Link> (e.g.{' '}
         <code>sendLovelace()</code>, <code>sendAssets()</code>,{' '}
         <code>sendValue()</code>).
       </p>
