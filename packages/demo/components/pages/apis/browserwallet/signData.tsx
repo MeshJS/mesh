@@ -7,6 +7,7 @@ import Input from '../../../ui/input';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import ConnectCipWallet from '../../../common/connectCipWallet';
+import Link from 'next/link';
 
 export default function SignData() {
   const [payload, setPayload] = useState<string>('mesh');
@@ -23,10 +24,10 @@ export default function SignData() {
 
 function Left() {
   let example = ``;
-  example+=`{\n`;
-  example+=`  "signature": "845846a2012...f9119a18e8977d436385cecb08",\n`;
-  example+=`  "key": "a4010103272006215...b81a7f6ed4fa29cc7b33186c"\n`;
-  example+=`}\n`;
+  example += `{\n`;
+  example += `  "signature": "845846a2012...f9119a18e8977d436385cecb08",\n`;
+  example += `  "key": "a4010103272006215...b81a7f6ed4fa29cc7b33186c"\n`;
+  example += `}\n`;
   return (
     <>
       <p>
@@ -48,10 +49,15 @@ function Left() {
         to you as the developer which address you want to use in your
         application.
       </p>
-      <p>
-        Example of a response from the endpoint:
-      </p>
+      <p>Example of a response from the endpoint:</p>
       <Codeblock data={example} isJson={false} />
+      <p>
+        Continue reading this{' '}
+        <Link href="https://meshjs.dev/guides/prove-wallet-ownership">
+          guide
+        </Link>{' '}
+        to learn how to verify the signature.
+      </p>
     </>
   );
 }
