@@ -79,26 +79,13 @@ function Left() {
 
   return (
     <>
-      <p>There are three coin selection algorithms:</p>
+      <p>There are currently three coin selection algorithms available:</p>
       <ul>
-        <li>Keep Relevant</li>
         <li>Largest First</li>
         <li>Largest First Multi-Asset</li>
+        <li>Keep Relevant</li>
       </ul>
-      <h3>Keep Relevant</h3>
-      <p>
-        <code>keepRelevant</code> is a two steps coin selection algorithm. First
-        it tries to eliminate all the irrelevant UTxOs from the initial
-        UTxOs set. Then, it will check if we have enough lovelace to cover all
-        the multiassts we got in our UTxO selection; if the selected UTxOs
-        doesn't have enough lovelace, it will try to pickup the largest lovelace
-        UTxO from the wallet.
-      </p>
-      <Codeblock data={codeKeepRelevantDesc} isJson={false} />
-      <p>
-        Here is an example how you can use <code>keepRelevant()</code>:
-      </p>
-      <Codeblock data={codeKeepRelevant} isJson={false} />
+      
 
       <h3>Largest First</h3>
       <p>
@@ -111,22 +98,39 @@ function Left() {
 
       <h3>Largest First Multi-Asset</h3>
       <p>
-        <code>largestFirstMultiAsset</code> allows you to select native assets
-        by defining a <code>Map</code> of required assets.
+        <code>largestFirstMultiAsset</code> allows you to define which native assets
+        you require for sending out by defining a <code>Map</code>.  The Map is matches
+        the <code>Unit</code> (fingerprint) with the quantity of each asset.
       </p>
       <Codeblock data={code4} isJson={false} />
       <p>
-        Although you have use this to specify require lovelace to fulfill this
-        transaction, but if your transaction only required lovelace, the
-        algorithm will exclude all multiasset utxo from the selection, thus you
-        could select the required UTXOs more efficiently.
+        Note that if lovelace, aside from the "minimum Ada" which in any case needs to
+        accompany the other assets, this must be explicitly specified.  This can also 
+        be useful in the case that your transaction <em>only</em> requires transfer of
+        lovelace.  In this case, the algorithm will exclude all multiasset UTxOs from 
+        the selection, which can result in more efficient selection of the required UTxOs.
       </p>
       <Codeblock data={codeSnippet2} isJson={false} />
       <p>
-        The third parameter, <code>includeTxFees</code>, if <code>True</code>,
-        Mesh will calculate the fees required, and include additional UTXOs to
-        fulfill the fees amount.
+        The third parameter is <code>includeTxFees</code>. If <code>True</code>,
+        Mesh will calculate the fees required for the transaction, and include additional
+        UTxOs to necessary to fulfill the fees requirements.
       </p>
+
+      <h3>Keep Relevant</h3>
+      <p>
+        <code>keepRelevant</code> is a two-step coin selection algorithm. First, given
+        a Map (of requested assets and respective quantities) and a set of UTxOs,
+        it tries to eliminate the irrelevant UTxOs from the set.  Next, it checks that this 
+        UTxO set includes enough lovelace to cover all/any multi-assets in the set.
+        If the set does not include enough lovelace, then it will try to also pick
+        up another UTxO from the wallet, containing the largest amount of lovelace.
+      </p>
+      <Codeblock data={codeKeepRelevantDesc} isJson={false} />
+      <p>
+        Here is an example how you can use <code>keepRelevant()</code>:
+      </p>
+      <Codeblock data={codeKeepRelevant} isJson={false} />
     </>
   );
 }
