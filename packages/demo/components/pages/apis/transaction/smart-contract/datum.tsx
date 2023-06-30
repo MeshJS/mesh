@@ -108,8 +108,8 @@ function Left({}) {
   return (
     <>
       <p>
-        With Mesh, you can freely design the datum into any structure according
-        to the plutus smart contract requirements. You can import the{' '}
+        Mesh allows you to freely design the datum structure to suit
+        the plutus smart contract requirements. You can import the{' '}
         <code>Data</code> type to help you design the datum.
       </p>
       <Codeblock
@@ -125,7 +125,7 @@ function Left({}) {
       <Codeblock data={codeSnippetdatumNumber} isJson={false} />
       <h3>An array</h3>
       <p>
-        Or an array, where each item can be a string, number, a list, or a map.
+        Or an array, where each item can be either a string, number, a list, or a map.
       </p>
       <Codeblock data={codeSnippetdatumList} isJson={false} />
       <h3>A Map</h3>

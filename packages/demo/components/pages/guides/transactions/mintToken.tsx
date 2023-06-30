@@ -23,7 +23,7 @@ export default function MintToken() {
   codeDemo += `  name: 'Mesh Token',\n`;
   codeDemo += `  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',\n`;
   codeDemo += `  mediaType: 'image/jpg',\n`;
-  codeDemo += `  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',\n`;
+  codeDemo += `  description: 'This NFT was minted by Mesh (https://meshjs.dev/).',\n`;
   codeDemo += `};\n`;
   codeDemo += `const asset: Mint = {\n`;
   codeDemo += `  assetName: 'MeshToken',\n`;
@@ -53,7 +53,7 @@ export default function MintToken() {
       name: 'Mesh Token',
       image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
       mediaType: 'image/jpg',
-      description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
+      description: 'This NFT was minted by Mesh (https://meshjs.dev/).',
     };
     const asset: Mint = {
       assetName: 'MeshToken',

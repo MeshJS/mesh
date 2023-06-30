@@ -20,7 +20,7 @@ const defaultMetadata = {
   name: 'Mesh Token',
   image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
   mediaType: 'image/jpg',
-  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
+  description: 'This NFT was minted by Mesh (https://meshjs.dev/).',
 };
 
 export default function Minting() {
@@ -293,7 +293,7 @@ function InputTable({ userInput, updateField }) {
           Mint assets and send to recipients
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Add or remove recipients, input the address and define the asset
-            metadata to mint and send to recipients.
+            metadata before minting and sending.
           </p>
         </caption>
         <thead className="thead">

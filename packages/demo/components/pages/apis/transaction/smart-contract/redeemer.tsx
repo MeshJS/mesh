@@ -66,9 +66,8 @@ function Left({}) {
   return (
     <>
       <p>
-        You can design the redeemer with a similar logic as datum. Redeemer is
-        with type <code>Action</code>. With Mesh, you can only supply the{' '}
-        <code>Data</code> part to construct the redeemer.
+        For redeemers in Mesh, you use the type <code>Action</code> and you only supply the{' '}
+        <code>Data</code> part to construct it.
       </p>
 
       <Codeblock
@@ -82,11 +81,12 @@ function Left({}) {
       />
       <h3>Designing Redeemer</h3>
       <p>
-        A redeemer could be designed in a similar manner as datum, but it has to
-        be supplied differently.
+        Similarly to the datum, there is freedom in design to suit any smart contract, but the redeemer
+        needs to be supplied a little differently.
       </p>
       <p>
-        Supplying the <code>StartRedeemer</code> as defined above with the first{' '}
+        In this example, we represent a redeemer which matches the <code>StartRedeemer</code>
+        as defined above with the first{' '}
         <code>Used Address</code> as input:
       </p>
       <Codeblock data={codeSnippetFirstRedeemer} isJson={false} />
@@ -100,7 +100,7 @@ function Left({}) {
       <Codeblock data={codeSnippetThirdRedeemer} isJson={false} />
       <h3>Transaction construction</h3>
       <p>
-        We can define the redeemer in <code>redeemValue</code>:
+        Within the transaction, we can include the redeemer within <code>redeemValue</code>:
       </p>
       <Codeblock data={codeSnippetRedeemer} isJson={false} />
     </>
