@@ -132,7 +132,7 @@ function Left({ userInput }) {
       </p>
       <Codeblock data={codeParams} isJson={false} />
       <p>
-        For each recipients, we define a list of <code>Asset</code> to send:
+        For each recipient, we define a list of <code>Asset</code> to send:
       </p>
       <Codeblock data={codeSnippet1} isJson={false} />
       <p>
@@ -230,7 +230,7 @@ function InputTable({ userInput, updateField }) {
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
           Send multi-assets to recipients
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Add or remove recipients, input the address and the amount ADA to
+            Add or remove recipients, input the address and the amount of ADA to
             send.
           </p>
         </caption>

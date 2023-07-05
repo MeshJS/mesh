@@ -85,8 +85,8 @@ function Left({ userInput }) {
   return (
     <>
       <p>
-        We can chain <code>sendToken()</code> to send to multiple recipients.
-        For each recipients, append:
+        We can chain <code>sendToken()</code> commands to send to multiple recipients.
+        For each recipient, append like so:
       </p>
       <Codeblock
         data={`tx.sendToken(recipient: Recipient, ticker: token, amount: string);`}
@@ -94,7 +94,7 @@ function Left({ userInput }) {
       />
       <p>
         Like <code>sendAssets()</code>, we can chain <code>sendToken()</code>{' '}
-        along side <code>tx.sendAssets()</code> to send multiple assets to
+        together with <code>tx.sendAssets()</code> to send multiple assets to
         multiple recipients.
       </p>
       <Codeblock data={codeSnippet} isJson={false} />

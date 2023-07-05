@@ -246,7 +246,7 @@ function InputTable({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
           Unlock assets from smart contract
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Define the datum and unit (fingerprint) of the asset to unlock it from the smart
+            Define the datum and <code>Unit</code> of the asset to unlock it from the smart
             contract. <i>Note: remember that this requires interaction with a blockchain: allow 
             some time for the transaction to confirm before attempt unlocking. This demo only
             works on <code>preprod</code>{' '} network.</i>
