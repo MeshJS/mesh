@@ -100,7 +100,7 @@ function Left() {
       <p>
         <code>largestFirstMultiAsset</code> allows you to define which native assets
         you require for sending out by defining a <code>Map</code>.  The Map is matches
-        the <code>Unit</code> (fingerprint) with the quantity of each asset.
+        the <code>Unit</code> with the quantity of each asset.
       </p>
       <Codeblock data={code4} isJson={false} />
       <p>

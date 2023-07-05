@@ -43,7 +43,7 @@ export default function SendAdaHandler() {
   return (
     <SectionTwoCol
       sidebarTo="sendAdaHandler"
-      header="Send Assets to Handler"
+      header="Send Assets to Handle"
       leftFn={Left({ userInput })}
       rightFn={Right({ userInput, updateField })}
     />
@@ -142,7 +142,7 @@ function InputTable({ userInput, updateField }) {
     <div className="overflow-x-auto relative">
       <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400 m-0">
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Send ADA to handler
+          Send ADA to handle
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Note: this demo only works on mainnet.
           </p>
