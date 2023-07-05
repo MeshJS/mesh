@@ -40,12 +40,12 @@ function Left() {
       <p>
         In order to get the <code>slot</code> of the time you wish the
         transaction would expire, you can use <code>resolveSlotNo</code>. For
-        example, if you would like the transaction to expire in 5 minutes, we
-        can get the <code>slot</code> by doing:
+        example, if you would like the transaction to expire in 5 minutes, you
+        can get the <code>slot</code> in the following way:
       </p>
       <Codeblock data={code1} isJson={false} />
       <p>
-        Then, we set the TTL with <code>setTimeToExpire</code> and providing the{' '}
+        Next, we set the TTL with <code>setTimeToExpire</code> and providing the{' '}
         <code>slot</code>, this means that if the transaction is submitted after
         after <code>slot</code> will not be valid.
       </p>
