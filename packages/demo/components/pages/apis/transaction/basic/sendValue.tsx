@@ -39,9 +39,9 @@ function Left({}) {
   return (
     <>
       <p>
-        Specify an output to the transaction. This funcion allows you to design
-        the outputs UTXOs, by splitting the outputs in multiple UTXOs or
-        designing reference inputs.
+        Specify an output for the transaction. This funcion allows you to design
+        the output UTXOs, either by splitting the outputs from multiple UTxOs or
+        by creating reference inputs.
       </p>
       <Codeblock
         data={`tx.sendValue(address: Recipient, value: UTxO);`}
@@ -50,7 +50,7 @@ function Left({}) {
       <p></p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        Where <code>UTxO</code> has the following format:
+        where <code>UTxO</code> has the following format:
       </p>
       <Codeblock data={codeUtxo} isJson={false} />
     </>

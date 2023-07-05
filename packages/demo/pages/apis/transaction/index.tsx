@@ -19,7 +19,7 @@ const TransactionPage: NextPage = () => {
     { label: 'Send ADA to addresses', to: 'sendAda' },
     { label: 'Send multi-assets', to: 'sendAssets' },
     { label: 'Send tokens', to: 'sendToken' },
-    { label: 'Send assets to Handler', to: 'sendAdaHandler' },
+    { label: 'Send assets to Handle', to: 'sendAdaHandler' },
     { label: 'Send value', to: 'sendValue' },
     { label: 'Coin selection', to: 'coinSelection' },
     { label: 'Set collateral', to: 'setCollateral' },
