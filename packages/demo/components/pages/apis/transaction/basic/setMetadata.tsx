@@ -35,33 +35,33 @@ function Left({ userInput }) {
   return (
     <>
       <p>
-        Cardano Transaction Metadata allows anyone to embed metadata into
-        transactions, which is then stored in the blockchain. Metadata be a
-        text, specific structured text, number, hash, a combination of that,
-        etc. If the content of metadata should remain secret, then it is the
-        responsibility of the sender to encrypt it. Metadata can act as a
-        confirmation or assurance of authenticity when combined with off-chain
-        infrastructure such as physical identifiers. Metadata have a maximum
-        length, it is limited by the current protocal on the maximum size of a
-        single transaction.
+        Cardano Transaction Metadata specifies that any transaction can include
+        arbitrary metadata which is then stored immutably in the blockchain.
+        Metadata take the form of text, specific structured text, numbers, hashes,
+        any combination of these, etc. If the content of metadata should remain
+        secret, then it is the responsibility of the sender to first encrypt it.
+        There are many use cases: for example, when combined with off-chain
+        infrastructure (eg physical identifiers), metadata can act as a confirmation
+        or assurance of authenticity. The current protocol parameters define the 
+        maximum size of metadata permitted to accompany each transaction.
       </p>
-      <p>Here are some uses of metadata:</p>
+      <p>Some uses for metadata:</p>
       <ul>
         <li>
-          <b>Validation and verification</b>. To check and verify external
-          physical objects and legitimate content, for example, coupling with a
-          physical identifier, such as a QR-code, but it's especially beneficial
-          for low-cost supply chain tracking of fast-moving consumer goods.
+          <b>Validation and verification</b>. Checking and verifying external
+          physical objects and legitimate content, for example by coupling with a
+          physical identifier such as a QR-code.  This can be especially
+          beneficial for low-cost supply chain tracking of fast-moving consumer goods.
         </li>
         <li>
-          <b>Authentication and attribution</b>. To confirm the authenticity of
+          <b>Authentication and attribution</b>. Confirming the authenticity of
           credentials received from an educational institution or membership
-          group, as metadata can serve as an immutable and always-accessible
+          group, using the fact that metadata can serve as an immutable and always-accessible
           evidence of certification.
         </li>
         <li>
-          <b>Secure record of information</b>. To save vital information, so no
-          one can alter it, and it will last as long as the Cardano blockchain
+          <b>Secure record of information</b>. Saving vital information, so nobody
+          one can alter it afterwards, meaning it will last as long as the Cardano blockchain
           exists.
         </li>
       </ul>

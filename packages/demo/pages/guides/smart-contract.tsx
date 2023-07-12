@@ -11,36 +11,36 @@ const GuideNextjsPage: NextPage = () => {
     { label: 'Setup Next.js', to: 'setupnextjs' },
     { label: 'Setup Mesh', to: 'setupmesh' },
     { label: 'Add a wallet connection', to: 'addawalletconnection' },
-    { label: 'Integrate your Smart Contract', to: 'integrateSC' },
+    { label: 'Integrate your smart contract', to: 'integrateSC' },
   ];
 
   return (
     <>
       <Metatags
-        title="Use your Smart Contract with Mesh"
-        description="A step-by-step guide to integrate your Cardano Smart Contract to a web application."
+        title="Use your smart contract with Mesh"
+        description="A step-by-step guide to integrate your Cardano smart contract to a web application."
         image="/guides/integrating-smart-contract.png"
       />
       <GuidesLayout
-        title="Use your Smart Contract with Mesh"
-        desc="A step-by-step guide to integrate your Cardano Smart Contract to a web application."
+        title="Use your smart contract with Mesh"
+        desc="A step-by-step guide to integrate your Cardano smart contract to a web application."
         sidebarItems={sidebarItems}
         image="/guides/blockchain.jpg"
       >
         <p>
-          Cardano introduced smart contract support in 2021 which allowed the
-          creation of a number of decentralised applications. However the
-          knowledge required to develop such an app is very extensive and might
+          Cardano introduced smart contract support in 2021, which allowed the
+          creation of a number of decentralised applications. However, the
+          knowledge required to develop such apps is still quite extensive and may
           be frightening for new developers or companies looking to build on
-          Cardano. Mesh aims to solve this problem and here we are providing
-          users with a comprehensive guide to facilitate their approach to
+          Cardano. Mesh aims to solve this problem by doing most of the work, and
+          here we provide a comprehensive guide to ease new developers into 
           Cardano development.
         </p>
         <p>
-          Next.js and Mesh are JavaScript libraries, and so we will assume that
+          Next.js and Mesh are JavaScript libraries, and we will assume that
           you have some familiarity with HTML and JavaScript language, but you
           should be able to follow along even if you are coming from a different
-          programming language. If you don't feel very confident, we recommend
+          programming language. If you would like to learn more about JavaScript, we recommend
           going through this{' '}
           <a
             href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript"
@@ -49,7 +49,7 @@ const GuideNextjsPage: NextPage = () => {
           >
             JS tutorial
           </a>
-          , or the{' '}
+          , or the looking at the {' '}
           <a
             href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"
             target="_blank"
@@ -60,14 +60,14 @@ const GuideNextjsPage: NextPage = () => {
           .
         </p>
         <p>
-          To follow this guide you will also need a compiled Plutus Smart
-          Contract, specifically its CBOR representation. If you are not
+          To follow this guide you will also need a compiled Plutus smart
+          contract, specifically its "CBOR" representation. If you are not
           familiar with this, check out{' '}
           <a href="https://github.com/MeshJS/mesh.plutus" target="_blank">
             Mesh.plutus
           </a>
-          , a repository written by the Mesh team, containing a selection of
-          pre-built Smart Contracts for various use cases.
+          , a repository written by the Mesh team which contains a selection of
+          simple pre-built smart contracts for various use cases.
         </p>
 
         <Element name="systemsetup">
@@ -173,7 +173,7 @@ module.exports = nextConfig;
           />
           <h3>3. Congratulations</h3>
           <p>
-            You just saved a few weeks of learning and several days trying to
+            You just saved yourself a few weeks of learning and several days trying to
             get started. Your Next.js application is ready to accept wallet
             connections, browse assets and make some transactions.
           </p>
@@ -183,7 +183,7 @@ module.exports = nextConfig;
           <h2>Add a wallet connection</h2>
           <h3>1. Install @meshsdk/react package</h3>
           <p>Install the latest version of Mesh-react with npm:</p>
-          <Codeblock data={`yarn add @meshsdk/react`} isJson={false} />
+          <Codeblock data={`npm install @meshsdk/react`} isJson={false} />
           <h3>2. Setup MeshProvider</h3>
           <p>
             Open <code>pages/_app.tsx</code> and replace it with the following
@@ -239,12 +239,12 @@ export default Home;`}
         </Element>
 
         <Element name="integrateSC">
-          <h2>Integrate your Smart Contract</h2>
+          <h2>Integrate your smart contract</h2>
           <h3>1. Add your Plutus compiled code to the project</h3>
           <p>
-            Here we will need the compiled version of your Plutus Smart
-            Contract. If you don't have any or don't know what this is, check
-            out the available pre-built Smart Contracts provided by the Mesh
+            Here you will need the compiled version of your Plutus smart
+            contract. If you don't have one (or don't know what this is), check
+            out the available pre-built smart contracts provided by the Mesh
             team{' '}
             <a href="https://github.com/MeshJS/mesh.plutus" target="_blank">
               here
@@ -256,9 +256,9 @@ export default Home;`}
             >
               Always True
             </a>{' '}
-            script, that, as its name suggests, always succeeds, but you can
+            script, that, as its name suggests, always succeeds, although you can
             follow this guide with any of the pre-built Mesh smart contracts.
-            Details for each contract are provided in their individual branch.
+            Details for each contract are provided in their individual Github branch.
           </p>
           <p>
             Create a new folder named <code>config</code> and in it create a new
@@ -278,8 +278,8 @@ export const scriptAddr = resolvePlutusScriptAddress(script, 1);`}
           />
           <p>
             The <code>code: </code> field is where you put the compiled CBOR
-            code of your Smart Contract. If you are using a different Smart
-            Contract to follow this guide, please replace the CBOR showed here
+            code of your smart contract. If you are using a different smart
+            contract to follow this guide, please replace the CBOR showed here
             with yours. Also, here our script is a V2 script, but feel free to
             modify this according to your needs.
           </p>
@@ -293,7 +293,7 @@ export const scriptAddr = resolvePlutusScriptAddress(script, 1);`}
             <a href="https://meshjs.dev/apis/resolvers">Resolvers</a>.
           </p>
 
-          <h3>2. See your Contract in action - Lock funds</h3>
+          <h3>2. See your contract in action - Lock funds</h3>
           <p>
             Now that we successfully imported our contract to the project, we
             can start using it in our web application.
@@ -366,7 +366,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
               22f20d5382cec46166b566821f16f79cb03ee1520c71e5f83a4b3f20
             </code>{' '}
             and a hex token name of <code>54657374746f6b656e</code>
-            which resuslts to{' '}
+            which results in {' '}
             <code>
               unit:
               22f20d5382cec46166b566821f16f79cb03ee1520c71e5f83a4b3f2054657374746f6b656e
@@ -382,7 +382,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
     <CardanoWallet />
     {connected && (
       <>
-        <h1>Lock funds in your Contract</h1>
+        <h1>Lock funds in your contract</h1>
         
           <button
             type="button"
@@ -418,7 +418,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
             docs in the<code>Designing datum</code> section.
           </p>
 
-          <h3>3. See your Contract in action - Unlock funds</h3>
+          <h3>3. See your contract in action - Unlock funds</h3>
           <p>
             After successfully locking some funds, now it's time to unlock them.
             Here, in addition to the datum, we will need to construct a
@@ -507,18 +507,20 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
           <p>
             Let's take a look at what this function does. We first set our
             constants <code>addr, datumConstr, redeemer</code>, as explained
-            previously in this guide we use the <code>Always True</code> script
-            that works with any Datum and Redeemer, so here we construct the
-            same Datum as when locking (has to be the same!) and a random
-            Redeemer. Then we use the previously defined{' '}
+            previously in this guide we use the <code>Always Succeed</code> script
+            that contains no specific validating logic.  Although it is called "always
+            succeeds", it is important to note that contracts on Cardano currently
+            always require a datum to be supplied that is the <em>same</em> as the one locked
+            at the script in the UTxO we are trying to spend.  However, we can use
+            a random redeemer. Then we use the previously defined{' '}
             <code>_getAssetUtxo</code> function to fetch the UTxO we are trying
-            to spend. Finally we build the unlock transaction in <code>tx</code>{' '}
-            where we pass all the necessary fields to unlock funds from a
+            to spend. The next step is to build the unlocking transaction in <code>tx</code>{' '}
+            where we pass all the necessary fields to unlock funds from the
             script.
           </p>
           <p>
-            Finally, let's change the <code>return</code> function once more, to
-            make it unlock funds this time. Replace it with the following code:
+            Finally, let's change the <code>return</code> function once more, changing it
+            so that it unlocks funds this time. Replace with the following code:
           </p>
           <Codeblock
             data={`return (
@@ -527,7 +529,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
     <CardanoWallet />
     {connected && (
       <>
-        <h1>Unlock your funds from your Contract</h1>
+        <h1>Unlock your funds from your contract</h1>
         
           <button
             type="button"
@@ -557,8 +559,8 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
 
           <h3>4. Explore further</h3>
           <p>
-            Congratulations, you've succesfully integrated your Smart Contract
-            to a web application!
+            Congratulations, you've succesfully integrated your smart contract
+            into a web application!
           </p>
           <p>
             Now you may want to explore more complex datum/redeemer structures,
