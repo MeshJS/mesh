@@ -48,7 +48,8 @@
   "exports": {
     ".": {
       "import": "./dist/core.js",
-      "require": "./dist/core.cjs"
+      "require": "./dist/core.cjs",
+      "types": "./dist/index.d.ts"
     }
   },
   "devDependencies": {
