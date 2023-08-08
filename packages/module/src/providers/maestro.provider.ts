@@ -1,8 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
-import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  fromUTF8,
   parseAssetUnit,
   parseHttpError,
   resolveRewardAddress,
@@ -236,18 +234,15 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchHandleAddress(handle: string): Promise<string> {
-
-    throw new Error('not implemented.');
-
     try {
-      const assetName = fromUTF8(handle.replace('$', ''));
-      const { data, status } = await this._axiosInstance.get(
-        `assets/${SUPPORTED_HANDLES[1]}${assetName}/addresses`
+      const handleWithoutDollar = handle.charAt(0) === '$' ? handle.substring(1) : handle;
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `ecosystem/adahandle/${handleWithoutDollar}`
       );
 
-      if (status === 200) return data[0].address;
+      if (status === 200) return timestampedData.data;
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -264,12 +259,14 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     }
 
     try {
-      const { data, status } = await this._axiosInstance.get("protocol-params");
+      const { data: timestampedData, status } = await this._axiosInstance.get("protocol-params");
       if (status === 200) {
+        const data = timestampedData.data;
         try {
-          const { data: epochData, status: epochStatus } = await this._axiosInstance.get("epochs/current");
+          const { data: timestampedDataEpochData, status: epochStatus } = await this._axiosInstance.get("epochs/current");
 
-          if (epochStatus === 200)
+          if (epochStatus === 200) {
+            const epochData = timestampedDataEpochData.data;
             return <Protocol>{
               coinsPerUTxOSize: data.coins_per_utxo_byte.toString(),
               collateralPercent: parseInt(data.collateral_percentage),
@@ -292,12 +289,13 @@ export class MaestroProvider implements IFetcher, ISubmitter {
               priceMem: decimalFromRationalString(data.prices.memory),
               priceStep: decimalFromRationalString(data.prices.steps),
             };
-          throw parseHttpError(data);
+          }
+          throw parseHttpError(timestampedDataEpochData);
         } catch (error) {
           throw parseHttpError(error);
         }
       }
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -305,25 +303,23 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
-      const { data, status } = await this._axiosInstance.get(`transactions/${hash}`);
+      const { data: timestampedData, status } = await this._axiosInstance.get(`transactions/${hash}`);
 
       if (status === 200) {
-        const { data: txCborData, status: txCborFetchStatus } = await this._axiosInstance.get(`transactions/${hash}/cbor`);
-        if (txCborFetchStatus === 200) {
-          return <TransactionInfo>{
-            block: data.block_hash,
-            deposit: data.deposit.toString(),
-            fees: data.fee.toString(),
-            hash: data.tx_hash,
-            index: data.block_tx_index,
-            invalidAfter: data.invalid_hereafter ?? '',
-            invalidBefore: data.invalid_before ?? '',
-            slot: data.block_absolute_slot.toString(),
-            size: txCborData.cbor.length / 2 - 1,
-          };
-        }
+        const data = timestampedData.data;
+        return <TransactionInfo>{
+          block: data.block_hash,
+          deposit: data.deposit.toString(),
+          fees: data.fee.toString(),
+          hash: data.tx_hash,
+          index: data.block_tx_index,
+          invalidAfter: data.invalid_hereafter ?? '',
+          invalidBefore: data.invalid_before ?? '',
+          slot: data.block_absolute_slot.toString(),
+          size: data.size - 1,
+        };
       }
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
