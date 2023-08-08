@@ -21,14 +21,25 @@ import type {
   UTxO,
 } from '@mesh/common/types';
 
+export type MaestroSupportedNetworks = "Mainnet" | "Preprod" | "Preview"
+
+export interface MaestroConfig {
+  network: MaestroSupportedNetworks,
+  apiKey: string,
+  turboSubmit?: boolean  // Read about paid turbo transaction submission feature at https://docs-v1.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.
+}
+
 export class MaestroProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(network: string, key: string) {
+  turboSubmit: boolean;
+
+  constructor({ network, apiKey, turboSubmit = false }: MaestroConfig) {
     this._axiosInstance = axios.create({
-      baseURL: `https://${network}.gomaestro-api.org/v0`,
-      headers: { 'api-key': key },
+      baseURL: `https://${network}.gomaestro-api.org/v1`,
+      headers: { 'api-key': apiKey },
     });
+    this.turboSubmit = turboSubmit;
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -37,11 +48,12 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       : address;
 
     try {
-      const { data, status } = await this._axiosInstance.get(
+      const { data: timestampedData, status } = await this._axiosInstance.get(
         `accounts/${rewardAddress}`
       );
 
       if (status === 200) {
+        const data = timestampedData.data;
         return <AccountInfo>{
           poolId: data.delegated_pool,
           active: data.registered,
@@ -51,13 +63,17 @@ export class MaestroProvider implements IFetcher, ISubmitter {
         };
       }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
+    const queryPredicate = (() => {
+      if (address.startsWith('addr_vkh') || address.startsWith('addr_shared_vkh')) return `addresses/cred/${address}`
+      else return `addresses/${address}`;
+    })();
     const resolveScript = (utxo: MaestroUTxO) => {
       if (utxo.reference_script) {
         const script =
@@ -72,25 +88,24 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       } else return undefined
     }
     const paginateUTxOs = async (
-      page = 1,
+      cursor = null,
       utxos: UTxO[] = []
     ): Promise<UTxO[]> => {
-      const { data, status } = await this._axiosInstance.get(
-        `addresses/${address}/utxos?page=${page}`
+      const appendCursorString = cursor === null ? "" : `&cursor=${cursor}`
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `${queryPredicate}/utxos?count=100${appendCursorString}`
       );
       if (status === 200) {
+        const data = timestampedData.data;
         let pageUTxOs: UTxO[] = data.map(toUTxO);
         if (asset !== undefined && asset !== '')
           pageUTxOs = pageUTxOs.filter((utxo) => utxo.output.amount.some((a) => a.unit === asset));
-        return data.length > 0
-          ? paginateUTxOs(page + 1, [
-            ...utxos,
-            ...pageUTxOs,
-          ])
-          : utxos;
+        const addedUtxos = [...utxos, ...pageUTxOs]
+        const nextCursor = timestampedData.next_cursor;
+        return nextCursor == null ? addedUtxos : paginateUTxOs(nextCursor, addedUtxos)
       }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     };
 
     const toUTxO = (utxo: MaestroUTxO): UTxO => ({
@@ -101,8 +116,8 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       output: {
         address: address,
         amount: utxo.assets.map((asset) => ({
-          unit: asset.unit.replace("#", ""),
-          quantity: asset.quantity.toString(),
+          unit: asset.unit,
+          quantity: asset.amount.toString(),
         })),
         dataHash: utxo.datum?.hash,
         plutusData: utxo.datum?.bytes,
@@ -119,33 +134,24 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
     const paginateAddresses = async (
-      page = 1,
-      addresses: { address: string; quantity: string }[] = []
+      cursor = null,
+      addressesWithQuantity: { address: string; quantity: string }[] = []
     ): Promise<{ address: string; quantity: string }[]> => {
+      const appendCursorString = cursor === null ? "" : `&cursor=${cursor}`
       const { policyId, assetName } = parseAssetUnit(asset);
-      const { data, status } = await this._axiosInstance.get(
-        `assets/${policyId}${assetName}/addresses?page=${page}`
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `assets/${policyId}${assetName}/addresses?count=100${appendCursorString}`
       );
-
       if (status === 200) {
-        const addrWithQuantity: { address: string; quantity: string }[] = []
-        for (const addr of data) {
-          const thisAddrUTxOs = await this.fetchAddressUTxOs(addr, asset)
-          let totalAsset = 0
-          for (const thisAddrUTxO of thisAddrUTxOs) {
-            for (const assetAmnt of thisAddrUTxO.output.amount) {
-              if (assetAmnt.unit === asset) totalAsset += parseInt(assetAmnt.quantity)
-            }
-          }
-          addrWithQuantity.push({ address: addr, quantity: totalAsset.toString() })
-        }
-        return data.length > 0
-          ? paginateAddresses(page + 1, [...addresses, ...addrWithQuantity])
-          : addresses;
+        const data = timestampedData.data;
+        const pageAddressesWithQuantity: { address: string; quantity: string }[] = data.map((a) => { return { address: a.address, quantity: a.amount.toString() } })
+        const nextCursor = timestampedData.next_cursor;
+        const addedData = [...addressesWithQuantity, ...pageAddressesWithQuantity]
+        return nextCursor == null ? addedData : paginateAddresses(nextCursor, addedData)
 
       }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     };
 
     try {
@@ -382,7 +388,7 @@ type MaestroScript = {
 
 type MaestroAsset = {
   unit: string;
-  quantity: number;
+  amount: number;
 };
 
 type MaestroUTxO = {
@@ -392,4 +398,5 @@ type MaestroUTxO = {
   address: string;
   datum?: MaestroDatumOption;
   reference_script?: MaestroScript;
+  // Other fields such as `slot` & `txout_cbor` are ignored.
 };
