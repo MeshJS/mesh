@@ -30,14 +30,14 @@ export interface MaestroConfig {
 export class MaestroProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  turboSubmit: boolean;
+  submitUrl: string;
 
   constructor({ network, apiKey, turboSubmit = false }: MaestroConfig) {
     this._axiosInstance = axios.create({
       baseURL: `https://${network}.gomaestro-api.org/v1`,
       headers: { 'api-key': apiKey },
     });
-    this.turboSubmit = turboSubmit;
+    this.submitUrl = turboSubmit ? 'txmanager' : 'txmanager/turbosubmit';
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -189,7 +189,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
           confirmations: data.confirmations,
           epoch: data.epoch,
           epochSlot: data.epoch_slot.toString(),
-          fees: data.fees,
+          fees: data.total_fees.toString(),
           hash: data.hash,
           nextBlock: data.next_block ?? '',
           operationalCertificate: data.op_cert,
@@ -348,7 +348,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     try {
       const headers = { 'Content-Type': 'application/cbor' };
       const { data, status } = await this._axiosInstance.post(
-        'txmanager',
+        this.submitUrl,
         toBytes(tx),
         { headers }
       );
