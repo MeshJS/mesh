@@ -662,9 +662,10 @@ export class Transaction {
       const collection = mint.unit
         .slice(0, POLICY_ID_LENGTH);
 
-      if(mint.data.label === '777') {
-        return metadata as any; // TODO: fix this
-      }
+      // TODO: fix this
+      // if(mint.data.label === '777') {
+      //   return metadata as any;
+      // }
 
       if (meta && meta[collection]) {
         const {
