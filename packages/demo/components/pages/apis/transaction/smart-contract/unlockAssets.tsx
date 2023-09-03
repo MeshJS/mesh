@@ -105,39 +105,39 @@ function Left({ assetUnit, inputDatum }) {
   return (
     <>
       <p>
-        As we may have locked assets in the contract, you can create
-        transactions to unlock the assets with a redeemer that corresponds to
-        the datum. Define the corresponding code to create the datum, only a
-        transaction with the corrent datum hash is able to unlock the asset.
-        Define the <code>unit</code> of the locked asset to search for the UTXO
-        in the smart contract, which is required for the transaction's input.
+        To unlock assets locked in a smart contract, you need to create
+        a transaction that supplies the correct datum.  In fact, only a
+        transaction with the corrent datum supplied is able to unlock the assets.
+        in the smart contract, which is required for the transaction's input.  In
+        our example, we shall also define the <code>unit</code> of the asset we
+        are searching for so that we can search for the suitable UTxO.
       </p>
       <p>
-        First, let's create a function to fetch input UTXO from the script
-        address. This input UTXO is needed for transaction builder. In this
-        demo, we are using <code>KoiosProvider</code>, but this can be
-        interchange with other providers that Mesh provides, see{' '}
-        <Link href="/apis/providers">Providers</Link>.
+        First, let's create a function to fetch the correct input UTxO from the script
+        address. This input UTxO is needed for the transaction builder. Notee that in this
+        demo, we are using <code>KoiosProvider</code>, but any of the providers which are
+        implemented by Mesgh can be used (see {' '}
+        <Link href="/apis/providers">Providers</Link> for list).
       </p>
       <Codeblock data={codeSnippetGetAssetUtxo} isJson={false} />
       <p>
-        Then, we query the script address for the UTXO that contain the data
+        Then, we query the script address for the UTxO that contains the correct data
         hash:
       </p>
       <Codeblock data={codeSnippetCallAssetUtxo} isJson={false} />
       <p>
-        Then, we create the transaction.{' '}
-        <code>4e4d01000033222220051200120011</code> is the script CBOR for{' '}
+        Next, we create the transaction.{' '}
+        <code>4e4d01000033222220051200120011</code> is the script CBOR for the {' '}
         <code>always succeed</code> smart contract.
       </p>
       <Codeblock data={codeSnippetCreateTx} isJson={false} />
       <p>
-        Lastly, we build and sign the transaction. Note that here we need to set
-        partial sign to <code>true</code>.
+        Lastly, we build and sign the transaction. Note that here we need to set the
+        'partial sign' parameter to <code>true</code>.
       </p>
       <Codeblock data={codeSnippetSign} isJson={false} />
       <p>
-        Putting them all together, here's the code to unlock assets from smart
+        Putting it all together, here's the code to unlock assets from smart
         contract:
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
@@ -246,10 +246,10 @@ function InputTable({ assetUnit, setAssetUnit, inputDatum, setInputDatum }) {
         <caption className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
           Unlock assets from smart contract
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Define the datum and asset's unit to unlock assets in smart
-            contract. Note: give some time for the transaction to confirm before
-            attempt unlocking. This demo only works on <code>preprod</code>{' '}
-            network.
+            Define the datum and <code>Unit</code> of the asset to unlock it from the smart
+            contract. <i>Note: remember that this requires interaction with a blockchain: allow 
+            some time for the transaction to confirm before attempt unlocking. This demo only
+            works on <code>preprod</code>{' '} network.</i>
           </p>
         </caption>
         <thead className="thead">

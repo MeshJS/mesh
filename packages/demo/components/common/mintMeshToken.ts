@@ -36,7 +36,7 @@ export default async function mintMeshToken({setLoading, setResponse, wallet}) {
       name: 'Mesh Token',
       image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
       mediaType: 'image/jpg',
-      description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
+      description: 'This NFT was minted by Mesh (https://meshjs.dev/).',
     };
     const asset: Mint = {
       assetName: 'MeshToken',

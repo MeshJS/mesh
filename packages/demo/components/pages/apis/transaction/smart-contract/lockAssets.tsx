@@ -122,33 +122,33 @@ function Left({ userInput, inputDatum }) {
   return (
     <>
       <p>
-        Token locking is a feature where certain assets are reserved on the
-        smart contract. The assets can only be unlocked when certain conditions
-        are met, for example, when making a purchase.
+        Assets may be reserved in a smart contract by "locking" them at the script's address.
+        The assets can only be subsequently unlocked when certain conditions
+        are met, for example, in the case of making a purchase in a marketplace contract.
       </p>
       <p>
-        In this showcase, we will lock selected assets from your wallet to an
-        <code>always succeed</code> smart contract, where unlocking assets
-        requires the correct datum. In practice, multiple assets (both native
-        assets and lovelace) can be sent to the contract in a single
-        transaction.
+        In this demo, we will lock selected assets from your wallet in an
+        <code>always succeed</code> smart contract.  Even though it is called "always succeed"
+        because there is no actual "validating" logic, unlocking the assets still 
+        requires the correct datum to be supplied. Also note that in practice, multiple assets (both native
+        assets and lovelace) can be sent to the contract in a single transaction.
       </p>
       <p>
-        If you do not have the script address, in Mesh, we can resolve the
-        script address with{' '}
+        We need to supply the script address.  Luckily Mesh has a handy function to "resolve" (work out)
+        the script address automatically using: {' '}
         <Link href="/apis/resolvers#resolvePlutusScriptAddress">
           Resolve Script Address
         </Link>{' '}
         from the script's CBOR (<code>4e4d01000033222220051200120011</code>).
-        Here's how you can do it:
+        Here's how it's done:
       </p>
       <Codeblock data={codeResolver} isJson={false} />
       <p>To lock assets in this contract, here's the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        If the transaction is successful, you may want to copy one of the
-        asset's <code>unit</code> and the <code>datum</code> you used in this
-        transaction. These information are required to unlock the assets.
+        If the transaction is successful, you would usually want to keep a record of the
+        asset's <code>unit</code> and the <code>datum</code> used in the
+        transaction, as this information is required to unlock the assets.
       </p>
     </>
   );

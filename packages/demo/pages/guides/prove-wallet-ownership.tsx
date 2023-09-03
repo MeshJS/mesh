@@ -82,7 +82,7 @@ const GuideLoginWithWalletPage: NextPage = () => {
   codeSnippet4 += `  // do: get 'nonce' from user (database) using 'userAddress'\n\n`;
   codeSnippet4 += `  const result = checkSignature(nonce, userAddress, signature);\n\n`;
   codeSnippet4 += `  // do: update 'nonce' in the database with another random string\n\n`;
-  codeSnippet4 += `  // do: do what you need after user proof ownership\n`;
+  codeSnippet4 += `  // do: do whatever you need to do, once the user has proven ownership\n`;
   codeSnippet4 += `  // it could be creating a valid JSON Web Token (JWT) or session\n`;
   codeSnippet4 += `  // it could be doing something offchain\n`;
   codeSnippet4 += `  // it could just be updating something in the database\n`;
@@ -375,9 +375,9 @@ const GuideLoginWithWalletPage: NextPage = () => {
         </Element>
 
         <Element name="step5">
-          <h2>Put It All Together</h2>
+          <h2>Putting It All Together</h2>
           <p>
-            Lets put it all together. Your frontend code should contain two
+            OK, let's put it all together! Your frontend code should now contain two
             functions <code>frontendStartLoginProcess()</code> and{' '}
             <code>frontendSignMessage(nonce)</code>.
           </p>
@@ -396,8 +396,8 @@ const GuideLoginWithWalletPage: NextPage = () => {
           </p>
           <Codeblock data={codeSnippetServer} isJson={false} />
           <p>
-            There you go! Although this guide shows you how you can sign in with
-            wallet, you can use the same technique to authenticate any of a user's
+            There you go! Although this guide shows you how somebody can sign in with
+            wallet, the same technique can be used to authenticate any of a user's
             actions.
           </p>
         </Element>

@@ -27,6 +27,7 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/react.js",
       "require": "./dist/react.cjs"
     }
@@ -61,7 +62,7 @@
     "vite": "3.1.4"
   },
   "peerDependencies": {
-    "@meshsdk/core": "1.5.4",
+    "@meshsdk/core": "1.5.5",
     "react-dom": "17.x || 18.x",
     "react": "17.x || 18.x"
   },

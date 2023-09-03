@@ -27,7 +27,7 @@ const defaultMetadata = {
   name: 'Mesh Token',
   image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
   mediaType: 'image/jpg',
-  description: 'This NFT is minted by Mesh (https://meshjs.dev/).',
+  description: 'This NFT was minted by Mesh (https://meshjs.dev/).',
 };
 
 export default function PlutusMinting() {
@@ -175,20 +175,20 @@ function Left({ userInput }) {
   return (
     <>
       <p>
-        In this demo, we will use a Plutus Script to mint tokens. This script is
+        In this demo, we will use a Plutus script to mint tokens. This script is
         designed to always succeed, meaning that anyone can sign and mint tokens
-        with it, as there are no validation on this script.
+        with it, as there is no extra validation logic carried out by this script.
       </p>
 
       <p>
-        Firstly, we create a new <code>PlutusScript</code> and redeemer (
+        Firstly, we create a new <code>PlutusScript</code> and "redeemer" (
         <code>Action</code>):
       </p>
 
       <Codeblock data={codeSnippetScript} isJson={false} />
 
       <p>
-        You can get the always succeed Plutus script CBOR (to replace{' '}
+        You can get the 'always succeed' Plutus script CBOR (to replace{' '}
         <code>plutusMintingScriptCbor</code>) from this{' '}
         <a
           href="https://gist.github.com/jinglescode/23d173ea382a0d3589cdf5170c0aca60"
@@ -201,9 +201,9 @@ function Left({ userInput }) {
       </p>
 
       <p>
-        Then, we{' '}
+        Next, we{' '}
         <Link href="/apis/transaction/smart-contract#plutusminting">
-          define the assets and its metadata
+          define the asset and its metadata
         </Link>
         , and add the <code>script</code> (<code>PlutusScript</code>),{' '}
         <code>redeemer</code> (<code>Action</code>), and the
@@ -303,7 +303,7 @@ function InputTable({ userInput, updateField }) {
           Mint assets and send to recipients
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Add or remove recipients, input the address and define the asset
-            metadata to mint and send to recipients.
+            metadata before minting and sending.
           </p>
         </caption>
         <thead className="thead">

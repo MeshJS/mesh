@@ -547,6 +547,22 @@ export class Transaction {
     return this;
   }
 
+  /**
+   * Sets the reference inputs for the transaction.
+   *
+   * @param {UTxO[]} inputs The reference inputs to set.
+   * @returns {Transaction} The transaction.
+   */
+  setTxRefInputs(inputs: UTxO[]): Transaction {
+    inputs
+      .map((input) => toTxUnspentOutput(input))
+      .forEach((utxo) => {
+        this._txBuilder.add_reference_input(utxo.input())
+      });
+
+    return this;
+  }
+
   withdrawRewards(rewardAddress: string, lovelace: string): Transaction {
     const address = toRewardAddress(rewardAddress);
 
