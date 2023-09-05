@@ -557,7 +557,7 @@ export class Transaction {
     inputs
       .map((input) => toTxUnspentOutput(input))
       .forEach((utxo) => {
-        this._txBuilder.add_reference_input(utxo.input())
+        this._txBuilder.add_reference_input(utxo.input());
       });
 
     return this;
@@ -624,7 +624,7 @@ export class Transaction {
   private async addTxInputsAsNeeded() {
     if (this.notVisited('setTxInputs')) {
       const availableUTxOs = await this.filterAvailableUTxOs();
-      
+
       const txInputs = keepRelevant(
         this._txOutputs, availableUTxOs.map((au) => fromTxUnspentOutput(au))
       );
@@ -632,11 +632,11 @@ export class Transaction {
       txInputs
         .map((utxo) => toTxUnspentOutput(utxo))
         .forEach((utxo) => {
-            this._txInputsBuilder.add_input(
-              utxo.output().address(), utxo.input(),
-              utxo.output().amount(),
-            );
-          });
+          this._txInputsBuilder.add_input(
+            utxo.output().address(), utxo.input(),
+            utxo.output().amount(),
+          );
+        });
     }
 
     this._txBuilder.set_inputs(this._txInputsBuilder);
@@ -678,7 +678,7 @@ export class Transaction {
       const collection = mint.unit
         .slice(0, POLICY_ID_LENGTH);
 
-      if(mint.data.label === '777') {
+      if (mint.data.label === '777') {
         return metadata as any; // TODO: fix this
       }
 
@@ -781,7 +781,7 @@ export class Transaction {
 
   private setTxOutput(asset: Asset) {
     const existingQuantity = csl.BigNum.from_str(
-      this._txOutputs.get(asset.unit) ?? '0',      
+      this._txOutputs.get(asset.unit) ?? '0',
     );
 
     const totalQuantity = existingQuantity
