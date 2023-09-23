@@ -8,7 +8,7 @@ import {
   BadgeListener,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
-import { KoiosProvider } from '@meshsdk/core';
+import { MaestroSupportedNetworks } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
 import ButtonGroup from '../../components/ui/buttongroup';
 import Listener from '../../components/pages/providers/listener';
@@ -121,23 +121,27 @@ function Main({ network }) {
   useEffect(() => {
     async function load() {
 
-      var key
+      var key;
+      let maestroNetwork: MaestroSupportedNetworks = "Mainnet";
       console.log("choosing a key");
       switch (network) {
         case 'mainnet':
-            key = 'ccZ9KkyDdOJ9OyC4TNgFBlw773bWImGV';
-            break;
+          key = 'ccZ9KkyDdOJ9OyC4TNgFBlw773bWImGV';
+          maestroNetwork = "Mainnet"
+          break;
         case 'preprod':
-            key = 'nUuoNxLMvVN23OsfhwgzUfK47RlbZset';
-            break;
+          key = 'nUuoNxLMvVN23OsfhwgzUfK47RlbZset';
+          maestroNetwork = "Preprod"
+          break;
         case 'preview':
-            key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
-            break;
+          key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+          maestroNetwork = "Preview"
+          break;
         default:
-            console.log("unknown network");
-            break;
-    }
-      const _provider = new MaestroProvider(network, key);
+          console.log("unknown network");
+          break;
+      }
+      const _provider = new MaestroProvider({ network: maestroNetwork, apiKey: key });
       setProvider(_provider);
     }
     load();

@@ -1,8 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
-import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
-  fromUTF8,
   parseAssetUnit,
   parseHttpError,
   resolveRewardAddress,
@@ -20,15 +18,27 @@ import type {
   TransactionInfo,
   UTxO,
 } from '@mesh/common/types';
+import { csl } from '@mesh/core';
+
+export type MaestroSupportedNetworks = "Mainnet" | "Preprod" | "Preview"
+
+export interface MaestroConfig {
+  network: MaestroSupportedNetworks,
+  apiKey: string,
+  turboSubmit?: boolean  // Read about paid turbo transaction submission feature at https://docs-v1.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.
+}
 
 export class MaestroProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(network: string, key: string) {
+  submitUrl: string;
+
+  constructor({ network, apiKey, turboSubmit = false }: MaestroConfig) {
     this._axiosInstance = axios.create({
-      baseURL: `https://${network}.gomaestro-api.org/v0`,
-      headers: { 'api-key': key },
+      baseURL: `https://${network}.gomaestro-api.org/v1`,
+      headers: { 'api-key': apiKey },
     });
+    this.submitUrl = turboSubmit ? 'txmanager' : 'txmanager/turbosubmit';
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -37,11 +47,12 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       : address;
 
     try {
-      const { data, status } = await this._axiosInstance.get(
+      const { data: timestampedData, status } = await this._axiosInstance.get(
         `accounts/${rewardAddress}`
       );
 
       if (status === 200) {
+        const data = timestampedData.data;
         return <AccountInfo>{
           poolId: data.delegated_pool,
           active: data.registered,
@@ -51,13 +62,18 @@ export class MaestroProvider implements IFetcher, ISubmitter {
         };
       }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
+    const queryPredicate = (() => {
+      if (address.startsWith('addr_vkh') || address.startsWith('addr_shared_vkh')) return `addresses/cred/${address}`
+      else return `addresses/${address}`;
+    })();
+    const appendAssetString = asset ? `&asset=${asset}` : ""
     const resolveScript = (utxo: MaestroUTxO) => {
       if (utxo.reference_script) {
         const script =
@@ -72,25 +88,22 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       } else return undefined
     }
     const paginateUTxOs = async (
-      page = 1,
+      cursor = null,
       utxos: UTxO[] = []
     ): Promise<UTxO[]> => {
-      const { data, status } = await this._axiosInstance.get(
-        `addresses/${address}/utxos?page=${page}`
+      const appendCursorString = cursor === null ? "" : `&cursor=${cursor}`
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `${queryPredicate}/utxos?count=100${appendAssetString}${appendCursorString}`
       );
       if (status === 200) {
-        let pageUTxOs: UTxO[] = data.map(toUTxO);
-        if (asset !== undefined && asset !== '')
-          pageUTxOs = pageUTxOs.filter((utxo) => utxo.output.amount.some((a) => a.unit === asset));
-        return data.length > 0
-          ? paginateUTxOs(page + 1, [
-            ...utxos,
-            ...pageUTxOs,
-          ])
-          : utxos;
+        const data = timestampedData.data;
+        const pageUTxOs: UTxO[] = data.map(toUTxO);
+        const addedUtxos = [...utxos, ...pageUTxOs]
+        const nextCursor = timestampedData.next_cursor;
+        return nextCursor == null ? addedUtxos : paginateUTxOs(nextCursor, addedUtxos)
       }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     };
 
     const toUTxO = (utxo: MaestroUTxO): UTxO => ({
@@ -101,8 +114,8 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       output: {
         address: address,
         amount: utxo.assets.map((asset) => ({
-          unit: asset.unit.replace("#", ""),
-          quantity: asset.quantity.toString(),
+          unit: asset.unit,
+          quantity: asset.amount.toString(),
         })),
         dataHash: utxo.datum?.hash,
         plutusData: utxo.datum?.bytes,
@@ -118,34 +131,25 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+    const { policyId, assetName } = parseAssetUnit(asset);
     const paginateAddresses = async (
-      page = 1,
-      addresses: { address: string; quantity: string }[] = []
+      cursor = null,
+      addressesWithQuantity: { address: string; quantity: string }[] = []
     ): Promise<{ address: string; quantity: string }[]> => {
-      const { policyId, assetName } = parseAssetUnit(asset);
-      const { data, status } = await this._axiosInstance.get(
-        `assets/${policyId}${assetName}/addresses?page=${page}`
+      const appendCursorString = cursor === null ? "" : `&cursor=${cursor}`
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `assets/${policyId}${assetName}/addresses?count=100${appendCursorString}`
       );
-
       if (status === 200) {
-        const addrWithQuantity: { address: string; quantity: string }[] = []
-        for (const addr of data) {
-          const thisAddrUTxOs = await this.fetchAddressUTxOs(addr, asset)
-          let totalAsset = 0
-          for (const thisAddrUTxO of thisAddrUTxOs) {
-            for (const assetAmnt of thisAddrUTxO.output.amount) {
-              if (assetAmnt.unit === asset) totalAsset += parseInt(assetAmnt.quantity)
-            }
-          }
-          addrWithQuantity.push({ address: addr, quantity: totalAsset.toString() })
-        }
-        return data.length > 0
-          ? paginateAddresses(page + 1, [...addresses, ...addrWithQuantity])
-          : addresses;
+        const data = timestampedData.data;
+        const pageAddressesWithQuantity: { address: string; quantity: string }[] = data.map((a) => { return { address: a.address, quantity: a.amount.toString() } })
+        const nextCursor = timestampedData.next_cursor;
+        const addedData = [...addressesWithQuantity, ...pageAddressesWithQuantity]
+        return nextCursor == null ? addedData : paginateAddresses(nextCursor, addedData)
 
       }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     };
 
     try {
@@ -158,16 +162,18 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
-      const { data, status } = await this._axiosInstance.get(
+      const { data: timestampedData, status } = await this._axiosInstance.get(
         `assets/${policyId}${assetName}`
       );
 
-      if (status === 200)
+      if (status === 200) {
+        const data = timestampedData.data
         return <AssetMetadata>{
           ...data.asset_standards.cip25_metadata, ...data.asset_standards.cip68_metadata,
         };
+      }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -175,31 +181,31 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
 
-    throw new Error('not implemented.');
-
     try {
-      const { data, status } = await this._axiosInstance.get(`blocks/${hash}`);
+      const { data: timestampedData, status } = await this._axiosInstance.get(`blocks/${hash}`);
 
-      if (status === 200)
+      if (status === 200) {
+        const data = timestampedData.data
         return <BlockInfo>{
           confirmations: data.confirmations,
           epoch: data.epoch,
           epochSlot: data.epoch_slot.toString(),
-          fees: data.fees,
+          fees: data.total_fees.toString(),
           hash: data.hash,
           nextBlock: data.next_block ?? '',
-          operationalCertificate: data.op_cert,
-          output: data.output ?? '0',
+          operationalCertificate: data.operational_certificate?.hot_vkey,
+          output: data.total_output_lovelace ?? '0',
           previousBlock: data.previous_block,
           size: data.size,
-          slot: data.slot.toString(),
-          slotLeader: data.slot_leader ?? '',
-          time: data.time,
-          txCount: data.tx_count,
-          VRFKey: data.block_vrf,
+          slot: data.absolute_slot.toString(),
+          slotLeader: data.block_producer ?? '',
+          time: Date.parse(data.timestamp) / 1000,
+          txCount: data.tx_hashes.length,
+          VRFKey: csl.VRFVKey.from_hex(data.vrf_key).to_bech32("vrf_vk"),
         };
+      }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -207,41 +213,41 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchCollectionAssets(
     policyId: string,
-    cursor = 1
+    cursor?: string
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     try {
-      const { data, status } = await this._axiosInstance.get(
-        `assets/policy/${policyId}?page=${cursor}`
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `assets/policy/${policyId}?count=100${cursor ? `&cursor=${cursor}` : ""}`
       );
+      console.log(timestampedData)
 
-      if (status === 200)
+      if (status === 200) {
+        const data = timestampedData.data
         return {
           assets: data.map((asset) => ({
             unit: policyId + asset.asset_name,
             quantity: asset.total_supply.toString(),
           })),
-          next: data.length === 100 ? cursor + 1 : null,
+          next: timestampedData.next_cursor,
         };
+      }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       return { assets: [], next: null };
     }
   }
 
   async fetchHandleAddress(handle: string): Promise<string> {
-
-    throw new Error('not implemented.');
-
     try {
-      const assetName = fromUTF8(handle.replace('$', ''));
-      const { data, status } = await this._axiosInstance.get(
-        `assets/${SUPPORTED_HANDLES[1]}${assetName}/addresses`
+      const handleWithoutDollar = handle.charAt(0) === '$' ? handle.substring(1) : handle;
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `ecosystem/adahandle/${handleWithoutDollar}`
       );
 
-      if (status === 200) return data[0].address;
+      if (status === 200) return timestampedData.data;
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -258,12 +264,14 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     }
 
     try {
-      const { data, status } = await this._axiosInstance.get("protocol-params");
+      const { data: timestampedData, status } = await this._axiosInstance.get("protocol-params");
       if (status === 200) {
+        const data = timestampedData.data;
         try {
-          const { data: epochData, status: epochStatus } = await this._axiosInstance.get("epochs/current");
+          const { data: timestampedDataEpochData, status: epochStatus } = await this._axiosInstance.get("epochs/current");
 
-          if (epochStatus === 200)
+          if (epochStatus === 200) {
+            const epochData = timestampedDataEpochData.data;
             return <Protocol>{
               coinsPerUTxOSize: data.coins_per_utxo_byte.toString(),
               collateralPercent: parseInt(data.collateral_percentage),
@@ -286,66 +294,57 @@ export class MaestroProvider implements IFetcher, ISubmitter {
               priceMem: decimalFromRationalString(data.prices.memory),
               priceStep: decimalFromRationalString(data.prices.steps),
             };
-          throw parseHttpError(data);
+          }
+          throw parseHttpError(timestampedDataEpochData);
         } catch (error) {
           throw parseHttpError(error);
         }
       }
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
   }
 
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
-    throw new Error('not implemented.');
     try {
-      const { data, status } = await this._axiosInstance.get(`transactions/${hash}`);
+      const { data: timestampedData, status } = await this._axiosInstance.get(`transactions/${hash}`);
 
       if (status === 200) {
+        const data = timestampedData.data;
         return <TransactionInfo>{
           block: data.block_hash,
-          deposit: data.deposit,
-          fees: data.fees,
-          hash: data.hash,
+          deposit: data.deposit.toString(),
+          fees: data.fee.toString(),
+          hash: data.tx_hash,
           index: data.block_tx_index,
           invalidAfter: data.invalid_hereafter ?? '',
           invalidBefore: data.invalid_before ?? '',
-          slot: data.slot.toString(),
-          size: data.size,
+          slot: data.block_absolute_slot.toString(),
+          size: data.size - 1,
         };
-
       }
-
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
   }
 
-  onTxConfirmed(txHash: string, callback: () => void, limit = 20): void {
-    throw new Error('not implemented.');
+  onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
     const checkTx = setInterval(() => {
-      if (attempts >= limit) clearInterval(checkTx);
+      if (attempts >= limit)
+        clearInterval(checkTx);
 
-      this.fetchTxInfo(txHash)
-        .then((txInfo) => {
-          this.fetchBlockInfo(txInfo.block)
-            .then((blockInfo) => {
-              if (blockInfo?.confirmations > 0) {
-                clearInterval(checkTx);
-                callback();
-              }
-            })
-            .catch(() => {
-              attempts += 1;
-            });
-        })
-        .catch(() => {
-          attempts += 1;
-        });
+      this.fetchTxInfo(txHash).then((txInfo) => {
+        this.fetchBlockInfo(txInfo.block).then((blockInfo) => {
+          if (blockInfo?.confirmations > 0) {
+            clearInterval(checkTx);
+            callback();
+          }
+        }).catch(() => { attempts += 1; });
+      }).catch(() => { attempts += 1; });
     }, 5_000);
   }
 
@@ -353,7 +352,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     try {
       const headers = { 'Content-Type': 'application/cbor' };
       const { data, status } = await this._axiosInstance.post(
-        'transactions',
+        this.submitUrl,
         toBytes(tx),
         { headers }
       );
@@ -365,8 +364,6 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       throw parseHttpError(error);
     }
   }
-
-
 }
 
 type MaestroDatumOptionType = "hash" | "inline";
@@ -391,7 +388,7 @@ type MaestroScript = {
 
 type MaestroAsset = {
   unit: string;
-  quantity: number;
+  amount: number;
 };
 
 type MaestroUTxO = {
@@ -401,4 +398,5 @@ type MaestroUTxO = {
   address: string;
   datum?: MaestroDatumOption;
   reference_script?: MaestroScript;
+  // Other fields such as `slot` & `txout_cbor` are ignored.
 };

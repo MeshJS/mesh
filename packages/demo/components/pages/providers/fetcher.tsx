@@ -72,7 +72,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
   const [policyId, setPolicyId] = useState<string>(
     'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527'
   );
-  const [cursor, setCursor] = useState<string>('1');
+  const [cursor, setCursor] = useState<string>('');
 
   // useEffect(() => {
   //   async function init() {
