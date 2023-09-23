@@ -18,6 +18,7 @@ import type {
   TransactionInfo,
   UTxO,
 } from '@mesh/common/types';
+import { csl } from '@mesh/core';
 
 export type MaestroSupportedNetworks = "Mainnet" | "Preprod" | "Preview"
 
@@ -72,6 +73,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       if (address.startsWith('addr_vkh') || address.startsWith('addr_shared_vkh')) return `addresses/cred/${address}`
       else return `addresses/${address}`;
     })();
+    const appendAssetString = asset ? `&asset=${asset}` : ""
     const resolveScript = (utxo: MaestroUTxO) => {
       if (utxo.reference_script) {
         const script =
@@ -91,13 +93,11 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     ): Promise<UTxO[]> => {
       const appendCursorString = cursor === null ? "" : `&cursor=${cursor}`
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `${queryPredicate}/utxos?count=100${appendCursorString}`
+        `${queryPredicate}/utxos?count=100${appendAssetString}${appendCursorString}`
       );
       if (status === 200) {
         const data = timestampedData.data;
-        let pageUTxOs: UTxO[] = data.map(toUTxO);
-        if (asset !== undefined && asset !== '')
-          pageUTxOs = pageUTxOs.filter((utxo) => utxo.output.amount.some((a) => a.unit === asset));
+        const pageUTxOs: UTxO[] = data.map(toUTxO);
         const addedUtxos = [...utxos, ...pageUTxOs]
         const nextCursor = timestampedData.next_cursor;
         return nextCursor == null ? addedUtxos : paginateUTxOs(nextCursor, addedUtxos)
@@ -131,12 +131,12 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+    const { policyId, assetName } = parseAssetUnit(asset);
     const paginateAddresses = async (
       cursor = null,
       addressesWithQuantity: { address: string; quantity: string }[] = []
     ): Promise<{ address: string; quantity: string }[]> => {
       const appendCursorString = cursor === null ? "" : `&cursor=${cursor}`
-      const { policyId, assetName } = parseAssetUnit(asset);
       const { data: timestampedData, status } = await this._axiosInstance.get(
         `assets/${policyId}${assetName}/addresses?count=100${appendCursorString}`
       );
@@ -162,16 +162,18 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
-      const { data, status } = await this._axiosInstance.get(
+      const { data: timestampedData, status } = await this._axiosInstance.get(
         `assets/${policyId}${assetName}`
       );
 
-      if (status === 200)
+      if (status === 200) {
+        const data = timestampedData.data
         return <AssetMetadata>{
           ...data.asset_standards.cip25_metadata, ...data.asset_standards.cip68_metadata,
         };
+      }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -179,12 +181,11 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
 
-    throw new Error('not implemented.');
-
     try {
-      const { data, status } = await this._axiosInstance.get(`blocks/${hash}`);
+      const { data: timestampedData, status } = await this._axiosInstance.get(`blocks/${hash}`);
 
-      if (status === 200)
+      if (status === 200) {
+        const data = timestampedData.data
         return <BlockInfo>{
           confirmations: data.confirmations,
           epoch: data.epoch,
@@ -192,18 +193,19 @@ export class MaestroProvider implements IFetcher, ISubmitter {
           fees: data.total_fees.toString(),
           hash: data.hash,
           nextBlock: data.next_block ?? '',
-          operationalCertificate: data.op_cert,
-          output: data.output ?? '0',
+          operationalCertificate: data.operational_certificate?.hot_vkey,
+          output: data.total_output_lovelace ?? '0',
           previousBlock: data.previous_block,
           size: data.size,
-          slot: data.slot.toString(),
-          slotLeader: data.slot_leader ?? '',
-          time: data.time,
-          txCount: data.tx_count,
-          VRFKey: data.block_vrf,
+          slot: data.absolute_slot.toString(),
+          slotLeader: data.block_producer ?? '',
+          time: Date.parse(data.timestamp) / 1000,
+          txCount: data.tx_hashes.length,
+          VRFKey: csl.VRFVKey.from_hex(data.vrf_key).to_bech32("vrf_vk"),
         };
+      }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -211,23 +213,26 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchCollectionAssets(
     policyId: string,
-    cursor = 1
+    cursor?: string
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     try {
-      const { data, status } = await this._axiosInstance.get(
-        `assets/policy/${policyId}?page=${cursor}`
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `assets/policy/${policyId}?count=100${cursor ? `&cursor=${cursor}` : ""}`
       );
+      console.log(timestampedData)
 
-      if (status === 200)
+      if (status === 200) {
+        const data = timestampedData.data
         return {
           assets: data.map((asset) => ({
             unit: policyId + asset.asset_name,
             quantity: asset.total_supply.toString(),
           })),
-          next: data.length === 100 ? cursor + 1 : null,
+          next: timestampedData.next_cursor,
         };
+      }
 
-      throw parseHttpError(data);
+      throw parseHttpError(timestampedData);
     } catch (error) {
       return { assets: [], next: null };
     }
@@ -325,21 +330,20 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     }
   }
 
-  onTxConfirmed(txHash: string, callback: () => void, limit = 20): void {
+  onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
     const checkTx = setInterval(() => {
       if (attempts >= limit)
         clearInterval(checkTx);
 
-      this._axiosInstance.get(`txmanager/${txHash}`).then(({ data: txData, status }) => {
-        if (status !== 200) {
-          throw parseHttpError(txData);
-        }
-        if (txData.state == "Confirmed") {
-          clearInterval(checkTx);
-          callback();
-        } // else attemps += 1 // ?
+      this.fetchTxInfo(txHash).then((txInfo) => {
+        this.fetchBlockInfo(txInfo.block).then((blockInfo) => {
+          if (blockInfo?.confirmations > 0) {
+            clearInterval(checkTx);
+            callback();
+          }
+        }).catch(() => { attempts += 1; });
       }).catch(() => { attempts += 1; });
     }, 5_000);
   }

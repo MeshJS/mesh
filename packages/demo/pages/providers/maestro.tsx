@@ -8,7 +8,7 @@ import {
   BadgeListener,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
-import { KoiosProvider, MaestroSupportedNetworks } from '@meshsdk/core';
+import { MaestroSupportedNetworks } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
 import ButtonGroup from '../../components/ui/buttongroup';
 import Listener from '../../components/pages/providers/listener';
