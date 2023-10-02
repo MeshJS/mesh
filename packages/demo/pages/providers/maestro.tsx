@@ -126,15 +126,15 @@ function Main({ network }) {
       console.log("choosing a key");
       switch (network) {
         case 'mainnet':
-          key = 'ccZ9KkyDdOJ9OyC4TNgFBlw773bWImGV';
+          key = 'ppKT8M4Y1GutZ7bDYvHYlPbV3yEsELlR';
           maestroNetwork = "Mainnet"
           break;
         case 'preprod':
-          key = 'nUuoNxLMvVN23OsfhwgzUfK47RlbZset';
+          key = '7t7yuQwtaSuxXFNEyxFsofvOYUtLKIGW';
           maestroNetwork = "Preprod"
           break;
         case 'preview':
-          key = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+          key = 'MmXsDx5TRbMfv3MXyy8rXXMS3994pjpI';
           maestroNetwork = "Preview"
           break;
         default:
