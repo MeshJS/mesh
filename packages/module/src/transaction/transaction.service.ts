@@ -250,7 +250,7 @@ export class Transaction {
   @Checkpoint()
   redeemValue(options: {
     value: UTxO, script: PlutusScript | UTxO,
-    datum: Data | UTxO, redeemer?: Action,
+    datum?: Data | UTxO, redeemer?: Action,
   }): Transaction {
     const redeemer: Action = {
       tag: 'SPEND',
@@ -264,11 +264,20 @@ export class Transaction {
     };
 
     const utxo = toTxUnspentOutput(options.value);
-    const witness = csl.PlutusWitness.new_with_ref(
-      buildPlutusScriptSource(options.script),
-      buildDatumSource(options.datum),
-      toRedeemer(redeemer),
-    );
+    let witness: csl.PlutusWitness;
+    if (options.datum) {
+      witness = csl.PlutusWitness.new_with_ref(
+        buildPlutusScriptSource(options.script),
+        buildDatumSource(options.datum),
+        toRedeemer(redeemer),
+      );
+    } else {
+      witness = csl.PlutusWitness.new_with_ref_without_datum(
+        buildPlutusScriptSource(options.script),
+        toRedeemer(redeemer),
+      );
+    }
+
 
     this._txInputsBuilder.add_plutus_script_input(
       witness, utxo.input(), utxo.output().amount(),
