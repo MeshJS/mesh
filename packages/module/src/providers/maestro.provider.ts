@@ -57,7 +57,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
           poolId: data.delegated_pool,
           active: data.registered,
           balance: data.total_balance.toString(),
-          rewards: data.total_rewarded.toString(),
+          rewards: data.rewards_available.toString(),
           withdrawals: data.total_withdrawn.toString(),
         };
       }
@@ -255,7 +255,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
 
-    if (!isNaN(epoch)) throw new Error('Maestro only supports fetching Protocol parameters of the latest epoch.')
+    if (!isNaN(epoch)) throw new Error('Maestro only supports fetching Protocol parameters of the latest completed epoch.')
 
     // Decimal numbers in Maestro are given as ratio of two numbers represented by string of format "firstNumber/secondNumber".
     const decimalFromRationalString = (str: string): number => {
