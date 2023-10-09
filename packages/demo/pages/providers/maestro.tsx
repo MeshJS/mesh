@@ -8,11 +8,10 @@ import {
   BadgeListener,
 } from '../../components/pages/providers/badges';
 import Fetcher from '../../components/pages/providers/fetcher';
-import { MaestroSupportedNetworks } from '@meshsdk/core';
+import { MaestroSupportedNetworks, MaestroProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
 import ButtonGroup from '../../components/ui/buttongroup';
 import Listener from '../../components/pages/providers/listener';
-import { MaestroProvider } from '@meshsdk/core';
 
 export default function ProvidersMaestro() {
   const sidebarItems = [
@@ -46,7 +45,12 @@ export default function ProvidersMaestro() {
 }
 
 function Hero({ network, setNetwork }) {
-  let code1 = `const MaestroProvider = new MaestroProvider('<api|preview|preprod|guild>');\n`;
+  let code1 =
+    `const MaestroProvider = new MaestroProvider({
+       network: '${network.charAt(0).toUpperCase() + network.slice(1)}',
+       apiKey: '<Your-API-Key>', // Get yours by visiting https://docs.gomaestro.org/docs/Getting-started/Sign-up-login.
+       turboSubmit: false // Read about paid turbo transaction submission feature at https://docs.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.
+     });\n`;
 
   return (
     <header className="mb-4 lg:mb-6">
@@ -64,28 +68,20 @@ function Hero({ network, setNetwork }) {
 
       <div className="grid grid-cols-1 px-4 lg:grid-cols-2 lg:gap-16 pb-16">
         <div className="col-span-1 xl:col-auto">
-          {/* <p>
-            <a href="https://www.koios.rest/" target="_blank" rel="noreferrer">
-              Koios
+          <p>
+            <a href="https://www.gomaestro.org/" target="_blank" rel="noreferrer">
+              Maestro
             </a>{' '}
-            provides a query layer which allows your app to access information
-            stored on the blockchain.
+            is the complete Web3 stack for Cardano which provides among others:-
           </p>
-          <iframe
-            className="mx-auto w-full max-w-xl h-64 rounded-lg sm:h-96"
-            src="https://www.youtube.com/embed/lOoPNYiVxkg"
-            title="YouTube video player"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          ></iframe>
+          <ul>
+            <li>⛓️  Enterprise-grade onchain data access.</li>
+            <li>⚡️ Transaction monitoring system with submission retires, rollback notifications and accelerated tranaction finality.</li>
+            <li>💰 High-fidelity smart contract data feeds from top Cardano DeFi protocols.</li>
+            <li>📝 Fully managed smart contract APIs and ready-to-go UI plugins.</li>
+          </ul>
           <p>Get started:</p>
           <Codeblock data={code1} isJson={false} />
-          <p>
-            If you are using a privately hosted instance, you can set the URL in
-            the parameter:
-          </p>
-          <Codeblock data={code2} isJson={false} /> */}
           <p>Choose network for this demo:</p>
           <ButtonGroup
             items={[
