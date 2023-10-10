@@ -116,25 +116,22 @@ function Main({ network }) {
 
   useEffect(() => {
     async function load() {
-
-      var key;
+      let key = '';
       let maestroNetwork: MaestroSupportedNetworks = "Mainnet";
-      console.log("choosing a key");
       switch (network) {
         case 'mainnet':
-          key = 'ppKT8M4Y1GutZ7bDYvHYlPbV3yEsELlR';
+          key = process.env.NEXT_PUBLIC_MAESTRO_API_KEY_MAINNET!;
           maestroNetwork = "Mainnet"
           break;
         case 'preprod':
-          key = '7t7yuQwtaSuxXFNEyxFsofvOYUtLKIGW';
+          key = process.env.NEXT_PUBLIC_MAESTRO_API_KEY_PREPROD!;
           maestroNetwork = "Preprod"
           break;
         case 'preview':
-          key = 'MmXsDx5TRbMfv3MXyy8rXXMS3994pjpI';
+          key = process.env.NEXT_PUBLIC_MAESTRO_API_KEY_PREVIEW!;
           maestroNetwork = "Preview"
           break;
         default:
-          console.log("unknown network");
           break;
       }
       const _provider = new MaestroProvider({ network: maestroNetwork, apiKey: key });
