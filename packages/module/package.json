@@ -41,10 +41,6 @@
       "pre-commit": "yarn lint"
     }
   },
-  "browser": {
-    "@emurgo/cardano-message-signing-nodejs": "@emurgo/cardano-message-signing-browser",
-    "@emurgo/cardano-serialization-lib-nodejs": "@emurgo/cardano-serialization-lib-browser"
-  },
   "exports": {
     ".": {
       "import": "./dist/core.js",
@@ -53,26 +49,24 @@
     }
   },
   "devDependencies": {
-    "@rollup/plugin-typescript": "8.4.0",
-    "@typescript-eslint/eslint-plugin": "5.36.1",
-    "@typescript-eslint/parser": "5.36.1",
-    "husky": "8.0.1",
-    "rollup": "2.79.0",
-    "tslib": "2.4.0",
-    "vite": "3.1.4",
+    "@rollup/plugin-typescript": "11.1.3",
+    "@typescript-eslint/eslint-plugin": "6.5.0",
+    "@typescript-eslint/parser": "6.5.0",
+    "husky": "8.0.3",
+    "rollup": "3.28.1",
+    "tslib": "2.6.2",
+    "vite": "4.4.9",
     "vite-plugin-eslint": "1.8.1",
-    "vite-plugin-wasm": "2.1.0",
-    "vitest": "0.22.1"
+    "vite-plugin-wasm": "3.2.2",
+    "vitest": "0.34.3"
   },
   "dependencies": {
-    "@emurgo/cardano-message-signing-browser": "1.0.1",
-    "@emurgo/cardano-message-signing-nodejs": "1.0.1",
-    "@emurgo/cardano-serialization-lib-browser": "11.3.0",
-    "@emurgo/cardano-serialization-lib-nodejs": "11.3.0",
+    "@emurgo/cardano-message-signing-asmjs": "1.0.1",
+    "@emurgo/cardano-serialization-lib-asmjs": "11.5.0",
     "@emurgo/cip14-js": "3.0.1",
-    "axios": "0.27.2",
-    "bip39": "3.0.4",
-    "nanoid": "3.3.4",
-    "zod": "3.19.1"
+    "axios": "1.5.0",
+    "bip39": "3.1.0",
+    "nanoid": "4.0.2",
+    "zod": "3.22.2"
   }
 }

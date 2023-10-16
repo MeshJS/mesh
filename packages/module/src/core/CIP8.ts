@@ -2,7 +2,7 @@ import {
   AlgorithmId, BigNum, COSESign1Builder,
   COSESign1, CBORValue, COSEKey, HeaderMap,
   Headers, Int, KeyType, Label, ProtectedHeaderMap,
-} from '@emurgo/cardano-message-signing-nodejs';
+} from '@emurgo/cardano-message-signing-asmjs';
 import {
   deserializeAddress, deserializeEd25519Signature,
   deserializePublicKey, fromBytes, fromUTF8,
