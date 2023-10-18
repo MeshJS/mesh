@@ -45,8 +45,7 @@ export default function ProvidersMaestro() {
 }
 
 function Hero({ network, setNetwork }) {
-  let code1 =
-    `const MaestroProvider = new MaestroProvider({
+  let code1 = `const MaestroProvider = new MaestroProvider({
        network: '${network.charAt(0).toUpperCase() + network.slice(1)}',
        apiKey: '<Your-API-Key>', // Get yours by visiting https://docs.gomaestro.org/docs/Getting-started/Sign-up-login.
        turboSubmit: false // Read about paid turbo transaction submission feature at https://docs.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.
@@ -69,16 +68,28 @@ function Hero({ network, setNetwork }) {
       <div className="grid grid-cols-1 px-4 lg:grid-cols-2 lg:gap-16 pb-16">
         <div className="col-span-1 xl:col-auto">
           <p>
-            <a href="https://www.gomaestro.org/" target="_blank" rel="noreferrer">
+            <a
+              href="https://www.gomaestro.org/"
+              target="_blank"
+              rel="noreferrer"
+            >
               Maestro
             </a>{' '}
             is the complete Web3 stack for Cardano which provides among others:-
           </p>
           <ul>
-            <li>⛓️  Enterprise-grade onchain data access.</li>
-            <li>⚡️ Transaction monitoring system with submission retires, rollback notifications and accelerated tranaction finality.</li>
-            <li>💰 High-fidelity smart contract data feeds from top Cardano DeFi protocols.</li>
-            <li>📝 Fully managed smart contract APIs and ready-to-go UI plugins.</li>
+            <li>⛓️ Enterprise-grade onchain data access.</li>
+            <li>
+              ⚡️ Transaction monitoring system with submission retires,
+              rollback notifications and accelerated tranaction finality.
+            </li>
+            <li>
+              💰 High-fidelity smart contract data feeds from top Cardano DeFi
+              protocols.
+            </li>
+            <li>
+              📝 Fully managed smart contract APIs and ready-to-go UI plugins.
+            </li>
           </ul>
           <p>Get started:</p>
           <Codeblock data={code1} isJson={false} />
@@ -111,30 +122,32 @@ function Hero({ network, setNetwork }) {
 }
 
 function Main({ network }) {
-  const [provider, setProvider] =
-    useState<MaestroProvider | null>(null);
+  const [provider, setProvider] = useState<MaestroProvider | null>(null);
 
   useEffect(() => {
     async function load() {
       let key = '';
-      let maestroNetwork: MaestroSupportedNetworks = "Mainnet";
+      let maestroNetwork: MaestroSupportedNetworks = 'Mainnet';
       switch (network) {
         case 'mainnet':
           key = process.env.NEXT_PUBLIC_MAESTRO_API_KEY_MAINNET!;
-          maestroNetwork = "Mainnet"
+          maestroNetwork = 'Mainnet';
           break;
         case 'preprod':
           key = process.env.NEXT_PUBLIC_MAESTRO_API_KEY_PREPROD!;
-          maestroNetwork = "Preprod"
+          maestroNetwork = 'Preprod';
           break;
         case 'preview':
           key = process.env.NEXT_PUBLIC_MAESTRO_API_KEY_PREVIEW!;
-          maestroNetwork = "Preview"
+          maestroNetwork = 'Preview';
           break;
         default:
           break;
       }
-      const _provider = new MaestroProvider({ network: maestroNetwork, apiKey: key });
+      const _provider = new MaestroProvider({
+        network: maestroNetwork,
+        apiKey: key,
+      });
       setProvider(_provider);
     }
     load();
