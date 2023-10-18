@@ -24,6 +24,11 @@ const ProvidersPage: NextPage = () => {
       link: '/providers/ogmios',
       thumbnail: '/providers/ogmios.png',
     },
+    {
+      title: 'Maestro',
+      link: '/providers/maestro',
+      thumbnail: '/providers/maestro.png',
+    },
   ];
 
   return (

@@ -53,7 +53,7 @@ export function fetchCollectionAssetsRight({
     setResponse(null);
     setResponseError(null);
     try {
-      const res = await fetcher.fetchCollectionAssets(policyId, cursor);
+      const res = cursor ? await fetcher.fetchCollectionAssets(policyId, cursor) : await fetcher.fetchCollectionAssets(policyId);
       setResponse(res);
     } catch (error) {
       setResponseError(`${error}`);

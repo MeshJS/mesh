@@ -80,9 +80,9 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
         if (status === 200) {
           const script = data.type.startsWith('plutus')
             ? <PlutusScript>{
-                code: await this.fetchPlutusScriptCBOR(scriptHash),
-                version: data.type.replace('plutus', ''),
-              }
+              code: await this.fetchPlutusScriptCBOR(scriptHash),
+              version: data.type.replace('plutus', ''),
+            }
             : await this.fetchNativeScriptJSON(scriptHash);
 
           return toScriptRef(script).to_hex();
