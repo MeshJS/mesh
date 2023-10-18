@@ -58,13 +58,12 @@ const GuidesPage: NextPage = () => {
       link: '/guides/smart-contract-transactions',
       thumbnail: '/guides/smart-contract-transactions.png',
     },
-
-    // {
-    //   title: 'Minting Reference Token',
-    //   desc: 'Something to describe this guide',
-    //   link: '/guides/minting-reference-token',
-    //   thumbnail: '/guides/?.png',
-    // },
+    {
+      title: 'Aiken Hello World',
+      desc: 'Create smart contracts with Aiken and execute transactions with Mesh.',
+      link: '/guides/aiken',
+      thumbnail: '/guides/aiken.png',
+    },
   ];
 
   return (
