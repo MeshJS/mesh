@@ -21,6 +21,7 @@ export const create = async (name, options) => {
       { title: 'E-Commerce Store', value: 'ecommerce' },
       { title: 'Marketplace', value: 'marketplace' },
       { title: 'plu-ts', value: 'pluts' },
+      { title: 'Aiken', value: 'aiken' },
     ]));
 
   const stack =

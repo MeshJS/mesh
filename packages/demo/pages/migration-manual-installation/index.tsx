@@ -5,12 +5,14 @@ import InstallNestjs from '../../components/pages/migrateManualInstall/nestjs';
 import InstallNextjs from '../../components/pages/migrateManualInstall/nextjs';
 import InstallWebpack from '../../components/pages/migrateManualInstall/webpack';
 import Metatags from '../../components/site/metatags';
+import InstallVueVite from '../../components/pages/migrateManualInstall/vue';
 
 const MigrationManualPage: NextPage = () => {
   const sidebarItems = [
     { label: 'Next.js', to: 'nextjs' },
     { label: 'NestJS', to: 'nestjs' },
     { label: 'Gatsby', to: 'gatsby' },
+    { label: 'Vue / Vite', to: 'vuevite' },
     { label: 'Webpack', to: 'webpack' },
   ];
 
@@ -37,6 +39,7 @@ const MigrationManualPage: NextPage = () => {
       <InstallNextjs />
       <InstallNestjs />
       <InstallGatsby />
+      <InstallVueVite />
       <InstallWebpack />
     </CommonLayout>
   );

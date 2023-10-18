@@ -205,6 +205,21 @@ const items = [
       </p>
     ),
   },
+  {
+    title: 'Aiken Next.js TypeScript',
+    template: 'aiken',
+    framework: 'next',
+    language: 'typescript',
+    installCode: 'npx create-mesh-app project-name -t aiken -s next -l ts',
+    demoUrl: 'http://aiken-template.meshjs.dev/',
+    repoUrl: 'https://github.com/MeshJS/aiken-next-ts-template',
+    desc: (
+      <p>
+        Get started to write smart contracts on Cardano with plu-ts and deploy
+        your app with Mesh.
+      </p>
+    ),
+  },
 ];
 
 export default function ReactStarterTemplates() {
