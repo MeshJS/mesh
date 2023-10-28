@@ -3,6 +3,7 @@ import CommonLayout from '../../components/common/layout';
 import Metatags from '../../components/site/metatags';
 import Codeblock from '../../components/ui/codeblock';
 import {
+  BadgeEvaluator,
   BadgeFetcher,
   BadgeSubmitter,
   BadgeListener,
@@ -10,6 +11,7 @@ import {
 import Fetcher from '../../components/pages/providers/fetcher';
 import { MaestroSupportedNetworks, MaestroProvider } from '@meshsdk/core';
 import Submitter from '../../components/pages/providers/submitter';
+import Evaluator from '../../components/pages/providers/evaluator';
 import ButtonGroup from '../../components/ui/buttongroup';
 import Listener from '../../components/pages/providers/listener';
 
@@ -24,6 +26,7 @@ export default function ProvidersMaestro() {
     { label: 'Fetch Handle Address', to: 'fetchHandleAddress' },
     { label: 'Fetch Protocol Parameters', to: 'fetchProtocolParameters' },
     { label: 'Fetch Transaction Info', to: 'fetchTxInfo' },
+    { label: 'Evaluate Tx', to: 'evaluateTx' },
     { label: 'Submit Tx', to: 'submitTx' },
     { label: 'On Transaction Confirmed', to: 'onTxConfirmed' },
   ];
@@ -59,6 +62,7 @@ function Hero({ network, setNetwork }) {
           <BadgeFetcher />
           <BadgeSubmitter />
           <BadgeListener />
+          <BadgeEvaluator />
         </span>
       </h2>
       <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
@@ -152,12 +156,13 @@ function Main({ network }) {
     }
     load();
   }, [network]);
-
+  const providerName = "maestroProvider"
   return (
     <>
-      <Fetcher fetcher={provider} fetcherName="provider" />
-      <Submitter submitter={provider} submitterName="provider" />
-      <Listener listener={provider} listenerName="provider" />
+      <Fetcher fetcher={provider} fetcherName={providerName} />
+      <Evaluator evaluator={provider} evaluatorName={providerName} />
+      <Submitter submitter={provider} submitterName={providerName} />
+      <Listener listener={provider} listenerName={providerName} />
     </>
   );
 }

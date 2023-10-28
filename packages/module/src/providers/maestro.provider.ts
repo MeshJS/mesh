@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { IFetcher, ISubmitter } from '@mesh/common/contracts';
+import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
   parseAssetUnit,
   parseHttpError,
@@ -9,6 +9,7 @@ import {
 } from '@mesh/common/utils';
 import type {
   AccountInfo,
+  Action,
   Asset,
   AssetMetadata,
   BlockInfo,
@@ -28,7 +29,7 @@ export interface MaestroConfig {
   turboSubmit?: boolean  // Read about paid turbo transaction submission feature at https://docs-v1.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.
 }
 
-export class MaestroProvider implements IFetcher, ISubmitter {
+export class MaestroProvider implements IEvaluator, IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
   submitUrl: string;
@@ -39,6 +40,33 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       headers: { 'api-key': apiKey },
     });
     this.submitUrl = turboSubmit ? 'txmanager' : 'txmanager/turbosubmit';
+  }
+
+  async evaluateTx(tx: string): Promise<Omit<Action, 'data'>[]> {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      const { data, status } = await this._axiosInstance.post(
+        `transactions/evaluate`,
+        {
+          "cbor": tx
+        },
+        { headers }
+      );
+      if (status === 200) {
+        return data.map(((red: { redeemer_index: any; redeemer_tag: string; ex_units: { mem: any; steps: any; }; }) =>
+          <Omit<Action, 'data'>>{
+            index: red.redeemer_index,
+            tag: red.redeemer_tag.toUpperCase(),
+            budget: {
+              mem: red.ex_units.mem,
+              steps: red.ex_units.steps,
+            },
+          }))
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
