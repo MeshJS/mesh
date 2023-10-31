@@ -1,6 +1,6 @@
 import { IFetcher } from '@mesh/common/contracts';
-import csl from '@emurgo/cardano-serialization-lib-nodejs';
-import { buildTxBuilder } from '@mesh/common/utils';
+import { csl } from '@mesh/core';
+import { buildTxBuilder, toValue } from '@mesh/common/utils';
 import { Asset, Data } from '@mesh/common/types';
 
 /**
@@ -10,6 +10,7 @@ import { Asset, Data } from '@mesh/common/types';
 export class MeshTxBuilder {
   private _fetcher?: IFetcher;
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
+  txOutput?: csl.TransactionOutput;
 
   constructor(fetcher?: IFetcher) {
     if (fetcher) this._fetcher = fetcher;
@@ -46,25 +47,56 @@ export class MeshTxBuilder {
   /**
    * Set the output for transaction
    * @param {string} address The recipient of the output
-   * @param {number} lovelace The amount of lovelace attached with UTxO
    * @param {Asset[]} amount The amount of other native assets attached with UTxO
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
-  txOut = (
-    address: string,
-    lovelace: number,
-    amount: Asset[]
-  ): MeshTxBuilder => {
+  txOut = (address: string, amount: Asset[]): MeshTxBuilder => {
+    if (this.txOutput) {
+      this.txBuilder.add_output(this.txOutput);
+    }
+    const txValue = toValue(amount);
+    this.txOutput = csl.TransactionOutput.new(
+      csl.Address.from_bech32(address),
+      txValue
+    );
+
+    this.txBuilder.add_output(this.txOutput);
     return this;
   };
 
   /**
-   * Set the output datum for transaction
+   * Set the output datum hash for transaction
    * @param {Data} datum The datum in object format
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
-  txOutDatumValue = (datum: Data): MeshTxBuilder => {
-    // Add type support for datum
+  txOutDatumHashValue = (datum: Data): MeshTxBuilder => {
+    return this;
+  };
+
+  /**
+   * Set the output inline datum for transaction
+   * @param {Data} datum The datum in object format
+   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   */
+  txOutInlineDatumValue = (datum: Data): MeshTxBuilder => {
+    this.txOutput?.set_plutus_data(
+      csl.encode_json_str_to_plutus_datum(
+        JSON.stringify(datum),
+        csl.PlutusDatumSchema.DetailedSchema
+      )
+    );
+    return this;
+  };
+
+  /**
+   * Set the reference script to be attached with the output
+   * @param scriptCbor The CBOR hex of the script to be attached to UTxO as reference script
+   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   */
+  txOutReferenceScript = (scriptCbor: string): MeshTxBuilder => {
+    this.txOutput?.set_script_ref(
+      csl.ScriptRef.new_plutus_script(csl.PlutusScript.from_hex(scriptCbor))
+    );
     return this;
   };
 
@@ -214,6 +246,7 @@ export class MeshTxBuilder {
 
   complete = () => {
     // Calculate execution units and rebuild the transaction
+    if (this.txOutput) this.txBuilder.add_output(this.txOutput);
     return this.txBuilder;
   };
 

@@ -6,7 +6,8 @@
 | txInDatumValue                          |           |        |         |
 | txInInlineDatumPresent                  |           |        |         |
 | txOut                                   |           |        |         |
-| txOutDatumValue                         |           |        |         |
+| txOutDatumHashValue                     |           |        |         |
+| txOutInlineDatumValue                   |           |        |         |
 | spendingPlutusScriptV2                  |           |        |         |
 | spendingTxInReference                   |           |        |         |
 | spendingReferenceTxInInlineDatumPresent |           |        |         |
