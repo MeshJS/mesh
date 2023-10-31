@@ -104,7 +104,7 @@ export class MeshTxBuilder {
   };
 
   /**
-   * Set the reference input for read only purpose
+   * Specify a read only reference input. This reference input is not witnessing anything it is simply provided in the plutus script context.
    * @param txHash The transaction hash of the reference UTxO
    * @param txIndex The transaction index of the reference UTxO
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
@@ -166,6 +166,7 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   requiredSignerHash = (pubKeyHash: string): MeshTxBuilder => {
+    this.txBuilder.add_required_signer(csl.Ed25519KeyHash.from_hex(pubKeyHash));
     return this;
   };
 
@@ -185,6 +186,7 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   changeAddress = (addr: string): MeshTxBuilder => {
+    this.txBuilder.add_change_if_needed(csl.Address.from_bech32(addr));
     return this;
   };
 
@@ -194,6 +196,9 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   invalidBefore = (slot: number): MeshTxBuilder => {
+    this.txBuilder.set_validity_start_interval_bignum(
+      csl.BigNum.from_str(slot.toString())
+    );
     return this;
   };
 
@@ -203,6 +208,7 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   invalidHereafter = (slot: number): MeshTxBuilder => {
+    this.txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot.toString()));
     return this;
   };
 
