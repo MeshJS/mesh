@@ -10,7 +10,9 @@ import { Asset, Data } from '@mesh/common/types';
 export class MeshTxBuilder {
   private _fetcher?: IFetcher;
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
+  txInputsBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
   txOutput?: csl.TransactionOutput;
+  addingScriptInput = false;
 
   constructor(fetcher?: IFetcher) {
     if (fetcher) this._fetcher = fetcher;
@@ -109,6 +111,7 @@ export class MeshTxBuilder {
     // The next step after will be to add a tx-in
     // After which, we will REQUIRE, script, datum and redeemer info
     // for unlocking this particular input
+    this.addingScriptInput = true;
     return this;
   };
 
