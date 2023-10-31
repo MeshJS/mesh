@@ -105,6 +105,10 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   spendingPlutusScriptV2 = (): MeshTxBuilder => {
+    // This flag should signal a start to a script input
+    // The next step after will be to add a tx-in
+    // After which, we will REQUIRE, script, datum and redeemer info
+    // for unlocking this particular input
     return this;
   };
 
@@ -115,6 +119,8 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   spendingTxInReference = (txHash: string, txIndex: number): MeshTxBuilder => {
+    // This should point to a UTxO that contains the script (inlined) we're trying to
+    // unlock from
     return this;
   };
 
@@ -123,6 +129,7 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   spendingReferenceTxInInlineDatumPresent = (): MeshTxBuilder => {
+    // Signal that the tx-in has inlined datum present
     return this;
   };
 
