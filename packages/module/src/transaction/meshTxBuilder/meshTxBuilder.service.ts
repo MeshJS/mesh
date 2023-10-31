@@ -188,6 +188,24 @@ export class MeshTxBuilder {
     return this;
   };
 
+  /**
+   * Set the transaction valid interval to be valid only after the slot
+   * @param slot The transaction is valid only after this slot
+   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   */
+  invalidBefore = (slot: number): MeshTxBuilder => {
+    return this;
+  };
+
+  /**
+   * Set the transaction valid interval to be valid only before the slot
+   * @param slot The transaction is valid only before this slot
+   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   */
+  invalidHereafter = (slot: number): MeshTxBuilder => {
+    return this;
+  };
+
   complete = () => {
     // Calculate execution units and rebuild the transaction
     return this.txBuilder;
