@@ -10,7 +10,7 @@
 | txOutInlineDatumValue                   | X    | X   |        |                                        |
 | txOutReferenceScript                    | X    | X   |        |                                        |
 | spendingPlutusScriptV2                  | X    | X   |        |                                        |
-| spendingTxInReference                   | X    | X   |        | Async: need chain info                 |
+| spendingTxInReference                   | X    | X   |        | Script hash has to be provided         |
 | spendingReferenceTxInInlineDatumPresent | X    | X   |        | Identical with txInInlineDatumPresent? |
 | spendingReferenceTxInRedeemerValue      | X    | X   |        |                                        |
 | readOnlyTxInReference                   | X    | X   |        | How is this used?                      |
