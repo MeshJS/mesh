@@ -5,25 +5,25 @@
 | txIn                                    | X    |     |        | Async: need chain info                 |
 | txInDatumValue                          |      |     |        |                                        |
 | txInInlineDatumPresent                  | X    |     |        |                                        |
-| txOut                                   | X    |     |        |                                        |
+| txOut                                   | X    | X   |        |                                        |
 | txOutDatumHashValue                     |      |     |        |                                        |
-| txOutInlineDatumValue                   | X    |     |        |                                        |
-| txOutReferenceScript                    | X    |     |        |                                        |
-| spendingPlutusScriptV2                  | X    |     |        |                                        |
+| txOutInlineDatumValue                   | X    | X   |        |                                        |
+| txOutReferenceScript                    | X    | X   |        |                                        |
+| spendingPlutusScriptV2                  | X    | X   |        |                                        |
 | spendingTxInReference                   | X    |     |        | Async: need chain info                 |
 | spendingReferenceTxInInlineDatumPresent | X    |     |        | Identical with txInInlineDatumPresent? |
 | spendingReferenceTxInRedeemerValue      | X    |     |        |                                        |
 | readOnlyTxInReference                   |      |     |        |                                        |
-| mintPlutusScriptV2                      | X    |     |        |                                        |
-| mint                                    | X    |     |        |                                        |
-| mintTxInReference                       | X    |     |        |                                        |
-| mintReferenceTxInRedeemerValue          | X    |     |        |                                        |
+| mintPlutusScriptV2                      | X    | X   |        |                                        |
+| mint                                    | X    | X   |        |                                        |
+| mintTxInReference                       | X    | X   |        |                                        |
+| mintReferenceTxInRedeemerValue          | X    | X   |        |                                        |
 | policyId                                |      |     |        |                                        |
-| requiredSignerHash                      | X    |     |        |                                        |
+| requiredSignerHash                      | X    | X   |        |                                        |
 | txInCollateral                          |      |     |        |                                        |
-| changeAddress                           | X    |     |        |                                        |
-| invalidBefore                           | X    |     |        |                                        |
-| invalidHereafter                        | X    |     |        |                                        |
+| changeAddress                           | X    | X   |        |                                        |
+| invalidBefore                           | X    | X   |        |                                        |
+| invalidHereafter                        | X    | X   |        |                                        |
 | complete                                |      |     |        |                                        |
 | getUTxOInfo                             |      |     |        |                                        |
 | mainnet                                 |      |     |        |                                        |

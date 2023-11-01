@@ -29,6 +29,18 @@ export type TempRedeemer = {
   index?: number;
 };
 
+export type TxInParameter = {
+  txHash: string;
+  txIndex: number;
+  amount?: Asset[];
+  address?: string;
+};
+
+export type QueuedTxIn = {
+  type: 'PubKey' | 'Script';
+  txIn: TxInParameter;
+};
+
 export class _MeshTxBuilder {
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
   txInputsBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
@@ -40,6 +52,9 @@ export class _MeshTxBuilder {
   scriptInputs: Partial<ScriptInputBuilder>[] = [];
   plutusMint: Partial<PlutusMintBuilder> = {};
   plutusMints: Partial<PlutusMintBuilder>[] = [];
+
+  txInQueueItem: Partial<QueuedTxIn> = {};
+  txInQueue: Partial<QueuedTxIn>[] = [];
 
   /**
    * Synchronous functions here
@@ -68,7 +83,6 @@ export class _MeshTxBuilder {
       this.scriptInput.value = toValue(amount);
     }
     return this;
-    // wasmTxInputsBuilder.add_plutus_script_input(recordPlutusScriptWitness, recordTransactionInput, recordUTxOValue);
   };
 
   _txInDatumValue = (datum: Data): _MeshTxBuilder => {
@@ -277,6 +291,10 @@ export class _MeshTxBuilder {
   private queueScriptInput = () => {
     this.scriptInputs.push(this.scriptInput);
     this.addingScriptInput = false;
+    if (!this.scriptInput.value) {
+      this.txInQueue.push(this.txInQueueItem);
+      this.txInQueueItem = {};
+    }
     this.scriptInput = {};
   };
 
