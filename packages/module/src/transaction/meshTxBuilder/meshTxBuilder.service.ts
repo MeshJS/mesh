@@ -252,7 +252,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   changeAddress = (addr: string): MeshTxBuilder => {
-    this.changeAddress(addr);
+    this._changeAddress(addr);
     return this;
   };
 
@@ -311,7 +311,9 @@ export class MeshTxBuilder extends _MeshTxBuilder {
       }
     }
 
-    if (this.txOutput) this.txBuilder.add_output(this.txOutput);
+    if (this.txOutput) {
+      this.txBuilder.add_output(this.txOutput);
+    }
     this.addScriptInputs();
     this.txBuilder.set_inputs(this.txInputsBuilder);
     this.addPlutusMints();

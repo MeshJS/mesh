@@ -111,8 +111,6 @@ export class _MeshTxBuilder {
       csl.Address.from_bech32(address),
       txValue
     );
-
-    this.txBuilder.add_output(this.txOutput);
     return this;
   };
 
