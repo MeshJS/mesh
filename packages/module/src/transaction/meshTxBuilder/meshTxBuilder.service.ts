@@ -171,6 +171,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   readOnlyTxInReference = (txHash: string, txIndex: number): MeshTxBuilder => {
+    this._readOnlyTxInReference(txHash, txIndex);
     return this;
   };
 

@@ -206,6 +206,11 @@ export class _MeshTxBuilder {
     txHash: string,
     txIndex: number
   ): _MeshTxBuilder => {
+    const refInput = csl.TransactionInput.new(
+      csl.TransactionHash.from_hex(txHash),
+      txIndex
+    );
+    this.txBuilder.add_reference_input(refInput);
     return this;
   };
 
