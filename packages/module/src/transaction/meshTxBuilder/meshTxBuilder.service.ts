@@ -2,19 +2,29 @@ import { IFetcher } from '@mesh/common/contracts';
 import { csl } from '@mesh/core';
 import { buildTxBuilder, toValue } from '@mesh/common/utils';
 import { Asset, Data } from '@mesh/common/types';
+import { DEFAULT_REDEEMER_BUDGET } from '@mesh/common/constants';
+import {
+  ScriptInputBuilder,
+  TempRedeemer,
+  _MeshTxBuilder,
+} from './_meshTxBuilder';
+
+// Delay action at complete
+// 1. Query blockchain for any missing information
+// 2. Redeemer indexes for spending and minting
 
 /**
  * MeshTxBuilder is a lower level api for building transaction
  * @param {IFetcher} [fetcher] an optional parameter for fetching utxo
  */
-export class MeshTxBuilder {
+export class MeshTxBuilder extends _MeshTxBuilder {
   private _fetcher?: IFetcher;
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
   txInputsBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
-  txOutput?: csl.TransactionOutput;
   addingScriptInput = false;
 
   constructor(fetcher?: IFetcher) {
+    super();
     if (fetcher) this._fetcher = fetcher;
   }
 
@@ -24,9 +34,30 @@ export class MeshTxBuilder {
    * @param txIndex The transaction index of the input UTxO
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
-  txIn = (txHash: string, txIndex: number): MeshTxBuilder => {
+  txIn = (
+    txHash: string,
+    txIndex: number,
+    amount: Asset[],
+    address?: string
+  ): MeshTxBuilder => {
     // It has to query blockchain for value and datum
+    if (!this.addingScriptInput && address) {
+      this.txInputsBuilder.add_input(
+        csl.Address.from_bech32(address),
+        csl.TransactionInput.new(csl.TransactionHash.from_hex(txHash), txIndex),
+        toValue(amount)
+      );
+    } else {
+      this.scriptInput.txHash = txHash;
+      this.scriptInput.txIndex = txIndex;
+      this.scriptInput.input = csl.TransactionInput.new(
+        csl.TransactionHash.from_hex(txHash),
+        txIndex
+      );
+      this.scriptInput.value = toValue(amount);
+    }
     return this;
+    // wasmTxInputsBuilder.add_plutus_script_input(recordPlutusScriptWitness, recordTransactionInput, recordUTxOValue);
   };
 
   /**
@@ -43,6 +74,14 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   txInInlineDatumPresent = (): MeshTxBuilder => {
+    const { txHash, txIndex } = this.scriptInput;
+    if (txHash && txIndex) {
+      const refTxIn = csl.TransactionInput.new(
+        csl.TransactionHash.from_hex(txHash),
+        txIndex
+      );
+      this.scriptInput.datum = csl.DatumSource.new_ref_input(refTxIn);
+    }
     return this;
   };
 
@@ -121,9 +160,24 @@ export class MeshTxBuilder {
    * @param txIndex The transaction index of the reference UTxO
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
-  spendingTxInReference = (txHash: string, txIndex: number): MeshTxBuilder => {
+  spendingTxInReference = (
+    txHash: string,
+    txIndex: number,
+    spendingScriptHash: string
+  ): MeshTxBuilder => {
     // This should point to a UTxO that contains the script (inlined) we're trying to
     // unlock from
+    const scriptHash = csl.ScriptHash.from_hex(spendingScriptHash);
+    const scriptRefInput = csl.TransactionInput.new(
+      csl.TransactionHash.from_hex(txHash),
+      txIndex
+    );
+    this.scriptInput.script =
+      csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+        scriptHash,
+        scriptRefInput,
+        csl.Language.new_plutus_v2()
+      );
     return this;
   };
 
@@ -133,6 +187,7 @@ export class MeshTxBuilder {
    */
   spendingReferenceTxInInlineDatumPresent = (): MeshTxBuilder => {
     // Signal that the tx-in has inlined datum present
+    this._spendingReferenceTxInInlineDatumPresent();
     return this;
   };
 
@@ -208,7 +263,7 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   requiredSignerHash = (pubKeyHash: string): MeshTxBuilder => {
-    this.txBuilder.add_required_signer(csl.Ed25519KeyHash.from_hex(pubKeyHash));
+    this._requiredSignerHash(pubKeyHash);
     return this;
   };
 
@@ -228,7 +283,7 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   changeAddress = (addr: string): MeshTxBuilder => {
-    this.txBuilder.add_change_if_needed(csl.Address.from_bech32(addr));
+    this.changeAddress(addr);
     return this;
   };
 
@@ -238,9 +293,7 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   invalidBefore = (slot: number): MeshTxBuilder => {
-    this.txBuilder.set_validity_start_interval_bignum(
-      csl.BigNum.from_str(slot.toString())
-    );
+    this._invalidBefore(slot);
     return this;
   };
 
@@ -250,13 +303,17 @@ export class MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   invalidHereafter = (slot: number): MeshTxBuilder => {
-    this.txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot.toString()));
+    this._invalidHereafter(slot);
     return this;
   };
 
   complete = () => {
     // Calculate execution units and rebuild the transaction
     if (this.txOutput) this.txBuilder.add_output(this.txOutput);
+    this.addScriptInputs();
+    this.txBuilder.set_inputs(this.txInputsBuilder);
+    this.addPlutusMints();
+    this.txBuilder.set_mint_builder(this.plutusMintBuilder);
     return this.txBuilder;
   };
 
@@ -268,7 +325,7 @@ export class MeshTxBuilder {
   private getUTxOInfo = async (txHash: string, txIndex: number) => {
     // TODO: To implement
     const txInfo = await this._fetcher?.fetchAddressUTxOs(txHash);
-    return;
+    return { address: '', amount: [] };
   };
 
   mainnet = (): MeshTxBuilder => {

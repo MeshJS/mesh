@@ -14,6 +14,14 @@ export type ScriptInputBuilder = {
   value: csl.Value;
 };
 
+export type PlutusMintBuilder = {
+  policyId: string;
+  script: csl.PlutusScriptSource;
+  redeemer: TempRedeemer;
+  tokenName: csl.AssetName;
+  quantity: csl.Int;
+};
+
 export type TempRedeemer = {
   tag: csl.RedeemerTag;
   data: Data;
@@ -24,12 +32,14 @@ export type TempRedeemer = {
 export class _MeshTxBuilder {
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
   txInputsBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
+  plutusMintBuilder: csl.MintBuilder = csl.MintBuilder.new();
   txOutput?: csl.TransactionOutput;
   addingScriptInput = false;
+  addingPlutusMint = false;
   scriptInput: Partial<ScriptInputBuilder> = {};
   scriptInputs: Partial<ScriptInputBuilder>[] = [];
-  spendingRedeemer: TempRedeemer[] = [];
-  mintingRedeemer: TempRedeemer[] = [];
+  plutusMint: Partial<PlutusMintBuilder> = {};
+  plutusMints: Partial<PlutusMintBuilder>[] = [];
 
   /**
    * Synchronous functions here
@@ -186,21 +196,54 @@ export class _MeshTxBuilder {
   };
 
   _mintPlutusScriptV2 = (): _MeshTxBuilder => {
+    this.addingPlutusMint = true;
     return this;
   };
 
   _mint = (quantity: number, policy: string, name: string): _MeshTxBuilder => {
+    this.plutusMint.quantity = csl.Int.new_i32(quantity);
+    this.plutusMint.policyId = policy;
+    this.plutusMint.tokenName = csl.AssetName.new(Buffer.from(name, 'utf8'));
     return this;
   };
 
   _mintTxInReference = (txHash: string, txIndex: number): _MeshTxBuilder => {
+    if (this.plutusMint.policyId) {
+      const scriptRefInput = csl.TransactionInput.new(
+        csl.TransactionHash.from_hex(txHash),
+        txIndex
+      );
+      const scriptHash = csl.ScriptHash.from_hex(this.plutusMint.policyId);
+      const plutusScriptSource =
+        csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+          scriptHash,
+          scriptRefInput,
+          csl.Language.new_plutus_v2()
+        );
+      this.plutusMint.script = plutusScriptSource;
+    }
+    if (this.plutusMint.redeemer) this.queuePlutusMint();
     return this;
   };
 
-  _mintReferenceTxInRedeemerValue = (redeemer: Data): _MeshTxBuilder => {
+  _mintReferenceTxInRedeemerValue = (
+    redeemer: Data,
+    exUnits = DEFAULT_REDEEMER_BUDGET
+  ): _MeshTxBuilder => {
+    const tempRedeemer: TempRedeemer = {
+      tag: csl.RedeemerTag.new_mint(),
+      data: redeemer,
+      exUnits: csl.ExUnits.new(
+        csl.BigNum.from_str(exUnits.mem.toString()),
+        csl.BigNum.from_str(exUnits.steps.toString())
+      ),
+    };
+    this.scriptInput.redeemer = tempRedeemer;
+    if (this.plutusMint.script) this.queuePlutusMint();
     return this;
   };
 
+  // Not sure if this is useful
   _policyId = (policyId: string): _MeshTxBuilder => {
     return this;
   };
@@ -237,6 +280,12 @@ export class _MeshTxBuilder {
     this.scriptInput = {};
   };
 
+  private queuePlutusMint = () => {
+    this.plutusMints.push(this.plutusMint);
+    this.addingPlutusMint = false;
+    this.plutusMint = {};
+  };
+
   /**
    * This private function is for constructing the redeemer when
    *   1. ExUnits are finalized (Optionally after adjustment from Tx Evaluate)
@@ -250,7 +299,20 @@ export class _MeshTxBuilder {
       datum,
       this.makeRedeemer({ ...redeemer, index: redeemer.index || 0 })
     );
-    this.txBuilder.add_plutus_script_input(scriptPlutusWitness, input, value);
+    this.txInputsBuilder.add_plutus_script_input(
+      scriptPlutusWitness,
+      input,
+      value
+    );
+  };
+
+  private constructPlutusMint = (rawPlutusMint: PlutusMintBuilder) => {
+    const { script, redeemer, tokenName, quantity } = rawPlutusMint;
+    const mintWitness = csl.MintWitness.new_plutus_script(
+      script,
+      this.makeRedeemer({ ...redeemer, index: redeemer.index || 0 })
+    );
+    this.plutusMintBuilder.add_asset(mintWitness, tokenName, quantity);
   };
 
   private makeRedeemer = (
@@ -278,6 +340,19 @@ export class _MeshTxBuilder {
       scriptInputBuilder.redeemer.index = index;
       // Construct the script input
       this.constructScriptInput(scriptInputBuilder);
+    });
+  };
+
+  addPlutusMints = () => {
+    // Sort the inputs according to script hash
+    const mints = this.plutusMints as PlutusMintBuilder[];
+    mints.sort((a, b) => (b.policyId > a.policyId ? -1 : 1));
+
+    mints.forEach((plutusMintBuilder, index) => {
+      // Put its index to TempRedeemer
+      plutusMintBuilder.redeemer.index = index;
+      // Construct the script input
+      this.constructPlutusMint(plutusMintBuilder);
     });
   };
 }
