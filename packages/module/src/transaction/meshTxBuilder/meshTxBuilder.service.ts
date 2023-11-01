@@ -311,13 +311,25 @@ export class MeshTxBuilder extends _MeshTxBuilder {
       }
     }
 
-    // Calculate execution units and rebuild the transaction
     if (this.txOutput) this.txBuilder.add_output(this.txOutput);
     this.addScriptInputs();
     this.txBuilder.set_inputs(this.txInputsBuilder);
     this.addPlutusMints();
     this.txBuilder.set_mint_builder(this.plutusMintBuilder);
-    return this.txBuilder;
+
+    // TODO: Any balancing action
+    // TODO: Calculate execution units and rebuild the transaction
+
+    this.txBuilder.calc_script_data_hash(
+      csl.TxBuilderConstants.plutus_vasil_cost_models()
+    );
+    this.txHex = this.txBuilder.build_tx().to_hex();
+    return this;
+  };
+
+  signingKey = (skey: string, vkey: string) => {
+    this._signingKey(skey, vkey);
+    return this.txHex;
   };
 
   /**

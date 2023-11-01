@@ -35,3 +35,5 @@
 | alonzoEra                               |      |     |        |                                        |
 | babbageEra                              |      |     |        |                                        |
 | protocolParams                          |      |     |        |                                        |
+| signingKey                              | X    | X   |        |                                        |
+| txOutMinUtxo                            |      |     |        |                                        |

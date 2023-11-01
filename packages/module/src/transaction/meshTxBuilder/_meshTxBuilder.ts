@@ -42,6 +42,7 @@ export type QueuedTxIn = {
 };
 
 export class _MeshTxBuilder {
+  txHex?: string;
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
   txInputsBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
   plutusMintBuilder: csl.MintBuilder = csl.MintBuilder.new();
@@ -291,6 +292,27 @@ export class _MeshTxBuilder {
   _invalidHereafter = (slot: number): _MeshTxBuilder => {
     this.txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot.toString()));
     return this;
+  };
+
+  _signingKey = (skeyHex: string, vkeyHex: string) => {
+    // TODO: change to allow multiple keys
+    const wasmUnsignedTransaction = this.txBuilder.build_tx();
+    const wasmWitnessSet = wasmUnsignedTransaction.witness_set();
+    const wasmTxBody = wasmUnsignedTransaction.body();
+    const skey = csl.PrivateKey.from_hex(skeyHex);
+    const signature = skey.sign(csl.hash_transaction(wasmTxBody).to_bytes());
+    const vkey = csl.Vkey.from_hex(vkeyHex);
+    const vkeyWitness = csl.Vkeywitness.new(vkey, signature);
+    const vkeyWitnesses = csl.Vkeywitnesses.new();
+    vkeyWitnesses.add(vkeyWitness);
+    wasmWitnessSet.set_vkeys(vkeyWitnesses);
+    const wasmSignedTransaction = csl.Transaction.new(
+      wasmTxBody,
+      wasmWitnessSet,
+      wasmUnsignedTransaction.auxiliary_data()
+    );
+    this.txHex = wasmSignedTransaction.to_hex();
+    return this.txHex;
   };
 
   private queueScriptInput = () => {
