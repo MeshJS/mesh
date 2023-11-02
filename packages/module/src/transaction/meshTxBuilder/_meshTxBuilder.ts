@@ -47,6 +47,7 @@ export class _MeshTxBuilder {
   txInputsBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
   plutusMintBuilder: csl.MintBuilder = csl.MintBuilder.new();
   txOutput?: csl.TransactionOutput;
+  builderChangeAddress?: csl.Address;
   addingScriptInput = false;
   addingPlutusMint = false;
   scriptInput: Partial<ScriptInputBuilder> = {};
@@ -276,7 +277,7 @@ export class _MeshTxBuilder {
   };
 
   _changeAddress = (addr: string): _MeshTxBuilder => {
-    this.txBuilder.add_change_if_needed(csl.Address.from_bech32(addr));
+    this.builderChangeAddress = csl.Address.from_bech32(addr);
     return this;
   };
 

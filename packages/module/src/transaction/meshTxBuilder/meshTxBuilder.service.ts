@@ -316,6 +316,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     }
     this.addScriptInputs();
     this.txBuilder.set_inputs(this.txInputsBuilder);
+    console.log(this.txInputsBuilder.inputs().to_json())
     this.addPlutusMints();
     this.txBuilder.set_mint_builder(this.plutusMintBuilder);
 
@@ -325,6 +326,9 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     this.txBuilder.calc_script_data_hash(
       csl.TxBuilderConstants.plutus_vasil_cost_models()
     );
+    if (this.builderChangeAddress) {
+      this.txBuilder.add_change_if_needed(this.builderChangeAddress)
+    }
     this.txHex = this.txBuilder.build_tx().to_hex();
     return this;
   };
