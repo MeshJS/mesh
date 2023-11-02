@@ -20,12 +20,12 @@ import type {
 } from '@mesh/common/types';
 import { csl } from '@mesh/core';
 
-export type MaestroSupportedNetworks = "Mainnet" | "Preprod" | "Preview"
+export type MaestroSupportedNetworks = 'Mainnet' | 'Preprod' | 'Preview';
 
 export interface MaestroConfig {
-  network: MaestroSupportedNetworks,
-  apiKey: string,
-  turboSubmit?: boolean  // Read about paid turbo transaction submission feature at https://docs-v1.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.
+  network: MaestroSupportedNetworks;
+  apiKey: string;
+  turboSubmit?: boolean; // Read about paid turbo transaction submission feature at https://docs-v1.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.
 }
 
 export class MaestroProvider implements IFetcher, ISubmitter {
@@ -70,58 +70,34 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const queryPredicate = (() => {
-      if (address.startsWith('addr_vkh') || address.startsWith('addr_shared_vkh')) return `addresses/cred/${address}`
+      if (
+        address.startsWith('addr_vkh') ||
+        address.startsWith('addr_shared_vkh')
+      )
+        return `addresses/cred/${address}`;
       else return `addresses/${address}`;
     })();
-    const appendAssetString = asset ? `&asset=${asset}` : ""
-    const resolveScript = (utxo: MaestroUTxO) => {
-      if (utxo.reference_script) {
-        const script =
-          utxo.reference_script.type === "native"
-            ? <NativeScript>utxo.reference_script.json
-            : <PlutusScript>{
-              code: utxo.reference_script.bytes,
-              version: utxo.reference_script.type.replace('plutusv', 'V')
-            }
-        return toScriptRef(script).to_hex()
-
-      } else return undefined
-    }
+    const appendAssetString = asset ? `&asset=${asset}` : '';
     const paginateUTxOs = async (
       cursor = null,
       utxos: UTxO[] = []
     ): Promise<UTxO[]> => {
-      const appendCursorString = cursor === null ? "" : `&cursor=${cursor}`
+      const appendCursorString = cursor === null ? '' : `&cursor=${cursor}`;
       const { data: timestampedData, status } = await this._axiosInstance.get(
         `${queryPredicate}/utxos?count=100${appendAssetString}${appendCursorString}`
       );
       if (status === 200) {
         const data = timestampedData.data;
-        const pageUTxOs: UTxO[] = data.map(toUTxO);
-        const addedUtxos = [...utxos, ...pageUTxOs]
+        const pageUTxOs: UTxO[] = data.map(this.toUTxO);
+        const addedUtxos = [...utxos, ...pageUTxOs];
         const nextCursor = timestampedData.next_cursor;
-        return nextCursor == null ? addedUtxos : paginateUTxOs(nextCursor, addedUtxos)
+        return nextCursor == null
+          ? addedUtxos
+          : paginateUTxOs(nextCursor, addedUtxos);
       }
 
       throw parseHttpError(timestampedData);
     };
-
-    const toUTxO = (utxo: MaestroUTxO): UTxO => ({
-      input: {
-        outputIndex: utxo.index,
-        txHash: utxo.tx_hash,
-      },
-      output: {
-        address: address,
-        amount: utxo.assets.map((asset) => ({
-          unit: asset.unit,
-          quantity: asset.amount.toString(),
-        })),
-        dataHash: utxo.datum?.hash,
-        plutusData: utxo.datum?.bytes,
-        scriptRef: resolveScript(utxo),
-      },
-    });
 
     try {
       return await paginateUTxOs();
@@ -130,23 +106,34 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     }
   }
 
-  async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+  async fetchAssetAddresses(
+    asset: string
+  ): Promise<{ address: string; quantity: string }[]> {
     const { policyId, assetName } = parseAssetUnit(asset);
     const paginateAddresses = async (
       cursor = null,
       addressesWithQuantity: { address: string; quantity: string }[] = []
     ): Promise<{ address: string; quantity: string }[]> => {
-      const appendCursorString = cursor === null ? "" : `&cursor=${cursor}`
+      const appendCursorString = cursor === null ? '' : `&cursor=${cursor}`;
       const { data: timestampedData, status } = await this._axiosInstance.get(
         `assets/${policyId}${assetName}/addresses?count=100${appendCursorString}`
       );
       if (status === 200) {
         const data = timestampedData.data;
-        const pageAddressesWithQuantity: { address: string; quantity: string }[] = data.map((a) => { return { address: a.address, quantity: a.amount.toString() } })
+        const pageAddressesWithQuantity: {
+          address: string;
+          quantity: string;
+        }[] = data.map((a) => {
+          return { address: a.address, quantity: a.amount.toString() };
+        });
         const nextCursor = timestampedData.next_cursor;
-        const addedData = [...addressesWithQuantity, ...pageAddressesWithQuantity]
-        return nextCursor == null ? addedData : paginateAddresses(nextCursor, addedData)
-
+        const addedData = [
+          ...addressesWithQuantity,
+          ...pageAddressesWithQuantity,
+        ];
+        return nextCursor == null
+          ? addedData
+          : paginateAddresses(nextCursor, addedData);
       }
 
       throw parseHttpError(timestampedData);
@@ -167,9 +154,10 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
 
       if (status === 200) {
-        const data = timestampedData.data
+        const data = timestampedData.data;
         return <AssetMetadata>{
-          ...data.asset_standards.cip25_metadata, ...data.asset_standards.cip68_metadata,
+          ...data.asset_standards.cip25_metadata,
+          ...data.asset_standards.cip68_metadata,
         };
       }
 
@@ -180,12 +168,13 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
-
     try {
-      const { data: timestampedData, status } = await this._axiosInstance.get(`blocks/${hash}`);
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `blocks/${hash}`
+      );
 
       if (status === 200) {
-        const data = timestampedData.data
+        const data = timestampedData.data;
         return <BlockInfo>{
           confirmations: data.confirmations,
           epoch: data.epoch,
@@ -201,7 +190,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
           slotLeader: data.block_producer ?? '',
           time: Date.parse(data.timestamp) / 1000,
           txCount: data.tx_hashes.length,
-          VRFKey: csl.VRFVKey.from_hex(data.vrf_key).to_bech32("vrf_vk"),
+          VRFKey: csl.VRFVKey.from_hex(data.vrf_key).to_bech32('vrf_vk'),
         };
       }
 
@@ -217,12 +206,14 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `assets/policy/${policyId}?count=100${cursor ? `&cursor=${cursor}` : ""}`
+        `assets/policy/${policyId}?count=100${
+          cursor ? `&cursor=${cursor}` : ''
+        }`
       );
-      console.log(timestampedData)
+      console.log(timestampedData);
 
       if (status === 200) {
-        const data = timestampedData.data
+        const data = timestampedData.data;
         return {
           assets: data.map((asset) => ({
             unit: policyId + asset.asset_name,
@@ -240,7 +231,8 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchHandleAddress(handle: string): Promise<string> {
     try {
-      const handleWithoutDollar = handle.charAt(0) === '$' ? handle.substring(1) : handle;
+      const handleWithoutDollar =
+        handle.charAt(0) === '$' ? handle.substring(1) : handle;
       const { data: timestampedData, status } = await this._axiosInstance.get(
         `ecosystem/adahandle/${handleWithoutDollar}`
       );
@@ -254,37 +246,49 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
-
-    if (!isNaN(epoch)) throw new Error('Maestro only supports fetching Protocol parameters of the latest completed epoch.')
+    if (!isNaN(epoch))
+      throw new Error(
+        'Maestro only supports fetching Protocol parameters of the latest completed epoch.'
+      );
 
     // Decimal numbers in Maestro are given as ratio of two numbers represented by string of format "firstNumber/secondNumber".
     const decimalFromRationalString = (str: string): number => {
-      const forwardSlashIndex = str.indexOf("/");
-      return parseInt(str.slice(0, forwardSlashIndex)) / parseInt(str.slice(forwardSlashIndex + 1));
-    }
+      const forwardSlashIndex = str.indexOf('/');
+      return (
+        parseInt(str.slice(0, forwardSlashIndex)) /
+        parseInt(str.slice(forwardSlashIndex + 1))
+      );
+    };
 
     try {
-      const { data: timestampedData, status } = await this._axiosInstance.get("protocol-params");
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        'protocol-params'
+      );
       if (status === 200) {
         const data = timestampedData.data;
         try {
-          const { data: timestampedDataEpochData, status: epochStatus } = await this._axiosInstance.get("epochs/current");
+          const { data: timestampedDataEpochData, status: epochStatus } =
+            await this._axiosInstance.get('epochs/current');
 
           if (epochStatus === 200) {
             const epochData = timestampedDataEpochData.data;
             return <Protocol>{
               coinsPerUTxOSize: data.coins_per_utxo_byte.toString(),
               collateralPercent: parseInt(data.collateral_percentage),
-              decentralisation: 0,  // Deprecated in Babbage era.
+              decentralisation: 0, // Deprecated in Babbage era.
               epoch: parseInt(epochData.epoch_no),
               keyDeposit: data.stake_key_deposit.toString(),
-              maxBlockExMem: data.max_execution_units_per_block.memory.toString(),
-              maxBlockExSteps: data.max_execution_units_per_block.steps.toString(),
+              maxBlockExMem:
+                data.max_execution_units_per_block.memory.toString(),
+              maxBlockExSteps:
+                data.max_execution_units_per_block.steps.toString(),
               maxBlockHeaderSize: parseInt(data.max_block_header_size),
               maxBlockSize: parseInt(data.max_block_body_size),
               maxCollateralInputs: parseInt(data.max_collateral_inputs),
-              maxTxExMem: data.max_execution_units_per_transaction.memory.toString(),
-              maxTxExSteps: data.max_execution_units_per_transaction.steps.toString(),
+              maxTxExMem:
+                data.max_execution_units_per_transaction.memory.toString(),
+              maxTxExSteps:
+                data.max_execution_units_per_transaction.steps.toString(),
               maxTxSize: parseInt(data.max_tx_size),
               maxValSize: data.max_value_size.toString(),
               minFeeA: data.min_fee_coefficient,
@@ -308,7 +312,9 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
-      const { data: timestampedData, status } = await this._axiosInstance.get(`transactions/${hash}`);
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `transactions/${hash}`
+      );
 
       if (status === 200) {
         const data = timestampedData.data;
@@ -330,21 +336,44 @@ export class MaestroProvider implements IFetcher, ISubmitter {
     }
   }
 
+  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+    try {
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        `transactions/${hash}`
+      );
+      if (status === 200) {
+        const msOutputs = timestampedData.outputs as MaestroUTxO[];
+        const outputs = msOutputs.map(this.toUTxO);
+        return outputs;
+      }
+      throw parseHttpError(timestampedData);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
     const checkTx = setInterval(() => {
-      if (attempts >= limit)
-        clearInterval(checkTx);
+      if (attempts >= limit) clearInterval(checkTx);
 
-      this.fetchTxInfo(txHash).then((txInfo) => {
-        this.fetchBlockInfo(txInfo.block).then((blockInfo) => {
-          if (blockInfo?.confirmations > 0) {
-            clearInterval(checkTx);
-            callback();
-          }
-        }).catch(() => { attempts += 1; });
-      }).catch(() => { attempts += 1; });
+      this.fetchTxInfo(txHash)
+        .then((txInfo) => {
+          this.fetchBlockInfo(txInfo.block)
+            .then((blockInfo) => {
+              if (blockInfo?.confirmations > 0) {
+                clearInterval(checkTx);
+                callback();
+              }
+            })
+            .catch(() => {
+              attempts += 1;
+            });
+        })
+        .catch(() => {
+          attempts += 1;
+        });
     }, 5_000);
   }
 
@@ -364,9 +393,39 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       throw parseHttpError(error);
     }
   }
+
+  private toUTxO = (utxo: MaestroUTxO): UTxO => ({
+    input: {
+      outputIndex: utxo.index,
+      txHash: utxo.tx_hash,
+    },
+    output: {
+      address: utxo.address,
+      amount: utxo.assets.map((asset) => ({
+        unit: asset.unit,
+        quantity: asset.amount.toString(),
+      })),
+      dataHash: utxo.datum?.hash,
+      plutusData: utxo.datum?.bytes,
+      scriptRef: this.resolveScript(utxo),
+    },
+  });
+
+  private resolveScript = (utxo: MaestroUTxO) => {
+    if (utxo.reference_script) {
+      const script =
+        utxo.reference_script.type === 'native'
+          ? <NativeScript>utxo.reference_script.json
+          : <PlutusScript>{
+              code: utxo.reference_script.bytes,
+              version: utxo.reference_script.type.replace('plutusv', 'V'),
+            };
+      return toScriptRef(script).to_hex();
+    } else return undefined;
+  };
 }
 
-type MaestroDatumOptionType = "hash" | "inline";
+type MaestroDatumOptionType = 'hash' | 'inline';
 
 type MaestroDatumOption = {
   type: MaestroDatumOptionType;
@@ -375,7 +434,7 @@ type MaestroDatumOption = {
   json?: Json;
 };
 
-type MaestroScriptType = "native" | "plutusv1" | "plutusv2";
+type MaestroScriptType = 'native' | 'plutusv1' | 'plutusv2';
 
 type Json = any;
 

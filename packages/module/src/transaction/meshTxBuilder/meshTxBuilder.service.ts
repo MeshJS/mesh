@@ -1,8 +1,9 @@
-import { IFetcher } from '@mesh/common/contracts';
+import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { csl } from '@mesh/core';
 import { toValue } from '@mesh/common/utils';
 import { Asset, Data } from '@mesh/common/types';
 import { QueuedTxIn, _MeshTxBuilder } from './_meshTxBuilder';
+import { MaestroProvider } from '@mesh/providers';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -12,12 +13,23 @@ import { QueuedTxIn, _MeshTxBuilder } from './_meshTxBuilder';
  * MeshTxBuilder is a lower level api for building transaction
  * @param {IFetcher} [fetcher] an optional parameter for fetching utxo
  */
+
+type MeshTxBuilderOptions = {
+  fetcher?: IFetcher;
+  submitter?: ISubmitter;
+  evaluator?: IEvaluator;
+};
+
 export class MeshTxBuilder extends _MeshTxBuilder {
   private _fetcher?: IFetcher;
+  private _submitter?: ISubmitter;
+  private _evaluator?: IEvaluator;
 
-  constructor(fetcher?: IFetcher) {
+  constructor({ fetcher, submitter, evaluator }: MeshTxBuilderOptions) {
     super();
     if (fetcher) this._fetcher = fetcher;
+    if (submitter) this._submitter = submitter;
+    if (evaluator) this._evaluator = evaluator;
   }
 
   /**
@@ -316,7 +328,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     }
     this.addScriptInputs();
     this.txBuilder.set_inputs(this.txInputsBuilder);
-    console.log(this.txInputsBuilder.inputs().to_json())
+    console.log(this.txInputsBuilder.inputs().to_json());
     this.addPlutusMints();
     this.txBuilder.set_mint_builder(this.plutusMintBuilder);
 
@@ -327,7 +339,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
       csl.TxBuilderConstants.plutus_vasil_cost_models()
     );
     if (this.builderChangeAddress) {
-      this.txBuilder.add_change_if_needed(this.builderChangeAddress)
+      this.txBuilder.add_change_if_needed(this.builderChangeAddress);
     }
     this.txHex = this.txBuilder.build_tx().to_hex();
     return this;
@@ -348,8 +360,12 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     txIndex: number
   ): Promise<{ address: string; amount: Asset[] }> => {
     // TODO: To implement
-    const txInfo = await this._fetcher?.fetchAddressUTxOs(txHash);
-    return { address: '', amount: [{ unit: '12521', quantity: '123' }] };
+    const utxos = await this._fetcher?.fetchUTxOs(txHash);
+    const utxo = utxos?.find((utxo) => utxo.input.outputIndex === txIndex);
+    return {
+      address: utxo?.output.address || '',
+      amount: utxo?.output.amount || [],
+    };
   };
 
   mainnet = (): MeshTxBuilder => {

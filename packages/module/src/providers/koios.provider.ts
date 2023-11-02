@@ -2,20 +2,35 @@ import axios, { AxiosInstance } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, IListener, ISubmitter } from '@mesh/common/contracts';
 import {
-  deserializeNativeScript, fromNativeScript, fromUTF8,
-  parseAssetUnit, parseHttpError, resolveRewardAddress,
-  toBytes, toScriptRef, toUTF8,
+  deserializeNativeScript,
+  fromNativeScript,
+  fromUTF8,
+  parseAssetUnit,
+  parseHttpError,
+  resolveRewardAddress,
+  toBytes,
+  toScriptRef,
+  toUTF8,
 } from '@mesh/common/utils';
 import type {
-  AccountInfo, Asset, AssetMetadata, BlockInfo,
-  PlutusScript, Protocol, TransactionInfo, UTxO,
+  AccountInfo,
+  Asset,
+  AssetMetadata,
+  BlockInfo,
+  PlutusScript,
+  Protocol,
+  TransactionInfo,
+  UTxO,
 } from '@mesh/common/types';
 
 export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
   constructor(baseUrl: string);
-  constructor(network: 'api' | 'preview' | 'preprod' | 'guild', version?: number);
+  constructor(
+    network: 'api' | 'preview' | 'preprod' | 'guild',
+    version?: number
+  );
 
   constructor(...args: unknown[]) {
     if (typeof args[0] === 'string' && args[0].startsWith('http')) {
@@ -25,7 +40,6 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
         baseURL: `https://${args[0]}.koios.rest/api/v${args[1] ?? 0}`,
       });
     }
-    
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -34,9 +48,9 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
         ? resolveRewardAddress(address)
         : address;
 
-      const { data, status } = await this._axiosInstance.post(
-        'account_info', { _stake_addresses: [rewardAddress] },
-      );
+      const { data, status } = await this._axiosInstance.post('account_info', {
+        _stake_addresses: [rewardAddress],
+      });
 
       if (status === 200)
         return <AccountInfo>{
@@ -70,9 +84,9 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     };
 
     try {
-      const { data, status } = await this._axiosInstance.post(
-        'address_info', { _addresses: [address] },
-      );
+      const { data, status } = await this._axiosInstance.post('address_info', {
+        _addresses: [address],
+      });
 
       if (status === 200) {
         const utxos = <UTxO[]>data
@@ -114,11 +128,13 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async fetchAssetAddresses(asset: string): Promise<{ address: string; quantity: string }[]> {
+  async fetchAssetAddresses(
+    asset: string
+  ): Promise<{ address: string; quantity: string }[]> {
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
-        `asset_address_list?_asset_policy=${policyId}&_asset_name=${assetName}`,
+        `asset_address_list?_asset_policy=${policyId}&_asset_name=${assetName}`
       );
 
       if (status === 200)
@@ -137,7 +153,7 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
       const { data, status } = await this._axiosInstance.get(
-        `asset_info?_asset_policy=${policyId}&_asset_name=${assetName}`,
+        `asset_info?_asset_policy=${policyId}&_asset_name=${assetName}`
       );
 
       if (status === 200)
@@ -153,9 +169,9 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
 
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
-      const { data, status } = await this._axiosInstance.post(
-        'block_info', { _block_hashes: [hash] }
-      );
+      const { data, status } = await this._axiosInstance.post('block_info', {
+        _block_hashes: [hash],
+      });
 
       if (status === 200)
         return <BlockInfo>{
@@ -184,7 +200,7 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
 
   async fetchCollectionAssets(
     policyId: string,
-    cursor = 0,
+    cursor = 0
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     try {
       const { data, status } = await this._axiosInstance.get(
@@ -210,11 +226,10 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     try {
       const assetName = fromUTF8(handle.replace('$', ''));
       const { data, status } = await this._axiosInstance.get(
-        `asset_address_list?_asset_policy=${SUPPORTED_HANDLES[1]}&_asset_name=${assetName}`,
+        `asset_address_list?_asset_policy=${SUPPORTED_HANDLES[1]}&_asset_name=${assetName}`
       );
 
-      if (status === 200)
-        return data[0].payment_address;
+      if (status === 200) return data[0].payment_address;
 
       throw parseHttpError(data);
     } catch (error) {
@@ -225,7 +240,7 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   async fetchProtocolParameters(epoch: number): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        `epoch_params?_epoch_no=${epoch}`,
+        `epoch_params?_epoch_no=${epoch}`
       );
 
       if (status === 200)
@@ -260,9 +275,9 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
 
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
-      const { data, status } = await this._axiosInstance.post(
-        'tx_info', { _tx_hashes: [hash] },
-      );
+      const { data, status } = await this._axiosInstance.post('tx_info', {
+        _tx_hashes: [hash],
+      });
 
       if (status === 200)
         return <TransactionInfo>{
@@ -283,21 +298,37 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+    try {
+      // TODO: Implement the fetcher
+      return [];
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
     const checkTx = setInterval(() => {
-      if (attempts >= limit)
-        clearInterval(checkTx);
+      if (attempts >= limit) clearInterval(checkTx);
 
-      this.fetchTxInfo(txHash).then((txInfo) => {
-        this.fetchBlockInfo(txInfo.block).then((blockInfo) => {
-          if (blockInfo?.confirmations > 0) {
-            clearInterval(checkTx);
-            callback();
-          }
-        }).catch(() => { attempts += 1; });
-      }).catch(() => { attempts += 1; });
+      this.fetchTxInfo(txHash)
+        .then((txInfo) => {
+          this.fetchBlockInfo(txInfo.block)
+            .then((blockInfo) => {
+              if (blockInfo?.confirmations > 0) {
+                clearInterval(checkTx);
+                callback();
+              }
+            })
+            .catch(() => {
+              attempts += 1;
+            });
+        })
+        .catch(() => {
+          attempts += 1;
+        });
     }, 5_000);
   }
 
@@ -306,7 +337,9 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
       const headers = { 'Content-Type': 'application/cbor' };
 
       const { data, status } = await this._axiosInstance.post(
-        'submittx', toBytes(tx), { headers },
+        'submittx',
+        toBytes(tx),
+        { headers }
       );
 
       if (status === 202) return data;
