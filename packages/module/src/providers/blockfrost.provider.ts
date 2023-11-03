@@ -36,7 +36,7 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       this._axiosInstance = axios.create({
         baseURL: `https://cardano-${network}.blockfrost.io/api/v${
           args[1] ?? 0
-        }`,
+          }`,
         headers: { project_id: projectId },
       });
     }
@@ -67,6 +67,46 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  private resolveScriptRef = async (
+    scriptHash
+  ): Promise<string | undefined> => {
+    if (scriptHash) {
+      const { data, status } = await this._axiosInstance.get(
+        `scripts/${scriptHash}`
+      );
+
+      if (status === 200) {
+        const script = data.type.startsWith('plutus')
+          ? <PlutusScript>{
+            code: await this.fetchPlutusScriptCBOR(scriptHash),
+            version: data.type.replace('plutus', ''),
+          }
+          : await this.fetchNativeScriptJSON(scriptHash);
+
+        return toScriptRef(script).to_hex();
+      }
+
+      throw parseHttpError(data);
+    }
+
+    return undefined;
+  };
+
+  private toUTxO = async (bfUTxO, tx_hash: string): Promise<UTxO> => ({
+    input: {
+      outputIndex: bfUTxO.output_index,
+      txHash: tx_hash,
+    },
+    output: {
+      address: bfUTxO.address,
+      amount: bfUTxO.amount,
+      dataHash: bfUTxO.data_hash ?? undefined,
+      plutusData: bfUTxO.inline_datum ?? undefined,
+      scriptRef: await this.resolveScriptRef(bfUTxO.reference_script_hash),
+    },
+  })
+
+
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : '';
     const url = `addresses/${address}/utxos` + filter;
@@ -83,51 +123,12 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
         return data.length > 0
           ? paginateUTxOs(page + 1, [
               ...utxos,
-              ...(await Promise.all(data.map(toUTxO))),
+              ...(await Promise.all(data.map(this.toUTxO))),
             ])
           : utxos;
 
       throw parseHttpError(data);
     };
-
-    const resolveScriptRef = async (
-      scriptHash
-    ): Promise<string | undefined> => {
-      if (scriptHash) {
-        const { data, status } = await this._axiosInstance.get(
-          `scripts/${scriptHash}`
-        );
-
-        if (status === 200) {
-          const script = data.type.startsWith('plutus')
-            ? <PlutusScript>{
-                code: await this.fetchPlutusScriptCBOR(scriptHash),
-                version: data.type.replace('plutus', ''),
-              }
-            : await this.fetchNativeScriptJSON(scriptHash);
-
-          return toScriptRef(script).to_hex();
-        }
-
-        throw parseHttpError(data);
-      }
-
-      return undefined;
-    };
-
-    const toUTxO = async (bfUTxO): Promise<UTxO> => ({
-      input: {
-        outputIndex: bfUTxO.output_index,
-        txHash: bfUTxO.tx_hash,
-      },
-      output: {
-        address: address,
-        amount: bfUTxO.amount,
-        dataHash: bfUTxO.data_hash ?? undefined,
-        plutusData: bfUTxO.inline_datum ?? undefined,
-        scriptRef: await resolveScriptRef(bfUTxO.reference_script_hash),
-      },
-    });
 
     try {
       return await paginateUTxOs();
@@ -310,8 +311,11 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
 
   async fetchUTxOs(hash: string): Promise<UTxO[]> {
     try {
-      // TODO: Implement the fetcher
-      return [];
+      const { data, status } = await this._axiosInstance.get(`txs/${hash}/utxos`);
+      if (status === 200) {
+        return await Promise.all(data.outputs.map(this.toUTxO));
+      }
+      throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
     }
