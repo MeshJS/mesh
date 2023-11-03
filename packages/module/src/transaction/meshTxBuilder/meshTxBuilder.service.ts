@@ -344,10 +344,14 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     return this;
   };
 
-  signingKey = (skey: string, vkey: string) => {
+  signingKey = (skey: string, vkey: string): MeshTxBuilder => {
     this._signingKey(skey, vkey);
-    return this.txHex;
+    return this;
   };
+
+  completeSigning = (): string => {
+    return this._completeSigning();
+  }
 
   /**
    *
