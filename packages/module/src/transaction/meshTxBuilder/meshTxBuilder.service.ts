@@ -328,7 +328,6 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     }
     this.addScriptInputs();
     this.txBuilder.set_inputs(this.txInputsBuilder);
-    console.log(this.txInputsBuilder.inputs().to_json());
     this.addPlutusMints();
     this.txBuilder.set_mint_builder(this.plutusMintBuilder);
 
