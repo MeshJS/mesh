@@ -1,33 +1,7 @@
 import { DEFAULT_REDEEMER_BUDGET } from '@mesh/common/constants';
 import { Asset, Data } from '@mesh/common/types';
-import { buildTxBuilder, toValue } from '@mesh/common/utils';
+import { buildTxBuilder, toValue, toPlutusData } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
-
-export type ScriptInputBuilder = {
-  txHash: string;
-  txIndex: number;
-  scriptHash: string;
-  script: csl.PlutusScriptSource;
-  input: csl.TransactionInput;
-  datum: csl.DatumSource;
-  redeemer: TempRedeemer;
-  value: csl.Value;
-};
-
-export type PlutusMintBuilder = {
-  policyId: string;
-  script: csl.PlutusScriptSource;
-  redeemer: TempRedeemer;
-  tokenName: csl.AssetName;
-  quantity: csl.Int;
-};
-
-export type TempRedeemer = {
-  tag: csl.RedeemerTag;
-  data: Data;
-  exUnits: csl.ExUnits;
-  index?: number;
-};
 
 export type TxInParameter = {
   txHash: string;
@@ -36,25 +10,38 @@ export type TxInParameter = {
   address?: string;
 };
 
+export type ScriptTxInParameter = {
+  scriptSource?: csl.PlutusScriptSource;
+  datumSource?: csl.DatumSource;
+  redeemer?: csl.Redeemer;
+}
+
 export type QueuedTxIn = {
   type: 'PubKey' | 'Script';
   txIn: TxInParameter;
+  scriptTxIn?: ScriptTxInParameter;
 };
+
+export type MintItem = {
+  type: 'Native' | 'Plutus';
+  policyId: csl.ScriptHash;
+  assetName: csl.AssetName;
+  amount: number;
+  script?: csl.NativeScript | csl.PlutusScriptSource;
+  redeemer?: csl.Redeemer;
+}
 
 export class _MeshTxBuilder {
   txHex?: string;
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
-  txInputsBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
-  plutusMintBuilder: csl.MintBuilder = csl.MintBuilder.new();
+  mintBuilder: csl.MintBuilder = csl.MintBuilder.new();
   txOutput?: csl.TransactionOutput;
   builderChangeAddress?: csl.Address;
   addingScriptInput = false;
   addingPlutusMint = false;
-  scriptInput: Partial<ScriptInputBuilder> = {};
-  scriptInputs: Partial<ScriptInputBuilder>[] = [];
-  plutusMint: Partial<PlutusMintBuilder> = {};
-  plutusMints: Partial<PlutusMintBuilder>[] = [];
   vkeyWitnesses: csl.Vkeywitnesses = csl.Vkeywitnesses.new();
+
+  mintItem: Partial<MintItem> = {};
 
   txInQueueItem: Partial<QueuedTxIn> = {};
   txInQueue: Partial<QueuedTxIn>[] = [];
@@ -66,40 +53,55 @@ export class _MeshTxBuilder {
   _txIn = (
     txHash: string,
     txIndex: number,
-    amount: Asset[],
+    amount?: Asset[],
     address?: string
   ): _MeshTxBuilder => {
-    // It has to query blockchain for value and datum
-    if (!this.addingScriptInput && address) {
-      this.txInputsBuilder.add_input(
-        csl.Address.from_bech32(address),
-        csl.TransactionInput.new(csl.TransactionHash.from_hex(txHash), txIndex),
-        toValue(amount)
-      );
-    } else {
-      this.scriptInput.txHash = txHash;
-      this.scriptInput.txIndex = txIndex;
-      this.scriptInput.input = csl.TransactionInput.new(
-        csl.TransactionHash.from_hex(txHash),
-        txIndex
-      );
-      this.scriptInput.value = toValue(amount);
+    if (Object.keys(this.txInQueueItem).length !== 0) {
+      this.queueInput();
     }
+    if (!this.addingScriptInput) {
+      this.txInQueueItem = {
+        type: 'PubKey',
+        txIn: {
+          txHash: txHash,
+          txIndex: txIndex,
+          amount: amount,
+          address: address
+        }
+      };
+    } else {
+      this.txInQueueItem = {
+        type: 'Script',
+        txIn: {
+          txHash: txHash,
+          txIndex: txIndex,
+          amount: amount,
+          address: address
+        },
+        scriptTxIn: {}
+      };
+    }
+    this.addingScriptInput = false;
     return this;
   };
 
   _txInDatumValue = (datum: Data): _MeshTxBuilder => {
+    if (!this.txInQueueItem.txIn) throw Error('Datum value attempted to be called on an undefined transaction input');
+    if (!this.txInQueueItem.scriptTxIn) throw Error('Datum value attempted to be called a non script input');
+    this.txInQueueItem.scriptTxIn.datumSource = csl.DatumSource.new(toPlutusData(datum));
     return this;
   };
 
   _txInInlineDatumPresent = (): _MeshTxBuilder => {
-    const { txHash, txIndex } = this.scriptInput;
+    if (!this.txInQueueItem.txIn) throw Error('Inline datum present attempted to be called on an undefined transaction input');
+    if (!this.txInQueueItem.scriptTxIn) throw Error('Inline datum present attempted to be called a non script input');
+    const { txHash, txIndex } = this.txInQueueItem.txIn;
     if (txHash && txIndex) {
       const refTxIn = csl.TransactionInput.new(
         csl.TransactionHash.from_hex(txHash),
         txIndex
       );
-      this.scriptInput.datum = csl.DatumSource.new_ref_input(refTxIn);
+      this.txInQueueItem.scriptTxIn.datumSource = csl.DatumSource.new_ref_input(refTxIn);
     }
     return this;
   };
@@ -107,6 +109,7 @@ export class _MeshTxBuilder {
   _txOut = (address: string, amount: Asset[]): _MeshTxBuilder => {
     if (this.txOutput) {
       this.txBuilder.add_output(this.txOutput);
+      this.txOutput = undefined;
     }
     const txValue = toValue(amount);
     this.txOutput = csl.TransactionOutput.new(
@@ -121,12 +124,7 @@ export class _MeshTxBuilder {
   };
 
   _txOutInlineDatumValue = (datum: Data): _MeshTxBuilder => {
-    this.txOutput?.set_plutus_data(
-      csl.encode_json_str_to_plutus_datum(
-        JSON.stringify(datum),
-        csl.PlutusDatumSchema.DetailedSchema
-      )
-    );
+    this.txOutput?.set_plutus_data(toPlutusData(datum));
     return this;
   };
 
@@ -151,37 +149,26 @@ export class _MeshTxBuilder {
     txIndex: number,
     spendingScriptHash: string
   ): _MeshTxBuilder => {
-    // This should point to a UTxO that contains the script (inlined) we're trying to
-    // unlock from
-    this.scriptInput.scriptHash = spendingScriptHash;
+    if (!this.txInQueueItem.txIn) throw Error('Spending tx in reference attempted to be called on an undefined transaction input');
+    if (!this.txInQueueItem.scriptTxIn) throw Error('Spending tx in reference attempted to be called a non script input');
     const scriptHash = csl.ScriptHash.from_hex(spendingScriptHash);
     const scriptRefInput = csl.TransactionInput.new(
       csl.TransactionHash.from_hex(txHash),
       txIndex
     );
-    this.scriptInput.script =
+    this.txInQueueItem.scriptTxIn.scriptSource =
       csl.PlutusScriptSource.new_ref_input_with_lang_ver(
         scriptHash,
         scriptRefInput,
         csl.Language.new_plutus_v2()
       );
-    const { datum, redeemer } = this.scriptInput;
-    if (datum && redeemer) this.queueScriptInput();
     return this;
   };
 
+  // Unsure how this is different from the --tx-in-inline-datum-present flag
+  // It seems to just be different based on if the script is a reference input
   _spendingReferenceTxInInlineDatumPresent = (): _MeshTxBuilder => {
-    // Signal that the tx-in has inlined datum present
-    const { txHash, txIndex } = this.scriptInput;
-    if (txHash && txIndex) {
-      const refTxIn = csl.TransactionInput.new(
-        csl.TransactionHash.from_hex(txHash),
-        txIndex
-      );
-      this.scriptInput.datum = csl.DatumSource.new_ref_input(refTxIn);
-    }
-    const { script, redeemer } = this.scriptInput;
-    if (script && redeemer) this.queueScriptInput();
+    this._txInInlineDatumPresent();
     return this;
   };
 
@@ -189,17 +176,16 @@ export class _MeshTxBuilder {
     redeemer: Data,
     exUnits = DEFAULT_REDEEMER_BUDGET
   ): _MeshTxBuilder => {
-    const tempRedeemer: TempRedeemer = {
-      tag: csl.RedeemerTag.new_spend(),
-      data: redeemer,
-      exUnits: csl.ExUnits.new(
-        csl.BigNum.from_str(exUnits.mem.toString()),
-        csl.BigNum.from_str(exUnits.steps.toString())
-      ),
-    };
-    this.scriptInput.redeemer = tempRedeemer;
-    const { script, datum } = this.scriptInput;
-    if (script && datum) this.queueScriptInput();
+    if (!this.txInQueueItem.txIn) throw Error('Spending tx in reference redeemer attempted to be called on an undefined transaction input');
+    if (!this.txInQueueItem.scriptTxIn) throw Error('Spending tx in reference redeemer attempted to be called a non script input');
+    this.txInQueueItem.scriptTxIn.redeemer = csl.Redeemer.new(
+      csl.RedeemerTag.new_spend(),
+      csl.BigNum.from_str('0'),
+      toPlutusData(redeemer),
+      csl.ExUnits.new(
+        csl.BigNum.from_str(String(exUnits.mem)),
+        csl.BigNum.from_str(String(exUnits.steps))
+      ));
     return this;
   };
 
@@ -221,45 +207,66 @@ export class _MeshTxBuilder {
   };
 
   _mint = (quantity: number, policy: string, name: string): _MeshTxBuilder => {
-    this.plutusMint.quantity = csl.Int.new_i32(quantity);
-    this.plutusMint.policyId = policy;
-    this.plutusMint.tokenName = csl.AssetName.new(Buffer.from(name, 'utf8'));
+    if (Object.keys(this.mintItem).length != 0) {
+      this.queueMint();
+    }
+    this.mintItem = {
+      type: this.addingPlutusMint ? 'Plutus' : 'Native',
+      policyId: csl.ScriptHash.from_hex(policy),
+      assetName: csl.AssetName.new(Buffer.from(name, 'utf8')),
+      amount: quantity,
+    };
+    this.addingPlutusMint = false;
+    return this;
+  };
+
+  _mintingScript = (scriptCBOR: string): _MeshTxBuilder => {
+    if (!this.mintItem.type) throw Error('Mint information missing');
+    if (this.mintItem.type == 'Native') {
+      this.mintItem.script = csl.NativeScript.from_hex(scriptCBOR);
+    } else if (this.mintItem.type == 'Plutus') {
+      this.mintItem.script = csl.PlutusScriptSource.new(csl.PlutusScript.from_hex_with_version(scriptCBOR, csl.Language.new_plutus_v2()));
+    }
     return this;
   };
 
   _mintTxInReference = (txHash: string, txIndex: number): _MeshTxBuilder => {
-    if (this.plutusMint.policyId) {
-      const scriptRefInput = csl.TransactionInput.new(
-        csl.TransactionHash.from_hex(txHash),
-        txIndex
+    if (!this.mintItem.type) throw Error('Mint information missing');
+    if (this.mintItem.type == 'Native') {
+      throw Error('Mint tx in reference can only be used on plutus script tokens');
+    } else if (this.mintItem.type == 'Plutus') {
+      if (!this.mintItem.policyId) throw Error('PolicyId information missing from mint asset');
+      this.mintItem.script = csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+        this.mintItem.policyId,
+        csl.TransactionInput.new(
+          csl.TransactionHash.from_hex(txHash),
+          txIndex
+        ),
+        csl.Language.new_plutus_v2()
       );
-      const scriptHash = csl.ScriptHash.from_hex(this.plutusMint.policyId);
-      const plutusScriptSource =
-        csl.PlutusScriptSource.new_ref_input_with_lang_ver(
-          scriptHash,
-          scriptRefInput,
-          csl.Language.new_plutus_v2()
-        );
-      this.plutusMint.script = plutusScriptSource;
     }
-    if (this.plutusMint.redeemer) this.queuePlutusMint();
     return this;
   };
 
   _mintReferenceTxInRedeemerValue = (
-    redeemer: Data,
+    redeemerData: Data,
     exUnits = DEFAULT_REDEEMER_BUDGET
   ): _MeshTxBuilder => {
-    const tempRedeemer: TempRedeemer = {
-      tag: csl.RedeemerTag.new_mint(),
-      data: redeemer,
-      exUnits: csl.ExUnits.new(
-        csl.BigNum.from_str(exUnits.mem.toString()),
-        csl.BigNum.from_str(exUnits.steps.toString())
-      ),
-    };
-    this.scriptInput.redeemer = tempRedeemer;
-    if (this.plutusMint.script) this.queuePlutusMint();
+    // TODO: figure out how to set index correctly
+    if (!this.mintItem.type) throw Error('Mint information missing');
+    if (this.mintItem.type == 'Native') {
+      throw Error('Mint tx in reference can only be used on plutus script tokens');
+    } else if (this.mintItem.type == 'Plutus') {
+      if (!this.mintItem.policyId) throw Error('PolicyId information missing from mint asset');
+      this.mintItem.redeemer = csl.Redeemer.new(
+        csl.RedeemerTag.new_mint(),
+        csl.BigNum.from_str('0'),
+        toPlutusData(redeemerData),
+        csl.ExUnits.new(
+          csl.BigNum.from_str(String(exUnits.mem)),
+          csl.BigNum.from_str(String(exUnits.steps))
+        ));
+    }
     return this;
   };
 
@@ -295,7 +302,6 @@ export class _MeshTxBuilder {
   };
 
   _signingKey = (skeyHex: string, vkeyHex: string): _MeshTxBuilder => {
-    // TODO: change to allow multiple keys
     const wasmUnsignedTransaction = this.txBuilder.build_tx();
     const wasmTxBody = wasmUnsignedTransaction.body();
     const skey = csl.PrivateKey.from_hex(skeyHex);
@@ -309,7 +315,7 @@ export class _MeshTxBuilder {
   _completeSigning = (): string => {
     const wasmUnsignedTransaction = this.txBuilder.build_tx();
     const wasmWitnessSet = wasmUnsignedTransaction.witness_set();
-    const wasmTxBody = wasmUnsignedTransaction.body()
+    const wasmTxBody = wasmUnsignedTransaction.body();
     wasmWitnessSet.set_vkeys(this.vkeyWitnesses);
     const wasmSignedTransaction = csl.Transaction.new(
       wasmTxBody,
@@ -317,92 +323,50 @@ export class _MeshTxBuilder {
       wasmUnsignedTransaction.auxiliary_data()
     );
     this.txHex = wasmSignedTransaction.to_hex();
-    return this.txHex
-  }
+    return this.txHex;
+  };
 
-  private queueScriptInput = () => {
-    this.scriptInputs.push(this.scriptInput);
-    this.addingScriptInput = false;
-    if (!this.scriptInput.value) {
-      this.txInQueue.push(this.txInQueueItem);
-      this.txInQueueItem = {};
+  queueInput = () => {
+    if (this.txInQueueItem.type === 'Script') {
+      if (!this.txInQueueItem.scriptTxIn) {
+        throw Error('Script input does not contain script, datum, or redeemer information');
+      } else {
+        if (!this.txInQueueItem.scriptTxIn.datumSource) throw Error('Script input does not contain datum information');
+        if (!this.txInQueueItem.scriptTxIn.redeemer) throw Error('Script input does not contain redeemer information');
+        if (!this.txInQueueItem.scriptTxIn.scriptSource) throw Error('Script input does not contain script information');
+      }
     }
-    this.scriptInput = {};
+    this.txInQueue.push(this.txInQueueItem);
+    this.txInQueueItem = {};
   };
 
-  private queuePlutusMint = () => {
-    this.plutusMints.push(this.plutusMint);
-    this.addingPlutusMint = false;
-    this.plutusMint = {};
-  };
+  private isNativeScript = (script): script is csl.NativeScript => { return script.kind() !== undefined; };
+  private isPlutusScript = (script): script is csl.PlutusScript => { return script.language_version() !== undefined; };
 
-  /**
-   * This private function is for constructing the redeemer when
-   *   1. ExUnits are finalized (Optionally after adjustment from Tx Evaluate)
-   *   2. Redeemer index are computed (Number of redeemer is fixed)
-   * @param rawScriptInput
-   */
-  private constructScriptInput = (rawScriptInput: ScriptInputBuilder) => {
-    const { script, datum, redeemer, input, value } = rawScriptInput;
-    const scriptPlutusWitness = csl.PlutusWitness.new_with_ref(
-      script,
-      datum,
-      this.makeRedeemer({ ...redeemer, index: redeemer.index || 0 })
-    );
-    this.txInputsBuilder.add_plutus_script_input(
-      scriptPlutusWitness,
-      input,
-      value
-    );
-  };
-
-  private constructPlutusMint = (rawPlutusMint: PlutusMintBuilder) => {
-    const { script, redeemer, tokenName, quantity } = rawPlutusMint;
-    const mintWitness = csl.MintWitness.new_plutus_script(
-      script,
-      this.makeRedeemer({ ...redeemer, index: redeemer.index || 0 })
-    );
-    this.plutusMintBuilder.add_asset(mintWitness, tokenName, quantity);
-  };
-
-  private makeRedeemer = (
-    tempRedeemer: TempRedeemer & { index: number }
-  ): csl.Redeemer => {
-    const redeemerData = csl.encode_json_str_to_plutus_datum(
-      JSON.stringify(tempRedeemer.data),
-      csl.PlutusDatumSchema.DetailedSchema
-    );
-    return csl.Redeemer.new(
-      tempRedeemer.tag,
-      csl.BigNum.from_str(tempRedeemer.index.toString()),
-      redeemerData,
-      tempRedeemer.exUnits
-    );
-  };
-
-  addScriptInputs = () => {
-    // Sort the inputs according to script hash
-    const inputs = this.scriptInputs as ScriptInputBuilder[];
-    inputs.sort((a, b) => (b.scriptHash > a.scriptHash ? -1 : 1));
-
-    inputs.forEach((scriptInputBuilder, index) => {
-      // Put its index to TempRedeemer
-      scriptInputBuilder.redeemer.index = index;
-      // Construct the script input
-      this.constructScriptInput(scriptInputBuilder);
-    });
-  };
-
-  addPlutusMints = () => {
-    // Sort the inputs according to script hash
-    const mints = this.plutusMints as PlutusMintBuilder[];
-    mints.sort((a, b) => (b.policyId > a.policyId ? -1 : 1));
-
-    mints.forEach((plutusMintBuilder, index) => {
-      // Put its index to TempRedeemer
-      plutusMintBuilder.redeemer.index = index;
-      // Construct the script input
-      this.constructPlutusMint(plutusMintBuilder);
-    });
+  queueMint = () => {
+    if (!this.mintItem.script) throw Error('Missing mint script information');
+    if (!this.mintItem.assetName) throw Error('Missing mint asset name info');
+    if (!this.mintItem.amount) throw Error('Missing mint amount info');
+    if (this.mintItem.type === 'Plutus') {
+      if (!this.mintItem.redeemer) throw Error('Missing mint redeemer information');
+      if (!this.isPlutusScript(this.mintItem.script)) throw Error('Mint script is expected to be a plutus script');
+      this.mintBuilder.add_asset(
+        csl.MintWitness.new_plutus_script(
+          this.mintItem.script,
+          this.mintItem.redeemer),
+        this.mintItem.assetName,
+        csl.Int.new_i32(this.mintItem.amount)
+      );
+    } else if (this.mintItem.type === 'Native' && this.mintItem.script) {
+      if (!this.isNativeScript(this.mintItem.script)) throw Error('Mint script is expected to be native script');
+      this.mintBuilder.add_asset(
+        csl.MintWitness.new_native_script(
+          this.mintItem.script
+        ),
+        this.mintItem.assetName,
+        csl.Int.new_i32(this.mintItem.amount)
+      );
+    }
+    this.mintItem = {};
   };
 }

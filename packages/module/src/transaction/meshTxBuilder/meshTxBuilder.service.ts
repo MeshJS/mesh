@@ -45,26 +45,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     address?: string
   ): MeshTxBuilder => {
     // It has to query blockchain for value and datum
-    if (!this.addingScriptInput && address && amount) {
-      this._txIn(txHash, txIndex, amount, address);
-      return this;
-    }
-    if (this.addingScriptInput && amount) {
-      this._txIn(txHash, txIndex, amount);
-      return this;
-    }
-    if (!this.addingScriptInput) {
-      this.txInQueue.push({ type: 'PubKey', txIn: { txHash, txIndex } });
-    } else {
-      this.txInQueueItem = { type: 'Script', txIn: { txHash, txIndex } };
-      this.scriptInput.txHash = txHash;
-      this.scriptInput.txIndex = txIndex;
-      this.scriptInput.input = csl.TransactionInput.new(
-        csl.TransactionHash.from_hex(txHash),
-        txIndex
-      );
-      // Only value to be queried from chain
-    }
+    this._txIn(txHash, txIndex, amount, address);
     return this;
   };
 
@@ -82,6 +63,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   txInInlineDatumPresent = (): MeshTxBuilder => {
+    this._txInInlineDatumPresent;
     return this;
   };
 
@@ -173,6 +155,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   spendingReferenceTxInRedeemerValue = (redeemer: Data): MeshTxBuilder => {
+    this._spendingReferenceTxInRedeemerValue(redeemer);
     return this;
   };
 
@@ -289,47 +272,51 @@ export class MeshTxBuilder extends _MeshTxBuilder {
   };
 
   complete = async () => {
-    // Get all necessary info first
-    this.addingScriptInput = false;
-    const allPromises: Promise<{
-      address: string;
-      amount: Asset[];
-    }>[] = [];
-    this.txInQueue.forEach((item) => {
-      const {
-        txIn: { txHash, txIndex },
-      } = item as QueuedTxIn;
-      allPromises.push(this.getUTxOInfo(txHash, txIndex));
-    });
-
-    const indexResult = await Promise.all(allPromises);
-
-    for (let i = 0; i < this.txInQueue.length; i++) {
-      const {
-        type,
-        txIn: { txHash, txIndex },
-      } = this.txInQueue[i] as QueuedTxIn;
-      const { address, amount } = indexResult[i];
-
-      if (type === 'PubKey') {
-        this._txIn(txHash, txIndex, amount, address);
-      }
-      if (type === 'Script') {
-        this.scriptInputs.forEach((input) => {
-          if (input.txHash === txHash && input.txIndex === txIndex) {
-            input.value = toValue(amount);
-          }
-        });
-      }
-    }
-
+    // Handle tx outputs
     if (this.txOutput) {
       this.txBuilder.add_output(this.txOutput);
+      this.txOutput = undefined;
     }
-    this.addScriptInputs();
-    this.txBuilder.set_inputs(this.txInputsBuilder);
-    this.addPlutusMints();
-    this.txBuilder.set_mint_builder(this.plutusMintBuilder);
+    // Handle all transaction inputs in queue
+    if (Object.keys(this.txInQueueItem).length !== 0) {
+      this.queueInput();
+    }
+    for (let i = 0; i < this.txInQueue.length; i++) {
+      const currentTxIn = this.txInQueue[i]
+      if (currentTxIn.txIn) {
+        if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
+          const { address, amount } = await this.getUTxOInfo(currentTxIn.txIn.txHash, currentTxIn.txIn.txIndex);
+          if (address === '' || amount.length === 0) throw Error(`Couldn't find information for ${currentTxIn.txIn.txHash}#${currentTxIn.txIn.txIndex}`)
+          currentTxIn.txIn.address = address;
+          currentTxIn.txIn.amount = amount;
+        }
+        if (currentTxIn.type === 'PubKey') {
+          this.txBuilder.add_input(
+            csl.Address.from_bech32(currentTxIn.txIn.address),
+            csl.TransactionInput.new(
+              csl.TransactionHash.from_hex(currentTxIn.txIn.txHash),
+              currentTxIn.txIn.txIndex
+            ),
+            toValue(currentTxIn.txIn.amount)
+          )
+        } else if (currentTxIn.type === 'Script') {
+          if (currentTxIn.scriptTxIn && currentTxIn.scriptTxIn.datumSource && currentTxIn.scriptTxIn.redeemer && currentTxIn.scriptTxIn.scriptSource) {
+            this.txBuilder.add_plutus_script_input(
+              csl.PlutusWitness.new_with_ref(
+                currentTxIn.scriptTxIn.scriptSource,
+                currentTxIn.scriptTxIn.datumSource,
+                currentTxIn.scriptTxIn.redeemer
+              ),
+              csl.TransactionInput.new(
+                csl.TransactionHash.from_hex(currentTxIn.txIn.txHash),
+                currentTxIn.txIn.txIndex
+              ),
+              toValue(currentTxIn.txIn.amount)
+            )
+          }
+        }
+      }
+    }
 
     // TODO: Any balancing action
     // TODO: Calculate execution units and rebuild the transaction
@@ -362,7 +349,6 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     txHash: string,
     txIndex: number
   ): Promise<{ address: string; amount: Asset[] }> => {
-    // TODO: To implement
     const utxos = await this._fetcher?.fetchUTxOs(txHash);
     const utxo = utxos?.find((utxo) => utxo.input.outputIndex === txIndex);
     return {
