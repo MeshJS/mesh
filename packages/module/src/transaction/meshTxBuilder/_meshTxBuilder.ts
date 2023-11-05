@@ -27,7 +27,8 @@ export type MintItem = {
   policyId: csl.ScriptHash;
   assetName: csl.AssetName;
   amount: number;
-  script?: csl.NativeScript | csl.PlutusScriptSource;
+  nativeScript?: csl.NativeScript;
+  plutusScript?: csl.PlutusScriptSource;
   redeemer?: csl.Redeemer;
 }
 
@@ -229,9 +230,9 @@ export class _MeshTxBuilder {
     if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.type) throw Error('Mint information missing');
     if (this.mintItem.type == 'Native') {
-      this.mintItem.script = csl.NativeScript.from_hex(scriptCBOR);
+      this.mintItem.nativeScript = csl.NativeScript.from_hex(scriptCBOR);
     } else if (this.mintItem.type == 'Plutus') {
-      this.mintItem.script = csl.PlutusScriptSource.new(csl.PlutusScript.from_hex_with_version(scriptCBOR, csl.Language.new_plutus_v2()));
+      this.mintItem.plutusScript = csl.PlutusScriptSource.new(csl.PlutusScript.from_hex_with_version(scriptCBOR, csl.Language.new_plutus_v2()));
     }
     return this;
   };
@@ -243,7 +244,7 @@ export class _MeshTxBuilder {
       throw Error('Mint tx in reference can only be used on plutus script tokens');
     } else if (this.mintItem.type == 'Plutus') {
       if (!this.mintItem.policyId) throw Error('PolicyId information missing from mint asset');
-      this.mintItem.script = csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+      this.mintItem.plutusScript = csl.PlutusScriptSource.new_ref_input_with_lang_ver(
         this.mintItem.policyId,
         csl.TransactionInput.new(
           csl.TransactionHash.from_hex(txHash),
@@ -365,27 +366,24 @@ export class _MeshTxBuilder {
     this.txInQueueItem = undefined;
   };
 
-  private isNativeScript = (script): script is csl.NativeScript => { return script.kind() !== undefined; };
-  private isPlutusScript = (script): script is csl.PlutusScript => { return script.language_version() !== undefined; };
-
   queueMint = () => {
     if (!this.mintItem) throw Error('Undefined mint');
-    if (!this.mintItem.script) throw Error('Missing mint script information');
+    if (!this.mintItem.plutusScript && !this.mintItem.nativeScript) throw Error('Missing mint script information');
     if (this.mintItem.type === 'Plutus') {
       if (!this.mintItem.redeemer) throw Error('Missing mint redeemer information');
-      if (!this.isPlutusScript(this.mintItem.script)) throw Error('Mint script is expected to be a plutus script');
+      if (!this.mintItem.plutusScript) throw Error('Mint script is expected to be a plutus script');
       this.mintBuilder.add_asset(
         csl.MintWitness.new_plutus_script(
-          this.mintItem.script,
+          this.mintItem.plutusScript,
           this.mintItem.redeemer),
         this.mintItem.assetName,
         csl.Int.new_i32(this.mintItem.amount)
       );
-    } else if (this.mintItem.type === 'Native' && this.mintItem.script) {
-      if (!this.isNativeScript(this.mintItem.script)) throw Error('Mint script is expected to be native script');
+    } else if (this.mintItem.type === 'Native') {
+      if (!this.mintItem.nativeScript) throw Error('Mint script is expected to be native script');
       this.mintBuilder.add_asset(
         csl.MintWitness.new_native_script(
-          this.mintItem.script
+          this.mintItem.nativeScript
         ),
         this.mintItem.assetName,
         csl.Int.new_i32(this.mintItem.amount)

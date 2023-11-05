@@ -54,6 +54,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   txInDatumValue = (datum: Data): MeshTxBuilder => {
+    this._txInDatumValue(datum);
     return this;
   };
 
@@ -83,6 +84,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   txOutDatumHashValue = (datum: Data): MeshTxBuilder => {
+    this._txOutDatumHashValue(datum);
     return this;
   };
 
@@ -190,6 +192,21 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     return this;
   };
 
+    /**
+   * Set the minting script of current mint
+   * @param scriptCBOR The CBOR hex of the minting policy script
+   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   */
+  mintingScript = (scriptCBOR: string): MeshTxBuilder => {
+    this._mintingScript(scriptCBOR);
+    return this;
+  }
+
+  mintRedeemerValue = (redeemer: Data): MeshTxBuilder => {
+    this._mintReferenceTxInRedeemerValue(redeemer);
+    return this;
+  };
+
   /**
    *
    * @param txHash The transaction hash of the UTxO
@@ -236,7 +253,8 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @param txIndex The transaction index of the collateral UTxO
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
-  txInCollateral = (txHash: string, txIndex: number): MeshTxBuilder => {
+  txInCollateral = (txHash: string, txIndex: number, amount?: Asset[], address?: string): MeshTxBuilder => {
+    this._txInCollateral(txHash, txIndex, amount, address);
     return this;
   };
 
@@ -334,8 +352,15 @@ export class MeshTxBuilder extends _MeshTxBuilder {
           currentCollateral.txIn.txIndex
         ),
         toValue(currentCollateral.txIn.amount)
-      )
+      );
     }
+    this.txBuilder.set_collateral(this.collateralBuilder);
+
+    // Handle mints
+    if (this.mintItem) {
+      this.queueMint()
+    }
+    this.txBuilder.set_mint_builder(this.mintBuilder);
 
     // TODO: add collateral return
 
@@ -360,6 +385,11 @@ export class MeshTxBuilder extends _MeshTxBuilder {
   completeSigning = (): string => {
     return this._completeSigning();
   };
+
+  submitTx = async (txHex: string): Promise<string> => {
+    const txHash = this._submitter?.submitTx(txHex);
+    return txHash ? txHash : '';
+  }
 
   /**
    *
