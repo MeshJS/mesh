@@ -2,8 +2,7 @@ import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { csl } from '@mesh/core';
 import { toValue } from '@mesh/common/utils';
 import { Asset, Data } from '@mesh/common/types';
-import { QueuedTxIn, _MeshTxBuilder } from './_meshTxBuilder';
-import { MaestroProvider } from '@mesh/providers';
+import { _MeshTxBuilder } from './_meshTxBuilder';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -278,7 +277,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
       this.txOutput = undefined;
     }
     // Handle all transaction inputs in queue
-    if (Object.keys(this.txInQueueItem).length !== 0) {
+    if (this.txInQueueItem) {
       this.queueInput();
     }
     for (let i = 0; i < this.txInQueue.length; i++) {

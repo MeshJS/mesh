@@ -41,10 +41,10 @@ export class _MeshTxBuilder {
   addingPlutusMint = false;
   vkeyWitnesses: csl.Vkeywitnesses = csl.Vkeywitnesses.new();
 
-  mintItem: Partial<MintItem> = {};
+  mintItem?: MintItem;
 
-  txInQueueItem: Partial<QueuedTxIn> = {};
-  txInQueue: Partial<QueuedTxIn>[] = [];
+  txInQueueItem?: QueuedTxIn;
+  txInQueue: QueuedTxIn[] = [];
 
   /**
    * Synchronous functions here
@@ -56,7 +56,7 @@ export class _MeshTxBuilder {
     amount?: Asset[],
     address?: string
   ): _MeshTxBuilder => {
-    if (Object.keys(this.txInQueueItem).length !== 0) {
+    if (this.txInQueueItem) {
       this.queueInput();
     }
     if (!this.addingScriptInput) {
@@ -86,14 +86,14 @@ export class _MeshTxBuilder {
   };
 
   _txInDatumValue = (datum: Data): _MeshTxBuilder => {
-    if (!this.txInQueueItem.txIn) throw Error('Datum value attempted to be called on an undefined transaction input');
+    if (!this.txInQueueItem) throw Error('Undefined input');
     if (!this.txInQueueItem.scriptTxIn) throw Error('Datum value attempted to be called a non script input');
     this.txInQueueItem.scriptTxIn.datumSource = csl.DatumSource.new(toPlutusData(datum));
     return this;
   };
 
   _txInInlineDatumPresent = (): _MeshTxBuilder => {
-    if (!this.txInQueueItem.txIn) throw Error('Inline datum present attempted to be called on an undefined transaction input');
+    if (!this.txInQueueItem) throw Error('Undefined input');
     if (!this.txInQueueItem.scriptTxIn) throw Error('Inline datum present attempted to be called a non script input');
     const { txHash, txIndex } = this.txInQueueItem.txIn;
     if (txHash && txIndex) {
@@ -149,7 +149,7 @@ export class _MeshTxBuilder {
     txIndex: number,
     spendingScriptHash: string
   ): _MeshTxBuilder => {
-    if (!this.txInQueueItem.txIn) throw Error('Spending tx in reference attempted to be called on an undefined transaction input');
+    if (!this.txInQueueItem) throw Error('Undefined input');
     if (!this.txInQueueItem.scriptTxIn) throw Error('Spending tx in reference attempted to be called a non script input');
     const scriptHash = csl.ScriptHash.from_hex(spendingScriptHash);
     const scriptRefInput = csl.TransactionInput.new(
@@ -176,7 +176,7 @@ export class _MeshTxBuilder {
     redeemer: Data,
     exUnits = DEFAULT_REDEEMER_BUDGET
   ): _MeshTxBuilder => {
-    if (!this.txInQueueItem.txIn) throw Error('Spending tx in reference redeemer attempted to be called on an undefined transaction input');
+    if (!this.txInQueueItem) throw Error('Undefined input');
     if (!this.txInQueueItem.scriptTxIn) throw Error('Spending tx in reference redeemer attempted to be called a non script input');
     this.txInQueueItem.scriptTxIn.redeemer = csl.Redeemer.new(
       csl.RedeemerTag.new_spend(),
@@ -207,7 +207,7 @@ export class _MeshTxBuilder {
   };
 
   _mint = (quantity: number, policy: string, name: string): _MeshTxBuilder => {
-    if (Object.keys(this.mintItem).length != 0) {
+    if (this.mintItem) {
       this.queueMint();
     }
     this.mintItem = {
@@ -221,6 +221,7 @@ export class _MeshTxBuilder {
   };
 
   _mintingScript = (scriptCBOR: string): _MeshTxBuilder => {
+    if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.type) throw Error('Mint information missing');
     if (this.mintItem.type == 'Native') {
       this.mintItem.script = csl.NativeScript.from_hex(scriptCBOR);
@@ -231,6 +232,7 @@ export class _MeshTxBuilder {
   };
 
   _mintTxInReference = (txHash: string, txIndex: number): _MeshTxBuilder => {
+    if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.type) throw Error('Mint information missing');
     if (this.mintItem.type == 'Native') {
       throw Error('Mint tx in reference can only be used on plutus script tokens');
@@ -253,7 +255,7 @@ export class _MeshTxBuilder {
     exUnits = DEFAULT_REDEEMER_BUDGET
   ): _MeshTxBuilder => {
     // TODO: figure out how to set index correctly
-    if (!this.mintItem.type) throw Error('Mint information missing');
+    if (!this.mintItem) throw Error('Undefined mint');
     if (this.mintItem.type == 'Native') {
       throw Error('Mint tx in reference can only be used on plutus script tokens');
     } else if (this.mintItem.type == 'Plutus') {
@@ -327,6 +329,7 @@ export class _MeshTxBuilder {
   };
 
   queueInput = () => {
+    if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'Script') {
       if (!this.txInQueueItem.scriptTxIn) {
         throw Error('Script input does not contain script, datum, or redeemer information');
@@ -337,16 +340,15 @@ export class _MeshTxBuilder {
       }
     }
     this.txInQueue.push(this.txInQueueItem);
-    this.txInQueueItem = {};
+    this.txInQueueItem = undefined;
   };
 
   private isNativeScript = (script): script is csl.NativeScript => { return script.kind() !== undefined; };
   private isPlutusScript = (script): script is csl.PlutusScript => { return script.language_version() !== undefined; };
 
   queueMint = () => {
+    if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.script) throw Error('Missing mint script information');
-    if (!this.mintItem.assetName) throw Error('Missing mint asset name info');
-    if (!this.mintItem.amount) throw Error('Missing mint amount info');
     if (this.mintItem.type === 'Plutus') {
       if (!this.mintItem.redeemer) throw Error('Missing mint redeemer information');
       if (!this.isPlutusScript(this.mintItem.script)) throw Error('Mint script is expected to be a plutus script');
@@ -367,6 +369,6 @@ export class _MeshTxBuilder {
         csl.Int.new_i32(this.mintItem.amount)
       );
     }
-    this.mintItem = {};
+    this.mintItem = undefined;
   };
 }
