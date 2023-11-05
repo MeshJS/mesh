@@ -120,6 +120,7 @@ export class _MeshTxBuilder {
   };
 
   _txOutDatumHashValue = (datum: Data): _MeshTxBuilder => {
+    this.txOutput?.set_data_hash(csl.hash_plutus_data(toPlutusData(datum)));
     return this;
   };
 
