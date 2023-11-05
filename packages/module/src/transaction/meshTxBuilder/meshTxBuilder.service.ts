@@ -281,41 +281,63 @@ export class MeshTxBuilder extends _MeshTxBuilder {
       this.queueInput();
     }
     for (let i = 0; i < this.txInQueue.length; i++) {
-      const currentTxIn = this.txInQueue[i]
-      if (currentTxIn.txIn) {
-        if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
-          const { address, amount } = await this.getUTxOInfo(currentTxIn.txIn.txHash, currentTxIn.txIn.txIndex);
-          if (address === '' || amount.length === 0) throw Error(`Couldn't find information for ${currentTxIn.txIn.txHash}#${currentTxIn.txIn.txIndex}`)
-          currentTxIn.txIn.address = address;
-          currentTxIn.txIn.amount = amount;
-        }
-        if (currentTxIn.type === 'PubKey') {
-          this.txBuilder.add_input(
-            csl.Address.from_bech32(currentTxIn.txIn.address),
+      const currentTxIn = this.txInQueue[i];
+      if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
+        const { address, amount } = await this.getUTxOInfo(currentTxIn.txIn.txHash, currentTxIn.txIn.txIndex);
+        if (address === '' || amount.length === 0) throw Error(`Couldn't find information for ${currentTxIn.txIn.txHash}#${currentTxIn.txIn.txIndex}`);
+        currentTxIn.txIn.address = address;
+        currentTxIn.txIn.amount = amount;
+      }
+      if (currentTxIn.type === 'PubKey') {
+        this.txBuilder.add_input(
+          csl.Address.from_bech32(currentTxIn.txIn.address),
+          csl.TransactionInput.new(
+            csl.TransactionHash.from_hex(currentTxIn.txIn.txHash),
+            currentTxIn.txIn.txIndex
+          ),
+          toValue(currentTxIn.txIn.amount)
+        );
+      } else if (currentTxIn.type === 'Script') {
+        if (currentTxIn.scriptTxIn && currentTxIn.scriptTxIn.datumSource && currentTxIn.scriptTxIn.redeemer && currentTxIn.scriptTxIn.scriptSource) {
+          this.txBuilder.add_plutus_script_input(
+            csl.PlutusWitness.new_with_ref(
+              currentTxIn.scriptTxIn.scriptSource,
+              currentTxIn.scriptTxIn.datumSource,
+              currentTxIn.scriptTxIn.redeemer
+            ),
             csl.TransactionInput.new(
               csl.TransactionHash.from_hex(currentTxIn.txIn.txHash),
               currentTxIn.txIn.txIndex
             ),
             toValue(currentTxIn.txIn.amount)
-          )
-        } else if (currentTxIn.type === 'Script') {
-          if (currentTxIn.scriptTxIn && currentTxIn.scriptTxIn.datumSource && currentTxIn.scriptTxIn.redeemer && currentTxIn.scriptTxIn.scriptSource) {
-            this.txBuilder.add_plutus_script_input(
-              csl.PlutusWitness.new_with_ref(
-                currentTxIn.scriptTxIn.scriptSource,
-                currentTxIn.scriptTxIn.datumSource,
-                currentTxIn.scriptTxIn.redeemer
-              ),
-              csl.TransactionInput.new(
-                csl.TransactionHash.from_hex(currentTxIn.txIn.txHash),
-                currentTxIn.txIn.txIndex
-              ),
-              toValue(currentTxIn.txIn.amount)
-            )
-          }
+          );
         }
       }
     }
+
+    // Handle collateral
+    if (this.collateralQueueItem) {
+      this.collateralQueue.push(this.collateralQueueItem);
+    }
+    for (let i = 0; i < this.collateralQueue.length; i++) {
+      const currentCollateral = this.collateralQueue[i];
+      if (!currentCollateral.txIn.amount || !currentCollateral.txIn.address) {
+        const { address, amount } = await this.getUTxOInfo(currentCollateral.txIn.txHash, currentCollateral.txIn.txIndex);
+        if (address === '' || amount.length === 0) throw Error(`Couldn't find information for ${currentCollateral.txIn.txHash}#${currentCollateral.txIn.txIndex}`);
+        currentCollateral.txIn.address = address;
+        currentCollateral.txIn.amount = amount;
+      }
+      this.collateralBuilder.add_input(
+        csl.Address.from_bech32(currentCollateral.txIn.address),
+        csl.TransactionInput.new(
+          csl.TransactionHash.from_hex(currentCollateral.txIn.txHash),
+          currentCollateral.txIn.txIndex
+        ),
+        toValue(currentCollateral.txIn.amount)
+      )
+    }
+
+    // TODO: add collateral return
 
     // TODO: Any balancing action
     // TODO: Calculate execution units and rebuild the transaction
@@ -337,7 +359,7 @@ export class MeshTxBuilder extends _MeshTxBuilder {
 
   completeSigning = (): string => {
     return this._completeSigning();
-  }
+  };
 
   /**
    *

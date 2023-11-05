@@ -35,6 +35,7 @@ export class _MeshTxBuilder {
   txHex?: string;
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
   mintBuilder: csl.MintBuilder = csl.MintBuilder.new();
+  collateralBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
   txOutput?: csl.TransactionOutput;
   builderChangeAddress?: csl.Address;
   addingScriptInput = false;
@@ -45,6 +46,9 @@ export class _MeshTxBuilder {
 
   txInQueueItem?: QueuedTxIn;
   txInQueue: QueuedTxIn[] = [];
+
+  collateralQueueItem?: QueuedTxIn;
+  collateralQueue: QueuedTxIn[] = [];
 
   /**
    * Synchronous functions here
@@ -283,7 +287,24 @@ export class _MeshTxBuilder {
     return this;
   };
 
-  _txInCollateral = (txHash: string, txIndex: number): _MeshTxBuilder => {
+  _txInCollateral = (
+    txHash: string,
+    txIndex: number,
+    amount?: Asset[],
+    address?: string
+  ): _MeshTxBuilder => {
+    if (this.collateralQueueItem) {
+      this.collateralQueue.push(this.collateralQueueItem);
+    }
+    this.collateralQueueItem = {
+      type: 'PubKey',
+      txIn: {
+        txHash: txHash,
+        txIndex: txIndex,
+        amount,
+        address
+      }
+    }
     return this;
   };
 
