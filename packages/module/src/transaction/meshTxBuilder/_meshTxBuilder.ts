@@ -44,6 +44,7 @@ export class _MeshTxBuilder {
   vkeyWitnesses: csl.Vkeywitnesses = csl.Vkeywitnesses.new();
 
   mintItem?: MintItem;
+  mintQueue: MintItem[] = [];
 
   txInQueueItem?: QueuedTxIn;
   txInQueue: QueuedTxIn[] = [];
@@ -260,7 +261,6 @@ export class _MeshTxBuilder {
     redeemerData: Data,
     exUnits = DEFAULT_REDEEMER_BUDGET
   ): _MeshTxBuilder => {
-    // TODO: figure out how to set index correctly
     if (!this.mintItem) throw Error('Undefined mint');
     if (this.mintItem.type == 'Native') {
       throw Error('Mint tx in reference can only be used on plutus script tokens');
@@ -369,26 +369,7 @@ export class _MeshTxBuilder {
   queueMint = () => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.plutusScript && !this.mintItem.nativeScript) throw Error('Missing mint script information');
-    if (this.mintItem.type === 'Plutus') {
-      if (!this.mintItem.redeemer) throw Error('Missing mint redeemer information');
-      if (!this.mintItem.plutusScript) throw Error('Mint script is expected to be a plutus script');
-      this.mintBuilder.add_asset(
-        csl.MintWitness.new_plutus_script(
-          this.mintItem.plutusScript,
-          this.mintItem.redeemer),
-        this.mintItem.assetName,
-        csl.Int.new_i32(this.mintItem.amount)
-      );
-    } else if (this.mintItem.type === 'Native') {
-      if (!this.mintItem.nativeScript) throw Error('Mint script is expected to be native script');
-      this.mintBuilder.add_asset(
-        csl.MintWitness.new_native_script(
-          this.mintItem.nativeScript
-        ),
-        this.mintItem.assetName,
-        csl.Int.new_i32(this.mintItem.amount)
-      );
-    }
+    this.mintQueue.push(this.mintItem);
     this.mintItem = undefined;
   };
 }

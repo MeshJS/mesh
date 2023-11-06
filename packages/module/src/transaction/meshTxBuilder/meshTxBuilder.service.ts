@@ -192,11 +192,11 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     return this;
   };
 
-    /**
-   * Set the minting script of current mint
-   * @param scriptCBOR The CBOR hex of the minting policy script
-   * @returns {MeshTxBuilder} The MeshTxBuilder instance
-   */
+  /**
+ * Set the minting script of current mint
+ * @param scriptCBOR The CBOR hex of the minting policy script
+ * @returns {MeshTxBuilder} The MeshTxBuilder instance
+ */
   mintingScript = (scriptCBOR: string): MeshTxBuilder => {
     this._mintingScript(scriptCBOR);
     return this;
@@ -359,6 +359,37 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     // Handle mints
     if (this.mintItem) {
       this.queueMint()
+    }
+    // Hackey solution to get mint indexes correct
+    this.mintQueue.sort((a, b) => a.policyId.to_hex().localeCompare(b.policyId.to_hex()));
+    for (let i = 0; i < this.mintQueue.length; i++) {
+      const mintItem = this.mintQueue[i];
+      if (mintItem.type === 'Plutus') {
+        if (!mintItem.redeemer) throw Error('Missing mint redeemer information');
+        if (!mintItem.plutusScript) throw Error('Mint script is expected to be a plutus script');
+        const newRedeemer: csl.Redeemer = csl.Redeemer.new(
+          csl.RedeemerTag.new_mint(),
+          csl.BigNum.from_str(String(i)),
+          mintItem.redeemer.data(),
+          mintItem.redeemer.ex_units()
+        );
+        this.mintBuilder.add_asset(
+          csl.MintWitness.new_plutus_script(
+            mintItem.plutusScript,
+            newRedeemer),
+          mintItem.assetName,
+          csl.Int.new_i32(mintItem.amount)
+        );
+      } else if (mintItem.type === 'Native') {
+        if (!mintItem.nativeScript) throw Error('Mint script is expected to be native script');
+        this.mintBuilder.add_asset(
+          csl.MintWitness.new_native_script(
+            mintItem.nativeScript
+          ),
+          mintItem.assetName,
+          csl.Int.new_i32(mintItem.amount)
+        );
+      }
     }
     this.txBuilder.set_mint_builder(this.mintBuilder);
 
