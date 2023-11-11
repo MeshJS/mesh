@@ -35,6 +35,8 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * Set the input for transaction
    * @param txHash The transaction hash of the input UTxO
    * @param txIndex The transaction index of the input UTxO
+   * @param amount The asset amount of index of the input UTxO
+   * @param address The address of the input UTxO
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
   txIn = (
@@ -193,14 +195,14 @@ export class MeshTxBuilder extends _MeshTxBuilder {
   };
 
   /**
- * Set the minting script of current mint
- * @param scriptCBOR The CBOR hex of the minting policy script
- * @returns {MeshTxBuilder} The MeshTxBuilder instance
- */
+   * Set the minting script of current mint
+   * @param scriptCBOR The CBOR hex of the minting policy script
+   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   */
   mintingScript = (scriptCBOR: string): MeshTxBuilder => {
     this._mintingScript(scriptCBOR);
     return this;
-  }
+  };
 
   mintRedeemerValue = (redeemer: Data): MeshTxBuilder => {
     this._mintReferenceTxInRedeemerValue(redeemer);
@@ -253,7 +255,12 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @param txIndex The transaction index of the collateral UTxO
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
-  txInCollateral = (txHash: string, txIndex: number, amount?: Asset[], address?: string): MeshTxBuilder => {
+  txInCollateral = (
+    txHash: string,
+    txIndex: number,
+    amount?: Asset[],
+    address?: string
+  ): MeshTxBuilder => {
     this._txInCollateral(txHash, txIndex, amount, address);
     return this;
   };
@@ -301,8 +308,14 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     for (let i = 0; i < this.txInQueue.length; i++) {
       const currentTxIn = this.txInQueue[i];
       if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
-        const { address, amount } = await this.getUTxOInfo(currentTxIn.txIn.txHash, currentTxIn.txIn.txIndex);
-        if (address === '' || amount.length === 0) throw Error(`Couldn't find information for ${currentTxIn.txIn.txHash}#${currentTxIn.txIn.txIndex}`);
+        const { address, amount } = await this.getUTxOInfo(
+          currentTxIn.txIn.txHash,
+          currentTxIn.txIn.txIndex
+        );
+        if (address === '' || amount.length === 0)
+          throw Error(
+            `Couldn't find information for ${currentTxIn.txIn.txHash}#${currentTxIn.txIn.txIndex}`
+          );
         currentTxIn.txIn.address = address;
         currentTxIn.txIn.amount = amount;
       }
@@ -316,7 +329,12 @@ export class MeshTxBuilder extends _MeshTxBuilder {
           toValue(currentTxIn.txIn.amount)
         );
       } else if (currentTxIn.type === 'Script') {
-        if (currentTxIn.scriptTxIn && currentTxIn.scriptTxIn.datumSource && currentTxIn.scriptTxIn.redeemer && currentTxIn.scriptTxIn.scriptSource) {
+        if (
+          currentTxIn.scriptTxIn &&
+          currentTxIn.scriptTxIn.datumSource &&
+          currentTxIn.scriptTxIn.redeemer &&
+          currentTxIn.scriptTxIn.scriptSource
+        ) {
           this.txBuilder.add_plutus_script_input(
             csl.PlutusWitness.new_with_ref(
               currentTxIn.scriptTxIn.scriptSource,
@@ -340,8 +358,14 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     for (let i = 0; i < this.collateralQueue.length; i++) {
       const currentCollateral = this.collateralQueue[i];
       if (!currentCollateral.txIn.amount || !currentCollateral.txIn.address) {
-        const { address, amount } = await this.getUTxOInfo(currentCollateral.txIn.txHash, currentCollateral.txIn.txIndex);
-        if (address === '' || amount.length === 0) throw Error(`Couldn't find information for ${currentCollateral.txIn.txHash}#${currentCollateral.txIn.txIndex}`);
+        const { address, amount } = await this.getUTxOInfo(
+          currentCollateral.txIn.txHash,
+          currentCollateral.txIn.txIndex
+        );
+        if (address === '' || amount.length === 0)
+          throw Error(
+            `Couldn't find information for ${currentCollateral.txIn.txHash}#${currentCollateral.txIn.txIndex}`
+          );
         currentCollateral.txIn.address = address;
         currentCollateral.txIn.amount = amount;
       }
@@ -358,15 +382,19 @@ export class MeshTxBuilder extends _MeshTxBuilder {
 
     // Handle mints
     if (this.mintItem) {
-      this.queueMint()
+      this.queueMint();
     }
     // Hackey solution to get mint indexes correct
-    this.mintQueue.sort((a, b) => a.policyId.to_hex().localeCompare(b.policyId.to_hex()));
+    this.mintQueue.sort((a, b) =>
+      a.policyId.to_hex().localeCompare(b.policyId.to_hex())
+    );
     for (let i = 0; i < this.mintQueue.length; i++) {
       const mintItem = this.mintQueue[i];
       if (mintItem.type === 'Plutus') {
-        if (!mintItem.redeemer) throw Error('Missing mint redeemer information');
-        if (!mintItem.plutusScript) throw Error('Mint script is expected to be a plutus script');
+        if (!mintItem.redeemer)
+          throw Error('Missing mint redeemer information');
+        if (!mintItem.plutusScript)
+          throw Error('Mint script is expected to be a plutus script');
         const newRedeemer: csl.Redeemer = csl.Redeemer.new(
           csl.RedeemerTag.new_mint(),
           csl.BigNum.from_str(String(i)),
@@ -374,18 +402,15 @@ export class MeshTxBuilder extends _MeshTxBuilder {
           mintItem.redeemer.ex_units()
         );
         this.mintBuilder.add_asset(
-          csl.MintWitness.new_plutus_script(
-            mintItem.plutusScript,
-            newRedeemer),
+          csl.MintWitness.new_plutus_script(mintItem.plutusScript, newRedeemer),
           mintItem.assetName,
           csl.Int.new_i32(mintItem.amount)
         );
       } else if (mintItem.type === 'Native') {
-        if (!mintItem.nativeScript) throw Error('Mint script is expected to be native script');
+        if (!mintItem.nativeScript)
+          throw Error('Mint script is expected to be native script');
         this.mintBuilder.add_asset(
-          csl.MintWitness.new_native_script(
-            mintItem.nativeScript
-          ),
+          csl.MintWitness.new_native_script(mintItem.nativeScript),
           mintItem.assetName,
           csl.Int.new_i32(mintItem.amount)
         );
@@ -408,8 +433,13 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     return this;
   };
 
-  signingKey = (skey: string, vkey: string): MeshTxBuilder => {
-    this._signingKey(skey, vkey);
+  /**
+   * Sign the transaction with the signing key
+   * @param skey The signing key in cborHex (with or without 5820 prefix, i.e. the format when generated from cardano-cli)
+   * @returns
+   */
+  signingKey = (skey: string): MeshTxBuilder => {
+    this._signingKey(skey);
     return this;
   };
 
@@ -420,12 +450,12 @@ export class MeshTxBuilder extends _MeshTxBuilder {
   submitTx = async (txHex: string): Promise<string> => {
     const txHash = this._submitter?.submitTx(txHex);
     return txHash ? txHash : '';
-  }
+  };
 
   /**
-   *
-   * @param txHash
-   * @param txIndex
+   * Get the UTxO information from the blockchain
+   * @param txHash The transaction hash of the UTxO
+   * @param txIndex The transaction index of the UTxO
    */
   private getUTxOInfo = async (
     txHash: string,

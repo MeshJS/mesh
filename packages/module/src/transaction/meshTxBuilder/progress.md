@@ -13,7 +13,7 @@
 | spendingTxInReference                   | X    | X   |        | Script hash has to be provided         |
 | spendingReferenceTxInInlineDatumPresent | X    | X   |        | Identical with txInInlineDatumPresent? |
 | spendingReferenceTxInRedeemerValue      | X    | X   |        |                                        |
-| readOnlyTxInReference                   | X    | X   |        | How is this used?                      |
+| readOnlyTxInReference                   | X    | X   |        |                                        |
 | mintPlutusScriptV2                      | X    | X   |        |                                        |
 | mint                                    | X    | X   |        |                                        |
 | mintTxInReference                       | X    | X   |        |                                        |
@@ -24,8 +24,9 @@
 | changeAddress                           | X    | X   | X      |                                        |
 | invalidBefore                           | X    | X   |        |                                        |
 | invalidHereafter                        | X    | X   |        |                                        |
+| signingKey                              | X    | X   | X      |                                        |
 | complete                                |      |     |        |                                        |
-| getUTxOInfo                             |      |     |        |                                        |
+| getUTxOInfo                             | X    | X   | X      |                                        |
 | mainnet                                 |      |     |        |                                        |
 | testnetMagic                            |      |     |        |                                        |
 | byronEra                                |      |     |        |                                        |
@@ -35,5 +36,4 @@
 | alonzoEra                               |      |     |        |                                        |
 | babbageEra                              |      |     |        |                                        |
 | protocolParams                          |      |     |        |                                        |
-| signingKey                              | X    | X   | X      |                                        |
 | txOutMinUtxo                            |      |     |        |                                        |
