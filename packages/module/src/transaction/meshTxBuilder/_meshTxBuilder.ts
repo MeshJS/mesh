@@ -122,7 +122,7 @@ export class _MeshTxBuilder {
         'Inline datum present attempted to be called a non script input'
       );
     const { txHash, txIndex } = this.txInQueueItem.txIn;
-    if (txHash && txIndex) {
+    if (txHash && txIndex.toString()) {
       const refTxIn = csl.TransactionInput.new(
         csl.TransactionHash.from_hex(txHash),
         txIndex
@@ -175,7 +175,7 @@ export class _MeshTxBuilder {
   _spendingTxInReference = (
     txHash: string,
     txIndex: number,
-    spendingScriptHash: string
+    spendingScriptHash?: string
   ): _MeshTxBuilder => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
@@ -358,6 +358,14 @@ export class _MeshTxBuilder {
 
   _invalidHereafter = (slot: number): _MeshTxBuilder => {
     this.txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot.toString()));
+    return this;
+  };
+
+  _metadataValue = (tag: string, metadata: any): _MeshTxBuilder => {
+    this.txBuilder.add_json_metadatum(
+      csl.BigNum.from_str(tag),
+      JSON.stringify(metadata)
+    );
     return this;
   };
 

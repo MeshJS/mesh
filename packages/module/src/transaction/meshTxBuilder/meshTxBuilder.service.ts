@@ -1,7 +1,7 @@
 import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { csl } from '@mesh/core';
 import { toValue } from '@mesh/common/utils';
-import { Asset, Data, UTxO } from '@mesh/common/types';
+import { Asset, Budget, Data, UTxO } from '@mesh/common/types';
 import { QueuedTxIn, ScriptSourceInfo, _MeshTxBuilder } from './_meshTxBuilder';
 
 // Delay action at complete
@@ -140,6 +140,8 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     // unlock from
     if (spendingScriptHash) {
       this._spendingTxInReference(txHash, txIndex, spendingScriptHash);
+    } else {
+      this._spendingTxInReference(txHash, txIndex);
     }
     return this;
   };
@@ -159,8 +161,15 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @param redeemer The redeemer in object format
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
-  spendingReferenceTxInRedeemerValue = (redeemer: Data): MeshTxBuilder => {
-    this._spendingReferenceTxInRedeemerValue(redeemer);
+  spendingReferenceTxInRedeemerValue = (
+    redeemer: Data,
+    exUnits?: Budget
+  ): MeshTxBuilder => {
+    if (exUnits) {
+      this._spendingReferenceTxInRedeemerValue(redeemer, exUnits);
+    } else {
+      this._spendingReferenceTxInRedeemerValue(redeemer);
+    }
     return this;
   };
 
@@ -206,8 +215,12 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     return this;
   };
 
-  mintRedeemerValue = (redeemer: Data): MeshTxBuilder => {
-    this._mintReferenceTxInRedeemerValue(redeemer);
+  mintRedeemerValue = (redeemer: Data, exUnits?: Budget): MeshTxBuilder => {
+    if (exUnits) {
+      this._mintReferenceTxInRedeemerValue(redeemer, exUnits);
+    } else {
+      this._mintReferenceTxInRedeemerValue(redeemer);
+    }
     return this;
   };
 
@@ -227,8 +240,15 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    * @param redeemer The redeemer in object format
    * @returns {MeshTxBuilder} The MeshTxBuilder instance
    */
-  mintReferenceTxInRedeemerValue = (redeemer: Data): MeshTxBuilder => {
-    this._mintReferenceTxInRedeemerValue(redeemer);
+  mintReferenceTxInRedeemerValue = (
+    redeemer: Data,
+    exUnits?: Budget
+  ): MeshTxBuilder => {
+    if (exUnits) {
+      this._mintReferenceTxInRedeemerValue(redeemer, exUnits);
+    } else {
+      this._mintReferenceTxInRedeemerValue(redeemer);
+    }
     return this;
   };
 
@@ -294,6 +314,17 @@ export class MeshTxBuilder extends _MeshTxBuilder {
    */
   invalidHereafter = (slot: number): MeshTxBuilder => {
     this._invalidHereafter(slot);
+    return this;
+  };
+
+  /**
+   *
+   * @param tag
+   * @param metadata
+   * @returns
+   */
+  metadataValue = (tag: string, metadata: any): MeshTxBuilder => {
+    this._metadataValue(tag, metadata);
     return this;
   };
 
@@ -498,7 +529,8 @@ export class MeshTxBuilder extends _MeshTxBuilder {
       const scriptSourceInfo = queuedTxIn.scriptTxIn
         .scriptSource as ScriptSourceInfo;
       if (!scriptSourceInfo.spendingScriptHash) {
-        const scriptRefUtxo = utxos.find(
+        const refUtxos = this.queriedUTxOs[scriptSourceInfo.txHash];
+        const scriptRefUtxo = refUtxos.find(
           (utxo) => utxo.input.outputIndex === scriptSourceInfo.txIndex
         );
         if (!scriptRefUtxo)

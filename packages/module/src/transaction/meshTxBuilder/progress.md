@@ -24,6 +24,7 @@
 | changeAddress                           | X    | X   | X      |                                        |
 | invalidBefore                           | X    | X   |        |                                        |
 | invalidHereafter                        | X    | X   |        |                                        |
+| metadataValue                           | X    | X   |        |                                        |
 | signingKey                              | X    | X   | X      |                                        |
 | complete                                |      |     |        |                                        |
 | getUTxOInfo                             | X    | X   | X      |                                        |
