@@ -38,7 +38,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       baseURL: `https://${network}.gomaestro-api.org/v1`,
       headers: { 'api-key': apiKey },
     });
-    this.submitUrl = turboSubmit ? 'txmanager' : 'txmanager/turbosubmit';
+    this.submitUrl = turboSubmit ? 'txmanager/turbosubmit' : 'txmanager';
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -342,7 +342,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
         `transactions/${hash}`
       );
       if (status === 200) {
-        const msOutputs = timestampedData.outputs as MaestroUTxO[];
+        const msOutputs = timestampedData.data.outputs as MaestroUTxO[];
         const outputs = msOutputs.map(this.toUTxO);
         return outputs;
       }

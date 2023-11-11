@@ -2,10 +2,10 @@
 
 | Method Name                             | Sync | cli | Tested | Remarks                                |
 | --------------------------------------- | ---- | --- | ------ | -------------------------------------- |
-| txIn                                    | X    | X   |        | Async: need chain info                 |
+| txIn                                    | X    | X   | X      | Async: need chain info                 |
 | txInDatumValue                          |      |     |        |                                        |
 | txInInlineDatumPresent                  |      |     |        | Is this needed?                        |
-| txOut                                   | X    | X   |        |                                        |
+| txOut                                   | X    | X   | X      |                                        |
 | txOutDatumHashValue                     |      |     |        |                                        |
 | txOutInlineDatumValue                   | X    | X   |        |                                        |
 | txOutReferenceScript                    | X    | X   |        |                                        |
@@ -21,7 +21,7 @@
 | policyId                                |      |     |        | Is this needed?                        |
 | requiredSignerHash                      | X    | X   |        |                                        |
 | txInCollateral                          |      |     |        |                                        |
-| changeAddress                           | X    | X   |        |                                        |
+| changeAddress                           | X    | X   | X      |                                        |
 | invalidBefore                           | X    | X   |        |                                        |
 | invalidHereafter                        | X    | X   |        |                                        |
 | complete                                |      |     |        |                                        |
@@ -35,5 +35,5 @@
 | alonzoEra                               |      |     |        |                                        |
 | babbageEra                              |      |     |        |                                        |
 | protocolParams                          |      |     |        |                                        |
-| signingKey                              | X    | X   |        |                                        |
+| signingKey                              | X    | X   | X      |                                        |
 | txOutMinUtxo                            |      |     |        |                                        |
