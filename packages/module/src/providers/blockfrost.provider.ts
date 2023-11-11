@@ -36,7 +36,7 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       this._axiosInstance = axios.create({
         baseURL: `https://cardano-${network}.blockfrost.io/api/v${
           args[1] ?? 0
-          }`,
+        }`,
         headers: { project_id: projectId },
       });
     }
@@ -78,9 +78,9 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       if (status === 200) {
         const script = data.type.startsWith('plutus')
           ? <PlutusScript>{
-            code: await this.fetchPlutusScriptCBOR(scriptHash),
-            version: data.type.replace('plutus', ''),
-          }
+              code: await this.fetchPlutusScriptCBOR(scriptHash),
+              version: data.type.replace('plutus', ''),
+            }
           : await this.fetchNativeScriptJSON(scriptHash);
 
         return toScriptRef(script).to_hex();
@@ -92,7 +92,10 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
     return undefined;
   };
 
-  private toUTxO = async (bfUTxO, tx_hash: string): Promise<UTxO> => ({
+  private toUTxO = async (
+    bfUTxO: BlockfrostUTxO,
+    tx_hash: string
+  ): Promise<UTxO> => ({
     input: {
       outputIndex: bfUTxO.output_index,
       txHash: tx_hash,
@@ -104,8 +107,7 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       plutusData: bfUTxO.inline_datum ?? undefined,
       scriptRef: await this.resolveScriptRef(bfUTxO.reference_script_hash),
     },
-  })
-
+  });
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : '';
@@ -311,9 +313,17 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
 
   async fetchUTxOs(hash: string): Promise<UTxO[]> {
     try {
-      const { data, status } = await this._axiosInstance.get(`txs/${hash}/utxos`);
+      const { data, status } = await this._axiosInstance.get(
+        `txs/${hash}/utxos`
+      );
       if (status === 200) {
-        return await Promise.all(data.outputs.map(this.toUTxO));
+        const bfOutputs = data.outputs as BlockfrostUTxO[];
+        const outputsPromises: Promise<UTxO>[] = [];
+        bfOutputs.forEach((output) => {
+          outputsPromises.push(this.toUTxO(output, hash));
+        });
+        const outputs = await Promise.all(outputsPromises);
+        return outputs;
       }
       throw parseHttpError(data);
     } catch (error) {
@@ -385,3 +395,13 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
     throw parseHttpError(data);
   }
 }
+
+type BlockfrostUTxO = {
+  output_index: number;
+  amount: Array<Asset>;
+  address: string;
+  data_hash?: string;
+  inline_datum?: string;
+  collateral?: boolean;
+  reference_script_hash?: string;
+};
