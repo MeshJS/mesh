@@ -1,8 +1,8 @@
 import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { csl } from '@mesh/core';
 import { toValue } from '@mesh/common/utils';
-import { Asset, Data } from '@mesh/common/types';
-import { _MeshTxBuilder } from './_meshTxBuilder';
+import { Asset, Data, UTxO } from '@mesh/common/types';
+import { QueuedTxIn, _MeshTxBuilder } from './_meshTxBuilder';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -23,6 +23,8 @@ export class MeshTxBuilder extends _MeshTxBuilder {
   private _fetcher?: IFetcher;
   private _submitter?: ISubmitter;
   private _evaluator?: IEvaluator;
+  private queriedTxHashes: Set<string> = new Set();
+  private queriedUTxOs: { [x: string]: UTxO[] } = {};
 
   constructor({ fetcher, submitter, evaluator }: MeshTxBuilderOptions) {
     super();
@@ -305,20 +307,26 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     if (this.txInQueueItem) {
       this.queueInput();
     }
+
+    const queryUTxOPromises: Promise<void>[] = [];
     for (let i = 0; i < this.txInQueue.length; i++) {
       const currentTxIn = this.txInQueue[i];
       if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
-        const { address, amount } = await this.getUTxOInfo(
-          currentTxIn.txIn.txHash,
-          currentTxIn.txIn.txIndex
-        );
-        if (address === '' || amount.length === 0)
-          throw Error(
-            `Couldn't find information for ${currentTxIn.txIn.txHash}#${currentTxIn.txIn.txIndex}`
-          );
-        currentTxIn.txIn.address = address;
-        currentTxIn.txIn.amount = amount;
+        queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
       }
+    }
+    for (let i = 0; i < this.collateralQueue.length; i++) {
+      const currentCollateral = this.collateralQueue[i];
+      if (!currentCollateral.txIn.amount || !currentCollateral.txIn.address) {
+        queryUTxOPromises.push(this.getUTxOInfo(currentCollateral.txIn.txHash));
+      }
+    }
+
+    await Promise.all(queryUTxOPromises);
+
+    for (let i = 0; i < this.txInQueue.length; i++) {
+      const currentTxIn: any = this.txInQueue[i]; //TODO: add type
+      this.completeTxInformation(currentTxIn);
       if (currentTxIn.type === 'PubKey') {
         this.txBuilder.add_input(
           csl.Address.from_bech32(currentTxIn.txIn.address),
@@ -350,25 +358,14 @@ export class MeshTxBuilder extends _MeshTxBuilder {
         }
       }
     }
-
     // Handle collateral
     if (this.collateralQueueItem) {
       this.collateralQueue.push(this.collateralQueueItem);
     }
+
     for (let i = 0; i < this.collateralQueue.length; i++) {
-      const currentCollateral = this.collateralQueue[i];
-      if (!currentCollateral.txIn.amount || !currentCollateral.txIn.address) {
-        const { address, amount } = await this.getUTxOInfo(
-          currentCollateral.txIn.txHash,
-          currentCollateral.txIn.txIndex
-        );
-        if (address === '' || amount.length === 0)
-          throw Error(
-            `Couldn't find information for ${currentCollateral.txIn.txHash}#${currentCollateral.txIn.txIndex}`
-          );
-        currentCollateral.txIn.address = address;
-        currentCollateral.txIn.amount = amount;
-      }
+      const currentCollateral: any = this.collateralQueue[i]; //TODO: add type
+      this.completeTxInformation(currentCollateral);
       this.collateralBuilder.add_input(
         csl.Address.from_bech32(currentCollateral.txIn.address),
         csl.TransactionInput.new(
@@ -454,19 +451,38 @@ export class MeshTxBuilder extends _MeshTxBuilder {
 
   /**
    * Get the UTxO information from the blockchain
-   * @param txHash The transaction hash of the UTxO
-   * @param txIndex The transaction index of the UTxO
+   * @param TxHash The queuedTxIn object that contains the txHash and txIndex, while missing amount and address information
    */
-  private getUTxOInfo = async (
-    txHash: string,
-    txIndex: number
-  ): Promise<{ address: string; amount: Asset[] }> => {
-    const utxos = await this._fetcher?.fetchUTxOs(txHash);
-    const utxo = utxos?.find((utxo) => utxo.input.outputIndex === txIndex);
-    return {
-      address: utxo?.output.address || '',
-      amount: utxo?.output.amount || [],
-    };
+  private getUTxOInfo = async (txHash: string): Promise<void> => {
+    console.log('Start', Date.now());
+
+    let utxos: UTxO[] = [];
+    if (!this.queriedTxHashes.has(txHash)) {
+      console.log('Query');
+      this.queriedTxHashes.add(txHash);
+      utxos = (await this._fetcher?.fetchUTxOs(txHash)) || [];
+      this.queriedUTxOs[txHash] = utxos;
+    }
+    console.log('End', Date.now());
+  };
+
+  private completeTxInformation = (queuedTxIn: QueuedTxIn) => {
+    console.log('All queries', this.queriedUTxOs);
+    console.log('Current', queuedTxIn.txIn.txHash, queuedTxIn.txIn.txIndex);
+
+    const utxos: UTxO[] = this.queriedUTxOs[queuedTxIn.txIn.txHash];
+    console.log('utxos', utxos);
+    const utxo = utxos.find(
+      (utxo) => utxo.input.outputIndex === queuedTxIn.txIn.txIndex
+    );
+    const address = utxo?.output.address;
+    const amount = utxo?.output.amount;
+    if (!address || address === '' || !amount || amount.length === 0)
+      throw Error(
+        `Couldn't find information for ${queuedTxIn.txIn.txHash}#${queuedTxIn.txIn.txIndex}`
+      );
+    queuedTxIn.txIn.address = address;
+    queuedTxIn.txIn.amount = amount;
   };
 
   mainnet = (): MeshTxBuilder => {
