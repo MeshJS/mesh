@@ -11,5 +11,6 @@ export type UTxO = {
     dataHash?: string;
     plutusData?: string;
     scriptRef?: string;
+    scriptHash?: string;
   };
 };

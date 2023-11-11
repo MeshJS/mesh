@@ -10,17 +10,28 @@ export type TxInParameter = {
   address?: string;
 };
 
+// export type ScriptTxInParameter = {
+//   scriptSource?: csl.PlutusScriptSource;
+//   datumSource?: csl.DatumSource;
+//   redeemer?: csl.Redeemer;
+// };
+
+export type ScriptSourceInfo = {
+  txHash: string;
+  txIndex: number;
+  spendingScriptHash?: string;
+};
+
 export type ScriptTxInParameter = {
-  scriptSource?: csl.PlutusScriptSource;
+  scriptSource?: ScriptSourceInfo;
   datumSource?: csl.DatumSource;
   redeemer?: csl.Redeemer;
 };
 
-export type QueuedTxIn = {
-  type: 'PubKey' | 'Script';
-  txIn: TxInParameter;
-  scriptTxIn?: ScriptTxInParameter;
-};
+export type QueuedTxIn = { txIn: TxInParameter } & (
+  | { type: 'Script'; scriptTxIn: ScriptTxInParameter }
+  | { type: 'PubKey' }
+);
 
 export type MintItem = {
   type: 'Native' | 'Plutus';
@@ -51,6 +62,9 @@ export class _MeshTxBuilder {
 
   collateralQueueItem?: QueuedTxIn;
   collateralQueue: QueuedTxIn[] = [];
+
+  refScriptTxInQueueItem?: QueuedTxIn;
+  refScriptTxInQueue: QueuedTxIn[] = [];
 
   /**
    * Synchronous functions here
@@ -93,7 +107,7 @@ export class _MeshTxBuilder {
 
   _txInDatumValue = (datum: Data): _MeshTxBuilder => {
     if (!this.txInQueueItem) throw Error('Undefined input');
-    if (!this.txInQueueItem.scriptTxIn)
+    if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
     this.txInQueueItem.scriptTxIn.datumSource = csl.DatumSource.new(
       toPlutusData(datum)
@@ -103,7 +117,7 @@ export class _MeshTxBuilder {
 
   _txInInlineDatumPresent = (): _MeshTxBuilder => {
     if (!this.txInQueueItem) throw Error('Undefined input');
-    if (!this.txInQueueItem.scriptTxIn)
+    if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Inline datum present attempted to be called a non script input'
       );
@@ -164,21 +178,15 @@ export class _MeshTxBuilder {
     spendingScriptHash: string
   ): _MeshTxBuilder => {
     if (!this.txInQueueItem) throw Error('Undefined input');
-    if (!this.txInQueueItem.scriptTxIn)
+    if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Spending tx in reference attempted to be called a non script input'
       );
-    const scriptHash = csl.ScriptHash.from_hex(spendingScriptHash);
-    const scriptRefInput = csl.TransactionInput.new(
-      csl.TransactionHash.from_hex(txHash),
-      txIndex
-    );
-    this.txInQueueItem.scriptTxIn.scriptSource =
-      csl.PlutusScriptSource.new_ref_input_with_lang_ver(
-        scriptHash,
-        scriptRefInput,
-        csl.Language.new_plutus_v2()
-      );
+    this.txInQueueItem.scriptTxIn.scriptSource = {
+      txHash,
+      txIndex,
+      spendingScriptHash,
+    };
     return this;
   };
 
@@ -194,7 +202,7 @@ export class _MeshTxBuilder {
     exUnits = DEFAULT_REDEEMER_BUDGET
   ): _MeshTxBuilder => {
     if (!this.txInQueueItem) throw Error('Undefined input');
-    if (!this.txInQueueItem.scriptTxIn)
+    if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Spending tx in reference redeemer attempted to be called a non script input'
       );
@@ -407,5 +415,23 @@ export class _MeshTxBuilder {
       throw Error('Missing mint script information');
     this.mintQueue.push(this.mintItem);
     this.mintItem = undefined;
+  };
+
+  makePlutusScriptSource = (
+    scriptSourceInfo: Required<ScriptSourceInfo>
+  ): csl.PlutusScriptSource => {
+    const scriptHash = csl.ScriptHash.from_hex(
+      scriptSourceInfo.spendingScriptHash
+    );
+    const scriptRefInput = csl.TransactionInput.new(
+      csl.TransactionHash.from_hex(scriptSourceInfo.txHash),
+      scriptSourceInfo.txIndex
+    );
+    const scriptSource = csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+      scriptHash,
+      scriptRefInput,
+      csl.Language.new_plutus_v2()
+    );
+    return scriptSource;
   };
 }

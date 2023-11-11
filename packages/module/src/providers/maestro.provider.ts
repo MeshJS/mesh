@@ -408,6 +408,7 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       dataHash: utxo.datum?.hash,
       plutusData: utxo.datum?.bytes,
       scriptRef: this.resolveScript(utxo),
+      scriptHash: utxo.reference_script?.hash,
     },
   });
 

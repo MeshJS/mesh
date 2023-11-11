@@ -106,6 +106,7 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       dataHash: bfUTxO.data_hash ?? undefined,
       plutusData: bfUTxO.inline_datum ?? undefined,
       scriptRef: await this.resolveScriptRef(bfUTxO.reference_script_hash),
+      scriptHash: bfUTxO.reference_script_hash,
     },
   });
 

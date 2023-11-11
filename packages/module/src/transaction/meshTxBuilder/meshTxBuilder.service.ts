@@ -2,7 +2,7 @@ import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { csl } from '@mesh/core';
 import { toValue } from '@mesh/common/utils';
 import { Asset, Data, UTxO } from '@mesh/common/types';
-import { QueuedTxIn, _MeshTxBuilder } from './_meshTxBuilder';
+import { QueuedTxIn, ScriptSourceInfo, _MeshTxBuilder } from './_meshTxBuilder';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -314,6 +314,14 @@ export class MeshTxBuilder extends _MeshTxBuilder {
       if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
         queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
       }
+      if (
+        currentTxIn.type === 'Script' &&
+        currentTxIn.scriptTxIn.scriptSource?.txHash &&
+        !currentTxIn.scriptTxIn.scriptSource?.spendingScriptHash
+      ) {
+        const scriptRefTxHash = currentTxIn.scriptTxIn.scriptSource.txHash;
+        queryUTxOPromises.push(this.getUTxOInfo(scriptRefTxHash));
+      }
     }
     for (let i = 0; i < this.collateralQueue.length; i++) {
       const currentCollateral = this.collateralQueue[i];
@@ -337,15 +345,17 @@ export class MeshTxBuilder extends _MeshTxBuilder {
           toValue(currentTxIn.txIn.amount)
         );
       } else if (currentTxIn.type === 'Script') {
+        const scriptSourceInfo = currentTxIn.scriptTxIn.scriptSource;
+        const scriptSource = this.makePlutusScriptSource(scriptSourceInfo);
         if (
           currentTxIn.scriptTxIn &&
           currentTxIn.scriptTxIn.datumSource &&
           currentTxIn.scriptTxIn.redeemer &&
-          currentTxIn.scriptTxIn.scriptSource
+          scriptSource
         ) {
           this.txBuilder.add_plutus_script_input(
             csl.PlutusWitness.new_with_ref(
-              currentTxIn.scriptTxIn.scriptSource,
+              scriptSource,
               currentTxIn.scriptTxIn.datumSource,
               currentTxIn.scriptTxIn.redeemer
             ),
@@ -483,6 +493,21 @@ export class MeshTxBuilder extends _MeshTxBuilder {
       );
     queuedTxIn.txIn.address = address;
     queuedTxIn.txIn.amount = amount;
+
+    if (queuedTxIn.type === 'Script') {
+      const scriptSourceInfo = queuedTxIn.scriptTxIn
+        .scriptSource as ScriptSourceInfo;
+      if (!scriptSourceInfo.spendingScriptHash) {
+        const scriptRefUtxo = utxos.find(
+          (utxo) => utxo.input.outputIndex === scriptSourceInfo.txIndex
+        );
+        if (!scriptRefUtxo)
+          throw Error(
+            `Couldn't find script reference utxo for ${scriptSourceInfo.txHash}#${scriptSourceInfo.txIndex}`
+          );
+        scriptSourceInfo.spendingScriptHash = scriptRefUtxo?.output.scriptHash;
+      }
+    }
   };
 
   mainnet = (): MeshTxBuilder => {
