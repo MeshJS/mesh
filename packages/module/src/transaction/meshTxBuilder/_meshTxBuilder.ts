@@ -242,7 +242,7 @@ export class _MeshTxBuilder {
     this.mintItem = {
       type: this.addingPlutusMint ? 'Plutus' : 'Native',
       policyId: csl.ScriptHash.from_hex(policy),
-      assetName: csl.AssetName.new(Buffer.from(name, 'utf8')),
+      assetName: csl.AssetName.new(Buffer.from(name, 'hex')),
       amount: quantity,
     };
     this.addingPlutusMint = false;

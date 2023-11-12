@@ -126,7 +126,9 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
         return data.length > 0
           ? paginateUTxOs(page + 1, [
               ...utxos,
-              ...(await Promise.all(data.map(this.toUTxO))),
+              ...(await Promise.all(
+                data.map((utxo) => this.toUTxO(utxo, utxo.tx_hash))
+              )),
             ])
           : utxos;
 
