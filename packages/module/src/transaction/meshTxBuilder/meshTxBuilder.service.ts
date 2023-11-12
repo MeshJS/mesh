@@ -1,6 +1,10 @@
 import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { UTxO } from '@mesh/common/types';
-import { QueuedTxIn, ScriptSourceInfo, _MeshTxBuilder } from './_meshTxBuilder';
+import {
+  QueuedTxIn,
+  ScriptSourceInfo,
+  MeshTxBuilderCore,
+} from './meshTxBuilderCore';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -19,7 +23,7 @@ type MeshTxBuilderOptions = {
   evaluator?: IEvaluator;
 };
 
-export class MeshTxBuilder extends _MeshTxBuilder {
+export class MeshTxBuilder extends MeshTxBuilderCore {
   private _fetcher?: IFetcher;
   private _submitter?: ISubmitter;
   private _evaluator?: IEvaluator;
@@ -60,8 +64,6 @@ export class MeshTxBuilder extends _MeshTxBuilder {
     this.addAllMints();
 
     // TODO: add collateral return
-
-    // TODO: Any balancing action
     // TODO: Calculate execution units and rebuild the transaction
 
     // Adding cost models

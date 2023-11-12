@@ -3,15 +3,12 @@ import { Asset, Budget, Data } from '@mesh/common/types';
 import { buildTxBuilder, toValue, toPlutusData } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
 
+// Utilities
+
 export type RequiredWith<T, K extends keyof T> = Required<T> &
   {
     [P in K]: Required<T[P]>;
   };
-
-// export type RequiredWith<T, K extends (keyof T)[]> = Required<T> &
-//   {
-//     [P in K[number]]: Required<T[P]>;
-//   };
 
 // TxIn Types
 export type QueuedTxIn = QueuedPubKeyTxIn | QueuedScriptTxIn;
@@ -60,28 +57,28 @@ export type NativeMintItem = {
   nativeScript?: csl.NativeScript;
 };
 
-export class _MeshTxBuilder {
+export class MeshTxBuilderCore {
   txHex?: string;
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
-  mintBuilder: csl.MintBuilder = csl.MintBuilder.new();
-  collateralBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
-  txOutput?: csl.TransactionOutput;
-  builderChangeAddress?: csl.Address;
-  addingScriptInput = false;
-  addingPlutusMint = false;
-  vkeyWitnesses: csl.Vkeywitnesses = csl.Vkeywitnesses.new();
+  private mintBuilder: csl.MintBuilder = csl.MintBuilder.new();
+  private collateralBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
+  private txOutput?: csl.TransactionOutput;
+  private builderChangeAddress?: csl.Address;
+  private vkeyWitnesses: csl.Vkeywitnesses = csl.Vkeywitnesses.new();
+  private addingScriptInput = false;
+  private addingPlutusMint = false;
 
-  mintItem?: MintItem;
-  mintQueue: MintItem[] = [];
+  protected mintItem?: MintItem;
+  protected mintQueue: MintItem[] = [];
 
-  txInQueueItem?: QueuedTxIn;
-  txInQueue: QueuedTxIn[] = [];
+  protected txInQueueItem?: QueuedTxIn;
+  protected txInQueue: QueuedTxIn[] = [];
 
-  collateralQueueItem?: QueuedTxIn;
-  collateralQueue: QueuedTxIn[] = [];
+  protected collateralQueueItem?: QueuedTxIn;
+  protected collateralQueue: QueuedTxIn[] = [];
 
-  refScriptTxInQueueItem?: QueuedTxIn;
-  refScriptTxInQueue: QueuedTxIn[] = [];
+  protected refScriptTxInQueueItem?: QueuedTxIn;
+  protected refScriptTxInQueue: QueuedTxIn[] = [];
 
   /**
    * Synchronous functions here
@@ -472,7 +469,7 @@ export class _MeshTxBuilder {
   /**
    * Configure the address to accept change UTxO
    * @param addr The address to accept change UTxO
-   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   * @returns The MeshTxBuilder instance
    */
   changeAddress = (addr: string) => {
     this.builderChangeAddress = csl.Address.from_bech32(addr);
@@ -482,7 +479,7 @@ export class _MeshTxBuilder {
   /**
    * Set the transaction valid interval to be valid only after the slot
    * @param slot The transaction is valid only after this slot
-   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   * @returns The MeshTxBuilder instance
    */
   invalidBefore = (slot: number) => {
     this.txBuilder.set_validity_start_interval_bignum(
@@ -494,7 +491,7 @@ export class _MeshTxBuilder {
   /**
    * Set the transaction valid interval to be valid only before the slot
    * @param slot The transaction is valid only before this slot
-   * @returns {MeshTxBuilder} The MeshTxBuilder instance
+   * @returns The MeshTxBuilder instance
    */
   invalidHereafter = (slot: number) => {
     this.txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot.toString()));
@@ -502,12 +499,12 @@ export class _MeshTxBuilder {
   };
 
   /**
-   *
-   * @param tag
-   * @param metadata
-   * @returns
+   * Adding metadata to the transaction
+   * @param tag The tag of the metadata
+   * @param metadata The metadata in object format
+   * @returns The MeshTxBuilder instance
    */
-  metadataValue = (tag: string, metadata: any) => {
+  metadataValue = <T extends object>(tag: string, metadata: T) => {
     this.txBuilder.add_json_metadatum(
       csl.BigNum.from_str(tag),
       JSON.stringify(metadata)

@@ -1,4 +1,6 @@
-# Progress of Lower Level API
+# Progress of Lower Level API - MeshTxBuilder
+
+## Core Apis
 
 | Method Name                             | Sync | cli | Tested | Remarks                               |
 | --------------------------------------- | ---- | --- | ------ | ------------------------------------- |
@@ -19,15 +21,27 @@
 | mintTxInReference                       | X    | X   | X      |                                       |
 | mintRedeemerValue                       | X    | X   | X      |                                       |
 | mintReferenceTxInRedeemerValue          | X    | X   | X      |                                       |
-| policyId                                |      |     |        | Is this needed?                       |
 | requiredSignerHash                      | X    | X   | X      |                                       |
-| txInCollateral                          |      |     |        |                                       |
+| txInCollateral                          | X    | X   | X      |                                       |
 | changeAddress                           | X    | X   | X      |                                       |
 | invalidBefore                           | X    | X   |        |                                       |
 | invalidHereafter                        | X    | X   |        |                                       |
 | metadataValue                           | X    | X   | X      |                                       |
 | signingKey                              | X    | X   | X      |                                       |
-| complete                                |      |     |        |                                       |
+| complete                                |      |     |        | TODO: EvaluateTx / Collateral returns |
 | getUTxOInfo                             | X    | X   | X      |                                       |
 | protocolParams                          |      |     |        |                                       |
-| txOutMinUtxo                            |      |     |        |                                       |
+
+## Other Tasks
+
+- Frontend documentation
+- Completing Apis
+  - Staking related apis
+
+## Higher Level refactor plan
+
+- UTxO selection
+- Value output attached with minUTxO
+- Expose the `txBuilder`
+- Migrating to lower level apis if any
+- Removing redundant operations (make it using MeshTxBuilderCore's methods)
