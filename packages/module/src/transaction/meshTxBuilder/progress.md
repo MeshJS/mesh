@@ -29,13 +29,5 @@
 | signingKey                              | X    | X   | X      |                                       |
 | complete                                |      |     |        |                                       |
 | getUTxOInfo                             | X    | X   | X      |                                       |
-| mainnet                                 |      |     |        |                                       |
-| testnetMagic                            |      |     |        |                                       |
-| byronEra                                |      |     |        |                                       |
-| shelleyEra                              |      |     |        |                                       |
-| allegraEra                              |      |     |        |                                       |
-| maryEra                                 |      |     |        |                                       |
-| alonzoEra                               |      |     |        |                                       |
-| babbageEra                              |      |     |        |                                       |
 | protocolParams                          |      |     |        |                                       |
 | txOutMinUtxo                            |      |     |        |                                       |
