@@ -37,42 +37,23 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (evaluator) this._evaluator = evaluator;
   }
 
-  complete = async (hydra = false) => {
+  /**
+   * It builds the transaction and query the blockchain for missing information
+   * @param isHydra Hydra transaction would skip the cost models calculation
+   * @returns The MeshTxBuilder instance
+   */
+  complete = async (isHydra = false) => {
     // Handle last items in queue
     this.queueAllLastItem();
 
     // Getting all missing utxo information
     await this.queryAllTxInfo();
-
     // Completing all inputs
     [...this.txInQueue, ...this.collateralQueue].forEach((txIn) => {
       this.completeTxInformation(txIn);
     });
 
-    // Adding inputs, for both pub key inputs & script inputs
-    this.addAllInputs();
-
-    // Adding collateral inputs
-    this.addAllCollateral();
-
-    // Adding minting values
-    // Hacky solution to get mint indexes correct
-    // TODO: Remove after csl update
-    this.mintQueue.sort((a, b) =>
-      a.policyId.to_hex().localeCompare(b.policyId.to_hex())
-    );
-    this.addAllMints();
-
-    // TODO: add collateral return
-    // TODO: Calculate execution units and rebuild the transaction
-
-    // Adding cost models
-    if (!hydra) this.addCostModels();
-
-    // Adding change
-    this.addChange();
-    this.buildTx();
-    return this;
+    return this.completeSync(isHydra);
   };
 
   submitTx = async (txHex: string): Promise<string | undefined> => {

@@ -85,6 +85,38 @@ export class MeshTxBuilderCore {
    */
 
   /**
+   * It builds the transaction without dependencies
+   * @param isHydra Hydra transaction would skip the cost models calculation
+   * @returns The MeshTxBuilder instance
+   */
+  completeSync = (isHydra = false) => {
+    // Adding inputs, for both pub key inputs & script inputs
+    this.addAllInputs();
+
+    // Adding collateral inputs
+    this.addAllCollateral();
+
+    // Adding minting values
+    // Hacky solution to get mint indexes correct
+    // TODO: Remove after csl update
+    this.mintQueue.sort((a, b) =>
+      a.policyId.to_hex().localeCompare(b.policyId.to_hex())
+    );
+    this.addAllMints();
+
+    // TODO: add collateral return
+    // TODO: Calculate execution units and rebuild the transaction
+
+    // Adding cost models
+    if (!isHydra) this.addCostModels();
+
+    // Adding change
+    this.addChange();
+    this.buildTx();
+    return this;
+  };
+
+  /**
    * Set the input for transaction
    * @param txHash The transaction hash of the input UTxO
    * @param txIndex The transaction index of the input UTxO
