@@ -86,10 +86,9 @@ export class MeshTxBuilderCore {
 
   /**
    * It builds the transaction without dependencies
-   * @param isHydra Hydra transaction would skip the cost models calculation
    * @returns The MeshTxBuilder instance
    */
-  completeSync = (isHydra = false) => {
+  completeSync = () => {
     // Adding inputs, for both pub key inputs & script inputs
     this.addAllInputs();
 
@@ -108,7 +107,7 @@ export class MeshTxBuilderCore {
     // TODO: Calculate execution units and rebuild the transaction
 
     // Adding cost models
-    if (!isHydra) this.addCostModels();
+    this.addCostModels();
 
     // Adding change
     this.addChange();
@@ -390,7 +389,7 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   *
+   * Use reference script for minting
    * @param txHash The transaction hash of the UTxO
    * @param txIndex The transaction index of the UTxO
    * @returns The MeshTxBuilder instance
@@ -419,7 +418,7 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   *
+   * Set the redeemer for minting
    * @param redeemer The redeemer in object format
    * @returns The MeshTxBuilder instance
    */

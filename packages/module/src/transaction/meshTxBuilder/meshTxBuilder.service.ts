@@ -21,6 +21,7 @@ type MeshTxBuilderOptions = {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
+  isHydra?: boolean;
 };
 
 export class MeshTxBuilder extends MeshTxBuilderCore {
@@ -30,7 +31,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   private queriedTxHashes: Set<string> = new Set();
   private queriedUTxOs: { [x: string]: UTxO[] } = {};
 
-  constructor({ fetcher, submitter, evaluator }: MeshTxBuilderOptions) {
+  constructor({
+    fetcher,
+    submitter,
+    evaluator,
+    isHydra = false,
+  }: MeshTxBuilderOptions) {
     super();
     if (fetcher) this._fetcher = fetcher;
     if (submitter) this._submitter = submitter;
@@ -39,10 +45,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * It builds the transaction and query the blockchain for missing information
-   * @param isHydra Hydra transaction would skip the cost models calculation
    * @returns The MeshTxBuilder instance
    */
-  complete = async (isHydra = false) => {
+  complete = async () => {
     // Handle last items in queue
     this.queueAllLastItem();
 
@@ -53,7 +58,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.completeTxInformation(txIn);
     });
 
-    return this.completeSync(isHydra);
+    return this.completeSync();
   };
 
   submitTx = async (txHex: string): Promise<string | undefined> => {
