@@ -23,6 +23,7 @@ import {
   ArrowsPointingInIcon,
   CloudIcon,
   FilmIcon,
+  CubeIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -297,6 +298,12 @@ function SubMenuTransaction() {
               title="Staking and stake pool"
               desc="Transactions for delegating ADA and managing stakepools"
               icon={<ArrowsPointingInIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/transaction/builder`}
+              title="Building Transactions"
+              desc="Using MeshTxBuilder for building lower level transactions."
+              icon={<CubeIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
