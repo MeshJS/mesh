@@ -13,7 +13,7 @@ export default function Mint() {
 }
 
 function Left() {
-  let code1 = `mesh.mint(quantity: number, policy: string, name: string)`;
+  let code = `mesh.mint(quantity: number, policy: string, name: string)`;
 
   return (
     <>
@@ -21,7 +21,7 @@ function Left() {
         Use <code>mint()</code> to set the minting value of transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

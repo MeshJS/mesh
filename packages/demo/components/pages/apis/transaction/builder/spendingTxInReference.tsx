@@ -13,7 +13,7 @@ export default function SpendingTxInReference() {
 }
 
 function Left() {
-  let code1 = `mesh.spendingTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string)`;
+  let code = `mesh.spendingTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string)`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         where it would also be spent in the transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

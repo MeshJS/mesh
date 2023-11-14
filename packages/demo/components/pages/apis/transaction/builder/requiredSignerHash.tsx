@@ -13,7 +13,7 @@ export default function RequiredSignerHash() {
 }
 
 function Left() {
-  let code1 = `mesh.requiredSignerHash(pubKeyHash: string)`;
+  let code = `mesh.requiredSignerHash(pubKeyHash: string)`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

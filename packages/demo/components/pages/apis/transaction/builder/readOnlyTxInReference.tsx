@@ -13,7 +13,7 @@ export default function ReadOnlyTxInReference() {
 }
 
 function Left() {
-  let code1 = `mesh.readOnlyTxInReference(txHash: string, txIndex: number)`;
+  let code = `mesh.readOnlyTxInReference(txHash: string, txIndex: number)`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         reference input:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

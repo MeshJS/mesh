@@ -13,7 +13,7 @@ export default function MintingScript() {
 }
 
 function Left() {
-  let code1 = `mesh.mintingScript(scriptCBOR: string)`;
+  let code = `mesh.mintingScript(scriptCBOR: string)`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         mint transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

@@ -13,7 +13,13 @@ export default function TxIn() {
 }
 
 function Left() {
-  let code1 = `mesh.txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
+  let code = `mesh.txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
+
+  let codeAsset = ``;
+  codeAsset += `Asset = {\n`;
+  codeAsset += `  unit: string;\n`;
+  codeAsset += `  quantity: string;\n`;
+  codeAsset += `}\n`;
 
   return (
     <>
@@ -21,7 +27,13 @@ function Left() {
         Use <code>txIn()</code> to set the input for transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
+
+      <p>
+        Where <code>Asset</code> is an object with the following properties:
+      </p>
+
+      <Codeblock data={codeAsset} isJson={false} />
     </>
   );
 }

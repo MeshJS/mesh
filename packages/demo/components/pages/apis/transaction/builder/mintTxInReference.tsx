@@ -13,7 +13,7 @@ export default function MintTxInReference() {
 }
 
 function Left() {
-  let code1 = `mesh.mintTxInReference(txHash: string, txIndex: number)`;
+  let code = `mesh.mintTxInReference(txHash: string, txIndex: number)`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         current mint transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

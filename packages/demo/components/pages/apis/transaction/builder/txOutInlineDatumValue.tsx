@@ -13,7 +13,17 @@ export default function TxOutInlineDatumValue() {
 }
 
 function Left() {
-  let code1 = `mesh.txOutInlineDatumValue(datum: Data)`;
+  let code = `mesh.txOutInlineDatumValue(datum: Data)`;
+
+  let codeData = ``;
+  codeData += `Data = string |\n`;
+  codeData += `       number |\n`;
+  codeData += `       Array<Data> |\n`;
+  codeData += `       Map<Data, Data> |\n`;
+  codeData += `       {\n`;
+  codeData += `         alternative: number;\n`;
+  codeData += `         fields: Array<Data>;\n`;
+  codeData += `       }`;
 
   return (
     <>
@@ -22,7 +32,14 @@ function Left() {
         for transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
+
+      <p>
+        Where <code>Data</code> is a string, a number, an array of Data, a map
+        of Data, or an object with the following properties:
+      </p>
+
+      <Codeblock data={codeData} isJson={false} />
     </>
   );
 }

@@ -13,7 +13,7 @@ export default function SpendingPlutusScriptV2() {
 }
 
 function Left() {
-  let code1 = `mesh.spendingPlutusScriptV2()`;
+  let code = `mesh.spendingPlutusScriptV2()`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         is currently using V2 Plutus spending scripts:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
       <p>
         This flag should signal a start to a script input. The next step after
         will be to add a tx-in. After which, we will REQUIRE, script, datum and

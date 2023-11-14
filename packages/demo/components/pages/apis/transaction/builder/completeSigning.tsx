@@ -13,7 +13,7 @@ export default function CompleteSigning() {
 }
 
 function Left() {
-  let code1 = `mesh.completeSigning()`;
+  let code = `mesh.completeSigning()`;
 
   return (
     <>
@@ -21,7 +21,7 @@ function Left() {
         Use <code>completeSigning()</code> to complete the signing process:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

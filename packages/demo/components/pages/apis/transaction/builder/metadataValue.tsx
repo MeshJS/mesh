@@ -13,7 +13,7 @@ export default function MetadataValue() {
 }
 
 function Left() {
-  let code1 = `mesh.metadataValue(tag: string, metadata: object)`;
+  let code = `mesh.metadataValue(tag: string, metadata: object)`;
 
   return (
     <>
@@ -21,7 +21,7 @@ function Left() {
         Use <code>metadataValue()</code> to add metadata to the transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

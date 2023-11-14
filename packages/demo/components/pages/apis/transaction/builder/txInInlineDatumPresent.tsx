@@ -13,7 +13,7 @@ export default function TxInInlineDatumPresent() {
 }
 
 function Left() {
-  let code1 = `mesh.txInInlineDatumPresent()`;
+  let code = `mesh.txInInlineDatumPresent()`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         builder that the input UTxO has inlined datum:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

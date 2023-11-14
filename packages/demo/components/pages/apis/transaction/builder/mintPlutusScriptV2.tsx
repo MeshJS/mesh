@@ -13,7 +13,7 @@ export default function MintPlutusScriptV2() {
 }
 
 function Left() {
-  let code1 = `mesh.mintPlutusScriptV2()`;
+  let code = `mesh.mintPlutusScriptV2()`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         is currently using V2 Plutus minting scripts:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

@@ -13,7 +13,7 @@ export default function TxOutReferenceScript() {
 }
 
 function Left() {
-  let code1 = `mesh.txOutReferenceScript(scriptCbor: string)`;
+  let code = `mesh.txOutReferenceScript(scriptCbor: string)`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         be attached with the output:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

@@ -13,7 +13,7 @@ export default function ChangeAddress() {
 }
 
 function Left() {
-  let code1 = `mesh.changeAddress(address: string)`;
+  let code = `mesh.changeAddress(address: string)`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         change UTxO:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

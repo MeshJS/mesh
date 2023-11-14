@@ -13,7 +13,7 @@ export default function SigningKey() {
 }
 
 function Left() {
-  let code1 = `mesh.signingKey(skeyHex: string)`;
+  let code = `mesh.signingKey(skeyHex: string)`;
 
   return (
     <>
@@ -22,7 +22,7 @@ function Left() {
         key:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
     </>
   );
 }

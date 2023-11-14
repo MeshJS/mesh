@@ -13,7 +13,13 @@ export default function TxInCollateral() {
 }
 
 function Left() {
-  let code1 = `mesh.txInCollateral(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
+  let code = `mesh.txInCollateral(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
+
+  let codeAsset = ``;
+  codeAsset += `Asset = {\n`;
+  codeAsset += `  unit: string;\n`;
+  codeAsset += `  quantity: string;\n`;
+  codeAsset += `}\n`;
 
   return (
     <>
@@ -22,7 +28,13 @@ function Left() {
         transaction:
       </p>
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
+
+      <p>
+        Where <code>Asset</code> is an object with the following properties:
+      </p>
+
+      <Codeblock data={codeAsset} isJson={false} />
     </>
   );
 }
