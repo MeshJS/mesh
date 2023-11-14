@@ -1,7 +1,7 @@
 import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { UTxO } from '@mesh/common/types';
 import { MeshTxBuilderCore } from './meshTxBuilderCore';
-import { QueuedTxIn, ScriptSourceInfo } from './type';
+import { MeshTxBuilderBody, QueuedTxIn, ScriptSourceInfo } from './type';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -43,11 +43,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * It builds the transaction and query the blockchain for missing information
+   * @param customizedTx The optional customized transaction body
    * @returns The signed transaction in hex ready to submit / signed by client
    */
-  complete = async () => {
-    // Handle last items in queue
-    this.queueAllLastItem();
+  complete = async (customizedTx?: MeshTxBuilderBody) => {
+    if (customizedTx) {
+      this.meshTxBuilderBody = customizedTx;
+    } else {
+      // Handle last items in queue
+      this.queueAllLastItem();
+    }
 
     // Getting all missing utxo information
     await this.queryAllTxInfo();
@@ -58,7 +63,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.completeTxInformation(txIn);
     });
 
-    return this.completeSync();
+    return this.completeSync(customizedTx);
   };
 
   /**

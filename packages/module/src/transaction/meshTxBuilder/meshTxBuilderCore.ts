@@ -56,9 +56,13 @@ export class MeshTxBuilderCore {
 
   /**
    * It builds the transaction without dependencies
+   * @param customizedTx The optional customized transaction body
    * @returns The signed transaction in hex ready to submit / signed by client
    */
-  completeSync = () => {
+  completeSync = (customizedTx?: MeshTxBuilderBody) => {
+    if (customizedTx) {
+      this.meshTxBuilderBody = customizedTx;
+    }
     return this.serializeTxBody(this.meshTxBuilderBody);
   };
 
