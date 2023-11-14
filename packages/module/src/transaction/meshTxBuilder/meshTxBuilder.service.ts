@@ -38,6 +38,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (fetcher) this._fetcher = fetcher;
     if (submitter) this._submitter = submitter;
     if (evaluator) this._evaluator = evaluator;
+    if (isHydra) this.isHydra = true;
   }
 
   /**
