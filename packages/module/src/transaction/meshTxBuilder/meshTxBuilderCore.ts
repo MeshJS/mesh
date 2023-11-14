@@ -1,84 +1,54 @@
-import { DEFAULT_REDEEMER_BUDGET } from '@mesh/common/constants';
-import { Asset, Budget, Data } from '@mesh/common/types';
+import {
+  DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_REDEEMER_BUDGET,
+} from '@mesh/common/constants';
+import { Asset, Budget, Data, Protocol } from '@mesh/common/types';
 import { buildTxBuilder, toValue, toPlutusData } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
-
-// Utilities
-
-export type RequiredWith<T, K extends keyof T> = Required<T> &
-  {
-    [P in K]: Required<T[P]>;
-  };
-
-// TxIn Types
-export type QueuedTxIn = QueuedPubKeyTxIn | QueuedScriptTxIn;
-export type QueuedPubKeyTxIn = { type: 'PubKey'; txIn: TxInParameter };
-export type QueuedScriptTxIn = {
-  type: 'Script';
-  txIn: TxInParameter;
-  scriptTxIn: ScriptTxInParameter;
-};
-
-export type TxInParameter = {
-  txHash: string;
-  txIndex: number;
-  amount?: Asset[];
-  address?: string;
-};
-
-export type ScriptTxInParameter = {
-  scriptSource?: ScriptSourceInfo;
-  datumSource?: csl.DatumSource;
-  redeemer?: csl.Redeemer;
-};
-
-export type ScriptSourceInfo = {
-  txHash: string;
-  txIndex: number;
-  spendingScriptHash?: string;
-};
-
-// Mint Types
-export type MintItem = PlutusMintItem | NativeMintItem;
-export type PlutusMintItem = {
-  type: 'Plutus';
-  policyId: csl.ScriptHash;
-  assetName: csl.AssetName;
-  amount: number;
-  redeemer?: csl.Redeemer;
-  plutusScript?: csl.PlutusScriptSource;
-};
-export type NativeMintItem = {
-  type: 'Native';
-  policyId: csl.ScriptHash;
-  assetName: csl.AssetName;
-  amount: number;
-  redeemer?: csl.Redeemer;
-  nativeScript?: csl.NativeScript;
-};
+import {
+  MintItem,
+  QueuedTxIn,
+  ScriptSourceInfo,
+  RequiredWith,
+  QueuedPubKeyTxIn,
+  QueuedScriptTxIn,
+  MeshTxBuilderBody,
+  RefTxIn,
+  Output,
+  ValidityRange,
+  Metadata,
+} from './type';
 
 export class MeshTxBuilderCore {
-  txHex?: string;
+  txHex = '';
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
   private mintBuilder: csl.MintBuilder = csl.MintBuilder.new();
   private collateralBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
-  private txOutput?: csl.TransactionOutput;
-  private builderChangeAddress?: csl.Address;
-  private vkeyWitnesses: csl.Vkeywitnesses = csl.Vkeywitnesses.new();
+  private txOutput?: Output;
   private addingScriptInput = false;
   private addingPlutusMint = false;
+  protected isHydra = false;
+
+  meshTxBuilderBody: MeshTxBuilderBody = {
+    inputs: [],
+    outputs: [],
+    collaterals: [],
+    requiredSignatures: [],
+    referenceInputs: [],
+    mints: [],
+    changeAddress: '',
+    metadata: [],
+    validityRange: {},
+    signingKey: [],
+  };
 
   protected mintItem?: MintItem;
-  protected mintQueue: MintItem[] = [];
 
   protected txInQueueItem?: QueuedTxIn;
-  protected txInQueue: QueuedTxIn[] = [];
 
-  protected collateralQueueItem?: QueuedTxIn;
-  protected collateralQueue: QueuedTxIn[] = [];
+  protected collateralQueueItem?: QueuedPubKeyTxIn;
 
-  protected refScriptTxInQueueItem?: QueuedTxIn;
-  protected refScriptTxInQueue: QueuedTxIn[] = [];
+  protected refScriptTxInQueueItem?: RefTxIn;
 
   /**
    * Synchronous functions here
@@ -89,30 +59,64 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   completeSync = () => {
-    // Adding inputs, for both pub key inputs & script inputs
-    this.addAllInputs();
+    return this.serializeTxBody(this.meshTxBuilderBody);
+  };
 
-    // Adding collateral inputs
-    this.addAllCollateral();
+  serializeTxBody = (txBody: MeshTxBuilderBody) => {
+    const {
+      inputs,
+      outputs,
+      collaterals,
+      referenceInputs,
+      mints,
+      changeAddress,
+      validityRange,
+      requiredSignatures,
+      metadata,
+      signingKey,
+    } = txBody;
 
+    if (this.isHydra) {
+      this.protocolParams({
+        minFeeA: 0,
+        minFeeB: 0,
+        priceMem: 0,
+        priceStep: 0,
+        collateralPercent: 0,
+        coinsPerUTxOSize: '0',
+      });
+    }
+
+    this.addAllInputs(inputs);
+    this.addAllOutputs(outputs);
+    this.addAllCollaterals(collaterals);
+    this.addAllReferenceInputs(referenceInputs);
     // Adding minting values
     // Hacky solution to get mint indexes correct
     // TODO: Remove after csl update
-    this.mintQueue.sort((a, b) =>
-      a.policyId.to_hex().localeCompare(b.policyId.to_hex())
+    this.meshTxBuilderBody.mints.sort((a, b) =>
+      a.policyId.localeCompare(b.policyId)
     );
-    this.addAllMints();
+    this.addAllMints(mints);
+    this.addValidityRange(validityRange);
+    this.addAllRequiredSignatures(requiredSignatures);
+    this.addAllMetadata(metadata);
 
     // TODO: add collateral return
     // TODO: Calculate execution units and rebuild the transaction
 
-    // Adding cost models
     this.addCostModels();
 
-    // Adding change
-    this.addChange();
+    if (changeAddress) {
+      this.addChange(changeAddress);
+    }
+
     this.buildTx();
-    return this;
+    if (signingKey.length > 0) {
+      this.addAllSigningKeys(signingKey);
+    }
+
+    return this.txHex;
   };
 
   /**
@@ -167,9 +171,10 @@ export class MeshTxBuilderCore {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
-    this.txInQueueItem.scriptTxIn.datumSource = csl.DatumSource.new(
-      toPlutusData(datum)
-    );
+    this.txInQueueItem.scriptTxIn.datumSource = {
+      type: 'Provided',
+      data: datum,
+    };
     return this;
   };
 
@@ -185,12 +190,11 @@ export class MeshTxBuilderCore {
       );
     const { txHash, txIndex } = this.txInQueueItem.txIn;
     if (txHash && txIndex.toString()) {
-      const refTxIn = csl.TransactionInput.new(
-        csl.TransactionHash.from_hex(txHash),
-        txIndex
-      );
-      this.txInQueueItem.scriptTxIn.datumSource =
-        csl.DatumSource.new_ref_input(refTxIn);
+      this.txInQueueItem.scriptTxIn.datumSource = {
+        type: 'Inline',
+        txHash,
+        txIndex,
+      };
     }
     return this;
   };
@@ -203,14 +207,13 @@ export class MeshTxBuilderCore {
    */
   txOut = (address: string, amount: Asset[]) => {
     if (this.txOutput) {
-      this.txBuilder.add_output(this.txOutput);
+      this.meshTxBuilderBody.outputs.push(this.txOutput);
       this.txOutput = undefined;
     }
-    const txValue = toValue(amount);
-    this.txOutput = csl.TransactionOutput.new(
-      csl.Address.from_bech32(address),
-      txValue
-    );
+    this.txOutput = {
+      address,
+      amount,
+    };
     return this;
   };
 
@@ -220,7 +223,12 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   txOutDatumHashValue = (datum: Data) => {
-    this.txOutput?.set_data_hash(csl.hash_plutus_data(toPlutusData(datum)));
+    if (this.txOutput) {
+      this.txOutput.datum = {
+        type: 'Hash',
+        data: datum,
+      };
+    }
     return this;
   };
 
@@ -230,7 +238,12 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   txOutInlineDatumValue = (datum: Data) => {
-    this.txOutput?.set_plutus_data(toPlutusData(datum));
+    if (this.txOutput) {
+      this.txOutput.datum = {
+        type: 'Inline',
+        data: datum,
+      };
+    }
     return this;
   };
 
@@ -240,9 +253,9 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   txOutReferenceScript = (scriptCbor: string) => {
-    this.txOutput?.set_script_ref(
-      csl.ScriptRef.new_plutus_script(csl.PlutusScript.from_hex(scriptCbor))
-    );
+    if (this.txOutput) {
+      this.txOutput.referenceScript = scriptCbor;
+    }
     return this;
   };
 
@@ -310,15 +323,10 @@ export class MeshTxBuilderCore {
       throw Error(
         'Spending tx in reference redeemer attempted to be called a non script input'
       );
-    this.txInQueueItem.scriptTxIn.redeemer = csl.Redeemer.new(
-      csl.RedeemerTag.new_spend(),
-      csl.BigNum.from_str('0'),
-      toPlutusData(redeemer),
-      csl.ExUnits.new(
-        csl.BigNum.from_str(String(exUnits.mem)),
-        csl.BigNum.from_str(String(exUnits.steps))
-      )
-    );
+    this.txInQueueItem.scriptTxIn.redeemer = {
+      data: redeemer,
+      exUnits,
+    };
     return this;
   };
 
@@ -329,11 +337,7 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   readOnlyTxInReference = (txHash: string, txIndex: number) => {
-    const refInput = csl.TransactionInput.new(
-      csl.TransactionHash.from_hex(txHash),
-      txIndex
-    );
-    this.txBuilder.add_reference_input(refInput);
+    this.meshTxBuilderBody.referenceInputs.push({ txHash, txIndex });
     return this;
   };
 
@@ -359,8 +363,8 @@ export class MeshTxBuilderCore {
     }
     this.mintItem = {
       type: this.addingPlutusMint ? 'Plutus' : 'Native',
-      policyId: csl.ScriptHash.from_hex(policy),
-      assetName: csl.AssetName.new(Buffer.from(name, 'hex')),
+      policyId: policy,
+      assetName: name,
       amount: quantity,
     };
     this.addingPlutusMint = false;
@@ -375,16 +379,7 @@ export class MeshTxBuilderCore {
   mintingScript = (scriptCBOR: string) => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.type) throw Error('Mint information missing');
-    if (this.mintItem.type == 'Native') {
-      this.mintItem.nativeScript = csl.NativeScript.from_hex(scriptCBOR);
-    } else if (this.mintItem.type == 'Plutus') {
-      this.mintItem.plutusScript = csl.PlutusScriptSource.new(
-        csl.PlutusScript.from_hex_with_version(
-          scriptCBOR,
-          csl.Language.new_plutus_v2()
-        )
-      );
-    }
+    this.mintItem.scriptSource = { type: 'Provided', cbor: scriptCBOR };
     return this;
   };
 
@@ -401,19 +396,14 @@ export class MeshTxBuilderCore {
       throw Error(
         'Mint tx in reference can only be used on plutus script tokens'
       );
-    } else if (this.mintItem.type == 'Plutus') {
-      if (!this.mintItem.policyId)
-        throw Error('PolicyId information missing from mint asset');
-      this.mintItem.plutusScript =
-        csl.PlutusScriptSource.new_ref_input_with_lang_ver(
-          this.mintItem.policyId,
-          csl.TransactionInput.new(
-            csl.TransactionHash.from_hex(txHash),
-            txIndex
-          ),
-          csl.Language.new_plutus_v2()
-        );
     }
+    if (!this.mintItem.policyId)
+      throw Error('PolicyId information missing from mint asset');
+    this.mintItem.scriptSource = {
+      type: 'Reference Script',
+      txHash,
+      txIndex,
+    };
     return this;
   };
 
@@ -423,7 +413,7 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   mintReferenceTxInRedeemerValue = (
-    redeemerData: Data,
+    redeemer: Data,
     exUnits = DEFAULT_REDEEMER_BUDGET
   ) => {
     if (!this.mintItem) throw Error('Undefined mint');
@@ -434,15 +424,10 @@ export class MeshTxBuilderCore {
     } else if (this.mintItem.type == 'Plutus') {
       if (!this.mintItem.policyId)
         throw Error('PolicyId information missing from mint asset');
-      this.mintItem.redeemer = csl.Redeemer.new(
-        csl.RedeemerTag.new_mint(),
-        csl.BigNum.from_str('0'),
-        toPlutusData(redeemerData),
-        csl.ExUnits.new(
-          csl.BigNum.from_str(String(exUnits.mem)),
-          csl.BigNum.from_str(String(exUnits.steps))
-        )
-      );
+      this.mintItem.redeemer = {
+        data: redeemer,
+        exUnits,
+      };
     }
     return this;
   };
@@ -464,7 +449,7 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   requiredSignerHash = (pubKeyHash: string) => {
-    this.txBuilder.add_required_signer(csl.Ed25519KeyHash.from_hex(pubKeyHash));
+    this.meshTxBuilderBody.requiredSignatures.push(pubKeyHash);
     return this;
   };
 
@@ -483,7 +468,7 @@ export class MeshTxBuilderCore {
     address?: string
   ) => {
     if (this.collateralQueueItem) {
-      this.collateralQueue.push(this.collateralQueueItem);
+      this.meshTxBuilderBody.collaterals.push(this.collateralQueueItem);
     }
     this.collateralQueueItem = {
       type: 'PubKey',
@@ -503,7 +488,7 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   changeAddress = (addr: string) => {
-    this.builderChangeAddress = csl.Address.from_bech32(addr);
+    this.meshTxBuilderBody.changeAddress = addr;
     return this;
   };
 
@@ -513,9 +498,7 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   invalidBefore = (slot: number) => {
-    this.txBuilder.set_validity_start_interval_bignum(
-      csl.BigNum.from_str(slot.toString())
-    );
+    this.meshTxBuilderBody.validityRange.invalidBefore = slot;
     return this;
   };
 
@@ -525,7 +508,7 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   invalidHereafter = (slot: number) => {
-    this.txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot.toString()));
+    this.meshTxBuilderBody.validityRange.invalidHereafter = slot;
     return this;
   };
 
@@ -536,51 +519,59 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   metadataValue = <T extends object>(tag: string, metadata: T) => {
-    this.txBuilder.add_json_metadatum(
-      csl.BigNum.from_str(tag),
-      JSON.stringify(metadata)
-    );
+    this.meshTxBuilderBody.metadata.push({ tag, metadata });
     return this;
   };
 
   /**
    * Sign the transaction with the signing key
-   * @param skey The signing key in cborHex (with or without 5820 prefix, i.e. the format when generated from cardano-cli)
+   * @param skeyHex The signing key in cborHex (with or without 5820 prefix, i.e. the format when generated from cardano-cli)
    * @returns
    */
   signingKey = (skeyHex: string) => {
-    const cleanHex =
-      skeyHex.slice(0, 4) === '5820' ? skeyHex.slice(4) : skeyHex;
-    const wasmUnsignedTransaction = this.txBuilder.build_tx();
-    const wasmTxBody = wasmUnsignedTransaction.body();
-    const skey = csl.PrivateKey.from_hex(cleanHex);
-    const vkeyWitness = csl.make_vkey_witness(
-      csl.hash_transaction(wasmTxBody),
-      skey
-    );
-    this.vkeyWitnesses.add(vkeyWitness);
+    this.meshTxBuilderBody.signingKey.push(skeyHex);
     return this;
+  };
+
+  private addAllSigningKeys = (signingKeys: string[]) => {
+    if (signingKeys.length > 0) {
+      const vkeyWitnesses: csl.Vkeywitnesses = csl.Vkeywitnesses.new();
+      signingKeys.forEach((skeyHex) => {
+        const cleanHex =
+          skeyHex.slice(0, 4) === '5820' ? skeyHex.slice(4) : skeyHex;
+        const wasmUnsignedTransaction = this.txBuilder.build_tx();
+        const wasmTxBody = wasmUnsignedTransaction.body();
+        const skey = csl.PrivateKey.from_hex(cleanHex);
+        const vkeyWitness = csl.make_vkey_witness(
+          csl.hash_transaction(wasmTxBody),
+          skey
+        );
+        vkeyWitnesses.add(vkeyWitness);
+        this.completeSigning(vkeyWitnesses);
+      });
+    }
   };
 
   /**
    * Complete the signing process
    * @returns The signed transaction in hex
    */
-  completeSigning = (): string => {
+  private completeSigning = (vkeyWitnesses: csl.Vkeywitnesses) => {
     const wasmUnsignedTransaction = this.txBuilder.build_tx();
     const wasmWitnessSet = wasmUnsignedTransaction.witness_set();
     const wasmTxBody = wasmUnsignedTransaction.body();
-    wasmWitnessSet.set_vkeys(this.vkeyWitnesses);
+    wasmWitnessSet.set_vkeys(vkeyWitnesses);
     const wasmSignedTransaction = csl.Transaction.new(
       wasmTxBody,
       wasmWitnessSet,
       wasmUnsignedTransaction.auxiliary_data()
     );
     this.txHex = wasmSignedTransaction.to_hex();
-    return this.txHex;
   };
 
-  protocolParams = (params: any) => {
+  protocolParams = (params: Partial<Protocol>) => {
+    const updatedParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...params };
+    this.txBuilder = buildTxBuilder(updatedParams);
     return this;
   };
 
@@ -604,18 +595,15 @@ export class MeshTxBuilderCore {
           throw Error('Script input does not contain script information');
       }
     }
-    this.txInQueue.push(this.txInQueueItem);
+    this.meshTxBuilderBody.inputs.push(this.txInQueueItem);
     this.txInQueueItem = undefined;
   };
 
   private queueMint = () => {
     if (!this.mintItem) throw Error('Undefined mint');
-    if (
-      (this.mintItem.type === 'Plutus' && !this.mintItem.plutusScript) ||
-      (this.mintItem.type === 'Native' && !this.mintItem.nativeScript)
-    )
+    if (!this.mintItem.scriptSource)
       throw Error('Missing mint script information');
-    this.mintQueue.push(this.mintItem);
+    this.meshTxBuilderBody.mints.push(this.mintItem);
     this.mintItem = undefined;
   };
 
@@ -639,22 +627,16 @@ export class MeshTxBuilderCore {
 
   // Below protected functions for completing tx building
 
-  protected addAllInputs = () => {
-    for (let i = 0; i < this.txInQueue.length; i++) {
-      const currentTxIn = this.txInQueue[i]; //TODO: add type
+  private addAllInputs = (inputs: QueuedTxIn[]) => {
+    for (let i = 0; i < inputs.length; i++) {
+      const currentTxIn = inputs[i]; //TODO: add type
       switch (currentTxIn.type) {
         case 'PubKey':
           this.addTxIn(currentTxIn as RequiredWith<QueuedPubKeyTxIn, 'txIn'>);
           break;
         case 'Script':
           this.addScriptTxIn(
-            currentTxIn as RequiredWith<
-              QueuedScriptTxIn,
-              'txIn' | 'scriptTxIn'
-            >,
-            this.makePlutusScriptSource(
-              currentTxIn.scriptTxIn.scriptSource as Required<ScriptSourceInfo>
-            )
+            currentTxIn as RequiredWith<QueuedScriptTxIn, 'txIn' | 'scriptTxIn'>
           );
           break;
       }
@@ -672,27 +654,75 @@ export class MeshTxBuilderCore {
     );
   };
 
-  private addScriptTxIn = (
-    currentTxIn: RequiredWith<QueuedScriptTxIn, 'txIn' | 'scriptTxIn'>,
-    scriptSource: csl.PlutusScriptSource
-  ) => {
+  private addScriptTxIn = ({
+    scriptTxIn,
+    txIn,
+  }: RequiredWith<QueuedScriptTxIn, 'txIn' | 'scriptTxIn'>) => {
+    let cslDatum: csl.DatumSource;
+    const { datumSource, scriptSource, redeemer } = scriptTxIn;
+    if (datumSource.type === 'Provided') {
+      cslDatum = csl.DatumSource.new(toPlutusData(datumSource.data));
+    } else {
+      const refTxIn = csl.TransactionInput.new(
+        csl.TransactionHash.from_hex(datumSource.txHash),
+        datumSource.txIndex
+      );
+      cslDatum = csl.DatumSource.new_ref_input(refTxIn);
+    }
+    const cslScript = this.makePlutusScriptSource(
+      scriptSource as Required<ScriptSourceInfo>
+    );
+    const cslRedeemer = csl.Redeemer.new(
+      csl.RedeemerTag.new_spend(),
+      csl.BigNum.from_str('0'),
+      toPlutusData(redeemer.data),
+      csl.ExUnits.new(
+        csl.BigNum.from_str(String(redeemer.exUnits.mem)),
+        csl.BigNum.from_str(String(redeemer.exUnits.steps))
+      )
+    );
     this.txBuilder.add_plutus_script_input(
-      csl.PlutusWitness.new_with_ref(
-        scriptSource,
-        currentTxIn.scriptTxIn.datumSource,
-        currentTxIn.scriptTxIn.redeemer
-      ),
+      csl.PlutusWitness.new_with_ref(cslScript, cslDatum, cslRedeemer),
       csl.TransactionInput.new(
-        csl.TransactionHash.from_hex(currentTxIn.txIn.txHash),
-        currentTxIn.txIn.txIndex
+        csl.TransactionHash.from_hex(txIn.txHash),
+        txIn.txIndex
       ),
-      toValue(currentTxIn.txIn.amount)
+      toValue(txIn.amount)
     );
   };
 
-  protected addAllCollateral = () => {
-    for (let i = 0; i < this.collateralQueue.length; i++) {
-      const currentCollateral = this.collateralQueue[i];
+  private addAllOutputs = (outputs: Output[]) => {
+    for (let i = 0; i < outputs.length; i++) {
+      const currentOutput = outputs[i];
+      this.addOutput(currentOutput);
+    }
+  };
+
+  private addOutput = ({ amount, address, datum, referenceScript }: Output) => {
+    const txValue = toValue(amount);
+    const output = csl.TransactionOutput.new(
+      csl.Address.from_bech32(address),
+      txValue
+    );
+    if (datum && datum.type === 'Hash') {
+      output.set_data_hash(csl.hash_plutus_data(toPlutusData(datum.data)));
+    }
+    if (datum && datum.type === 'Inline') {
+      output.set_plutus_data(toPlutusData(datum.data));
+    }
+    if (referenceScript) {
+      output?.set_script_ref(
+        csl.ScriptRef.new_plutus_script(
+          csl.PlutusScript.from_hex(referenceScript)
+        )
+      );
+    }
+    this.txBuilder.add_output(output);
+  };
+
+  private addAllCollaterals = (collaterals: QueuedPubKeyTxIn[]) => {
+    for (let i = 0; i < collaterals.length; i++) {
+      const currentCollateral = collaterals[i];
       this.addCollateral(
         currentCollateral as RequiredWith<QueuedPubKeyTxIn, 'txIn'>
       );
@@ -713,23 +743,32 @@ export class MeshTxBuilderCore {
     );
   };
 
-  protected addAllMints = () => {
-    let plutusMintCount = 0;
+  private addAllReferenceInputs = (refInputs: RefTxIn[]) => {
+    refInputs.forEach((refInput) => {
+      this.addReferenceInput(refInput);
+    });
+  };
 
-    for (let i = 0; i < this.mintQueue.length; i++) {
-      const mintItem = this.mintQueue[i] as Required<
-        PlutusMintItem | NativeMintItem
-      >;
+  private addReferenceInput = ({ txHash, txIndex }: RefTxIn) => {
+    const refInput = csl.TransactionInput.new(
+      csl.TransactionHash.from_hex(txHash),
+      txIndex
+    );
+    this.txBuilder.add_reference_input(refInput);
+  };
+
+  protected addAllMints = (mints: MintItem[]) => {
+    let plutusMintCount = 0;
+    for (let i = 0; i < mints.length; i++) {
+      const mintItem = mints[i] as Required<MintItem>;
+      if (!mintItem.scriptSource)
+        throw Error('Mint script is expected to be provided');
       if (mintItem.type === 'Plutus') {
         if (!mintItem.redeemer)
           throw Error('Missing mint redeemer information');
-        if (!mintItem.plutusScript)
-          throw Error('Mint script is expected to be a plutus script');
         this.addPlutusMint(mintItem, plutusMintCount); // TODO: Update after csl update
         plutusMintCount++; // TODO: Remove after csl update
       } else if (mintItem.type === 'Native') {
-        if (!mintItem.nativeScript)
-          throw Error('Mint script is expected to be native script');
         this.addNativeMint(mintItem);
       }
     }
@@ -737,40 +776,68 @@ export class MeshTxBuilderCore {
   };
 
   private addPlutusMint = (
-    mintItem: Required<PlutusMintItem>,
+    { redeemer, policyId, scriptSource, assetName, amount }: Required<MintItem>,
     redeemerIndex: number
   ) => {
     const newRedeemer: csl.Redeemer = csl.Redeemer.new(
       csl.RedeemerTag.new_mint(),
       csl.BigNum.from_str(String(redeemerIndex)),
-      mintItem.redeemer.data(),
-      mintItem.redeemer.ex_units()
+      toPlutusData(redeemer.data),
+      csl.ExUnits.new(
+        csl.BigNum.from_str(String(redeemer.exUnits.mem)),
+        csl.BigNum.from_str(String(redeemer.exUnits.steps))
+      )
     );
+    const script =
+      scriptSource.type === 'Reference Script'
+        ? csl.PlutusScriptSource.new_ref_input_with_lang_ver(
+            csl.ScriptHash.from_hex(policyId),
+            csl.TransactionInput.new(
+              csl.TransactionHash.from_hex(scriptSource.txHash),
+              scriptSource.txIndex
+            ),
+            csl.Language.new_plutus_v2()
+          )
+        : csl.PlutusScriptSource.new(
+            csl.PlutusScript.from_hex_with_version(
+              scriptSource.cbor,
+              csl.Language.new_plutus_v2()
+            )
+          );
+
     this.mintBuilder.add_asset(
-      csl.MintWitness.new_plutus_script(mintItem.plutusScript, newRedeemer),
-      mintItem.assetName,
-      csl.Int.new_i32(mintItem.amount)
+      csl.MintWitness.new_plutus_script(script, newRedeemer),
+      csl.AssetName.new(Buffer.from(assetName, 'hex')),
+      csl.Int.new_i32(amount)
     );
   };
 
-  private addNativeMint = (mintItem: Required<NativeMintItem>) => {
+  private addNativeMint = ({
+    scriptSource,
+    assetName,
+    amount,
+  }: Required<MintItem>) => {
+    if (scriptSource.type === 'Reference Script')
+      throw Error('Native mint cannot have reference script');
     this.mintBuilder.add_asset(
-      csl.MintWitness.new_native_script(mintItem.nativeScript),
-      mintItem.assetName,
-      csl.Int.new_i32(mintItem.amount)
+      csl.MintWitness.new_native_script(
+        csl.NativeScript.from_hex(scriptSource.cbor)
+      ),
+      csl.AssetName.new(Buffer.from(assetName, 'hex')),
+      csl.Int.new_i32(amount)
     );
   };
 
   protected queueAllLastItem = () => {
     if (this.txOutput) {
-      this.txBuilder.add_output(this.txOutput);
+      this.meshTxBuilderBody.outputs.push(this.txOutput);
       this.txOutput = undefined;
     }
     if (this.txInQueueItem) {
       this.queueInput();
     }
     if (this.collateralQueueItem) {
-      this.collateralQueue.push(this.collateralQueueItem);
+      this.meshTxBuilderBody.collaterals.push(this.collateralQueueItem);
     }
     if (this.mintItem) {
       this.queueMint();
@@ -783,9 +850,40 @@ export class MeshTxBuilderCore {
     );
   };
 
-  protected addChange = () => {
-    if (this.builderChangeAddress) {
-      this.txBuilder.add_change_if_needed(this.builderChangeAddress);
+  private addChange = (changeAddress: string) => {
+    this.txBuilder.add_change_if_needed(csl.Address.from_bech32(changeAddress));
+  };
+
+  private addValidityRange = ({
+    invalidBefore,
+    invalidHereafter,
+  }: ValidityRange) => {
+    if (invalidBefore) {
+      this.txBuilder.set_validity_start_interval_bignum(
+        csl.BigNum.from_str(invalidBefore.toString())
+      );
     }
+    if (invalidHereafter) {
+      this.txBuilder.set_ttl_bignum(
+        csl.BigNum.from_str(invalidHereafter.toString())
+      );
+    }
+  };
+
+  private addAllRequiredSignatures = (requiredSignatures: string[]) => {
+    requiredSignatures.forEach((pubKeyHash) => {
+      this.txBuilder.add_required_signer(
+        csl.Ed25519KeyHash.from_hex(pubKeyHash)
+      );
+    });
+  };
+
+  private addAllMetadata = (allMetadata: Metadata[]) => {
+    allMetadata.forEach(({ tag, metadata }) => {
+      this.txBuilder.add_json_metadatum(
+        csl.BigNum.from_str(tag),
+        JSON.stringify(metadata)
+      );
+    });
   };
 }

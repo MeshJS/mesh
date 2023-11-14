@@ -1,10 +1,7 @@
 import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { UTxO } from '@mesh/common/types';
-import {
-  QueuedTxIn,
-  ScriptSourceInfo,
-  MeshTxBuilderCore,
-} from './meshTxBuilderCore';
+import { MeshTxBuilderCore } from './meshTxBuilderCore';
+import { QueuedTxIn, ScriptSourceInfo } from './type';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -53,8 +50,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     // Getting all missing utxo information
     await this.queryAllTxInfo();
+
+    const { inputs, collaterals } = this.meshTxBuilderBody;
     // Completing all inputs
-    [...this.txInQueue, ...this.collateralQueue].forEach((txIn) => {
+    [...inputs, ...collaterals].forEach((txIn) => {
       this.completeTxInformation(txIn);
     });
 
@@ -81,8 +80,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   private queryAllTxInfo = () => {
     const queryUTxOPromises: Promise<void>[] = [];
-    for (let i = 0; i < this.txInQueue.length; i++) {
-      const currentTxIn = this.txInQueue[i];
+    const { inputs, collaterals } = this.meshTxBuilderBody;
+    for (let i = 0; i < inputs.length; i++) {
+      const currentTxIn = inputs[i];
       if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
         queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
       }
@@ -95,8 +95,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         queryUTxOPromises.push(this.getUTxOInfo(scriptRefTxHash));
       }
     }
-    for (let i = 0; i < this.collateralQueue.length; i++) {
-      const currentCollateral = this.collateralQueue[i];
+    for (let i = 0; i < collaterals.length; i++) {
+      const currentCollateral = collaterals[i];
       if (!currentCollateral.txIn.amount || !currentCollateral.txIn.address) {
         queryUTxOPromises.push(this.getUTxOInfo(currentCollateral.txIn.txHash));
       }
