@@ -7,13 +7,6 @@ import { QueuedTxIn, ScriptSourceInfo } from './type';
 // 1. Query blockchain for any missing information
 // 2. Redeemer indexes for spending and minting
 
-/**
- * MeshTxBuilder is a lower level api for building transaction
- * @param {IFetcher} [fetcher] an optional parameter for fetching utxo
- * @param {ISubmitter} [submitter] an optional parameter for submitting transaction
- * @param {IEvaluator} [evaluator] an optional parameter for evaluating transaction
- */
-
 type MeshTxBuilderOptions = {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
@@ -21,6 +14,13 @@ type MeshTxBuilderOptions = {
   isHydra?: boolean;
 };
 
+/**
+ * MeshTxBuilder is a lower level api for building transaction
+ * @param {IFetcher} [fetcher] an optional parameter for fetching utxo
+ * @param {ISubmitter} [submitter] an optional parameter for submitting transaction
+ * @param {IEvaluator} [evaluator] an optional parameter for evaluating transaction
+ * @param {boolean} [isHydra] an optional parameter for using hydra transaction building for configuring 0 fee in protocol parameters
+ */
 export class MeshTxBuilder extends MeshTxBuilderCore {
   private _fetcher?: IFetcher;
   private _submitter?: ISubmitter;
@@ -43,7 +43,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * It builds the transaction and query the blockchain for missing information
-   * @returns The MeshTxBuilder instance
+   * @returns The signed transaction in hex ready to submit / signed by client
    */
   complete = async () => {
     // Handle last items in queue
@@ -61,6 +61,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return this.completeSync();
   };
 
+  /**
+   * Submit transactions to the blockchain using the fetcher instance
+   * @param txHex The signed transaction in hex
+   * @returns
+   */
   submitTx = async (txHex: string): Promise<string | undefined> => {
     const txHash = await this._submitter?.submitTx(txHex);
     return txHash;

@@ -56,7 +56,7 @@ export class MeshTxBuilderCore {
 
   /**
    * It builds the transaction without dependencies
-   * @returns The MeshTxBuilder instance
+   * @returns The signed transaction in hex ready to submit / signed by client
    */
   completeSync = () => {
     return this.serializeTxBody(this.meshTxBuilderBody);
@@ -410,6 +410,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the redeemer for minting
    * @param redeemer The redeemer in object format
+   * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
   mintReferenceTxInRedeemerValue = (
@@ -513,13 +514,24 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   * Adding metadata to the transaction
+   * Add metadata to the transaction
    * @param tag The tag of the metadata
    * @param metadata The metadata in object format
    * @returns The MeshTxBuilder instance
    */
   metadataValue = <T extends object>(tag: string, metadata: T) => {
     this.meshTxBuilderBody.metadata.push({ tag, metadata });
+    return this;
+  };
+
+  /**
+   * Set the protocol parameters to be used for the transaction other than the default one
+   * @param params (Part of) the protocol parameters to be used for the transaction
+   * @returns The MeshTxBuilder instance
+   */
+  protocolParams = (params: Partial<Protocol>) => {
+    const updatedParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...params };
+    this.txBuilder = buildTxBuilder(updatedParams);
     return this;
   };
 
@@ -569,13 +581,7 @@ export class MeshTxBuilderCore {
     this.txHex = wasmSignedTransaction.to_hex();
   };
 
-  protocolParams = (params: Partial<Protocol>) => {
-    const updatedParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...params };
-    this.txBuilder = buildTxBuilder(updatedParams);
-    return this;
-  };
-
-  buildTx = () => {
+  private buildTx = () => {
     this.txHex = this.txBuilder.build_tx().to_hex();
   };
 
