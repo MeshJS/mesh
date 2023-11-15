@@ -56,7 +56,15 @@ export type TxInParameter = {
 };
 
 export type ScriptTxInParameter = {
-  scriptSource?: ScriptSourceInfo;
+  scriptSource?:
+    | {
+        type: 'Provided';
+        scriptCBOR: string;
+      }
+    | {
+        type: 'Inline';
+        txInInfo: ScriptSourceInfo;
+      };
   datumSource?:
     | {
         type: 'Provided';

@@ -99,10 +99,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
       if (
         currentTxIn.type === 'Script' &&
-        currentTxIn.scriptTxIn.scriptSource?.txHash &&
-        !currentTxIn.scriptTxIn.scriptSource?.spendingScriptHash
+        currentTxIn.scriptTxIn.scriptSource?.type == 'Inline' &&
+        currentTxIn.scriptTxIn.scriptSource.txInInfo &&
+        !currentTxIn.scriptTxIn.scriptSource?.txInInfo.spendingScriptHash
       ) {
-        const scriptRefTxHash = currentTxIn.scriptTxIn.scriptSource.txHash;
+        const scriptRefTxHash = currentTxIn.scriptTxIn.scriptSource.txInInfo.txHash;
         queryUTxOPromises.push(this.getUTxOInfo(scriptRefTxHash));
       }
     }
@@ -129,8 +130,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     TxIn.txIn.address = address;
     TxIn.txIn.amount = amount;
 
-    if (TxIn.type === 'Script') {
-      const scriptSourceInfo = TxIn.scriptTxIn.scriptSource as ScriptSourceInfo;
+    if (TxIn.type === 'Script' && TxIn.scriptTxIn.scriptSource?.type == 'Inline') {
+      const scriptSourceInfo = TxIn.scriptTxIn.scriptSource.txInInfo as ScriptSourceInfo;
       if (!scriptSourceInfo.spendingScriptHash) {
         const refUtxos = this.queriedUTxOs[scriptSourceInfo.txHash];
         const scriptRefUtxo = refUtxos.find(

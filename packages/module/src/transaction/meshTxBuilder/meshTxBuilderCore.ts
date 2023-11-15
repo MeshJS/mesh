@@ -167,7 +167,22 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   * Set the input datum for transaction
+   * Set the script for transaction input
+   * @param {string} script The CBORHex of the script
+   * @returns The MeshTxBuilder instance
+   */
+  txInScript = (script: string) => {
+    if (!this.txInQueueItem) throw Error('Undefined input');
+    if (this.txInQueueItem.type === 'PubKey')
+      throw Error('Datum value attempted to be called a non script input');
+    this.txInQueueItem.scriptTxIn.scriptSource = {
+      type: 'Provided',
+      scriptCBOR: script
+    };
+  };
+
+  /**
+   * Set the input datum for transaction input
    * @param {Data} datum The datum in object format
    * @returns The MeshTxBuilder instance
    */
@@ -221,9 +236,12 @@ export class MeshTxBuilderCore {
         'Spending tx in reference attempted to be called a non script input'
       );
     this.txInQueueItem.scriptTxIn.scriptSource = {
-      txHash,
-      txIndex,
-      spendingScriptHash,
+      type: 'Inline',
+      txInInfo: {
+        txHash,
+        txIndex,
+        spendingScriptHash,
+      },
     };
     return this;
   };
@@ -706,9 +724,19 @@ export class MeshTxBuilderCore {
       );
       cslDatum = csl.DatumSource.new_ref_input(refTxIn);
     }
-    const cslScript = this.makePlutusScriptSource(
-      scriptSource as Required<ScriptSourceInfo>
-    );
+    let cslScript: csl.PlutusScriptSource;
+    if (scriptSource.type == 'Inline') {
+      cslScript = this.makePlutusScriptSource(
+        scriptSource.txInInfo as Required<ScriptSourceInfo>
+      );
+    } else {
+      cslScript = csl.PlutusScriptSource.new(
+        csl.PlutusScript.from_hex_with_version(
+          scriptSource.scriptCBOR,
+          csl.Language.new_plutus_v2()
+        )
+      );
+    }
     const cslRedeemer = csl.Redeemer.new(
       csl.RedeemerTag.new_spend(),
       csl.BigNum.from_str('0'),
