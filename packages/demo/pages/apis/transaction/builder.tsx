@@ -7,10 +7,6 @@ import ChangeAddress from '../../../components/pages/apis/transaction/builder/ch
 import Complete from '../../../components/pages/apis/transaction/builder/complete';
 import MetadataValue from '../../../components/pages/apis/transaction/builder/metadataValue';
 import Mint from '../../../components/pages/apis/transaction/builder/mint';
-import MintPlutusScriptV2 from '../../../components/pages/apis/transaction/builder/mintPlutusScriptV2';
-import MintReferenceTxInRedeemerValue from '../../../components/pages/apis/transaction/builder/mintReferenceTxInRedeemerValue';
-import MintTxInReference from '../../../components/pages/apis/transaction/builder/mintTxInReference';
-import MintingScript from '../../../components/pages/apis/transaction/builder/mintingScript';
 import ReadOnlyTxInReference from '../../../components/pages/apis/transaction/builder/readOnlyTxInReference';
 import RequiredSignerHash from '../../../components/pages/apis/transaction/builder/requiredSignerHash';
 import SigningKey from '../../../components/pages/apis/transaction/builder/signingKey';
@@ -31,29 +27,9 @@ const TransactionBuilderPage: NextPage = () => {
       to: 'readOnlyTxInReference',
     },
     {
-      label: 'Use V2 Plutus minting scripts',
-      to: 'mintPlutusScriptV2',
+      label: 'Set Plutus minting value',
+      to: 'mintPlutus',
     },
-    {
-      label: 'Set minting value',
-      to: 'mint',
-    },
-    {
-      label: 'Set minting script',
-      to: 'mintingScript',
-    },
-    {
-      label: 'Set minting reference',
-      to: 'mintTxInReference',
-    },
-    {
-      label: 'Set minting redeemer',
-      to: 'mintReferenceTxInRedeemerValue',
-    },
-    // {
-    //   label: 'Set minting redeemer',
-    //   to: 'mintRedeemerValue',
-    // },
     {
       label: 'Set required signer',
       to: 'requiredSignerHash',
@@ -108,11 +84,7 @@ const TransactionBuilderPage: NextPage = () => {
         <ScriptTxIn />
         <TxOut />
         <ReadOnlyTxInReference />
-        <MintPlutusScriptV2 />
         <Mint />
-        <MintingScript />
-        <MintTxInReference />
-        <MintReferenceTxInRedeemerValue />
         <RequiredSignerHash />
         <TxInCollateral />
         <ChangeAddress />
