@@ -34,7 +34,8 @@ function Content() {
           (i) Reference script
           <code>.simpleScriptTxInReference()</code>
           <br />
-          (ii) Supplying script (not supported yet)
+          (ii) Supplying script
+          <code>.txInScript(scriptCbor: string)</code>
         </p>
       </div>
       <div className="pl-4">

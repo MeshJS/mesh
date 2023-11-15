@@ -168,16 +168,16 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the script for transaction input
-   * @param {string} script The CBORHex of the script
+   * @param {string} scriptCbor The CborHex of the script
    * @returns The MeshTxBuilder instance
    */
-  txInScript = (script: string) => {
+  txInScript = (scriptCbor: string) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
     this.txInQueueItem.scriptTxIn.scriptSource = {
       type: 'Provided',
-      scriptCBOR: script
+      scriptCbor,
     };
   };
 
@@ -732,7 +732,7 @@ export class MeshTxBuilderCore {
     } else {
       cslScript = csl.PlutusScriptSource.new(
         csl.PlutusScript.from_hex_with_version(
-          scriptSource.scriptCBOR,
+          scriptSource.scriptCbor,
           csl.Language.new_plutus_v2()
         )
       );

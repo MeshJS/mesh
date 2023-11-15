@@ -59,7 +59,7 @@ export type ScriptTxInParameter = {
   scriptSource?:
     | {
         type: 'Provided';
-        scriptCBOR: string;
+        scriptCbor: string;
       }
     | {
         type: 'Inline';
