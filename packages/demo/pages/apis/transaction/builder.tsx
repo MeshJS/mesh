@@ -4,7 +4,7 @@ import Link from 'next/link';
 import CommonLayout from '../../../components/common/layout';
 import InvalidInterval from '../../../components/pages/apis/transaction/builder/InvalidInterval';
 import ChangeAddress from '../../../components/pages/apis/transaction/builder/changeAddress';
-import CompleteSigning from '../../../components/pages/apis/transaction/builder/completeSigning';
+import Complete from '../../../components/pages/apis/transaction/builder/complete';
 import MetadataValue from '../../../components/pages/apis/transaction/builder/metadataValue';
 import Mint from '../../../components/pages/apis/transaction/builder/mint';
 import MintPlutusScriptV2 from '../../../components/pages/apis/transaction/builder/mintPlutusScriptV2';
@@ -14,13 +14,9 @@ import MintingScript from '../../../components/pages/apis/transaction/builder/mi
 import ReadOnlyTxInReference from '../../../components/pages/apis/transaction/builder/readOnlyTxInReference';
 import RequiredSignerHash from '../../../components/pages/apis/transaction/builder/requiredSignerHash';
 import SigningKey from '../../../components/pages/apis/transaction/builder/signingKey';
-import SpendingPlutusScriptV2 from '../../../components/pages/apis/transaction/builder/spendingPlutusScriptV2';
-import SpendingReferenceTxInRedeemerValue from '../../../components/pages/apis/transaction/builder/spendingReferenceTxInRedeemerValue';
-import SpendingTxInReference from '../../../components/pages/apis/transaction/builder/spendingTxInReference';
 import TxIn from '../../../components/pages/apis/transaction/builder/txIn';
+import ScriptTxIn from '../../../components/pages/apis/transaction/builder/scriptTxIn';
 import TxInCollateral from '../../../components/pages/apis/transaction/builder/txInCollateral';
-import TxInDatumValue from '../../../components/pages/apis/transaction/builder/txInDatumValue';
-import TxInInlineDatumPresent from '../../../components/pages/apis/transaction/builder/txInInlineDatumPresent';
 import TxOut from '../../../components/pages/apis/transaction/builder/txOut';
 import TxOutDatumValue from '../../../components/pages/apis/transaction/builder/txOutDatumValue';
 import TxOutInlineDatumValue from '../../../components/pages/apis/transaction/builder/txOutInlineDatumValue';
@@ -30,29 +26,9 @@ import Metatags from '../../../components/site/metatags';
 
 const TransactionBuilderPage: NextPage = () => {
   const sidebarItems = [
-    { label: 'Set input', to: 'txIn' },
-    { label: 'Set input datum', to: 'txInDatumValue' },
-    {
-      label: 'Set input inline datum',
-      to: 'txInInlineDatumPresent',
-    },
+    { label: 'Set pubkey input', to: 'txIn' },
+    { label: 'Set script input', to: 'scriptTxIn' },
     { label: 'Set output', to: 'txOut' },
-    { label: 'Set output datum', to: 'txOutDatumValue' },
-    { label: 'Set output inline datum', to: 'txOutInlineDatumValue' },
-    { label: 'Set reference script', to: 'txOutReferenceScript' },
-    { label: 'Use V2 Plutus spending scripts', to: 'spendingPlutusScriptV2' },
-    {
-      label: 'Set reference input in transaction',
-      to: 'spendingTxInReference',
-    },
-    // {
-    //   label: 'Set input inline datumn',
-    //   to: 'spendingReferenceTxInInlineDatumPresent',
-    // },
-    {
-      label: 'Set redeemer',
-      to: 'spendingReferenceTxInRedeemerValue',
-    },
     {
       label: 'Specify read only reference',
       to: 'readOnlyTxInReference',
@@ -106,8 +82,8 @@ const TransactionBuilderPage: NextPage = () => {
       to: 'signingKey',
     },
     {
-      label: 'Complete signing',
-      to: 'completeSigning',
+      label: 'Complete',
+      to: 'complete',
     },
   ];
 
@@ -132,15 +108,11 @@ const TransactionBuilderPage: NextPage = () => {
           page.
         </p>
         <TxIn />
-        <TxInDatumValue />
-        <TxInInlineDatumPresent />
+        <ScriptTxIn />
         <TxOut />
         <TxOutDatumValue />
         <TxOutInlineDatumValue />
         <TxOutReferenceScript />
-        <SpendingPlutusScriptV2 />
-        <SpendingTxInReference />
-        <SpendingReferenceTxInRedeemerValue />
         <ReadOnlyTxInReference />
         <MintPlutusScriptV2 />
         <Mint />
@@ -153,7 +125,7 @@ const TransactionBuilderPage: NextPage = () => {
         <InvalidInterval />
         <MetadataValue />
         <SigningKey />
-        <CompleteSigning />
+        <Complete />
       </CommonLayout>
     </>
   );
