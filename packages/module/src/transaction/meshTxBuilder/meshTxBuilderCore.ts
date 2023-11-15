@@ -567,8 +567,8 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   * Sign the transaction with the signing key
-   * @param skeyHex The signing key in cborHex (with or without 5820 prefix, i.e. the format when generated from cardano-cli)
+   * Sign the transaction with the private key
+   * @param skeyHex The private key in cborHex (with or without 5820 prefix, i.e. the format when generated from cardano-cli)
    * @returns
    */
   signingKey = (skeyHex: string) => {

@@ -12,12 +12,13 @@ export default function RequiredSignerHash() {
 }
 
 function Content() {
-  let code = `mesh.requiredSignerHash(pubKeyHash: string)`;
+  let code = `mesh
+  .requiredSignerHash(pubKeyHash: string)`;
 
   return (
     <>
       <p>
-        Use <code>requiredSignerHash()</code> to set the required signer of the
+        Use <code>.requiredSignerHash()</code> to set the required signer of the
         transaction:
       </p>
 

@@ -5,6 +5,7 @@ import CommonLayout from '../../../components/common/layout';
 import InvalidInterval from '../../../components/pages/apis/transaction/builder/InvalidInterval';
 import ChangeAddress from '../../../components/pages/apis/transaction/builder/changeAddress';
 import Complete from '../../../components/pages/apis/transaction/builder/complete';
+import Schemas from '../../../components/pages/apis/transaction/builder/schemas';
 import MetadataValue from '../../../components/pages/apis/transaction/builder/metadataValue';
 import Mint from '../../../components/pages/apis/transaction/builder/mint';
 import ReadOnlyTxInReference from '../../../components/pages/apis/transaction/builder/readOnlyTxInReference';
@@ -39,11 +40,11 @@ const TransactionBuilderPage: NextPage = () => {
       to: 'txInCollateral',
     },
     {
-      label: 'Accept change UTxO',
+      label: 'Set change address',
       to: 'changeAddress',
     },
     {
-      label: 'Set invalid interval',
+      label: 'Set validity interval',
       to: 'invalidInterval',
     },
     {
@@ -57,6 +58,10 @@ const TransactionBuilderPage: NextPage = () => {
     {
       label: 'Complete',
       to: 'complete',
+    },
+    {
+      label: 'Schemas',
+      to: 'schemas',
     },
   ];
 
@@ -92,6 +97,7 @@ const TransactionBuilderPage: NextPage = () => {
         <MetadataValue />
         <SigningKey />
         <Complete />
+        <Schemas />
       </CommonLayout>
     </>
   );

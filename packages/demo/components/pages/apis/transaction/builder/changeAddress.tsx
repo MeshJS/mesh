@@ -5,20 +5,20 @@ export default function ChangeAddress() {
   return (
     <Section
       sidebarTo="changeAddress"
-      header="Configure address for change UTxO"
+      header="Set change address"
       contentFn={Content()}
     />
   );
 }
 
 function Content() {
-  let code = `mesh.changeAddress(address: string)`;
+  let code = `mesh
+  .changeAddress(address: string)`;
 
   return (
     <>
       <p>
-        Use <code>changeAddress()</code> to configure the address to accept
-        change UTxO:
+        Use <code>changeAddress()</code> to set the change address:
       </p>
 
       <Codeblock data={code} isJson={false} />

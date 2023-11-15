@@ -12,12 +12,13 @@ export default function MetadataValue() {
 }
 
 function Content() {
-  let code = `mesh.metadataValue(tag: string, metadata: object)`;
+  let code = `mesh
+  .metadataValue(tag: string, metadata: object)`;
 
   return (
     <>
       <p>
-        Use <code>metadataValue()</code> to add metadata to the transaction:
+        Use <code>.metadataValue()</code> to add metadata to the transaction:
       </p>
 
       <Codeblock data={code} isJson={false} />

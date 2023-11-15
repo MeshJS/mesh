@@ -12,13 +12,14 @@ export default function SigningKey() {
 }
 
 function Content() {
-  let code = `mesh.signingKey(skeyHex: string)`;
+  let code = `mesh
+  .signingKey(skeyHex: string)`;
 
   return (
     <>
       <p>
-        Use <code>signingKey()</code> to sign the transaction with the signing
-        key:
+        Use <code>.signingKey()</code> to sign the transaction with the private
+        key in cbor hex format:
       </p>
 
       <Codeblock data={code} isJson={false} />

@@ -12,28 +12,18 @@ export default function TxInCollateral() {
 }
 
 function Content() {
-  let code = `mesh.txInCollateral(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
-
-  let codeAsset = ``;
-  codeAsset += `Asset = {\n`;
-  codeAsset += `  unit: string;\n`;
-  codeAsset += `  quantity: string;\n`;
-  codeAsset += `}\n`;
+  let code = `mesh
+  .txInCollateral(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
 
   return (
     <>
       <p>
-        Use <code>txInCollateral()</code> to set the collateral UTxO for the
-        transaction:
+        Use <code>.txInCollateral()</code> to set the collateral UTxO for the
+        transaction. Similar with <code>.txIn()</code>, you could optionally
+        provide the amount and address information of UTxO:
       </p>
 
       <Codeblock data={code} isJson={false} />
-
-      <p>
-        Where <code>Asset</code> is an object with the following properties:
-      </p>
-
-      <Codeblock data={codeAsset} isJson={false} />
     </>
   );
 }

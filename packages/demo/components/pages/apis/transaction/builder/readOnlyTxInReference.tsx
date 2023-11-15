@@ -12,7 +12,8 @@ export default function ReadOnlyTxInReference() {
 }
 
 function Content() {
-  let code = `mesh.readOnlyTxInReference(txHash: string, txIndex: number)`;
+  let code = `mesh
+  .readOnlyTxInReference(txHash: string, txIndex: number)`;
 
   return (
     <>
