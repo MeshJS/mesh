@@ -36,7 +36,7 @@ export default function Section({
           </button>
         </div>
       )}
-      <div className="px-4 pb-16">
+      <div className="px-4 pb-16 lg:w-[90%] xl:w-[80%]">
         <div>{contentFn}</div>
       </div>
     </Element>
