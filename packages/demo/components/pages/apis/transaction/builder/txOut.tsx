@@ -12,13 +12,16 @@ export default function TxOut() {
 }
 
 function Content() {
-  let code = `mesh.txOut(address: string, amount: Asset[])`;
+  let code = `mesh
+  .txOut(address: string, amount: Asset[])`;
+  let codeWithScript = `mesh
+  .txOut(address: string, amount: Asset[])
+  .txOutReferenceScript(scriptCbor: string)`;
 
-  let codeAsset = ``;
-  codeAsset += `Asset = {\n`;
-  codeAsset += `  unit: string;\n`;
-  codeAsset += `  quantity: string;\n`;
-  codeAsset += `}\n`;
+  let codeWithDatum = `mesh
+  .txOut(address: string, amount: Asset[])
+  .txOutDatumHashValue(datum: Data) // or .txOutInlineDatumValue(datum: Data)
+`;
 
   return (
     <>
@@ -27,12 +30,19 @@ function Content() {
       </p>
 
       <Codeblock data={code} isJson={false} />
-
+      <h3>Attaching datum in output</h3>
       <p>
-        Where <code>Asset</code> is an object with the following properties:
+        You could attach datum with the output by
+        <code>.txOutDatumHashValue()</code> or{' '}
+        <code>.txOutInlineDatumValue()</code>
       </p>
-
-      <Codeblock data={codeAsset} isJson={false} />
+      <Codeblock data={codeWithDatum} isJson={false} />
+      <h3>Attaching script in output for referencing</h3>
+      <p>
+        You could attach script the output by
+        <code>.txOutReferenceScript()</code>
+      </p>
+      <Codeblock data={codeWithScript} isJson={false} />
     </>
   );
 }

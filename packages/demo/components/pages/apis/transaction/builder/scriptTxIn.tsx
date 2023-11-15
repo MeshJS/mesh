@@ -15,9 +15,9 @@ function Content() {
   let code = `mesh
   .spendingPlutusScriptV2()
   .txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)
-  .txInInlineDatumPresent()
+  .txInInlineDatumPresent() // or .txInDatumValue(datum: Data)
   .txInRedeemerValue(redeemer: Redeemer, exUnits?: Budget)
-  .simpleScriptTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string)
+  .simpleScriptTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string) // or supplying script
 `;
 
   return (
@@ -32,10 +32,7 @@ function Content() {
         <h4>(a) the script source by</h4>
         <p className="pl-4">
           (i) Reference script
-          <code>
-            .simpleScriptTxInReference(txHash: string, txIndex: number,
-            spendingScriptHash?: string)
-          </code>
+          <code>.simpleScriptTxInReference()</code>
           <br />
           (ii) Supplying script (not supported yet)
         </p>
@@ -43,7 +40,7 @@ function Content() {
       <div className="pl-4">
         <h4>(b) the redeemer source by</h4>
         <p className="pl-4">
-          <code>txInRedeemerValue = ( redeemer: Data, exUnits?: Budget)</code>
+          <code>.txInRedeemerValue()</code>
         </p>
       </div>
       <div className="pl-4">

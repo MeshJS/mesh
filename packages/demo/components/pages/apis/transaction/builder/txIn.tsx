@@ -12,7 +12,8 @@ export default function TxIn() {
 }
 
 function Content() {
-  let code = `mesh.txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
+  let code = `mesh
+  .txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
 
   return (
     <>
