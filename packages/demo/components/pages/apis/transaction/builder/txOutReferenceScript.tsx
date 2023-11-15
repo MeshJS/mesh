@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function TxOutReferenceScript() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="txOutReferenceScript"
       header="Set reference script"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.txOutReferenceScript(scriptCbor: string)`;
 
   return (
@@ -25,8 +24,4 @@ function Left() {
       <Codeblock data={code} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

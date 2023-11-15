@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function MintReferenceTxInRedeemerValue() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="mintReferenceTxInRedeemerValue"
       header="Set redeemer for reference input in minting"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.mintReferenceTxInRedeemerValue(redeemerData: Data, exUnits: { mem: number, steps: number })`;
 
   let codeData = ``;
@@ -54,8 +53,4 @@ function Left() {
       <Codeblock data={codeBudget} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

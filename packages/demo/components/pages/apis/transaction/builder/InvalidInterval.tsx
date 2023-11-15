@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function InvalidInterval() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="invalidInterval"
       header="Set the transaction valid interval"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let codeBefore = `mesh.invalidBefore(slot: number)`;
   let codeAfter = `mesh.changeAddress(slot: number)`;
 
@@ -33,8 +32,4 @@ function Left() {
       <Codeblock data={codeAfter} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

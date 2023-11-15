@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function SpendingReferenceTxInRedeemerValue() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="spendingReferenceTxInRedeemerValue"
       header="Set redeemer for reference input"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.spendingReferenceTxInRedeemerValue(redeemer: Data, exUnits: Budget)`;
 
   let codeData = ``;
@@ -59,8 +58,4 @@ function Left() {
       <Codeblock data={codeBudget} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

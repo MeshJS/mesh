@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function SpendingPlutusScriptV2() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="spendingPlutusScriptV2"
       header="Use V2 Plutus spending scripts"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.spendingPlutusScriptV2()`;
 
   return (
@@ -30,8 +29,4 @@ function Left() {
       </p>
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

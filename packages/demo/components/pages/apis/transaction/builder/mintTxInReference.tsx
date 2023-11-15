@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function MintTxInReference() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="mintTxInReference"
       header="Set reference input for minting"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.mintTxInReference(txHash: string, txIndex: number)`;
 
   return (
@@ -25,8 +24,4 @@ function Left() {
       <Codeblock data={code} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

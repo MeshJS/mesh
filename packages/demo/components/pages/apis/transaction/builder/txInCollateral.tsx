@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function TxInCollateral() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="txInCollateral"
       header="Set collateral UTxO"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.txInCollateral(txHash: string, txIndex: number, amount?: Asset[], address?: string)`;
 
   let codeAsset = ``;
@@ -37,8 +36,4 @@ function Left() {
       <Codeblock data={codeAsset} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

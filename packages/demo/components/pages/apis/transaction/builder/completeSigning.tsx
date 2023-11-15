@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function CompleteSigning() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="completeSigning"
       header="Complete signing"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.completeSigning()`;
 
   return (
@@ -24,8 +23,4 @@ function Left() {
       <Codeblock data={code} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

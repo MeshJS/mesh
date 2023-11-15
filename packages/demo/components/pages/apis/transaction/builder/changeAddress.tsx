@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function ChangeAddress() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="changeAddress"
       header="Configure address for change UTxO"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.changeAddress(address: string)`;
 
   return (
@@ -25,8 +24,4 @@ function Left() {
       <Codeblock data={code} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function ReadOnlyTxInReference() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="readOnlyTxInReference"
       header="Specify read only reference input"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.readOnlyTxInReference(txHash: string, txIndex: number)`;
 
   return (
@@ -25,8 +24,4 @@ function Left() {
       <Codeblock data={code} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

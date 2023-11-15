@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function TxOutInlineDatumValue() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="txOutInlineDatumValue"
       header="Set output inline datum"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.txOutInlineDatumValue(datum: Data)`;
 
   let codeData = ``;
@@ -42,8 +41,4 @@ function Left() {
       <Codeblock data={codeData} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

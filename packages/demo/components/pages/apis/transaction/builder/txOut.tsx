@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function TxOut() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="txOut"
       header="Set output for transaction"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.txOut(address: string, amount: Asset[])`;
 
   let codeAsset = ``;
@@ -36,8 +35,4 @@ function Left() {
       <Codeblock data={codeAsset} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

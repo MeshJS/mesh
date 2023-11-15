@@ -1,18 +1,18 @@
+import Section from '../../../../common/section';
 import SectionTwoCol from '../../../../common/sectionTwoCol';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function TxInInlineDatumPresent() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="txInInlineDatumPresent"
       header="Specify input UTxO has inlined datum"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.txInInlineDatumPresent()`;
 
   return (
@@ -25,8 +25,4 @@ function Left() {
       <Codeblock data={code} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

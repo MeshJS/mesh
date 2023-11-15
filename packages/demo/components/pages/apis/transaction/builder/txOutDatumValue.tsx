@@ -1,18 +1,17 @@
-import SectionTwoCol from '../../../../common/sectionTwoCol';
+import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
 export default function TxOutDatumValue() {
   return (
-    <SectionTwoCol
+    <Section
       sidebarTo="txOutDatumValue"
       header="Set output datum"
-      leftFn={Left()}
-      rightFn={Right()}
+      contentFn={Content()}
     />
   );
 }
 
-function Left() {
+function Content() {
   let code = `mesh.txOutDatumValue(datum: Data)`;
 
   let codeData = ``;
@@ -42,8 +41,4 @@ function Left() {
       <Codeblock data={codeData} isJson={false} />
     </>
   );
-}
-
-function Right() {
-  return <></>;
 }

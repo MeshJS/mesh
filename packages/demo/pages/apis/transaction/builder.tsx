@@ -1,5 +1,6 @@
-import { CubeIcon } from '@heroicons/react/24/solid';
+import { ListBulletIcon } from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
+import Link from 'next/link';
 import CommonLayout from '../../../components/common/layout';
 import InvalidInterval from '../../../components/pages/apis/transaction/builder/InvalidInterval';
 import ChangeAddress from '../../../components/pages/apis/transaction/builder/changeAddress';
@@ -113,15 +114,23 @@ const TransactionBuilderPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="MeshTxBuilder"
-        description="Using MeshTxBuilder for building lower level transactions."
+        title="MeshTxBuilder - All APIs"
+        description="A complete walk through on Mesh's lower level APIs."
       />
       <CommonLayout sidebarItems={sidebarItems}>
         <CommonHero
-          title="MeshTxBuilder"
-          desc="APIs for building lower level transactions."
-          icon={<CubeIcon className="w-16 h-16" />}
+          title="MeshTxBuilder - All APIs"
+          desc="Using MeshTxBuilder for building lower level transactions."
+          icon={<ListBulletIcon className="w-16 h-16" />}
         />
+        <p>
+          For examples on how to build all possible transactions with
+          MeshTxBuilder, please refer to the{' '}
+          <Link href="/apis/transaction/builderExample">
+            Craft Customized Transactions
+          </Link>{' '}
+          page.
+        </p>
         <TxIn />
         <TxInDatumValue />
         <TxInInlineDatumPresent />
