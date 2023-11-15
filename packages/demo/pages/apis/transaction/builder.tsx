@@ -7,7 +7,7 @@ import ChangeAddress from '../../../components/pages/apis/transaction/builder/ch
 import Complete from '../../../components/pages/apis/transaction/builder/complete';
 import Schemas from '../../../components/pages/apis/transaction/builder/schemas';
 import MetadataValue from '../../../components/pages/apis/transaction/builder/metadataValue';
-import Mint from '../../../components/pages/apis/transaction/builder/mint';
+import Mint from '../../../components/pages/apis/transaction/builder/mintPlutus';
 import ReadOnlyTxInReference from '../../../components/pages/apis/transaction/builder/readOnlyTxInReference';
 import RequiredSignerHash from '../../../components/pages/apis/transaction/builder/requiredSignerHash';
 import SigningKey from '../../../components/pages/apis/transaction/builder/signingKey';

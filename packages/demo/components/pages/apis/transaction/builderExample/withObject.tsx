@@ -68,15 +68,7 @@ function Content() {
       <p>
         One alternative to use the lower level APIs is to build the transaction
         with an object in type{' '}
-        <a
-          href="https://github.com/MeshJS/mesh/tree/main/packages/module/src/transaction/meshTxBuilder/type.ts"
-          target="_blank"
-        >
-          MeshTxBuilderBody
-        </a>
-        .
-        {/* , where <code> MeshTxBuilderBody</code> is an object with the following
-        properties: */}
+        <Link href="/apis/transaction/builder#schemas">MeshTxBuilderBody</Link>.
       </p>
 
       <p>

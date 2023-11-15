@@ -37,7 +37,7 @@ export default function Section({
         </div>
       )}
       <div className="px-4 pb-16">
-        <div className="col-span-2 ">{contentFn}</div>
+        <div>{contentFn}</div>
       </div>
     </Element>
   );
