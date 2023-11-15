@@ -1,7 +1,7 @@
 import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { UTxO } from '@mesh/common/types';
 import { MeshTxBuilderCore } from './meshTxBuilderCore';
-import { MeshTxBuilderBody, QueuedTxIn, ScriptSourceInfo } from './type';
+import { MeshTxBuilderBody, TxIn, ScriptSourceInfo } from './type';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -78,7 +78,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * Get the UTxO information from the blockchain
-   * @param TxHash The queuedTxIn object that contains the txHash and txIndex, while missing amount and address information
+   * @param TxHash The TxIn object that contains the txHash and txIndex, while missing amount and address information
    */
   private getUTxOInfo = async (txHash: string): Promise<void> => {
     let utxos: UTxO[] = [];
@@ -115,23 +115,22 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return Promise.all(queryUTxOPromises);
   };
 
-  private completeTxInformation = (queuedTxIn: QueuedTxIn) => {
-    const utxos: UTxO[] = this.queriedUTxOs[queuedTxIn.txIn.txHash];
+  private completeTxInformation = (TxIn: TxIn) => {
+    const utxos: UTxO[] = this.queriedUTxOs[TxIn.txIn.txHash];
     const utxo = utxos.find(
-      (utxo) => utxo.input.outputIndex === queuedTxIn.txIn.txIndex
+      (utxo) => utxo.input.outputIndex === TxIn.txIn.txIndex
     );
     const address = utxo?.output.address;
     const amount = utxo?.output.amount;
     if (!address || address === '' || !amount || amount.length === 0)
       throw Error(
-        `Couldn't find information for ${queuedTxIn.txIn.txHash}#${queuedTxIn.txIn.txIndex}`
+        `Couldn't find information for ${TxIn.txIn.txHash}#${TxIn.txIn.txIndex}`
       );
-    queuedTxIn.txIn.address = address;
-    queuedTxIn.txIn.amount = amount;
+    TxIn.txIn.address = address;
+    TxIn.txIn.amount = amount;
 
-    if (queuedTxIn.type === 'Script') {
-      const scriptSourceInfo = queuedTxIn.scriptTxIn
-        .scriptSource as ScriptSourceInfo;
+    if (TxIn.type === 'Script') {
+      const scriptSourceInfo = TxIn.scriptTxIn.scriptSource as ScriptSourceInfo;
       if (!scriptSourceInfo.spendingScriptHash) {
         const refUtxos = this.queriedUTxOs[scriptSourceInfo.txHash];
         const scriptRefUtxo = refUtxos.find(

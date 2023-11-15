@@ -7,11 +7,11 @@ import { buildTxBuilder, toValue, toPlutusData } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
 import {
   MintItem,
-  QueuedTxIn,
+  TxIn,
   ScriptSourceInfo,
   RequiredWith,
-  QueuedPubKeyTxIn,
-  QueuedScriptTxIn,
+  PubKeyTxIn,
+  ScriptTxIn,
   MeshTxBuilderBody,
   RefTxIn,
   Output,
@@ -44,9 +44,9 @@ export class MeshTxBuilderCore {
 
   protected mintItem?: MintItem;
 
-  protected txInQueueItem?: QueuedTxIn;
+  protected txInQueueItem?: TxIn;
 
-  protected collateralQueueItem?: QueuedPubKeyTxIn;
+  protected collateralQueueItem?: PubKeyTxIn;
 
   protected refScriptTxInQueueItem?: RefTxIn;
 
@@ -204,6 +204,50 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Set the reference input where it would also be spent in the transaction
+   * @param txHash The transaction hash of the reference UTxO
+   * @param txIndex The transaction index of the reference UTxO
+   * @param spendingScriptHash The script hash of the spending script
+   * @returns The MeshTxBuilder instance
+   */
+  simpleScriptTxInReference = (
+    txHash: string,
+    txIndex: number,
+    spendingScriptHash?: string
+  ) => {
+    if (!this.txInQueueItem) throw Error('Undefined input');
+    if (this.txInQueueItem.type === 'PubKey')
+      throw Error(
+        'Spending tx in reference attempted to be called a non script input'
+      );
+    this.txInQueueItem.scriptTxIn.scriptSource = {
+      txHash,
+      txIndex,
+      spendingScriptHash,
+    };
+    return this;
+  };
+
+  /**
+   * Set the redeemer for the reference input to be spent in same transaction
+   * @param redeemer The redeemer in object format
+   * @param exUnits The execution units budget for the redeemer
+   * @returns The MeshTxBuilder instance
+   */
+  txInRedeemerValue = (redeemer: Data, exUnits = DEFAULT_REDEEMER_BUDGET) => {
+    if (!this.txInQueueItem) throw Error('Undefined input');
+    if (this.txInQueueItem.type === 'PubKey')
+      throw Error(
+        'Spending tx in reference redeemer attempted to be called a non script input'
+      );
+    this.txInQueueItem.scriptTxIn.redeemer = {
+      data: redeemer,
+      exUnits,
+    };
+    return this;
+  };
+
+  /**
    * Set the output for transaction
    * @param {string} address The recipient of the output
    * @param {Asset[]} amount The amount of other native assets attached with UTxO
@@ -277,7 +321,7 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   * Set the reference input where it would also be spent in the transaction
+   * [Alias of simpleScriptTxInReference] Set the reference input where it would also be spent in the transaction
    * @param txHash The transaction hash of the reference UTxO
    * @param txIndex The transaction index of the reference UTxO
    * @param spendingScriptHash The script hash of the spending script
@@ -288,21 +332,12 @@ export class MeshTxBuilderCore {
     txIndex: number,
     spendingScriptHash?: string
   ) => {
-    if (!this.txInQueueItem) throw Error('Undefined input');
-    if (this.txInQueueItem.type === 'PubKey')
-      throw Error(
-        'Spending tx in reference attempted to be called a non script input'
-      );
-    this.txInQueueItem.scriptTxIn.scriptSource = {
-      txHash,
-      txIndex,
-      spendingScriptHash,
-    };
+    this.simpleScriptTxInReference(txHash, txIndex, spendingScriptHash);
     return this;
   };
 
   /**
-   * Set the instruction that the reference input has inline datum
+   * [Alias of txInInlineDatumPresent] Set the instruction that the reference input has inline datum
    * @returns The MeshTxBuilder instance
    */
   // Unsure how this is different from the --tx-in-inline-datum-present flag
@@ -313,7 +348,7 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   * Set the redeemer for the reference input to be spent in same transaction
+   * [Alias of txInRedeemerValue] Set the redeemer for the reference input to be spent in same transaction
    * @param redeemer The redeemer in object format
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
@@ -322,15 +357,7 @@ export class MeshTxBuilderCore {
     redeemer: Data,
     exUnits = DEFAULT_REDEEMER_BUDGET
   ) => {
-    if (!this.txInQueueItem) throw Error('Undefined input');
-    if (this.txInQueueItem.type === 'PubKey')
-      throw Error(
-        'Spending tx in reference redeemer attempted to be called a non script input'
-      );
-    this.txInQueueItem.scriptTxIn.redeemer = {
-      data: redeemer,
-      exUnits,
-    };
+    this.txInRedeemerValue(redeemer, exUnits);
     return this;
   };
 
@@ -637,23 +664,23 @@ export class MeshTxBuilderCore {
 
   // Below protected functions for completing tx building
 
-  private addAllInputs = (inputs: QueuedTxIn[]) => {
+  private addAllInputs = (inputs: TxIn[]) => {
     for (let i = 0; i < inputs.length; i++) {
       const currentTxIn = inputs[i]; //TODO: add type
       switch (currentTxIn.type) {
         case 'PubKey':
-          this.addTxIn(currentTxIn as RequiredWith<QueuedPubKeyTxIn, 'txIn'>);
+          this.addTxIn(currentTxIn as RequiredWith<PubKeyTxIn, 'txIn'>);
           break;
         case 'Script':
           this.addScriptTxIn(
-            currentTxIn as RequiredWith<QueuedScriptTxIn, 'txIn' | 'scriptTxIn'>
+            currentTxIn as RequiredWith<ScriptTxIn, 'txIn' | 'scriptTxIn'>
           );
           break;
       }
     }
   };
 
-  private addTxIn = (currentTxIn: RequiredWith<QueuedPubKeyTxIn, 'txIn'>) => {
+  private addTxIn = (currentTxIn: RequiredWith<PubKeyTxIn, 'txIn'>) => {
     this.txBuilder.add_input(
       csl.Address.from_bech32(currentTxIn.txIn.address),
       csl.TransactionInput.new(
@@ -667,7 +694,7 @@ export class MeshTxBuilderCore {
   private addScriptTxIn = ({
     scriptTxIn,
     txIn,
-  }: RequiredWith<QueuedScriptTxIn, 'txIn' | 'scriptTxIn'>) => {
+  }: RequiredWith<ScriptTxIn, 'txIn' | 'scriptTxIn'>) => {
     let cslDatum: csl.DatumSource;
     const { datumSource, scriptSource, redeemer } = scriptTxIn;
     if (datumSource.type === 'Provided') {
@@ -730,18 +757,16 @@ export class MeshTxBuilderCore {
     this.txBuilder.add_output(output);
   };
 
-  private addAllCollaterals = (collaterals: QueuedPubKeyTxIn[]) => {
+  private addAllCollaterals = (collaterals: PubKeyTxIn[]) => {
     for (let i = 0; i < collaterals.length; i++) {
       const currentCollateral = collaterals[i];
-      this.addCollateral(
-        currentCollateral as RequiredWith<QueuedPubKeyTxIn, 'txIn'>
-      );
+      this.addCollateral(currentCollateral as RequiredWith<PubKeyTxIn, 'txIn'>);
     }
     this.txBuilder.set_collateral(this.collateralBuilder);
   };
 
   private addCollateral = (
-    currentCollateral: RequiredWith<QueuedPubKeyTxIn, 'txIn'>
+    currentCollateral: RequiredWith<PubKeyTxIn, 'txIn'>
   ) => {
     this.collateralBuilder.add_input(
       csl.Address.from_bech32(currentCollateral.txIn.address),

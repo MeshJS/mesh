@@ -1,9 +1,9 @@
 import { Asset, Budget, Data } from '@mesh/common/types';
 
 export type MeshTxBuilderBody = {
-  inputs: QueuedTxIn[];
+  inputs: TxIn[];
   outputs: Output[];
-  collaterals: QueuedPubKeyTxIn[];
+  collaterals: PubKeyTxIn[];
   requiredSignatures: string[];
   referenceInputs: RefTxIn[];
   mints: MintItem[];
@@ -40,9 +40,9 @@ export type RequiredWith<T, K extends keyof T> = Required<T> &
 
 // TxIn Types
 export type RefTxIn = { txHash: string; txIndex: number };
-export type QueuedTxIn = QueuedPubKeyTxIn | QueuedScriptTxIn;
-export type QueuedPubKeyTxIn = { type: 'PubKey'; txIn: TxInParameter };
-export type QueuedScriptTxIn = {
+export type TxIn = PubKeyTxIn | ScriptTxIn;
+export type PubKeyTxIn = { type: 'PubKey'; txIn: TxInParameter };
+export type ScriptTxIn = {
   type: 'Script';
   txIn: TxInParameter;
   scriptTxIn: ScriptTxInParameter;
