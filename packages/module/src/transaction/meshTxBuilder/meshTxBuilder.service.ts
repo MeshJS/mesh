@@ -47,6 +47,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * @returns The signed transaction in hex ready to submit / signed by client
    */
   complete = async (customizedTx?: MeshTxBuilderBody) => {
+    const now = Date.now();
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
     } else {
@@ -63,7 +64,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.completeTxInformation(txIn);
     });
 
-    return this.completeSync(customizedTx);
+    this.completeSync(customizedTx);
+
+    // Evaluating the transaction
+    if (this._evaluator) {
+      const txEvaluation = await this._evaluator.evaluateTx(this.txHex);
+      this.updateRedeemer(txEvaluation);
+      this.completeSync(customizedTx);
+    }
+    console.log('Tx building time', Date.now() - now);
+    return this;
   };
 
   /**
@@ -92,6 +102,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   private queryAllTxInfo = () => {
     const queryUTxOPromises: Promise<void>[] = [];
     const { inputs, collaterals } = this.meshTxBuilderBody;
+    if (inputs.length + collaterals.length > 0 && !this._fetcher)
+      throw Error(
+        'Transaction information is incomplete while no fetcher instance is provided'
+      );
     for (let i = 0; i < inputs.length; i++) {
       const currentTxIn = inputs[i];
       if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
@@ -103,7 +117,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         currentTxIn.scriptTxIn.scriptSource.txInInfo &&
         !currentTxIn.scriptTxIn.scriptSource?.txInInfo.spendingScriptHash
       ) {
-        const scriptRefTxHash = currentTxIn.scriptTxIn.scriptSource.txInInfo.txHash;
+        const scriptRefTxHash =
+          currentTxIn.scriptTxIn.scriptSource.txInInfo.txHash;
         queryUTxOPromises.push(this.getUTxOInfo(scriptRefTxHash));
       }
     }
@@ -130,8 +145,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     TxIn.txIn.address = address;
     TxIn.txIn.amount = amount;
 
-    if (TxIn.type === 'Script' && TxIn.scriptTxIn.scriptSource?.type == 'Inline') {
-      const scriptSourceInfo = TxIn.scriptTxIn.scriptSource.txInInfo as ScriptSourceInfo;
+    if (
+      TxIn.type === 'Script' &&
+      TxIn.scriptTxIn.scriptSource?.type == 'Inline'
+    ) {
+      const scriptSourceInfo = TxIn.scriptTxIn.scriptSource
+        .txInInfo as ScriptSourceInfo;
       if (!scriptSourceInfo.spendingScriptHash) {
         const refUtxos = this.queriedUTxOs[scriptSourceInfo.txHash];
         const scriptRefUtxo = refUtxos.find(

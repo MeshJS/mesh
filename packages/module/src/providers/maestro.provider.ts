@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { IFetcher, ISubmitter } from '@mesh/common/contracts';
+import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import {
   parseAssetUnit,
   parseHttpError,
@@ -9,6 +9,7 @@ import {
 } from '@mesh/common/utils';
 import type {
   AccountInfo,
+  Action,
   Asset,
   AssetMetadata,
   BlockInfo,
@@ -28,7 +29,7 @@ export interface MaestroConfig {
   turboSubmit?: boolean; // Read about paid turbo transaction submission feature at https://docs-v1.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.
 }
 
-export class MaestroProvider implements IFetcher, ISubmitter {
+export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
   private readonly _axiosInstance: AxiosInstance;
 
   submitUrl: string;
@@ -39,6 +40,35 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       headers: { 'api-key': apiKey },
     });
     this.submitUrl = turboSubmit ? 'txmanager/turbosubmit' : 'txmanager';
+  }
+
+  async evaluateTx(cbor: string): Promise<Omit<Action, 'data'>[]> {
+    try {
+      const { data, status } = await this._axiosInstance.post(
+        'transactions/evaluate',
+        { cbor }
+      );
+      if (status === 200) {
+        const tagMap = {
+          spend: 'SPEND',
+          mint: 'MINT',
+          cert: 'CERT',
+          wdrl: 'REWARD',
+        };
+        const result = data.map((action) => {
+          const budget = action.ex_units;
+          const index = action.redeemer_index;
+          const tag = tagMap[action.redeemer_tag];
+          console.log(budget, index, tag);
+          return { budget, index, tag };
+        });
+        return result;
+      }
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -70,23 +100,14 @@ export class MaestroProvider implements IFetcher, ISubmitter {
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const queryPredicate = (() => {
-      if (address.startsWith('addr_vkh') || address.startsWith('addr_shared_vkh')) return `addresses/cred/${address}`;
+      if (
+        address.startsWith('addr_vkh') ||
+        address.startsWith('addr_shared_vkh')
+      )
+        return `addresses/cred/${address}`;
       else return `addresses/${address}`;
     })();
     const appendAssetString = asset ? `&asset=${asset}` : '';
-    const resolveScript = (utxo: MaestroUTxO) => {
-      if (utxo.reference_script) {
-        const script =
-          utxo.reference_script.type === 'native'
-            ? <NativeScript>utxo.reference_script.json
-            : <PlutusScript>{
-              code: utxo.reference_script.bytes,
-              version: utxo.reference_script.type.replace('plutusv', 'V')
-            };
-        return toScriptRef(script).to_hex();
-
-      } else return undefined;
-    };
     const paginateUTxOs = async (
       cursor = null,
       utxos: UTxO[] = []
@@ -97,10 +118,12 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
       if (status === 200) {
         const data = timestampedData.data;
-        const pageUTxOs: UTxO[] = data.map(toUTxO);
+        const pageUTxOs: UTxO[] = data.map(this.toUTxO);
         const addedUtxos = [...utxos, ...pageUTxOs];
         const nextCursor = timestampedData.next_cursor;
-        return nextCursor == null ? addedUtxos : paginateUTxOs(nextCursor, addedUtxos);
+        return nextCursor == null
+          ? addedUtxos
+          : paginateUTxOs(nextCursor, addedUtxos);
       }
 
       throw parseHttpError(timestampedData);
@@ -127,10 +150,20 @@ export class MaestroProvider implements IFetcher, ISubmitter {
       );
       if (status === 200) {
         const data = timestampedData.data;
-        const pageAddressesWithQuantity: { address: string; quantity: string }[] = data.map((a) => { return { address: a.address, quantity: a.amount.toString() }; });
+        const pageAddressesWithQuantity: {
+          address: string;
+          quantity: string;
+        }[] = data.map((a) => {
+          return { address: a.address, quantity: a.amount.toString() };
+        });
         const nextCursor = timestampedData.next_cursor;
-        const addedData = [...addressesWithQuantity, ...pageAddressesWithQuantity];
-        return nextCursor == null ? addedData : paginateAddresses(nextCursor, addedData);
+        const addedData = [
+          ...addressesWithQuantity,
+          ...pageAddressesWithQuantity,
+        ];
+        return nextCursor == null
+          ? addedData
+          : paginateAddresses(nextCursor, addedData);
       }
 
       throw parseHttpError(timestampedData);
@@ -203,7 +236,9 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `assets/policy/${policyId}?count=100${cursor ? `&cursor=${cursor}` : ''}`
+        `assets/policy/${policyId}?count=100${
+          cursor ? `&cursor=${cursor}` : ''
+        }`
       );
       console.log(timestampedData);
 
@@ -241,19 +276,28 @@ export class MaestroProvider implements IFetcher, ISubmitter {
   }
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
-    if (!isNaN(epoch)) throw new Error('Maestro only supports fetching Protocol parameters of the latest completed epoch.');
+    if (!isNaN(epoch))
+      throw new Error(
+        'Maestro only supports fetching Protocol parameters of the latest completed epoch.'
+      );
 
     // Decimal numbers in Maestro are given as ratio of two numbers represented by string of format "firstNumber/secondNumber".
     const decimalFromRationalString = (str: string): number => {
       const forwardSlashIndex = str.indexOf('/');
-      return parseInt(str.slice(0, forwardSlashIndex)) / parseInt(str.slice(forwardSlashIndex + 1));
+      return (
+        parseInt(str.slice(0, forwardSlashIndex)) /
+        parseInt(str.slice(forwardSlashIndex + 1))
+      );
     };
     try {
-      const { data: timestampedData, status } = await this._axiosInstance.get('protocol-params');
+      const { data: timestampedData, status } = await this._axiosInstance.get(
+        'protocol-params'
+      );
       if (status === 200) {
         const data = timestampedData.data;
         try {
-          const { data: timestampedDataEpochData, status: epochStatus } = await this._axiosInstance.get('epochs/current');
+          const { data: timestampedDataEpochData, status: epochStatus } =
+            await this._axiosInstance.get('epochs/current');
           if (epochStatus === 200) {
             const epochData = timestampedDataEpochData.data;
             return <Protocol>{

@@ -2,7 +2,7 @@ import {
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
 } from '@mesh/common/constants';
-import { Asset, Budget, Data, Protocol } from '@mesh/common/types';
+import { Action, Asset, Budget, Data, Protocol } from '@mesh/common/types';
 import { buildTxBuilder, toValue, toPlutusData } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
 import {
@@ -66,6 +66,18 @@ export class MeshTxBuilderCore {
     return this.serializeTxBody(this.meshTxBuilderBody);
   };
 
+  /**
+   * Complete the signing process
+   * @returns The signed transaction in hex
+   */
+  completeSigning = () => {
+    const { signingKey } = this.meshTxBuilderBody;
+    if (signingKey.length > 0) {
+      this.addAllSigningKeys(signingKey);
+    }
+    return this.txHex;
+  };
+
   serializeTxBody = (txBody: MeshTxBuilderBody) => {
     const {
       inputs,
@@ -77,9 +89,7 @@ export class MeshTxBuilderCore {
       validityRange,
       requiredSignatures,
       metadata,
-      signingKey,
     } = txBody;
-
     if (this.isHydra) {
       this.protocolParams({
         minFeeA: 0,
@@ -89,6 +99,8 @@ export class MeshTxBuilderCore {
         collateralPercent: 0,
         coinsPerUTxOSize: '0',
       });
+    } else {
+      this.protocolParams({});
     }
 
     this.addAllInputs(inputs);
@@ -116,11 +128,7 @@ export class MeshTxBuilderCore {
     }
 
     this.buildTx();
-    if (signingKey.length > 0) {
-      this.addAllSigningKeys(signingKey);
-    }
-
-    return this.txHex;
+    return this;
   };
 
   /**
@@ -597,41 +605,35 @@ export class MeshTxBuilderCore {
   private addAllSigningKeys = (signingKeys: string[]) => {
     if (signingKeys.length > 0) {
       const vkeyWitnesses: csl.Vkeywitnesses = csl.Vkeywitnesses.new();
+      const wasmUnsignedTransaction = csl.Transaction.from_hex(this.txHex);
+      const wasmTxBody = wasmUnsignedTransaction.body();
       signingKeys.forEach((skeyHex) => {
         const cleanHex =
           skeyHex.slice(0, 4) === '5820' ? skeyHex.slice(4) : skeyHex;
-        const wasmUnsignedTransaction = this.txBuilder.build_tx();
-        const wasmTxBody = wasmUnsignedTransaction.body();
         const skey = csl.PrivateKey.from_hex(cleanHex);
         const vkeyWitness = csl.make_vkey_witness(
           csl.hash_transaction(wasmTxBody),
           skey
         );
         vkeyWitnesses.add(vkeyWitness);
-        this.completeSigning(vkeyWitnesses);
       });
+      const wasmWitnessSet = wasmUnsignedTransaction.witness_set();
+      wasmWitnessSet.set_vkeys(vkeyWitnesses);
+      const wasmSignedTransaction = csl.Transaction.new(
+        wasmTxBody,
+        wasmWitnessSet,
+        wasmUnsignedTransaction.auxiliary_data()
+      );
+      this.txHex = wasmSignedTransaction.to_hex();
     }
   };
 
-  /**
-   * Complete the signing process
-   * @returns The signed transaction in hex
-   */
-  private completeSigning = (vkeyWitnesses: csl.Vkeywitnesses) => {
-    const wasmUnsignedTransaction = this.txBuilder.build_tx();
-    const wasmWitnessSet = wasmUnsignedTransaction.witness_set();
-    const wasmTxBody = wasmUnsignedTransaction.body();
-    wasmWitnessSet.set_vkeys(vkeyWitnesses);
-    const wasmSignedTransaction = csl.Transaction.new(
-      wasmTxBody,
-      wasmWitnessSet,
-      wasmUnsignedTransaction.auxiliary_data()
-    );
-    this.txHex = wasmSignedTransaction.to_hex();
-  };
-
   private buildTx = () => {
-    this.txHex = this.txBuilder.build_tx().to_hex();
+    const tx = this.txBuilder.build_tx();
+    const txJson = JSON.parse(tx.to_json());
+    console.log('txJson', txJson.witness_set.redeemers);
+
+    this.txHex = tx.to_hex();
   };
 
   private queueInput = () => {
@@ -948,5 +950,35 @@ export class MeshTxBuilderCore {
         JSON.stringify(metadata)
       );
     });
+  };
+
+  protected updateRedeemer = (txEvaluation: Omit<Action, 'data'>[]) => {
+    // const tx = csl.Transaction.from_hex(this.txHex);
+    // const redeemers = tx.witness_set().redeemers();
+    // const newRedeemers = csl.Redeemers.new();
+    // txEvaluation.forEach((redeemerEvaluation, idx) => {
+    //   const redeemer = redeemers?.get(idx);
+    //   if (redeemer) {
+    //     newRedeemers.add(
+    //       csl.Redeemer.new(
+    //         redeemer.tag(),
+    //         redeemer.index(),
+    //         redeemer.data(),
+    //         csl.ExUnits.new(
+    //           csl.BigNum.from_str(String(redeemerEvaluation.budget.mem)),
+    //           csl.BigNum.from_str(String(redeemerEvaluation.budget.steps))
+    //         )
+    //       )
+    //     );
+    //   }
+    // });
+    // const newWitnessSet = tx.witness_set();
+    // newWitnessSet.set_redeemers(newRedeemers);
+    // const newTx = csl.Transaction.new(
+    //   tx.body(),
+    //   newWitnessSet,
+    //   tx.auxiliary_data()
+    // );
+    // this.txHex = newTx.to_hex();
   };
 }
