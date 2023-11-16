@@ -13,7 +13,7 @@ export default function ComplexTransaction() {
 
 function Content() {
   let codeSnippet = ``;
-  codeSnippet += `const signedTx = await mesh\n`;
+  codeSnippet += `await mesh\n`;
   codeSnippet += `  .txIn('a02913bff2a1681f562e0b3aa1effa20a8ff192986f9106698b691707b274d8f', 3)\n`;
   codeSnippet += `  .readOnlyTxInReference('8b7ea04a142933b3d8005bf98be906bdba10978891593b383deac933497e2ea7', 1)\n`;
   codeSnippet += `  .mintPlutusScriptV2()\n`;
@@ -52,6 +52,8 @@ function Content() {
   codeSnippet += `  .signingKey(appOwnerPrivateKey)\n`;
   codeSnippet += `  .signingKey(minterPrivateKey)\n`;
   codeSnippet += `  .complete();\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const signedTx = mesh.completeSigning()\n`;
 
   return (
     <>

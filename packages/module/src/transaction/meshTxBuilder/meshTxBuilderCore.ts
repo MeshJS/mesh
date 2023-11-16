@@ -244,33 +244,33 @@ export class MeshTxBuilderCore {
     return this;
   };
 
-  /**
-   * Set the reference input where it would also be spent in the transaction
-   * @param txHash The transaction hash of the reference UTxO
-   * @param txIndex The transaction index of the reference UTxO
-   * @param spendingScriptHash The script hash of the spending script
-   * @returns The MeshTxBuilder instance
-   */
-  simpleScriptTxInReference = (
-    txHash: string,
-    txIndex: number,
-    spendingScriptHash?: string
-  ) => {
-    if (!this.txInQueueItem) throw Error('Undefined input');
-    if (this.txInQueueItem.type === 'PubKey')
-      throw Error(
-        'Spending tx in reference attempted to be called a non script input'
-      );
-    this.txInQueueItem.scriptTxIn.scriptSource = {
-      type: 'Inline',
-      txInInfo: {
-        txHash,
-        txIndex,
-        spendingScriptHash,
-      },
-    };
-    return this;
-  };
+  // /**
+  //  * Native script - Set the reference input where it would also be spent in the transaction
+  //  * @param txHash The transaction hash of the reference UTxO
+  //  * @param txIndex The transaction index of the reference UTxO
+  //  * @param spendingScriptHash The script hash of the spending script
+  //  * @returns The MeshTxBuilder instance
+  //  */
+  // simpleScriptTxInReference = (
+  //   txHash: string,
+  //   txIndex: number,
+  //   spendingScriptHash?: string
+  // ) => {
+  //   if (!this.txInQueueItem) throw Error('Undefined input');
+  //   if (this.txInQueueItem.type === 'PubKey')
+  //     throw Error(
+  //       'Spending tx in reference attempted to be called a non script input'
+  //     );
+  //   this.txInQueueItem.scriptTxIn.scriptSource = {
+  //     type: 'Inline',
+  //     txInInfo: {
+  //       txHash,
+  //       txIndex,
+  //       spendingScriptHash,
+  //     },
+  //   };
+  //   return this;
+  // };
 
   /**
    * Set the redeemer for the reference input to be spent in same transaction
@@ -365,7 +365,7 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   * [Alias of simpleScriptTxInReference] Set the reference input where it would also be spent in the transaction
+   * Set the reference input where it would also be spent in the transaction
    * @param txHash The transaction hash of the reference UTxO
    * @param txIndex The transaction index of the reference UTxO
    * @param spendingScriptHash The script hash of the spending script
@@ -376,7 +376,19 @@ export class MeshTxBuilderCore {
     txIndex: number,
     spendingScriptHash?: string
   ) => {
-    this.simpleScriptTxInReference(txHash, txIndex, spendingScriptHash);
+    if (!this.txInQueueItem) throw Error('Undefined input');
+    if (this.txInQueueItem.type === 'PubKey')
+      throw Error(
+        'Spending tx in reference attempted to be called a non script input'
+      );
+    this.txInQueueItem.scriptTxIn.scriptSource = {
+      type: 'Inline',
+      txInInfo: {
+        txHash,
+        txIndex,
+        spendingScriptHash,
+      },
+    };
     return this;
   };
 

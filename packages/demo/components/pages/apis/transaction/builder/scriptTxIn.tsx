@@ -17,7 +17,7 @@ function Content() {
   .txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)
   .txInInlineDatumPresent() // or .txInDatumValue(datum: Data)
   .txInRedeemerValue(redeemer: Redeemer, exUnits?: Budget)
-  .simpleScriptTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string) // or supplying script
+  .spendingTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string) // or supplying script
 `;
 
   return (
@@ -32,7 +32,7 @@ function Content() {
         <h4>(a) the script source by</h4>
         <p className="pl-4">
           (i) Reference script
-          <code>.simpleScriptTxInReference()</code>
+          <code>.spendingTxInReference()</code>
           <br />
           (ii) Supplying script
           <code>.txInScript(scriptCbor: string)</code>

@@ -19,7 +19,7 @@ function Content() {
   codeSnippet += `const walletAddress = 'addr_test1vpw22xesfv0hnkfw4k5vtrz386tfgkxu6f7wfadug7prl7s6gt89x';\n`;
   codeSnippet += `const privateKey = '5820xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const signedTx = await mesh\n`;
+  codeSnippet += `await mesh\n`;
   codeSnippet += `  .txIn('572bca237e440b596f4f71374b4b610a995095c6b62a6dcc8549089b93ba0e33', 0)\n`;
   codeSnippet += `  .txIn('572bca237e440b596f4f71374b4b610a995095c6b62a6dcc8549089b93ba0e33', 3)\n`;
   codeSnippet += `  .txOut(recipient, [\n`;
@@ -30,6 +30,8 @@ function Content() {
   codeSnippet += `  .txInCollateral('3fbdf2b0b4213855dd9b87f7c94a50cf352ba6edfdded85ecb22cf9ceb75f814', 6)\n`;
   codeSnippet += `  .signingKey(privateKey)\n`;
   codeSnippet += `  .complete();\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const signedTx = mesh.completeSigning()\n`;
 
   return (
     <>

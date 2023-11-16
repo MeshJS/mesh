@@ -61,7 +61,8 @@ function Content() {
   codeSnippet += `  ],\n`;
   codeSnippet += `};\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const signedTx = await mesh.complete(myTx);`;
+  codeSnippet += `await mesh.complete(myTx);\n`;
+  codeSnippet += `const signedTx = mesh.completeSigning();`;
 
   return (
     <>

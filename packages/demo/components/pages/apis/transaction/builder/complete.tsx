@@ -8,10 +8,12 @@ export default function Complete() {
 }
 
 function Content() {
-  let code = `mesh
+  let code = `await mesh
   .complete(customizedTx?: MeshTxBuilderBody)`;
   let codeSync = `mesh
   .completeSync(customizedTx?: MeshTxBuilderBody)`;
+  let codeSign = `const signedTx = mesh
+  .completeSigning()`;
 
   return (
     <>
@@ -23,8 +25,13 @@ function Content() {
         to be submitted to the blockchain.
       </p>
       <p>
-        Use <code>.complete()</code> to complete the transaction building
-        process:
+        You could also directly supplying the optional parameter in{' '}
+        <code>MeshTxBuilderBody</code> to build the transaction with the object
+        supplied.
+      </p>
+      <p>
+        Use <code>.complete()</code> (an async method) to complete the
+        transaction building process:
       </p>
 
       <Codeblock data={code} isJson={false} />
@@ -37,9 +44,11 @@ function Content() {
       <Codeblock data={codeSync} isJson={false} />
 
       <p>
-        Where <code>MeshTxBuilderBody</code> is an optional parameter. With
-        supplying it builds the transaction with the object supplied.
+        Use <code>.completeSigning()</code> to add private key signing to the
+        witness set process without indexing blockchain:
       </p>
+
+      <Codeblock data={codeSign} isJson={false} />
     </>
   );
 }

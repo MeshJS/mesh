@@ -7,7 +7,8 @@ import ChangeAddress from '../../../components/pages/apis/transaction/builder/ch
 import Complete from '../../../components/pages/apis/transaction/builder/complete';
 import Schemas from '../../../components/pages/apis/transaction/builder/schemas';
 import MetadataValue from '../../../components/pages/apis/transaction/builder/metadataValue';
-import Mint from '../../../components/pages/apis/transaction/builder/mintPlutus';
+import MintPlutus from '../../../components/pages/apis/transaction/builder/mintPlutus';
+import MintNative from '../../../components/pages/apis/transaction/builder/mintNative';
 import ReadOnlyTxInReference from '../../../components/pages/apis/transaction/builder/readOnlyTxInReference';
 import RequiredSignerHash from '../../../components/pages/apis/transaction/builder/requiredSignerHash';
 import SigningKey from '../../../components/pages/apis/transaction/builder/signingKey';
@@ -28,7 +29,11 @@ const TransactionBuilderPage: NextPage = () => {
       to: 'readOnlyTxInReference',
     },
     {
-      label: 'Set Plutus minting value',
+      label: 'Mint native token',
+      to: 'mintNative',
+    },
+    {
+      label: 'Mint Plutus token',
       to: 'mintPlutus',
     },
     {
@@ -56,7 +61,7 @@ const TransactionBuilderPage: NextPage = () => {
       to: 'signingKey',
     },
     {
-      label: 'Complete',
+      label: 'Complete transaction building',
       to: 'complete',
     },
     {
@@ -89,7 +94,8 @@ const TransactionBuilderPage: NextPage = () => {
         <ScriptTxIn />
         <TxOut />
         <ReadOnlyTxInReference />
-        <Mint />
+        <MintNative />
+        <MintPlutus />
         <RequiredSignerHash />
         <TxInCollateral />
         <ChangeAddress />

@@ -24,8 +24,7 @@ function Content() {
   codeSnippet += `  .txInCollateral('3fbdf2b0b4213855dd9b87f7c94a50cf352ba6edfdded85ecb22cf9ceb75f814', 6, [{ unit: 'lovelace', quantity: '5000000' }], myAddress)\n`;
   codeSnippet += `  .signingKey(privateKey)\n`;
   codeSnippet += `  .completeSync();\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `const txHash = await mesh.submitTx(signedTx);`;
+  codeSnippet += `  .completeSigning();\n`;
 
   return (
     <>
