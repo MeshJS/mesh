@@ -131,7 +131,16 @@ export class MeshTxBuilderCore {
     this.addCostModels();
     if (changeAddress) {
       // TODO:
-      // this.addCollateralReturn(changeAddress);
+      // const totalCollateral = this.meshTxBuilderBody.collaterals
+      //   .map(
+      //     (collateral) =>
+      //       collateral.txIn.amount?.find((asset) => asset.unit === 'lovelace')
+      //         ?.quantity || '0'
+      //   )
+      //   .reduce((acc, curr) => acc + parseInt(curr), 0);
+      // console.log('totalCollateral', totalCollateral);
+
+      // this.addCollateralReturn(changeAddress, totalCollateral);
       this.addChange(changeAddress);
       // this.addCollateralReturn(changeAddress);
     }
@@ -843,10 +852,15 @@ export class MeshTxBuilderCore {
     );
   };
 
-  private addCollateralReturn = (returnAddress: string) => {
+  private addCollateralReturn = (
+    returnAddress: string,
+    totalCollateral = 0
+  ) => {
     // TODO: Uncomment until stable
     // const currentFee = this.txBuilder.get_fee_if_set()?.to_js_value();
-    // const fee = currentFee ? currentFee : '10000000';
+    // const fee = currentFee
+    //   ? currentFee
+    //   : Math.floor(totalCollateral / 1.5).toString();
     // if (fee) {
     //   const collateralAmount = Math.ceil(
     //     (this._protocolParams.collateralPercent * Number(fee)) / 100
