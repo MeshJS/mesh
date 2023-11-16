@@ -169,11 +169,37 @@ const GuideAikenPage: NextPage = () => {
             you have already set up your system or do not wish to compile the
             contract.
           </p>
-          <h3>Install Rust and Cargo</h3>
+          <p>
+            You can also check the installation instructions on the{' '}
+            <a
+              href="https://aiken-lang.org/installation-instructions"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Aiken website
+            </a>{' '}
+            for more information.
+          </p>
+          <h3>Using aikup (on Linux & MacOS only)</h3>
+          <p>
+            If you are using Linux or MacOS, you can use the utility tool to
+            download and manage Aiken's pre-compiled executables.
+          </p>
+          <p>
+            You can install the Aiken CLI by running the following command in
+            your terminal:
+          </p>
+          <Codeblock
+            data={`$ curl -sSfL https://install.aiken-lang.org | bash\n$ aikup`}
+            isJson={false}
+          />
+
+          <h3>From sources (all platforms)</h3>
+
           <p>
             Aiken is written in Rust, so you will need to install Rust and Cargo
-            to compile the smart contract. You can install Rust and Cargo by
-            following the instructions on the{' '}
+            to compile the smart contract. You can install Rust by following the
+            instructions on the{' '}
             <a
               href="https://www.rust-lang.org/"
               target="_blank"
@@ -203,21 +229,25 @@ const GuideAikenPage: NextPage = () => {
             data={`$ rustc --version\n$ cargo --version`}
             isJson={false}
           />
-          <h3>Install the Aiken CLI</h3>
+
           <p>
-            The Aiken CLI is a command-line tool that allows you to compile
-            Aiken smart contracts.
+            Next, you will need to install the Aiken CLI. You can install the
+            Aiken CLI by running the following command in your terminal:
           </p>
+
+          <Codeblock data={`$ cargo install aiken`} isJson={false} />
+
+          <h3>Check your installation</h3>
+
           <p>
-            You can install the Aiken CLI by running the following command in
-            your terminal:
+            You will know you have successfully installed the Aiken CLI when you
+            can run the following command in your terminal:
           </p>
-          <Codeblock
-            data={`$ curl -sSfL https://install.aiken-lang.org | bash\n$ aikup`}
-            isJson={false}
-          />
+          <Codeblock data={`$ aiken -V`} isJson={false} />
+
           <p>
-            Check Aiken installation instructions on the{' '}
+            If you face any issues, please check the installation instructions
+            on the{' '}
             <a
               href="https://aiken-lang.org/installation-instructions"
               target="_blank"
@@ -227,11 +257,6 @@ const GuideAikenPage: NextPage = () => {
             </a>{' '}
             for more information.
           </p>
-          <p>
-            You will know you have successfully installed the Aiken CLI when you
-            can run the following command in your terminal:
-          </p>
-          <Codeblock data={`$ aiken -V`} isJson={false} />
         </Element>
 
         <Element name="writing">
