@@ -3,7 +3,13 @@ import {
   DEFAULT_REDEEMER_BUDGET,
 } from '@mesh/common/constants';
 import { Action, Asset, Budget, Data, Protocol } from '@mesh/common/types';
-import { buildTxBuilder, toValue, toPlutusData } from '@mesh/common/utils';
+import {
+  buildTxBuilder,
+  toValue,
+  toPlutusData,
+  toAddress,
+  buildDataCost,
+} from '@mesh/common/utils';
 import { csl } from '@mesh/core';
 import {
   MintItem,
@@ -22,6 +28,7 @@ import {
 export class MeshTxBuilderCore {
   txHex = '';
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
+  private _protocolParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
   private txOutput?: Output;
   private addingScriptInput = false;
   private addingPlutusMint = false;
@@ -591,6 +598,7 @@ export class MeshTxBuilderCore {
    */
   protocolParams = (params: Partial<Protocol>) => {
     const updatedParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...params };
+    this._protocolParams = updatedParams;
     this.txBuilder = buildTxBuilder(updatedParams);
     return this;
   };
@@ -770,24 +778,44 @@ export class MeshTxBuilderCore {
 
   private addOutput = ({ amount, address, datum, referenceScript }: Output) => {
     const txValue = toValue(amount);
-    const output = csl.TransactionOutput.new(
-      csl.Address.from_bech32(address),
-      txValue
+    const multiAsset = txValue.multiasset();
+    if (txValue.is_zero() && multiAsset === undefined)
+      throw Error('Invalid output amount');
+
+    const outputBuilder = csl.TransactionOutputBuilder.new().with_address(
+      toAddress(address)
     );
     if (datum && datum.type === 'Hash') {
-      output.set_data_hash(csl.hash_plutus_data(toPlutusData(datum.data)));
+      outputBuilder.with_data_hash(
+        csl.hash_plutus_data(toPlutusData(datum.data))
+      );
     }
     if (datum && datum.type === 'Inline') {
-      output.set_plutus_data(toPlutusData(datum.data));
+      outputBuilder.with_plutus_data(toPlutusData(datum.data));
     }
     if (referenceScript) {
-      output?.set_script_ref(
+      outputBuilder.with_script_ref(
         csl.ScriptRef.new_plutus_script(
           csl.PlutusScript.from_hex(referenceScript)
         )
       );
     }
-    this.txBuilder.add_output(output);
+    const amountBuilder = outputBuilder.next();
+
+    if (multiAsset) {
+      const output = txValue.coin().is_zero()
+        ? amountBuilder
+            .with_asset_and_min_required_coin_by_utxo_cost(
+              multiAsset,
+              buildDataCost(this._protocolParams.coinsPerUTxOSize)
+            )
+            .build()
+        : amountBuilder.with_coin_and_asset(txValue.coin(), multiAsset).build();
+      this.txBuilder.add_output(output);
+    } else {
+      const output = amountBuilder.with_coin(txValue.coin()).build();
+      this.txBuilder.add_output(output);
+    }
   };
 
   private addAllCollaterals = (collaterals: PubKeyTxIn[]) => {
