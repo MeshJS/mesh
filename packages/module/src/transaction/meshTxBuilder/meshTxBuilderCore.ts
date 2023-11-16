@@ -953,32 +953,25 @@ export class MeshTxBuilderCore {
   };
 
   protected updateRedeemer = (txEvaluation: Omit<Action, 'data'>[]) => {
-    // const tx = csl.Transaction.from_hex(this.txHex);
-    // const redeemers = tx.witness_set().redeemers();
-    // const newRedeemers = csl.Redeemers.new();
-    // txEvaluation.forEach((redeemerEvaluation, idx) => {
-    //   const redeemer = redeemers?.get(idx);
-    //   if (redeemer) {
-    //     newRedeemers.add(
-    //       csl.Redeemer.new(
-    //         redeemer.tag(),
-    //         redeemer.index(),
-    //         redeemer.data(),
-    //         csl.ExUnits.new(
-    //           csl.BigNum.from_str(String(redeemerEvaluation.budget.mem)),
-    //           csl.BigNum.from_str(String(redeemerEvaluation.budget.steps))
-    //         )
-    //       )
-    //     );
-    //   }
-    // });
-    // const newWitnessSet = tx.witness_set();
-    // newWitnessSet.set_redeemers(newRedeemers);
-    // const newTx = csl.Transaction.new(
-    //   tx.body(),
-    //   newWitnessSet,
-    //   tx.auxiliary_data()
-    // );
-    // this.txHex = newTx.to_hex();
+    txEvaluation.forEach((redeemerEvaluation) => {
+      switch (redeemerEvaluation.tag) {
+        case 'SPEND': {
+          const input = this.meshTxBuilderBody.inputs[redeemerEvaluation.index];
+          if (input.type == 'Script' && input.scriptTxIn.redeemer) {
+            input.scriptTxIn.redeemer.exUnits.mem =
+              redeemerEvaluation.budget.mem;
+            input.scriptTxIn.redeemer.exUnits.steps =
+              redeemerEvaluation.budget.steps;
+          }
+        }
+        case 'MINT': {
+          const mint = this.meshTxBuilderBody.mints[redeemerEvaluation.index];
+          if (mint.type == 'Plutus' && mint.redeemer) {
+            mint.redeemer.exUnits.mem = redeemerEvaluation.budget.mem;
+            mint.redeemer.exUnits.steps = redeemerEvaluation.budget.steps;
+          }
+        }
+      }
+    });
   };
 }
