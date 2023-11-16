@@ -101,16 +101,21 @@ export class MeshTxBuilderCore {
       this.protocolParams({});
     }
 
+    this.meshTxBuilderBody.mints.sort((a, b) =>
+      a.policyId.localeCompare(b.policyId)
+    );
+    this.meshTxBuilderBody.inputs.sort((a, b) => {
+      if (a.txIn.txHash === b.txIn.txHash) {
+        return a.txIn.txIndex - b.txIn.txIndex;
+      } else {
+        return a.txIn.txHash.localeCompare(b.txIn.txHash);
+      }
+    });
+
     this.addAllInputs(inputs);
     this.addAllOutputs(outputs);
     this.addAllCollaterals(collaterals);
     this.addAllReferenceInputs(referenceInputs);
-    // Adding minting values
-    // Hacky solution to get mint indexes correct
-    // TODO: Remove after csl update
-    this.meshTxBuilderBody.mints.sort((a, b) =>
-      a.policyId.localeCompare(b.policyId)
-    );
     this.addAllMints(mints);
     this.addValidityRange(validityRange);
     this.addAllRequiredSignatures(requiredSignatures);
