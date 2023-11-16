@@ -22,8 +22,6 @@ import {
 export class MeshTxBuilderCore {
   txHex = '';
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
-  private mintBuilder: csl.MintBuilder = csl.MintBuilder.new();
-  private collateralBuilder: csl.TxInputsBuilder = csl.TxInputsBuilder.new();
   private txOutput?: Output;
   private addingScriptInput = false;
   private addingPlutusMint = false;
@@ -631,7 +629,7 @@ export class MeshTxBuilderCore {
   private buildTx = () => {
     const tx = this.txBuilder.build_tx();
     const txJson = JSON.parse(tx.to_json());
-    console.log('txJson', txJson.witness_set.redeemers);
+    console.log('txJson', txJson);
 
     this.txHex = tx.to_hex();
   };
@@ -788,17 +786,22 @@ export class MeshTxBuilderCore {
   };
 
   private addAllCollaterals = (collaterals: PubKeyTxIn[]) => {
+    const collateralBuilder = csl.TxInputsBuilder.new();
     for (let i = 0; i < collaterals.length; i++) {
       const currentCollateral = collaterals[i];
-      this.addCollateral(currentCollateral as RequiredWith<PubKeyTxIn, 'txIn'>);
+      this.addCollateral(
+        collateralBuilder,
+        currentCollateral as RequiredWith<PubKeyTxIn, 'txIn'>
+      );
     }
-    this.txBuilder.set_collateral(this.collateralBuilder);
+    this.txBuilder.set_collateral(collateralBuilder);
   };
 
   private addCollateral = (
+    collateralBuilder: csl.TxInputsBuilder,
     currentCollateral: RequiredWith<PubKeyTxIn, 'txIn'>
   ) => {
-    this.collateralBuilder.add_input(
+    collateralBuilder.add_input(
       csl.Address.from_bech32(currentCollateral.txIn.address),
       csl.TransactionInput.new(
         csl.TransactionHash.from_hex(currentCollateral.txIn.txHash),
@@ -823,6 +826,7 @@ export class MeshTxBuilderCore {
   };
 
   protected addAllMints = (mints: MintItem[]) => {
+    const mintBuilder = csl.MintBuilder.new();
     let plutusMintCount = 0;
     for (let i = 0; i < mints.length; i++) {
       const mintItem = mints[i] as Required<MintItem>;
@@ -831,16 +835,17 @@ export class MeshTxBuilderCore {
       if (mintItem.type === 'Plutus') {
         if (!mintItem.redeemer)
           throw Error('Missing mint redeemer information');
-        this.addPlutusMint(mintItem, plutusMintCount); // TODO: Update after csl update
+        this.addPlutusMint(mintBuilder, mintItem, plutusMintCount); // TODO: Update after csl update
         plutusMintCount++; // TODO: Remove after csl update
       } else if (mintItem.type === 'Native') {
-        this.addNativeMint(mintItem);
+        this.addNativeMint(mintBuilder, mintItem);
       }
     }
-    this.txBuilder.set_mint_builder(this.mintBuilder);
+    this.txBuilder.set_mint_builder(mintBuilder);
   };
 
   private addPlutusMint = (
+    mintBuilder: csl.MintBuilder,
     { redeemer, policyId, scriptSource, assetName, amount }: Required<MintItem>,
     redeemerIndex: number
   ) => {
@@ -870,21 +875,20 @@ export class MeshTxBuilderCore {
             )
           );
 
-    this.mintBuilder.add_asset(
+    mintBuilder.add_asset(
       csl.MintWitness.new_plutus_script(script, newRedeemer),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
       csl.Int.new_i32(amount)
     );
   };
 
-  private addNativeMint = ({
-    scriptSource,
-    assetName,
-    amount,
-  }: Required<MintItem>) => {
+  private addNativeMint = (
+    mintBuilder: csl.MintBuilder,
+    { scriptSource, assetName, amount }: Required<MintItem>
+  ) => {
     if (scriptSource.type === 'Reference Script')
       throw Error('Native mint cannot have reference script');
-    this.mintBuilder.add_asset(
+    mintBuilder.add_asset(
       csl.MintWitness.new_native_script(
         csl.NativeScript.from_hex(scriptSource.cbor)
       ),
