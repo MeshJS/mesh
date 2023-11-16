@@ -7,7 +7,7 @@
 | txIn                                    | X    | X   | X      |                                       |
 | txInDatumValue                          |      |     |        |                                       |
 | txInInlineDatumPresent                  | X    | X   | X      |                                       |
-| txOut                                   | X    | X   | X      | automate minUTxO not tested                                   |
+| txOut                                   | X    | X   | X      | automate minUTxO not tested           |
 | txOutDatumHashValue                     |      |     |        |                                       |
 | txOutInlineDatumValue                   | X    | X   | X      |                                       |
 | txOutReferenceScript                    | X    | X   |        |                                       |
@@ -23,7 +23,7 @@
 | mintReferenceTxInRedeemerValue          | X    | X   | X      |                                       |
 | requiredSignerHash                      | X    | X   | X      |                                       |
 | txInCollateral                          | X    | X   | X      |                                       |
-| changeAddress                           | X    | X   | X      | Collateral return is not tested                                      |
+| changeAddress                           | X    | X   | X      | Collateral return is not tested       |
 | invalidBefore                           | X    | X   |        |                                       |
 | invalidHereafter                        | X    | X   |        |                                       |
 | metadataValue                           | X    | X   | X      |                                       |
@@ -34,6 +34,7 @@
 
 ## Other Tasks
 
+- Add collateral return
 - Completing Apis
   - Staking related apis
 

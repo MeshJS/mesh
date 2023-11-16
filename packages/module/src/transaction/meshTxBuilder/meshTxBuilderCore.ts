@@ -128,14 +128,10 @@ export class MeshTxBuilderCore {
     this.addAllRequiredSignatures(requiredSignatures);
     this.addAllMetadata(metadata);
 
-    // TODO: add collateral return
-    // TODO: Calculate execution units and rebuild the transaction
-
     this.addCostModels();
-
     if (changeAddress) {
+      // TODO: this.addCollateralReturn(changeAddress);
       this.addChange(changeAddress);
-      this.addCollateralReturn(changeAddress);
     }
 
     this.buildTx();
@@ -783,19 +779,19 @@ export class MeshTxBuilderCore {
     if (txValue.is_zero() && multiAsset === undefined)
       throw Error('Invalid output amount');
 
-    const outputBuilder = csl.TransactionOutputBuilder.new().with_address(
+    let outputBuilder = csl.TransactionOutputBuilder.new().with_address(
       toAddress(address)
     );
     if (datum && datum.type === 'Hash') {
-      outputBuilder.with_data_hash(
+      outputBuilder = outputBuilder.with_data_hash(
         csl.hash_plutus_data(toPlutusData(datum.data))
       );
     }
     if (datum && datum.type === 'Inline') {
-      outputBuilder.with_plutus_data(toPlutusData(datum.data));
+      outputBuilder = outputBuilder.with_plutus_data(toPlutusData(datum.data));
     }
     if (referenceScript) {
-      outputBuilder.with_script_ref(
+      outputBuilder = outputBuilder.with_script_ref(
         csl.ScriptRef.new_plutus_script(
           csl.PlutusScript.from_hex(referenceScript)
         )
@@ -846,15 +842,18 @@ export class MeshTxBuilderCore {
   };
 
   private addCollateralReturn = (returnAddress: string) => {
-    const fee = this.txBuilder.get_fee_if_set()?.to_js_value();
-    if (fee) {
-      this.txBuilder.set_total_collateral_and_return(
-        csl.BigNum.from_str(
-          String((this._protocolParams.collateralPercent * Number(fee)) / 100)
-        ),
-        csl.Address.from_bech32(returnAddress)
-      );
-    }
+    // TODO
+    // const fee = this.txBuilder.get_fee_if_set()?.to_js_value();
+    // if (fee) {
+    //   const collateralAmount = Math.ceil(
+    //     (this._protocolParams.collateralPercent * Number(fee)) / 100
+    //   );
+    //   console.log('fee1', fee);
+    //   this.txBuilder.set_total_collateral_and_return(
+    //     csl.BigNum.from_str(String(collateralAmount)),
+    //     csl.Address.from_bech32(returnAddress)
+    //   );
+    // }
   };
 
   private addAllReferenceInputs = (refInputs: RefTxIn[]) => {
