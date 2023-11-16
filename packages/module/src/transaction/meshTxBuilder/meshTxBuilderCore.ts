@@ -961,25 +961,36 @@ export class MeshTxBuilderCore {
     });
   };
 
-  protected updateRedeemer = (txEvaluation: Omit<Action, 'data'>[]) => {
+  protected updateRedeemer = (
+    meshTxBuilderBody: MeshTxBuilderBody,
+    txEvaluation: Omit<Action, 'data'>[]
+  ) => {
     txEvaluation.forEach((redeemerEvaluation) => {
       switch (redeemerEvaluation.tag) {
         case 'SPEND': {
-          const input = this.meshTxBuilderBody.inputs[redeemerEvaluation.index];
+          const input = meshTxBuilderBody.inputs[redeemerEvaluation.index];
           if (input.type == 'Script' && input.scriptTxIn.redeemer) {
             input.scriptTxIn.redeemer.exUnits.mem =
               redeemerEvaluation.budget.mem;
             input.scriptTxIn.redeemer.exUnits.steps =
               redeemerEvaluation.budget.steps;
           }
+          break;
         }
         case 'MINT': {
-          const mint = this.meshTxBuilderBody.mints[redeemerEvaluation.index];
+          const mint = meshTxBuilderBody.mints[redeemerEvaluation.index];
           if (mint.type == 'Plutus' && mint.redeemer) {
             mint.redeemer.exUnits.mem = redeemerEvaluation.budget.mem;
             mint.redeemer.exUnits.steps = redeemerEvaluation.budget.steps;
           }
+          break;
         }
+        case 'CERT':
+          // TODO
+          break;
+        case 'REWARD':
+          // TODO
+          break;
       }
     });
   };

@@ -69,7 +69,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     // Evaluating the transaction
     if (this._evaluator) {
       const txEvaluation = await this._evaluator.evaluateTx(this.txHex);
-      this.updateRedeemer(txEvaluation);
+      this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
       this.completeSync(customizedTx);
     }
     console.log('Tx building time', Date.now() - now);
