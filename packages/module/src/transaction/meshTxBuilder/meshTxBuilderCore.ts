@@ -130,8 +130,10 @@ export class MeshTxBuilderCore {
 
     this.addCostModels();
     if (changeAddress) {
-      // TODO: this.addCollateralReturn(changeAddress);
+      // TODO:
+      // this.addCollateralReturn(changeAddress);
       this.addChange(changeAddress);
+      // this.addCollateralReturn(changeAddress);
     }
 
     this.buildTx();
@@ -842,13 +844,14 @@ export class MeshTxBuilderCore {
   };
 
   private addCollateralReturn = (returnAddress: string) => {
-    // TODO
-    // const fee = this.txBuilder.get_fee_if_set()?.to_js_value();
+    // TODO: Uncomment until stable
+    // const currentFee = this.txBuilder.get_fee_if_set()?.to_js_value();
+    // const fee = currentFee ? currentFee : '10000000';
     // if (fee) {
     //   const collateralAmount = Math.ceil(
     //     (this._protocolParams.collateralPercent * Number(fee)) / 100
     //   );
-    //   console.log('fee1', fee);
+    //   console.log('fee1', fee, collateralAmount);
     //   this.txBuilder.set_total_collateral_and_return(
     //     csl.BigNum.from_str(String(collateralAmount)),
     //     csl.Address.from_bech32(returnAddress)
