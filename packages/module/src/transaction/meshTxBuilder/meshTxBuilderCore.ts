@@ -135,6 +135,7 @@ export class MeshTxBuilderCore {
 
     if (changeAddress) {
       this.addChange(changeAddress);
+      this.addCollateralReturn(changeAddress);
     }
 
     this.buildTx();
@@ -842,6 +843,18 @@ export class MeshTxBuilderCore {
       ),
       toValue(currentCollateral.txIn.amount)
     );
+  };
+
+  private addCollateralReturn = (returnAddress: string) => {
+    const fee = this.txBuilder.get_fee_if_set()?.to_js_value();
+    if (fee) {
+      this.txBuilder.set_total_collateral_and_return(
+        csl.BigNum.from_str(
+          String((this._protocolParams.collateralPercent * Number(fee)) / 100)
+        ),
+        csl.Address.from_bech32(returnAddress)
+      );
+    }
   };
 
   private addAllReferenceInputs = (refInputs: RefTxIn[]) => {
