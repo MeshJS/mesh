@@ -7,7 +7,7 @@
 | txIn                                    | X    | X   | X      |                                       |
 | txInDatumValue                          |      |     |        |                                       |
 | txInInlineDatumPresent                  | X    | X   | X      |                                       |
-| txOut                                   | X    | X   | X      |                                       |
+| txOut                                   | X    | X   | X      | automate minUTxO not tested                                   |
 | txOutDatumHashValue                     |      |     |        |                                       |
 | txOutInlineDatumValue                   | X    | X   | X      |                                       |
 | txOutReferenceScript                    | X    | X   |        |                                       |
@@ -23,25 +23,23 @@
 | mintReferenceTxInRedeemerValue          | X    | X   | X      |                                       |
 | requiredSignerHash                      | X    | X   | X      |                                       |
 | txInCollateral                          | X    | X   | X      |                                       |
-| changeAddress                           | X    | X   | X      |                                       |
+| changeAddress                           | X    | X   | X      | Collateral return is not tested                                      |
 | invalidBefore                           | X    | X   |        |                                       |
 | invalidHereafter                        | X    | X   |        |                                       |
 | metadataValue                           | X    | X   | X      |                                       |
 | signingKey                              | X    | X   | X      |                                       |
 | complete                                |      |     |        | TODO: EvaluateTx / Collateral returns |
 | getUTxOInfo                             | X    | X   | X      |                                       |
-| protocolParams                          |      |     |        |                                       |
+| protocolParams                          | X    | X   | X      |                                       |
 
 ## Other Tasks
 
-- Frontend documentation
 - Completing Apis
   - Staking related apis
 
 ## Higher Level refactor plan
 
 - UTxO selection
-- Value output attached with minUTxO
 - Expose the `txBuilder`
 - Migrating to lower level apis if any
 - Removing redundant operations (make it using MeshTxBuilderCore's methods)
