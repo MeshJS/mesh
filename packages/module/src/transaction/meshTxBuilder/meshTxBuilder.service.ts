@@ -72,7 +72,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
       this.completeSync(customizedTx);
     }
-    console.log('Tx building time', Date.now() - now);
     return this;
   };
 

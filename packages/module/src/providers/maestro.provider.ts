@@ -59,7 +59,6 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
           const budget = action.ex_units;
           const index = action.redeemer_index;
           const tag = tagMap[action.redeemer_tag];
-          console.log(budget, index, tag);
           return { budget, index, tag };
         });
         return result;

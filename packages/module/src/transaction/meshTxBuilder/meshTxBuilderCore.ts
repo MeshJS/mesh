@@ -649,9 +649,7 @@ export class MeshTxBuilderCore {
 
   private buildTx = () => {
     const tx = this.txBuilder.build_tx();
-    const txJson = JSON.parse(tx.to_json());
-    console.log('txJson', txJson);
-
+    // const txJson = JSON.parse(tx.to_json());
     this.txHex = tx.to_hex();
   };
 
