@@ -130,19 +130,27 @@ export class MeshTxBuilderCore {
 
     this.addCostModels();
     if (changeAddress) {
-      // TODO:
-      // const totalCollateral = this.meshTxBuilderBody.collaterals
-      //   .map(
-      //     (collateral) =>
-      //       collateral.txIn.amount?.find((asset) => asset.unit === 'lovelace')
-      //         ?.quantity || '0'
-      //   )
-      //   .reduce((acc, curr) => acc + parseInt(curr), 0);
-      // console.log('totalCollateral', totalCollateral);
+      // Hacky fix to set a dummy collateral return so fees are calculated correctly
+      const totalCollateral = this.meshTxBuilderBody.collaterals
+        .map(
+          (collateral) =>
+            collateral.txIn.amount?.find((asset) => asset.unit === 'lovelace')
+              ?.quantity || '0'
+        )
+        .reduce((acc, curr) => acc + parseInt(curr), 0);
 
-      // this.addCollateralReturn(changeAddress, totalCollateral);
+      this.txBuilder.set_collateral_return(
+        csl.TransactionOutput.new(
+          csl.Address.from_bech32(changeAddress),
+          csl.Value.new(csl.BigNum.from_str(String(totalCollateral)))
+        )
+      );
+      this.txBuilder.set_total_collateral(
+        csl.BigNum.from_str(String(totalCollateral))
+      );
+
       this.addChange(changeAddress);
-      // this.addCollateralReturn(changeAddress);
+      this.addCollateralReturn(changeAddress);
     }
 
     this.buildTx();
@@ -862,25 +870,17 @@ export class MeshTxBuilderCore {
     );
   };
 
-  private addCollateralReturn = (
-    returnAddress: string,
-    totalCollateral = 0
-  ) => {
-    // TODO: Uncomment until stable
-    // const currentFee = this.txBuilder.get_fee_if_set()?.to_js_value();
-    // const fee = currentFee
-    //   ? currentFee
-    //   : Math.floor(totalCollateral / 1.5).toString();
-    // if (fee) {
-    //   const collateralAmount = Math.ceil(
-    //     (this._protocolParams.collateralPercent * Number(fee)) / 100
-    //   );
-    //   console.log('fee1', fee, collateralAmount);
-    //   this.txBuilder.set_total_collateral_and_return(
-    //     csl.BigNum.from_str(String(collateralAmount)),
-    //     csl.Address.from_bech32(returnAddress)
-    //   );
-    // }
+  private addCollateralReturn = (returnAddress: string) => {
+    const currentFee = this.txBuilder.get_fee_if_set()?.to_js_value();
+    if (currentFee) {
+      const collateralAmount = Math.ceil(
+        (this._protocolParams.collateralPercent * Number(currentFee)) / 100
+      );
+      this.txBuilder.set_total_collateral_and_return(
+        csl.BigNum.from_str(String(collateralAmount)),
+        csl.Address.from_bech32(returnAddress)
+      );
+    }
   };
 
   private addAllReferenceInputs = (refInputs: RefTxIn[]) => {
