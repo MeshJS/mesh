@@ -5,7 +5,7 @@ export default function TxIn() {
   return (
     <Section
       sidebarTo="txIn"
-      header="Set pubkey input for transaction"
+      header="Set the transaction inputs"
       contentFn={Content()}
     />
   );
@@ -18,10 +18,10 @@ function Content() {
   return (
     <>
       <p>
-        Use <code>txIn()</code> to set the input for transaction.{' '}
-        <code>amount</code> and <code>address</code> are optional flags if you
-        have the <code>fetcher</code> instance supplied, where blockchain
-        indexing would be performed on
+        <code>txIn()</code> is used to set the input for a transaction.{' '}
+        <code>amount</code> and <code>address</code> are optional flags which can be used if you
+        have supplied the <code>fetcher</code> instance (which enables blockchain
+        indexing)
       </p>
 
       <Codeblock data={code} isJson={false} />

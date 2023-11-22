@@ -18,7 +18,7 @@ function Content() {
   return (
     <>
       <p>
-        Use <code>.requiredSignerHash()</code> to set the required signer of the
+        Use <code>.requiredSignerHash()</code> to set a required signer for the
         transaction:
       </p>
 

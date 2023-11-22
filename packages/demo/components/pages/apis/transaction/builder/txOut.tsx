@@ -5,7 +5,7 @@ export default function TxOut() {
   return (
     <Section
       sidebarTo="txOut"
-      header="Set output for transaction"
+      header="Set the output(s) for a transaction"
       contentFn={Content()}
     />
   );
@@ -26,20 +26,20 @@ function Content() {
   return (
     <>
       <p>
-        Use <code>txOut()</code> to set the input datum for transaction:
+        <code>txOut()</code> is used in its basic form as follows:
       </p>
 
       <Codeblock data={code} isJson={false} />
       <h3>Attaching datum in output</h3>
       <p>
-        You could attach datum with the output by
+        You can attach datum to this transaction output by using either
         <code>.txOutDatumHashValue()</code> or{' '}
         <code>.txOutInlineDatumValue()</code>
       </p>
       <Codeblock data={codeWithDatum} isJson={false} />
       <h3>Attaching script in output for referencing</h3>
       <p>
-        You could attach script the output by
+        You can attach a reference script to the output using
         <code>.txOutReferenceScript()</code>
       </p>
       <Codeblock data={codeWithScript} isJson={false} />

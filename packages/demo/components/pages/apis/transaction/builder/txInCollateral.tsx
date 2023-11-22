@@ -19,8 +19,8 @@ function Content() {
     <>
       <p>
         Use <code>.txInCollateral()</code> to set the collateral UTxO for the
-        transaction. Similar with <code>.txIn()</code>, you could optionally
-        provide the amount and address information of UTxO:
+        transaction. Just as with <code>.txIn()</code>, you can optionally
+        provide the amount and address information:
       </p>
 
       <Codeblock data={code} isJson={false} />

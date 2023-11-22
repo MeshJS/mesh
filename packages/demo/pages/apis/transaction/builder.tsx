@@ -29,11 +29,11 @@ const TransactionBuilderPage: NextPage = () => {
       to: 'readOnlyTxInReference',
     },
     {
-      label: 'Mint native token',
+      label: 'Minting a native token',
       to: 'mintNative',
     },
     {
-      label: 'Mint Plutus token',
+      label: 'Minting a Plutus script token',
       to: 'mintPlutus',
     },
     {
@@ -73,13 +73,13 @@ const TransactionBuilderPage: NextPage = () => {
   return (
     <>
       <Metatags
-        title="MeshTxBuilder - All APIs"
+        title="MeshTxBuilder - All API Endpoints"
         description="A complete walk through on Mesh's lower level APIs."
       />
       <CommonLayout sidebarItems={sidebarItems}>
         <CommonHero
-          title="MeshTxBuilder - All APIs"
-          desc="Using MeshTxBuilder for building lower level transactions."
+          title="MeshTxBuilder - All API Endpoints"
+          desc="Using MeshTxBuilder to build lower level transactions"
           icon={<ListBulletIcon className="w-16 h-16" />}
         />
         <p>

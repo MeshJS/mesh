@@ -5,7 +5,7 @@ export default function Mint() {
   return (
     <Section
       sidebarTo="mintNative"
-      header="Mint native script token"
+      header="Mint tokens with a 'native script'"
       contentFn={Content()}
     />
   );
@@ -19,12 +19,12 @@ function Content() {
 
   return (
     <>
-      <h3>When minting a native script token input, there are 2 steps</h3>
+      <h3>When minting tokens using a 'native script' as input, there are 2 steps:</h3>
       <h4>
-        1. Providing minting value by <code>.mint()</code>
+        1. Providing the minting value (quantity, policy and name) using <code>.mint()</code>
       </h4>
       <h4>
-        2. Providing the script source by supplying script using
+        2. Providing the script source using
         <code>.mintingScript()</code>
       </h4>
       {/* <div className="pl-4">
