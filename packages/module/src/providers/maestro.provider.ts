@@ -31,6 +31,12 @@ export interface MaestroConfig {
 
 export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
   private readonly _axiosInstance: AxiosInstance;
+  private readonly _amountsAsStrings =
+    {
+      headers: {
+        "amounts-as-strings": "true"
+      }
+    }
 
   submitUrl: string;
 
@@ -77,7 +83,7 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
 
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `accounts/${rewardAddress}`
+        `accounts/${rewardAddress}`, this._amountsAsStrings
       );
 
       if (status === 200) {
@@ -85,9 +91,9 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
         return <AccountInfo>{
           poolId: data.delegated_pool,
           active: data.registered,
-          balance: data.total_balance.toString(),
-          rewards: data.rewards_available.toString(),
-          withdrawals: data.total_withdrawn.toString(),
+          balance: data.total_balance,
+          rewards: data.rewards_available,
+          withdrawals: data.total_withdrawn,
         };
       }
 
@@ -113,7 +119,7 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
     ): Promise<UTxO[]> => {
       const appendCursorString = cursor === null ? '' : `&cursor=${cursor}`;
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `${queryPredicate}/utxos?count=100${appendAssetString}${appendCursorString}`
+        `${queryPredicate}/utxos?count=100${appendAssetString}${appendCursorString}`, this._amountsAsStrings
       );
       if (status === 200) {
         const data = timestampedData.data;
@@ -145,7 +151,7 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
     ): Promise<{ address: string; quantity: string }[]> => {
       const appendCursorString = cursor === null ? '' : `&cursor=${cursor}`;
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `assets/${policyId}${assetName}/addresses?count=100${appendCursorString}`
+        `assets/${policyId}${assetName}/addresses?count=100${appendCursorString}`, this._amountsAsStrings
       );
       if (status === 200) {
         const data = timestampedData.data;
@@ -153,7 +159,7 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
           address: string;
           quantity: string;
         }[] = data.map((a) => {
-          return { address: a.address, quantity: a.amount.toString() };
+          return { address: a.address, quantity: a.amount };
         });
         const nextCursor = timestampedData.next_cursor;
         const addedData = [
@@ -199,7 +205,7 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `blocks/${hash}`
+        `blocks/${hash}`, this._amountsAsStrings
       );
 
       if (status === 200) {
@@ -208,7 +214,7 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
           confirmations: data.confirmations,
           epoch: data.epoch,
           epochSlot: data.epoch_slot.toString(),
-          fees: data.total_fees.toString(),
+          fees: data.total_fees,
           hash: data.hash,
           nextBlock: data.next_block ?? '',
           operationalCertificate: data.operational_certificate?.hot_vkey,
@@ -235,18 +241,16 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `assets/policy/${policyId}?count=100${
-          cursor ? `&cursor=${cursor}` : ''
+        `policy/${policyId}/assets?count=100${cursor ? `&cursor=${cursor}` : ''
         }`
       );
-      console.log(timestampedData);
 
       if (status === 200) {
         const data = timestampedData.data;
         return {
           assets: data.map((asset) => ({
             unit: policyId + asset.asset_name,
-            quantity: asset.total_supply.toString(),
+            quantity: asset.total_supply,
           })),
           next: timestampedData.next_cursor,
         };
@@ -366,7 +370,7 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
   async fetchUTxOs(hash: string): Promise<UTxO[]> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
-        `transactions/${hash}`
+        `transactions/${hash}`, this._amountsAsStrings
       );
       if (status === 200) {
         const msOutputs = timestampedData.data.outputs as MaestroUTxO[];
@@ -430,7 +434,7 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
       address: utxo.address,
       amount: utxo.assets.map((asset) => ({
         unit: asset.unit,
-        quantity: asset.amount.toString(),
+        quantity: asset.amount,
       })),
       dataHash: utxo.datum?.hash,
       plutusData: utxo.datum?.bytes,
@@ -445,9 +449,9 @@ export class MaestroProvider implements IFetcher, ISubmitter, IEvaluator {
         utxo.reference_script.type === 'native'
           ? <NativeScript>utxo.reference_script.json
           : <PlutusScript>{
-              code: utxo.reference_script.bytes,
-              version: utxo.reference_script.type.replace('plutusv', 'V'),
-            };
+            code: utxo.reference_script.bytes,
+            version: utxo.reference_script.type.replace('plutusv', 'V'),
+          };
       return toScriptRef(script).to_hex();
     } else return undefined;
   };
@@ -475,7 +479,7 @@ type MaestroScript = {
 
 type MaestroAsset = {
   unit: string;
-  amount: number;
+  amount: string;
 };
 
 type MaestroUTxO = {
