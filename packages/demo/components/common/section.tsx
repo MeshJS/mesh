@@ -36,8 +36,8 @@ export default function Section({
           </button>
         </div>
       )}
-      <div className="px-4 pb-16 lg:w-[90%] xl:w-[80%]">
-        <div>{contentFn}</div>
+      <div className="grid grid-cols-1 px-4 pb-16">
+        <div className="col-auto">{contentFn}</div>
       </div>
     </Element>
   );
