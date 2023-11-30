@@ -5,14 +5,14 @@ import CardTitleDescImage from '../../components/ui/cardTitleDescImage';
 const ProvidersPage: NextPage = () => {
   const items = [
     {
+      title: 'Maestro',
+      link: '/providers/maestro',
+      thumbnail: '/providers/maestro.png',
+    },
+    {
       title: 'Blockfrost',
       link: '/providers/blockfrost',
       thumbnail: '/providers/blockfrost.png',
-    },
-    {
-      title: 'Tangocrypto',
-      link: '/providers/tangocrypto',
-      thumbnail: '/providers/tangocrypto.png',
     },
     {
       title: 'Koios',
@@ -23,11 +23,6 @@ const ProvidersPage: NextPage = () => {
       title: 'Ogmios',
       link: '/providers/ogmios',
       thumbnail: '/providers/ogmios.png',
-    },
-    {
-      title: 'Maestro',
-      link: '/providers/maestro',
-      thumbnail: '/providers/maestro.png',
     },
   ];
 
