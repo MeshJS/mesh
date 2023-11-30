@@ -23,6 +23,8 @@ import {
   ArrowsPointingInIcon,
   CloudIcon,
   FilmIcon,
+  CubeIcon,
+  ListBulletIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -297,6 +299,18 @@ function SubMenuTransaction() {
               title="Staking and stake pool"
               desc="Transactions for delegating ADA and managing stakepools"
               icon={<ArrowsPointingInIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/transaction/builderExample`}
+              title="Craft Customized Transactions"
+              desc="Build all possible transaction with our cardano-cli like APIs"
+              icon={<CubeIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/transaction/builder`}
+              title="MeshTxBuilder - All APIs"
+              desc="A complete walk through on Mesh's lower level APIs"
+              icon={<ListBulletIcon className="w-5 h-5" />}
             />
           </ul>
         </div>

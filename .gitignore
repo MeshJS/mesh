@@ -110,3 +110,6 @@ dist
 
 _local
 .rollup.cache
+
+# local testing on new features
+localTest.tsx

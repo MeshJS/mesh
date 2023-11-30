@@ -48,6 +48,12 @@ export const templates = {
     cli: 'pluts',
     image: 'pluts.png',
   },
+  aiken: {
+    title: 'aiken',
+    desc: `Create smart contracts with Aiken and execute transactions with Mesh.`,
+    cli: 'aiken',
+    image: 'aiken.png',
+  },
 };
 
 export const languages = {
