@@ -10,14 +10,14 @@ const ProvidersPage: NextPage = () => {
       thumbnail: '/providers/maestro.png',
     },
     {
-      title: 'Blockfrost',
-      link: '/providers/blockfrost',
-      thumbnail: '/providers/blockfrost.png',
-    },
-    {
       title: 'Koios',
       link: '/providers/koios',
       thumbnail: '/providers/koios.png',
+    },
+    {
+      title: 'Blockfrost',
+      link: '/providers/blockfrost',
+      thumbnail: '/providers/blockfrost.png',
     },
     {
       title: 'Ogmios',

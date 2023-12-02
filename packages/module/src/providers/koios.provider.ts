@@ -29,15 +29,24 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   constructor(baseUrl: string);
   constructor(
     network: 'api' | 'preview' | 'preprod' | 'guild',
+    token: string,
     version?: number
   );
 
   constructor(...args: unknown[]) {
     if (typeof args[0] === 'string' && args[0].startsWith('http')) {
-      this._axiosInstance = axios.create({ baseURL: args[0] });
+      this._axiosInstance = axios.create({
+        baseURL: args[0],
+        headers: {
+          Authorization: `Bearer ${args[1]}`,
+        },
+      });
     } else {
       this._axiosInstance = axios.create({
-        baseURL: `https://${args[0]}.koios.rest/api/v${args[1] ?? 0}`,
+        baseURL: `https://${args[0]}.koios.rest/api/v${args[2] ?? 0}`,
+        headers: {
+          Authorization: `Bearer ${args[1]}`,
+        },
       });
     }
   }
