@@ -137,7 +137,7 @@ function Main({ network }) {
     async function load() {
       const _koiosProvider = new KoiosProvider(
         network,
-        process.env.NEXT_PUBLIC_KOIOS_TOKEN
+        process.env.NEXT_PUBLIC_KOIOS_TOKEN!
       );
       setKoiosProvider(_koiosProvider);
     }
