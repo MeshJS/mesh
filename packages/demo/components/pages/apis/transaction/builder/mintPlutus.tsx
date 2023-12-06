@@ -5,7 +5,7 @@ export default function Mint() {
   return (
     <Section
       sidebarTo="mintPlutus"
-      header="Mint tokens with a Plutus script"
+      header="Mint 'Plutus script' token"
       contentFn={Content()}
     />
   );

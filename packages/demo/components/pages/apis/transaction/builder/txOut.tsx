@@ -5,7 +5,7 @@ export default function TxOut() {
   return (
     <Section
       sidebarTo="txOut"
-      header="Set the output(s) for a transaction"
+      header="Set output for transaction"
       contentFn={Content()}
     />
   );

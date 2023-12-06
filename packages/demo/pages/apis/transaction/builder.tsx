@@ -29,11 +29,11 @@ const TransactionBuilderPage: NextPage = () => {
       to: 'readOnlyTxInReference',
     },
     {
-      label: 'Minting a native token',
+      label: 'Mint native token',
       to: 'mintNative',
     },
     {
-      label: 'Minting a Plutus script token',
+      label: 'Mint Plutus token',
       to: 'mintPlutus',
     },
     {

@@ -5,7 +5,7 @@ export default function ReadOnlyTxInReference() {
   return (
     <Section
       sidebarTo="readOnlyTxInReference"
-      header="Set a read-only reference input"
+      header="Set read-only reference input"
       contentFn={Content()}
     />
   );

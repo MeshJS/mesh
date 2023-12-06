@@ -5,7 +5,7 @@ export default function TxIn() {
   return (
     <Section
       sidebarTo="txIn"
-      header="Set the transaction inputs"
+      header="Set pubkey input for transaction"
       contentFn={Content()}
     />
   );

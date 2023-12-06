@@ -5,7 +5,7 @@ export default function ScriptTxIn() {
   return (
     <Section
       sidebarTo="scriptTxIn"
-      header="Use a script as input for a transaction"
+      header="Set script input for transaction"
       contentFn={Content()}
     />
   );

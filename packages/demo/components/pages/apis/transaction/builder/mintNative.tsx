@@ -5,7 +5,7 @@ export default function Mint() {
   return (
     <Section
       sidebarTo="mintNative"
-      header="Mint tokens with a 'native script'"
+      header="Mint 'native script' token"
       contentFn={Content()}
     />
   );
