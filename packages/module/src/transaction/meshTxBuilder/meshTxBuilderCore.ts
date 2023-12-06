@@ -814,7 +814,10 @@ export class MeshTxBuilderCore {
     if (referenceScript) {
       outputBuilder = outputBuilder.with_script_ref(
         csl.ScriptRef.new_plutus_script(
-          csl.PlutusScript.from_hex(referenceScript)
+          csl.PlutusScript.from_hex_with_version(
+            referenceScript,
+            csl.Language.new_plutus_v2()
+          )
         )
       );
     }
