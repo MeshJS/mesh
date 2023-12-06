@@ -28,6 +28,7 @@ import {
 export class MeshTxBuilderCore {
   txHex = '';
   txBuilder: csl.TransactionBuilder = buildTxBuilder();
+  txEvaluationMultiplier = 1.1;
   private _protocolParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
   private txOutput?: Output;
   private addingScriptInput = false;
@@ -1037,18 +1038,24 @@ export class MeshTxBuilderCore {
         case 'SPEND': {
           const input = meshTxBuilderBody.inputs[redeemerEvaluation.index];
           if (input.type == 'Script' && input.scriptTxIn.redeemer) {
-            input.scriptTxIn.redeemer.exUnits.mem =
-              redeemerEvaluation.budget.mem;
-            input.scriptTxIn.redeemer.exUnits.steps =
-              redeemerEvaluation.budget.steps;
+            input.scriptTxIn.redeemer.exUnits.mem = Math.floor(
+              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier
+            );
+            input.scriptTxIn.redeemer.exUnits.steps = Math.floor(
+              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier
+            );
           }
           break;
         }
         case 'MINT': {
           const mint = meshTxBuilderBody.mints[redeemerEvaluation.index];
           if (mint.type == 'Plutus' && mint.redeemer) {
-            mint.redeemer.exUnits.mem = redeemerEvaluation.budget.mem;
-            mint.redeemer.exUnits.steps = redeemerEvaluation.budget.steps;
+            mint.redeemer.exUnits.mem = Math.floor(
+              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier
+            );
+            mint.redeemer.exUnits.steps = Math.floor(
+              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier
+            );
           }
           break;
         }
