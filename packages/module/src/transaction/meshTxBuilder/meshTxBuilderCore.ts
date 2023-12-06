@@ -205,6 +205,7 @@ export class MeshTxBuilderCore {
       type: 'Provided',
       scriptCbor,
     };
+    return this;
   };
 
   /**
