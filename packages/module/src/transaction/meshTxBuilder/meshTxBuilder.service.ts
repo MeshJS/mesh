@@ -47,7 +47,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * @returns The signed transaction in hex ready to submit / signed by client
    */
   complete = async (customizedTx?: MeshTxBuilderBody) => {
-    const now = Date.now();
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
     } else {
