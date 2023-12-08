@@ -687,8 +687,12 @@ export class MeshTxBuilderCore {
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
-  mintRedeemerValue = (redeemer: Data, exUnits?: Budget) => {
-    this.mintReferenceTxInRedeemerValue(redeemer, exUnits);
+  mintRedeemerValue = (
+    redeemer: Data | object | string,
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+    type: 'Mesh' | 'Raw' = 'Mesh'
+  ) => {
+    this.mintReferenceTxInRedeemerValue(redeemer, exUnits, type);
     return this;
   };
 
