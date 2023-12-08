@@ -1,4 +1,10 @@
-import { Asset, Budget, Data } from '@mesh/common/types';
+import {
+  Asset,
+  Budget,
+  Data,
+  LanguageVersion,
+  PlutusScript,
+} from '@mesh/common/types';
 
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
@@ -15,38 +21,9 @@ export type MeshTxBuilderBody = {
   signingKey: string[];
 };
 
-export type Output = {
-  address: string;
-  amount: Asset[];
-  datum?: {
-    type: 'Hash' | 'Inline';
-    data: Data;
-  };
-  referenceScript?: string;
-};
-// export type Certificate = {};
-// export type StakeCredential = {};
-export type ValidityRange = {
-  invalidBefore?: number;
-  invalidHereafter?: number;
-};
-
-// Utilities
-
-export type RequiredWith<T, K extends keyof T> = Required<T> &
-  {
-    [P in K]: Required<T[P]>;
-  };
-
-// TxIn Types
-export type RefTxIn = { txHash: string; txIndex: number };
 export type TxIn = PubKeyTxIn | ScriptTxIn;
+
 export type PubKeyTxIn = { type: 'PubKey'; txIn: TxInParameter };
-export type ScriptTxIn = {
-  type: 'Script';
-  txIn: TxInParameter;
-  scriptTxIn: ScriptTxInParameter;
-};
 
 export type TxInParameter = {
   txHash: string;
@@ -55,11 +32,17 @@ export type TxInParameter = {
   address?: string;
 };
 
+export type ScriptTxIn = {
+  type: 'Script';
+  txIn: TxInParameter;
+  scriptTxIn: ScriptTxInParameter;
+};
+
 export type ScriptTxInParameter = {
   scriptSource?:
     | {
         type: 'Provided';
-        scriptCbor: string;
+        script: PlutusScript;
       }
     | {
         type: 'Inline';
@@ -68,7 +51,7 @@ export type ScriptTxInParameter = {
   datumSource?:
     | {
         type: 'Provided';
-        data: Data;
+        data: BuilderData;
       }
     | {
         type: 'Inline';
@@ -82,9 +65,21 @@ export type ScriptSourceInfo = {
   txHash: string;
   txIndex: number;
   spendingScriptHash?: string;
+  version: LanguageVersion;
 };
 
-// Mint Types
+export type RefTxIn = { txHash: string; txIndex: number };
+
+export type Output = {
+  address: string;
+  amount: Asset[];
+  datum?: {
+    type: 'Hash' | 'Inline';
+    data: BuilderData;
+  };
+  referenceScript?: PlutusScript;
+};
+
 export type MintItem = {
   type: 'Plutus' | 'Native';
   policyId: string;
@@ -94,17 +89,37 @@ export type MintItem = {
   scriptSource?:
     | {
         type: 'Provided';
-        cbor: string;
+        script: PlutusScript;
       }
     | {
         type: 'Reference Script';
         txHash: string;
         txIndex: number;
+        version: LanguageVersion;
       };
 };
 
+// export type Certificate = {};
+// export type StakeCredential = {};
+export type ValidityRange = {
+  invalidBefore?: number;
+  invalidHereafter?: number;
+};
+
+export type BuilderData =
+  | {
+      type: 'Mesh';
+      content: Data;
+    }
+  | {
+      type: 'Raw';
+      content: string | object;
+    };
+
+// Mint Types
+
 export type Redeemer = {
-  data: Data;
+  data: BuilderData;
   exUnits: Budget;
 };
 
@@ -112,3 +127,10 @@ export type Metadata = {
   tag: string;
   metadata: object;
 };
+
+// Utilities
+
+export type RequiredWith<T, K extends keyof T> = Required<T> &
+  {
+    [P in K]: Required<T[P]>;
+  };

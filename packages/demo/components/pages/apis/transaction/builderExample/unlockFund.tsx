@@ -1,11 +1,11 @@
 import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
-export default function ComplexTransaction() {
+export default function UnlockFund() {
   return (
     <Section
-      sidebarTo="complexTransaction"
-      header="Build a complex transaction"
+      sidebarTo="unlockFund"
+      header="Build a transaction to unlock fund from smart contract"
       contentFn={Content()}
     />
   );
@@ -19,11 +19,7 @@ function Content() {
   .txInInlineDatumPresent()
   .txInRedeemerValue(mConStr0([]))
   .txInScript(getScriptCbor("Spending"))
-  .mintPlutusScriptV2()
-  .mint(1, policyId, tokenName)
-  .mintingScript(mintingScript)
-  .mintRedeemerValue(mConStr0([]))
-  .txOut(this.constants.walletAddress, [{ unit: policyId + tokenName, quantity: "1" }])
+  .txOut(this.constants.walletAddress, [])
   .changeAddress(this.constants.walletAddress)
   .txInCollateral(this.constants.collateralUTxO.txHash, this.constants.collateralUTxO.outputIndex)
   .signingKey(this.constants.skey)
@@ -34,12 +30,14 @@ const signedTx = mesh.completeSigning()`;
   return (
     <>
       <p>
-        The following shows a simple example of building a transaction of both
-        unlocking from script and minting tokens:
+        The following shows a simple example of building a transaction to unlock
+        fund from a smart contract. It is equivalent to the following CLI
+        command in{' '}
+        <a href="https://plutuspbl.io/modules/102/1025">PPBL Module 102.5</a>
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        <a href="https://github.com/sidan-lab/mesh-lower-level-api-demo/blob/mesh-docs/src/transactions/demo.ts#L139C1-L171C5">
+        <a href="https://github.com/sidan-lab/mesh-lower-level-api-demo/blob/mesh-docs/src/transactions/demo.ts#L93C1-L107C5">
           Full Code Snippet in Github
         </a>
       </p>

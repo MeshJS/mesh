@@ -1,8 +1,16 @@
 import {
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
+  LANGUAGE_VERSIONS,
 } from '@mesh/common/constants';
-import { Action, Asset, Budget, Data, Protocol } from '@mesh/common/types';
+import {
+  Action,
+  Asset,
+  Budget,
+  Data,
+  LanguageVersion,
+  Protocol,
+} from '@mesh/common/types';
 import {
   buildTxBuilder,
   toValue,
@@ -23,6 +31,7 @@ import {
   Output,
   ValidityRange,
   Metadata,
+  BuilderData,
 } from './type';
 
 export class MeshTxBuilderCore {
@@ -35,7 +44,41 @@ export class MeshTxBuilderCore {
   private addingPlutusMint = false;
   protected isHydra = false;
 
-  meshTxBuilderBody: MeshTxBuilderBody = {
+  meshTxBuilderBody: MeshTxBuilderBody;
+
+  protected mintItem?: MintItem;
+
+  protected txInQueueItem?: TxIn;
+
+  protected collateralQueueItem?: PubKeyTxIn;
+
+  protected refScriptTxInQueueItem?: RefTxIn;
+
+  /**
+   * Reset everything in the MeshTxBuilder instance
+   * @returns The MeshTxBuilder instance
+   */
+  reset = () => {
+    this.txHex = '';
+    this.txBuilder = buildTxBuilder();
+    this.txEvaluationMultiplier = 1.1;
+    this._protocolParams = DEFAULT_PROTOCOL_PARAMETERS;
+    this.txOutput = undefined;
+    this.addingScriptInput = false;
+    this.addingPlutusMint = false;
+    this.mintItem = undefined;
+    this.txInQueueItem = undefined;
+    this.collateralQueueItem = undefined;
+    this.refScriptTxInQueueItem = undefined;
+    this.meshTxBuilderBody = this.emptyTxBuilderBody();
+    return this;
+  };
+
+  /**
+   * Make an empty transaction body for building transaction in object
+   * @returns An empty transaction body
+   */
+  emptyTxBuilderBody = (): MeshTxBuilderBody => ({
     inputs: [],
     outputs: [],
     collaterals: [],
@@ -46,15 +89,11 @@ export class MeshTxBuilderCore {
     metadata: [],
     validityRange: {},
     signingKey: [],
-  };
+  });
 
-  protected mintItem?: MintItem;
-
-  protected txInQueueItem?: TxIn;
-
-  protected collateralQueueItem?: PubKeyTxIn;
-
-  protected refScriptTxInQueueItem?: RefTxIn;
+  constructor() {
+    this.meshTxBuilderBody = this.emptyTxBuilderBody();
+  }
 
   /**
    * Synchronous functions here
@@ -84,7 +123,7 @@ export class MeshTxBuilderCore {
     return this.txHex;
   };
 
-  serializeTxBody = (txBody: MeshTxBuilderBody) => {
+  private serializeTxBody = (txBody: MeshTxBuilderBody) => {
     const {
       inputs,
       outputs,
@@ -131,19 +170,29 @@ export class MeshTxBuilderCore {
 
     this.addCostModels();
     if (changeAddress) {
-      // TODO:
-      // const totalCollateral = this.meshTxBuilderBody.collaterals
-      //   .map(
-      //     (collateral) =>
-      //       collateral.txIn.amount?.find((asset) => asset.unit === 'lovelace')
-      //         ?.quantity || '0'
-      //   )
-      //   .reduce((acc, curr) => acc + parseInt(curr), 0);
-      // console.log('totalCollateral', totalCollateral);
+      // Hacky fix to set a dummy collateral return so fees are calculated correctly
+      const totalCollateral = this.meshTxBuilderBody.collaterals
+        .map(
+          (collateral) =>
+            collateral.txIn.amount?.find((asset) => asset.unit === 'lovelace')
+              ?.quantity || '0'
+        )
+        .reduce((acc, curr) => acc + parseInt(curr), 0);
 
-      // this.addCollateralReturn(changeAddress, totalCollateral);
+      if (totalCollateral > 0) {
+        this.txBuilder.set_collateral_return(
+          csl.TransactionOutput.new(
+            csl.Address.from_bech32(changeAddress),
+            csl.Value.new(csl.BigNum.from_str(String(totalCollateral)))
+          )
+        );
+        this.txBuilder.set_total_collateral(
+          csl.BigNum.from_str(String(totalCollateral))
+        );
+      }
+
       this.addChange(changeAddress);
-      // this.addCollateralReturn(changeAddress);
+      this.addCollateralReturn(changeAddress);
     }
 
     this.buildTx();
@@ -196,31 +245,53 @@ export class MeshTxBuilderCore {
   /**
    * Set the script for transaction input
    * @param {string} scriptCbor The CborHex of the script
+   * @param version Optional - The Plutus script version
    * @returns The MeshTxBuilder instance
    */
-  txInScript = (scriptCbor: string) => {
+  txInScript = (scriptCbor: string, version: LanguageVersion = 'V2') => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
     this.txInQueueItem.scriptTxIn.scriptSource = {
       type: 'Provided',
-      scriptCbor,
+      script: {
+        code: scriptCbor,
+        version,
+      },
     };
     return this;
   };
 
   /**
    * Set the input datum for transaction input
-   * @param {Data} datum The datum in object format
+   * @param datum The datum in Mesh Data type or Raw constructor like format
+   * @param type The datum type, either Mesh Data type or Raw constructor like format
    * @returns The MeshTxBuilder instance
    */
-  txInDatumValue = (datum: Data) => {
+  txInDatumValue = (
+    datum: Data | object | string,
+    type: 'Mesh' | 'Raw' = 'Mesh'
+  ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
+    if (type === 'Mesh') {
+      this.txInQueueItem.scriptTxIn.datumSource = {
+        type: 'Provided',
+        data: {
+          type,
+          content: datum as Data,
+        },
+      };
+      return this;
+    }
+    const content = this.castRawDataToJsonString(datum as object | string);
     this.txInQueueItem.scriptTxIn.datumSource = {
       type: 'Provided',
-      data: datum,
+      data: {
+        type,
+        content,
+      },
     };
     return this;
   };
@@ -276,18 +347,39 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the redeemer for the reference input to be spent in same transaction
-   * @param redeemer The redeemer in object format
+   * @param redeemer The redeemer in Mesh Data type or Raw constructor like format
    * @param exUnits The execution units budget for the redeemer
+   * @param type The redeemer data type, either Mesh Data type or Raw constructor like format
    * @returns The MeshTxBuilder instance
    */
-  txInRedeemerValue = (redeemer: Data, exUnits = DEFAULT_REDEEMER_BUDGET) => {
+  txInRedeemerValue = (
+    redeemer: Data | object | string,
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+    type: 'Mesh' | 'Raw' = 'Mesh'
+  ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Spending tx in reference redeemer attempted to be called a non script input'
       );
+    if (type === 'Mesh') {
+      this.txInQueueItem.scriptTxIn.redeemer = {
+        data: {
+          type,
+          content: redeemer as Data,
+        },
+        exUnits,
+      };
+      return this;
+    }
+    const content: string = this.castRawDataToJsonString(
+      redeemer as object | string
+    );
     this.txInQueueItem.scriptTxIn.redeemer = {
-      data: redeemer,
+      data: {
+        type,
+        content,
+      },
       exUnits,
     };
     return this;
@@ -313,14 +405,32 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the output datum hash for transaction
-   * @param {Data} datum The datum in object format
+   * @param datum The datum in Mesh Data type or Raw constructor like format
+   * @param type The datum type, either Mesh Data type or Raw constructor like format
    * @returns The MeshTxBuilder instance
    */
-  txOutDatumHashValue = (datum: Data) => {
+  txOutDatumHashValue = (
+    datum: Data | object | string,
+    type: 'Mesh' | 'Raw' = 'Mesh'
+  ) => {
     if (this.txOutput) {
+      if (type === 'Mesh') {
+        this.txOutput.datum = {
+          type: 'Hash',
+          data: {
+            type,
+            content: datum as Data,
+          },
+        };
+        return this;
+      }
+      const content = this.castRawDataToJsonString(datum as object | string);
       this.txOutput.datum = {
         type: 'Hash',
-        data: datum,
+        data: {
+          type,
+          content,
+        },
       };
     }
     return this;
@@ -328,14 +438,32 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the output inline datum for transaction
-   * @param {Data} datum The datum in object format
+   * @param datum The datum in Mesh Data type or Raw constructor like format
+   * @param type The datum type, either Mesh Data type or Raw constructor like format
    * @returns The MeshTxBuilder instance
    */
-  txOutInlineDatumValue = (datum: Data) => {
+  txOutInlineDatumValue = (
+    datum: Data | object | string,
+    type: 'Mesh' | 'Raw' = 'Mesh'
+  ) => {
     if (this.txOutput) {
+      if (type === 'Mesh') {
+        this.txOutput.datum = {
+          type: 'Inline',
+          data: {
+            type,
+            content: datum as Data,
+          },
+        };
+        return this;
+      }
+      const content = this.castRawDataToJsonString(datum as object | string);
       this.txOutput.datum = {
         type: 'Inline',
-        data: datum,
+        data: {
+          type,
+          content,
+        },
       };
     }
     return this;
@@ -344,11 +472,15 @@ export class MeshTxBuilderCore {
   /**
    * Set the reference script to be attached with the output
    * @param scriptCbor The CBOR hex of the script to be attached to UTxO as reference script
+   * @param version Optional - The Plutus script version
    * @returns The MeshTxBuilder instance
    */
-  txOutReferenceScript = (scriptCbor: string) => {
+  txOutReferenceScript = (
+    scriptCbor: string,
+    version: LanguageVersion = 'V2'
+  ) => {
     if (this.txOutput) {
-      this.txOutput.referenceScript = scriptCbor;
+      this.txOutput.referenceScript = { code: scriptCbor, version };
     }
     return this;
   };
@@ -376,7 +508,8 @@ export class MeshTxBuilderCore {
   spendingTxInReference = (
     txHash: string,
     txIndex: number,
-    spendingScriptHash?: string
+    spendingScriptHash?: string,
+    version: LanguageVersion = 'V2'
   ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
@@ -389,6 +522,7 @@ export class MeshTxBuilderCore {
         txHash,
         txIndex,
         spendingScriptHash,
+        version,
       },
     };
     return this;
@@ -413,7 +547,7 @@ export class MeshTxBuilderCore {
    */
   spendingReferenceTxInRedeemerValue = (
     redeemer: Data,
-    exUnits = DEFAULT_REDEEMER_BUDGET
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET }
   ) => {
     this.txInRedeemerValue(redeemer, exUnits);
     return this;
@@ -463,12 +597,16 @@ export class MeshTxBuilderCore {
   /**
    * Set the minting script of current mint
    * @param scriptCBOR The CBOR hex of the minting policy script
+   * @param version Optional - The Plutus script version
    * @returns The MeshTxBuilder instance
    */
-  mintingScript = (scriptCBOR: string) => {
+  mintingScript = (scriptCBOR: string, version: LanguageVersion = 'V2') => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.type) throw Error('Mint information missing');
-    this.mintItem.scriptSource = { type: 'Provided', cbor: scriptCBOR };
+    this.mintItem.scriptSource = {
+      type: 'Provided',
+      script: { code: scriptCBOR, version },
+    };
     return this;
   };
 
@@ -478,7 +616,11 @@ export class MeshTxBuilderCore {
    * @param txIndex The transaction index of the UTxO
    * @returns The MeshTxBuilder instance
    */
-  mintTxInReference = (txHash: string, txIndex: number) => {
+  mintTxInReference = (
+    txHash: string,
+    txIndex: number,
+    version: LanguageVersion = 'V2'
+  ) => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.type) throw Error('Mint information missing');
     if (this.mintItem.type == 'Native') {
@@ -492,19 +634,22 @@ export class MeshTxBuilderCore {
       type: 'Reference Script',
       txHash,
       txIndex,
+      version,
     };
     return this;
   };
 
   /**
    * Set the redeemer for minting
-   * @param redeemer The redeemer in object format
+   * @param redeemer The redeemer in Mesh Data type or Raw constructor like format
    * @param exUnits The execution units budget for the redeemer
+   * @param type The redeemer data type, either Mesh Data type or Raw constructor like format
    * @returns The MeshTxBuilder instance
    */
   mintReferenceTxInRedeemerValue = (
-    redeemer: Data,
-    exUnits = DEFAULT_REDEEMER_BUDGET
+    redeemer: Data | object | string,
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+    type: 'Mesh' | 'Raw' = 'Mesh'
   ) => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (this.mintItem.type == 'Native') {
@@ -514,8 +659,22 @@ export class MeshTxBuilderCore {
     } else if (this.mintItem.type == 'Plutus') {
       if (!this.mintItem.policyId)
         throw Error('PolicyId information missing from mint asset');
+      if (type === 'Mesh') {
+        this.mintItem.redeemer = {
+          data: {
+            type,
+            content: redeemer as Data,
+          },
+          exUnits,
+        };
+        return this;
+      }
+      const content = this.castRawDataToJsonString(redeemer as object | string);
       this.mintItem.redeemer = {
-        data: redeemer,
+        data: {
+          type,
+          content,
+        },
         exUnits,
       };
     }
@@ -528,8 +687,12 @@ export class MeshTxBuilderCore {
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
-  mintRedeemerValue = (redeemer: Data, exUnits?: Budget) => {
-    this.mintReferenceTxInRedeemerValue(redeemer, exUnits);
+  mintRedeemerValue = (
+    redeemer: Data | object | string,
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+    type: 'Mesh' | 'Raw' = 'Mesh'
+  ) => {
+    this.mintReferenceTxInRedeemerValue(redeemer, exUnits, type);
     return this;
   };
 
@@ -708,7 +871,7 @@ export class MeshTxBuilderCore {
     const scriptSource = csl.PlutusScriptSource.new_ref_input_with_lang_ver(
       scriptHash,
       scriptRefInput,
-      csl.Language.new_plutus_v2()
+      LANGUAGE_VERSIONS[scriptSourceInfo.version]
     );
     return scriptSource;
   };
@@ -749,7 +912,9 @@ export class MeshTxBuilderCore {
     let cslDatum: csl.DatumSource;
     const { datumSource, scriptSource, redeemer } = scriptTxIn;
     if (datumSource.type === 'Provided') {
-      cslDatum = csl.DatumSource.new(toPlutusData(datumSource.data));
+      cslDatum = csl.DatumSource.new(
+        this.castDataToPlutusData(datumSource.data)
+      );
     } else {
       const refTxIn = csl.TransactionInput.new(
         csl.TransactionHash.from_hex(datumSource.txHash),
@@ -765,15 +930,15 @@ export class MeshTxBuilderCore {
     } else {
       cslScript = csl.PlutusScriptSource.new(
         csl.PlutusScript.from_hex_with_version(
-          scriptSource.scriptCbor,
-          csl.Language.new_plutus_v2()
+          scriptSource.script.code,
+          LANGUAGE_VERSIONS[scriptSource.script.version]
         )
       );
     }
     const cslRedeemer = csl.Redeemer.new(
       csl.RedeemerTag.new_spend(),
       csl.BigNum.from_str('0'),
-      toPlutusData(redeemer.data),
+      this.castDataToPlutusData(redeemer.data),
       csl.ExUnits.new(
         csl.BigNum.from_str(String(redeemer.exUnits.mem)),
         csl.BigNum.from_str(String(redeemer.exUnits.steps))
@@ -807,18 +972,20 @@ export class MeshTxBuilderCore {
     );
     if (datum && datum.type === 'Hash') {
       outputBuilder = outputBuilder.with_data_hash(
-        csl.hash_plutus_data(toPlutusData(datum.data))
+        csl.hash_plutus_data(this.castDataToPlutusData(datum.data))
       );
     }
     if (datum && datum.type === 'Inline') {
-      outputBuilder = outputBuilder.with_plutus_data(toPlutusData(datum.data));
+      outputBuilder = outputBuilder.with_plutus_data(
+        this.castDataToPlutusData(datum.data)
+      );
     }
     if (referenceScript) {
       outputBuilder = outputBuilder.with_script_ref(
         csl.ScriptRef.new_plutus_script(
           csl.PlutusScript.from_hex_with_version(
-            referenceScript,
-            csl.Language.new_plutus_v2()
+            referenceScript.code,
+            LANGUAGE_VERSIONS[referenceScript.version]
           )
         )
       );
@@ -867,25 +1034,17 @@ export class MeshTxBuilderCore {
     );
   };
 
-  private addCollateralReturn = (
-    returnAddress: string,
-    totalCollateral = 0
-  ) => {
-    // TODO: Uncomment until stable
-    // const currentFee = this.txBuilder.get_fee_if_set()?.to_js_value();
-    // const fee = currentFee
-    //   ? currentFee
-    //   : Math.floor(totalCollateral / 1.5).toString();
-    // if (fee) {
-    //   const collateralAmount = Math.ceil(
-    //     (this._protocolParams.collateralPercent * Number(fee)) / 100
-    //   );
-    //   console.log('fee1', fee, collateralAmount);
-    //   this.txBuilder.set_total_collateral_and_return(
-    //     csl.BigNum.from_str(String(collateralAmount)),
-    //     csl.Address.from_bech32(returnAddress)
-    //   );
-    // }
+  private addCollateralReturn = (returnAddress: string) => {
+    const currentFee = this.txBuilder.get_fee_if_set()?.to_js_value();
+    if (currentFee) {
+      const collateralAmount = Math.ceil(
+        (this._protocolParams.collateralPercent * Number(currentFee)) / 100
+      );
+      this.txBuilder.set_total_collateral_and_return(
+        csl.BigNum.from_str(String(collateralAmount)),
+        csl.Address.from_bech32(returnAddress)
+      );
+    }
   };
 
   private addAllReferenceInputs = (refInputs: RefTxIn[]) => {
@@ -929,7 +1088,7 @@ export class MeshTxBuilderCore {
     const newRedeemer: csl.Redeemer = csl.Redeemer.new(
       csl.RedeemerTag.new_mint(),
       csl.BigNum.from_str(String(redeemerIndex)),
-      toPlutusData(redeemer.data),
+      this.castDataToPlutusData(redeemer.data),
       csl.ExUnits.new(
         csl.BigNum.from_str(String(redeemer.exUnits.mem)),
         csl.BigNum.from_str(String(redeemer.exUnits.steps))
@@ -943,12 +1102,12 @@ export class MeshTxBuilderCore {
               csl.TransactionHash.from_hex(scriptSource.txHash),
               scriptSource.txIndex
             ),
-            csl.Language.new_plutus_v2()
+            LANGUAGE_VERSIONS[scriptSource.version]
           )
         : csl.PlutusScriptSource.new(
             csl.PlutusScript.from_hex_with_version(
-              scriptSource.cbor,
-              csl.Language.new_plutus_v2()
+              scriptSource.script.code,
+              LANGUAGE_VERSIONS[scriptSource.script.version]
             )
           );
 
@@ -967,7 +1126,7 @@ export class MeshTxBuilderCore {
       throw Error('Native mint cannot have reference script');
     mintBuilder.add_asset(
       csl.MintWitness.new_native_script(
-        csl.NativeScript.from_hex(scriptSource.cbor)
+        csl.NativeScript.from_hex(scriptSource.script.code)
       ),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
       csl.Int.new_i32(amount)
@@ -1071,5 +1230,23 @@ export class MeshTxBuilderCore {
           break;
       }
     });
+  };
+
+  protected castRawDataToJsonString = (rawData: object | string) => {
+    if (typeof rawData === 'object') {
+      return JSON.stringify(rawData);
+    } else {
+      return rawData as string;
+    }
+  };
+
+  protected castDataToPlutusData = ({ type, content }: BuilderData) => {
+    if (type === 'Mesh') {
+      return toPlutusData(content);
+    }
+    return csl.PlutusData.from_json(
+      content as string,
+      csl.PlutusDatumSchema.DetailedSchema
+    );
   };
 }

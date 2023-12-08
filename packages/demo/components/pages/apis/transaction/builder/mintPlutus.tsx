@@ -5,7 +5,7 @@ export default function Mint() {
   return (
     <Section
       sidebarTo="mintPlutus"
-      header="Mint Plutus script token"
+      header="Mint 'Plutus script' token"
       contentFn={Content()}
     />
   );
@@ -16,36 +16,37 @@ function Content() {
   .mintPlutusScriptV2()
   .mint(quantity: number, policy: string, name: string)
   .mintTxInReference(txHash: string, txIndex: number) // or .mintingScript(scriptCbor: string)
-  .mintRedeemerValue(redeemer: Redeemer, exUnits?: Budget)
+  .mintRedeemerValue(redeemer: Data | object | string, exUnits?: Budget, type?: string)
 `;
 
   return (
     <>
-      <h3>When minting a Plutus token input, there are 3 steps</h3>
+      <h3>When minting tokens with a Plutus script as input, there are 3 steps:</h3>
       <h4>
-        1. Notifying the instance currently we would minting a Plutus token
+        1. Notifying the current instance that we are minting using a Plutus Script
       </h4>
       <h4>
-        2. Providing minting value by <code>.mint()</code>
+        2. Providing minting value (quantity, policy, name) with  <code>.mint()</code>
       </h4>
-      <h4>3. Providing minting information for</h4>
+      <h4>3. Providing minting information, which consists of:</h4>
       <div className="pl-4">
-        <h4>(a) the script source by</h4>
+        <h4>(a) the script source, supplied by either</h4>
         <p className="pl-4">
-          (i) Reference script
-          <code>.mintTxInReference()</code>
+          (i) providing a Reference script with
+          <code>.mintTxInReference()</code> or
           <br />
-          (ii) Supplying script
+          (ii) Supplying script source (cbor string) directly with
           <code>.mintingScript()</code>
         </p>
       </div>
       <div className="pl-4">
-        <h4>(b) the redeemer source by</h4>
+        <h4>(b) the redeemer source with</h4>
+        <h4>Note that the data provided can be the "Mesh" type, or "Raw", which is the JSON representation of PlutusData in DetailedSchema</h4>
         <p className="pl-4">
           <code>.mintRedeemerValue()</code>
         </p>
       </div>
-      <h3>A complete example below:</h3>
+      <h3>Example of minting a token using a Plutus script:</h3>
       <Codeblock data={code} isJson={false} />
     </>
   );

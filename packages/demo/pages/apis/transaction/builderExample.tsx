@@ -9,11 +9,17 @@ import TransactionWithObject from '../../../components/pages/apis/transaction/bu
 import TransactionWithoutDependency from '../../../components/pages/apis/transaction/builderExample/withoutDependency';
 import CommonHero from '../../../components/pages/apis/transaction/commonHero';
 import Metatags from '../../../components/site/metatags';
+import LockFund from '../../../components/pages/apis/transaction/builderExample/lockFund';
+import UnlockFund from '../../../components/pages/apis/transaction/builderExample/unlockFund';
+import MintToken from '../../../components/pages/apis/transaction/builderExample/mintToken';
 
 const TransactionBuilderExamplePage: NextPage = () => {
   const sidebarItems = [
     { label: 'Getting Started', to: 'gettingStarted' },
-    { label: 'Send values', to: 'sendValues' },
+    { label: 'Send Values', to: 'sendValues' },
+    { label: 'Lock Fund', to: 'lockFund' },
+    { label: 'Unlock Fund', to: 'unlockFund' },
+    { label: 'Mint Tokens', to: 'mintToken' },
     { label: 'Complex Transaction', to: 'complexTransaction' },
     { label: 'Build without dependency', to: 'withoutDependency' },
     { label: 'Build with object', to: 'withObject' },
@@ -34,11 +40,16 @@ const TransactionBuilderExamplePage: NextPage = () => {
         <p>
           For a complete walkthrough of all available cardano-cli like APIs,
           please refer to the{' '}
-          <Link href="/apis/transaction/builder">MeshTxBuilder - All APIs</Link>{' '}
+          <Link href="/apis/transaction/builder">
+            MeshTxBuilder - All API Endpoints
+          </Link>{' '}
           page.
         </p>
         <GettingStarted />
         <SendValues />
+        <LockFund />
+        <UnlockFund />
+        <MintToken />
         <ComplexTransaction />
         <TransactionWithoutDependency />
         <TransactionWithObject />

@@ -14,55 +14,49 @@ export default function TransactionWithObject() {
 }
 
 function Content() {
-  let codeSnippet = ``;
-  codeSnippet += `const myTx = {\n`;
-  codeSnippet += `  inputs: [\n`;
-  codeSnippet += `    {\n`;
-  codeSnippet += `      type: 'PubKey',\n`;
-  codeSnippet += `      txIn: {\n`;
-  codeSnippet += `        txHash: '572bca237e440b596f4f71374b4b610a995095c6b62a6dcc8549089b93ba0e33',\n`;
-  codeSnippet += `        txIndex: 0,\n`;
-  codeSnippet += `      },\n`;
-  codeSnippet += `    },\n`;
-  codeSnippet += `    {\n`;
-  codeSnippet += `      type: 'PubKey',\n`;
-  codeSnippet += `      txIn: {\n`;
-  codeSnippet += `        txHash: '572bca237e440b596f4f71374b4b610a995095c6b62a6dcc8549089b93ba0e33',\n`;
-  codeSnippet += `        txIndex: 3,\n`;
-  codeSnippet += `      },\n`;
-  codeSnippet += `    },\n`;
-  codeSnippet += `  ],\n`;
-  codeSnippet += `  outputs: [\n`;
-  codeSnippet += `    {\n`;
-  codeSnippet += `      address: 'addr_test1qz8j439j54afpl4hw978xcw8qsa0dsmyd6wm9v8xzeyz7ucrj5rt3et7z59mvmmpxnejvn2scwmseezdq5h5fpw08z8s8d93my',\n`;
-  codeSnippet += `      amount: [\n`;
-  codeSnippet += `        { unit: 'lovelace', quantity: '2000000' },\n`;
-  codeSnippet += `        { unit: 'baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817006d65736874657374696e672e616461', quantity: '1' },\n`;
-  codeSnippet += `      ],\n`;
-  codeSnippet += `    },\n`;
-  codeSnippet += `  ],\n`;
-  codeSnippet += `  collaterals: [\n`;
-  codeSnippet += `    {\n`;
-  codeSnippet += `      type: 'PubKey',\n`;
-  codeSnippet += `      txIn: {\n`;
-  codeSnippet += `        txHash: '3fbdf2b0b4213855dd9b87f7c94a50cf352ba6edfdded85ecb22cf9ceb75f814',\n`;
-  codeSnippet += `        txIndex: 6,\n`;
-  codeSnippet += `      },\n`;
-  codeSnippet += `    },\n`;
-  codeSnippet += `  ],\n`;
-  codeSnippet += `  requiredSignatures: [],\n`;
-  codeSnippet += `  referenceInputs: [],\n`;
-  codeSnippet += `  mints: [],\n`;
-  codeSnippet += `  changeAddress: 'addr_test1vpw22xesfv0hnkfw4k5vtrz386tfgkxu6f7wfadug7prl7s6gt89x',\n`;
-  codeSnippet += `  metadata: [],\n`;
-  codeSnippet += `  validityRange: {},\n`;
-  codeSnippet += `  signingKey: [\n`;
-  codeSnippet += `    '5820xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',\n`;
-  codeSnippet += `  ],\n`;
-  codeSnippet += `};\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `await mesh.complete(myTx);\n`;
-  codeSnippet += `const signedTx = mesh.completeSigning();`;
+  let codeSnippet = `const meshTxBody: MeshTxBuilderBody = {
+  inputs: [
+    {
+      type: "PubKey",
+      txIn: {
+        txHash: txHash1,
+        txIndex: txIndex1,
+      },
+    },
+    {
+      type: "PubKey",
+      txIn: {
+        txHash: txHash2,
+        txIndex: txIndex2,
+      },
+    },
+  ],
+  outputs: [
+    {
+      address: walletAddress,
+      amount: [{ unit: "lovelace", quantity: "1000000" }],
+    },
+  ],
+  collaterals: [
+    {
+      type: "PubKey",
+      txIn: {
+        txHash: "ee8369ffadd6ed6efdd939639b393f08974fca388b2c43d03a96a1fa4840c5f8",
+        txIndex: 0,
+      },
+    },
+  ],
+  requiredSignatures: [],
+  referenceInputs: [],
+  mints: [],
+  changeAddress: walletAddress,
+  metadata: [],
+  validityRange: {},
+  signingKey: [skey],
+};
+
+await mesh.complete(meshTxBody);
+const signedTx = mesh.completeSigning();`;
 
   return (
     <>
@@ -86,6 +80,11 @@ function Content() {
         section with an object:
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
+      <p>
+        <a href="https://github.com/sidan-lab/mesh-lower-level-api-demo/blob/mesh-docs/src/pages/index.tsx#L112C1-L166C1">
+          Full Code Snippet in Github
+        </a>
+      </p>
     </>
   );
 }

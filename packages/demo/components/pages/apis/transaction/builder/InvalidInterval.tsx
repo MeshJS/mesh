@@ -20,15 +20,15 @@ function Content() {
   return (
     <>
       <p>
-        Use <code>.invalidBefore()</code> to set the transaction valid interval
-        to be valid only after the slot:
+        Use <code>.invalidBefore()</code> to set the transaction validity interval
+        to be valid only after the specified slot:
       </p>
 
       <Codeblock data={codeBefore} isJson={false} />
 
       <p>
-        Use <code>.invalidHereafter()</code> to set the transaction valid
-        interval to be valid only before the slot:
+        Use <code>.invalidHereafter()</code> to set the transaction validity
+        interval to be valid only before the specified slot:
       </p>
 
       <Codeblock data={codeAfter} isJson={false} />

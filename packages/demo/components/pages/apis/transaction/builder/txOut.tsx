@@ -20,26 +20,29 @@ function Content() {
 
   let codeWithDatum = `mesh
   .txOut(address: string, amount: Asset[])
-  .txOutDatumHashValue(datum: Data) // or .txOutInlineDatumValue(datum: Data)
+  .txOutDatumHashValue(datum: Data | object | string, type?: string) // or .txOutInlineDatumValue(datum: Data | object | string, type?: string)
 `;
 
   return (
     <>
       <p>
-        Use <code>txOut()</code> to set the input datum for transaction:
+        <code>txOut()</code> is used in its basic form as follows. You could
+        provide empty array or only native token to <code>amount: Asset[]</code>
+        , in that case the minUTxO needed would be calculated automatically at
+        complete.
       </p>
 
       <Codeblock data={code} isJson={false} />
       <h3>Attaching datum in output</h3>
       <p>
-        You could attach datum with the output by
+        You can attach datum to this transaction output by using either
         <code>.txOutDatumHashValue()</code> or{' '}
         <code>.txOutInlineDatumValue()</code>
       </p>
       <Codeblock data={codeWithDatum} isJson={false} />
       <h3>Attaching script in output for referencing</h3>
       <p>
-        You could attach script the output by
+        You can attach a reference script to the output using
         <code>.txOutReferenceScript()</code>
       </p>
       <Codeblock data={codeWithScript} isJson={false} />
