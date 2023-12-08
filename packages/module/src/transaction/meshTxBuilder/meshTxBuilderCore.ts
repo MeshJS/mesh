@@ -1,8 +1,16 @@
 import {
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
+  LANGUAGE_VERSIONS,
 } from '@mesh/common/constants';
-import { Action, Asset, Budget, Data, Protocol } from '@mesh/common/types';
+import {
+  Action,
+  Asset,
+  Budget,
+  Data,
+  LanguageVersion,
+  Protocol,
+} from '@mesh/common/types';
 import {
   buildTxBuilder,
   toValue,
@@ -204,15 +212,19 @@ export class MeshTxBuilderCore {
   /**
    * Set the script for transaction input
    * @param {string} scriptCbor The CborHex of the script
+   * @param version Optional - The Plutus script version
    * @returns The MeshTxBuilder instance
    */
-  txInScript = (scriptCbor: string) => {
+  txInScript = (scriptCbor: string, version: LanguageVersion = 'V2') => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
     this.txInQueueItem.scriptTxIn.scriptSource = {
       type: 'Provided',
-      scriptCbor,
+      script: {
+        code: scriptCbor,
+        version,
+      },
     };
     return this;
   };
@@ -352,11 +364,15 @@ export class MeshTxBuilderCore {
   /**
    * Set the reference script to be attached with the output
    * @param scriptCbor The CBOR hex of the script to be attached to UTxO as reference script
+   * @param version Optional - The Plutus script version
    * @returns The MeshTxBuilder instance
    */
-  txOutReferenceScript = (scriptCbor: string) => {
+  txOutReferenceScript = (
+    scriptCbor: string,
+    version: LanguageVersion = 'V2'
+  ) => {
     if (this.txOutput) {
-      this.txOutput.referenceScript = scriptCbor;
+      this.txOutput.referenceScript = { code: scriptCbor, version };
     }
     return this;
   };
@@ -384,7 +400,8 @@ export class MeshTxBuilderCore {
   spendingTxInReference = (
     txHash: string,
     txIndex: number,
-    spendingScriptHash?: string
+    spendingScriptHash?: string,
+    version: LanguageVersion = 'V2'
   ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
@@ -397,6 +414,7 @@ export class MeshTxBuilderCore {
         txHash,
         txIndex,
         spendingScriptHash,
+        version,
       },
     };
     return this;
@@ -471,12 +489,16 @@ export class MeshTxBuilderCore {
   /**
    * Set the minting script of current mint
    * @param scriptCBOR The CBOR hex of the minting policy script
+   * @param version Optional - The Plutus script version
    * @returns The MeshTxBuilder instance
    */
-  mintingScript = (scriptCBOR: string) => {
+  mintingScript = (scriptCBOR: string, version: LanguageVersion = 'V2') => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.type) throw Error('Mint information missing');
-    this.mintItem.scriptSource = { type: 'Provided', cbor: scriptCBOR };
+    this.mintItem.scriptSource = {
+      type: 'Provided',
+      script: { code: scriptCBOR, version },
+    };
     return this;
   };
 
@@ -486,7 +508,11 @@ export class MeshTxBuilderCore {
    * @param txIndex The transaction index of the UTxO
    * @returns The MeshTxBuilder instance
    */
-  mintTxInReference = (txHash: string, txIndex: number) => {
+  mintTxInReference = (
+    txHash: string,
+    txIndex: number,
+    version: LanguageVersion = 'V2'
+  ) => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (!this.mintItem.type) throw Error('Mint information missing');
     if (this.mintItem.type == 'Native') {
@@ -500,6 +526,7 @@ export class MeshTxBuilderCore {
       type: 'Reference Script',
       txHash,
       txIndex,
+      version,
     };
     return this;
   };
@@ -716,7 +743,7 @@ export class MeshTxBuilderCore {
     const scriptSource = csl.PlutusScriptSource.new_ref_input_with_lang_ver(
       scriptHash,
       scriptRefInput,
-      csl.Language.new_plutus_v2()
+      LANGUAGE_VERSIONS[scriptSourceInfo.version]
     );
     return scriptSource;
   };
@@ -773,8 +800,8 @@ export class MeshTxBuilderCore {
     } else {
       cslScript = csl.PlutusScriptSource.new(
         csl.PlutusScript.from_hex_with_version(
-          scriptSource.scriptCbor,
-          csl.Language.new_plutus_v2()
+          scriptSource.script.code,
+          LANGUAGE_VERSIONS[scriptSource.script.version]
         )
       );
     }
@@ -825,8 +852,8 @@ export class MeshTxBuilderCore {
       outputBuilder = outputBuilder.with_script_ref(
         csl.ScriptRef.new_plutus_script(
           csl.PlutusScript.from_hex_with_version(
-            referenceScript,
-            csl.Language.new_plutus_v2()
+            referenceScript.code,
+            LANGUAGE_VERSIONS[referenceScript.version]
           )
         )
       );
@@ -943,12 +970,12 @@ export class MeshTxBuilderCore {
               csl.TransactionHash.from_hex(scriptSource.txHash),
               scriptSource.txIndex
             ),
-            csl.Language.new_plutus_v2()
+            LANGUAGE_VERSIONS[scriptSource.version]
           )
         : csl.PlutusScriptSource.new(
             csl.PlutusScript.from_hex_with_version(
-              scriptSource.cbor,
-              csl.Language.new_plutus_v2()
+              scriptSource.script.code,
+              LANGUAGE_VERSIONS[scriptSource.script.version]
             )
           );
 
@@ -967,7 +994,7 @@ export class MeshTxBuilderCore {
       throw Error('Native mint cannot have reference script');
     mintBuilder.add_asset(
       csl.MintWitness.new_native_script(
-        csl.NativeScript.from_hex(scriptSource.cbor)
+        csl.NativeScript.from_hex(scriptSource.script.code)
       ),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
       csl.Int.new_i32(amount)

@@ -33,7 +33,7 @@ function Content() {
   }
 }`;
 
-  let codeScriptTxIn = `PubKeyTxIn = {
+  let codeScriptTxIn = `ScriptTxIn = {
   type: 'Script';
   txIn: {
     txHash: string;
@@ -42,11 +42,15 @@ function Content() {
     address?: string;
   }
   scriptTxIn: {
-    scriptSource?: {
-      txHash: string;
-      txIndex: number;
-      spendingScriptHash?: string;
-    };
+    scriptSource?:
+      | {
+          type: 'Provided';
+          script: PlutusScript;
+        }
+      | {
+          type: 'Inline';
+          txInInfo: ScriptSourceInfo;
+        };
     datumSource?:
       | {
           type: 'Provided';
@@ -64,6 +68,14 @@ function Content() {
   }
 }`;
 
+  let codeScriptSourceInfo = `ScriptSourceInfo = {
+  txHash: string;
+  txIndex: number;
+  spendingScriptHash?: string;
+  version: LanguageVersion;
+}
+`;
+
   let codeRefTxIn = `RefTxIn = {
   txHash: string;
   txIndex: number;
@@ -78,7 +90,7 @@ function Content() {
       type: 'Hash' | 'Inline';
       data: Data;
     };
-    referenceScript?: string;
+    referenceScript?: PlutusScript;
 }`;
 
   let codeMintItem = `MintItem = {
@@ -90,13 +102,19 @@ function Content() {
   scriptSource?:
     | {
         type: 'Provided';
-        cbor: string;
+        script: PlutusScript;
       }
     | {
         type: 'Reference Script';
         txHash: string;
         txIndex: number;
+        version: LanguageVersion;
       };
+}`;
+
+  let codeValidityRange = `ValidityRange = {
+  invalidBefore?: number;
+  invalidHereafter?: number;
 }`;
 
   let codeRedeemer = `Redeemer = {
@@ -107,11 +125,6 @@ function Content() {
   let codeMetadata = `Metadata = {
   tag: string;
   metadata: object;
-}`;
-
-  let codeValidityRange = `ValidityRange = {
-  invalidBefore?: number;
-  invalidHereafter?: number;
 }`;
 
   let codeAsset = ``;
@@ -130,11 +143,16 @@ function Content() {
   codeData += `         fields: Array<Data>;\n`;
   codeData += `       }`;
 
+  let codePlutusScript = `PlutusScript = {
+  version: LanguageVersion;
+  code: string;
+}`;
+  let codeLanguageVersion = `LanguageVersion = "V1" | "V2"`;
+
   return (
     <>
       <p>
-        All the schemas used in the Mesh lower-level APIs can be found
-        here.
+        All the schemas used in the Mesh lower-level APIs can be found here.
       </p>
 
       <Codeblock data={codeMeshTxBuilderBody} isJson={false} />
@@ -150,22 +168,28 @@ function Content() {
       <Codeblock data={codePubKeyTxIn} isJson={false} />
       <code>ScriptTxIn</code>
       <Codeblock data={codeScriptTxIn} isJson={false} />
+      <code>ScriptSourceInfo</code>
+      <Codeblock data={codeScriptSourceInfo} isJson={false} />
       <code>RefTxIn</code>
       <Codeblock data={codeRefTxIn} isJson={false} />
       <code>Output</code>
       <Codeblock data={codeOutput} isJson={false} />
       <code>MintItem</code>
       <Codeblock data={codeMintItem} isJson={false} />
+      <code>ValidityRange</code>
+      <Codeblock data={codeValidityRange} isJson={false} />
       <code>Redeemer</code>
       <Codeblock data={codeRedeemer} isJson={false} />
       <code>Metadata</code>
       <Codeblock data={codeMetadata} isJson={false} />
-      <code>ValidityRange</code>
-      <Codeblock data={codeValidityRange} isJson={false} />
       <code>Asset</code>
       <Codeblock data={codeAsset} isJson={false} />
       <code>Data</code>
       <Codeblock data={codeData} isJson={false} />
+      <code>PlutusScript</code>
+      <Codeblock data={codePlutusScript} isJson={false} />
+      <code>LanguageVersion</code>
+      <Codeblock data={codeLanguageVersion} isJson={false} />
     </>
   );
 }
