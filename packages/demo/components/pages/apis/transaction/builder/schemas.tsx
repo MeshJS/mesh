@@ -54,7 +54,7 @@ function Content() {
     datumSource?:
       | {
           type: 'Provided';
-          data: Data;
+          data: BuilderData;
         }
       | {
           type: 'Inline';
@@ -62,7 +62,7 @@ function Content() {
           txIndex: number;
         };
     redeemer?: {
-      data: Data;
+      data: BuilderData;
       exUnits: Budget;
     };
   }
@@ -88,7 +88,7 @@ function Content() {
     amount: Asset[];
     datum?: {
       type: 'Hash' | 'Inline';
-      data: Data;
+      data: BuilderData;
     };
     referenceScript?: PlutusScript;
 }`;
@@ -117,8 +117,18 @@ function Content() {
   invalidHereafter?: number;
 }`;
 
+  let codeBuilderData = `BuilderData =
+  | {
+    type: 'Mesh';
+    content: Data;
+  }
+  | {
+      type: 'Raw';
+      content: string | object;
+    };`;
+
   let codeRedeemer = `Redeemer = {
-  data: Data;
+  data: BuilderData;
   exUnits: Budget;
 }`;
 
@@ -178,6 +188,8 @@ function Content() {
       <Codeblock data={codeMintItem} isJson={false} />
       <code>ValidityRange</code>
       <Codeblock data={codeValidityRange} isJson={false} />
+      <code>BuilderData</code>
+      <Codeblock data={codeBuilderData} isJson={false} />
       <code>Redeemer</code>
       <Codeblock data={codeRedeemer} isJson={false} />
       <code>Metadata</code>

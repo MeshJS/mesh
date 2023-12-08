@@ -51,7 +51,7 @@ export type ScriptTxInParameter = {
   datumSource?:
     | {
         type: 'Provided';
-        data: Data;
+        data: BuilderData;
       }
     | {
         type: 'Inline';
@@ -75,7 +75,7 @@ export type Output = {
   amount: Asset[];
   datum?: {
     type: 'Hash' | 'Inline';
-    data: Data;
+    data: BuilderData;
   };
   referenceScript?: PlutusScript;
 };
@@ -106,10 +106,20 @@ export type ValidityRange = {
   invalidHereafter?: number;
 };
 
+export type BuilderData =
+  | {
+      type: 'Mesh';
+      content: Data;
+    }
+  | {
+      type: 'Raw';
+      content: string | object;
+    };
+
 // Mint Types
 
 export type Redeemer = {
-  data: Data;
+  data: BuilderData;
   exUnits: Budget;
 };
 
