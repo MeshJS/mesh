@@ -148,16 +148,18 @@ export class MeshTxBuilderCore {
               ?.quantity || '0'
         )
         .reduce((acc, curr) => acc + parseInt(curr), 0);
-
-      this.txBuilder.set_collateral_return(
-        csl.TransactionOutput.new(
-          csl.Address.from_bech32(changeAddress),
-          csl.Value.new(csl.BigNum.from_str(String(totalCollateral)))
-        )
-      );
-      this.txBuilder.set_total_collateral(
-        csl.BigNum.from_str(String(totalCollateral))
-      );
+        
+      if (totalCollateral > 0) {
+        this.txBuilder.set_collateral_return(
+          csl.TransactionOutput.new(
+            csl.Address.from_bech32(changeAddress),
+            csl.Value.new(csl.BigNum.from_str(String(totalCollateral)))
+          )
+        );
+        this.txBuilder.set_total_collateral(
+          csl.BigNum.from_str(String(totalCollateral))
+        );
+      }
 
       this.addChange(changeAddress);
       this.addCollateralReturn(changeAddress);
