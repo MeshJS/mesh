@@ -44,7 +44,41 @@ export class MeshTxBuilderCore {
   private addingPlutusMint = false;
   protected isHydra = false;
 
-  meshTxBuilderBody: MeshTxBuilderBody = {
+  meshTxBuilderBody: MeshTxBuilderBody;
+
+  protected mintItem?: MintItem;
+
+  protected txInQueueItem?: TxIn;
+
+  protected collateralQueueItem?: PubKeyTxIn;
+
+  protected refScriptTxInQueueItem?: RefTxIn;
+
+  /**
+   * Reset everything in the MeshTxBuilder instance
+   * @returns The MeshTxBuilder instance
+   */
+  reset = () => {
+    this.txHex = '';
+    this.txBuilder = buildTxBuilder();
+    this.txEvaluationMultiplier = 1.1;
+    this._protocolParams = DEFAULT_PROTOCOL_PARAMETERS;
+    this.txOutput = undefined;
+    this.addingScriptInput = false;
+    this.addingPlutusMint = false;
+    this.mintItem = undefined;
+    this.txInQueueItem = undefined;
+    this.collateralQueueItem = undefined;
+    this.refScriptTxInQueueItem = undefined;
+    this.meshTxBuilderBody = this.emptyTxBuilderBody();
+    return this;
+  };
+
+  /**
+   * Make an empty transaction body for building transaction in object
+   * @returns An empty transaction body
+   */
+  emptyTxBuilderBody = (): MeshTxBuilderBody => ({
     inputs: [],
     outputs: [],
     collaterals: [],
@@ -55,15 +89,11 @@ export class MeshTxBuilderCore {
     metadata: [],
     validityRange: {},
     signingKey: [],
-  };
+  });
 
-  protected mintItem?: MintItem;
-
-  protected txInQueueItem?: TxIn;
-
-  protected collateralQueueItem?: PubKeyTxIn;
-
-  protected refScriptTxInQueueItem?: RefTxIn;
+  constructor() {
+    this.meshTxBuilderBody = this.emptyTxBuilderBody();
+  }
 
   /**
    * Synchronous functions here
@@ -93,7 +123,7 @@ export class MeshTxBuilderCore {
     return this.txHex;
   };
 
-  serializeTxBody = (txBody: MeshTxBuilderBody) => {
+  private serializeTxBody = (txBody: MeshTxBuilderBody) => {
     const {
       inputs,
       outputs,
