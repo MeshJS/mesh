@@ -324,7 +324,10 @@ export class MeshTxBuilderCore {
    */
   txInRedeemerValue = (
     redeemer: Data | object | string,
-    exUnits = DEFAULT_REDEEMER_BUDGET,
+    exUnits = {
+      mem: DEFAULT_REDEEMER_BUDGET.mem,
+      steps: DEFAULT_REDEEMER_BUDGET.steps
+    },
     type: 'Mesh' | 'Raw' = 'Mesh'
   ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
