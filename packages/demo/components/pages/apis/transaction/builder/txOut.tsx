@@ -26,7 +26,10 @@ function Content() {
   return (
     <>
       <p>
-        <code>txOut()</code> is used in its basic form as follows:
+        <code>txOut()</code> is used in its basic form as follows. You could
+        provide empty array or only native token to <code>amount: Asset[]</code>
+        , in that case the minUTxO needed would be calculated automatically at
+        complete.
       </p>
 
       <Codeblock data={code} isJson={false} />

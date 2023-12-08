@@ -20,6 +20,7 @@ function Content() {
   codeSnippet += `const mesh = new MeshTxBuilder({\n`;
   codeSnippet += `  fetcher: maestro,\n`;
   codeSnippet += `  submitter: maestro,\n`;
+  codeSnippet += `  evaluator: maestro,\n`;
   codeSnippet += `});\n`;
 
   return (
@@ -57,6 +58,13 @@ function Content() {
       <p>
         4. <code>isHydra</code>: Use another set of default protocol parameters
         for building transactions
+      </p>
+      <p>
+        {`Below provides some examples of transaction building. Complete working
+        examples can be found in `}
+        <a href="https://github.com/sidan-lab/mesh-lower-level-api-demo">
+          mesh-lower-level-api-demo
+        </a>
       </p>
     </>
   );

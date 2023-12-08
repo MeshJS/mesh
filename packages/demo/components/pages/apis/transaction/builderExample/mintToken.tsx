@@ -1,11 +1,11 @@
 import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
-export default function ComplexTransaction() {
+export default function MintToken() {
   return (
     <Section
-      sidebarTo="complexTransaction"
-      header="Build a complex transaction"
+      sidebarTo="mintToken"
+      header="Build a transaction to mint tokens"
       contentFn={Content()}
     />
   );
@@ -14,11 +14,6 @@ export default function ComplexTransaction() {
 function Content() {
   const codeSnippet = `await mesh
   .txIn(txInHash, txInId)
-  .spendingPlutusScriptV2()
-  .txIn(validatorInput.txHash, validatorInput.outputIndex)
-  .txInInlineDatumPresent()
-  .txInRedeemerValue(mConStr0([]))
-  .txInScript(getScriptCbor("Spending"))
   .mintPlutusScriptV2()
   .mint(1, policyId, tokenName)
   .mintingScript(mintingScript)
@@ -34,12 +29,12 @@ const signedTx = mesh.completeSigning()`;
   return (
     <>
       <p>
-        The following shows a simple example of building a transaction of both
-        unlocking from script and minting tokens:
+        The following shows a simple example of building a transaction to mint a
+        token with smart contract:
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        <a href="https://github.com/sidan-lab/mesh-lower-level-api-demo/blob/mesh-docs/src/transactions/demo.ts#L139C1-L171C5">
+        <a href="https://github.com/sidan-lab/mesh-lower-level-api-demo/blob/mesh-docs/src/transactions/demo.ts#L119C1-L137C5">
           Full Code Snippet in Github
         </a>
       </p>

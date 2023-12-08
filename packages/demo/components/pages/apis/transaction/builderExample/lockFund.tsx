@@ -1,11 +1,11 @@
 import Section from '../../../../common/section';
 import Codeblock from '../../../../ui/codeblock';
 
-export default function SendValues() {
+export default function LockFund() {
   return (
     <Section
-      sidebarTo="sendValues"
-      header="Build a simple transaction to send values"
+      sidebarTo="lockFund"
+      header="Build a transaction to send fund to smart contract"
       contentFn={Content()}
     />
   );
@@ -14,7 +14,8 @@ export default function SendValues() {
 function Content() {
   const codeSnippet = `await mesh
   .txIn(txInHash, txInId)
-  .txOut(this.constants.walletAddress, [{ unit: "lovelace", quantity: amount.toString() }])
+  .txOut(validatorAddress, [])
+  .txOutInlineDatumValue(1618)
   .changeAddress(this.constants.walletAddress)
   .signingKey(this.constants.skey)
   .complete();
@@ -24,12 +25,14 @@ const signedTx = mesh.completeSigning()`;
   return (
     <>
       <p>
-        The following shows a simple example of building a transaction to send
-        values to a recipient:
+        The following shows a simple example of building a transaction to lock
+        fund in a smart contact. It is equivalent to the following CLI command
+        in <a href="https://plutuspbl.io/modules/102/1024">PPBL Module 102.4</a>
+        .
       </p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        <a href="https://github.com/sidan-lab/mesh-lower-level-api-demo/blob/mesh-docs/src/transactions/demo.ts#L68C1-L78C5">
+        <a href="https://github.com/sidan-lab/mesh-lower-level-api-demo/blob/mesh-docs/src/transactions/demo.ts#L80C1-L91C5">
           Full Code Snippet in Github
         </a>
       </p>

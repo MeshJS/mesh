@@ -13,7 +13,7 @@ export default function TransactionWithoutDependency() {
 
 function Content() {
   let codeSnippet = ``;
-  codeSnippet += `const signedTx = await mesh\n`;
+  codeSnippet += `const signedTx = mesh\n`;
   codeSnippet += `  .txIn('572bca237e440b596f4f71374b4b610a995095c6b62a6dcc8549089b93ba0e33', 0, [{ unit: 'lovelace', quantity: '2000000' }], myAddress)\n`;
   codeSnippet += `  .txIn('572bca237e440b596f4f71374b4b610a995095c6b62a6dcc8549089b93ba0e33', 3, [{ unit: 'lovelace', quantity: '2000000' }], myAddress)\n`;
   codeSnippet += `  .txOut(recipient, [\n`;
