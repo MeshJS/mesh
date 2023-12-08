@@ -16,7 +16,7 @@ function Content() {
   .spendingPlutusScriptV2()
   .txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)
   .txInInlineDatumPresent() // or .txInDatumValue(datum: Data)
-  .txInRedeemerValue(redeemer: Redeemer, exUnits?: Budget)
+  .txInRedeemerValue(redeemer: Data | object | string, exUnits?: Budget, type?: string)
   .spendingTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string) // or supplying script
 `;
 
@@ -40,8 +40,9 @@ function Content() {
       </div>
       <div className="pl-4">
         <h4>(b) the redeemer using</h4>
+        <h4>Note that the data provided can be the "Mesh" type, or "Raw", which is the JSON representation of PlutusData in DetailedSchema</h4>
         <p className="pl-4">
-          <code>.txInRedeemerValue()</code>
+          <code>.txInRedeemerValue(redeemer: Data | object | string, exUnits?: Budget, type?: string)</code>
         </p>
       </div>
       <div className="pl-4">

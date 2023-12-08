@@ -20,7 +20,7 @@ function Content() {
 
   let codeWithDatum = `mesh
   .txOut(address: string, amount: Asset[])
-  .txOutDatumHashValue(datum: Data) // or .txOutInlineDatumValue(datum: Data)
+  .txOutDatumHashValue(datum: Data | object | string, type?: string) // or .txOutInlineDatumValue(datum: Data | object | string, type?: string)
 `;
 
   return (

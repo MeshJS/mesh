@@ -16,7 +16,7 @@ function Content() {
   .mintPlutusScriptV2()
   .mint(quantity: number, policy: string, name: string)
   .mintTxInReference(txHash: string, txIndex: number) // or .mintingScript(scriptCbor: string)
-  .mintRedeemerValue(redeemer: Redeemer, exUnits?: Budget)
+  .mintRedeemerValue(redeemer: Data | object | string, exUnits?: Budget, type?: string)
 `;
 
   return (
@@ -41,6 +41,7 @@ function Content() {
       </div>
       <div className="pl-4">
         <h4>(b) the redeemer source with</h4>
+        <h4>Note that the data provided can be the "Mesh" type, or "Raw", which is the JSON representation of PlutusData in DetailedSchema</h4>
         <p className="pl-4">
           <code>.mintRedeemerValue()</code>
         </p>
