@@ -178,7 +178,7 @@ export class MeshTxBuilderCore {
               ?.quantity || '0'
         )
         .reduce((acc, curr) => acc + parseInt(curr), 0);
-        
+
       if (totalCollateral > 0) {
         this.txBuilder.set_collateral_return(
           csl.TransactionOutput.new(
@@ -354,10 +354,7 @@ export class MeshTxBuilderCore {
    */
   txInRedeemerValue = (
     redeemer: Data | object | string,
-    exUnits = {
-      mem: DEFAULT_REDEEMER_BUDGET.mem,
-      steps: DEFAULT_REDEEMER_BUDGET.steps
-    },
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
     type: 'Mesh' | 'Raw' = 'Mesh'
   ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
@@ -550,7 +547,7 @@ export class MeshTxBuilderCore {
    */
   spendingReferenceTxInRedeemerValue = (
     redeemer: Data,
-    exUnits = DEFAULT_REDEEMER_BUDGET
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET }
   ) => {
     this.txInRedeemerValue(redeemer, exUnits);
     return this;
@@ -651,7 +648,7 @@ export class MeshTxBuilderCore {
    */
   mintReferenceTxInRedeemerValue = (
     redeemer: Data | object | string,
-    exUnits = DEFAULT_REDEEMER_BUDGET,
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
     type: 'Mesh' | 'Raw' = 'Mesh'
   ) => {
     if (!this.mintItem) throw Error('Undefined mint');
