@@ -308,7 +308,7 @@ function SubMenuTransaction() {
             />
             <SubMenuLinks
               href={`/apis/transaction/builder`}
-              title="MeshTxBuilder - All APIs"
+              title="MeshTxBuilder - All API Endpoints"
               desc="A complete walk through on Mesh's lower level APIs"
               icon={<ListBulletIcon className="w-5 h-5" />}
             />

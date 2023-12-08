@@ -18,16 +18,14 @@ function Content() {
   return (
     <>
       <p>
-        In the Mesh lower level APIs, transaction building process is finished
-        by the <code>.complete()</code> or <code>.completeSync()</code> method,
-        where the <code>MeshTxBuilder</code> instance would look into your
-        transaction building process so far and serialize the transaction ready
-        to be submitted to the blockchain.
+        In the Mesh lower-level API, the transaction building process is concluded
+        by using either the <code>.complete()</code> or <code>.completeSync()</code> method,
+        at which point the <code>MeshTxBuilder</code> instance analyses and completes the serialization
+        of the built transaction so that (if it is valid) it is ready to be submitted to the blockchain.
       </p>
       <p>
-        You could also directly supplying the optional parameter in{' '}
-        <code>MeshTxBuilderBody</code> to build the transaction with the object
-        supplied.
+        You can also directly supply the optional parameter in{' '}
+        <code>MeshTxBuilderBody</code> to build the transaction using the supplied object.
       </p>
       <p>
         Use <code>.complete()</code> (an async method) to complete the
@@ -38,14 +36,14 @@ function Content() {
 
       <p>
         Use <code>.completeSync()</code> to complete the transaction building
-        process without indexing blockchain:
+        process without indexing the blockchain:
       </p>
 
       <Codeblock data={codeSync} isJson={false} />
 
       <p>
         Use <code>.completeSigning()</code> to add private key signing to the
-        witness set process without indexing blockchain:
+        witness set process without indexing the blockchain:
       </p>
 
       <Codeblock data={codeSign} isJson={false} />

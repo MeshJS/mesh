@@ -133,15 +133,16 @@ function Content() {
   return (
     <>
       <p>
-        All the schemas utilizing in the Mesh lower level APIs could be found
+        All the schemas used in the Mesh lower-level APIs can be found
         here.
       </p>
 
       <Codeblock data={codeMeshTxBuilderBody} isJson={false} />
 
       <p>
-        Detail types in constructing the{' '}
-        <code>MeshTxBuilderBody can be found here</code>
+        Details of all the types which construct the{' '}
+        <code>MeshTxBuilderBody</code>
+        can be found below:
       </p>
       <code>TxIn</code>
       <Codeblock data={codeInput} isJson={false} />

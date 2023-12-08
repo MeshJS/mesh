@@ -22,14 +22,14 @@ function Content() {
 
   return (
     <>
-      <h3>When spending a script input, there are 3 steps</h3>
-      <h4>1. Notifying the instance currently we would spend a script input</h4>
+      <h3>There are 3 steps to utilise a script as part of the input for a transaction:</h3>
+      <h4>1. Notifying the current instance that we intend to spend a script input</h4>
       <h4>
-        2. Providing input information by <code>.txIn()</code>
+        2. Providing input information using <code>.txIn()</code>
       </h4>
-      <h4>3. Providing spending information for</h4>
+      <h4>3. Providing the necessary supplementary "spending" script information, which consists of:</h4>
       <div className="pl-4">
-        <h4>(a) the script source by</h4>
+        <h4>(a) the script using one of</h4>
         <p className="pl-4">
           (i) Reference script
           <code>.spendingTxInReference()</code>
@@ -39,13 +39,13 @@ function Content() {
         </p>
       </div>
       <div className="pl-4">
-        <h4>(b) the redeemer source by</h4>
+        <h4>(b) the redeemer using</h4>
         <p className="pl-4">
           <code>.txInRedeemerValue()</code>
         </p>
       </div>
       <div className="pl-4">
-        <h4>(c) the datum source by</h4>
+        <h4>(c) the datum using one of</h4>
         <p className="pl-4">
           (i) Referencing inline datum
           <code>.txInInlineDatumPresent()</code>
@@ -54,7 +54,7 @@ function Content() {
         </p>
       </div>
 
-      <h3>A complete example below:</h3>
+      <h3>Example of utilising a script for input:</h3>
       <Codeblock data={code} isJson={false} />
     </>
   );

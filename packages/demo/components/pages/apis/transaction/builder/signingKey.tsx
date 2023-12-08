@@ -19,7 +19,7 @@ function Content() {
     <>
       <p>
         Use <code>.signingKey()</code> to sign the transaction with the private
-        key in cbor hex format:
+        key (provided in cbor hex format):
       </p>
 
       <Codeblock data={code} isJson={false} />

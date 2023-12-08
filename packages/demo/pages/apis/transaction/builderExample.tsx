@@ -34,7 +34,7 @@ const TransactionBuilderExamplePage: NextPage = () => {
         <p>
           For a complete walkthrough of all available cardano-cli like APIs,
           please refer to the{' '}
-          <Link href="/apis/transaction/builder">MeshTxBuilder - All APIs</Link>{' '}
+          <Link href="/apis/transaction/builder">MeshTxBuilder - All API Endpoints</Link>{' '}
           page.
         </p>
         <GettingStarted />
