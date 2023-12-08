@@ -45,7 +45,7 @@ export default function ProvidersKoios() {
 }
 
 function Hero({ network, setNetwork }) {
-  let code1 = `const koiosProvider = new KoiosProvider('${network}');\n`;
+  let code1 = `const koiosProvider = new KoiosProvider('${network}', '<token>');\n`;
   let code2 = `const koiosProvider = new KoiosProvider('<KOIOS_URL>');\n`;
 
   return (
@@ -111,12 +111,17 @@ function Hero({ network, setNetwork }) {
 
           <Codeblock data={code1} isJson={false} />
           <p>
+            Get your token from{' '}
+            <a href="https://koios.rest/" target="_blank" rel="noreferrer">
+              Koios
+            </a>
+            , by connecting your wallet and select a tier of your choice.
+          </p>
+          <p>
             If you are using a privately hosted instance, you can set the URL in
             the parameter:
           </p>
           <Codeblock data={code2} isJson={false} />
-          <p>Choose network for this demo:</p>
-          
         </div>
         <div className="col-span-1"></div>
       </div>
@@ -130,7 +135,10 @@ function Main({ network }) {
 
   useEffect(() => {
     async function load() {
-      const _koiosProvider = new KoiosProvider(network);
+      const _koiosProvider = new KoiosProvider(
+        network,
+        process.env.NEXT_PUBLIC_KOIOS_TOKEN!
+      );
       setKoiosProvider(_koiosProvider);
     }
     load();
