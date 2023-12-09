@@ -6,7 +6,6 @@ import {
 import {
   Action,
   Asset,
-  Budget,
   Data,
   LanguageVersion,
   Protocol,
@@ -189,10 +188,11 @@ export class MeshTxBuilderCore {
         this.txBuilder.set_total_collateral(
           csl.BigNum.from_str(String(totalCollateral))
         );
+        this.addChange(changeAddress);
+        this.addCollateralReturn(changeAddress);
+      } else {
+        this.addChange(changeAddress);
       }
-
-      this.addChange(changeAddress);
-      this.addCollateralReturn(changeAddress);
     }
 
     this.buildTx();
