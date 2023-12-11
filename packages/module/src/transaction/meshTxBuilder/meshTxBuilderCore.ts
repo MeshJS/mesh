@@ -178,21 +178,55 @@ export class MeshTxBuilderCore {
         )
         .reduce((acc, curr) => acc + parseInt(curr), 0);
 
-      if (totalCollateral > 0) {
-        this.txBuilder.set_collateral_return(
-          csl.TransactionOutput.new(
-            csl.Address.from_bech32(changeAddress),
-            csl.Value.new(csl.BigNum.from_str(String(totalCollateral)))
+      const collateralEsimate = Math.ceil(
+        (this._protocolParams.collateralPercent *
+          Number(
+            Number(
+              this.txBuilder
+                .min_fee()
+                .checked_add(csl.BigNum.from_str('10000'))
+                .to_js_value()
+            )
+          )) /
+          100
+      );
+
+      let collateralReturnNeeded = false;
+
+      if (totalCollateral - collateralEsimate > 0) {
+        const collateralEstimateOutput = csl.TransactionOutput.new(
+          csl.Address.from_bech32(changeAddress),
+          csl.Value.new(csl.BigNum.from_str(String(1)))
+        );
+
+        if (
+          totalCollateral - collateralEsimate >
+          Number(
+            csl
+              .min_ada_for_output(
+                collateralEstimateOutput,
+                csl.DataCost.new_coins_per_byte(
+                  csl.BigNum.from_str(this._protocolParams.coinsPerUTxOSize)
+                )
+              )
+              .to_js_value()
           )
-        );
-        this.txBuilder.set_total_collateral(
-          csl.BigNum.from_str(String(totalCollateral))
-        );
-        this.addChange(changeAddress);
-        this.addCollateralReturn(changeAddress);
-      } else {
-        this.addChange(changeAddress);
+        ) {
+          this.txBuilder.set_collateral_return(
+            csl.TransactionOutput.new(
+              csl.Address.from_bech32(changeAddress),
+              csl.Value.new(csl.BigNum.from_str(String(totalCollateral)))
+            )
+          );
+          this.txBuilder.set_total_collateral(
+            csl.BigNum.from_str(String(totalCollateral))
+          );
+          collateralReturnNeeded = true;
+        }
       }
+
+      this.addChange(changeAddress);
+      if (collateralReturnNeeded) this.addCollateralReturn(changeAddress);
     }
 
     this.buildTx();
