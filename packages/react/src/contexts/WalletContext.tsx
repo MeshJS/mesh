@@ -8,6 +8,7 @@ interface WalletContext {
   connectingWallet: boolean,
   connectWallet?: (walletName: string) => Promise<void>,
   disconnect?: () => void,
+  // setWallet?: () => void,
   error?: unknown,
 }
 
@@ -48,6 +49,11 @@ export const useWalletStore = () => {
     setConnectedWalletInstance(INITIAL_STATE.walletInstance);
   }, []);
 
+  // const setWallet = useCallback((wallet: AppWallet) => {
+  //   setConnectedWalletName(INITIAL_STATE.walletName);
+  //   setConnectedWalletInstance(wallet);
+  // }, []);
+
   return {
     hasConnectedWallet: INITIAL_STATE.walletName !== connectedWalletName,
     connectedWalletInstance,
@@ -55,6 +61,7 @@ export const useWalletStore = () => {
     connectingWallet,
     connectWallet,
     disconnect,
+    // setWallet,
     error,
   };
 };
