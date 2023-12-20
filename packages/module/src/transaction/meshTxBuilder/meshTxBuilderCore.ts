@@ -196,7 +196,7 @@ export class MeshTxBuilderCore {
       if (totalCollateral - collateralEsimate > 0) {
         const collateralEstimateOutput = csl.TransactionOutput.new(
           csl.Address.from_bech32(changeAddress),
-          csl.Value.new(csl.BigNum.from_str(String(1)))
+          csl.Value.new(csl.BigNum.from_str(String(collateralEsimate)))
         );
 
         if (
