@@ -113,11 +113,11 @@ export type BuilderData =
     }
   | {
       type: 'JSON';
-      content: string | object;
+      content: string;
     }
   | {
       type: 'CBOR';
-      content: string | object;
+      content: string;
     };
 
 // Mint Types
