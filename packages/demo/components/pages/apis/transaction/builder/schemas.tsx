@@ -119,12 +119,16 @@ function Content() {
 
   let codeBuilderData = `BuilderData =
   | {
-    type: 'Mesh';
-    content: Data;
-  }
+      type: 'Mesh';
+      content: Data;
+   }
   | {
-      type: 'Raw';
-      content: string | object;
+      type: 'JSON';
+      content: string;
+    }
+  | {
+      type: 'CBOR';
+      content: string;
     };`;
 
   let codeRedeemer = `Redeemer = {
