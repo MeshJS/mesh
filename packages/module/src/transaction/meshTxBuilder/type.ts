@@ -112,7 +112,11 @@ export type BuilderData =
       content: Data;
     }
   | {
-      type: 'Raw';
+      type: 'JSON';
+      content: string | object;
+    }
+  | {
+      type: 'CBOR';
       content: string | object;
     };
 
