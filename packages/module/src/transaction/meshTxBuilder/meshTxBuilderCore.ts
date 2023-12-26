@@ -106,6 +106,8 @@ export class MeshTxBuilderCore {
   completeSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
+    } else {
+      this.queueAllLastItem();
     }
     return this.serializeTxBody(this.meshTxBuilderBody);
   };
@@ -1192,6 +1194,7 @@ export class MeshTxBuilderCore {
     }
     if (this.collateralQueueItem) {
       this.meshTxBuilderBody.collaterals.push(this.collateralQueueItem);
+      this.collateralQueueItem = undefined;
     }
     if (this.mintItem) {
       this.queueMint();
