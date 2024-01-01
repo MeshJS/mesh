@@ -3,6 +3,7 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import { CardanoWallet } from '@meshsdk/react';
 import Link from 'next/link';
+import useLocalStorage from '../../../../hooks/useLocalStorage';
 
 export default function UiConnectWallet() {
   return (
@@ -18,6 +19,8 @@ export default function UiConnectWallet() {
 }
 
 function Left() {
+  let code1 = `<CardanoWallet isDark={true} />`;
+
   return (
     <>
       <p>
@@ -30,16 +33,22 @@ function Left() {
         <Link href="/apis/browserwallet">Browser Wallet</Link> for a list of
         CIP-30 APIs.
       </p>
+      <p>
+        For dark mode style, add <code>isDark</code>.
+      </p>
+      <Codeblock data={code1} isJson={false} />
     </>
   );
 }
 
 function Right() {
+  const [darkMode] = useLocalStorage('darkmode', false);
+
   let code2 = `import { CardanoWallet } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
   code2 += `  return (\n`;
   code2 += `    <>\n`;
-  code2 += `      <CardanoWallet />\n`;
+  code2 += `      <CardanoWallet isDark={false} />\n`;
   code2 += `    </>\n`;
   code2 += `  );\n`;
   code2 += `}\n`;
@@ -47,7 +56,7 @@ function Right() {
   return (
     <Card>
       <Codeblock data={code2} isJson={false} />
-      <CardanoWallet />
+      <CardanoWallet isDark={darkMode} />
     </Card>
   );
 }

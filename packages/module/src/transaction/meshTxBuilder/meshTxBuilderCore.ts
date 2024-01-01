@@ -110,6 +110,8 @@ export class MeshTxBuilderCore {
   completeSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
+    } else {
+      this.queueAllLastItem();
     }
     return this.serializeTxBody(this.meshTxBuilderBody);
   };
@@ -200,7 +202,7 @@ export class MeshTxBuilderCore {
       if (totalCollateral - collateralEsimate > 0) {
         const collateralEstimateOutput = csl.TransactionOutput.new(
           csl.Address.from_bech32(changeAddress),
-          csl.Value.new(csl.BigNum.from_str(String(1)))
+          csl.Value.new(csl.BigNum.from_str(String(collateralEsimate)))
         );
 
         if (
@@ -302,17 +304,22 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the input datum for transaction input
-   * @param datum The datum in Mesh Data type or Raw constructor like format
-   * @param type The datum type, either Mesh Data type or Raw constructor like format
+   * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   txInDatumValue = (
-    datum: Data | object | string,
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    datum: BuilderData['content'],
+    type: BuilderData['type'] = 'Mesh'
   ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
+
+    let content = datum;
+    if (type === 'JSON') {
+      content = this.castRawDataToJsonString(datum as object | string);
+    }
     if (type === 'Mesh') {
       this.txInQueueItem.scriptTxIn.datumSource = {
         type: 'Provided',
@@ -323,12 +330,11 @@ export class MeshTxBuilderCore {
       };
       return this;
     }
-    const content = this.castRawDataToJsonString(datum as object | string);
     this.txInQueueItem.scriptTxIn.datumSource = {
       type: 'Provided',
       data: {
         type,
-        content,
+        content: content as string,
       },
     };
     return this;
@@ -385,21 +391,22 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the redeemer for the reference input to be spent in same transaction
-   * @param redeemer The redeemer in Mesh Data type or Raw constructor like format
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @param exUnits The execution units budget for the redeemer
-   * @param type The redeemer data type, either Mesh Data type or Raw constructor like format
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   txInRedeemerValue = (
-    redeemer: Data | object | string,
+    redeemer: BuilderData['content'],
     exUnits = { ...DEFAULT_REDEEMER_BUDGET },
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    type: BuilderData['type'] = 'Mesh'
   ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Spending tx in reference redeemer attempted to be called a non script input'
       );
+    let content = redeemer;
     if (type === 'Mesh') {
       this.txInQueueItem.scriptTxIn.redeemer = {
         data: {
@@ -410,13 +417,13 @@ export class MeshTxBuilderCore {
       };
       return this;
     }
-    const content: string = this.castRawDataToJsonString(
-      redeemer as object | string
-    );
+    if (type === 'JSON') {
+      content = this.castRawDataToJsonString(redeemer as object | string);
+    }
     this.txInQueueItem.scriptTxIn.redeemer = {
       data: {
         type,
-        content,
+        content: content as string,
       },
       exUnits,
     };
@@ -443,31 +450,34 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the output datum hash for transaction
-   * @param datum The datum in Mesh Data type or Raw constructor like format
-   * @param type The datum type, either Mesh Data type or Raw constructor like format
+   * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   txOutDatumHashValue = (
-    datum: Data | object | string,
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    datum: BuilderData['content'],
+    type: BuilderData['type'] = 'Mesh'
   ) => {
+    let content = datum;
     if (this.txOutput) {
       if (type === 'Mesh') {
         this.txOutput.datum = {
           type: 'Hash',
           data: {
             type,
-            content: datum as Data,
+            content: content as Data,
           },
         };
         return this;
       }
-      const content = this.castRawDataToJsonString(datum as object | string);
+      if (type === 'JSON') {
+        content = this.castRawDataToJsonString(datum as object | string);
+      }
       this.txOutput.datum = {
         type: 'Hash',
         data: {
           type,
-          content,
+          content: content as string,
         },
       };
     }
@@ -476,31 +486,34 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the output inline datum for transaction
-   * @param datum The datum in Mesh Data type or Raw constructor like format
-   * @param type The datum type, either Mesh Data type or Raw constructor like format
+   * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   txOutInlineDatumValue = (
-    datum: Data | object | string,
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    datum: BuilderData['content'],
+    type: BuilderData['type'] = 'Mesh'
   ) => {
+    let content = datum;
     if (this.txOutput) {
       if (type === 'Mesh') {
         this.txOutput.datum = {
           type: 'Inline',
           data: {
             type,
-            content: datum as Data,
+            content: content as Data,
           },
         };
         return this;
       }
-      const content = this.castRawDataToJsonString(datum as object | string);
+      if (type === 'JSON') {
+        content = this.castRawDataToJsonString(datum as object | string);
+      }
       this.txOutput.datum = {
         type: 'Inline',
         data: {
           type,
-          content,
+          content: content as string,
         },
       };
     }
@@ -679,15 +692,15 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the redeemer for minting
-   * @param redeemer The redeemer in Mesh Data type or Raw constructor like format
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @param exUnits The execution units budget for the redeemer
-   * @param type The redeemer data type, either Mesh Data type or Raw constructor like format
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   mintReferenceTxInRedeemerValue = (
-    redeemer: Data | object | string,
+    redeemer: BuilderData['content'],
     exUnits = { ...DEFAULT_REDEEMER_BUDGET },
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    type: BuilderData['type'] = 'Mesh'
   ) => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (this.mintItem.type == 'Native') {
@@ -697,21 +710,24 @@ export class MeshTxBuilderCore {
     } else if (this.mintItem.type == 'Plutus') {
       if (!this.mintItem.policyId)
         throw Error('PolicyId information missing from mint asset');
+      let content = redeemer;
       if (type === 'Mesh') {
         this.mintItem.redeemer = {
           data: {
             type,
-            content: redeemer as Data,
+            content: content as Data,
           },
           exUnits,
         };
         return this;
       }
-      const content = this.castRawDataToJsonString(redeemer as object | string);
+      if (type === 'JSON') {
+        content = this.castRawDataToJsonString(redeemer as object | string);
+      }
       this.mintItem.redeemer = {
         data: {
           type,
-          content,
+          content: content as string,
         },
         exUnits,
       };
@@ -721,14 +737,15 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the redeemer for the reference input to be spent in same transaction
-   * @param redeemer The redeemer in object format
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @param exUnits The execution units budget for the redeemer
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   mintRedeemerValue = (
-    redeemer: Data | object | string,
+    redeemer: BuilderData['content'],
     exUnits = { ...DEFAULT_REDEEMER_BUDGET },
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    type: BuilderData['type'] = 'Mesh'
   ) => {
     this.mintReferenceTxInRedeemerValue(redeemer, exUnits, type);
     return this;
@@ -1210,6 +1227,7 @@ export class MeshTxBuilderCore {
     }
     if (this.collateralQueueItem) {
       this.meshTxBuilderBody.collaterals.push(this.collateralQueueItem);
+      this.collateralQueueItem = undefined;
     }
     if (this.mintItem) {
       this.queueMint();
@@ -1310,6 +1328,9 @@ export class MeshTxBuilderCore {
   protected castDataToPlutusData = ({ type, content }: BuilderData) => {
     if (type === 'Mesh') {
       return toPlutusData(content);
+    }
+    if (type === 'CBOR') {
+      return csl.PlutusData.from_hex(content as string);
     }
     return csl.PlutusData.from_json(
       content as string,

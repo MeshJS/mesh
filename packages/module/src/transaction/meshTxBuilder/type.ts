@@ -112,8 +112,12 @@ export type BuilderData =
       content: Data;
     }
   | {
-      type: 'Raw';
-      content: string | object;
+      type: 'JSON';
+      content: string;
+    }
+  | {
+      type: 'CBOR';
+      content: string;
     };
 
 // Mint Types
