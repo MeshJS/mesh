@@ -9,6 +9,9 @@ import {
   Data,
   LanguageVersion,
   Protocol,
+  Quantity,
+  UTxO,
+  Unit,
 } from '@mesh/common/types';
 import {
   buildTxBuilder,
@@ -32,6 +35,7 @@ import {
   Metadata,
   BuilderData,
 } from './type';
+import { selectUtxos } from '@mesh/core/CPS-009';
 
 export class MeshTxBuilderCore {
   txHex = '';
@@ -830,6 +834,35 @@ export class MeshTxBuilderCore {
   signingKey = (skeyHex: string) => {
     this.meshTxBuilderBody.signingKey.push(skeyHex);
     return this;
+  };
+
+  /**
+   * Selects utxos to fill output value and puts them into inputs
+   * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
+   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output
+   */
+  selectUtxosFrom = (extraInputs: UTxO[], threshold: Quantity) => {
+    let requiredAssets = this.meshTxBuilderBody.outputs.reduce(
+      (map, output) => {
+        const outputAmount = output.amount;
+        outputAmount.forEach((asset) => {
+          const { unit, quantity } = asset;
+          const existingQuantity = map.get(unit) || 0;
+          map.set(unit, existingQuantity + quantity);
+        });
+        return map;
+      },
+      new Map<Unit, Quantity>()
+    );
+    let selectedInputs = selectUtxos(extraInputs, requiredAssets, threshold);
+    selectedInputs.forEach((input) => {
+      this.txIn(
+        input.input.txHash,
+        input.input.outputIndex,
+        input.output.amount,
+        input.output.address
+      );
+    });
   };
 
   private addAllSigningKeys = (signingKeys: string[]) => {
