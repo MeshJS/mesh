@@ -1,7 +1,7 @@
 import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
 import { UTxO } from '@mesh/common/types';
 import { MeshTxBuilderCore } from './meshTxBuilderCore';
-import { MeshTxBuilderBody, TxIn, ScriptSourceInfo } from './type';
+import { MeshTxBuilderBody, TxIn, ScriptSourceInfo, ScriptTxIn } from './type';
 
 // Delay action at complete
 // 1. Query blockchain for any missing information
@@ -54,12 +54,20 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.queueAllLastItem();
     }
 
-    // Getting all missing utxo information
-    await this.queryAllTxInfo();
-
+    // Checking if all inputs are complete
     const { inputs, collaterals } = this.meshTxBuilderBody;
+    const incompleteTxIns = [...inputs, ...collaterals].filter(
+      (txIn) => !this.isInputComplete(txIn)
+    );
+
+    console.log('Incomplete UTxO', incompleteTxIns);
+    // Getting all missing utxo information
+    await this.queryAllTxInfo(incompleteTxIns);
+
+    console.log('Incomplete UTxO', incompleteTxIns);
+
     // Completing all inputs
-    [...inputs, ...collaterals].forEach((txIn) => {
+    incompleteTxIns.forEach((txIn) => {
       this.completeTxInformation(txIn);
     });
 
@@ -91,75 +99,106 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   private getUTxOInfo = async (txHash: string): Promise<void> => {
     let utxos: UTxO[] = [];
     if (!this.queriedTxHashes.has(txHash)) {
+      console.log('Query', txHash);
+
       this.queriedTxHashes.add(txHash);
       utxos = (await this._fetcher?.fetchUTxOs(txHash)) || [];
       this.queriedUTxOs[txHash] = utxos;
     }
   };
 
-  private queryAllTxInfo = () => {
+  private queryAllTxInfo = (incompleteTxIns: TxIn[]) => {
     const queryUTxOPromises: Promise<void>[] = [];
-    const { inputs, collaterals } = this.meshTxBuilderBody;
-    if (inputs.length + collaterals.length > 0 && !this._fetcher)
+    if (incompleteTxIns.length > 0 && !this._fetcher)
       throw Error(
         'Transaction information is incomplete while no fetcher instance is provided'
       );
-    for (let i = 0; i < inputs.length; i++) {
-      const currentTxIn = inputs[i];
-      if (!currentTxIn.txIn.amount || !currentTxIn.txIn.address) {
+    for (let i = 0; i < incompleteTxIns.length; i++) {
+      const currentTxIn = incompleteTxIns[i];
+      if (!this.isInputInfoComplete(currentTxIn)) {
         queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
       }
       if (
         currentTxIn.type === 'Script' &&
-        currentTxIn.scriptTxIn.scriptSource?.type == 'Inline' &&
-        currentTxIn.scriptTxIn.scriptSource.txInInfo &&
-        !currentTxIn.scriptTxIn.scriptSource?.txInInfo.spendingScriptHash
+        currentTxIn.scriptTxIn.scriptSource?.type === 'Inline' &&
+        !this.isRefScriptInfoComplete(currentTxIn)
       ) {
-        const scriptRefTxHash =
-          currentTxIn.scriptTxIn.scriptSource.txInInfo.txHash;
-        queryUTxOPromises.push(this.getUTxOInfo(scriptRefTxHash));
-      }
-    }
-    for (let i = 0; i < collaterals.length; i++) {
-      const currentCollateral = collaterals[i];
-      if (!currentCollateral.txIn.amount || !currentCollateral.txIn.address) {
-        queryUTxOPromises.push(this.getUTxOInfo(currentCollateral.txIn.txHash));
+        queryUTxOPromises.push(
+          this.getUTxOInfo(currentTxIn.scriptTxIn.scriptSource.txInInfo.txHash)
+        );
       }
     }
     return Promise.all(queryUTxOPromises);
   };
 
-  private completeTxInformation = (TxIn: TxIn) => {
-    const utxos: UTxO[] = this.queriedUTxOs[TxIn.txIn.txHash];
-    const utxo = utxos.find(
-      (utxo) => utxo.input.outputIndex === TxIn.txIn.txIndex
-    );
-    const address = utxo?.output.address;
-    const amount = utxo?.output.amount;
-    if (!address || address === '' || !amount || amount.length === 0)
-      throw Error(
-        `Couldn't find information for ${TxIn.txIn.txHash}#${TxIn.txIn.txIndex}`
+  private completeTxInformation = (input: TxIn) => {
+    // Adding value and address information for inputs if missing
+    if (!this.isInputInfoComplete(input)) {
+      const utxos: UTxO[] = this.queriedUTxOs[input.txIn.txHash];
+      const utxo = utxos?.find(
+        (utxo) => utxo.input.outputIndex === input.txIn.txIndex
       );
-    TxIn.txIn.address = address;
-    TxIn.txIn.amount = amount;
-
-    if (
-      TxIn.type === 'Script' &&
-      TxIn.scriptTxIn.scriptSource?.type == 'Inline'
-    ) {
-      const scriptSourceInfo = TxIn.scriptTxIn.scriptSource
-        .txInInfo as ScriptSourceInfo;
-      if (!scriptSourceInfo.spendingScriptHash) {
-        const refUtxos = this.queriedUTxOs[scriptSourceInfo.txHash];
-        const scriptRefUtxo = refUtxos.find(
-          (utxo) => utxo.input.outputIndex === scriptSourceInfo.txIndex
+      const amount = utxo?.output.amount;
+      const address = utxo?.output.address;
+      if (!amount || amount.length === 0)
+        throw Error(
+          `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`
         );
-        if (!scriptRefUtxo)
+      input.txIn.amount = amount;
+      if (input.type === 'PubKey') {
+        if (!address || address === '')
           throw Error(
-            `Couldn't find script reference utxo for ${scriptSourceInfo.txHash}#${scriptSourceInfo.txIndex}`
+            `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`
           );
-        scriptSourceInfo.spendingScriptHash = scriptRefUtxo?.output.scriptHash;
+        input.txIn.address = address;
       }
     }
+    // Adding spendingScriptHash for script inputs' scriptSource if missing
+    if (
+      input.type === 'Script' &&
+      input.scriptTxIn.scriptSource?.type == 'Inline' &&
+      !this.isRefScriptInfoComplete(input)
+    ) {
+      const scriptSourceInfo = input.scriptTxIn.scriptSource
+        .txInInfo as ScriptSourceInfo;
+      const refUtxos = this.queriedUTxOs[scriptSourceInfo.txHash];
+      const scriptRefUtxo = refUtxos.find(
+        (utxo) => utxo.input.outputIndex === scriptSourceInfo.txIndex
+      );
+      if (!scriptRefUtxo)
+        throw Error(
+          `Couldn't find script reference utxo for ${scriptSourceInfo.txHash}#${scriptSourceInfo.txIndex}`
+        );
+      scriptSourceInfo.spendingScriptHash = scriptRefUtxo?.output.scriptHash;
+    }
+  };
+
+  private isInputComplete = (txIn: TxIn): boolean => {
+    if (txIn.type === 'PubKey') return this.isInputInfoComplete(txIn);
+    if (txIn.type === 'Script') {
+      return (
+        this.isInputInfoComplete(txIn) && this.isRefScriptInfoComplete(txIn)
+      );
+    }
+    return true;
+  };
+
+  private isInputInfoComplete = (txIn: TxIn): boolean => {
+    const { amount, address } = txIn.txIn;
+    if (txIn.type === 'PubKey' && (!amount || !address)) return false;
+    if (txIn.type === 'Script') {
+      if (!amount) return false;
+    }
+    return true;
+  };
+
+  private isRefScriptInfoComplete = (scriptTxIn: ScriptTxIn): boolean => {
+    const { scriptSource } = scriptTxIn.scriptTxIn;
+    if (
+      scriptSource?.type === 'Inline' &&
+      !scriptSource.txInInfo?.spendingScriptHash
+    )
+      return false;
+    return true;
   };
 }
