@@ -84,6 +84,8 @@ export class MeshTxBuilderCore {
   emptyTxBuilderBody = (): MeshTxBuilderBody => ({
     inputs: [],
     outputs: [],
+    extraInputs: [],
+    selectionThreshold: 0,
     collaterals: [],
     requiredSignatures: [],
     referenceInputs: [],
@@ -132,6 +134,8 @@ export class MeshTxBuilderCore {
     const {
       inputs,
       outputs,
+      extraInputs,
+      selectionThreshold,
       collaterals,
       referenceInputs,
       mints,
@@ -152,6 +156,8 @@ export class MeshTxBuilderCore {
     } else {
       this.protocolParams({});
     }
+
+    this.addUtxosFrom(extraInputs, String(selectionThreshold));
 
     this.meshTxBuilderBody.mints.sort((a, b) =>
       a.policyId.localeCompare(b.policyId)
@@ -858,7 +864,12 @@ export class MeshTxBuilderCore {
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
    * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output
    */
-  selectUtxosFrom = (extraInputs: UTxO[], threshold: Quantity) => {
+  selectUtxosFrom = (extraInputs: UTxO[], threshold: number = 5000000) => {
+    this.meshTxBuilderBody.extraInputs = extraInputs;
+    this.meshTxBuilderBody.selectionThreshold = threshold;
+  };
+
+  private addUtxosFrom = (extraInputs: UTxO[], threshold: Quantity) => {
     let requiredAssets = this.meshTxBuilderBody.outputs.reduce(
       (map, output) => {
         const outputAmount = output.amount;
