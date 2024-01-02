@@ -867,6 +867,7 @@ export class MeshTxBuilderCore {
   selectUtxosFrom = (extraInputs: UTxO[], threshold = 5000000) => {
     this.meshTxBuilderBody.extraInputs = extraInputs;
     this.meshTxBuilderBody.selectionThreshold = threshold;
+    return this;
   };
 
   private addUtxosFrom = (extraInputs: UTxO[], threshold: Quantity) => {
