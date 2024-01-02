@@ -157,7 +157,9 @@ export class MeshTxBuilderCore {
       this.protocolParams({});
     }
 
-    this.addUtxosFrom(extraInputs, String(selectionThreshold));
+    if (extraInputs.length > 0) {
+      this.addUtxosFrom(extraInputs, String(selectionThreshold));
+    }
 
     this.meshTxBuilderBody.mints.sort((a, b) =>
       a.policyId.localeCompare(b.policyId)
@@ -876,21 +878,45 @@ export class MeshTxBuilderCore {
         const outputAmount = output.amount;
         outputAmount.forEach((asset) => {
           const { unit, quantity } = asset;
-          const existingQuantity = map.get(unit) || 0;
-          map.set(unit, existingQuantity + quantity);
+          const existingQuantity = Number(map.get(unit)) || 0;
+          map.set(unit, String(existingQuantity + Number(quantity)));
         });
         return map;
       },
       new Map<Unit, Quantity>()
     );
+    this.meshTxBuilderBody.inputs.reduce((map, input) => {
+      const inputAmount = input.txIn.amount;
+      inputAmount?.forEach((asset) => {
+        const { unit, quantity } = asset;
+        const existingQuantity = Number(map.get(unit)) || 0;
+        map.set(unit, String(existingQuantity - Number(quantity)));
+      });
+      return map;
+    }, requiredAssets);
+    this.meshTxBuilderBody.mints.reduce((map, mint) => {
+      const mintAmount: Asset = {
+        unit: mint.policyId + mint.assetName,
+        quantity: String(mint.amount),
+      };
+      const existingQuantity = Number(map.get(mintAmount.unit)) || 0;
+      map.set(
+        mintAmount.unit,
+        String(existingQuantity - Number(mintAmount.quantity))
+      );
+      return map;
+    }, requiredAssets);
     const selectedInputs = selectUtxos(extraInputs, requiredAssets, threshold);
     selectedInputs.forEach((input) => {
-      this.txIn(
-        input.input.txHash,
-        input.input.outputIndex,
-        input.output.amount,
-        input.output.address
-      );
+      this.addTxIn({
+        type: 'PubKey',
+        txIn: {
+          txHash: input.input.txHash,
+          txIndex: input.input.outputIndex,
+          amount: input.output.amount,
+          address: input.output.address,
+        },
+      });
     });
   };
 

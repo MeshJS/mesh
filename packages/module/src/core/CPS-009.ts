@@ -8,7 +8,7 @@ export const selectUtxos = (
   const totalRequiredAssets = new Map<Unit, Quantity>(requiredAssets);
   totalRequiredAssets.set(
     'lovelace',
-    totalRequiredAssets.get('lovelace') + threshold
+    String(Number(totalRequiredAssets.get('lovelace')) + Number(threshold))
   );
   const utxoMap = new Map<number, UTxO>();
   for (let i = 0; i < inputs.length; i++) {
