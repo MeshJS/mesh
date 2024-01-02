@@ -864,13 +864,13 @@ export class MeshTxBuilderCore {
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
    * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output
    */
-  selectUtxosFrom = (extraInputs: UTxO[], threshold: number = 5000000) => {
+  selectUtxosFrom = (extraInputs: UTxO[], threshold = 5000000) => {
     this.meshTxBuilderBody.extraInputs = extraInputs;
     this.meshTxBuilderBody.selectionThreshold = threshold;
   };
 
   private addUtxosFrom = (extraInputs: UTxO[], threshold: Quantity) => {
-    let requiredAssets = this.meshTxBuilderBody.outputs.reduce(
+    const requiredAssets = this.meshTxBuilderBody.outputs.reduce(
       (map, output) => {
         const outputAmount = output.amount;
         outputAmount.forEach((asset) => {
@@ -882,7 +882,7 @@ export class MeshTxBuilderCore {
       },
       new Map<Unit, Quantity>()
     );
-    let selectedInputs = selectUtxos(extraInputs, requiredAssets, threshold);
+    const selectedInputs = selectUtxos(extraInputs, requiredAssets, threshold);
     selectedInputs.forEach((input) => {
       this.txIn(
         input.input.txHash,

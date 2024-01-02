@@ -5,20 +5,20 @@ export const selectUtxos = (
   requiredAssets: Map<Unit, Quantity>,
   threshold: Quantity
 ): UTxO[] => {
-  let totalRequiredAssets = new Map<Unit, Quantity>(requiredAssets);
+  const totalRequiredAssets = new Map<Unit, Quantity>(requiredAssets);
   totalRequiredAssets.set(
     'lovelace',
     totalRequiredAssets.get('lovelace') + threshold
   );
-  let utxoMap = new Map<Number, UTxO>();
+  const utxoMap = new Map<number, UTxO>();
   for (let i = 0; i < inputs.length; i++) {
     utxoMap.set(i, inputs[i]);
   }
-  let selectedInputs = new Set<Number>();
-  let onlyLovelace = new Set<Number>();
-  let singletons = new Set<Number>();
-  let pairs = new Set<Number>();
-  let rest = new Set<Number>();
+  const selectedInputs = new Set<number>();
+  const onlyLovelace = new Set<number>();
+  const singletons = new Set<number>();
+  const pairs = new Set<number>();
+  const rest = new Set<number>();
   for (let i = 0; i < inputs.length; i++) {
     switch (inputs[i].output.amount.length) {
       case 1: {
@@ -41,14 +41,14 @@ export const selectUtxos = (
   }
 
   const addUtxoWithAssetAmount = (
-    inputIndex: Number,
-    assetUnit: String,
-    set: Set<Number>
+    inputIndex: number,
+    assetUnit: string,
+    set: Set<number>
   ) => {
-    let utxo = utxoMap.get(inputIndex);
+    const utxo = utxoMap.get(inputIndex);
     if (!utxo) return;
 
-    let amount = getAssetAmount(utxo, assetUnit);
+    const amount = getAssetAmount(utxo, assetUnit);
     if (Number(amount) > 0) {
       selectedInputs.add(inputIndex);
       set.delete(inputIndex);
@@ -66,44 +66,44 @@ export const selectUtxos = (
   for (const assetUnit of totalRequiredAssets.keys()) {
     if (assetUnit == 'lovelace') continue;
     for (const inputIndex of singletons) {
-      let assetRequired = totalRequiredAssets.get(assetUnit);
+      const assetRequired = totalRequiredAssets.get(assetUnit);
       if (!assetRequired || Number(assetRequired) <= 0) break;
       addUtxoWithAssetAmount(inputIndex, assetUnit, singletons);
     }
 
     for (const inputIndex of pairs) {
-      let assetRequired = totalRequiredAssets.get(assetUnit);
+      const assetRequired = totalRequiredAssets.get(assetUnit);
       if (!assetRequired || Number(assetRequired) <= 0) break;
       addUtxoWithAssetAmount(inputIndex, assetUnit, pairs);
     }
 
     for (const inputIndex of rest) {
-      let assetRequired = totalRequiredAssets.get(assetUnit);
+      const assetRequired = totalRequiredAssets.get(assetUnit);
       if (!assetRequired || Number(assetRequired) <= 0) break;
       addUtxoWithAssetAmount(inputIndex, assetUnit, rest);
     }
   }
 
   for (const inputIndex of onlyLovelace) {
-    let assetRequired = totalRequiredAssets.get('lovelace');
+    const assetRequired = totalRequiredAssets.get('lovelace');
     if (!assetRequired || Number(assetRequired) <= 0) break;
     addUtxoWithAssetAmount(inputIndex, 'lovelace', onlyLovelace);
   }
 
   for (const inputIndex of singletons) {
-    let assetRequired = totalRequiredAssets.get('lovelace');
+    const assetRequired = totalRequiredAssets.get('lovelace');
     if (!assetRequired || Number(assetRequired) <= 0) break;
     addUtxoWithAssetAmount(inputIndex, 'lovelace', singletons);
   }
 
   for (const inputIndex of pairs) {
-    let assetRequired = totalRequiredAssets.get('lovelace');
+    const assetRequired = totalRequiredAssets.get('lovelace');
     if (!assetRequired || Number(assetRequired) <= 0) break;
     addUtxoWithAssetAmount(inputIndex, 'lovelace', pairs);
   }
 
   for (const inputIndex of rest) {
-    let assetRequired = totalRequiredAssets.get('lovelace');
+    const assetRequired = totalRequiredAssets.get('lovelace');
     if (!assetRequired || Number(assetRequired) <= 0) break;
     addUtxoWithAssetAmount(inputIndex, 'lovelace', rest);
   }
@@ -114,7 +114,7 @@ export const selectUtxos = (
 
   const selectedUtxos: UTxO[] = [];
   for (const inputIndex of selectedInputs) {
-    let utxo = utxoMap.get(inputIndex);
+    const utxo = utxoMap.get(inputIndex);
     if (utxo) {
       selectedUtxos.push(utxo);
     }
@@ -122,7 +122,7 @@ export const selectUtxos = (
   return selectedUtxos;
 };
 
-const getAssetAmount = (utxo: UTxO, assetUnit: String): String => {
+const getAssetAmount = (utxo: UTxO, assetUnit: string): string => {
   for (const utxoAsset of utxo.output.amount) {
     if (utxoAsset.unit == assetUnit) return utxoAsset.quantity;
   }
