@@ -3,7 +3,7 @@
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
-  "version": "1.5.11-beta.3",
+  "version": "1.5.11-beta.4",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -70,9 +70,9 @@
     "@emurgo/cardano-serialization-lib-browser": "11.5.0",
     "@emurgo/cardano-serialization-lib-nodejs": "11.5.0",
     "@emurgo/cip14-js": "3.0.1",
-    "axios": "0.27.2",
+    "axios": "1.6.3",
     "bip39": "3.0.4",
     "nanoid": "3.3.4",
-    "zod": "3.19.1"
+    "zod": "3.22.4"
   }
 }
