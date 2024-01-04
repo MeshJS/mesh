@@ -4,11 +4,14 @@ import {
   Data,
   LanguageVersion,
   PlutusScript,
+  UTxO,
 } from '@mesh/common/types';
 
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
   outputs: Output[];
+  extraInputs: UTxO[];
+  selectionThreshold: number;
   collaterals: PubKeyTxIn[];
   requiredSignatures: string[];
   referenceInputs: RefTxIn[];
@@ -112,8 +115,12 @@ export type BuilderData =
       content: Data;
     }
   | {
-      type: 'Raw';
-      content: string | object;
+      type: 'JSON';
+      content: string;
+    }
+  | {
+      type: 'CBOR';
+      content: string;
     };
 
 // Mint Types

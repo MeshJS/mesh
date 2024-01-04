@@ -6,10 +6,12 @@ import {
 import {
   Action,
   Asset,
-  Budget,
   Data,
   LanguageVersion,
   Protocol,
+  Quantity,
+  UTxO,
+  Unit,
 } from '@mesh/common/types';
 import {
   buildTxBuilder,
@@ -33,6 +35,7 @@ import {
   Metadata,
   BuilderData,
 } from './type';
+import { selectUtxos } from '@mesh/core/CPS-009';
 
 export class MeshTxBuilderCore {
   txHex = '';
@@ -81,6 +84,8 @@ export class MeshTxBuilderCore {
   emptyTxBuilderBody = (): MeshTxBuilderBody => ({
     inputs: [],
     outputs: [],
+    extraInputs: [],
+    selectionThreshold: 0,
     collaterals: [],
     requiredSignatures: [],
     referenceInputs: [],
@@ -107,6 +112,8 @@ export class MeshTxBuilderCore {
   completeSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
+    } else {
+      this.queueAllLastItem();
     }
     return this.serializeTxBody(this.meshTxBuilderBody);
   };
@@ -127,6 +134,8 @@ export class MeshTxBuilderCore {
     const {
       inputs,
       outputs,
+      extraInputs,
+      selectionThreshold,
       collaterals,
       referenceInputs,
       mints,
@@ -146,6 +155,10 @@ export class MeshTxBuilderCore {
       });
     } else {
       this.protocolParams({});
+    }
+
+    if (extraInputs.length > 0) {
+      this.addUtxosFrom(extraInputs, String(selectionThreshold));
     }
 
     this.meshTxBuilderBody.mints.sort((a, b) =>
@@ -179,20 +192,55 @@ export class MeshTxBuilderCore {
         )
         .reduce((acc, curr) => acc + parseInt(curr), 0);
 
-      if (totalCollateral > 0) {
-        this.txBuilder.set_collateral_return(
-          csl.TransactionOutput.new(
-            csl.Address.from_bech32(changeAddress),
-            csl.Value.new(csl.BigNum.from_str(String(totalCollateral)))
+      const collateralEsimate = Math.ceil(
+        (this._protocolParams.collateralPercent *
+          Number(
+            Number(
+              this.txBuilder
+                .min_fee()
+                .checked_add(csl.BigNum.from_str('10000'))
+                .to_js_value()
+            )
+          )) /
+          100
+      );
+
+      let collateralReturnNeeded = false;
+
+      if (totalCollateral - collateralEsimate > 0) {
+        const collateralEstimateOutput = csl.TransactionOutput.new(
+          csl.Address.from_bech32(changeAddress),
+          csl.Value.new(csl.BigNum.from_str(String(collateralEsimate)))
+        );
+
+        if (
+          totalCollateral - collateralEsimate >
+          Number(
+            csl
+              .min_ada_for_output(
+                collateralEstimateOutput,
+                csl.DataCost.new_coins_per_byte(
+                  csl.BigNum.from_str(this._protocolParams.coinsPerUTxOSize)
+                )
+              )
+              .to_js_value()
           )
-        );
-        this.txBuilder.set_total_collateral(
-          csl.BigNum.from_str(String(totalCollateral))
-        );
+        ) {
+          this.txBuilder.set_collateral_return(
+            csl.TransactionOutput.new(
+              csl.Address.from_bech32(changeAddress),
+              csl.Value.new(csl.BigNum.from_str(String(totalCollateral)))
+            )
+          );
+          this.txBuilder.set_total_collateral(
+            csl.BigNum.from_str(String(totalCollateral))
+          );
+          collateralReturnNeeded = true;
+        }
       }
 
       this.addChange(changeAddress);
-      this.addCollateralReturn(changeAddress);
+      if (collateralReturnNeeded) this.addCollateralReturn(changeAddress);
     }
 
     this.buildTx();
@@ -264,17 +312,22 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the input datum for transaction input
-   * @param datum The datum in Mesh Data type or Raw constructor like format
-   * @param type The datum type, either Mesh Data type or Raw constructor like format
+   * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   txInDatumValue = (
-    datum: Data | object | string,
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    datum: BuilderData['content'],
+    type: BuilderData['type'] = 'Mesh'
   ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
+
+    let content = datum;
+    if (type === 'JSON') {
+      content = this.castRawDataToJsonString(datum as object | string);
+    }
     if (type === 'Mesh') {
       this.txInQueueItem.scriptTxIn.datumSource = {
         type: 'Provided',
@@ -285,12 +338,11 @@ export class MeshTxBuilderCore {
       };
       return this;
     }
-    const content = this.castRawDataToJsonString(datum as object | string);
     this.txInQueueItem.scriptTxIn.datumSource = {
       type: 'Provided',
       data: {
         type,
-        content,
+        content: content as string,
       },
     };
     return this;
@@ -347,21 +399,22 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the redeemer for the reference input to be spent in same transaction
-   * @param redeemer The redeemer in Mesh Data type or Raw constructor like format
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @param exUnits The execution units budget for the redeemer
-   * @param type The redeemer data type, either Mesh Data type or Raw constructor like format
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   txInRedeemerValue = (
-    redeemer: Data | object | string,
+    redeemer: BuilderData['content'],
     exUnits = { ...DEFAULT_REDEEMER_BUDGET },
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    type: BuilderData['type'] = 'Mesh'
   ) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Spending tx in reference redeemer attempted to be called a non script input'
       );
+    let content = redeemer;
     if (type === 'Mesh') {
       this.txInQueueItem.scriptTxIn.redeemer = {
         data: {
@@ -372,13 +425,13 @@ export class MeshTxBuilderCore {
       };
       return this;
     }
-    const content: string = this.castRawDataToJsonString(
-      redeemer as object | string
-    );
+    if (type === 'JSON') {
+      content = this.castRawDataToJsonString(redeemer as object | string);
+    }
     this.txInQueueItem.scriptTxIn.redeemer = {
       data: {
         type,
-        content,
+        content: content as string,
       },
       exUnits,
     };
@@ -405,31 +458,34 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the output datum hash for transaction
-   * @param datum The datum in Mesh Data type or Raw constructor like format
-   * @param type The datum type, either Mesh Data type or Raw constructor like format
+   * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   txOutDatumHashValue = (
-    datum: Data | object | string,
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    datum: BuilderData['content'],
+    type: BuilderData['type'] = 'Mesh'
   ) => {
+    let content = datum;
     if (this.txOutput) {
       if (type === 'Mesh') {
         this.txOutput.datum = {
           type: 'Hash',
           data: {
             type,
-            content: datum as Data,
+            content: content as Data,
           },
         };
         return this;
       }
-      const content = this.castRawDataToJsonString(datum as object | string);
+      if (type === 'JSON') {
+        content = this.castRawDataToJsonString(datum as object | string);
+      }
       this.txOutput.datum = {
         type: 'Hash',
         data: {
           type,
-          content,
+          content: content as string,
         },
       };
     }
@@ -438,31 +494,34 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the output inline datum for transaction
-   * @param datum The datum in Mesh Data type or Raw constructor like format
-   * @param type The datum type, either Mesh Data type or Raw constructor like format
+   * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   txOutInlineDatumValue = (
-    datum: Data | object | string,
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    datum: BuilderData['content'],
+    type: BuilderData['type'] = 'Mesh'
   ) => {
+    let content = datum;
     if (this.txOutput) {
       if (type === 'Mesh') {
         this.txOutput.datum = {
           type: 'Inline',
           data: {
             type,
-            content: datum as Data,
+            content: content as Data,
           },
         };
         return this;
       }
-      const content = this.castRawDataToJsonString(datum as object | string);
+      if (type === 'JSON') {
+        content = this.castRawDataToJsonString(datum as object | string);
+      }
       this.txOutput.datum = {
         type: 'Inline',
         data: {
           type,
-          content,
+          content: content as string,
         },
       };
     }
@@ -641,15 +700,15 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the redeemer for minting
-   * @param redeemer The redeemer in Mesh Data type or Raw constructor like format
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @param exUnits The execution units budget for the redeemer
-   * @param type The redeemer data type, either Mesh Data type or Raw constructor like format
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   mintReferenceTxInRedeemerValue = (
-    redeemer: Data | object | string,
+    redeemer: BuilderData['content'],
     exUnits = { ...DEFAULT_REDEEMER_BUDGET },
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    type: BuilderData['type'] = 'Mesh'
   ) => {
     if (!this.mintItem) throw Error('Undefined mint');
     if (this.mintItem.type == 'Native') {
@@ -659,21 +718,24 @@ export class MeshTxBuilderCore {
     } else if (this.mintItem.type == 'Plutus') {
       if (!this.mintItem.policyId)
         throw Error('PolicyId information missing from mint asset');
+      let content = redeemer;
       if (type === 'Mesh') {
         this.mintItem.redeemer = {
           data: {
             type,
-            content: redeemer as Data,
+            content: content as Data,
           },
           exUnits,
         };
         return this;
       }
-      const content = this.castRawDataToJsonString(redeemer as object | string);
+      if (type === 'JSON') {
+        content = this.castRawDataToJsonString(redeemer as object | string);
+      }
       this.mintItem.redeemer = {
         data: {
           type,
-          content,
+          content: content as string,
         },
         exUnits,
       };
@@ -683,14 +745,15 @@ export class MeshTxBuilderCore {
 
   /**
    * Set the redeemer for the reference input to be spent in same transaction
-   * @param redeemer The redeemer in object format
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @param exUnits The execution units budget for the redeemer
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   mintRedeemerValue = (
-    redeemer: Data | object | string,
+    redeemer: BuilderData['content'],
     exUnits = { ...DEFAULT_REDEEMER_BUDGET },
-    type: 'Mesh' | 'Raw' = 'Mesh'
+    type: BuilderData['type'] = 'Mesh'
   ) => {
     this.mintReferenceTxInRedeemerValue(redeemer, exUnits, type);
     return this;
@@ -796,6 +859,65 @@ export class MeshTxBuilderCore {
   signingKey = (skeyHex: string) => {
     this.meshTxBuilderBody.signingKey.push(skeyHex);
     return this;
+  };
+
+  /**
+   * EXPERIMENTAL - Selects utxos to fill output value and puts them into inputs
+   * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
+   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output
+   */
+  selectUtxosFrom = (extraInputs: UTxO[], threshold = 5000000) => {
+    this.meshTxBuilderBody.extraInputs = extraInputs;
+    this.meshTxBuilderBody.selectionThreshold = threshold;
+    return this;
+  };
+
+  private addUtxosFrom = (extraInputs: UTxO[], threshold: Quantity) => {
+    const requiredAssets = this.meshTxBuilderBody.outputs.reduce(
+      (map, output) => {
+        const outputAmount = output.amount;
+        outputAmount.forEach((asset) => {
+          const { unit, quantity } = asset;
+          const existingQuantity = Number(map.get(unit)) || 0;
+          map.set(unit, String(existingQuantity + Number(quantity)));
+        });
+        return map;
+      },
+      new Map<Unit, Quantity>()
+    );
+    this.meshTxBuilderBody.inputs.reduce((map, input) => {
+      const inputAmount = input.txIn.amount;
+      inputAmount?.forEach((asset) => {
+        const { unit, quantity } = asset;
+        const existingQuantity = Number(map.get(unit)) || 0;
+        map.set(unit, String(existingQuantity - Number(quantity)));
+      });
+      return map;
+    }, requiredAssets);
+    this.meshTxBuilderBody.mints.reduce((map, mint) => {
+      const mintAmount: Asset = {
+        unit: mint.policyId + mint.assetName,
+        quantity: String(mint.amount),
+      };
+      const existingQuantity = Number(map.get(mintAmount.unit)) || 0;
+      map.set(
+        mintAmount.unit,
+        String(existingQuantity - Number(mintAmount.quantity))
+      );
+      return map;
+    }, requiredAssets);
+    const selectedInputs = selectUtxos(extraInputs, requiredAssets, threshold);
+    selectedInputs.forEach((input) => {
+      this.addTxIn({
+        type: 'PubKey',
+        txIn: {
+          txHash: input.input.txHash,
+          txIndex: input.input.outputIndex,
+          amount: input.output.amount,
+          address: input.output.address,
+        },
+      });
+    });
   };
 
   private addAllSigningKeys = (signingKeys: string[]) => {
@@ -1143,6 +1265,7 @@ export class MeshTxBuilderCore {
     }
     if (this.collateralQueueItem) {
       this.meshTxBuilderBody.collaterals.push(this.collateralQueueItem);
+      this.collateralQueueItem = undefined;
     }
     if (this.mintItem) {
       this.queueMint();
@@ -1243,6 +1366,9 @@ export class MeshTxBuilderCore {
   protected castDataToPlutusData = ({ type, content }: BuilderData) => {
     if (type === 'Mesh') {
       return toPlutusData(content);
+    }
+    if (type === 'CBOR') {
+      return csl.PlutusData.from_hex(content as string);
     }
     return csl.PlutusData.from_json(
       content as string,
