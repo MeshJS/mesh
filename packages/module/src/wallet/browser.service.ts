@@ -39,7 +39,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       throw new Error(`Couldn't create an instance of wallet: ${walletName}`);
     } catch (error) {
-      throw new Error(`[BrowserWallet] An error occurred during enable: ${error}.`);
+      throw new Error(`[BrowserWallet] An error occurred during enable: ${JSON.stringify(error)}.`);
     }
   }
 
