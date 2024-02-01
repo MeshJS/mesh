@@ -34,6 +34,7 @@ import {
   ValidityRange,
   Metadata,
   BuilderData,
+  TxInParameter,
 } from './type';
 import { selectUtxos } from '@mesh/core/CPS-009';
 
@@ -164,6 +165,7 @@ export class MeshTxBuilderCore {
     this.meshTxBuilderBody.mints.sort((a, b) =>
       a.policyId.localeCompare(b.policyId)
     );
+    this.removeDuplicateInputs();
     this.meshTxBuilderBody.inputs.sort((a, b) => {
       if (a.txIn.txHash === b.txIn.txHash) {
         return a.txIn.txIndex - b.txIn.txIndex;
@@ -999,6 +1001,23 @@ export class MeshTxBuilderCore {
   };
 
   // Below protected functions for completing tx building
+
+  protected removeDuplicateInputs = () => {
+    const inputs = this.meshTxBuilderBody.inputs;
+    const getTxInId = (txIn: TxInParameter): string => {
+      return `${txIn.txHash}#${txIn.txIndex}`;
+    };
+    const addedInputs: string[] = [];
+    for (let i = 0; i < inputs.length; i++) {
+      const currentTxInId = getTxInId(inputs[i].txIn);
+      if (addedInputs.includes(currentTxInId)) {
+        inputs.splice(i, 1);
+        i--;
+      } else {
+        addedInputs.push(currentTxInId);
+      }
+    }
+  };
 
   private addAllInputs = (inputs: TxIn[]) => {
     for (let i = 0; i < inputs.length; i++) {
