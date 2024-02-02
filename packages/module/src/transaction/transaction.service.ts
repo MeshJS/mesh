@@ -50,6 +50,38 @@ export class Transaction {
     this._txWithdrawals = csl.Withdrawals.new();
   }
 
+  static attachMetadata(cborTx: string, cborTxMetadata: string, era: Era = 'BABBAGE') {
+    const tx = deserializeTx(cborTx);
+    const txAuxData = tx.auxiliary_data()
+      ?? csl.AuxiliaryData.new();
+
+    txAuxData.set_metadata(
+      csl.GeneralTransactionMetadata.from_hex(cborTxMetadata),
+    );
+
+    txAuxData.set_prefer_alonzo_format(
+      era === 'ALONZO',
+    );
+
+    if (csl.hash_auxiliary_data(txAuxData).to_hex() !== tx.body().auxiliary_data_hash()?.to_hex()) {
+      throw new Error(
+        '[Transaction] attachMetadata: The metadata hash does not match the auxiliary data hash.',
+      );
+    }
+
+    return csl.Transaction.new(
+      tx.body(), tx.witness_set(), txAuxData,
+    ).to_hex();
+  }
+
+  static deattachMetadata(cborTx: string) {
+    const tx = deserializeTx(cborTx);
+
+    return csl.Transaction.new(
+      tx.body(), tx.witness_set(), undefined,
+    ).to_hex();
+  }
+
   static maskMetadata(cborTx: string, era: Era = 'BABBAGE') {
     const tx = deserializeTx(cborTx);
     const txMetadata = tx.auxiliary_data()?.metadata();
@@ -218,7 +250,7 @@ export class Transaction {
       }
 
       throw new Error(
-        `No plutus script reference found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
+        `[Transaction] No plutus script reference found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
       );
     };
 
@@ -264,20 +296,17 @@ export class Transaction {
     };
 
     const utxo = toTxUnspentOutput(options.value);
-    let witness: csl.PlutusWitness;
-    if (options.datum) {
-      witness = csl.PlutusWitness.new_with_ref(
+
+    const witness = options.datum
+      ? csl.PlutusWitness.new_with_ref(
         buildPlutusScriptSource(options.script),
         buildDatumSource(options.datum),
         toRedeemer(redeemer),
-      );
-    } else {
-      witness = csl.PlutusWitness.new_with_ref_without_datum(
+      )
+      : csl.PlutusWitness.new_with_ref_without_datum(
         buildPlutusScriptSource(options.script),
         toRedeemer(redeemer),
       );
-    }
-
 
     this._txInputsBuilder.add_plutus_script_input(
       witness, utxo.input(), utxo.output().amount(),

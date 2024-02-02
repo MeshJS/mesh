@@ -2871,6 +2871,28 @@
   resolved "https://registry.yarnpkg.com/@mdx-js/util/-/util-1.6.22.tgz#219dfd89ae5b97a8801f015323ffa4b62f45718b"
   integrity sha512-H1rQc1ZOHANWBvPcW+JpGwr+juXSxM8Q8YCkm3GhZd8REu1fHR3z99CErO1p9pkcfcxZnMdIZdIsXkOHY0NilA==
 
+"@meshsdk/core@*":
+  version "1.5.10"
+  resolved "https://registry.yarnpkg.com/@meshsdk/core/-/core-1.5.10.tgz#c953bb0fac95817ddd42b5fc86752cf981134b75"
+  integrity sha512-6BwyRZEqY2oA0LY3FZVHHGZ5PswLZu/L1ikdRaW5SjiFfcOndJwETdQsL5Dkiw/EDB7+ffU/fA03YfBlGpx2Rg==
+  dependencies:
+    "@emurgo/cardano-message-signing-browser" "1.0.1"
+    "@emurgo/cardano-message-signing-nodejs" "1.0.1"
+    "@emurgo/cardano-serialization-lib-browser" "11.5.0"
+    "@emurgo/cardano-serialization-lib-nodejs" "11.5.0"
+    "@emurgo/cip14-js" "3.0.1"
+    axios "0.27.2"
+    bip39 "3.0.4"
+    nanoid "3.3.4"
+    zod "3.19.1"
+
+"@meshsdk/react@*":
+  version "1.1.9"
+  resolved "https://registry.yarnpkg.com/@meshsdk/react/-/react-1.1.9.tgz#ac32b6701ecd3a2bcb38e2bd6ee5da6ef6c49d61"
+  integrity sha512-LeQVi9CArHI/6Mlcy3B7GYxX6V2Up8Br3h0lgZvPdAeKjWhslJ0i8FIaiTp94gy2dSqTensD1XC/+GroMz50NA==
+  dependencies:
+    styled-components "5.3.6"
+
 "@mrmlnc/readdir-enhanced@^2.2.1":
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/@mrmlnc/readdir-enhanced/-/readdir-enhanced-2.2.1.tgz#524af240d1a360527b730475ecfa1344aa540dde"
@@ -5832,6 +5854,14 @@ axe-core@^4.4.3:
   version "4.4.3"
   resolved "https://registry.yarnpkg.com/axe-core/-/axe-core-4.4.3.tgz#11c74d23d5013c0fa5d183796729bc3482bd2f6f"
   integrity sha512-32+ub6kkdhhWick/UjvEwRchgoetXqTK14INLqbGm5U2TzBkBNF3nQtLYm8ovxSkQWArjEQvftCKryjZaATu3w==
+
+axios@0.27.2:
+  version "0.27.2"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-0.27.2.tgz#207658cc8621606e586c85db4b41a750e756d972"
+  integrity sha512-t+yRIyySRTp/wua5xEr+z1q60QmLq8ABsS5O9Me1AsE5dfKqgnCFzwiCZZ/cGNd1lq4/7akDWMxdhVlucjmnOQ==
+  dependencies:
+    follow-redirects "^1.14.9"
+    form-data "^4.0.0"
 
 axios@1.6.3:
   version "1.6.3"
@@ -9353,6 +9383,11 @@ focus-lock@^0.8.0:
   integrity sha512-/LFZOIo82WDsyyv7h7oc0MJF9ACOvDRdx9rWPZ2pgMfNWu/z8hQDBtOchuB/0BVLmuFOZjV02YwUVzNsWx/EzA==
   dependencies:
     tslib "^1.9.3"
+
+follow-redirects@^1.14.9:
+  version "1.15.5"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.5.tgz#54d4d6d062c0fa7d9d17feb008461550e3ba8020"
+  integrity sha512-vSFWUON1B+yAw1VN4xMfxgn5fTUiaOzAJCKBwIIgT/+7CuGy9+r+5gITvP62j3RmaD5Ph65UaERdOSRGUzZtgw==
 
 follow-redirects@^1.15.0:
   version "1.15.4"
@@ -17182,6 +17217,11 @@ yocto-queue@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/yocto-queue/-/yocto-queue-1.0.0.tgz#7f816433fb2cbc511ec8bf7d263c3b58a1a3c251"
   integrity sha512-9bnSc/HEW2uRy67wc+T8UwauLuPJVn28jb+GtJY16iiKWyvmYJRXVT4UamsAEGQfPohgr2q4Tq0sQbQlxTfi1g==
+
+zod@3.19.1:
+  version "3.19.1"
+  resolved "https://registry.yarnpkg.com/zod/-/zod-3.19.1.tgz#112f074a97b50bfc4772d4ad1576814bd8ac4473"
+  integrity sha512-LYjZsEDhCdYET9ikFu6dVPGp2YH9DegXjdJToSzD9rO6fy4qiRYFoyEYwps88OseJlPyl2NOe2iJuhEhL7IpEA==
 
 zod@3.22.4:
   version "3.22.4"
