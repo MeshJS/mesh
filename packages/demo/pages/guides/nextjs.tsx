@@ -165,6 +165,24 @@ module.exports = nextConfig;
 `}
             isJson={false}
           />
+          <p>In the more recent Next version, configuration for <code>next.config.mjs</code>:</p>
+          <Codeblock
+            data={`/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  webpack: function (config, options) {
+    config.experiments = {
+      asyncWebAssembly: true,
+      layers: true,
+    };
+    return config;
+  },
+};
+
+export default nextConfig;
+`}
+            isJson={false}
+          />
           <h3>3. Congratulations</h3>
           <p>
             You just saved a few weeks of learning and a number days trying to

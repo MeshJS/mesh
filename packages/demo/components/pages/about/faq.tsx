@@ -195,7 +195,7 @@ export default function AboutFaq() {
                     build, adapt and improve current and future applications.
                     Mesh SDK is started by{' '}
                     <a
-                      href="https://twitter.com/jinglescode"
+                      href="https://jingles.dev/"
                       rel="noreferrer"
                       className="link"
                       target="_blank"

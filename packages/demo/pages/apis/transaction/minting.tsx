@@ -7,12 +7,14 @@ import Minting from '../../../components/pages/apis/transaction/minting/minting'
 import Metatags from '../../../components/site/metatags';
 import MintingNativeScript from '../../../components/pages/apis/transaction/minting/mintingNativeScript';
 import MintingRoyaltyToken from '../../../components/pages/apis/transaction/minting/mintingRoyaltyToken';
+import MintinPlutusScript from '../../../components/pages/apis/transaction/minting/mintingPlutusScript';
 
 const TransactionMintingPage: NextPage = () => {
   const sidebarItems = [
     { label: 'Minting assets', to: 'minting' },
     { label: 'Burning assets', to: 'burning' },
     { label: 'Minting with Native Script', to: 'mintingNativeScript' },
+    { label: 'Minting with Plutus Script', to: 'mintingPlutusScript' },
     { label: 'Minting Royalty Token', to: 'mintingRoyaltyToken' },
   ];
 
@@ -31,6 +33,7 @@ const TransactionMintingPage: NextPage = () => {
         <Minting />
         <Burning />
         <MintingNativeScript />
+        <MintinPlutusScript />
         <MintingRoyaltyToken />
       </CommonLayout>
     </>
