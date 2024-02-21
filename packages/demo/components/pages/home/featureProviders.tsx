@@ -18,16 +18,20 @@ export default function FeatureProviders() {
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
             Choose between{' '}
+            <a href="https://www.gomaestro.org/" target="_blank" rel="noreferrer">
+              Maestro
+            </a>
+            ,{' '}
+            <a href="https://www.koios.rest/" target="_blank" rel="noreferrer">
+              Koios
+            </a>
+            ,{' '}
             <a href="https://blockfrost.io/" target="_blank" rel="noreferrer">
               Blockfrost
             </a>
-            ,{' '}
-            <a href="https://tangocrypto.com/" target="_blank" rel="noreferrer">
-              Tangocrypto
-            </a>
             , or{' '}
-            <a href="https://www.koios.rest/" target="_blank" rel="noreferrer">
-              Koios
+            <a href="https://ogmios.dev/" target="_blank" rel="noreferrer">
+              Ogmios
             </a>{' '}
             to access blockchain data. Query{' '}
             <a href="https://adahandle.com/" target="_blank" rel="noreferrer">
