@@ -18,22 +18,22 @@ export default function FeatureProviders() {
           </h2>
           <p className="mb-6 font-light text-gray-500 md:text-lg dark:text-gray-400">
             Choose between{' '}
-            <a href="https://blockfrost.io/" target="_blank" rel="noreferrer">
-              Blockfrost
+            <a href="/providers/maestro" target="_blank" rel="noreferrer">
+              Maestro
             </a>
             ,{' '}
-            <a href="https://tangocrypto.com/" target="_blank" rel="noreferrer">
-              Tangocrypto
+            <a href="/providers/koios" target="_blank" rel="noreferrer">
+              Koios
+            </a>
+            ,{' '}
+            <a href="/providers/blockfrost" target="_blank" rel="noreferrer">
+              Blockfrost
             </a>
             , or{' '}
-            <a href="https://www.koios.rest/" target="_blank" rel="noreferrer">
-              Koios
+            <a href="/providers/ogmios" target="_blank" rel="noreferrer">
+              Ogmios
             </a>{' '}
-            to access blockchain data. Query{' '}
-            <a href="https://adahandle.com/" target="_blank" rel="noreferrer">
-              ADA Handle
-            </a>{' '}
-            to get wallet's address. And more to come.
+            to access blockchain data.
           </p>
           <Link href="/providers">
             <div className="inline-flex items-center justify-center px-5 py-3 mr-3 text-base font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-900 cursor-pointer">
