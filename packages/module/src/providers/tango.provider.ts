@@ -359,6 +359,7 @@ export class TangoProvider
   async fetchUTxOs(hash: string): Promise<UTxO[]> {
     try {
       // TODO: Implement the fetcher
+      console.log(hash);
       return [];
     } catch (error) {
       throw parseHttpError(error);

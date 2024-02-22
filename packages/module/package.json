@@ -34,7 +34,9 @@
     "test:coverage": "vitest run --coverage",
     "build": "vite build",
     "prepare": "yarn lint && yarn test && yarn build",
-    "dev": "vite build --watch"
+    "dev": "vite build --watch",
+    "doc": "typedoc src/index.ts --json ../docs/src/data/api.json",
+    "doc2": "typedoc src/index.ts --out ../docs/tmp"
   },
   "husky": {
     "hooks": {
@@ -59,6 +61,7 @@
     "husky": "8.0.1",
     "rollup": "2.79.0",
     "tslib": "2.4.0",
+    "typedoc": "^0.25.8",
     "vite": "3.1.4",
     "vite-plugin-eslint": "1.8.1",
     "vite-plugin-wasm": "2.1.0",

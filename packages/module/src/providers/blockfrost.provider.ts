@@ -21,10 +21,29 @@ import type {
   UTxO,
 } from '@mesh/common/types';
 
+/**
+ * [Blockfrost](https://blockfrost.io/) provides restful APIs which allows your app to access information stored on the blockchain.
+ *
+ * Get started:
+ * ```ts
+ * const blockfrostProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
+ * ```
+ */
 export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
+  /**
+   * If you are using a privately hosted Blockfrost instance, you can set the URL in the parameter.
+   * @param baseUrl The base URL of the instance.
+   */
   constructor(baseUrl: string);
+
+  /**
+   * If you are using [Blockfrost](https://blockfrost.io/) hosted instance, you can set the project ID in the parameter.
+   * @param projectId The project ID of the instance.
+   * @param version The version of the API. Default is 0.
+   * 
+   */
   constructor(projectId: string, version?: number);
 
   constructor(...args: unknown[]) {

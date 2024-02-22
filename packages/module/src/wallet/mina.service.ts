@@ -134,9 +134,7 @@ export class MinaWallet {
         console.log('signedTx', signedTx);
         return signedTx;
       }
-    } else {
-      return undefined;
     }
+    return undefined;
   }
-
 }
