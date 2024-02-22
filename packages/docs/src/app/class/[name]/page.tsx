@@ -5,8 +5,9 @@ import { Prose } from '@/components/Prose';
 import getClassGroups from '@/data/get-class-groups';
 import Markdown from 'react-markdown';
 import { Properties, Property } from '@/components/mdx';
-import { Code, CodeGroup, Pre } from '@/components/Code';
-import getClassChildren from '@/data/get-class-children';
+import { CodeGroup } from '@/components/Code';
+import { v4 as uuidv4 } from 'uuid';
+import { Fragment } from 'react';
 
 export default function Page({ params }: { params: { name: string } }) {
   const meshClass = getClass(params.name);
@@ -20,7 +21,7 @@ export default function Page({ params }: { params: { name: string } }) {
 
         {meshClass.sources.map((source, i) => {
           return (
-            <span key={`key${i}`}>
+            <span key={uuidv4()}>
               Defined in{' '}
               <a href={source.url} target="_blank">
                 {source.fileName}:{source.line}
@@ -30,7 +31,7 @@ export default function Page({ params }: { params: { name: string } }) {
         })}
 
         {meshGroup.map((group, i) => {
-          return <Group group={group} key={`group${i}`} />;
+          return <Group group={group} key={uuidv4()} />;
         })}
       </Prose>
       {/* <footer className="mx-auto mt-16 w-full max-w-2xl lg:max-w-5xl">
@@ -49,7 +50,7 @@ function Header({ meshClass }) {
           <span>implements</span>
           {meshClass.implementedTypes.map((implementedType: any, i: number) => {
             return (
-              <span key={`implementedType${i}`}>
+              <span key={uuidv4()}>
                 <a href={`/inteface/${implementedType.name}`}>
                   {implementedType.name}
                 </a>
@@ -66,8 +67,7 @@ function Group({ group }) {
   return (
     <>
       {group.children.map((child, i) => {
-        console.log(2, child);
-        return <Item key={`child${i}`} child={child} />;
+        return <Item key={uuidv4()} child={child} />;
       })}
     </>
   );
@@ -78,6 +78,13 @@ function Item({ child }) {
     <div>
       <ItemHeader child={child} />
       <ItemSignatures child={child} />
+
+      <span>
+        Defined in{' '}
+        <a href={child.sources[0].url} target="_blank">
+          {child.sources[0].fileName}:{child.sources[0].line}
+        </a>
+      </span>
     </div>
   );
 }
@@ -85,63 +92,141 @@ function Item({ child }) {
 function ItemSignatures({ child }) {
   return (
     <>
-      {child.signatures.map((signature, i) => {
-        let code = ``;
-        code += signature.name;
-        code += `(`;
-        code += signature.parameters
-          .map((param, i) => {
-            return `${param.name}: ${param.type.name}`;
-          })
-          .join(', ');
-        code += `)`;
-        // code += `: ${signature.type.name}`;
-        // signature.type.typeArguments &&
-        //   signature.type.typeArguments.map((typeArg, i) => {
-        //     code += `<${typeArg.name}>`;
-        //   });
+      {child.signatures &&
+        child.signatures.map((signature, i) => {
+          let code = ``;
+          code += signature.name;
+
+          if (signature.parameters) {
+            code += `(`;
+
+            code += signature.parameters
+              .map((param, i) => {
+                if (
+                  param.type.type == 'reference' ||
+                  param.type.type == 'intrinsic'
+                ) {
+                  return `${param.name}: ${param.type.name}`;
+                }
+                if (param.type.type == 'array') {
+                  return `${param.name}: ${param.type.elementType.name}[]`;
+                }
+                if (param.type.type == 'union') {
+                  return (
+                    `${param.name}: ` +
+                    param.type.types
+                      .map((type, j) => {
+                        return type.value;
+                      })
+                      .join(' | ')
+                  );
+                }
+              })
+              .join(', ');
+            code += `)`;
+          }
+
+          return (
+            <div key={uuidv4()}>
+              <KindCode text={code} />
+              <Content comment={signature.comment} />
+
+              <div className="grid grid-cols-2 gap-2">
+                {signature.parameters && (
+                  <div>
+                    <b>Parameters</b>
+                    <Parameters signature={signature} />
+                  </div>
+                )}
+
+                <div>
+                  <b>Returns</b>
+                  <Return signature={signature} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+    </>
+  );
+}
+
+function Parameters({ signature }) {
+  return (
+    <Properties>
+      {signature.parameters.map((param, j) => {
+        let type = ``;
+        if (param.type.name) {
+          type = param.type.name;
+        }
+        if (param.defaultValue) {
+          type += ` (default: ${param.defaultValue})`;
+        }
 
         return (
-          <div key={`sign${i}`}>
-            <Content comment={signature.comment} />
-
-            <KindCode text={code} />
-
-            <Properties>
-              {signature.parameters.map((param, j) => (
-                <Property
-                  name={`${param.name}: ${param.type.name}`}
-                  key={`params${i}${j}`}
-                >
-                  <Content comment={param.comment} />
-                </Property>
-              ))}
-            </Properties>
-
-            {/* <div className="flex gap-2">
-              <b>Returns</b>
-              <a>
-                {signature.type.name}
-                {signature.type.typeArguments &&
-                  signature.type.typeArguments.map((typeArg, i) => {
-                    console.log(333, child.name, typeArg.target)
-                    // const target = getClassChildren(child.name, typeArg.target);
-                    // console.log(444, target)
-                    return `<${typeArg.name}>`;
-                  })}
-              </a>
-            </div> */}
-
-            <span>
-              Defined in{' '}
-              <a href={child.sources[i].url} target="_blank">
-                {child.sources[i].fileName}:{child.sources[i].line}
-              </a>
-            </span>
-          </div>
+          <Property name={param.name} key={uuidv4()} type={type}>
+            <Content comment={param.comment} />
+          </Property>
         );
       })}
-    </>
+    </Properties>
+  );
+}
+
+function Return({ signature }) {
+  return (
+    <Properties>
+      <>
+        {signature.type.type == 'reference' && (
+          <Property name={signature.type.name} key={uuidv4()}>
+            <></>
+          </Property>
+        )}
+        {signature.type.typeArguments && (
+          <>
+            {signature.type.typeArguments.map((typeArg, i) => {
+              if (typeArg.type == 'reference') {
+                return (
+                  <Property name={typeArg.name} key={uuidv4()}>
+                    <></>
+                  </Property>
+                );
+              }
+
+              if (typeArg.type == 'array') {
+                const element = typeArg.elementType;
+                if (element.type == 'reference') {
+                  return (
+                    <Property name={element.name} key={uuidv4()} type={'array'}>
+                      <></>
+                    </Property>
+                  );
+                }
+                if (element.type == 'reflection') {
+                  return (
+                    <Fragment key={uuidv4()}>
+                      {typeArg.elementType.declaration.children.map(
+                        (child, j) => {
+                          return (
+                            <Property
+                              name={child.name}
+                              key={uuidv4()}
+                              type={child.type.name}
+                            >
+                              <></>
+                            </Property>
+                          );
+                        }
+                      )}
+                    </Fragment>
+                  );
+                }
+              }
+            })}
+          </>
+        )}
+      </>
+    </Properties>
   );
 }
 
@@ -179,9 +264,15 @@ function Content({ comment, isMain = false }) {
         comment.summary.map((item, i) => {
           switch (item.kind) {
             case 'text':
-              return <KindText text={item.text} key={i} isLeadClass={isMain} />;
+              return (
+                <KindText
+                  text={item.text}
+                  key={uuidv4()}
+                  isLeadClass={isMain}
+                />
+              );
             case 'code':
-              return <KindCode text={item.text} key={i} />;
+              return <KindCode text={item.text} key={uuidv4()} />;
             default:
               return null;
           }

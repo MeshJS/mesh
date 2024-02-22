@@ -42,7 +42,6 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
    * If you are using [Blockfrost](https://blockfrost.io/) hosted instance, you can set the project ID in the parameter.
    * @param projectId The project ID of the instance.
    * @param version The version of the API. Default is 0.
-   * 
    */
   constructor(projectId: string, version?: number);
 

@@ -23,6 +23,7 @@
     "remark": "^15.0.1",
     "simple-functional-loader": "^1.2.1",
     "unist-util-filter": "^5.0.1",
+    "uuid": "^9.0.1",
     "zustand": "^4.5.1"
   },
   "devDependencies": {
