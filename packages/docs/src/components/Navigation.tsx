@@ -257,7 +257,7 @@ export const navigation: Array<NavGroup> = [
   {
     title: 'Classes',
     links: getClasses().map((item: any)=>{
-      return {title: item.name, href: `/class/${item.name}`}
+      return {title: item.name, href: `/classes/${item.name}`}
     })
   }
 ]

@@ -39,7 +39,7 @@ export default async function RootLayout({
       })
     })
 
-    return [`/class/${meshClass.name}`, _items]
+    return [`/classes/${meshClass.name}`, _items]
   })as Array<[string, Array<Section>]>
 
   let allSections = Object.fromEntries(allSectionsEntries)

@@ -35,8 +35,8 @@
     "build": "vite build && yarn doc",
     "prepare": "yarn lint && yarn test && yarn build",
     "dev": "vite build --watch",
-    "doc": "typedoc src/index.ts --json ../docs/src/data/api.json",
-    "doc2": "typedoc src/index.ts --out ../docs/tmp"
+    "docs": "typedoc src/index.ts --json ../docs/src/data/api.json",
+    "docs2": "typedoc src/index.ts --out ../docs/tmp"
   },
   "husky": {
     "hooks": {

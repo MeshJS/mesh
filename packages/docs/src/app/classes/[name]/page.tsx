@@ -95,18 +95,24 @@ function ItemSignatures({ child }) {
       {child.signatures &&
         child.signatures.map((signature, i) => {
           let code = ``;
+
+          const isPromise = signature.type.name == 'Promise';
+          if (isPromise) {
+            code += `await `;
+          }
+
           code += signature.name;
 
-          if (signature.parameters) {
-            code += `(`;
+          code += `(`;
 
+          if (signature.parameters) {
             code += signature.parameters
               .map((param, i) => {
                 if (
                   param.type.type == 'reference' ||
                   param.type.type == 'intrinsic'
                 ) {
-                  return `${param.name}: ${param.type.name}`;
+                  return `${param.name}: [${param.type.name}](/types/${param.type.name})`;
                 }
                 if (param.type.type == 'array') {
                   return `${param.name}: ${param.type.elementType.name}[]`;
@@ -123,8 +129,9 @@ function ItemSignatures({ child }) {
                 }
               })
               .join(', ');
-            code += `)`;
           }
+
+          code += `)`;
 
           return (
             <div key={uuidv4()}>
@@ -164,7 +171,12 @@ function Parameters({ signature }) {
         }
 
         return (
-          <Property name={param.name} key={uuidv4()} type={type}>
+          <Property
+            name={param.name}
+            key={uuidv4()}
+            type={type}
+            data={param.type}
+          >
             <Content comment={param.comment} />
           </Property>
         );
@@ -174,20 +186,48 @@ function Parameters({ signature }) {
 }
 
 function Return({ signature }) {
+  const isPromise = signature.type.name == 'Promise';
+
   return (
     <Properties>
       <>
-        {signature.type.type == 'reference' && (
-          <Property name={signature.type.name} key={uuidv4()}>
-            <></>
-          </Property>
+        {!isPromise && (
+          <>
+            {(signature.type.type == 'reference' ||
+              signature.type.type == 'intrinsic') && (
+              <Property
+                key={uuidv4()}
+                type={signature.type.name}
+                data={signature.type}
+                isPromise={isPromise}
+              >
+                <></>
+              </Property>
+            )}
+            {signature.type.type == 'array' && (
+              <Property
+                key={uuidv4()}
+                type={signature.type.elementType.name}
+                isPromise={isPromise}
+                isArray={true}
+                data={signature.type.elementType}
+              >
+                <></>
+              </Property>
+            )}
+          </>
         )}
         {signature.type.typeArguments && (
           <>
             {signature.type.typeArguments.map((typeArg, i) => {
-              if (typeArg.type == 'reference') {
+              if (typeArg.type == 'reference' || typeArg.type == 'intrinsic') {
                 return (
-                  <Property name={typeArg.name} key={uuidv4()}>
+                  <Property
+                    key={uuidv4()}
+                    type={typeArg.name}
+                    data={typeArg}
+                    isPromise={isPromise}
+                  >
                     <></>
                   </Property>
                 );
@@ -197,7 +237,12 @@ function Return({ signature }) {
                 const element = typeArg.elementType;
                 if (element.type == 'reference') {
                   return (
-                    <Property name={element.name} key={uuidv4()} type={'array'}>
+                    <Property
+                      key={uuidv4()}
+                      type={element.name}
+                      isPromise={isPromise}
+                      isArray={true}
+                    >
                       <></>
                     </Property>
                   );
@@ -212,6 +257,7 @@ function Return({ signature }) {
                               name={child.name}
                               key={uuidv4()}
                               type={child.type.name}
+                              isPromise={isPromise}
                             >
                               <></>
                             </Property>

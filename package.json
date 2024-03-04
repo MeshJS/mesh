@@ -11,12 +11,14 @@
     "start:contracts": "lerna exec --scope @meshsdk/contracts -- yarn dev",
     "start:module": "lerna exec --scope @meshsdk/core -- yarn dev",
     "start:react": "lerna exec --scope @meshsdk/react -- yarn dev",
+    "start:docs": "lerna exec --scope @meshsdk/docs -- yarn dev",
     "build": "lerna link && yarn build:module && yarn build:react && yarn build:contracts && yarn build:demo",
     "build:cli": "lerna exec --scope create-mesh-dapp -- yarn build",
     "build:demo": "lerna exec --scope @meshsdk/playground -- yarn build",
     "build:contracts": "lerna exec --scope @meshsdk/contracts -- yarn build",
     "build:module": "lerna exec --scope @meshsdk/core -- yarn build",
-    "build:react": "lerna exec --scope @meshsdk/react -- yarn build"
+    "build:react": "lerna exec --scope @meshsdk/react -- yarn build",
+    "build:docs": "lerna exec --scope @meshsdk/core -- yarn docs"
   },
   "devDependencies": {
     "@types/jest": "28.1.6",

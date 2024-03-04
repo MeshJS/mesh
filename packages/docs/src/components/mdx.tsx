@@ -1,13 +1,13 @@
-import Link from 'next/link'
-import clsx from 'clsx'
+import Link from 'next/link';
+import clsx from 'clsx';
 
-import { Feedback } from '@/components/Feedback'
-import { Heading } from '@/components/Heading'
-import { Prose } from '@/components/Prose'
+import { Feedback } from '@/components/Feedback';
+import { Heading } from '@/components/Heading';
+import { Prose } from '@/components/Prose';
 
-export const a = Link
-export { Button } from '@/components/Button'
-export { CodeGroup, Code as code, Pre as pre } from '@/components/Code'
+export const a = Link;
+export { Button } from '@/components/Button';
+export { CodeGroup, Code as code, Pre as pre } from '@/components/Code';
 
 export function wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -17,14 +17,14 @@ export function wrapper({ children }: { children: React.ReactNode }) {
         <Feedback />
       </footer>
     </article>
-  )
+  );
 }
 
 export const h2 = function H2(
-  props: Omit<React.ComponentPropsWithoutRef<typeof Heading>, 'level'>,
+  props: Omit<React.ComponentPropsWithoutRef<typeof Heading>, 'level'>
 ) {
-  return <Heading level={2} {...props} />
-}
+  return <Heading level={2} {...props} />;
+};
 
 function InfoIcon(props: React.ComponentPropsWithoutRef<'svg'>) {
   return (
@@ -39,7 +39,7 @@ function InfoIcon(props: React.ComponentPropsWithoutRef<'svg'>) {
       />
       <circle cx="8" cy="4" r=".5" fill="none" />
     </svg>
-  )
+  );
 }
 
 export function Note({ children }: { children: React.ReactNode }) {
@@ -50,7 +50,7 @@ export function Note({ children }: { children: React.ReactNode }) {
         {children}
       </div>
     </div>
-  )
+  );
 }
 
 export function Row({ children }: { children: React.ReactNode }) {
@@ -58,26 +58,26 @@ export function Row({ children }: { children: React.ReactNode }) {
     <div className="grid grid-cols-1 items-start gap-x-16 gap-y-10 xl:max-w-none xl:grid-cols-2">
       {children}
     </div>
-  )
+  );
 }
 
 export function Col({
   children,
   sticky = false,
 }: {
-  children: React.ReactNode
-  sticky?: boolean
+  children: React.ReactNode;
+  sticky?: boolean;
 }) {
   return (
     <div
       className={clsx(
         '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
-        sticky && 'xl:sticky xl:top-24',
+        sticky && 'xl:sticky xl:top-24'
       )}
     >
       {children}
     </div>
-  )
+  );
 }
 
 export function Properties({ children }: { children: React.ReactNode }) {
@@ -90,31 +90,57 @@ export function Properties({ children }: { children: React.ReactNode }) {
         {children}
       </ul>
     </div>
-  )
+  );
 }
 
 export function Property({
   name,
   children,
   type,
+  data,
+  isPromise,
+  isArray,
 }: {
-  name: string
-  children: React.ReactNode
-  type?: string
+  name?: string;
+  children: React.ReactNode;
+  type?: string;
+  data?: any;
+  isPromise?: boolean;
+  isArray?: boolean;
 }) {
   return (
     <li className="m-0 px-0 py-4 first:pt-0 last:pb-0">
       <dl className="m-0 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <dt className="sr-only">Name</dt>
-        <dd>
-          <code>{name}</code>
-        </dd>
+        {name && (
+          <>
+            <dt className="sr-only">Name</dt>
+            <dd>
+              <code>{name}</code>
+            </dd>
+          </>
+        )}
         {type && (
           <>
             <dt className="sr-only">Type</dt>
-            <dd className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-              {type}
-            </dd>
+            {data && data.type == 'reference' ? (
+              <Link href={`types/${type}`}>
+                <dd className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                  <TypeLabel
+                    type={type}
+                    isPromise={isPromise}
+                    isArray={isArray}
+                  />
+                </dd>
+              </Link>
+            ) : (
+              <dd className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                <TypeLabel
+                  type={type}
+                  isPromise={isPromise}
+                  isArray={isArray}
+                />
+              </dd>
+            )}
           </>
         )}
         <dt className="sr-only">Description</dt>
@@ -123,5 +149,26 @@ export function Property({
         </dd>
       </dl>
     </li>
-  )
+  );
+}
+
+function TypeLabel({
+  type,
+  isPromise,
+  isArray,
+}: {
+  type: string;
+  isPromise?: boolean;
+  isArray?: boolean;
+}) {
+  let output = ``;
+
+  if (isPromise) output += `Promise<`;
+  output += `${type}`;
+
+  if (isArray) output += `[]`;
+
+  if (isPromise) output += `>`;
+
+  return <>{output}</>;
 }
