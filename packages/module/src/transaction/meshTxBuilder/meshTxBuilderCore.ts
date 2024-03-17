@@ -12,6 +12,7 @@ import {
   Quantity,
   UTxO,
   Unit,
+  PoolParams,
 } from '@mesh/common/types';
 import {
   buildTxBuilder,
@@ -19,6 +20,7 @@ import {
   toPlutusData,
   toAddress,
   buildDataCost,
+  toPoolParams,
 } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
 import {
@@ -34,6 +36,7 @@ import {
   ValidityRange,
   Metadata,
   BuilderData,
+  Certificate,
 } from './type';
 import { selectUtxos } from '@mesh/core/CPS-009';
 
@@ -93,6 +96,7 @@ export class MeshTxBuilderCore {
     changeAddress: '',
     metadata: [],
     validityRange: {},
+    certificates: [],
     signingKey: [],
   });
 
@@ -140,6 +144,7 @@ export class MeshTxBuilderCore {
       referenceInputs,
       mints,
       changeAddress,
+      certificates,
       validityRange,
       requiredSignatures,
       metadata,
@@ -177,6 +182,7 @@ export class MeshTxBuilderCore {
     this.addAllCollaterals(collaterals);
     this.addAllReferenceInputs(referenceInputs);
     this.addAllMints(mints);
+    this.addAllCertificates(certificates);
     this.addValidityRange(validityRange);
     this.addAllRequiredSignatures(requiredSignatures);
     this.addAllMetadata(metadata);
@@ -798,6 +804,43 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  registerPoolCertificate = (poolParams: PoolParams) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'RegisterPool',
+      poolParams,
+    });
+  };
+
+  registerStakeCertificate = (stakeKeyHash: string) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'RegisterStake',
+      stakeKeyHash,
+    });
+  };
+
+  delegateStakeCertificate = (stakeKeyHash: string, poolId: string) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'DelegateStake',
+      stakeKeyHash,
+      poolId,
+    });
+  };
+
+  deregisterStakeCertificate = (stakeKeyHash: string) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'DeregisterStake',
+      stakeKeyHash,
+    });
+  };
+
+  retirePoolCertificate = (poolId: string, epoch: number) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'RetirePool',
+      poolId,
+      epoch,
+    });
+  };
+
   /**
    * Configure the address to accept change UTxO
    * @param addr The address to accept change UTxO
@@ -1255,6 +1298,64 @@ export class MeshTxBuilderCore {
     );
   };
 
+  private addCertificate = (
+    certificates: csl.Certificates,
+    cert: Certificate
+  ) => {
+    switch (cert.type) {
+      case 'RegisterPool':
+        certificates.add(
+          csl.Certificate.new_pool_registration(
+            csl.PoolRegistration.new(toPoolParams(cert.poolParams))
+          )
+        );
+        break;
+      case 'RegisterStake':
+        certificates.add(
+          csl.Certificate.new_stake_registration(
+            csl.StakeRegistration.new(
+              csl.StakeCredential.from_keyhash(
+                csl.Ed25519KeyHash.from_hex(cert.stakeKeyHash)
+              )
+            )
+          )
+        );
+        break;
+      case 'DelegateStake':
+        certificates.add(
+          csl.Certificate.new_stake_delegation(
+            csl.StakeDelegation.new(
+              csl.StakeCredential.from_keyhash(
+                csl.Ed25519KeyHash.from_hex(cert.stakeKeyHash)
+              ),
+              csl.Ed25519KeyHash.from_bech32(cert.poolId)
+            )
+          )
+        );
+        break;
+      case 'DeregisterStake':
+        certificates.add(
+          csl.Certificate.new_stake_deregistration(
+            csl.StakeDeregistration.new(
+              csl.StakeCredential.from_keyhash(
+                csl.Ed25519KeyHash.from_hex(cert.stakeKeyHash)
+              )
+            )
+          )
+        );
+        break;
+      case 'RetirePool':
+        certificates.add(
+          csl.Certificate.new_pool_retirement(
+            csl.PoolRetirement.new(
+              csl.Ed25519KeyHash.from_bech32(cert.poolId),
+              cert.epoch
+            )
+          )
+        );
+    }
+  };
+
   protected queueAllLastItem = () => {
     if (this.txOutput) {
       this.meshTxBuilderBody.outputs.push(this.txOutput);
@@ -1270,6 +1371,14 @@ export class MeshTxBuilderCore {
     if (this.mintItem) {
       this.queueMint();
     }
+  };
+
+  protected addAllCertificates = (allCertificates: Certificate[]) => {
+    let certificates = csl.Certificates.new();
+    allCertificates.forEach((cert) => {
+      this.addCertificate(certificates, cert);
+    });
+    this.txBuilder.set_certs(certificates);
   };
 
   protected addCostModels = () => {
