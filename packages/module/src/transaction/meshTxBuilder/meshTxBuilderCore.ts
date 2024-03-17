@@ -809,6 +809,7 @@ export class MeshTxBuilderCore {
       type: 'RegisterPool',
       poolParams,
     });
+    return this;
   };
 
   registerStakeCertificate = (stakeKeyHash: string) => {
@@ -816,6 +817,7 @@ export class MeshTxBuilderCore {
       type: 'RegisterStake',
       stakeKeyHash,
     });
+    return this;
   };
 
   delegateStakeCertificate = (stakeKeyHash: string, poolId: string) => {
@@ -824,6 +826,7 @@ export class MeshTxBuilderCore {
       stakeKeyHash,
       poolId,
     });
+    return this;
   };
 
   deregisterStakeCertificate = (stakeKeyHash: string) => {
@@ -831,6 +834,7 @@ export class MeshTxBuilderCore {
       type: 'DeregisterStake',
       stakeKeyHash,
     });
+    return this;
   };
 
   retirePoolCertificate = (poolId: string, epoch: number) => {
@@ -839,6 +843,7 @@ export class MeshTxBuilderCore {
       poolId,
       epoch,
     });
+    return this;
   };
 
   /**
