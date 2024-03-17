@@ -1374,7 +1374,7 @@ export class MeshTxBuilderCore {
   };
 
   protected addAllCertificates = (allCertificates: Certificate[]) => {
-    let certificates = csl.Certificates.new();
+    const certificates = csl.Certificates.new();
     allCertificates.forEach((cert) => {
       this.addCertificate(certificates, cert);
     });
