@@ -805,6 +805,11 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  /**
+   * Creates a pool registration certificate, and adds it to the transaction
+   * @param poolParams Parameters for pool registration
+   * @returns The MeshTxBuilder instance
+   */
   registerPoolCertificate = (poolParams: PoolParams) => {
     this.meshTxBuilderBody.certificates.push({
       type: 'RegisterPool',
@@ -813,6 +818,11 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  /**
+   * Creates a stake registration certificate, and adds it to the transaction
+   * @param stakeKeyHash The keyHash of the stake key
+   * @returns The MeshTxBuilder instance
+   */
   registerStakeCertificate = (stakeKeyHash: string) => {
     this.meshTxBuilderBody.certificates.push({
       type: 'RegisterStake',
@@ -821,6 +831,13 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  /**
+   * Creates a stake delegation certificate, and adds it to the transaction
+   * This will delegate stake from the corresponding stake address to the pool
+   * @param stakeKeyHash The keyHash of the stake key
+   * @param poolId poolId can be in either bech32 or hex form
+   * @returns The MeshTxBuilder instance
+   */
   delegateStakeCertificate = (stakeKeyHash: string, poolId: string) => {
     this.meshTxBuilderBody.certificates.push({
       type: 'DelegateStake',
@@ -830,6 +847,11 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  /**
+   * Creates a stake deregister certificate, and adds it to the transaction
+   * @param stakeKeyHash The keyHash of the stake key
+   * @returns The MeshTxBuilder instance
+   */
   deregisterStakeCertificate = (stakeKeyHash: string) => {
     this.meshTxBuilderBody.certificates.push({
       type: 'DeregisterStake',
@@ -838,6 +860,12 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  /**
+   * Creates a pool retire certificate, and adds it to the transaction
+   * @param poolId poolId can be in either bech32 or hex form
+   * @param epoch The intended epoch to retire the pool
+   * @returns The MeshTxBuilder instance
+   */
   retirePoolCertificate = (poolId: string, epoch: number) => {
     this.meshTxBuilderBody.certificates.push({
       type: 'RetirePool',
