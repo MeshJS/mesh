@@ -645,7 +645,7 @@ export class MeshTxBuilderCore {
    * @param name The hex of token name of the asset to be minted
    * @returns The MeshTxBuilder instance
    */
-  mint = (quantity: number, policy: string, name: string) => {
+  mint = (quantity: string, policy: string, name: string) => {
     if (this.mintItem) {
       this.queueMint();
     }
@@ -1279,7 +1279,7 @@ export class MeshTxBuilderCore {
     mintBuilder.add_asset(
       csl.MintWitness.new_plutus_script(script, newRedeemer),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
-      csl.Int.new_i32(amount)
+      csl.Int.new(csl.BigNum.from_str(amount))
     );
   };
 
@@ -1294,7 +1294,7 @@ export class MeshTxBuilderCore {
         csl.NativeScript.from_hex(scriptSource.script.code)
       ),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
-      csl.Int.new_i32(amount)
+      csl.Int.new(csl.BigNum.from_str(amount))
     );
   };
 

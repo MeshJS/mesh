@@ -88,7 +88,7 @@ export type MintItem = {
   type: 'Plutus' | 'Native';
   policyId: string;
   assetName: string;
-  amount: number;
+  amount: string;
   redeemer?: Redeemer;
   scriptSource?:
     | {
