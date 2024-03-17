@@ -39,6 +39,7 @@ import {
   Certificate,
 } from './type';
 import { selectUtxos } from '@mesh/core/CPS-009';
+import { Ed25519KeyHash } from '@emurgo/cardano-serialization-lib-nodejs';
 
 export class MeshTxBuilderCore {
   txHex = '';
@@ -1333,7 +1334,9 @@ export class MeshTxBuilderCore {
               csl.StakeCredential.from_keyhash(
                 csl.Ed25519KeyHash.from_hex(cert.stakeKeyHash)
               ),
-              csl.Ed25519KeyHash.from_bech32(cert.poolId)
+              cert.poolId.startsWith('pool')
+                ? csl.Ed25519KeyHash.from_bech32(cert.poolId)
+                : csl.Ed25519KeyHash.from_hex(cert.poolId)
             )
           )
         );
@@ -1353,7 +1356,9 @@ export class MeshTxBuilderCore {
         certificates.add(
           csl.Certificate.new_pool_retirement(
             csl.PoolRetirement.new(
-              csl.Ed25519KeyHash.from_bech32(cert.poolId),
+              cert.poolId.startsWith('pool')
+                ? csl.Ed25519KeyHash.from_bech32(cert.poolId)
+                : csl.Ed25519KeyHash.from_hex(cert.poolId),
               cert.epoch
             )
           )
