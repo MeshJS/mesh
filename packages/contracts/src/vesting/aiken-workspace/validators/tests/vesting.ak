@@ -27,7 +27,7 @@ fn get_test_tx(test_case: TestCase) {
     }
   let validity_range =
     if is_lock_time_passed {
-      mock_interval(Some(101), None)
+      mock_interval(Some(1672843961001), None)
     } else {
       mock_interval(None, None)
     }
@@ -42,7 +42,7 @@ fn get_test_tx(test_case: TestCase) {
 
 fn vesting_datum() {
   VestingDatum {
-    lock_until: 100,
+    lock_until: 1672843961000,
     owner: mock_pub_key_hex(1),
     beneficiary: mock_pub_key_hex(2),
   }

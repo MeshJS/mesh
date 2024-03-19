@@ -1,55 +1,24 @@
-# vesting
+# Vesting - Specification
 
-Write validators in the `validators` folder, and supporting functions in the `lib` folder using `.ak` as a file extension.
+## Scripts - VestingValidator
 
-For example, as `validators/always_true.ak`
+The validator of locking vesting value.
 
-```gleam
-validator {
-  fn spend(_datum: Data, _redeemer: Data, _context: Data) -> Bool {
-    True
-  }
-}
-```
+### Parameter - no parameter
 
-## Building
+### Datum
 
-```sh
-aiken build
-```
+- `lock_until`: POSIX time in second at locking end, e.g. 1672843961000
+- `owner`: Owner's pub key hash
+- `beneficiary`: Beneficiary's pub key hash
 
-## Testing
+### User Action
 
-You can write tests in any module using the `test` keyword. For example:
+1. Unlock by owner
 
-```gleam
-test foo() {
-  1 + 1 == 2
-}
-```
+   - Signed by `owner`
 
-To run all tests, simply do:
+2. Unlock by beneficiary
 
-```sh
-aiken check
-```
-
-To run only tests matching the string `foo`, do:
-
-```sh
-aiken check -m foo
-```
-
-## Documentation
-
-If you're writing a library, you might want to generate an HTML documentation for it.
-
-Use:
-
-```sh
-aiken docs
-```
-
-## Resources
-
-Find more on the [Aiken's user manual](https://aiken-lang.org).
+   - Signed by `beneficiary`
+   - Only valid after `lock_until`
