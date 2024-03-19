@@ -39,7 +39,6 @@ import {
   Certificate,
 } from './type';
 import { selectUtxos } from '@mesh/core/CPS-009';
-import { Ed25519KeyHash } from '@emurgo/cardano-serialization-lib-nodejs';
 
 export class MeshTxBuilderCore {
   txHex = '';
@@ -199,7 +198,7 @@ export class MeshTxBuilderCore {
         )
         .reduce((acc, curr) => acc + parseInt(curr), 0);
 
-      const collateralEsimate = Math.ceil(
+      const collateralEstimate = Math.ceil(
         (this._protocolParams.collateralPercent *
           Number(
             Number(
@@ -214,14 +213,14 @@ export class MeshTxBuilderCore {
 
       let collateralReturnNeeded = false;
 
-      if (totalCollateral - collateralEsimate > 0) {
+      if (totalCollateral - collateralEstimate > 0) {
         const collateralEstimateOutput = csl.TransactionOutput.new(
           csl.Address.from_bech32(changeAddress),
-          csl.Value.new(csl.BigNum.from_str(String(collateralEsimate)))
+          csl.Value.new(csl.BigNum.from_str(String(collateralEstimate)))
         );
 
         if (
-          totalCollateral - collateralEsimate >
+          totalCollateral - collateralEstimate >
           Number(
             csl
               .min_ada_for_output(
