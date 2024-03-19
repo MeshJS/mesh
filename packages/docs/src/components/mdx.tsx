@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { Feedback } from '@/components/Feedback';
 import { Heading } from '@/components/Heading';
 import { Prose } from '@/components/Prose';
+import getChildrenById from '@/data/get-children-by-id';
 
 export const a = Link;
 export { Button } from '@/components/Button';
@@ -108,6 +109,19 @@ export function Property({
   isPromise?: boolean;
   isArray?: boolean;
 }) {
+  let item = undefined;
+  if (data && data.target) {
+    item = getChildrenById(data.target);
+  }
+
+  let link = ``;
+  if (item) {
+    //@ts-ignore
+    if (item.kind == 'Class') link = `/classes/${type}`;
+    //@ts-ignore
+    if (item.kind == 'Type') link = `/types/${type}`;
+  }
+
   return (
     <li className="m-0 px-0 py-4 first:pt-0 last:pb-0">
       <dl className="m-0 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -123,15 +137,18 @@ export function Property({
           <>
             <dt className="sr-only">Type</dt>
             {data && data.type == 'reference' ? (
-              <Link href={`types/${type}`}>
-                <dd className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-                  <TypeLabel
-                    type={type}
-                    isPromise={isPromise}
-                    isArray={isArray}
-                  />
-                </dd>
-              </Link>
+              <>
+                {}
+                <Link href={link}>
+                  <dd className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                    <TypeLabel
+                      type={type}
+                      isPromise={isPromise}
+                      isArray={isArray}
+                    />
+                  </dd>
+                </Link>
+              </>
             ) : (
               <dd className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
                 <TypeLabel

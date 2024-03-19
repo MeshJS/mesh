@@ -204,7 +204,7 @@ function Return({ signature }) {
                 <></>
               </Property>
             )}
-            {signature.type.type == 'array' && (
+            {/* {signature.type.type == 'array' && (
               <Property
                 key={uuidv4()}
                 type={signature.type.elementType.name}
@@ -214,7 +214,7 @@ function Return({ signature }) {
               >
                 <></>
               </Property>
-            )}
+            )} */}
           </>
         )}
         {signature.type.typeArguments && (
@@ -240,6 +240,7 @@ function Return({ signature }) {
                     <Property
                       key={uuidv4()}
                       type={element.name}
+                      data={element}
                       isPromise={isPromise}
                       isArray={true}
                     >

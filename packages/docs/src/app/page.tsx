@@ -1,32 +1,6 @@
-"use client"
-
-import getClasses from '@/data/get-classes';
-import data from '../data/api.json';
-import getClassGroups from '@/data/get-class-groups';
-import { Section } from '@/components/SectionProvider';
+'use client';
 
 export default function Home() {
-
-  const test = getClasses();
-  // console.log(1, test)
-  
-  const allSectionsEntries = getClasses().map((meshClass: any) => {
-    
-    const _items:{id:string; title:string}[] = [];
-
-    getClassGroups(meshClass.name).map((group: any) => {
-      group.children.map((item: any) => {
-        console.log(1, item)
-        _items.push( {id: item.name, title: item.name})
-      })
-    })
-
-    return [`/${meshClass.name}`, _items]
-  })as Array<[string, Array<Section>]>
-
-  console.log(9999, allSectionsEntries)
-
-
   return (
     <>
       <ListChildren />

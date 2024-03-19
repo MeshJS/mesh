@@ -7,6 +7,8 @@ import { type Metadata } from 'next'
 import { type Section } from '@/components/SectionProvider'
 import getClasses from '@/data/get-classes'
 import getClassGroups from '@/data/get-class-groups'
+import getInterfaces from '@/data/get-interfaces'
+import getInterfaceGroups from '@/data/get-interface-groups'
 
 export const metadata: Metadata = {
   title: {
@@ -29,6 +31,7 @@ export default async function RootLayout({
   // )) as Array<[string, Array<Section>]>
   // let allSections = Object.fromEntries(allSectionsEntries)
 
+  // get all classes
   const allSectionsEntries = getClasses().map((meshClass: any) => {
     
     const _items:{id:string; title:string}[] = [];
@@ -41,6 +44,20 @@ export default async function RootLayout({
 
     return [`/classes/${meshClass.name}`, _items]
   })as Array<[string, Array<Section>]>
+
+  // get all interfaces
+  const allInterfaces = getInterfaces().map((meshInterfaces: any) => {
+    const _items: { id: string; title: string }[] = [];
+
+    getInterfaceGroups(meshInterfaces.name).map((group: any) => {
+      group.children.map((item: any) => {
+        _items.push({ id: item.name, title: item.name });
+      });
+    });
+
+    return [`/interfaces/${meshInterfaces.name}`, _items];
+  }) as Array<[string, Array<Section>]>;
+  allSectionsEntries.push(...allInterfaces);
 
   let allSections = Object.fromEntries(allSectionsEntries)
 
