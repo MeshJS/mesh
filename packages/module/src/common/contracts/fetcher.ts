@@ -8,6 +8,9 @@ import type {
   UTxO,
 } from '@mesh/common/types';
 
+/**
+ * Fetcher interface defines end points to query blockchain data.
+ */
 export interface IFetcher {
   fetchAccountInfo(address: string): Promise<AccountInfo>;
   fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>;

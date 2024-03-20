@@ -1,4 +1,6 @@
+'use client';
 import { Prose } from '@/components/Prose';
+import { Content, DefinedIn, Header, TypeDeclaration } from '@/components/docs';
 import getType from '@/data/get-type';
 
 export default function Page({ params }: { params: { name: string } }) {
@@ -8,30 +10,13 @@ export default function Page({ params }: { params: { name: string } }) {
   return (
     <article className="flex h-full flex-col pb-10 pt-16">
       <Prose className="flex-auto">
-        <Header meshType={meshType} />
+        <Header meshObject={meshType} />
+        <Content comment={meshType.comment} isMain={true} />
+
+        <TypeDeclaration meshType={meshType} />
+
+        <DefinedIn sources={meshType.sources} />
       </Prose>
     </article>
-  );
-}
-
-function Header({ meshType }) {
-  return (
-    <div className="flex gap-2 items-center">
-      <h1>{meshType.name}</h1>
-      {/* {meshType.implementedTypes && (
-        <div className="flex gap-1">
-          <span>implements</span>
-          {meshClass.implementedTypes.map((implementedType: any, i: number) => {
-            return (
-              <span key={uuidv4()}>
-                <a href={`/inteface/${implementedType.name}`}>
-                  {implementedType.name}
-                </a>
-              </span>
-            );
-          })}
-        </div>
-      )} */}
-    </div>
   );
 }
