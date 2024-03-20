@@ -44,14 +44,6 @@ export function Item({ child }) {
       <ItemSignatures child={child} />
 
       <DefinedIn sources={child.sources} />
-      {/* {child.sources && (
-        <span>
-          Defined in{' '}
-          <a href={child.sources[0].url} target="_blank">
-            {child.sources[0].fileName}:{child.sources[0].line}
-          </a>
-        </span>
-      )} */}
     </div>
   );
 }
@@ -356,7 +348,6 @@ export function ImplementedBy({
 }
 
 export function TypeDeclaration({ meshType }: { meshType: any }) {
-  console.log(3344, meshType);
   return (
     <div>
       <b>Type declaration</b>
@@ -370,7 +361,26 @@ export function TypeDeclaration({ meshType }: { meshType: any }) {
                 type={typeDeclaration.type.name}
                 data={typeDeclaration.type}
               >
-                <></>
+                <>
+                  {typeDeclaration.type.declaration && (
+                    <div className="mx-4">
+                      {typeDeclaration.type.declaration.children.map(
+                        (typeDeclaration2: any) => {
+                          return (
+                            <Property
+                              key={uuidv4()}
+                              name={typeDeclaration2.name}
+                              type={typeDeclaration2.type.name}
+                              data={typeDeclaration2.type}
+                            >
+                              <></>
+                            </Property>
+                          );
+                        }
+                      )}
+                    </div>
+                  )}
+                </>
               </Property>
             );
           })}
@@ -379,6 +389,17 @@ export function TypeDeclaration({ meshType }: { meshType: any }) {
             key={uuidv4()}
             name={meshType.name}
             type={meshType.type.name}
+          >
+            <></>
+          </Property>
+        )}
+
+        {meshType.type.objectType && meshType.type.objectType.queryType && (
+          <Property
+            key={uuidv4()}
+            name={meshType.type.objectType.queryType.name}
+            type={meshType.type.objectType.queryType.name}
+            data={meshType.type.objectType.queryType}
           >
             <></>
           </Property>

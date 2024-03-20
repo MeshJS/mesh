@@ -1,11 +1,9 @@
-'use client';
 import { Prose } from '@/components/Prose';
 import { Content, DefinedIn, Header, TypeDeclaration } from '@/components/docs';
 import getType from '@/data/get-type';
 
 export default function Page({ params }: { params: { name: string } }) {
   const meshType = getType(params.name);
-  console.log(meshType);
 
   return (
     <article className="flex h-full flex-col pb-10 pt-16">

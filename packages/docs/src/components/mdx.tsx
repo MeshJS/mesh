@@ -5,6 +5,7 @@ import { Feedback } from '@/components/Feedback';
 import { Heading } from '@/components/Heading';
 import { Prose } from '@/components/Prose';
 import getChildrenById from '@/data/get-children-by-id';
+import { githubFileUrl } from '@/config';
 
 export const a = Link;
 export { Button } from '@/components/Button';
@@ -83,7 +84,7 @@ export function Col({
 
 export function Properties({ children }: { children: React.ReactNode }) {
   return (
-    <div className="my-6">
+    <div className="my-2">
       <ul
         role="list"
         className="m-0 max-w-[calc(theme(maxWidth.lg)-theme(spacing.8))] list-none divide-y divide-zinc-900/5 p-0 dark:divide-white/5"
@@ -109,22 +110,22 @@ export function Property({
   isPromise?: boolean;
   isArray?: boolean;
 }) {
-  let item = undefined;
+  let item: undefined | { kind: string | number } = undefined;
   if (data && data.target) {
     item = getChildrenById(data.target);
   }
 
   let link = ``;
   if (item) {
-    //@ts-ignore
     if (item.kind == 'Class') link = `/classes/${type}`;
-    //@ts-ignore
     if (item.kind == 'Type') link = `/types/${type}`;
+  } else if (data?.target?.sourceFileName) {
+    link = `${githubFileUrl}${data.target.sourceFileName}`;
   }
 
   return (
-    <li className="m-0 px-0 py-4 first:pt-0 last:pb-0">
-      <dl className="m-0 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <li className="m-0 px-0 py-1 first:pt-0 last:pb-0">
+      <dl className="m-0 flex flex-wrap items-center gap-x-3 gap-y-0">
         {name && (
           <>
             <dt className="sr-only">Name</dt>
