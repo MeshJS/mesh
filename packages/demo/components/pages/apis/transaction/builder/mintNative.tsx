@@ -13,15 +13,18 @@ export default function Mint() {
 
 function Content() {
   let code = `mesh
-  .mint(quantity: number, policy: string, name: string)
+  .mint(quantity: string, policy: string, name: string)
   .mintingScript(scriptCbor: string)
 `;
 
   return (
     <>
-      <h3>When minting tokens using a 'native script' as input, there are 2 steps:</h3>
+      <h3>
+        When minting tokens using a 'native script' as input, there are 2 steps:
+      </h3>
       <h4>
-        1. Providing the minting value (quantity, policy and name) using <code>.mint()</code>
+        1. Providing the minting value (quantity, policy and name) using{' '}
+        <code>.mint()</code>
       </h4>
       <h4>
         2. Providing the script source using

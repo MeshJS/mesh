@@ -6,22 +6,23 @@ export default function Schemas() {
 }
 
 function Content() {
-  let codeMeshTxBuilderBody = ``;
-  codeMeshTxBuilderBody += `MeshTxBuilderBody = {\n`;
-  codeMeshTxBuilderBody += `  inputs: TxIn[]\n`;
-  codeMeshTxBuilderBody += `  outputs: Output[];\n`;
-  codeMeshTxBuilderBody += `  collaterals: PubKeyTxIn[];\n`;
-  codeMeshTxBuilderBody += `  requiredSignatures: string[];\n`;
-  codeMeshTxBuilderBody += `  referenceInputs: RefTxIn[];\n`;
-  codeMeshTxBuilderBody += `  mints: MintItem[];\n`;
-  codeMeshTxBuilderBody += `  changeAddress: string;\n`;
-  codeMeshTxBuilderBody += `  metadata: Metadata[];\n`;
-  codeMeshTxBuilderBody += `  validityRange: ValidityRange;\n`;
-  codeMeshTxBuilderBody += `  signingKey: string[];\n`;
-  codeMeshTxBuilderBody += `}\n`;
+  let codeMeshTxBuilderBody = `MeshTxBuilderBody = {
+  inputs: TxIn[];
+  outputs: Output[];
+  extraInputs: UTxO[];
+  selectionThreshold: number;
+  collaterals: PubKeyTxIn[];
+  requiredSignatures: string[];
+  referenceInputs: RefTxIn[];
+  mints: MintItem[];
+  changeAddress: string;
+  metadata: Metadata[];
+  validityRange: ValidityRange;
+  certificates: Certificate[];
+  signingKey: string[];
+}`;
 
-  let codeInput = ``;
-  codeInput += `TxIn = PubKeyTxIn | ScriptTxIn;\n`;
+  let codeInput = `TxIn = PubKeyTxIn | ScriptTxIn;`;
 
   let codePubKeyTxIn = `PubKeyTxIn = {
   type: 'PubKey';
@@ -97,7 +98,7 @@ function Content() {
   type: 'Plutus' | 'Native';
   policyId: string;
   assetName: string;
-  amount: number;
+  amount: string;
   redeemer?: Redeemer;
   scriptSource?:
     | {
