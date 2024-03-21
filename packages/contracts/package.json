@@ -37,6 +37,7 @@
     "@meshsdk/core": "*"
   },
   "dependencies": {
-    "@harmoniclabs/plu-ts": "0.2.2"
+    "@harmoniclabs/plu-ts": "0.2.2",
+    "@sidan-lab/sidan-csl": "^0.2.0-beta5"
   }
 }

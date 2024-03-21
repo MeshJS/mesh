@@ -2871,7 +2871,13 @@
   resolved "https://registry.yarnpkg.com/@mdx-js/util/-/util-1.6.22.tgz#219dfd89ae5b97a8801f015323ffa4b62f45718b"
   integrity sha512-H1rQc1ZOHANWBvPcW+JpGwr+juXSxM8Q8YCkm3GhZd8REu1fHR3z99CErO1p9pkcfcxZnMdIZdIsXkOHY0NilA==
 
-"@meshsdk/core@*":
+"@meshsdk/contracts@*":
+  version "1.0.0-beta.4"
+  dependencies:
+    "@harmoniclabs/plu-ts" "0.2.2"
+    "@sidan-lab/sidan-csl" "^0.2.0-beta5"
+
+"@meshsdk/core@*", "@meshsdk/core@^1.5.10":
   version "1.5.10"
   resolved "https://registry.yarnpkg.com/@meshsdk/core/-/core-1.5.10.tgz#c953bb0fac95817ddd42b5fc86752cf981134b75"
   integrity sha512-6BwyRZEqY2oA0LY3FZVHHGZ5PswLZu/L1ikdRaW5SjiFfcOndJwETdQsL5Dkiw/EDB7+ffU/fA03YfBlGpx2Rg==
@@ -3451,6 +3457,27 @@
   version "1.1.4"
   resolved "https://registry.yarnpkg.com/@rushstack/eslint-patch/-/eslint-patch-1.1.4.tgz#0c8b74c50f29ee44f423f7416829c0bf8bb5eb27"
   integrity sha512-LwzQKA4vzIct1zNZzBmRKI9QuNpLgTQMEjsQLf3BXuGYb3QPTP4Yjf6mkdX+X1mYttZ808QpOwAzZjv28kq7DA==
+
+"@sidan-lab/sidan-csl-rs-browser@^0.2.6-beta1":
+  version "0.2.6-beta1"
+  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-browser/-/sidan-csl-rs-browser-0.2.6-beta1.tgz#4865fb25f53dccc2c509c6ed7cbac47df65696eb"
+  integrity sha512-iLd7LG1Mk6l+hmq3zHH6t9xy7h/cAYWWB2mPeH4tbjYboy8/BKCrC+0tzN4rDoao4bUSRWAf62dU2OQT3E225g==
+
+"@sidan-lab/sidan-csl-rs-nodejs@^0.2.6-beta1":
+  version "0.2.6-beta1"
+  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-nodejs/-/sidan-csl-rs-nodejs-0.2.6-beta1.tgz#4ec22e20baebd3896d0f01a06a4c52c70f78fa5e"
+  integrity sha512-XPemhiij52oIDBCWNYXGxMtSUXA+6MXjCRUaI6lcpvnKNJeO5R4OqIuywoLrjePvwW+Tl7TRULcwrMPUccjUpQ==
+
+"@sidan-lab/sidan-csl@^0.2.0-beta5":
+  version "0.2.0-beta6"
+  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl/-/sidan-csl-0.2.0-beta6.tgz#3b8bec1f2a507617a9310c4d7ae8cfdc3fce8e30"
+  integrity sha512-Ifce8UzkE/l3DYeaBsVUqyLqEochQEIsDTO+N5qdkg8XniRjO2p3AjtYbfWszxnSW5bAyiksDRIaolpSkk0xmA==
+  dependencies:
+    "@meshsdk/core" "^1.5.10"
+    "@sidan-lab/sidan-csl-rs-browser" "^0.2.6-beta1"
+    "@sidan-lab/sidan-csl-rs-nodejs" "^0.2.6-beta1"
+    "@types/node" "^18.16.3"
+    blakejs "^1.2.1"
 
 "@sinclair/typebox@^0.24.1":
   version "0.24.27"
@@ -4654,6 +4681,13 @@
   version "16.18.3"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-16.18.3.tgz#d7f7ba828ad9e540270f01ce00d391c54e6e0abc"
   integrity sha512-jh6m0QUhIRcZpNv7Z/rpN+ZWXOicUUQbSoWks7Htkbb9IjFQj4kzcX/xFCkjstCj5flMsN8FiSvt+q+Tcs4Llg==
+
+"@types/node@^18.16.3":
+  version "18.19.26"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.19.26.tgz#18991279d0a0e53675285e8cf4a0823766349729"
+  integrity sha512-+wiMJsIwLOYCvUqSdKTrfkS8mpTp+MPINe6+Np4TAGFWWRWiBQ5kSq9nZGCSPkzx9mvT+uEukzpX4MOSCydcvw==
+  dependencies:
+    undici-types "~5.26.4"
 
 "@types/normalize-package-data@^2.4.0":
   version "2.4.1"
@@ -6108,6 +6142,11 @@ blake2b@2.1.3:
   dependencies:
     blake2b-wasm "^1.1.0"
     nanoassert "^1.0.0"
+
+blakejs@^1.2.1:
+  version "1.2.1"
+  resolved "https://registry.yarnpkg.com/blakejs/-/blakejs-1.2.1.tgz#5057e4206eadb4a97f7c0b6e197a505042fc3814"
+  integrity sha512-QXUSXI3QVc/gJME0dBpXrag1kbzOqCjCX8/b54ntNyW6sjtoqxqRk3LTmXzaJoh71zMsDCjM+47jS7XiwN/+fQ==
 
 bluebird@^3.5.5:
   version "3.7.2"
@@ -16207,6 +16246,11 @@ unbox-primitive@^1.0.2:
     has-bigints "^1.0.2"
     has-symbols "^1.0.3"
     which-boxed-primitive "^1.0.2"
+
+undici-types@~5.26.4:
+  version "5.26.5"
+  resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-5.26.5.tgz#bcd539893d00b56e964fd2657a4866b221a65617"
+  integrity sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==
 
 unfetch@^4.2.0:
   version "4.2.0"
