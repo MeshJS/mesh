@@ -325,6 +325,8 @@ export function DefinedIn({
         })}
       </div>
     );
+
+  return null;
 }
 
 export function ImplementedBy({
@@ -347,6 +349,7 @@ export function ImplementedBy({
         })}
       </div>
     );
+  return null;
 }
 
 export function TypeDeclaration({ meshType }: { meshType: any }) {
