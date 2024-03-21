@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+import withSearch from './src/mdx/search.mjs'
+
 const nextConfig = {
   images: {
     remotePatterns: [
@@ -10,6 +12,11 @@ const nextConfig = {
       },
     ],
   },
+  webpack5: true,
+  webpack: (config) => {
+    config.resolve.fallback = { fs: false };
+    return config;
+  },
 };
 
-export default nextConfig;
+export default withSearch(nextConfig);

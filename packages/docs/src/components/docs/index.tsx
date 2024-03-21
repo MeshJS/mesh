@@ -310,20 +310,21 @@ export function DefinedIn({
 }: {
   sources: { url: string; fileName: string; line: number }[];
 }) {
-  return (
-    <div className="flex flex-col">
-      <>Defined in </>
-      {sources.map((source, i) => {
-        return (
-          <li className="m-0" key={uuidv4()}>
-            <a href={source.url} target="_blank">
-              {source.fileName}:{source.line}
-            </a>
-          </li>
-        );
-      })}
-    </div>
-  );
+  if (sources)
+    return (
+      <div className="flex flex-col">
+        <>Defined in </>
+        {sources.map((source, i) => {
+          return (
+            <li className="m-0" key={uuidv4()}>
+              <a href={source.url} target="_blank">
+                {source.fileName}:{source.line}
+              </a>
+            </li>
+          );
+        })}
+      </div>
+    );
 }
 
 export function ImplementedBy({
@@ -331,20 +332,21 @@ export function ImplementedBy({
 }: {
   implementedBy: { name: string }[];
 }) {
-  return (
-    <div className="flex flex-col">
-      <span>Implemented by</span>
-      {implementedBy.map((implementedBy: any) => {
-        return (
-          <li key={uuidv4()} className="m-0">
-            <Link href={`/classes/${implementedBy.name}`}>
-              {implementedBy.name}
-            </Link>
-          </li>
-        );
-      })}
-    </div>
-  );
+  if (implementedBy)
+    return (
+      <div className="flex flex-col">
+        <span>Implemented by</span>
+        {implementedBy.map((implementedBy: any) => {
+          return (
+            <li key={uuidv4()} className="m-0">
+              <Link href={`/classes/${implementedBy.name}`}>
+                {implementedBy.name}
+              </Link>
+            </li>
+          );
+        })}
+      </div>
+    );
 }
 
 export function TypeDeclaration({ meshType }: { meshType: any }) {

@@ -1,7 +1,7 @@
 import getClasses from './get-classes';
 import { findObjectInArray } from './utils';
 
-export default function getClass(name: string) {
+export default function getClass(name) {
   const classes = getClasses();
 
   const meshClass = findObjectInArray({

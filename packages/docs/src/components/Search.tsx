@@ -236,6 +236,7 @@ function SearchResults({
   query: string
   collection: AutocompleteCollection<Result>
 }) {
+
   if (collection.items.length === 0) {
     return (
       <div className="p-6 text-center">
