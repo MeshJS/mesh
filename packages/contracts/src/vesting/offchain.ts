@@ -6,7 +6,7 @@ import {
   v2ScriptToBech32,
   unixTimeToEnclosingSlot,
   SLOT_CONFIG_NETWORK,
-} from '@sidan-lab/sidan-csl';
+} from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
 
