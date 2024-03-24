@@ -37,6 +37,7 @@ import {
   Metadata,
   BuilderData,
   Certificate,
+  TxInParameter,
 } from './type';
 import { selectUtxos } from '@mesh/core/CPS-009';
 
@@ -165,6 +166,8 @@ export class MeshTxBuilderCore {
     if (extraInputs.length > 0) {
       this.addUtxosFrom(extraInputs, String(selectionThreshold));
     }
+
+    this.removeDuplicateInputs();
 
     this.meshTxBuilderBody.mints.sort((a, b) =>
       a.policyId.localeCompare(b.policyId)
@@ -1075,6 +1078,23 @@ export class MeshTxBuilderCore {
   };
 
   // Below protected functions for completing tx building
+
+  protected removeDuplicateInputs = () => {
+    const inputs = this.meshTxBuilderBody.inputs;
+    const getTxInId = (txIn: TxInParameter): string => {
+      return `${txIn.txHash}#${txIn.txIndex}`;
+    };
+    const addedInputs: string[] = [];
+    for (let i = 0; i < inputs.length; i++) {
+      const currentTxInId = getTxInId(inputs[i].txIn);
+      if (addedInputs.includes(currentTxInId)) {
+        inputs.splice(i, 1);
+        i--;
+      } else {
+        addedInputs.push(currentTxInId);
+      }
+    }
+  };
 
   private addAllInputs = (inputs: TxIn[]) => {
     for (let i = 0; i < inputs.length; i++) {
