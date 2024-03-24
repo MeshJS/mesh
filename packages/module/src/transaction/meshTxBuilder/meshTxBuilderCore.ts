@@ -20,7 +20,7 @@ import {
   toPlutusData,
   toAddress,
   buildDataCost,
-  toPoolParams,
+  toRelay,
 } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
 import {
@@ -1351,6 +1351,50 @@ export class MeshTxBuilderCore {
     );
   };
 
+  private decimalToFranction(
+    decimal: number
+  ): [numerator: number, denominator: number] {
+    const powerOf10 = 10 ** decimal.toString().split('.')[1].length;
+    const numerator = decimal * powerOf10;
+    const denominator = powerOf10;
+
+    return [numerator, denominator];
+  }
+
+  private toPoolParams = (poolParams: PoolParams): csl.PoolParams => {
+    const marginFraction = this.decimalToFranction(poolParams.margin);
+    const relays = csl.Relays.new();
+    poolParams.relays.forEach((relay) => {
+      relays.add(toRelay(relay));
+    });
+    const rewardAddress = csl.RewardAddress.from_address(
+      csl.Address.from_bech32(poolParams.rewardAddress)
+    );
+    if (rewardAddress === undefined) {
+      throw new Error('Reward address is invalid');
+    }
+    const poolOwners = csl.Ed25519KeyHashes.new();
+    poolParams.owners.forEach((owner) => {
+      poolOwners.add(csl.Ed25519KeyHash.from_hex(owner));
+    });
+    return csl.PoolParams.new(
+      csl.Ed25519KeyHash.from_hex(poolParams.operator),
+      csl.VRFKeyHash.from_hex(poolParams.VRFKeyHash),
+      csl.BigNum.from_str(poolParams.pledge),
+      csl.BigNum.from_str(poolParams.cost),
+      csl.UnitInterval.new(
+        csl.BigNum.from_str(marginFraction[0].toString()),
+        csl.BigNum.from_str(marginFraction[1].toString())
+      ),
+      rewardAddress,
+      poolOwners,
+      relays,
+      poolParams.metadata
+        ? csl.PoolMetadata.from_json(JSON.stringify(poolParams.metadata))
+        : undefined
+    );
+  };
+
   private addCertificate = (
     certificates: csl.Certificates,
     cert: Certificate
@@ -1359,7 +1403,7 @@ export class MeshTxBuilderCore {
       case 'RegisterPool':
         certificates.add(
           csl.Certificate.new_pool_registration(
-            csl.PoolRegistration.new(toPoolParams(cert.poolParams))
+            csl.PoolRegistration.new(this.toPoolParams(cert.poolParams))
           )
         );
         break;
