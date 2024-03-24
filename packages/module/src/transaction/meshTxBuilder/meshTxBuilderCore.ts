@@ -1351,7 +1351,7 @@ export class MeshTxBuilderCore {
     );
   };
 
-  private decimalToFranction(
+  private decimalToFraction(
     decimal: number
   ): [numerator: number, denominator: number] {
     const powerOf10 = 10 ** decimal.toString().split('.')[1].length;
@@ -1362,7 +1362,7 @@ export class MeshTxBuilderCore {
   }
 
   private toPoolParams = (poolParams: PoolParams): csl.PoolParams => {
-    const marginFraction = this.decimalToFranction(poolParams.margin);
+    const marginFraction = this.decimalToFraction(poolParams.margin);
     const relays = csl.Relays.new();
     poolParams.relays.forEach((relay) => {
       relays.add(toRelay(relay));
