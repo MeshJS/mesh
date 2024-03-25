@@ -156,7 +156,8 @@ function Demo() {
       quantity: '10000000',
     };
 
-    const lockUntilTimeStamp = new Date().getFullYear() + 1;
+    const lockUntilTimeStamp = new Date();
+    lockUntilTimeStamp.setFullYear(lockUntilTimeStamp.getFullYear() + 1);
 
     const beneficiary =
       'addr_test1qqnnkc56unmkntvza0x70y65s3fs5awdpks7wpr4yu0mqm5vldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmys2gv2h5';
@@ -165,7 +166,7 @@ function Demo() {
 
     const tx = await contract.depositFund(
       [asset],
-      lockUntilTimeStamp,
+      lockUntilTimeStamp.getTime(),
       beneficiary,
       networkId
     );
