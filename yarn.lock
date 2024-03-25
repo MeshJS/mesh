@@ -2875,7 +2875,7 @@
   version "1.0.0-beta.4"
   dependencies:
     "@harmoniclabs/plu-ts" "0.2.2"
-    "@sidan-lab/sidan-csl" "^0.2.0-beta5"
+    "@meshsdk/mesh-csl" "^0.0.1-beta.1"
 
 "@meshsdk/core@*", "@meshsdk/core@^1.5.10":
   version "1.5.10"
@@ -2891,6 +2891,17 @@
     bip39 "3.0.4"
     nanoid "3.3.4"
     zod "3.19.1"
+
+"@meshsdk/mesh-csl@^0.0.1-beta.1":
+  version "0.0.1-beta.1"
+  resolved "https://registry.yarnpkg.com/@meshsdk/mesh-csl/-/mesh-csl-0.0.1-beta.1.tgz#c5b5911a02683f2008f70db5152fea257488ac64"
+  integrity sha512-abfFm3NvMDzRoTP0oEw68Htf/sjjomOf+v15Xcjawu0WsaEhYvrZyjPWddjtEuymPdH0QAAIG41D5kdMc8QHJQ==
+  dependencies:
+    "@meshsdk/core" "^1.5.10"
+    "@sidan-lab/sidan-csl-rs-browser" "^0.2.6-beta3"
+    "@sidan-lab/sidan-csl-rs-nodejs" "^0.2.6-beta3"
+    "@types/node" "^18.16.3"
+    blakejs "^1.2.1"
 
 "@meshsdk/react@*":
   version "1.1.9"
@@ -3458,26 +3469,15 @@
   resolved "https://registry.yarnpkg.com/@rushstack/eslint-patch/-/eslint-patch-1.1.4.tgz#0c8b74c50f29ee44f423f7416829c0bf8bb5eb27"
   integrity sha512-LwzQKA4vzIct1zNZzBmRKI9QuNpLgTQMEjsQLf3BXuGYb3QPTP4Yjf6mkdX+X1mYttZ808QpOwAzZjv28kq7DA==
 
-"@sidan-lab/sidan-csl-rs-browser@^0.2.6-beta1":
-  version "0.2.6-beta1"
-  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-browser/-/sidan-csl-rs-browser-0.2.6-beta1.tgz#4865fb25f53dccc2c509c6ed7cbac47df65696eb"
-  integrity sha512-iLd7LG1Mk6l+hmq3zHH6t9xy7h/cAYWWB2mPeH4tbjYboy8/BKCrC+0tzN4rDoao4bUSRWAf62dU2OQT3E225g==
+"@sidan-lab/sidan-csl-rs-browser@^0.2.6-beta3":
+  version "0.2.6-beta3"
+  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-browser/-/sidan-csl-rs-browser-0.2.6-beta3.tgz#20f5cb5469ec729be7e75d19fcd02ecd528b56a1"
+  integrity sha512-bqDUa2mA3MnFFD0HGSdnPGPwStzwlejm/6HKDlxyEEtmezVk7zB3Wx5N//OxXkXpYKMpaXciWhu+x/pvpsA/cA==
 
-"@sidan-lab/sidan-csl-rs-nodejs@^0.2.6-beta1":
-  version "0.2.6-beta1"
-  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-nodejs/-/sidan-csl-rs-nodejs-0.2.6-beta1.tgz#4ec22e20baebd3896d0f01a06a4c52c70f78fa5e"
-  integrity sha512-XPemhiij52oIDBCWNYXGxMtSUXA+6MXjCRUaI6lcpvnKNJeO5R4OqIuywoLrjePvwW+Tl7TRULcwrMPUccjUpQ==
-
-"@sidan-lab/sidan-csl@^0.2.0-beta5":
-  version "0.2.0-beta6"
-  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl/-/sidan-csl-0.2.0-beta6.tgz#3b8bec1f2a507617a9310c4d7ae8cfdc3fce8e30"
-  integrity sha512-Ifce8UzkE/l3DYeaBsVUqyLqEochQEIsDTO+N5qdkg8XniRjO2p3AjtYbfWszxnSW5bAyiksDRIaolpSkk0xmA==
-  dependencies:
-    "@meshsdk/core" "^1.5.10"
-    "@sidan-lab/sidan-csl-rs-browser" "^0.2.6-beta1"
-    "@sidan-lab/sidan-csl-rs-nodejs" "^0.2.6-beta1"
-    "@types/node" "^18.16.3"
-    blakejs "^1.2.1"
+"@sidan-lab/sidan-csl-rs-nodejs@^0.2.6-beta3":
+  version "0.2.6-beta3"
+  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-nodejs/-/sidan-csl-rs-nodejs-0.2.6-beta3.tgz#0e1a5e7ef3c329f3c5548a1e64607462d8e908ac"
+  integrity sha512-NZ6TU1xB6HvMCJ4t2X2v9dp5RigNEJso9SzpZ0NfwXaIm35sS8nR2qREg6Bjo8H9C9gfQjoa4c8DSHhojNN1Mw==
 
 "@sinclair/typebox@^0.24.1":
   version "0.24.27"

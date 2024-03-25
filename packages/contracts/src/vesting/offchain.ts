@@ -10,7 +10,7 @@ import {
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
 
-export class MeshVestingTxInitiator extends MeshTxInitiator {
+export class MeshVestingContract extends MeshTxInitiator {
   scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
 
   constructor(inputs: MeshTxInitiatorInput) {
