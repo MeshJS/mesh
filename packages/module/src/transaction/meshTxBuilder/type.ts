@@ -5,6 +5,7 @@ import {
   LanguageVersion,
   PlutusScript,
   UTxO,
+  PoolParams,
 } from '@mesh/common/types';
 
 export type MeshTxBuilderBody = {
@@ -19,7 +20,7 @@ export type MeshTxBuilderBody = {
   changeAddress: string;
   metadata: Metadata[];
   validityRange: ValidityRange;
-  // certificates?: Certificate[];
+  certificates: Certificate[];
   // withdrawals?: Record<StakeCredential, number>;
   signingKey: string[];
 };
@@ -87,7 +88,7 @@ export type MintItem = {
   type: 'Plutus' | 'Native';
   policyId: string;
   assetName: string;
-  amount: number;
+  amount: string;
   redeemer?: Redeemer;
   scriptSource?:
     | {
@@ -134,6 +135,13 @@ export type Metadata = {
   tag: string;
   metadata: object;
 };
+
+export type Certificate =
+  | { type: 'RegisterPool'; poolParams: PoolParams }
+  | { type: 'RegisterStake'; stakeKeyHash: string }
+  | { type: 'DelegateStake'; stakeKeyHash: string, poolId: string }
+  | { type: 'DeregisterStake'; stakeKeyHash: string }
+  | { type: 'RetirePool'; poolId: string; epoch: number };
 
 // Utilities
 

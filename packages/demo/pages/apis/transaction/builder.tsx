@@ -5,7 +5,6 @@ import CommonLayout from '../../../components/common/layout';
 import InvalidInterval from '../../../components/pages/apis/transaction/builder/InvalidInterval';
 import ChangeAddress from '../../../components/pages/apis/transaction/builder/changeAddress';
 import Complete from '../../../components/pages/apis/transaction/builder/complete';
-import Schemas from '../../../components/pages/apis/transaction/builder/schemas';
 import MetadataValue from '../../../components/pages/apis/transaction/builder/metadataValue';
 import MintPlutus from '../../../components/pages/apis/transaction/builder/mintPlutus';
 import MintNative from '../../../components/pages/apis/transaction/builder/mintNative';
@@ -18,6 +17,11 @@ import TxInCollateral from '../../../components/pages/apis/transaction/builder/t
 import TxOut from '../../../components/pages/apis/transaction/builder/txOut';
 import CommonHero from '../../../components/pages/apis/transaction/commonHero';
 import Metatags from '../../../components/site/metatags';
+import RegisterCertificate from '../../../components/pages/apis/transaction/builder/registerCertificate';
+import DeregisterCertificate from '../../../components/pages/apis/transaction/builder/deregisterCertificate';
+import DelegateStakeCertificate from '../../../components/pages/apis/transaction/builder/delegateStakeCertificate';
+import RegisterPoolCertificate from '../../../components/pages/apis/transaction/builder/registerPoolCertificate';
+import RetirePoolCertificate from '../../../components/pages/apis/transaction/builder/retirePoolCertificate';
 
 const TransactionBuilderPage: NextPage = () => {
   const sidebarItems = [
@@ -57,16 +61,32 @@ const TransactionBuilderPage: NextPage = () => {
       to: 'metadataValue',
     },
     {
+      label: 'Register Stake Certificate',
+      to: 'registerCertificate',
+    },
+    {
+      label: 'Deregister Stake Certificate',
+      to: 'deregisterCertificate',
+    },
+    {
+      label: 'Delegate Stake',
+      to: 'delegateStakeCertificate',
+    },
+    {
+      label: 'Register Pool Certificate',
+      to: 'registerPoolCertificate',
+    },
+    {
+      label: 'Retire Pool Certificate',
+      to: 'retirePoolCertificate',
+    },
+    {
       label: 'Sign with signing key',
       to: 'signingKey',
     },
     {
       label: 'Complete transaction building',
       to: 'complete',
-    },
-    {
-      label: 'Schemas',
-      to: 'schemas',
     },
   ];
 
@@ -101,9 +121,13 @@ const TransactionBuilderPage: NextPage = () => {
         <ChangeAddress />
         <InvalidInterval />
         <MetadataValue />
+        <RegisterCertificate />
+        <DeregisterCertificate />
+        <DelegateStakeCertificate />
+        <RegisterPoolCertificate />
+        <RetirePoolCertificate />
         <SigningKey />
         <Complete />
-        <Schemas />
       </CommonLayout>
     </>
   );
