@@ -8,7 +8,7 @@ import {
   deserializeAddress, deserializeTx, deserializeTxWitnessSet,
   deserializeTxUnspentOutput, deserializeValue, fromBytes,
   fromTxUnspentOutput, fromUTF8, fromValue, resolveFingerprint,
-  toAddress, toUTF8,
+  toAddress, toUTF8, toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type {
@@ -79,8 +79,8 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return usedAddresses.map((usa) => deserializeAddress(usa).to_bech32());
   }
 
-  async getUtxos(): Promise<UTxO[]> {
-    const deserializedUTxOs = await this.getUsedUTxOs();
+  async getUtxos(amount: Asset[] | undefined = undefined): Promise<UTxO[]> {
+    const deserializedUTxOs = await this.getUsedUTxOs(amount);
     return deserializedUTxOs.map((du) => fromTxUnspentOutput(du));
   }
 
@@ -137,8 +137,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }
 
-  async getUsedUTxOs(): Promise<TransactionUnspentOutput[]> {
-    const utxos = (await this._walletInstance.getUtxos()) ?? [];
+  async getUsedUTxOs(amount: Asset[] | undefined = undefined): Promise<TransactionUnspentOutput[]> {
+    const valueCBOR = amount ? toValue(amount).to_hex() : undefined;
+    const utxos = (await this._walletInstance.getUtxos(valueCBOR)) ?? [];
     return utxos.map((u) => deserializeTxUnspentOutput(u));
   }
 
@@ -216,7 +217,7 @@ type WalletInstance = {
   getRewardAddresses(): Promise<string[]>;
   getUnusedAddresses(): Promise<string[]>;
   getUsedAddresses(): Promise<string[]>;
-  getUtxos(): Promise<string[] | undefined>;
+  getUtxos(amount: string | undefined): Promise<string[] | undefined>;
   signData(address: string, payload: string): Promise<DataSignature>;
   signTx(tx: string, partialSign: boolean): Promise<string>;
   submitTx(tx: string): Promise<string>;
