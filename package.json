@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "lerna": "lerna",
+    "ci": "yarn && yarn build:module && yarn build:react",
     "bootstrap": "yarn install && yarn lerna bootstrap",
     "start:cli": "lerna exec --scope create-mesh-dapp -- yarn dev",
     "start:demo": "lerna exec --scope @meshsdk/playground -- yarn dev",
@@ -32,5 +33,11 @@
   },
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "lint-staged": {
+    "**/*.{js,ts,}": [
+      "yarn prettier --write",
+      "yarn eslint --fix"
+    ]
+  }
 }

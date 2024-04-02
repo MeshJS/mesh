@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
-      - run: yarn && yarn build
+      - run: yarn ci
 
   publish-npm:
     needs: build
@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: 18
           registry-url: https://registry.npmjs.org/
-      - run: yarn && yarn build
+      - run: yarn ci
       - run: |
           if [[ "${{ github.event.head_commit.message }}" =~ ^(docs:|chore:|rust:) ]]; then
               echo "Skipping npm publish due to commit message."
