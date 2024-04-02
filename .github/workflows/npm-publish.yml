@@ -8,10 +8,10 @@ on:
     types: [created]
   push:
     branches:
-      - workflow/ci-deploy
+      - main
   pull_request:
     branches:
-      - workflow/ci-deploy
+      - main
 
 jobs:
   build:
