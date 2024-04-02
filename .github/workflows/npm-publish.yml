@@ -34,7 +34,7 @@ jobs:
           registry-url: https://registry.npmjs.org/
       - run: yarn ci
       - run: |
-          if [[ "${{ github.event.head_commit.message }}" =~ ^(docs:|chore:|rust:) ]]; then
+          if [[ "${{ github.event.head_commit.message }}" =~ ^(docs:|chore:) ]]; then
               echo "Skipping npm publish due to commit message."
           else
               cd packages/module && npm publish --access public
