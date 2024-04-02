@@ -17,6 +17,7 @@ Explore the features on [Mesh Playground](https://meshjs.dev/).
 - [Resolvers](https://meshjs.dev/apis/resolvers)
 
 ## Why use Mesh
+
 - Start a new project with one of out [Starter Templates](https://meshjs.dev/starter-templates) with CLI command
 - Always up to date - Vasil-ready, developed promptly as the network updates so your app always works
 - Simple to use - Check out our [guides](https://meshjs.dev/guides) - you'll get started in less than 10 mins!
