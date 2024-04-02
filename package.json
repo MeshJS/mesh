@@ -5,6 +5,7 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
+    "lerna": "lerna",
     "bootstrap": "yarn install && yarn lerna bootstrap",
     "start:cli": "lerna exec --scope create-mesh-dapp -- yarn dev",
     "start:demo": "lerna exec --scope @meshsdk/playground -- yarn dev",
@@ -12,7 +13,7 @@
     "start:module": "lerna exec --scope @meshsdk/core -- yarn dev",
     "start:react": "lerna exec --scope @meshsdk/react -- yarn dev",
     "start:docs": "lerna exec --scope @meshsdk/docs -- yarn dev",
-    "build": "lerna link && yarn build:module && yarn build:react && yarn build:contracts && yarn build:demo",
+    "build": "yarn build:module && yarn build:react && yarn build:contracts && yarn build:demo",
     "build:cli": "lerna exec --scope create-mesh-dapp -- yarn build",
     "build:demo": "lerna exec --scope @meshsdk/playground -- yarn build",
     "build:contracts": "lerna exec --scope @meshsdk/contracts -- yarn build",
@@ -23,10 +24,10 @@
   "devDependencies": {
     "@types/jest": "28.1.6",
     "@types/node": "18.6.1",
-    "@types/react": "18.0.10",
-    "@types/react-dom": "18.0.5",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "eslint": "8.16.0",
-    "lerna": "^5.3.0",
+    "lerna": "^8.1.2",
     "typescript": "4.8.2"
   },
   "workspaces": [
