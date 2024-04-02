@@ -30,5 +30,4 @@
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules"],
-  "typeRoots": ["./node_modules/@types", "../../node_modules/@types"],
 }
