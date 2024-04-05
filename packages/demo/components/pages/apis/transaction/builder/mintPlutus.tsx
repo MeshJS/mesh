@@ -14,7 +14,7 @@ export default function Mint() {
 function Content() {
   let code = `mesh
   .mintPlutusScriptV2()
-  .mint(quantity: number, policy: string, name: string)
+  .mint(quantity: string, policy: string, name: string)
   .mintTxInReference(txHash: string, txIndex: number) // or .mintingScript(scriptCbor: string)
   .mintRedeemerValue(redeemer: Data | object | string, exUnits?: Budget, type?: "Mesh" | "CBOR" | "JSON")
 `;

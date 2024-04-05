@@ -15,7 +15,7 @@ function Content() {
   const codeSnippet = `await mesh
   .txIn(txInHash, txInId)
   .mintPlutusScriptV2()
-  .mint(1, policyId, tokenName)
+  .mint("1", policyId, tokenName)
   .mintingScript(mintingScript)
   .mintRedeemerValue(mConStr0([]))
   .txOut(this.constants.walletAddress, [{ unit: policyId + tokenName, quantity: "1" }])

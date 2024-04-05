@@ -5,29 +5,55 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
+    "lerna": "lerna",
+    "ci": "yarn && yarn lint && yarn build:module && yarn build:react",
     "bootstrap": "yarn install && yarn lerna bootstrap",
     "start:cli": "lerna exec --scope create-mesh-dapp -- yarn dev",
     "start:demo": "lerna exec --scope @meshsdk/playground -- yarn dev",
     "start:contracts": "lerna exec --scope @meshsdk/contracts -- yarn dev",
     "start:module": "lerna exec --scope @meshsdk/core -- yarn dev",
     "start:react": "lerna exec --scope @meshsdk/react -- yarn dev",
-    "build": "lerna link && yarn build:module && yarn build:react && yarn build:contracts && yarn build:demo",
+    "start:docs": "lerna exec --scope @meshsdk/docs -- yarn dev",
+    "build": "yarn build:module && yarn build:react && yarn build:contracts && yarn build:demo",
     "build:cli": "lerna exec --scope create-mesh-dapp -- yarn build",
     "build:demo": "lerna exec --scope @meshsdk/playground -- yarn build",
     "build:contracts": "lerna exec --scope @meshsdk/contracts -- yarn build",
     "build:module": "lerna exec --scope @meshsdk/core -- yarn build",
-    "build:react": "lerna exec --scope @meshsdk/react -- yarn build"
+    "build:react": "lerna exec --scope @meshsdk/react -- yarn build",
+    "build:docs": "lerna exec --scope @meshsdk/core -- yarn docs",
+    "prepare": "husky install",
+    "lint:docs": "lerna exec --scope @meshsdk/docs \"yarn eslint --fix\"",
+    "lint:demo": "lerna exec --scope @meshsdk/playground \"yarn eslint --fix\"",
+    "lint:module": "lerna exec --scope @meshsdk/core \"yarn eslint --fix\"",
+    "lint": "yarn lint:module && yarn lint:demo && yarn lint:docs"
   },
   "devDependencies": {
     "@types/jest": "28.1.6",
     "@types/node": "18.6.1",
-    "@types/react": "18.0.10",
-    "@types/react-dom": "18.0.5",
-    "eslint": "8.16.0",
-    "lerna": "5.3.0",
-    "typescript": "4.8.2"
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "eslint": "8.39.0",
+    "lerna": "^8.1.2",
+    "typescript": "4.8.2",
+    "husky": "^9.0.11",
+    "@commitlint/cli": "^17.4.3",
+    "@commitlint/config-conventional": "^17.4.3",
+    "commitlint": "^17.4.3",
+    "prettier": "^2.8.8",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-import-resolver-typescript": "^3.5.5",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-prettier": "^4.2.1",
+    "@typescript-eslint/eslint-plugin": "^5.59.1",
+    "@typescript-eslint/parser": "^5.59.1"
   },
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "lint-staged": {
+    "**/*.{js,ts,}": [
+      "yarn prettier --write"
+    ]
+  }
 }

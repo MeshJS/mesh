@@ -12,6 +12,7 @@ import Metatags from '../../../components/site/metatags';
 import LockFund from '../../../components/pages/apis/transaction/builderExample/lockFund';
 import UnlockFund from '../../../components/pages/apis/transaction/builderExample/unlockFund';
 import MintToken from '../../../components/pages/apis/transaction/builderExample/mintToken';
+import Staking from '../../../components/pages/apis/transaction/builderExample/staking';
 
 const TransactionBuilderExamplePage: NextPage = () => {
   const sidebarItems = [
@@ -20,6 +21,7 @@ const TransactionBuilderExamplePage: NextPage = () => {
     { label: 'Lock Fund', to: 'lockFund' },
     { label: 'Unlock Fund', to: 'unlockFund' },
     { label: 'Mint Tokens', to: 'mintToken' },
+    { label: 'Delegate Stake', to: 'staking' },
     { label: 'Complex Transaction', to: 'complexTransaction' },
     { label: 'Build without dependency', to: 'withoutDependency' },
     { label: 'Build with object', to: 'withObject' },
@@ -50,6 +52,7 @@ const TransactionBuilderExamplePage: NextPage = () => {
         <LockFund />
         <UnlockFund />
         <MintToken />
+        <Staking />
         <ComplexTransaction />
         <TransactionWithoutDependency />
         <TransactionWithObject />

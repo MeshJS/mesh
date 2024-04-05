@@ -53,7 +53,6 @@ export function onNextTxRight({ listener }) {
   useEffect(() => {
     if (connected) {
       listener.onNextTx((tx) => {
-        console.log(111, 'ogmiosProvider.onNextTx', tx);
         const tmp = onNextTxLogs + `${tx}\n`;
         setonNextTxLogs(tmp);
       });

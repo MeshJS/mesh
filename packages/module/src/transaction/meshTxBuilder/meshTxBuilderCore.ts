@@ -12,6 +12,7 @@ import {
   Quantity,
   UTxO,
   Unit,
+  PoolParams,
 } from '@mesh/common/types';
 import {
   buildTxBuilder,
@@ -19,6 +20,7 @@ import {
   toPlutusData,
   toAddress,
   buildDataCost,
+  toRelay,
 } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
 import {
@@ -34,6 +36,8 @@ import {
   ValidityRange,
   Metadata,
   BuilderData,
+  Certificate,
+  TxInParameter,
 } from './type';
 import { selectUtxos } from '@mesh/core/CPS-009';
 
@@ -93,6 +97,7 @@ export class MeshTxBuilderCore {
     changeAddress: '',
     metadata: [],
     validityRange: {},
+    certificates: [],
     signingKey: [],
   });
 
@@ -140,6 +145,7 @@ export class MeshTxBuilderCore {
       referenceInputs,
       mints,
       changeAddress,
+      certificates,
       validityRange,
       requiredSignatures,
       metadata,
@@ -161,6 +167,8 @@ export class MeshTxBuilderCore {
       this.addUtxosFrom(extraInputs, String(selectionThreshold));
     }
 
+    this.removeDuplicateInputs();
+
     this.meshTxBuilderBody.mints.sort((a, b) =>
       a.policyId.localeCompare(b.policyId)
     );
@@ -177,6 +185,7 @@ export class MeshTxBuilderCore {
     this.addAllCollaterals(collaterals);
     this.addAllReferenceInputs(referenceInputs);
     this.addAllMints(mints);
+    this.addAllCertificates(certificates);
     this.addValidityRange(validityRange);
     this.addAllRequiredSignatures(requiredSignatures);
     this.addAllMetadata(metadata);
@@ -192,7 +201,7 @@ export class MeshTxBuilderCore {
         )
         .reduce((acc, curr) => acc + parseInt(curr), 0);
 
-      const collateralEsimate = Math.ceil(
+      const collateralEstimate = Math.ceil(
         (this._protocolParams.collateralPercent *
           Number(
             Number(
@@ -207,14 +216,14 @@ export class MeshTxBuilderCore {
 
       let collateralReturnNeeded = false;
 
-      if (totalCollateral - collateralEsimate > 0) {
+      if (totalCollateral - collateralEstimate > 0) {
         const collateralEstimateOutput = csl.TransactionOutput.new(
           csl.Address.from_bech32(changeAddress),
-          csl.Value.new(csl.BigNum.from_str(String(collateralEsimate)))
+          csl.Value.new(csl.BigNum.from_str(String(collateralEstimate)))
         );
 
         if (
-          totalCollateral - collateralEsimate >
+          totalCollateral - collateralEstimate >
           Number(
             csl
               .min_ada_for_output(
@@ -639,7 +648,7 @@ export class MeshTxBuilderCore {
    * @param name The hex of token name of the asset to be minted
    * @returns The MeshTxBuilder instance
    */
-  mint = (quantity: number, policy: string, name: string) => {
+  mint = (quantity: string, policy: string, name: string) => {
     if (this.mintItem) {
       this.queueMint();
     }
@@ -795,6 +804,76 @@ export class MeshTxBuilderCore {
         address,
       },
     };
+    return this;
+  };
+
+  /**
+   * Creates a pool registration certificate, and adds it to the transaction
+   * @param poolParams Parameters for pool registration
+   * @returns The MeshTxBuilder instance
+   */
+  registerPoolCertificate = (poolParams: PoolParams) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'RegisterPool',
+      poolParams,
+    });
+    return this;
+  };
+
+  /**
+   * Creates a stake registration certificate, and adds it to the transaction
+   * @param stakeKeyHash The keyHash of the stake key
+   * @returns The MeshTxBuilder instance
+   */
+  registerStakeCertificate = (stakeKeyHash: string) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'RegisterStake',
+      stakeKeyHash,
+    });
+    return this;
+  };
+
+  /**
+   * Creates a stake delegation certificate, and adds it to the transaction
+   * This will delegate stake from the corresponding stake address to the pool
+   * @param stakeKeyHash The keyHash of the stake key
+   * @param poolId poolId can be in either bech32 or hex form
+   * @returns The MeshTxBuilder instance
+   */
+  delegateStakeCertificate = (stakeKeyHash: string, poolId: string) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'DelegateStake',
+      stakeKeyHash,
+      poolId,
+    });
+    return this;
+  };
+
+  /**
+   * Creates a stake deregister certificate, and adds it to the transaction
+   * @param stakeKeyHash The keyHash of the stake key
+   * @returns The MeshTxBuilder instance
+   */
+  deregisterStakeCertificate = (stakeKeyHash: string) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'DeregisterStake',
+      stakeKeyHash,
+    });
+    return this;
+  };
+
+  /**
+   * Creates a pool retire certificate, and adds it to the transaction
+   * @param poolId poolId can be in either bech32 or hex form
+   * @param epoch The intended epoch to retire the pool
+   * @returns The MeshTxBuilder instance
+   */
+  retirePoolCertificate = (poolId: string, epoch: number) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: 'RetirePool',
+      poolId,
+      epoch,
+    });
     return this;
   };
 
@@ -999,6 +1078,23 @@ export class MeshTxBuilderCore {
   };
 
   // Below protected functions for completing tx building
+
+  protected removeDuplicateInputs = () => {
+    const inputs = this.meshTxBuilderBody.inputs;
+    const getTxInId = (txIn: TxInParameter): string => {
+      return `${txIn.txHash}#${txIn.txIndex}`;
+    };
+    const addedInputs: string[] = [];
+    for (let i = 0; i < inputs.length; i++) {
+      const currentTxInId = getTxInId(inputs[i].txIn);
+      if (addedInputs.includes(currentTxInId)) {
+        inputs.splice(i, 1);
+        i--;
+      } else {
+        addedInputs.push(currentTxInId);
+      }
+    }
+  };
 
   private addAllInputs = (inputs: TxIn[]) => {
     for (let i = 0; i < inputs.length; i++) {
@@ -1236,7 +1332,7 @@ export class MeshTxBuilderCore {
     mintBuilder.add_asset(
       csl.MintWitness.new_plutus_script(script, newRedeemer),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
-      csl.Int.new_i32(amount)
+      csl.Int.new(csl.BigNum.from_str(amount))
     );
   };
 
@@ -1251,8 +1347,114 @@ export class MeshTxBuilderCore {
         csl.NativeScript.from_hex(scriptSource.script.code)
       ),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
-      csl.Int.new_i32(amount)
+      csl.Int.new(csl.BigNum.from_str(amount))
     );
+  };
+
+  private decimalToFraction(
+    decimal: number
+  ): [numerator: number, denominator: number] {
+    const powerOf10 = 10 ** decimal.toString().split('.')[1].length;
+    const numerator = decimal * powerOf10;
+    const denominator = powerOf10;
+
+    return [numerator, denominator];
+  }
+
+  private toPoolParams = (poolParams: PoolParams): csl.PoolParams => {
+    const marginFraction = this.decimalToFraction(poolParams.margin);
+    const relays = csl.Relays.new();
+    poolParams.relays.forEach((relay) => {
+      relays.add(toRelay(relay));
+    });
+    const rewardAddress = csl.RewardAddress.from_address(
+      csl.Address.from_bech32(poolParams.rewardAddress)
+    );
+    if (rewardAddress === undefined) {
+      throw new Error('Reward address is invalid');
+    }
+    const poolOwners = csl.Ed25519KeyHashes.new();
+    poolParams.owners.forEach((owner) => {
+      poolOwners.add(csl.Ed25519KeyHash.from_hex(owner));
+    });
+    return csl.PoolParams.new(
+      csl.Ed25519KeyHash.from_hex(poolParams.operator),
+      csl.VRFKeyHash.from_hex(poolParams.VRFKeyHash),
+      csl.BigNum.from_str(poolParams.pledge),
+      csl.BigNum.from_str(poolParams.cost),
+      csl.UnitInterval.new(
+        csl.BigNum.from_str(marginFraction[0].toString()),
+        csl.BigNum.from_str(marginFraction[1].toString())
+      ),
+      rewardAddress,
+      poolOwners,
+      relays,
+      poolParams.metadata
+        ? csl.PoolMetadata.from_json(JSON.stringify(poolParams.metadata))
+        : undefined
+    );
+  };
+
+  private addCertificate = (
+    certificates: csl.Certificates,
+    cert: Certificate
+  ) => {
+    switch (cert.type) {
+      case 'RegisterPool':
+        certificates.add(
+          csl.Certificate.new_pool_registration(
+            csl.PoolRegistration.new(this.toPoolParams(cert.poolParams))
+          )
+        );
+        break;
+      case 'RegisterStake':
+        certificates.add(
+          csl.Certificate.new_stake_registration(
+            csl.StakeRegistration.new(
+              csl.StakeCredential.from_keyhash(
+                csl.Ed25519KeyHash.from_hex(cert.stakeKeyHash)
+              )
+            )
+          )
+        );
+        break;
+      case 'DelegateStake':
+        certificates.add(
+          csl.Certificate.new_stake_delegation(
+            csl.StakeDelegation.new(
+              csl.StakeCredential.from_keyhash(
+                csl.Ed25519KeyHash.from_hex(cert.stakeKeyHash)
+              ),
+              cert.poolId.startsWith('pool')
+                ? csl.Ed25519KeyHash.from_bech32(cert.poolId)
+                : csl.Ed25519KeyHash.from_hex(cert.poolId)
+            )
+          )
+        );
+        break;
+      case 'DeregisterStake':
+        certificates.add(
+          csl.Certificate.new_stake_deregistration(
+            csl.StakeDeregistration.new(
+              csl.StakeCredential.from_keyhash(
+                csl.Ed25519KeyHash.from_hex(cert.stakeKeyHash)
+              )
+            )
+          )
+        );
+        break;
+      case 'RetirePool':
+        certificates.add(
+          csl.Certificate.new_pool_retirement(
+            csl.PoolRetirement.new(
+              cert.poolId.startsWith('pool')
+                ? csl.Ed25519KeyHash.from_bech32(cert.poolId)
+                : csl.Ed25519KeyHash.from_hex(cert.poolId),
+              cert.epoch
+            )
+          )
+        );
+    }
   };
 
   protected queueAllLastItem = () => {
@@ -1270,6 +1472,14 @@ export class MeshTxBuilderCore {
     if (this.mintItem) {
       this.queueMint();
     }
+  };
+
+  protected addAllCertificates = (allCertificates: Certificate[]) => {
+    const certificates = csl.Certificates.new();
+    allCertificates.forEach((cert) => {
+      this.addCertificate(certificates, cert);
+    });
+    this.txBuilder.set_certs(certificates);
   };
 
   protected addCostModels = () => {

@@ -1,18 +1,33 @@
 import { csl } from '@mesh/core';
 import {
-  DEFAULT_PROTOCOL_PARAMETERS, POLICY_ID_LENGTH, SUPPORTED_WALLETS,
+  DEFAULT_PROTOCOL_PARAMETERS,
+  POLICY_ID_LENGTH,
+  SUPPORTED_WALLETS,
 } from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
 import { mergeSignatures } from '@mesh/common/helpers';
 import {
-  deserializeAddress, deserializeTx, deserializeTxWitnessSet,
-  deserializeTxUnspentOutput, deserializeValue, fromBytes,
-  fromTxUnspentOutput, fromUTF8, fromValue, resolveFingerprint,
-  toAddress, toUTF8,
+  deserializeAddress,
+  deserializeTx,
+  deserializeTxWitnessSet,
+  deserializeTxUnspentOutput,
+  deserializeValue,
+  fromBytes,
+  fromTxUnspentOutput,
+  fromUTF8,
+  fromValue,
+  resolveFingerprint,
+  toAddress,
+  toUTF8,
+  toValue,
 } from '@mesh/common/utils';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
 import type {
-  Asset, AssetExtended, DataSignature, UTxO, Wallet,
+  Asset,
+  AssetExtended,
+  DataSignature,
+  UTxO,
+  Wallet,
 } from '@mesh/common/types';
 
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
@@ -21,16 +36,16 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   static getInstalledWallets(): Wallet[] {
     if (window.cardano === undefined) return [];
 
-    return SUPPORTED_WALLETS
-      .filter((sw) => window.cardano[sw] !== undefined)
-      .map((sw) => ({
-        name: window.cardano[sw].name,
-        icon: window.cardano[sw].icon,
-        version: window.cardano[sw].apiVersion,
-      }));
+    return SUPPORTED_WALLETS.filter(
+      (sw) => window.cardano[sw] !== undefined
+    ).map((sw) => ({
+      name: window.cardano[sw].name,
+      icon: window.cardano[sw].icon,
+      version: window.cardano[sw].apiVersion,
+    }));
   }
 
-  static async enable(walletName: string): Promise<BrowserWallet> {    
+  static async enable(walletName: string): Promise<BrowserWallet> {
     try {
       const walletInstance = await BrowserWallet.resolveInstance(walletName);
 
@@ -39,7 +54,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       throw new Error(`Couldn't create an instance of wallet: ${walletName}`);
     } catch (error) {
-      throw new Error(`[BrowserWallet] An error occurred during enable: ${JSON.stringify(error)}.`);
+      throw new Error(
+        `[BrowserWallet] An error occurred during enable: ${JSON.stringify(
+          error
+        )}.`
+      );
     }
   }
 
@@ -54,7 +73,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   async getCollateral(
-    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
+    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs
   ): Promise<UTxO[]> {
     const deserializedCollateral = await this.getUsedCollateral(limit);
     return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
@@ -79,8 +98,8 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     return usedAddresses.map((usa) => deserializeAddress(usa).to_bech32());
   }
 
-  async getUtxos(): Promise<UTxO[]> {
-    const deserializedUTxOs = await this.getUsedUTxOs();
+  async getUtxos(amount: Asset[] | undefined = undefined): Promise<UTxO[]> {
+    const deserializedUTxOs = await this.getUsedUTxOs(amount);
     return deserializedUTxOs.map((du) => fromTxUnspentOutput(du));
   }
 
@@ -94,16 +113,16 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = tx.witness_set();
 
-      const newWitnessSet = await this._walletInstance
-        .signTx(unsignedTx, partialSign);
-
-      const newSignatures = deserializeTxWitnessSet(newWitnessSet)
-        .vkeys() ?? csl.Vkeywitnesses.new();
-
-      const txSignatures = mergeSignatures(
-        txWitnessSet,
-        newSignatures,
+      const newWitnessSet = await this._walletInstance.signTx(
+        unsignedTx,
+        partialSign
       );
+
+      const newSignatures =
+        deserializeTxWitnessSet(newWitnessSet).vkeys() ??
+        csl.Vkeywitnesses.new();
+
+      const txSignatures = mergeSignatures(txWitnessSet, newSignatures);
 
       txWitnessSet.set_vkeys(txSignatures);
 
@@ -117,7 +136,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       return signedTx;
     } catch (error) {
-      throw new Error(`[BrowserWallet] An error occurred during signTx: ${JSON.stringify(error)}.`);
+      throw new Error(
+        `[BrowserWallet] An error occurred during signTx: ${JSON.stringify(
+          error
+        )}.`
+      );
     }
   }
 
@@ -131,14 +154,18 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   async getUsedCollateral(
-    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
+    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs
   ): Promise<TransactionUnspentOutput[]> {
-    const collateral = (await this._walletInstance.experimental.getCollateral()) ?? [];
+    const collateral =
+      (await this._walletInstance.experimental.getCollateral()) ?? [];
     return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }
 
-  async getUsedUTxOs(): Promise<TransactionUnspentOutput[]> {
-    const utxos = (await this._walletInstance.getUtxos()) ?? [];
+  async getUsedUTxOs(
+    amount: Asset[] | undefined = undefined
+  ): Promise<TransactionUnspentOutput[]> {
+    const valueCBOR = amount ? toValue(amount).to_hex() : undefined;
+    const utxos = (await this._walletInstance.getUtxos(valueCBOR)) ?? [];
     return utxos.map((u) => deserializeTxUnspentOutput(u));
   }
 
@@ -156,7 +183,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
           policyId,
           assetName: toUTF8(assetName),
           fingerprint,
-          quantity: v.quantity
+          quantity: v.quantity,
         };
       });
   }
@@ -176,16 +203,14 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   async getPolicyIds(): Promise<string[]> {
     const balance = await this.getBalance();
     return Array.from(
-      new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH))),
+      new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH)))
     ).filter((p) => p !== 'lovelace');
   }
 
   private static resolveInstance(walletName: string) {
-    if (window.cardano === undefined)
-      return undefined;
+    if (window.cardano === undefined) return undefined;
 
-    const wallet = SUPPORTED_WALLETS
-      .map((sw) => window.cardano[sw])
+    const wallet = SUPPORTED_WALLETS.map((sw) => window.cardano[sw])
       .filter((sw) => sw !== undefined)
       .find((sw) => sw.name.toLowerCase() === walletName.toLowerCase());
 
@@ -216,7 +241,7 @@ type WalletInstance = {
   getRewardAddresses(): Promise<string[]>;
   getUnusedAddresses(): Promise<string[]>;
   getUsedAddresses(): Promise<string[]>;
-  getUtxos(): Promise<string[] | undefined>;
+  getUtxos(amount: string | undefined): Promise<string[] | undefined>;
   signData(address: string, payload: string): Promise<DataSignature>;
   signTx(tx: string, partialSign: boolean): Promise<string>;
   submitTx(tx: string): Promise<string>;
