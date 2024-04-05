@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "lerna": "lerna",
-    "ci": "yarn && yarn lint && yarn build:module && yarn build:react",
+    "ci": "yarn && yarn lint && yarn build:module && yarn build:react && yarn build:contracts",
     "bootstrap": "yarn install && yarn lerna bootstrap",
     "start:cli": "lerna exec --scope create-mesh-dapp -- yarn dev",
     "start:demo": "lerna exec --scope @meshsdk/playground -- yarn dev",
