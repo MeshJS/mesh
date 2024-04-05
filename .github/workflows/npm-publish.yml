@@ -1,0 +1,41 @@
+# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
+# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
+
+name: Node.js Package
+
+on:
+  release:
+    types: [created]
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: yarn ci
+
+  publish-npm:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          registry-url: https://registry.npmjs.org/
+      - run: yarn ci
+      - run: |
+          if [[ "${{ github.event.head_commit.message }}" =~ ^(docs:|chore:) ]]; then
+              echo "Skipping npm publish due to commit message."
+          else
+              cd packages/module && npm publish --access public
+              cd ../react && npm publish --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
