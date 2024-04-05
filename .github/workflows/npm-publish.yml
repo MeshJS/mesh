@@ -88,7 +88,7 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: yarn ci
-      - run: npm publish --access public
+      - run: cd packages/module && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
 
@@ -103,7 +103,7 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: yarn ci
-      - run: npm publish --access public
+      - run: cd packages/react && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
 
@@ -118,6 +118,6 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: yarn ci
-      - run: npm publish --access public
+      - run: cd packages/contracts && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
