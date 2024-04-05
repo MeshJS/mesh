@@ -34,9 +34,10 @@
     "vitest": "0.28.4"
   },
   "peerDependencies": {
-    "@meshsdk/core": "1.5.11-beta.7"
+    "@meshsdk/core": "1.5.12"
   },
   "dependencies": {
-    "@harmoniclabs/plu-ts": "0.2.2"
+    "@harmoniclabs/plu-ts": "0.2.2",
+    "@meshsdk/mesh-csl": "^0.0.1-beta.1"
   }
 }

@@ -139,13 +139,12 @@ export type Metadata = {
 export type Certificate =
   | { type: 'RegisterPool'; poolParams: PoolParams }
   | { type: 'RegisterStake'; stakeKeyHash: string }
-  | { type: 'DelegateStake'; stakeKeyHash: string, poolId: string }
+  | { type: 'DelegateStake'; stakeKeyHash: string; poolId: string }
   | { type: 'DeregisterStake'; stakeKeyHash: string }
   | { type: 'RetirePool'; poolId: string; epoch: number };
 
 // Utilities
 
-export type RequiredWith<T, K extends keyof T> = Required<T> &
-  {
-    [P in K]: Required<T[P]>;
-  };
+export type RequiredWith<T, K extends keyof T> = Required<T> & {
+  [P in K]: Required<T[P]>;
+};

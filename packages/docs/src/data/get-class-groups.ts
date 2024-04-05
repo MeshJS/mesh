@@ -16,7 +16,8 @@ export default function getClassGroups(name) {
           });
         })
         .filter((child) => {
-          if (child.flags.isPrivate == true || child.flags.isProtected == true) return false;
+          if (child.flags.isPrivate == true || child.flags.isProtected == true)
+            return false;
           return true;
         }),
     };

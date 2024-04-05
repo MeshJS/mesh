@@ -4,9 +4,9 @@
 name: Node.js Package
 
 on:
-  release:
-    types: [created]
-  push:
+  pull_request:
+    types:
+      - closed
     branches:
       - main
 
@@ -14,28 +14,110 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
       - run: yarn ci
 
-  publish-npm:
-    needs: build
+  check-version:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    outputs:
+      core-version-updated: ${{ steps.compare-versions.outputs.core-version-updated }}
+      react-version-updated: ${{ steps.compare-versions.outputs.react-version-updated }}
+      contracts-version-updated: ${{ steps.compare-versions.outputs.react-version-updated }}
+    steps:
+      - name: Checkout main branch at commit before merge
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Get package version from main branch before merge
+        id: pre-merge-version
+        run: |
+          CORE_PRE_MERGE_VERSION=$(node -p "require('./packages/module/package.json').version")
+          REACT_PRE_MERGE_VERSION=$(node -p "require('./packages/react/package.json').version")
+          CONTRACTS_PRE_MERGE_VERSION=$(node -p "require('./packages/contracts/package.json').version")
+          echo "core_pre_merge_version=$CORE_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "react_pre_merge_version=$REACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "react_pre_merge_version=$CONTRACTS_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout main branch at commit after merge
+        uses: actions/checkout@v4
+        with:
+          ref: 'main'
+
+      - name: Get package version from main branch after merge
+        id: post-merge-version
+        run: |
+          CORE_POST_MERGE_VERSION=$(node -p "require('./packages/module/package.json').version")
+          REACT_POST_MERGE_VERSION=$(node -p "require('./packages/react/package.json').version")
+          CONTRACTS_POST_MERGE_VERSION=$(node -p "require('./packages/contracts/package.json').version")
+          echo "core_post_merge_version=$CORE_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "react_post_merge_version=$REACT_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "react_post_merge_version=$CONTRACTS_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Compare versions
+        id: compare-versions
+        run: |
+          if [[ "${{ steps.pre-merge-version.outputs.core_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.core_post_merge_version }}" ]]; then
+              echo "core-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "core-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${{ steps.pre-merge-version.outputs.react_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.react_post_merge_version }}" ]]; then
+              echo "react-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "react-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${{ steps.pre-merge-version.outputs.contracts_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.contracts_post_merge_version }}" ]]; then
+              echo "contracts-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "contracts-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish-meshsdk-core:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.core-version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: yarn ci
-      - run: |
-          if [[ "${{ github.event.head_commit.message }}" =~ ^(docs:|chore:) ]]; then
-              echo "Skipping npm publish due to commit message."
-          else
-              cd packages/module && npm publish --access public
-              cd ../react && npm publish --access public
-          fi
+      - run: cd packages/module && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+  publish-meshsdk-react:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.react-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: yarn ci
+      - run: cd packages/react && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+  publish-meshsdk-contracts:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.contracts-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: yarn ci
+      - run: cd packages/contracts && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}

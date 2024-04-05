@@ -25,6 +25,7 @@ import {
   FilmIcon,
   CubeIcon,
   ListBulletIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -250,6 +251,12 @@ function SubMenuSmartContracts() {
               title="Marketplace"
               desc="Build a NFT marketplace effortlessly."
               icon={<ShoppingCartIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/vesting`}
+              title="Vesting"
+              desc="Lock assets for a period of time."
+              icon={<LockClosedIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
