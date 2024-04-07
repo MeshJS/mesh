@@ -26,6 +26,8 @@ import {
   CubeIcon,
   ListBulletIcon,
   LockClosedIcon,
+  ArrowsRightLeftIcon,
+  GiftIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -257,6 +259,24 @@ function SubMenuSmartContracts() {
               title="Vesting"
               desc="Lock assets for a period of time."
               icon={<LockClosedIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/escrow`}
+              title="Escrow"
+              desc="Facilitate secure peer to peer transactions."
+              icon={<ArrowsRightLeftIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/giftcard`}
+              title="Giftcard"
+              desc="Send and redeem a gift card."
+              icon={<GiftIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/swap`}
+              title="Swap"
+              desc="?"
+              icon={<ArrowsRightLeftIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
