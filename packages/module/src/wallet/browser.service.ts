@@ -31,7 +31,11 @@ import type {
 } from '@mesh/common/types';
 
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
-  private constructor(private readonly _walletInstance: WalletInstance) {}
+  walletInstance: WalletInstance;
+
+  private constructor(readonly _walletInstance: WalletInstance) {
+    this.walletInstance = { ..._walletInstance };
+  }
 
   static getInstalledWallets(): Wallet[] {
     if (window.cardano === undefined) return [];
@@ -144,6 +148,44 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     }
   }
 
+  /**
+   * Experimental feature - sign multiple transactions at once (Supported wallet: Typhon)
+   * @param unsignedTxs - array of unsigned transactions in CborHex string
+   * @param partialSign - if the transactions are signed partially
+   * @returns array of signed transactions CborHex string
+   */
+  async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
+    const newWitnessSets = await this._walletInstance.signTxs(
+      unsignedTxs,
+      partialSign
+    );
+
+    const signedTxs: string[] = [];
+    for (let i = 0; i < newWitnessSets.length; i++) {
+      const tx = deserializeTx(unsignedTxs[i]);
+      const txWitnessSet = tx.witness_set();
+
+      const newSignatures =
+        deserializeTxWitnessSet(newWitnessSets[i]).vkeys() ??
+        csl.Vkeywitnesses.new();
+
+      const txSignatures = mergeSignatures(txWitnessSet, newSignatures);
+
+      txWitnessSet.set_vkeys(txSignatures);
+
+      const signedTx = fromBytes(
+        csl.Transaction.new(
+          tx.body(),
+          txWitnessSet,
+          tx.auxiliary_data()
+        ).to_bytes()
+      );
+
+      signedTxs.push(signedTx);
+    }
+    return signedTxs;
+  }
+
   submitTx(tx: string): Promise<string> {
     return this._walletInstance.submitTx(tx);
   }
@@ -244,6 +286,7 @@ type WalletInstance = {
   getUtxos(amount: string | undefined): Promise<string[] | undefined>;
   signData(address: string, payload: string): Promise<DataSignature>;
   signTx(tx: string, partialSign: boolean): Promise<string>;
+  signTxs(txs: string[], partialSign: boolean): Promise<string[]>;
   submitTx(tx: string): Promise<string>;
 };
 
