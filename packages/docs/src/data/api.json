@@ -3775,7 +3775,7 @@
 								"summary": [
 									{
 										"kind": "text",
-										"text": "Experimental feature - sign multiple transactions at once"
+										"text": "Experimental feature - sign multiple transactions at once (Supported wallet: Typhon)"
 									}
 								],
 								"blockTags": [

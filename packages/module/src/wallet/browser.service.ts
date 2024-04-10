@@ -149,7 +149,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * Experimental feature - sign multiple transactions at once (Supported wallet: Typhon)
+   * Experimental feature - sign multiple transactions at once (Supported wallet(s): Typhon)
    * @param unsignedTxs - array of unsigned transactions in CborHex string
    * @param partialSign - if the transactions are signed partially
    * @returns array of signed transactions CborHex string
