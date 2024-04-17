@@ -6,9 +6,17 @@ import {
   v2ScriptToBech32,
   unixTimeToEnclosingSlot,
   SLOT_CONFIG_NETWORK,
+  ConStr0,
+  Integer,
+  BuiltinByteString,
+  parseDatumCbor,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
+
+export type VestingDatum = ConStr0<
+  [Integer, BuiltinByteString, BuiltinByteString]
+>;
 
 export class MeshVestingContract extends MeshTxInitiator {
   scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
@@ -57,6 +65,18 @@ export class MeshVestingContract extends MeshTxInitiator {
     const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, 0);
     const { pubKeyHash } = serializeBech32Address(walletAddress);
 
+    const datum = parseDatumCbor<VestingDatum>(vestingUtxo.output.plutusData!);
+
+    const invalidBefore = Math.min(
+      datum.fields[0].int,
+      unixTimeToEnclosingSlot(
+        new Date().getTime() - 10000,
+        networkId === 0
+          ? SLOT_CONFIG_NETWORK.Preprod
+          : SLOT_CONFIG_NETWORK.Mainnet
+      )
+    );
+
     await this.mesh
       .spendingPlutusScriptV2()
       .txIn(
@@ -75,14 +95,7 @@ export class MeshVestingContract extends MeshTxInitiator {
         collateralOutput.amount,
         collateralOutput.address
       )
-      .invalidBefore(
-        unixTimeToEnclosingSlot(
-          new Date().getTime() - 100,
-          networkId === 0
-            ? SLOT_CONFIG_NETWORK.Preprod
-            : SLOT_CONFIG_NETWORK.Mainnet
-        )
-      )
+      .invalidBefore(invalidBefore)
       .requiredSignerHash(pubKeyHash)
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
