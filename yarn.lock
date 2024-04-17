@@ -2496,6 +2496,21 @@
   resolved "https://registry.yarnpkg.com/@mdx-js/util/-/util-1.6.22.tgz#219dfd89ae5b97a8801f015323ffa4b62f45718b"
   integrity sha512-H1rQc1ZOHANWBvPcW+JpGwr+juXSxM8Q8YCkm3GhZd8REu1fHR3z99CErO1p9pkcfcxZnMdIZdIsXkOHY0NilA==
 
+"@meshsdk/core@*", "@meshsdk/core@^1.5.10":
+  version "1.5.12"
+  resolved "https://registry.yarnpkg.com/@meshsdk/core/-/core-1.5.12.tgz#bff230d013441a106d2eeacc0c9af9776b0b2ebd"
+  integrity sha512-ql38QOZeWe7E3nmQMOBblr77jtPcRW4jLchYOA6y7MoyaxjH8desZQ/i2oNmjZx01dVSvLwO20ENK7cEl9eWpw==
+  dependencies:
+    "@emurgo/cardano-message-signing-browser" "1.0.1"
+    "@emurgo/cardano-message-signing-nodejs" "1.0.1"
+    "@emurgo/cardano-serialization-lib-browser" "11.5.0"
+    "@emurgo/cardano-serialization-lib-nodejs" "11.5.0"
+    "@emurgo/cip14-js" "3.0.1"
+    axios "1.6.3"
+    bip39 "3.0.4"
+    nanoid "3.3.4"
+    zod "3.22.4"
+
 "@meshsdk/mesh-csl@^0.0.1-beta.1":
   version "0.0.1-beta.2"
   resolved "https://registry.yarnpkg.com/@meshsdk/mesh-csl/-/mesh-csl-0.0.1-beta.2.tgz#a42d4696f17524dec220c9066c826437fe053984"
