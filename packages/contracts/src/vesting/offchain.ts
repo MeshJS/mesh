@@ -68,7 +68,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     const datum = parseDatumCbor<VestingDatum>(vestingUtxo.output.plutusData!);
 
     const invalidBefore = Math.min(
-      datum.fields[0].int,
+      datum.fields[0].int + 1,
       unixTimeToEnclosingSlot(
         new Date().getTime() - 10000,
         networkId === 0
