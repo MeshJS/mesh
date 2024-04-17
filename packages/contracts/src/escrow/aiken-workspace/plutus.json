@@ -1,0 +1,14 @@
+{
+  "preamble": {
+    "title": "meshjs/escrow",
+    "description": "Aiken contracts for project 'meshjs/escrow'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.24-alpha+982eff4"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": []
+}
