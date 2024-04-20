@@ -84,6 +84,29 @@ export class MeshEscrowContract extends MeshTxInitiator {
       await this.getWalletInfoForTx();
     const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
 
+    const inputDatum = parseDatumCbor<InitiationDatum | ActiveEscrowDatum>(
+      escrowUtxo.output.plutusData!
+    );
+
+    if (inputDatum.constructor === 1) {
+      const [
+        initiatorAddressObj,
+        initiatorAmount,
+        recipientAddressObj,
+        recipientAmount,
+      ] = inputDatum.fields;
+
+      const initiatorAddress =
+        parsePlutusAddressObjToBech32(initiatorAddressObj);
+      const recipientAddress =
+        parsePlutusAddressObjToBech32(recipientAddressObj);
+      const initiatorToReceive = parsePlutusValueToAssets(initiatorAmount);
+      const recipientToReceive = parsePlutusValueToAssets(recipientAmount);
+      this.mesh
+        .txOut(initiatorAddress, initiatorToReceive)
+        .txOut(recipientAddress, recipientToReceive);
+    }
+
     await this.mesh
       .spendingPlutusScriptV2()
       .txIn(
