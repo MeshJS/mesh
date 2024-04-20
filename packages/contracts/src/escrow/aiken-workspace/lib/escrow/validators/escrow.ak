@@ -44,8 +44,8 @@ pub fn escrow_logic(
             }
           let is_value_deposited =
             value_geq(
-              input.output.value,
-              output.value |> merge(initiator_assets),
+              output.value,
+              input.output.value |> merge(recipient_assets),
             )
           is_datum_updated && is_value_deposited
         }
@@ -75,7 +75,7 @@ pub fn escrow_logic(
             recipient_assets,
           }: EscrowDatum = raw_input_datum
           let initiator_received = get_all_value_to(outputs, initiator)
-          let recipient_received = get_all_value_to(outputs, initiator)
+          let recipient_received = get_all_value_to(outputs, recipient)
           let is_initiator_received_value =
             value_geq(initiator_received, recipient_assets)
           let is_recipient_received_value =
