@@ -18,7 +18,7 @@ import {
   mConStr2,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
-import { Asset, UTxO } from '@meshsdk/core';
+import { Asset, UTxO, mergeAssets } from '@meshsdk/core';
 
 export type InitiationDatum = ConStr0<[PubKeyAddress, Value]>;
 export const initiateEscrowDatum = (
@@ -125,7 +125,10 @@ export class MeshEscrowContract extends MeshTxInitiator {
       depositAmount
     );
 
-    await this.mesh
+    const inputAssets = parsePlutusValueToAssets(inputDatum.fields[1]);
+    const escrowAmount = mergeAssets([...depositAmount, ...inputAssets]);
+
+    this.mesh
       .spendingPlutusScriptV2()
       .txIn(
         escrowUtxo.input.txHash,
@@ -134,11 +137,16 @@ export class MeshEscrowContract extends MeshTxInitiator {
         scriptAddr
       )
       .spendingReferenceTxInInlineDatumPresent()
-      .spendingReferenceTxInRedeemerValue(
-        recipientDepositRedeemer(walletAddress, depositAmount)
+      .txInRedeemerValue(
+        recipientDepositRedeemer(walletAddress, depositAmount),
+        {
+          mem: 7_000_000,
+          steps: 3_000_000_000,
+        },
+        'JSON'
       )
       .txInScript(this.scriptCbor)
-      .txOut(scriptAddr, depositAmount)
+      .txOut(scriptAddr, escrowAmount)
       .txOutInlineDatumValue(outputDatum, 'JSON')
       .changeAddress(walletAddress)
       .txInCollateral(
@@ -148,7 +156,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
         collateral.output.address
       )
       .selectUtxosFrom(utxos)
-      .complete();
+      .completeSync();
     return this.mesh.txHex;
   };
 

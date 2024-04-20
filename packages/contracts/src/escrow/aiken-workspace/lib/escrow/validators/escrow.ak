@@ -57,11 +57,25 @@ pub fn escrow_logic(
           when input_datum is {
             Initiation { initiator, .. } ->
               key_signed(extra_signatories, address_pub_key(initiator))
-            ActiveEscrow { initiator, recipient, .. } ->
-              one_of_keys_signed(
-                extra_signatories,
-                [address_pub_key(initiator), address_pub_key(recipient)],
-              )
+            ActiveEscrow {
+              initiator,
+              recipient,
+              initiator_assets,
+              recipient_assets,
+            } -> {
+              let initiator_received = get_all_value_to(outputs, initiator)
+              let recipient_received = get_all_value_to(outputs, recipient)
+              let is_initiator_received_value =
+                value_geq(initiator_received, initiator_assets)
+              let is_recipient_received_value =
+                value_geq(recipient_received, recipient_assets)
+              let is_any_party_signed =
+                one_of_keys_signed(
+                  extra_signatories,
+                  [address_pub_key(initiator), address_pub_key(recipient)],
+                )
+              is_any_party_signed && is_initiator_received_value && is_recipient_received_value
+            }
           }
         }
         CompleteTrade -> {

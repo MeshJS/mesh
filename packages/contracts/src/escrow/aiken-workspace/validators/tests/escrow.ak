@@ -15,6 +15,8 @@ use sidan_placeholder/outputs.{mock_pub_key_output, mock_script_output}
 
 type CancelTestCase {
   is_at_initiation: Bool,
+  is_initiator_received_value: Bool,
+  is_recipient_received_value: Bool,
   is_initiator_signed: Bool,
   is_recipient_signed: Bool,
 }
@@ -38,6 +40,8 @@ fn active_datum(recipient: Address, recipient_assets: Value) -> EscrowDatum {
 fn get_cancel_test_tx(test_case: CancelTestCase) -> Transaction {
   let CancelTestCase {
     is_at_initiation,
+    is_initiator_received_value,
+    is_recipient_received_value,
     is_initiator_signed,
     is_recipient_signed,
   } = test_case
@@ -73,10 +77,29 @@ fn get_cancel_test_tx(test_case: CancelTestCase) -> Transaction {
         []
     }
 
+  let initiator_output_value =
+    if is_initiator_received_value {
+      from_lovelace(2_000_000)
+    } else {
+      from_asset("test", "test", 1)
+    }
+  let recipient_output_value =
+    if is_recipient_received_value {
+      from_asset("test", "test", 1)
+    } else {
+      from_lovelace(2_000_000)
+    }
+
+  let initiator_output =
+    mock_pub_key_output(mock_pub_key_address(0, None), initiator_output_value)
+  let recipient_output =
+    mock_pub_key_output(mock_pub_key_address(1, None), recipient_output_value)
+
   Transaction {
     ..placeholder(),
     inputs: [input],
     extra_signatories: extra_signatories,
+    outputs: [initiator_output, recipient_output],
   }
 }
 
@@ -87,6 +110,8 @@ test success_cancel() {
   let test_case =
     CancelTestCase {
       is_at_initiation: True,
+      is_initiator_received_value: True,
+      is_recipient_received_value: True,
       is_initiator_signed: True,
       is_recipient_signed: True,
     }
@@ -103,6 +128,8 @@ test success_cancel_at_initiation() {
   let test_case =
     CancelTestCase {
       is_at_initiation: True,
+      is_initiator_received_value: True,
+      is_recipient_received_value: True,
       is_initiator_signed: True,
       is_recipient_signed: False,
     }
@@ -119,6 +146,8 @@ test success_cancel_at_active_with_initiator_signed() {
   let test_case =
     CancelTestCase {
       is_at_initiation: False,
+      is_initiator_received_value: True,
+      is_recipient_received_value: True,
       is_initiator_signed: True,
       is_recipient_signed: False,
     }
@@ -135,6 +164,8 @@ test success_cancel_at_active_with_recipient_signed() {
   let test_case =
     CancelTestCase {
       is_at_initiation: False,
+      is_initiator_received_value: True,
+      is_recipient_received_value: True,
       is_initiator_signed: False,
       is_recipient_signed: True,
     }
@@ -151,6 +182,8 @@ test fail_cancel_at_initiation_without_signature() {
   let test_case =
     CancelTestCase {
       is_at_initiation: True,
+      is_initiator_received_value: True,
+      is_recipient_received_value: True,
       is_initiator_signed: False,
       is_recipient_signed: True,
     }
@@ -167,8 +200,46 @@ test fail_cancel_without_signature() {
   let test_case =
     CancelTestCase {
       is_at_initiation: False,
+      is_initiator_received_value: True,
+      is_recipient_received_value: True,
       is_initiator_signed: False,
       is_recipient_signed: False,
+    }
+
+  let tx = get_cancel_test_tx(test_case)
+  let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
+  !escrow_logic(unused_mock_datum, redeemer, ctx)
+}
+
+test fail_cancel_without_initiator_value_returned() {
+  let output_reference = mock_utxo_ref(0, 1)
+  let unused_mock_datum = initiation_datum()
+  let redeemer = CancelTrade
+  let test_case =
+    CancelTestCase {
+      is_at_initiation: False,
+      is_initiator_received_value: False,
+      is_recipient_received_value: True,
+      is_initiator_signed: True,
+      is_recipient_signed: True,
+    }
+
+  let tx = get_cancel_test_tx(test_case)
+  let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
+  !escrow_logic(unused_mock_datum, redeemer, ctx)
+}
+
+test fail_cancel_without_recipient_value_returned() {
+  let output_reference = mock_utxo_ref(0, 1)
+  let unused_mock_datum = initiation_datum()
+  let redeemer = CancelTrade
+  let test_case =
+    CancelTestCase {
+      is_at_initiation: False,
+      is_initiator_received_value: True,
+      is_recipient_received_value: False,
+      is_initiator_signed: True,
+      is_recipient_signed: True,
     }
 
   let tx = get_cancel_test_tx(test_case)

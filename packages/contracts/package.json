@@ -38,6 +38,6 @@
   },
   "dependencies": {
     "@harmoniclabs/plu-ts": "0.2.2",
-    "@meshsdk/mesh-csl": "^0.0.1-beta.4"
+    "@meshsdk/mesh-csl": "^0.0.4"
   }
 }
