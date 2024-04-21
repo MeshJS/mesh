@@ -7,20 +7,25 @@ import {
   txOutRef,
   stringToHex,
   getV2ScriptHash,
+  parseDatumCbor,
+  BuiltinByteString,
+  List,
+  Integer,
+  mConStr1,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
-import { Asset } from '@meshsdk/core';
+import { Asset, UTxO } from '@meshsdk/core';
 
 export class MeshGiftCardContract extends MeshTxInitiator {
-  giftCardCbor = (tokenName: string, utxoTxHash: string, utxoTxId: number) =>
+  giftCardCbor = (tokenNameHex: string, utxoTxHash: string, utxoTxId: number) =>
     applyObjParamsToScript(blueprint.validators[0].compiledCode, [
-      builtinByteString(stringToHex(tokenName)),
+      builtinByteString(tokenNameHex),
       txOutRef(utxoTxHash, utxoTxId),
     ]);
 
-  redeemCbor = (tokenName: string, policyId: string) =>
+  redeemCbor = (tokenNameHex: string, policyId: string) =>
     applyObjParamsToScript(blueprint.validators[1].compiledCode, [
-      builtinByteString(stringToHex(tokenName)),
+      builtinByteString(tokenNameHex),
       builtinByteString(policyId),
     ]);
 
@@ -35,15 +40,16 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   ): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
+    const tokenNameHex = stringToHex(tokenName);
     const firstUtxo = utxos[0];
     const remainingUtxos = utxos.slice(1);
     const giftCardScript = this.giftCardCbor(
-      tokenName,
+      tokenNameHex,
       firstUtxo.input.txHash,
       firstUtxo.input.outputIndex
     );
     const giftCardPolicy = getV2ScriptHash(giftCardScript);
-    const redeemScript = this.redeemCbor(tokenName, giftCardPolicy);
+    const redeemScript = this.redeemCbor(tokenNameHex, giftCardPolicy);
     const redeemAddr = v2ScriptToBech32(redeemScript, undefined, networkId);
 
     await this.mesh
@@ -51,14 +57,21 @@ export class MeshGiftCardContract extends MeshTxInitiator {
         firstUtxo.input.txHash,
         firstUtxo.input.outputIndex,
         firstUtxo.output.amount,
-        giftCardPolicy
+        firstUtxo.output.address
       )
       .mintPlutusScriptV2()
-      .mint('1', giftCardPolicy, stringToHex(tokenName))
+      .mint('1', giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
       .mintRedeemerValue(mConStr0([]))
-      .txOut(redeemAddr, giftValue)
-      .txOutInlineDatumValue(giftCardPolicy)
+      .txOut(redeemAddr, [
+        ...giftValue,
+        { unit: giftCardPolicy + tokenNameHex, quantity: '1' },
+      ])
+      .txOutInlineDatumValue([
+        firstUtxo.input.txHash,
+        firstUtxo.input.outputIndex,
+        tokenNameHex,
+      ])
       .changeAddress(walletAddress)
       .txInCollateral(
         collateral.input.txHash,
@@ -71,56 +84,48 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     return this.mesh.txHex;
   };
 
-  // redeemGiftCard = async (
-  //   giftCardUtxo: UTxO,
-  //   networkId = 0
-  // ): Promise<string> => {
-  //   const { utxos, walletAddress, collateral } =
-  //     await this.getWalletInfoForTx();
-  //   // const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
+  redeemGiftCard = async (giftCardUtxo: UTxO): Promise<string> => {
+    const { utxos, walletAddress, collateral } =
+      await this.getWalletInfoForTx();
 
-  //   const giftCardValue = parsePlutusValueToAssets(giftCardUtxo.output.amount);
+    const inlineDatum = parseDatumCbor<List>(
+      giftCardUtxo.output.plutusData!
+    ).list;
+    const paramTxHash = (inlineDatum[0] as BuiltinByteString).bytes;
+    const paramTxId = (inlineDatum[1] as Integer).int;
+    const tokenNameHex = (inlineDatum[2] as BuiltinByteString).bytes;
+    const giftCardScript = this.giftCardCbor(
+      tokenNameHex,
+      paramTxHash,
+      paramTxId
+    );
+    const giftCardPolicy = getV2ScriptHash(giftCardScript);
+    const redeemScript = this.redeemCbor(tokenNameHex, giftCardPolicy);
 
-  //   if (inputDatum.constructor === 1) {
-  //     const [
-  //       initiatorAddressObj,
-  //       initiatorAmount,
-  //       recipientAddressObj,
-  //       recipientAmount,
-  //     ] = inputDatum.fields;
-
-  //     const initiatorAddress =
-  //       parsePlutusAddressObjToBech32(initiatorAddressObj);
-  //     const recipientAddress =
-  //       parsePlutusAddressObjToBech32(recipientAddressObj);
-  //     const initiatorToReceive = parsePlutusValueToAssets(initiatorAmount);
-  //     const recipientToReceive = parsePlutusValueToAssets(recipientAmount);
-  //     this.mesh
-  //       .txOut(initiatorAddress, initiatorToReceive)
-  //       .txOut(recipientAddress, recipientToReceive);
-  //   }
-
-  //   await this.mesh
-  //     .spendingPlutusScriptV2()
-  //     .txIn(
-  //       escrowUtxo.input.txHash,
-  //       escrowUtxo.input.outputIndex,
-  //       escrowUtxo.output.amount,
-  //       scriptAddr
-  //     )
-  //     .spendingReferenceTxInInlineDatumPresent()
-  //     .spendingReferenceTxInRedeemerValue(mConStr1([]))
-  //     .txInScript(this.scriptCbor)
-  //     .requiredSignerHash(serializeBech32Address(walletAddress).pubKeyHash)
-  //     .changeAddress(walletAddress)
-  //     .txInCollateral(
-  //       collateral.input.txHash,
-  //       collateral.input.outputIndex,
-  //       collateral.output.amount,
-  //       collateral.output.address
-  //     )
-  //     .selectUtxosFrom(utxos)
-  //     .complete();
-  //   return this.mesh.txHex;
-  // };
+    await this.mesh
+      .spendingPlutusScriptV2()
+      .txIn(
+        giftCardUtxo.input.txHash,
+        giftCardUtxo.input.outputIndex,
+        giftCardUtxo.output.amount,
+        giftCardUtxo.output.address
+      )
+      .spendingReferenceTxInInlineDatumPresent()
+      .spendingReferenceTxInRedeemerValue('')
+      .txInScript(redeemScript)
+      .mintPlutusScriptV2()
+      .mint('-1', giftCardPolicy, tokenNameHex)
+      .mintingScript(giftCardScript)
+      .mintRedeemerValue(mConStr1([]))
+      .changeAddress(walletAddress)
+      .txInCollateral(
+        collateral.input.txHash,
+        collateral.input.outputIndex,
+        collateral.output.amount,
+        collateral.output.address
+      )
+      .selectUtxosFrom(utxos)
+      .complete();
+    return this.mesh.txHex;
+  };
 }

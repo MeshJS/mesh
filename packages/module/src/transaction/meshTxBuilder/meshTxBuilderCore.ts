@@ -1334,7 +1334,7 @@ export class MeshTxBuilderCore {
     mintBuilder.add_asset(
       csl.MintWitness.new_plutus_script(script, newRedeemer),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
-      csl.Int.new(csl.BigNum.from_str(amount))
+      csl.Int.from_str(amount)
     );
   };
 
@@ -1349,7 +1349,7 @@ export class MeshTxBuilderCore {
         csl.NativeScript.from_hex(scriptSource.script.code)
       ),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
-      csl.Int.new(csl.BigNum.from_str(amount))
+      csl.Int.from_str(amount)
     );
   };
 
