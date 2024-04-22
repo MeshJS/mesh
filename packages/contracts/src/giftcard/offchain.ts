@@ -12,11 +12,14 @@ import {
   List,
   Integer,
   mConStr1,
+  applyParamsToScript,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
 
 export class MeshGiftCardContract extends MeshTxInitiator {
+  scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
+
   giftCardCbor = (tokenNameHex: string, utxoTxHash: string, utxoTxId: number) =>
     applyObjParamsToScript(blueprint.validators[0].compiledCode, [
       builtinByteString(tokenNameHex),

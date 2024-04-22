@@ -6,14 +6,14 @@ import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import { Asset, BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
-import { MeshVestingContract } from '@meshsdk/contracts';
+import { MeshEscrowContract } from '@meshsdk/contracts';
 
-export default function VestingDepositFund() {
+export default function EscrowInitiate() {
   return (
     <>
       <SectionTwoCol
-        sidebarTo="depositFund"
-        header="Deposit Fund"
+        sidebarTo="initiateEscrow"
+        header="Initiate Escrow"
         leftFn={Left()}
         rightFn={Right()}
       />
@@ -48,7 +48,7 @@ function Right() {
       submitter: blockchainProvider,
     });
 
-    const contract = new MeshVestingContract({
+    const contract = new MeshEscrowContract({
       mesh: meshTxBuilder,
       fetcher: blockchainProvider,
       wallet: wallet,
@@ -64,25 +64,17 @@ function Right() {
 
     try {
       const contract = getContract();
+      console.log(3, contract);
 
-      const asset: Asset = {
-        unit: 'lovelace',
-        quantity: '8000000',
-      };
+      const escrowAmount: Asset[] = [
+        {
+          unit: 'lovelace',
+          quantity: '3000000',
+        },
+      ];
+      const networkId = 0;
 
-      const lockUntilTimeStamp = new Date();
-      lockUntilTimeStamp.setMinutes(lockUntilTimeStamp.getMinutes() + 2);
-
-      const beneficiary =
-        'addr_test1qqnnkc56unmkntvza0x70y65s3fs5awdpks7wpr4yu0mqm5vldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmys2gv2h5';
-
-      const tx = await contract.depositFund(
-        [asset],
-        lockUntilTimeStamp.getTime(),
-        beneficiary,
-        0
-      );
-      console.log('tx', tx);
+      const tx = await contract.initiateEscrow(escrowAmount, networkId);
 
       const signedTx = await wallet.signTx(tx);
       const txHash = await wallet.submitTx(signedTx);

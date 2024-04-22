@@ -6,14 +6,14 @@ import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import { Asset, BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
-import { MeshVestingContract } from '@meshsdk/contracts';
+import { MeshGiftCardContract } from '@meshsdk/contracts';
 
-export default function VestingDepositFund() {
+export default function GiftcardCreate() {
   return (
     <>
       <SectionTwoCol
-        sidebarTo="depositFund"
-        header="Deposit Fund"
+        sidebarTo="createGiftCard"
+        header="Create Giftcard"
         leftFn={Left()}
         rightFn={Right()}
       />
@@ -48,7 +48,7 @@ function Right() {
       submitter: blockchainProvider,
     });
 
-    const contract = new MeshVestingContract({
+    const contract = new MeshGiftCardContract({
       mesh: meshTxBuilder,
       fetcher: blockchainProvider,
       wallet: wallet,
@@ -64,24 +64,18 @@ function Right() {
 
     try {
       const contract = getContract();
+      console.log(3, contract);
 
-      const asset: Asset = {
-        unit: 'lovelace',
-        quantity: '8000000',
-      };
+      const tokenName = 'ToJingles1';
+      const giftValue: Asset[] = [
+        {
+          unit: 'lovelace',
+          quantity: '2500000',
+        },
+      ];
+      const networkId = 0;
 
-      const lockUntilTimeStamp = new Date();
-      lockUntilTimeStamp.setMinutes(lockUntilTimeStamp.getMinutes() + 2);
-
-      const beneficiary =
-        'addr_test1qqnnkc56unmkntvza0x70y65s3fs5awdpks7wpr4yu0mqm5vldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmys2gv2h5';
-
-      const tx = await contract.depositFund(
-        [asset],
-        lockUntilTimeStamp.getTime(),
-        beneficiary,
-        0
-      );
+      const tx = await contract.createGiftCard(tokenName, giftValue, networkId);
       console.log('tx', tx);
 
       const signedTx = await wallet.signTx(tx);

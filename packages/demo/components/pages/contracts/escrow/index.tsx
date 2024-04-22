@@ -1,12 +1,16 @@
 import CommonLayout from '../../../common/layout';
+import EscrowCancel from './cancelEscrow';
+import EscrowComplete from './completeEscrow';
 import Hero from './hero';
-// import VestingDepositFund from './depositFund';
-// import VestingWithdrawFund from './withdrawFund';
+import EscrowInitiate from './initiateEscrow';
+import EscrowDeposit from './recipientDeposit';
 
 export default function ContractsEscrow() {
   const sidebarItems = [
-    // { label: 'Deposit Fund', to: 'depositFund' },
-    // { label: 'Withdraw Fund', to: 'withdrawFund' },
+    { label: 'Escrow Initiate', to: 'initiateEscrow' },
+    { label: 'Cancel Escrow', to: 'cancelEscrow' },
+    { label: 'Recipient Deposit', to: 'recipientDeposit' },
+    { label: 'Complete Escrow', to: 'completeEscrow' },
   ];
 
   return (
@@ -20,8 +24,10 @@ export default function ContractsEscrow() {
 function Main() {
   return (
     <>
-      {/* <VestingDepositFund />
-      <VestingWithdrawFund /> */}
+      <EscrowInitiate />
+      <EscrowCancel />
+      <EscrowDeposit />
+      <EscrowComplete />
     </>
   );
 }

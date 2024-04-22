@@ -93,19 +93,21 @@ function Right() {
       );
       console.log(4, utxos);
 
-      const vestingUtxo = utxos[4]; // change this to the correct index
+      const vestingUtxo = utxos[5]; // change this to the correct index
       console.log(5, vestingUtxo);
 
       if (!vestingUtxo) {
         setResponseError('No vesting utxo found');
         return;
       }
+      
       // withdraw
 
       const tx = await contract.withdrawFund(vestingUtxo, 0);
       console.log('tx', tx);
 
       const signedTx = await wallet.signTx(tx, true);
+      console.log('signedTx', signedTx);
       const txHash = await wallet.submitTx(signedTx);
       console.log('txHash', txHash);
       setResponse(txHash);

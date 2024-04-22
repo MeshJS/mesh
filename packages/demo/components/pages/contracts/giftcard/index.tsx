@@ -1,12 +1,12 @@
 import CommonLayout from '../../../common/layout';
+import GiftcardCreate from './createGiftCard';
 import Hero from './hero';
-// import VestingDepositFund from './depositFund';
-// import VestingWithdrawFund from './withdrawFund';
+import GiftcardRedeem from './redeemGiftCard';
 
 export default function ContractsGiftcard() {
   const sidebarItems = [
-    // { label: 'Deposit Fund', to: 'depositFund' },
-    // { label: 'Withdraw Fund', to: 'withdrawFund' },
+    { label: 'Create Giftcard', to: 'createGiftCard' },
+    { label: 'Redeem Giftcard', to: 'redeemGiftCard' },
   ];
 
   return (
@@ -20,8 +20,8 @@ export default function ContractsGiftcard() {
 function Main() {
   return (
     <>
-      {/* <VestingDepositFund />
-      <VestingWithdrawFund /> */}
+      <GiftcardCreate />
+      <GiftcardRedeem />
     </>
   );
 }

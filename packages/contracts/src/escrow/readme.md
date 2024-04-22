@@ -21,3 +21,10 @@ Endpoints:
 - cancel trade
 - complete trade
 list, pay, report, dispute, claim?
+
+
+Processes:
+- initiate -> cancel
+- initiaite -> recipient deposit -> initiator cancel
+- initiaite -> recipient deposit -> recipient cancel
+- initiaite -> recipient deposit -> complete trade
