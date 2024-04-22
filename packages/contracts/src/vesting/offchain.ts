@@ -27,12 +27,12 @@ export class MeshVestingContract extends MeshTxInitiator {
 
   depositFund = async (
     amount: Asset[],
-    lockUntilTimeStamp: number,
+    lockUntilTimeStampMs: number,
     beneficiary: string,
     networkId = 0
   ): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, 0);
+    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
     const { pubKeyHash: ownerPubKeyHash } =
       serializeBech32Address(walletAddress);
     const { pubKeyHash: beneficiaryPubKeyHash } =
@@ -41,16 +41,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     await this.mesh
       .txOut(scriptAddr, amount)
       .txOutInlineDatumValue(
-        mConStr0([
-          unixTimeToEnclosingSlot(
-            lockUntilTimeStamp,
-            networkId === 0
-              ? SLOT_CONFIG_NETWORK.Preprod
-              : SLOT_CONFIG_NETWORK.Mainnet
-          ),
-          ownerPubKeyHash,
-          beneficiaryPubKeyHash,
-        ])
+        mConStr0([lockUntilTimeStampMs, ownerPubKeyHash, beneficiaryPubKeyHash])
       )
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
@@ -62,20 +53,18 @@ export class MeshVestingContract extends MeshTxInitiator {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
     const { input: collateralInput, output: collateralOutput } = collateral;
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, 0);
+    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
     const { pubKeyHash } = serializeBech32Address(walletAddress);
 
     const datum = parseDatumCbor<VestingDatum>(vestingUtxo.output.plutusData!);
 
-    const invalidBefore = Math.min(
-      datum.fields[0].int + 1,
+    const invalidBefore =
       unixTimeToEnclosingSlot(
-        new Date().getTime() - 10000,
+        Math.min(datum.fields[0].int, Date.now() - 15000),
         networkId === 0
           ? SLOT_CONFIG_NETWORK.Preprod
           : SLOT_CONFIG_NETWORK.Mainnet
-      )
-    );
+      ) + 1;
 
     await this.mesh
       .spendingPlutusScriptV2()

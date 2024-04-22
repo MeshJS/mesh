@@ -79,8 +79,7 @@ function Right() {
       const tx = await contract.depositFund(
         [asset],
         lockUntilTimeStamp.getTime(),
-        beneficiary,
-        0
+        beneficiary
       );
       console.log('tx', tx);
 
