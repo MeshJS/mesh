@@ -40,6 +40,7 @@ import {
   TxInParameter,
 } from './type';
 import { selectUtxos } from '@mesh/core/CPS-009';
+import JSONbig from 'json-bigint';
 
 export class MeshTxBuilderCore {
   txHex = '';
@@ -1390,7 +1391,7 @@ export class MeshTxBuilderCore {
       poolOwners,
       relays,
       poolParams.metadata
-        ? csl.PoolMetadata.from_json(JSON.stringify(poolParams.metadata))
+        ? csl.PoolMetadata.from_json(JSONbig.stringify(poolParams.metadata))
         : undefined
     );
   };
@@ -1520,7 +1521,7 @@ export class MeshTxBuilderCore {
     allMetadata.forEach(({ tag, metadata }) => {
       this.txBuilder.add_json_metadatum(
         csl.BigNum.from_str(tag),
-        JSON.stringify(metadata)
+        JSONbig.stringify(metadata)
       );
     });
   };
@@ -1567,7 +1568,7 @@ export class MeshTxBuilderCore {
 
   protected castRawDataToJsonString = (rawData: object | string) => {
     if (typeof rawData === 'object') {
-      return JSON.stringify(rawData);
+      return JSONbig.stringify(rawData);
     } else {
       return rawData as string;
     }

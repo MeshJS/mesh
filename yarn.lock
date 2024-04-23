@@ -2487,6 +2487,21 @@
   resolved "https://registry.yarnpkg.com/@mdx-js/util/-/util-1.6.22.tgz#219dfd89ae5b97a8801f015323ffa4b62f45718b"
   integrity sha512-H1rQc1ZOHANWBvPcW+JpGwr+juXSxM8Q8YCkm3GhZd8REu1fHR3z99CErO1p9pkcfcxZnMdIZdIsXkOHY0NilA==
 
+"@meshsdk/core@*", "@meshsdk/core@^1.5.10":
+  version "1.5.14"
+  resolved "https://registry.yarnpkg.com/@meshsdk/core/-/core-1.5.14.tgz#d6dd5eeed3f926684b8e05202cc37b5c34a5cb02"
+  integrity sha512-GI/1GV7OY57n8K5JHAnXIxm5rjZwV6ddmfpzij+ltRoiArnM70+LWexoQ4WJLoIXK3lK6uJY8VxgcYcWamAirg==
+  dependencies:
+    "@emurgo/cardano-message-signing-browser" "1.0.1"
+    "@emurgo/cardano-message-signing-nodejs" "1.0.1"
+    "@emurgo/cardano-serialization-lib-browser" "11.5.0"
+    "@emurgo/cardano-serialization-lib-nodejs" "11.5.0"
+    "@emurgo/cip14-js" "3.0.1"
+    axios "1.6.3"
+    bip39 "3.0.4"
+    nanoid "3.3.4"
+    zod "3.22.4"
+
 "@meshsdk/mesh-csl@^0.0.1-beta.1":
   version "0.0.1-beta.2"
   resolved "https://registry.yarnpkg.com/@meshsdk/mesh-csl/-/mesh-csl-0.0.1-beta.2.tgz#a42d4696f17524dec220c9066c826437fe053984"
@@ -6358,6 +6373,11 @@ big.js@^5.2.2:
   version "5.2.2"
   resolved "https://registry.yarnpkg.com/big.js/-/big.js-5.2.2.tgz#65f0af382f578bcdc742bd9c281e9cb2d7768328"
   integrity sha512-vyL2OymJxmarO8gxMr0mhChsO9QGwhynfuu4+MHTAW6czfq9humCB7rKpUjDd9YUiDPU4mzpyupFSvOClAwbmQ==
+
+bignumber.js@^9.0.0:
+  version "9.1.2"
+  resolved "https://registry.yarnpkg.com/bignumber.js/-/bignumber.js-9.1.2.tgz#b7c4242259c008903b13707983b5f4bbd31eda0c"
+  integrity sha512-2/mKyZH9K85bzOEfhXDBFZTGd1CTs+5IHpeFQo9luiBG7hghdC851Pj2WAhb6E3R6b9tZj/XKhbg4fum+Kepug==
 
 binary-extensions@^1.0.0:
   version "1.13.1"
@@ -11967,6 +11987,13 @@ jsesc@~0.5.0:
   version "0.5.0"
   resolved "https://registry.yarnpkg.com/jsesc/-/jsesc-0.5.0.tgz#e7dee66e35d6fc16f710fe91d5cf69f70f08911d"
   integrity sha512-uZz5UnB7u4T9LvwmFqXii7pZSouaRPorGs5who1Ip7VO0wxanFvBL7GkM6dTHlgX+jhBApRetaWpnDabOeTcnA==
+
+json-bigint@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/json-bigint/-/json-bigint-1.0.0.tgz#ae547823ac0cad8398667f8cd9ef4730f5b01ff1"
+  integrity sha512-SiPv/8VpZuWbvLSMtTDU8hEfrZWg/mH/nV/b4o0CYbSxu1UIQPLdwKOCIyLQX+VIPO5vrLX3i8qtqFyhdPSUSQ==
+  dependencies:
+    bignumber.js "^9.0.0"
 
 json-buffer@3.0.1:
   version "3.0.1"
