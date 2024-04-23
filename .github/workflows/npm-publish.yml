@@ -9,6 +9,7 @@ on:
       - closed
     branches:
       - main
+      - fix/bigint-data
 
 jobs:
   build:
