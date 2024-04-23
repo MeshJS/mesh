@@ -93,7 +93,7 @@ function Right() {
       );
       console.log(4, utxos);
 
-      const vestingUtxo = utxos[5]; // change this to the correct index
+      const vestingUtxo = utxos[7]; // change this to the correct index
       console.log(5, vestingUtxo);
 
       if (!vestingUtxo) {

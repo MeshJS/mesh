@@ -13,6 +13,8 @@ import {
   resolvePlutusScriptAddress,
 } from '@meshsdk/core';
 import { MeshEscrowContract } from '@meshsdk/contracts';
+import useLocalStorage from '../../../../hooks/useLocalStorage';
+import Link from 'next/link';
 
 export default function EscrowDeposit() {
   return (
@@ -29,10 +31,60 @@ export default function EscrowDeposit() {
 
 function Left() {
   let code = ``;
+  code += `const networkId = 0;\n`;
+  code += `const contract = getContract();\n`;
+  code += `\n`;
+  code += `// get script address\n`;
+  code += `const script: PlutusScript = {\n`;
+  code += `  code: contract.scriptCbor,\n`;
+  code += `  version: 'V2',\n`;
+  code += `};\n`;
+  code += `const scriptAddress = resolvePlutusScriptAddress(script, 0);\n`;
+  code += `\n`;
+  code += `// get utxo from script\n`;
+  code += `const blockchainProvider = new BlockfrostProvider(\n`;
+  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
+  code += `);\n`;
+  code += `const utxos = await blockchainProvider.fetchAddressUTxOs(\n`;
+  code += `  scriptAddress\n`;
+  code += `);\n`;
+  code += `const utxo = utxos[0]; // change this to the correct index\n`;
+  code += `\n`;
+  code += `const depositAmount: Asset[] = [\n`;
+  code += `  {\n`;
+  code += `    unit: 'f9a03b9bf99eccd8e3eff53ac5f52f72f212ac6ed1c0743d605e728b4d657368546f6b656e',\n`;
+  code += `    quantity: '1',\n`;
+  code += `  },\n`;
+  code += `];\n`;
+  code += `\n`;
+  code += `// transaction\n`;
+  code += `const tx = await contract.recipientDeposit(\n`;
+  code += `  utxo,\n`;
+  code += `  depositAmount,\n`;
+  code += `  networkId\n`;
+  code += `);\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <>
-      <p></p>
+      <p>User B can deposit funds into the escrow.</p>
+      <p>
+        This function, `recipientDeposit()`, is used to deposit funds into the
+        escrow. The function accepts the following parameters:
+      </p>
+      <ul>
+        <li>
+          <b>escrowUtxo (UTxO)</b> - the utxo of the transaction after{' '}
+          <code>initiateEscrow()</code>
+        </li>
+        <li>
+          <b>depositAmount (Asset[])</b> - a list of assets
+        </li>
+        <li>
+          <b>networkId (number)</b> - blockchain network
+        </li>
+      </ul>
       <Codeblock data={code} isJson={false} />
     </>
   );
@@ -43,6 +95,10 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
+  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
+    'mesh_escrow_demo',
+    undefined
+  );
 
   function getContract() {
     const blockchainProvider = new BlockfrostProvider(
@@ -73,28 +129,21 @@ function Right() {
       const contract = getContract();
 
       // get script address
-
       const script: PlutusScript = {
         code: contract.scriptCbor,
         version: 'V2',
       };
       const scriptAddress = resolvePlutusScriptAddress(script, 0);
-      console.log(3, scriptAddress);
 
       // get utxo from script
-
       const blockchainProvider = new BlockfrostProvider(
         process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
       );
+      const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
 
-      const utxos = await blockchainProvider.fetchAddressUTxOs(
-        scriptAddress
-        // 'lovelace'
-      );
-      console.log(4, utxos);
-
-      const utxo = utxos[0]; // change this to the correct index
-      console.log(5, utxo);
+      const utxo = utxos.filter(
+        (utxo) => utxo.input.txHash === userLocalStorage
+      )[0];
 
       if (!utxo) {
         setResponseError('No utxo found');
@@ -103,7 +152,7 @@ function Right() {
 
       const depositAmount: Asset[] = [
         {
-          unit: '0ba402c042775dfffedbd958cae3805a281bad34f46b5b6fd5c2c7714d657368546f6b656e',
+          unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',
           quantity: '1',
         },
       ];
@@ -116,7 +165,7 @@ function Right() {
 
       const signedTx = await wallet.signTx(tx, true);
       const txHash = await wallet.submitTx(signedTx);
-      console.log('txHash', txHash);
+      setUserlocalStorage(txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -124,25 +173,33 @@ function Right() {
     setLoading(false);
   }
 
-  return (
-    <Card>
-      {connected ? (
-        <>
-          <Button
-            onClick={() => rundemo()}
-            style={
-              loading ? 'warning' : response !== null ? 'success' : 'light'
-            }
-            disabled={loading}
-          >
-            Deposit Fund
-          </Button>
-          <RunDemoResult response={response} />
-        </>
-      ) : (
-        <CardanoWallet />
-      )}
-      <RunDemoResult response={responseError} label="Error" />
-    </Card>
-  );
+  if (userLocalStorage) {
+    return (
+      <Card>
+        <p>
+          Connect with wallet B to deposit assets. This demo will deposit 1 Mesh
+          Token (you can mint it{' '}
+          <Link href="/apis/transaction/minting">here</Link>).
+        </p>
+        {connected ? (
+          <>
+            <Button
+              onClick={() => rundemo()}
+              style={
+                loading ? 'warning' : response !== null ? 'success' : 'light'
+              }
+              disabled={loading}
+            >
+              Deposit Fund
+            </Button>
+            <RunDemoResult response={response} />
+          </>
+        ) : (
+          <CardanoWallet />
+        )}
+        <RunDemoResult response={responseError} label="Error" />
+      </Card>
+    );
+  }
+  return <></>;
 }

@@ -71,7 +71,7 @@ function Right() {
       };
 
       const lockUntilTimeStamp = new Date();
-      lockUntilTimeStamp.setMinutes(lockUntilTimeStamp.getMinutes() + 2);
+      lockUntilTimeStamp.setMinutes(lockUntilTimeStamp.getMinutes() + 1);
 
       const beneficiary =
         'addr_test1qqnnkc56unmkntvza0x70y65s3fs5awdpks7wpr4yu0mqm5vldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmys2gv2h5';

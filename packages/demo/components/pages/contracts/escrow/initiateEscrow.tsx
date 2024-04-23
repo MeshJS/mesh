@@ -7,6 +7,7 @@ import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import { Asset, BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
 import { MeshEscrowContract } from '@meshsdk/contracts';
+import useLocalStorage from '../../../../hooks/useLocalStorage';
 
 export default function EscrowInitiate() {
   return (
@@ -23,10 +24,40 @@ export default function EscrowInitiate() {
 
 function Left() {
   let code = ``;
+  code += `const contract = getContract();\n`;
+  code += ` \n`;
+  code += `const escrowAmount: Asset[] = [\n`;
+  code += `  {\n`;
+  code += `    unit: 'lovelace',\n`;
+  code += `    quantity: '10000000',\n`;
+  code += `  },\n`;
+  code += `];\n`;
+  code += `const networkId = 0;\n`;
+  code += ` \n`;
+  code += `// transaction\n`;
+  code += `const tx = await contract.initiateEscrow(escrowAmount, networkId);\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);`;
 
   return (
     <>
-      <p></p>
+      <p>An escrow is initiated by one of the party, user A.</p>
+      <p>
+        This function, `initiateEscrow()`, is used to initiate an escrow. The
+        function accepts the following parameters:
+      </p>
+      <ul>
+        <li>
+          <b>escrowAmount (Asset[])</b> - a list of assets
+        </li>
+        <li>
+          <b>networkId (number)</b> - blockchain network
+        </li>
+      </ul>
+      <p>
+        The function returns a transaction hex if the escrow is successfully
+        initiated.
+      </p>
       <Codeblock data={code} isJson={false} />
     </>
   );
@@ -37,6 +68,10 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
+  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
+    'mesh_escrow_demo',
+    undefined
+  );
 
   function getContract() {
     const blockchainProvider = new BlockfrostProvider(
@@ -64,12 +99,11 @@ function Right() {
 
     try {
       const contract = getContract();
-      console.log(3, contract);
 
       const escrowAmount: Asset[] = [
         {
           unit: 'lovelace',
-          quantity: '3000000',
+          quantity: '10000000',
         },
       ];
       const networkId = 0;
@@ -78,7 +112,7 @@ function Right() {
 
       const signedTx = await wallet.signTx(tx);
       const txHash = await wallet.submitTx(signedTx);
-      console.log('txHash', txHash);
+      setUserlocalStorage(txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -88,6 +122,7 @@ function Right() {
 
   return (
     <Card>
+      <p>This demo, wallet A initiate an escrow with 10 ADA.</p>
       {connected ? (
         <>
           <Button
@@ -97,7 +132,7 @@ function Right() {
             }
             disabled={loading}
           >
-            Deposit Fund
+            Initiate Escrow
           </Button>
           <RunDemoResult response={response} />
         </>
