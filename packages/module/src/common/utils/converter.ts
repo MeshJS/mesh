@@ -1,35 +1,55 @@
 import { csl } from '@mesh/core';
 import {
-  LANGUAGE_VERSIONS, POLICY_ID_LENGTH, REDEEMER_TAGS,
+  LANGUAGE_VERSIONS,
+  POLICY_ID_LENGTH,
+  REDEEMER_TAGS,
 } from '@mesh/common/constants';
 import {
-  deserializeDataHash, deserializeEd25519KeyHash,
-  deserializePlutusData, deserializePlutusScript,
-  deserializeScriptHash, deserializeScriptRef,
+  deserializeDataHash,
+  deserializeEd25519KeyHash,
+  deserializePlutusData,
+  deserializePlutusScript,
+  deserializeScriptHash,
+  deserializeScriptRef,
   deserializeTxHash,
 } from './deserializer';
 import type {
-  PlutusData, PlutusList, PlutusMap, RedeemerTag,
-  ScriptRef, TransactionUnspentOutput, Value,
+  PlutusData,
+  PlutusList,
+  PlutusMap,
+  RedeemerTag,
+  ScriptRef,
+  TransactionUnspentOutput,
+  Value,
 } from '@mesh/core';
 import type {
-  Action, Asset, Data, NativeScript,
-  PlutusScript, PoolParams, Relay, UTxO,
+  Action,
+  Asset,
+  Data,
+  NativeScript,
+  PlutusScript,
+  PoolParams,
+  Relay,
+  UTxO,
 } from '@mesh/common/types';
 
 /* -----------------[ Address ]----------------- */
 
 export const toAddress = (bech32: string) => csl.Address.from_bech32(bech32);
 
-export const toBaseAddress = (bech32: string) => csl.BaseAddress.from_address(toAddress(bech32));
+export const toBaseAddress = (bech32: string) =>
+  csl.BaseAddress.from_address(toAddress(bech32));
 
-export const toEnterpriseAddress = (bech32: string) => csl.EnterpriseAddress.from_address(toAddress(bech32));
+export const toEnterpriseAddress = (bech32: string) =>
+  csl.EnterpriseAddress.from_address(toAddress(bech32));
 
-export const toRewardAddress = (bech32: string) => csl.RewardAddress.from_address(toAddress(bech32));
+export const toRewardAddress = (bech32: string) =>
+  csl.RewardAddress.from_address(toAddress(bech32));
 
 /* -----------------[ Bytes ]----------------- */
 
-export const fromBytes = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
+export const fromBytes = (bytes: Uint8Array) =>
+  Buffer.from(bytes).toString('hex');
 
 export const toBytes = (hex: string): Uint8Array => {
   if (hex.length % 2 === 0 && /^[0-9A-F]*$/i.test(hex))
@@ -126,39 +146,27 @@ export const toNativeScript = (script: NativeScript) => {
   switch (script.type) {
     case 'all':
       return csl.NativeScript.new_script_all(
-        csl.ScriptAll.new(
-          toNativeScripts(script.scripts),
-        ),
+        csl.ScriptAll.new(toNativeScripts(script.scripts))
       );
     case 'any':
       return csl.NativeScript.new_script_any(
-        csl.ScriptAny.new(
-          toNativeScripts(script.scripts),
-        ),
+        csl.ScriptAny.new(toNativeScripts(script.scripts))
       );
     case 'atLeast':
       return csl.NativeScript.new_script_n_of_k(
-        csl.ScriptNOfK.new(
-          script.required, toNativeScripts(script.scripts),
-        ),
+        csl.ScriptNOfK.new(script.required, toNativeScripts(script.scripts))
       );
     case 'after':
       return csl.NativeScript.new_timelock_start(
-        csl.TimelockStart.new_timelockstart(
-          csl.BigNum.from_str(script.slot),
-        ),
+        csl.TimelockStart.new_timelockstart(csl.BigNum.from_str(script.slot))
       );
     case 'before':
       return csl.NativeScript.new_timelock_expiry(
-        csl.TimelockExpiry.new_timelockexpiry(
-          csl.BigNum.from_str(script.slot),
-        ),
+        csl.TimelockExpiry.new_timelockexpiry(csl.BigNum.from_str(script.slot))
       );
     case 'sig':
       return csl.NativeScript.new_script_pubkey(
-        csl.ScriptPubkey.new(
-          deserializeEd25519KeyHash(script.keyHash),
-        ),
+        csl.ScriptPubkey.new(deserializeEd25519KeyHash(script.keyHash))
       );
   }
 };
@@ -179,13 +187,11 @@ export const fromPlutusData = (plutusData: PlutusData) => {
     const dataMap = new Map<Data, Data>();
     for (let index = 0; index < plutusMap.len(); index += 1) {
       const key = plutusMap.keys().get(index);
-      const value = plutusMap.get(key) ?? csl.PlutusData
-        .from_hex(fromUTF8('NO_ITEM_FOUND_INSIDE_GOLD_ROOM'));
+      const value =
+        plutusMap.get(key) ??
+        csl.PlutusData.from_hex(fromUTF8('NO_ITEM_FOUND_INSIDE_GOLD_ROOM'));
 
-      dataMap.set(
-        fromPlutusData(key),
-        fromPlutusData(value),
-      );
+      dataMap.set(fromPlutusData(key), fromPlutusData(value));
     }
 
     return dataMap;
@@ -204,15 +210,15 @@ export const fromPlutusData = (plutusData: PlutusData) => {
       return <Data>{
         alternative: parseInt(
           plutusData.as_constr_plutus_data()?.alternative().to_str() ?? '0',
-          10,
+          10
         ),
         fields: fromPlutusList(
-          plutusData.as_constr_plutus_data()?.data() ?? csl.PlutusList.new(),
+          plutusData.as_constr_plutus_data()?.data() ?? csl.PlutusList.new()
         ),
       };
     default:
       throw new Error(
-        `PlutusData Kind: ${plutusData.kind()}, is not supported`,
+        `PlutusData Kind: ${plutusData.kind()}, is not supported`
       );
   }
 };
@@ -229,13 +235,11 @@ export const toPlutusData = (data: Data) => {
 
   switch (typeof data) {
     case 'string':
-      return csl.PlutusData.new_bytes(
-        toBytes(data)
-      );
+      return csl.PlutusData.new_bytes(toBytes(data));
     case 'number':
-      return csl.PlutusData.new_integer(
-        csl.BigInt.from_str(data.toString())
-      );
+      return csl.PlutusData.new_integer(csl.BigInt.from_str(data.toString()));
+    case 'bigint':
+      return csl.PlutusData.new_integer(csl.BigInt.from_str(data.toString()));
     case 'object':
       if (data instanceof Array) {
         const plutusList = toPlutusList(data);
@@ -250,8 +254,8 @@ export const toPlutusData = (data: Data) => {
         return csl.PlutusData.new_constr_plutus_data(
           csl.ConstrPlutusData.new(
             csl.BigNum.from_str(data.alternative.toString()),
-            toPlutusList(data.fields),
-          ),
+            toPlutusList(data.fields)
+          )
         );
       }
   }
@@ -264,7 +268,7 @@ export const toPoolParams = (params: PoolParams) => {
   params.relays.forEach((relay) => {
     relays.add(toRelay(relay));
   });
-  
+
   throw new Error('toPoolParams not implemented.');
 };
 
@@ -291,31 +295,28 @@ export const toRelay = (relay: Relay) => {
     case 'SingleHostAddr': {
       const IPV4 = relay.IPV4
         ? csl.Ipv4.new(
-          new Uint8Array(relay.IPV4.split('.').map((b) => parseInt(b))),
-        )
+            new Uint8Array(relay.IPV4.split('.').map((b) => parseInt(b)))
+          )
         : undefined;
 
       const IPV6 = relay.IPV6
-        ? csl.Ipv6.new(
-          toBytes(relay.IPV6.replaceAll(':', '')),
-        )
+        ? csl.Ipv6.new(toBytes(relay.IPV6.replaceAll(':', '')))
         : undefined;
 
       return csl.Relay.new_single_host_addr(
-        csl.SingleHostAddr.new(relay.port, IPV4, IPV6),
+        csl.SingleHostAddr.new(relay.port, IPV4, IPV6)
       );
     }
     case 'SingleHostName':
       return csl.Relay.new_single_host_name(
         csl.SingleHostName.new(
-          relay.port, csl.DNSRecordAorAAAA.new(relay.domainName),
-        ),
+          relay.port,
+          csl.DNSRecordAorAAAA.new(relay.domainName)
+        )
       );
     case 'MultiHostName':
       return csl.Relay.new_multi_host_name(
-        csl.MultiHostName.new(
-          csl.DNSRecordSRV.new(relay.domainName),
-        ),
+        csl.MultiHostName.new(csl.DNSRecordSRV.new(relay.domainName))
       );
   }
 };
@@ -330,7 +331,9 @@ export const fromScriptRef = (scriptRef: ScriptRef) => {
     return <PlutusScript>{
       code: plutusScript.to_hex(),
       version: Object.keys(LANGUAGE_VERSIONS).find(
-        key => LANGUAGE_VERSIONS[key].to_hex() === plutusScript.language_version().to_hex(),
+        (key) =>
+          LANGUAGE_VERSIONS[key].to_hex() ===
+          plutusScript.language_version().to_hex()
       ),
     };
   }
@@ -343,16 +346,12 @@ export const fromScriptRef = (scriptRef: ScriptRef) => {
 
 export const toScriptRef = (script: PlutusScript | NativeScript) => {
   if ('code' in script) {
-    const plutusScript = deserializePlutusScript(
-      script.code, script.version,
-    );
+    const plutusScript = deserializePlutusScript(script.code, script.version);
 
     return csl.ScriptRef.new_plutus_script(plutusScript);
   }
 
-  return csl.ScriptRef.new_native_script(
-    toNativeScript(script),
-  );
+  return csl.ScriptRef.new_native_script(toNativeScript(script));
 };
 
 /* -----------------[ TransactionUnspentOutput ]----------------- */
@@ -380,7 +379,9 @@ export const fromTxUnspentOutput = (
     output: {
       address: txUnspentOutput.output().address().to_bech32(),
       amount: fromValue(txUnspentOutput.output().amount()),
-      dataHash, plutusData, scriptRef,
+      dataHash,
+      plutusData,
+      scriptRef,
     },
   };
 };
@@ -428,13 +429,13 @@ export const toUnitInterval = (float: string) => {
 /* -----------------[ UTF-8 ]----------------- */
 
 export const fromUTF8 = (utf8: string) => {
-  if (utf8.length % 2 === 0 && /^[0-9A-F]*$/i.test(utf8))
-    return utf8;
+  if (utf8.length % 2 === 0 && /^[0-9A-F]*$/i.test(utf8)) return utf8;
 
   return fromBytes(Buffer.from(utf8, 'utf-8'));
 };
 
-export const toUTF8 = (hex: string) => Buffer.from(hex, 'hex').toString('utf-8');
+export const toUTF8 = (hex: string) =>
+  Buffer.from(hex, 'hex').toString('utf-8');
 
 /* -----------------[ Value ]----------------- */
 
@@ -453,7 +454,8 @@ export const fromValue = (value: Value) => {
         const policyAssetNames = policyAssets.keys();
         for (let j = 0; j < policyAssetNames.len(); j += 1) {
           const assetName = policyAssetNames.get(j);
-          const quantity = policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
+          const quantity =
+            policyAssets.get(assetName) ?? csl.BigNum.from_str('0');
           const assetId = policyId.to_hex() + fromBytes(assetName.name());
           assets.push({ unit: assetId, quantity: quantity.to_str() });
         }
