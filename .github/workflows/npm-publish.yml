@@ -9,6 +9,8 @@ on:
       - closed
     branches:
       - main
+  push:
+    branches:
       - fix/bigint-data
 
 jobs:
