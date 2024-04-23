@@ -3775,7 +3775,7 @@
 								"summary": [
 									{
 										"kind": "text",
-										"text": "Experimental feature - sign multiple transactions at once (Supported wallet(s): Typhon)"
+										"text": "Experimental feature - sign multiple transactions at once (Supported wallet(s): Typhon)""text": "Experimental feature - sign multiple transactions at once (Supported wallet(s): Typhon)"
 									}
 								],
 								"blockTags": [
@@ -24600,6 +24600,10 @@
 						"name": "number"
 					},
 					{
+						"type": "intrinsic",
+						"name": "bigint"
+					},
+					{
 						"type": "array",
 						"elementType": {
 							"type": "reference",
@@ -24649,7 +24653,7 @@
 									"sources": [
 										{
 											"fileName": "common/types/Data.ts",
-											"line": 7,
+											"line": 8,
 											"character": 6,
 											"url": "https://github.com/MeshJS/mesh/blob/28982a2/packages/module/src/common/types/Data.ts#L7"
 										}
@@ -24668,7 +24672,7 @@
 									"sources": [
 										{
 											"fileName": "common/types/Data.ts",
-											"line": 8,
+											"line": 9,
 											"character": 6,
 											"url": "https://github.com/MeshJS/mesh/blob/28982a2/packages/module/src/common/types/Data.ts#L8"
 										}
@@ -24696,7 +24700,7 @@
 							"sources": [
 								{
 									"fileName": "common/types/Data.ts",
-									"line": 6,
+									"line": 7,
 									"character": 4,
 									"url": "https://github.com/MeshJS/mesh/blob/28982a2/packages/module/src/common/types/Data.ts#L6"
 								}

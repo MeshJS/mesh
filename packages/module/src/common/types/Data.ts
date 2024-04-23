@@ -1,6 +1,7 @@
 export type Data =
   | string
   | number
+  | bigint
   | Array<Data>
   | Map<Data, Data>
   | {
