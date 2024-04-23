@@ -2496,10 +2496,6 @@
   resolved "https://registry.yarnpkg.com/@mdx-js/util/-/util-1.6.22.tgz#219dfd89ae5b97a8801f015323ffa4b62f45718b"
   integrity sha512-H1rQc1ZOHANWBvPcW+JpGwr+juXSxM8Q8YCkm3GhZd8REu1fHR3z99CErO1p9pkcfcxZnMdIZdIsXkOHY0NilA==
 
-"@meshsdk/mesh-csl@^0.0.1-beta.1":
-  version "0.0.1-beta.2"
-  resolved "https://registry.yarnpkg.com/@meshsdk/mesh-csl/-/mesh-csl-0.0.1-beta.2.tgz#a42d4696f17524dec220c9066c826437fe053984"
-  integrity sha512-ZIE8AnebO8nxCB4ryAYfL6ZrwJB6xpLeb+g0ijyk6EM0vmElYRRX/oXT23gbTczxAYy9G7jz4UCIeRsLV4zjNg==
 "@meshsdk/mesh-csl@^0.0.4":
   version "0.0.4"
   resolved "https://registry.yarnpkg.com/@meshsdk/mesh-csl/-/mesh-csl-0.0.4.tgz#8df0ba4c14f6db9eae68ef3be9c30446341e1d68"
