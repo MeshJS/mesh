@@ -46,7 +46,9 @@ function Left() {
   code += `const utxos = await blockchainProvider.fetchAddressUTxOs(\n`;
   code += `  scriptAddress\n`;
   code += `);\n`;
-  code += `const utxo = utxos[0]; // pick the correct utxo\n`;
+  code += `const utxo = utxos.filter(\n`;
+  code += `  (utxo) => utxo.input.txHash === txHashToSearchFor\n`;
+  code += `)[0];\n`;
   code += `\n`;
   code += `// transaction\n`;
   code += `const tx = await contract.cancelEscrow(utxo, networkId);\n`;

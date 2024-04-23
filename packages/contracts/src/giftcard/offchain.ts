@@ -18,7 +18,7 @@ import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
 
 export class MeshGiftCardContract extends MeshTxInitiator {
-  scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
+  scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []); // todo hinson, this is not returning the correct address
 
   giftCardCbor = (tokenNameHex: string, utxoTxHash: string, utxoTxId: number) =>
     applyObjParamsToScript(blueprint.validators[0].compiledCode, [

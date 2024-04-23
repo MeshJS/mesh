@@ -7,6 +7,7 @@ import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import { Asset, BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
 import { MeshGiftCardContract } from '@meshsdk/contracts';
+import useLocalStorage from '../../../../hooks/useLocalStorage';
 
 export default function GiftcardCreate() {
   return (
@@ -23,10 +24,47 @@ export default function GiftcardCreate() {
 
 function Left() {
   let code = ``;
+  code += `const contract = getContract();\n`;
+  code += `\n`;
+  code += `const tokenName = 'Mesh Gift Card';\n`;
+  code += `const giftValue: Asset[] = [\n`;
+  code += `  {\n`;
+  code += `    unit: 'lovelace',\n`;
+  code += `    quantity: '20000000',\n`;
+  code += `  },\n`;
+  code += `];\n`;
+  code += `const networkId = 0;\n`;
+  code += `\n`;
+  code += `const tx = await contract.createGiftCard(tokenName, giftValue, networkId);\n`;
+  code += `\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <>
-      <p></p>
+      <p>
+        This function, `createGiftCard()`, is used to create a gift card. The
+        function accepts the following parameters:
+      </p>
+      <ul>
+        <li>
+          <b>tokenName (string)</b> - name of the token
+        </li>
+        <li>
+          <b>giftValue (Asset[])</b> - a list of assets
+        </li>
+        <li>
+          <b>networkId (number)</b> - blockchain network
+        </li>
+      </ul>
+      <p>
+        The function returns a transaction hash if the gift card is successfully
+        created.
+      </p>
+      <p>
+        The code snippet below demonstrates how to create a gift card with a
+        value of 20 ADA.
+      </p>
       <Codeblock data={code} isJson={false} />
     </>
   );
@@ -37,6 +75,10 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
+  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
+    'mesh_giftcard_demo',
+    undefined
+  );
 
   function getContract() {
     const blockchainProvider = new BlockfrostProvider(
@@ -64,23 +106,22 @@ function Right() {
 
     try {
       const contract = getContract();
-      console.log(3, contract);
 
-      const tokenName = 'ToJingles1';
+      const tokenName = `Mesh Gift Card${Math.random()}`;
       const giftValue: Asset[] = [
         {
           unit: 'lovelace',
-          quantity: '2500000',
+          quantity: '20000000',
         },
       ];
       const networkId = 0;
 
       const tx = await contract.createGiftCard(tokenName, giftValue, networkId);
-      console.log('tx', tx);
 
       const signedTx = await wallet.signTx(tx);
       const txHash = await wallet.submitTx(signedTx);
       console.log('txHash', txHash);
+      setUserlocalStorage(txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -90,6 +131,7 @@ function Right() {
 
   return (
     <Card>
+      <p>This demo, we will create a giftcard containing 20 ADA.</p>
       {connected ? (
         <>
           <Button
@@ -99,7 +141,7 @@ function Right() {
             }
             disabled={loading}
           >
-            Deposit Fund
+            Create Giftcard
           </Button>
           <RunDemoResult response={response} />
         </>
