@@ -155,18 +155,31 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * @returns array of signed transactions CborHex string
    */
   async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
-    const newWitnessSets = await this._walletInstance.signTxs(
-      unsignedTxs,
-      partialSign
-    );
+    let witnessSets: string[] | undefined = undefined;
+    if (this._walletInstance.signTxs) {
+      witnessSets = await this._walletInstance.signTxs(
+        unsignedTxs,
+        partialSign
+      );
+    }
+    if (!witnessSets && this._walletInstance.experimental.signTxs) {
+      witnessSets = await this._walletInstance.experimental.signTxs(
+        unsignedTxs.map((cbor) => ({
+          cbor,
+          partialSign,
+        }))
+      );
+    }
+
+    if (!witnessSets) throw new Error('Wallet does not support signTxs');
 
     const signedTxs: string[] = [];
-    for (let i = 0; i < newWitnessSets.length; i++) {
+    for (let i = 0; i < witnessSets.length; i++) {
       const tx = deserializeTx(unsignedTxs[i]);
       const txWitnessSet = tx.witness_set();
 
       const newSignatures =
-        deserializeTxWitnessSet(newWitnessSets[i]).vkeys() ??
+        deserializeTxWitnessSet(witnessSets[i]).vkeys() ??
         csl.Vkeywitnesses.new();
 
       const txSignatures = mergeSignatures(txWitnessSet, newSignatures);
@@ -275,6 +288,11 @@ type Cardano = {
   };
 };
 
+type TransactionSignatureRequest = {
+  cbor: string;
+  partialSign: boolean;
+};
+
 type WalletInstance = {
   experimental: ExperimentalFeatures;
   getBalance(): Promise<string>;
@@ -292,4 +310,5 @@ type WalletInstance = {
 
 type ExperimentalFeatures = {
   getCollateral(): Promise<string[] | undefined>;
+  signTxs(txs: TransactionSignatureRequest[]): Promise<string[]>;
 };
