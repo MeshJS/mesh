@@ -38,8 +38,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
 
   createGiftCard = async (
     tokenName: string,
-    giftValue: Asset[],
-    networkId = 0
+    giftValue: Asset[]
   ): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
@@ -53,7 +52,11 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     );
     const giftCardPolicy = getV2ScriptHash(giftCardScript);
     const redeemScript = this.redeemCbor(tokenNameHex, giftCardPolicy);
-    const redeemAddr = v2ScriptToBech32(redeemScript, undefined, networkId);
+    const redeemAddr = v2ScriptToBech32(
+      redeemScript,
+      undefined,
+      this.networkId
+    );
 
     await this.mesh
       .txIn(
@@ -130,5 +133,9 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       .selectUtxosFrom(utxos)
       .complete();
     return this.mesh.txHex;
+  };
+
+  getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
+    return await this._getUtxoByTxHash(this.scriptCbor, txHash);
   };
 }

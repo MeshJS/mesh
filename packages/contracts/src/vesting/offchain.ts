@@ -91,4 +91,8 @@ export class MeshVestingContract extends MeshTxInitiator {
       .complete();
     return this.mesh.txHex;
   };
+
+  getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
+    return await this._getUtxoByTxHash(this.scriptCbor, txHash);
+  };
 }

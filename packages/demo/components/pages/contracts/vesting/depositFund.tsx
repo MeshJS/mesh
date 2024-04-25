@@ -7,6 +7,7 @@ import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import { Asset, BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
 import { MeshVestingContract } from '@meshsdk/contracts';
+import useLocalStorage from '../../../../hooks/useLocalStorage';
 
 export default function VestingDepositFund() {
   return (
@@ -37,6 +38,10 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
+  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
+    'mesh_vesting_demo',
+    undefined
+  );
 
   function getContract() {
     const blockchainProvider = new BlockfrostProvider(
@@ -52,6 +57,7 @@ function Right() {
       mesh: meshTxBuilder,
       fetcher: blockchainProvider,
       wallet: wallet,
+      networkId: 0,
     });
 
     return contract;
@@ -86,6 +92,7 @@ function Right() {
       const signedTx = await wallet.signTx(tx);
       const txHash = await wallet.submitTx(signedTx);
       console.log('txHash', txHash);
+      setUserlocalStorage(txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -95,6 +102,13 @@ function Right() {
 
   return (
     <Card>
+      <p>
+        In this demo, we will deposit 8 ADA to the vesting contract. This
+        vesting is only 1 minute long and the beneficiary address is:{' '}
+        <code>
+          addr_test1qqnnk...2gv2h5
+        </code>
+      </p>
       {connected ? (
         <>
           <Button

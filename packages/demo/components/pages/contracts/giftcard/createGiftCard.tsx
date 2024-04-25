@@ -24,8 +24,6 @@ export default function GiftcardCreate() {
 
 function Left() {
   let code = ``;
-  code += `const contract = getContract();\n`;
-  code += `\n`;
   code += `const tokenName = 'Mesh Gift Card';\n`;
   code += `const giftValue: Asset[] = [\n`;
   code += `  {\n`;
@@ -33,10 +31,8 @@ function Left() {
   code += `    quantity: '20000000',\n`;
   code += `  },\n`;
   code += `];\n`;
-  code += `const networkId = 0;\n`;
   code += `\n`;
-  code += `const tx = await contract.createGiftCard(tokenName, giftValue, networkId);\n`;
-  code += `\n`;
+  code += `const tx = await contract.createGiftCard(tokenName, giftValue);\n`;
   code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
@@ -52,9 +48,6 @@ function Left() {
         </li>
         <li>
           <b>giftValue (Asset[])</b> - a list of assets
-        </li>
-        <li>
-          <b>networkId (number)</b> - blockchain network
         </li>
       </ul>
       <p>
@@ -94,6 +87,7 @@ function Right() {
       mesh: meshTxBuilder,
       fetcher: blockchainProvider,
       wallet: wallet,
+      networkId: 0,
     });
 
     return contract;
@@ -114,13 +108,10 @@ function Right() {
           quantity: '20000000',
         },
       ];
-      const networkId = 0;
 
-      const tx = await contract.createGiftCard(tokenName, giftValue, networkId);
-
+      const tx = await contract.createGiftCard(tokenName, giftValue);
       const signedTx = await wallet.signTx(tx);
       const txHash = await wallet.submitTx(signedTx);
-      console.log('txHash', txHash);
       setUserlocalStorage(txHash);
       setResponse(txHash);
     } catch (error) {

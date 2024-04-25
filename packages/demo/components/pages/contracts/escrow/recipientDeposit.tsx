@@ -31,46 +31,22 @@ export default function EscrowDeposit() {
 
 function Left() {
   let code = ``;
-  code += `const networkId = 0;\n`;
-  code += `const contract = getContract();\n`;
-  code += `\n`;
-  code += `// get script address\n`;
-  code += `const script: PlutusScript = {\n`;
-  code += `  code: contract.scriptCbor,\n`;
-  code += `  version: 'V2',\n`;
-  code += `};\n`;
-  code += `const scriptAddress = resolvePlutusScriptAddress(script, 0);\n`;
-  code += `\n`;
-  code += `// get utxo from script\n`;
-  code += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
-  code += `);\n`;
-  code += `const utxos = await blockchainProvider.fetchAddressUTxOs(\n`;
-  code += `  scriptAddress\n`;
-  code += `);\n`;
-  code += `const utxo = utxos.filter(\n`;
-  code += `  (utxo) => utxo.input.txHash === txHashToSearchFor\n`;
-  code += `)[0];\n`;
-  code += `\n`;
   code += `const depositAmount: Asset[] = [\n`;
   code += `  {\n`;
-  code += `    unit: 'f9a03b9bf99eccd8e3eff53ac5f52f72f212ac6ed1c0743d605e728b4d657368546f6b656e',\n`;
+  code += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
   code += `    quantity: '1',\n`;
   code += `  },\n`;
   code += `];\n`;
   code += `\n`;
-  code += `// transaction\n`;
-  code += `const tx = await contract.recipientDeposit(\n`;
-  code += `  utxo,\n`;
-  code += `  depositAmount,\n`;
-  code += `  networkId\n`;
-  code += `);\n`;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `\n`;
+  code += `const tx = await contract.recipientDeposit(utxo, depositAmount);\n`;
   code += `const signedTx = await wallet.signTx(tx, true);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <>
-      <p>User B can deposit funds into the escrow.</p>
+      <p>User B can deposit funds into the escrow after initiation.</p>
       <p>
         This function, `recipientDeposit()`, is used to deposit funds into the
         escrow. The function accepts the following parameters:
@@ -81,10 +57,7 @@ function Left() {
           <code>initiateEscrow()</code>
         </li>
         <li>
-          <b>depositAmount (Asset[])</b> - a list of assets
-        </li>
-        <li>
-          <b>networkId (number)</b> - blockchain network
+          <b>depositAmount (Asset[])</b> - a list of assets user B is trading / sending
         </li>
       </ul>
       <Codeblock data={code} isJson={false} />
@@ -116,6 +89,7 @@ function Right() {
       mesh: meshTxBuilder,
       fetcher: blockchainProvider,
       wallet: wallet,
+      networkId: 0,
     });
 
     return contract;
@@ -132,7 +106,8 @@ function Right() {
       const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
-        setResponseError('No utxo found');
+        setResponseError('Input utxo not found');
+        setLoading(false);
         return;
       }
 

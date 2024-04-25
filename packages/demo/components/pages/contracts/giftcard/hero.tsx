@@ -1,6 +1,31 @@
 import { GiftIcon } from '@heroicons/react/24/solid';
+import Codeblock from '../../../ui/codeblock';
+import Link from 'next/link';
 
 export default function Hero() {
+  let code = ``;
+  code += `import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';\n`;
+  code += `import { MeshGiftCardContract } from '@meshsdk/contracts';\n`;
+  code += `import { useWallet } from '@meshsdk/react';\n`;
+  code += `\n`;
+  code += `const { connected, wallet } = useWallet();\n`;
+  code += `\n`;
+  code += `const blockchainProvider = new BlockfrostProvider(\n`;
+  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
+  code += `);\n`;
+  code += `\n`;
+  code += `const meshTxBuilder = new MeshTxBuilder({\n`;
+  code += `  fetcher: blockchainProvider,\n`;
+  code += `  submitter: blockchainProvider,\n`;
+  code += `});\n`;
+  code += `\n`;
+  code += `const contract = new MeshGiftCardContract({\n`;
+  code += `  mesh: meshTxBuilder,\n`;
+  code += `  fetcher: blockchainProvider,\n`;
+  code += `  wallet: wallet,\n`;
+  code += `  networkId: 0,\n`;
+  code += `});\n`;
+
   return (
     <>
       <header className="mb-4 lg:mb-6">
@@ -13,7 +38,16 @@ export default function Hero() {
           </div>
         </h2>
         <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
-          Giftcard contract
+          Create a giftcard with native tokens
+        </p>
+        <p>
+          Giftcard contract allows users to create a transactions to lock assets
+          into the smart contract, which can be redeemed by any user.
+        </p>
+        <p>
+          Creating a giftcard will mint a token and send the assets to the
+          contract. While redeeming will burn the token and send the assets to
+          the redeemer.
         </p>
       </header>
       <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
@@ -23,31 +57,15 @@ export default function Hero() {
             smart contract:
           </p>
           <ul>
-            {/* <li>deposit asset</li>
-            <li>withdraw asset</li> */}
+            <li>create giftcard</li>
+            <li>redeem giftcard</li>
           </ul>
-          {/* <p>
-            Do check out the{' '}
-            <Link href="/guides/custom-marketplace">guide</Link> and the{' '}
-            <Link href="/starter-templates">marketplace starter kit</Link> that
-            might help you get started. This contract is written in{' '}
-            <a
-              href="https://pluts.harmoniclabs.tech/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              plu-ts
-            </a>
-            , you can{' '}
-            <a
-              href="https://github.com/MeshJS/mesh/blob/main/packages/contracts/src/marketplace/contract.ts"
-              target="_blank"
-              rel="noreferrer"
-            >
-              view the contract on GitHub
-            </a>
-            .
-          </p> */}
+          <p>
+            To initialize the escrow, we need to initialize a{' '}
+            <Link href="/providers">provider</Link>, <code>MeshTxBuilder</code>{' '}
+            and <code>MeshGiftCardContract</code>.
+          </p>
+          <Codeblock data={code} isJson={false} />
         </div>
       </div>
     </>

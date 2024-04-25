@@ -24,18 +24,14 @@ export default function EscrowInitiate() {
 
 function Left() {
   let code = ``;
-  code += `const contract = getContract();\n`;
-  code += ` \n`;
   code += `const escrowAmount: Asset[] = [\n`;
   code += `  {\n`;
   code += `    unit: 'lovelace',\n`;
   code += `    quantity: '10000000',\n`;
   code += `  },\n`;
   code += `];\n`;
-  code += `const networkId = 0;\n`;
   code += ` \n`;
-  code += `// transaction\n`;
-  code += `const tx = await contract.initiateEscrow(escrowAmount, networkId);\n`;
+  code += `const tx = await contract.initiateEscrow(escrowAmount);\n`;
   code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);`;
 
@@ -48,10 +44,7 @@ function Left() {
       </p>
       <ul>
         <li>
-          <b>escrowAmount (Asset[])</b> - a list of assets
-        </li>
-        <li>
-          <b>networkId (number)</b> - blockchain network
+          <b>escrowAmount (Asset[])</b> - a list of assets user A is trading / sending
         </li>
       </ul>
       <p>
@@ -87,6 +80,7 @@ function Right() {
       mesh: meshTxBuilder,
       fetcher: blockchainProvider,
       wallet: wallet,
+      networkId: 0,
     });
 
     return contract;

@@ -5,12 +5,7 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import {
-  BlockfrostProvider,
-  MeshTxBuilder,
-  PlutusScript,
-  resolvePlutusScriptAddress,
-} from '@meshsdk/core';
+import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
 import { MeshEscrowContract } from '@meshsdk/contracts';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 
@@ -29,29 +24,8 @@ export default function EscrowComplete() {
 
 function Left() {
   let code = ``;
-  code += `const networkId = 0;\n`;
-  code += `const contract = getContract();\n`;
-  code += `\n`;
-  code += `// get script address\n`;
-  code += `const script: PlutusScript = {\n`;
-  code += `  code: contract.scriptCbor,\n`;
-  code += `  version: 'V2',\n`;
-  code += `};\n`;
-  code += `const scriptAddress = resolvePlutusScriptAddress(script, 0);\n`;
-  code += `\n`;
-  code += `// get utxo from script\n`;
-  code += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
-  code += `);\n`;
-  code += `const utxos = await blockchainProvider.fetchAddressUTxOs(\n`;
-  code += `  scriptAddress\n`;
-  code += `);\n`;
-  code += `const utxo = utxos.filter(\n`;
-  code += `  (utxo) => utxo.input.txHash === txHashToSearchFor\n`;
-  code += `)[0];\n`;
-  code += `\n`;
-  code += `// transaction\n`;
-  code += `const tx = await contract.completeEscrow(utxo, networkId);\n`;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `const tx = await contract.completeEscrow(utxo);\n`;
   code += `const signedTxUserA = await wallet.signTx(tx, true);\n`;
 
   let code2 = ``;
@@ -73,23 +47,21 @@ function Left() {
           <b>escrowUtxo (UTxO)</b> - the utxo of the transaction in the script
           to be completed
         </li>
-        <li>
-          <b>networkId (number)</b> - blockchain network
-        </li>
       </ul>
       <p>
         <b>
-          Important: Both users must sign the transaction to complete the
-          escrow.
+          Important: This is a multi-signature transaction. Both users must sign
+          the transaction to complete the escrow.
         </b>
       </p>
       <p>
-        User A completes the escrow by calling the `completeEscrow()` function.
+        User A completes the escrow by calling the `completeEscrow()` function
+        and partial sign the transaction.
       </p>
       <Codeblock data={code} isJson={false} />
       <p>
-        User B signs the transaction and submits it to the blockchain to
-        complete the escrow.
+        And the signed transaction will be handled to User B to sign the
+        transaction and submits it to the blockchain to complete the escrow.
       </p>
       <Codeblock data={code2} isJson={false} />
     </>
@@ -124,6 +96,7 @@ function Right() {
       mesh: meshTxBuilder,
       fetcher: blockchainProvider,
       wallet: wallet,
+      networkId: 0,
     });
 
     return contract;
@@ -140,7 +113,8 @@ function Right() {
       const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
-        setResponseError('No utxo found');
+        setResponseError('Input utxo not found');
+        setLoading(false);
         return;
       }
 

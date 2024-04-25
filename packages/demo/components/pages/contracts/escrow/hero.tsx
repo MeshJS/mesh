@@ -23,6 +23,7 @@ export default function Hero() {
   code += `  mesh: meshTxBuilder,\n`;
   code += `  fetcher: blockchainProvider,\n`;
   code += `  wallet: wallet,\n`;
+  code += `  networkId: 0,\n`;
   code += `});\n`;
 
   return (

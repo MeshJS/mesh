@@ -24,29 +24,9 @@ export default function EscrowCancel() {
 
 function Left() {
   let code = ``;
-  code += `const networkId = 0;\n`;
-  code += `const contract = getContract();\n`;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
   code += `\n`;
-  code += `// get script address\n`;
-  code += `const script: PlutusScript = {\n`;
-  code += `  code: contract.scriptCbor,\n`;
-  code += `  version: 'V2',\n`;
-  code += `};\n`;
-  code += `const scriptAddress = resolvePlutusScriptAddress(script, networkId);\n`;
-  code += `\n`;
-  code += `// get utxo from script\n`;
-  code += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code += `  BLOCKFROST_API_KEY_PREPROD\n`;
-  code += `);\n`;
-  code += `const utxos = await blockchainProvider.fetchAddressUTxOs(\n`;
-  code += `  scriptAddress\n`;
-  code += `);\n`;
-  code += `const utxo = utxos.filter(\n`;
-  code += `  (utxo) => utxo.input.txHash === txHashToSearchFor\n`;
-  code += `)[0];\n`;
-  code += `\n`;
-  code += `// transaction\n`;
-  code += `const tx = await contract.cancelEscrow(utxo, networkId);\n`;
+  code += `const tx = await contract.cancelEscrow(utxo);\n`;
   code += `const signedTx = await wallet.signTx(tx, true);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
@@ -64,9 +44,6 @@ function Left() {
       <ul>
         <li>
           <b>escrowUtxo (UTxO)</b> - the utxo of the transaction to be canceled
-        </li>
-        <li>
-          <b>networkId (number)</b> - blockchain network
         </li>
       </ul>
       <Codeblock data={code} isJson={false} />
@@ -112,30 +89,10 @@ function Right() {
     try {
       const contract = getContract();
 
-      // get script address
-
-      // const script: PlutusScript = {
-      //   code: contract.scriptCbor,
-      //   version: 'V2',
-      // };
-      // const scriptAddress = resolvePlutusScriptAddress(script, 0);
-
-      // // get utxo from script
-
-      // const blockchainProvider = new BlockfrostProvider(
-      //   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-      // );
-
-      // const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
-
-      // const utxo = utxos.filter(
-      //   (utxo) => utxo.input.txHash === userLocalStorage
-      // )[0];
-
       const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
-        setResponseError('No utxo found');
+        setResponseError('Input utxo not found');
         setLoading(false);
         return;
       }

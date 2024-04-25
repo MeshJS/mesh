@@ -29,35 +29,13 @@ export default function GiftcardRedeem() {
 
 function Left() {
   let code = ``;
-  code += `const contract = getContract();\n`;
-  code += `\n`;
-  code += `// get script address\n`;
-  code += `const script: PlutusScript = {\n`;
-  code += `  code: contract.scriptCbor,\n`;
-  code += `  version: 'V2',\n`;
-  code += `};\n`;
-  code += `const scriptAddress = resolvePlutusScriptAddress(script, 0);`;
-  code += `\n`;
-  code += `// get utxo from script\n`;
-  code += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
-  code += `);\n`;
-  code += `const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);\n`;
-  code += `const utxo = utxos.filter(\n`;
-  code += `  (utxo) => utxo.input.txHash === userLocalStorage\n`;
-  code += `)[0];\n`;
-  code += `\n`;
-  code += `// transaction\n`;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
   code += `const tx = await contract.redeemGiftCard(utxo);\n`;
   code += `const signedTx = await wallet.signTx(tx, true);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <>
-      <p>
-        This demo, we will redeem the giftcard that was created in the previous
-        step. You may connect with another wallet to claim the giftcard.
-      </p>
       <p>
         This function, <code>redeemGiftCard()</code>, is used to redeem a gift
         card. The function accepts the following parameters:
@@ -115,38 +93,17 @@ function Right() {
     try {
       const contract = getContract();
 
-      // get script address
-      const script: PlutusScript = {
-        code: contract.scriptCbor,
-        version: 'V2',
-      };
-      // const scriptAddress = resolvePlutusScriptAddress(script, 0); // todo hinson, this is not returning the correct address
-      const scriptAddress =
-        'addr_test1wrl2qfwy86wa46cxlqzcfcqafqmqexvju274aly26kklhdslxraem';
-      // console.log(1, scriptAddress);
-
-      // get utxo from script
-      const blockchainProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-      );
-
-      const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
-      const utxo = utxos.filter(
-        (utxo) => utxo.input.txHash === userLocalStorage
-      )[0];
+      const utxo = await contract.getUtxoByTxHash(userLocalStorage); // todo hinson: script address extracted from scriptCbor is not correct
 
       if (!utxo) {
-        setResponseError('No utxo found');
+        setResponseError('Input utxo not found');
+        setLoading(false);
         return;
       }
 
       const tx = await contract.redeemGiftCard(utxo);
-
-      console.log('tx', tx);
-
       const signedTx = await wallet.signTx(tx, true);
       const txHash = await wallet.submitTx(signedTx);
-      console.log('txHash', txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
