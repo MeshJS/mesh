@@ -62,12 +62,13 @@ export class MeshEscrowContract extends MeshTxInitiator {
     this.networkId = inputs.networkId ?? 0;
   }
 
-  initiateEscrow = async (
-    escrowAmount: Asset[],
-    networkId = 0
-  ): Promise<string> => {
+  initiateEscrow = async (escrowAmount: Asset[]): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
+    const scriptAddr = v2ScriptToBech32(
+      this.scriptCbor,
+      undefined,
+      this.networkId
+    );
 
     await this.mesh
       .txOut(scriptAddr, escrowAmount)
@@ -81,10 +82,14 @@ export class MeshEscrowContract extends MeshTxInitiator {
     return this.mesh.txHex;
   };
 
-  cancelEscrow = async (escrowUtxo: UTxO, networkId = 0): Promise<string> => {
+  cancelEscrow = async (escrowUtxo: UTxO): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
+    const scriptAddr = v2ScriptToBech32(
+      this.scriptCbor,
+      undefined,
+      this.networkId
+    );
 
     const inputDatum = parseDatumCbor<InitiationDatum | ActiveEscrowDatum>(
       escrowUtxo.output.plutusData!
@@ -135,12 +140,15 @@ export class MeshEscrowContract extends MeshTxInitiator {
 
   recipientDeposit = async (
     escrowUtxo: UTxO,
-    depositAmount: Asset[],
-    networkId = 0
+    depositAmount: Asset[]
   ): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
+    const scriptAddr = v2ScriptToBech32(
+      this.scriptCbor,
+      undefined,
+      this.networkId
+    );
     const inputDatum = parseDatumCbor<InitiationDatum>(
       escrowUtxo.output.plutusData!
     );
@@ -185,10 +193,14 @@ export class MeshEscrowContract extends MeshTxInitiator {
     return this.mesh.txHex;
   };
 
-  completeEscrow = async (escrowUtxo: UTxO, networkId = 0): Promise<string> => {
+  completeEscrow = async (escrowUtxo: UTxO): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
+    const scriptAddr = v2ScriptToBech32(
+      this.scriptCbor,
+      undefined,
+      this.networkId
+    );
     const inputDatum = parseDatumCbor<ActiveEscrowDatum>(
       escrowUtxo.output.plutusData!
     );

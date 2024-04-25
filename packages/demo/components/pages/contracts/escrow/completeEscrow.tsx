@@ -135,34 +135,16 @@ function Right() {
     setResponseError(null);
 
     try {
-      const networkId = 0;
       const contract = getContract();
 
-      // get script address
-
-      const script: PlutusScript = {
-        code: contract.scriptCbor,
-        version: 'V2',
-      };
-      const scriptAddress = resolvePlutusScriptAddress(script, 0);
-
-      // get utxo from script
-
-      const blockchainProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-      );
-
-      const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
-      const utxo = utxos.filter(
-        (utxo) => utxo.input.txHash === userLocalStorage
-      )[0];
+      const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
         setResponseError('No utxo found');
         return;
       }
 
-      const tx = await contract.completeEscrow(utxo, networkId);
+      const tx = await contract.completeEscrow(utxo);
 
       const signedTx = await wallet.signTx(tx, true);
       setUserlocalStorage_tx(signedTx);
@@ -191,13 +173,13 @@ function Right() {
     return (
       <Card>
         <p>
-          After the recipient has deposited the assets, you can sign the final
-          transaction with 2 signatures.
+          This is a multi-signature transaction. After the recipient has
+          deposited the assets, this final transaction requires both signatures.
         </p>
         <p>
-          Connect with one of the wallet to sign transaction first, and another
-          wallet to sign again to complete the escrow. Note: only after signing
-          the transaction can the escrow be completed.
+          In this demo, you can connect with one of the wallet to sign
+          transaction. Then connect with another wallet, refresh this page, and
+          complete the escrow.
         </p>
         {connected ? (
           <>

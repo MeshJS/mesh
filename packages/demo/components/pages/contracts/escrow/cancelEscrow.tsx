@@ -5,12 +5,7 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import {
-  BlockfrostProvider,
-  MeshTxBuilder,
-  PlutusScript,
-  resolvePlutusScriptAddress,
-} from '@meshsdk/core';
+import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
 import { MeshEscrowContract } from '@meshsdk/contracts';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 
@@ -115,7 +110,6 @@ function Right() {
     setResponseError(null);
 
     try {
-      const networkId = 0;
       const contract = getContract();
 
       // get script address
@@ -146,7 +140,7 @@ function Right() {
         return;
       }
 
-      const tx = await contract.cancelEscrow(utxo, networkId);
+      const tx = await contract.cancelEscrow(utxo);
 
       const signedTx = await wallet.signTx(tx, true);
       const txHash = await wallet.submitTx(signedTx);

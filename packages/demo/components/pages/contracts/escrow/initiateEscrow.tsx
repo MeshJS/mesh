@@ -106,9 +106,7 @@ function Right() {
           quantity: '10000000',
         },
       ];
-      const networkId = 0;
-
-      const tx = await contract.initiateEscrow(escrowAmount, networkId);
+      const tx = await contract.initiateEscrow(escrowAmount);
 
       const signedTx = await wallet.signTx(tx);
       const txHash = await wallet.submitTx(signedTx);

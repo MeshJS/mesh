@@ -127,25 +127,9 @@ function Right() {
     setResponseError(null);
 
     try {
-      const networkId = 0;
       const contract = getContract();
 
-      // get script address
-      const script: PlutusScript = {
-        code: contract.scriptCbor,
-        version: 'V2',
-      };
-      const scriptAddress = resolvePlutusScriptAddress(script, 0);
-
-      // get utxo from script
-      const blockchainProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-      );
-      const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
-
-      const utxo = utxos.filter(
-        (utxo) => utxo.input.txHash === userLocalStorage
-      )[0];
+      const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
         setResponseError('No utxo found');
@@ -159,11 +143,7 @@ function Right() {
         },
       ];
 
-      const tx = await contract.recipientDeposit(
-        utxo,
-        depositAmount,
-        networkId
-      );
+      const tx = await contract.recipientDeposit(utxo, depositAmount);
 
       const signedTx = await wallet.signTx(tx, true);
       const txHash = await wallet.submitTx(signedTx);

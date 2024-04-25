@@ -1,6 +1,30 @@
 import { ArrowsRightLeftIcon } from '@heroicons/react/24/solid';
+import Codeblock from '../../../ui/codeblock';
+import Link from 'next/link';
 
 export default function Hero() {
+  let code = ``;
+  code += `import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';\n`;
+  code += `import { MeshEscrowContract } from '@meshsdk/contracts';\n`;
+  code += `import { useWallet } from '@meshsdk/react';\n`;
+  code += `\n`;
+  code += `const { connected, wallet } = useWallet();\n`;
+  code += `\n`;
+  code += `const blockchainProvider = new BlockfrostProvider(\n`;
+  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
+  code += `);\n`;
+  code += `\n`;
+  code += `const meshTxBuilder = new MeshTxBuilder({\n`;
+  code += `  fetcher: blockchainProvider,\n`;
+  code += `  submitter: blockchainProvider,\n`;
+  code += `});\n`;
+  code += `\n`;
+  code += `const contract = new MeshEscrowContract({\n`;
+  code += `  mesh: meshTxBuilder,\n`;
+  code += `  fetcher: blockchainProvider,\n`;
+  code += `  wallet: wallet,\n`;
+  code += `});\n`;
+
   return (
     <>
       <header className="mb-4 lg:mb-6">
@@ -29,6 +53,12 @@ export default function Hero() {
             <li>complete</li>
             <li>cancel</li>
           </ul>
+          <p>
+            To initialize the escrow, we need to initialize a{' '}
+            <Link href="/providers">provider</Link>, <code>MeshTxBuilder</code>{' '}
+            and <code>MeshEscrowContract</code>.
+          </p>
+          <Codeblock data={code} isJson={false} />
         </div>
       </div>
     </>
