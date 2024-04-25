@@ -4,6 +4,7 @@ export type MeshTxInitiatorInput = {
   mesh: MeshTxBuilder;
   fetcher?: IFetcher;
   wallet?: BrowserWallet;
+  networkId?: number;
 };
 
 export class MeshTxInitiator {

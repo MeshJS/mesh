@@ -103,6 +103,7 @@ function Right() {
       mesh: meshTxBuilder,
       fetcher: blockchainProvider,
       wallet: wallet,
+      networkId: 0,
     });
 
     return contract;
@@ -119,23 +120,25 @@ function Right() {
 
       // get script address
 
-      const script: PlutusScript = {
-        code: contract.scriptCbor,
-        version: 'V2',
-      };
-      const scriptAddress = resolvePlutusScriptAddress(script, 0);
+      // const script: PlutusScript = {
+      //   code: contract.scriptCbor,
+      //   version: 'V2',
+      // };
+      // const scriptAddress = resolvePlutusScriptAddress(script, 0);
 
-      // get utxo from script
+      // // get utxo from script
 
-      const blockchainProvider = new BlockfrostProvider(
-        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-      );
+      // const blockchainProvider = new BlockfrostProvider(
+      //   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+      // );
 
-      const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
+      // const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
 
-      const utxo = utxos.filter(
-        (utxo) => utxo.input.txHash === userLocalStorage
-      )[0];
+      // const utxo = utxos.filter(
+      //   (utxo) => utxo.input.txHash === userLocalStorage
+      // )[0];
+
+      const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
         setResponseError('No utxo found');

@@ -55,9 +55,11 @@ export const recipientDepositRedeemer = (
 
 export class MeshEscrowContract extends MeshTxInitiator {
   scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
+  networkId = 0;
 
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
+    this.networkId = inputs.networkId ?? 0;
   }
 
   initiateEscrow = async (
@@ -226,5 +228,20 @@ export class MeshEscrowContract extends MeshTxInitiator {
       .selectUtxosFrom(utxos)
       .complete();
     return this.mesh.txHex;
+  };
+
+  getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
+    if (this.fetcher) {
+      const scriptAddr = v2ScriptToBech32(
+        this.scriptCbor,
+        undefined,
+        this.networkId
+      );
+
+      const utxos = await this.fetcher.fetchAddressUTxOs(scriptAddr);
+      return utxos.filter((utxo) => utxo.input.txHash === txHash)[0];
+    }
+
+    return undefined;
   };
 }
