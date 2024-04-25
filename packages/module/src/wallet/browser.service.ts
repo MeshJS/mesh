@@ -33,7 +33,10 @@ import type {
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   walletInstance: WalletInstance;
 
-  private constructor(readonly _walletInstance: WalletInstance) {
+  private constructor(
+    readonly _walletInstance: WalletInstance,
+    readonly _walletName: string
+  ) {
     this.walletInstance = { ..._walletInstance };
   }
 
@@ -54,7 +57,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       const walletInstance = await BrowserWallet.resolveInstance(walletName);
 
       if (walletInstance !== undefined)
-        return new BrowserWallet(walletInstance);
+        return new BrowserWallet(walletInstance, walletName);
 
       throw new Error(`Couldn't create an instance of wallet: ${walletName}`);
     } catch (error) {
@@ -155,18 +158,45 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * @returns array of signed transactions CborHex string
    */
   async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
-    const newWitnessSets = await this._walletInstance.signTxs(
-      unsignedTxs,
-      partialSign
-    );
+    let witnessSets: string[] | undefined = undefined;
+    // Hardcoded behavior customized for different wallet for now as there is no standard confirmed
+    switch (this._walletName) {
+      case 'Typhon Wallet':
+        if (this._walletInstance.signTxs) {
+          witnessSets = await this._walletInstance.signTxs(
+            unsignedTxs,
+            partialSign
+          );
+        }
+        break;
+      default:
+        if (this._walletInstance.signTxs) {
+          witnessSets = await this._walletInstance.signTxs(
+            unsignedTxs.map((cbor) => ({
+              cbor,
+              partialSign,
+            }))
+          );
+        } else if (this._walletInstance.experimental.signTxs) {
+          witnessSets = await this._walletInstance.experimental.signTxs(
+            unsignedTxs.map((cbor) => ({
+              cbor,
+              partialSign,
+            }))
+          );
+        }
+        break;
+    }
+
+    if (!witnessSets) throw new Error('Wallet does not support signTxs');
 
     const signedTxs: string[] = [];
-    for (let i = 0; i < newWitnessSets.length; i++) {
+    for (let i = 0; i < witnessSets.length; i++) {
       const tx = deserializeTx(unsignedTxs[i]);
       const txWitnessSet = tx.witness_set();
 
       const newSignatures =
-        deserializeTxWitnessSet(newWitnessSets[i]).vkeys() ??
+        deserializeTxWitnessSet(witnessSets[i]).vkeys() ??
         csl.Vkeywitnesses.new();
 
       const txSignatures = mergeSignatures(txWitnessSet, newSignatures);
@@ -275,6 +305,11 @@ type Cardano = {
   };
 };
 
+type TransactionSignatureRequest = {
+  cbor: string;
+  partialSign: boolean;
+};
+
 type WalletInstance = {
   experimental: ExperimentalFeatures;
   getBalance(): Promise<string>;
@@ -286,10 +321,13 @@ type WalletInstance = {
   getUtxos(amount: string | undefined): Promise<string[] | undefined>;
   signData(address: string, payload: string): Promise<DataSignature>;
   signTx(tx: string, partialSign: boolean): Promise<string>;
-  signTxs(txs: string[], partialSign: boolean): Promise<string[]>;
+  signTxs?(txs: TransactionSignatureRequest[]): Promise<string[]>; // Overloading interface as currently no standard
+  signTxs?(txs: string[], partialSign: boolean): Promise<string[]>; // Overloading interface as currently no standard
   submitTx(tx: string): Promise<string>;
 };
 
 type ExperimentalFeatures = {
   getCollateral(): Promise<string[] | undefined>;
+  signTxs?(txs: TransactionSignatureRequest[]): Promise<string[]>; // Overloading interface as currently no standard
+  signTxs?(txs: string[], partialSign: boolean): Promise<string[]>; // Overloading interface as currently no standard
 };

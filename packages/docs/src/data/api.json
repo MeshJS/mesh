@@ -2634,6 +2634,17 @@
 										"name": "WalletInstance",
 										"package": "@meshsdk/core"
 									}
+								},
+								{
+									"id": 1264,
+									"name": "_walletName",
+									"variant": "param",
+									"kind": 32768,
+									"flags": {},
+									"type": {
+										"type": "intrinsic",
+										"name": "string"
+									}
 								}
 							],
 							"type": {
@@ -2704,7 +2715,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 214,
+							"line": 244,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L214"
 						}
@@ -2719,7 +2730,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 214,
+									"line": 244,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L214"
 								}
@@ -2756,7 +2767,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 69,
+							"line": 72,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L69"
 						}
@@ -2771,7 +2782,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 69,
+									"line": 72,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L69"
 								}
@@ -2808,7 +2819,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 74,
+							"line": 77,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L74"
 						}
@@ -2823,7 +2834,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 74,
+									"line": 77,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L74"
 								}
@@ -2855,7 +2866,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 79,
+							"line": 82,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L79"
 						}
@@ -2870,7 +2881,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 79,
+									"line": 82,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L79"
 								}
@@ -2921,7 +2932,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 233,
+							"line": 263,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L233"
 						}
@@ -2936,7 +2947,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 233,
+									"line": 263,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L233"
 								}
@@ -2968,7 +2979,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 86,
+							"line": 89,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L86"
 						}
@@ -2983,7 +2994,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 86,
+									"line": 89,
 									"character": 2,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L86"
 								}
@@ -3015,7 +3026,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 240,
+							"line": 270,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L240"
 						}
@@ -3030,7 +3041,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 240,
+									"line": 270,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L240"
 								}
@@ -3080,7 +3091,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 245,
+							"line": 275,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L245"
 						}
@@ -3095,7 +3106,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 245,
+									"line": 275,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L245"
 								}
@@ -3130,7 +3141,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 90,
+							"line": 93,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L90"
 						}
@@ -3145,7 +3156,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 90,
+									"line": 93,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L90"
 								}
@@ -3180,7 +3191,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 95,
+							"line": 98,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L95"
 						}
@@ -3195,7 +3206,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 95,
+									"line": 98,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L95"
 								}
@@ -3230,7 +3241,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 193,
+							"line": 223,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L193"
 						}
@@ -3245,7 +3256,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 193,
+									"line": 223,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L193"
 								}
@@ -3292,7 +3303,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 100,
+							"line": 103,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L100"
 						}
@@ -3307,7 +3318,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 100,
+									"line": 103,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L100"
 								}
@@ -3342,7 +3353,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 198,
+							"line": 228,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L198"
 						}
@@ -3357,7 +3368,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 198,
+									"line": 228,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L198"
 								}
@@ -3421,7 +3432,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 206,
+							"line": 236,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L206"
 						}
@@ -3436,7 +3447,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 206,
+									"line": 236,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L206"
 								}
@@ -3514,7 +3525,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 105,
+							"line": 108,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L105"
 						}
@@ -3529,7 +3540,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 105,
+									"line": 108,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L105"
 								}
@@ -3594,7 +3605,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 110,
+							"line": 113,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L110"
 						}
@@ -3609,7 +3620,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 110,
+									"line": 113,
 									"character": 2,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L110"
 								}
@@ -3677,7 +3688,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 115,
+							"line": 118,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L115"
 						}
@@ -3692,7 +3703,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 115,
+									"line": 118,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L115"
 								}
@@ -3759,7 +3770,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 157,
+							"line": 160,
 							"character": 8,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L157"
 						}
@@ -3793,7 +3804,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 157,
+									"line": 160,
 									"character": 8,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L157"
 								}
@@ -3882,7 +3893,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 189,
+							"line": 219,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L189"
 						}
@@ -3897,7 +3908,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 189,
+									"line": 219,
 									"character": 2,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L189"
 								}
@@ -3954,7 +3965,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 52,
+							"line": 55,
 							"character": 15,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L52"
 						}
@@ -3969,7 +3980,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 52,
+									"line": 55,
 									"character": 15,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L52"
 								}
@@ -4018,7 +4029,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 40,
+							"line": 43,
 							"character": 9,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L40"
 						}
@@ -4033,7 +4044,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 40,
+									"line": 43,
 									"character": 9,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L40"
 								}
@@ -4062,7 +4073,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/browser.service.ts",
-							"line": 252,
+							"line": 282,
 							"character": 17,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L252"
 						}
@@ -4077,7 +4088,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/browser.service.ts",
-									"line": 252,
+									"line": 282,
 									"character": 17,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/wallet/browser.service.ts#L252"
 								}
@@ -9351,7 +9362,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 60,
+							"line": 61,
 							"character": 12,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L60"
 						}
@@ -9379,7 +9390,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 52,
+							"line": 53,
 							"character": 12,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L52"
 						}
@@ -9404,7 +9415,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 54,
+							"line": 55,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L54"
 						}
@@ -9433,7 +9444,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 56,
+							"line": 57,
 							"character": 12,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L56"
 						}
@@ -9568,7 +9579,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 62,
+							"line": 63,
 							"character": 12,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L62"
 						}
@@ -9594,7 +9605,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 46,
+							"line": 47,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L46"
 						}
@@ -9624,7 +9635,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 47,
+							"line": 48,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L47"
 						}
@@ -9649,7 +9660,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 45,
+							"line": 46,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L45"
 						}
@@ -9677,7 +9688,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 58,
+							"line": 59,
 							"character": 12,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L58"
 						}
@@ -9997,7 +10008,7 @@
 							],
 							"type": {
 								"type": "intrinsic",
-								"name": "string"
+								"name": "any"
 							},
 							"inheritedFrom": {
 								"type": "reference",
@@ -10202,7 +10213,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 130,
+							"line": 131,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L130"
 						}
@@ -10236,7 +10247,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 130,
+									"line": 131,
 									"character": 20,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L130"
 								}
@@ -10267,7 +10278,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 117,
+							"line": 118,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L117"
 						}
@@ -10301,7 +10312,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 117,
+									"line": 118,
 									"character": 17,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L117"
 								}
@@ -10607,7 +10618,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 88,
+							"line": 89,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L88"
 						}
@@ -10641,7 +10652,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 88,
+									"line": 89,
 									"character": 23,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L88"
 								}
@@ -12692,7 +12703,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 68,
+							"line": 69,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L68"
 						}
@@ -12726,7 +12737,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 68,
+									"line": 69,
 									"character": 10,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L68"
 								}
@@ -13051,7 +13062,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 560,
+							"line": 561,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L560"
 						}
@@ -13085,7 +13096,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 560,
+									"line": 561,
 									"character": 27,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L560"
 								}
@@ -13118,7 +13129,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 605,
+							"line": 606,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L605"
 						}
@@ -13152,7 +13163,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 605,
+									"line": 606,
 									"character": 44,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L605"
 								}
@@ -13235,7 +13246,7 @@
 										"summary": [
 											{
 												"kind": "text",
-												"text": "The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string"
+												"text": "The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string""text": "The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string"
 											}
 										]
 									},
@@ -13391,7 +13402,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 576,
+							"line": 577,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L576"
 						}
@@ -13425,7 +13436,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 576,
+									"line": 577,
 									"character": 26,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L576"
 								}
@@ -13631,7 +13642,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 267,
+							"line": 268,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L267"
 						}
@@ -13665,7 +13676,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 267,
+									"line": 268,
 									"character": 9,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L267"
 								}
@@ -13939,7 +13950,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 328,
+							"line": 329,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L328"
 						}
@@ -13973,7 +13984,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 328,
+									"line": 329,
 									"character": 19,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L328"
 								}
@@ -14062,7 +14073,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 364,
+							"line": 365,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L364"
 						}
@@ -14096,7 +14107,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 364,
+									"line": 365,
 									"character": 27,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L364"
 								}
@@ -14129,7 +14140,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 416,
+							"line": 417,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L416"
 						}
@@ -14163,7 +14174,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 416,
+									"line": 417,
 									"character": 22,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L416"
 								}
@@ -14264,7 +14275,7 @@
 											"sources": [
 												{
 													"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-													"line": 418,
+													"line": 419,
 													"character": 14,
 													"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L418"
 												}
@@ -14335,7 +14346,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 308,
+							"line": 309,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L308"
 						}
@@ -14369,7 +14380,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 308,
+									"line": 309,
 									"character": 15,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L308"
 								}
@@ -14452,7 +14463,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 456,
+							"line": 457,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L456"
 						}
@@ -14486,7 +14497,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 456,
+									"line": 457,
 									"character": 10,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L456"
 								}
@@ -14564,7 +14575,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 474,
+							"line": 475,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L474"
 						}
@@ -14598,7 +14609,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 474,
+									"line": 475,
 									"character": 24,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L474"
 								}
@@ -14687,7 +14698,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 510,
+							"line": 511,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L510"
 						}
@@ -14721,7 +14732,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 510,
+									"line": 511,
 									"character": 26,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L510"
 								}
@@ -14810,7 +14821,7 @@
 					"sources": [
 						{
 							"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-							"line": 546,
+							"line": 547,
 							"character": 2,
 							"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L546"
 						}
@@ -14844,7 +14855,7 @@
 							"sources": [
 								{
 									"fileName": "transaction/meshTxBuilder/meshTxBuilderCore.ts",
-									"line": 546,
+									"line": 547,
 									"character": 25,
 									"url": "https://github.com/MeshJS/mesh/blob/d0e0bf8/packages/module/src/transaction/meshTxBuilder/meshTxBuilderCore.ts#L546"
 								}
@@ -36440,11 +36451,11 @@
 		},
 		"1104": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type"
+			"qualifiedName": "__type.script"
 		},
 		"1105": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type.type"
+			"qualifiedName": "__type"
 		},
 		"1106": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
@@ -36516,7 +36527,7 @@
 		},
 		"1123": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type"
+			"qualifiedName": "RefTxIn"
 		},
 		"1124": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
@@ -36532,7 +36543,7 @@
 		},
 		"1127": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type"
+			"qualifiedName": "Output"
 		},
 		"1128": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
@@ -36632,7 +36643,7 @@
 		},
 		"1152": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type"
+			"qualifiedName": "ValidityRange"
 		},
 		"1153": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
@@ -36672,7 +36683,7 @@
 		},
 		"1162": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type"
+			"qualifiedName": "__type.content"
 		},
 		"1163": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
@@ -36688,7 +36699,7 @@
 		},
 		"1166": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type"
+			"qualifiedName": "Redeemer"
 		},
 		"1167": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
@@ -36704,7 +36715,7 @@
 		},
 		"1170": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type"
+			"qualifiedName": "Metadata"
 		},
 		"1171": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
@@ -36744,15 +36755,15 @@
 		},
 		"1180": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type"
+			"qualifiedName": "__type.stakeKeyHash"
 		},
 		"1181": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type.type"
+			"qualifiedName": "__type"
 		},
 		"1182": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
-			"qualifiedName": "__type.stakeKeyHash"
+			"qualifiedName": "__type.type"
 		},
 		"1183": {
 			"sourceFileName": "src/transaction/meshTxBuilder/type.ts",
