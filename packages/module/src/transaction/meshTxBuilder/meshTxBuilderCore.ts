@@ -610,15 +610,17 @@ export class MeshTxBuilderCore {
 
   /**
    * [Alias of txInRedeemerValue] Set the redeemer for the reference input to be spent in same transaction
-   * @param redeemer The redeemer in object format
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @param exUnits The execution units budget for the redeemer
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
    * @returns The MeshTxBuilder instance
    */
   spendingReferenceTxInRedeemerValue = (
-    redeemer: Data,
-    exUnits = { ...DEFAULT_REDEEMER_BUDGET }
+    redeemer: BuilderData['content'],
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+    type: BuilderData['type'] = 'Mesh'
   ) => {
-    this.txInRedeemerValue(redeemer, exUnits);
+    this.txInRedeemerValue(redeemer, exUnits, type);
     return this;
   };
 
@@ -1333,7 +1335,7 @@ export class MeshTxBuilderCore {
     mintBuilder.add_asset(
       csl.MintWitness.new_plutus_script(script, newRedeemer),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
-      csl.Int.new(csl.BigNum.from_str(amount))
+      csl.Int.from_str(amount)
     );
   };
 
@@ -1348,7 +1350,7 @@ export class MeshTxBuilderCore {
         csl.NativeScript.from_hex(scriptSource.script.code)
       ),
       csl.AssetName.new(Buffer.from(assetName, 'hex')),
-      csl.Int.new(csl.BigNum.from_str(amount))
+      csl.Int.from_str(amount)
     );
   };
 
