@@ -161,7 +161,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     let witnessSets: string[] | undefined = undefined;
     // Hardcoded behavior customized for different wallet for now as there is no standard confirmed
     switch (this._walletName) {
-      case 'typhoncip30':
+      case 'Typhon Wallet':
         if (this._walletInstance.signTxs) {
           witnessSets = await this._walletInstance.signTxs(
             unsignedTxs,
