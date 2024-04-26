@@ -12,13 +12,13 @@ import {
   List,
   Integer,
   mConStr1,
-  applyParamsToScript,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
 
 export class MeshGiftCardContract extends MeshTxInitiator {
-  scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []); // todo hinson, this is not returning the correct address
+  tokenNameHex: string = '';
+  paramUtxo: UTxO['input'] = { outputIndex: 0, txHash: '' };
 
   giftCardCbor = (tokenNameHex: string, utxoTxHash: string, utxoTxId: number) =>
     applyObjParamsToScript(blueprint.validators[0].compiledCode, [
@@ -32,8 +32,18 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       builtinByteString(policyId),
     ]);
 
-  constructor(inputs: MeshTxInitiatorInput) {
+  constructor(
+    inputs: MeshTxInitiatorInput,
+    tokenNameHex?: string,
+    paramUtxo?: UTxO['input']
+  ) {
     super(inputs);
+    if (tokenNameHex) {
+      this.tokenNameHex = tokenNameHex;
+    }
+    if (paramUtxo) {
+      this.paramUtxo = paramUtxo;
+    }
   }
 
   createGiftCard = async (
@@ -87,6 +97,10 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       )
       .selectUtxosFrom(remainingUtxos)
       .complete();
+
+    this.tokenNameHex = tokenNameHex;
+    this.paramUtxo = firstUtxo.input;
+
     return this.mesh.txHex;
   };
 
@@ -136,6 +150,18 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    return await this._getUtxoByTxHash(this.scriptCbor, txHash);
+    const { redeemScript } = this.getScripts();
+    return await this._getUtxoByTxHash(redeemScript, txHash);
+  };
+
+  private getScripts = () => {
+    const giftCardScript = this.giftCardCbor(
+      this.tokenNameHex,
+      this.paramUtxo.txHash,
+      this.paramUtxo.outputIndex
+    );
+    const giftCardPolicy = getV2ScriptHash(giftCardScript);
+    const redeemScript = this.redeemCbor(this.tokenNameHex, giftCardPolicy);
+    return { giftCardScript, redeemScript };
   };
 }
