@@ -101,7 +101,9 @@ function Right() {
     try {
       const contract = getContract();
 
-      const tokenName = `Mesh Gift Card${Math.random()}`;
+      const tokenName = `Mesh_Gift_Card_${parseInt(
+        (Math.random() * 1000).toString()
+      )}`;
       const giftValue: Asset[] = [
         {
           unit: 'lovelace',

@@ -1,17 +1,17 @@
 import type { NextPage } from 'next';
-import ContractsMarketplaceV1 from '../../components/pages/contracts/marketplaceV1';
+import ContractsMarketplace from '../../components/pages/contracts/marketplace';
 import Metatags from '../../components/site/metatags';
 
-const SmartContractsMarketplaceV1: NextPage = () => {
+const SmartContractsMarketplace: NextPage = () => {
   return (
     <>
       <Metatags
         title="Marketplace Contract"
         description="A marketplace where you can buy and sell NFTs"
       />
-      <ContractsMarketplaceV1 />
+      <ContractsMarketplace />
     </>
   );
 };
 
-export default SmartContractsMarketplaceV1;
+export default SmartContractsMarketplace;

@@ -28,11 +28,14 @@ export class MeshVestingContract extends MeshTxInitiator {
   depositFund = async (
     amount: Asset[],
     lockUntilTimeStampMs: number,
-    beneficiary: string,
-    networkId = 0
+    beneficiary: string
   ): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
+    const scriptAddr = v2ScriptToBech32(
+      this.scriptCbor,
+      undefined,
+      this.networkId
+    );
     const { pubKeyHash: ownerPubKeyHash } =
       serializeBech32Address(walletAddress);
     const { pubKeyHash: beneficiaryPubKeyHash } =
@@ -49,11 +52,15 @@ export class MeshVestingContract extends MeshTxInitiator {
     return this.mesh.txHex;
   };
 
-  withdrawFund = async (vestingUtxo: UTxO, networkId = 0): Promise<string> => {
+  withdrawFund = async (vestingUtxo: UTxO): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
     const { input: collateralInput, output: collateralOutput } = collateral;
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, networkId);
+    const scriptAddr = v2ScriptToBech32(
+      this.scriptCbor,
+      undefined,
+      this.networkId
+    );
     const { pubKeyHash } = serializeBech32Address(walletAddress);
 
     const datum = parseDatumCbor<VestingDatum>(vestingUtxo.output.plutusData!);
@@ -61,7 +68,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     const invalidBefore =
       unixTimeToEnclosingSlot(
         Math.min(datum.fields[0].int, Date.now() - 15000),
-        networkId === 0
+        this.networkId === 0
           ? SLOT_CONFIG_NETWORK.Preprod
           : SLOT_CONFIG_NETWORK.Mainnet
       ) + 1;

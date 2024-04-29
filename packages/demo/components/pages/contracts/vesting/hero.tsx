@@ -1,6 +1,31 @@
 import { LockClosedIcon } from '@heroicons/react/24/solid';
+import Link from 'next/link';
+import Codeblock from '../../../ui/codeblock';
 
 export default function Hero() {
+  let code = ``;
+  code += `import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';\n`;
+  code += `import { MeshVestingContract } from '@meshsdk/contracts';\n`;
+  code += `import { useWallet } from '@meshsdk/react';\n`;
+  code += `\n`;
+  code += `const { connected, wallet } = useWallet();\n`;
+  code += `\n`;
+  code += `const blockchainProvider = new BlockfrostProvider(\n`;
+  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
+  code += `);\n`;
+  code += `\n`;
+  code += `const meshTxBuilder = new MeshTxBuilder({\n`;
+  code += `  fetcher: blockchainProvider,\n`;
+  code += `  submitter: blockchainProvider,\n`;
+  code += `});\n`;
+  code += `\n`;
+  code += `const contract = new MeshVestingContract({\n`;
+  code += `  mesh: meshTxBuilder,\n`;
+  code += `  fetcher: blockchainProvider,\n`;
+  code += `  wallet: wallet,\n`;
+  code += `  networkId: 0,\n`;
+  code += `});\n`;
+
   return (
     <>
       <header className="mb-4 lg:mb-6">
@@ -49,28 +74,12 @@ export default function Hero() {
             <li>deposit asset</li>
             <li>withdraw asset</li>
           </ul>
-          {/* <p>
-            Do check out the{' '}
-            <Link href="/guides/custom-marketplace">guide</Link> and the{' '}
-            <Link href="/starter-templates">marketplace starter kit</Link> that
-            might help you get started. This contract is written in{' '}
-            <a
-              href="https://pluts.harmoniclabs.tech/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              plu-ts
-            </a>
-            , you can{' '}
-            <a
-              href="https://github.com/MeshJS/mesh/blob/main/packages/contracts/src/marketplace/contract.ts"
-              target="_blank"
-              rel="noreferrer"
-            >
-              view the contract on GitHub
-            </a>
-            .
-          </p> */}
+          <p>
+            To initialize the escrow, we need to initialize a{' '}
+            <Link href="/providers">provider</Link>, <code>MeshTxBuilder</code>{' '}
+            and <code>MeshVestingContract</code>.
+          </p>
+          <Codeblock data={code} isJson={false} />
         </div>
       </div>
     </>

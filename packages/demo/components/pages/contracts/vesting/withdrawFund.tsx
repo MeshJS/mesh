@@ -15,6 +15,7 @@ import {
 } from '@meshsdk/core';
 import { MeshVestingContract } from '@meshsdk/contracts';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
+import Link from 'next/link';
 
 export default function VestingWithdrawFund() {
   return (
@@ -31,10 +32,27 @@ export default function VestingWithdrawFund() {
 
 function Left() {
   let code = ``;
+  code += 'const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n';
+  code += 'const tx = await contract.withdrawFund(utxo);\n';
+  code += 'const signedTx = await wallet.signTx(tx, true);\n';
+  code += 'const txHash = await wallet.submitTx(signedTx);\n';
 
   return (
     <>
-      <p></p>
+      <p>
+        After the lockup period has expired, the beneficiary can withdraw the
+        funds from the vesting contract. The code snippet below demonstrates how
+        to withdraw funds from the vesting contract.
+      </p>
+      <p>
+        This function, <code>withdrawFund()</code>, is used to withdraw funds
+        from a vesting contract. The function accepts the following parameters:
+      </p>
+      <ul>
+        <li>
+          <b>vestingUtxo (UTxO)</b> - unspent transaction output in the script
+        </li>
+      </ul>
       <Codeblock data={code} isJson={false} />
     </>
   );
@@ -81,15 +99,13 @@ function Right() {
       const utxo = await contract.getUtxoByTxHash(userLocalStorage);
       if (!utxo) {
         setResponseError('Input utxo not found');
+        setLoading(false);
         return;
       }
 
-      const tx = await contract.withdrawFund(utxo, 0);
-      console.log('tx', tx);
+      const tx = await contract.withdrawFund(utxo);
       const signedTx = await wallet.signTx(tx, true);
-      console.log('signedTx', signedTx);
       const txHash = await wallet.submitTx(signedTx);
-      console.log('txHash', txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -99,6 +115,11 @@ function Right() {
 
   return (
     <Card>
+      <p>
+        For this demo, connect with the{' '}
+        <Link href="https://meshjs.dev/apis/appwallet#loadWallet">wallet</Link>,
+        to withdraw funds from the vesting contract.
+      </p>
       {connected ? (
         <>
           <Button
