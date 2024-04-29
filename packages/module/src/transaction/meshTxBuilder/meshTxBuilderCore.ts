@@ -990,7 +990,7 @@ export class MeshTxBuilderCore {
     }, requiredAssets);
     const selectedInputs = selectUtxos(extraInputs, requiredAssets, threshold);
     selectedInputs.forEach((input) => {
-      this.addTxIn({
+      const pubKeyTxIn: PubKeyTxIn = {
         type: 'PubKey',
         txIn: {
           txHash: input.input.txHash,
@@ -998,7 +998,9 @@ export class MeshTxBuilderCore {
           amount: input.output.amount,
           address: input.output.address,
         },
-      });
+      };
+      this.meshTxBuilderBody.inputs.push(pubKeyTxIn);
+      this.addTxIn(pubKeyTxIn as RequiredWith<PubKeyTxIn, 'txIn'>);
     });
   };
 
