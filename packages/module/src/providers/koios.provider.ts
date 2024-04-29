@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, CreateAxiosDefaults } from 'axios';
 import { SUPPORTED_HANDLES } from '@mesh/common/constants';
 import { IFetcher, IListener, ISubmitter } from '@mesh/common/contracts';
 import {
@@ -42,12 +42,22 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
         },
       });
     } else {
-      this._axiosInstance = axios.create({
-        baseURL: `https://${args[0]}.koios.rest/api/v${args[2] ?? 0}`,
-        headers: {
+      let version = 1;
+      if (typeof args[2] === 'number') {
+        version = args[2];
+      }
+
+      const config: CreateAxiosDefaults = {
+        baseURL: `https://${args[0]}.koios.rest/api/v${version}`,
+      };
+
+      if (typeof args[1] === 'string') {
+        config.headers = {
           Authorization: `Bearer ${args[1]}`,
-        },
-      });
+        };
+      }
+
+      this._axiosInstance = axios.create(config);
     }
   }
 
@@ -276,12 +286,10 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   async fetchUTxOs(hash: string): Promise<UTxO[]> {
     try {
       // TODO: Implement the fetcher
-      console.log('hi');
       const { data, status } = await this._axiosInstance.post('tx_info', {
         _tx_hashes: [hash],
       });
       if (status === 200) {
-        console.log(data[0]);
         const utxos = data[0].outputs.map((utxo) =>
           this.toUTxO(utxo, utxo.payment_addr.bech32)
         );
