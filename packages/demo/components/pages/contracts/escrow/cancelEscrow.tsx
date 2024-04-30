@@ -5,9 +5,8 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
-import { MeshEscrowContract } from '@meshsdk/contracts';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
+import { getContract } from './common';
 
 export default function EscrowCancel() {
   return (
@@ -61,33 +60,13 @@ function Right() {
     undefined
   );
 
-  function getContract() {
-    const blockchainProvider = new BlockfrostProvider(
-      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-    );
-
-    const meshTxBuilder = new MeshTxBuilder({
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
-    });
-
-    const contract = new MeshEscrowContract({
-      mesh: meshTxBuilder,
-      fetcher: blockchainProvider,
-      wallet: wallet,
-      networkId: 0,
-    });
-
-    return contract;
-  }
-
   async function rundemo() {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
 
     try {
-      const contract = getContract();
+      const contract = getContract(wallet);
 
       const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 

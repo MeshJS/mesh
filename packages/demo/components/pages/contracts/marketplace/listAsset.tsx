@@ -6,10 +6,8 @@ import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
-import { asset, getContract, price } from './config';
+import { asset, getContract, price } from './common';
 import Input from '../../../ui/input';
-import { MeshMarketplaceContract } from '@meshsdk/contracts';
-import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
 
 export default function MarketplaceListAsset() {
   return (
@@ -65,15 +63,6 @@ function Right() {
   );
   const [listPrice, updateListPrice] = useState<number>(price);
 
-  let code1 = ``;
-  code1 += `const { wallet } = useWallet();\n`;
-  code1 += `const sellerAddress = (await wallet.getUsedAddresses())[0];\n`;
-  code1 += `const txHash = await marketplace.listAsset(\n`;
-  code1 += `  sellerAddress,\n`;
-  code1 += `  '${asset}',\n`;
-  code1 += `  ${listPrice}\n`;
-  code1 += `);`;
-
   // async function rundemo() {
   //   setLoading(true);
   //   setResponse(null);
@@ -122,7 +111,6 @@ function Right() {
         placeholder="Listing price in Lovelace"
         label="Listing price in Lovelace"
       />
-      <Codeblock data={code1} isJson={false} />
       {connected ? (
         <>
           <Button

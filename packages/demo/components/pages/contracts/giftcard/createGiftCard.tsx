@@ -5,9 +5,9 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { Asset, BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
-import { MeshGiftCardContract } from '@meshsdk/contracts';
+import { Asset } from '@meshsdk/core';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
+import { getContract } from './common';
 
 export default function GiftcardCreate() {
   return (
@@ -73,33 +73,13 @@ function Right() {
     undefined
   );
 
-  function getContract() {
-    const blockchainProvider = new BlockfrostProvider(
-      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-    );
-
-    const meshTxBuilder = new MeshTxBuilder({
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
-    });
-
-    const contract = new MeshGiftCardContract({
-      mesh: meshTxBuilder,
-      fetcher: blockchainProvider,
-      wallet: wallet,
-      networkId: 0,
-    });
-
-    return contract;
-  }
-
   async function rundemo() {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
 
     try {
-      const contract = getContract();
+      const contract = getContract(wallet);
 
       const tokenName = `Mesh_Gift_Card_${parseInt(
         (Math.random() * 1000).toString()
