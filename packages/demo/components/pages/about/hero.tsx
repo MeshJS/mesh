@@ -17,7 +17,7 @@ export default function AboutHero() {
             easy.
           </p>
           {/* <a
-            href="https://discord.gg/Z6AH9dahdH"
+            href="https://discord.gg/WvnCNqmAxy"
             rel="noreferrer"
             className="inline-flex items-center py-3 px-5 font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-900 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800"
           >

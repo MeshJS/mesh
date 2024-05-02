@@ -7,7 +7,7 @@ export default function Footer() {
   const socials = [
     {
       icon: <SvgDiscord className="w-5 h-5" />,
-      link: 'https://discord.gg/Z6AH9dahdH',
+      link: 'https://discord.gg/WvnCNqmAxy',
     },
     {
       icon: <SvgTwitter className="w-5 h-5" />,
@@ -96,6 +96,10 @@ function Sitemap() {
               href="/migration-manual-installation"
               label="Migration / Manual Installation"
             />
+            <SitemapLinks
+              href="https://docs.meshjs.dev/"
+              label="Technical Docs"
+            />
           </ul>
         </div>
         <div>
@@ -115,7 +119,18 @@ function Sitemap() {
               label="Minting and Burning Assets"
             />
             <SitemapLinks href="/apis/transaction/staking" label="Stake Pool" />
+            <SitemapLinks href="/apis/transaction/builderExample" label="Customized Transactions" />
+            <SitemapLinks href="/apis/transaction/builder" label="Low Level Transaction Builder" />
+            
             <SitemapLinks href="/apis/resolvers" label="Resolvers" />
+          </ul>
+        </div>
+        <div>
+          <h2 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+            Prebuilt Smart Contracts
+          </h2>
+          <ul className="text-gray-500 dark:text-gray-400">
+            <SitemapLinks href="/smart-contracts/marketplace" label="Marketplace" />
           </ul>
         </div>
         <div>

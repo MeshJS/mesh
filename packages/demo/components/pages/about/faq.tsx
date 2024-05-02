@@ -11,7 +11,7 @@ export default function AboutFaq() {
           <p className="mb-8 text-gray-500 lg:text-lg dark:text-gray-400">
             Ask us anything on our{' '}
             <a
-              href="https://discord.gg/Z6AH9dahdH"
+              href="https://discord.gg/WvnCNqmAxy"
               rel="noreferrer"
               className="link"
               target="_blank"
@@ -118,7 +118,7 @@ export default function AboutFaq() {
                   <p>
                     Connect and chat with us at our{' '}
                     <a
-                      href="https://discord.gg/Z6AH9dahdH"
+                      href="https://discord.gg/WvnCNqmAxy"
                       rel="noreferrer"
                       className="link"
                       target="_blank"
@@ -150,7 +150,7 @@ export default function AboutFaq() {
                   <p>
                     You can also ask questions on{' '}
                     <a
-                      href="https://discord.gg/Z6AH9dahdH"
+                      href="https://discord.gg/WvnCNqmAxy"
                       target="_blank"
                       rel="noreferrer"
                       className="link"

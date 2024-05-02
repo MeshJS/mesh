@@ -567,7 +567,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
             V2 features, Plutus minting and more. Mesh supports each of these
             features and we are continuously working on adding more guides and
             expanding the docs. If you have any issues please report them in our{' '}
-            <a href="https://discord.gg/Z6AH9dahdH">Discord</a> server or open
+            <a href="https://discord.gg/WvnCNqmAxy">Discord</a> server or open
             an issue on{' '}
             <a href="https://github.com/MeshJS/mesh">Mesh's Github page</a>.{' '}
           </p>
