@@ -127,7 +127,7 @@ function SmallPrint() {
         <SocialLink href="https://github.com/MeshJS" icon={GitHubIcon}>
           Follow us on GitHub
         </SocialLink>
-        <SocialLink href="https://discord.gg/Z6AH9dahdH" icon={DiscordIcon}>
+        <SocialLink href="https://discord.gg/WvnCNqmAxy" icon={DiscordIcon}>
           Join our Discord server
         </SocialLink>
       </div>

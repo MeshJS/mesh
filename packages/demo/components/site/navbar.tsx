@@ -26,10 +26,14 @@ import {
   CubeIcon,
   ListBulletIcon,
   LockClosedIcon,
+  AcademicCapIcon,
+  PlayCircleIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
 import { useRouter } from 'next/router';
+import SvgDiscord from '../svgs/discord';
+import SvgTwitter from '../svgs/twitter';
 
 export default function Navbar() {
   const [darkMode, setDarkMode] = useLocalStorage('darkmode', false);
@@ -85,6 +89,22 @@ export default function Navbar() {
           </a>
           <div className="flex items-center lg:order-2">
             <a
+              href="https://discord.gg/WvnCNqmAxy"
+              target="_blank"
+              rel="noreferrer"
+              className="p-2 text-gray-500 rounded-lg hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700"
+            >
+              <SvgDiscord className="w-6 h-6" />
+            </a>
+            <a
+              href="https://twitter.com/meshsdk"
+              target="_blank"
+              rel="noreferrer"
+              className="p-2 text-gray-500 rounded-lg hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700"
+            >
+              <SvgTwitter className="w-6 h-6" />
+            </a>
+            <a
               href="https://github.com/MeshJS/mesh"
               target="_blank"
               rel="noreferrer"
@@ -125,19 +145,14 @@ export default function Navbar() {
             id="mobile-menu-2`}
           >
             <ul className="flex flex-col mt-4 font-medium lg:flex-row lg:space-x-8 lg:mt-0">
-              {/* <NavLink href="/guides" label="Guides" /> */}
               <SubMenuGetStarted />
               <SubMenuWallet />
               <SubMenuTransaction />
               <SubMenuReact />
               <SubMenuSmartContracts />
-
-              {/* <NavLink href="/providers" label="Providers" /> */}
               <SubMenuUtilities />
-
-              {/* <SubMenuSmartContracts /> */}
+              <NavLink href="https://docs.meshjs.dev/" label="Docs" />
               <SubMenuAbout />
-              {/* <NavLink href="/about" label="About" /> */}
             </ul>
           </div>
         </div>
@@ -181,6 +196,24 @@ function SubMenuGetStarted() {
               title="Migration / Manual Installation"
               desc="Install Mesh into your existing project"
               icon={<WrenchScrewdriverIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`https://pbl.meshjs.dev/`}
+              title="Mesh Project Based Learning"
+              desc="Start your building journey"
+              icon={<AcademicCapIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`https://www.youtube.com/playlist?list=PLCCIAmutGEbdez44WwToVG9HMenViQszp`}
+              title="Mesh PBL Videos"
+              desc="Watch and Learn"
+              icon={<PlayCircleIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`https://www.youtube.com/playlist?list=PLCCIAmutGEbd5V3deH6wE1C_yMePvqsGy`}
+              title="Mesh Livecoding Videos"
+              desc="Livecoding on Gimbalabs"
+              icon={<PlayCircleIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
