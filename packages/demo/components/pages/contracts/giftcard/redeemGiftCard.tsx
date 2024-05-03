@@ -68,7 +68,7 @@ function Right() {
     try {
       const contract = getContract(wallet);
 
-      const utxo = await contract.getUtxoByTxHash(userLocalStorage); // todo hinson: script address extracted from scriptCbor is not correct
+      const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
         setResponseError('Input utxo not found');

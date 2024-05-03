@@ -50,7 +50,7 @@ function Right() {
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshMarketplaceDemo',
+    'mesh_marketplace_demo',
     {}
   );
   const [listPrice, updateListPrice] = useState<number>(price);
@@ -78,17 +78,26 @@ function Right() {
     setResponse(null);
     setResponseError(null);
 
-    // try {
-    //   const marketplace = getMarketplace(wallet);
-    //   const txHash = await marketplace.purchaseAsset(
-    //     sellerAddress,
-    //     asset,
-    //     listPrice
-    //   );
-    //   setResponse(txHash);
-    // } catch (error) {
-    //   setResponseError(`${error}`);
-    // }
+    try {
+      const contract = getContract(wallet);
+
+      console.log(1, userLocalStorage);
+      const utxo = await contract.getUtxoByTxHash(userLocalStorage);
+
+      if (!utxo) {
+        setResponseError('Input utxo not found');
+        setLoading(false);
+        return;
+      }
+
+      const tx = await contract.purchaseAsset(utxo);
+      const signedTx = await wallet.signTx(tx);
+      const txHash = await wallet.submitTx(signedTx);
+      console.log(4, txHash);
+      // setResponse(txHash);
+    } catch (error) {
+      setResponseError(`${error}`);
+    }
     setLoading(false);
   }
 

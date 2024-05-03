@@ -25,8 +25,8 @@ function Main() {
   return (
     <>
       <MarketplaceListAsset />
-      {/* <MarketplaceBuyAsset />
-      <MarketplaceUpdateListing />
+      <MarketplaceBuyAsset />
+      {/* <MarketplaceUpdateListing />
       <MarketplaceCancelAsset /> */}
     </>
   );

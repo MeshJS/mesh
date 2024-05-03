@@ -77,6 +77,7 @@ function Right() {
       const txHash = await wallet.submitTx(signedTx);
       setUserlocalStorage(txHash);
       setResponse(txHash);
+      console.log(99)
     } catch (error) {
       setResponseError(`${error}`);
     }

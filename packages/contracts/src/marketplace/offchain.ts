@@ -19,7 +19,13 @@ import {
   mConStr0,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
-import { UTxO, parseAssetUnit } from '@meshsdk/core';
+import {
+  Quantity,
+  UTxO,
+  Unit,
+  keepRelevant,
+  parseAssetUnit,
+} from '@meshsdk/core';
 
 export type MarketplaceDatum = ConStr0<
   [PubKeyAddress, Integer, CurrencySymbol, TokenName]
@@ -65,6 +71,11 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
 
   listAsset = async (asset: string, price: number) => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
+
+    const assetMap = new Map<Unit, Quantity>();
+    assetMap.set(asset, '1');
+    const selectedUtxos = keepRelevant(assetMap, utxos);
+
     const scriptAddr = v2ScriptToBech32(
       this.scriptCbor,
       undefined,
@@ -78,7 +89,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       .txOut(scriptAddr, tokenForSale)
       .txOutInlineDatumValue(outputDatum, 'JSON')
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos)
+      .selectUtxosFrom(selectedUtxos)
       .complete();
 
     return this.mesh.txHex;
@@ -117,6 +128,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
 
+    console.log(4, 'utxos', utxos);
     const inputDatum = parseDatumCbor<MarketplaceDatum>(
       marketplaceUtxo.output.plutusData!
     );
