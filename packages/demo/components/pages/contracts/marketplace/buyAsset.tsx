@@ -81,7 +81,7 @@ function Right() {
     try {
       const contract = getContract(wallet);
 
-      console.log(1, userLocalStorage);
+      console.log(3, userLocalStorage);
       const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
@@ -91,10 +91,10 @@ function Right() {
       }
 
       const tx = await contract.purchaseAsset(utxo);
-      const signedTx = await wallet.signTx(tx);
+      const signedTx = await wallet.signTx(tx, true);
       const txHash = await wallet.submitTx(signedTx);
       console.log(4, txHash);
-      // setResponse(txHash);
+      setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
     }
@@ -103,18 +103,6 @@ function Right() {
 
   return (
     <Card>
-      <Input
-        value={sellerAddress}
-        onChange={(e) => updateSellerAddress(e.target.value)}
-        placeholder="Seller address"
-        label="Seller address"
-      />
-      <Input
-        value={listPrice}
-        onChange={(e) => updateListPrice(e.target.value)}
-        placeholder="Listed price in Lovelace"
-        label="Listed price in Lovelace"
-      />
       <Codeblock data={code1} isJson={false} />
       {connected ? (
         <>

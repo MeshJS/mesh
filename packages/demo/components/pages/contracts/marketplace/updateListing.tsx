@@ -29,7 +29,7 @@ function Left() {
   code += `  oldPrice: number\n`;
   code += `  newPrice: number\n`;
   code += `)`;
-  
+
   return (
     <>
       <p>
@@ -54,71 +54,48 @@ function Right() {
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshMarketplaceDemo',
+    'mesh_marketplace_demo',
     {}
   );
-  const [listPrice, updateListPrice] = useState<number>(price);
-  const [sellerAddress, updateSellerAddress] =
-    useState<string>('SELLER ADDRESS');
   const [newListPrice, updateNewListPrice] = useState<number>(20000000);
 
   let code1 = ``;
-  code1 += `const txHash = await marketplace.relistAsset(\n`;
-  code1 += `  '${sellerAddress}',\n`;
-  code1 += `  '${asset}',\n`;
-  code1 += `  ${listPrice},\n`;
-  code1 += `  ${newListPrice}\n`;
-  code1 += `);\n`;
-
-  useEffect(() => {
-    if (userLocalStorage.listPrice) {
-      updateListPrice(userLocalStorage.listPrice);
-      updateNewListPrice(userLocalStorage.listPrice + 10000000);
-    }
-    if (userLocalStorage.sellerAddress) {
-      updateSellerAddress(userLocalStorage.sellerAddress);
-    }
-  }, []);
+  // code1 += `const txHash = await marketplace.relistAsset(\n`;
+  // code1 += `  '${sellerAddress}',\n`;
+  // code1 += `  '${asset}',\n`;
+  // code1 += `  ${listPrice},\n`;
+  // code1 += `  ${newListPrice}\n`;
+  // code1 += `);\n`;
 
   async function rundemo() {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
 
-    // try {
-    //   const marketplace = getMarketplace(wallet);
-    //   const txHash = await marketplace.relistAsset(
-    //     sellerAddress,
-    //     asset,
-    //     listPrice,
-    //     newListPrice
-    //   );
-    //   setResponse(txHash);
+    try {
+      const contract = getContract(wallet);
 
-    //   setUserlocalStorage({
-    //     sellerAddress: sellerAddress,
-    //     listPrice: newListPrice,
-    //   });
-    // } catch (error) {
-    //   setResponseError(`${error}`);
-    // }
+      const utxo = await contract.getUtxoByTxHash(userLocalStorage);
+
+      if (!utxo) {
+        setResponseError('Input utxo not found');
+        setLoading(false);
+        return;
+      }
+
+      const tx = await contract.relistAsset(utxo, newListPrice);
+      const signedTx = await wallet.signTx(tx, true);
+      const txHash = await wallet.submitTx(signedTx);
+      setUserlocalStorage(txHash);
+      setResponse(txHash);
+    } catch (error) {
+      setResponseError(`${error}`);
+    }
     setLoading(false);
   }
 
   return (
     <Card>
-      <Input
-        value={sellerAddress}
-        onChange={(e) => updateSellerAddress(e.target.value)}
-        placeholder="Seller address"
-        label="Seller address"
-      />
-      <Input
-        value={listPrice}
-        onChange={(e) => updateListPrice(e.target.value)}
-        placeholder="Listed price in Lovelace"
-        label="Listed price in Lovelace"
-      />
       <Input
         value={newListPrice}
         onChange={(e) => updateNewListPrice(e.target.value)}

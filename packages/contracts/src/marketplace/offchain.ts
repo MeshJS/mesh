@@ -24,6 +24,7 @@ import {
   UTxO,
   Unit,
   keepRelevant,
+  largestFirst,
   parseAssetUnit,
 } from '@meshsdk/core';
 
@@ -128,32 +129,18 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
 
-    console.log(4, 'utxos', utxos);
     const inputDatum = parseDatumCbor<MarketplaceDatum>(
       marketplaceUtxo.output.plutusData!
     );
-    const inputLovelace = marketplaceUtxo.output.amount.find(
-      (a) => a.unit === 'lovelace'
-    )!.quantity;
 
-    const ownerAddress = this.ownerAddress;
-    const ownerToReceive = [
-      {
-        unit: 'lovelace',
-        quantity: Math.ceil(
-          (inputDatum.fields[1].int * this.feePercentageBasisPoint) / 10000
-        ).toString(),
-      },
-    ];
-    const sellerAddress = parsePlutusAddressObjToBech32(inputDatum.fields[0]);
-    const sellerToReceive = [
-      {
-        unit: 'lovelace',
-        quantity: (inputDatum.fields[1].int + Number(inputLovelace)).toString(),
-      },
-    ];
+    const listingPrice = inputDatum.fields[1].int.toString();
+    const selectedUtxos = largestFirst(listingPrice, utxos, true);
 
-    await this.mesh
+    // const inputLovelace = marketplaceUtxo.output.amount.find(
+    //   (a) => a.unit === 'lovelace'
+    // )!.quantity;
+
+    const tx = this.mesh
       .spendingPlutusScriptV2()
       .txIn(
         marketplaceUtxo.input.txHash,
@@ -164,8 +151,6 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr0([]))
       .txInScript(this.scriptCbor)
-      .txOut(ownerAddress, ownerToReceive)
-      .txOut(sellerAddress, sellerToReceive)
       .changeAddress(walletAddress)
       .txInCollateral(
         collateral.input.txHash,
@@ -173,8 +158,41 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
         collateral.output.amount,
         collateral.output.address
       )
-      .selectUtxosFrom(utxos)
-      .complete();
+      .selectUtxosFrom(selectedUtxos);
+
+    let ownerToReceiveLovelace =
+      (inputDatum.fields[1].int * this.feePercentageBasisPoint) / 10000;
+    if (this.feePercentageBasisPoint > 0 && ownerToReceiveLovelace < 1000000) {
+      ownerToReceiveLovelace = 1000000;
+    }
+
+    if (ownerToReceiveLovelace > 0) {
+      console.log(7, 'ownerToReceiveLovelace', ownerToReceiveLovelace);
+      const ownerAddress = this.ownerAddress;
+      const ownerToReceive = [
+        {
+          unit: 'lovelace',
+          quantity: Math.ceil(ownerToReceiveLovelace).toString(),
+        },
+      ];
+      tx.txOut(ownerAddress, ownerToReceive);
+    }
+
+    const sellerToReceiveLovelace =
+      inputDatum.fields[1].int - ownerToReceiveLovelace;
+
+    if (sellerToReceiveLovelace > 0) {
+      console.log(8, 'sellerToReceiveLovelace', sellerToReceiveLovelace);
+      const sellerAddress = parsePlutusAddressObjToBech32(inputDatum.fields[0]);
+      const sellerToReceive = [
+        {
+          unit: 'lovelace',
+          quantity: sellerToReceiveLovelace.toString(),
+        },
+      ];
+      tx.txOut(sellerAddress, sellerToReceive);
+    }
+    await tx.complete();
 
     return this.mesh.txHex;
   };

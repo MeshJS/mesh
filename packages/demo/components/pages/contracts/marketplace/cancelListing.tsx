@@ -50,64 +50,40 @@ function Right() {
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'meshMarketplaceDemo',
+    'mesh_marketplace_demo',
     {}
   );
 
-  const [listPrice, updateListPrice] = useState<number>(price);
-  const [sellerAddress, updateSellerAddress] =
-    useState<string>('SELLER ADDRESS');
-
   let code1 = ``;
-  code1 += `const txHash = await marketplace.delistAsset(\n`;
-  code1 += `  '${sellerAddress}',\n`;
-  code1 += `  '${asset}',\n`;
-  code1 += `  ${listPrice}\n`;
-  code1 += `);`;
-
-  useEffect(() => {
-    if (userLocalStorage.listPrice) {
-      updateListPrice(userLocalStorage.listPrice);
-    }
-    if (userLocalStorage.sellerAddress) {
-      updateSellerAddress(userLocalStorage.sellerAddress);
-    }
-  }, []);
 
   async function rundemo() {
     setLoading(true);
     setResponse(null);
     setResponseError(null);
 
-    // try {
-    //   const marketplace = getMarketplace(wallet);
-    //   const txHash = await marketplace.delistAsset(
-    //     sellerAddress,
-    //     asset,
-    //     listPrice
-    //   );
-    //   setResponse(txHash);
-    // } catch (error) {
-    //   setResponseError(`${error}`);
-    // }
+    try {
+      const contract = getContract(wallet);
+
+      const utxo = await contract.getUtxoByTxHash(userLocalStorage);
+
+      if (!utxo) {
+        setResponseError('Input utxo not found');
+        setLoading(false);
+        return;
+      }
+
+      const tx = await contract.delistAsset(utxo);
+      const signedTx = await wallet.signTx(tx, true);
+      const txHash = await wallet.submitTx(signedTx);
+      setResponse(txHash);
+    } catch (error) {
+      setResponseError(`${error}`);
+    }
     setLoading(false);
   }
 
   return (
     <Card>
-      <Input
-        value={sellerAddress}
-        onChange={(e) => updateSellerAddress(e.target.value)}
-        placeholder="Seller address"
-        label="Seller address"
-      />
-      <Input
-        value={listPrice}
-        onChange={(e) => updateListPrice(e.target.value)}
-        placeholder="Listing price in Lovelace"
-        label="Listing price in Lovelace"
-      />
-
       <Codeblock data={code1} isJson={false} />
       {connected ? (
         <>
