@@ -5,7 +5,7 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useEffect, useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { getMarketplace, asset, price } from './config';
+import { asset, getContract, price } from './common';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 import Input from '../../../ui/input';
 
@@ -85,23 +85,23 @@ function Right() {
     setResponse(null);
     setResponseError(null);
 
-    try {
-      const marketplace = getMarketplace(wallet);
-      const txHash = await marketplace.relistAsset(
-        sellerAddress,
-        asset,
-        listPrice,
-        newListPrice
-      );
-      setResponse(txHash);
+    // try {
+    //   const marketplace = getMarketplace(wallet);
+    //   const txHash = await marketplace.relistAsset(
+    //     sellerAddress,
+    //     asset,
+    //     listPrice,
+    //     newListPrice
+    //   );
+    //   setResponse(txHash);
 
-      setUserlocalStorage({
-        sellerAddress: sellerAddress,
-        listPrice: newListPrice,
-      });
-    } catch (error) {
-      setResponseError(`${error}`);
-    }
+    //   setUserlocalStorage({
+    //     sellerAddress: sellerAddress,
+    //     listPrice: newListPrice,
+    //   });
+    // } catch (error) {
+    //   setResponseError(`${error}`);
+    // }
     setLoading(false);
   }
 

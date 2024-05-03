@@ -7,17 +7,17 @@ import { useState } from 'react';
 
 /**
  * https://github.com/bloxbean/yaci-devkit
- * 
+ *
  * run docker
- * 
+ *
  * sh start.sh
  * sh yaci-cli.sh
- * 
+ *
  * create-node -o --start
- * 
+ *
  * topup addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr 20
  * topup addr_test1vzzqs77gk87vjuvtqvh0ndfj7jhyn5etpwh6neuqjjp6gvccsv2cg 20
- * 
+ *
  * http://localhost:8080/swagger-ui/index.html
  * http://localhost:5173
  */
@@ -134,10 +134,12 @@ export default function Yaci() {
     const utxo = await contract.getUtxoByTxHash(savedTxHash);
     console.log('utxo', utxo);
 
-    const tx = await contract.withdrawFund(utxo);
-    const signedTx = await wallet.signTx(tx, true);
-    const txHash = await wallet.submitTx(signedTx);
-    console.log('txHash', txHash);
+    if (utxo) {
+      const tx = await contract.withdrawFund(utxo);
+      const signedTx = await wallet.signTx(tx, true);
+      const txHash = await wallet.submitTx(signedTx);
+      console.log('txHash', txHash);
+    }
   }
 
   return (
