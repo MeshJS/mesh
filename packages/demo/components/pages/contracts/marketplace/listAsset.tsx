@@ -37,17 +37,18 @@ function Left() {
         price at any time.
       </p>
       <p>
-        <code>address</code> is the seller's address, here we use the first Used
-        Addresses of the connected wallet. <code>asset</code> is the asset's{' '}
-        <code>unit</code> to be listed. <code>price</code> is the listing price
-        in Lovelace.
+        This function, `listAsset()`, is used to list an asset for sale. The
+        function accepts the following parameters:
       </p>
+      <ul>
+        <li>
+          <b>asset (string)</b> - the asset's unit to be listed
+        </li>
+        <li>
+          <b>price (number)</b> - the listing price in Lovelace
+        </li>
+      </ul>
       <Codeblock data={code} isJson={false} />
-      <p>
-        It is important to save the listing infomation (asset, seller address
-        and listing price) in a database. This is needed to
-        update/cancel/purchase the listing.
-      </p>
     </>
   );
 }
@@ -62,27 +63,6 @@ function Right() {
     {}
   );
   const [listPrice, updateListPrice] = useState<number>(price);
-
-  // async function rundemo() {
-  //   setLoading(true);
-  //   setResponse(null);
-  //   setResponseError(null);
-
-  //   try {
-  //     const marketplace = getMarketplace(wallet);
-  //     const address = (await wallet.getUsedAddresses())[0];
-  //     const txHash = await marketplace.listAsset(address, asset, price);
-  //     setResponse(txHash);
-
-  //     setUserlocalStorage({
-  //       sellerAddress: address,
-  //       listPrice: price,
-  //     });
-  //   } catch (error) {
-  //     setResponseError(`${error}`);
-  //   }
-  //   setLoading(false);
-  // }
 
   async function rundemo() {
     setLoading(true);

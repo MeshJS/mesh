@@ -10,23 +10,28 @@ import mintMeshToken from '../../../common/mintMeshToken';
 
 export default function Hero() {
   let codeInit = ``;
-  codeInit += `import { BasicMarketplace } from '@meshsdk/contracts';\n`;
-  codeInit += `import { KoiosProvider } from '@meshsdk/core';\n`;
-  codeInit += `import { useWallet } from '@meshsdk/react';\n`;
+  codeInit += `import { MeshMarketplaceContract } from '@meshsdk/contracts';\n`;
+  codeInit += `import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';\n`;
   codeInit += `\n`;
-  codeInit += `const blockchainProvider = new KoiosProvider('preprod');\n`;
+  codeInit += `const blockchainProvider = new BlockfrostProvider(\n`;
+  codeInit += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
+  codeInit += `);\n`;
   codeInit += `\n`;
-  codeInit += `const { wallet } = useWallet();\n`;
-  codeInit += `\n`;
-  codeInit += `const marketplace = new BasicMarketplace({\n`;
+  codeInit += `const meshTxBuilder = new MeshTxBuilder({\n`;
   codeInit += `  fetcher: blockchainProvider,\n`;
-  codeInit += `  initiator: wallet,\n`;
-  codeInit += `  network: 'preprod',\n`;
-  codeInit += `  signer: wallet,\n`;
   codeInit += `  submitter: blockchainProvider,\n`;
-  codeInit += `  percentage: 25000, // 2.5%\n`;
-  codeInit += `  owner: 'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',\n`;
   codeInit += `});\n`;
+  codeInit += `\n`;
+  codeInit += `const contract = new MeshMarketplaceContract(\n`;
+  codeInit += `  {\n`;
+  codeInit += `    mesh: meshTxBuilder,\n`;
+  codeInit += `    fetcher: blockchainProvider,\n`;
+  codeInit += `    wallet: wallet,\n`;
+  codeInit += `    networkId: 0,\n`;
+  codeInit += `  },\n`;
+  codeInit += `  'addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9',\n`;
+  codeInit += `  200\n`;
+  codeInit += `);\n`;
 
   return (
     <>
@@ -61,28 +66,6 @@ export default function Hero() {
             <li>updating listing</li>
             <li>cancel listing</li>
           </ul>
-          <p>
-            Do check out the{' '}
-            <Link href="/guides/custom-marketplace">guide</Link> and the{' '}
-            <Link href="/starter-templates">marketplace starter kit</Link> that
-            might help you get started. This contract is written in{' '}
-            <a
-              href="https://pluts.harmoniclabs.tech/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              plu-ts
-            </a>
-            , you can{' '}
-            <a
-              href="https://github.com/MeshJS/mesh/blob/main/packages/contracts/src/marketplace/contract.ts"
-              target="_blank"
-              rel="noreferrer"
-            >
-              view the contract on GitHub
-            </a>
-            .
-          </p>
         </div>
         <div className="col-span-2">
           <h3>Initialize the Marketplace</h3>
@@ -93,25 +76,20 @@ export default function Hero() {
           </p>
           <Codeblock data={codeInit} isJson={false} />
           <p>
-            You can define the <code>fetcher</code> and <code>submitter</code>{' '}
-            with one of our <Link href="/providers">blockchain providers</Link>{' '}
-            or use your own custom provider. We use these <code>fetcher</code>{' '}
-            and <code>submitter</code> to query for locked UTxO and submit
-            transactions. The{' '}
-            <Link href="/apis/browserwallet">connected wallet</Link> are defined
-            in the <code>initiator</code> and <code>signer</code>. The network
-            can defined in <code>network</code>, it has to be one of the
-            following values:{' '}
-            <code>"testnet" | "preview" | "preprod" | "mainnet"</code>
+            To initialize the Marketplace, we import the{' '}
+            <code>MeshMarketplaceContract</code>. The first JSON object is the{' '}
+            <code>inputs</code> for the <code>MeshTxInitiatorInput</code>, this
+            requires a <code>MeshTxBuilder</code>, a <code>Provider</code>, a{' '}
+            <code>Wallet</code>, and define the network ID.
           </p>
           <p>
-            The <code>owner</code> is the address of the marketplace owner which
-            will receive the marketplace fee. The <code>percentage</code> is the
+            Second and third parameters are the <code>ownerAddress</code> and{' '}
+            <code>feePercentageBasisPoint</code>. The <code>ownerAddress</code>{' '}
+            is the address of the marketplace owner which will receive the
+            marketplace fee. The <code>feePercentageBasisPoint</code> is the
             percentage of the sale price that the marketplace <code>owner</code>{' '}
             will take. Note that, the fee numerator is in the order of millions,
-            for example <code>3000</code> implies a fee of{' '}
-            <code>3000/1_000_000</code> (or <code>0.003</code>) implies a fee of{' '}
-            <code>0.3%</code>.
+            for example <code>200</code> implies a fee of <code>2%</code>.
           </p>
         </div>
         <div className="col-span-2">
@@ -129,7 +107,7 @@ function Demo() {
 
   return (
     <Card>
-      <h3>Try the demo</h3>
+      <h3>Mint a token to try the demo</h3>
       <p>You can test this martetplace smart contract on this page.</p>
       <p>
         Firstly, switch your wallet network to one of the testnets, and connect

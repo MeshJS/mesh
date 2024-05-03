@@ -5,7 +5,22 @@ import { AppWallet } from '@meshsdk/core';
 import { Asset, MeshTxBuilder } from '@meshsdk/core';
 import { useState } from 'react';
 
-// todo hinson: fund these 2 addresses
+/**
+ * https://github.com/bloxbean/yaci-devkit
+ * 
+ * run docker
+ * 
+ * sh start.sh
+ * sh yaci-cli.sh
+ * 
+ * create-node -o --start
+ * 
+ * topup addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr 20
+ * topup addr_test1vzzqs77gk87vjuvtqvh0ndfj7jhyn5etpwh6neuqjjp6gvccsv2cg 20
+ * 
+ * http://localhost:8080/swagger-ui/index.html
+ * http://localhost:5173
+ */
 
 const wallet_1_addr =
   'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr';
@@ -43,7 +58,7 @@ export default function Yaci() {
     // console.log(2, pp);
   }
 
-  async function buildTxWithAppWallet() {
+  async function buildTxSendAda() {
     const address = wallet_1_addr;
 
     const blockchainProvider = new YaciProvider('http://localhost:8080/api/v1');
@@ -129,7 +144,7 @@ export default function Yaci() {
     <>
       <div className="flex gap-4 m-4">
         <button onClick={() => checkUtxo()}>check utxo</button>
-        <button onClick={() => buildTxWithAppWallet()}>send ada</button>
+        <button onClick={() => buildTxSendAda()}>send ada</button>
         <button onClick={() => vestingLock()}>vesting lock</button>
         <button onClick={() => vestingUnlock()}>vesting unlock</button>
       </div>
