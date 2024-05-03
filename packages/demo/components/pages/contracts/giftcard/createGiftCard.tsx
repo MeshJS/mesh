@@ -23,19 +23,6 @@ export default function GiftcardCreate() {
 }
 
 function Left() {
-  let code = ``;
-  code += `const tokenName = 'Mesh Gift Card';\n`;
-  code += `const giftValue: Asset[] = [\n`;
-  code += `  {\n`;
-  code += `    unit: 'lovelace',\n`;
-  code += `    quantity: '20000000',\n`;
-  code += `  },\n`;
-  code += `];\n`;
-  code += `\n`;
-  code += `const tx = await contract.createGiftCard(tokenName, giftValue);\n`;
-  code += `const signedTx = await wallet.signTx(tx);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
-
   return (
     <>
       <p>
@@ -58,7 +45,6 @@ function Left() {
         The code snippet below demonstrates how to create a gift card with a
         value of 20 ADA.
       </p>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -102,9 +88,23 @@ function Right() {
     setLoading(false);
   }
 
+  let code = ``;
+  code += `const tokenName = 'Mesh Gift Card';\n`;
+  code += `const giftValue: Asset[] = [\n`;
+  code += `  {\n`;
+  code += `    unit: 'lovelace',\n`;
+  code += `    quantity: '20000000',\n`;
+  code += `  },\n`;
+  code += `];\n`;
+  code += `\n`;
+  code += `const tx = await contract.createGiftCard(tokenName, giftValue);\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <Card>
       <p>This demo, we will create a giftcard containing 20 ADA.</p>
+      <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
           <Button

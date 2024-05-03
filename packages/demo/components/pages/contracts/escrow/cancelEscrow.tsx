@@ -22,13 +22,6 @@ export default function EscrowCancel() {
 }
 
 function Left() {
-  let code = ``;
-  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
-  code += `\n`;
-  code += `const tx = await contract.cancelEscrow(utxo);\n`;
-  code += `const signedTx = await wallet.signTx(tx, true);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
-
   return (
     <>
       <p>
@@ -45,7 +38,6 @@ function Left() {
           <b>escrowUtxo (UTxO)</b> - the utxo of the transaction to be canceled
         </li>
       </ul>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -87,33 +79,37 @@ function Right() {
     setLoading(false);
   }
 
-  if (userLocalStorage) {
-    return (
-      <Card>
-        <p>
-          At any time before the escrow is completed, the partcipated
-          users/wallets can cancel the escrow.
-        </p>
-        {connected ? (
-          <>
-            <Button
-              onClick={() => rundemo()}
-              style={
-                loading ? 'warning' : response !== null ? 'success' : 'light'
-              }
-              disabled={loading}
-            >
-              Cancel Escrow
-            </Button>
-            <RunDemoResult response={response} />
-          </>
-        ) : (
-          <CardanoWallet />
-        )}
-        <RunDemoResult response={responseError} label="Error" />
-      </Card>
-    );
-  }
+  let code = ``;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `\n`;
+  code += `const tx = await contract.cancelEscrow(utxo);\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
-  return <></>;
+  return (
+    <Card>
+      <p>
+        At any time before the escrow is completed, the partcipated
+        users/wallets can cancel the escrow.
+      </p>
+      <Codeblock data={code} isJson={false} />
+      {connected ? (
+        <>
+          <Button
+            onClick={() => rundemo()}
+            style={
+              loading ? 'warning' : response !== null ? 'success' : 'light'
+            }
+            disabled={loading || userLocalStorage === undefined}
+          >
+            Cancel Escrow
+          </Button>
+          <RunDemoResult response={response} />
+        </>
+      ) : (
+        <CardanoWallet />
+      )}
+      <RunDemoResult response={responseError} label="Error" />
+    </Card>
+  );
 }

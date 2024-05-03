@@ -23,11 +23,6 @@ export default function MarketplaceCancelAsset() {
 }
 
 function Left() {
-  let code = `async marketplace.delistAsset(\n`;
-  code += `  address: string,\n`;
-  code += `  asset: string,\n`;
-  code += `  price: number\n`;
-  code += `)`;
   return (
     <>
       <p>
@@ -35,11 +30,14 @@ function Left() {
         at any time. The seller will receive the listed asset back.
       </p>
       <p>
-        <code>address</code> is the seller's address. <code>asset</code> is the
-        listed asset's <code>unit</code>. <code>price</code> is the listed price
-        in Lovelace.
+        This function, <code>delistAsset()</code>, is used to cancel a listing
+        on the marketplace. The function accepts the following parameters:
       </p>
-      <Codeblock data={code} isJson={false} />
+      <ul>
+        <li>
+          <b>utxo (UTxO)</b> - unspent transaction output in the script
+        </li>
+      </ul>
     </>
   );
 }
@@ -53,8 +51,6 @@ function Right() {
     'mesh_marketplace_demo',
     {}
   );
-
-  let code1 = ``;
 
   async function rundemo() {
     setLoading(true);
@@ -82,9 +78,15 @@ function Right() {
     setLoading(false);
   }
 
+  let code = ``;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `const tx = await contract.delistAsset(utxo);\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <Card>
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
           <Button

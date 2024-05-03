@@ -23,11 +23,6 @@ export default function MarketplaceListAsset() {
 }
 
 function Left() {
-  let code = ``;
-  code += `const tx = await contract.listAsset('${asset}', 10000000);\n`;
-  code += `const signedTx = await wallet.signTx(tx);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
-
   return (
     <>
       <p>
@@ -48,7 +43,6 @@ function Left() {
           <b>price (number)</b> - the listing price in Lovelace
         </li>
       </ul>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -71,7 +65,6 @@ function Right() {
 
     try {
       const contract = getContract(wallet);
-
       const tx = await contract.listAsset(asset, listPrice);
       const signedTx = await wallet.signTx(tx);
       const txHash = await wallet.submitTx(signedTx);
@@ -83,6 +76,11 @@ function Right() {
     setLoading(false);
   }
 
+  let code = ``;
+  code += `const tx = await contract.listAsset('${asset}', ${listPrice});\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <Card>
       <Input
@@ -91,6 +89,7 @@ function Right() {
         placeholder="Listing price in Lovelace"
         label="Listing price in Lovelace"
       />
+      <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
           <Button

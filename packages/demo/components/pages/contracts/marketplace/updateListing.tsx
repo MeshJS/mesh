@@ -23,13 +23,6 @@ export default function MarketplaceUpdateListing() {
 }
 
 function Left() {
-  let code = `async marketplace.relistAsset(\n`;
-  code += `  address: string,\n`;
-  code += `  asset: string,\n`;
-  code += `  oldPrice: number\n`;
-  code += `  newPrice: number\n`;
-  code += `)`;
-
   return (
     <>
       <p>
@@ -37,13 +30,17 @@ function Left() {
         update the listing price.
       </p>
       <p>
-        <code>address</code> is the seller's address. <code>asset</code> is the
-        listed asset's <code>unit</code>. <code>oldPrice</code> is the listed
-        price in Lovelace. <code>newPrice</code> is the updated listed price in
-        Lovelace.
+        This function, <code>relistAsset()</code>, is used to update a listing
+        on the marketplace. The function accepts the following parameters:
       </p>
-      <Codeblock data={code} isJson={false} />
-      <p>It is important to update the updated listing price in a database.</p>
+      <ul>
+        <li>
+          <b>utxo (UTxO)</b> - unspent transaction output in the script
+        </li>
+        <li>
+          <b>newListPrice (number)</b> - the new listing price in Lovelace
+        </li>
+      </ul>
     </>
   );
 }
@@ -58,14 +55,6 @@ function Right() {
     {}
   );
   const [newListPrice, updateNewListPrice] = useState<number>(20000000);
-
-  let code1 = ``;
-  // code1 += `const txHash = await marketplace.relistAsset(\n`;
-  // code1 += `  '${sellerAddress}',\n`;
-  // code1 += `  '${asset}',\n`;
-  // code1 += `  ${listPrice},\n`;
-  // code1 += `  ${newListPrice}\n`;
-  // code1 += `);\n`;
 
   async function rundemo() {
     setLoading(true);
@@ -94,6 +83,12 @@ function Right() {
     setLoading(false);
   }
 
+  let code = ``;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `const tx = await contract.relistAsset(utxo, ${newListPrice});\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <Card>
       <Input
@@ -103,7 +98,8 @@ function Right() {
         label="New listing price in Lovelace"
       />
 
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
+
       {connected ? (
         <>
           <Button

@@ -22,12 +22,6 @@ export default function GiftcardRedeem() {
 }
 
 function Left() {
-  let code = ``;
-  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
-  code += `const tx = await contract.redeemGiftCard(utxo);\n`;
-  code += `const signedTx = await wallet.signTx(tx, true);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
-
   return (
     <>
       <p>
@@ -45,7 +39,6 @@ function Left() {
         wallet signing this transaction.
       </p>
       <p>The code snippet below demonstrates how to redeem a gift card.</p>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -86,33 +79,36 @@ function Right() {
     setLoading(false);
   }
 
-  if (userLocalStorage) {
-    return (
-      <Card>
-        <p>
-          This demo, we will redeem the giftcard that was created in the
-          previous step. You may connect with another wallet to claim the
-          giftcard
-        </p>
-        {connected ? (
-          <>
-            <Button
-              onClick={() => rundemo()}
-              style={
-                loading ? 'warning' : response !== null ? 'success' : 'light'
-              }
-              disabled={loading}
-            >
-              Redeem Giftcard
-            </Button>
-            <RunDemoResult response={response} />
-          </>
-        ) : (
-          <CardanoWallet />
-        )}
-        <RunDemoResult response={responseError} label="Error" />
-      </Card>
-    );
-  }
-  return <></>;
+  let code = ``;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `const tx = await contract.redeemGiftCard(utxo);\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
+  return (
+    <Card>
+      <p>
+        This demo, we will redeem the giftcard that was created in the previous
+        step. You may connect with another wallet to claim the giftcard
+      </p>
+      <Codeblock data={code} isJson={false} />
+      {connected ? (
+        <>
+          <Button
+            onClick={() => rundemo()}
+            style={
+              loading ? 'warning' : response !== null ? 'success' : 'light'
+            }
+            disabled={loading || userLocalStorage === undefined}
+          >
+            Redeem Giftcard
+          </Button>
+          <RunDemoResult response={response} />
+        </>
+      ) : (
+        <CardanoWallet />
+      )}
+      <RunDemoResult response={responseError} label="Error" />
+    </Card>
+  );
 }

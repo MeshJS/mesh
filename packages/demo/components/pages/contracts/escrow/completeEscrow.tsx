@@ -22,15 +22,6 @@ export default function EscrowComplete() {
 }
 
 function Left() {
-  let code = ``;
-  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
-  code += `const tx = await contract.completeEscrow(utxo);\n`;
-  code += `const signedTxUserA = await wallet.signTx(tx, true);\n`;
-
-  let code2 = ``;
-  code2 += `const signedTxUserB = await wallet.signTx(signedTxUserA, true);\n`;
-  code2 += `const txHash = await wallet.submitTx(signedTxUserB);\n`;
-
   return (
     <>
       <p>
@@ -53,16 +44,6 @@ function Left() {
           the transaction to complete the escrow.
         </b>
       </p>
-      <p>
-        User A completes the escrow by calling the `completeEscrow()` function
-        and partial sign the transaction.
-      </p>
-      <Codeblock data={code} isJson={false} />
-      <p>
-        And the signed transaction will be handled to User B to sign the
-        transaction and submits it to the blockchain to complete the escrow.
-      </p>
-      <Codeblock data={code2} isJson={false} />
     </>
   );
 }
@@ -122,47 +103,68 @@ function Right() {
     setLoading(false);
   }
 
-  if (userLocalStorage) {
-    return (
-      <Card>
-        <p>
-          This is a multi-signature transaction. After the recipient has
-          deposited the assets, this final transaction requires both signatures.
-        </p>
-        <p>
-          In this demo, you can connect with one of the wallet to sign
-          transaction. Then connect with another wallet, refresh this page, and
-          complete the escrow.
-        </p>
-        {connected ? (
-          <>
-            <Button
-              onClick={() => rundemo()}
-              style={
-                loading ? 'warning' : response !== null ? 'success' : 'light'
-              }
-              disabled={loading}
-            >
-              Sign Transaction
-            </Button>
-            <Button
-              onClick={() => rundemo2()}
-              style={
-                loading ? 'warning' : response !== null ? 'success' : 'light'
-              }
-              disabled={loading || userLocalStorage_tx === undefined}
-            >
-              Complete Escrow
-            </Button>
+  let code = ``;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `const tx = await contract.completeEscrow(utxo);\n`;
+  code += `const signedTxUserA = await wallet.signTx(tx, true);\n`;
 
-            <RunDemoResult response={response} />
-          </>
-        ) : (
-          <CardanoWallet />
-        )}
-        <RunDemoResult response={responseError} label="Error" />
-      </Card>
-    );
-  }
-  return <></>;
+  let code2 = ``;
+  code2 += `const signedTxUserB = await wallet.signTx(signedTxUserA, true);\n`;
+  code2 += `const txHash = await wallet.submitTx(signedTxUserB);\n`;
+
+  return (
+    <Card>
+      <p>
+        This is a multi-signature transaction. After the recipient has deposited
+        the assets, this final transaction requires both signatures.
+      </p>
+      <p>
+        In this demo, you can connect with one of the wallet to sign
+        transaction. Then connect with another wallet, refresh this page, and
+        complete the escrow.
+      </p>
+      <p>
+        User A completes the escrow by calling the `completeEscrow()` function
+        and partial sign the transaction.
+      </p>
+      <Codeblock data={code} isJson={false} />
+      {connected ? (
+        <>
+          <Button
+            onClick={() => rundemo()}
+            style={
+              loading ? 'warning' : response !== null ? 'success' : 'light'
+            }
+            disabled={loading || userLocalStorage === undefined}
+          >
+            Sign Transaction
+          </Button>
+        </>
+      ) : (
+        <CardanoWallet />
+      )}
+      <p>
+        And the signed transaction will be handled to User B to sign the
+        transaction and submits it to the blockchain to complete the escrow.
+      </p>
+      <Codeblock data={code2} isJson={false} />
+      {connected ? (
+        <>
+          <Button
+            onClick={() => rundemo2()}
+            style={
+              loading ? 'warning' : response !== null ? 'success' : 'light'
+            }
+            disabled={loading || userLocalStorage_tx === undefined}
+          >
+            Complete Escrow
+          </Button>
+        </>
+      ) : (
+        <CardanoWallet />
+      )}
+      <RunDemoResult response={response} />
+      <RunDemoResult response={responseError} label="Error" />
+    </Card>
+  );
 }

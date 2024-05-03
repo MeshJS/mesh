@@ -23,23 +23,22 @@ export default function MarketplaceBuyAsset() {
 }
 
 function Left() {
-  let code = `async marketplace.purchaseAsset(\n`;
-  code += `  address: string,\n`;
-  code += `  asset: string,\n`;
-  code += `  price: number\n`;
-  code += `)`;
   return (
     <>
       <p>
         Purchase a listed asset from the marketplace. The seller will receive
-        the listed price in ADA and the buyer will receive the asset.
+        the listed price in ADA and the buyer will receive the asset. The
+        marketplace owner will receive a fee if it is specified.
       </p>
-      <Codeblock data={code} isJson={false} />
       <p>
-        <code>address</code> is the seller's address. <code>asset</code> is the
-        listed asset's <code>unit</code>. <code>price</code> is the listed price
-        in Lovelace.
+        This function, <code>purchaseAsset()</code>, is used to purchase a
+        listed asset. The function accepts the following parameters:
       </p>
+      <ul>
+        <li>
+          <b>utxo (UTxO)</b> - unspent transaction output in the script
+        </li>
+      </ul>
     </>
   );
 }
@@ -53,25 +52,6 @@ function Right() {
     'mesh_marketplace_demo',
     {}
   );
-  const [listPrice, updateListPrice] = useState<number>(price);
-  const [sellerAddress, updateSellerAddress] =
-    useState<string>('SELLER ADDRESS');
-
-  let code1 = ``;
-  code1 += `const txHash = await marketplace.purchaseAsset(\n`;
-  code1 += `  '${sellerAddress}',\n`;
-  code1 += `  '${asset}',\n`;
-  code1 += `  ${listPrice}\n`;
-  code1 += `);\n`;
-
-  useEffect(() => {
-    if (userLocalStorage.listPrice) {
-      updateListPrice(userLocalStorage.listPrice);
-    }
-    if (userLocalStorage.sellerAddress) {
-      updateSellerAddress(userLocalStorage.sellerAddress);
-    }
-  }, []);
 
   async function rundemo() {
     setLoading(true);
@@ -81,7 +61,6 @@ function Right() {
     try {
       const contract = getContract(wallet);
 
-      console.log(3, userLocalStorage);
       const utxo = await contract.getUtxoByTxHash(userLocalStorage);
 
       if (!utxo) {
@@ -101,9 +80,15 @@ function Right() {
     setLoading(false);
   }
 
+  let code = ``;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `const tx = await contract.purchaseAsset(utxo);\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <Card>
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
           <Button

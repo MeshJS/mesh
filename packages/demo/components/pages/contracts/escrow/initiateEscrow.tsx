@@ -23,18 +23,6 @@ export default function EscrowInitiate() {
 }
 
 function Left() {
-  let code = ``;
-  code += `const escrowAmount: Asset[] = [\n`;
-  code += `  {\n`;
-  code += `    unit: 'lovelace',\n`;
-  code += `    quantity: '10000000',\n`;
-  code += `  },\n`;
-  code += `];\n`;
-  code += ` \n`;
-  code += `const tx = await contract.initiateEscrow(escrowAmount);\n`;
-  code += `const signedTx = await wallet.signTx(tx);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);`;
-
   return (
     <>
       <p>An escrow is initiated by one of the party, user A.</p>
@@ -52,7 +40,6 @@ function Left() {
         The function returns a transaction hex if the escrow is successfully
         initiated.
       </p>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -93,9 +80,22 @@ function Right() {
     setLoading(false);
   }
 
+  let code = ``;
+  code += `const escrowAmount: Asset[] = [\n`;
+  code += `  {\n`;
+  code += `    unit: 'lovelace',\n`;
+  code += `    quantity: '10000000',\n`;
+  code += `  },\n`;
+  code += `];\n`;
+  code += ` \n`;
+  code += `const tx = await contract.initiateEscrow(escrowAmount);\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);`;
+
   return (
     <Card>
       <p>This demo, wallet A initiate an escrow with 10 ADA.</p>
+      <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
           <Button

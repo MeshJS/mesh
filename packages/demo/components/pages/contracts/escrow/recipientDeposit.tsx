@@ -24,20 +24,6 @@ export default function EscrowDeposit() {
 }
 
 function Left() {
-  let code = ``;
-  code += `const depositAmount: Asset[] = [\n`;
-  code += `  {\n`;
-  code += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
-  code += `    quantity: '1',\n`;
-  code += `  },\n`;
-  code += `];\n`;
-  code += `\n`;
-  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
-  code += `\n`;
-  code += `const tx = await contract.recipientDeposit(utxo, depositAmount);\n`;
-  code += `const signedTx = await wallet.signTx(tx, true);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
-
   return (
     <>
       <p>User B can deposit funds into the escrow after initiation.</p>
@@ -55,7 +41,6 @@ function Left() {
           sending
         </li>
       </ul>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -105,33 +90,45 @@ function Right() {
     setLoading(false);
   }
 
-  if (userLocalStorage) {
-    return (
-      <Card>
-        <p>
-          Connect with wallet B to deposit assets. This demo will deposit 1 Mesh
-          Token (you can mint it{' '}
-          <Link href="/apis/transaction/minting">here</Link>).
-        </p>
-        {connected ? (
-          <>
-            <Button
-              onClick={() => rundemo()}
-              style={
-                loading ? 'warning' : response !== null ? 'success' : 'light'
-              }
-              disabled={loading}
-            >
-              Deposit Fund
-            </Button>
-            <RunDemoResult response={response} />
-          </>
-        ) : (
-          <CardanoWallet />
-        )}
-        <RunDemoResult response={responseError} label="Error" />
-      </Card>
-    );
-  }
-  return <></>;
+  let code = ``;
+  code += `const depositAmount: Asset[] = [\n`;
+  code += `  {\n`;
+  code += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
+  code += `    quantity: '1',\n`;
+  code += `  },\n`;
+  code += `];\n`;
+  code += `\n`;
+  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
+  code += `\n`;
+  code += `const tx = await contract.recipientDeposit(utxo, depositAmount);\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
+  return (
+    <Card>
+      <p>
+        Connect with wallet B to deposit assets. This demo will deposit 1 Mesh
+        Token (you can mint it{' '}
+        <Link href="/apis/transaction/minting">here</Link>).
+      </p>
+      <Codeblock data={code} isJson={false} />
+      {connected ? (
+        <>
+          <Button
+            onClick={() => rundemo()}
+            style={
+              loading ? 'warning' : response !== null ? 'success' : 'light'
+            }
+            disabled={loading || userLocalStorage === undefined}
+          >
+            Deposit Fund
+          </Button>
+          <RunDemoResult response={response} />
+        </>
+      ) : (
+        <CardanoWallet />
+      )}
+      <RunDemoResult response={responseError} label="Error" />
+    </Card>
+  );
 }

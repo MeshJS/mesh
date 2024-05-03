@@ -24,28 +24,6 @@ export default function VestingDepositFund() {
 }
 
 function Left() {
-  let code = ``;
-  code += `const assets: Asset[] = [\n`;
-  code += `  {\n`;
-  code += `    unit: 'lovelace',\n`;
-  code += `    quantity: '8000000',\n`;
-  code += `  },\n`;
-  code += `];\n`;
-  code += `\n`;
-  code += `const lockUntilTimeStamp = new Date();\n`;
-  code += `lockUntilTimeStamp.setMinutes(lockUntilTimeStamp.getMinutes() + 1);\n`;
-  code += `\n`;
-  code += `const beneficiary = 'addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9';\n`;
-  code += `\n`;
-  code += `const tx = await contract.depositFund(\n`;
-  code += `  assets,\n`;
-  code += `  lockUntilTimeStamp.getTime(),\n`;
-  code += `  beneficiary\n`;
-  code += `);\n`;
-  code += `\n`;
-  code += `const signedTx = await wallet.signTx(tx);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
-
   return (
     <>
       <p>
@@ -68,7 +46,6 @@ function Left() {
           <b>beneficiary (string)</b> - address of the beneficiary
         </li>
       </ul>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -120,6 +97,28 @@ function Right() {
     setLoading(false);
   }
 
+  let code = ``;
+  code += `const assets: Asset[] = [\n`;
+  code += `  {\n`;
+  code += `    unit: 'lovelace',\n`;
+  code += `    quantity: '8000000',\n`;
+  code += `  },\n`;
+  code += `];\n`;
+  code += `\n`;
+  code += `const lockUntilTimeStamp = new Date();\n`;
+  code += `lockUntilTimeStamp.setMinutes(lockUntilTimeStamp.getMinutes() + 1);\n`;
+  code += `\n`;
+  code += `const beneficiary = 'addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9';\n`;
+  code += `\n`;
+  code += `const tx = await contract.depositFund(\n`;
+  code += `  assets,\n`;
+  code += `  lockUntilTimeStamp.getTime(),\n`;
+  code += `  beneficiary\n`;
+  code += `);\n`;
+  code += `\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <Card>
       <p>
@@ -128,6 +127,7 @@ function Right() {
         <code>addr_test1qpvx0...u0nq93swx9</code>, the seed phrase can be found{' '}
         <Link href="https://meshjs.dev/apis/appwallet#loadWallet">here</Link>.
       </p>
+      <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
           <Button

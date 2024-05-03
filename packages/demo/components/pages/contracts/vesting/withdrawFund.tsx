@@ -23,12 +23,6 @@ export default function VestingWithdrawFund() {
 }
 
 function Left() {
-  let code = ``;
-  code += 'const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n';
-  code += 'const tx = await contract.withdrawFund(utxo);\n';
-  code += 'const signedTx = await wallet.signTx(tx, true);\n';
-  code += 'const txHash = await wallet.submitTx(signedTx);\n';
-
   return (
     <>
       <p>
@@ -45,7 +39,6 @@ function Left() {
           <b>vestingUtxo (UTxO)</b> - unspent transaction output in the script
         </li>
       </ul>
-      <Codeblock data={code} isJson={false} />
     </>
   );
 }
@@ -85,13 +78,22 @@ function Right() {
     setLoading(false);
   }
 
+  let code = ``;
+  code += 'const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n';
+  code += 'const tx = await contract.withdrawFund(utxo);\n';
+  code += 'const signedTx = await wallet.signTx(tx, true);\n';
+  code += 'const txHash = await wallet.submitTx(signedTx);\n';
+
   return (
     <Card>
       <p>
-        For this demo, connect with the{' '}
-        <Link href="https://meshjs.dev/apis/appwallet#loadWallet">wallet</Link>,
-        to withdraw funds from the vesting contract.
+        For this demo, connect with{' '}
+        <Link href="https://meshjs.dev/apis/appwallet#loadWallet">
+          Mesh's "solution" wallet
+        </Link>
+        , to withdraw funds from the vesting contract.
       </p>
+      <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
           <Button
