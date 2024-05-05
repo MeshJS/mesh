@@ -1,4 +1,5 @@
 import { DocumentTextIcon } from '@heroicons/react/24/solid';
+import Link from 'next/link';
 
 export default function Hero() {
   return (
@@ -34,28 +35,13 @@ export default function Hero() {
             {/* <li>deposit asset</li>
             <li>withdraw asset</li> */}
           </ul>
-          {/* <p>
-            Do check out the{' '}
-            <Link href="/guides/custom-marketplace">guide</Link> and the{' '}
-            <Link href="/starter-templates">marketplace starter kit</Link> that
-            might help you get started. This contract is written in{' '}
-            <a
-              href="https://pluts.harmoniclabs.tech/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              plu-ts
-            </a>
-            , you can{' '}
-            <a
-              href="https://github.com/MeshJS/mesh/blob/main/packages/contracts/src/marketplace/contract.ts"
-              target="_blank"
-              rel="noreferrer"
-            >
-              view the contract on GitHub
-            </a>
+          <p>
+            Both on-chain and off-chain codes are open-source and available on{' '}
+            <Link href="https://github.com/MeshJS/mesh/tree/main/packages/contracts/src/coupon-bond-guaranteed">
+              Mesh Github Repository
+            </Link>
             .
-          </p> */}
+          </p>
         </div>
       </div>
     </>

@@ -89,6 +89,13 @@ export default function Hero() {
             will take. The fee numerator is in the order of hundreds, for
             example <code>200</code> implies a fee of <code>2%</code>.
           </p>
+          <p>
+            Both on-chain and off-chain codes are open-source and available on{' '}
+            <Link href="https://github.com/MeshJS/mesh/tree/main/packages/contracts/src/marketplace">
+              Mesh Github Repository
+            </Link>
+            .
+          </p>
         </div>
         <div className="col-span-2">
           <Demo />

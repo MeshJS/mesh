@@ -1,207 +1,156 @@
-// import {
-//   IFetcher,
-//   IInitiator,
-//   ISigner,
-//   ISubmitter,
-// } from '@mesh/common/contracts';
-// import { AppWallet } from './app.service';
-// import type { Address, TransactionUnspentOutput } from '@mesh/core';
-// import type { Asset, DataSignature } from '@mesh/common/types';
+import {
+  IFetcher,
+  // IInitiator,
+  // ISigner,
+  ISubmitter,
+} from '@mesh/common/contracts';
+import { AppWallet } from './app.service';
+import type { Address } from '@mesh/core';
+import type { Asset, DataSignature, UTxO } from '@mesh/common/types';
+import { fromTxUnspentOutput } from '@mesh/common/utils';
 
-// export type CreateAppWalletOptions = {
-//   networkId: number;
-//   fetcher: IFetcher;
-//   submitter: ISubmitter;
-//   key:
-//     | {
-//         type: 'root';
-//         bech32: string;
-//       }
-//     | {
-//         type: 'cli';
-//         payment: string;
-//         stake?: string;
-//       }
-//     | {
-//         type: 'mnemonic';
-//         words: string[];
-//       };
-// };
+export type CreateMeshWalletOptions = {
+  networkId: number;
+  fetcher: IFetcher;
+  submitter: ISubmitter;
+  key:
+    | {
+        type: 'root';
+        bech32: string;
+      }
+    | {
+        type: 'cli';
+        payment: string;
+        stake?: string;
+      }
+    | {
+        type: 'mnemonic';
+        words: string[];
+      };
+};
 
-// export class MeshWallet implements IInitiator, ISigner, ISubmitter {
-//   private readonly _fetcher: IFetcher;
-//   private readonly _submitter: ISubmitter;
-//   private readonly _wallet: AppWallet;
+export class MeshWallet {
+  // private readonly _fetcher: IFetcher;
+  // private readonly _submitter: ISubmitter;
+  private readonly _wallet: AppWallet;
+  private readonly _network: number;
 
-//   constructor(options: CreateAppWalletOptions) {
-//     this._fetcher = options.fetcher;
-//     this._submitter = options.submitter;
+  constructor(options: CreateMeshWalletOptions) {
+    // this._fetcher = options.fetcher;
+    // this._submitter = options.submitter;
+    this._network = options.networkId;
 
-//     switch (options.key.type) {
-//       case 'root':
-//         this._wallet = new AppWallet({
-//           networkId: 0,
-//           fetcher: options.fetcher,
-//           submitter: options.submitter,
-//           key: {
-//             type: 'root',
-//             bech32: options.key.bech32,
-//           },
-//         });
-//         break;
-//       case 'cli':
-//         this._wallet = new AppWallet({
-//           networkId: 0,
-//           fetcher: options.fetcher,
-//           submitter: options.submitter,
-//           key: {
-//             type: 'cli',
-//             payment: options.key.payment,
-//           },
-//         });
-//         break;
-//       case 'mnemonic':
-//         this._wallet = new AppWallet({
-//           networkId: 0,
-//           fetcher: options.fetcher,
-//           submitter: options.submitter,
-//           key: {
-//             type: 'mnemonic',
-//             words: options.key.words,
-//           },
-//         });
-//         break;
-//     }
-//   }
+    switch (options.key.type) {
+      case 'root':
+        this._wallet = new AppWallet({
+          networkId: options.networkId,
+          fetcher: options.fetcher,
+          submitter: options.submitter,
+          key: {
+            type: 'root',
+            bech32: options.key.bech32,
+          },
+        });
+        break;
+      case 'cli':
+        this._wallet = new AppWallet({
+          networkId: options.networkId,
+          fetcher: options.fetcher,
+          submitter: options.submitter,
+          key: {
+            type: 'cli',
+            payment: options.key.payment,
+          },
+        });
+        break;
+      case 'mnemonic':
+        this._wallet = new AppWallet({
+          networkId: options.networkId,
+          fetcher: options.fetcher,
+          submitter: options.submitter,
+          key: {
+            type: 'mnemonic',
+            words: options.key.words,
+          },
+        });
+        break;
+    }
+  }
 
-//   async getUsedAddress(): Promise<Address> {
-//     const usedAddresses = await this._walletInstance.getUsedAddresses();
-//     return deserializeAddress(usedAddresses[0]);
-//   }
+  async getBalance(): Promise<Asset[]> {
+    const utxos = await this.getUtxos();
 
-//   async getUsedCollateral(
-//     limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs
-//   ): Promise<TransactionUnspentOutput[]> {
-//     const collateral =
-//       (await this._walletInstance.experimental.getCollateral()) ?? [];
-//     return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
-//   }
+    const assets = new Map<string, number>();
+    utxos.map((utxo) => {
+      utxo.output.amount.map((asset) => {
+        const assetId = asset.unit;
+        const amount = Number(asset.quantity);
+        if (assets.has(assetId)) {
+          const quantity = assets.get(assetId)!;
+          assets.set(assetId, quantity + amount);
+        } else {
+          assets.set(assetId, amount);
+        }
+      });
+    });
 
-//   async getUsedUTxOs(
-//     amount: Asset[] | undefined = undefined
-//   ): Promise<TransactionUnspentOutput[]> {
-//     const valueCBOR = amount ? toValue(amount).to_hex() : undefined;
-//     const utxos = (await this._walletInstance.getUtxos(valueCBOR)) ?? [];
-//     return utxos.map((u) => deserializeTxUnspentOutput(u));
-//   }
+    const arrayAssets: Asset[] = Array.from(assets, ([unit, quantity]) => ({
+      unit,
+      quantity: quantity.toString(),
+    }));
 
-//   signData(address: string, payload: string): Promise<DataSignature> {
-//     const signerAddress = toAddress(address).to_hex();
-//     return this._walletInstance.signData(signerAddress, fromUTF8(payload));
-//   }
+    return arrayAssets;
+  }
 
-//   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
-//     try {
-//       const tx = deserializeTx(unsignedTx);
-//       const txWitnessSet = tx.witness_set();
+  getChangeAddress(): string {
+    return this._wallet.getPaymentAddress();
+  }
 
-//       const newWitnessSet = await this._walletInstance.signTx(
-//         unsignedTx,
-//         partialSign
-//       );
+  // async getCollateral(
+  //   limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs
+  // ): Promise<UTxO[]> {
+  // }
 
-//       const newSignatures =
-//         deserializeTxWitnessSet(newWitnessSet).vkeys() ??
-//         csl.Vkeywitnesses.new();
+  getNetworkId(): number {
+    return this._network;
+  }
 
-//       const txSignatures = mergeSignatures(txWitnessSet, newSignatures);
+  async getRewardAddresses(): Promise<string[]> {
+    return [await this._wallet.getRewardAddress()];
+  }
 
-//       txWitnessSet.set_vkeys(txSignatures);
+  getUnusedAddresses(): string[] {
+    return [this.getChangeAddress()];
+  }
 
-//       const signedTx = fromBytes(
-//         csl.Transaction.new(
-//           tx.body(),
-//           txWitnessSet,
-//           tx.auxiliary_data()
-//         ).to_bytes()
-//       );
+  getUsedAddresses(): string[] {
+    return [this.getChangeAddress()];
+  }
 
-//       return signedTx;
-//     } catch (error) {
-//       throw new Error(
-//         `[BrowserWallet] An error occurred during signTx: ${JSON.stringify(
-//           error
-//         )}.`
-//       );
-//     }
-//   }
+  async getUtxos(): Promise<UTxO[]> {
+    const utxos = await this._wallet.getUtxos();
+    return utxos.map((c) => fromTxUnspentOutput(c));
+  }
 
-//   /**
-//    * Experimental feature - sign multiple transactions at once (Supported wallet(s): Typhon)
-//    * @param unsignedTxs - array of unsigned transactions in CborHex string
-//    * @param partialSign - if the transactions are signed partially
-//    * @returns array of signed transactions CborHex string
-//    */
-//   async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
-//     let witnessSets: string[] | undefined = undefined;
-//     // Hardcoded behavior customized for different wallet for now as there is no standard confirmed
-//     switch (this._walletName) {
-//       case 'Typhon Wallet':
-//         if (this._walletInstance.signTxs) {
-//           witnessSets = await this._walletInstance.signTxs(
-//             unsignedTxs,
-//             partialSign
-//           );
-//         }
-//         break;
-//       default:
-//         if (this._walletInstance.signTxs) {
-//           witnessSets = await this._walletInstance.signTxs(
-//             unsignedTxs.map((cbor) => ({
-//               cbor,
-//               partialSign,
-//             }))
-//           );
-//         } else if (this._walletInstance.experimental.signTxs) {
-//           witnessSets = await this._walletInstance.experimental.signTxs(
-//             unsignedTxs.map((cbor) => ({
-//               cbor,
-//               partialSign,
-//             }))
-//           );
-//         }
-//         break;
-//     }
+  signData(address: string, payload: string): DataSignature {
+    return this._wallet.signData(address, payload);
+  }
 
-//     if (!witnessSets) throw new Error('Wallet does not support signTxs');
+  async signTx(unsignedTx: string, partialSign = false): Promise<string> {
+    return await this._wallet.signTx(unsignedTx, partialSign);
+  }
 
-//     const signedTxs: string[] = [];
-//     for (let i = 0; i < witnessSets.length; i++) {
-//       const tx = deserializeTx(unsignedTxs[i]);
-//       const txWitnessSet = tx.witness_set();
+  async submitTx(tx: string): Promise<string> {
+    return await this._wallet.submitTx(tx);
+  }
 
-//       const newSignatures =
-//         deserializeTxWitnessSet(witnessSets[i]).vkeys() ??
-//         csl.Vkeywitnesses.new();
+  getUsedAddress(): Address {
+    return this._wallet.getUsedAddress();
+  }
 
-//       const txSignatures = mergeSignatures(txWitnessSet, newSignatures);
+  // async getUsedCollateral(
+  //   limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs
+  // ): Promise<TransactionUnspentOutput[]> {
 
-//       txWitnessSet.set_vkeys(txSignatures);
-
-//       const signedTx = fromBytes(
-//         csl.Transaction.new(
-//           tx.body(),
-//           txWitnessSet,
-//           tx.auxiliary_data()
-//         ).to_bytes()
-//       );
-
-//       signedTxs.push(signedTx);
-//     }
-//     return signedTxs;
-//   }
-
-//   submitTx(tx: string): Promise<string> {
-//     return this._walletInstance.submitTx(tx);
-//   }
-// }
+  // }
+}

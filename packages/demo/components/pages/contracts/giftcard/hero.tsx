@@ -64,6 +64,13 @@ export default function Hero() {
             and <code>MeshGiftCardContract</code>.
           </p>
           <Codeblock data={code} isJson={false} />
+          <p>
+            Both on-chain and off-chain codes are open-source and available on{' '}
+            <Link href="https://github.com/MeshJS/mesh/tree/main/packages/contracts/src/giftcard">
+              Mesh Github Repository
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </>
