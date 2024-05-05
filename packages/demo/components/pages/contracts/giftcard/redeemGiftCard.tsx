@@ -25,7 +25,7 @@ function Left() {
   return (
     <>
       <p>
-        This function, <code>redeemGiftCard()</code>, is used to redeem a gift
+        <code>redeemGiftCard()</code> redeem a gift
         card. The function accepts the following parameters:
       </p>
       <ul>

@@ -28,11 +28,10 @@ function Left() {
     <>
       <p>
         Party A will deposit funds into the vesting contract, defining the
-        locking period and the beneficiary address. The code snippet below shows
-        how to deposit 8 ADA into the vesting contract.
+        locking period and the beneficiary address.
       </p>
       <p>
-        This function, <code>depositFund()</code>, is used to deposit funds into
+        <code>depositFund()</code> deposit funds into
         a vesting contract. The function accepts the following parameters:
       </p>
       <ul>
@@ -122,10 +121,9 @@ function Right() {
   return (
     <Card>
       <p>
-        In this demo, we will deposit 8 ADA to the vesting contract. This
-        vesting is only 1 minute long and the beneficiary address is:{' '}
-        <code>addr_test1qpvx0...u0nq93swx9</code>, the seed phrase can be found{' '}
-        <Link href="https://meshjs.dev/apis/appwallet#loadWallet">here</Link>.
+        We will deposit 8 ADA to the vesting contract. This vesting period is 1
+        minute and the beneficiary address is:{' '}
+        <code>addr_test1qpvx0...u0nq93swx9</code>.
       </p>
       <Codeblock data={code} isJson={false} />
       {connected ? (

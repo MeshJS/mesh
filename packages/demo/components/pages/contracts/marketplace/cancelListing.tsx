@@ -30,7 +30,7 @@ function Left() {
         at any time. The seller will receive the listed asset back.
       </p>
       <p>
-        This function, <code>delistAsset()</code>, is used to cancel a listing
+        <code>delistAsset()</code> cancel a listing
         on the marketplace. The function accepts the following parameters:
       </p>
       <ul>

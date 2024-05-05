@@ -31,7 +31,7 @@ function Left() {
         marketplace owner will receive a fee if it is specified.
       </p>
       <p>
-        This function, <code>purchaseAsset()</code>, is used to purchase a
+        <code>purchaseAsset()</code> purchase a
         listed asset. The function accepts the following parameters:
       </p>
       <ul>

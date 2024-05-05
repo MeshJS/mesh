@@ -29,7 +29,7 @@ function Left() {
         completion can be initiated by any recipient of the escrow.
       </p>
       <p>
-        This function, `completeEscrow()`, is used to complete an escrow. The
+        <code>completeEscrow()</code> complete an escrow. The
         function accepts the following parameters:
       </p>
       <ul>

@@ -26,19 +26,20 @@ export default function EscrowDeposit() {
 function Left() {
   return (
     <>
-      <p>User B can deposit funds into the escrow after initiation.</p>
       <p>
-        This function, `recipientDeposit()`, is used to deposit funds into the
+        User B can deposit funds into the escrow after initiation step (
+        <code>initiateEscrow()</code>).
+      </p>
+      <p>
+        <code>recipientDeposit()</code> deposit funds into the
         escrow. The function accepts the following parameters:
       </p>
       <ul>
         <li>
-          <b>escrowUtxo (UTxO)</b> - the utxo of the transaction after{' '}
-          <code>initiateEscrow()</code>
+          <b>escrowUtxo (UTxO)</b> - the utxo of the transaction on the contract
         </li>
         <li>
-          <b>depositAmount (Asset[])</b> - a list of assets user B is trading /
-          sending
+          <b>depositAmount (Asset[])</b> - a list of assets user B is trading
         </li>
       </ul>
     </>

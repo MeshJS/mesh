@@ -26,7 +26,7 @@ function Left() {
   return (
     <>
       <p>
-        This function, `createGiftCard()`, is used to create a gift card. The
+        <code>createGiftCard()</code> create a gift card. The
         function accepts the following parameters:
       </p>
       <ul>

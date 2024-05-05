@@ -28,9 +28,10 @@ function Left() {
         A user can cancel an escrow if the other party fails to fulfill the
         terms of the agreement. Cancel can be initiated by any users who have
         partcipated in the escrow and can be done at any time before complete.
+        Canceling the escrow will return the assets to the respective users.
       </p>
       <p>
-        This function, `cancelEscrow()`, is used to cancel an escrow. The
+        <code>cancelEscrow()</code> cancel an escrow. The
         function accepts the following parameters:
       </p>
       <ul>

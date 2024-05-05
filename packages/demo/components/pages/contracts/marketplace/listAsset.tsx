@@ -32,7 +32,7 @@ function Left() {
         price at any time.
       </p>
       <p>
-        This function, `listAsset()`, is used to list an asset for sale. The
+        <code>listAsset()</code> list an asset for sale. The
         function accepts the following parameters:
       </p>
       <ul>

@@ -3,7 +3,7 @@ import Hero from './hero';
 // import VestingDepositFund from './depositFund';
 // import VestingWithdrawFund from './withdrawFund';
 
-export default function ContractsSwap() {
+export default function ContractsCouponBondGuaranteed() {
   const sidebarItems = [
     // { label: 'Deposit Fund', to: 'depositFund' },
     // { label: 'Withdraw Fund', to: 'withdrawFund' },

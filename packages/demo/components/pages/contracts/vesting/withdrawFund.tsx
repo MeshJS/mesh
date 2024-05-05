@@ -27,11 +27,10 @@ function Left() {
     <>
       <p>
         After the lockup period has expired, the beneficiary can withdraw the
-        funds from the vesting contract. The code snippet below demonstrates how
-        to withdraw funds from the vesting contract.
+        funds from the vesting contract.
       </p>
       <p>
-        This function, <code>withdrawFund()</code>, is used to withdraw funds
+        <code>withdrawFund()</code> withdraw funds
         from a vesting contract. The function accepts the following parameters:
       </p>
       <ul>

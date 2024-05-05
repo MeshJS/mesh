@@ -30,7 +30,7 @@ function Left() {
         update the listing price.
       </p>
       <p>
-        This function, <code>relistAsset()</code>, is used to update a listing
+        <code>relistAsset()</code> update a listing
         on the marketplace. The function accepts the following parameters:
       </p>
       <ul>

@@ -25,15 +25,17 @@ export default function EscrowInitiate() {
 function Left() {
   return (
     <>
-      <p>An escrow is initiated by one of the party, user A.</p>
       <p>
-        This function, `initiateEscrow()`, is used to initiate an escrow. The
+        An escrow is initiated by one of the party, user A, by locking assets to
+        the escrow contract.
+      </p>
+      <p>
+        <code>initiateEscrow()</code> initiate an escrow. The
         function accepts the following parameters:
       </p>
       <ul>
         <li>
-          <b>escrowAmount (Asset[])</b> - a list of assets user A is trading /
-          sending
+          <b>escrowAmount (Asset[])</b> - a list of assets user A is trading
         </li>
       </ul>
       <p>

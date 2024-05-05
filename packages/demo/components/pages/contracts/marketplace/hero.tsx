@@ -13,9 +13,7 @@ export default function Hero() {
   codeInit += `import { MeshMarketplaceContract } from '@meshsdk/contracts';\n`;
   codeInit += `import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';\n`;
   codeInit += `\n`;
-  codeInit += `const blockchainProvider = new BlockfrostProvider(\n`;
-  codeInit += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
-  codeInit += `);\n`;
+  codeInit += `const blockchainProvider = new BlockfrostProvider(APIKEY);\n`;
   codeInit += `\n`;
   codeInit += `const meshTxBuilder = new MeshTxBuilder({\n`;
   codeInit += `  fetcher: blockchainProvider,\n`;
@@ -88,8 +86,8 @@ export default function Hero() {
             is the address of the marketplace owner which will receive the
             marketplace fee. The <code>feePercentageBasisPoint</code> is the
             percentage of the sale price that the marketplace <code>owner</code>{' '}
-            will take. Note that, the fee numerator is in the order of millions,
-            for example <code>200</code> implies a fee of <code>2%</code>.
+            will take. The fee numerator is in the order of hundreds, for
+            example <code>200</code> implies a fee of <code>2%</code>.
           </p>
         </div>
         <div className="col-span-2">

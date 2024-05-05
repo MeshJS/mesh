@@ -8,9 +8,9 @@ import EscrowDeposit from './recipientDeposit';
 export default function ContractsEscrow() {
   const sidebarItems = [
     { label: 'Escrow Initiate', to: 'initiateEscrow' },
-    { label: 'Cancel Escrow', to: 'cancelEscrow' },
     { label: 'Recipient Deposit', to: 'recipientDeposit' },
     { label: 'Complete Escrow', to: 'completeEscrow' },
+    { label: 'Cancel Escrow', to: 'cancelEscrow' },
   ];
 
   return (
@@ -25,9 +25,9 @@ function Main() {
   return (
     <>
       <EscrowInitiate />
-      <EscrowCancel />
       <EscrowDeposit />
       <EscrowComplete />
+      <EscrowCancel />
     </>
   );
 }

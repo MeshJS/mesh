@@ -408,6 +408,12 @@ function SubMenuAbout() {
               icon={<WalletIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
+              href={`/about/catalyst`}
+              title="Project Catalyst"
+              desc="Project Catalyst and progress"
+              icon={<BanknotesIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
               href={`/about/cips`}
               title="Implemented CIPs"
               desc="Mesh adhere to standards"

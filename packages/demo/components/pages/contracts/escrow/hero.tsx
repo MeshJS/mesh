@@ -10,9 +10,7 @@ export default function Hero() {
   code += `\n`;
   code += `const { connected, wallet } = useWallet();\n`;
   code += `\n`;
-  code += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
-  code += `);\n`;
+  code += `const blockchainProvider = new BlockfrostProvider(APIKEY);\n`;
   code += `\n`;
   code += `const meshTxBuilder = new MeshTxBuilder({\n`;
   code += `  fetcher: blockchainProvider,\n`;
@@ -46,13 +44,18 @@ export default function Hero() {
       <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
         <div className="col-span-2">
           <p>
+            The escrow smart contract allows two parties to exchange assets
+            securely. The contract holds the assets until both parties agree and
+            sign off on the transaction.
+          </p>
+          <p>
             There are 4 actions available to interact with this smart contract:
           </p>
           <ul>
-            <li>initiate escrow</li>
-            <li>deposit</li>
-            <li>complete</li>
-            <li>cancel</li>
+            <li>initiate escrow and deposit assets</li>
+            <li>deposit assets</li>
+            <li>complete escrow</li>
+            <li>cancel escrow</li>
           </ul>
           <p>
             To initialize the escrow, we need to initialize a{' '}

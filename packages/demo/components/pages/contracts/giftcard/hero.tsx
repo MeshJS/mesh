@@ -10,9 +10,7 @@ export default function Hero() {
   code += `\n`;
   code += `const { connected, wallet } = useWallet();\n`;
   code += `\n`;
-  code += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
-  code += `);\n`;
+  code += `const blockchainProvider = new BlockfrostProvider(APIKEY);\n`;
   code += `\n`;
   code += `const meshTxBuilder = new MeshTxBuilder({\n`;
   code += `  fetcher: blockchainProvider,\n`;

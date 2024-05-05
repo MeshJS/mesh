@@ -10,9 +10,7 @@ export default function Hero() {
   code += `\n`;
   code += `const { connected, wallet } = useWallet();\n`;
   code += `\n`;
-  code += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code += `  process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!\n`;
-  code += `);\n`;
+  code += `const blockchainProvider = new BlockfrostProvider(APIKEY);\n`;
   code += `\n`;
   code += `const meshTxBuilder = new MeshTxBuilder({\n`;
   code += `  fetcher: blockchainProvider,\n`;
@@ -51,20 +49,9 @@ export default function Hero() {
             of employment. This arrangement often involves the organization
             depositing the funds into a vesting contract, with the employee
             gaining access to the funds upon the completion of a predetermined
-            lockup period. Such a system is designed to incentivize the employee
-            to remain with the organization for the agreed-upon duration,
-            thereby fostering commitment and stability within the workforce.
-          </p>
-          <p>
-            Through the utilization of vesting contracts, organizations
-            establish a mechanism to encourage employee retention by linking
-            financial rewards to tenure. By requiring employees to wait until
-            the end of a designated lockup period before accessing their
-            promised funds, the organization promotes loyalty and long-term
-            engagement among its workforce. This approach serves to align the
-            interests of both the employee and the organization, fostering
-            mutual investment in each other's success and contributing to the
-            establishment of a stable and committed workforce.
+            lockup period. Through the utilization of vesting contracts,
+            organizations establish a mechanism to encourage employee retention
+            by linking financial rewards to tenure.
           </p>
           <p>
             There are 2 actions (or endpoints) available to interact with this
