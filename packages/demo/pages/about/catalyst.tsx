@@ -5,7 +5,7 @@ import Catalyst from '../../components/pages/about/catalyst';
 const MediaPage: NextPage = () => {
   return (
     <>
-      <Metatags title="Catalyst" />
+      <Metatags title="Catalyst" description={`Mesh Catalyst proposals and its progress`} />
       <Catalyst />
     </>
   );

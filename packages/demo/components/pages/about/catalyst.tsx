@@ -27,7 +27,7 @@ function ListOfProposals() {
   return (
     <>
       <CardLink
-        title="Mesh x Defy x Yaci: Private Blockchain Networks for enabling real world financial services and Cardano Adoption (F12)"
+        title="Mesh x Defy x Yaci: Private Blockchain Networks for enabling real world financial services and Cardano Adoption"
         desc="?"
         url=""
         completed={[]}
@@ -37,20 +37,29 @@ function ListOfProposals() {
           `An identity solution, smart contracts that define regulators requirements to support users' identity and KYC records.`,
           `A KYC solution, smart contracts that define regulators requirements to support KYC processes.`,
           `A KYC verification solution, smart contracts that define how users' records are verified which results in reputation scores and incentivization mechanism.`,
-          `Whitepaper about private network and KYC use case`,
+          `Whitepaper for private network and KYC use case`,
         ]}
+        fund={'Fund12'}
+        status={'Voting'}
       />
 
       <CardLink
-        title="zkFold x Defy: Derisking cross-border payments with Zero-Knowledge Proofs (F12)"
+        title="zkFold x Defy: Derisking cross-border payments with Zero-Knowledge Proofs"
         desc="?"
         url=""
         completed={[]}
-        tobecompleted={['?', '?', '?', '?']}
+        tobecompleted={[
+          '?',
+          '?',
+          '?',
+          'Whitepaper for derisking cross-border payments with zero-knowledge proofs',
+        ]}
+        fund={'Fund12'}
+        status={'Voting'}
       />
-      
+
       <CardLink
-        title="Mesh New Features to Improve Developer experience and Cardano Adoption (F12)"
+        title="Mesh New Features to Improve Developer experience and Cardano Adoption"
         desc="?"
         url=""
         completed={[]}
@@ -61,10 +70,12 @@ function ListOfProposals() {
           'Improve error messages',
           'Wallet support for private blockchain networks (Yaci)',
         ]}
+        fund={'Fund12'}
+        status={'Voting'}
       />
 
       <CardLink
-        title="Mesh Software as a Service (F12)"
+        title="Mesh Software as a Service"
         desc="?"
         url=""
         completed={[]}
@@ -75,18 +86,22 @@ function ListOfProposals() {
           'User-defined transaction building',
           'JSON schema for transaction',
         ]}
+        fund={'Fund12'}
+        status={'Voting'}
       />
 
       <CardLink
-        title="Mesh - Advance Cardano SDK in Rust (F12)"
+        title="Mesh - Advance Cardano SDK in Rust"
         desc="?"
         url=""
         completed={[]}
         tobecompleted={['?', '?', '?', '?']}
+        fund={'Fund12'}
+        status={'Voting'}
       />
 
       <CardLink
-        title="Aiken Open-Source Smart Contract Library (F11)"
+        title="Aiken Open-Source Smart Contract Library"
         desc="We create a collection of open-source smart contracts with Aiken (including Workspace, Mesh TX builder components) and integrate them into the Mesh SDK library on Github - open and accessible to all. "
         url="https://projectcatalyst.io/funds/11/cardano-open-developers/aiken-open-source-smart-contract-library-by-meshjs-and-trustlevel"
         completed={[
@@ -102,26 +117,32 @@ function ListOfProposals() {
           'Advanced contract #3',
           'Bad examples',
         ]}
+        fund={'Fund11'}
+        status={'In Progress'}
       />
+
       <CardLink
-        title="Sustain & Maintain MeshJS (F11)"
+        title="Sustain & Maintain MeshJS"
         desc="This proposal enables implementations not limited to Voltaire features, Hydra & Aiken integration, and data providers integrations. Including bounties for issues, features, and learning materials."
         url="https://projectcatalyst.io/funds/11/cardano-open-developers/sustain-and-maintain-meshjs"
         completed={[
           'Lower-level APIs completed',
           'Technical documentation released',
           'Resolved numerous reported GitHub issues',
-          'Active Discord and social to help developers',
+          'Active Discord engagement to help developers',
+          'Transaction building support for Hydra apps',
         ]}
         tobecompleted={[
           'Plutus version 3 integration',
           'Revamped/refactored transaction and utilities class',
           'Conway features',
         ]}
+        fund={'Fund11'}
+        status={'In Progress'}
       />
 
       <CardLink
-        title="Supporting Open-Source Library Development, Developer Resources & Builder Community (F10)"
+        title="Supporting Open-Source Library Development, Developer Resources & Builder Community"
         desc="To guarantee and ensure sustainability of a team dedicated to maintaining and developing one of the best open-source libraries on Cardano, providing devs with something easy-to-use, fun and productive."
         url="https://projectcatalyst.io/funds/10/f10-osde-open-source-dev-ecosystem/meshjs-sdk-operations-supporting-open-source-library-development-developer-resources-and-builder-community"
         completed={[
@@ -129,19 +150,38 @@ function ListOfProposals() {
           'Mesh PBL course content',
           'Workshops and live coding',
           'Community Q&A support',
+          'Demos and tutorials repository',
         ]}
-        tobecompleted={['Mesh PBL Season #1']}
+        tobecompleted={['Mesh PBL Season #1', 'Student projects']}
+        fund={'Fund10'}
+        status={'In Progress'}
       />
     </>
   );
 }
 
-function CardLink({ title, desc, url, completed, tobecompleted }) {
+function CardLink({
+  title,
+  desc,
+  url,
+  completed,
+  tobecompleted,
+  fund,
+  status,
+}) {
   return (
     <div className="block max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
       <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
         {title}
       </h5>
+      <div className="flex gap-2 mb-2">
+        <span className="bg-green-100 text-green-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">
+          {status}
+        </span>
+        <span className="bg-blue-100 text-blue-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+          {fund}
+        </span>
+      </div>
       <p className="font-normal text-gray-700 dark:text-gray-400">{desc}</p>
       <ul className="mt-4 text-sm text-gray-500 dark:text-gray-300">
         {completed.map((item, index) => (

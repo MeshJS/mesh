@@ -251,32 +251,32 @@ function SubMenuSmartContracts() {
             <SubMenuLinks
               href={`/smart-contracts/marketplace`}
               title="Marketplace"
-              desc="Build a NFT marketplace effortlessly."
+              desc="Build a NFT marketplace effortlessly"
               icon={<ShoppingCartIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/smart-contracts/vesting`}
               title="Vesting"
-              desc="Lock assets for a period of time."
+              desc="Lock assets for a period of time"
               icon={<LockClosedIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/smart-contracts/escrow`}
               title="Escrow"
-              desc="Facilitate secure peer to peer transactions."
+              desc="Facilitate secure peer to peer transactions"
               icon={<ArrowsRightLeftIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/smart-contracts/giftcard`}
               title="Giftcard"
-              desc="Send and redeem a gift card."
+              desc="Send and redeem a gift card"
               icon={<GiftIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
-              href={`/smart-contracts/swap`}
-              title="Swap"
-              desc="?"
-              icon={<ArrowsRightLeftIcon className="w-5 h-5" />}
+              href={`/smart-contracts/coupon-bond-guaranteed`}
+              title="Coupon Bond Guaranteed"
+              desc="Debt agreement between Lender and Borrower"
+              icon={<DocumentTextIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
