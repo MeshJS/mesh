@@ -1,13 +1,23 @@
 import {
   IFetcher,
-  // IInitiator,
-  // ISigner,
+  IInitiator,
+  ISigner,
   ISubmitter,
 } from '@mesh/common/contracts';
 import { AppWallet } from './app.service';
-import type { Address } from '@mesh/core';
-import type { Asset, DataSignature, UTxO } from '@mesh/common/types';
-import { fromTxUnspentOutput } from '@mesh/common/utils';
+import type { Address, TransactionUnspentOutput } from '@mesh/core';
+import type {
+  Asset,
+  AssetExtended,
+  DataSignature,
+  UTxO,
+} from '@mesh/common/types';
+import {
+  fromTxUnspentOutput,
+  toUTF8,
+  resolveFingerprint,
+} from '@mesh/common/utils';
+import { POLICY_ID_LENGTH } from '@mesh/common/constants';
 
 export type CreateMeshWalletOptions = {
   networkId: number;
@@ -29,15 +39,11 @@ export type CreateMeshWalletOptions = {
       };
 };
 
-export class MeshWallet {
-  // private readonly _fetcher: IFetcher;
-  // private readonly _submitter: ISubmitter;
+export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   private readonly _wallet: AppWallet;
   private readonly _network: number;
 
   constructor(options: CreateMeshWalletOptions) {
-    // this._fetcher = options.fetcher;
-    // this._submitter = options.submitter;
     this._network = options.networkId;
 
     switch (options.key.type) {
@@ -106,6 +112,7 @@ export class MeshWallet {
     return this._wallet.getPaymentAddress();
   }
 
+  // todo hinson: how to deal with collateral?
   // async getCollateral(
   //   limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs
   // ): Promise<UTxO[]> {
@@ -119,16 +126,18 @@ export class MeshWallet {
     return [await this._wallet.getRewardAddress()];
   }
 
+  // todo hinson: shall we do this? used and unused addresses are the same same change address?
   getUnusedAddresses(): string[] {
     return [this.getChangeAddress()];
   }
 
+  // todo hinson: shall we do this? used and unused addresses are the same same change address?
   getUsedAddresses(): string[] {
     return [this.getChangeAddress()];
   }
 
   async getUtxos(): Promise<UTxO[]> {
-    const utxos = await this._wallet.getUtxos();
+    const utxos = await this.getUsedUTxOs();
     return utxos.map((c) => fromTxUnspentOutput(c));
   }
 
@@ -140,6 +149,23 @@ export class MeshWallet {
     return await this._wallet.signTx(unsignedTx, partialSign);
   }
 
+  /**
+   * Experimental feature - sign multiple transactions at once
+   * @param unsignedTxs - array of unsigned transactions in CborHex string
+   * @param partialSign - if the transactions are signed partially
+   * @returns array of signed transactions CborHex string
+   */
+  async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
+    const signedTxs: string[] = [];
+
+    for (const unsignedTx of unsignedTxs) {
+      const signedTx = await this.signTx(unsignedTx, partialSign);
+      signedTxs.push(signedTx);
+    }
+
+    return signedTxs;
+  }
+
   async submitTx(tx: string): Promise<string> {
     return await this._wallet.submitTx(tx);
   }
@@ -148,9 +174,50 @@ export class MeshWallet {
     return this._wallet.getUsedAddress();
   }
 
-  // async getUsedCollateral(
-  //   limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs
-  // ): Promise<TransactionUnspentOutput[]> {
+  async getUsedCollateral(): Promise<TransactionUnspentOutput[]> {
+    // hinson todo
+    return [];
+  }
 
-  // }
+  async getUsedUTxOs(): Promise<TransactionUnspentOutput[]> {
+    return await this._wallet.getUtxos();
+  }
+
+  async getAssets(): Promise<AssetExtended[]> {
+    const balance = await this.getBalance();
+    return balance
+      .filter((v) => v.unit !== 'lovelace')
+      .map((v) => {
+        const policyId = v.unit.slice(0, POLICY_ID_LENGTH);
+        const assetName = v.unit.slice(POLICY_ID_LENGTH);
+        const fingerprint = resolveFingerprint(policyId, assetName);
+
+        return {
+          unit: v.unit,
+          policyId,
+          assetName: toUTF8(assetName),
+          fingerprint,
+          quantity: v.quantity,
+        };
+      });
+  }
+
+  async getLovelace(): Promise<string> {
+    const balance = await this.getBalance();
+    const nativeAsset = balance.find((v) => v.unit === 'lovelace');
+
+    return nativeAsset !== undefined ? nativeAsset.quantity : '0';
+  }
+
+  async getPolicyIdAssets(policyId: string): Promise<AssetExtended[]> {
+    const assets = await this.getAssets();
+    return assets.filter((v) => v.policyId === policyId);
+  }
+
+  async getPolicyIds(): Promise<string[]> {
+    const balance = await this.getBalance();
+    return Array.from(
+      new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH)))
+    ).filter((p) => p !== 'lovelace');
+  }
 }
