@@ -1,8 +1,9 @@
 import { MeshWallet, BlockfrostProvider, Transaction } from '@meshsdk/core';
-
-/**
- *
- */
+import { ForgeScript } from '@meshsdk/core';
+import type { Mint, AssetMetadata } from '@meshsdk/core';
+import { MeshTxBuilder } from '@meshsdk/core';
+import { MeshEscrowContract } from '@meshsdk/contracts';
+import { useWallet } from '@meshsdk/react';
 
 export default function Mesh() {
   async function getMeshWallet() {
@@ -90,22 +91,54 @@ export default function Mesh() {
 
   async function signData() {
     const wallet = await getMeshWallet();
-    const addresses = await wallet.getUsedAddresses();
-    const signature = await wallet.signData(addresses[0], 'mesh');
+    const signature = await wallet.signData('mesh');
     console.log('signData', signature);
   }
 
   async function signTx() {
     const wallet = await getMeshWallet();
 
-    const tx = new Transaction({ initiator: wallet }).sendLovelace(
-      'addr_test1qp2k7wnshzngpqw0xmy33hvexw4aeg60yr79x3yeeqt3s2uvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysdp6yv3',
-      '5000000'
-    );
+    // simple tx
+
+    // const tx = new Transaction({ initiator: wallet }).sendLovelace(
+    //   'addr_test1qp2k7wnshzngpqw0xmy33hvexw4aeg60yr79x3yeeqt3s2uvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysdp6yv3',
+    //   '5000000'
+    // );
+    // const unsignedTx = await tx.build();
+    // const signedTx = await wallet.signTx(unsignedTx);
+    // const txHash = await wallet.submitTx(signedTx);
+    // console.log('signTx', txHash);
+
+    // minting
+
+    // prepare forgingScript
+    const usedAddress = await wallet.getUsedAddresses();
+    const address = usedAddress[0];
+    const forgingScript = ForgeScript.withOneSignature(address);
+
+    const tx = new Transaction({ initiator: wallet });
+
+    // define asset#1 metadata
+    const assetMetadata1: AssetMetadata = {
+      name: 'Mesh Token',
+      image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
+      mediaType: 'image/jpg',
+      description: 'This NFT was minted by Mesh (https://meshjs.dev/).',
+    };
+    const asset1: Mint = {
+      assetName: 'MeshToken',
+      assetQuantity: '1',
+      metadata: assetMetadata1,
+      label: '721',
+      recipient:
+        'addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr',
+    };
+    tx.mintAsset(forgingScript, asset1);
+
     const unsignedTx = await tx.build();
     const signedTx = await wallet.signTx(unsignedTx);
     const txHash = await wallet.submitTx(signedTx);
-    console.log('signTx', txHash);
+    console.log(1, txHash);
   }
 
   async function getAssets() {
@@ -128,8 +161,59 @@ export default function Mesh() {
 
   async function getPolicyIdAssets() {
     const wallet = await getMeshWallet();
-    const getPolicyIdAssets = await wallet.getPolicyIdAssets('bc63b6d09c843439c476e5f50303e5898568e90398be1d30d67b3aa8');
+    const getPolicyIdAssets = await wallet.getPolicyIdAssets(
+      'bc63b6d09c843439c476e5f50303e5898568e90398be1d30d67b3aa8'
+    );
     console.log('getPolicyIdAssets', getPolicyIdAssets);
+  }
+
+  async function createCollateral() {
+    const wallet = await getMeshWallet();
+    const createCollateral = await wallet.createCollateral();
+    console.log('createCollateral', createCollateral);
+  }
+
+  async function testSmartContract() {
+    const wallet = await getMeshWallet();
+
+    const blockchainProvider = new BlockfrostProvider(
+      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+    );
+
+    const meshTxBuilder = new MeshTxBuilder({
+      fetcher: blockchainProvider,
+      submitter: blockchainProvider,
+    });
+
+    const contract = new MeshEscrowContract({
+      mesh: meshTxBuilder,
+      fetcher: blockchainProvider,
+      wallet: wallet,
+      networkId: 0,
+    });
+
+    // initiateEscrow
+
+    // const escrowAmount = [
+    //   {
+    //     unit: 'lovelace',
+    //     quantity: '10000000',
+    //   },
+    // ];
+
+    // const tx = await contract.initiateEscrow(escrowAmount);
+    // const signedTx = await wallet.signTx(tx);
+    // const txHash = await wallet.submitTx(signedTx);
+    // console.log(1, txHash);
+
+    // cancelEscrow
+    const utxo = await contract.getUtxoByTxHash(
+      '046c3b1f6fda82466b0c231971d50baf150b18a14773c62bb1832c3d8f2969b3'
+    );
+    const tx = await contract.cancelEscrow(utxo);
+    const signedTx = await wallet.signTx(tx, true);
+    const txHash = await wallet.submitTx(signedTx);
+    console.log(1, txHash);
   }
 
   return (
@@ -149,7 +233,8 @@ export default function Mesh() {
         <button onClick={() => getLovelace()}>getLovelace</button>
         <button onClick={() => getPolicyIds()}>getPolicyIds</button>
         <button onClick={() => getPolicyIdAssets()}>getPolicyIdAssets</button>
-        <button onClick={() => getAssets()}>getAssets</button>
+        <button onClick={() => createCollateral()}>createCollateral</button>
+        <button onClick={() => testSmartContract()}>testSmartContract</button>
       </div>
     </>
   );

@@ -28,6 +28,7 @@ import {
   LockClosedIcon,
   ArrowsRightLeftIcon,
   GiftIcon,
+  CodeBracketSquareIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -211,16 +212,22 @@ function SubMenuWallet() {
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
             <SubMenuLinks
-              href={`/apis/appwallet`}
-              title="App Wallet"
-              desc="Wallet for building amazing applications"
-              icon={<WalletIcon className="w-5 h-5" />}
-            />
-            <SubMenuLinks
               href={`/apis/browserwallet`}
               title="Browser Wallet"
               desc="Connect and perform wallet functions on Web3 dApps"
               icon={<BanknotesIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/meshwallet`}
+              title="Mesh Wallet"
+              desc="Wallet for building amazing applications"
+              icon={<WalletIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/appwallet`}
+              title="App Wallet"
+              desc="Lower-level wallet APIs"
+              icon={<CodeBracketSquareIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
