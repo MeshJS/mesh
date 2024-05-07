@@ -15334,7 +15334,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 67,
+							"line": 69,
 							"character": 2
 						}
 					],
@@ -15348,7 +15348,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 67,
+									"line": 69,
 									"character": 2
 								}
 							],
@@ -15388,7 +15388,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 65,
+							"line": 67,
 							"character": 19
 						}
 					],
@@ -15409,7 +15409,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 64,
+							"line": 66,
 							"character": 19
 						}
 					],
@@ -15421,7 +15421,71 @@
 					}
 				},
 				{
-					"id": 1467,
+					"id": 1478,
+					"name": "createCollateral",
+					"variant": "declaration",
+					"kind": 2048,
+					"flags": {},
+					"sources": [
+						{
+							"fileName": "wallet/mesh.service.ts",
+							"line": 392,
+							"character": 8
+						}
+					],
+					"signatures": [
+						{
+							"id": 1479,
+							"name": "createCollateral",
+							"variant": "signature",
+							"kind": 4096,
+							"flags": {},
+							"comment": {
+								"summary": [
+									{
+										"kind": "text",
+										"text": "A helper function to create a collateral input for a transaction."
+									}
+								],
+								"blockTags": [
+									{
+										"tag": "@returns",
+										"content": [
+											{
+												"kind": "text",
+												"text": "a transaction hash"
+											}
+										]
+									}
+								]
+							},
+							"sources": [
+								{
+									"fileName": "wallet/mesh.service.ts",
+									"line": 392,
+									"character": 8
+								}
+							],
+							"type": {
+								"type": "reference",
+								"target": {
+									"sourceFileName": "../../node_modules/typescript/lib/lib.es5.d.ts",
+									"qualifiedName": "Promise"
+								},
+								"typeArguments": [
+									{
+										"type": "intrinsic",
+										"name": "string"
+									}
+								],
+								"name": "Promise",
+								"package": "typescript"
+							}
+						}
+					]
+				},
+				{
+					"id": 1469,
 					"name": "getAssets",
 					"variant": "declaration",
 					"kind": 2048,
@@ -15429,13 +15493,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 302,
+							"line": 333,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1468,
+							"id": 1470,
 							"name": "getAssets",
 							"variant": "signature",
 							"kind": 4096,
@@ -15462,7 +15526,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 302,
+									"line": 333,
 									"character": 8
 								}
 							],
@@ -15498,7 +15562,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 114,
+							"line": 116,
 							"character": 8
 						}
 					],
@@ -15531,7 +15595,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 114,
+									"line": 116,
 									"character": 8
 								}
 							],
@@ -15567,7 +15631,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 144,
+							"line": 146,
 							"character": 2
 						}
 					],
@@ -15600,7 +15664,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 144,
+									"line": 146,
 									"character": 2
 								}
 							],
@@ -15612,7 +15676,76 @@
 					]
 				},
 				{
-					"id": 1469,
+					"id": 1437,
+					"name": "getCollateral",
+					"variant": "declaration",
+					"kind": 2048,
+					"flags": {},
+					"sources": [
+						{
+							"fileName": "wallet/mesh.service.ts",
+							"line": 158,
+							"character": 8
+						}
+					],
+					"signatures": [
+						{
+							"id": 1438,
+							"name": "getCollateral",
+							"variant": "signature",
+							"kind": 4096,
+							"flags": {},
+							"comment": {
+								"summary": [
+									{
+										"kind": "text",
+										"text": "This function shall return a list of one or more UTXOs (unspent transaction outputs) controlled by the wallet that are required to reach AT LEAST the combined ADA value target specified in amount AND the best suitable to be used as collateral inputs for transactions with plutus script inputs (pure ADA-only UTXOs).\n\nIf this cannot be attained, an error message with an explanation of the blocking problem shall be returned. NOTE: wallets are free to return UTXOs that add up to a greater total ADA value than requested in the amount parameter, but wallets must never return any result where UTXOs would sum up to a smaller total ADA value, instead in a case like that an error message must be returned."
+									}
+								],
+								"blockTags": [
+									{
+										"tag": "@returns",
+										"content": [
+											{
+												"kind": "text",
+												"text": "a list of UTXOs"
+											}
+										]
+									}
+								]
+							},
+							"sources": [
+								{
+									"fileName": "wallet/mesh.service.ts",
+									"line": 158,
+									"character": 8
+								}
+							],
+							"type": {
+								"type": "reference",
+								"target": {
+									"sourceFileName": "../../node_modules/typescript/lib/lib.es5.d.ts",
+									"qualifiedName": "Promise"
+								},
+								"typeArguments": [
+									{
+										"type": "array",
+										"elementType": {
+											"type": "reference",
+											"target": 279,
+											"name": "UTxO",
+											"package": "@meshsdk/core"
+										}
+									}
+								],
+								"name": "Promise",
+								"package": "typescript"
+							}
+						}
+					]
+				},
+				{
+					"id": 1471,
 					"name": "getLovelace",
 					"variant": "declaration",
 					"kind": 2048,
@@ -15620,13 +15753,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 326,
+							"line": 357,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1470,
+							"id": 1472,
 							"name": "getLovelace",
 							"variant": "signature",
 							"kind": 4096,
@@ -15653,7 +15786,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 326,
+									"line": 357,
 									"character": 8
 								}
 							],
@@ -15676,7 +15809,7 @@
 					]
 				},
 				{
-					"id": 1437,
+					"id": 1439,
 					"name": "getNetworkId",
 					"variant": "declaration",
 					"kind": 2048,
@@ -15684,13 +15817,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 166,
+							"line": 192,
 							"character": 2
 						}
 					],
 					"signatures": [
 						{
-							"id": 1438,
+							"id": 1440,
 							"name": "getNetworkId",
 							"variant": "signature",
 							"kind": 4096,
@@ -15717,7 +15850,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 166,
+									"line": 192,
 									"character": 2
 								}
 							],
@@ -15729,7 +15862,7 @@
 					]
 				},
 				{
-					"id": 1471,
+					"id": 1473,
 					"name": "getPolicyIdAssets",
 					"variant": "declaration",
 					"kind": 2048,
@@ -15737,13 +15870,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 339,
+							"line": 370,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1472,
+							"id": 1474,
 							"name": "getPolicyIdAssets",
 							"variant": "signature",
 							"kind": 4096,
@@ -15770,13 +15903,13 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 339,
+									"line": 370,
 									"character": 8
 								}
 							],
 							"parameters": [
 								{
-									"id": 1473,
+									"id": 1475,
 									"name": "policyId",
 									"variant": "param",
 									"kind": 32768,
@@ -15811,7 +15944,7 @@
 					]
 				},
 				{
-					"id": 1474,
+					"id": 1476,
 					"name": "getPolicyIds",
 					"variant": "declaration",
 					"kind": 2048,
@@ -15819,13 +15952,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 349,
+							"line": 380,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1475,
+							"id": 1477,
 							"name": "getPolicyIds",
 							"variant": "signature",
 							"kind": 4096,
@@ -15852,7 +15985,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 349,
+									"line": 380,
 									"character": 8
 								}
 							],
@@ -15878,7 +16011,7 @@
 					]
 				},
 				{
-					"id": 1439,
+					"id": 1441,
 					"name": "getRewardAddresses",
 					"variant": "declaration",
 					"kind": 2048,
@@ -15886,13 +16019,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 175,
+							"line": 201,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1440,
+							"id": 1442,
 							"name": "getRewardAddresses",
 							"variant": "signature",
 							"kind": 4096,
@@ -15927,7 +16060,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 175,
+									"line": 201,
 									"character": 8
 								}
 							],
@@ -15953,7 +16086,7 @@
 					]
 				},
 				{
-					"id": 1441,
+					"id": 1443,
 					"name": "getUnusedAddresses",
 					"variant": "declaration",
 					"kind": 2048,
@@ -15961,13 +16094,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 184,
+							"line": 210,
 							"character": 2
 						}
 					],
 					"signatures": [
 						{
-							"id": 1442,
+							"id": 1444,
 							"name": "getUnusedAddresses",
 							"variant": "signature",
 							"kind": 4096,
@@ -15994,7 +16127,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 184,
+									"line": 210,
 									"character": 2
 								}
 							],
@@ -16009,7 +16142,7 @@
 					]
 				},
 				{
-					"id": 1461,
+					"id": 1463,
 					"name": "getUsedAddress",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16017,13 +16150,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 270,
+							"line": 296,
 							"character": 2
 						}
 					],
 					"signatures": [
 						{
-							"id": 1462,
+							"id": 1464,
 							"name": "getUsedAddress",
 							"variant": "signature",
 							"kind": 4096,
@@ -16050,7 +16183,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 270,
+									"line": 296,
 									"character": 2
 								}
 							],
@@ -16077,7 +16210,7 @@
 					}
 				},
 				{
-					"id": 1443,
+					"id": 1445,
 					"name": "getUsedAddresses",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16085,13 +16218,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 194,
+							"line": 220,
 							"character": 2
 						}
 					],
 					"signatures": [
 						{
-							"id": 1444,
+							"id": 1446,
 							"name": "getUsedAddresses",
 							"variant": "signature",
 							"kind": 4096,
@@ -16118,7 +16251,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 194,
+									"line": 220,
 									"character": 2
 								}
 							],
@@ -16133,7 +16266,7 @@
 					]
 				},
 				{
-					"id": 1463,
+					"id": 1465,
 					"name": "getUsedCollateral",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16141,13 +16274,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 281,
+							"line": 307,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1464,
+							"id": 1466,
 							"name": "getUsedCollateral",
 							"variant": "signature",
 							"kind": 4096,
@@ -16174,7 +16307,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 281,
+									"line": 307,
 									"character": 8
 								}
 							],
@@ -16215,7 +16348,7 @@
 					}
 				},
 				{
-					"id": 1465,
+					"id": 1467,
 					"name": "getUsedUTxOs",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16223,13 +16356,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 293,
+							"line": 324,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1466,
+							"id": 1468,
 							"name": "getUsedUTxOs",
 							"variant": "signature",
 							"kind": 4096,
@@ -16256,7 +16389,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 293,
+									"line": 324,
 									"character": 8
 								}
 							],
@@ -16297,7 +16430,7 @@
 					}
 				},
 				{
-					"id": 1445,
+					"id": 1447,
 					"name": "getUtxos",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16305,13 +16438,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 204,
+							"line": 230,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1446,
+							"id": 1448,
 							"name": "getUtxos",
 							"variant": "signature",
 							"kind": 4096,
@@ -16338,7 +16471,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 204,
+									"line": 230,
 									"character": 8
 								}
 							],
@@ -16366,7 +16499,7 @@
 					]
 				},
 				{
-					"id": 1447,
+					"id": 1449,
 					"name": "signData",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16374,13 +16507,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 218,
+							"line": 244,
 							"character": 2
 						}
 					],
 					"signatures": [
 						{
-							"id": 1448,
+							"id": 1450,
 							"name": "signData",
 							"variant": "signature",
 							"kind": 4096,
@@ -16407,13 +16540,13 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 218,
+									"line": 244,
 									"character": 2
 								}
 							],
 							"parameters": [
 								{
-									"id": 1449,
+									"id": 1451,
 									"name": "payload",
 									"variant": "param",
 									"kind": 32768,
@@ -16444,7 +16577,7 @@
 					}
 				},
 				{
-					"id": 1450,
+					"id": 1452,
 					"name": "signTx",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16452,13 +16585,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 229,
+							"line": 255,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1451,
+							"id": 1453,
 							"name": "signTx",
 							"variant": "signature",
 							"kind": 4096,
@@ -16485,13 +16618,13 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 229,
+									"line": 255,
 									"character": 8
 								}
 							],
 							"parameters": [
 								{
-									"id": 1452,
+									"id": 1454,
 									"name": "unsignedTx",
 									"variant": "param",
 									"kind": 32768,
@@ -16502,7 +16635,7 @@
 									}
 								},
 								{
-									"id": 1453,
+									"id": 1455,
 									"name": "partialSign",
 									"variant": "param",
 									"kind": 32768,
@@ -16543,7 +16676,7 @@
 					}
 				},
 				{
-					"id": 1454,
+					"id": 1456,
 					"name": "signTxs",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16551,13 +16684,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 240,
+							"line": 266,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1455,
+							"id": 1457,
 							"name": "signTxs",
 							"variant": "signature",
 							"kind": 4096,
@@ -16584,13 +16717,13 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 240,
+									"line": 266,
 									"character": 8
 								}
 							],
 							"parameters": [
 								{
-									"id": 1456,
+									"id": 1458,
 									"name": "unsignedTxs",
 									"variant": "param",
 									"kind": 32768,
@@ -16612,7 +16745,7 @@
 									}
 								},
 								{
-									"id": 1457,
+									"id": 1459,
 									"name": "partialSign",
 									"variant": "param",
 									"kind": 32768,
@@ -16664,7 +16797,7 @@
 					}
 				},
 				{
-					"id": 1458,
+					"id": 1460,
 					"name": "submitTx",
 					"variant": "declaration",
 					"kind": 2048,
@@ -16672,13 +16805,13 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 259,
+							"line": 285,
 							"character": 8
 						}
 					],
 					"signatures": [
 						{
-							"id": 1459,
+							"id": 1461,
 							"name": "submitTx",
 							"variant": "signature",
 							"kind": 4096,
@@ -16705,13 +16838,13 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 259,
+									"line": 285,
 									"character": 8
 								}
 							],
 							"parameters": [
 								{
-									"id": 1460,
+									"id": 1462,
 									"name": "tx",
 									"variant": "param",
 									"kind": 32768,
@@ -16768,31 +16901,33 @@
 				{
 					"title": "Methods",
 					"children": [
-						1467,
+						1478,
+						1469,
 						1433,
 						1435,
-						1469,
 						1437,
 						1471,
-						1474,
 						1439,
+						1473,
+						1476,
 						1441,
-						1461,
 						1443,
 						1463,
-						1465,
 						1445,
+						1465,
+						1467,
 						1447,
-						1450,
-						1454,
-						1458
+						1449,
+						1452,
+						1456,
+						1460
 					]
 				}
 			],
 			"sources": [
 				{
 					"fileName": "wallet/mesh.service.ts",
-					"line": 63,
+					"line": 65,
 					"character": 13
 				}
 			],
@@ -26134,7 +26269,7 @@
 			"sources": [
 				{
 					"fileName": "wallet/mesh.service.ts",
-					"line": 22,
+					"line": 24,
 					"character": 12
 				}
 			],
@@ -26156,7 +26291,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 24,
+									"line": 26,
 									"character": 2
 								}
 							],
@@ -26176,7 +26311,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 26,
+									"line": 28,
 									"character": 2
 								}
 							],
@@ -26201,7 +26336,7 @@
 													"sources": [
 														{
 															"fileName": "wallet/mesh.service.ts",
-															"line": 29,
+															"line": 31,
 															"character": 8
 														}
 													],
@@ -26219,7 +26354,7 @@
 													"sources": [
 														{
 															"fileName": "wallet/mesh.service.ts",
-															"line": 28,
+															"line": 30,
 															"character": 8
 														}
 													],
@@ -26241,7 +26376,7 @@
 											"sources": [
 												{
 													"fileName": "wallet/mesh.service.ts",
-													"line": 27,
+													"line": 29,
 													"character": 6
 												}
 											]
@@ -26265,7 +26400,7 @@
 													"sources": [
 														{
 															"fileName": "wallet/mesh.service.ts",
-															"line": 33,
+															"line": 35,
 															"character": 8
 														}
 													],
@@ -26285,7 +26420,7 @@
 													"sources": [
 														{
 															"fileName": "wallet/mesh.service.ts",
-															"line": 34,
+															"line": 36,
 															"character": 8
 														}
 													],
@@ -26303,7 +26438,7 @@
 													"sources": [
 														{
 															"fileName": "wallet/mesh.service.ts",
-															"line": 32,
+															"line": 34,
 															"character": 8
 														}
 													],
@@ -26326,7 +26461,7 @@
 											"sources": [
 												{
 													"fileName": "wallet/mesh.service.ts",
-													"line": 31,
+													"line": 33,
 													"character": 6
 												}
 											]
@@ -26350,7 +26485,7 @@
 													"sources": [
 														{
 															"fileName": "wallet/mesh.service.ts",
-															"line": 37,
+															"line": 39,
 															"character": 8
 														}
 													],
@@ -26368,7 +26503,7 @@
 													"sources": [
 														{
 															"fileName": "wallet/mesh.service.ts",
-															"line": 38,
+															"line": 40,
 															"character": 8
 														}
 													],
@@ -26393,7 +26528,7 @@
 											"sources": [
 												{
 													"fileName": "wallet/mesh.service.ts",
-													"line": 36,
+													"line": 38,
 													"character": 6
 												}
 											]
@@ -26411,7 +26546,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 23,
+									"line": 25,
 									"character": 2
 								}
 							],
@@ -26429,7 +26564,7 @@
 							"sources": [
 								{
 									"fileName": "wallet/mesh.service.ts",
-									"line": 25,
+									"line": 27,
 									"character": 2
 								}
 							],
@@ -26455,7 +26590,7 @@
 					"sources": [
 						{
 							"fileName": "wallet/mesh.service.ts",
-							"line": 22,
+							"line": 24,
 							"character": 38
 						}
 					]
@@ -39364,159 +39499,175 @@
 		},
 		"1437": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getNetworkId"
+			"qualifiedName": "MeshWallet.getCollateral"
 		},
 		"1438": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getNetworkId"
+			"qualifiedName": "MeshWallet.getCollateral"
 		},
 		"1439": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getRewardAddresses"
+			"qualifiedName": "MeshWallet.getNetworkId"
 		},
 		"1440": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getRewardAddresses"
+			"qualifiedName": "MeshWallet.getNetworkId"
 		},
 		"1441": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUnusedAddresses"
+			"qualifiedName": "MeshWallet.getRewardAddresses"
 		},
 		"1442": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUnusedAddresses"
+			"qualifiedName": "MeshWallet.getRewardAddresses"
 		},
 		"1443": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUsedAddresses"
+			"qualifiedName": "MeshWallet.getUnusedAddresses"
 		},
 		"1444": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUsedAddresses"
+			"qualifiedName": "MeshWallet.getUnusedAddresses"
 		},
 		"1445": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUtxos"
+			"qualifiedName": "MeshWallet.getUsedAddresses"
 		},
 		"1446": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUtxos"
+			"qualifiedName": "MeshWallet.getUsedAddresses"
 		},
 		"1447": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.signData"
+			"qualifiedName": "MeshWallet.getUtxos"
 		},
 		"1448": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.signData"
+			"qualifiedName": "MeshWallet.getUtxos"
 		},
 		"1449": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "payload"
+			"qualifiedName": "MeshWallet.signData"
 		},
 		"1450": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.signTx"
+			"qualifiedName": "MeshWallet.signData"
 		},
 		"1451": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.signTx"
+			"qualifiedName": "payload"
 		},
 		"1452": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "unsignedTx"
+			"qualifiedName": "MeshWallet.signTx"
 		},
 		"1453": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "partialSign"
+			"qualifiedName": "MeshWallet.signTx"
 		},
 		"1454": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.signTxs"
+			"qualifiedName": "unsignedTx"
 		},
 		"1455": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.signTxs"
+			"qualifiedName": "partialSign"
 		},
 		"1456": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "unsignedTxs"
+			"qualifiedName": "MeshWallet.signTxs"
 		},
 		"1457": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "partialSign"
+			"qualifiedName": "MeshWallet.signTxs"
 		},
 		"1458": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.submitTx"
+			"qualifiedName": "unsignedTxs"
 		},
 		"1459": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.submitTx"
+			"qualifiedName": "partialSign"
 		},
 		"1460": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "tx"
+			"qualifiedName": "MeshWallet.submitTx"
 		},
 		"1461": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUsedAddress"
+			"qualifiedName": "MeshWallet.submitTx"
 		},
 		"1462": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUsedAddress"
+			"qualifiedName": "tx"
 		},
 		"1463": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUsedCollateral"
+			"qualifiedName": "MeshWallet.getUsedAddress"
 		},
 		"1464": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUsedCollateral"
+			"qualifiedName": "MeshWallet.getUsedAddress"
 		},
 		"1465": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUsedUTxOs"
+			"qualifiedName": "MeshWallet.getUsedCollateral"
 		},
 		"1466": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getUsedUTxOs"
+			"qualifiedName": "MeshWallet.getUsedCollateral"
 		},
 		"1467": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getAssets"
+			"qualifiedName": "MeshWallet.getUsedUTxOs"
 		},
 		"1468": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getAssets"
+			"qualifiedName": "MeshWallet.getUsedUTxOs"
 		},
 		"1469": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getLovelace"
+			"qualifiedName": "MeshWallet.getAssets"
 		},
 		"1470": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getLovelace"
+			"qualifiedName": "MeshWallet.getAssets"
 		},
 		"1471": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getPolicyIdAssets"
+			"qualifiedName": "MeshWallet.getLovelace"
 		},
 		"1472": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getPolicyIdAssets"
+			"qualifiedName": "MeshWallet.getLovelace"
 		},
 		"1473": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "policyId"
+			"qualifiedName": "MeshWallet.getPolicyIdAssets"
 		},
 		"1474": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
-			"qualifiedName": "MeshWallet.getPolicyIds"
+			"qualifiedName": "MeshWallet.getPolicyIdAssets"
 		},
 		"1475": {
 			"sourceFileName": "src/wallet/mesh.service.ts",
+			"qualifiedName": "policyId"
+		},
+		"1476": {
+			"sourceFileName": "src/wallet/mesh.service.ts",
 			"qualifiedName": "MeshWallet.getPolicyIds"
+		},
+		"1477": {
+			"sourceFileName": "src/wallet/mesh.service.ts",
+			"qualifiedName": "MeshWallet.getPolicyIds"
+		},
+		"1478": {
+			"sourceFileName": "src/wallet/mesh.service.ts",
+			"qualifiedName": "MeshWallet.createCollateral"
+		},
+		"1479": {
+			"sourceFileName": "src/wallet/mesh.service.ts",
+			"qualifiedName": "MeshWallet.createCollateral"
 		}
 	}
 }

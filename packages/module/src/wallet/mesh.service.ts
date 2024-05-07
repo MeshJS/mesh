@@ -42,7 +42,7 @@ export type CreateMeshWalletOptions = {
 };
 
 /**
- * Mesh Wallet is a class that provides a set of APIs to interact with the blockchain. This wallet is compatible with Mesh transaction builders.
+ * Mesh Wallet provides a set of APIs to interact with the blockchain. This wallet is compatible with Mesh transaction builders.
  *
  * It is a single address wallet, a wrapper around the AppWallet class.
  *

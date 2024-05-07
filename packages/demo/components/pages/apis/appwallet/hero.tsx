@@ -19,15 +19,10 @@ export default function Hero() {
       <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
         <div className="col-span-2">
           <p>
-            Whether you are building a minting script, or an application that
-            requires multi-signature, <code>AppWallet</code> is all you need to
-            get started.
+            <code>AppWallet</code> is useful for building other user wallets and
+            fully customed applications's backend.
           </p>
-
-          <p className="font-medium">
-            In this section, you will learn how to initialize a wallet and use
-            it to sign transactions.
-          </p>
+          <p className="font-medium"></p>
         </div>
       </div>
     </>

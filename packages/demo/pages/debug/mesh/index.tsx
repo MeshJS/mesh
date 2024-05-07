@@ -1,15 +1,25 @@
-import { MeshWallet, BlockfrostProvider, Transaction } from '@meshsdk/core';
+import {
+  MeshWallet,
+  BlockfrostProvider,
+  YaciProvider,
+  Transaction,
+} from '@meshsdk/core';
 import { ForgeScript } from '@meshsdk/core';
 import type { Mint, AssetMetadata } from '@meshsdk/core';
 import { MeshTxBuilder } from '@meshsdk/core';
 import { MeshEscrowContract } from '@meshsdk/contracts';
-import { useWallet } from '@meshsdk/react';
 
 export default function Mesh() {
+  function getBlockchainProvider() {
+    // const blockchainProvider = new BlockfrostProvider(
+    //   process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+    // );
+    const blockchainProvider = new YaciProvider('http://localhost:8080/api/v1');
+    return blockchainProvider;
+  }
+
   async function getMeshWallet() {
-    const blockchainProvider = new BlockfrostProvider(
-      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-    );
+    const blockchainProvider = getBlockchainProvider();
     const wallet = new MeshWallet({
       networkId: 0,
       fetcher: blockchainProvider,
@@ -176,9 +186,7 @@ export default function Mesh() {
   async function testSmartContract() {
     const wallet = await getMeshWallet();
 
-    const blockchainProvider = new BlockfrostProvider(
-      process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
-    );
+    const blockchainProvider = getBlockchainProvider();
 
     const meshTxBuilder = new MeshTxBuilder({
       fetcher: blockchainProvider,
@@ -208,7 +216,8 @@ export default function Mesh() {
 
     // cancelEscrow
     const utxo = await contract.getUtxoByTxHash(
-      '046c3b1f6fda82466b0c231971d50baf150b18a14773c62bb1832c3d8f2969b3'
+      // note, must change this to the txhash of the previous tx
+      'f40f880e1571b332c426ba2769e98a62aa13446e66fe876eaf94724a0b53643a'
     );
     const tx = await contract.cancelEscrow(utxo);
     const signedTx = await wallet.signTx(tx, true);
@@ -219,7 +228,6 @@ export default function Mesh() {
   return (
     <>
       <div className="flex flex-col gap-4 m-4">
-        <button onClick={() => getMeshWallet()}>getWallet</button>
         <button onClick={() => getBalance()}>getBalance</button>
         <button onClick={() => getChangeAddress()}>getChangeAddress</button>
         <button onClick={() => getNetworkId()}>getNetworkId</button>
