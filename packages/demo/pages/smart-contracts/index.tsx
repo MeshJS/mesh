@@ -1,4 +1,11 @@
-import { ShoppingCartIcon } from '@heroicons/react/24/solid';
+import {
+  ShoppingCartIcon,
+  LockClosedIcon,
+  DocumentTextIcon,
+  GiftIcon,
+  ArrowsRightLeftIcon,
+  ArrowsPointingOutIcon,
+} from '@heroicons/react/24/solid';
 import type { NextPage } from 'next';
 import Metatags from '../../components/site/metatags';
 import CardTitleDescImage from '../../components/ui/cardTitleDescImage';
@@ -7,10 +14,39 @@ const ReactPage: NextPage = () => {
   const items = [
     {
       title: 'Markplace',
-      desc: 'Build a NFT marketplace effortlessly.',
+      desc: 'Build a NFT marketplace effortlessly',
       link: '/smart-contracts/marketplace',
-      // thumbnail: '/react/rocket-gdc66999bf_640.png',
       thumbnailHeroicon: <ShoppingCartIcon />,
+    },
+    {
+      title: 'Vesting',
+      desc: 'Locks up funds for a period of time',
+      link: '/smart-contracts/vesting',
+      thumbnailHeroicon: <LockClosedIcon />,
+    },
+    {
+      title: 'Escrow',
+      desc: 'Secure exchange of assets between two parties',
+      link: '/smart-contracts/escrow',
+      thumbnailHeroicon: <ArrowsRightLeftIcon />,
+    },
+    {
+      title: 'Giftcard',
+      desc: 'Create a giftcard with native tokens',
+      link: '/smart-contracts/giftcard',
+      thumbnailHeroicon: <GiftIcon />,
+    },
+    {
+      title: 'Coupon Bond Guaranteed',
+      desc: 'Debt agreement between Lender and Borrower',
+      link: '/smart-contracts/coupon-bond-guaranteed',
+      thumbnailHeroicon: <DocumentTextIcon />,
+    },
+    {
+      title: 'Payment Splitter',
+      desc: 'Split contract payouts equally among all payees',
+      link: '/smart-contracts/payment-splitter',
+      thumbnailHeroicon: <ArrowsPointingOutIcon />,
     },
   ];
 

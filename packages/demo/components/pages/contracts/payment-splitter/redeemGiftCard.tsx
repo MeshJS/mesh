@@ -3,18 +3,17 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { asset, getContract, price } from './common';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
-import Input from '../../../ui/input';
+import { getContract } from './common';
 
-export default function MarketplaceBuyAsset() {
+export default function GiftcardRedeem() {
   return (
     <>
       <SectionTwoCol
-        sidebarTo="buyAsset"
-        header="Buy Asset"
+        sidebarTo="redeemGiftCard"
+        header="Redeem Giftcard"
         leftFn={Left()}
         rightFn={Right()}
       />
@@ -26,19 +25,20 @@ function Left() {
   return (
     <>
       <p>
-        Purchase a listed asset from the marketplace. The seller will receive
-        the listed price in ADA and the buyer will receive the asset. The
-        marketplace owner will receive a fee if it is specified.
-      </p>
-      <p>
-        <code>purchaseAsset()</code> purchase a
-        listed asset. The function accepts the following parameters:
+        <code>redeemGiftCard()</code> redeem a gift
+        card. The function accepts the following parameters:
       </p>
       <ul>
         <li>
-          <b>utxo (UTxO)</b> - unspent transaction output in the script
+          <b>giftCardUtxo (UTxO)</b> - unspent transaction output in the script
         </li>
       </ul>
+      <p>
+        The function returns a transaction hash if the gift card is successfully
+        redeemed. It will burn the gift card and transfer the value to the
+        wallet signing this transaction.
+      </p>
+      <p>The code snippet below demonstrates how to redeem a gift card.</p>
     </>
   );
 }
@@ -49,8 +49,8 @@ function Right() {
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
   const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'mesh_marketplace_demo',
-    {}
+    'mesh_giftcard_demo',
+    undefined
   );
 
   async function rundemo() {
@@ -69,12 +69,9 @@ function Right() {
         return;
       }
 
-      const tx = await contract.purchaseAsset(utxo);
-      console.log(1, 'tx', tx)
+      const tx = await contract.redeemGiftCard(utxo);
       const signedTx = await wallet.signTx(tx, true);
-      console.log(2, 'signedTx', signedTx)
       const txHash = await wallet.submitTx(signedTx);
-      console.log(4, txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -84,12 +81,16 @@ function Right() {
 
   let code = ``;
   code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
-  code += `const tx = await contract.purchaseAsset(utxo);\n`;
+  code += `const tx = await contract.redeemGiftCard(utxo);\n`;
   code += `const signedTx = await wallet.signTx(tx, true);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <Card>
+      <p>
+        This demo, we will redeem the giftcard that was created in the previous
+        step. You may connect with another wallet to claim the giftcard
+      </p>
       <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
@@ -98,9 +99,9 @@ function Right() {
             style={
               loading ? 'warning' : response !== null ? 'success' : 'light'
             }
-            disabled={loading}
+            disabled={loading || userLocalStorage === undefined}
           >
-            Purchase Listed Mesh Token
+            Redeem Giftcard
           </Button>
           <RunDemoResult response={response} />
         </>
