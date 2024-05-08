@@ -1,0 +1,83 @@
+{
+  "preamble": {
+    "title": "aiken-lang/hello-world",
+    "description": "Aiken contracts for project 'aiken-lang/hello-world'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.26-alpha+075668b"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "payment_splitter.payout",
+      "datum": {
+        "title": "_datum",
+        "schema": {
+          "$ref": "#/definitions/payment_splitter~1Datum"
+        }
+      },
+      "redeemer": {
+        "title": "_redeemer",
+        "schema": {
+          "$ref": "#/definitions/payment_splitter~1Redeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "scriptHashes",
+          "schema": {
+            "$ref": "#/definitions/List$ByteArray"
+          }
+        }
+      ],
+      "compiledCode": "59037f010000323232323232322322322322533300832323232323232323232323253330143375e6e9cccc8c0040048894ccc06800440084ccc00c00cc8c8cc004004010894ccc07400452f5c026464a66603866ebc00801440044cc080008cc010010004c084008c07c004c070004c074004cc8c004004894ccc06400452f5c026466036002660060066600e603a004466603066ebc00400928251301b001323300100100722533301900114bd7009980d1806180c1baa300c3018375460360026600400460380020169801018000100114a0646600200200444a66603000229444c94ccc058cdc39bad301b00233005533301900414c0103d87a80001300e3301a301b0044bd70240002660060060022940c06c004c8cc004004028894ccc05c00452f5c02660306ea0c8c8c8c8c8c94ccc068cdc424000002266e04008cdc08009802005880119980119804806919baf3010301c3754602060386ea8c014c070dd5000803240004466e00004c014dd59803180e9baa3006301d375400466600266010014466ebcc03cc06cdd51807980d9baa0010054800088cdc000098021bab3005301c3754004444646600200200844a66603e0022008266006604200266004004604400246600c64a66603066e1d200230193754002298103d87a8000132330010013756603c60366ea8008894ccc074004530103d87a80001323232533301d3371e91100375c603c0062602a660426ea00052f5c026600a00a0046eb4c078008c084008c07c004c8cc004004008894ccc0700045300103d87a80001323232533301c3371e91100375c603a00626028660406e980052f5c026600a00a0046eacc074008c080008c07800520002301b301c001301900133002002301a0012253330133370e9001180a1baa00210011375a6030602a6ea800888c8cc00400400c894ccc05c00452f5c026464a66602c600a00426603400466008008002266008008002603600460320026eacc050c054008dd61809800980998098011bac3011001300d37546002601a6ea80108c040004c8cc004004020894ccc03800452f5c026601e60066601e6ea4dd71808000a5eb80cc008008c044004dd2a400029309b2b299980319b8748000c01cdd500089919299980598070010a4c2c6eb8c030004c020dd50008b299980219b8748000c014dd500089919299980498060010a4c2c6eb8c028004c018dd50008b1bac0015734aae7555cf2ab9f5740ae855d101",
+      "hash": "51acaf75ddb2912c78a7b6e764b6f65d2b51a73ce668165d33e7ba0d"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "List$ByteArray": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/ByteArray"
+      }
+    },
+    "payment_splitter/Datum": {
+      "title": "Datum",
+      "anyOf": [
+        {
+          "title": "Datum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "payment_splitter/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "message",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
