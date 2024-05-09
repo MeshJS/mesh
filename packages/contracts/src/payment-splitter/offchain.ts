@@ -6,7 +6,7 @@ import {
 } from '@meshsdk/core';
 import {
   serializeBech32Address,
-  applyParamsToScript,
+  applyObjParamsToScript,
   ByteArray,
   conStr0,
   list,
@@ -14,12 +14,7 @@ import {
 import blueprint from './aiken-workspace/plutus.json';
 
 export class MeshPaymentSplitterContract extends MeshTxInitiator {
-  scriptCbor = () =>
-    applyParamsToScript(blueprint.validators[0].compiledCode, this.payees);
-  payees: string[] = [];
-
-  constructor(inputs: MeshTxInitiatorInput, payees: string[]) {
-    super(inputs);
+  wrapPayees = (payees: string[]) =>
     conStr0([
       list(
         payees.map(
@@ -27,8 +22,26 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
         )
       ),
     ]);
+  scriptCbor = () =>
+    applyObjParamsToScript(blueprint.validators[0].compiledCode, [
+      this.wrapPayees(this.payees),
+    ]);
+  payees: string[] = [];
 
-    this.payees = payees;
+  constructor(inputs: MeshTxInitiatorInput, payees: string[]) {
+    super(inputs);
+
+    if (inputs.wallet) {
+      // We add the initiator to the payees list, as only the payees can trigger the payout in the next steps
+      inputs.wallet!.getUsedAddress().then((address) => {
+        this.payees = [address, ...payees];
+      });
+    } else {
+      this.payees = payees;
+      console.warn(
+        'Wallet not provided. Therefore the payment address will not be added to the payees list which makes it impossible to trigger the payout.'
+      );
+    }
   }
 
   sendLovelaceToSplitter = async (lovelaceAmount: number) => {
