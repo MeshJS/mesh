@@ -5,7 +5,7 @@ import Link from 'next/link';
 export default function Hero() {
   let code = ``;
   code += `import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';\n`;
-  code += `import { MeshGiftCardContract } from '@meshsdk/contracts';\n`;
+  code += `import { MeshPaymentSplitterContract } from '@meshsdk/contracts';\n`;
   code += `import { useWallet } from '@meshsdk/react';\n`;
   code += `\n`;
   code += `const { connected, wallet } = useWallet();\n`;
@@ -17,12 +17,19 @@ export default function Hero() {
   code += `  submitter: blockchainProvider,\n`;
   code += `});\n`;
   code += `\n`;
-  code += `const contract = new MeshGiftCardContract({\n`;
-  code += `  mesh: meshTxBuilder,\n`;
-  code += `  fetcher: blockchainProvider,\n`;
-  code += `  wallet: wallet,\n`;
-  code += `  networkId: 0,\n`;
-  code += `});\n`;
+  code += `const contract = new MeshPaymentSplitterContract(\n`;
+  code += `  {\n`;
+  code += `    mesh: meshTxBuilder,\n`;
+  code += `    fetcher: blockchainProvider,\n`;
+  code += `    wallet: wallet,\n`;
+  code += `    networkId: 0,\n`;
+  code += `  },\n`;
+  code += `  [\n`;
+  code += `    'addr_test1vpg334d6skwu6xxq0r4lqrnsjd5293n8s3d80em60kf6guc7afx8k',\n`;
+  code += `    'addr_test1vp4l2kk0encl7t7972ngepgm0044fu8695prkgh5vjj5l6sxu0l3p',\n`;
+  code += `    'addr_test1vqqnfs2vt42nq4htq460wd6gjxaj05jg9vzg76ur6ws4sngs55pwr',\n`;
+  code += `    'addr_test1vqv2qhqddxmf87pzky2nkd9wm4y5599mhp62mu4atuss5dgdja5pw',\n`;
+  code += `  ]\n`;
 
   return (
     <>
@@ -48,13 +55,13 @@ export default function Hero() {
             smart contract:
           </p>
           <ul>
-            <li>create giftcard</li>
-            <li>redeem giftcard</li>
+            <li>Send Lovelace to Payment Splitter</li>
+            <li>Trigger Payout</li>
           </ul>
           <p>
-            To initialize the escrow, we need to initialize a{' '}
+            To initialize the payment splitter, we need to initialize a{' '}
             <Link href="/providers">provider</Link>, <code>MeshTxBuilder</code>{' '}
-            and <code>MeshPaymentSplitterContract</code>.
+            ,<code>MeshPaymentSplitterContract</code> and a list of payees.
           </p>
           <Codeblock data={code} isJson={false} />
           <p>

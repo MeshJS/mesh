@@ -1,12 +1,15 @@
 import CommonLayout from '../../../common/layout';
-import GiftcardCreate from './createGiftCard';
+import PaymentSplitterSendLovelace from './sendLovelace';
 import Hero from './hero';
-import GiftcardRedeem from './redeemGiftCard';
+import PaymentSplitterTriggerPayout from './triggerPayout';
 
-export default function ContractsGiftcard() {
+export default function ContractsPaymentSplitter() {
   const sidebarItems = [
-    { label: 'Create Giftcard', to: 'createGiftCard' },
-    { label: 'Redeem Giftcard', to: 'redeemGiftCard' },
+    {
+      label: 'Send Lovelace to Payment Splitter',
+      to: 'sendLovelaceToSplitter',
+    },
+    { label: 'Trigger Payout', to: 'triggerPayout' },
   ];
 
   return (
@@ -20,8 +23,8 @@ export default function ContractsGiftcard() {
 function Main() {
   return (
     <>
-      <GiftcardCreate />
-      <GiftcardRedeem />
+      <PaymentSplitterSendLovelace />
+      <PaymentSplitterTriggerPayout />
     </>
   );
 }
