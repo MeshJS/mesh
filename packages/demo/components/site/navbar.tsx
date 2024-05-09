@@ -285,6 +285,12 @@ function SubMenuSmartContracts() {
               desc="Debt agreement between Lender and Borrower"
               icon={<DocumentTextIcon className="w-5 h-5" />}
             />
+            <SubMenuLinks
+              href={`/smart-contracts/payment-splitter`}
+              title="Payment Splitter"
+              desc="Split contract payouts equally among all payees"
+              icon={<DocumentTextIcon className="w-5 h-5" />}
+            />
           </ul>
         </div>
       </div>
