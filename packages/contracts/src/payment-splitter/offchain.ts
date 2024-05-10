@@ -7,21 +7,19 @@ import {
 import {
   serializeBech32Address,
   applyObjParamsToScript,
-  ByteArray,
-  conStr0,
+  builtinByteString,
   list,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
 
 export class MeshPaymentSplitterContract extends MeshTxInitiator {
   wrapPayees = (payees: string[]) =>
-    conStr0([
-      list(
-        payees.map(
-          (payee) => new ByteArray(serializeBech32Address(payee).pubKeyHash)
-        )
-      ),
-    ]);
+    list(
+      payees.map((payee) =>
+        builtinByteString(serializeBech32Address(payee).pubKeyHash)
+      )
+    );
+
   scriptCbor = () =>
     applyObjParamsToScript(blueprint.validators[0].compiledCode, [
       this.wrapPayees(this.payees),
@@ -33,8 +31,8 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
 
     if (inputs.wallet) {
       // We add the initiator to the payees list, as only the payees can trigger the payout in the next steps
-      inputs.wallet!.getUsedAddress().then((address) => {
-        this.payees = [address, ...payees];
+      inputs.wallet!.getUsedAddresses().then((addresses) => {
+        this.payees = [addresses[0], ...payees];
       });
     } else {
       this.payees = payees;
@@ -52,9 +50,10 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     const { walletAddress } = await this.getWalletInfoForTx();
 
     const script = {
-      code: this.scriptCbor,
+      code: this.scriptCbor(),
       version: 'V2',
     };
+
     const scriptAddress = resolvePlutusScriptAddress(script, 0);
 
     const hash = resolvePaymentKeyHash(walletAddress);
@@ -77,7 +76,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     return txHash;
   };
 
-  triggerPaypout = async () => {
+  triggerPayout = async () => {
     if (this.wallet === null || this.wallet === undefined) {
       return;
     }
@@ -85,7 +84,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     const { walletAddress, collateral } = await this.getWalletInfoForTx();
 
     const script = {
-      code: this.scriptCbor,
+      code: this.scriptCbor(),
       version: 'V2',
     };
     const scriptAddress = resolvePlutusScriptAddress(script, 0);

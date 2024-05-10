@@ -43,10 +43,19 @@ export default function Hero() {
           </div>
         </h2>
         <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
-          Split contract payouts equally among all payees
+          Split payouts equally among a list of specified payees
         </p>
-        <p>One liner description of the contract.</p>
-        <p>About this contract</p>
+        <p>
+          A payment splitter can be used for example to create a shared project
+          donation address, ensuring that all payees receive the same amount
+        </p>
+        <p>
+          Sending lovelace to the contract works similarly to sending lovelace
+          to any other address. The payout transaction can only be submitted by
+          one of the payees, and the output addresses are restricted to the
+          payees. The output sum must be equally divided to ensure the
+          transaction is successful.
+        </p>
       </header>
       <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
         <div className="col-span-2">
@@ -60,8 +69,11 @@ export default function Hero() {
           </ul>
           <p>
             To initialize the payment splitter, we need to initialize a{' '}
-            <Link href="/providers">provider</Link>, <code>MeshTxBuilder</code>{' '}
-            ,<code>MeshPaymentSplitterContract</code> and a list of payees.
+            <Link href="/providers">provider</Link>, a{' '}
+            <code>MeshTxBuilder</code>, and a{' '}
+            <code>MeshPaymentSplitterContract</code>. Additionally, a list of
+            payees is required to define the allowed payout addresses for the
+            contract.
           </p>
           <Codeblock data={code} isJson={false} />
           <p>

@@ -5,8 +5,6 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { Asset } from '@meshsdk/core';
-import useLocalStorage from '../../../../hooks/useLocalStorage';
 import { getContract } from './common';
 
 export default function PaymentSplitterSendLovelace() {
@@ -48,10 +46,6 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'mesh_payment_splitter_demo',
-    undefined
-  );
 
   async function rundemo() {
     setLoading(true);
@@ -60,9 +54,7 @@ function Right() {
 
     try {
       const contract = getContract(wallet);
-
       const txHash = await contract.sendLovelaceToSplitter(10000000);
-      setUserlocalStorage(txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -71,9 +63,9 @@ function Right() {
   }
 
   let code = ``;
-  code += `const sendLovelaceToSplitter: number = '10000000';\n`;
+  code += `const lovelaceAmount: number = 10000000;\n`;
   code += `\n`;
-  code += `const txHash = await contract.sendLovelaceToSplitter(10000000);\n`;
+  code += `const txHash = await contract.sendLovelaceToSplitter(lovelaceAmount);\n`;
 
   return (
     <Card>

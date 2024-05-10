@@ -5,7 +5,6 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import useLocalStorage from '../../../../hooks/useLocalStorage';
 import { getContract } from './common';
 
 export default function TriggerPayout() {
@@ -42,10 +41,6 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'mesh_giftcard_demo',
-    undefined
-  );
 
   async function rundemo() {
     setLoading(true);
@@ -54,7 +49,7 @@ function Right() {
 
     try {
       const contract = getContract(wallet);
-      const txHash = await contract.triggerPaypout();
+      const txHash = await contract.triggerPayout();
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -63,7 +58,7 @@ function Right() {
   }
 
   let code = ``;
-  code += `const txHash = await contract.triggerPaypout();\n`;
+  code += `const txHash = await contract.triggerPayout();\n`;
 
   return (
     <Card>
@@ -79,9 +74,9 @@ function Right() {
             style={
               loading ? 'warning' : response !== null ? 'success' : 'light'
             }
-            disabled={loading || userLocalStorage === undefined}
+            disabled={loading}
           >
-            Trigger Paypout
+            Trigger Payout
           </Button>
           <RunDemoResult response={response} />
         </>
