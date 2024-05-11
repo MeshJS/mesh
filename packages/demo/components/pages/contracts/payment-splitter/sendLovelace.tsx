@@ -5,15 +5,14 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import useLocalStorage from '../../../../hooks/useLocalStorage';
 import { getContract } from './common';
 
-export default function GiftcardRedeem() {
+export default function PaymentSplitterSendLovelace() {
   return (
     <>
       <SectionTwoCol
-        sidebarTo="redeemGiftCard"
-        header="Redeem Giftcard"
+        sidebarTo="sendLovelaceToSplitter"
+        header="Send Lovelace to Payment Splitter"
         leftFn={Left()}
         rightFn={Right()}
       />
@@ -25,20 +24,19 @@ function Left() {
   return (
     <>
       <p>
-        <code>redeemGiftCard()</code> redeem a gift
-        card. The function accepts the following parameters:
+        <code>sendLovelaceToSplitter()</code> will lock Lovelace in the
+        contract. The function accepts the following parameters:
       </p>
       <ul>
         <li>
-          <b>giftCardUtxo (UTxO)</b> - unspent transaction output in the script
+          <b>lovelaceAmount (number)</b> - the amount of Lovelace you want to
+          send to the contract
         </li>
       </ul>
+      <p>The function returns a transaction hash.</p>
       <p>
-        The function returns a transaction hash if the gift card is successfully
-        redeemed. It will burn the gift card and transfer the value to the
-        wallet signing this transaction.
+        The code snippet below demonstrates how to lock 10 ADA in the contract.
       </p>
-      <p>The code snippet below demonstrates how to redeem a gift card.</p>
     </>
   );
 }
@@ -48,10 +46,6 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
-  const [userLocalStorage, setUserlocalStorage] = useLocalStorage(
-    'mesh_giftcard_demo',
-    undefined
-  );
 
   async function rundemo() {
     setLoading(true);
@@ -60,18 +54,7 @@ function Right() {
 
     try {
       const contract = getContract(wallet);
-
-      const utxo = await contract.getUtxoByTxHash(userLocalStorage);
-
-      if (!utxo) {
-        setResponseError('Input utxo not found');
-        setLoading(false);
-        return;
-      }
-
-      const tx = await contract.redeemGiftCard(utxo);
-      const signedTx = await wallet.signTx(tx, true);
-      const txHash = await wallet.submitTx(signedTx);
+      const txHash = await contract.sendLovelaceToSplitter(10000000);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -80,17 +63,13 @@ function Right() {
   }
 
   let code = ``;
-  code += `const utxo = await contract.getUtxoByTxHash(txHashToSearchFor);\n`;
-  code += `const tx = await contract.redeemGiftCard(utxo);\n`;
-  code += `const signedTx = await wallet.signTx(tx, true);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+  code += `const lovelaceAmount: number = 10000000;\n`;
+  code += `\n`;
+  code += `const txHash = await contract.sendLovelaceToSplitter(lovelaceAmount);\n`;
 
   return (
     <Card>
-      <p>
-        This demo, we will redeem the giftcard that was created in the previous
-        step. You may connect with another wallet to claim the giftcard
-      </p>
+      <p>This demo, shows how to send 10 Ada to the payment splitter.</p>
       <Codeblock data={code} isJson={false} />
       {connected ? (
         <>
@@ -99,9 +78,9 @@ function Right() {
             style={
               loading ? 'warning' : response !== null ? 'success' : 'light'
             }
-            disabled={loading || userLocalStorage === undefined}
+            disabled={loading}
           >
-            Redeem Giftcard
+            Send Lovelace to Payment Splitter
           </Button>
           <RunDemoResult response={response} />
         </>
