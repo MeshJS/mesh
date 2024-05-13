@@ -285,12 +285,6 @@ function SubMenuSmartContracts() {
               desc="Build a NFT marketplace effortlessly."
               icon={<ShoppingCartIcon className="w-5 h-5" />}
             />
-            <SubMenuLinks
-              href={`/smart-contracts/vesting`}
-              title="Vesting"
-              desc="Lock assets for a period of time."
-              icon={<LockClosedIcon className="w-5 h-5" />}
-            />
           </ul>
         </div>
       </div>
@@ -418,6 +412,12 @@ function SubMenuAbout() {
               href={`/about`}
               title="About Mesh"
               desc="Information and Q&A"
+              icon={<WalletIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/about/catalyst`}
+              title="Project Catalyst"
+              desc="Project Catalyst and progress"
               icon={<WalletIcon className="w-5 h-5" />}
             />
             <SubMenuLinks

@@ -150,6 +150,7 @@ function Sitemap() {
           </h2>
           <ul className="text-gray-500 dark:text-gray-400">
             <SitemapLinks href="/about" label="FAQ" />
+            <SitemapLinks href="/about/catalyst" label="Project Catalyst" />
             <SitemapLinks href="/about/cips" label="Implemented CIPs" />
             <SitemapLinks href="/about/support-us" label="Support Us" />
             <SitemapLinks href="/about/media-kit" label="Media Kit" />
