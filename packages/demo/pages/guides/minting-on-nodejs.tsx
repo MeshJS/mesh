@@ -168,7 +168,7 @@ const GuideMintingNodejsPage: NextPage = () => {
         <Element name="projectsetup">
           <h2>Project setup</h2>
           <p>Firstly, create a new folder, and initialize a Node.js project:</p>
-          <Codeblock data={`npm init .`} isJson={false} />
+          <Codeblock data={`npm init`} isJson={false} />
           <p>
             Next, install the <code>typescript</code> and <code>Mesh</code>{' '}
             package:

@@ -3,11 +3,10 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { asset, getContract, price } from './common';
+import { getContract } from './common';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
-import Input from '../../../ui/input';
 
 export default function MarketplaceBuyAsset() {
   return (
@@ -31,8 +30,8 @@ function Left() {
         marketplace owner will receive a fee if it is specified.
       </p>
       <p>
-        <code>purchaseAsset()</code> purchase a
-        listed asset. The function accepts the following parameters:
+        <code>purchaseAsset()</code> purchase a listed asset. The function
+        accepts the following parameters:
       </p>
       <ul>
         <li>
@@ -70,9 +69,9 @@ function Right() {
       }
 
       const tx = await contract.purchaseAsset(utxo);
-      console.log(1, 'tx', tx)
+      console.log(1, 'tx', tx);
       const signedTx = await wallet.signTx(tx, true);
-      console.log(2, 'signedTx', signedTx)
+      console.log(2, 'signedTx', signedTx);
       const txHash = await wallet.submitTx(signedTx);
       console.log(4, txHash);
       setResponse(txHash);

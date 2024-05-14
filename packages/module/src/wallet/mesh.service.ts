@@ -17,9 +17,10 @@ import {
   toUTF8,
   resolveFingerprint,
   toTxUnspentOutput,
+  resolvePrivateKey,
 } from '@mesh/common/utils';
 import { POLICY_ID_LENGTH } from '@mesh/common/constants';
-import { Transaction } from '..';
+import { EmbeddedWallet, Transaction } from '..';
 
 export type CreateMeshWalletOptions = {
   networkId: number;
@@ -398,5 +399,15 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     const signedTx = await this.signTx(unsignedTx);
     const txHash = await this.submitTx(signedTx);
     return txHash;
+  }
+
+  static brew(privateKey = false, strength = 256): string[] | string {
+    const mnemonic = EmbeddedWallet.generateMnemonic(strength);
+
+    if (privateKey) {
+      return resolvePrivateKey(mnemonic);
+    }
+
+    return mnemonic;
   }
 }

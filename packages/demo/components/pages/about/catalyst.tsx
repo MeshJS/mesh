@@ -27,57 +27,39 @@ function ListOfProposals() {
   return (
     <>
       <CardLink
-        title="Mesh x Defy x Yaci: Private Blockchain Networks for enabling real world financial services and Cardano Adoption"
-        desc="?"
-        url=""
+        title="Cardano Service Layer Framework for DApps"
+        desc="R&D a framework to quickly spin up a service layer for specific Cardano DApps, allowing DApps to re-use all infrastructure such as contracts and MeshJS, while possible for custom protocol parameters."
+        url="https://cardano.ideascale.com/c/idea/121847"
         completed={[]}
         tobecompleted={[
-          `Design, setup and deploy Yaci cloud infrastructure`,
-          `Mesh upgrades to support transaction building and wallets integration on Yaci`,
-          `An identity solution, smart contracts that define regulators requirements to support users' identity and KYC records.`,
-          `A KYC solution, smart contracts that define regulators requirements to support KYC processes.`,
-          `A KYC verification solution, smart contracts that define how users' records are verified which results in reputation scores and incentivization mechanism.`,
-          `Whitepaper for private network and KYC use case`,
+          `Parallel Cardano Blockchain MeshJS Integration`,
+          `Customized Protocol Parameters`,
+          `Persistent Record & Immutability`,
+          `Framework DevOps`,
+          `Documentation and training materials`,
         ]}
         fund={'Fund12'}
         status={'Voting'}
       />
-
-      <CardLink
-        title="zkFold x Defy: Derisking cross-border payments with Zero-Knowledge Proofs"
-        desc="?"
-        url=""
-        completed={[]}
-        tobecompleted={[
-          '?',
-          '?',
-          '?',
-          'Whitepaper for derisking cross-border payments with zero-knowledge proofs',
-        ]}
-        fund={'Fund12'}
-        status={'Voting'}
-      />
-
       <CardLink
         title="Mesh New Features to Improve Developer experience and Cardano Adoption"
-        desc="?"
-        url=""
+        desc="We will upgrade Mesh by implementing CIP 45, WebRTC wallet connect, handle multiple serialization libs, revamp to support backend transactions building, and improve error messages to improve DevXP."
+        url="https://cardano.ideascale.com/c/idea/122160"
         completed={[]}
         tobecompleted={[
           'CIP 45',
           'Mesh application wallet',
           'Modular CSL library',
           'Improve error messages',
-          'Wallet support for private blockchain networks (Yaci)',
+          'Wallet support for private blockchain networks (e.g. Yaci)',
         ]}
         fund={'Fund12'}
         status={'Voting'}
       />
-
       <CardLink
         title="Mesh Software as a Service"
-        desc="?"
-        url=""
+        desc="We provide hosted server instances for wallet and transactions builder by restful APIs, this allow integration and interaction to Cardano blockchain from any technology stacks and systems."
+        url="https://cardano.ideascale.com/c/idea/122098"
         completed={[]}
         tobecompleted={[
           'Cloud infrastructure and transaction endpoints',
@@ -89,13 +71,17 @@ function ListOfProposals() {
         fund={'Fund12'}
         status={'Voting'}
       />
-
       <CardLink
-        title="Mesh - Advance Cardano SDK in Rust"
-        desc="?"
-        url=""
+        title="Maintaining Mesh SDK, community support and content creation to onboard developers"
+        desc="Maintenance and operations of Mesh SDK, community support and content creation, in order to onboard developers and users to the Cardano blockchain ecosystem."
+        url="https://cardano.ideascale.com/c/idea/122471"
         completed={[]}
-        tobecompleted={['?', '?', '?', '?']}
+        tobecompleted={[
+          `Provide community support`,
+          `Resolve GitHub issues`,
+          `Create tutorials and documentation`,
+          `Create workshops and live coding sessions`,
+        ]}
         fund={'Fund12'}
         status={'Voting'}
       />

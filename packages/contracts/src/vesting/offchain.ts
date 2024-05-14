@@ -31,8 +31,6 @@ export class MeshVestingContract extends MeshTxInitiator {
     beneficiary: string
   ): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
-    console.log(1, utxos);
-    console.log(2, walletAddress);
     const scriptAddr = v2ScriptToBech32(
       this.scriptCbor,
       undefined,

@@ -1,6 +1,6 @@
 import type { NextPage } from 'next';
-import MeshWallet from '../../components/pages/apis/meshwallet';
 import Metatags from '../../components/site/metatags';
+import MeshWallet from '../../components/pages/apis/meshwallet';
 
 const MeshWalletPage: NextPage = () => {
   return (

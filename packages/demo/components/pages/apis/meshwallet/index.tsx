@@ -17,10 +17,12 @@ import GetPolicyIdAssets from './getPolicyIdAssets';
 import GetCollateral from './getCollateral';
 import LoadWallet from './loadWallet';
 import CreateCollateral from './createCollateral';
+import GenerateWallet from './generateWallet';
 
 export default function MeshWallet() {
   const sidebarItems = [
     { label: 'Initialize wallet', to: 'initWallet' },
+    { label: 'Generate wallet', to: 'generateWallet' },
     { label: 'Get balance', to: 'getBalance' },
     { label: 'Get change address', to: 'getChangeAddress' },
     { label: 'Get collateral', to: 'getCollateral' },
@@ -50,6 +52,7 @@ function Main() {
   return (
     <>
       <LoadWallet />
+      <GenerateWallet />
       <GetBalance />
       <GetChangeAddress />
       <GetCollateral />

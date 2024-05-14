@@ -6,6 +6,7 @@ import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import { getContract } from './common';
+import Input from '../../../ui/input';
 
 export default function PaymentSplitterSendLovelace() {
   return (
@@ -34,9 +35,6 @@ function Left() {
         </li>
       </ul>
       <p>The function returns a transaction hash.</p>
-      <p>
-        The code snippet below demonstrates how to lock 10 ADA in the contract.
-      </p>
     </>
   );
 }
@@ -46,6 +44,7 @@ function Right() {
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
+  const [listPrice, updateListPrice] = useState<number>(10000000);
 
   async function rundemo() {
     setLoading(true);
@@ -54,7 +53,7 @@ function Right() {
 
     try {
       const contract = getContract(wallet);
-      const txHash = await contract.sendLovelaceToSplitter(10000000);
+      const txHash = await contract.sendLovelaceToSplitter(listPrice);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);
@@ -63,13 +62,21 @@ function Right() {
   }
 
   let code = ``;
-  code += `const lovelaceAmount: number = 10000000;\n`;
+  code += `const lovelaceAmount: number = ${listPrice};\n`;
   code += `\n`;
   code += `const txHash = await contract.sendLovelaceToSplitter(lovelaceAmount);\n`;
 
   return (
     <Card>
-      <p>This demo, shows how to send 10 Ada to the payment splitter.</p>
+      <p>
+        This demo, shows how to send {listPrice} Ada to the payment splitter.
+      </p>
+      <Input
+        value={listPrice}
+        onChange={(e) => updateListPrice(e.target.value)}
+        placeholder="Amount in Lovelace"
+        label="Amount in Lovelace"
+      />
       <Codeblock data={code} isJson={false} />
       {connected ? (
         <>

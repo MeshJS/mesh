@@ -31,7 +31,6 @@ function Left() {
         The function returns a transaction hash if the payout has been done
         successfully.
       </p>
-      <p>The code snippet below demonstrates how to trigger the payout.</p>
     </>
   );
 }

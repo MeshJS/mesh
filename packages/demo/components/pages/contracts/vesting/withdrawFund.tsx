@@ -8,6 +8,7 @@ import RunDemoResult from '../../../common/runDemoResult';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 import Link from 'next/link';
 import { getContract } from './common';
+import { MeshWallet, BlockfrostProvider } from '@meshsdk/core';
 
 export default function VestingWithdrawFund() {
   return (
@@ -30,8 +31,8 @@ function Left() {
         funds from the vesting contract.
       </p>
       <p>
-        <code>withdrawFund()</code> withdraw funds
-        from a vesting contract. The function accepts the following parameters:
+        <code>withdrawFund()</code> withdraw funds from a vesting contract. The
+        function accepts the following parameters:
       </p>
       <ul>
         <li>
@@ -43,7 +44,6 @@ function Left() {
 }
 
 function Right() {
-  const { connected, wallet } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
   const [response, setResponse] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
@@ -58,6 +58,47 @@ function Right() {
     setResponseError(null);
 
     try {
+      // wallet
+
+      const blockchainProvider = new BlockfrostProvider(
+        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+      );
+
+      const wallet = new MeshWallet({
+        networkId: 0,
+        fetcher: blockchainProvider,
+        submitter: blockchainProvider,
+        key: {
+          type: 'mnemonic',
+          words: [
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+            'solution',
+          ],
+        },
+      });
+
       const contract = getContract(wallet);
 
       const utxo = await contract.getUtxoByTxHash(userLocalStorage);
@@ -86,29 +127,23 @@ function Right() {
   return (
     <Card>
       <p>
-        For this demo, connect with{' '}
-        <Link href="https://meshjs.dev/apis/appwallet#loadWallet">
+        For this demo, we withdraw funds from the vesting contract with{' '}
+        <Link href="https://meshjs.dev/apis/meshwallet#initWallet">
           Mesh's "solution" wallet
         </Link>
-        , to withdraw funds from the vesting contract.
+        , the recipient of this vesting demo.
       </p>
       <Codeblock data={code} isJson={false} />
-      {connected ? (
-        <>
-          <Button
-            onClick={() => rundemo()}
-            style={
-              loading ? 'warning' : response !== null ? 'success' : 'light'
-            }
-            disabled={loading}
-          >
-            Withdraw Fund
-          </Button>
-          <RunDemoResult response={response} />
-        </>
-      ) : (
-        <CardanoWallet />
-      )}
+
+      <Button
+        onClick={() => rundemo()}
+        style={loading ? 'warning' : response !== null ? 'success' : 'light'}
+        disabled={loading}
+      >
+        Withdraw Fund
+      </Button>
+      <RunDemoResult response={response} />
+
       <RunDemoResult response={responseError} label="Error" />
     </Card>
   );
