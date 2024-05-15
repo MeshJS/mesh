@@ -6,7 +6,7 @@ import {
   ISigner,
   ISubmitter,
 } from '@mesh/common/contracts';
-import { mergeSignatures } from '@mesh/common/helpers';
+import { mergeSignatures } from '@mesh/serializer';
 import {
   deserializeTx,
   toAddress,

@@ -39,7 +39,7 @@ import {
   Certificate,
   TxInParameter,
 } from './type';
-import { selectUtxos } from '@mesh/core/CPS-009';
+import { selectUtxos } from '@mesh/core';
 import JSONbig from 'json-bigint';
 
 export class MeshTxBuilderCore {

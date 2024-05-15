@@ -5,7 +5,7 @@ import {
   SUPPORTED_WALLETS,
 } from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
-import { mergeSignatures } from '@mesh/common/helpers';
+import { mergeSignatures } from '@mesh/serializer';
 import {
   deserializeAddress,
   deserializeTx,
