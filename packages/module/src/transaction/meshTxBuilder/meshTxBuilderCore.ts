@@ -13,7 +13,7 @@ import {
   UTxO,
   Unit,
   PoolParams,
-} from '@mesh/common/types';
+} from '@mesh/types';
 import {
   buildTxBuilder,
   toValue,

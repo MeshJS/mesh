@@ -31,7 +31,7 @@ import type {
   PoolParams,
   Relay,
   UTxO,
-} from '@mesh/common/types';
+} from '@mesh/types';
 
 /* -----------------[ Address ]----------------- */
 

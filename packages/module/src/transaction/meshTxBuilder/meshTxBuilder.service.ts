@@ -1,5 +1,5 @@
 import { IEvaluator, IFetcher, ISubmitter } from '@mesh/common/contracts';
-import { UTxO } from '@mesh/common/types';
+import { UTxO } from '@mesh/types';
 import { MeshTxBuilderCore } from './meshTxBuilderCore';
 import { MeshTxBuilderBody, TxIn, ScriptSourceInfo, ScriptTxIn } from './type';
 

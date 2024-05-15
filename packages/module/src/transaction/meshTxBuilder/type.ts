@@ -6,7 +6,7 @@ import {
   PlutusScript,
   UTxO,
   PoolParams,
-} from '@mesh/common/types';
+} from '@mesh/types';
 
 export type MeshTxBuilderBody = {
   inputs: TxIn[];

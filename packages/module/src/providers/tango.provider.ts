@@ -26,7 +26,7 @@ import type {
   Protocol,
   TransactionInfo,
   UTxO,
-} from '@mesh/common/types';
+} from '@mesh/types';
 
 export class TangoProvider
   implements IEvaluator, IFetcher, IListener, ISubmitter

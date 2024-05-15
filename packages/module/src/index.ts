@@ -1,5 +1,5 @@
 export * from './common/contracts';
-export * from './common/types';
+export * from './common/data';
 export { generateNonce, readPlutusData } from './common/helpers';
 export * from './common/utils/resolver';
 export * from './common/utils/parser';
@@ -9,3 +9,4 @@ export * from './providers';
 export * from './scripts';
 export * from './transaction';
 export * from './wallet';
+export * from './types';

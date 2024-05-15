@@ -28,7 +28,7 @@ import type {
   DataSignature,
   UTxO,
   Wallet,
-} from '@mesh/common/types';
+} from '@mesh/types';
 
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   walletInstance: WalletInstance;
@@ -290,20 +290,20 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 }
 
-declare global {
-  interface Window {
-    cardano: Cardano;
-  }
-}
+// declare global {
+//   interface Window {
+//     cardano: Cardano;
+//   }
+// }
 
-type Cardano = {
-  [key: string]: {
-    name: string;
-    icon: string;
-    apiVersion: string;
-    enable: () => Promise<WalletInstance>;
-  };
-};
+// type Cardano = {
+//   [key: string]: {
+//     name: string;
+//     icon: string;
+//     apiVersion: string;
+//     enable: () => Promise<WalletInstance>;
+//   };
+// };
 
 type TransactionSignatureRequest = {
   cbor: string;

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { UTxO } from '@mesh/common/types';
+import type { UTxO } from '@mesh/types';
 import { deserializeTx } from '@mesh/common/utils';
 import { csl } from '@mesh/core';
 const minaFrontendUrl = 'http://localhost:4000/';

@@ -14,7 +14,7 @@ import {
 } from '@mesh/common/utils';
 import { EmbeddedWallet } from './embedded.service';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
-import type { DataSignature } from '@mesh/common/types';
+import type { DataSignature } from '@mesh/types';
 
 const DEFAULT_PASSWORD = 'MARI0TIME';
 
