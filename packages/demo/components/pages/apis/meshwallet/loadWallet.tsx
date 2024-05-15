@@ -125,7 +125,6 @@ function Right(
   setStakeSkey
 ) {
   const [loading, setLoading] = useState<boolean>(false);
-  const { setWallet, setWalletNetwork } = useAppWallet();
   const [responseAddress, setResponseAddress] = useState<null | any>(null);
   const [responseError, setResponseError] = useState<null | any>(null);
 
@@ -133,7 +132,6 @@ function Right(
     setLoading(true);
     setResponseError(null);
     setResponseAddress(null);
-    setWallet({} as MeshWallet);
 
     const blockchainProvider = new BlockfrostProvider(
       process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
@@ -158,8 +156,7 @@ function Right(
               words: _mnemonic,
             },
           });
-          setWallet(_wallet);
-          setWalletNetwork(network);
+
           const address = _wallet.getChangeAddress();
           setResponseAddress(address);
         }
@@ -178,8 +175,7 @@ function Right(
             bech32: privatekey,
           },
         });
-        setWallet(_wallet);
-        setWalletNetwork(network);
+
         const address = _wallet.getChangeAddress();
         setResponseAddress(address);
       } catch (error) {
@@ -199,8 +195,7 @@ function Right(
             stake,
           },
         });
-        setWallet(_wallet);
-        setWalletNetwork(network);
+
         const address = _wallet.getChangeAddress();
         setResponseAddress(address);
       } catch (error) {
