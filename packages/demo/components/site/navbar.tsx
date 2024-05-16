@@ -26,8 +26,9 @@ import {
   CubeIcon,
   ListBulletIcon,
   LockClosedIcon,
-  AcademicCapIcon,
-  PlayCircleIcon,
+  ArrowsRightLeftIcon,
+  GiftIcon,
+  CodeBracketSquareIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -242,16 +243,22 @@ function SubMenuWallet() {
         <div className="p-2 text-gray-900 bg-white lg:rounded-lg dark:text-white lg:col-span-1 dark:bg-gray-800">
           <ul>
             <SubMenuLinks
-              href={`/apis/appwallet`}
-              title="App Wallet"
-              desc="Wallet for building amazing applications"
-              icon={<WalletIcon className="w-5 h-5" />}
-            />
-            <SubMenuLinks
               href={`/apis/browserwallet`}
               title="Browser Wallet"
               desc="Connect and perform wallet functions on Web3 dApps"
               icon={<BanknotesIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/meshwallet`}
+              title="Mesh Wallet"
+              desc="Wallet for building amazing applications"
+              icon={<WalletIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/apis/appwallet`}
+              title="App Wallet"
+              desc="Lower-level wallet APIs"
+              icon={<CodeBracketSquareIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
@@ -282,8 +289,38 @@ function SubMenuSmartContracts() {
             <SubMenuLinks
               href={`/smart-contracts/marketplace`}
               title="Marketplace"
-              desc="Build a NFT marketplace effortlessly."
+              desc="Build a NFT marketplace effortlessly"
               icon={<ShoppingCartIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/vesting`}
+              title="Vesting"
+              desc="Lock assets for a period of time"
+              icon={<LockClosedIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/escrow`}
+              title="Escrow"
+              desc="Facilitate secure peer to peer transactions"
+              icon={<ArrowsRightLeftIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/giftcard`}
+              title="Giftcard"
+              desc="Send and redeem a gift card"
+              icon={<GiftIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/coupon-bond-guaranteed`}
+              title="Coupon Bond Guaranteed"
+              desc="Debt agreement between Lender and Borrower"
+              icon={<DocumentTextIcon className="w-5 h-5" />}
+            />
+            <SubMenuLinks
+              href={`/smart-contracts/payment-splitter`}
+              title="Payment Splitter"
+              desc="Split contract payouts equally among all payees"
+              icon={<DocumentTextIcon className="w-5 h-5" />}
             />
           </ul>
         </div>
@@ -418,7 +455,7 @@ function SubMenuAbout() {
               href={`/about/catalyst`}
               title="Project Catalyst"
               desc="Project Catalyst and progress"
-              icon={<WalletIcon className="w-5 h-5" />}
+              icon={<BanknotesIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/about/cips`}

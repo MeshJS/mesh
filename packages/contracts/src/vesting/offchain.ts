@@ -6,9 +6,17 @@ import {
   v2ScriptToBech32,
   unixTimeToEnclosingSlot,
   SLOT_CONFIG_NETWORK,
+  ConStr0,
+  Integer,
+  BuiltinByteString,
+  parseDatumCbor,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
+
+export type VestingDatum = ConStr0<
+  [Integer, BuiltinByteString, BuiltinByteString]
+>;
 
 export class MeshVestingContract extends MeshTxInitiator {
   scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
@@ -19,12 +27,15 @@ export class MeshVestingContract extends MeshTxInitiator {
 
   depositFund = async (
     amount: Asset[],
-    lockUntilTimeStamp: number,
-    beneficiary: string,
-    networkId = 0
+    lockUntilTimeStampMs: number,
+    beneficiary: string
   ): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, 0);
+    const scriptAddr = v2ScriptToBech32(
+      this.scriptCbor,
+      undefined,
+      this.networkId
+    );
     const { pubKeyHash: ownerPubKeyHash } =
       serializeBech32Address(walletAddress);
     const { pubKeyHash: beneficiaryPubKeyHash } =
@@ -33,16 +44,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     await this.mesh
       .txOut(scriptAddr, amount)
       .txOutInlineDatumValue(
-        mConStr0([
-          unixTimeToEnclosingSlot(
-            lockUntilTimeStamp,
-            networkId === 0
-              ? SLOT_CONFIG_NETWORK.Preprod
-              : SLOT_CONFIG_NETWORK.Mainnet
-          ),
-          ownerPubKeyHash,
-          beneficiaryPubKeyHash,
-        ])
+        mConStr0([lockUntilTimeStampMs, ownerPubKeyHash, beneficiaryPubKeyHash])
       )
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
@@ -50,12 +52,26 @@ export class MeshVestingContract extends MeshTxInitiator {
     return this.mesh.txHex;
   };
 
-  withdrawFund = async (vestingUtxo: UTxO, networkId = 0): Promise<string> => {
+  withdrawFund = async (vestingUtxo: UTxO): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
     const { input: collateralInput, output: collateralOutput } = collateral;
-    const scriptAddr = v2ScriptToBech32(this.scriptCbor, undefined, 0);
+    const scriptAddr = v2ScriptToBech32(
+      this.scriptCbor,
+      undefined,
+      this.networkId
+    );
     const { pubKeyHash } = serializeBech32Address(walletAddress);
+
+    const datum = parseDatumCbor<VestingDatum>(vestingUtxo.output.plutusData!);
+
+    const invalidBefore =
+      unixTimeToEnclosingSlot(
+        Math.min(datum.fields[0].int, Date.now() - 15000),
+        this.networkId === 0
+          ? SLOT_CONFIG_NETWORK.Preprod
+          : SLOT_CONFIG_NETWORK.Mainnet
+      ) + 1;
 
     await this.mesh
       .spendingPlutusScriptV2()
@@ -75,18 +91,15 @@ export class MeshVestingContract extends MeshTxInitiator {
         collateralOutput.amount,
         collateralOutput.address
       )
-      .invalidBefore(
-        unixTimeToEnclosingSlot(
-          new Date().getTime() - 100,
-          networkId === 0
-            ? SLOT_CONFIG_NETWORK.Preprod
-            : SLOT_CONFIG_NETWORK.Mainnet
-        )
-      )
+      .invalidBefore(invalidBefore)
       .requiredSignerHash(pubKeyHash)
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
       .complete();
     return this.mesh.txHex;
+  };
+
+  getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
+    return await this._getUtxoByTxHash(this.scriptCbor, txHash);
   };
 }

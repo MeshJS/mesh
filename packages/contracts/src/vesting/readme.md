@@ -1,23 +1,34 @@
-# Vesting
+# Vesting Contract
 
 Vesting contract is a smart contract that locks up funds for a period of time and allows the owner to withdraw the funds after the lockup period.
 
-Actors:
-- owner
-  - owner is the organization that is depositing funds into the vesting contract
-  - owner deposit funds to be locked up for a period of time
-  - ? owner can withdraw funds if it is not redeemed after a certain time after the lockup period
-  - ? owner can cancel the lockup period if someone leaves the organization
-- beneficiary
-  - beneficiary is the recipient of the locked up funds
-  - beneficiary can withdraw funds after the lockup period
+When a new employee joins an organization, they typically receive a promise of compensation to be disbursed after a specified duration of employment. This arrangement often involves the organization depositing the funds into a vesting contract, with the employee gaining access to the funds upon the completion of a predetermined lockup period. Through the utilization of vesting contracts, organizations establish a mechanism to encourage employee retention by linking financial rewards to tenure.
 
-Story:
-when a new employee join an organization, they are promised an amount of money to be paid after a period of time. The organization can deposit the funds into a vesting contract and the employee can withdraw the funds after the lockup period. this is to ensure that the employee stays with the organization for a period of time.
+There are 2 actions (or endpoints) available to interact with this smart contract:
 
-Endpoints:
-- owner deposit funds
-- withdraw funds
+- deposit asset
+- withdraw asset
 
-Reference: 
-- https://aiken-lang.org/example--vesting
+To initialize the escrow, we need to initialize a provider, MeshTxBuilder and MeshVestingContract.
+
+```
+import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
+import { MeshVestingContract } from '@meshsdk/contracts';
+import { useWallet } from '@meshsdk/react';
+
+const { connected, wallet } = useWallet();
+
+const blockchainProvider = new BlockfrostProvider(APIKEY);
+
+const meshTxBuilder = new MeshTxBuilder({
+  fetcher: blockchainProvider,
+  submitter: blockchainProvider,
+});
+
+const contract = new MeshVestingContract({
+  mesh: meshTxBuilder,
+  fetcher: blockchainProvider,
+  wallet: wallet,
+  networkId: 0,
+});
+```

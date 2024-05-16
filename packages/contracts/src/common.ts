@@ -1,23 +1,29 @@
 import { MeshTxBuilder, IFetcher, UTxO, BrowserWallet } from '@meshsdk/core';
+import { v2ScriptToBech32 } from '@meshsdk/mesh-csl';
 
 export type MeshTxInitiatorInput = {
   mesh: MeshTxBuilder;
   fetcher?: IFetcher;
   wallet?: BrowserWallet;
+  networkId?: number;
 };
 
 export class MeshTxInitiator {
   mesh: MeshTxBuilder;
   fetcher?: IFetcher;
   wallet?: BrowserWallet;
+  networkId = 0;
 
-  constructor({ mesh, fetcher, wallet }: MeshTxInitiatorInput) {
+  constructor({ mesh, fetcher, wallet, networkId }: MeshTxInitiatorInput) {
     this.mesh = mesh;
     if (fetcher) {
       this.fetcher = fetcher;
     }
     if (wallet) {
       this.wallet = wallet;
+    }
+    if (networkId) {
+      this.networkId = networkId;
     }
   }
 
@@ -138,5 +144,23 @@ export class MeshTxInitiator {
       throw new Error('No wallet address found');
     }
     return { utxos, collateral, walletAddress };
+  };
+
+  protected _getUtxoByTxHash = async (
+    scriptCbor: string,
+    txHash: string
+  ): Promise<UTxO | undefined> => {
+    if (this.fetcher) {
+      const scriptAddr = v2ScriptToBech32(
+        scriptCbor,
+        undefined,
+        this.networkId
+      );
+
+      const utxos = await this.fetcher.fetchAddressUTxOs(scriptAddr);
+      return utxos.filter((utxo) => utxo.input.txHash === txHash)[0];
+    }
+
+    return undefined;
   };
 }
