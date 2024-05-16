@@ -60,11 +60,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       (txIn) => !this.isInputComplete(txIn)
     );
 
-    console.log('Incomplete UTxO', incompleteTxIns);
     // Getting all missing utxo information
     await this.queryAllTxInfo(incompleteTxIns);
-
-    console.log('Incomplete UTxO', incompleteTxIns);
 
     // Completing all inputs
     incompleteTxIns.forEach((txIn) => {
@@ -99,8 +96,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   private getUTxOInfo = async (txHash: string): Promise<void> => {
     let utxos: UTxO[] = [];
     if (!this.queriedTxHashes.has(txHash)) {
-      console.log('Query', txHash);
-
       this.queriedTxHashes.add(txHash);
       utxos = (await this._fetcher?.fetchUTxOs(txHash)) || [];
       this.queriedUTxOs[txHash] = utxos;

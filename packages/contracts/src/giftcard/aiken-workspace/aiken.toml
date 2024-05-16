@@ -15,5 +15,5 @@ source = "github"
 
 [[dependencies]]
 name = "sidan-lab/aiken-utils"
-version = "0.0.1-beta"
+version = "0.0.5-beta"
 source = "github"

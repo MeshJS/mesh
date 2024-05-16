@@ -322,7 +322,7 @@ function InputTable({
             wallet's payment address.
           </p>
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Note: Mesh Playground is safe if you really want to recover your
+            Note: Mesh Playground is safe if you really have to recover your
             Mainnet wallet, but recovering your testing wallet on Mesh
             Playground is recommended.
           </p>

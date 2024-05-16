@@ -8,12 +8,12 @@ import {
   BadgeListener,
   BadgeEvaluator,
 } from '../../components/pages/providers/badges';
-import Fetcher from '../../components/pages/providers/fetcher';
-import { TangoProvider } from '@meshsdk/core';
-import Submitter from '../../components/pages/providers/submitter';
+// import Fetcher from '../../components/pages/providers/fetcher';
+// import { TangoProvider } from '@meshsdk/core';
+// import Submitter from '../../components/pages/providers/submitter';
 import ButtonGroup from '../../components/ui/buttongroup';
-import Listener from '../../components/pages/providers/listener';
-import Evaluator from '../../components/pages/providers/evaluator';
+// import Listener from '../../components/pages/providers/listener';
+// import Evaluator from '../../components/pages/providers/evaluator';
 
 export default function ProvidersTangocrypto() {
   const sidebarItems = [
@@ -105,33 +105,33 @@ function Hero({ network, setNetwork }) {
 }
 
 function Main({ network }) {
-  const [tangocryptoProvider, setTangocryptoProvider] =
-    useState<TangoProvider | null>(null);
+  // const [tangocryptoProvider, setTangocryptoProvider] =
+  //   useState<TangoProvider | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      if (network === 'mainnet') {
-        const _provider = new TangoProvider(
-          'mainnet',
-          process.env.NEXT_PUBLIC_TANGOCRYPTO_API_ID_MAINNET!,
-          process.env.NEXT_PUBLIC_TANGOCRYPTO_API_KEY_MAINNET!
-        );
-        setTangocryptoProvider(_provider);
-      } else if (network === 'preprod') {
-        const _provider = new TangoProvider(
-          'testnet',
-          process.env.NEXT_PUBLIC_TANGOCRYPTO_API_ID_TESTNET!,
-          process.env.NEXT_PUBLIC_TANGOCRYPTO_API_KEY_TESTNET!
-        );
-        setTangocryptoProvider(_provider);
-      }
-    }
-    load();
-  }, [network]);
+  // useEffect(() => {
+  //   async function load() {
+  //     if (network === 'mainnet') {
+  //       const _provider = new TangoProvider(
+  //         'mainnet',
+  //         process.env.NEXT_PUBLIC_TANGOCRYPTO_API_ID_MAINNET!,
+  //         process.env.NEXT_PUBLIC_TANGOCRYPTO_API_KEY_MAINNET!
+  //       );
+  //       setTangocryptoProvider(_provider);
+  //     } else if (network === 'preprod') {
+  //       const _provider = new TangoProvider(
+  //         'testnet',
+  //         process.env.NEXT_PUBLIC_TANGOCRYPTO_API_ID_TESTNET!,
+  //         process.env.NEXT_PUBLIC_TANGOCRYPTO_API_KEY_TESTNET!
+  //       );
+  //       setTangocryptoProvider(_provider);
+  //     }
+  //   }
+  //   load();
+  // }, [network]);
 
   return (
     <>
-      <Fetcher
+      {/* <Fetcher
         fetcher={tangocryptoProvider}
         fetcherName="tangocryptoProvider"
       />
@@ -146,7 +146,7 @@ function Main({ network }) {
       <Evaluator
         evaluator={tangocryptoProvider}
         evaluatorName="tangocryptoProvider"
-      />
+      /> */}
     </>
   );
 }

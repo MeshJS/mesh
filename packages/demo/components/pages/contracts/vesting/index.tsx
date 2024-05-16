@@ -1,16 +1,12 @@
 import CommonLayout from '../../../common/layout';
-// import MarketplaceBuyAsset from './buyAsset';
-// import MarketplaceCancelAsset from './cancelListing';
 import Hero from './hero';
-// import MarketplaceListAsset from './listAsset';
-// import MarketplaceUpdateListing from './updateListing';
+import VestingDepositFund from './depositFund';
+import VestingWithdrawFund from './withdrawFund';
 
 export default function ContractsVesting() {
   const sidebarItems = [
-    { label: 'List Asset', to: 'listAsset' },
-    { label: 'Buy Asset', to: 'buyAsset' },
-    { label: 'Update Listing', to: 'updateListing' },
-    { label: 'Cancel Listing', to: 'cancelListing' },
+    { label: 'Deposit Fund', to: 'depositFund' },
+    { label: 'Withdraw Fund', to: 'withdrawFund' },
   ];
 
   return (
@@ -24,10 +20,8 @@ export default function ContractsVesting() {
 function Main() {
   return (
     <>
-      {/* <MarketplaceListAsset />
-      <MarketplaceBuyAsset />
-      <MarketplaceUpdateListing />
-      <MarketplaceCancelAsset /> */}
+      <VestingDepositFund />
+      <VestingWithdrawFund />
     </>
   );
 }

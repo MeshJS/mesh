@@ -175,4 +175,21 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   static brew(strength = 256): string[] {
     return EmbeddedWallet.generateMnemonic(strength);
   }
+
+  /**
+   * development: browser wallets apis
+   */
+
+  async getUtxos(): Promise<TransactionUnspentOutput[]> {
+    return await this.getUsedUTxOs();
+  }
+
+  async getCollateral() {
+    return (await this.getUsedUTxOs())[0]; // todo hinson
+  }
+
+  async getUsedAddresses() {
+    console.log(1, await this.getPaymentAddress());
+    return [await this.getPaymentAddress()];
+  }
 }
