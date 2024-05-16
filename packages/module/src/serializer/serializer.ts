@@ -57,8 +57,6 @@ export interface IMeshSerializer {
   addSigningKeys(txHex: string, signingKeys: string[]): string;
 }
 
-// export class MeshSerializer {}
-
 export class CSLSerializer implements IMeshSerializer {
   txBuilder: TransactionBuilder;
   protocolParams: Protocol;
