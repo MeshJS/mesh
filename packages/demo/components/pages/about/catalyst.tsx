@@ -13,7 +13,7 @@ export default function Catalyst() {
               Here are proposals that we have submitted to Project Catalyst and
               its progress.
             </p>
-            <div className="grid grid-cols-3 gap-2 w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 w-full">
               <ListOfProposals />
             </div>
           </div>
