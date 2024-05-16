@@ -213,7 +213,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of used addresses
    */
-  getUsedAddresses(): string[] {
+  async getUsedAddresses(): Promise<string[]> {
     // todo hinson: shall we do this? used and unused addresses are the same same change address?
     return [this.getChangeAddress()];
   }
