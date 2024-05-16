@@ -90,15 +90,19 @@ function Sitemap() {
             Get Started
           </h2>
           <ul className="text-gray-500 dark:text-gray-400">
+            <SitemapLinks
+              href="https://docs.meshjs.dev/"
+              label="Technical Docs"
+            />
+            <SitemapLinks
+              href="https://pbl.meshjs.dev/"
+              label="Mesh Project Based Learning"
+            />
             <SitemapLinks href="/starter-templates" label="Starter Templates" />
             <SitemapLinks href="/guides" label="Guides" />
             <SitemapLinks
               href="/migration-manual-installation"
               label="Migration / Manual Installation"
-            />
-            <SitemapLinks
-              href="https://docs.meshjs.dev/"
-              label="Technical Docs"
             />
           </ul>
         </div>
@@ -119,9 +123,15 @@ function Sitemap() {
               label="Minting and Burning Assets"
             />
             <SitemapLinks href="/apis/transaction/staking" label="Stake Pool" />
-            <SitemapLinks href="/apis/transaction/builderExample" label="Customized Transactions" />
-            <SitemapLinks href="/apis/transaction/builder" label="Low Level Transaction Builder" />
-            
+            <SitemapLinks
+              href="/apis/transaction/builderExample"
+              label="Customized Transactions"
+            />
+            <SitemapLinks
+              href="/apis/transaction/builder"
+              label="Low Level Transaction Builder"
+            />
+
             <SitemapLinks href="/apis/resolvers" label="Resolvers" />
           </ul>
         </div>
@@ -130,7 +140,10 @@ function Sitemap() {
             Prebuilt Smart Contracts
           </h2>
           <ul className="text-gray-500 dark:text-gray-400">
-            <SitemapLinks href="/smart-contracts/marketplace" label="Marketplace" />
+            <SitemapLinks
+              href="/smart-contracts/marketplace"
+              label="Marketplace"
+            />
           </ul>
         </div>
         <div>
@@ -139,7 +152,10 @@ function Sitemap() {
           </h2>
           <ul className="text-gray-500 dark:text-gray-400">
             <SitemapLinks href="/react" label="React" />
-            <SitemapLinks href="/react/ui-components" label="React UI Components" />
+            <SitemapLinks
+              href="/react/ui-components"
+              label="React UI Components"
+            />
             <SitemapLinks href="/react/wallet-hooks" label="React Hooks" />
             <SitemapLinks href="/providers" label="Providers" />
           </ul>

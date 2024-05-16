@@ -5,9 +5,7 @@ import { promisify } from 'util';
 import { pipeline } from 'stream';
 import { existsSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';
-import {
-  resolvePkgManager, setProjectName, tryGitInit,
-} from '../helpers';
+import { resolvePkgManager, setProjectName, tryGitInit } from '../helpers';
 import { logError, logInfo } from '../utils';
 
 export const create = async (name, options) => {
@@ -20,7 +18,6 @@ export const create = async (name, options) => {
       { title: 'Cardano Sign-In', value: 'signin' },
       { title: 'E-Commerce Store', value: 'ecommerce' },
       { title: 'Marketplace', value: 'marketplace' },
-      { title: 'plu-ts', value: 'pluts' },
       { title: 'Aiken', value: 'aiken' },
     ]));
 
@@ -93,13 +90,7 @@ const fetchRepository = async (template, stack, language) => {
   const name = `${template}-${stack}-${language}-template`;
   const link = `https://codeload.github.com/MeshJS/${name}/tar.gz/main`;
 
-  await pipe(
-    got.stream(link),
-    extract(
-      { strip: 1 },
-      [`${name}-main`]
-    )
-  );
+  await pipe(got.stream(link), extract({ strip: 1 }, [`${name}-main`]));
 };
 
 const setNameAndCommitChanges = (name) => {
@@ -119,4 +110,4 @@ const installDependencies = () => {
   } catch (_) {
     logError('🚫 Failed to install project dependencies, continuing...');
   }
-}
+};
