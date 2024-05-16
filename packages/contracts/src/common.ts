@@ -1,17 +1,23 @@
-import { MeshTxBuilder, IFetcher, UTxO, BrowserWallet } from '@meshsdk/core';
+import {
+  MeshTxBuilder,
+  IFetcher,
+  UTxO,
+  BrowserWallet,
+  MeshWallet,
+} from '@meshsdk/core';
 import { v2ScriptToBech32 } from '@meshsdk/mesh-csl';
 
 export type MeshTxInitiatorInput = {
   mesh: MeshTxBuilder;
   fetcher?: IFetcher;
-  wallet?: BrowserWallet;
+  wallet?: BrowserWallet | MeshWallet;
   networkId?: number;
 };
 
 export class MeshTxInitiator {
   mesh: MeshTxBuilder;
   fetcher?: IFetcher;
-  wallet?: BrowserWallet;
+  wallet?: BrowserWallet | MeshWallet;
   networkId = 0;
 
   constructor({ mesh, fetcher, wallet, networkId }: MeshTxInitiatorInput) {

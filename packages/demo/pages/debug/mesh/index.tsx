@@ -219,10 +219,13 @@ export default function Mesh() {
       // note, must change this to the txhash of the previous tx
       'f40f880e1571b332c426ba2769e98a62aa13446e66fe876eaf94724a0b53643a'
     );
-    const tx = await contract.cancelEscrow(utxo);
-    const signedTx = await wallet.signTx(tx, true);
-    const txHash = await wallet.submitTx(signedTx);
-    console.log(1, txHash);
+
+    if (utxo) {
+      const tx = await contract.cancelEscrow(utxo);
+      const signedTx = await wallet.signTx(tx, true);
+      const txHash = await wallet.submitTx(signedTx);
+      console.log(1, txHash);
+    }
   }
 
   return (

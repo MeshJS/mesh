@@ -29,6 +29,8 @@ import {
   ArrowsRightLeftIcon,
   GiftIcon,
   CodeBracketSquareIcon,
+  AcademicCapIcon,
+  PlayCircleIcon,
 } from '@heroicons/react/24/solid';
 import SvgGithub from '../svgs/github';
 import SvgMesh from '../svgs/mesh';
@@ -204,7 +206,7 @@ function SubMenuGetStarted() {
               desc="Start your building journey"
               icon={<AcademicCapIcon className="w-5 h-5" />}
             />
-            <SubMenuLinks
+            {/* <SubMenuLinks
               href={`https://www.youtube.com/playlist?list=PLCCIAmutGEbdez44WwToVG9HMenViQszp`}
               title="Mesh PBL Videos"
               desc="Watch and Learn"
@@ -215,7 +217,7 @@ function SubMenuGetStarted() {
               title="Mesh Livecoding Videos"
               desc="Livecoding on Gimbalabs"
               icon={<PlayCircleIcon className="w-5 h-5" />}
-            />
+            /> */}
           </ul>
         </div>
       </div>
