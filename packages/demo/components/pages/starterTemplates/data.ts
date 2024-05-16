@@ -42,12 +42,6 @@ export const templates = {
     cli: 'marketplace',
     image: 'marketplace.png',
   },
-  pluts: {
-    title: 'plu-ts',
-    desc: `Write your smart contracts in plu-ts and deploy your app on the Cardano blockchain with Mesh SDK.`,
-    cli: 'pluts',
-    image: 'pluts.png',
-  },
   aiken: {
     title: 'aiken',
     desc: `Create smart contracts with Aiken and execute transactions with Mesh.`,
