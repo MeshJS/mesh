@@ -65,8 +65,8 @@ function IntroSection() {
       <p>
         You can customize a provider to utilize GraphQL, cardano-cli, or
         websocket with Mesh SDK. Whatever the query method used to obtain the
-        data, it will work perfectly with Mesh SDK so long as the output of the function 
-        is compatible with the interface.
+        data, it will work perfectly with Mesh SDK so long as the output of the
+        function is compatible with the interface.
       </p>
       <p>
         This guide will show us how to make a custom provider and how to
@@ -79,7 +79,7 @@ function IntroSection() {
 
 function HowItWorksSection() {
   let codeIFetcher = ``;
-  codeIFetcher += `import type { AccountInfo, AssetMetadata, Protocol, UTxO } from '@mesh/common/types';\n\n`;
+  codeIFetcher += `import type { AccountInfo, AssetMetadata, Protocol, UTxO } from '@mesh/types';\n\n`;
   codeIFetcher += `export interface IFetcher {\n`;
   codeIFetcher += `  fetchAccountInfo(address: string): Promise<AccountInfo>;\n`;
   codeIFetcher += `  fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>;\n`;
@@ -94,16 +94,15 @@ function HowItWorksSection() {
       <h2>How Does It Work?</h2>
       <p>
         JavaScript interfaces are structures that define the interface of an
-        application: they are used to define the syntax for classes to follow. Thus, any classes which
-        are based on an interface must abide by the structure laid out in the
-        interface.
+        application: they are used to define the syntax for classes to follow.
+        Thus, any classes which are based on an interface must abide by the
+        structure laid out in the interface.
       </p>
       <p>
         All providers have one or more interface(s). For example, the{' '}
-        <code>KoiosProvider</code> Class implements the{' '}
-        <code>IFetcher</code> and <code>ISubmitter</code> interfaces, thus{' '}
-        <code>KoiosProvider</code> needs to strictly conform to the structure of
-        these two interfaces.
+        <code>KoiosProvider</code> Class implements the <code>IFetcher</code>{' '}
+        and <code>ISubmitter</code> interfaces, thus <code>KoiosProvider</code>{' '}
+        needs to strictly conform to the structure of these two interfaces.
       </p>
       <p>
         <code>IFetcher</code> and <code>ISubmitter</code> are implemented in the{' '}
@@ -115,8 +114,8 @@ function HowItWorksSection() {
         isJson={false}
       />
       <p>
-        To see the latest up-to-date list of interfaces used by Mesh, visit the GitHub
-        repo,{' '}
+        To see the latest up-to-date list of interfaces used by Mesh, visit the
+        GitHub repo,{' '}
         <a
           href="https://github.com/MeshJS/mesh/tree/main/packages/module/src/common/contracts"
           target="_blank"
@@ -130,8 +129,8 @@ function HowItWorksSection() {
         To create a custom provider class, one must create functions with the
         same name, input parameters, and return type as the list of defined
         methods for each interface. Doing so will allow the functions to work as
-        expected when building transactions and any of the other many functions provided in
-        Mesh.
+        expected when building transactions and any of the other many functions
+        provided in Mesh.
       </p>
       <p>
         For example, as of writing, <code>IFetcher</code> has 6 functions (see{' '}
@@ -162,7 +161,7 @@ function StarterSection() {
   code += `  AssetMetadata,\n`;
   code += `  Protocol,\n`;
   code += `  UTxO,\n`;
-  code += `} from "@mesh/common/types";\n`;
+  code += `} from "@mesh/types";\n`;
   code += `\n`;
   code += `export class NAMEProvider implements IFetcher, ISubmitter {\n`;
   code += `  constructor(network: "") {\n`;
@@ -256,10 +255,10 @@ function StarterSection() {
       <p>This code base below can be used as a starting point:</p>
       <Codeblock data={code} isJson={false} />
       <p>
-        However, please note that it may no longer be valid when the interface is updated. It is
-        also important to note that the interface you require may not be{' '}
-        <code>IFetcher</code> or <code>ISubmitter</code>, but rather other
-        interfaces, depending on the purpose of the provider you are
+        However, please note that it may no longer be valid when the interface
+        is updated. It is also important to note that the interface you require
+        may not be <code>IFetcher</code> or <code>ISubmitter</code>, but rather
+        other interfaces, depending on the purpose of the provider you are
         implementing.
       </p>
     </Element>
@@ -351,19 +350,22 @@ function ImplementSection() {
       </ul>
       <p>
         By knowing the inputs and outputs of both the interface and the
-        blockchain provider, one can create the functions that map the data correctly from the
-        blockchain provider to the interface's required data type.
+        blockchain provider, one can create the functions that map the data
+        correctly from the blockchain provider to the interface's required data
+        type.
       </p>
       <p>
-        For example, below we have implemeted the <code>fetchProtocolParameters()</code>{' '}
-        for <code>KoiosProvider</code> to map the responses returned from Koios,
-        transforming the output into the required <code>Protocol</code> data
-        type.  This function is used for fetching protocol parameters:
+        For example, below we have implemeted the{' '}
+        <code>fetchProtocolParameters()</code> for <code>KoiosProvider</code> to
+        map the responses returned from Koios, transforming the output into the
+        required <code>Protocol</code> data type. This function is used for
+        fetching protocol parameters:
       </p>
       <Codeblock data={codePP} isJson={false} />
       <p>
-        To complete implementation of your custom provider, simply do the same for every function
-        specified by the interface and test that they work as expected.
+        To complete implementation of your custom provider, simply do the same
+        for every function specified by the interface and test that they work as
+        expected.
       </p>
       <p>
         If you think that the provider you have implemented will benefit the
