@@ -6,12 +6,7 @@ import {
 } from '@mesh/common/contracts';
 import { AppWallet } from './app.service';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
-import type {
-  Asset,
-  AssetExtended,
-  DataSignature,
-  UTxO,
-} from '@mesh/common/types';
+import type { Asset, AssetExtended, DataSignature, UTxO } from '@mesh/types';
 import {
   fromTxUnspentOutput,
   toUTF8,

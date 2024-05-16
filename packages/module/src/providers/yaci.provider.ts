@@ -19,7 +19,7 @@ import type {
   TransactionInfo,
   UTxO,
   Unit,
-} from '@mesh/common/types';
+} from '@mesh/types';
 
 export class YaciProvider implements IFetcher, IListener, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
