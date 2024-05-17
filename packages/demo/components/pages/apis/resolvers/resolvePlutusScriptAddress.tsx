@@ -6,7 +6,7 @@ import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import { resolvePlutusScriptAddress } from '@meshsdk/core';
 import Input from '../../../ui/input';
-import type { PlutusScript } from '@meshsdk/core';
+import type { PlutusScript } from '@meshsdk/common';
 
 export default function ResolvePlutusScriptAddress() {
   const [userinput, setUserinput] = useState<number>(0);
@@ -25,7 +25,6 @@ export default function ResolvePlutusScriptAddress() {
 }
 
 function Left(userinput, userinput2) {
-
   let code = `import { resolvePlutusScriptAddress } from '@meshsdk/core';\n`;
   code += `import type { PlutusScript } from '@meshsdk/core';\n\n`;
 

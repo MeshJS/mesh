@@ -3,7 +3,7 @@
   "description": "Rapidly build Web3 apps on the Cardano Blockchain.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
-  "version": "1.6.0-alpha.11",
+  "version": "1.6.0-alpha.18",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -44,7 +44,8 @@
     }
   },
   "browser": {
-    "@emurgo/cardano-message-signing-nodejs": "@emurgo/cardano-message-signing-browser"
+    "@emurgo/cardano-message-signing-nodejs": "@emurgo/cardano-message-signing-browser",
+    "@emurgo/cardano-serialization-lib-nodejs": "@emurgo/cardano-serialization-lib-browser"
   },
   "exports": {
     ".": {
@@ -69,8 +70,10 @@
   "dependencies": {
     "@emurgo/cardano-message-signing-browser": "1.0.1",
     "@emurgo/cardano-message-signing-nodejs": "1.0.1",
+    "@emurgo/cardano-serialization-lib-browser": "1.0.1",
+    "@emurgo/cardano-serialization-lib-nodejs": "1.0.1",
     "@emurgo/cip14-js": "3.0.1",
-    "@meshsdk/mesh-csl": "^0.0.5",
+    "@meshsdk/common": "^1.0.0-alpha.7",
     "axios": "1.6.3",
     "bip39": "3.0.4",
     "json-bigint": "^1.0.0",

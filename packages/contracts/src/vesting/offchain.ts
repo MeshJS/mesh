@@ -12,7 +12,7 @@ import {
   parseDatumCbor,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
-import { Asset, UTxO } from '@meshsdk/core';
+import { Asset, UTxO } from '@meshsdk/common';
 
 export type VestingDatum = ConStr0<
   [Integer, BuiltinByteString, BuiltinByteString]

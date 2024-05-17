@@ -5,7 +5,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import { Transaction, ForgeScript } from '@meshsdk/core';
-import type { Mint, AssetMetadata } from '@meshsdk/core';
+import type { Mint, AssetMetadata } from '@meshsdk/common';
 import useAppWallet from '../../../../contexts/appWallet';
 import { demoAddresses } from '../../../../configs/demo';
 import Input from '../../../ui/input';

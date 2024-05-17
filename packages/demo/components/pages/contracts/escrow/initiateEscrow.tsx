@@ -7,7 +7,7 @@ import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 import { getContract } from './common';
-import { Asset } from '@meshsdk/core';
+import { Asset } from '@meshsdk/common';
 
 export default function EscrowInitiate() {
   return (
@@ -30,8 +30,8 @@ function Left() {
         the escrow contract.
       </p>
       <p>
-        <code>initiateEscrow()</code> initiate an escrow. The
-        function accepts the following parameters:
+        <code>initiateEscrow()</code> initiate an escrow. The function accepts
+        the following parameters:
       </p>
       <ul>
         <li>

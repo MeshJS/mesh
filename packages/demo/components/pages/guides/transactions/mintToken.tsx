@@ -6,7 +6,8 @@ import Codeblock from '../../../../components/ui/codeblock';
 import RunDemoButton from '../../../../components/common/runDemoButton';
 import RunDemoResult from '../../../../components/common/runDemoResult';
 import { loadWallet } from './functions';
-import { AssetMetadata, ForgeScript, Mint, Transaction } from '@meshsdk/core';
+import { ForgeScript, Transaction } from '@meshsdk/core';
+import { AssetMetadata, Mint } from '@meshsdk/common';
 import { demoAddresses } from '../../../../configs/demo';
 import ShowMoreDetails from '../../../../components/common/showMoreDetails';
 

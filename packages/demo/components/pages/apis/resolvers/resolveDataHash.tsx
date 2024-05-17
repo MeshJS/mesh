@@ -5,7 +5,7 @@ import SectionTwoCol from '../../../common/sectionTwoCol';
 import RunDemoButton from '../../../common/runDemoButton';
 import RunDemoResult from '../../../common/runDemoResult';
 import { resolveDataHash } from '@meshsdk/core';
-import type { Data } from '@meshsdk/core';
+import type { Data } from '@meshsdk/common';
 import Input from '../../../ui/input';
 import Link from 'next/link';
 

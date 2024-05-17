@@ -8,7 +8,7 @@ import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../../common/connectCipWallet';
 import Input from '../../../../ui/input';
 import { Transaction, ForgeScript } from '@meshsdk/core';
-import type { Asset, AssetExtended } from '@meshsdk/core';
+import type { Asset, AssetExtended } from '@meshsdk/common';
 
 export default function Burning() {
   const { wallet, connected } = useWallet();

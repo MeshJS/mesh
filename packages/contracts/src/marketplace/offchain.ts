@@ -19,14 +19,8 @@ import {
   mConStr0,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
-import {
-  Quantity,
-  UTxO,
-  Unit,
-  keepRelevant,
-  largestFirst,
-  parseAssetUnit,
-} from '@meshsdk/core';
+import { keepRelevant, largestFirst, parseAssetUnit } from '@meshsdk/core';
+import { Quantity, UTxO, Unit } from '@meshsdk/common';
 
 export type MarketplaceDatum = ConStr0<
   [PubKeyAddress, Integer, CurrencySymbol, TokenName]

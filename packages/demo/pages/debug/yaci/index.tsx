@@ -2,7 +2,8 @@ import { MeshVestingContract } from '@meshsdk/contracts';
 import { YaciProvider } from '@meshsdk/core';
 import { Transaction } from '@meshsdk/core';
 import { AppWallet } from '@meshsdk/core';
-import { Asset, MeshTxBuilder } from '@meshsdk/core';
+import { MeshTxBuilder } from '@meshsdk/core';
+import { Asset } from '@meshsdk/common';
 import { useState } from 'react';
 
 /**

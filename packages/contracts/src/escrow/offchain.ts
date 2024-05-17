@@ -18,7 +18,7 @@ import {
   mConStr2,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
-import { Asset, UTxO, mergeAssets } from '@meshsdk/core';
+import { Asset, UTxO, mergeAssets } from '@meshsdk/common';
 
 export type InitiationDatum = ConStr0<[PubKeyAddress, Value]>;
 export const initiateEscrowDatum = (

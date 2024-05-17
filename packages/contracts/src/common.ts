@@ -1,10 +1,10 @@
 import {
   MeshTxBuilder,
   IFetcher,
-  UTxO,
   BrowserWallet,
   MeshWallet,
 } from '@meshsdk/core';
+import { UTxO } from '@meshsdk/common';
 import { v2ScriptToBech32 } from '@meshsdk/mesh-csl';
 
 export type MeshTxInitiatorInput = {

@@ -8,7 +8,8 @@ import { useWallet } from '@meshsdk/react';
 import ConnectCipWallet from '../../../../common/connectCipWallet';
 import Input from '../../../../ui/input';
 import { demoAddresses } from '../../../../../configs/demo';
-import { Transaction, ForgeScript, Mint } from '@meshsdk/core';
+import { Transaction, ForgeScript } from '@meshsdk/core';
+import { Mint, AssetMetadata } from '@meshsdk/common';
 
 export default function MintingRoyaltyToken() {
   const [rate, setRate] = useState<string>('0.2');
@@ -97,7 +98,7 @@ function Right({ rate, setRate, addr, setAddr }) {
 
       const tx = new Transaction({ initiator: wallet });
 
-      const _assetMetadata = { rate: rate, addr: addr };
+      const _assetMetadata: AssetMetadata = { rate: rate, address: addr };
       const asset: Mint = {
         assetName: '',
         assetQuantity: '1',

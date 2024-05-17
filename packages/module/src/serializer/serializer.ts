@@ -27,14 +27,14 @@ import {
   UTxO,
   Unit,
   ValidityRange,
-} from '..';
+} from '@meshsdk/common';
 import { TransactionBuilder, csl, selectUtxos } from '@mesh/core';
 import {
   DEFAULT_PROTOCOL_PARAMETERS,
   LANGUAGE_VERSIONS,
 } from '@mesh/common/constants';
 import JSONbig from 'json-bigint';
-import { signTransaction } from '@meshsdk/mesh-csl';
+// import { signTransaction } from '../core';
 
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   inputs: [],
@@ -185,7 +185,8 @@ export class CSLSerializer implements IMeshSerializer {
 
   addSigningKeys(txHex: string, signingKeys: string[]): string {
     if (signingKeys.length > 0) {
-      return signTransaction(txHex, signingKeys);
+      return '';
+      // return signTransaction(txHex, signingKeys);
     }
     return txHex;
   }

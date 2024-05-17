@@ -1,10 +1,17 @@
 import {
-  IFetcher, IInitiator, ISigner, ISubmitter,
-  parseAssetUnit, resolveDataHash, resolveEpochNo,
-  resolvePaymentKeyHash, resolvePlutusScriptAddress, Transaction,
-} from "@meshsdk/core";
-import type { Network, PlutusScript, UTxO } from '@meshsdk/core';
-import { buildPlutusScript, OwnerAddress } from "./contract";
+  IFetcher,
+  IInitiator,
+  ISigner,
+  ISubmitter,
+  parseAssetUnit,
+  resolveDataHash,
+  resolveEpochNo,
+  resolvePaymentKeyHash,
+  resolvePlutusScriptAddress,
+  Transaction,
+} from '@meshsdk/core';
+import type { Network, PlutusScript, UTxO } from '@meshsdk/common';
+import { buildPlutusScript, OwnerAddress } from './contract';
 
 export class BasicMarketplace {
   private _fetcher: IFetcher;
@@ -33,30 +40,31 @@ export class BasicMarketplace {
 
     const datum = {
       alternative: 0,
-      fields: [
-        resolvePaymentKeyHash(address),
-        price, policyId, assetName,
-      ],
+      fields: [resolvePaymentKeyHash(address), price, policyId, assetName],
     };
 
     const redeemer = {
       data: {
         alternative: 1,
-        fields: []
-      }
+        fields: [],
+      },
     };
 
     const assetUTxO = await this.findUTxO(
-      resolvePlutusScriptAddress(this._script, this._network === 'mainnet' ? 1 : 0),
-      asset, resolveDataHash(datum),
+      resolvePlutusScriptAddress(
+        this._script,
+        this._network === 'mainnet' ? 1 : 0
+      ),
+      asset,
+      resolveDataHash(datum)
     );
 
-    tx
-      .redeemValue({
-        value: assetUTxO,
-        script: this._script,
-        datum, redeemer,
-      })
+    tx.redeemValue({
+      value: assetUTxO,
+      script: this._script,
+      datum,
+      redeemer,
+    })
       .sendValue(address, assetUTxO)
       .setRequiredSigners([address]);
 
@@ -71,15 +79,15 @@ export class BasicMarketplace {
 
     const datum = {
       alternative: 0,
-      fields: [
-        resolvePaymentKeyHash(address),
-        price, policyId, assetName,
-      ],
+      fields: [resolvePaymentKeyHash(address), price, policyId, assetName],
     };
 
     tx.sendAssets(
       {
-        address: resolvePlutusScriptAddress(this._script, this._network === 'mainnet' ? 1 : 0),
+        address: resolvePlutusScriptAddress(
+          this._script,
+          this._network === 'mainnet' ? 1 : 0
+        ),
         datum: { value: datum },
       },
       [
@@ -101,84 +109,96 @@ export class BasicMarketplace {
 
     const datum = {
       alternative: 0,
-      fields: [
-        resolvePaymentKeyHash(address),
-        price, policyId, assetName,
-      ],
+      fields: [resolvePaymentKeyHash(address), price, policyId, assetName],
     };
 
     const redeemer = {
       data: {
         alternative: 0,
-        fields: []
-      }
+        fields: [],
+      },
     };
 
     const assetUTxO = await this.findUTxO(
-      resolvePlutusScriptAddress(this._script, this._network === 'mainnet' ? 1 : 0),
-      asset, resolveDataHash(datum),
+      resolvePlutusScriptAddress(
+        this._script,
+        this._network === 'mainnet' ? 1 : 0
+      ),
+      asset,
+      resolveDataHash(datum)
     );
 
     const buyerAddress = await this._initiator.getUsedAddress();
 
     const { marketFees } = this.splitAmount(price);
 
-    tx
-      .redeemValue({
-        value: assetUTxO,
-        script: this._script,
-        datum, redeemer,
-      })
+    tx.redeemValue({
+      value: assetUTxO,
+      script: this._script,
+      datum,
+      redeemer,
+    })
       .sendValue(buyerAddress.to_bech32(), assetUTxO)
       .sendLovelace(address, price.toString())
-      .sendLovelace(this._owner, marketFees.toString())
+      .sendLovelace(this._owner, marketFees.toString());
 
     const unsignedTx = await tx.build();
     const signedTx = await this._signer.signTx(unsignedTx, true);
     return this._submitter.submitTx(signedTx);
   }
 
-  async relistAsset(address: string, asset: string, oldPrice: number, newPrice: number) {
+  async relistAsset(
+    address: string,
+    asset: string,
+    oldPrice: number,
+    newPrice: number
+  ) {
     const { policyId, assetName } = parseAssetUnit(asset);
     const tx = await this.buildTx();
 
     const datum = {
       alternative: 0,
-      fields: [
-        resolvePaymentKeyHash(address),
-        oldPrice, policyId, assetName,
-      ],
+      fields: [resolvePaymentKeyHash(address), oldPrice, policyId, assetName],
     };
 
     const redeemer = {
       data: {
         alternative: 1,
-        fields: []
-      }
+        fields: [],
+      },
     };
 
     const assetUTxO = await this.findUTxO(
-      resolvePlutusScriptAddress(this._script, this._network === 'mainnet' ? 1 : 0),
-      asset, resolveDataHash(datum),
+      resolvePlutusScriptAddress(
+        this._script,
+        this._network === 'mainnet' ? 1 : 0
+      ),
+      asset,
+      resolveDataHash(datum)
     );
 
-    tx
-      .redeemValue({
-        value: assetUTxO,
-        script: this._script,
-        datum, redeemer,
-      })
+    tx.redeemValue({
+      value: assetUTxO,
+      script: this._script,
+      datum,
+      redeemer,
+    })
       .sendAssets(
         {
-          address: resolvePlutusScriptAddress(this._script, this._network === 'mainnet' ? 1 : 0),
+          address: resolvePlutusScriptAddress(
+            this._script,
+            this._network === 'mainnet' ? 1 : 0
+          ),
           datum: {
             value: {
               alternative: 0,
               fields: [
                 resolvePaymentKeyHash(address),
-                newPrice, policyId, assetName,
+                newPrice,
+                policyId,
+                assetName,
               ],
-            }
+            },
           },
         },
         [
@@ -206,10 +226,7 @@ export class BasicMarketplace {
   }
 
   private async findUTxO(address: string, assetId: string, dataHash: string) {
-    const utxos = await this._fetcher.fetchAddressUTxOs(
-      address,
-      assetId,
-    );
+    const utxos = await this._fetcher.fetchAddressUTxOs(address, assetId);
 
     if (utxos.length === 0) {
       throw new Error(`No listing found for asset with Id: ${assetId}`);
@@ -228,11 +245,14 @@ export class BasicMarketplace {
 
   private splitAmount(price: number) {
     const minFees = 1_000_000;
-    const marketFees = Math.max((this._percentage / 1_000_000) * price, minFees);
+    const marketFees = Math.max(
+      (this._percentage / 1_000_000) * price,
+      minFees
+    );
     const netPrice = price - marketFees;
-    
+
     return { marketFees, netPrice };
-  };
+  }
 }
 
 type CreateMarketplaceOptions = {
@@ -243,4 +263,4 @@ type CreateMarketplaceOptions = {
   fetcher: IFetcher;
   network: Network;
   signer: ISigner;
-}
+};

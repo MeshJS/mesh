@@ -8,7 +8,7 @@ import RunDemoResult from '../../../common/runDemoResult';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 import Link from 'next/link';
 import { getContract } from './common';
-import { Asset } from '@meshsdk/core';
+import { Asset } from '@meshsdk/common';
 
 export default function VestingDepositFund() {
   return (
@@ -31,8 +31,8 @@ function Left() {
         locking period and the beneficiary address.
       </p>
       <p>
-        <code>depositFund()</code> deposit funds into
-        a vesting contract. The function accepts the following parameters:
+        <code>depositFund()</code> deposit funds into a vesting contract. The
+        function accepts the following parameters:
       </p>
       <ul>
         <li>

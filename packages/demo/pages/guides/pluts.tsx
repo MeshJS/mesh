@@ -28,10 +28,9 @@ import {
   resolveDataHash,
   resolvePaymentKeyHash,
   Transaction,
-  Data,
   BlockfrostProvider,
 } from '@meshsdk/core';
-import type { PlutusScript } from '@meshsdk/core';
+import type { PlutusScript, Data } from '@meshsdk/common';
 import { useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 
@@ -173,8 +172,8 @@ function IntroSection() {
   return (
     <>
       <p>
-        In this guide, we will build an app that interacts with a smart
-        contract written in{' '}
+        In this guide, we will build an app that interacts with a smart contract
+        written in{' '}
         <a
           href="https://pluts.harmoniclabs.tech/"
           target="_blank"
@@ -182,9 +181,9 @@ function IntroSection() {
         >
           plu-ts
         </a>
-        . plu-ts is for building Cardano smart contracts which are entirely written,
-        compiled and serialized using TypeScript. Here is an introduction to
-        plu-ts on{' '}
+        . plu-ts is for building Cardano smart contracts which are entirely
+        written, compiled and serialized using TypeScript. Here is an
+        introduction to plu-ts on{' '}
         <a
           href="https://plutuspbl.io/modules/101/1016"
           target="_blank"
@@ -232,8 +231,10 @@ function IntroSection() {
         written in TypeScript.
       </p>
 
-      <iframe className="aspect-video w-full" src="https://www.youtube.com/embed/TdVVOqWpL4o"></iframe>
-
+      <iframe
+        className="aspect-video w-full"
+        src="https://www.youtube.com/embed/TdVVOqWpL4o"
+      ></iframe>
     </>
   );
 }
@@ -301,8 +302,9 @@ function AlwaysSucceed() {
 
       <p>
         In this section, we will be locking 2 ADA from your wallet to an "always
-        succeed" smart contract. In practice, multiple assets (both native assets
-        and lovelace) can be sent to the contract in a single transaction.
+        succeed" smart contract. In practice, multiple assets (both native
+        assets and lovelace) can be sent to the contract in a single
+        transaction.
       </p>
 
       <p>Let's import the necessary modules from plu-ts:</p>
@@ -320,8 +322,9 @@ function AlwaysSucceed() {
 
       <p>
         Next, we will execute <code>makeValidator()</code> so that the node will
-        be able to evaluate it, then <code>compile()</code> to compile the validator,
-        and then wrap it in a <code>Script</code> that can be used offchain:
+        be able to evaluate it, then <code>compile()</code> to compile the
+        validator, and then wrap it in a <code>Script</code> that can be used
+        offchain:
       </p>
 
       <Codeblock data={code2} isJson={false} />
@@ -420,14 +423,14 @@ function TransactionLock() {
       <h2>Lock Assets in the Always Succeed Script</h2>
       <p>
         Asset locking is a feature wherein certain assets are reserved on the
-        smart contract. The assets can only be unlocked again when certain conditions
-        are met. In this example, we will lock 2 ADA in the always succeed script.  By
-        "always succeeds", we mean that the validator does not check for any specific 
-        conditions, and so will always return true.
+        smart contract. The assets can only be unlocked again when certain
+        conditions are met. In this example, we will lock 2 ADA in the always
+        succeed script. By "always succeeds", we mean that the validator does
+        not check for any specific conditions, and so will always return true.
       </p>
       <p>
-        First, we initialize a new <code>PlutusScript</code> with the
-        serialized CBOR, and get the script's address.
+        First, we initialize a new <code>PlutusScript</code> with the serialized
+        CBOR, and get the script's address.
       </p>
 
       <Codeblock data={code1} isJson={false} />
@@ -592,8 +595,8 @@ function TransactionUnlock() {
       <Codeblock data={code1} isJson={false} />
 
       <p>
-        Then, we fetch the input UTXO from the script address. This input UTXO is
-        needed for transaction builder. In this demo, we are using{' '}
+        Then, we fetch the input UTXO from the script address. This input UTXO
+        is needed for transaction builder. In this demo, we are using{' '}
         <code>KoiosProvider</code>, but this can be interchanged with other
         providers that Mesh provides, see{' '}
         <Link href="/apis/providers">Providers</Link>.
@@ -611,7 +614,10 @@ function TransactionUnlock() {
 
       <Codeblock data={code3} isJson={false} />
 
-      <p>If you want to see it in action, click the button below to unlock your ADA.</p>
+      <p>
+        If you want to see it in action, click the button below to unlock your
+        ADA.
+      </p>
 
       {connected ? (
         <>
@@ -1033,7 +1039,10 @@ function HelloWorldUnlock() {
 
       <Codeblock data={code3} isJson={false} />
 
-      <p>If you want to see it in action, click the button below to unlock your ADA.</p>
+      <p>
+        If you want to see it in action, click the button below to unlock your
+        ADA.
+      </p>
 
       {connected ? (
         <>

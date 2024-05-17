@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { Asset } from '@meshsdk/core';
+import { Asset } from '../../types';
 import {
   value,
   Value,

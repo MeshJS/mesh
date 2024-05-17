@@ -5,7 +5,7 @@ import {
   Transaction,
 } from '@meshsdk/core';
 import { ForgeScript } from '@meshsdk/core';
-import type { Mint, AssetMetadata } from '@meshsdk/core';
+import type { Mint, AssetMetadata } from '@meshsdk/common';
 import { MeshTxBuilder } from '@meshsdk/core';
 import { MeshEscrowContract } from '@meshsdk/contracts';
 

@@ -6,7 +6,7 @@ import React, {
   useEffect,
 } from 'react';
 import { BrowserWallet } from '@meshsdk/core';
-import type { Wallet } from '@meshsdk/core';
+import type { Wallet } from '@meshsdk/common';
 import useLocalStorage from '../hooks/useLocalStorage';
 
 const WalletContext = createContext({

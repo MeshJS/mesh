@@ -5,7 +5,7 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { Asset } from '@meshsdk/core';
+import { Asset } from '@meshsdk/common';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 import { getContract } from './common';
 
@@ -26,8 +26,8 @@ function Left() {
   return (
     <>
       <p>
-        <code>createGiftCard()</code> create a gift card. The
-        function accepts the following parameters:
+        <code>createGiftCard()</code> create a gift card. The function accepts
+        the following parameters:
       </p>
       <ul>
         <li>
