@@ -191,21 +191,6 @@ const items = [
     ),
   },
   {
-    title: 'plu-ts Next.js TypeScript',
-    template: 'pluts',
-    framework: 'next',
-    language: 'typescript',
-    installCode: 'npx create-mesh-app project-name -t pluts -s next -l ts',
-    demoUrl: 'http://pluts-template.meshjs.dev/',
-    repoUrl: 'https://github.com/MeshJS/pluts-next-ts-template',
-    desc: (
-      <p>
-        Get started to write smart contracts on Cardano with plu-ts and deploy
-        your app with Mesh.
-      </p>
-    ),
-  },
-  {
     title: 'Aiken Next.js TypeScript',
     template: 'aiken',
     framework: 'next',
@@ -215,7 +200,7 @@ const items = [
     repoUrl: 'https://github.com/MeshJS/aiken-next-ts-template',
     desc: (
       <p>
-        Get started to write smart contracts on Cardano with plu-ts and deploy
+        Get started to write smart contracts on Cardano with Aiken and deploy
         your app with Mesh.
       </p>
     ),

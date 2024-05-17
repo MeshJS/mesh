@@ -74,63 +74,6 @@ function getHelloScriptCbor() {
   return scriptCbor;
 }
 
-// function getVestingScriptCbor() {
-//   const VestingDatum = pstruct({
-//     VestingDatum: {
-//       beneficiary: PPubKeyHash.type,
-//       deadline: int,
-//     },
-//   });
-
-//   // const contract = pfn(
-//   //   [VestingDatum.type, data, PScriptContext.type],
-//   //   bool
-//   // )((datum, _redeemer, ctx) => {
-//   //   // inlined
-//   //   const signedByBeneficiary = ctx.tx.signatories.some(
-//   //     datum.beneficiary.eqTerm
-//   //   );
-
-//   //   // inlined
-//   //   const deadlineReached = pmatch(ctx.tx.interval.from.bound)
-//   //     .onPFinite(({ _0: lowerInterval }) => datum.deadline.ltEq(lowerInterval))
-//   //     ._((_) => pBool(false));
-
-//   //   return signedByBeneficiary.and(deadlineReached);
-//   // });
-
-//   function pdelayedStr(str: string) {
-//     return pdelay(pStr(str));
-//   }
-
-//   const contract = pfn(
-//     [VestingDatum.type, data, PScriptContext.type],
-//     bool
-//   )((datum, _redeemer, ctx) => {
-//     const signedByBeneficiary = ptraceIfFalse
-//       .$(pdelayedStr('missing beneficiary'))
-//       .$(ctx.tx.signatories.some(datum.beneficiary.eqTerm));
-
-//     const deadlineReached = ptraceIfFalse.$(pdelayedStr('be patient :)')).$(
-//       pmatch(ctx.tx.interval.from.bound)
-//         .onPFinite(({ _0: lowerInterval }) =>
-//           datum.deadline.ltEq(lowerInterval)
-//         )
-//         ._((_) => pBool(false))
-//     );
-
-//     return signedByBeneficiary.and(deadlineReached);
-//   });
-
-//   const untypedValidator = makeValidator(contract);
-//   const compiledContract = compile(untypedValidator);
-
-//   const script = new Script('PlutusScriptV2', compiledContract);
-
-//   const scriptCbor = script.cbor.toString();
-//   return scriptCbor;
-// }
-
 const GuidePlutsPage: NextPage = () => {
   const sidebarItems = [
     { label: 'Project Set Up', to: 'setup' },
