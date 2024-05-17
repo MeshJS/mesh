@@ -5,7 +5,7 @@ import {
   resolvePaymentKeyHash,
   toNativeScript,
 } from '@mesh/common/utils';
-import type { NativeScript } from '@mesh/types';
+import type { NativeScript } from '@meshsdk/common';
 
 export class ForgeScript {
   static withOneSignature(address: string): string {

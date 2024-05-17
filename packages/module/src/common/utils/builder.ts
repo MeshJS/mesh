@@ -30,7 +30,13 @@ import type {
   TransactionUnspentOutput,
   TxInputsBuilder,
 } from '@mesh/core';
-import type { Action, Data, PlutusScript, Recipient, UTxO } from '@mesh/types';
+import type {
+  Action,
+  Data,
+  PlutusScript,
+  Recipient,
+  UTxO,
+} from '@meshsdk/common';
 import {
   deserializeNativeScript,
   deserializePlutusScript,

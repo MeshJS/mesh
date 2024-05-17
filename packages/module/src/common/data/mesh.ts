@@ -1,4 +1,4 @@
-import { Data } from '@mesh/types';
+import { Data } from '@meshsdk/common';
 
 export const mConStr = <T extends Data[]>(
   alternative: number,

@@ -60,7 +60,7 @@ import type {
   Token,
   Unit,
   UTxO,
-} from '@mesh/types';
+} from '@meshsdk/common';
 
 @Trackable
 export class Transaction {

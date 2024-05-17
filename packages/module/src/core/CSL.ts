@@ -1,6 +1,6 @@
-import { csl } from '@meshsdk/mesh-csl';
+import * as meshCSL from '@meshsdk/mesh-csl';
 
-export { csl, applyParamsToScript } from '@meshsdk/mesh-csl';
+export const csl = meshCSL.csl;
 
 export type Address = InstanceType<typeof csl.Address>;
 export type AssetName = InstanceType<typeof csl.AssetName>;

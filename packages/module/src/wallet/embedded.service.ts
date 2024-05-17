@@ -26,7 +26,7 @@ import type {
   Vkeywitnesses,
   Withdrawals,
 } from '@mesh/core';
-import type { Account, DataSignature, UTxO } from '@mesh/types';
+import type { Account, DataSignature, UTxO } from '@meshsdk/common';
 
 export class EmbeddedWallet {
   constructor(

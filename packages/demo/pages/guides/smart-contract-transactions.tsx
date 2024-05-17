@@ -12,7 +12,7 @@ import {
   resolvePlutusScriptAddress,
   resolveDataHash,
 } from '@meshsdk/core';
-import type { Data, PlutusScript } from '@meshsdk/common';
+import type { Data, PlutusScript, Redeemer } from '@meshsdk/common';
 import { useEffect, useState } from 'react';
 import Button from '../../components/ui/button';
 import RunDemoResult from '../../components/common/runDemoResult';
@@ -919,7 +919,7 @@ const scriptCbor =
 export function useMarketplacePlutus({ blockchainFetcher, network = 0 }) {
   const { connected, wallet } = useWallet();
   const [scriptAddress, setScriptAddress] = useState('');
-  const [script, setScript] = useState({});
+  const [script, setScript] = useState<PlutusScript>();
 
   useEffect(() => {
     const _script: PlutusScript = {
@@ -1035,9 +1035,9 @@ export function useMarketplacePlutus({ blockchainFetcher, network = 0 }) {
       const tx = new Transaction({ initiator: wallet })
         .redeemValue({
           value: assetUtxo,
-          script: script,
+          script: script as PlutusScript,
           datum: datumConstr,
-          redeemer: redeemer,
+          redeemer: redeemer as any, // TODO: Investigate why there is type error without casting any
         })
         .sendValue(addr, assetUtxo)
         .setRequiredSigners([addr]);
@@ -1084,9 +1084,9 @@ export function useMarketplacePlutus({ blockchainFetcher, network = 0 }) {
       const tx = new Transaction({ initiator: wallet })
         .redeemValue({
           value: assetUtxo,
-          script: script,
+          script: script as PlutusScript,
           datum: datumConstr,
-          redeemer: redeemer,
+          redeemer: redeemer as any, // TODO: Investigate why there is type error without casting any
         })
         .sendValue(addr, assetUtxo)
         .sendLovelace(sellerAddr, listPriceInLovelace.toString())
@@ -1143,9 +1143,9 @@ export function useMarketplacePlutus({ blockchainFetcher, network = 0 }) {
       const tx = new Transaction({ initiator: wallet })
         .redeemValue({
           value: assetUtxo,
-          script: script,
+          script: script as PlutusScript,
           datum: datumConstr,
-          redeemer: redeemer,
+          redeemer: redeemer as any, // TODO: Investigate why there is type error without casting any
         })
         .setRequiredSigners([addr])
         .sendAssets(

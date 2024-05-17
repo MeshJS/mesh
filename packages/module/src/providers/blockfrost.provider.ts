@@ -19,7 +19,7 @@ import type {
   Protocol,
   TransactionInfo,
   UTxO,
-} from '@mesh/types';
+} from '@meshsdk/common';
 
 /**
  * [Blockfrost](https://blockfrost.io/) provides restful APIs which allows your app to access information stored on the blockchain.

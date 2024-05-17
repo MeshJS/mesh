@@ -1,6 +1,6 @@
 import { SUPPORTED_OGMIOS_LINKS } from '@mesh/common/constants';
 import { IEvaluator, ISubmitter } from '@mesh/common/contracts';
-import { Action, isNetwork, Network } from '@mesh/types';
+import { Action, isNetwork, Network } from '@meshsdk/common';
 
 export class OgmiosProvider implements IEvaluator, ISubmitter {
   private readonly _baseUrl: string;

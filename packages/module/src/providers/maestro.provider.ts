@@ -18,7 +18,7 @@ import type {
   Protocol,
   TransactionInfo,
   UTxO,
-} from '@mesh/types';
+} from '@meshsdk/common';
 import { csl } from '@mesh/core';
 
 export type MaestroSupportedNetworks = 'Mainnet' | 'Preprod' | 'Preview';

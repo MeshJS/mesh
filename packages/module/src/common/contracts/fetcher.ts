@@ -6,7 +6,7 @@ import type {
   Protocol,
   TransactionInfo,
   UTxO,
-} from '@mesh/types';
+} from '@meshsdk/common';
 
 /**
  * Fetcher interface defines end points to query blockchain data.

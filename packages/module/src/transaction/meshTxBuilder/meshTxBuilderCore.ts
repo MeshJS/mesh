@@ -10,7 +10,7 @@ import {
   Protocol,
   UTxO,
   PoolParams,
-} from '@mesh/types';
+} from '@meshsdk/common';
 import {
   MintItem,
   TxIn,

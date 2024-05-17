@@ -79,7 +79,7 @@ function IntroSection() {
 
 function HowItWorksSection() {
   let codeIFetcher = ``;
-  codeIFetcher += `import type { AccountInfo, AssetMetadata, Protocol, UTxO } from '@mesh/types';\n\n`;
+  codeIFetcher += `import type { AccountInfo, AssetMetadata, Protocol, UTxO } from '@meshsdk/common';\n\n`;
   codeIFetcher += `export interface IFetcher {\n`;
   codeIFetcher += `  fetchAccountInfo(address: string): Promise<AccountInfo>;\n`;
   codeIFetcher += `  fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>;\n`;
@@ -161,7 +161,7 @@ function StarterSection() {
   code += `  AssetMetadata,\n`;
   code += `  Protocol,\n`;
   code += `  UTxO,\n`;
-  code += `} from "@mesh/types";\n`;
+  code += `} from "../common/types";\n`;
   code += `\n`;
   code += `export class NAMEProvider implements IFetcher, ISubmitter {\n`;
   code += `  constructor(network: "") {\n`;

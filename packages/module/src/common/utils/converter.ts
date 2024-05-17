@@ -31,7 +31,7 @@ import type {
   PoolParams,
   Relay,
   UTxO,
-} from '@mesh/types';
+} from '@meshsdk/common';
 
 /* -----------------[ Address ]----------------- */
 
@@ -66,8 +66,8 @@ export const toLovelace = (ada: number) => ada * 1_000_000;
 
 /* -----------------[ NativeScript ]----------------- */
 
-export const fromNativeScript = (script: csl.NativeScript) => {
-  const fromNativeScripts = (scripts: csl.NativeScripts) => {
+export const fromNativeScript = (script) => {
+  const fromNativeScripts = (scripts) => {
     const nativeScripts = new Array<NativeScript>();
 
     for (let index = 0; index < scripts.len(); index += 1) {

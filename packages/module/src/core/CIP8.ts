@@ -21,7 +21,7 @@ import {
   resolveStakeKeyHash,
   toBytes,
 } from '@mesh/common/utils';
-import type { DataSignature } from '@mesh/types';
+import type { DataSignature } from '@meshsdk/common';
 import type { Address, PrivateKey, PublicKey } from '@mesh/core';
 
 export const signMessage = (

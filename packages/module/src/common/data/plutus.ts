@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Asset } from '@mesh/types';
+import { Asset } from '@meshsdk/common';
 
 export type ConStr<N = any, T = any> = { constructor: N; fields: T };
 export type ConStr0<T = any> = ConStr<0, T>;

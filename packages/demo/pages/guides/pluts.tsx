@@ -30,7 +30,7 @@ import {
   Transaction,
   BlockfrostProvider,
 } from '@meshsdk/core';
-import type { PlutusScript, Data } from '@meshsdk/common';
+import type { PlutusScript, Data, Redeemer } from '@meshsdk/common';
 import { useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 
@@ -871,7 +871,7 @@ function HelloWorldUnlock() {
             value: utxo,
             script: script,
             datum: utxo,
-            redeemer: redeemer,
+            redeemer: redeemer as any,
           })
           .sendValue(address, utxo)
           .setRequiredSigners([address]);

@@ -1,6 +1,6 @@
 import { csl } from '@mesh/core';
 import type { Costmdls } from '@mesh/core';
-import type { Budget, Era, Network, Protocol } from '../types';
+import type { Budget, Era, Network, Protocol } from '@meshsdk/common';
 
 export const DEFAULT_REDEEMER_BUDGET: Budget = {
   mem: 7_000_000,

@@ -1,6 +1,5 @@
 import { HARDENED_KEY_START } from '@mesh/common/constants';
 import { deserializeBip32PrivateKey } from '@mesh/common/utils';
-import { csl } from './CSL';
 
 export const deriveForgingPolicyKey = (
   rootKey: string,
@@ -8,7 +7,7 @@ export const deriveForgingPolicyKey = (
 ) => {
   const bip32PrivateKey = deserializeBip32PrivateKey(rootKey);
 
-  const policyKey: csl.PrivateKey = bip32PrivateKey
+  const policyKey = bip32PrivateKey
     .derive(HARDENED_KEY_START + 1855) // purpose
     .derive(HARDENED_KEY_START + 1815) // coin type
     .derive(HARDENED_KEY_START + policyIndex)

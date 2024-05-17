@@ -37,6 +37,7 @@
     "@meshsdk/core": "1.5.16"
   },
   "dependencies": {
+    "@harmoniclabs/plu-ts": "0.2.2",
     "@meshsdk/mesh-csl": "^0.0.4"
   }
 }

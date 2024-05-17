@@ -1810,20 +1810,10 @@
   resolved "https://registry.yarnpkg.com/@emurgo/cardano-message-signing-nodejs/-/cardano-message-signing-nodejs-1.0.1.tgz#b2fa1f7541055a6c4b8e805492b1a9362bea5835"
   integrity sha512-PoKh1tQnJX18f8iEr8Jk1KXxKCn9eqaSslMI1pyOJvYRJhQVDLCh0+9YReufjp0oFJIY1ShcrR+4/WnECVZUKQ==
 
-"@emurgo/cardano-serialization-lib-browser@1.0.1":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-browser/-/cardano-serialization-lib-browser-1.0.1.tgz#102ca627f292e4a26fd380a36e1d53b27b25c0e1"
-  integrity sha512-lKBsB6gIP3KUt6ms4YNgliBHoh9+epm9e61GMfy/09BW8suwDZ9KYpXMbyD7+MiK+RaPjlOWX6FgJxZnHYpanw==
-
 "@emurgo/cardano-serialization-lib-browser@11.5.0":
   version "11.5.0"
   resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-browser/-/cardano-serialization-lib-browser-11.5.0.tgz#f2d15b538add436e0aa8b67a1d00ca654a680006"
   integrity sha512-qchOJ9NYDUz10tzs5r5QhP9hK0p+ZOlRiBwPdTAxqAYLw/8emYBkQQLaS8T1DF6EkeudyrgS00ym5Trw1fo4iA==
-
-"@emurgo/cardano-serialization-lib-nodejs@1.0.1":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/@emurgo/cardano-serialization-lib-nodejs/-/cardano-serialization-lib-nodejs-1.0.1.tgz#79a27b68154defd2db878be58c23ea7cf0047423"
-  integrity sha512-eTsTodYP69JFeL8JH08zADqny+ZO9NR+xgaU7r2ySCSh5jfA1mqhwKCjNUOSejpJvADyH5ppJwwIfICcwqKcDg==
 
 "@emurgo/cardano-serialization-lib-nodejs@11.5.0":
   version "11.5.0"
@@ -2539,6 +2529,18 @@
     blakejs "^1.2.1"
     json-bigint "^1.0.0"
 
+"@meshsdk/mesh-csl@^0.0.5":
+  version "0.0.5"
+  resolved "https://registry.yarnpkg.com/@meshsdk/mesh-csl/-/mesh-csl-0.0.5.tgz#bbd41f96a3fe667987878042789c372b23fc8984"
+  integrity sha512-rMHP+7l9NL5+T8J0ip67ZT05rgcborOX+/SXctIeS4s8150GtWfINFeN/QfTltrbtOWfc7eEaROmk9RIfZgZ6w==
+  dependencies:
+    "@meshsdk/core" "^1.5.10"
+    "@sidan-lab/sidan-csl-rs-browser" "^0.3.6"
+    "@sidan-lab/sidan-csl-rs-nodejs" "^0.3.6"
+    "@types/node" "^18.16.3"
+    blakejs "^1.2.1"
+    json-bigint "^1.0.0"
+
 "@meshsdk/react@*":
   version "1.1.9"
   resolved "https://registry.yarnpkg.com/@meshsdk/react/-/react-1.1.9.tgz#ac32b6701ecd3a2bcb38e2bd6ee5da6ef6c49d61"
@@ -3197,10 +3199,20 @@
   resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-browser/-/sidan-csl-rs-browser-0.2.6-beta3.tgz#20f5cb5469ec729be7e75d19fcd02ecd528b56a1"
   integrity sha512-bqDUa2mA3MnFFD0HGSdnPGPwStzwlejm/6HKDlxyEEtmezVk7zB3Wx5N//OxXkXpYKMpaXciWhu+x/pvpsA/cA==
 
+"@sidan-lab/sidan-csl-rs-browser@^0.3.6":
+  version "0.3.6"
+  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-browser/-/sidan-csl-rs-browser-0.3.6.tgz#689ee5c1f2ddf623a29a70b4c878ab716cd018be"
+  integrity sha512-CeFeGIjdPsyNqlQlYChf0s04yLbj/m1eAjBRG6jV2iEU1lFnNHHlebUS9wEJMH9LU4UT3cP4vHlex6hURuc4DA==
+
 "@sidan-lab/sidan-csl-rs-nodejs@^0.2.6-beta3":
   version "0.2.6-beta3"
   resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-nodejs/-/sidan-csl-rs-nodejs-0.2.6-beta3.tgz#0e1a5e7ef3c329f3c5548a1e64607462d8e908ac"
   integrity sha512-NZ6TU1xB6HvMCJ4t2X2v9dp5RigNEJso9SzpZ0NfwXaIm35sS8nR2qREg6Bjo8H9C9gfQjoa4c8DSHhojNN1Mw==
+
+"@sidan-lab/sidan-csl-rs-nodejs@^0.3.6":
+  version "0.3.6"
+  resolved "https://registry.yarnpkg.com/@sidan-lab/sidan-csl-rs-nodejs/-/sidan-csl-rs-nodejs-0.3.6.tgz#a16ae74324a61c2302fc34e3ae60d062ac17b214"
+  integrity sha512-nyfTqWI2IQY+LQmXOaam3NUzZK6fF8h6lL1mB3otajLNXpEhc0ZDKv1QeV9ia5rmky799nrzLfwKtxuDmtRIfQ==
 
 "@sigstore/bundle@^1.1.0":
   version "1.1.0"

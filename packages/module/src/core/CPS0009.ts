@@ -1,4 +1,4 @@
-import type { Quantity, UTxO, Unit } from '@mesh/types';
+import type { Quantity, UTxO, Unit } from '@meshsdk/common';
 
 export const selectUtxos = (
   inputs: UTxO[],

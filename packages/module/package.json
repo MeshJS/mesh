@@ -70,8 +70,9 @@
   "dependencies": {
     "@emurgo/cardano-message-signing-browser": "1.0.1",
     "@emurgo/cardano-message-signing-nodejs": "1.0.1",
-    "@emurgo/cardano-serialization-lib-browser": "1.0.1",
-    "@emurgo/cardano-serialization-lib-nodejs": "1.0.1",
+    "@emurgo/cardano-serialization-lib-browser": "11.5.0",
+    "@emurgo/cardano-serialization-lib-nodejs": "11.5.0",
+    "@meshsdk/mesh-csl": "^0.0.5",
     "@emurgo/cip14-js": "3.0.1",
     "@meshsdk/common": "^1.0.0-alpha.7",
     "axios": "1.6.3",

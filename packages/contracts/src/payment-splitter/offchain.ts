@@ -11,6 +11,7 @@ import {
   list,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
+import { PlutusScript } from '@meshsdk/common';
 
 export class MeshPaymentSplitterContract extends MeshTxInitiator {
   wrapPayees = (payees: string[]) =>
@@ -49,7 +50,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
 
     const { walletAddress } = await this.getWalletInfoForTx();
 
-    const script = {
+    const script: PlutusScript = {
       code: this.scriptCbor(),
       version: 'V2',
     };
@@ -83,7 +84,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
 
     const { walletAddress, collateral } = await this.getWalletInfoForTx();
 
-    const script = {
+    const script: PlutusScript = {
       code: this.scriptCbor(),
       version: 'V2',
     };
@@ -112,7 +113,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
           value: utxo,
           script: script,
           datum: datum,
-          redeemer: redeemer,
+          redeemer: redeemer as any, // TODO: fix this cast any
         });
       }
     }

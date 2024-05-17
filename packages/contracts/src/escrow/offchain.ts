@@ -71,7 +71,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
     await this.mesh
       .txOut(scriptAddr, escrowAmount)
       .txOutInlineDatumValue(
-        initiateEscrowDatum(walletAddress, escrowAmount),
+        initiateEscrowDatum(walletAddress, escrowAmount) as any,
         'JSON'
       )
       .changeAddress(walletAddress)
@@ -169,7 +169,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
       )
       .spendingReferenceTxInInlineDatumPresent()
       .txInRedeemerValue(
-        recipientDepositRedeemer(walletAddress, depositAmount),
+        recipientDepositRedeemer(walletAddress, depositAmount) as any,
         {
           mem: 7_000_000,
           steps: 3_000_000_000,
@@ -178,7 +178,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
       )
       .txInScript(this.scriptCbor)
       .txOut(scriptAddr, escrowAmount)
-      .txOutInlineDatumValue(outputDatum, 'JSON')
+      .txOutInlineDatumValue(outputDatum as any, 'JSON')
       .changeAddress(walletAddress)
       .txInCollateral(
         collateral.input.txHash,

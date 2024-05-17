@@ -24,7 +24,7 @@ import type {
   NativeScript,
   Network,
   PlutusScript,
-} from '@mesh/types';
+} from '@meshsdk/common';
 
 export const resolveDataHash = (data: Data) => {
   const plutusData = toPlutusData(data);

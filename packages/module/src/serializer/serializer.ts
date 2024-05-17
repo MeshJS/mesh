@@ -243,7 +243,7 @@ export class CSLSerializer implements IMeshSerializer {
 
   private makePlutusScriptSource = (
     scriptSourceInfo: Required<ScriptSourceInfo>
-  ): csl.PlutusScriptSource => {
+  ) => {
     const scriptHash = csl.ScriptHash.from_hex(
       scriptSourceInfo.spendingScriptHash
     );
@@ -309,7 +309,7 @@ export class CSLSerializer implements IMeshSerializer {
     scriptTxIn,
     txIn,
   }: RequiredWith<ScriptTxIn, 'txIn' | 'scriptTxIn'>) => {
-    let cslDatum: csl.DatumSource;
+    let cslDatum;
     const { datumSource, scriptSource, redeemer } = scriptTxIn;
     if (datumSource.type === 'Provided') {
       cslDatum = csl.DatumSource.new(
@@ -322,7 +322,7 @@ export class CSLSerializer implements IMeshSerializer {
       );
       cslDatum = csl.DatumSource.new_ref_input(refTxIn);
     }
-    let cslScript: csl.PlutusScriptSource;
+    let cslScript;
     if (scriptSource.type == 'Inline') {
       cslScript = this.makePlutusScriptSource(
         scriptSource.txInInfo as Required<ScriptSourceInfo>
@@ -421,7 +421,7 @@ export class CSLSerializer implements IMeshSerializer {
   };
 
   private addCollateral = (
-    collateralBuilder: csl.TxInputsBuilder,
+    collateralBuilder,
     currentCollateral: RequiredWith<PubKeyTxIn, 'txIn'>
   ) => {
     collateralBuilder.add_input(
@@ -481,11 +481,11 @@ export class CSLSerializer implements IMeshSerializer {
   };
 
   private addPlutusMint = (
-    mintBuilder: csl.MintBuilder,
+    mintBuilder,
     { redeemer, policyId, scriptSource, assetName, amount }: Required<MintItem>,
     redeemerIndex: number
   ) => {
-    const newRedeemer: csl.Redeemer = csl.Redeemer.new(
+    const newRedeemer = csl.Redeemer.new(
       csl.RedeemerTag.new_mint(),
       csl.BigNum.from_str(String(redeemerIndex)),
       this.castDataToPlutusData(redeemer.data),
@@ -519,7 +519,7 @@ export class CSLSerializer implements IMeshSerializer {
   };
 
   private addNativeMint = (
-    mintBuilder: csl.MintBuilder,
+    mintBuilder,
     { scriptSource, assetName, amount }: Required<MintItem>
   ) => {
     if (scriptSource.type === 'Reference Script')
@@ -543,7 +543,7 @@ export class CSLSerializer implements IMeshSerializer {
     return [numerator, denominator];
   }
 
-  private toPoolParams = (poolParams: PoolParams): csl.PoolParams => {
+  private toPoolParams = (poolParams: PoolParams) => {
     const marginFraction = this.decimalToFraction(poolParams.margin);
     const relays = csl.Relays.new();
     poolParams.relays.forEach((relay) => {
@@ -577,10 +577,7 @@ export class CSLSerializer implements IMeshSerializer {
     );
   };
 
-  private addCertificate = (
-    certificates: csl.Certificates,
-    cert: Certificate
-  ) => {
+  private addCertificate = (certificates, cert: Certificate) => {
     switch (cert.type) {
       case 'RegisterPool':
         certificates.add(

@@ -1,7 +1,7 @@
 import { csl } from '@mesh/core';
 import { LANGUAGE_VERSIONS } from '@mesh/common/constants';
 import { toBytes } from './converter';
-import type { LanguageVersion } from '@mesh/types';
+import type { LanguageVersion } from '@meshsdk/common';
 
 export const deserializeAddress = (address: string) =>
   csl.Address.from_bytes(toBytes(address));

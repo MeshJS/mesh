@@ -82,7 +82,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
 
     await this.mesh
       .txOut(scriptAddr, tokenForSale)
-      .txOutInlineDatumValue(outputDatum, 'JSON')
+      .txOutInlineDatumValue(outputDatum as any, 'JSON')
       .changeAddress(walletAddress)
       .selectUtxosFrom(selectedUtxos)
       .complete();
@@ -219,7 +219,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptCbor)
       .txOut(scriptAddr, tokenForSale)
-      .txOutInlineDatumValue(outputDatum, 'JSON')
+      .txOutInlineDatumValue(outputDatum as any, 'JSON')
       .changeAddress(walletAddress)
       .requiredSignerHash(serializeBech32Address(walletAddress).pubKeyHash)
       .txInCollateral(

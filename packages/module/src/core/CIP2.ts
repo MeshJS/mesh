@@ -1,7 +1,7 @@
 import { csl } from './CSL';
 import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
 import { resolveTxFees } from '@mesh/common/utils';
-import type { Protocol, Quantity, Unit, UTxO } from '@mesh/types';
+import type { Protocol, Quantity, Unit, UTxO } from '@meshsdk/common';
 
 export const keepRelevant = (
   requestedOutputSet: Map<Unit, Quantity>,

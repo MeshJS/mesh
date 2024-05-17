@@ -28,7 +28,7 @@ import type {
   DataSignature,
   UTxO,
   Wallet,
-} from '@mesh/types';
+} from '@meshsdk/common';
 
 /**
  * These wallets APIs are in accordance to CIP-30, which defines the API for dApps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building dApps.

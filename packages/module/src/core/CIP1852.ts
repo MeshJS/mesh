@@ -1,11 +1,10 @@
 import { HARDENED_KEY_START } from '@mesh/common/constants';
 import { deserializeBip32PrivateKey } from '@mesh/common/utils';
-import { csl } from './CSL';
 
 export const deriveAccountKeys = (rootKey: string, accountIndex: number) => {
   const bip32PrivateKey = deserializeBip32PrivateKey(rootKey);
 
-  const accountKeys: csl.Bip32PrivateKey = bip32PrivateKey
+  const accountKeys = bip32PrivateKey
     .derive(HARDENED_KEY_START + 1852) // purpose
     .derive(HARDENED_KEY_START + 1815) // coin type
     .derive(HARDENED_KEY_START + accountIndex);
