@@ -64,6 +64,12 @@ const GuidesPage: NextPage = () => {
       link: '/guides/aiken',
       thumbnail: '/guides/aiken.png',
     },
+    {
+      title: 'Executing a standalone script',
+      desc: 'Learn how to execute a standalone script to manage wallets and creating transactions.',
+      link: '/guides/standalone',
+      thumbnail: '/guides/standalone.png',
+    },
   ];
 
   return (
