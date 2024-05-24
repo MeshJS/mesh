@@ -24,6 +24,7 @@
     "next": "^12.1.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-highlight": "0.15.0",
     "react-scroll": "^1.8.7",
     "react-tweet-embed": "^2.0.0"
   },
