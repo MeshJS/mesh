@@ -3,8 +3,11 @@ import {
   serializeBech32Address,
   applyParamsToScript,
   v2ScriptToBech32,
-  ConStr0,
   parseDatumCbor,
+  parsePlutusAddressObjToBech32,
+} from '@meshsdk/core-csl';
+import {
+  ConStr0,
   PubKeyAddress,
   Value,
   conStr0,
@@ -13,10 +16,9 @@ import {
   mConStr1,
   ConStr1,
   conStr1,
-  parsePlutusAddressObjToBech32,
   parsePlutusValueToAssets,
   mConStr2,
-} from '@meshsdk/mesh-csl';
+} from '@meshsdk/common';
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO, mergeAssets } from '@meshsdk/core';
 

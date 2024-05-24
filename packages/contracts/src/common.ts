@@ -5,7 +5,7 @@ import {
   BrowserWallet,
   MeshWallet,
 } from '@meshsdk/core';
-import { v2ScriptToBech32 } from '@meshsdk/mesh-csl';
+import { v2ScriptToBech32 } from '@meshsdk/core-csl';
 
 export type MeshTxInitiatorInput = {
   mesh: MeshTxBuilder;

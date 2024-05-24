@@ -1,6 +1,12 @@
 import { MeshTxInitiator, MeshTxInitiatorInput } from '@mesh/common';
 import {
   serializeBech32Address,
+  v2ScriptToBech32,
+  parseDatumCbor,
+  parsePlutusAddressObjToBech32,
+  applyParamsToScript,
+} from '@meshsdk/core-csl';
+import {
   ConStr0,
   PubKeyAddress,
   conStr0,
@@ -11,13 +17,9 @@ import {
   currencySymbol,
   tokenName,
   integer,
-  applyObjParamsToScript,
-  v2ScriptToBech32,
   mConStr1,
-  parseDatumCbor,
-  parsePlutusAddressObjToBech32,
   mConStr0,
-} from '@meshsdk/mesh-csl';
+} from '@meshsdk/common';
 import blueprint from './aiken-workspace/plutus.json';
 import {
   Quantity,
@@ -61,12 +63,13 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     this.feePercentageBasisPoint = feePercentageBasisPoint;
     const { pubKeyHash, stakeCredential } =
       serializeBech32Address(ownerAddress);
-    this.scriptCbor = applyObjParamsToScript(
+    this.scriptCbor = applyParamsToScript(
       blueprint.validators[0].compiledCode,
       [
         pubKeyAddress(pubKeyHash, stakeCredential),
         integer(feePercentageBasisPoint),
-      ]
+      ],
+      'JSON'
     );
   }
 

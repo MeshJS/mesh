@@ -37,6 +37,7 @@
     "@meshsdk/core": "1.5.16"
   },
   "dependencies": {
-    "@meshsdk/mesh-csl": "^0.0.4"
+    "@meshsdk/common": "^1.0.0-alpha.8",
+    "@meshsdk/core-csl": "^1.6.0-alpha.7"
   }
 }

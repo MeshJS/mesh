@@ -1,18 +1,20 @@
 import { MeshTxInitiator, MeshTxInitiatorInput } from '@mesh/common';
 import {
   v2ScriptToBech32,
+  getV2ScriptHash,
+  parseDatumCbor,
+  applyParamsToScript,
+} from '@meshsdk/core-csl';
+import {
   mConStr0,
-  applyObjParamsToScript,
   builtinByteString,
   txOutRef,
   stringToHex,
-  getV2ScriptHash,
-  parseDatumCbor,
   BuiltinByteString,
   List,
   Integer,
   mConStr1,
-} from '@meshsdk/mesh-csl';
+} from '@meshsdk/common';
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
 
@@ -21,15 +23,15 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   paramUtxo: UTxO['input'] = { outputIndex: 0, txHash: '' };
 
   giftCardCbor = (tokenNameHex: string, utxoTxHash: string, utxoTxId: number) =>
-    applyObjParamsToScript(blueprint.validators[0].compiledCode, [
+    applyParamsToScript(blueprint.validators[0].compiledCode, [
       builtinByteString(tokenNameHex),
       txOutRef(utxoTxHash, utxoTxId),
     ]);
 
   redeemCbor = (tokenNameHex: string, policyId: string) =>
-    applyObjParamsToScript(blueprint.validators[1].compiledCode, [
-      builtinByteString(tokenNameHex),
-      builtinByteString(policyId),
+    applyParamsToScript(blueprint.validators[1].compiledCode, [
+      tokenNameHex,
+      policyId,
     ]);
 
   constructor(
