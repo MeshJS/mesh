@@ -3,7 +3,7 @@
   "description": "React Hooks & Components you need for building dApps on Cardano.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
-  "version": "1.1.10-beta.4",
+  "version": "1.1.11",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -62,7 +62,7 @@
     "vite": "3.1.4"
   },
   "peerDependencies": {
-    "@meshsdk/core": "1.5.16",
+    "@meshsdk/core": "1.5.18",
     "react-dom": "17.x || 18.x",
     "react": "17.x || 18.x"
   },
