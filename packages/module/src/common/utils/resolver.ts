@@ -52,6 +52,17 @@ export const resolveLanguageView = (era: Era, version: LanguageVersion) => {
   return SUPPORTED_LANGUAGE_VIEWS[era][version];
 };
 
+export const resolveNativeScriptAddress = (script: NativeScript, networkId = 0) => {
+  const nativeScript = toNativeScript(script);
+
+  const enterpriseAddress = csl.EnterpriseAddress.new(networkId,
+    csl.StakeCredential.from_scripthash(nativeScript.hash()),
+  );
+
+  return enterpriseAddress.to_address().to_bech32();
+
+}
+
 export const resolveNativeScriptHash = (script: NativeScript) => {
   return toNativeScript(script).hash().to_hex();
 };
