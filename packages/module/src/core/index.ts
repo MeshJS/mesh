@@ -6,4 +6,5 @@ export * from './CIP27';
 export * from './CIP1852';
 export * from './CIP1853';
 export * from './CIP1855';
+export * from './CPS0009';
 export * from './CSL';

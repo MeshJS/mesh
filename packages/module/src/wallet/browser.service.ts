@@ -5,7 +5,7 @@ import {
   SUPPORTED_WALLETS,
 } from '@mesh/common/constants';
 import { IInitiator, ISigner, ISubmitter } from '@mesh/common/contracts';
-import { mergeSignatures } from '@mesh/common/helpers';
+import { mergeSignatures } from '@mesh/serializer';
 import {
   deserializeAddress,
   deserializeTx,
@@ -28,7 +28,7 @@ import type {
   DataSignature,
   UTxO,
   Wallet,
-} from '@mesh/common/types';
+} from '@meshsdk/common';
 
 /**
  * These wallets APIs are in accordance to CIP-30, which defines the API for dApps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building dApps.
@@ -433,20 +433,20 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 }
 
-declare global {
-  interface Window {
-    cardano: Cardano;
-  }
-}
+// declare global {
+//   interface Window {
+//     cardano: Cardano;
+//   }
+// }
 
-type Cardano = {
-  [key: string]: {
-    name: string;
-    icon: string;
-    apiVersion: string;
-    enable: () => Promise<WalletInstance>;
-  };
-};
+// type Cardano = {
+//   [key: string]: {
+//     name: string;
+//     icon: string;
+//     apiVersion: string;
+//     enable: () => Promise<WalletInstance>;
+//   };
+// };
 
 type TransactionSignatureRequest = {
   cbor: string;

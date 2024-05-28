@@ -11,11 +11,13 @@ export const deriveAccountKeys = (rootKey: string, accountIndex: number) => {
 
   const paymentKey = accountKeys
     .derive(0) // external chain
-    .derive(0).to_raw_key();
+    .derive(0)
+    .to_raw_key();
 
   const stakeKey = accountKeys
     .derive(2) // staking key
-    .derive(0).to_raw_key();
+    .derive(0)
+    .to_raw_key();
 
   accountKeys.free();
   bip32PrivateKey.free();

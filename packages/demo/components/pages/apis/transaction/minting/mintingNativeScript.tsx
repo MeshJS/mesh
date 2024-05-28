@@ -13,12 +13,11 @@ import { demoAddresses } from '../../../../../configs/demo';
 import {
   Transaction,
   ForgeScript,
-  AssetMetadata,
-  NativeScript,
-  Mint,
   resolvePaymentKeyHash,
   resolveNativeScriptHash,
 } from '@meshsdk/core';
+
+import { AssetMetadata, NativeScript, Mint } from '@meshsdk/common';
 import Textarea from '../../../../ui/textarea';
 import Link from 'next/link';
 

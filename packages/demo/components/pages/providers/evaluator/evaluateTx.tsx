@@ -5,6 +5,7 @@ import Card from '../../../ui/card';
 import Codeblock from '../../../ui/codeblock';
 import { Transaction, KoiosProvider, resolveDataHash } from '@meshsdk/core';
 import { useWallet, CardanoWallet } from '@meshsdk/react';
+import { UTxO } from '@meshsdk/common';
 
 export function evaluateTxLeft({ evaluatorName }) {
   let code1 = ``;
@@ -96,14 +97,14 @@ export function evaluateTxRight({ evaluator }) {
 
       const tx = new Transaction({ initiator: wallet })
         .redeemValue({
-          value: assetUtxo,
+          value: assetUtxo as UTxO,
           script: {
             version: 'V1',
             code: '4e4d01000033222220051200120011',
           },
           datum: 'supersecretmeshdemo',
         })
-        .sendValue(address, assetUtxo)
+        .sendValue(address, assetUtxo as UTxO)
         .setRequiredSigners([address]);
 
       const unsignedTx = await tx.build();

@@ -13,7 +13,7 @@ import {
   BlockfrostProvider,
   largestFirst,
 } from '@meshsdk/core';
-import type { Mint, AssetMetadata } from '@meshsdk/core';
+import type { Mint, AssetMetadata } from '@meshsdk/common';
 import { useWallet } from '@meshsdk/react';
 import RunDemoButton from '../../components/common/runDemoButton';
 import RunDemoResult from '../../components/common/runDemoResult';

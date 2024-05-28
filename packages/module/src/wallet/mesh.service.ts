@@ -11,7 +11,7 @@ import type {
   AssetExtended,
   DataSignature,
   UTxO,
-} from '@mesh/common/types';
+} from '@meshsdk/common';
 import {
   fromTxUnspentOutput,
   toUTF8,

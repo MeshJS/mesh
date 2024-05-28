@@ -12,7 +12,7 @@ import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { demoAddresses } from '../../../../../configs/demo';
 import FetchSelectAssets from '../../../../common/fetchSelectAssets';
 import { Transaction } from '@meshsdk/core';
-import type { Asset } from '@meshsdk/core';
+import type { Asset } from '@meshsdk/common';
 
 export default function SendAssets() {
   const { wallet, connected } = useWallet();

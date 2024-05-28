@@ -5,7 +5,7 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { Asset } from '@meshsdk/core';
+import { Asset } from '@meshsdk/common';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
 import Link from 'next/link';
 import { getContract } from './common';
@@ -31,8 +31,8 @@ function Left() {
         <code>initiateEscrow()</code>).
       </p>
       <p>
-        <code>recipientDeposit()</code> deposit funds into the
-        escrow. The function accepts the following parameters:
+        <code>recipientDeposit()</code> deposit funds into the escrow. The
+        function accepts the following parameters:
       </p>
       <ul>
         <li>

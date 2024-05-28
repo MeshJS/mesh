@@ -6,7 +6,7 @@ import {
   ISigner,
   ISubmitter,
 } from '@mesh/common/contracts';
-import { mergeSignatures } from '@mesh/common/helpers';
+import { mergeSignatures } from '@mesh/serializer';
 import {
   deserializeTx,
   toAddress,
@@ -14,7 +14,7 @@ import {
 } from '@mesh/common/utils';
 import { EmbeddedWallet } from './embedded.service';
 import type { Address, TransactionUnspentOutput } from '@mesh/core';
-import type { DataSignature } from '@mesh/common/types';
+import type { DataSignature } from '@meshsdk/common';
 
 const DEFAULT_PASSWORD = 'MARI0TIME';
 

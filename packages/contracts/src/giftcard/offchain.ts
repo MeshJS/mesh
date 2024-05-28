@@ -14,7 +14,7 @@ import {
   mConStr1,
 } from '@meshsdk/mesh-csl';
 import blueprint from './aiken-workspace/plutus.json';
-import { Asset, UTxO } from '@meshsdk/core';
+import { Asset, UTxO } from '@meshsdk/common';
 
 export class MeshGiftCardContract extends MeshTxInitiator {
   tokenNameHex: string = '';

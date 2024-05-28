@@ -6,7 +6,7 @@ import {
   BlockfrostProvider,
   largestFirst,
 } from '@meshsdk/core';
-import type { Mint } from '@meshsdk/core';
+import type { Mint, AssetMetadata } from '@meshsdk/common';
 
 const words = [
   'gratitude',
@@ -61,12 +61,12 @@ export default async function handler(
 
   const costLovelace = amount * 1000000;
 
-  const assetMetadata = {
+  const assetMetadata: AssetMetadata = {
     name: 'Mesh Token of Appreciation',
     image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
     mediaType: 'image/jpg',
     description: `Thank you for supporting the development of Mesh SDK.`,
-    '₳': `${amount.toString()}`,
+    // '₳': `${amount.toString()}`,
   };
 
   var dt = new Date();

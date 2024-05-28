@@ -13,13 +13,8 @@ import {
   demoAddresses,
   demoPlutusMintingScript,
 } from '../../../../../configs/demo';
-import {
-  Transaction,
-  Mint,
-  Action,
-  PlutusScript,
-  AssetMetadata,
-} from '@meshsdk/core';
+import { Transaction } from '@meshsdk/core';
+import { Mint, Action, PlutusScript, AssetMetadata } from '@meshsdk/common';
 import Textarea from '../../../../ui/textarea';
 import Link from 'next/link';
 
@@ -177,7 +172,8 @@ function Left({ userInput }) {
       <p>
         In this demo, we will use a Plutus script to mint tokens. This script is
         designed to always succeed, meaning that anyone can sign and mint tokens
-        with it, as there is no extra validation logic carried out by this script.
+        with it, as there is no extra validation logic carried out by this
+        script.
       </p>
 
       <p>

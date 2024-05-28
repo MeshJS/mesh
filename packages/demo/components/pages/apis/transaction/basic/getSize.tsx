@@ -12,10 +12,9 @@ import {
   AppWallet,
   Transaction,
   ForgeScript,
-  AssetMetadata,
   BlockfrostProvider,
 } from '@meshsdk/core';
-import type { Mint } from '@meshsdk/core';
+import type { AssetMetadata, Mint } from '@meshsdk/common';
 import Textarea from '../../../../ui/textarea';
 import Link from 'next/link';
 
@@ -192,7 +191,9 @@ function Right({ userInput, updateField }) {
     setResponseError(null);
 
     try {
-      const blockchainProvider = new BlockfrostProvider(process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!);
+      const blockchainProvider = new BlockfrostProvider(
+        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+      );
 
       const wallet = new AppWallet({
         networkId: 0,
@@ -239,7 +240,7 @@ function Right({ userInput, updateField }) {
       // const unsignedTx = await tx.build();
       // const signedTx = await wallet.signTx(unsignedTx);
       // const txHash = await wallet.submitTx(signedTx);
-      
+
       // const size = tx.size;
       // console.log(11, size);
       // const fee = tx.fee;

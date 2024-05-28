@@ -10,7 +10,7 @@ import {
   resolveSlotNo,
 } from '@meshsdk/core';
 import Input from '../../../ui/input';
-import type { NativeScript } from '@meshsdk/core';
+import type { NativeScript } from '@meshsdk/common';
 import { demoAddresses } from '../../../../configs/demo';
 
 export default function ResolveNativeScriptHash() {

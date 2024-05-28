@@ -5,8 +5,9 @@ import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
 import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { Asset, BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
+import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
 import { MeshVestingContract } from '@meshsdk/contracts';
+import { Asset } from '@meshsdk/common';
 
 export default function VestingDepositFund() {
   return (

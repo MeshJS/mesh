@@ -4,10 +4,14 @@ import {
   AppWallet,
   BlockfrostProvider,
 } from '@meshsdk/core';
-import type { AssetMetadata, Mint } from '@meshsdk/core';
+import type { AssetMetadata, Mint } from '@meshsdk/common';
 import { demoMnemonic } from '../../configs/demo';
 
-export default async function mintMeshToken({setLoading, setResponse, wallet}) {
+export default async function mintMeshToken({
+  setLoading,
+  setResponse,
+  wallet,
+}) {
   setLoading(true);
   try {
     const blockchainProvider = new BlockfrostProvider(

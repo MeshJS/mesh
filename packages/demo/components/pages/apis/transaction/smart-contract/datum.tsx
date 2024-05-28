@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Codeblock from '../../../../ui/codeblock';
 import SectionTwoCol from '../../../../common/sectionTwoCol';
 import { resolveDataHash } from '@meshsdk/core';
-import type { Data } from '@meshsdk/core';
+import type { Data } from '@meshsdk/common';
 
 export default function DesignDatum() {
   return (
@@ -108,9 +108,9 @@ function Left({}) {
   return (
     <>
       <p>
-        Mesh allows you to freely design the datum structure to suit
-        the plutus smart contract requirements. You can import the{' '}
-        <code>Data</code> type to help you design the datum.
+        Mesh allows you to freely design the datum structure to suit the plutus
+        smart contract requirements. You can import the <code>Data</code> type
+        to help you design the datum.
       </p>
       <Codeblock
         data={`import { resolveDataHash } from '@meshsdk/core';\nimport type { Data } from '@meshsdk/core';`}
@@ -125,7 +125,8 @@ function Left({}) {
       <Codeblock data={codeSnippetdatumNumber} isJson={false} />
       <h3>An array</h3>
       <p>
-        Or an array, where each item can be either a string, number, a list, or a map.
+        Or an array, where each item can be either a string, number, a list, or
+        a map.
       </p>
       <Codeblock data={codeSnippetdatumList} isJson={false} />
       <h3>A Map</h3>
