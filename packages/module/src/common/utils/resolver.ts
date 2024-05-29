@@ -60,7 +60,6 @@ export const resolveNativeScriptAddress = (script: NativeScript, networkId = 0) 
   );
 
   return enterpriseAddress.to_address().to_bech32();
-
 }
 
 export const resolveNativeScriptHash = (script: NativeScript) => {

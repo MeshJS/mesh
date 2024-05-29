@@ -11,14 +11,14 @@ import {
   buildTxOutputBuilder, deserializeEd25519KeyHash, deserializeNativeScript,
   deserializePlutusScript, deserializeTx, fromScriptRef, fromTxUnspentOutput,
   fromUTF8, resolvePaymentKeyHash, resolveStakeKeyHash, toAddress, toBytes,
-  toPoolParams, toRedeemer, toRewardAddress, toTxUnspentOutput, toValue,
+  toNativeScript, toPoolParams, toRedeemer, toRewardAddress, toTxUnspentOutput, toValue,
 } from '@mesh/common/utils';
 import type {
   Address, Certificates, MintBuilder,
   TransactionBuilder, TxInputsBuilder, Withdrawals,
 } from '@mesh/core';
 import type {
-  Action, Asset, AssetMetadata, Data, Era, Mint, Protocol,
+  Action, Asset, AssetMetadata, Data, Era, Mint, Protocol, NativeScript,
   PlutusScript, PoolParams, Quantity, Recipient, Token, Unit, UTxO,
 } from '@mesh/common/types';
 
@@ -530,6 +530,24 @@ export class Transaction {
     signatures.forEach((signature) => {
       this._txBuilder.add_required_signer(signature);
     });
+
+    return this;
+  }
+
+  /**
+   * Sets the native script for the transaction.
+   * @param {NativeScript} script The native script to spend from.
+   * @param {UTxO} utxo The UTxO attached to the script.
+   * @returns {Transaction} The Transaction object.
+   */
+  setNativeScriptInput(script: NativeScript, utxo: UTxO): Transaction {
+    const txUnspentOutput = toTxUnspentOutput(utxo)
+
+    this._txBuilder.add_native_script_input(
+      toNativeScript(script),
+      txUnspentOutput.input(),
+      txUnspentOutput.output().amount()
+    )
 
     return this;
   }
