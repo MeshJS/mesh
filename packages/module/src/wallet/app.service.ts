@@ -20,8 +20,8 @@ const DEFAULT_PASSWORD = 'MARI0TIME';
 
 export type CreateAppWalletOptions = {
   networkId: number;
-  fetcher: IFetcher;
-  submitter: ISubmitter;
+  fetcher?: IFetcher;
+  submitter?: ISubmitter;
   key:
     | {
         type: 'root';
@@ -39,8 +39,8 @@ export type CreateAppWalletOptions = {
 };
 
 export class AppWallet implements IInitiator, ISigner, ISubmitter {
-  private readonly _fetcher: IFetcher;
-  private readonly _submitter: ISubmitter;
+  private readonly _fetcher?: IFetcher;
+  private readonly _submitter?: ISubmitter;
   private readonly _wallet: EmbeddedWallet;
 
   constructor(options: CreateAppWalletOptions) {
@@ -99,6 +99,11 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   async getUsedUTxOs(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
+    if (!this._fetcher) {
+      throw new Error(
+        '[AppWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher.'
+      );
+    }
     const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
     const utxos = await this._fetcher.fetchAddressUTxOs(
       account.enterpriseAddress
@@ -128,6 +133,11 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     accountIndex = 0
   ): Promise<string> {
     try {
+      if (!this._fetcher) {
+        throw new Error(
+          '[AppWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher.'
+        );
+      }
       const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
       const utxos = await this._fetcher.fetchAddressUTxOs(
         account.enterpriseAddress
@@ -169,6 +179,11 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   submitTx(tx: string): Promise<string> {
+    if (!this._submitter) {
+      throw new Error(
+        '[AppWallet] Submitter is required to submit transactions. Please provide a submitter.'
+      );
+    }
     return this._submitter.submitTx(tx);
   }
 
