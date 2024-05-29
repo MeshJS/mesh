@@ -18,24 +18,26 @@ import type { DataSignature } from '@mesh/common/types';
 
 const DEFAULT_PASSWORD = 'MARI0TIME';
 
+export type AppWalletKeyType =
+  | {
+      type: 'root';
+      bech32: string;
+    }
+  | {
+      type: 'cli';
+      payment: string;
+      stake?: string;
+    }
+  | {
+      type: 'mnemonic';
+      words: string[];
+    };
+
 export type CreateAppWalletOptions = {
   networkId: number;
   fetcher?: IFetcher;
   submitter?: ISubmitter;
-  key:
-    | {
-        type: 'root';
-        bech32: string;
-      }
-    | {
-        type: 'cli';
-        payment: string;
-        stake?: string;
-      }
-    | {
-        type: 'mnemonic';
-        words: string[];
-      };
+  key: AppWalletKeyType;
 };
 
 export class AppWallet implements IInitiator, ISigner, ISubmitter {
