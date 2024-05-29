@@ -1,6 +1,5 @@
 import { MeshTxInitiator, MeshTxInitiatorInput } from '@mesh/common';
 import {
-  List,
   Asset,
   UTxO,
   mConStr0,
@@ -10,6 +9,8 @@ import {
   PubKeyAddress,
   Value,
   parsePlutusValueToAssets,
+  conStr0,
+  ConStr0,
 } from '@meshsdk/common';
 import {
   applyParamsToScript,
@@ -20,24 +21,14 @@ import {
 } from '@meshsdk/core-csl';
 import blueprint from './aiken-workspace/plutus.json';
 
+export type SwapDatum = ConStr0<[PubKeyAddress, Value, Value]>;
+
 export class MeshSwapContract extends MeshTxInitiator {
-  tokenNameHex: string = '';
-  paramUtxo: UTxO['input'] = { outputIndex: 0, txHash: '' };
   scriptCbor = applyParamsToScript(blueprint.validators[0].compiledCode, []);
   scriptAddress: string;
 
-  constructor(
-    inputs: MeshTxInitiatorInput,
-    tokenNameHex?: string,
-    paramUtxo?: UTxO['input']
-  ) {
+  constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
-    if (tokenNameHex) {
-      this.tokenNameHex = tokenNameHex;
-    }
-    if (paramUtxo) {
-      this.paramUtxo = paramUtxo;
-    }
     this.scriptAddress = v2ScriptToBech32(
       this.scriptCbor,
       undefined,
@@ -53,16 +44,15 @@ export class MeshSwapContract extends MeshTxInitiator {
       await this.getWalletInfoForTx();
     const { pubKeyHash, stakeCredential } =
       serializeBech32Address(walletAddress);
+    const swapDatum: SwapDatum = conStr0([
+      pubKeyAddress(pubKeyHash, stakeCredential),
+      value(toProvide),
+      value(toReceive),
+    ]);
+
     await this.mesh
       .txOut(this.scriptAddress, toProvide)
-      .txOutInlineDatumValue(
-        [
-          pubKeyAddress(pubKeyHash, stakeCredential),
-          value(toProvide),
-          value(toReceive),
-        ],
-        'JSON'
-      )
+      .txOutInlineDatumValue(swapDatum, 'JSON')
       .changeAddress(walletAddress)
       .txInCollateral(
         collateral.input.txHash,
@@ -79,11 +69,11 @@ export class MeshSwapContract extends MeshTxInitiator {
   acceptSwap = async (swapUtxo: UTxO): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
-    const inlineDatum = parseDatumCbor<List>(swapUtxo.output.plutusData!).list;
+    const inlineDatum = parseDatumCbor<SwapDatum>(swapUtxo.output.plutusData!);
     const initiatorAddress = parsePlutusAddressObjToBech32(
-      inlineDatum[0] as PubKeyAddress
+      inlineDatum.fields[0]
     );
-    const initiatorToReceive = inlineDatum[2] as Value;
+    const initiatorToReceive = inlineDatum.fields[2];
 
     await this.mesh
       .spendingPlutusScriptV2()
@@ -112,9 +102,9 @@ export class MeshSwapContract extends MeshTxInitiator {
   cancelSwap = async (swapUtxo: UTxO): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
-    const inlineDatum = parseDatumCbor<List>(swapUtxo.output.plutusData!).list;
+    const inlineDatum = parseDatumCbor<SwapDatum>(swapUtxo.output.plutusData!);
     const initiatorAddress = parsePlutusAddressObjToBech32(
-      inlineDatum[0] as PubKeyAddress
+      inlineDatum.fields[0]
     );
     await this.mesh
       .spendingPlutusScriptV2()
