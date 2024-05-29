@@ -12,15 +12,23 @@ export type MeshTxInitiatorInput = {
   fetcher?: IFetcher;
   wallet?: BrowserWallet | MeshWallet;
   networkId?: number;
+  stakeCredential?: string;
 };
 
 export class MeshTxInitiator {
   mesh: MeshTxBuilder;
   fetcher?: IFetcher;
   wallet?: BrowserWallet | MeshWallet;
+  stakeCredential?: string;
   networkId = 0;
 
-  constructor({ mesh, fetcher, wallet, networkId }: MeshTxInitiatorInput) {
+  constructor({
+    mesh,
+    fetcher,
+    wallet,
+    networkId,
+    stakeCredential,
+  }: MeshTxInitiatorInput) {
     this.mesh = mesh;
     if (fetcher) {
       this.fetcher = fetcher;
@@ -30,6 +38,9 @@ export class MeshTxInitiator {
     }
     if (networkId) {
       this.networkId = networkId;
+    }
+    if (stakeCredential) {
+      this.stakeCredential = this.stakeCredential;
     }
   }
 
