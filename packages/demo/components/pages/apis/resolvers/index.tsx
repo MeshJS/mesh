@@ -12,11 +12,13 @@ import ResolveTxHash from './resolveTxHash';
 import ResolveEpochNo from './resolveEpochNo';
 import ResolveSlotNo from './resolveSlotNo';
 import ResolveNativeScriptHash from './resolveNativeScriptHash';
+import ResolveNativeScriptAddress from './resolveNativeScriptAddress';
 
 export default function Resolvers() {
   const sidebarItems = [
     { label: 'Data Hash', to: 'resolveDataHash' },
     { label: 'Fingerprint', to: 'resolveFingerprint' },
+    { label: 'Native Script Address', to: 'resolveNativeScriptAddress' },
     { label: 'Native Script Hash', to: 'resolveNativeScriptHash' },
     { label: 'Payment Key Hash', to: 'resolvePaymentKeyHash' },
     { label: 'Plutus Script Address', to: 'resolvePlutusScriptAddress' },
@@ -42,6 +44,7 @@ function Main() {
     <>
       <ResolveDataHash />
       <ResolveFingerprint />
+      <ResolveNativeScriptAddress />
       <ResolveNativeScriptHash />
       <ResolvePaymentKeyHash />
       <ResolvePlutusScriptAddress />

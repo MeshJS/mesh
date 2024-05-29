@@ -13,6 +13,7 @@ import Metatags from '../../../components/site/metatags';
 import SetCollateral from '../../../components/pages/apis/transaction/basic/setCollateral';
 import SetRequiredSigners from '../../../components/pages/apis/transaction/basic/setRequiredSigners';
 import SendValue from '../../../components/pages/apis/transaction/basic/sendValue';
+import SetNativeScriptInput from '../../../components/pages/apis/transaction/basic/setNativeScriptInput';
 
 const TransactionPage: NextPage = () => {
   const sidebarItems = [
@@ -26,6 +27,7 @@ const TransactionPage: NextPage = () => {
     { label: 'Set required signers', to: 'setRequiredSigners' },
     { label: 'Set time limit', to: 'setTimeLimit' },
     { label: 'Set metadata', to: 'setMetadata' },
+    { label: 'Set Native Script', to: 'setNativeScriptInput' },
   ];
 
   let codeRecipient = ``;
@@ -62,6 +64,7 @@ const TransactionPage: NextPage = () => {
         <SetRequiredSigners />
         <SetTimeLimit />
         <TxSetMetadata />
+        <SetNativeScriptInput />
       </CommonLayout>
     </>
   );
