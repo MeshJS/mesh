@@ -27,7 +27,7 @@ const GuideNextjsPage: NextPage = () => {
   codePackageUpdated += `{\n`;
   codePackageUpdated += `  "type": "module",\n`;
   codePackageUpdated += `  "dependencies": {\n`;
-  codePackageUpdated += `    "@meshsdk/core": "^1.5.17",\n`;
+  codePackageUpdated += `    "@meshsdk/core": "^1.5.18",\n`;
   codePackageUpdated += `    "tsx": "^4.9.4"\n`;
   codePackageUpdated += `  },\n`;
   codePackageUpdated += `  "scripts": {\n`;
