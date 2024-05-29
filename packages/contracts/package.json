@@ -34,7 +34,7 @@
     "vitest": "0.28.4"
   },
   "peerDependencies": {
-    "@meshsdk/core": "1.5.18"
+    "@meshsdk/core": "1.5.19"
   },
   "dependencies": {
     "@meshsdk/common": "^1.0.0-alpha.8",
