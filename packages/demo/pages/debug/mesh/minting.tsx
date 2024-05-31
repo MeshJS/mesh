@@ -90,12 +90,8 @@ export default function MeshWalletMinting() {
   async function mintMeshToken() {
     const changeAddress = await clientWallet.getChangeAddress();
     const unsignedTx = await meshWalletCreateTx(changeAddress);
-    console.log('unsignedTx', unsignedTx);
-
     const signedTx = await clientWallet.signTx(unsignedTx, true);
-
     const txhash = await meshWalletSignTx(signedTx);
-    console.log('txhash', txhash);
   }
 
   return (

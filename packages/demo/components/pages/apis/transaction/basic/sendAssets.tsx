@@ -9,7 +9,7 @@ import ConnectCipWallet from '../../../../common/connectCipWallet';
 import Input from '../../../../ui/input';
 import Button from '../../../../ui/button';
 import { PlusCircleIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { demoAddresses } from '../../../../../configs/demo';
+import { assetAsset, demoAddresses } from '../../../../../configs/demo';
 import FetchSelectAssets from '../../../../common/fetchSelectAssets';
 import { Transaction } from '@meshsdk/core';
 import type { Asset } from '@meshsdk/core';
@@ -23,7 +23,7 @@ export default function SendAssets() {
       address: demoAddresses.testnet,
       assets: {
         lovelace: 1000000,
-        '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
+        [assetAsset]: 1,
       },
     },
   ]);
@@ -115,7 +115,7 @@ function Left({ userInput }) {
   codeSnippet1 += `let assets: Asset[] = [];\n`;
   codeSnippet1 += `for (const asset of nativeAssets) {\n`;
   codeSnippet1 += `  let thisAsset = {\n`;
-  codeSnippet1 += `    unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
+  codeSnippet1 += `    unit: assetAsset,\n`;
   codeSnippet1 += `    quantity: '1',\n`;
   codeSnippet1 += `  };\n`;
   codeSnippet1 += `  assets.push(thisAsset);\n`;

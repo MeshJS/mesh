@@ -5,6 +5,7 @@ import Card from '../../../ui/card';
 import Codeblock from '../../../ui/codeblock';
 import { Transaction, KoiosProvider, resolveDataHash } from '@meshsdk/core';
 import { useWallet, CardanoWallet } from '@meshsdk/react';
+import { assetAsset } from '../../../../configs/demo';
 
 export function evaluateTxLeft({ evaluatorName }) {
   let code1 = ``;
@@ -87,8 +88,7 @@ export function evaluateTxRight({ evaluator }) {
       const assetUtxo = await _getAssetUtxo({
         scriptAddress:
           'addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8',
-        asset:
-          '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',
+        asset: assetAsset,
         datum: 'supersecretmeshdemo',
       });
 

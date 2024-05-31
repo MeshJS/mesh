@@ -1,9 +1,8 @@
 import { MeshMarketplaceContract } from '@meshsdk/contracts';
 import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
+import { assetAsset } from '../../../../configs/demo';
 
-const policyId = 'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527';
-const assetId = '4d657368546f6b656e';
-export const asset = policyId + assetId;
+export const asset = assetAsset;
 export const price = 10000000;
 
 export function getContract(wallet) {

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import SectionTwoCol from '../../common/sectionTwoCol';
-import { demoAddresses } from '../../../configs/demo';
+import {
+  assetAsset,
+  assetPolicyId,
+  demoAddresses,
+} from '../../../configs/demo';
 import { BadgeFetcher } from './badges';
 import {
   fetchAssetAddressesLeft,
@@ -26,7 +30,6 @@ import {
   fetchHandleAddressLeft,
   fetchHandleAddressRight,
 } from './fetchers/fetchHandleAddress';
-import { useWallet } from '@meshsdk/react';
 import { fetchTxInfoLeft, fetchTxInfoRight } from './fetchers/fetchTxInfo';
 import {
   fetchBlockInfoLeft,
@@ -38,21 +41,14 @@ import {
 } from './fetchers/fetchCollectionAssets';
 
 export default function Fetcher({ fetcher, fetcherName }) {
-  const { wallet, connected } = useWallet();
-
   const [fetchAddressUtxosAddress, setfetchAddressUtxosAddress] =
     useState<string>(demoAddresses.testnet);
-  const [fetchAddressUtxosAsset, setfetchAddressUtxosAsset] = useState<string>(
-    'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e'
-  );
+  const [fetchAddressUtxosAsset, setfetchAddressUtxosAsset] =
+    useState<string>(assetAsset);
   const [fetchAssetMetadataAsset, setfetchAssetMetadataAsset] =
-    useState<string>(
-      'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e'
-    );
+    useState<string>(assetAsset);
   const [fetchAssetAddressesAsset, setfetchAssetAddressesAsset] =
-    useState<string>(
-      'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e'
-    );
+    useState<string>(assetAsset);
   const [fetchProtocolParameters, setfetchProtocolParameters] =
     useState<string>('');
   const [fetchAccountInfoAddress, setFetchAccountInfoAddress] =
@@ -69,9 +65,7 @@ export default function Fetcher({ fetcher, fetcherName }) {
   const [block, setBlock] = useState<string>(
     '79f60880b097ec7dabb81f75f0b52fedf5e922d4f779a11c0c432dcf22c56089'
   );
-  const [policyId, setPolicyId] = useState<string>(
-    'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527'
-  );
+  const [policyId, setPolicyId] = useState<string>(assetPolicyId);
   const [cursor, setCursor] = useState<string>('');
 
   // useEffect(() => {

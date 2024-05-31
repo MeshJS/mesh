@@ -63,7 +63,6 @@ const GuideNextjsPage: NextPage = () => {
   codeTx += `const unsignedTx = await tx.build();\n`;
   codeTx += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeTx += `const txHash = await wallet.submitTx(signedTx);\n`;
-  codeTx += `console.log(txHash);\n`;
 
   return (
     <>

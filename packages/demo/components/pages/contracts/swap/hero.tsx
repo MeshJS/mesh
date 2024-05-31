@@ -1,12 +1,13 @@
 import { ArrowsRightLeftIcon } from '@heroicons/react/24/solid';
-import Codeblock from '../../../ui/codeblock';
 import Link from 'next/link';
+import Codeblock from '../../../ui/codeblock';
+import Button from '../../../ui/button';
 import MintMeshToken from '../../../common/mintMeshToken';
 
 export default function Hero() {
   let code = ``;
   code += `import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';\n`;
-  code += `import { MeshEscrowContract } from '@meshsdk/contracts';\n`;
+  code += `import { MeshSwapContract } from '@meshsdk/contracts';\n`;
   code += `import { useWallet } from '@meshsdk/react';\n`;
   code += `\n`;
   code += `const { connected, wallet } = useWallet();\n`;
@@ -18,7 +19,7 @@ export default function Hero() {
   code += `  submitter: blockchainProvider,\n`;
   code += `});\n`;
   code += `\n`;
-  code += `const contract = new MeshEscrowContract({\n`;
+  code += `const contract = new MeshSwapContract({\n`;
   code += `  mesh: meshTxBuilder,\n`;
   code += `  fetcher: blockchainProvider,\n`;
   code += `  wallet: wallet,\n`;
@@ -33,40 +34,41 @@ export default function Hero() {
             <div className="p-2 mr-4">
               <ArrowsRightLeftIcon className="w-16 h-16" />
             </div>
-            <span>Escrow</span>
+            <span>Swap</span>
           </div>
         </h2>
         <p className="mb-8 font-light text-gray-500 sm:text-xl dark:text-gray-400">
-          Escrow contract facilitates the secure exchange of assets between two
-          parties by acting as a trusted intermediary that holds the assets
-          until the conditions of the agreement are met.
+          Swap contract facilitates the exchange of assets between two parties.
         </p>
       </header>
       <div className="grid grid-cols-1 px-4 lg:grid-cols-3 lg:gap-4 pb-16">
         <div className="col-span-2">
           <p>
-            The escrow smart contract allows two parties to exchange assets
-            securely. The contract holds the assets until both parties agree and
-            sign off on the transaction.
+            Swap contract facilitates the exchange of assets between two
+            parties. This contract is designed to be used in a peer-to-peer
+            exchange scenario where two parties agree to exchange assets. The
+            contract ensures that the assets are locked up until it is accepted
+            by the other party. At any point before it is accepted, one can
+            cancel the swap to retrieve the assets.
           </p>
           <p>
-            There are 4 actions available to interact with this smart contract:
+            There are 2 actions (or endpoints) available to interact with this
+            smart contract:
           </p>
           <ul>
-            <li>initiate escrow and deposit assets</li>
-            <li>deposit assets</li>
-            <li>complete escrow</li>
-            <li>cancel escrow</li>
+            <li>initiate swap</li>
+            <li>accept asset</li>
+            <li>cancel swap</li>
           </ul>
           <p>
-            To initialize the escrow, we need to initialize a{' '}
+            To initialize the swap, we need to initialize a{' '}
             <Link href="/providers">provider</Link>, <code>MeshTxBuilder</code>{' '}
-            and <code>MeshEscrowContract</code>.
+            and <code>MeshSwapContract</code>.
           </p>
           <Codeblock data={code} isJson={false} />
           <p>
             Both on-chain and off-chain codes are open-source and available on{' '}
-            <Link href="https://github.com/MeshJS/mesh/tree/main/packages/contracts/src/escrow">
+            <Link href="https://github.com/MeshJS/mesh/tree/main/packages/contracts/src/swap">
               Mesh Github Repository
             </Link>
             .

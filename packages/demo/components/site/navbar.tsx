@@ -313,10 +313,10 @@ function SubMenuSmartContracts() {
               icon={<GiftIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
-              href={`/smart-contracts/coupon-bond-guaranteed`}
-              title="Coupon Bond Guaranteed"
-              desc="Debt agreement between Lender and Borrower"
-              icon={<DocumentTextIcon className="w-5 h-5" />}
+              href={`/smart-contracts/swap`}
+              title="Swap"
+              desc="Exchange of assets between two parties"
+              icon={<ArrowsRightLeftIcon className="w-5 h-5" />}
             />
             <SubMenuLinks
               href={`/smart-contracts/payment-splitter`}

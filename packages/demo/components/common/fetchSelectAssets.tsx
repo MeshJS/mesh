@@ -2,6 +2,7 @@ import type { AssetExtended } from '@meshsdk/core';
 import { useEffect, useState } from 'react';
 import { useWallet } from '@meshsdk/react';
 import Button from '../ui/button';
+import { assetAsset, assetPolicyId } from '../../configs/demo';
 
 export default function FetchSelectAssets({
   index,
@@ -12,8 +13,8 @@ export default function FetchSelectAssets({
   const [loadingAssets, setLoadingAssets] = useState<boolean>(false);
   const [walletAssets, setWalletAssets] = useState<AssetExtended[]>([
     {
-      unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',
-      policyId: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a42',
+      unit: assetAsset,
+      policyId: assetPolicyId,
       assetName: 'MeshToken',
       fingerprint: 'asset1vy4dlqfc42r49jtvz5v4ek3s7wz96s0azur5xx',
       quantity: '10',

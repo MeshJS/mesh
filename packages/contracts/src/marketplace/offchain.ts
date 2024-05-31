@@ -170,7 +170,6 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     }
 
     if (ownerToReceiveLovelace > 0) {
-      console.log(7, 'ownerToReceiveLovelace', ownerToReceiveLovelace);
       const ownerAddress = this.ownerAddress;
       const ownerToReceive = [
         {
@@ -185,7 +184,6 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       inputDatum.fields[1].int - ownerToReceiveLovelace;
 
     if (sellerToReceiveLovelace > 0) {
-      console.log(8, 'sellerToReceiveLovelace', sellerToReceiveLovelace);
       const sellerAddress = parsePlutusAddressObjToBech32(inputDatum.fields[0]);
       const sellerToReceive = [
         {

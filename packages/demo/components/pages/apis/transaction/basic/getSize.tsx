@@ -192,7 +192,9 @@ function Right({ userInput, updateField }) {
     setResponseError(null);
 
     try {
-      const blockchainProvider = new BlockfrostProvider(process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!);
+      const blockchainProvider = new BlockfrostProvider(
+        process.env.NEXT_PUBLIC_BLOCKFROST_API_KEY_PREPROD!
+      );
 
       const wallet = new AppWallet({
         networkId: 0,
@@ -236,15 +238,6 @@ function Right({ userInput, updateField }) {
         tx.mintAsset(forgingScript, asset);
       }
 
-      // const unsignedTx = await tx.build();
-      // const signedTx = await wallet.signTx(unsignedTx);
-      // const txHash = await wallet.submitTx(signedTx);
-      
-      // const size = tx.size;
-      // console.log(11, size);
-      // const fee = tx.fee;
-      // console.log(22, fee);
-      // setResponse(size);
       setState(2);
     } catch (error) {
       setResponseError(`${error}`);

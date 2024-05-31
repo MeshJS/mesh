@@ -4,6 +4,7 @@ import RunDemoResult from '../../../common/runDemoResult';
 import Card from '../../../ui/card';
 import Codeblock from '../../../ui/codeblock';
 import Input from '../../../ui/input';
+import { assetAsset } from '../../../../configs/demo';
 
 export function fetchCollectionAssetsLeft({ fetcherName, policyId, cursor }) {
   let code1 = `await ${fetcherName}.fetchCollectionAssets(\n`;
@@ -14,7 +15,7 @@ export function fetchCollectionAssetsLeft({ fetcherName, policyId, cursor }) {
   code2 += `{\n`;
   code2 += `  "assets": [\n`;
   code2 += `    {\n`;
-  code2 += `      "unit": "d9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e",\n`;
+  code2 += `      "unit": "${assetAsset}",\n`;
   code2 += `      "quantity": "1"\n`;
   code2 += `    },\n`;
   code2 += `  ],\n`;
@@ -53,7 +54,9 @@ export function fetchCollectionAssetsRight({
     setResponse(null);
     setResponseError(null);
     try {
-      const res = cursor ? await fetcher.fetchCollectionAssets(policyId, cursor) : await fetcher.fetchCollectionAssets(policyId);
+      const res = cursor
+        ? await fetcher.fetchCollectionAssets(policyId, cursor)
+        : await fetcher.fetchCollectionAssets(policyId);
       setResponse(res);
     } catch (error) {
       setResponseError(`${error}`);

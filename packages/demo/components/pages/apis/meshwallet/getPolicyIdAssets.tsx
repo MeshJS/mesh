@@ -6,11 +6,10 @@ import RunDemoResult from '../../../common/runDemoResult';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import Input from '../../../ui/input';
 import { getMeshWallet } from './common';
+import { assetPolicyId } from '../../../../configs/demo';
 
 export default function GetPolicyIdAssets() {
-  const [policyId, setPolicyId] = useState<string>(
-    'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc17255527'
-  );
+  const [policyId, setPolicyId] = useState<string>(assetPolicyId);
   return (
     <SectionTwoCol
       sidebarTo="getPolicyIdAssets"

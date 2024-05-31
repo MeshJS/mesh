@@ -1,5 +1,6 @@
 import Codeblock from '../../../../ui/codeblock';
 import SectionTwoCol from '../../../../common/sectionTwoCol';
+import { assetAsset } from '../../../../../configs/demo';
 // import { useWallet } from '@meshsdk/react';
 // import { largestFirstMultiAsset, keepRelevant } from '@meshsdk/core';
 // import type { Unit, Quantity } from '@meshsdk/core';
@@ -27,7 +28,7 @@ function Left() {
   codeSnippet2 += `const utxos = await wallet.getUtxos();\n\n`;
   codeSnippet2 += `const assetMap = new Map<Unit, Quantity>();\n`;
   codeSnippet2 += `assetMap.set(\n`;
-  codeSnippet2 += `  'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e',\n`;
+  codeSnippet2 += `  '${assetAsset}',\n`;
   codeSnippet2 += `  '1'\n`;
   codeSnippet2 += `);\n`;
   codeSnippet2 += `// if you need to include lovelace\n`;
@@ -60,7 +61,7 @@ function Left() {
   codeKeepRelevant += `const utxos = await wallet.getUtxos();\n\n`;
   codeKeepRelevant += `const assetMap = new Map<Unit, Quantity>();\n`;
   codeKeepRelevant += `assetMap.set(\n`;
-  codeKeepRelevant += `  'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e',\n`;
+  codeKeepRelevant += `  '${assetAsset}',\n`;
   codeKeepRelevant += `  '1'\n`;
   codeKeepRelevant += `);\n`;
   codeKeepRelevant += `// if you need to include lovelace\n`;
@@ -85,7 +86,6 @@ function Left() {
         <li>Largest First Multi-Asset</li>
         <li>Keep Relevant</li>
       </ul>
-      
 
       <h3>Largest First</h3>
       <p>
@@ -98,33 +98,35 @@ function Left() {
 
       <h3>Largest First Multi-Asset</h3>
       <p>
-        <code>largestFirstMultiAsset</code> allows you to define which native assets
-        you require for sending out by defining a <code>Map</code>.  The Map is matches
-        the <code>Unit</code> with the quantity of each asset.
+        <code>largestFirstMultiAsset</code> allows you to define which native
+        assets you require for sending out by defining a <code>Map</code>. The
+        Map is matches the <code>Unit</code> with the quantity of each asset.
       </p>
       <Codeblock data={code4} isJson={false} />
       <p>
-        Note that if lovelace, aside from the "minimum Ada" which in any case needs to
-        accompany the other assets, this must be explicitly specified.  This can also 
-        be useful in the case that your transaction <em>only</em> requires transfer of
-        lovelace.  In this case, the algorithm will exclude all multiasset UTxOs from 
-        the selection, which can result in more efficient selection of the required UTxOs.
+        Note that if lovelace, aside from the "minimum Ada" which in any case
+        needs to accompany the other assets, this must be explicitly specified.
+        This can also be useful in the case that your transaction <em>only</em>{' '}
+        requires transfer of lovelace. In this case, the algorithm will exclude
+        all multiasset UTxOs from the selection, which can result in more
+        efficient selection of the required UTxOs.
       </p>
       <Codeblock data={codeSnippet2} isJson={false} />
       <p>
         The third parameter is <code>includeTxFees</code>. If <code>True</code>,
-        Mesh will calculate the fees required for the transaction, and include additional
-        UTxOs to necessary to fulfill the fees requirements.
+        Mesh will calculate the fees required for the transaction, and include
+        additional UTxOs to necessary to fulfill the fees requirements.
       </p>
 
       <h3>Keep Relevant</h3>
       <p>
-        <code>keepRelevant</code> is a two-step coin selection algorithm. First, given
-        a Map (of requested assets and respective quantities) and a set of UTxOs,
-        it tries to eliminate the irrelevant UTxOs from the set.  Next, it checks that this 
-        UTxO set includes enough lovelace to cover all/any multi-assets in the set.
-        If the set does not include enough lovelace, then it will try to also pick
-        up another UTxO from the wallet, containing the largest amount of lovelace.
+        <code>keepRelevant</code> is a two-step coin selection algorithm. First,
+        given a Map (of requested assets and respective quantities) and a set of
+        UTxOs, it tries to eliminate the irrelevant UTxOs from the set. Next, it
+        checks that this UTxO set includes enough lovelace to cover all/any
+        multi-assets in the set. If the set does not include enough lovelace,
+        then it will try to also pick up another UTxO from the wallet,
+        containing the largest amount of lovelace.
       </p>
       <Codeblock data={codeKeepRelevantDesc} isJson={false} />
       <p>
@@ -136,46 +138,5 @@ function Left() {
 }
 
 function Right() {
-  // const [state, setState] = useState<number>(0);
-  // const [response, setResponse] = useState<null | any>(null);
-  // const [responseError, setResponseError] = useState<null | any>(null);
-  // const { wallet, connected } = useWallet();
-
-  // async function runDemo() {
-  //   console.log(111, keepRelevant);
-  //   console.log(222, largestFirstMultiAsset);
-
-  //   setState(1);
-  //   setResponseError(null);
-
-  //   const utxos = await wallet.getUtxos();
-  //   console.log('all utxos', utxos);
-  //   const assetMap = new Map<Unit, Quantity>();
-  //   assetMap.set(
-  //     'd9312da562da182b02322fd8acb536f37eb9d29fba7c49dc172555274d657368546f6b656e',
-  //     '1'
-  //   );
-  //   // assetMap.set(
-  //   //   'lovelace',
-  //   //   '10000000'
-  //   // );
-  //   // const selectedUtxos = largestFirstMultiAsset(assetMap, utxos, true);
-  //   const selectedUtxos = keepRelevant(assetMap, utxos);
-
-  //   console.log('selectedUtxos', selectedUtxos);
-
-  //   try {
-  //     setState(2);
-  //   } catch (error) {
-  //     setResponseError(`${error}`);
-  //     setState(0);
-  //   }
-  // }
-
-  return (
-    <>
-      {/* <ConnectCipWallet />
-      <button onClick={() => runDemo()}>test</button> */}
-    </>
-  );
+  return <></>;
 }
