@@ -2,6 +2,8 @@
 
 Escrow contract facilitates the secure exchange of assets between two parties by acting as a trusted intermediary that holds the assets until the conditions of the agreement are met.
 
+[Demo](https://meshjs.dev/smart-contracts/escrow)
+
 The escrow smart contract allows two parties to exchange assets securely. The contract holds the assets until both parties agree and sign off on the transaction.
 
 There are 4 actions available to interact with this smart contract:

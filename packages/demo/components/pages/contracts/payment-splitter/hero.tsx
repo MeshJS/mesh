@@ -30,6 +30,7 @@ export default function Hero() {
   code += `    'addr_test1vqqnfs2vt42nq4htq460wd6gjxaj05jg9vzg76ur6ws4sngs55pwr',\n`;
   code += `    'addr_test1vqv2qhqddxmf87pzky2nkd9wm4y5599mhp62mu4atuss5dgdja5pw',\n`;
   code += `  ]\n`;
+  code += `);\n`;
 
   return (
     <>
