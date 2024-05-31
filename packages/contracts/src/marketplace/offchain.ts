@@ -139,9 +139,9 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     const listingPrice = inputDatum.fields[1].int.toString();
     const selectedUtxos = largestFirst(listingPrice, utxos, true);
 
-    // const inputLovelace = marketplaceUtxo.output.amount.find(
-    //   (a) => a.unit === 'lovelace'
-    // )!.quantity;
+    const inputLovelace = marketplaceUtxo.output.amount.find(
+      (a) => a.unit === 'lovelace'
+    )!.quantity;
 
     const tx = this.mesh
       .spendingPlutusScriptV2()
@@ -181,7 +181,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     }
 
     const sellerToReceiveLovelace =
-      inputDatum.fields[1].int - ownerToReceiveLovelace;
+      inputDatum.fields[1].int + Number(inputLovelace);
 
     if (sellerToReceiveLovelace > 0) {
       const sellerAddress = parsePlutusAddressObjToBech32(inputDatum.fields[0]);
