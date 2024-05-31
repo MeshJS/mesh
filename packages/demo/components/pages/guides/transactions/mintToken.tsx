@@ -39,7 +39,6 @@ export default function MintToken() {
   codeDemo += `const unsignedTx = await tx.build();\n`;
   codeDemo += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeDemo += `const txHash = await wallet.submitTx(signedTx);\n`;
-  codeDemo += `console.log(txHash);`;
 
   async function demoLoadWallet() {
     setLoading(true);

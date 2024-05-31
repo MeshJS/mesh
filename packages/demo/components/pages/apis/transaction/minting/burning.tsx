@@ -9,15 +9,16 @@ import ConnectCipWallet from '../../../../common/connectCipWallet';
 import Input from '../../../../ui/input';
 import { Transaction, ForgeScript } from '@meshsdk/core';
 import type { Asset, AssetExtended } from '@meshsdk/core';
+import { assetAsset } from '../../../../../configs/demo';
 
 export default function Burning() {
   const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<{}>({
-    '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e': 1,
+    [assetAsset]: 1,
   });
   const [walletAssets, setWalletAssets] = useState<AssetExtended[]>([
     {
-      unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',
+      unit: assetAsset,
       policyId: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a42',
       assetName: 'MeshToken',
       fingerprint: 'asset1vy4dlqfc42r49jtvz5v4ek3s7wz96s0azur5xx',
@@ -102,7 +103,7 @@ function Left({ userInput }) {
   codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
 
   let codeSnippet2 = `const asset: Asset = {\n`;
-  codeSnippet2 += `  unit: '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e',\n`;
+  codeSnippet2 += `  unit: assetAsset,\n`;
   codeSnippet2 += `  quantity: '1',\n`;
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.burnAsset(forgingScript, asset);`;

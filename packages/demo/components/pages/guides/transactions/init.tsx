@@ -30,7 +30,6 @@ export default function Init() {
   let codeDemo = codeInit;
   codeDemo += `\n\n`;
   codeDemo += `const address = wallet.getPaymentAddress();\n`;
-  codeDemo += `console.log(address)\n`;
 
   async function demoLoadWallet() {
     setLoading(true);

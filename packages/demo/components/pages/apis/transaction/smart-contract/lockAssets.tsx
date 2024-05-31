@@ -11,6 +11,7 @@ import { Transaction, Asset } from '@meshsdk/core';
 import FetchSelectAssets from '../../../../common/fetchSelectAssets';
 import Link from 'next/link';
 import useDemo from '../../../../../contexts/demo';
+import { assetAsset } from '../../../../../configs/demo';
 
 // always succeed
 const script = '4e4d01000033222220051200120011';
@@ -25,8 +26,7 @@ export default function LockAssets() {
   >([
     {
       assets: {
-        '64af286e2ad0df4de2e7de15f8ff5b3d27faecf4ab2757056d860a424d657368546f6b656e':
-          '1',
+        [assetAsset]: '1',
       },
     },
   ]);
@@ -122,20 +122,22 @@ function Left({ userInput, inputDatum }) {
   return (
     <>
       <p>
-        Assets may be reserved in a smart contract by "locking" them at the script's address.
-        The assets can only be subsequently unlocked when certain conditions
-        are met, for example, in the case of making a purchase in a marketplace contract.
+        Assets may be reserved in a smart contract by "locking" them at the
+        script's address. The assets can only be subsequently unlocked when
+        certain conditions are met, for example, in the case of making a
+        purchase in a marketplace contract.
       </p>
       <p>
         In this demo, we will lock selected assets from your wallet in an
-        <code>always succeed</code> smart contract.  Even though it is called "always succeed"
-        because there is no actual "validating" logic, unlocking the assets still 
-        requires the correct datum to be supplied. Also note that in practice, multiple assets (both native
-        assets and lovelace) can be sent to the contract in a single transaction.
+        <code>always succeed</code> smart contract. Even though it is called
+        "always succeed" because there is no actual "validating" logic,
+        unlocking the assets still requires the correct datum to be supplied.
+        Also note that in practice, multiple assets (both native assets and
+        lovelace) can be sent to the contract in a single transaction.
       </p>
       <p>
-        We need to supply the script address.  Luckily Mesh has a handy function to "resolve" (work out)
-        the script address automatically using: {' '}
+        We need to supply the script address. Luckily Mesh has a handy function
+        to "resolve" (work out) the script address automatically using:{' '}
         <Link href="/apis/resolvers#resolvePlutusScriptAddress">
           Resolve Script Address
         </Link>{' '}
@@ -146,9 +148,10 @@ function Left({ userInput, inputDatum }) {
       <p>To lock assets in this contract, here's the full code:</p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        If the transaction is successful, you would usually want to keep a record of the
-        asset's <code>unit</code> and the <code>datum</code> used in the
-        transaction, as this information is required to unlock the assets.
+        If the transaction is successful, you would usually want to keep a
+        record of the asset's <code>unit</code> and the <code>datum</code> used
+        in the transaction, as this information is required to unlock the
+        assets.
       </p>
     </>
   );

@@ -37,10 +37,10 @@ const ReactPage: NextPage = () => {
       thumbnailHeroicon: <GiftIcon />,
     },
     {
-      title: 'Coupon Bond Guaranteed',
-      desc: 'Debt agreement between Lender and Borrower',
-      link: '/smart-contracts/coupon-bond-guaranteed',
-      thumbnailHeroicon: <DocumentTextIcon />,
+      title: 'Swap',
+      desc: 'Trade assets between two parties',
+      link: '/smart-contracts/swap',
+      thumbnailHeroicon: <ArrowsRightLeftIcon />,
     },
     {
       title: 'Payment Splitter',

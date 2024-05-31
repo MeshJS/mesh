@@ -41,7 +41,6 @@ export function onNextTxRight({ listener }) {
       const unsignedTx = await tx.build();
       const signedTx = await wallet.signTx(unsignedTx);
       const txHash = await listener.submitTx(signedTx);
-      console.log('txHash', txHash);
 
       // setResponse(txHash);
     } catch (error) {

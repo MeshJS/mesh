@@ -1,0 +1,19 @@
+name = "meshjs/swap"
+version = "0.0.0"
+license = "Apache-2.0"
+description = "Aiken contracts for project 'meshjs/swap'"
+
+[repository]
+user = "meshjs"
+project = "swap"
+platform = "github"
+
+[[dependencies]]
+name = "aiken-lang/stdlib"
+version = "1.8.0"
+source = "github"
+
+[[dependencies]]
+name = "sidan-lab/aiken-utils"
+version = "0.0.5-beta"
+source = "github"

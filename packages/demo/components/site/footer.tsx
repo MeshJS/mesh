@@ -141,8 +141,16 @@ function Sitemap() {
           </h2>
           <ul className="text-gray-500 dark:text-gray-400">
             <SitemapLinks
-              href="/smart-contracts/marketplace"
+              href={`/smart-contracts/marketplace`}
               label="Marketplace"
+            />
+            <SitemapLinks href={`/smart-contracts/vesting`} label="Vesting" />
+            <SitemapLinks href={`/smart-contracts/escrow`} label="Escrow" />
+            <SitemapLinks href={`/smart-contracts/giftcard`} label="Giftcard" />
+            <SitemapLinks href={`/smart-contracts/swap`} label="Swap" />
+            <SitemapLinks
+              href={`/smart-contracts/payment-splitter`}
+              label="Payment Splitter"
             />
           </ul>
         </div>

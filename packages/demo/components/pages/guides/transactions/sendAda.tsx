@@ -31,7 +31,6 @@ export default function SendADA() {
     const txHash = await wallet.submitTx(signedTx);
 
     setResponse(txHash);
-    console.log(tx);
     setLoading(false);
   }
 

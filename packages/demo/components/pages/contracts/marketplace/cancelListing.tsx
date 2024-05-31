@@ -3,11 +3,10 @@ import Card from '../../../ui/card';
 import SectionTwoCol from '../../../common/sectionTwoCol';
 import Button from '../../../ui/button';
 import { CardanoWallet, useWallet } from '@meshsdk/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import RunDemoResult from '../../../common/runDemoResult';
-import { asset, getContract, price } from './common';
+import { getContract } from './common';
 import useLocalStorage from '../../../../hooks/useLocalStorage';
-import Input from '../../../ui/input';
 
 export default function MarketplaceCancelAsset() {
   return (
@@ -30,8 +29,8 @@ function Left() {
         at any time. The seller will receive the listed asset back.
       </p>
       <p>
-        <code>delistAsset()</code> cancel a listing
-        on the marketplace. The function accepts the following parameters:
+        <code>delistAsset()</code> cancel a listing on the marketplace. The
+        function accepts the following parameters:
       </p>
       <ul>
         <li>

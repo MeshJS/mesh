@@ -91,7 +91,6 @@ unlockCode += `  scriptAddress: scriptAddress,\n`;
 unlockCode += `  asset: "lovelace",\n`;
 unlockCode += `  datum: datum,\n`;
 unlockCode += `});\n`;
-unlockCode += `console.log("assetUtxo", assetUtxo);\n`;
 unlockCode += `\n`;
 unlockCode += `const redeemer = { data: { alternative: 0, fields: ['Hello, World!'] } };\n`;
 unlockCode += `\n`;

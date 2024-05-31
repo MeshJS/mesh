@@ -3,7 +3,7 @@
   "description": "Prebuilt Smart-Contracts you need for building dApps on Cardano.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.1",
   "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.cjs",
@@ -37,6 +37,7 @@
     "@meshsdk/core": "^1.0.0"
   },
   "dependencies": {
-    "@meshsdk/mesh-csl": "^0.0.4"
+    "@meshsdk/common": "^1.0.0-alpha.9",
+    "@meshsdk/core-csl": "^1.6.0-alpha.7"
   }
 }

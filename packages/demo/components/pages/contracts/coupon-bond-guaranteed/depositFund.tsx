@@ -81,11 +81,9 @@ function Right() {
         lockUntilTimeStamp.getTime(),
         beneficiary
       );
-      console.log('tx', tx);
 
       const signedTx = await wallet.signTx(tx);
       const txHash = await wallet.submitTx(signedTx);
-      console.log('txHash', txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);

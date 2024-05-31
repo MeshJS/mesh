@@ -64,7 +64,6 @@ function SendPayment() {
     );
     const signedTx = await wallet.signTx(unsignedTx, true);
     const txHash = await wallet.submitTx(signedTx);
-    console.log('txHash', txHash);
 
     setLoading(false);
     setDone(true);

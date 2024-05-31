@@ -2,6 +2,8 @@
 
 Giftcard contract allows users to create a transactions to lock assets into the smart contract, which can be redeemed by any user.
 
+[Demo](https://meshjs.dev/smart-contracts/giftcard)
+
 Creating a giftcard will mint a token and send the assets to the contract. While redeeming will burn the token and send the assets to the redeemer.
 
 There are 2 actions (or endpoints) available to interact with this smart contract:

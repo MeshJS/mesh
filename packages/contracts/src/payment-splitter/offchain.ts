@@ -4,12 +4,8 @@ import {
   resolvePaymentKeyHash,
   Transaction,
 } from '@meshsdk/core';
-import {
-  serializeBech32Address,
-  applyObjParamsToScript,
-  builtinByteString,
-  list,
-} from '@meshsdk/mesh-csl';
+import { serializeBech32Address, applyParamsToScript } from '@meshsdk/core-csl';
+import { builtinByteString, list } from '@meshsdk/common';
 import blueprint from './aiken-workspace/plutus.json';
 
 export class MeshPaymentSplitterContract extends MeshTxInitiator {
@@ -21,9 +17,11 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     );
 
   scriptCbor = () =>
-    applyObjParamsToScript(blueprint.validators[0].compiledCode, [
-      this.wrapPayees(this.payees),
-    ]);
+    applyParamsToScript(
+      blueprint.validators[0].compiledCode,
+      [this.wrapPayees(this.payees)],
+      'JSON'
+    );
   payees: string[] = [];
 
   constructor(inputs: MeshTxInitiatorInput, payees: string[]) {

@@ -69,11 +69,8 @@ function Right() {
       }
 
       const tx = await contract.purchaseAsset(utxo);
-      console.log(1, 'tx', tx);
       const signedTx = await wallet.signTx(tx, true);
-      console.log(2, 'signedTx', signedTx);
       const txHash = await wallet.submitTx(signedTx);
-      console.log(4, txHash);
       setResponse(txHash);
     } catch (error) {
       setResponseError(`${error}`);

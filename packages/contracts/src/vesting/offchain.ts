@@ -1,16 +1,18 @@
 import { MeshTxInitiator, MeshTxInitiatorInput } from '@mesh/common';
 import {
-  mConStr0,
   serializeBech32Address,
   applyParamsToScript,
   v2ScriptToBech32,
+  parseDatumCbor,
+} from '@meshsdk/core-csl';
+import {
+  mConStr0,
   unixTimeToEnclosingSlot,
   SLOT_CONFIG_NETWORK,
   ConStr0,
   Integer,
   BuiltinByteString,
-  parseDatumCbor,
-} from '@meshsdk/mesh-csl';
+} from '@meshsdk/common';
 import blueprint from './aiken-workspace/plutus.json';
 import { Asset, UTxO } from '@meshsdk/core';
 
@@ -69,8 +71,8 @@ export class MeshVestingContract extends MeshTxInitiator {
       unixTimeToEnclosingSlot(
         Math.min(datum.fields[0].int, Date.now() - 15000),
         this.networkId === 0
-          ? SLOT_CONFIG_NETWORK.Preprod
-          : SLOT_CONFIG_NETWORK.Mainnet
+          ? SLOT_CONFIG_NETWORK.preprod
+          : SLOT_CONFIG_NETWORK.mainnet
       ) + 1;
 
     await this.mesh

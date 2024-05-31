@@ -1,12 +1,10 @@
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
-import { CardanoWallet, useWallet } from '@meshsdk/react';
-import Button from '../../../ui/button';
+import { useWallet } from '@meshsdk/react';
 import Card from '../../../ui/card';
 import { useState } from 'react';
-import RunDemoResult from '../../../common/runDemoResult';
 import Codeblock from '../../../ui/codeblock';
 import Link from 'next/link';
-import mintMeshToken from '../../../common/mintMeshToken';
+import MintMeshToken from '../../../common/mintMeshToken';
 
 export default function Hero() {
   let codeInit = ``;
@@ -106,10 +104,6 @@ export default function Hero() {
 }
 
 function Demo() {
-  const { wallet, connected } = useWallet();
-  const [loading, setLoading] = useState<boolean>(false);
-  const [response, setResponse] = useState<null | any>(null);
-
   return (
     <Card>
       <h3>Mint a token to try the demo</h3>
@@ -118,7 +112,8 @@ function Demo() {
         Firstly, switch your wallet network to one of the testnets, and connect
         wallet.
       </p>
-      <CardanoWallet />
+      <MintMeshToken />
+      {/* <CardanoWallet />
       {connected && (
         <>
           <p>Next, mint a Mesh Token. We will use list this NFT for sale.</p>
@@ -138,7 +133,7 @@ function Demo() {
             </>
           )}
         </>
-      )}
+      )} */}
     </Card>
   );
 }

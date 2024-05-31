@@ -1,25 +1,67 @@
 import { csl, keepRelevant, largestFirstMultiAsset } from '@mesh/core';
 import {
-  DEFAULT_PROTOCOL_PARAMETERS, DEFAULT_REDEEMER_BUDGET,
-  POLICY_ID_LENGTH, SUPPORTED_COST_MODELS, SUPPORTED_TOKENS,
+  DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_REDEEMER_BUDGET,
+  POLICY_ID_LENGTH,
+  SUPPORTED_COST_MODELS,
+  SUPPORTED_TOKENS,
 } from '@mesh/common/constants';
 import { IInitiator } from '@mesh/common/contracts';
-import { Checkpoint, Trackable, TrackableObject } from '@mesh/common/decorators';
 import {
-  buildDataCost, buildDatumSource, buildMintWitness,
-  buildPlutusScriptSource, buildTxBuilder, buildTxInputsBuilder,
-  buildTxOutputBuilder, deserializeEd25519KeyHash, deserializeNativeScript,
-  deserializePlutusScript, deserializeTx, fromScriptRef, fromTxUnspentOutput,
-  fromUTF8, resolvePaymentKeyHash, resolveStakeKeyHash, toAddress, toBytes,
-  toNativeScript, toPoolParams, toRedeemer, toRewardAddress, toTxUnspentOutput, toValue,
+  Checkpoint,
+  Trackable,
+  TrackableObject,
+} from '@mesh/common/decorators';
+import {
+  buildDataCost,
+  buildDatumSource,
+  buildMintWitness,
+  buildPlutusScriptSource,
+  buildTxBuilder,
+  buildTxInputsBuilder,
+  buildTxOutputBuilder,
+  deserializeEd25519KeyHash,
+  deserializeNativeScript,
+  deserializePlutusScript,
+  deserializeTx,
+  fromScriptRef,
+  fromTxUnspentOutput,
+  fromUTF8,
+  resolvePaymentKeyHash,
+  resolveStakeKeyHash,
+  toAddress,
+  toBytes,
+  toNativeScript,
+  toPoolParams,
+  toRedeemer,
+  toRewardAddress,
+  toTxUnspentOutput,
+  toValue,
 } from '@mesh/common/utils';
 import type {
-  Address, Certificates, MintBuilder,
-  TransactionBuilder, TxInputsBuilder, Withdrawals,
+  Address,
+  Certificates,
+  MintBuilder,
+  TransactionBuilder,
+  TxInputsBuilder,
+  Withdrawals,
 } from '@mesh/core';
 import type {
-  Action, Asset, AssetMetadata, Data, Era, Mint, Protocol, NativeScript,
-  PlutusScript, PoolParams, Quantity, Recipient, Token, Unit, UTxO,
+  Action,
+  Asset,
+  AssetMetadata,
+  Data,
+  Era,
+  Mint,
+  Protocol,
+  NativeScript,
+  PlutusScript,
+  PoolParams,
+  Quantity,
+  Recipient,
+  Token,
+  Unit,
+  UTxO,
 } from '@mesh/common/types';
 
 @Trackable
@@ -43,43 +85,44 @@ export class Transaction {
     this._era = options.era;
     this._initiator = options.initiator;
     this._mintBuilder = csl.MintBuilder.new();
-    this._protocolParameters = options.parameters ?? DEFAULT_PROTOCOL_PARAMETERS;
+    this._protocolParameters =
+      options.parameters ?? DEFAULT_PROTOCOL_PARAMETERS;
     this._txBuilder = buildTxBuilder(options.parameters);
     this._txCertificates = csl.Certificates.new();
     this._txInputsBuilder = csl.TxInputsBuilder.new();
     this._txWithdrawals = csl.Withdrawals.new();
   }
 
-  static attachMetadata(cborTx: string, cborTxMetadata: string, era: Era = 'BABBAGE') {
+  static attachMetadata(
+    cborTx: string,
+    cborTxMetadata: string,
+    era: Era = 'BABBAGE'
+  ) {
     const tx = deserializeTx(cborTx);
-    const txAuxData = tx.auxiliary_data()
-      ?? csl.AuxiliaryData.new();
+    const txAuxData = tx.auxiliary_data() ?? csl.AuxiliaryData.new();
 
     txAuxData.set_metadata(
-      csl.GeneralTransactionMetadata.from_hex(cborTxMetadata),
+      csl.GeneralTransactionMetadata.from_hex(cborTxMetadata)
     );
 
-    txAuxData.set_prefer_alonzo_format(
-      era === 'ALONZO',
-    );
+    txAuxData.set_prefer_alonzo_format(era === 'ALONZO');
 
-    if (csl.hash_auxiliary_data(txAuxData).to_hex() !== tx.body().auxiliary_data_hash()?.to_hex()) {
+    if (
+      csl.hash_auxiliary_data(txAuxData).to_hex() !==
+      tx.body().auxiliary_data_hash()?.to_hex()
+    ) {
       throw new Error(
-        '[Transaction] attachMetadata: The metadata hash does not match the auxiliary data hash.',
+        '[Transaction] attachMetadata: The metadata hash does not match the auxiliary data hash.'
       );
     }
 
-    return csl.Transaction.new(
-      tx.body(), tx.witness_set(), txAuxData,
-    ).to_hex();
+    return csl.Transaction.new(tx.body(), tx.witness_set(), txAuxData).to_hex();
   }
 
   static deattachMetadata(cborTx: string) {
     const tx = deserializeTx(cborTx);
 
-    return csl.Transaction.new(
-      tx.body(), tx.witness_set(), undefined,
-    ).to_hex();
+    return csl.Transaction.new(tx.body(), tx.witness_set(), undefined).to_hex();
   }
 
   static maskMetadata(cborTx: string, era: Era = 'BABBAGE') {
@@ -93,9 +136,10 @@ export class Transaction {
         const metadatum = txMetadata.get(label);
 
         mockMetadata.insert(
-          label, csl.TransactionMetadatum.from_hex(
-            '0'.repeat((metadatum?.to_hex() ?? '').length),
-          ),
+          label,
+          csl.TransactionMetadatum.from_hex(
+            '0'.repeat((metadatum?.to_hex() ?? '').length)
+          )
         );
       }
 
@@ -103,13 +147,13 @@ export class Transaction {
 
       if (txAuxData !== undefined) {
         txAuxData.set_metadata(mockMetadata);
-        txAuxData.set_prefer_alonzo_format(
-          era === 'ALONZO',
-        );
+        txAuxData.set_prefer_alonzo_format(era === 'ALONZO');
       }
 
       return csl.Transaction.new(
-        tx.body(), tx.witness_set(), txAuxData,
+        tx.body(),
+        tx.witness_set(),
+        txAuxData
       ).to_hex();
     }
 
@@ -121,22 +165,21 @@ export class Transaction {
     return tx.auxiliary_data()?.metadata()?.to_hex() ?? '';
   }
 
-  static writeMetadata(cborTx: string, cborTxMetadata: string, era: Era = 'BABBAGE') {
+  static writeMetadata(
+    cborTx: string,
+    cborTxMetadata: string,
+    era: Era = 'BABBAGE'
+  ) {
     const tx = deserializeTx(cborTx);
-    const txAuxData = tx.auxiliary_data()
-      ?? csl.AuxiliaryData.new();
+    const txAuxData = tx.auxiliary_data() ?? csl.AuxiliaryData.new();
 
     txAuxData.set_metadata(
-      csl.GeneralTransactionMetadata.from_hex(cborTxMetadata),
+      csl.GeneralTransactionMetadata.from_hex(cborTxMetadata)
     );
 
-    txAuxData.set_prefer_alonzo_format(
-      era === 'ALONZO',
-    );
+    txAuxData.set_prefer_alonzo_format(era === 'ALONZO');
 
-    return csl.Transaction.new(
-      tx.body(), tx.witness_set(), txAuxData,
-    ).to_hex();
+    return csl.Transaction.new(tx.body(), tx.witness_set(), txAuxData).to_hex();
   }
 
   get size(): number {
@@ -159,23 +202,27 @@ export class Transaction {
 
       return this._txBuilder.build_tx().to_hex();
     } catch (error) {
-      throw new Error(`[Transaction] An error occurred during build: ${error}.`);
+      throw new Error(
+        `[Transaction] An error occurred during build: ${error}.`
+      );
     }
   }
 
   burnAsset(
     forgeScript: string | PlutusScript | UTxO,
-    asset: Asset, redeemer?: Partial<Action>,
+    asset: Asset,
+    redeemer?: Partial<Action>
   ): Transaction {
     const totalQuantity = this._totalBurns.has(asset.unit)
       ? csl.BigNum.from_str(this._totalBurns.get(asset.unit) ?? '0')
-        .checked_add(csl.BigNum.from_str(asset.quantity)).to_str()
+          .checked_add(csl.BigNum.from_str(asset.quantity))
+          .to_str()
       : asset.quantity;
 
     this._mintBuilder.add_asset(
       buildMintWitness(forgeScript, redeemer),
       csl.AssetName.new(toBytes(asset.unit.slice(POLICY_ID_LENGTH))),
-      csl.Int.new_negative(csl.BigNum.from_str(asset.quantity)),
+      csl.Int.new_negative(csl.BigNum.from_str(asset.quantity))
     );
 
     this._totalBurns.set(asset.unit, totalQuantity);
@@ -187,10 +234,10 @@ export class Transaction {
     const stakeDelegation = csl.Certificate.new_stake_delegation(
       csl.StakeDelegation.new(
         csl.StakeCredential.from_keyhash(
-          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress)),
+          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress))
         ),
-        csl.Ed25519KeyHash.from_bech32(poolId),
-      ),
+        csl.Ed25519KeyHash.from_bech32(poolId)
+      )
     );
 
     this._txCertificates.add(stakeDelegation);
@@ -202,9 +249,9 @@ export class Transaction {
     const stakeDeregistration = csl.Certificate.new_stake_deregistration(
       csl.StakeDeregistration.new(
         csl.StakeCredential.from_keyhash(
-          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress)),
-        ),
-      ),
+          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress))
+        )
+      )
     );
 
     this._txCertificates.add(stakeDeregistration);
@@ -215,14 +262,17 @@ export class Transaction {
   @Checkpoint()
   mintAsset(
     forgeScript: string | PlutusScript | UTxO,
-    mint: Mint, redeemer?: Partial<Action>,
+    mint: Mint,
+    redeemer?: Partial<Action>
   ): Transaction {
     const toAsset = (
-      forgeScript: string | PlutusScript | UTxO, mint: Mint,
+      forgeScript: string | PlutusScript | UTxO,
+      mint: Mint
     ): Asset => {
-      const policyId = typeof forgeScript === 'string'
-        ? deserializeNativeScript(forgeScript).hash().to_hex()
-        : toPlutusScript(forgeScript).hash().to_hex();
+      const policyId =
+        typeof forgeScript === 'string'
+          ? deserializeNativeScript(forgeScript).hash().to_hex()
+          : toPlutusScript(forgeScript).hash().to_hex();
 
       const assetName = fromUTF8(mint.assetName);
 
@@ -244,28 +294,34 @@ export class Transaction {
         if (scriptRef.is_plutus_script()) {
           const plutusScript = fromScriptRef(scriptRef) as PlutusScript;
           return deserializePlutusScript(
-            plutusScript.code, plutusScript.version,
+            plutusScript.code,
+            plutusScript.version
           );
         }
       }
 
       throw new Error(
-        `[Transaction] No plutus script reference found in UTxO: ${utxo.input().transaction_id().to_hex()}`,
+        `[Transaction] No plutus script reference found in UTxO: ${utxo
+          .input()
+          .transaction_id()
+          .to_hex()}`
       );
     };
 
     const asset = toAsset(forgeScript, mint);
 
-    const existingQuantity = csl.BigNum
-      .from_str(this._totalMints.get(asset.unit)?.assetQuantity ?? '0');
+    const existingQuantity = csl.BigNum.from_str(
+      this._totalMints.get(asset.unit)?.assetQuantity ?? '0'
+    );
 
-    const totalQuantity = existingQuantity
-      .checked_add(csl.BigNum.from_str(asset.quantity));
+    const totalQuantity = existingQuantity.checked_add(
+      csl.BigNum.from_str(asset.quantity)
+    );
 
     this._mintBuilder.add_asset(
       buildMintWitness(forgeScript, redeemer),
       csl.AssetName.new(toBytes(fromUTF8(mint.assetName))),
-      csl.Int.new(csl.BigNum.from_str(asset.quantity)),
+      csl.Int.new(csl.BigNum.from_str(asset.quantity))
     );
 
     if (this._recipients.has(mint.recipient))
@@ -273,7 +329,8 @@ export class Transaction {
     else this._recipients.set(mint.recipient, [asset]);
 
     this._totalMints.set(asset.unit, {
-      ...mint, assetQuantity: totalQuantity.to_str(),
+      ...mint,
+      assetQuantity: totalQuantity.to_str(),
     });
 
     return this;
@@ -281,8 +338,10 @@ export class Transaction {
 
   @Checkpoint()
   redeemValue(options: {
-    value: UTxO, script: PlutusScript | UTxO,
-    datum?: Data | UTxO, redeemer?: Action,
+    value: UTxO;
+    script: PlutusScript | UTxO;
+    datum?: Data | UTxO;
+    redeemer?: Action;
   }): Transaction {
     const redeemer: Action = {
       tag: 'SPEND',
@@ -299,17 +358,19 @@ export class Transaction {
 
     const witness = options.datum
       ? csl.PlutusWitness.new_with_ref(
-        buildPlutusScriptSource(options.script),
-        buildDatumSource(options.datum),
-        toRedeemer(redeemer),
-      )
+          buildPlutusScriptSource(options.script),
+          buildDatumSource(options.datum),
+          toRedeemer(redeemer)
+        )
       : csl.PlutusWitness.new_with_ref_without_datum(
-        buildPlutusScriptSource(options.script),
-        toRedeemer(redeemer),
-      );
+          buildPlutusScriptSource(options.script),
+          toRedeemer(redeemer)
+        );
 
     this._txInputsBuilder.add_plutus_script_input(
-      witness, utxo.input(), utxo.output().amount(),
+      witness,
+      utxo.input(),
+      utxo.output().amount()
     );
 
     return this;
@@ -319,9 +380,9 @@ export class Transaction {
     const stakeRegistration = csl.Certificate.new_stake_registration(
       csl.StakeRegistration.new(
         csl.StakeCredential.from_keyhash(
-          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress)),
-        ),
-      ),
+          deserializeEd25519KeyHash(resolveStakeKeyHash(rewardAddress))
+        )
+      )
     );
 
     this._txCertificates.add(stakeRegistration);
@@ -331,7 +392,7 @@ export class Transaction {
 
   registerPool(params: PoolParams): Transaction {
     const poolRegistration = csl.Certificate.new_pool_registration(
-      csl.PoolRegistration.new(toPoolParams(params)),
+      csl.PoolRegistration.new(toPoolParams(params))
     );
 
     this._txCertificates.add(poolRegistration);
@@ -341,7 +402,7 @@ export class Transaction {
 
   retirePool(poolId: string, epochNo: number): Transaction {
     const poolRetirement = csl.Certificate.new_pool_retirement(
-      csl.PoolRetirement.new(csl.Ed25519KeyHash.from_bech32(poolId), epochNo),
+      csl.PoolRetirement.new(csl.Ed25519KeyHash.from_bech32(poolId), epochNo)
     );
 
     this._txCertificates.add(poolRetirement);
@@ -358,27 +419,24 @@ export class Transaction {
    * @see {@link https://meshjs.dev/apis/transaction#sendAssets}
    */
   @Checkpoint()
-  sendAssets(
-    recipient: Recipient, assets: Asset[],
-  ): Transaction {
+  sendAssets(recipient: Recipient, assets: Asset[]): Transaction {
     const amount = toValue(assets);
     const multiAsset = amount.multiasset();
 
-    if (amount.is_zero() || multiAsset === undefined)
-      return this;
+    if (amount.is_zero() || multiAsset === undefined) return this;
 
-    const txOutputAmountBuilder = buildTxOutputBuilder(
-      recipient,
-    ).next();
+    const txOutputAmountBuilder = buildTxOutputBuilder(recipient).next();
 
     const txOutput = amount.coin().is_zero()
       ? txOutputAmountBuilder
-        .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
-          buildDataCost(this._protocolParameters.coinsPerUTxOSize),
-        ).build()
+          .with_asset_and_min_required_coin_by_utxo_cost(
+            multiAsset,
+            buildDataCost(this._protocolParameters.coinsPerUTxOSize)
+          )
+          .build()
       : txOutputAmountBuilder
-        .with_coin_and_asset(amount.coin(), multiAsset)
-        .build();
+          .with_coin_and_asset(amount.coin(), multiAsset)
+          .build();
 
     assets.forEach((asset) => {
       this.setTxOutput(asset);
@@ -397,19 +455,17 @@ export class Transaction {
    * @returns {Transaction} The Transaction object.
    * @see {@link https://meshjs.dev/apis/transaction#sendAda}
    */
-  sendLovelace(
-    recipient: Recipient, lovelace: string,
-  ): Transaction {
-    const txOutputBuilder = buildTxOutputBuilder(
-      recipient,
-    );
+  sendLovelace(recipient: Recipient, lovelace: string): Transaction {
+    const txOutputBuilder = buildTxOutputBuilder(recipient);
 
-    const txOutput = txOutputBuilder.next()
+    const txOutput = txOutputBuilder
+      .next()
       .with_coin(csl.BigNum.from_str(lovelace))
       .build();
 
     this.setTxOutput({
-      unit: 'lovelace', quantity: lovelace,
+      unit: 'lovelace',
+      quantity: lovelace,
     });
 
     this._txBuilder.add_output(txOutput);
@@ -425,13 +481,13 @@ export class Transaction {
    * @returns {Transaction} The Transaction object.
    * @see {@link https://meshjs.dev/apis/transaction#sendToken}
    */
-  sendToken(
-    recipient: Recipient, ticker: Token, amount: string,
-  ): Transaction {
-    this.sendAssets(recipient, [{
-      quantity: amount,
-      unit: SUPPORTED_TOKENS[ticker],
-    }]);
+  sendToken(recipient: Recipient, ticker: Token, amount: string): Transaction {
+    this.sendAssets(recipient, [
+      {
+        quantity: amount,
+        unit: SUPPORTED_TOKENS[ticker],
+      },
+    ]);
 
     return this;
   }
@@ -444,17 +500,11 @@ export class Transaction {
    * @returns {Transaction} The Transaction object.
    */
   @Checkpoint()
-  sendValue(
-    recipient: Recipient, value: UTxO,
-  ): Transaction {
+  sendValue(recipient: Recipient, value: UTxO): Transaction {
     const amount = toValue(value.output.amount);
-    const txOutputBuilder = buildTxOutputBuilder(
-      recipient,
-    );
+    const txOutputBuilder = buildTxOutputBuilder(recipient);
 
-    const txOutput = txOutputBuilder.next()
-      .with_value(amount)
-      .build();
+    const txOutput = txOutputBuilder.next().with_value(amount).build();
 
     value.output.amount.forEach((asset) => {
       this.setTxOutput(asset);
@@ -502,8 +552,9 @@ export class Transaction {
    */
   setMetadata(key: number, value: unknown): Transaction {
     this._txBuilder.add_json_metadatum_with_schema(
-      csl.BigNum.from_str(key.toString()), JSON.stringify(value),
-      csl.MetadataJsonSchema.NoConversions,
+      csl.BigNum.from_str(key.toString()),
+      JSON.stringify(value),
+      csl.MetadataJsonSchema.NoConversions
     );
 
     return this;
@@ -517,15 +568,17 @@ export class Transaction {
    */
   @Checkpoint()
   setRequiredSigners(addresses: string[]): Transaction {
-    const signatures = Array.from(new Set(
-      addresses
-        .map((address) => {
-          return address.startsWith('addr')
-            ? resolvePaymentKeyHash(address)
-            : resolveStakeKeyHash(address);
-        })
-        .map((keyHash) => deserializeEd25519KeyHash(keyHash))
-    ));
+    const signatures = Array.from(
+      new Set(
+        addresses
+          .map((address) => {
+            return address.startsWith('addr')
+              ? resolvePaymentKeyHash(address)
+              : resolveStakeKeyHash(address);
+          })
+          .map((keyHash) => deserializeEd25519KeyHash(keyHash))
+      )
+    );
 
     signatures.forEach((signature) => {
       this._txBuilder.add_required_signer(signature);
@@ -541,13 +594,13 @@ export class Transaction {
    * @returns {Transaction} The Transaction object.
    */
   setNativeScriptInput(script: NativeScript, utxo: UTxO): Transaction {
-    const txUnspentOutput = toTxUnspentOutput(utxo)
+    const txUnspentOutput = toTxUnspentOutput(utxo);
 
     this._txBuilder.add_native_script_input(
       toNativeScript(script),
       txUnspentOutput.input(),
       txUnspentOutput.output().amount()
-    )
+    );
 
     return this;
   }
@@ -561,7 +614,7 @@ export class Transaction {
    */
   setTimeToStart(slot: string): Transaction {
     this._txBuilder.set_validity_start_interval_bignum(
-      csl.BigNum.from_str(slot),
+      csl.BigNum.from_str(slot)
     );
 
     return this;
@@ -575,9 +628,7 @@ export class Transaction {
    * @see {@link https://meshjs.dev/apis/transaction#setTimeLimit}
    */
   setTimeToExpire(slot: string): Transaction {
-    this._txBuilder.set_ttl_bignum(
-      csl.BigNum.from_str(slot),
-    );
+    this._txBuilder.set_ttl_bignum(csl.BigNum.from_str(slot));
 
     return this;
   }
@@ -596,7 +647,7 @@ export class Transaction {
         this._txInputsBuilder.add_input(
           utxo.output().address(),
           utxo.input(),
-          utxo.output().amount(),
+          utxo.output().amount()
         );
       });
 
@@ -623,9 +674,7 @@ export class Transaction {
     const address = toRewardAddress(rewardAddress);
 
     if (address !== undefined) {
-      this._txWithdrawals.insert(
-        address, csl.BigNum.from_str(lovelace),
-      );
+      this._txWithdrawals.insert(address, csl.BigNum.from_str(lovelace));
     }
 
     return this;
@@ -633,23 +682,23 @@ export class Transaction {
 
   private async addBurnInputsIfNeeded() {
     if (
-      this._initiator
-      && this._totalBurns.size > 0
-      && this.notVisited('setTxInputs')
+      this._initiator &&
+      this._totalBurns.size > 0 &&
+      this.notVisited('setTxInputs')
     ) {
       const utxos = await this._initiator.getUsedUTxOs();
-      const inputs = largestFirstMultiAsset(this._totalBurns,
-        utxos.map((utxo) => fromTxUnspentOutput(utxo)),
+      const inputs = largestFirstMultiAsset(
+        this._totalBurns,
+        utxos.map((utxo) => fromTxUnspentOutput(utxo))
       ).map((utxo) => toTxUnspentOutput(utxo));
 
-      inputs
-        .forEach((utxo) => {
-          this._txInputsBuilder.add_input(
-            utxo.output().address(),
-            utxo.input(),
-            utxo.output().amount(),
-          );
-        });
+      inputs.forEach((utxo) => {
+        this._txInputsBuilder.add_input(
+          utxo.output().address(),
+          utxo.input(),
+          utxo.output().amount()
+        );
+      });
     }
   }
 
@@ -682,15 +731,17 @@ export class Transaction {
       const availableUTxOs = await this.filterAvailableUTxOs();
 
       const txInputs = keepRelevant(
-        this._txOutputs, availableUTxOs.map((au) => fromTxUnspentOutput(au))
+        this._txOutputs,
+        availableUTxOs.map((au) => fromTxUnspentOutput(au))
       );
 
       txInputs
         .map((utxo) => toTxUnspentOutput(utxo))
         .forEach((utxo) => {
           this._txInputsBuilder.add_input(
-            utxo.output().address(), utxo.input(),
-            utxo.output().amount(),
+            utxo.output().address(),
+            utxo.input(),
+            utxo.output().amount()
           );
         });
     }
@@ -716,32 +767,30 @@ export class Transaction {
       this._txBuilder.get_mint_builder() ||
       this.notVisited('redeemValue') === false
     ) {
-      const costModels = this._era !== undefined
-        ? SUPPORTED_COST_MODELS[this._era]
-        : SUPPORTED_COST_MODELS.BABBAGE;
+      const costModels =
+        this._era !== undefined
+          ? SUPPORTED_COST_MODELS[this._era]
+          : SUPPORTED_COST_MODELS.BABBAGE;
 
       this._txBuilder.calc_script_data_hash(costModels);
     }
   }
 
   private async forgeAssetsIfNeeded() {
-    type Mintdata = { unit: string, data: Mint };
+    type Mintdata = { unit: string; data: Mint };
     type Metadata = Record<string, Record<string, AssetMetadata>>;
 
     const forge = (mint: Mintdata, meta?: Metadata): Metadata => {
       const name = mint.data.assetName;
       const metadata = mint.data.metadata;
-      const collection = mint.unit
-        .slice(0, POLICY_ID_LENGTH);
+      const collection = mint.unit.slice(0, POLICY_ID_LENGTH);
 
       if (mint.data.label === '777') {
         return metadata as any; // TODO: fix this
       }
 
       if (meta && meta[collection]) {
-        const {
-          [collection]: oldCollection, ...rest
-        } = meta;
+        const { [collection]: oldCollection, ...rest } = meta;
 
         const newCollection = {
           [name]: metadata,
@@ -751,7 +800,8 @@ export class Transaction {
         return {
           [collection]: {
             ...newCollection,
-          }, ...rest,
+          },
+          ...rest,
         };
       }
 
@@ -771,20 +821,24 @@ export class Transaction {
 
     await this.addBurnInputsIfNeeded();
 
-    Array
-      .from(this._totalMints, (mint) => (<Mintdata>{
-        unit: mint[0],
-        data: mint[1],
-      }))
+    Array.from(
+      this._totalMints,
+      (mint) =>
+        <Mintdata>{
+          unit: mint[0],
+          data: mint[1],
+        }
+    )
       .reduce((metadatums, mint) => {
-        return metadatums.set(mint.data.label, forge(
-          mint, metadatums.get(mint.data.label),
-        ));
-      }, new Map<string, Metadata>)
+        return metadatums.set(
+          mint.data.label,
+          forge(mint, metadatums.get(mint.data.label))
+        );
+      }, new Map<string, Metadata>())
       .forEach((metadata, label) => {
         this._txBuilder.add_json_metadatum(
           csl.BigNum.from_str(label),
-          JSON.stringify(metadata),
+          JSON.stringify(metadata)
         );
       });
 
@@ -792,20 +846,17 @@ export class Transaction {
   }
 
   private async filterAvailableUTxOs(selectedUTxOs: UTxO[] = []) {
-    if (this._initiator === undefined)
-      return [];
+    if (this._initiator === undefined) return [];
 
-    const allUTxOs = await this._initiator
-      .getUsedUTxOs();
+    const allUTxOs = await this._initiator.getUsedUTxOs();
 
-    return allUTxOs
-      .filter((au) => {
-        return (
-          selectedUTxOs.find(
-            (su) => su.input.txHash === au.input().transaction_id().to_hex()
-          ) === undefined
-        );
-      });
+    return allUTxOs.filter((au) => {
+      return (
+        selectedUTxOs.find(
+          (su) => su.input.txHash === au.input().transaction_id().to_hex()
+        ) === undefined
+      );
+    });
   }
 
   private addMintOutputs() {
@@ -814,14 +865,15 @@ export class Transaction {
       const multiAsset = amount.multiasset();
 
       if (multiAsset !== undefined) {
-        const txOutputBuilder = buildTxOutputBuilder(
-          recipient,
-        );
+        const txOutputBuilder = buildTxOutputBuilder(recipient);
 
-        const txOutput = txOutputBuilder.next()
-          .with_asset_and_min_required_coin_by_utxo_cost(multiAsset,
-            buildDataCost(this._protocolParameters.coinsPerUTxOSize),
-          ).build();
+        const txOutput = txOutputBuilder
+          .next()
+          .with_asset_and_min_required_coin_by_utxo_cost(
+            multiAsset,
+            buildDataCost(this._protocolParameters.coinsPerUTxOSize)
+          )
+          .build();
 
         this._txBuilder.add_output(txOutput);
       }
@@ -830,14 +882,14 @@ export class Transaction {
 
   private notVisited(checkpoint: string) {
     return (
-      (this as unknown as TrackableObject).__visits
-        .includes(checkpoint) === false
+      (this as unknown as TrackableObject).__visits.includes(checkpoint) ===
+      false
     );
   }
 
   private setTxOutput(asset: Asset) {
     const existingQuantity = csl.BigNum.from_str(
-      this._txOutputs.get(asset.unit) ?? '0',
+      this._txOutputs.get(asset.unit) ?? '0'
     );
 
     const totalQuantity = existingQuantity
