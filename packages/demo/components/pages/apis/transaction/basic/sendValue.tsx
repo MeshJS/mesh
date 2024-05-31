@@ -50,7 +50,7 @@ function Left({}) {
       <p></p>
       <Codeblock data={codeSnippet} isJson={false} />
       <p>
-        where <code>UTxO</code> has the following format:
+        where <code>UTxO</code> has the following format (use one of our providers):
       </p>
       <Codeblock data={codeUtxo} isJson={false} />
     </>

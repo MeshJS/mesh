@@ -24,8 +24,8 @@ import { EmbeddedWallet, Transaction } from '..';
 
 export type CreateMeshWalletOptions = {
   networkId: number;
-  fetcher: IFetcher;
-  submitter: ISubmitter;
+  fetcher?: IFetcher;
+  submitter?: ISubmitter;
   key:
     | {
         type: 'root';
