@@ -25,7 +25,7 @@ export type MeshTxBuilderBody = {
   signingKey: string[];
 };
 
-export type TxIn = PubKeyTxIn | ScriptTxIn;
+export type TxIn = PubKeyTxIn | SimpleScriptTxIn | ScriptTxIn;
 
 export type PubKeyTxIn = { type: 'PubKey'; txIn: TxInParameter };
 
@@ -34,6 +34,29 @@ export type TxInParameter = {
   txIndex: number;
   amount?: Asset[];
   address?: string;
+};
+
+export type SimpleScriptTxIn = {
+  type: 'SimpleScript';
+  txIn: TxInParameter;
+  simpleScriptTxIn: SimpleScriptTxInParameter;
+};
+
+export type SimpleScriptTxInParameter = {
+  scriptSource?:
+    | {
+        type: 'Provided';
+        script: string;
+      }
+    | {
+        type: 'Inline';
+        txInInfo: SimpleScriptSourceInfo;
+      };
+};
+
+export type SimpleScriptSourceInfo = {
+  txHash: string;
+  txIndex: number;
 };
 
 export type ScriptTxIn = {

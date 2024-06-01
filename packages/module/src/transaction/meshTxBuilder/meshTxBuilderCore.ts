@@ -38,6 +38,7 @@ import {
   BuilderData,
   Certificate,
   TxInParameter,
+  SimpleScriptTxIn,
 } from './type';
 import { selectUtxos } from '@mesh/core/CPS-009';
 import JSONbig from 'json-bigint';
@@ -306,17 +307,30 @@ export class MeshTxBuilderCore {
    * @param version Optional - The Plutus script version
    * @returns The MeshTxBuilder instance
    */
-  txInScript = (scriptCbor: string, version: LanguageVersion = 'V2') => {
+  txInScript = (scriptCbor: string, version?: LanguageVersion) => {
     if (!this.txInQueueItem) throw Error('Undefined input');
-    if (this.txInQueueItem.type === 'PubKey')
-      throw Error('Datum value attempted to be called a non script input');
-    this.txInQueueItem.scriptTxIn.scriptSource = {
-      type: 'Provided',
-      script: {
-        code: scriptCbor,
-        version,
-      },
-    };
+    if (this.txInQueueItem.type === 'PubKey') {
+      this.txInQueueItem = {
+        type: 'SimpleScript',
+        txIn: this.txInQueueItem.txIn,
+        simpleScriptTxIn: {
+          scriptSource: {
+            type: 'Provided',
+            script: scriptCbor,
+          },
+        },
+      };
+    }
+    if (this.txInQueueItem.type === 'Script') {
+      const lang_version = version ? version : 'V2';
+      this.txInQueueItem.scriptTxIn.scriptSource = {
+        type: 'Provided',
+        script: {
+          code: scriptCbor,
+          version: lang_version,
+        },
+      };
+    }
     return this;
   };
 
@@ -333,6 +347,10 @@ export class MeshTxBuilderCore {
     if (!this.txInQueueItem) throw Error('Undefined input');
     if (this.txInQueueItem.type === 'PubKey')
       throw Error('Datum value attempted to be called a non script input');
+    if (this.txInQueueItem.type === 'SimpleScript')
+      throw Error(
+        'Datum value attempted to be called on a simple script input'
+      );
 
     let content = datum;
     if (type === 'JSON') {
@@ -367,6 +385,10 @@ export class MeshTxBuilderCore {
     if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Inline datum present attempted to be called a non script input'
+      );
+    if (this.txInQueueItem.type === 'SimpleScript')
+      throw Error(
+        'Inline datum present attempted to be called on a simple script input'
       );
     const { txHash, txIndex } = this.txInQueueItem.txIn;
     if (txHash && txIndex.toString()) {
@@ -423,6 +445,10 @@ export class MeshTxBuilderCore {
     if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Spending tx in reference redeemer attempted to be called a non script input'
+      );
+    if (this.txInQueueItem.type === 'SimpleScript')
+      throw Error(
+        'Spending tx in reference redeemer attempted to be called on a simple script input'
       );
     let content = redeemer;
     if (type === 'Mesh') {
@@ -584,6 +610,10 @@ export class MeshTxBuilderCore {
     if (this.txInQueueItem.type === 'PubKey')
       throw Error(
         'Spending tx in reference attempted to be called a non script input'
+      );
+    if (this.txInQueueItem.type === 'SimpleScript')
+      throw Error(
+        'Spending tx in reference attempted to be called on a simple script input'
       );
     this.txInQueueItem.scriptTxIn.scriptSource = {
       type: 'Inline',
@@ -1108,6 +1138,14 @@ export class MeshTxBuilderCore {
         case 'PubKey':
           this.addTxIn(currentTxIn as RequiredWith<PubKeyTxIn, 'txIn'>);
           break;
+        case 'SimpleScript':
+          this.addNativeScriptTxIn(
+            currentTxIn as RequiredWith<
+              SimpleScriptTxIn,
+              'txIn' | 'simpleScriptTxIn'
+            >
+          );
+          break;
         case 'Script':
           this.addScriptTxIn(
             currentTxIn as RequiredWith<ScriptTxIn, 'txIn' | 'scriptTxIn'>
@@ -1126,6 +1164,22 @@ export class MeshTxBuilderCore {
       ),
       toValue(currentTxIn.txIn.amount)
     );
+  };
+
+  private addNativeScriptTxIn = ({
+    txIn,
+    simpleScriptTxIn,
+  }: RequiredWith<SimpleScriptTxIn, 'txIn' | 'simpleScriptTxIn'>) => {
+    if (simpleScriptTxIn.scriptSource.type === 'Provided') {
+      this.txBuilder.add_native_script_input(
+        csl.NativeScript.from_hex(simpleScriptTxIn.scriptSource.script),
+        csl.TransactionInput.new(
+          csl.TransactionHash.from_hex(txIn.txHash),
+          txIn.txIndex
+        ),
+        toValue(txIn.amount)
+      );
+    }
   };
 
   private addScriptTxIn = ({
