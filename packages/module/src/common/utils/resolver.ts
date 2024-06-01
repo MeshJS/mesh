@@ -79,6 +79,10 @@ export const resolveNativeScriptHash = (script: NativeScript) => {
   return toNativeScript(script).hash().to_hex();
 };
 
+export const resolveNativeScriptHex = (script: NativeScript) => {
+  return toNativeScript(script).to_hex();
+};
+
 export const resolvePaymentKeyHash = (bech32: string) => {
   try {
     const paymentKeyHash = [
