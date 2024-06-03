@@ -164,40 +164,64 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
         );
       }
       const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
-      let newSignatures: csl.Vkeywitnesses;
 
-      if (this._fetcher) {
-        const utxos = await this._fetcher.fetchAddressUTxOs(
-          account.enterpriseAddress
-        );
+      const utxos = await this._fetcher.fetchAddressUTxOs(
+        account.enterpriseAddress
+      );
 
-        newSignatures = this._wallet.signTx(
-          accountIndex,
-          DEFAULT_PASSWORD,
-          utxos,
-          unsignedTx,
-          partialSign,
-          keyIndex
-        );
-      } else {
-        // Without a fetcher, make the wallet blindly add the payment key
-        newSignatures = this._wallet.signTx(
-          accountIndex,
-          DEFAULT_PASSWORD,
-          [],
-          unsignedTx,
-          partialSign,
-          keyIndex
-        );
+      const newSignatures = this._wallet.signTx(
+        accountIndex,
+        DEFAULT_PASSWORD,
+        utxos,
+        unsignedTx,
+        partialSign,
+        keyIndex
+      );
 
-        this._wallet.addPaymentKey(
-          accountIndex,
-          DEFAULT_PASSWORD,
-          unsignedTx,
-          newSignatures,
-          keyIndex
-        );
-      }
+      const tx = deserializeTx(unsignedTx);
+      const txWitnessSet = tx.witness_set();
+
+      const txSignatures = mergeSignatures(txWitnessSet, newSignatures);
+
+      txWitnessSet.set_vkeys(txSignatures);
+
+      const signedTx = csl.Transaction.new(
+        tx.body(),
+        txWitnessSet,
+        tx.auxiliary_data()
+      ).to_hex();
+
+      return signedTx;
+    } catch (error) {
+      throw new Error(`[AppWallet] An error occurred during signTx: ${error}.`);
+    }
+  }
+
+  signTxSync(
+    unsignedTx: string,
+    partialSign = false,
+    accountIndex = 0,
+    keyIndex = 0
+  ): string {
+    try {
+      // Initial sign tx call will resolve, Certs, required signers, and withdrawals
+      const newSignatures = this._wallet.signTx(
+        accountIndex,
+        DEFAULT_PASSWORD,
+        [],
+        unsignedTx,
+        partialSign,
+        keyIndex
+      );
+
+      // Without a fetcher, make the wallet blindly add the payment key
+      this._wallet.addPaymentKey(
+        accountIndex,
+        DEFAULT_PASSWORD,
+        unsignedTx,
+        newSignatures,
+        keyIndex
+      );
 
       const tx = deserializeTx(unsignedTx);
       const txWitnessSet = tx.witness_set();
