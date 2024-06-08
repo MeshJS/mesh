@@ -2486,6 +2486,22 @@
     blakejs "^1.2.1"
     json-bigint "^1.0.0"
 
+"@meshsdk/core@*":
+  version "1.5.23"
+  resolved "https://registry.yarnpkg.com/@meshsdk/core/-/core-1.5.23.tgz#0df3880e01719c34b381f81201173c10fc22c865"
+  integrity sha512-OA1910q1/o+tA7CAwbekCMhxRriBpK0GbWlrsqmrgHisX30i1LUi6wbdC7Aasvywi0/62GQ5Rd0BAaO9Zgsc2g==
+  dependencies:
+    "@emurgo/cardano-message-signing-browser" "1.0.1"
+    "@emurgo/cardano-message-signing-nodejs" "1.0.1"
+    "@emurgo/cardano-serialization-lib-browser" "11.5.0"
+    "@emurgo/cardano-serialization-lib-nodejs" "11.5.0"
+    "@emurgo/cip14-js" "3.0.1"
+    axios "1.6.3"
+    bip39 "3.0.4"
+    json-bigint "^1.0.0"
+    nanoid "3.3.4"
+    zod "3.22.4"
+
 "@mrmlnc/readdir-enhanced@^2.2.1":
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/@mrmlnc/readdir-enhanced/-/readdir-enhanced-2.2.1.tgz#524af240d1a360527b730475ecfa1344aa540dde"

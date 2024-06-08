@@ -74,23 +74,39 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     }
   }
 
-  getBaseAddress(accountIndex = 0): string {
-    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
+  getBaseAddress(accountIndex = 0, keyIndex = 0): string {
+    const account = this._wallet.getAccount(
+      accountIndex,
+      DEFAULT_PASSWORD,
+      keyIndex
+    );
     return account.baseAddress;
   }
 
-  getPaymentAddress(accountIndex = 0): string {
-    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
+  getPaymentAddress(accountIndex = 0, keyIndex = 0): string {
+    const account = this._wallet.getAccount(
+      accountIndex,
+      DEFAULT_PASSWORD,
+      keyIndex
+    );
     return account.enterpriseAddress;
   }
 
-  getRewardAddress(accountIndex = 0): string {
-    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
+  getRewardAddress(accountIndex = 0, keyIndex = 0): string {
+    const account = this._wallet.getAccount(
+      accountIndex,
+      DEFAULT_PASSWORD,
+      keyIndex
+    );
     return account.rewardAddress;
   }
 
-  getUsedAddress(accountIndex = 0): Address {
-    const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
+  getUsedAddress(accountIndex = 0, keyIndex = 0): Address {
+    const account = this._wallet.getAccount(
+      accountIndex,
+      DEFAULT_PASSWORD,
+      keyIndex
+    );
     return toAddress(account.enterpriseAddress);
   }
 
@@ -114,13 +130,19 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     return utxos.map((utxo) => toTxUnspentOutput(utxo));
   }
 
-  signData(address: string, payload: string, accountIndex = 0): DataSignature {
+  signData(
+    address: string,
+    payload: string,
+    accountIndex = 0,
+    keyIndex = 0
+  ): DataSignature {
     try {
       return this._wallet.signData(
         accountIndex,
         DEFAULT_PASSWORD,
         address,
-        payload
+        payload,
+        keyIndex
       );
     } catch (error) {
       throw new Error(
@@ -132,7 +154,8 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   async signTx(
     unsignedTx: string,
     partialSign = false,
-    accountIndex = 0
+    accountIndex = 0,
+    keyIndex = 0
   ): Promise<string> {
     try {
       if (!this._fetcher) {
@@ -141,6 +164,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
         );
       }
       const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
+
       const utxos = await this._fetcher.fetchAddressUTxOs(
         account.enterpriseAddress
       );
@@ -150,7 +174,53 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
         DEFAULT_PASSWORD,
         utxos,
         unsignedTx,
-        partialSign
+        partialSign,
+        keyIndex
+      );
+
+      const tx = deserializeTx(unsignedTx);
+      const txWitnessSet = tx.witness_set();
+
+      const txSignatures = mergeSignatures(txWitnessSet, newSignatures);
+
+      txWitnessSet.set_vkeys(txSignatures);
+
+      const signedTx = csl.Transaction.new(
+        tx.body(),
+        txWitnessSet,
+        tx.auxiliary_data()
+      ).to_hex();
+
+      return signedTx;
+    } catch (error) {
+      throw new Error(`[AppWallet] An error occurred during signTx: ${error}.`);
+    }
+  }
+
+  signTxSync(
+    unsignedTx: string,
+    partialSign = false,
+    accountIndex = 0,
+    keyIndex = 0
+  ): string {
+    try {
+      // Initial sign tx call will resolve, Certs, required signers, and withdrawals
+      const newSignatures = this._wallet.signTx(
+        accountIndex,
+        DEFAULT_PASSWORD,
+        [],
+        unsignedTx,
+        partialSign,
+        keyIndex
+      );
+
+      // Without a fetcher, make the wallet blindly add the payment key
+      this._wallet.addPaymentKey(
+        accountIndex,
+        DEFAULT_PASSWORD,
+        unsignedTx,
+        newSignatures,
+        keyIndex
       );
 
       const tx = deserializeTx(unsignedTx);
