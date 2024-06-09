@@ -215,8 +215,8 @@ export class Transaction {
   ): Transaction {
     const totalQuantity = this._totalBurns.has(asset.unit)
       ? csl.BigNum.from_str(this._totalBurns.get(asset.unit) ?? '0')
-          .checked_add(csl.BigNum.from_str(asset.quantity))
-          .to_str()
+        .checked_add(csl.BigNum.from_str(asset.quantity))
+        .to_str()
       : asset.quantity;
 
     this._mintBuilder.add_asset(
@@ -289,7 +289,6 @@ export class Transaction {
 
       const utxo = toTxUnspentOutput(script);
       if (utxo.output().has_script_ref()) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const scriptRef = utxo.output().script_ref()!;
         if (scriptRef.is_plutus_script()) {
           const plutusScript = fromScriptRef(scriptRef) as PlutusScript;
@@ -358,14 +357,14 @@ export class Transaction {
 
     const witness = options.datum
       ? csl.PlutusWitness.new_with_ref(
-          buildPlutusScriptSource(options.script),
-          buildDatumSource(options.datum),
-          toRedeemer(redeemer)
-        )
+        buildPlutusScriptSource(options.script),
+        buildDatumSource(options.datum),
+        toRedeemer(redeemer)
+      )
       : csl.PlutusWitness.new_with_ref_without_datum(
-          buildPlutusScriptSource(options.script),
-          toRedeemer(redeemer)
-        );
+        buildPlutusScriptSource(options.script),
+        toRedeemer(redeemer)
+      );
 
     this._txInputsBuilder.add_plutus_script_input(
       witness,
@@ -429,14 +428,14 @@ export class Transaction {
 
     const txOutput = amount.coin().is_zero()
       ? txOutputAmountBuilder
-          .with_asset_and_min_required_coin_by_utxo_cost(
-            multiAsset,
-            buildDataCost(this._protocolParameters.coinsPerUTxOSize)
-          )
-          .build()
+        .with_asset_and_min_required_coin_by_utxo_cost(
+          multiAsset,
+          buildDataCost(this._protocolParameters.coinsPerUTxOSize)
+        )
+        .build()
       : txOutputAmountBuilder
-          .with_coin_and_asset(amount.coin(), multiAsset)
-          .build();
+        .with_coin_and_asset(amount.coin(), multiAsset)
+        .build();
 
     assets.forEach((asset) => {
       this.setTxOutput(asset);

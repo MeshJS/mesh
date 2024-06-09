@@ -79,7 +79,6 @@ export const fromNativeScript = (script: csl.NativeScript) => {
 
   switch (script.kind()) {
     case csl.NativeScriptKind.ScriptAll: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const scriptAll = script.as_script_all()!;
       return <NativeScript>{
         type: 'all',
@@ -87,7 +86,6 @@ export const fromNativeScript = (script: csl.NativeScript) => {
       };
     }
     case csl.NativeScriptKind.ScriptAny: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const scriptAny = script.as_script_any()!;
       return <NativeScript>{
         type: 'any',
@@ -95,7 +93,6 @@ export const fromNativeScript = (script: csl.NativeScript) => {
       };
     }
     case csl.NativeScriptKind.ScriptNOfK: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const scriptNOfK = script.as_script_n_of_k()!;
       return <NativeScript>{
         type: 'atLeast',
@@ -104,7 +101,6 @@ export const fromNativeScript = (script: csl.NativeScript) => {
       };
     }
     case csl.NativeScriptKind.TimelockStart: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const timelockStart = script.as_timelock_start()!;
       return <NativeScript>{
         type: 'after',
@@ -112,7 +108,6 @@ export const fromNativeScript = (script: csl.NativeScript) => {
       };
     }
     case csl.NativeScriptKind.TimelockExpiry: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const timelockExpiry = script.as_timelock_expiry()!;
       return <NativeScript>{
         type: 'before',
@@ -120,7 +115,6 @@ export const fromNativeScript = (script: csl.NativeScript) => {
       };
     }
     case csl.NativeScriptKind.ScriptPubkey: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const scriptPubkey = script.as_script_pubkey()!;
       return <NativeScript>{
         type: 'sig',
@@ -295,8 +289,8 @@ export const toRelay = (relay: Relay) => {
     case 'SingleHostAddr': {
       const IPV4 = relay.IPV4
         ? csl.Ipv4.new(
-            new Uint8Array(relay.IPV4.split('.').map((b) => parseInt(b)))
-          )
+          new Uint8Array(relay.IPV4.split('.').map((b) => parseInt(b)))
+        )
         : undefined;
 
       const IPV6 = relay.IPV6
@@ -325,7 +319,6 @@ export const toRelay = (relay: Relay) => {
 
 export const fromScriptRef = (scriptRef: ScriptRef) => {
   if (scriptRef.is_plutus_script()) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const plutusScript = scriptRef.plutus_script()!;
 
     return <PlutusScript>{
@@ -338,7 +331,6 @@ export const fromScriptRef = (scriptRef: ScriptRef) => {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const nativeScript = scriptRef.native_script()!;
 
   return fromNativeScript(nativeScript);

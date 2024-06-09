@@ -1,7 +1,6 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import typescript from '@rollup/plugin-typescript';
-import eslint from 'vite-plugin-eslint';
 import wasm from 'vite-plugin-wasm';
 
 export default defineConfig({
@@ -28,6 +27,6 @@ export default defineConfig({
     },
   },
   plugins: [
-    eslint(), wasm(),
+    wasm(),
   ],
 });

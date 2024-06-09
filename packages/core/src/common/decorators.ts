@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/ban-types */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export const Trackable = <T extends { new (...args: any[]): Object }>(
+export const Trackable = <T extends { new(...args: any[]): Object }>(
   constructor: T
 ) => {
   return class extends constructor {

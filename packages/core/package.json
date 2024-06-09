@@ -28,20 +28,13 @@
     "node": ">=16"
   },
   "scripts": {
-    "lint": "eslint --ext .ts .",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "build": "vite build && yarn docs",
-    "prepare": "yarn lint && yarn test && yarn build",
+    "build": "vite build && pnpm run docs",
     "dev": "vite build --watch",
     "docs": "typedoc src/index.ts --json ../docs/src/data/api.json",
     "docs2": "typedoc src/index.ts --out ../docs/tmp"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "yarn lint"
-    }
   },
   "browser": {
     "@emurgo/cardano-message-signing-nodejs": "@emurgo/cardano-message-signing-browser",
@@ -56,14 +49,10 @@
   },
   "devDependencies": {
     "@rollup/plugin-typescript": "8.4.0",
-    "@typescript-eslint/eslint-plugin": "5.36.1",
-    "@typescript-eslint/parser": "5.36.1",
-    "husky": "8.0.1",
     "rollup": "2.79.0",
     "tslib": "2.4.0",
     "typedoc": "^0.25.8",
     "vite": "3.1.4",
-    "vite-plugin-eslint": "1.8.1",
     "vite-plugin-wasm": "2.1.0",
     "vitest": "0.22.1"
   },

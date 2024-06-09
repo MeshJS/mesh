@@ -135,7 +135,6 @@ export const buildPlutusScriptSource = (
 
   const utxo = toTxUnspentOutput(script);
   if (utxo.output().has_script_ref()) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const scriptRef = utxo.output().script_ref()!;
     if (scriptRef.is_plutus_script()) {
       const plutusScript = fromScriptRef(scriptRef) as PlutusScript;
