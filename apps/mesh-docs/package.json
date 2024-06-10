@@ -12,6 +12,7 @@
     "@headlessui/tailwindcss": "0.2.1",
     "@sindresorhus/slugify": "2.2.1",
     "@tailwindcss/typography": "0.5.13",
+    "clsx": "^2.1.1",
     "flexsearch": "0.7.43",
     "framer-motion": "11.2.10",
     "next": "14.2.3",
