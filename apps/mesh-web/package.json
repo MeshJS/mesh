@@ -16,6 +16,7 @@
     "@meshsdk/contracts": "1.0.1",
     "@meshsdk/core": "1.5.24",
     "@meshsdk/react": "1.1.12",
+    "axios": "1.7.2",
     "copy-to-clipboard": "3.3.3",
     "flowbite": "2.3.0",
     "flowbite-react": "0.9.0",
