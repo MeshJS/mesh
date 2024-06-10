@@ -57,6 +57,9 @@ importers:
       '@algolia/autocomplete-core':
         specifier: 1.17.2
         version: 1.17.2(@algolia/client-search@4.23.3)(algoliasearch@4.23.3)(search-insights@2.14.0)
+      '@headlessui/react':
+        specifier: 2.0.4
+        version: 2.0.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@headlessui/tailwindcss':
         specifier: 0.2.1
         version: 0.2.1(tailwindcss@3.4.4)

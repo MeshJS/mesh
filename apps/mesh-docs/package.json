@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@algolia/autocomplete-core": "1.17.2",
+    "@headlessui/react": "2.0.4",
     "@headlessui/tailwindcss": "0.2.1",
     "@sindresorhus/slugify": "2.2.1",
     "@tailwindcss/typography": "0.5.13",
