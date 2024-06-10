@@ -7,7 +7,6 @@ import RunDemoResult from '../../../common/runDemoResult';
 import {
   resolveNativeScriptAddress,
   resolvePaymentKeyHash,
-  resolveSlotNo,
 } from '@meshsdk/core';
 import Input from '../../../ui/input';
 import type { NativeScript } from '@meshsdk/core';
@@ -31,17 +30,9 @@ function Left(userinput, userinput2) {
   let code1 = `import { resolveNativeScriptHash, resolvePaymentKeyHash, resolveSlotNo } from '@meshsdk/core';\n\n`;
   code1 += `const keyHash = resolvePaymentKeyHash('${userinput}');\n`;
   code1 += `\n`;
-  code1 += `let oneYearFromNow = new Date();\n`;
-  code1 += `oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);\n`;
-  code1 += `const slot = resolveSlotNo('mainnet', oneYearFromNow.getTime());\n`;
-  code1 += `\n`;
   code1 += `const nativeScript: NativeScript = {\n`;
   code1 += `  type: 'all',\n`;
   code1 += `  scripts: [\n`;
-  code1 += `    {\n`;
-  code1 += `      type: 'before',\n`;
-  code1 += `      slot: slot,\n`;
-  code1 += `    },\n`;
   code1 += `    {\n`;
   code1 += `      type: 'sig',\n`;
   code1 += `      keyHash: keyHash,\n`;
@@ -76,17 +67,9 @@ function Right(userinput, setUserinput, userinput2, setUserinput2) {
     try {
       const keyHash = resolvePaymentKeyHash(userinput);
 
-      let oneYearFromNow = new Date();
-      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
-      const slot = resolveSlotNo('mainnet', oneYearFromNow.getTime());
-
       const nativeScript: NativeScript = {
         type: 'all',
         scripts: [
-          {
-            type: 'before',
-            slot: slot,
-          },
           {
             type: 'sig',
             keyHash: keyHash,
