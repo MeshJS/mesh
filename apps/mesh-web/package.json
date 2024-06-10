@@ -29,7 +29,6 @@
     "react-tweet-embed": "2.0.0"
   },
   "devDependencies": {
-    "@babel/core": "7.24.7",
     "autoprefixer": "10.4.19",
     "flowbite-typography": "1.0.3",
     "postcss": "8.4.38",
