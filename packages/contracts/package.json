@@ -29,15 +29,15 @@
     "release": "yarn build && changeset publish"
   },
   "devDependencies": {
-    "@changesets/cli": "2.26.0",
-    "tsup": "6.6.3",
-    "vitest": "0.28.4"
+    "@changesets/cli": "2.27.5",
+    "tsup": "8.1.0",
+    "vitest": "1.6.0"
   },
   "peerDependencies": {
-    "@meshsdk/core": "^1.0.0"
+    "@meshsdk/core": "1.5.24"
   },
   "dependencies": {
-    "@meshsdk/common": "^1.0.0-alpha.9",
-    "@meshsdk/core-csl": "^1.6.0-alpha.7"
+    "@meshsdk/common": "1.0.0-alpha.9",
+    "@meshsdk/core-csl": "1.6.0-alpha.7"
   }
 }

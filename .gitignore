@@ -105,6 +105,9 @@ typings/
 # Turborepo cache files
 .turbo
 
+# Rollup cache files
+.rollup.cache
+
 # production
 dist
 

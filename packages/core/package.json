@@ -48,13 +48,13 @@
     }
   },
   "devDependencies": {
-    "@rollup/plugin-typescript": "8.4.0",
-    "rollup": "2.79.0",
-    "tslib": "2.4.0",
-    "typedoc": "^0.25.8",
-    "vite": "3.1.4",
-    "vite-plugin-wasm": "2.1.0",
-    "vitest": "0.22.1"
+    "@rollup/plugin-typescript": "11.1.6",
+    "rollup": "4.18.0",
+    "tslib": "2.6.3",
+    "typedoc": "0.25.13",
+    "vite": "5.2.13",
+    "vite-plugin-wasm": "3.3.0",
+    "vitest": "1.6.0"
   },
   "dependencies": {
     "@emurgo/cardano-message-signing-browser": "1.0.1",
@@ -62,10 +62,10 @@
     "@emurgo/cardano-serialization-lib-browser": "11.5.0",
     "@emurgo/cardano-serialization-lib-nodejs": "11.5.0",
     "@emurgo/cip14-js": "3.0.1",
-    "axios": "1.6.3",
-    "bip39": "3.0.4",
-    "json-bigint": "^1.0.0",
-    "nanoid": "3.3.4",
-    "zod": "3.22.4"
+    "axios": "1.7.2",
+    "bip39": "3.1.0",
+    "json-bigint": "1.0.0",
+    "nanoid": "5.0.7",
+    "zod": "3.23.8"
   }
 }
