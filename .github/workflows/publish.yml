@@ -101,7 +101,7 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
-      - run: pnpm build
+      - run: pnpm build --filter="./packages/*"
       - run: cd packages/core && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
@@ -116,7 +116,7 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
-      - run: pnpm build
+      - run: pnpm build --filter="./packages/*"
       - run: cd packages/react && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
@@ -131,7 +131,7 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
-      - run: pnpm build
+      - run: pnpm build --filter="./packages/*"
       - run: cd packages/contracts && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
