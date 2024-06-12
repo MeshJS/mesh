@@ -1,0 +1,110 @@
+import { useState } from 'react';
+import Codeblock from '../../../ui/codeblock';
+import Card from '../../../ui/card';
+import SectionTwoCol from '../../../common/sectionTwoCol';
+import RunDemoButton from '../../../common/runDemoButton';
+import RunDemoResult from '../../../common/runDemoResult';
+import {
+  resolveNativeScriptAddress,
+  resolvePaymentKeyHash,
+} from '@meshsdk/core';
+import Input from '../../../ui/input';
+import type { NativeScript } from '@meshsdk/core';
+import { demoAddresses } from '../../../../configs/demo';
+
+export default function ResolveNativeScriptAddress() {
+  const [userinput, setUserinput] = useState<string>(demoAddresses.mainnet);
+  const [userinput2, setUserinput2] = useState<string>('meshtoken');
+
+  return (
+    <SectionTwoCol
+      sidebarTo="resolveNativeScriptAddress"
+      header="Resolve Native Script Address"
+      leftFn={Left(userinput, userinput2)}
+      rightFn={Right(userinput, setUserinput, userinput2, setUserinput2)}
+    />
+  );
+}
+
+function Left(userinput, userinput2) {
+  let code1 = `import { resolveNativeScriptHash, resolvePaymentKeyHash, resolveSlotNo } from '@meshsdk/core';\n\n`;
+  code1 += `const keyHash = resolvePaymentKeyHash('${userinput}');\n`;
+  code1 += `\n`;
+  code1 += `const nativeScript: NativeScript = {\n`;
+  code1 += `  type: 'all',\n`;
+  code1 += `  scripts: [\n`;
+  code1 += `    {\n`;
+  code1 += `      type: 'sig',\n`;
+  code1 += `      keyHash: keyHash,\n`;
+  code1 += `    },\n`;
+  code1 += `  ],\n`;
+  code1 += `};\n`;
+  code1 += `\n`;
+  code1 += `const address = resolveNativeScriptAddress(nativeScript, ${
+    userinput.substring(0, 5) === 'addr1' ? 1 : 0
+  });\n`;
+
+  return (
+    <>
+      <p>
+        Converts <code>NativeScript</code> into address.
+      </p>
+      <Codeblock data={code1} isJson={false} />
+    </>
+  );
+}
+
+function Right(userinput, setUserinput, userinput2, setUserinput2) {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [response, setResponse] = useState<null | any>(null);
+  const [responseError, setResponseError] = useState<null | any>(null);
+
+  async function runDemo() {
+    setLoading(true);
+    setResponse(null);
+    setResponseError(null);
+
+    try {
+      const keyHash = resolvePaymentKeyHash(userinput);
+
+      const nativeScript: NativeScript = {
+        type: 'all',
+        scripts: [
+          {
+            type: 'sig',
+            keyHash: keyHash,
+          },
+        ],
+      };
+
+      const address = resolveNativeScriptAddress(
+        nativeScript,
+        userinput.substring(0, 5) === 'addr1' ? 1 : 0
+      );
+      setResponse(address);
+    } catch (error) {
+      setResponseError(`${error}`);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <>
+      <Card>
+        <Input
+          value={userinput}
+          onChange={(e) => setUserinput(e.target.value)}
+          placeholder="Address"
+          label="Address"
+        />
+        <RunDemoButton
+          runDemoFn={runDemo}
+          loading={loading}
+          response={response}
+        />
+        <RunDemoResult response={response} />
+        <RunDemoResult response={responseError} label="Error" />
+      </Card>
+    </>
+  );
+}

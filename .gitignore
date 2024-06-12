@@ -102,16 +102,14 @@ typings/
 # TernJS port file
 .tern-port
 
+# Turborepo cache files
+.turbo
+
+# Rollup cache files
+.rollup.cache
+
 # production
 dist
 
 # misc
 .DS_Store
-
-_local
-.rollup.cache
-
-# local testing on new features
-localTest.tsx
-
-tmp

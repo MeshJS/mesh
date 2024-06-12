@@ -1,0 +1,43 @@
+{
+  "name": "create-mesh-app",
+  "description": "A quick and easy way to bootstrap your dApps on Cardano using Mesh.",
+  "homepage": "https://meshjs.dev",
+  "author": "MeshJS",
+  "version": "1.0.7",
+  "license": "Apache-2.0",
+  "main": "dist/create-mesh-app.cjs.js",
+  "bin": {
+    "create-mesh-app": "./bin/create-mesh-app"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MeshJS/mesh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MeshJS/mesh/issues"
+  },
+  "keywords": [
+    "blockchain",
+    "cardano",
+    "dapp",
+    "npx"
+  ],
+  "scripts": {
+    "build": "preconstruct build",
+    "dev": "preconstruct watch"
+  },
+  "dependencies": {
+    "chalk": "5.3.0",
+    "commander": "12.1.0",
+    "figlet": "1.7.0",
+    "got": "14.4.1",
+    "prompts": "2.4.2",
+    "tar": "7.2.0"
+  },
+  "devDependencies": {
+    "@preconstruct/cli": "2.8.4",
+    "@types/figlet": "1.5.8",
+    "@types/prompts": "2.4.9",
+    "@types/tar": "6.1.13"
+  }
+}
