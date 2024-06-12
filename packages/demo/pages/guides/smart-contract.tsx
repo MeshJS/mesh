@@ -430,7 +430,7 @@ import { Transaction, Data, BlockfrostProvider, resolveDataHash } from '@meshsdk
             get the exact UTxO we are trying to spend. For this we will use
             <code>BlockfrostProvider</code>, but you can use any provider that
             Mesh supports, see{' '}
-            <a href="https://meshjs.dev/apis/providers">Providers</a>.
+            <a href="https://meshjs.dev/providers">Providers</a>.
           </p>
           <p>
             Paste the following function right before your<code>return</code>{' '}
