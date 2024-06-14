@@ -1,35 +1,35 @@
-import { csl } from '@mesh/core';
-import { DEFAULT_PROTOCOL_PARAMETERS } from '@mesh/common/constants';
+import { csl } from "@mesh/core";
+import { DEFAULT_PROTOCOL_PARAMETERS } from "@mesh/common/constants";
 import {
   IFetcher,
   IInitiator,
   ISigner,
   ISubmitter,
-} from '@mesh/common/contracts';
-import { mergeSignatures } from '@mesh/common/helpers';
+} from "@mesh/common/contracts";
+import { mergeSignatures } from "@mesh/common/helpers";
 import {
   deserializeTx,
   toAddress,
   toTxUnspentOutput,
-} from '@mesh/common/utils';
-import { EmbeddedWallet } from './embedded.service';
-import type { Address, TransactionUnspentOutput } from '@mesh/core';
-import type { DataSignature } from '@mesh/common/types';
+} from "@mesh/common/utils";
+import { EmbeddedWallet } from "./embedded.service";
+import type { Address, TransactionUnspentOutput } from "@mesh/core";
+import type { DataSignature } from "@mesh/common/types";
 
-const DEFAULT_PASSWORD = 'MARI0TIME';
+const DEFAULT_PASSWORD = "MARI0TIME";
 
 export type AppWalletKeyType =
   | {
-      type: 'root';
+      type: "root";
       bech32: string;
     }
   | {
-      type: 'cli';
+      type: "cli";
       payment: string;
       stake?: string;
     }
   | {
-      type: 'mnemonic';
+      type: "mnemonic";
       words: string[];
     };
 
@@ -50,24 +50,24 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     this._submitter = options.submitter;
 
     switch (options.key.type) {
-      case 'mnemonic':
+      case "mnemonic":
         this._wallet = new EmbeddedWallet(
           options.networkId,
           EmbeddedWallet.encryptMnemonic(options.key.words, DEFAULT_PASSWORD)
         );
         break;
-      case 'root':
+      case "root":
         this._wallet = new EmbeddedWallet(
           options.networkId,
           EmbeddedWallet.encryptPrivateKey(options.key.bech32, DEFAULT_PASSWORD)
         );
         break;
-      case 'cli':
+      case "cli":
         this._wallet = new EmbeddedWallet(
           options.networkId,
           EmbeddedWallet.encryptSigningKeys(
             options.key.payment,
-            options.key.stake ?? 'f0'.repeat(34),
+            options.key.stake ?? "f0".repeat(34),
             DEFAULT_PASSWORD
           )
         );
@@ -113,18 +113,23 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   getUsedCollateral(
     _limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs
   ): Promise<TransactionUnspentOutput[]> {
-    throw new Error('getUsedCollateral not implemented.');
+    throw new Error("getUsedCollateral not implemented.");
   }
 
-  async getUsedUTxOs(accountIndex = 0): Promise<TransactionUnspentOutput[]> {
+  async getUsedUTxOs(
+    accountIndex = 0,
+    addressType: "enterprise" | "base" = "base"
+  ): Promise<TransactionUnspentOutput[]> {
     if (!this._fetcher) {
       throw new Error(
-        '[AppWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher.'
+        "[AppWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher."
       );
     }
     const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
     const utxos = await this._fetcher.fetchAddressUTxOs(
-      account.enterpriseAddress
+      addressType == "enterprise"
+        ? account.enterpriseAddress
+        : account.baseAddress
     );
 
     return utxos.map((utxo) => toTxUnspentOutput(utxo));
@@ -155,18 +160,21 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     unsignedTx: string,
     partialSign = false,
     accountIndex = 0,
-    keyIndex = 0
+    keyIndex = 0,
+    addressType: "enterprise" | "base" = "base"
   ): Promise<string> {
     try {
       if (!this._fetcher) {
         throw new Error(
-          '[AppWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher.'
+          "[AppWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher."
         );
       }
       const account = this._wallet.getAccount(accountIndex, DEFAULT_PASSWORD);
 
       const utxos = await this._fetcher.fetchAddressUTxOs(
-        account.enterpriseAddress
+        addressType == "enterprise"
+          ? account.enterpriseAddress
+          : account.baseAddress
       );
 
       const newSignatures = this._wallet.signTx(
@@ -246,14 +254,14 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
     unsignedTxs: string[],
     partialSign: boolean
   ): Promise<string[]> {
-    console.log('unimplemented', unsignedTxs, partialSign);
+    console.log("unimplemented", unsignedTxs, partialSign);
     return [];
   }
 
   submitTx(tx: string): Promise<string> {
     if (!this._submitter) {
       throw new Error(
-        '[AppWallet] Submitter is required to submit transactions. Please provide a submitter.'
+        "[AppWallet] Submitter is required to submit transactions. Please provide a submitter."
       );
     }
     return this._submitter.submitTx(tx);
@@ -272,7 +280,7 @@ export class AppWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   async getCollateral() {
-    return (await this.getUsedUTxOs())[0]; // todo hinson
+    return (await this.getUsedUTxOs())[0];
   }
 
   async getUsedAddresses() {

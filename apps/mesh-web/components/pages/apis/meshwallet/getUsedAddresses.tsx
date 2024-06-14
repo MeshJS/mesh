@@ -30,6 +30,12 @@ function Left() {
         Returns a list of used addresses controlled by the wallet. For example:
       </p>
       <Codeblock data={example} isJson={false} />
+      <p>Options:</p>
+      <ul>
+        <li>
+          <code>addressType</code> - "enterprise" | "base" = "base"
+        </li>
+      </ul>
     </>
   );
 }

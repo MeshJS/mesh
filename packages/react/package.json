@@ -61,7 +61,7 @@
     "vite": "5.2.13"
   },
   "peerDependencies": {
-    "@meshsdk/core": "1.5.24",
+    "@meshsdk/core": "1.5.25",
     "react": "17.x || 18.x",
     "react-dom": "17.x || 18.x"
   },
