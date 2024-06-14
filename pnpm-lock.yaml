@@ -228,16 +228,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@emurgo/cardano-message-signing-browser':
+      '@emurgo/cardano-message-signing-asmjs':
         specifier: 1.0.1
         version: 1.0.1
-      '@emurgo/cardano-message-signing-nodejs':
-        specifier: 1.0.1
-        version: 1.0.1
-      '@emurgo/cardano-serialization-lib-browser':
-        specifier: 11.5.0
-        version: 11.5.0
-      '@emurgo/cardano-serialization-lib-nodejs':
+      '@emurgo/cardano-serialization-lib-asmjs':
         specifier: 11.5.0
         version: 11.5.0
       '@emurgo/cip14-js':
@@ -630,11 +624,17 @@ packages:
     peerDependencies:
       react: '>=16.8.0'
 
+  '@emurgo/cardano-message-signing-asmjs@1.0.1':
+    resolution: {integrity: sha512-UeZyW0wA5mE+DjUdD+YW/LQdy4x3eze3dCVh5UXqAPR9wTMAD8Xde3U0Qcoz23b8OmTKe7i+KKjII/VT03oYWA==}
+
   '@emurgo/cardano-message-signing-browser@1.0.1':
     resolution: {integrity: sha512-yC4Ymq44WR0bXO1wzxCoyc2W/RD1KSAla0oYhin7IYoVkp2raGp8wt7QNF4pDdNnTcejn5fyPyYY9dL4666H1w==}
 
   '@emurgo/cardano-message-signing-nodejs@1.0.1':
     resolution: {integrity: sha512-PoKh1tQnJX18f8iEr8Jk1KXxKCn9eqaSslMI1pyOJvYRJhQVDLCh0+9YReufjp0oFJIY1ShcrR+4/WnECVZUKQ==}
+
+  '@emurgo/cardano-serialization-lib-asmjs@11.5.0':
+    resolution: {integrity: sha512-QQkavjEug/EmBFg02bmSg0eLYiOaRa1lmRG8q6fGRkx3O9BX1iZQDZJmirPDBTkTO3CpNB0q9se8DQFFcjREIw==}
 
   '@emurgo/cardano-serialization-lib-browser@11.5.0':
     resolution: {integrity: sha512-qchOJ9NYDUz10tzs5r5QhP9hK0p+ZOlRiBwPdTAxqAYLw/8emYBkQQLaS8T1DF6EkeudyrgS00ym5Trw1fo4iA==}
@@ -5891,9 +5891,13 @@ snapshots:
     dependencies:
       react: 18.3.1
 
+  '@emurgo/cardano-message-signing-asmjs@1.0.1': {}
+
   '@emurgo/cardano-message-signing-browser@1.0.1': {}
 
   '@emurgo/cardano-message-signing-nodejs@1.0.1': {}
+
+  '@emurgo/cardano-serialization-lib-asmjs@11.5.0': {}
 
   '@emurgo/cardano-serialization-lib-browser@11.5.0': {}
 

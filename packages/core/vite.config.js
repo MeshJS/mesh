@@ -1,7 +1,6 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import typescript from '@rollup/plugin-typescript';
-import wasm from 'vite-plugin-wasm';
 
 export default defineConfig({
   build: {
@@ -11,8 +10,6 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        '@emurgo/cardano-message-signing-nodejs',
-        '@emurgo/cardano-serialization-lib-nodejs',
         'axios', 'bip39', 'nanoid', 'zod',
       ],
       plugins: [
@@ -26,7 +23,4 @@ export default defineConfig({
       '@mesh': resolve(__dirname, './src'),
     },
   },
-  plugins: [
-    wasm(),
-  ],
 });

@@ -33,12 +33,7 @@
     "test:coverage": "vitest run --coverage",
     "build": "vite build && pnpm run docs",
     "dev": "vite build --watch",
-    "docs": "typedoc src/index.ts --json ../docs/src/data/api.json",
-    "docs2": "typedoc src/index.ts --out ../docs/tmp"
-  },
-  "browser": {
-    "@emurgo/cardano-message-signing-nodejs": "@emurgo/cardano-message-signing-browser",
-    "@emurgo/cardano-serialization-lib-nodejs": "@emurgo/cardano-serialization-lib-browser"
+    "docs": "typedoc src/index.ts --json ../../apps/mesh-docs/src/data/api.json"
   },
   "exports": {
     ".": {
@@ -57,10 +52,8 @@
     "vitest": "1.6.0"
   },
   "dependencies": {
-    "@emurgo/cardano-message-signing-browser": "1.0.1",
-    "@emurgo/cardano-message-signing-nodejs": "1.0.1",
-    "@emurgo/cardano-serialization-lib-browser": "11.5.0",
-    "@emurgo/cardano-serialization-lib-nodejs": "11.5.0",
+    "@emurgo/cardano-message-signing-asmjs": "1.0.1",
+    "@emurgo/cardano-serialization-lib-asmjs": "11.5.0",
     "@emurgo/cip14-js": "3.0.1",
     "axios": "1.7.2",
     "bip39": "3.1.0",
