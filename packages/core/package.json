@@ -33,7 +33,7 @@
     "test:coverage": "vitest run --coverage",
     "build": "vite build && pnpm run docs",
     "dev": "vite build --watch",
-    "docs": "typedoc src/index.ts --json ../docs/src/data/api.json",
+    "docs": "typedoc src/index.ts --json ../../mesh-docs/src/data/api.json",
     "docs2": "typedoc src/index.ts --out ../docs/tmp"
   },
   "browser": {
