@@ -382,9 +382,11 @@ export class EmbeddedWallet {
               u.input.txHash === inputHash.to_hex()
           ) !== undefined
             ? paymentKeyHash
-            : 'OUR_PRINCESS_IS_IN_ANOTHER_CASTLE';
+            : undefined;
 
-        return resolveTxInputsSigners(inputs, [...signers, signer], index + 1);
+        const finalSigners = signer ? [...signers, signer] : signers;
+
+        return resolveTxInputsSigners(inputs, finalSigners, index + 1);
       };
 
       const resolveRequiredSigners = (
