@@ -3,24 +3,24 @@ import {
   IInitiator,
   ISigner,
   ISubmitter,
-} from '@mesh/common/contracts';
-import { AppWallet } from './app.service';
-import type { Address, TransactionUnspentOutput } from '@mesh/core';
+} from "@mesh/common/contracts";
+import { AppWallet } from "./app.service";
+import type { Address, TransactionUnspentOutput } from "@mesh/core";
 import type {
   Asset,
   AssetExtended,
   DataSignature,
   UTxO,
-} from '@mesh/common/types';
+} from "@mesh/common/types";
 import {
   fromTxUnspentOutput,
   toUTF8,
   resolveFingerprint,
   toTxUnspentOutput,
   resolvePrivateKey,
-} from '@mesh/common/utils';
-import { POLICY_ID_LENGTH } from '@mesh/common/constants';
-import { EmbeddedWallet, Transaction } from '..';
+} from "@mesh/common/utils";
+import { POLICY_ID_LENGTH } from "@mesh/common/constants";
+import { EmbeddedWallet, Transaction } from "..";
 
 export type CreateMeshWalletOptions = {
   networkId: number;
@@ -28,16 +28,16 @@ export type CreateMeshWalletOptions = {
   submitter?: ISubmitter;
   key:
     | {
-        type: 'root';
+        type: "root";
         bech32: string;
       }
     | {
-        type: 'cli';
+        type: "cli";
         payment: string;
         stake?: string;
       }
     | {
-        type: 'mnemonic';
+        type: "mnemonic";
         words: string[];
       };
 };
@@ -71,35 +71,35 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     this._network = options.networkId;
 
     switch (options.key.type) {
-      case 'root':
+      case "root":
         this._wallet = new AppWallet({
           networkId: options.networkId,
           fetcher: options.fetcher,
           submitter: options.submitter,
           key: {
-            type: 'root',
+            type: "root",
             bech32: options.key.bech32,
           },
         });
         break;
-      case 'cli':
+      case "cli":
         this._wallet = new AppWallet({
           networkId: options.networkId,
           fetcher: options.fetcher,
           submitter: options.submitter,
           key: {
-            type: 'cli',
+            type: "cli",
             payment: options.key.payment,
           },
         });
         break;
-      case 'mnemonic':
+      case "mnemonic":
         this._wallet = new AppWallet({
           networkId: options.networkId,
           fetcher: options.fetcher,
           submitter: options.submitter,
           key: {
-            type: 'mnemonic',
+            type: "mnemonic",
             words: options.key.words,
           },
         });
@@ -142,9 +142,11 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   /**
    * Returns an address owned by the wallet that should be used as a change address to return leftover assets during transaction creation back to the connected wallet.
    *
+   * @param addressType - `enterprise` or `base` address
    * @returns an address
    */
-  getChangeAddress(): string {
+  getChangeAddress(addressType: "enterprise" | "base" = "base"): string {
+    if (addressType === "base") return this._wallet.getBaseAddress();
     return this._wallet.getPaymentAddress();
   }
 
@@ -163,7 +165,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     const pureAdaUtxos = utxos.filter((utxo) => {
       return (
         utxo.output.amount.length === 1 &&
-        utxo.output.amount[0].unit === 'lovelace'
+        utxo.output.amount[0].unit === "lovelace"
       );
     });
 
@@ -206,30 +208,35 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   /**
    * Returns a list of unused addresses controlled by the wallet.
    *
+   * @param addressType - `enterprise` or `base` address
    * @returns a list of unused addresses
    */
-  getUnusedAddresses(): string[] {
-    // todo hinson: shall we do this? used and unused addresses are the same same change address?
-    return [this.getChangeAddress()];
+  getUnusedAddresses(addressType: "enterprise" | "base" = "base"): string[] {
+    if (addressType === "base") return [this._wallet.getBaseAddress()];
+    return [this._wallet.getPaymentAddress()];
   }
 
   /**
    * Returns a list of used addresses controlled by the wallet.
    *
+   * @param addressType - `enterprise` or `base` address
    * @returns a list of used addresses
    */
-  async getUsedAddresses(): Promise<string[]> {
-    // todo hinson: shall we do this? used and unused addresses are the same same change address?
-    return [this.getChangeAddress()];
+  async getUsedAddresses(
+    addressType: "enterprise" | "base" = "base"
+  ): Promise<string[]> {
+    if (addressType === "base") return [this._wallet.getBaseAddress()];
+    return [this._wallet.getPaymentAddress()];
   }
 
   /**
    * Return a list of all UTXOs (unspent transaction outputs) controlled by the wallet.
    *
+   * @param addressType - `enterprise` or `base` address
    * @returns a list of UTXOs
    */
-  async getUtxos(): Promise<UTxO[]> {
-    const utxos = await this.getUsedUTxOs();
+  async getUtxos(addressType: "enterprise" | "base" = "base"): Promise<UTxO[]> {
+    const utxos = await this.getUsedUTxOs(addressType);
     return utxos.map((c) => fromTxUnspentOutput(c));
   }
 
@@ -320,10 +327,13 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * This is used in transaction building.
    *
+   * @param addressType - `enterprise` or `base` address
    * @returns a list of UTXOs
    */
-  async getUsedUTxOs(): Promise<TransactionUnspentOutput[]> {
-    return await this._wallet.getUtxos();
+  async getUsedUTxOs(
+    addressType: "enterprise" | "base" = "base"
+  ): Promise<TransactionUnspentOutput[]> {
+    return await this._wallet.getUsedUTxOs(0, addressType);
   }
 
   /**
@@ -334,7 +344,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   async getAssets(): Promise<AssetExtended[]> {
     const balance = await this.getBalance();
     return balance
-      .filter((v) => v.unit !== 'lovelace')
+      .filter((v) => v.unit !== "lovelace")
       .map((v) => {
         const policyId = v.unit.slice(0, POLICY_ID_LENGTH);
         const assetName = v.unit.slice(POLICY_ID_LENGTH);
@@ -357,9 +367,9 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    */
   async getLovelace(): Promise<string> {
     const balance = await this.getBalance();
-    const nativeAsset = balance.find((v) => v.unit === 'lovelace');
+    const nativeAsset = balance.find((v) => v.unit === "lovelace");
 
-    return nativeAsset !== undefined ? nativeAsset.quantity : '0';
+    return nativeAsset !== undefined ? nativeAsset.quantity : "0";
   }
 
   /**
@@ -382,7 +392,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     const balance = await this.getBalance();
     return Array.from(
       new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH)))
-    ).filter((p) => p !== 'lovelace');
+    ).filter((p) => p !== "lovelace");
   }
 
   /**
@@ -393,7 +403,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   async createCollateral(): Promise<string> {
     const tx = new Transaction({ initiator: this._wallet }).sendLovelace(
       this.getChangeAddress(),
-      '5000000'
+      "5000000"
     );
     const unsignedTx = await tx.build();
     const signedTx = await this.signTx(unsignedTx);

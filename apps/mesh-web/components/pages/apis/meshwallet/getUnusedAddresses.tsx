@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
-import { getMeshWallet } from './common';
+import { useState } from "react";
+import Codeblock from "../../../ui/codeblock";
+import Card from "../../../ui/card";
+import RunDemoButton from "../../../common/runDemoButton";
+import RunDemoResult from "../../../common/runDemoResult";
+import SectionTwoCol from "../../../common/sectionTwoCol";
+import { getMeshWallet } from "./common";
 
 export default function GetUnusedAddresses() {
   return (
@@ -31,6 +31,12 @@ function Left() {
         example:
       </p>
       <Codeblock data={example} isJson={false} />
+      <p>Options:</p>
+      <ul>
+        <li>
+          <code>addressType</code> - "enterprise" | "base" = "base"
+        </li>
+      </ul>
     </>
   );
 }

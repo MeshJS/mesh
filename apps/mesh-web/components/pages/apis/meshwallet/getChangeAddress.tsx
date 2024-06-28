@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import Codeblock from '../../../ui/codeblock';
-import Card from '../../../ui/card';
-import RunDemoButton from '../../../common/runDemoButton';
-import RunDemoResult from '../../../common/runDemoResult';
-import SectionTwoCol from '../../../common/sectionTwoCol';
-import { getMeshWallet } from './common';
+import { useState } from "react";
+import Codeblock from "../../../ui/codeblock";
+import Card from "../../../ui/card";
+import RunDemoButton from "../../../common/runDemoButton";
+import RunDemoResult from "../../../common/runDemoResult";
+import SectionTwoCol from "../../../common/sectionTwoCol";
+import { getMeshWallet } from "./common";
 
 export default function GetChangeAddress() {
   return (
@@ -25,6 +25,12 @@ function Left() {
         address to return leftover assets during transaction creation back to
         the connected wallet.
       </p>
+      <p>Options:</p>
+      <ul>
+        <li>
+          <code>addressType</code> - "enterprise" | "base" = "base"
+        </li>
+      </ul>
     </>
   );
 }
