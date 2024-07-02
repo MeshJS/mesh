@@ -1,6 +1,6 @@
 import { csl } from '.';
 
-export * as csl from '@emurgo/cardano-serialization-lib-nodejs';
+export * as csl from '@emurgo/cardano-serialization-lib-asmjs';
 
 export type Address = InstanceType<typeof csl.Address>;
 export type AssetName = InstanceType<typeof csl.AssetName>;

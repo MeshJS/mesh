@@ -14,7 +14,7 @@
     "@headlessui/react": "2.0.4",
     "@heroicons/react": "2.1.3",
     "@meshsdk/contracts": "1.0.1",
-    "@meshsdk/core": "1.5.24",
+    "@meshsdk/core": "workspace:*",
     "@meshsdk/react": "1.1.12",
     "axios": "1.7.2",
     "copy-to-clipboard": "3.3.3",
