@@ -5,7 +5,8 @@ import {
   mTxOutRef,
   outputReference,
   txOutRef,
-} from "../../../src";
+} from "@meshsdk/common";
+
 import { serializeData } from "./common";
 
 const testHash = "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc81700";

@@ -1,6 +1,6 @@
-import { CodeGroup } from '@/components/Code';
-import { Prose } from '@/components/Prose';
-import Markdown from 'react-markdown';
+import { CodeGroup } from "@/components/Code";
+import { Prose } from "@/components/Prose";
+import Markdown from "react-markdown";
 
 export default function Home() {
   return (
@@ -35,8 +35,8 @@ export default function Home() {
           Mesh with npm:
         </p>
 
-        <CodeGroup title="" code={`npm install @meshsdk/core @meshsdk/react`}>
-          <Markdown>npm install @meshsdk/core @meshsdk/react</Markdown>
+        <CodeGroup title="" code={`npm install @meshsdk/core`}>
+          <Markdown>npm install @meshsdk/core</Markdown>
         </CodeGroup>
 
         {/* <Resources /> */}

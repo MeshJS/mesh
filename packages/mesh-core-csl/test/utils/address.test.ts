@@ -1,10 +1,9 @@
 import { pubKeyAddress, scriptAddress } from "@meshsdk/common";
-
 import {
   deserializeBech32Address,
   scriptHashToBech32,
   serializeAddressObj,
-} from "../../src";
+} from "@meshsdk/core-csl";
 
 describe("Address", () => {
   test("deserializeBech32Address", () => {

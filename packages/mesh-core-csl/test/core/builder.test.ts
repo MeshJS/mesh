@@ -3,8 +3,7 @@ import {
   DEFAULT_PROTOCOL_PARAMETERS,
   MeshTxBuilderBody,
 } from "@meshsdk/common";
-
-import { CSLSerializer } from "../../src";
+import { CSLSerializer } from "@meshsdk/core-csl";
 
 describe("Builder", () => {
   test("serializeTxBody - send lovelace", () => {

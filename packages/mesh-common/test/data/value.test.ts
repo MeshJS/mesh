@@ -9,7 +9,7 @@ import {
   parsePlutusValueToAssets,
   Value,
   value,
-} from "../../src";
+} from "@meshsdk/common";
 
 describe("value", () => {
   test("Simple ADA Value", () => {

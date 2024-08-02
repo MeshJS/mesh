@@ -43,12 +43,17 @@ import { meshTxBuilderBodyToObj } from "./adaptor";
 import { builderDataToCbor } from "./adaptor/data";
 
 export class CSLSerializer implements IMeshTxSerializer {
+  /**
+   * Set to true to enable verbose logging for the txBodyJson prior going into build
+   */
+  verbose: boolean;
   protocolParams: Protocol;
 
   meshTxBuilderBody: MeshTxBuilderBody = emptyTxBuilderBody();
 
-  constructor(protocolParams?: Protocol) {
+  constructor(protocolParams?: Protocol, verbose = false) {
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
+    this.verbose = verbose;
   }
 
   serializeTxBody(
@@ -59,7 +64,9 @@ export class CSLSerializer implements IMeshTxSerializer {
 
     const params = JSONbig.stringify(protocolParams || this.protocolParams);
 
-    console.log("txBodyJson", txBodyJson);
+    if (this.verbose) {
+      console.log("txBodyJson", txBodyJson);
+    }
     const txBuildResult = csl.js_serialize_tx_body(txBodyJson, params);
     if (txBuildResult.get_status() !== "success") {
       throw new Error(txBuildResult.get_data());

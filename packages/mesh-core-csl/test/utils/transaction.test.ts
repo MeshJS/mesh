@@ -1,4 +1,4 @@
-import { calculateTxHash } from "../../src";
+import { calculateTxHash } from "@meshsdk/core-csl";
 
 describe("Transaction", () => {
   test("calculateTxHash", () => {

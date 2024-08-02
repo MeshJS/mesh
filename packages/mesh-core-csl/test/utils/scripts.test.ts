@@ -1,4 +1,4 @@
-import { applyParamsToScript, getV2ScriptHash } from "../../src";
+import { applyParamsToScript, getV2ScriptHash } from "@meshsdk/core-csl";
 
 describe("Scripts", () => {
   test("getV2ScriptHash", () => {

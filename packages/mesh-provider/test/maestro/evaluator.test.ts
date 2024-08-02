@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 
-import { MaestroProvider } from "../../src/maestro";
+import { MaestroProvider } from "@meshsdk/provider";
 
 dotenv.config();
 const apiKey = process.env.MAESTRO_API_KEY!;

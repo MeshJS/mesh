@@ -3,7 +3,8 @@ import {
   mBool,
   mPlutusBSArrayToString,
   mStringToPlutusBSArray,
-} from "../../../src";
+} from "@meshsdk/common";
+
 import { serializeData } from "./common";
 
 describe("Plutus data type", () => {

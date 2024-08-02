@@ -21,7 +21,7 @@
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "lint": "eslint",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "test": "jest --verbose",
+    "test": "jest",
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-providers.json"
   },

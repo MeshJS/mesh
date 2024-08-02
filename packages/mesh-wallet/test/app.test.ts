@@ -1,4 +1,4 @@
-import { AppWallet } from "../src";
+import { AppWallet } from "@meshsdk/wallet";
 
 describe("AppWallet", () => {
   const wallet = new AppWallet({

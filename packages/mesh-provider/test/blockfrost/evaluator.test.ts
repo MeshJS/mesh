@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 
-import { BlockfrostProvider } from "../../src";
+import { BlockfrostProvider } from "@meshsdk/provider";
 
 dotenv.config();
 const apiKey = process.env.BLOCKFROST_API_KEY_PREPROD!;
