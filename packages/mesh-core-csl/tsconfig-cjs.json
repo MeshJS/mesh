@@ -1,0 +1,11 @@
+{
+  "extends": "@meshsdk/typescript-config/wasm-base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "outDir": "dist/cjs",
+    "target": "es2015"
+  },
+  "rootDir": "src",
+  "exclude": ["node_modules", "dist"],
+  "include": ["src"]
+}

@@ -1,0 +1,135 @@
+import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
+
+export const metadata = {
+  title: "Executing a standalone script",
+  description:
+    "Learn how to execute a standalone script to manage wallets and creating transactions.",
+  cover: "/guides/standalone.png",
+  image: "/guides/salt-harvesting-3060093_1280.jpg",
+};
+
+export default function MDXPage({ children }) {
+  return (
+    <LayoutImageHeaderAndBody
+      title={metadata.title}
+      description={metadata.description}
+      image={metadata.image}
+      cover={metadata.cover}
+    >
+      {children}
+    </LayoutImageHeaderAndBody>
+  );
+}
+
+If you're looking to run a javascript files to interact with the blockchain, you can use the tsx package to run the files directly from the command line.
+
+This guide will walk you through setting up a simple project using MeshSDK. By the end, you'll have a working environment that can create a wallet, build and sign transactions, and submit them to the blockchain.
+
+In this tutorial, we'll cover:
+
+- Creating a package.json file to manage your project dependencies.
+- Installing the necessary packages, including MeshSDK.
+- Writing a TypeScript script to create a wallet and send a transaction.
+- Running your project to see the results.
+
+Let's get started!
+
+## Setting up
+
+### Create a package.json file
+
+First, create a new `package.json` file in the root of your project with the following content:
+
+```
+{
+  "type": "module",
+  "dependencies": {},
+  "scripts": {
+    "dev": "tsx index.ts"
+  }
+}
+```
+
+### Install the necessary packages
+
+Open your terminal and run these commands to install the required packages and MeshSDK:
+
+```
+npm install
+npm install tsx @meshsdk/core
+```
+
+Here's how your `package.json` file should look after installing the packages:
+
+```
+{
+  "type": "module",
+  "dependencies": {
+    "@meshsdk/core": "^1.5.18",
+    "tsx": "^4.9.4"
+  },
+  "scripts": {
+    "dev": "tsx index.ts"
+  }
+}
+```
+
+- @meshsdk/core: Core functionality for network interactions, wallets, and transactions.
+- tsx: Allows running TypeScript files directly from the command line.
+
+## Make a simple transaction
+
+### Create the index.ts file
+
+Next, create a new `index.ts` file in the root of your project and add the following code:
+
+```
+import { BlockfrostProvider, MeshWallet, Transaction } from "@meshsdk/core";
+
+// Set up the blockchain provider with your key
+const blockchainProvider = new BlockfrostProvider("YOUR_KEY_HERE");
+
+// Initialize the wallet with a mnemonic key
+const wallet = new MeshWallet({
+  networkId: 0,
+  fetcher: blockchainProvider,
+  submitter: blockchainProvider,
+  key: {
+    type: "mnemonic",
+    words: [
+      "your", "mnemonic", "...", "here",
+    ],
+  },
+});
+
+// Create and send a transaction
+const tx = new Transaction({ initiator: wallet }).sendLovelace(
+  "addr_test1qp2k7wnshzngpqw0xmy33hvexw4aeg60yr79x3yeeqt3s2uvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysdp6yv3",
+  "1000000"
+);
+
+const unsignedTx = await tx.build();
+const signedTx = await wallet.signTx(unsignedTx);
+const txHash = await wallet.submitTx(signedTx);
+console.log(txHash);
+```
+
+Explanation:
+
+- Wallet Initialization: The code sets up a new wallet using MeshWallet with a mnemonic key and a blockchain provider.
+- Transaction Creation: A new transaction is created to send 1 ADA to a specific address. The transaction is built, signed, and submitted to the blockchain.
+- Output: The transaction hash is logged to the console.
+
+### Run Your Application
+
+In the code, you must replace `YOUR\_KEY\_HERE` with a valid blockfrost key, and replace the mnemonic words with your own. You can visit [Blockfrost](https://blockfrost.io/) to get a free API key, and generate a new mnemonic key from the [Mesh website](https://meshjs.dev/apis/appwallet#generateWallet).
+
+Finally, start your application by running this command:
+
+```
+npm run dev
+```
+
+If everything is set up correctly, you should see the transaction hash logged to the console. Congratulations! You've successfully created a wallet and sent a transaction using MeshSDK.
+
+You can find the complete code for this guide in the [Mesh GitHub repo](https://github.com/MeshJS/standalone-template).

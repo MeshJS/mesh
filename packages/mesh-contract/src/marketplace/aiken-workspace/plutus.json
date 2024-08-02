@@ -1,0 +1,204 @@
+{
+  "preamble": {
+    "title": "meshjs/marketplace",
+    "description": "Aiken contracts for project 'meshjs/marketplace'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.29-alpha+unknown"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "marketplace.marketplace",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/marketplace~1types~1MarketplaceDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/marketplace~1types~1MarketplaceRedeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "owner",
+          "schema": {
+            "$ref": "#/definitions/aiken~1transaction~1credential~1Address"
+          }
+        },
+        {
+          "title": "fee_percentage_basis_point",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        }
+      ],
+      "compiledCode": "59082f01000032323232323232223223232322322533300b3232323232323232325333014300e30153754002264a66602a6020602c6ea80344c94ccc058c044c05cdd50008991919299980c99299980e8008a501533301d302000114a22940cc88c8cc00400400c894ccc08000452f5c026464a66603e66ebcc048c084dd5180898109baa00200513302300233004004001133004004001302400230220013758601860366ea8c030c06cdd50079806180d9baa300b301b37540062a6660320022004294052819803998049bac3008301a3754601660346ea803805cc018cdc199b82375a601460346ea805005520a09c0133006330083758600e60326ea8c028c064dd50069805180c9baa0133005337006eb4c024c064dd50099998059bab300930193754601260326ea8005220100488100301b301837540022c64660020026eb0c024c060dd51804980c1baa00c22533301a00114c0103d87a80001323253330193375e601860366ea80080144c038cc0740092f5c0266008008002603c0046038002264a66602c6022602e6ea80044cc88c8cc00400400c894ccc074004528099299980d99b8f375c604000400829444cc00c00c004c080004dd6180d980e180e180e180e180e180e180e180e180c1baa3009301837540186eb8c06cc060dd50008b19299980b1808980b9baa0011300b3301a301b3018375400297ae014c0103d87a80003008301737546010602e6ea8044c064c058dd50008a503005301537540124a666026601c002297adef6c6013232330010014bd6f7b63011299980c80089980d19bb04c01014000374c00697adef6c60132323232533301a3372091010000213301e337609801014000374c00e00a2a66603466e3d2210000213301e337609801014000374c00e00626603c66ec0dd48011ba600133006006003375660360066eb8c064008c074008c06c004c8cc0040052f5bded8c044a66603000226603266ec13001014000375000697adef6c6013232323253330193372091010000213301d337609801014000375000e00a2a66603266e3d2210000213301d337609801014000375000e00626603a66ec0dd48011ba800133006006003375a60340066eb8c060008c070008c06800488c8cc004004c8cc00400400c894ccc06400452f5c0264666444646600200200644a66603e0022006264660426e9ccc084dd480319810980f00099810980f800a5eb80cc00c00cc08c008c084004dd7180c0009bab301900133003003301d002301b00122533301800114a2264a66602c6466e24dd698038009998058031bae300a001375c60120026eb0c06c0084cc00c00c004528180d8009180b180b980b80091191980080080191299980b0008a5eb7bdb1804cc894ccc054cdd79804180b9baa0020051323330010010023756601060306ea800c8894ccc06c00840044c8ccc010010c07c00ccc88c8cc004004014894ccc0800044cc084cdd81ba9004374c00697adef6c6013232323253330213372001000426604a66ec0dd48041ba6007005153330213371e010004264a666044603a60466ea80044cc098cdd81ba9009302730243754002008200864a666044a66604a00229445280a6103d87a80001301733026374c00297ae03233300100100800222253330270021001132333004004302b0033322323300100100522533302c00113302d337606ea4010dd4001a5eb7bdb1804c8c8c8c94ccc0b4cdc800400109981899bb037520106ea001c01454ccc0b4cdc78040010992999817181498179baa001133032337606ea4024c0ccc0c0dd5000802080219299981718148008a60103d87a80001302333032375000297ae03370000e00226606266ec0dd48011ba800133006006003375a605c0066eb8c0b0008c0c0008c0b8004dd718130009bad30270013029002133025337606ea4008dd3000998030030019bab3022003375c6040004604800460440026eb8c068004dd5980d800980e8010800980c00099801001180c8009180a180a80091809800911192999808180518089baa0011480004dd6980a98091baa001325333010300a301137540022980103d87a8000132330010013756602c60266ea8008894ccc054004530103d87a80001323232325333016337220100042a66602c66e3c0200084c02ccc068dd4000a5eb80530103d87a8000133006006003375a602e0066eb8c054008c064008c05c004c8cc004004010894ccc0500045300103d87a80001323232325333015337220100042a66602a66e3c0200084c028cc064dd3000a5eb80530103d87a80001330060060033756602c0066eb8c050008c060008c058004dd2a400029309b2b19299980518028008a99980698061baa00214985854ccc028c01000454ccc034c030dd50010a4c2c2c60146ea8004c94ccc020c00cc024dd5002099191919191919192999809980b00109924ca666020601660226ea801c4c8c8c8c94ccc05cc0680084c8c926325333016301100113232533301b301e002132498c94ccc064c0500044c8c94ccc078c0840084c926301400116301f001301b37540042a66603260260022646464646464a666044604a0042930b1bad30230013023002375a604200260420046eb4c07c004c06cdd50010b180c9baa00116301c001301837540062a66602c60200022a66603260306ea800c526161630163754004601a0062c60300026030004602c00260246ea801c5858dd7180a000980a0011bae30120013012002375a60200026020004601c00260146ea8010588c94ccc024c0100044c8c94ccc038c04400852616375c601e00260166ea800854ccc024c00c0044c8c94ccc038c04400852616375c601e00260166ea800858c024dd50009b8748008dc3a40006eb40055cd2ab9d5573caae7d5d02ba157441",
+      "hash": "cd144c1e18d8e44dfeacb018a2795d17d7c30574a427eb2aa2dbc87c"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Option$aiken/transaction/credential/Referenced$aiken/transaction/credential/Credential": {
+      "title": "Optional",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Referenced$aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "aiken/transaction/credential/Address": {
+      "title": "Address",
+      "description": "A Cardano `Address` typically holding one or two credential references.\n\n Note that legacy bootstrap addresses (a.k.a. 'Byron addresses') are\n completely excluded from Plutus contexts. Thus, from an on-chain\n perspective only exists addresses of type 00, 01, ..., 07 as detailed\n in [CIP-0019 :: Shelley Addresses](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0019/#shelley-addresses).",
+      "anyOf": [
+        {
+          "title": "Address",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "payment_credential",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Credential"
+            },
+            {
+              "title": "stake_credential",
+              "$ref": "#/definitions/Option$aiken~1transaction~1credential~1Referenced$aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        }
+      ]
+    },
+    "aiken/transaction/credential/Credential": {
+      "title": "Credential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKeyCredential",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "ScriptCredential",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "aiken/transaction/credential/Referenced$aiken/transaction/credential/Credential": {
+      "title": "Referenced",
+      "description": "Represent a type of object that can be represented either inline (by hash)\n or via a reference (i.e. a pointer to an on-chain location).\n\n This is mainly use for capturing pointers to a stake credential\n registration certificate in the case of so-called pointer addresses.",
+      "anyOf": [
+        {
+          "title": "Inline",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "Pointer",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "slot_number",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "transaction_index",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "certificate_index",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "marketplace/types/MarketplaceDatum": {
+      "title": "MarketplaceDatum",
+      "anyOf": [
+        {
+          "title": "MarketplaceDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "seller",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Address"
+            },
+            {
+              "title": "price",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "policy",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "tokenName",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "marketplace/types/MarketplaceRedeemer": {
+      "title": "MarketplaceRedeemer",
+      "anyOf": [
+        {
+          "title": "Buy",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Close",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}

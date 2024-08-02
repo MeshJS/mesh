@@ -1,0 +1,67 @@
+{
+  "preamble": {
+    "title": "meshjs/vesting",
+    "description": "Aiken contracts for project 'meshjs/vesting'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.29-alpha+unknown"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "vesting.vesting",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/vesting~1types~1VestingDatum"
+        }
+      },
+      "redeemer": {
+        "title": "_redeemer",
+        "schema": {
+          "$ref": "#/definitions/ByteArray"
+        }
+      },
+      "compiledCode": "5901c801000032323232323232232232253330063232323253323300b3001300c3754600a601a6ea801854ccc02ccc010dd6180198069baa3002300d375400c6eb8c014c034dd50050a511533300b3300437586006601a6ea8c008c034dd50031bae301030113011300d3754014266446464646464a666024601060266ea80084c94ccc04c0104cdc40038008011bad301730143754004002264a666024601060266ea80084c94ccc04c0100084cdc48038009bad3017301437540040022940c054008cdc42400060206ea8c050c054004cc048c04c004cc048ccc038cdc424000601e6ea8c04cc05000530103d87a80004c0103d87980004bd7018079baa3004300f375400460206022602260226022602260226022601a6ea8c008c034dd50031bad3002300d37540142940dc3a400429408c03c0048c038c03cc03cc03cc03cc03cc03cc03cc03c00488c8cc00400400c894ccc038004528099299980619b8f375c602200400829444cc00c00c004c0440048c030c03400452613656375c002a66600466e1d2000300337540022646464646464a666016601c0042930b1bae300c001300c002375c601400260140046eb4c020004c010dd50008b2b9a5573aaae7955cfaba05742ae89",
+      "hash": "5978a5118ecb36ad827390a21769bfa680ffc499d364bad913b4dffa"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "vesting/types/VestingDatum": {
+      "title": "VestingDatum",
+      "anyOf": [
+        {
+          "title": "VestingDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "lock_until",
+              "description": "POSIX time in second, e.g. 1672843961000",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "owner",
+              "description": "Owner's credentials",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "beneficiary",
+              "description": "Beneficiary's credentials",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

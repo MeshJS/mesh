@@ -18,29 +18,28 @@ jobs:
         node-version: [20]
     steps:
       - uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.2.0
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
       - name: Install dependencies
-        run: pnpm install
+        run: npm install
       - name: Lint
-        run: pnpm lint
+        run: npm run lint
       - name: Build
-        run: pnpm build
+        run: npm run build:mesh && npm run build:docs && npm run build:apps
 
   check-version:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
     outputs:
+      common-version-updated: ${{ steps.compare-versions.outputs.common-version-updated }}
+      contract-version-updated: ${{ steps.compare-versions.outputs.contract-version-updated }}
       core-version-updated: ${{ steps.compare-versions.outputs.core-version-updated }}
+      core-csl-version-updated: ${{ steps.compare-versions.outputs.core-csl-version-updated }}
+      core-cst-version-updated: ${{ steps.compare-versions.outputs.core-cst-version-updated }}
+      provider-version-updated: ${{ steps.compare-versions.outputs.provider-version-updated }}
       react-version-updated: ${{ steps.compare-versions.outputs.react-version-updated }}
-      contracts-version-updated: ${{ steps.compare-versions.outputs.react-version-updated }}
+      transaction-version-updated: ${{ steps.compare-versions.outputs.transaction-version-updated }}
+      wallet-version-updated: ${{ steps.compare-versions.outputs.wallet-version-updated }}
     steps:
       - name: Checkout main branch at commit before merge
         uses: actions/checkout@v4
@@ -50,46 +49,130 @@ jobs:
       - name: Get package version from main branch before merge
         id: pre-merge-version
         run: |
-          CORE_PRE_MERGE_VERSION=$(node -p "require('./packages/core/package.json').version")
-          REACT_PRE_MERGE_VERSION=$(node -p "require('./packages/react/package.json').version")
-          CONTRACTS_PRE_MERGE_VERSION=$(node -p "require('./packages/contracts/package.json').version")
+          COMMON_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-common/package.json').version")
+          CONTRACT_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-contract/package.json').version")
+          CORE_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core/package.json').version")
+          CORE_CSL_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core-csl/package.json').version")
+          CORE_CST_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core-cst/package.json').version")
+          PROVIDER_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core-cst/package.json').version")
+          REACT_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-react/package.json').version")
+          TRANSACTION_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
+          WALLET_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
+          echo "common_pre_merge_version=$COMMON_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "contract_pre_merge_version=$CONTRACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "core_pre_merge_version=$CORE_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "core_csl_pre_merge_version=$CORE_CSL_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "core_cst_pre_merge_version=$CORE_CST_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "provider_pre_merge_version=$PROVIDER_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "react_pre_merge_version=$REACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "react_pre_merge_version=$CONTRACTS_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "transaction_pre_merge_version=$TRANSACTION_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "wallet_pre_merge_version=$WALLET_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Checkout main branch at commit after merge
         uses: actions/checkout@v4
         with:
-          ref: 'main'
+          ref: "main"
 
       - name: Get package version from main branch after merge
         id: post-merge-version
         run: |
-          CORE_POST_MERGE_VERSION=$(node -p "require('./packages/core/package.json').version")
-          REACT_POST_MERGE_VERSION=$(node -p "require('./packages/react/package.json').version")
-          CONTRACTS_POST_MERGE_VERSION=$(node -p "require('./packages/contracts/package.json').version")
+          COMMON_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-common/package.json').version")
+          CONTRACT_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-contract/package.json').version")
+          CORE_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core/package.json').version")
+          CORE_CSL_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core-csl/package.json').version")
+          CORE_CST_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core-cst/package.json').version")
+          PROVIDER_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core-cst/package.json').version")
+          REACT_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-react/package.json').version")
+          TRANSACTION_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
+          WALLET_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
+          echo "common_post_merge_version=$COMMON_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "contract_post_merge_version=$CONTRACT_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "core_post_merge_version=$CORE_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "core_csl_post_merge_version=$CORE_CSL_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "core_cst_post_merge_version=$CORE_CST_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "provider_post_merge_version=$PROVIDER_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "react_post_merge_version=$REACT_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "react_post_merge_version=$CONTRACTS_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "transaction_post_merge_version=$TRANSACTION_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "wallet_post_merge_version=$WALLET_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Compare versions
         id: compare-versions
         run: |
+          if [[ "${{ steps.pre-merge-version.outputs.common_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.common_post_merge_version }}" ]]; then
+              echo "common-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "common-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${{ steps.pre-merge-version.outputs.contract_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.contract_post_merge_version }}" ]]; then
+              echo "contract-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "contract-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
           if [[ "${{ steps.pre-merge-version.outputs.core_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.core_post_merge_version }}" ]]; then
               echo "core-version-updated=true" >> "$GITHUB_OUTPUT"
           else
               echo "core-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${{ steps.pre-merge-version.outputs.core_csl_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.core_csl_post_merge_version }}" ]]; then
+              echo "core-csl-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "core-csl-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${{ steps.pre-merge-version.outputs.core_cst_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.core_cst_post_merge_version }}" ]]; then
+              echo "core-cst-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "core-cst-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${{ steps.pre-merge-version.outputs.provider_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.provider_post_merge_version }}" ]]; then
+              echo "provider-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "provider-version-updated=false" >> "$GITHUB_OUTPUT"
           fi
           if [[ "${{ steps.pre-merge-version.outputs.react_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.react_post_merge_version }}" ]]; then
               echo "react-version-updated=true" >> "$GITHUB_OUTPUT"
           else
               echo "react-version-updated=false" >> "$GITHUB_OUTPUT"
           fi
-          if [[ "${{ steps.pre-merge-version.outputs.contracts_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.contracts_post_merge_version }}" ]]; then
-              echo "contracts-version-updated=true" >> "$GITHUB_OUTPUT"
+          if [[ "${{ steps.pre-merge-version.outputs.transaction_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.transaction_post_merge_version }}" ]]; then
+              echo "transaction-version-updated=true" >> "$GITHUB_OUTPUT"
           else
-              echo "contracts-version-updated=false" >> "$GITHUB_OUTPUT"
+              echo "transaction-version-updated=false" >> "$GITHUB_OUTPUT"
           fi
+          if [[ "${{ steps.pre-merge-version.outputs.wallet_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.wallet_post_merge_version }}" ]]; then
+              echo "wallet-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "wallet-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish-meshsdk-common:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.common-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm install && npm run build
+      - run: cd packages/mesh-common && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+  publish-meshsdk-contract:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.contract-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm install && npm run build
+      - run: cd packages/mesh-contract && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
 
   publish-meshsdk-core:
     needs: [build, check-version]
@@ -101,8 +184,53 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
-      - run: pnpm build --filter="./packages/*"
-      - run: cd packages/core && npm publish --access public
+      - run: npm install && npm run build
+      - run: cd packages/mesh-core && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+  publish-meshsdk-core-csl:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.core-csl-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm install && npm run build
+      - run: cd packages/mesh-core-csl && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+  publish-meshsdk-core-cst:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.core-cst-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm install && npm run build
+      - run: cd packages/mesh-core-cst && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+  publish-meshsdk-provider:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.provider-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm install && npm run build
+      - run: cd packages/mesh-provider && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
 
@@ -116,14 +244,14 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
-      - run: pnpm build --filter="./packages/*"
-      - run: cd packages/react && npm publish --access public
+      - run: npm install && npm run build
+      - run: cd packages/mesh-react && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
 
-  publish-meshsdk-contracts:
+  publish-meshsdk-transaction:
     needs: [build, check-version]
-    if: needs.check-version.outputs.contracts-version-updated == 'true'
+    if: needs.check-version.outputs.transaction-version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -131,7 +259,22 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
-      - run: pnpm build --filter="./packages/*"
-      - run: cd packages/contracts && npm publish --access public
+      - run: npm install && npm run build
+      - run: cd packages/mesh-transaction && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+  publish-meshsdk-wallet:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.wallet-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm install && npm run build
+      - run: cd packages/mesh-wallet && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}

@@ -1,0 +1,58 @@
+{
+  "name": "@meshsdk/react",
+  "version": "1.5.32",
+  "description": "",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    "./styles.css": "./dist/index.css",
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts && tailwindcss -i ./src/styles.css -o ./dist/index.css",
+    "lint": "eslint",
+    "dev_old": "tailwindcss -i ./src/styles.css -o ./dist/index.css --watch",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "format": "prettier --check . --ignore-path ../../.gitignore"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "@meshsdk/common": "*",
+    "@meshsdk/transaction": "*",
+    "@meshsdk/wallet": "*"
+  },
+  "devDependencies": {
+    "@meshsdk/eslint-config": "*",
+    "@meshsdk/tailwind-config": "*",
+    "@meshsdk/typescript-config": "*",
+    "@types/react": "^18.2.61",
+    "autoprefixer": "^10.4.18",
+    "postcss": "^8.4.35",
+    "react": "^18.2.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "latest"
+  },
+  "prettier": "@meshsdk/prettier-config",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "cardano",
+    "ada",
+    "web3",
+    "blockchain",
+    "sdk"
+  ]
+}

@@ -1,0 +1,22 @@
+import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
+
+export const metadata = {
+  id: "multisig-minting",
+  title: "Multi-Signatures Transaction (Minting)",
+  description: "Create a multi-sig transaction and mint NFTs",
+  cover: "/guides/multi-signatures-transaction.png",
+  image: "/guides/keys-g25a80b203_1280.jpg",
+};
+
+export default function MDXPage({ children }) {
+  return (
+    <LayoutImageHeaderAndBody
+      title={metadata.title}
+      description={metadata.description}
+      image={metadata.image}
+      cover={metadata.cover}
+    >
+      {children}
+    </LayoutImageHeaderAndBody>
+  );
+}

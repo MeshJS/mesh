@@ -1,0 +1,174 @@
+import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
+
+export const metadata = {
+  title: "Multi-Signatures Transaction (Minting)",
+  description: "Create a multi-sig transaction and mint NFTs",
+  cover: "/guides/multi-signatures-transaction.png",
+  image: "/guides/keys-g25a80b203_1280.jpg",
+};
+
+export default function MDXPage({ children }) {
+  return (
+    <LayoutImageHeaderAndBody
+      title={metadata.title}
+      description={metadata.description}
+      image={metadata.image}
+      cover={metadata.cover}
+    >
+      {children}
+    </LayoutImageHeaderAndBody>
+  );
+}
+
+A multi-signature (multi-sig) transaction requires more than one user to sign a transaction prior to the transaction being broadcast on a blockchain. You can think of it like a husband and wife savings account, where both signatures are required to spend the funds, preventing one spouse from spending the money without the approval of the other. For a multi-sig transaction, you can include 2 or more required signers, these signers can be wallets ([Browser Wallet](https://meshjs.dev/apis/browserwallet) or [App Wallet](https://meshjs.dev/apis/appwallet)) or Plutus script.
+
+In this guide, we will build a multi-sig transaction for minting. There are 2 wallets involved,
+
+1. client wallet belonging to the user who wishes to buy a native asset, and
+2. application wallet that holds the forging script.
+
+## See it in action
+
+In this guide, we will connect our CIP wallet (**BrowserWallet**) to request for a minting transaction. Then, the backend application wallet (**AppWallet**) will build the transaction, and we will sign it with our wallet. Finally, the application wallet will sign the transaction and submit it to the blockchain. Note: this demo is on **preprod** network only.
+
+Let's see it in action.
+
+Connect Wallet
+
+## Connect wallet (client)
+
+In this section, we will connect client's wallet and obtain their wallet address and UTXO.
+
+Users can connect their wallet with **BrowserWallet**:
+
+```
+import { BrowserWallet } from '@meshsdk/core';
+const wallet = await BrowserWallet.enable(walletName);
+```
+
+Then, we get client's wallet address and UTXOs:
+
+```
+const recipientAddress = await wallet.getChangeAddress();
+const utxos = await wallet.getUtxos();
+```
+
+The change address will be the address receiving the minted NFTs and the transaction's change. Additionally, we will need the client's wallet UTXOs to build the minting transaction.
+
+## Build transaction (application)
+
+In this section, we will build the minting transaction.
+
+In this guide, we won't be showing how to set up RESTful APIs and backend servers. There are thousands of tutorials on YouTube, we recommend building your backend server with [Vercel API](https://vercel.com/docs/rest-api) or [NestJs](https://www.youtube.com/results?search_query=nestjs).
+
+First, we initialize the [blockchain provider](https://meshjs.dev/apis/providers) and **AppWallet**. In this example, we use mnemonic to restore our wallet, but you can initialize a wallet with mnemonic phrases, private keys, and Cardano CLI generated keys, see [App Wallet](https://meshjs.dev/apis/appwallet).
+
+```
+const blockchainProvider = new BlockfrostProvider(
+  '<blockfrost key here>'
+);
+
+const appWallet = new AppWallet({
+  networkId: 0,
+  fetcher: blockchainProvider,
+  submitter: blockchainProvider,
+  key: {
+    type: 'mnemonic',
+    words: yourMnemonic,
+  },
+});
+```
+
+Next, let's define the forging script, here we used the first wallet address, but you can also define using **NativeScript**, see [Transaction - Minting assets](https://meshjs.dev/apis/transaction):
+
+```
+const appWalletAddress = appWallet.getPaymentAddress();
+const forgingScript = ForgeScript.withOneSignature(appWalletAddress);
+```
+
+Then, we define the **AssetMetadata** which contains the NFT metadata. In a NFT collection mint, you would need a selection algorithm and a database to select available NFTs.
+
+```
+const assetName = 'MeshToken';
+
+const assetMetadata: AssetMetadata = {
+  name: 'Mesh Token',
+  image: 'ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua',
+  mediaType: 'image/jpg',
+  description: 'This NFT was minted by Mesh (https://meshjs.dev/).',
+};
+```
+
+After that, we create the **Mint** object:
+
+```
+const asset: Mint = {
+  assetName: assetName,
+  assetQuantity: '1',
+  metadata: assetMetadata,
+  label: '721',
+  recipient: recipientAddress,
+};
+```
+
+Finally, we are ready to create the transaction. Instead of using every UTXOs from the client's wallet as transaction's inputs, we can use **largestFirst** to get the UTXOs required for this transaction. In this transaction, we send the payment to a predefined wallet address (**bankWalletAddress**).
+
+```
+const costLovelace = '10000000';
+const selectedUtxos = largestFirst(costLovelace, utxos, true);
+const bankWalletAddress = 'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwetaeuvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmysm5e6yx';
+```
+
+Let's create the transaction.
+
+```
+const tx = new Transaction({ initiator: appWallet });
+tx.setTxInputs(selectedUtxos);
+tx.mintAsset(forgingScript, asset);
+tx.sendLovelace(bankWalletAddress, costLovelace);
+tx.setChangeAddress(recipientAddress);
+const unsignedTx = await tx.build();
+```
+
+Instead of sending the transaction containing the actual metadata, we will mask the metadata so clients do not know the content of the NFT. First we extract the original metadata's CBOR with **Transaction.readMetadata**, and execute **Transaction.maskMetadata** to create a masked transaction.
+
+```
+const originalMetadata = Transaction.readMetadata(unsignedTx);
+// you want to store 'assetName' and 'originalMetadata' into the database so you can retrive it later
+const maskedTx = Transaction.maskMetadata(unsignedTx);
+```
+
+We will send the transaction CBOR (**maskedTx**) to the client for signing.
+
+## Sign transaction (client)
+
+In this section, we need the client's signature to send the payment to the **bankWalletAddress**. The client's wallet will open and prompts for payment password. Note that the partial sign is set to **true**.
+
+```
+const signedTx = await wallet.signTx(maskedTx, true);
+```
+
+We will send the **signedTx** to the backend to complete the transaction.
+
+## Sign transaction (application)
+
+In this section, we will update the asset's metadata with the actual metadata, and the application wallet will counter sign the transaction.
+
+Let's update the metadata to the actual asset's metadata. We retrieve the **originalMetadata** from the database and update the metadata with **Transaction.writeMetadata**.
+
+```
+// here you want to retrieve the 'originalMetadata' from the database
+const signedOriginalTx = Transaction.writeMetadata(
+  signedTx,
+  originalMetadata
+);
+```
+
+Sign the transaction with the application wallet and submit the transaction:
+
+```
+const appWalletSignedTx = await appWallet.signTx(signedOriginalTx, true);
+const txHash = await appWallet.submitTx(appWalletSignedTx);
+```
+
+Voila! You can build any multi-sig transactions!

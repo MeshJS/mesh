@@ -1,0 +1,53 @@
+import { useState } from "react";
+
+import { AssetMetadata, Mint, PlutusScript } from "@meshsdk/core";
+import { Transaction } from "@meshsdk/core";
+import { useWallet } from "@meshsdk/react";
+
+import { getMeshWallet } from "~/components/cardano/mesh-wallet";
+import Input from "~/components/form/input";
+import InputTable from "~/components/sections/input-table";
+import LiveCodeDemo from "~/components/sections/live-code-demo";
+import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import Codeblock from "~/components/text/codeblock";
+import { SupportedListeners } from ".";
+
+export default function ListenerOnTransactionConfirmed({
+  blockchainProvider,
+  provider,
+}: {
+  blockchainProvider: SupportedListeners;
+  provider: string;
+}) {
+  return (
+    <TwoColumnsScroll
+      sidebarTo="onTxConfirmed"
+      title="On Transaction Confirmed"
+      leftSection={Left()}
+    />
+  );
+}
+
+function Left() {
+  let code = ``;
+  code += `const tx = new Transaction({ initiator: wallet });\n`;
+  code += `tx.sendLovelace('addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr', '5000000');\n`;
+  code += `\n`;
+  code += `const unsignedTx = await tx.build();\n`;
+  code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+  code += `\n`;
+  code += `blockchainProvider.onTxConfirmed(txHash, () => {\n`;
+  code += `  console.log('Transaction confirmed');\n`;
+  code += `});\n`;
+
+  return (
+    <>
+      <p>
+        Allow you to listen to a transaction confirmation. Upon confirmation,
+        the callback will be called.
+      </p>
+      <Codeblock data={code} isJson={false} />
+    </>
+  );
+}

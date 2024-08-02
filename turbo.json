@@ -6,12 +6,41 @@
   "tasks": {
     "build": {
       "dependsOn": [
-        "^build"
+        "^build:mesh",
+        "^build:docs",
+        "^build:apps"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
       ]
     },
-    "test": {
+    "build:apps": {
       "dependsOn": [
-        "^test"
+        "^build:mesh",
+        "^build:docs",
+        "^build:apps"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "build:docs": {
+      "dependsOn": [
+        "^build:mesh",
+        "^build:docs"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "build:mesh": {
+      "dependsOn": [
+        "^build:mesh"
+      ],
+      "outputs": [
+        "dist/**"
       ]
     },
     "lint": {
@@ -20,8 +49,22 @@
       ]
     },
     "dev": {
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false,
       "persistent": true
-    }
-  }
+    },
+    "clean": {
+      "cache": false
+    },
+    "format": {
+      "outputs": [
+        "node_modules/.cache/.prettiercache"
+      ],
+      "outputLogs": "new-only"
+    },
+    "test": {}
+  },
+  "ui": "tui"
 }
