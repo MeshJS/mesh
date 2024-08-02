@@ -1,0 +1,83 @@
+{
+  "preamble": {
+    "title": "fabianbormann/payment-splitter",
+    "description": "Aiken contracts for project 'fabianbormann/payment-splitter'",
+    "version": "0.1.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.29-alpha+unknown"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "payment_splitter.payout",
+      "datum": {
+        "title": "_datum",
+        "schema": {
+          "$ref": "#/definitions/payment_splitter~1Datum"
+        }
+      },
+      "redeemer": {
+        "title": "_redeemer",
+        "schema": {
+          "$ref": "#/definitions/payment_splitter~1Redeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "scriptHashes",
+          "schema": {
+            "$ref": "#/definitions/List$ByteArray"
+          }
+        }
+      ],
+      "compiledCode": "5903a5010000323232323232322322322322533300832323232323232323232323253330143375e6e9cccc8c0040048894ccc06800440084ccc00c00cc8c8cc004004010894ccc07400452f5c026464a66603866ebc00801440044cc080008cc010010004c084008c07c004c070004c074004cc8c004004894ccc06400452f5c026466036002660060066600e603a004466603066ebc00400928251301b001323300100100722533301900114bd7009980d1806180c1baa300c3018375460360026600400460380020169801018000100114a0646600200200444a66603000229444c94ccc058cdc39bad301b00233005533301900414c0103d87a80001300e3301a301b0044bd70240002660060060022940c06c004c8cc004004028894ccc05c00452f5c02660306ea0c8c8c8c8c8c94ccc068cdc424000002266e04008cdc08009802005880119980119804806919baf3010301c3754602060386ea8c014c070dd5000803240004466e00004c014dd59803180e9baa3006301d375400466600266010014466ebcc03cc06cdd51807980d9baa0010054800088cdc000098021bab3005301c3754004444646600200200844a66603e0022008266006604200266004004604400246600c64a66603066e1d200230193754002298103d87a8000132330010013756603c60366ea8008894ccc074004530103d87a8000132323232533301e33722911000021533301e3371e9101000021301633022375000297ae014c0103d87a8000133006006003375a603e0066eb8c074008c084008c07c004c8cc004004008894ccc0700045300103d87a8000132323232533301d33722911000021533301d3371e9101000021301533021374c00297ae014c0103d87a80001330060060033756603c0066eb8c070008c080008c07800520002301b301c001301900133002002301a0012253330133370e9001180a1baa00210011375a6030602a6ea800888c8cc00400400c894ccc05c00452f5c026464a66602c600a00426603400466008008002266008008002603600460320026eacc050c054008dd61809800980998098011bac3011001300d37546002601a6ea80108c040004c8cc004004020894ccc03800452f5c026601e60066601e602000297ae0330020023011001374a90000a4c26caca66600c66e1d20003007375400226464a666016601c0042930b1bae300c001300837540022ca66600866e1d20003005375400226464a66601260180042930b1bae300a001300637540022c6eb00055cd2ab9d5573caae7d5d02ba157441",
+      "hash": "0776032753d2900f7c1e933af4108c53851e10ca95fa10e34af90277"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "List$ByteArray": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/ByteArray"
+      }
+    },
+    "payment_splitter/Datum": {
+      "title": "Datum",
+      "anyOf": [
+        {
+          "title": "Datum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "payment_splitter/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "message",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

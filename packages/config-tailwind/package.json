@@ -1,0 +1,13 @@
+{
+  "name": "@meshsdk/tailwind-config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./tailwind.config.ts"
+  },
+  "devDependencies": {
+    "@meshsdk/typescript-config": "*",
+    "tailwindcss": "^3.4.1"
+  },
+  "license": "Apache-2.0"
+}

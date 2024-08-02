@@ -1,0 +1,49 @@
+{
+  "name": "@meshsdk/provider",
+  "version": "1.5.32",
+  "description": "",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts --minify",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "lint": "eslint",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "test": "jest --verbose",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-providers.json"
+  },
+  "devDependencies": {
+    "@meshsdk/typescript-config": "*",
+    "eslint": "^8.57.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@meshsdk/common": "*",
+    "@meshsdk/core-cst": "*",
+    "axios": "^1.7.2"
+  },
+  "prettier": "@meshsdk/prettier-config",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "cardano",
+    "ada",
+    "web3",
+    "blockchain",
+    "sdk"
+  ]
+}

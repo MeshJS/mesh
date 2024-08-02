@@ -1,0 +1,55 @@
+{
+  "name": "@meshsdk/core-cst",
+  "version": "1.5.32",
+  "description": "",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts --minify",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "lint": "eslint",
+    "test": "jest --verbose",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "format": "prettier --check . --ignore-path ../../.gitignore"
+  },
+  "devDependencies": {
+    "@meshsdk/eslint-config": "*",
+    "@meshsdk/typescript-config": "*",
+    "@types/pbkdf2": "^3.1.2",
+    "eslint": "^8.57.0",
+    "ts-jest": "^29.1.4",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@cardano-sdk/core": "^0.35.4",
+    "@cardano-sdk/crypto": "^0.1.28",
+    "@cardano-sdk/util": "^0.15.4",
+    "@meshsdk/common": "*",
+    "@stricahq/bip32ed25519": "^1.1.0",
+    "hash.js": "^1.1.7",
+    "pbkdf2": "^3.1.2"
+  },
+  "prettier": "@meshsdk/prettier-config",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "cardano",
+    "ada",
+    "web3",
+    "blockchain",
+    "sdk"
+  ]
+}

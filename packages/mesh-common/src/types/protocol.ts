@@ -1,0 +1,22 @@
+export type Protocol = {
+  epoch: number;
+  minFeeA: number;
+  minFeeB: number;
+  maxBlockSize: number;
+  maxTxSize: number;
+  maxBlockHeaderSize: number;
+  keyDeposit: number;
+  poolDeposit: number;
+  decentralisation: number;
+  minPoolCost: string;
+  priceMem: number;
+  priceStep: number;
+  maxTxExMem: string;
+  maxTxExSteps: string;
+  maxBlockExMem: string;
+  maxBlockExSteps: string;
+  maxValSize: number;
+  collateralPercent: number;
+  maxCollateralInputs: number;
+  coinsPerUtxoSize: number;
+};

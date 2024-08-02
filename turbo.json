@@ -1,27 +1,38 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [
-    "**/.env.*local"
-  ],
+  "globalDependencies": ["**/.env.*local"],
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^build:mesh", "^build:docs", "^build:apps"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
-    "test": {
-      "dependsOn": [
-        "^test"
-      ]
+    "build:apps": {
+      "dependsOn": ["^build:mesh", "^build:docs", "^build:apps"],
+      "outputs": ["dist/**"]
+    },
+    "build:docs": {
+      "dependsOn": ["^build:mesh", "^build:docs"],
+      "outputs": ["dist/**"]
+    },
+    "build:mesh": {
+      "dependsOn": ["^build:mesh"],
+      "outputs": ["dist/**"]
     },
     "lint": {
-      "dependsOn": [
-        "^lint"
-      ]
+      "dependsOn": ["^lint"]
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
+    },
+    "clean": {
+      "cache": false
+    },
+    "format": {
+      "outputs": ["node_modules/.cache/.prettiercache"],
+      "outputLogs": "new-only"
     }
-  }
+  },
+  "ui": "tui"
 }

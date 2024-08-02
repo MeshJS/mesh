@@ -1,0 +1,46 @@
+{
+  "name": "@meshsdk/common",
+  "version": "1.5.32",
+  "description": "",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts --minify",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "lint": "eslint",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-common.json"
+  },
+  "dependencies": {
+    "@emurgo/cip14-js": "3.0.1",
+    "bip39": "3.1.0"
+  },
+  "devDependencies": {
+    "@meshsdk/eslint-config": "*",
+    "@meshsdk/typescript-config": "*",
+    "eslint": "^8.57.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "prettier": "@meshsdk/prettier-config",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "cardano",
+    "ada",
+    "web3",
+    "blockchain",
+    "sdk"
+  ]
+}

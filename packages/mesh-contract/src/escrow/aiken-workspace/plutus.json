@@ -1,0 +1,238 @@
+{
+  "preamble": {
+    "title": "meshjs/escrow",
+    "description": "Aiken contracts for project 'meshjs/escrow'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.29-alpha+unknown"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "escrow.escrow",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/escrow~1types~1EscrowDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/escrow~1types~1EscrowRedeemer"
+        }
+      },
+      "compiledCode": "590c2f01000032323232323232232323232323232232322533300d323232323232323232323232323232533301c3019301d37540022646464646464a666044604060466ea80044c8c94ccc090c0880044c8c8c8c8c8c8c94ccc0b8c0c400c4c94ccc0bcc0c800c4c94ccc0b4c08cc0b8dd5000899192999817981298181baa0011325333030302e30313754006264646464a66606e6074004264646464a66607066ebc024cdd2a40046607800e660786e98014cc0f004ccc0f0dd300925eb804004528198111bab302830393754018660426eacc0a0c0e4dd51814181c9baa00d3020011302f0073302f00223233031375660720044646eb4c0ec008dd7181c8009bae3037001302f00316375660700026070004606c00260646ea800c58c0d0c0c4dd50008b180d98181baa0033032302f37540022c6032605c6ea8c074c0b8dd50010b18180010b18178011bac302e302f0023758605a002660566e9ccc058028014cc0acdd39980a804002a5eb80dd598159816001181500098131baa01b153330243021001132323232533302b302e0031533302b0021325333029301f302a375400226464a666056605260586ea80084c94ccc0b0c0a8c0b4dd50008998098061bae3031302e37540022c60266060605a6ea80084c8c8c8c8c8c8c8c94ccc0ccc0c4c0d0dd500089919299981a9819981b1baa0011533303532330010013303a375200666074607660706ea80092f5c044a66607400229404c94ccc0e0cc07c060dd7181e8010a51133003003001303d00115333035005100414a0294058c070014dd7181c181a9baa00116301a0063301c33017012002301a3756606c606e006660366602c02200860326eacc0d400cc0d0004c0d0004c0cc008c0c4004c0b4dd50011811800981718159baa001163015302a3754603260546ea80045858c0b0008dd6181598160011bac302a00133028374e6602600e004660506e9ccc0480140092f5c0264646464a666056605c0062a666056004264a666052603e60546ea80044c94ccc0a8c09cc0acdd500089919191919191919299981a981c001099191919191919299981c981b981d1baa00113232533303b3039303c37540022a6660766466002002660806ea400ccc100c104c0f8dd500125eb80894ccc100004528899299981f1981280f1bae304300213300300300114a060860022a66607600a200829405280b18110059bae303e303b37540022c604001a660446603a0300106040014660426603802e016603e00a6605e008464660626eacc0e40088c8dd6981d8011bae3039001375c606e002605e00a6605a00c4646605e6eacc0dc0088c8dd6981c8011bae3037001375c606a002605a00e2c6eacc0d8004c0d8008c0d0004c0d0008dd598190009819001181800098161baa00116302e302b37540022c602a60546ea8c064c0a8dd50008b0b18160011bac302b302c00237586054002660506e9ccc04c01c008cc0a0dd39980900280125eb80c090dd500d180918121baa301330243754604e60486ea800458c8c8cc004004018894ccc09c004530103d87a80001323253330263375e602c60506ea80080144c048cc0a80092f5c026600800800260560046052002604c60466ea8018dd618129813181318131813181318130011bac30240013024302400237586044002603c6ea8c030c078dd50080a50300c301d375401e44646600200200644a666042002297adef6c601332253330203375e602060446ea80080144cc028004dd5980898111baa0021001302300133002002302400122323300100100322533302000114a0264a66603c66e3cdd718118010020a511330030030013023001232533301a3018301b37540022600c6603c603e60386ea80052f5c02980103d87a80003009301b37540024646600200200444a66603a002297adef6c6013322323233330110030020012226323200232323300100100322533302400114984c94ccc09400454ccc088c010dd6981218138010a4c2c264646464a66604c66e40dd718138021bae30270031533302630080011330070073302a0030021616375a604e00660540066050004604e004604e002466603e603a002941289bab301f003375c603a004603e0026600400460400024464666002002006004444a66603c00420022646660080086044006666601e0046eb8c074004dd5980f00091119299981029998118008a5114a02980103d87a80001300c33024374c00297ae0323330010010030022225333025002100113233300400430290033322323300100100522533302a00113302b337606ea4010dd4001a5eb7bdb1804c8c8c8c94ccc0accdc800400109981799bb037520106ea001c01454ccc0accdc78040010992999816181518169baa001133030337606ea4024c0c4c0b8dd5000802080219299981618150008a60103d87a80001301833030375000297ae03370000e00226605e66ec0dd48011ba800133006006003375a60580066eb8c0a8008c0b8008c0b0004dd718120009bad302500130270023020002223233001001323300100100322533301d00114bd7009919991119198008008019129998118008801899198129ba733025375200c6604a60440026604a604600297ae03300300330270023025001375c60380026eacc074004cc00c00cc084008c07c004894ccc070004528899299980d1919b89375a6010002664464a66603c6036603e6ea8004520001375a604660406ea8004c94ccc078c06cc07cdd50008a6103d87a8000132330010013756604860426ea8008894ccc08c004530103d87a80001323232325333024337220100042a66604866e3c0200084c040cc0a0dd4000a5eb80530103d87a8000133006006003375a604a0066eb8c08c008c09c008c094004c8cc004004024894ccc0880045300103d87a80001323232325333023337220100042a66604666e3c0200084c03ccc09cdd3000a5eb80530103d87a8000133006006003375660480066eb8c088008c098008c090004dd718058009bae300c0013758603e0042660060060022940c07c004dd2a40004603260346034002446600c004466ebcc014c05cdd50008011119802801119baf300430163754600a602c6ea80040088c0580048c054c05800488c8cc00400400c894ccc05400452f5c026464a666028600a004266030004660080080022660080080026032004602e0024444646600200200a44a66602c00226602e66ec0dd48029ba60044bd6f7b630099191919299980b99b9000900213301b337606ea4024dd30040028a99980b99b8f009002132533301830163019375400226603866ec0dd4805180e980d1baa001004100433300700900800113301b337606ea4008dd3000998030030019bab3018003375c602c0046034004603000229309b2b19299980618050008991919192999809980b0010991924c660160044646601a6eacc0540088c8dd6980b8011bae3015001375c602600260160062c6eacc050004c050008c048004c038dd50018a99980618048008a99980798071baa00314985854ccc030c00800454ccc03cc038dd50018a4c2c2c60186ea8008dc3a4008600200e464a666012600e002264646464a6660206026004264649319804001119198051bab3012002232375a60280046eb8c048004dd7180800098040018b1bab30110013011002300f001300b37540042a666012600c00226464646464646464a666028602e0042646464649319807002119198081bab3018002232375a60340046eb8c060004dd7180b000980700299806003119198071bab3016002232375a60300046eb8c058004dd7180a00098060038b1bab3015001301500230130013013002375660220026022004601e00260166ea800858c024dd50009119198008008019129998068008a4c2646600600660220046006601e0024a66600c6008600e6ea80044c8c8c8c94ccc034c0400084c8c92632533300c300a0011323253330113014002132498c94ccc03cc0340044c8c94ccc050c05c0084c926300d001163015001301137540042a66601e60180022646464646464a66603060360042930b1bad30190013019002375a602e002602e0046eb4c054004c044dd50010b18079baa001163012001300e37540062a66601860120022a66601e601c6ea800c5261616300c3754004600c0062c601c002601c004601800260106ea8004588c94ccc018c0100044c8c94ccc02cc03800852616375c601800260106ea800854ccc018c00c0044c8c94ccc02cc03800852616375c601800260106ea800858c018dd50009b8748008dc3a4000ae6955ceaab9e5573eae815d0aba201",
+      "hash": "bb0ead2a88fda451e0e5e01ff096309c06c1a6eb2206209d20243aaa"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "List$Pair$ByteArray_Int": {
+      "dataType": "map",
+      "keys": {
+        "$ref": "#/definitions/ByteArray"
+      },
+      "values": {
+        "$ref": "#/definitions/Int"
+      }
+    },
+    "List$Pair$ByteArray_List$Pair$ByteArray_Int": {
+      "dataType": "map",
+      "keys": {
+        "$ref": "#/definitions/ByteArray"
+      },
+      "values": {
+        "$ref": "#/definitions/List$Pair$ByteArray_Int"
+      }
+    },
+    "Option$aiken/transaction/credential/Referenced$aiken/transaction/credential/Credential": {
+      "title": "Optional",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Referenced$aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "aiken/transaction/credential/Address": {
+      "title": "Address",
+      "description": "A Cardano `Address` typically holding one or two credential references.\n\n Note that legacy bootstrap addresses (a.k.a. 'Byron addresses') are\n completely excluded from Plutus contexts. Thus, from an on-chain\n perspective only exists addresses of type 00, 01, ..., 07 as detailed\n in [CIP-0019 :: Shelley Addresses](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0019/#shelley-addresses).",
+      "anyOf": [
+        {
+          "title": "Address",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "payment_credential",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Credential"
+            },
+            {
+              "title": "stake_credential",
+              "$ref": "#/definitions/Option$aiken~1transaction~1credential~1Referenced$aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        }
+      ]
+    },
+    "aiken/transaction/credential/Credential": {
+      "title": "Credential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKeyCredential",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "ScriptCredential",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "aiken/transaction/credential/Referenced$aiken/transaction/credential/Credential": {
+      "title": "Referenced",
+      "description": "Represent a type of object that can be represented either inline (by hash)\n or via a reference (i.e. a pointer to an on-chain location).\n\n This is mainly use for capturing pointers to a stake credential\n registration certificate in the case of so-called pointer addresses.",
+      "anyOf": [
+        {
+          "title": "Inline",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "Pointer",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "slot_number",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "transaction_index",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "certificate_index",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "escrow/types/EscrowDatum": {
+      "title": "EscrowDatum",
+      "anyOf": [
+        {
+          "title": "Initiation",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "initiator",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Address"
+            },
+            {
+              "title": "initiator_assets",
+              "$ref": "#/definitions/List$Pair$ByteArray_List$Pair$ByteArray_Int"
+            }
+          ]
+        },
+        {
+          "title": "ActiveEscrow",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "initiator",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Address"
+            },
+            {
+              "title": "initiator_assets",
+              "$ref": "#/definitions/List$Pair$ByteArray_List$Pair$ByteArray_Int"
+            },
+            {
+              "title": "recipient",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Address"
+            },
+            {
+              "title": "recipient_assets",
+              "$ref": "#/definitions/List$Pair$ByteArray_List$Pair$ByteArray_Int"
+            }
+          ]
+        }
+      ]
+    },
+    "escrow/types/EscrowRedeemer": {
+      "title": "EscrowRedeemer",
+      "anyOf": [
+        {
+          "title": "RecipientDeposit",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "recipient",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Address"
+            },
+            {
+              "title": "recipient_assets",
+              "$ref": "#/definitions/List$Pair$ByteArray_List$Pair$ByteArray_Int"
+            }
+          ]
+        },
+        {
+          "title": "CancelTrade",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        },
+        {
+          "title": "CompleteTrade",
+          "dataType": "constructor",
+          "index": 2,
+          "fields": []
+        }
+      ]
+    }
+  }
+}
