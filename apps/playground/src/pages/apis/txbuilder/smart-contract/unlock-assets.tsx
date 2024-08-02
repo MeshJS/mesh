@@ -19,7 +19,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAsset, demoPlutusAlwaysSucceedScript } from "~/data/cardano";
-import { getTxBuilder, getWalletUtxo } from "../common";
+import { getTxBuilder } from "../common";
 
 export default function TxbuilderContractUnlockAssets() {
   return (
@@ -50,7 +50,8 @@ function Right() {
   const [userInput2, setUserInput2] = useState<string>("meshsecretcode");
 
   async function runDemo() {
-    const { utxo } = await getWalletUtxo(wallet, "5000000");
+    const utxos = await wallet.getUtxos();
+    const collateral = await wallet.getCollateral();
 
     const changeAddress = await wallet.getChangeAddress();
 
@@ -73,7 +74,6 @@ function Right() {
 
     // todo
     const unsignedTx = await txBuilder
-      .txIn(utxo.input.txHash, utxo.input.outputIndex)
       .spendingPlutusScriptV2()
       .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)
       .txInInlineDatumPresent()
@@ -81,7 +81,11 @@ function Right() {
       // .txInScript(getScriptCbor("Spending")) // todo
       .txOut(changeAddress, [])
       .changeAddress(changeAddress)
-      .txInCollateral(utxo.input.txHash, utxo.input.outputIndex)
+      .txInCollateral(
+        collateral[0]?.input.txHash!,
+        collateral[0]?.input.outputIndex!,
+      )
+      .selectUtxosFrom(utxos)
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx);

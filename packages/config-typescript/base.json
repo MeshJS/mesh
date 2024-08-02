@@ -7,16 +7,20 @@
     "esModuleInterop": true,
     "incremental": false,
     "isolatedModules": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "NodeNext",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "target": "ESNext",
+    "moduleResolution": "node",
     "moduleDetection": "force",
-    "moduleResolution": "NodeNext",
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "ES2020",
     "sourceMap": true,
-    "allowJs": true
+    "allowJs": true,
   }
 }

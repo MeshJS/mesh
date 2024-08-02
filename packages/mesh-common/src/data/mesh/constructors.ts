@@ -36,7 +36,6 @@ export const mConStr = <T extends Data[]>(
 
 /**
  * The utility function to create a Mesh Data index 0 constructor object, representing custom data type
- * @param alternative The constructor index number
  * @param fields The items in array
  * @returns The Mesh Data constructor object
  */
@@ -47,7 +46,6 @@ export const mConStr0 = <T extends Data[]>(fields: T): MConStr0<T> => ({
 
 /**
  * The utility function to create a Mesh Data index 1 constructor object, representing custom data type
- * @param alternative The constructor index number
  * @param fields The items in array
  * @returns The Mesh Data constructor object
  */
@@ -58,7 +56,6 @@ export const mConStr1 = <T extends Data[]>(fields: T): MConStr1<T> => ({
 
 /**
  * The utility function to create a Mesh Data index 2 constructor object, representing custom data type
- * @param alternative The constructor index number
  * @param fields The items in array
  * @returns The Mesh Data constructor object
  */

@@ -1,4 +1,17 @@
-import strica from "@stricahq/bip32ed25519";
+import strica from "@stricahq/bip32ed25519"; // This works with broswer, but not node
+
+// import * as strica from "@stricahq/bip32ed25519"; // This works with node, but not browser
+
+// let strica: any;
+
+// if (typeof window !== "undefined") {
+//   // Browser environment
+//   strica = await import("@stricahq/bip32ed25519");
+// } else {
+//   // Node.js environment
+//   strica = require("@stricahq/bip32ed25519");
+// }
+
 import hash from "hash.js";
 
 class PrivateKey extends strica.PrivateKey {

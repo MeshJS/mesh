@@ -17,7 +17,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAsset, demoPlutusAlwaysSucceedScript } from "~/data/cardano";
-import { getTxBuilder, getWalletUtxo } from "../common";
+import { getTxBuilder } from "../common";
 
 export default function TxbuilderContractLockAssets() {
   return (
@@ -48,7 +48,7 @@ function Right() {
   const [userInput2, setUserInput2] = useState<string>("meshsecretcode");
 
   async function runDemo() {
-    const { utxo } = await getWalletUtxo(wallet, "3000000");
+    const utxos = await wallet.getUtxos();
 
     const changeAddress = await wallet.getChangeAddress();
 
@@ -62,10 +62,10 @@ function Right() {
 
     // todo
     const unsignedTx = await txBuilder
-      .txIn(utxo.input.txHash, utxo.input.outputIndex)
       .txOut(scriptAddress, [])
       .txOutInlineDatumValue(userInput2)
       .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx);
