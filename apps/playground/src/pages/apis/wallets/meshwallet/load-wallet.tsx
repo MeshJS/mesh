@@ -192,7 +192,7 @@ function Right(
       try {
         if (_mnemonic.length) {
           const _wallet = new MeshWallet({
-            networkId: network,
+            networkId: network as 0 | 1,
             fetcher: blockchainProvider,
             submitter: blockchainProvider,
             key: {
@@ -212,7 +212,7 @@ function Right(
     if (demoMethod == 1) {
       try {
         const _wallet = new MeshWallet({
-          networkId: network,
+          networkId: network as 0 | 1,
           fetcher: blockchainProvider,
           submitter: blockchainProvider,
           key: {
@@ -232,7 +232,7 @@ function Right(
       try {
         const stake = stakeSkey?.length > 0 ? stakeSkey : undefined;
         const _wallet = new MeshWallet({
-          networkId: network,
+          networkId: network as 0 | 1,
           fetcher: blockchainProvider,
           submitter: blockchainProvider,
           key: {

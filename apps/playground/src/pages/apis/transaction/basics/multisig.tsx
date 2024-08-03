@@ -1,4 +1,4 @@
-import { AppWallet, ForgeScript, Mint, Transaction } from "@meshsdk/core";
+import { MeshWallet, ForgeScript, Mint, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
@@ -53,7 +53,7 @@ function Right() {
 
   async function runDemo() {
     const blockchainProvider = getProvider();
-    const mintingWallet = new AppWallet({
+    const mintingWallet = new MeshWallet({
       networkId: 0,
       fetcher: blockchainProvider,
       submitter: blockchainProvider,
@@ -63,7 +63,7 @@ function Right() {
       },
     });
     const forgingScript = ForgeScript.withOneSignature(
-      mintingWallet.getPaymentAddress(),
+      mintingWallet.getChangeAddress(),
     );
 
     const usedAddress = await wallet.getUsedAddresses();
@@ -87,8 +87,8 @@ function Right() {
     return txHash;
   }
 
-  let codeSnippet = `import { AppWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';\n\n`;
-  codeSnippet += `const mintingWallet = new AppWallet({\n`;
+  let codeSnippet = `import { MeshWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';\n\n`;
+  codeSnippet += `const mintingWallet = new MeshWallet({\n`;
   codeSnippet += `  networkId: 0,\n`;
   codeSnippet += `  fetcher: blockchainProvider,\n`;
   codeSnippet += `  submitter: blockchainProvider,\n`;
@@ -98,7 +98,7 @@ function Right() {
   codeSnippet += `  },\n`;
   codeSnippet += `});\n`;
   codeSnippet += `const forgingScript = ForgeScript.withOneSignature(\n`;
-  codeSnippet += `  mintingWallet.getPaymentAddress(),\n`;
+  codeSnippet += `  mintingWallet.getChangeAddress(),\n`;
   codeSnippet += `);\n`;
   codeSnippet += `\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;

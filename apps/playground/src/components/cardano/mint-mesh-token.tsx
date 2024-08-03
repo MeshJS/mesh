@@ -1,4 +1,4 @@
-import { AppWallet, ForgeScript, Mint, Transaction } from "@meshsdk/core";
+import { MeshWallet, ForgeScript, Mint, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { demoAssetMetadata, demoMnemonic } from "~/data/cardano";
@@ -10,7 +10,7 @@ export default function MintMeshToken() {
 
   async function runDemo() {
     const blockchainProvider = getProvider();
-    const mintingWallet = new AppWallet({
+    const mintingWallet = new MeshWallet({
       networkId: 0,
       fetcher: blockchainProvider,
       submitter: blockchainProvider,
@@ -20,7 +20,7 @@ export default function MintMeshToken() {
       },
     });
     const forgingScript = ForgeScript.withOneSignature(
-      mintingWallet.getPaymentAddress(),
+      mintingWallet.getChangeAddress(),
     );
 
     const usedAddress = await wallet.getUsedAddresses();
