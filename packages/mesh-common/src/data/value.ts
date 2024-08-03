@@ -15,75 +15,57 @@ import {
   tokenName,
 } from "./json";
 
-// export type Value = AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>;
+export type Value = AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>;
 
-// export type MValue = Map<string, Map<string, bigint>>;
+export type MValue = Map<string, Map<string, bigint>>;
 
-// export const value = (assets: Asset[]): Value => {
-//   const valueMapToParse: [CurrencySymbol, AssocMap<TokenName, Integer>][] = [];
-//   const valueMap: { [key: string]: { [key: string]: number } } = {};
+export const value = (assets: Asset[]) => {
+  return MeshValue.fromAssets(assets).toJSON();
+}
 
-//   assets.forEach((asset) => {
-//     const sanitizedName = asset.unit.replace("lovelace", "");
-//     const policy = sanitizedName.slice(0, 56) || "";
-//     const token = sanitizedName.slice(56) || "";
-
-//     if (!valueMap[policy]) {
-//       valueMap[policy] = {};
-//     }
-
-//     if (!valueMap[policy]![token]) {
-//       valueMap[policy]![token] = Number(asset.quantity);
-//     } else {
-//       valueMap[policy]![token] += Number(asset.quantity);
-//     }
-//   });
-
-//   Object.keys(valueMap).forEach((policy) => {
-//     const policyByte = currencySymbol(policy);
-//     const tokens: [TokenName, Integer][] = Object.keys(valueMap[policy]!).map(
-//       (name) => [tokenName(name), integer(valueMap[policy]![name]!)],
-//     );
-
-//     const policyMap = assocMap(tokens);
-//     valueMapToParse.push([policyByte, policyMap]);
-//   });
-
-//   return assocMap(valueMapToParse);
-// };
-
-// export const parsePlutusValueToAssets = (plutusValue: Value): Asset[] => {
-//   const assets: Asset[] = [];
-
-//   plutusValue.map.forEach((policyMap) => {
-//     const policy = policyMap.k.bytes;
-//     policyMap.v.map.forEach((tokenMap) => {
-//       const token = tokenMap.k.bytes;
-//       const quantity = tokenMap.v.int.toString();
-//       const unsanitizedUnit = policy + token;
-//       const unit = unsanitizedUnit === "" ? "lovelace" : unsanitizedUnit;
-//       assets.push({ unit, quantity });
-//     });
-//   });
-
-//   return assets;
-// };
-
-export class Value {
+export class MeshValue {
   value: Record<string, bigint>;
 
-  constructor() {
-    this.value = {};
-  }
+  constructor(value: Record<string, bigint> = {}) {
+    this.value = value;
+}
+
+  /**
+   * 
+   * @param assets 
+   * @returns 
+   */
+  static fromAssets = (assets: Asset[]): MeshValue => {
+      const value = new MeshValue();
+      value.addAssets(assets);
+      return value;
+  };
+
+  /**
+   * 
+   * @param plutusValue 
+   * @returns 
+   */
+  static fromValue = (plutusValue: Value): MeshValue => {
+    const assets: Asset[] = [];
+
+    plutusValue.map.forEach((policyMap) => {
+      const policy = policyMap.k.bytes;
+      policyMap.v.map.forEach((tokenMap) => {
+        const token = tokenMap.k.bytes;
+        const quantity = tokenMap.v.int.toString();
+        const unsanitizedUnit = policy + token;
+        const unit = unsanitizedUnit === "" ? "lovelace" : unsanitizedUnit;
+        assets.push({ unit, quantity });
+      });
+    });
+
+    return MeshValue.fromAssets(assets);
+  };
 
   /**
    * Add an asset to the Value class's value record. If an asset with the same unit already exists in the value record, the quantity of the
    * existing asset will be increased by the quantity of the new asset. If no such asset exists, the new asset will be added to the value record.
-   * Implementation:
-   * 1. Check if the unit of the asset already exists in the value record.
-   * 2. If the unit exists, add the new quantity to the existing quantity.
-   * 3. If the unit does not exist, add the unti to the object.
-   * 4. Return the Value class instance.
    * @param asset
    * @returns this
    */
@@ -102,12 +84,6 @@ export class Value {
   /**
    * Add an array of assets to the Value class's value record. If an asset with the same unit already exists in the value record, the quantity of the
    * existing asset will be increased by the quantity of the new asset. If no such asset exists, the new assets under the array of assets will be added to the value record.
-   * Implementation:
-   * 1. Iterate over each asset in the 'assets' array.
-   * 2. For each asset, check if the unit of the asset already exists in the value record.
-   * 3. If the unit exists, add the new quantity to the existing quantity.
-   * 4. If the unit does not exist, add the unti to the object.
-   * 5. Return the Value class instance.
    * @param assets
    * @returns this
    */
@@ -121,10 +97,6 @@ export class Value {
   /**
    * Substract an asset from the Value class's value record. If an asset with the same unit already exists in the value record, the quantity of the
    * existing asset will be decreased by the quantity of the new asset. If no such asset exists, an error message should be printed.
-   * Implementation:
-   * 1. Check if the unit of the asset already exists in the value record.
-   * 2. If the unit exists, subtract the new quantity from the existing quantity.
-   * 3. If the unit does not exist, print an error message.
    * @param asset
    * @returns this
    */
@@ -175,7 +147,7 @@ export class Value {
       if (!result[unit]) {
         result[unit] = [];
       }
-      result[unit].push({ unit, quantity: BigInt(this.value[unit]) });
+      result[unit].push({ unit, quantity: BigInt(this.value[unit]!) });
     });
     return result;
   };
@@ -192,7 +164,7 @@ export class Value {
   //     return thisValue >= otherValue;
   // };
 
-  geq = (unit: string, other: Value): boolean => {
+  geq = (unit: string, other: MeshValue): boolean => {
     if (this.value[unit] === undefined || other.value[unit] === undefined) {
       return false;
     }
@@ -215,7 +187,7 @@ export class Value {
   //     return thisValue <= otherValue;
   // };
 
-  leq = (unit: string, other: Value): boolean => {
+  leq = (unit: string, other: MeshValue): boolean => {
     if (this.value[unit] === undefined || other.value[unit] === undefined) {
       return false;
     }
@@ -236,7 +208,7 @@ export class Value {
    * @param values
    * @returns this
    */
-  merge = (values: Value | Value[]): this => {
+  merge = (values: MeshValue | MeshValue[]): this => {
     const valuesArray = Array.isArray(values) ? values : [values];
 
     valuesArray.forEach((other) => {
@@ -249,5 +221,49 @@ export class Value {
     });
 
     return this;
+  };
+
+  toAssets = (): Asset[] => {
+    const assets: Asset[] = [];
+    Object.entries(this.value).forEach(([unit, quantity]) => {
+      assets.push({ unit, quantity: quantity.toString() });
+    });
+    return assets;
+  }
+
+  toData = () => {}
+
+  toJSON = () => {
+    const assets = this.toAssets()
+    const valueMapToParse: [CurrencySymbol, AssocMap<TokenName, Integer>][] = [];
+    const valueMap: { [key: string]: { [key: string]: number } } = {};
+
+    assets.forEach((asset) => {
+      const sanitizedName = asset.unit.replace("lovelace", "");
+      const policy = sanitizedName.slice(0, 56) || "";
+      const token = sanitizedName.slice(56) || "";
+
+      if (!valueMap[policy]) {
+        valueMap[policy] = {};
+      }
+
+      if (!valueMap[policy]![token]) {
+        valueMap[policy]![token] = Number(asset.quantity);
+      } else {
+        valueMap[policy]![token] += Number(asset.quantity);
+      }
+    });
+
+    Object.keys(valueMap).forEach((policy) => {
+      const policyByte = currencySymbol(policy);
+      const tokens: [TokenName, Integer][] = Object.keys(valueMap[policy]!).map(
+        (name) => [tokenName(name), integer(valueMap[policy]![name]!)],
+      );
+
+      const policyMap = assocMap(tokens);
+      valueMapToParse.push([policyByte, policyMap]);
+    });
+
+    return assocMap(valueMapToParse);
   };
 }
