@@ -22,7 +22,7 @@ export function checkIfMetamaskInstalled(
       _nufiCoreSdk.init(network);
     }
 
-    return new Promise((resolve) => {
+    const promise: Promise<Wallet | undefined> = new Promise((resolve) => {
       _nufiCoreSdk
         .getApi()
         .isMetamaskInstalled()
@@ -39,7 +39,12 @@ export function checkIfMetamaskInstalled(
             resolve(undefined);
           }
         });
+      console.log(
+        "Unknown error loading metamask Cardano wallet, please disable unrelated wallet browser extensions in other blockchain to try again",
+      );
+      return resolve(undefined);
     });
+    return promise;
   } catch (err) {
     return Promise.resolve(undefined);
   }
