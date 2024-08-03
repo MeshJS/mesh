@@ -21,7 +21,7 @@ export type MValue = Map<string, Map<string, bigint>>;
 
 export const value = (assets: Asset[]) => {
   return MeshValue.fromAssets(assets).toJSON();
-}
+};
 
 /**
  * MeshValue provide utility to handle the Cardano value manipulation. It offers certain axioms:
@@ -35,7 +35,7 @@ export class MeshValue {
 
   constructor(value: Record<string, bigint> = {}) {
     this.value = value;
-}
+  }
 
   /**
    * Converting assets into MeshValue
@@ -43,9 +43,9 @@ export class MeshValue {
    * @returns MeshValue
    */
   static fromAssets = (assets: Asset[]): MeshValue => {
-      const value = new MeshValue();
-      value.addAssets(assets);
-      return value;
+    const value = new MeshValue();
+    value.addAssets(assets);
+    return value;
   };
 
   /**
@@ -224,13 +224,14 @@ export class MeshValue {
       assets.push({ unit, quantity: quantity.toString() });
     });
     return assets;
-  }
+  };
 
-  toData = () => {}
+  toData = () => {};
 
   toJSON = () => {
-    const assets = this.toAssets()
-    const valueMapToParse: [CurrencySymbol, AssocMap<TokenName, Integer>][] = [];
+    const assets = this.toAssets();
+    const valueMapToParse: [CurrencySymbol, AssocMap<TokenName, Integer>][] =
+      [];
     const valueMap: { [key: string]: { [key: string]: number } } = {};
 
     assets.forEach((asset) => {

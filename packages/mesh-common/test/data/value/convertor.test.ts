@@ -1,5 +1,7 @@
 import { Asset, MeshValue } from "@meshsdk/common";
 
+import { mockUnit } from "./common";
+
 // import {
 //   Asset,
 //   byteString,
@@ -109,16 +111,18 @@ import { Asset, MeshValue } from "@meshsdk/common";
 //   });
 // });
 
-
 describe("MeshValue class", () => {
-  describe('fromAssets', () => {
-    it('should create a new Value instance with the correct value', () => {
-        const assets: Asset[] = [
-            { unit: 'USDM', quantity: '100' },
-            { unit: 'ADA', quantity: '10' },
-        ];
-        const value = MeshValue.fromAssets(assets);
-        expect(value.value).toEqual({ USDM: BigInt(100), ADA: BigInt(10) });
+  describe("fromAssets", () => {
+    it("should create a new Value instance with the correct value", () => {
+      const assets: Asset[] = [
+        { unit: mockUnit, quantity: "100" },
+        { unit: "lovelace", quantity: "10" },
+      ];
+      const value = MeshValue.fromAssets(assets);
+      expect(value.value).toEqual({
+        [mockUnit]: BigInt(100),
+        lovelace: BigInt(10),
+      });
     });
   });
-})
+});
