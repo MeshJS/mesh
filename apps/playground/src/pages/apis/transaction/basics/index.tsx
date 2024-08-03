@@ -3,13 +3,13 @@ import type { NextPage } from "next";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
-import Codeblock from "~/components/text/codeblock";
 import { metaTransactionBasic } from "~/data/links-transactions";
 import { Intro } from "../common";
 import TransactionBegin from "./begin";
 import TransactionCip20 from "./cip20";
 import TransactionCoinSelection from "./coin-selection";
 import TransactionHandle from "./handle";
+import TransactionMultisig from "./multisig";
 import TransactionSendAssets from "./send-assets";
 import TransactionSendLovelace from "./send-lovelace";
 import TransactionSendValue from "./send-value";
@@ -23,6 +23,7 @@ const ReactPage: NextPage = () => {
     { label: "Send lovelace", to: "sendLovelace" },
     { label: "Send assets", to: "sendAssets" },
     { label: "Send value", to: "sendValue" },
+    { label: "Multi-signature", to: "multisig" },
 
     { label: "Send assets to Handle", to: "handler" },
     { label: "Send assets to Begin ID", to: "begin" },
@@ -64,6 +65,7 @@ const ReactPage: NextPage = () => {
         <TransactionSendLovelace />
         <TransactionSendAssets />
         <TransactionSendValue />
+        <TransactionMultisig />
 
         <TransactionHandle />
         <TransactionBegin />

@@ -1,10 +1,4 @@
-import {
-  AppWallet,
-  AssetMetadata,
-  ForgeScript,
-  Mint,
-  Transaction,
-} from "@meshsdk/core";
+import { AppWallet, ForgeScript, Mint, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { demoAssetMetadata, demoMnemonic } from "~/data/cardano";
@@ -25,14 +19,12 @@ export default function MintMeshToken() {
         words: demoMnemonic,
       },
     });
-
-    const usedAddress = await wallet.getUsedAddresses();
-    const address = usedAddress[0];
     const forgingScript = ForgeScript.withOneSignature(
       mintingWallet.getPaymentAddress(),
     );
 
-    const tx = new Transaction({ initiator: wallet });
+    const usedAddress = await wallet.getUsedAddresses();
+    const address = usedAddress[0];
 
     const asset: Mint = {
       assetName: "MeshToken",
@@ -41,6 +33,8 @@ export default function MintMeshToken() {
       label: "721",
       recipient: address,
     };
+
+    const tx = new Transaction({ initiator: wallet });
     tx.mintAsset(forgingScript, asset);
 
     const unsignedTx = await tx.build();

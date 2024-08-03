@@ -8,6 +8,7 @@ import TxbuilderBuildWithObject from "./build-with-object";
 import TxbuilderCip20 from "./cip20";
 import TxbuilderCommonFunctions from "./common-functions";
 import TxbuilderInitializeTxbuilder from "./initialize-txbuilder";
+import TxbuilderMultisig from "./multisig";
 import TxbuilderSendValues from "./send-values";
 import TxbuilderSetCollateral from "./set-collateral";
 import TxbuilderSetMetadata from "./set-metadata";
@@ -19,6 +20,7 @@ const ReactPage: NextPage = () => {
     { label: "Initialize Tx Builder", to: "initializeTxbuilder" },
     { label: "Common functions", to: "commonFunctions" },
     { label: "Send value", to: "sendValue" },
+    { label: "Multi-signature", to: "multisig" },
     { label: "Build with object", to: "buildWithObject" },
     { label: "Set metadata", to: "metadata" },
     { label: "Set transaction message", to: "cip20" },
@@ -57,6 +59,7 @@ const ReactPage: NextPage = () => {
         <TxbuilderInitializeTxbuilder />
         <TxbuilderCommonFunctions />
         <TxbuilderSendValues />
+        <TxbuilderMultisig />
         <TxbuilderBuildWithObject />
         <TxbuilderSetMetadata />
         <TxbuilderCip20 />
