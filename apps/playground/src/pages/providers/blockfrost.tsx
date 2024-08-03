@@ -73,7 +73,7 @@ const ReactPage: NextPage = () => {
             If you are using a privately hosted Blockfrost instance, you can set
             the URL in the parameter:
           </p>
-          <Codeblock data={code2} isJson={false} />
+          <Codeblock data={code2} />
         </TitleIconDescriptionBody>
 
         <ProviderFetchers

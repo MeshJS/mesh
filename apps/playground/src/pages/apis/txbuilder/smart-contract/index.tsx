@@ -4,15 +4,15 @@ import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaTxbuilderSmartContract } from "~/data/links-txbuilders";
+import TxbuilderContractPlutusMinting from "../minting/minting-plutus-script";
 import TxbuilderContractLockAssets from "./lock-assets";
-import TxbuilderContractPlutusMinting from "./plutus-minting";
 import TxbuilderContractUnlockAssets from "./unlock-assets";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Lock assets", to: "TxbuilderContractLockAssets" },
     { label: "Unlock assets", to: "TxbuilderContractUnlockAssets" },
-    { label: "Plutus minting", to: "TxbuilderContractPlutusMinting" },
+    { label: "Plutus minting", to: "mintingPlutusScript" },
   ];
 
   return (

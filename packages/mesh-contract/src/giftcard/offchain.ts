@@ -27,12 +27,17 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   tokenNameHex: string = "";
   paramUtxo: UTxO["input"] = { outputIndex: 0, txHash: "" };
 
-  giftCardCbor = (tokenNameHex: string, utxoTxHash: string, utxoTxId: number) =>
-    applyParamsToScript(
+  giftCardCbor = (
+    tokenNameHex: string,
+    utxoTxHash: string,
+    utxoTxId: number,
+  ) => {
+    return applyParamsToScript(
       blueprint.validators[0]!.compiledCode,
       [builtinByteString(tokenNameHex), txOutRef(utxoTxHash, utxoTxId)],
       "JSON",
     );
+  };
 
   redeemCbor = (tokenNameHex: string, policyId: string) =>
     applyParamsToScript(blueprint.validators[1]!.compiledCode, [
@@ -167,8 +172,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    const { redeemScript } = this.getScripts();
-    return await this._getUtxoByTxHash(redeemScript, txHash);
+    return await this._getUtxoByTxHash(txHash);
   };
 
   private getScripts = () => {

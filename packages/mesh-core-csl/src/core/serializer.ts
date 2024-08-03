@@ -26,10 +26,10 @@ import {
   deserializePlutusScript,
   resolveDataHash,
   resolveEd25519KeyHash,
-  resolvePoolId,
   resolvePrivateKey,
   resolveRewardAddress,
   resolveScriptRef,
+  serializePoolId,
   toNativeScript,
 } from "../deser";
 import {
@@ -43,12 +43,17 @@ import { meshTxBuilderBodyToObj } from "./adaptor";
 import { builderDataToCbor } from "./adaptor/data";
 
 export class CSLSerializer implements IMeshTxSerializer {
+  /**
+   * Set to true to enable verbose logging for the txBodyJson prior going into build
+   */
+  verbose: boolean;
   protocolParams: Protocol;
 
   meshTxBuilderBody: MeshTxBuilderBody = emptyTxBuilderBody();
 
-  constructor(protocolParams?: Protocol) {
+  constructor(protocolParams?: Protocol, verbose = false) {
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
+    this.verbose = verbose;
   }
 
   serializeTxBody(
@@ -59,7 +64,9 @@ export class CSLSerializer implements IMeshTxSerializer {
 
     const params = JSONbig.stringify(protocolParams || this.protocolParams);
 
-    console.log("txBodyJson", txBodyJson);
+    if (this.verbose) {
+      console.log("txBodyJson", txBodyJson);
+    }
     const txBuildResult = csl.js_serialize_tx_body(txBodyJson, params);
     if (txBuildResult.get_status() !== "success") {
       throw new Error(txBuildResult.get_data());
@@ -83,6 +90,10 @@ export class CSLSerializer implements IMeshTxSerializer {
     networkId?: number,
   ): string {
     return serialzeAddress(address, networkId);
+  }
+
+  serializePoolId(hash: string): string {
+    return serializePoolId(hash);
   }
 
   deserializer: IDeserializer = {
@@ -110,6 +121,11 @@ export class CSLSerializer implements IMeshTxSerializer {
           .hash()
           .to_hex();
         return { scriptHash, scriptCbor: script.code };
+      },
+    },
+    cert: {
+      deserializePoolId: function (poolId: string): string {
+        return resolveEd25519KeyHash(poolId);
       },
     },
   };
@@ -145,11 +161,6 @@ export class CSLSerializer implements IMeshTxSerializer {
     script: {
       resolveScriptRef: function (script: PlutusScript | NativeScript): string {
         return resolveScriptRef(script);
-      },
-    },
-    pool: {
-      resolvePoolId: function (hash: string): string {
-        return resolvePoolId(hash);
       },
     },
   };

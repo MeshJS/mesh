@@ -25,7 +25,7 @@ function Left() {
         <code>accountId</code> is an optional parameter, that allows you to
         choose which address to return.
       </p>
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code1} />
     </>
   );
 }

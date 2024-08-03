@@ -21,7 +21,7 @@ function Left() {
   return (
     <>
       <p>Return the network of connected wallet.</p>
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code1} />
     </>
   );
 }

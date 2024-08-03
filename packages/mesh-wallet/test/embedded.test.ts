@@ -1,6 +1,5 @@
 import { checkSignature } from "@meshsdk/core-cst";
-
-import { EmbeddedWallet } from "../src";
+import { EmbeddedWallet } from "@meshsdk/wallet";
 
 describe("EmbeddedWallet mnemonic", () => {
   const wallet = new EmbeddedWallet({

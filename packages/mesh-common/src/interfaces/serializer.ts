@@ -19,6 +19,7 @@ export interface IMeshTxSerializer {
   deserializer: IDeserializer;
   serializeData(data: BuilderData): string;
   serializeAddress(address: DeserializedAddress, networkId?: 0 | 1): string;
+  serializePoolId(hash: string): string;
 }
 export interface IResolver {
   keys: {
@@ -36,9 +37,6 @@ export interface IResolver {
   script: {
     resolveScriptRef(script: NativeScript | PlutusScript): string;
   };
-  pool: {
-    resolvePoolId(hash: string): string;
-  };
 }
 
 export interface IDeserializer {
@@ -48,5 +46,8 @@ export interface IDeserializer {
   script: {
     deserializeNativeScript(script: NativeScript): DeserializedScript;
     deserializePlutusScript(script: PlutusScript): DeserializedScript;
+  };
+  cert: {
+    deserializePoolId(poolId: string): string;
   };
 }

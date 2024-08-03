@@ -1,15 +1,12 @@
 import {
-  conStr0,
-  conStr1,
   maybeStakingHash,
   mMaybeStakingHash,
   mPubKeyAddress,
   mScriptAddress,
   pubKeyAddress,
-  pubKeyHash,
   scriptAddress,
-  scriptHash,
-} from "../../../src";
+} from "@meshsdk/common";
+
 import { serializeData } from "./common";
 
 const testKeyHash1 = "1e4eb194e3335a0dcc4f5c5d009318167c583bb3b0879d9f718cd9e0";

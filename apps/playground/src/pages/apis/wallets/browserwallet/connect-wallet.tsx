@@ -26,7 +26,7 @@ function Left() {
         dApp to use.
       </p>
       <p>
-        Query <code>BrowserWallet.getInstalledWallets()</code> to get a list of
+        Query <code>BrowserWallet.getAvailableWallets()</code> to get a list of
         available wallets, then provide the wallet <code>name</code> for which
         wallet the user would like to connect with.
       </p>

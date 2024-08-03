@@ -5,11 +5,11 @@ import {
   conStr1,
   mConStr1,
   mConStr2,
-  parsePlutusValueToAssets,
   PubKeyAddress,
   pubKeyAddress,
   Value,
   value,
+  MeshValue
 } from "@meshsdk/common";
 import {
   Asset,
@@ -113,8 +113,8 @@ export class MeshEscrowContract extends MeshTxInitiator {
 
       const initiatorAddress = serializeAddressObj(initiatorAddressObj);
       const recipientAddress = serializeAddressObj(recipientAddressObj!);
-      const initiatorToReceive = parsePlutusValueToAssets(initiatorAmount);
-      const recipientToReceive = parsePlutusValueToAssets(recipientAmount!);
+      const initiatorToReceive = MeshValue.fromValue(initiatorAmount).toAssets();
+      const recipientToReceive = MeshValue.fromValue(recipientAmount!).toAssets();
       this.mesh
         .txOut(initiatorAddress, initiatorToReceive)
         .txOut(recipientAddress, recipientToReceive);
@@ -164,7 +164,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
       depositAmount,
     );
 
-    const inputAssets = parsePlutusValueToAssets(inputDatum.fields[1]);
+    const inputAssets = MeshValue.fromValue(inputDatum.fields[1]).toAssets();
     const escrowAmount = mergeAssets([...depositAmount, ...inputAssets]);
 
     await this.mesh
@@ -218,8 +218,8 @@ export class MeshEscrowContract extends MeshTxInitiator {
     ] = inputDatum.fields;
     const initiatorAddress = serializeAddressObj(initiatorAddressObj);
     const recipientAddress = serializeAddressObj(recipientAddressObj);
-    const initiatorToReceive = parsePlutusValueToAssets(recipientAmount);
-    const recipientToReceive = parsePlutusValueToAssets(initiatorAmount);
+    const initiatorToReceive = MeshValue.fromValue(recipientAmount).toAssets();
+    const recipientToReceive = MeshValue.fromValue(initiatorAmount).toAssets();
 
     await this.mesh
       .spendingPlutusScriptV2()
@@ -249,6 +249,6 @@ export class MeshEscrowContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    return await this._getUtxoByTxHash(this.scriptCbor, txHash);
+    return await this._getUtxoByTxHash(txHash, this.scriptCbor);
   };
 }

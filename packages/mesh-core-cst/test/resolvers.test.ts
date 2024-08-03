@@ -3,7 +3,6 @@ import {
   PlutusScript,
   resolveFingerprint,
 } from "@meshsdk/common";
-
 import {
   resolveDataHash,
   resolveNativeScriptAddress,
@@ -11,10 +10,9 @@ import {
   resolvePaymentKeyHash,
   resolvePlutusScriptAddress,
   resolvePlutusScriptHash,
-  resolvePrivateKey,
   resolveRewardAddress,
   resolveStakeKeyHash,
-} from "../src";
+} from "@meshsdk/core-cst";
 
 describe("resolveDataHash", () => {
   it("should return correct data", () => {

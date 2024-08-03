@@ -23,6 +23,8 @@ export default function LiveCodeDemo({
   runDemoShowBrowseWalletConnect = false,
   runDemoShowProviderInit = false,
   runDemoProvider = undefined,
+  hideDemoButtonIfnotConnected = false,
+  hideConnectButtonIfConnected = false,
 }: {
   children?: React.ReactNode;
   title: string;
@@ -36,6 +38,8 @@ export default function LiveCodeDemo({
   runDemoShowBrowseWalletConnect?: boolean;
   runDemoShowProviderInit?: boolean;
   runDemoProvider?: string | undefined;
+  hideDemoButtonIfnotConnected?: boolean;
+  hideConnectButtonIfConnected?: boolean;
 }) {
   const { connected } = useWallet();
   const [loading, setLoading] = useState<boolean>(false);
@@ -77,7 +81,7 @@ export default function LiveCodeDemo({
         <BlockchainProviderKey provider={runDemoProvider} />
       )}
 
-      {runCodeFunction && (
+      {runCodeFunction && (connected || !hideDemoButtonIfnotConnected) && (
         <div>
           <RunDemoButton
             runFunction={runDemo}
@@ -96,11 +100,12 @@ export default function LiveCodeDemo({
           <DemoResult response={responseError} label="Error" />
         </div>
       )}
-      {runDemoShowBrowseWalletConnect && (
-        <div>
-          <ConnectBrowserWallet />
-        </div>
-      )}
+      {runDemoShowBrowseWalletConnect &&
+        (!connected || !hideConnectButtonIfConnected) && (
+          <div>
+            <ConnectBrowserWallet />
+          </div>
+        )}
 
       {children && childrenAfterCodeFunctions && (
         <div className="mb-4">{children}</div>

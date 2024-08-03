@@ -1,6 +1,5 @@
+import { Data } from "@meshsdk/common";
 import { castDataToPlutusData } from "@meshsdk/core-csl";
-
-import { Data } from "../../../src";
 
 export const serializeData = (mesh: Data, json: any) => {
   const meshData = castDataToPlutusData({

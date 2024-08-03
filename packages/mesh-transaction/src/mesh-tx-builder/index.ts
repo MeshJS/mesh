@@ -105,7 +105,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         this._protocolParams,
       );
     }
-    console.log(txHex);
 
     this.txHex = txHex;
     return txHex;

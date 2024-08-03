@@ -380,7 +380,7 @@ export class YaciProvider implements IFetcher, IListener, ISubmitter {
 
       throw parseHttpError(data);
     } catch (error) {
-      console.log("error", error);
+      console.error("error", error);
       throw parseHttpError(error);
     }
   }
@@ -402,7 +402,7 @@ export class YaciProvider implements IFetcher, IListener, ISubmitter {
 
       throw parseHttpError(data);
     } catch (error) {
-      console.log("error", error);
+      console.error("error", error);
       throw parseHttpError(error);
     }
   }

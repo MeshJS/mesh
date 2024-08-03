@@ -77,6 +77,12 @@ function Left() {
         The above code will log "Hello, World!" to the console when the wallet
         is connected.
       </p>
+
+      <p>
+        You can define the NuFi network to connect to by adding the <code>nufiNetwork</code> prop.
+      </p>
+
+      <Codeblock data={`<CardanoWallet nufiNetwork={"preprod"} />`} />
     </>
   );
 }

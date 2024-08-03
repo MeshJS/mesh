@@ -38,8 +38,7 @@ export default function SendPayment() {
     );
 
     const signedTx = await wallet.signTx(unsignedTx, true);
-    const txHash = await wallet.submitTx(signedTx);
-    console.log({ txHash });
+    await wallet.submitTx(signedTx);
 
     setLoading(false);
     setDone(true);

@@ -103,28 +103,28 @@ function Left() {
 
       <h3>A string</h3>
       <p>A datum as simple as just a string, preferably a hex string.</p>
-      <Codeblock data={codeSnippetdatumString} isJson={false} />
+      <Codeblock data={codeSnippetdatumString} />
       <h3>A number</h3>
       <p>It can also be a number.</p>
-      <Codeblock data={codeSnippetdatumNumber} isJson={false} />
+      <Codeblock data={codeSnippetdatumNumber} />
       <h3>An array</h3>
       <p>
         Or an array, where each item can be either a string, number, a list, or
         a map.
       </p>
-      <Codeblock data={codeSnippetdatumList} isJson={false} />
+      <Codeblock data={codeSnippetdatumList} />
       <h3>A Map</h3>
       <p>
         It can also be a map, where both the keys and its values can be a
         string, number, a list, or a map.
       </p>
-      <Codeblock data={codeSnippetdatumMap} isJson={false} />
+      <Codeblock data={codeSnippetdatumMap} />
       <h3>With constructor</h3>
       <p>
         Or a datum with a constructor, where <code>alternative</code> is a
         number, and <code>fields</code> is an array.
       </p>
-      <Codeblock data={codeSnippetdatumConstructor} isJson={false} />
+      <Codeblock data={codeSnippetdatumConstructor} />
     </>
   );
 }

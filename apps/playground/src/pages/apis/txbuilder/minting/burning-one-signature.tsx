@@ -70,13 +70,13 @@ function Left(userInput: string) {
         "minting address". Note that, assets can only be burned by its minting
         address.
       </p>
-      <Codeblock data={codeSnippet1} isJson={false} />
+      <Codeblock data={codeSnippet1} />
       <p>
         Then, we define <code>Asset</code> and set <code>tx.burnAsset()</code>
       </p>
-      <Codeblock data={codeSnippet2} isJson={false} />
+      <Codeblock data={codeSnippet2} />
       <p>Here is the full code:</p>
-      <Codeblock data={codeSnippet} isJson={false} />
+      <Codeblock data={codeSnippet} />
     </>
   );
 }
@@ -124,6 +124,24 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
 
   // todo docs
   let code = ``;
+  code += `const utxos = await wallet.getUtxos();\n`;
+  code += `const changeAddress = await wallet.getChangeAddress();\n`;
+  code += `const txBuilder = getTxBuilder();\n`;
+  code += `\n`;
+  code += `const forgingScript = ForgeScript.withOneSignature(changeAddress);\n`;
+  code += `\n`;
+  code += `const policyId = resolveScriptHash(forgingScript);\n`;
+  code += `const tokenName = stringToHex("MeshToken");\n`;
+  code += `\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `    .mint("-1", policyId, tokenName)\n`;
+  code += `    .mintingScript(forgingScript)\n`;
+  code += `    .changeAddress(changeAddress)\n`;
+  code += `    .selectUtxosFrom(utxos)\n`;
+  code += `    .complete();\n`;
+  code += `\n`;
+  code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo

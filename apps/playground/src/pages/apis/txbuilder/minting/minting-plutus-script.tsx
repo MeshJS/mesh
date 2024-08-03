@@ -190,8 +190,8 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
           <Input
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
-            placeholder="Datum value"
-            label="Datum value"
+            placeholder="Redeemer value"
+            label="Redeemer value"
             key={0}
           />,
         ]}

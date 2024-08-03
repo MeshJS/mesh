@@ -25,6 +25,7 @@ export const MeshWalletProvider = ({
     if (!walletConnected) {
       const _wallet = getMeshWallet();
       setWallet(_wallet);
+      return _wallet;
     }
     return wallet;
   }

@@ -72,10 +72,10 @@ const ReactPage: NextPage = () => {
               <Link href="/providers">provider</Link>,{" "}
               <code>MeshTxBuilder</code> and <code>MeshGiftCardContract</code>.
             </p>
-            <Codeblock data={example} isJson={false} />
+            <Codeblock data={example} />
             <p>
               Both on-chain and off-chain codes are open-source and available on{" "}
-              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/contracts/src/giftcard">
+              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/giftcard">
                 Mesh Github Repository
               </Link>
               .

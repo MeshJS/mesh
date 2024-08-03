@@ -57,19 +57,20 @@ export const resolveScriptHash = (
 };
 
 /**
- * Resolve the pool id from hash
- * @param hash The pool hash
- * @returns The pool id
- */
-export const resolvePoolId = (hash: string) => core.resolvePoolId(hash);
-
-/**
  * Resolve the Ed25519 key hash from bech32 address
  * @param bech32 The bech32 address
  * @returns The Ed25519 key hash
  */
 export const resolveRewardAddress = (bech32: string) =>
   core.resolveRewardAddress(bech32);
+
+/**
+ * Resolve the stake key hash from bech32 address
+ * @param bech32 The bech32 address, either in addrxxx or stakexxx
+ * @returns The stake key hash
+ */
+export const resolveStakeKeyHash = (bech32: string) =>
+  core.resolveStakeKeyHash(bech32);
 
 // ------------------- Deprecated zone ---------------------
 
@@ -108,15 +109,14 @@ export const resolvePlutusScriptHash = (bech32: string) =>
   core.deserializeBech32Address(bech32).scriptHash;
 
 /**
- * Deprecated - use `deserializeAddress` instead
- */
-export const resolveStakeKeyHash = (bech32: string) =>
-  core.deserializeBech32Address(bech32).stakeCredentialHash;
-
-/**
  * Deprecated - this is more used with the low level process inside Mesh
  *
  * If you need this, please import @meshsdk/core-csl or @meshsdk/core-cst instead
  */
 export const resolveScriptRef = (script: NativeScript | PlutusScript) =>
   core.resolveScriptRef(script);
+
+/**
+ * Deprecated - use `serializePoolId` instead
+ */
+export const resolvePoolId = (hash: string) => core.serializePoolId(hash);

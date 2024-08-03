@@ -68,3 +68,10 @@ export const serializePlutusScript = (
 export const serializeAddressObj = (address: PubKeyAddress | ScriptAddress) => {
   return core.serializeAddressObj(address);
 };
+
+/**
+ * Resolve the pool id from hash
+ * @param hash The pool hash
+ * @returns The pool id
+ */
+export const serializePoolId = (hash: string) => core.serializePoolId(hash);

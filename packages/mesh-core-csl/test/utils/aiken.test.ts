@@ -1,6 +1,8 @@
 import { builtinByteString } from "@meshsdk/common";
-
-import { applyParamsToScript, deserializeBech32Address } from "../../src";
+import {
+  applyParamsToScript,
+  deserializeBech32Address,
+} from "@meshsdk/core-csl";
 
 describe("Aiken", () => {
   test("applyParamsToScript 1", () => {

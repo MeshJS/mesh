@@ -1,28 +1,26 @@
 import { useState } from "react";
-import Link from "next/link";
 
 import {
-  keepRelevant,
-  MeshTxBuilder,
-  MeshTxBuilderBody,
-  Quantity,
-  Unit,
+  deserializePoolId,
+  resolveStakeKeyHash,
+  Transaction,
 } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
 import { useWallet } from "@meshsdk/react";
 
-import { getProvider } from "~/components/cardano/mesh-wallet";
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoAddresses } from "~/data/cardano";
+import { demoPool } from "~/data/cardano";
+import { getTxBuilder } from "../common";
 
-export default function TxbuilderBuildWithObject() {
+export default function StakingRegister() {
   return (
     <TwoColumnsScroll
-      sidebarTo="buildWithObject"
-      title="Build with Object"
+      sidebarTo="registerStake"
+      title="Register Stake Address"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -30,118 +28,111 @@ export default function TxbuilderBuildWithObject() {
 }
 
 function Left() {
-  let code1 = ``;
+  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n\n`;
+
+  codeSnippet += `const addresses = await wallet.getRewardAddresses();\n`;
+  codeSnippet += `const rewardAddress = addresses[0];\n\n`;
+
+  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
+  codeSnippet += `tx.registerStake(rewardAddress);\n`;
+  codeSnippet += `tx.delegateStake(rewardAddress, '${demoPool}');\n\n`;
+
+  codeSnippet += `const unsignedTx = await tx.build();\n`;
+  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
+
+  let code2 = ``;
+  code2 += `{\n`;
+  code2 += `  "active": true,\n`;
+  code2 += `  "poolId": "${demoPool}",\n`;
+  code2 += `  "balance": "389290551",\n`;
+  code2 += `  "rewards": "0",\n`;
+  code2 += `  "withdrawals": "0"\n`;
+  code2 += `}\n`;
 
   return (
     <>
       <p>
-        One alternative to use the lower level APIs is to build the transaction
-        with an object.
+        New address must "register" before they can delegate to stakepools. To
+        check if a reward address has been register, use{" "}
+        <a href="https://meshjs.dev/providers/blockfrost#fetchAccountInfo">
+          blockchainProvider.fetchAccountInfo(rewardAddress)
+        </a>
+        . For example this account information, <code>active</code> shows the
+        address is registered.
       </p>
+      <Codeblock data={code2} />
       <p>
-        The following shows a simple example of building a transaction to send
-        values to a recipient:
+        You can chain with <code>delegateStake()</code> to register and delegate
+        to a stake pool.
       </p>
-      <Codeblock data={code1} />
-      <p>
-        <Link href="https://github.com/sidan-lab/mesh-lower-level-api-demo/blob/mesh-docs/src/pages/index.tsx#L112C1-L166C1">
-          Full Code Snippet in Github
-        </Link>
-      </p>
+      <Codeblock data={codeSnippet} />
     </>
   );
 }
 
 function Right() {
   const { wallet, connected } = useWallet();
-
-  const [address, setAddress] = useState<string>(demoAddresses.testnet);
-  const [amount, setAmount] = useState<string>("2000000");
+  const [userInput, setUserInput] = useState<string>(demoPool);
 
   async function runDemo() {
-    const blockchainProvider = getProvider();
+    const utxos = await wallet.getUtxos();
+    const address = await wallet.getChangeAddress();
+    const addresses = await wallet.getRewardAddresses();
+    const rewardAddress = addresses[0]!;
+    const stakeKeyHash = resolveStakeKeyHash(rewardAddress);
+    const poolIdHash = deserializePoolId(userInput);
 
-    const changeAddress = await wallet.getChangeAddress();
-
-    // get utxo
-    const assetMap = new Map<Unit, Quantity>();
-    assetMap.set("lovelace", amount);
-
-    const walletUtxos = await wallet.getUtxos();
-    const utxos = keepRelevant(assetMap, walletUtxos);
-    const utxo = utxos[0];
-
-    if (utxo === undefined) {
-      throw new Error("No utxo found");
+    if (rewardAddress === undefined) {
+      throw "No address found";
     }
 
-    // transaction
-    const txBuilder = new MeshTxBuilder({
-      fetcher: blockchainProvider,
-    });
+    const txBuilder = getTxBuilder();
 
-    // const meshTxBody: MeshTxBuilderBody = {
-    //   inputs: [
-    //     {
-    //       type: "PubKey",
-    //       txIn: {
-    //         txHash: utxo.input.txHash,
-    //         txIndex: utxo.input.outputIndex,
-    //       },
-    //     },
-    //   ],
-    //   outputs: [
-    //     {
-    //       address: address,
-    //       amount: [{ unit: "lovelace", quantity: amount }],
-    //     },
-    //   ],
-    //   collaterals: [],
-    //   requiredSignatures: [],
-    //   referenceInputs: [],
-    //   mints: [],
-    //   changeAddress: changeAddress,
-    //   metadata: [],
-    //   validityRange: {},
-    //   signingKey: [],
-    // };
+    const unsignedTx = await txBuilder
+      .registerStakeCertificate(stakeKeyHash)
+      .delegateStakeCertificate(stakeKeyHash, poolIdHash)
+      .selectUtxosFrom(utxos)
+      .changeAddress(address)
+      .complete();
 
-    // const unsignedTx = await mesh.complete(meshTxBody);
-
-    // const signedTx = await wallet.signTx(unsignedTx);
-    // const txHash = await wallet.submitTx(signedTx);
-    return 'txHash';
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await wallet.submitTx(signedTx);
+    return txHash;
   }
 
-  let codeSnippet = `import { keepRelevant, MeshTxBuilder, Quantity, Unit } from "@meshsdk/core";\n\n`;
+  let code = ``;
+  code += `const addresses = await wallet.getRewardAddresses();\n`;
+  code += `const rewardAddress = addresses[0];\n`;
+  code += `\n`;
+  code += `const tx = new Transaction({ initiator: wallet });\n`;
+  code += `tx.registerStake(rewardAddress);\n`;
+  code += `tx.delegateStake(rewardAddress, '${userInput}');\n`;
+  code += `\n`;
+  code += `const unsignedTx = await tx.build();\n`;
+  code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo
-      title="Send Lovelace"
-      subtitle="Send lovelace to a recipient"
-      code={codeSnippet}
+      title="Register Stake Address"
+      subtitle="Register a stake address before delegate to stakepools."
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={
         !connected ? "Connect wallet to run this demo" : undefined
       }
       runDemoShowBrowseWalletConnect={true}
+      code={code}
     >
       <InputTable
         listInputs={[
           <Input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Address"
-            label="Address"
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            placeholder="Pool ID"
+            label="Pool ID"
             key={0}
-          />,
-          <Input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Amount"
-            label="Amount"
-            key={1}
           />,
         ]}
       />

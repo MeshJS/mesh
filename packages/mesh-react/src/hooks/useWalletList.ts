@@ -3,11 +3,18 @@ import { useEffect, useState } from "react";
 import type { Wallet } from "@meshsdk/common";
 import { BrowserWallet } from "@meshsdk/wallet";
 
-export const useWalletList = () => {
+export const useWalletList = ({
+  nufiNetwork = "preprod",
+}: {
+  nufiNetwork?: string;
+} = {}) => {
   const [wallets, setWallets] = useState<Wallet[]>([]);
 
   useEffect(() => {
-    setWallets(BrowserWallet.getInstalledWallets());
+    async function get() {
+      setWallets(await BrowserWallet.getAvailableWallets({ nufiNetwork }));
+    }
+    get();
   }, []);
 
   return wallets;

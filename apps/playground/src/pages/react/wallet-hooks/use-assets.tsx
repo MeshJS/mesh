@@ -21,7 +21,7 @@ function Left() {
   return (
     <>
       <p>Return a list of assets in connected wallet from all UTXOs.</p>
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code1} />
     </>
   );
 }

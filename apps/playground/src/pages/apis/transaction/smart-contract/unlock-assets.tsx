@@ -96,7 +96,7 @@ function Left() {
         any of the providers which are implemented by Mesh can be used (see{" "}
         <Link href="/apis/providers">Providers</Link>).
       </p>
-      <Codeblock data={codeSnippetGetAssetUtxo} isJson={false} />
+      <Codeblock data={codeSnippetGetAssetUtxo} />
       <p>
         For this demo, we search for the UTxO by using the datum that we have
         set in the previous step. In fact, depends on the redeemer logic of the
@@ -104,7 +104,7 @@ function Left() {
         unlock the assets. We query the script address for the UTxO that
         contains the correct data hash:
       </p>
-      <Codeblock data={codeSnippetCallAssetUtxo} isJson={false} />
+      <Codeblock data={codeSnippetCallAssetUtxo} />
       <p>
         Then, we create the transaction to unlock the asset. We use the{" "}
         <code>redeemValue</code> method. The method takes the asset UTxO, the
@@ -113,12 +113,12 @@ function Left() {
         address. The <code>setRequiredSigners</code> method is used to set the
         required signers for the transaction.
       </p>
-      <Codeblock data={codeSnippetCreateTx} isJson={false} />
+      <Codeblock data={codeSnippetCreateTx} />
       <p>
         Lastly, we build and sign the transaction. Note that here we need to set
         the 'partial sign' parameter to <code>true</code>.
       </p>
-      <Codeblock data={codeSnippetSign} isJson={false} />
+      <Codeblock data={codeSnippetSign} />
     </>
   );
 }

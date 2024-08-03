@@ -76,7 +76,7 @@ function Left() {
       </p>
 
       <p>Here is the full code:</p>
-      <Codeblock data={codeSnippet} isJson={false} />
+      <Codeblock data={codeSnippet} />
     </>
   );
 }

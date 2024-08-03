@@ -16,18 +16,23 @@ export default function ReactHookUseWalletList() {
 }
 
 function Left() {
-  let code1 = `const wallets = useWalletList();`;
-
   return (
     <>
       <p>Returns a list of wallets installed on user's device.</p>
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={`const wallets = useWalletList();`} />
+      <p>
+        You can define the NuFi network to connect to by adding the{" "}
+        <code>nufiNetwork</code> prop.
+      </p>
+      <Codeblock
+        data={`const wallets = useWalletList({nufiNetwork: "preprod"});`}
+      />
     </>
   );
 }
 
 function Right() {
-  const wallets = useWalletList();
+  const wallets = useWalletList({ nufiNetwork: "preprod" });
 
   let code3 = `import { useWalletList } from '@meshsdk/react';\n\n`;
   code3 += `export default function Page() {\n`;
@@ -50,13 +55,13 @@ function Right() {
     <LiveCodeDemo
       title="useWalletList Hook"
       subtitle="List of wallets installed on user's device"
-      code={`const wallets = useWalletList();\nconsole.log(wallets);`}
+      code={`const wallets = useWalletList();`}
       childrenAfterCodeFunctions={true}
     >
       <>
         <Codeblock data={wallets} isJson={true} />
 
-        <Codeblock data={code3} isJson={false} />
+        <Codeblock data={code3} />
 
         {wallets.map((wallet, i) => {
           return (

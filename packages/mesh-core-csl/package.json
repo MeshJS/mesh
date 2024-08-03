@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core-csl",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -20,10 +20,10 @@
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "lint": "eslint",
-    "test": "jest --verbose",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
     "format": "prettier --check . --ignore-path ../../.gitignore",
-    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-core-csl.json"
+    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-core-csl.json",
+    "test": "jest"
   },
   "browser": {
     "@sidan-lab/sidan-csl-rs-nodejs": "@sidan-lab/sidan-csl-rs-browser"

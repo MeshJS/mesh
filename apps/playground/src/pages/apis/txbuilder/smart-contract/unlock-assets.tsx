@@ -1,18 +1,14 @@
 import { useState } from "react";
 
 import {
-  keepRelevant,
   mConStr0,
-  MeshTxBuilder,
   PlutusScript,
-  Quantity,
   resolvePlutusScriptAddress,
-  Unit,
+  serializePlutusScript,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { fetchAssetUtxo } from "~/components/cardano/fetch-utxo-by-datum";
-import { getProvider } from "~/components/cardano/mesh-wallet";
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
@@ -59,7 +55,9 @@ function Right() {
       code: demoPlutusAlwaysSucceedScript,
       version: "V2",
     };
-    const scriptAddress = resolvePlutusScriptAddress(script, 0);
+    const { address: scriptAddress } = serializePlutusScript(script);
+
+    console.log("scriptAddress", scriptAddress);
 
     const assetUtxo = await fetchAssetUtxo({
       address: scriptAddress,
@@ -78,12 +76,13 @@ function Right() {
       .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr0([]))
-      // .txInScript(getScriptCbor("Spending")) // todo
-      .txOut(changeAddress, [])
+      .txInScript(demoPlutusAlwaysSucceedScript)
       .changeAddress(changeAddress)
       .txInCollateral(
         collateral[0]?.input.txHash!,
         collateral[0]?.input.outputIndex!,
+        collateral[0]?.output.amount!,
+        collateral[0]?.output.address!,
       )
       .selectUtxosFrom(utxos)
       .complete();

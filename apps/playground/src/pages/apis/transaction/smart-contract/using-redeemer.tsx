@@ -70,21 +70,21 @@ function Left() {
         <code>StartRedeemer</code>
         as defined above with the first <code>Used Address</code> as input:
       </p>
-      <Codeblock data={firstRedeemer} isJson={false} />
+      <Codeblock data={firstRedeemer} />
       <p>
         Supplying the <code>SecondRedeemer</code> as defined above:
       </p>
-      <Codeblock data={secondRedeemer} isJson={false} />
+      <Codeblock data={secondRedeemer} />
       <p>
         Supplying the <code>EndRedeemer</code> as defined above:
       </p>
-      <Codeblock data={thirdRedeemer} isJson={false} />
+      <Codeblock data={thirdRedeemer} />
       <h3>Transaction construction</h3>
       <p>
         Within the transaction, we can include the redeemer within{" "}
         <code>redeemValue</code>:
       </p>
-      <Codeblock data={txWithRedeemer} isJson={false} />
+      <Codeblock data={txWithRedeemer} />
     </>
   );
 }

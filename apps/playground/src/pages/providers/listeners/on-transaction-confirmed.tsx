@@ -38,7 +38,7 @@ function Left() {
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
   code += `\n`;
   code += `blockchainProvider.onTxConfirmed(txHash, () => {\n`;
-  code += `  console.log('Transaction confirmed');\n`;
+  code += `  // Transaction confirmed\n`;
   code += `});\n`;
 
   return (
@@ -47,7 +47,7 @@ function Left() {
         Allow you to listen to a transaction confirmation. Upon confirmation,
         the callback will be called.
       </p>
-      <Codeblock data={code} isJson={false} />
+      <Codeblock data={code} />
     </>
   );
 }

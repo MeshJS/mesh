@@ -116,7 +116,7 @@ function Right() {
   //       placeholder="Payload"
   //       label="Payload"
   //     />
-  //     <Codeblock data={code}  />
+  //     <Codeblock data={code} />
   //     <RunDemoButton
   //       runDemoFn={runDemo}
   //       loading={loading}

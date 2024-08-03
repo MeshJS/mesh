@@ -48,7 +48,7 @@ function Left() {
         .
       </p>
       <p>Here's an example of creating a UTxO with inline datum:</p>
-      <Codeblock data={codeExample} isJson={false} />
+      <Codeblock data={codeExample} />
       <p>
         As you can see, you simply have to define the <code>datum</code> field
         in the <code>Recipient</code> input parameter, including a (

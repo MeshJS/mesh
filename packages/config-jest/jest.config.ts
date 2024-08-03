@@ -6,21 +6,14 @@ const jestConfig: Config = {
   testEnvironment: "node",
   testMatch: ["**/packages/**/*.test.ts"],
   setupFiles: ["dotenv/config"],
-  preset: "ts-jest/presets/default-esm",
+  preset: "ts-jest",
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
   transform: {
-    "^.+\\.tsx?$": [
-      "ts-jest",
-      {
-        useESM: true,
-      },
-    ],
+    "^.+\\.[jt]s?$": "ts-jest",
   },
-  transformIgnorePatterns: [
-    "/node_modules/(?!@meshsdk/core-csl)", // Add exceptions for ESM packages
-  ],
+  transformIgnorePatterns: ["/node_modules/(?!@meshsdk/.*)"],
 };
 
 export default jestConfig;

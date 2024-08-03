@@ -7,7 +7,7 @@ export function InstallSmartContract() {
       <p>
         First you can to install the <code>@meshsdk/contracts</code> package:
       </p>
-      <Codeblock data={`npm install @meshsdk/contract`} isJson={false} />
+      <Codeblock data={`npm install @meshsdk/contract`} />
     </>
   );
 }

@@ -15,19 +15,27 @@ import {
 } from "@meshsdk/common";
 import {
   Address,
+  buildBaseAddress,
+  buildEnterpriseAddress,
+  buildRewardAddress,
+  CardanoSDKSerializer,
+  deserializeAddress,
+  deserializeTx,
+  Ed25519KeyHashHex,
   fromTxUnspentOutput,
+  Hash28ByteBase16,
   resolvePrivateKey,
+  toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,
 } from "@meshsdk/core-cst";
 import { Transaction } from "@meshsdk/transaction";
 
-import { AppWallet } from "../app";
 import { EmbeddedWallet } from "../embedded";
 import { GetAddressType } from "../types";
 
 export type CreateMeshWalletOptions = {
-  networkId: number;
+  networkId: 0 | 1;
   fetcher?: IFetcher;
   submitter?: ISubmitter;
   key:
@@ -44,6 +52,12 @@ export type CreateMeshWalletOptions = {
         type: "mnemonic";
         words: string[];
       };
+  // | {
+  //     type: "address";
+  //     address: string;
+  //   }
+  accountIndex?: number;
+  keyIndex?: number;
 };
 
 /**
@@ -68,45 +82,69 @@ export type CreateMeshWalletOptions = {
  * ```
  */
 export class MeshWallet implements IInitiator, ISigner, ISubmitter {
-  private readonly _wallet: AppWallet;
+  private readonly _wallet: EmbeddedWallet | null;
+  // private readonly _account: Account;
+  private readonly _accountIndex: number = 0;
+  private readonly _keyIndex: number = 0;
+  private readonly _fetcher?: IFetcher;
+  private readonly _submitter?: ISubmitter;
+  private readonly _networkId: 0 | 1;
+  private _addresses: {
+    baseAddress?: Address;
+    enterpriseAddress?: Address;
+    rewardAddress?: Address;
+    baseAddressBech32?: string;
+    enterpriseAddressBech32?: string;
+    rewardAddressBech32?: string;
+  } = {};
 
   constructor(options: CreateMeshWalletOptions) {
     switch (options.key.type) {
       case "root":
-        this._wallet = new AppWallet({
+        this._wallet = new EmbeddedWallet({
           networkId: options.networkId,
-          fetcher: options.fetcher,
-          submitter: options.submitter,
           key: {
             type: "root",
             bech32: options.key.bech32,
           },
         });
+        this.getAddressesFromWallet(this._wallet);
         break;
       case "cli":
-        this._wallet = new AppWallet({
+        this._wallet = new EmbeddedWallet({
           networkId: options.networkId,
-          fetcher: options.fetcher,
-          submitter: options.submitter,
           key: {
             type: "cli",
             payment: options.key.payment,
             stake: options.key.stake,
           },
         });
+        this.getAddressesFromWallet(this._wallet);
         break;
       case "mnemonic":
-        this._wallet = new AppWallet({
+        this._wallet = new EmbeddedWallet({
           networkId: options.networkId,
-          fetcher: options.fetcher,
-          submitter: options.submitter,
           key: {
             type: "mnemonic",
             words: options.key.words,
           },
         });
+        this.getAddressesFromWallet(this._wallet);
         break;
+      // case "address":
+      //   console.log(4);
+      //   this._wallet = null;
+      //   this.buildAddressFromBech32Address(options.key.address);
+      //   console.log(5);
+      //   break;
     }
+
+    this._networkId = options.networkId;
+
+    if (options.fetcher) this._fetcher = options.fetcher;
+    if (options.submitter) this._submitter = options.submitter;
+    if (options.accountIndex) this._accountIndex = options.accountIndex;
+    if (options.keyIndex) this._keyIndex = options.keyIndex;
   }
 
   /**
@@ -148,7 +186,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @returns an address
    */
   getChangeAddress(): string {
-    return this._wallet.getPaymentAddress();
+    return this._addresses.baseAddressBech32!;
   }
 
   /**
@@ -162,10 +200,44 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   async getCollateral(
     addressType: GetAddressType = "payment",
   ): Promise<UTxO[]> {
-    const utxos = await this._wallet.getCollateralUnspentOutput(0, addressType);
+    const utxos = await this.getCollateralUnspentOutput(addressType);
     return utxos.map((utxo, i) => {
       return fromTxUnspentOutput(utxo);
     });
+  }
+
+  /**
+   * Get a list of UTXOs to be used as collateral inputs for transactions with plutus script inputs.
+   *
+   * This is used in transaction building.
+   *
+   * @returns a list of UTXOs
+   */
+  async getCollateralUnspentOutput(
+    addressType: GetAddressType = "payment",
+  ): Promise<TransactionUnspentOutput[]> {
+    const utxos = await this.getUnspentOutputs(addressType);
+
+    // find utxos that are pure ADA-only
+    const pureAdaUtxos = utxos.filter((utxo) => {
+      return utxo.output().amount().multiasset() === undefined;
+    });
+
+    // sort utxos by their lovelace amount
+    pureAdaUtxos.sort((a, b) => {
+      return (
+        Number(a.output().amount().coin()) - Number(b.output().amount().coin())
+      );
+    });
+
+    // return the smallest utxo but not less than 5000000 lovelace
+    for (const utxo of pureAdaUtxos) {
+      if (Number(utxo.output().amount().coin()) >= 5000000) {
+        return [utxo];
+      }
+    }
+
+    return [];
   }
 
   /**
@@ -174,7 +246,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @returns network ID
    */
   getNetworkId(): number {
-    return this._wallet.getNetworkId();
+    return this._networkId;
   }
 
   /**
@@ -183,7 +255,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a list of reward addresses
    */
   getRewardAddresses(): string[] {
-    return [this._wallet.getRewardAddress()];
+    return [this._addresses.rewardAddressBech32!];
   }
 
   /**
@@ -254,6 +326,11 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a signature
    */
   signData(payload: string): DataSignature {
+    if (!this._wallet) {
+      throw new Error(
+        "[MeshWallet] Read only wallet does not support signing data.",
+      );
+    }
     return this._wallet.signData(this.getChangeAddress(), payload);
   }
 
@@ -265,7 +342,30 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a signed transaction in CBOR
    */
   signTx(unsignedTx: string, partialSign = false): string {
-    return this._wallet.signTx(unsignedTx, partialSign);
+    if (!this._wallet) {
+      throw new Error(
+        "[MeshWallet] Read only wallet does not support signing data.",
+      );
+    }
+
+    const tx = deserializeTx(unsignedTx);
+    if (
+      !partialSign &&
+      tx.witnessSet().vkeys() !== undefined &&
+      tx.witnessSet().vkeys()!.size() !== 0
+    )
+      throw new Error(
+        "Signatures already exist in the transaction in a non partial sign call",
+      );
+
+    const newSignatures = this._wallet.signTx(
+      unsignedTx,
+      this._accountIndex,
+      this._keyIndex,
+    );
+
+    let signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
+    return signedTx;
   }
 
   /**
@@ -295,7 +395,12 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a transaction hash
    */
   async submitTx(tx: string): Promise<string> {
-    return await this._wallet.submitTx(tx);
+    if (!this._submitter) {
+      throw new Error(
+        "[AppWallet] Submitter is required to submit transactions. Please provide a submitter.",
+      );
+    }
+    return this._submitter.submitTx(tx);
   }
 
   /**
@@ -306,7 +411,11 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @returns an Address object
    */
   getUsedAddress(addressType?: GetAddressType): Address {
-    return this._wallet.getUsedAddress(0, 0, addressType);
+    if (addressType === "enterprise") {
+      return toAddress(this._addresses.enterpriseAddressBech32!);
+    } else {
+      return toAddress(this._addresses.baseAddressBech32!);
+    }
   }
 
   /**
@@ -319,7 +428,19 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   async getUnspentOutputs(
     addressType?: GetAddressType,
   ): Promise<TransactionUnspentOutput[]> {
-    return await this._wallet.getUnspentOutputs(0, addressType);
+    if (!this._fetcher) {
+      throw new Error(
+        "[AppWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher.",
+      );
+    }
+
+    const utxos = await this._fetcher.fetchAddressUTxOs(
+      addressType == "enterprise"
+        ? this._addresses.enterpriseAddressBech32!
+        : this._addresses.baseAddressBech32!,
+    );
+
+    return utxos.map((utxo) => toTxUnspentOutput(utxo));
   }
 
   /**
@@ -409,5 +530,67 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     }
 
     return mnemonic;
+  }
+
+  getAddressesFromWallet(wallet: EmbeddedWallet) {
+    const account = wallet.getAccount(this._accountIndex, this._keyIndex);
+
+    this._addresses = {
+      baseAddress: account.baseAddress,
+      enterpriseAddress: account.enterpriseAddress,
+      rewardAddress: account.rewardAddress,
+      baseAddressBech32: account.baseAddressBech32,
+      enterpriseAddressBech32: account.enterpriseAddressBech32,
+      rewardAddressBech32: account.rewardAddressBech32,
+    };
+  }
+
+  buildAddressFromBech32Address(address: string) {
+    const serializer = new CardanoSDKSerializer();
+
+    const deserializedAddress =
+      serializer.deserializer.key.deserializeAddress(address);
+
+    if (
+      deserializedAddress.pubKeyHash &&
+      deserializedAddress.stakeCredentialHash
+    ) {
+      this._addresses.baseAddress = buildBaseAddress(
+        this._networkId,
+        Hash28ByteBase16.fromEd25519KeyHashHex(
+          Ed25519KeyHashHex(deserializedAddress.pubKeyHash),
+        ),
+        Hash28ByteBase16.fromEd25519KeyHashHex(
+          Ed25519KeyHashHex(
+            Ed25519KeyHashHex(deserializedAddress.stakeCredentialHash),
+          ),
+        ),
+      ).toAddress();
+      this._addresses.baseAddressBech32 =
+        this._addresses.baseAddress.toBech32();
+    }
+
+    if (deserializedAddress.pubKeyHash) {
+      this._addresses.enterpriseAddress = buildEnterpriseAddress(
+        this._networkId,
+        Hash28ByteBase16.fromEd25519KeyHashHex(
+          Ed25519KeyHashHex(deserializedAddress.pubKeyHash),
+        ),
+      ).toAddress();
+      this._addresses.enterpriseAddressBech32 =
+        this._addresses.enterpriseAddress.toBech32();
+    }
+
+    if (deserializedAddress.stakeCredentialHash) {
+      this._addresses.rewardAddress = buildRewardAddress(
+        this._networkId,
+        Hash28ByteBase16.fromEd25519KeyHashHex(
+          Ed25519KeyHashHex(deserializedAddress.stakeCredentialHash),
+        ),
+      ).toAddress();
+
+      this._addresses.rewardAddressBech32 =
+        this._addresses.rewardAddress.toBech32();
+    }
   }
 }

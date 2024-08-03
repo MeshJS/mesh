@@ -99,7 +99,7 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
 
       throw parseHttpError(data);
     } catch (error) {
-      console.log("error", error);
+      console.error("error", error);
       throw parseHttpError(error);
     }
   }
@@ -196,7 +196,6 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       const { data, status } = await this._axiosInstance.get(
         `assets/${policyId}${assetName}`,
       );
-      console.log(3, data)
       if (status === 200 || status == 202)
         return <AssetMetadata>{
           ...data.onchain_metadata,

@@ -4,12 +4,12 @@ import {
   conStr0,
   conStr1,
   conStr2,
-  Data,
   mConStr,
   mConStr0,
   mConStr1,
   mConStr2,
-} from "../../../src";
+} from "@meshsdk/common";
+
 import { serializeData } from "./common";
 
 const testByteString = "abcd";

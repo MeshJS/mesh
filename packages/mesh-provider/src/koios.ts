@@ -325,8 +325,6 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
         _tx_hashes: [hash],
       });
 
-      console.log(88, data);
-
       if (status === 200) {
         const utxos = data[0].outputs.map((utxo: KoiosUTxO) =>
           this.toUTxO(utxo, "undefined"),

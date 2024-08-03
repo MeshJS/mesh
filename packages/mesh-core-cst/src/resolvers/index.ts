@@ -93,7 +93,6 @@ export const resolvePoolId = (hash: string) => {
 };
 
 export const resolvePrivateKey = (words: string[]) => {
-  console.log(words);
   return "not implemented";
 };
 

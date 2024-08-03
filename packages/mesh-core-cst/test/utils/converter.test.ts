@@ -1,6 +1,5 @@
 import { PlutusScript } from "@meshsdk/common";
-
-import { fromScriptRef } from "../../src/utils/converter";
+import { fromScriptRef } from "@meshsdk/core-cst";
 
 describe("fromScriptRef", () => {
   // it("with native script cbor should return correct NativeScript", () => {});

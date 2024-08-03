@@ -107,20 +107,20 @@ function Left() {
         then it will try to also pick up another UTxO from the wallet,
         containing the largest amount of lovelace.
       </p>
-      <Codeblock data={codeKeepRelevantDesc} isJson={false} />
+      <Codeblock data={codeKeepRelevantDesc} />
       <p>
         Here is an example how you can use <code>keepRelevant()</code>:
       </p>
-      <Codeblock data={codeKeepRelevant} isJson={false} />
+      <Codeblock data={codeKeepRelevant} />
 
       <h3>Largest First</h3>
       <p>
         To select UTXOs for transaction that only requires lovelace, use{" "}
         <code>largestFirst</code>.
       </p>
-      <Codeblock data={code3} isJson={false} />
+      <Codeblock data={code3} />
       <p>For example, selecting the UTXOs for sending 10000000 lovelace:</p>
-      <Codeblock data={codeSnippet1} isJson={false} />
+      <Codeblock data={codeSnippet1} />
 
       <h3>Largest First Multi-Asset</h3>
       <p>
@@ -128,7 +128,7 @@ function Left() {
         assets you require for sending out by defining a <code>Map</code>. The
         Map is matches the <code>Unit</code> with the quantity of each asset.
       </p>
-      <Codeblock data={code4} isJson={false} />
+      <Codeblock data={code4} />
       <p>
         Note that if lovelace, aside from the "minimum Ada" which in any case
         needs to accompany the other assets, this must be explicitly specified.
@@ -137,7 +137,7 @@ function Left() {
         all multiasset UTxOs from the selection, which can result in more
         efficient selection of the required UTxOs.
       </p>
-      <Codeblock data={codeSnippet2} isJson={false} />
+      <Codeblock data={codeSnippet2} />
       <p>
         The third parameter is <code>includeTxFees</code>. If <code>True</code>,
         Mesh will calculate the fees required for the transaction, and include

@@ -200,8 +200,6 @@ export class MaestroProvider
       const { data: timestampedData, status } = await this._axiosInstance.get(
         `assets/${policyId}${assetName}`,
       );
-
-      console.log(2, timestampedData)
       if (status === 200) {
         const data = timestampedData.data;
         return <AssetMetadata>{

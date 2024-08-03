@@ -32,8 +32,6 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
         (response: MessageEvent<string>) => {
           try {
             const { result } = JSON.parse(response.data);
-            console.log(1, 'result', result)
-
             if (result.EvaluationResult) {
               resolve(
                 Object.keys(result.EvaluationResult).map((key) => {

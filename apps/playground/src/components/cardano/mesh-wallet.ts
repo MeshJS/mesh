@@ -6,7 +6,6 @@ export function getProvider(network = "preprod") {
 
 export function getMeshWallet() {
   const blockchainProvider = getProvider();
-
   const wallet = new MeshWallet({
     networkId: 0,
     fetcher: blockchainProvider,

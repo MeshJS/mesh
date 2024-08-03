@@ -1,6 +1,5 @@
 import { CardanoSDKUtil, Serialization } from "@meshsdk/core-cst";
-
-import { WalletStaticMethods } from "../src";
+import { WalletStaticMethods } from "@meshsdk/wallet";
 
 describe("BroswerWallet", () => {
   it("signTx: addWitnessSet", () => {

@@ -4,12 +4,12 @@ import {
   ConStr0,
   mConStr0,
   mConStr1,
-  parsePlutusValueToAssets,
   pubKeyAddress,
   PubKeyAddress,
   UTxO,
   value,
   Value,
+  MeshValue
 } from "@meshsdk/common";
 import {
   deserializeAddress,
@@ -89,7 +89,7 @@ export class MeshSwapContract extends MeshTxInitiator {
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptCbor)
-      .txOut(initiatorAddress, parsePlutusValueToAssets(initiatorToReceive))
+      .txOut(initiatorAddress, MeshValue.fromValue(initiatorToReceive).toAssets())
       .changeAddress(walletAddress)
       .txInCollateral(
         collateral.input.txHash,
@@ -134,6 +134,6 @@ export class MeshSwapContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    return await this._getUtxoByTxHash(this.scriptCbor, txHash);
+    return await this._getUtxoByTxHash(txHash, this.scriptCbor);
   };
 }

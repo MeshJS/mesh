@@ -21,3 +21,11 @@ export const deserializeAddress = (bech32: string): DeserializedAddress =>
  */
 export const deserializeDatum = <T = any>(datumCbor: string): T =>
   core.parseDatumCbor(datumCbor);
+
+/**
+ * Deserialize a script from a poolxxxx to Ed25519 key hash
+ * @param poolId The poolxxxx bech32 pool id
+ * @returns The Ed25519 key hash
+ */
+export const deserializePoolId = (poolId: string): string =>
+  core.resolveEd25519KeyHash(poolId);
