@@ -597,7 +597,32 @@ export class Transaction {
   private async addCollateralIfNeeded() {
     if (this.isCollateralNeeded) {
       const collaterals = await this.initiator.getCollateral();
-      this.setCollateral(collaterals);
+      if (collaterals.length > 0) {
+        this.setCollateral(collaterals);
+        return;
+      }
+      const utxos = await this.initiator.getUtxos();
+      const pureLovelaceUtxos = utxos.filter(
+        (utxo) => utxo.output.amount.length === 1,
+      );
+
+      pureLovelaceUtxos.sort((a, b) => {
+        return (
+          Number(a.output.amount[0]?.quantity!) -
+          Number(a.output.amount[0]?.quantity!)
+        );
+      });
+
+      for (const utxo of pureLovelaceUtxos) {
+        if (Number(utxo.output.amount[0]?.quantity!) >= 5000000) {
+          return [utxo];
+        }
+      }
+
+      if (pureLovelaceUtxos.length === 0) {
+        throw new Error("No pure lovelace utxos found for collateral");
+      }
+      this.setCollateral([pureLovelaceUtxos[0]!]);
     }
   }
 
