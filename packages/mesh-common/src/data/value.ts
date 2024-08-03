@@ -23,6 +23,13 @@ export const value = (assets: Asset[]) => {
   return MeshValue.fromAssets(assets).toJSON();
 }
 
+/**
+ * MeshValue provide utility to handle the Cardano value manipulation. It offers certain axioms:
+ * 1. No duplication of asset - adding assets with same asset name will increase the quantity of the asset in the same record.
+ * 2. No zero and negative entry - the quantity of the asset should not be zero or negative.
+ * 3. Sanitization of lovelace asset name - the class handle back and forth conversion of lovelace asset name to empty string.
+ * 4. Easy convertion to Cardano data - offer utility to convert into either Mesh Data type and JSON type for its Cardano data representation.
+ */
 export class MeshValue {
   value: Record<string, bigint>;
 
@@ -31,9 +38,9 @@ export class MeshValue {
 }
 
   /**
-   * 
-   * @param assets 
-   * @returns 
+   * Converting assets into MeshValue
+   * @param assets The assets to convert
+   * @returns MeshValue
    */
   static fromAssets = (assets: Asset[]): MeshValue => {
       const value = new MeshValue();
@@ -42,9 +49,9 @@ export class MeshValue {
   };
 
   /**
-   * 
-   * @param plutusValue 
-   * @returns 
+   * Converting Value (the JSON representation of Cardano data Value) into MeshValue
+   * @param plutusValue The Value to convert
+   * @returns MeshValue
    */
   static fromValue = (plutusValue: Value): MeshValue => {
     const assets: Asset[] = [];
@@ -64,10 +71,9 @@ export class MeshValue {
   };
 
   /**
-   * Add an asset to the Value class's value record. If an asset with the same unit already exists in the value record, the quantity of the
-   * existing asset will be increased by the quantity of the new asset. If no such asset exists, the new asset will be added to the value record.
-   * @param asset
-   * @returns this
+   * Add an asset to the Value class's value record.
+   * @param asset The asset to add
+   * @returns The updated MeshValue object
    */
   addAsset = (asset: Asset): this => {
     const quantity = BigInt(asset.quantity);
@@ -82,10 +88,9 @@ export class MeshValue {
   };
 
   /**
-   * Add an array of assets to the Value class's value record. If an asset with the same unit already exists in the value record, the quantity of the
-   * existing asset will be increased by the quantity of the new asset. If no such asset exists, the new assets under the array of assets will be added to the value record.
-   * @param assets
-   * @returns this
+   * Add an array of assets to the Value class's value record.
+   * @param assets The assets to add
+   * @returns The updated MeshValue object
    */
   addAssets = (assets: Asset[]): this => {
     assets.forEach((asset) => {
@@ -95,10 +100,9 @@ export class MeshValue {
   };
 
   /**
-   * Substract an asset from the Value class's value record. If an asset with the same unit already exists in the value record, the quantity of the
-   * existing asset will be decreased by the quantity of the new asset. If no such asset exists, an error message should be printed.
-   * @param asset
-   * @returns this
+   * Substract an asset from the Value class's value record.
+   * @param asset The asset to subtract
+   * @returns The updated MeshValue object
    */
   negateAsset = (asset: Asset): this => {
     const { unit, quantity } = asset;
@@ -115,10 +119,9 @@ export class MeshValue {
   };
 
   /**
-   * Subtract an array of assets from the Value class's value record. If an asset with the same unit already exists in the value record, the quantity of the
-   * existing asset will be decreased by the quantity of the new asset. If no such asset exists, an error message should be printed.
-   * @param assets
-   * @returns this
+   * Subtract an array of assets from the Value class's value record.
+   * @param assets The assets to subtract
+   * @returns The updated MeshValue object
    */
   negateAssets = (assets: Asset[]): this => {
     assets.forEach((asset) => {
@@ -129,27 +132,19 @@ export class MeshValue {
 
   /**
    * Get the quantity of asset object per unit
-   * @param unit
-   * @returns
+   * @param unit The unit to get the quantity of (e.g., "ADA")
+   * @returns The quantity of the asset
    */
   get = (unit: string): bigint => {
     return this.value[unit] ? BigInt(this.value[unit]) : BigInt(0);
   };
 
   /**
-   * Get all assets (return Record of Asset[])
-   * @param
-   * @returns Record<string, Asset[]>
+   * Get all asset units
+   * @returns The asset units
    */
-  units = (): Record<string, { unit: string; quantity: bigint }[]> => {
-    const result: Record<string, { unit: string; quantity: bigint }[]> = {};
-    Object.keys(this.value).forEach((unit) => {
-      if (!result[unit]) {
-        result[unit] = [];
-      }
-      result[unit].push({ unit, quantity: BigInt(this.value[unit]!) });
-    });
-    return result;
+  units = (): string[] => {
+    return Object.keys(this.value);
   };
 
   /**
