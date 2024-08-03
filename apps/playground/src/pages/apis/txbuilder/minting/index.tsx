@@ -9,6 +9,7 @@ import TxbuilderMintingCip68 from "./minting-cip68";
 import TxbuilderMintingNativeScript from "./minting-native-script";
 import TxbuilderMintAsset from "./minting-one-signature";
 import TxbuilderMintingPlutusScript from "./minting-plutus-script";
+import TxbuilderMintingRoyaltyToken from "./minting-royalty-token";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -42,6 +43,7 @@ const ReactPage: NextPage = () => {
         <TxbuilderMintingNativeScript />
         <TxbuilderMintingPlutusScript />
         <TxbuilderMintingCip68 />
+        <TxbuilderMintingRoyaltyToken />
       </SidebarFullwidth>
     </>
   );

@@ -1,37 +1,40 @@
 import {
   Action,
   Asset,
+  AssetMetadata,
   Budget,
   CIP68_100,
   CIP68_222,
-  DEFAULT_REDEEMER_BUDGET,
   Data,
+  DEFAULT_REDEEMER_BUDGET,
+  hexToString,
   IInitiator,
+  metadataToCip68,
   Mint,
   NativeScript,
-  POLICY_ID_LENGTH,
   PlutusScript,
+  POLICY_ID_LENGTH,
   PoolParams,
   Recipient,
+  stringToHex,
   SUPPORTED_TOKENS,
   Token,
   UTxO,
-  hexToString,
-  metadataToCip68,
-  stringToHex,
 } from "@meshsdk/common";
-import { MeshTxBuilder, MeshTxBuilderOptions } from "../mesh-tx-builder";
 import {
   deserializeNativeScript,
   deserializePlutusScript,
   fromScriptRef,
 } from "@meshsdk/core-cst";
 
+import { MeshTxBuilder, MeshTxBuilderOptions } from "../mesh-tx-builder";
+
 export interface TransactionOptions extends MeshTxBuilderOptions {
   initiator: IInitiator;
 }
 
 export class Transaction {
+  private mints: Mint[] = [];
   txBuilder: MeshTxBuilder;
   initiator: IInitiator;
   isCollateralNeeded: boolean = false;
@@ -145,7 +148,7 @@ export class Transaction {
         input.input.txHash,
         input.input.outputIndex,
         input.output.amount,
-        input.output.address
+        input.output.address,
       );
     });
 
@@ -162,7 +165,7 @@ export class Transaction {
     inputs.forEach((input) => {
       this.txBuilder.readOnlyTxInReference(
         input.input.txHash,
-        input.input.outputIndex
+        input.input.outputIndex,
       );
     });
 
@@ -178,14 +181,14 @@ export class Transaction {
   setNativeScriptInput(script: NativeScript, utxo: UTxO): Transaction {
     const { scriptCbor } =
       this.txBuilder.serializer.deserializer.script.deserializeNativeScript(
-        script
+        script,
       );
     this.txBuilder
       .txIn(
         utxo.input.txHash,
         utxo.input.outputIndex,
         utxo.output.amount,
-        utxo.output.address
+        utxo.output.address,
       )
       .txInScript(scriptCbor!);
 
@@ -213,7 +216,7 @@ export class Transaction {
           value.input.txHash,
           value.input.outputIndex,
           value.output.amount,
-          value.output.address
+          value.output.address,
         )
         .txInScript(script.code)
         .txInRedeemerValue(red.data, "Mesh", red.budget);
@@ -235,12 +238,12 @@ export class Transaction {
           value.input.txHash,
           value.input.outputIndex,
           value.output.amount,
-          value.output.address
+          value.output.address,
         )
         .spendingTxInReference(
           script.input.txHash,
           script.input.outputIndex,
-          script.output.scriptHash
+          script.output.scriptHash,
         )
         .txInRedeemerValue(red.data, "Mesh", red.budget);
     }
@@ -267,7 +270,7 @@ export class Transaction {
   mintAsset(
     forgeScript: string | PlutusScript | UTxO,
     mint: Mint,
-    redeemer?: Pick<Action, "data"> & { budget?: Budget }
+    redeemer?: Pick<Action, "data"> & { budget?: Budget },
   ): Transaction {
     const assetQuantity = mint.assetQuantity;
     let assetNameHex = stringToHex(mint.assetName);
@@ -293,13 +296,13 @@ export class Transaction {
       case "object":
         if (!redeemer)
           throw new Error(
-            "burnAsset: Redeemer data is required for Plutus minting"
+            "burnAsset: Redeemer data is required for Plutus minting",
           );
         if ("code" in forgeScript) {
           // Burn plutus script assets with provided script
           policyId = deserializePlutusScript(
             forgeScript.code,
-            forgeScript.version
+            forgeScript.version,
           )
             .hash()
             .toString();
@@ -337,7 +340,7 @@ export class Transaction {
               .mint(assetQuantity, policyId, assetNameHex)
               .mintTxInReference(
                 forgeScript.input.txHash,
-                forgeScript.input.outputIndex
+                forgeScript.input.outputIndex,
               )
               .mintRedeemerValue(redeemer.data, "Mesh", redeemer.budget);
             if (mint.cip68ScriptAddress) {
@@ -345,7 +348,7 @@ export class Transaction {
                 .mint(assetQuantity, policyId, referenceAssetNameHex)
                 .mintTxInReference(
                   forgeScript.input.txHash,
-                  forgeScript.input.outputIndex
+                  forgeScript.input.outputIndex,
                 )
                 .mintRedeemerValue(redeemer.data, "Mesh", redeemer.budget);
               break;
@@ -355,7 +358,7 @@ export class Transaction {
           } else {
             // TODO: to implement reference script minting for native script tokens
             throw new Error(
-              "mintAsset: Reference script minting not implemented"
+              "mintAsset: Reference script minting not implemented",
             );
             // this.txBuilder
             //   .mint(assetQuantity, policyId, assetName)
@@ -368,14 +371,6 @@ export class Transaction {
         break;
     }
 
-    if (mint.metadata && mint.label) {
-      this.setMetadata(Number(mint.label), {
-        [policyId]: {
-          [mint.assetName]: mint.metadata,
-        },
-        version: 1,
-      });
-    }
     if (mint.recipient) {
       this.sendAssets(mint.recipient, [
         { unit: policyId + assetNameHex, quantity: mint.assetQuantity },
@@ -392,8 +387,11 @@ export class Transaction {
             unit: policyId + referenceAssetNameHex,
             quantity: mint.assetQuantity,
           },
-        ]
+        ],
       );
+    }
+    if (!mint.cip68ScriptAddress && mint.metadata && mint.label) {
+      this.mints.push(mint);
     }
 
     return this;
@@ -404,7 +402,7 @@ export class Transaction {
   burnAsset(
     forgeScript: string | PlutusScript | UTxO,
     asset: Asset,
-    redeemer?: Pick<Action, "data"> & { budget?: Budget }
+    redeemer?: Pick<Action, "data"> & { budget?: Budget },
   ): Transaction {
     const assetQuantity = "-" + asset.quantity;
     const mint: Mint = {
@@ -443,7 +441,7 @@ export class Transaction {
         collateralUtxo.input.txHash,
         collateralUtxo.input.outputIndex,
         collateralUtxo.output.amount,
-        collateralUtxo.output.address
+        collateralUtxo.output.address,
       );
     });
 
@@ -511,23 +509,27 @@ export class Transaction {
   delegateStake(rewardAddress: string, poolId: string): Transaction {
     this.txBuilder.delegateStakeCertificate(
       this.txBuilder.serializer.resolver.keys.resolveStakeKeyHash(
-        rewardAddress
+        rewardAddress,
       ),
-      this.txBuilder.serializer.resolver.keys.resolveEd25519KeyHash(poolId)
+      this.txBuilder.serializer.resolver.keys.resolveEd25519KeyHash(poolId),
     );
     return this;
   }
 
   deregisterStake(rewardAddress: string): Transaction {
     this.txBuilder.deregisterStakeCertificate(
-      this.txBuilder.serializer.resolver.keys.resolveStakeKeyHash(rewardAddress)
+      this.txBuilder.serializer.resolver.keys.resolveStakeKeyHash(
+        rewardAddress,
+      ),
     );
     return this;
   }
 
   registerStake(rewardAddress: string): Transaction {
     this.txBuilder.registerStakeCertificate(
-      this.txBuilder.serializer.resolver.keys.resolveStakeKeyHash(rewardAddress)
+      this.txBuilder.serializer.resolver.keys.resolveStakeKeyHash(
+        rewardAddress,
+      ),
     );
     return this;
   }
@@ -549,11 +551,12 @@ export class Transaction {
       await this.addCollateralIfNeeded();
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
+      this.addMintMetadata();
 
       return this.txBuilder.complete();
     } catch (error) {
       throw new Error(
-        `[Transaction] An error occurred during build: ${error}.`
+        `[Transaction] An error occurred during build: ${error}.`,
       );
     }
   }
@@ -586,6 +589,63 @@ export class Transaction {
         break;
     }
     return this.txBuilder;
+  }
+
+  protected addMintMetadata() {
+    // type Mintdata = { unit: string; data: Mint };
+    // type Metadata = Record<string, Record<string, AssetMetadata>>;
+    // const forge = (mint: Mintdata, meta?: Metadata): Metadata => {
+    //   const name = mint.data.assetName;
+    //   const metadata = mint.data.metadata;
+    //   const collection = mint.unit.slice(0, POLICY_ID_LENGTH);
+    //   if (mint.data.label === "777") {
+    //     return metadata as any; // TODO: fix this
+    //   }
+    //   if (meta && meta[collection]) {
+    //     const { [collection]: oldCollection, ...rest } = meta;
+    //     const newCollection = {
+    //       [name]: metadata,
+    //       ...oldCollection,
+    //     };
+    //     return {
+    //       [collection]: {
+    //         ...newCollection,
+    //       },
+    //       ...rest,
+    //     };
+    //   }
+    //   if (meta !== undefined) {
+    //     return {
+    //       [collection]: {
+    //         [name]: metadata,
+    //       },
+    //       ...meta,
+    //     };
+    //   }
+    //   return {
+    //     [collection]: { [name]: metadata },
+    //   };
+    // };
+    // Array.from(
+    //   this.mints,
+    //   (mint) =>
+    //     <Mintdata>{
+    //       unit: mint[0],
+    //       data: mint[1],
+    //     }
+    // )
+    //   .reduce((metadatums, mint) => {
+    //     return metadatums.set(
+    //       mint.data.label,
+    //       forge(mint, metadatums.get(mint.data.label))
+    //     );
+    //   }, new Map<string, Metadata>())
+    //   .forEach((metadata, label) => {
+    //     this._txBuilder.add_json_metadatum(
+    //       csl.BigNum.from_str(label),
+    //       JSON.stringify(metadata)
+    //     );
+    //   });
   }
 
   private async addCollateralIfNeeded() {
