@@ -16,12 +16,34 @@ import {
   tokenName,
 } from "./json";
 
+/**
+ * Aiken alias
+ * Value is the JSON representation of Cardano data Value
+ */
 export type Value = AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>;
 
+/**
+ * Aiken alias
+ * MValue is the Cardano data Value in Mesh Data type
+ */
 export type MValue = Map<string, Map<string, bigint>>;
 
+/**
+ * The utility function to convert assets into Cardano data Value in JSON
+ * @param assets The assets to convert
+ * @returns The Cardano data Value in JSON
+ */
 export const value = (assets: Asset[]) => {
   return MeshValue.fromAssets(assets).toJSON();
+};
+
+/**
+ * The utility function to convert assets into Cardano data Value in Mesh Data type
+ * @param assets The assets to convert
+ * @returns The Cardano data Value in Mesh Data type
+ */
+export const mValue = (assets: Asset[]) => {
+  return MeshValue.fromAssets(assets).toData();
 };
 
 /**
@@ -132,7 +154,7 @@ export class MeshValue {
 
   /**
    * Get the quantity of asset object per unit
-   * @param unit The unit to get the quantity of (e.g., "ADA")
+   * @param unit The unit to get the quantity of
    * @returns The quantity of the asset
    */
   get = (unit: string): bigint => {
@@ -158,6 +180,7 @@ export class MeshValue {
 
   /**
    * Check if the specific unit of value is greater than or equal to that unit of another value
+   * @param unit - The unit to compare
    * @param other - The value to compare against
    * @returns boolean
    */
@@ -179,6 +202,7 @@ export class MeshValue {
 
   /**
    * Check if the specific unit of value is less than or equal to that unit of another value
+   * @param unit - The unit to compare
    * @param other - The value to compare against
    * @returns boolean
    */
@@ -191,7 +215,6 @@ export class MeshValue {
 
   /**
    * Check if the value is empty
-   * @param
    * @returns boolean
    */
   isEmpty = (): boolean => {
@@ -200,7 +223,7 @@ export class MeshValue {
 
   /**
    * Merge the given values
-   * @param values
+   * @param values The other values to merge
    * @returns this
    */
   merge = (values: MeshValue | MeshValue[]): this => {
@@ -218,6 +241,10 @@ export class MeshValue {
     return this;
   };
 
+  /**
+   * Convert the MeshValue object into an array of Asset
+   * @returns The array of Asset
+   */
   toAssets = (): Asset[] => {
     const assets: Asset[] = [];
     Object.entries(this.value).forEach(([unit, quantity]) => {
@@ -226,15 +253,41 @@ export class MeshValue {
     return assets;
   };
 
-  toData = () => {};
+  /**
+   * Convert the MeshValue object into Cardano data Value in Mesh Data type
+   */
+  toData = (): MValue => {
+    const valueMap: MValue = new Map();
+    this.toAssets().forEach((asset) => {
+      const policy = asset.unit.slice(0, 56) || "";
+      const token = asset.unit.slice(56) || "";
 
-  toJSON = () => {
-    const assets = this.toAssets();
+      if (!valueMap.has(policy)) {
+        valueMap.set(policy, new Map());
+      }
+
+      const tokenMap = valueMap.get(policy)!;
+      const quantity = tokenMap?.get(token);
+      if (!quantity) {
+        tokenMap.set(token, BigInt(asset.quantity));
+      } else {
+        tokenMap.set(token, quantity + BigInt(asset.quantity));
+      }
+    });
+
+    return valueMap;
+  };
+
+  /**
+   * Convert the MeshValue object into a JSON representation of Cardano data Value
+   * @returns Cardano data Value in JSON
+   */
+  toJSON = (): Value => {
     const valueMapToParse: [CurrencySymbol, AssocMap<TokenName, Integer>][] =
       [];
     const valueMap: { [key: string]: { [key: string]: number } } = {};
 
-    assets.forEach((asset) => {
+    this.toAssets().forEach((asset) => {
       const sanitizedName = asset.unit.replace("lovelace", "");
       const policy = sanitizedName.slice(0, 56) || "";
       const token = sanitizedName.slice(56) || "";

@@ -1,12 +1,13 @@
 import {
   Asset,
   byteString,
-  ByteString,
   dict,
   Dict,
   Integer,
   integer,
   MeshValue,
+  MValue,
+  mValue,
   Value,
   value,
 } from "@meshsdk/common";
@@ -65,6 +66,57 @@ describe("value", () => {
         nameMap,
       ],
     ]);
+    expect(JSON.stringify(datum)).toBe(JSON.stringify(valMap));
+  });
+});
+
+describe("mValue", () => {
+  it("should create a new Value instance with the correct value", () => {
+    const val: Asset[] = [{ unit: "lovelace", quantity: "1000000" }];
+    const datum: MValue = mValue(val);
+    const nameMap = new Map().set("", 1000000);
+    const valMap = new Map().set("", nameMap);
+    expect(JSON.stringify(datum)).toBe(JSON.stringify(valMap));
+  });
+  it("Simple token Value", () => {
+    const val: Asset[] = [
+      {
+        unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc8170074657374696e676e657777616c2e616461",
+        quantity: "345",
+      },
+    ];
+    const datum: MValue = mValue(val);
+    const nameMap = new Map().set("74657374696e676e657777616c2e616461", 345);
+    const valMap = new Map().set(
+      "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc81700",
+      nameMap,
+    );
+    expect(JSON.stringify(datum)).toBe(JSON.stringify(valMap));
+  });
+  it("Complex Value", () => {
+    const val: Asset[] = [
+      { unit: "lovelace", quantity: "1000000" },
+      {
+        unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc8170074657374696e676e657777616c2e616461",
+        quantity: "345",
+      },
+      {
+        unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234",
+        quantity: "567",
+      },
+    ];
+    const datum: MValue = mValue(val);
+
+    const lovelaceMap = new Map().set("", 1000000);
+    const tokenMap = new Map()
+      .set("1234", 567)
+      .set("74657374696e676e657777616c2e616461", 345);
+    const valMap = new Map()
+      .set("", lovelaceMap)
+      .set(
+        "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc81700",
+        tokenMap,
+      );
     expect(JSON.stringify(datum)).toBe(JSON.stringify(valMap));
   });
 });
