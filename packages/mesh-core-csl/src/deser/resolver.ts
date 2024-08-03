@@ -122,7 +122,7 @@ export const resolveNativeScriptHex = (script: NativeScript) => {
   return toNativeScript(script).to_hex();
 };
 
-export const resolvePoolId = (hash: string) => {
+export const serializePoolId = (hash: string) => {
   return csl.Ed25519KeyHash.from_hex(hash).to_bech32("pool1");
 };
 

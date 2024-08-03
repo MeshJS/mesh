@@ -1,10 +1,6 @@
 import { useState } from "react";
 
-import {
-  deserializePoolId,
-  resolveStakeKeyHash,
-  Transaction,
-} from "@meshsdk/core";
+import { Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -12,14 +8,13 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoPool } from "~/data/cardano";
 import { getTxBuilder } from "../common";
 
-export default function StakingDelegate() {
+export default function StakingWithdraw() {
   return (
     <TwoColumnsScroll
-      sidebarTo="delegateStake"
-      title="Delegate Stake"
+      sidebarTo="withdrawRewards"
+      title="Withdraw Rewards"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -27,19 +22,21 @@ export default function StakingDelegate() {
 }
 
 function Left() {
-  let codeSnippet = `const addresses = await wallet.getRewardAddresses();\n`;
-  codeSnippet += `const rewardAddress = addresses[0];\n\n`;
-  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
-  codeSnippet += `tx.delegateStake(rewardAddress, '${demoPool}');`;
+  let codeSnippet = `tx.withdrawRewards(rewardAddress, lovelace);`;
 
   return (
     <>
       <p>
-        Delegation is the process by which ADA holders delegate the stake
-        associated with their ADA to a stake pool. Doing so, this allows ADA
-        holders to participate in the network and be rewarded in proportion to
-        the amount of stake delegated.
+        Withdraw staking rewards. The function accepts the following parameters:
       </p>
+      <ul>
+        <li>
+          <b>rewardAddress (string)</b> - the reward address to withdraw from
+        </li>
+        <li>
+          <b>lovelace (number)</b> - the amount to withdraw in Lovelace
+        </li>
+      </ul>
       <Codeblock data={codeSnippet} />
     </>
   );
@@ -47,15 +44,13 @@ function Left() {
 
 function Right() {
   const { wallet, connected } = useWallet();
-  const [userInput, setUserInput] = useState<string>(demoPool);
+  const [userInput, setUserInput] = useState<string>("1000000");
 
   async function runDemo() {
     const utxos = await wallet.getUtxos();
     const address = await wallet.getChangeAddress();
     const addresses = await wallet.getRewardAddresses();
     const rewardAddress = addresses[0]!;
-    const stakeKeyHash = resolveStakeKeyHash(rewardAddress);
-    const poolIdHash = deserializePoolId(userInput);
 
     if (rewardAddress === undefined) {
       throw "No address found";
@@ -64,7 +59,7 @@ function Right() {
     const txBuilder = getTxBuilder();
 
     const unsignedTx = await txBuilder
-      .delegateStakeCertificate(stakeKeyHash, poolIdHash)
+      .withdrawal(rewardAddress, userInput)
       .selectUtxosFrom(utxos)
       .changeAddress(address)
       .complete();
@@ -79,7 +74,7 @@ function Right() {
   code += `const rewardAddress = addresses[0];\n`;
   code += `\n`;
   code += `const tx = new Transaction({ initiator: wallet });\n`;
-  code += `tx.delegateStake(rewardAddress, '${userInput}');\n`;
+  code += `tx.withdrawRewards(rewardAddress, '${userInput}');\n`;
   code += `\n`;
   code += `const unsignedTx = await tx.build();\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
@@ -87,8 +82,8 @@ function Right() {
 
   return (
     <LiveCodeDemo
-      title="Delegate Stake"
-      subtitle="Delegate stake to a stake pool"
+      title="Withdraw Reward"
+      subtitle="Withdraw staking rewards."
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={
@@ -102,8 +97,8 @@ function Right() {
           <Input
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
-            placeholder="Pool ID"
-            label="Pool ID"
+            placeholder="Amount in lovelace"
+            label="Amount in lovelace"
             key={0}
           />,
         ]}

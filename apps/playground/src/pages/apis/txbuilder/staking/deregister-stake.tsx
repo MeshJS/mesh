@@ -1,25 +1,16 @@
-import { useState } from "react";
-
-import {
-  deserializePoolId,
-  resolveStakeKeyHash,
-  Transaction,
-} from "@meshsdk/core";
+import { resolveStakeKeyHash, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
-import Input from "~/components/form/input";
-import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoPool } from "~/data/cardano";
 import { getTxBuilder } from "../common";
 
-export default function StakingDelegate() {
+export default function StakingDeregister() {
   return (
     <TwoColumnsScroll
-      sidebarTo="delegateStake"
-      title="Delegate Stake"
+      sidebarTo="deregisterStake"
+      title="Deregister Stake"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -27,19 +18,19 @@ export default function StakingDelegate() {
 }
 
 function Left() {
-  let codeSnippet = `const addresses = await wallet.getRewardAddresses();\n`;
-  codeSnippet += `const rewardAddress = addresses[0];\n\n`;
-  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
-  codeSnippet += `tx.delegateStake(rewardAddress, '${demoPool}');`;
+  let codeSnippet = `deregisterStake(rewardAddress: string)`;
 
   return (
     <>
       <p>
-        Delegation is the process by which ADA holders delegate the stake
-        associated with their ADA to a stake pool. Doing so, this allows ADA
-        holders to participate in the network and be rewarded in proportion to
-        the amount of stake delegated.
+        Deregister a stake address. The function accepts the following
+        parameters:
       </p>
+      <ul>
+        <li>
+          <b>rewardAddress (string)</b> - the reward address to deregister
+        </li>
+      </ul>
       <Codeblock data={codeSnippet} />
     </>
   );
@@ -47,7 +38,6 @@ function Left() {
 
 function Right() {
   const { wallet, connected } = useWallet();
-  const [userInput, setUserInput] = useState<string>(demoPool);
 
   async function runDemo() {
     const utxos = await wallet.getUtxos();
@@ -55,7 +45,6 @@ function Right() {
     const addresses = await wallet.getRewardAddresses();
     const rewardAddress = addresses[0]!;
     const stakeKeyHash = resolveStakeKeyHash(rewardAddress);
-    const poolIdHash = deserializePoolId(userInput);
 
     if (rewardAddress === undefined) {
       throw "No address found";
@@ -64,7 +53,7 @@ function Right() {
     const txBuilder = getTxBuilder();
 
     const unsignedTx = await txBuilder
-      .delegateStakeCertificate(stakeKeyHash, poolIdHash)
+      .deregisterStakeCertificate(stakeKeyHash)
       .selectUtxosFrom(utxos)
       .changeAddress(address)
       .complete();
@@ -79,7 +68,7 @@ function Right() {
   code += `const rewardAddress = addresses[0];\n`;
   code += `\n`;
   code += `const tx = new Transaction({ initiator: wallet });\n`;
-  code += `tx.delegateStake(rewardAddress, '${userInput}');\n`;
+  code += `tx.deregisterStake(rewardAddress);\n`;
   code += `\n`;
   code += `const unsignedTx = await tx.build();\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
@@ -87,8 +76,8 @@ function Right() {
 
   return (
     <LiveCodeDemo
-      title="Delegate Stake"
-      subtitle="Delegate stake to a stake pool"
+      title="Deregister Stake"
+      subtitle="Deregister a stake address"
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={
@@ -96,18 +85,6 @@ function Right() {
       }
       runDemoShowBrowseWalletConnect={true}
       code={code}
-    >
-      <InputTable
-        listInputs={[
-          <Input
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            placeholder="Pool ID"
-            label="Pool ID"
-            key={0}
-          />,
-        ]}
-      />
-    </LiveCodeDemo>
+    ></LiveCodeDemo>
   );
 }

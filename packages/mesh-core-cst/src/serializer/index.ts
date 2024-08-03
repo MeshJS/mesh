@@ -96,6 +96,9 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     );
     this.txWitnessSet = new TransactionWitnessSet();
   }
+  serializePoolId(hash: string): string {
+    throw new Error("Method not implemented.");
+  }
 
   serializeAddress(address: DeserializedAddress, networkId?: 0 | 1): string {
     throw new Error("Method not implemented.");
@@ -127,6 +130,11 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       deserializePlutusScript: function (
         script: PlutusScript,
       ): DeserializedScript {
+        throw new Error("Function not implemented.");
+      },
+    },
+    cert: {
+      deserializePoolId: function (poolId: string): string {
         throw new Error("Function not implemented.");
       },
     },
@@ -189,11 +197,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       resolveScriptRef: function (
         script: CommonNativeScript | PlutusScript,
       ): string {
-        throw new Error("Function not implemented.");
-      },
-    },
-    pool: {
-      resolvePoolId: function (hash: string): string {
         throw new Error("Function not implemented.");
       },
     },
@@ -647,21 +650,27 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
           case "V1":
             this.scriptsProvided.add(
               Script.newPlutusV1Script(
-                PlutusV1Script.fromCbor(HexBlob(plutusScriptSource.script.code)),
+                PlutusV1Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
               ),
             );
             break;
           case "V2":
             this.scriptsProvided.add(
               Script.newPlutusV2Script(
-                PlutusV2Script.fromCbor(HexBlob(plutusScriptSource.script.code)),
+                PlutusV2Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
               ),
             );
             break;
           case "V3":
             this.scriptsProvided.add(
               Script.newPlutusV3Script(
-                PlutusV3Script.fromCbor(HexBlob(plutusScriptSource.script.code)),
+                PlutusV3Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
               ),
             );
             break;

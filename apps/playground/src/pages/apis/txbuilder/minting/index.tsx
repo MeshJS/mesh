@@ -4,6 +4,7 @@ import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaTxbuilderMinting } from "~/data/links-txbuilders";
+import { Intro } from "../common";
 import TxbuilderBurningOneSignature from "./burning-one-signature";
 import TxbuilderMintingCip68 from "./minting-cip68";
 import TxbuilderMintingNativeScript from "./minting-native-script";
@@ -34,7 +35,16 @@ const ReactPage: NextPage = () => {
           heroicon={metaTxbuilderMinting.icon}
         >
           <>
-            <p></p>
+            <p>
+              Minting and burning assets is a common operation in blockchain
+              applications. In the Cardano ecosystem, minting and burning are
+              achieved through Native Scripts and Plutus Scripts.
+            </p>
+            <Intro />
+            <p>
+              In this page, you will find the APIs to create transactions for
+              minting and burning assets.
+            </p>
           </>
         </TitleIconDescriptionBody>
 

@@ -24,9 +24,10 @@ export default function TxbuilderSendValue() {
 function Left() {
   let code1 = ``;
   code1 += `txBuilder\n`;
-  code1 += `  .txIn(utxo.input.txHash, utxo.input.outputIndex)\n`;
-  code1 += `  .txOut(address, [{ unit: "lovelace", quantity: '1000000' }])\n`;
-  code1 += `  .changeAddress(await wallet.getChangeAddress());\n`;
+  code1 += `  .txOut(address, [{ unit: "lovelace", quantity: amount }])\n`;
+  code1 += `  .changeAddress(changeAddress)\n`;
+  code1 += `  .selectUtxosFrom(utxos)\n`;
+  code1 += `  .complete();\n`;
 
   return (
     <>

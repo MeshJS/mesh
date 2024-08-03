@@ -26,10 +26,10 @@ import {
   deserializePlutusScript,
   resolveDataHash,
   resolveEd25519KeyHash,
-  resolvePoolId,
   resolvePrivateKey,
   resolveRewardAddress,
   resolveScriptRef,
+  serializePoolId,
   toNativeScript,
 } from "../deser";
 import {
@@ -92,6 +92,10 @@ export class CSLSerializer implements IMeshTxSerializer {
     return serialzeAddress(address, networkId);
   }
 
+  serializePoolId(hash: string): string {
+    return serializePoolId(hash);
+  }
+
   deserializer: IDeserializer = {
     key: {
       deserializeAddress: function (bech32: string): DeserializedAddress {
@@ -117,6 +121,11 @@ export class CSLSerializer implements IMeshTxSerializer {
           .hash()
           .to_hex();
         return { scriptHash, scriptCbor: script.code };
+      },
+    },
+    cert: {
+      deserializePoolId: function (poolId: string): string {
+        return resolveEd25519KeyHash(poolId);
       },
     },
   };
@@ -152,11 +161,6 @@ export class CSLSerializer implements IMeshTxSerializer {
     script: {
       resolveScriptRef: function (script: PlutusScript | NativeScript): string {
         return resolveScriptRef(script);
-      },
-    },
-    pool: {
-      resolvePoolId: function (hash: string): string {
-        return resolvePoolId(hash);
       },
     },
   };

@@ -6,6 +6,7 @@ import {
   PlutusScript,
   Quantity,
   resolvePlutusScriptAddress,
+  serializePlutusScript,
   Unit,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
@@ -56,13 +57,12 @@ function Right() {
       code: demoPlutusAlwaysSucceedScript,
       version: "V2",
     };
-    const scriptAddress = resolvePlutusScriptAddress(script, 0);
+    const { address: scriptAddress } = serializePlutusScript(script);
 
     const txBuilder = getTxBuilder();
 
-    // todo
     const unsignedTx = await txBuilder
-      .txOut(scriptAddress, [])
+      .txOut(scriptAddress, [{ unit: userInput, quantity: "1" }])
       .txOutInlineDatumValue(userInput2)
       .changeAddress(changeAddress)
       .selectUtxosFrom(utxos)

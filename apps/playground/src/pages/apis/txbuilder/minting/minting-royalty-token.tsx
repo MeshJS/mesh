@@ -105,14 +105,12 @@ function Right() {
       address: userInput2,
     };
 
-    const metadata = { [policyId]: { [""]: { ...assetMetadata } } };
-
     const txBuilder = new MeshTxBuilder();
 
     const unsignedTx = await txBuilder
       .mint("1", policyId, "")
       .mintingScript(forgingScript)
-      .metadataValue("777", metadata)
+      .metadataValue("777", assetMetadata)
       .changeAddress(address)
       .selectUtxosFrom(utxos)
       .complete();

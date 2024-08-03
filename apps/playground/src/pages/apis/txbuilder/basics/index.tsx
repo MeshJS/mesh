@@ -1,9 +1,11 @@
 import type { NextPage } from "next";
+import Link from "next/link";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaTxbuilderBasic } from "~/data/links-txbuilders";
+import { Intro } from "../common";
 import TxbuilderBuildWithObject from "./build-with-object";
 import TxbuilderCip20 from "./cip20";
 import TxbuilderCommonFunctions from "./common-functions";
@@ -42,11 +44,29 @@ const ReactPage: NextPage = () => {
           heroicon={metaTxbuilderBasic.icon}
         >
           <>
+            <Intro />
             <p>
-              The <code>MeshTxBuilder</code> is a powerful low-level API that
-              allows you to build and sign transactions. Under the hood, it
-              interface with cardano-sdk and Whisky SDK to construct
-              transactions.
+              The <code>MeshTxBuilder</code> is a powerful interface where the
+              higher level <code>Transaction</code> class is indeed a pre-built
+              combination of the <code>MeshTxBuilder</code> APIs. With these
+              lower level APIs, it builds the object to be passing to the
+              serialization libraries like{" "}
+              <Link
+                href="https://github.com/input-output-hk/cardano-js-sdk"
+                target="_blank"
+                rel="noreferrer"
+              >
+                cardano-sdk
+              </Link>
+              {" and "}
+              <Link
+                href="https://whisky.sidan.io"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Whisky SDK
+              </Link>{" "}
+              to construct transactions.
             </p>
             <p>
               In this page, we will cover how to initialize the{" "}

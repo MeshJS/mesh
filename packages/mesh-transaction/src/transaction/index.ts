@@ -34,7 +34,6 @@ export interface TransactionOptions extends MeshTxBuilderOptions {
 }
 
 export class Transaction {
-  private mints: Mint[] = [];
   txBuilder: MeshTxBuilder;
   initiator: IInitiator;
   isCollateralNeeded: boolean = false;
@@ -391,7 +390,12 @@ export class Transaction {
       );
     }
     if (!mint.cip68ScriptAddress && mint.metadata && mint.label) {
-      this.mints.push(mint);
+      if (mint.label === "721" || mint.label === "20") {
+        this.setMetadata(Number(mint.label), {
+          [policyId]: { [mint.assetName]: mint.metadata },
+        });
+      }
+      this.setMetadata(Number(mint.label), mint.metadata);
     }
 
     return this;
@@ -551,7 +555,6 @@ export class Transaction {
       await this.addCollateralIfNeeded();
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
-      this.addMintMetadata();
 
       return this.txBuilder.complete();
     } catch (error) {
@@ -589,63 +592,6 @@ export class Transaction {
         break;
     }
     return this.txBuilder;
-  }
-
-  protected addMintMetadata() {
-    // type Mintdata = { unit: string; data: Mint };
-    // type Metadata = Record<string, Record<string, AssetMetadata>>;
-    // const forge = (mint: Mintdata, meta?: Metadata): Metadata => {
-    //   const name = mint.data.assetName;
-    //   const metadata = mint.data.metadata;
-    //   const collection = mint.unit.slice(0, POLICY_ID_LENGTH);
-    //   if (mint.data.label === "777") {
-    //     return metadata as any; // TODO: fix this
-    //   }
-    //   if (meta && meta[collection]) {
-    //     const { [collection]: oldCollection, ...rest } = meta;
-    //     const newCollection = {
-    //       [name]: metadata,
-    //       ...oldCollection,
-    //     };
-    //     return {
-    //       [collection]: {
-    //         ...newCollection,
-    //       },
-    //       ...rest,
-    //     };
-    //   }
-    //   if (meta !== undefined) {
-    //     return {
-    //       [collection]: {
-    //         [name]: metadata,
-    //       },
-    //       ...meta,
-    //     };
-    //   }
-    //   return {
-    //     [collection]: { [name]: metadata },
-    //   };
-    // };
-    // Array.from(
-    //   this.mints,
-    //   (mint) =>
-    //     <Mintdata>{
-    //       unit: mint[0],
-    //       data: mint[1],
-    //     }
-    // )
-    //   .reduce((metadatums, mint) => {
-    //     return metadatums.set(
-    //       mint.data.label,
-    //       forge(mint, metadatums.get(mint.data.label))
-    //     );
-    //   }, new Map<string, Metadata>())
-    //   .forEach((metadata, label) => {
-    //     this._txBuilder.add_json_metadatum(
-    //       csl.BigNum.from_str(label),
-    //       JSON.stringify(metadata)
-    //     );
-    //   });
   }
 
   private async addCollateralIfNeeded() {

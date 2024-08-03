@@ -1,4 +1,11 @@
-import { AppWallet, ForgeScript, Mint, Transaction } from "@meshsdk/core";
+import {
+  AppWallet,
+  ForgeScript,
+  Mint,
+  resolveScriptHash,
+  stringToHex,
+  Transaction,
+} from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
@@ -6,6 +13,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAssetMetadata, demoMnemonic } from "~/data/cardano";
+import { getTxBuilder } from "../common";
 
 export default function TxbuilderMultisig() {
   return (
@@ -65,24 +73,25 @@ function Right() {
     const forgingScript = ForgeScript.withOneSignature(
       mintingWallet.getPaymentAddress(),
     );
+    const assetName = "MeshToken";
+    const policyId = resolveScriptHash(forgingScript);
 
     const usedAddress = await wallet.getUsedAddresses();
-    const address = usedAddress[0];
+    const utxos = await wallet.getUtxos();
+    const address = usedAddress[0]!;
 
-    const asset: Mint = {
-      assetName: "MeshToken",
-      assetQuantity: "1",
-      metadata: demoAssetMetadata,
-      label: "721",
-      recipient: address,
-    };
+    const txBuilder = getTxBuilder();
 
-    const tx = new Transaction({ initiator: wallet });
-    tx.mintAsset(forgingScript, asset);
+    const unsignedTx = await txBuilder
+      .mint("1", policyId, stringToHex("MeshToken"))
+      .mintingScript(forgingScript)
+      .metadataValue("721", { [policyId]: { [assetName]: demoAssetMetadata } })
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
 
-    const unsignedTx = await tx.build();
     const signedTx = await wallet.signTx(unsignedTx, true);
-    const signedTx2 = await mintingWallet.signTx(signedTx, true);
+    const signedTx2 = mintingWallet.signTx(signedTx, true);
     const txHash = await wallet.submitTx(signedTx2);
     return txHash;
   }
@@ -101,23 +110,25 @@ function Right() {
   codeSnippet += `  mintingWallet.getPaymentAddress(),\n`;
   codeSnippet += `);\n`;
   codeSnippet += `\n`;
+  codeSnippet += `const assetName = "MeshToken";\n`;
+  codeSnippet += `const policyId = resolveScriptHash(forgingScript);\n`;
+  codeSnippet += `\n`;
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet += `const address = usedAddress[0];\n`;
+  codeSnippet += `const utxos = await wallet.getUtxos();\n`;
+  codeSnippet += `const address = usedAddress[0]!;\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const asset: Mint = {\n`;
-  codeSnippet += `  assetName: "MeshToken",\n`;
-  codeSnippet += `  assetQuantity: "1",\n`;
-  codeSnippet += `  metadata: demoAssetMetadata,\n`;
-  codeSnippet += `  label: "721",\n`;
-  codeSnippet += `  recipient: address,\n`;
-  codeSnippet += `};\n`;
+  codeSnippet += `const txBuilder = getTxBuilder();\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
-  codeSnippet += `tx.mintAsset(forgingScript, asset);\n`;
+  codeSnippet += `const unsignedTx = await txBuilder\n`;
+  codeSnippet += `  .mint("1", policyId, stringToHex("MeshToken"))\n`;
+  codeSnippet += `  .mintingScript(forgingScript)\n`;
+  codeSnippet += `  .metadataValue("721", { [policyId]: { [assetName]: demoAssetMetadata } })\n`;
+  codeSnippet += `  .changeAddress(address)\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos)\n`;
+  codeSnippet += `  .complete();\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const unsignedTx = await tx.build();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx, true);\n`;
-  codeSnippet += `const signedTx2 = await mintingWallet.signTx(signedTx, true);\n`;
+  codeSnippet += `const signedTx2 = mintingWallet.signTx(signedTx, true);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx2);\n`;
 
   return (
