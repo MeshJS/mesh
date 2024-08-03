@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
 
-import {
-  cst,
-  ForgeScript,
-  resolveScriptHash,
-  stringToHex,
-} from "@meshsdk/core";
+import { ForgeScript, resolveScriptHash, stringToHex } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -30,37 +25,21 @@ export default function TxbuilderBurningOneSignature() {
 }
 
 function Left(userInput: string) {
-  // todo docs
-  let codeSnippet = `import { Transaction, ForgeScript } from '@meshsdk/core';\n`;
-  codeSnippet += `import type { Asset } from '@meshsdk/core';\n\n`;
-
-  codeSnippet += `// prepare forgingScript\n`;
-  codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet += `const address = usedAddress[0];\n`;
-  codeSnippet += `const forgingScript = ForgeScript.withOneSignature(address);\n\n`;
-
-  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n\n`;
-
-  codeSnippet += `// burn asset \n`;
-  codeSnippet += `const asset: Asset = {\n`;
-  codeSnippet += `  unit: '${userInput}',\n`;
-  codeSnippet += `  quantity: '1',\n`;
-  codeSnippet += `};\n`;
-  codeSnippet += `tx.burnAsset(forgingScript, asset);\n\n`;
-
-  codeSnippet += `const unsignedTx = await tx.build();\n`;
-  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
-
   let codeSnippet1 = `const usedAddress = await wallet.getUsedAddresses();\n`;
   codeSnippet1 += `const address = usedAddress[0];\n`;
   codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
 
-  let codeSnippet2 = `const asset: Asset = {\n`;
-  codeSnippet2 += `  unit: assetAsset,\n`;
-  codeSnippet2 += `  quantity: '1',\n`;
-  codeSnippet2 += `};\n`;
-  codeSnippet2 += `tx.burnAsset(forgingScript, asset);`;
+  let codeSnippet2 = ``;
+  codeSnippet2 += `const policyId = resolveScriptHash(forgingScript);\n`;
+  codeSnippet2 += `const tokenNameHex = stringToHex("MeshToken");\n`;
+
+  let codeSnippet3 = ``;
+  codeSnippet3 += `const unsignedTx = await txBuilder\n`;
+  codeSnippet3 += `  .mint("-1", policyId, tokenNameHex)\n`;
+  codeSnippet3 += `  .mintingScript(forgingScript)\n`;
+  codeSnippet3 += `  .changeAddress(changeAddress)\n`;
+  codeSnippet3 += `  .selectUtxosFrom(utxos)\n`;
+  codeSnippet3 += `  .complete();\n`;
 
   return (
     <>
@@ -72,11 +51,15 @@ function Left(userInput: string) {
       </p>
       <Codeblock data={codeSnippet1} />
       <p>
-        Then, we define <code>Asset</code> and set <code>tx.burnAsset()</code>
+        Then, we resolve the policy ID and hex of token name, setting set{" "}
+        <code>txBuilder.mint("-1", policyId, tokenNameHex)</code>
       </p>
       <Codeblock data={codeSnippet2} />
-      <p>Here is the full code:</p>
-      <Codeblock data={codeSnippet} />
+      <p>
+        Finally, we create a transaction and burn the asset with the lower level
+        APIs.
+      </p>
+      <Codeblock data={codeSnippet3} />
     </>
   );
 }
@@ -107,10 +90,10 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     const forgingScript = ForgeScript.withOneSignature(changeAddress);
 
     const policyId = resolveScriptHash(forgingScript);
-    const tokenName = stringToHex("MeshToken");
+    const tokenNameHex = stringToHex("MeshToken");
 
     const unsignedTx = await txBuilder
-      .mint("-1", policyId, tokenName)
+      .mint("-1", policyId, tokenNameHex)
       .mintingScript(forgingScript)
       .changeAddress(changeAddress)
       .selectUtxosFrom(utxos)
@@ -122,8 +105,12 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     return txHash;
   }
 
-  // todo docs
   let code = ``;
+  code += `import { ForgeScript, resolveScriptHash, stringToHex } from "@meshsdk/core";\n`;
+  code += `import { useWallet } from "@meshsdk/react";\n`;
+  code += `\n`;
+  code += `const { wallet, connected } = useWallet();\n`;
+  code += `\n`;
   code += `const utxos = await wallet.getUtxos();\n`;
   code += `const changeAddress = await wallet.getChangeAddress();\n`;
   code += `const txBuilder = getTxBuilder();\n`;
@@ -131,10 +118,10 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
   code += `const forgingScript = ForgeScript.withOneSignature(changeAddress);\n`;
   code += `\n`;
   code += `const policyId = resolveScriptHash(forgingScript);\n`;
-  code += `const tokenName = stringToHex("MeshToken");\n`;
+  code += `const tokenNameHex = stringToHex("MeshToken");\n`;
   code += `\n`;
   code += `const unsignedTx = await txBuilder\n`;
-  code += `    .mint("-1", policyId, tokenName)\n`;
+  code += `    .mint("-1", policyId, tokenNameHex)\n`;
   code += `    .mintingScript(forgingScript)\n`;
   code += `    .changeAddress(changeAddress)\n`;
   code += `    .selectUtxosFrom(utxos)\n`;

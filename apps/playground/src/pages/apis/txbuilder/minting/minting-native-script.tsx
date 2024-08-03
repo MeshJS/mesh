@@ -3,9 +3,11 @@ import Link from "next/link";
 import {
   AssetMetadata,
   cst,
+  deserializeAddress,
   ForgeScript,
   NativeScript,
   resolvePaymentKeyHash,
+  resolveScriptHash,
   stringToHex,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
@@ -35,7 +37,7 @@ function Left() {
   codeSnippetNative += `const usedAddress = await wallet.getUsedAddresses();\n`;
   codeSnippetNative += `const address = usedAddress[0];\n`;
   codeSnippetNative += `\n`;
-  codeSnippetNative += `const keyHash = resolvePaymentKeyHash(address);\n\n`;
+  codeSnippetNative += `const { pubKeyHash: keyHash } = deserializeAddress(changeAddress);\n\n`;
 
   codeSnippetNative += `const nativeScript: NativeScript = {\n`;
   codeSnippetNative += `  type: "all",\n`;
@@ -58,20 +60,22 @@ function Left() {
     null,
     2,
   )};\n\n`;
-  codeSnippet2 += `const asset: Mint = {\n`;
-  codeSnippet2 += `  assetName: 'MeshToken',\n`;
-  codeSnippet2 += `  assetQuantity: '1',\n`;
-  codeSnippet2 += `  metadata: assetMetadata,\n`;
-  codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: '${demoAddresses.testnet}' \n`;
-  codeSnippet2 += `};\n`;
+  codeSnippet2 += `const policyId = resolveScriptHash(forgingScript);\n`;
+  codeSnippet2 += `const tokenName = "MeshToken";\n`;
+  codeSnippet2 += `const tokenNameHex = stringToHex(tokenName);\n`;
+  codeSnippet2 += `const metadata = { [policyId]: { [tokenName]: { ...assetMetadata } } };\n\n`;
 
-  let codeSnippet3 = `const tx = new Transaction({ initiator: wallet });\n`;
-  codeSnippet3 += `tx.mintAsset(\n`;
-  codeSnippet3 += `  forgingScript,\n`;
-  codeSnippet3 += `  asset,\n`;
-  codeSnippet3 += `);\n\n`;
-  codeSnippet3 += `const unsignedTx = await tx.build();\n`;
+  let codeSnippet3 = `const txBuilder = getTxBuilder();\n\n`;
+
+  codeSnippet3 += `const unsignedTx = await txBuilder\n`;
+  codeSnippet3 += `  .mint("1", policyId, tokenNameHex)\n`;
+  codeSnippet3 += `  .mintingScript(forgingScript)\n`;
+  codeSnippet3 += `  .metadataValue("721", metadata)\n`;
+  codeSnippet3 += `  .changeAddress(changeAddress)\n`;
+  codeSnippet3 += `  .invalidHereafter(99999999)\n`;
+  codeSnippet3 += `  .selectUtxosFrom(utxos)\n`;
+  codeSnippet3 += `  .complete();\n`;
+  codeSnippet3 += `\n`;
   codeSnippet3 += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet3 += `const txHash = await wallet.submitTx(signedTx);\n`;
 
@@ -87,7 +91,7 @@ function Left() {
       <Codeblock data={codeSnippet1} />
       <p>
         To get the <code>keyHash</code>, use the{" "}
-        <code>resolvePaymentKeyHash()</code>. To get the slot, use the{" "}
+        <code>deserializeAddress()</code>. To get the slot, use the{" "}
         <code>resolveSlotNo()</code>. Check out{" "}
         <Link href="/apis/resolvers">Resolvers</Link> on how to use these
         functions.
@@ -99,25 +103,15 @@ function Left() {
         <Link href="/apis/transaction#setTime">Transaction - set time</Link>.
       </p>
 
-      <p>
-        Next, we define the metadata for the asset and create the asset object:
-      </p>
+      <p>Next, we define the metadata for the asset:</p>
 
       <Codeblock data={codeSnippet2} />
 
       <p>
-        Finally, we create a transaction and mint the asset with the{" "}
-        <code>mintAsset</code> method:
+        Finally, we create a transaction and mint the asset with the lower level
+        APIs:
       </p>
       <Codeblock data={codeSnippet3} />
-
-      <p>
-        You can get the policy ID for this Native Script with{" "}
-        <code>resolveNativeScriptHash</code>:
-      </p>
-      <Codeblock
-        data={`const policyId = resolveNativeScriptHash(nativeScript);`}
-      />
     </>
   );
 }
@@ -129,7 +123,7 @@ function Right() {
     const utxos = await wallet.getUtxos();
     const changeAddress = await wallet.getChangeAddress();
 
-    const keyHash = resolvePaymentKeyHash(changeAddress);
+    const { pubKeyHash: keyHash } = deserializeAddress(changeAddress);
 
     const nativeScript: NativeScript = {
       type: "all",
@@ -146,10 +140,7 @@ function Right() {
     };
     const forgingScript = ForgeScript.fromNativeScript(nativeScript);
 
-    const policyId = cst
-      .deserializeNativeScript(forgingScript)
-      .hash()
-      .toString();
+    const policyId = resolveScriptHash(forgingScript);
     const tokenName = "MeshToken";
     const tokenNameHex = stringToHex(tokenName);
     const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };

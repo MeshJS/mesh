@@ -42,8 +42,6 @@ export default function MintingCip68() {
 }
 
 function Left(userInput: string) {
-  let codeSnippet1 = ``;
-
   return (
     <>
       <p>
@@ -190,6 +188,81 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     return txHash;
   }
 
+  let code = ``;
+  code += `const usedAddress = await wallet.getUsedAddresses();\n`;
+  code += `const address = usedAddress[0];\n`;
+  code += `\n`;
+  code += `if (address === undefined) {\n`;
+  code += `  throw "Address not found";\n`;
+  code += `}\n`;
+  code += `\n`;
+  code += `const userTokenMetadata = {\n`;
+  code += `  name: userInput,\n`;
+  code += `  image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",\n`;
+  code += `  mediaType: "image/jpg",\n`;
+  code += `  description: "Hello world - CIP68",\n`;
+  code += `};\n`;
+  code += `\n`;
+  code += `const alawysSucceedPlutusScript: PlutusScript = {\n`;
+  code += `  code: demoPlutusAlwaysSucceedScript,\n`;
+  code += `  version: "V1",\n`;
+  code += `};\n`;
+  code += `\n`;
+  code += `const { address: scriptAddress } = serializePlutusScript(\n`;
+  code += `  alawysSucceedPlutusScript,\n`;
+  code += `);\n`;
+  code += `\n`;
+  code += `const utxos = await wallet.getUtxos();\n`;
+  code += `\n`;
+  code += `if (!utxos || utxos.length <= 0) {\n`;
+  code += `  throw "No UTxOs found in wallet";\n`;
+  code += `}\n`;
+  code += `\n`;
+  code += `const scriptCode = applyParamsToScript(oneTimeMintingPolicy, [\n`;
+  code += `  mTxOutRef(utxos[0]?.input.txHash!, utxos[0]?.input.outputIndex!),\n`;
+  code += `]);\n`;
+  code += `\n`;
+  code += `const collateral: UTxO = (await wallet.getCollateral())[0]!;\n`;
+  code += `const changeAddress = await wallet.getChangeAddress();\n`;
+  code += `\n`;
+  code += `const policyId = resolveScriptHash(scriptCode, "V2");\n`;
+  code += `const tokenName = "MeshToken";\n`;
+  code += `const tokenNameHex = stringToHex(tokenName);\n`;
+  code += `\n`;
+  code += `const txBuilder = getTxBuilder();\n`;
+  code += `\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `  .txIn(\n`;
+  code += `    utxos[0]?.input.txHash!,\n`;
+  code += `    utxos[0]?.input.outputIndex!,\n`;
+  code += `    utxos[0]?.output.amount!,\n`;
+  code += `    utxos[0]?.output.address!,\n`;
+  code += `  )\n`;
+  code += `  .mintPlutusScriptV2()\n`;
+  code += `  .mint("1", policyId, CIP68_100(tokenNameHex))\n`;
+  code += `  .mintingScript(scriptCode)\n`;
+  code += `  .mintRedeemerValue(mConStr0([]))\n`;
+  code += `  .mintPlutusScriptV2()\n`;
+  code += `  .mint("1", policyId, CIP68_222(tokenNameHex))\n`;
+  code += `  .mintingScript(scriptCode)\n`;
+  code += `  .mintRedeemerValue(mConStr0([]))\n`;
+  code += `  .txOut(scriptAddress, [\n`;
+  code += `    { unit: policyId + CIP68_100(tokenNameHex), quantity: "1" },\n`;
+  code += `  ])\n`;
+  code += `  .txOutInlineDatumValue(metadataToCip68(userTokenMetadata))\n`;
+  code += `  .changeAddress(changeAddress)\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .txInCollateral(\n`;
+  code += `    collateral.input.txHash,\n`;
+  code += `    collateral.input.outputIndex,\n`;
+  code += `    collateral.output.amount,\n`;
+  code += `    collateral.output.address,\n`;
+  code += `  )\n`;
+  code += `  .complete();\n`;
+  code += `\n`;
+  code += `const signedTx = await wallet.signTx(unsignedTx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <LiveCodeDemo
       title="Mint Assets with CIP68 metadata standard"
@@ -200,6 +273,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
         !connected ? "Connect wallet to run this demo" : undefined
       }
       runDemoShowBrowseWalletConnect={true}
+      code={code}
     >
       <InputTable
         listInputs={[

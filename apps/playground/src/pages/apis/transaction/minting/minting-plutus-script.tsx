@@ -37,7 +37,6 @@ function Left(userInput: string) {
   codeSnippet1 += `\n`;
   codeSnippet1 += `const redeemer = {\n`;
   codeSnippet1 += `  data: { alternative: 0, fields: ["${userInput}"] },\n`;
-  codeSnippet1 += `  tag: "MINT",\n`;
   codeSnippet1 += `};\n`;
 
   let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
@@ -73,7 +72,7 @@ function Left(userInput: string) {
         that will be used to mint the asset. The <code>redeemer</code> object is
         used to provide the data that the validator script will use to validate
         the transaction. For this example, the validator script is expecting a
-        tag of "MINT" and a data field of "mesh".
+        redeemer with a data field of "mesh".
       </p>
       <Codeblock data={codeSnippet1} />
       <p>
@@ -121,7 +120,6 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
 
     const redeemer = {
       data: { alternative: 0, fields: [userInput] },
-      tag: "MINT",
     };
 
     const tx = new Transaction({ initiator: wallet })

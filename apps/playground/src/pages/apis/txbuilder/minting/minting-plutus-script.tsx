@@ -36,38 +36,34 @@ export default function TxbuilderMintingPlutusScript() {
 
 function Left(userInput: string) {
   let codeSnippet1 = ``;
-
-  codeSnippet1 += `const script: PlutusScript = {\n`;
-  codeSnippet1 += `  code: '${demoPlutusMintingScript}',\n`;
-  codeSnippet1 += `  version: "V2",\n`;
-  codeSnippet1 += `};\n`;
-  codeSnippet1 += `\n`;
-  codeSnippet1 += `const redeemer = {\n`;
-  codeSnippet1 += `  data: { alternative: 0, fields: ["${userInput}"] },\n`;
-  codeSnippet1 += `  tag: "MINT",\n`;
-  codeSnippet1 += `};\n`;
+  codeSnippet1 += `const policyId = resolveScriptHash(${demoPlutusMintingScript}, "V2");\n`;
 
   let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
     demoAssetMetadata,
     null,
     2,
   )};\n\n`;
-  codeSnippet2 += `const asset: Mint = {\n`;
-  codeSnippet2 += `  assetName: 'MeshToken',\n`;
-  codeSnippet2 += `  assetQuantity: '1',\n`;
-  codeSnippet2 += `  metadata: assetMetadata,\n`;
-  codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: '${demoAddresses.testnet}' \n`;
-  codeSnippet2 += `};\n`;
+  codeSnippet2 += `const tokenName = "MeshToken";\n`;
+  codeSnippet2 += `const tokenNameHex = stringToHex(tokenName);\n`;
+  codeSnippet2 += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
 
-  let codeSnippet3 = ``;
-  codeSnippet3 += `const tx = new Transaction({ initiator: wallet })\n`;
-  codeSnippet3 += `  .mintAsset(script, asset, redeemer)\n`;
-  codeSnippet3 += `  .setRequiredSigners([address]);\n`;
-  codeSnippet3 += `\n`;
-  codeSnippet3 += `const unsignedTx = await tx.build();\n`;
-  codeSnippet3 += `const signedTx = await wallet.signTx(unsignedTx, true);\n`;
-  codeSnippet3 += `const txHash = await wallet.submitTx(signedTx);\n`;
+  let codeSnippet3 = `const txBuilder = getTxBuilder();\n\n`;
+
+  codeSnippet3 += `const unsignedTx = await txBuilder\n`;
+  codeSnippet3 += `  .mintPlutusScriptV2()\n`;
+  codeSnippet3 += `  .mint("1", policyId, tokenNameHex)\n`;
+  codeSnippet3 += `  .mintingScript(demoPlutusMintingScript)\n`;
+  codeSnippet3 += `  .mintRedeemerValue(mConStr0([userInput]))\n`;
+  codeSnippet3 += `  .metadataValue("721", metadata)\n`;
+  codeSnippet3 += `  .changeAddress(changeAddress)\n`;
+  codeSnippet3 += `  .selectUtxosFrom(utxos)\n`;
+  codeSnippet3 += `  .txInCollateral(\n`;
+  codeSnippet3 += `    collateral.input.txHash,\n`;
+  codeSnippet3 += `    collateral.input.outputIndex,\n`;
+  codeSnippet3 += `    collateral.output.amount,\n`;
+  codeSnippet3 += `    collateral.output.address,\n`;
+  codeSnippet3 += `  )\n`;
+  codeSnippet3 += `  .complete();\n`;
 
   return (
     <>
@@ -79,21 +75,18 @@ function Left(userInput: string) {
         The <code>PlutusScript</code> object is used to define the Plutus script
         that will be used to mint the asset. The <code>redeemer</code> object is
         used to provide the data that the validator script will use to validate
-        the transaction. For this example, the validator script is expecting a
-        tag of "MINT" and a data field of "mesh".
+        the transaction.
       </p>
       <Codeblock data={codeSnippet1} />
       <p>
-        Similar to previous examples, we define the asset metadata and mint
-        object. The asset metadata is a JSON object that contains the metadata
-        for the asset. The mint object contains the asset name, quantity,
-        metadata, label, and recipient address.
+        Similar to previous examples, we define the asset metadata. The asset
+        metadata is a JSON object that contains the metadata for the asset.
       </p>
       <Codeblock data={codeSnippet2} />
       <p>
-        Finally, we create a transaction and mint the asset with the{" "}
-        <code>mintAsset</code> method. We set the required signers to include
-        the address that is minting the asset.
+        Finally, we create a transaction and mint the asset with the lower level
+        APIs. We set the required signers to include the address that is minting
+        the asset.
       </p>
       <Codeblock data={codeSnippet3} />
     </>
@@ -139,37 +132,33 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
 
   // todo docs, determine the `cst` import
   let code = ``;
-  code += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  code += `const address = usedAddress[0];\n`;
+  code += `const utxos = await wallet.getUtxos();\n`;
+  code += `const collateral: UTxO = (await wallet.getCollateral())[0]!;\n`;
+  code += `const changeAddress = await wallet.getChangeAddress();\n`;
   code += `\n`;
-  code += `const assetMetadata: AssetMetadata = ${JSON.stringify(
-    demoAssetMetadata,
-    null,
-    2,
-  )};\n\n`;
-  code += `const asset: Mint = {\n`;
-  code += `  assetName: "MeshToken",\n`;
-  code += `  assetQuantity: "1",\n`;
-  code += `  metadata: assetMetadata,\n`;
-  code += `  label: "721",\n`;
-  code += `  recipient: address,\n`;
-  code += `};\n`;
+  code += `const policyId = resolveScriptHash(demoPlutusMintingScript, "V2");\n`;
+  code += `const tokenName = "MeshToken";\n`;
+  code += `const tokenNameHex = stringToHex(tokenName);\n`;
+  code += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
   code += `\n`;
-  code += `const script: PlutusScript = {\n`;
-  code += `  code: demoPlutusMintingScript,\n`;
-  code += `  version: "V2",\n`;
-  code += `};\n`;
+  code += `const txBuilder = getTxBuilder();\n`;
   code += `\n`;
-  code += `const redeemer = {\n`;
-  code += `  data: { alternative: 0, fields: ['${userInput}'] },\n`;
-  code += `  tag: "MINT",\n`;
-  code += `};\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `  .mintPlutusScriptV2()\n`;
+  code += `  .mint("1", policyId, tokenNameHex)\n`;
+  code += `  .mintingScript(demoPlutusMintingScript)\n`;
+  code += `  .mintRedeemerValue(mConStr0([userInput]))\n`;
+  code += `  .metadataValue("721", metadata)\n`;
+  code += `  .changeAddress(changeAddress)\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .txInCollateral(\n`;
+  code += `    collateral.input.txHash,\n`;
+  code += `    collateral.input.outputIndex,\n`;
+  code += `    collateral.output.amount,\n`;
+  code += `    collateral.output.address,\n`;
+  code += `  )\n`;
+  code += `  .complete();\n`;
   code += `\n`;
-  code += `const tx = new Transaction({ initiator: wallet })\n`;
-  code += `  .mintAsset(script, asset, redeemer)\n`;
-  code += `  .setRequiredSigners([address]);\n`;
-  code += `\n`;
-  code += `const unsignedTx = await tx.build();\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx, true);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
