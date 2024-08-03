@@ -29,13 +29,15 @@
     "@meshsdk/typescript-config": "*",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
-    "typescript": "^5.3.3",
-    "typedoc": "^0.26.3"
+    "typedoc": "^0.26.3",
+    "typescript": "^5.3.3"
   },
   "dependencies": {
     "@meshsdk/common": "*",
     "@meshsdk/core-cst": "*",
-    "@meshsdk/transaction": "*"
+    "@meshsdk/transaction": "*",
+    "@nufi/dapp-client-cardano": "^0.3.1",
+    "@nufi/dapp-client-core": "^0.3.1"
   },
   "prettier": "@meshsdk/prettier-config",
   "publishConfig": {

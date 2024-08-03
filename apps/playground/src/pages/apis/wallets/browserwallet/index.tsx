@@ -7,10 +7,10 @@ import Metatags from "~/components/site/metatags";
 import { metaBrowserwallet } from "~/data/links-wallets";
 import BrowserWalletConnectWallet from "./connect-wallet";
 import BrowserWalletGetAssets from "./get-assets";
+import BrowserWalletGetAvailableWallets from "./get-available-wallets";
 import BrowserWalletGetBalance from "./get-balance";
 import BrowserWalletGetChangeAddress from "./get-change-address";
 import BrowserWalletGetCollateral from "./get-collateral";
-import BrowserWalletGetInstalledWallets from "./get-installed-wallets";
 import BrowserWalletGetLovelace from "./get-lovelace";
 import BrowserWalletGetNetworkId from "./get-networkid";
 import BrowserWalletGetPolicyIdAssets from "./get-policyid-assets";
@@ -25,7 +25,7 @@ import BrowserWalletSubmitTransaction from "./submit-tx";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
-    { label: "Get installed wallets", to: "getInstallWallets" },
+    { label: "Get available wallets", to: "getAvailableWallets" },
     { label: "Connect wallet", to: "connectWallet" },
     { label: "Get balance", to: "getBalance" },
     { label: "Get change address", to: "getChangeAddress" },
@@ -76,7 +76,7 @@ const ReactPage: NextPage = () => {
           </p>
         </TitleIconDescriptionBody>
 
-        <BrowserWalletGetInstalledWallets />
+        <BrowserWalletGetAvailableWallets />
         <BrowserWalletConnectWallet />
         <BrowserWalletGetBalance />
         <BrowserWalletGetChangeAddress />

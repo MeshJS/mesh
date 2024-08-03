@@ -27,12 +27,19 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   tokenNameHex: string = "";
   paramUtxo: UTxO["input"] = { outputIndex: 0, txHash: "" };
 
-  giftCardCbor = (tokenNameHex: string, utxoTxHash: string, utxoTxId: number) =>
-    applyParamsToScript(
+  giftCardCbor = (
+    tokenNameHex: string,
+    utxoTxHash: string,
+    utxoTxId: number,
+  ) => {
+    console.log("utxoTxHash", utxoTxHash);
+    console.log("utxoTxHash.length", utxoTxHash.length);
+    return applyParamsToScript(
       blueprint.validators[0]!.compiledCode,
       [builtinByteString(tokenNameHex), txOutRef(utxoTxHash, utxoTxId)],
       "JSON",
     );
+  };
 
   redeemCbor = (tokenNameHex: string, policyId: string) =>
     applyParamsToScript(blueprint.validators[1]!.compiledCode, [
@@ -120,12 +127,14 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   };
 
   redeemGiftCard = async (giftCardUtxo: UTxO): Promise<string> => {
+    console.log('giftCardUtxo', giftCardUtxo)
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
 
     const inlineDatum = deserializeDatum<List>(
       giftCardUtxo.output.plutusData!,
     ).list;
+    console.log("inlineDatum", inlineDatum)
     const paramTxHash = (inlineDatum[0] as BuiltinByteString).bytes;
     const paramTxId = (inlineDatum[1] as Integer).int as number;
     const tokenNameHex = (inlineDatum[2] as BuiltinByteString).bytes;
@@ -167,8 +176,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    const { redeemScript } = this.getScripts();
-    return await this._getUtxoByTxHash(redeemScript, txHash);
+    return await this._getUtxoByTxHash(txHash);
   };
 
   private getScripts = () => {

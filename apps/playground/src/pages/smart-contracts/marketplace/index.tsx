@@ -1,6 +1,7 @@
 import type { NextPage } from "next";
 import Link from "next/link";
 
+import MintMeshToken from "~/components/cardano/mint-mesh-token";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
@@ -102,11 +103,13 @@ const ReactPage: NextPage = () => {
             </p>
             <p>
               Both on-chain and off-chain codes are open-source and available on{" "}
-              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/contracts/src/marketplace">
+              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/marketplace">
                 Mesh Github Repository
               </Link>
               .
             </p>
+
+            <MintMeshToken />
           </>
         </TitleIconDescriptionBody>
         <MarketplaceListAsset />

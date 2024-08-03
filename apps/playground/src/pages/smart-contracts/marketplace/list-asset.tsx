@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { useWallet } from "@meshsdk/react";
 
+import MintMeshToken from "~/components/cardano/mint-mesh-token";
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";

@@ -240,6 +240,6 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    return await this._getUtxoByTxHash(this.scriptCbor, txHash);
+    return await this._getUtxoByTxHash(txHash, this.scriptCbor);
   };
 }

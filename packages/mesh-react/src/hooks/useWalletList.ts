@@ -7,7 +7,10 @@ export const useWalletList = () => {
   const [wallets, setWallets] = useState<Wallet[]>([]);
 
   useEffect(() => {
-    setWallets(BrowserWallet.getInstalledWallets());
+    async function get() {
+      setWallets(await BrowserWallet.getAvailableWallets());
+    }
+    get();
   }, []);
 
   return wallets;

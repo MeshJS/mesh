@@ -30,6 +30,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import { Cardano, WalletInstance } from "../types";
+import { checkIfMetamaskInstalled } from "./metamask";
 
 declare global {
   interface Window {
@@ -69,12 +70,30 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
         if (_wallet.apiVersion === undefined) continue;
         wallets.push({
           id: key,
-          name: _wallet.name,
+          name: key == "nufiSnap" ? "MetaMask" : _wallet.name,
           icon: _wallet.icon,
           version: _wallet.apiVersion,
         });
       } catch (e) {}
     }
+
+    return wallets;
+  }
+
+  /**
+   * Returns a list of wallets installed on user's device. Each wallet is an object with the following properties:
+   * - A name is provided to display wallet's name on the user interface.
+   * - A version is provided to display wallet's version on the user interface.
+   * - An icon is provided to display wallet's icon on the user interface.
+   *
+   * @returns a list of wallet names
+   */
+  static async getAvailableWallets(nufi?: string): Promise<Wallet[]> {
+    if (window === undefined) return [];
+
+    await checkIfMetamaskInstalled();
+
+    const wallets = BrowserWallet.getInstalledWallets();
 
     return wallets;
   }

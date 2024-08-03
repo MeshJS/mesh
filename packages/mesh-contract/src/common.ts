@@ -164,20 +164,24 @@ export class MeshTxInitiator {
   };
 
   protected _getUtxoByTxHash = async (
-    scriptCbor: string,
     txHash: string,
+    scriptCbor?: string,
   ): Promise<UTxO | undefined> => {
     if (this.fetcher) {
       const utxos = await this.fetcher?.fetchUTxOs(txHash);
-      const scriptAddr = v2ScriptToBech32(
-        scriptCbor,
-        undefined,
-        this.networkId,
-      );
+      let scriptUtxo = utxos[0];
 
-      const scriptUtxo =
-        utxos.filter((utxo) => utxo.output.address === scriptAddr)[0] ||
-        utxos[0];
+      if (scriptCbor) {
+        const scriptAddr = v2ScriptToBech32(
+          scriptCbor,
+          undefined,
+          this.networkId,
+        );
+        scriptUtxo =
+          utxos.filter((utxo) => utxo.output.address === scriptAddr)[0] ||
+          utxos[0];
+      }
+      
       return scriptUtxo;
     }
 
