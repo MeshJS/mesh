@@ -16,7 +16,11 @@ export function checkIfMetamaskInstalled(
   try {
     const _nufiCoreSdk = (nufiCoreSdk as any).default;
 
-    _nufiCoreSdk.init(nufiDomain[network]);
+    if (Object.keys(nufiDomain).includes(network)) {
+      _nufiCoreSdk.init(nufiDomain[network]);
+    } else {
+      _nufiCoreSdk.init(network);
+    }
 
     return new Promise((resolve) => {
       _nufiCoreSdk

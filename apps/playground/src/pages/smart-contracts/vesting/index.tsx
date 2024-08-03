@@ -72,7 +72,7 @@ const ReactPage: NextPage = () => {
               <Link href="/providers">provider</Link>,{" "}
               <code>MeshTxBuilder</code> and <code>MeshVestingContract</code>.
             </p>
-            <Codeblock data={example} isJson={false} />
+            <Codeblock data={example} />
             <p>
               Both on-chain and off-chain codes are open-source and available on{" "}
               <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/vesting">

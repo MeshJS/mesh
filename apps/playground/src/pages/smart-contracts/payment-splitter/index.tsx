@@ -92,7 +92,7 @@ const ReactPage: NextPage = () => {
               payees is required to define the allowed payout addresses for the
               contract.
             </p>
-            <Codeblock data={example} isJson={false} />
+            <Codeblock data={example} />
             <p>
               Both on-chain and off-chain codes are open-source and available on{" "}
               <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/payment-splitter">

@@ -27,7 +27,7 @@ export default async function RootLayout({
   params: { package: string };
 }) {
   // const {currentRoute} = useRouteContext();
-  // console.log(2, currentRoute)
+
   // let pages = await glob('**/*.mdx', { cwd: 'src/app' })
   // let allSectionsEntries = (await Promise.all(
   //   pages.map(async (filename) => [

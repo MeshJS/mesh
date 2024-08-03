@@ -63,7 +63,6 @@ export default function Home() {
 
 // useEffect(() => {
 //   const searchClasses = getClasses().map((meshClass: any) => {
-//     console.log(11, meshClass);
 
 //     const _object: any = { url: `/classes/${meshClass.name}`, sections: [] };
 
@@ -75,17 +74,14 @@ export default function Home() {
 
 //     _sections.push(_section);
 
-//     console.log(11, _section);
 
 //     getClassGroups(meshClass.name).map((group: any) => {
 //       group.children.map((item: any) => {
-//         console.log(22, item);
 
 //         item.signatures?.map((signature: any) => {
 //           const _sectionComments = getSectionComments(signature);
 //           const _section = [item.name, item.name, _sectionComments];
 //           _sections.push(_section);
-//           console.log(33, _section);
 //         });
 //       });
 //     });
@@ -95,5 +91,4 @@ export default function Home() {
 //     return _object;
 //   });
 
-//   console.log(99, JSON.stringify(searchClasses))
 // }, []);

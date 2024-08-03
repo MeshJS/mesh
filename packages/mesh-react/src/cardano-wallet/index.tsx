@@ -9,18 +9,20 @@ interface ButtonProps {
   label?: string;
   onConnected?: Function;
   isDark?: boolean;
+  nufiNetwork?: string;
 }
 
 export const CardanoWallet = ({
   label = "Connect Wallet",
   onConnected = undefined,
   isDark = false,
+  nufiNetwork = "preprod",
 }: ButtonProps) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [hideMenuList, setHideMenuList] = useState(true);
 
   const { connect, connecting, connected, disconnect, name } = useWallet();
-  const wallets = useWalletList();
+  const wallets = useWalletList({ nufiNetwork });
 
   useEffect(() => {
     if (connected && onConnected) {

@@ -82,7 +82,7 @@ const ReactPage: NextPage = () => {
               and a connected browser wallet. Here is an example how we can
               initialize the Marketplace.
             </p>
-            <Codeblock data={example} isJson={false} />
+            <Codeblock data={example} />
             <p>
               To initialize the Marketplace, we import the{" "}
               <code>MeshMarketplaceContract</code>. The first JSON object is the{" "}

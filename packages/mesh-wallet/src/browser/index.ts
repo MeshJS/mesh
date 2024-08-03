@@ -88,13 +88,14 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of wallet names
    */
-  static async getAvailableWallets(nufi?: string): Promise<Wallet[]> {
+  static async getAvailableWallets({
+    nufiNetwork = "preprod",
+  }: {
+    nufiNetwork?: string;
+  } = {}): Promise<Wallet[]> {
     if (window === undefined) return [];
-
-    await checkIfMetamaskInstalled();
-
+    await checkIfMetamaskInstalled(nufiNetwork);
     const wallets = BrowserWallet.getInstalledWallets();
-
     return wallets;
   }
 
@@ -256,7 +257,6 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    */
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
     const witness = await this._walletInstance.signTx(unsignedTx, partialSign);
-    console.log("witness", witness);
 
     return BrowserWallet.addBrowserWitnesses(unsignedTx, witness);
   }

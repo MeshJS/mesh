@@ -36,7 +36,7 @@ function Left() {
           <b>lovelace (number)</b> - the amount to withdraw in Lovelace
         </li>
       </ul>
-      <Codeblock data={codeSnippet} isJson={false} />
+      <Codeblock data={codeSnippet} />
     </>
   );
 }

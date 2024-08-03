@@ -63,13 +63,13 @@ function Left(userInput: string) {
         "minting address". Note that, assets can only be burned by its minting
         address.
       </p>
-      <Codeblock data={codeSnippet1} isJson={false} />
+      <Codeblock data={codeSnippet1} />
       <p>
         Then, we define <code>Asset</code> and set <code>tx.burnAsset()</code>
       </p>
-      <Codeblock data={codeSnippet2} isJson={false} />
+      <Codeblock data={codeSnippet2} />
       <p>Here is the full code:</p>
-      <Codeblock data={codeSnippet} isJson={false} />
+      <Codeblock data={codeSnippet} />
     </>
   );
 }

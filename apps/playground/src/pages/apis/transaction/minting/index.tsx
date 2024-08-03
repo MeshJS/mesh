@@ -3,7 +3,6 @@ import type { NextPage } from "next";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
-import Codeblock from "~/components/text/codeblock";
 import { metaMinting } from "~/data/links-transactions";
 import { Intro } from "../common";
 import BurningOneSignature from "./burning-one-signature";

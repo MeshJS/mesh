@@ -32,8 +32,6 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     utxoTxHash: string,
     utxoTxId: number,
   ) => {
-    console.log("utxoTxHash", utxoTxHash);
-    console.log("utxoTxHash.length", utxoTxHash.length);
     return applyParamsToScript(
       blueprint.validators[0]!.compiledCode,
       [builtinByteString(tokenNameHex), txOutRef(utxoTxHash, utxoTxId)],
@@ -127,14 +125,12 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   };
 
   redeemGiftCard = async (giftCardUtxo: UTxO): Promise<string> => {
-    console.log('giftCardUtxo', giftCardUtxo)
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
 
     const inlineDatum = deserializeDatum<List>(
       giftCardUtxo.output.plutusData!,
     ).list;
-    console.log("inlineDatum", inlineDatum)
     const paramTxHash = (inlineDatum[0] as BuiltinByteString).bytes;
     const paramTxId = (inlineDatum[1] as Integer).int as number;
     const tokenNameHex = (inlineDatum[2] as BuiltinByteString).bytes;

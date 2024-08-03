@@ -30,7 +30,7 @@ function Left() {
           <b>rewardAddress (string)</b> - the reward address to deregister
         </li>
       </ul>
-      <Codeblock data={codeSnippet} isJson={false} />
+      <Codeblock data={codeSnippet} />
     </>
   );
 }

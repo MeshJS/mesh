@@ -43,7 +43,7 @@ function Left() {
         us to send (for example) multiple scripts within one transaction without
         exceeding the maximum transaction size.
       </p>
-      <Codeblock data={codeExample} isJson={false} />
+      <Codeblock data={codeExample} />
       <p>
         Simply define the <code>script</code> as the <code>Recipient</code>{" "}
         input parameter. This works for every{" "}

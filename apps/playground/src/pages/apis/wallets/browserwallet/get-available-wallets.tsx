@@ -51,6 +51,25 @@ function Left() {
       </ul>
       <p>Example:</p>
       <Codeblock data={example} />
+
+      <p>
+        With NuFi's support, you can specify the network to connect to. By
+        default, it is set to "preprod". To define the <code>nufiNetwork</code>:
+      </p>
+      <Codeblock
+        data={`await BrowserWallet.getAvailableWallets({ nufiNetwork: "mainnet" })`}
+      />
+      <p>Available networks are:</p>
+      <ul>
+        <li>production: https://wallet.nu.fi</li>
+        <li>mainnet: https://wallet-staging.nu.fi</li>
+        <li>preprod: https://wallet-testnet-staging.nu.fi</li>
+        <li>preview: https://wallet-preview-staging.nu.fi</li>
+      </ul>
+      <p>You can also specify the network by providing the URL:</p>
+      <Codeblock
+        data={`await BrowserWallet.getAvailableWallets({ nufiNetwork: "https://wallet.nu.fi" })`}
+      />
     </>
   );
 }

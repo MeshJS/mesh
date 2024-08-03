@@ -150,7 +150,7 @@ function Left(
         file, and load wallet with Cardano CLI generated skeys. Stake key is
         optional, but without it, you cannot sign staking transactions.
       </p>
-      <Codeblock data={code4} isJson={false} />
+      <Codeblock data={code4} />
     </>
   );
 }

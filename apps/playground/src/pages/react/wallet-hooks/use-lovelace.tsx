@@ -21,7 +21,7 @@ function Left() {
   return (
     <>
       <p>Return amount of lovelace in wallet.</p>
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code1} />
     </>
   );
 }

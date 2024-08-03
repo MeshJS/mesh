@@ -69,17 +69,17 @@ function Left(userInput: string) {
         spend more than you need to execute transactions for this smart
         contract.
       </p>
-      <Codeblock data={code1} isJson={false} />
+      <Codeblock data={code1} />
       <p>
         Example responses from unlocking assets from the always succeed smart
         contract.
       </p>
-      <Codeblock data={demoResults} isJson={false} />
+      <Codeblock data={demoResults} />
       <p>
         With the <code>mem</code> and <code>steps</code>, you can refine the
         budget for the redeemer. For example:
       </p>
-      <Codeblock data={codeRedeemer} isJson={false} />
+      <Codeblock data={codeRedeemer} />
     </>
   );
 }

@@ -55,12 +55,12 @@ function Left() {
         . For example this account information, <code>active</code> shows the
         address is registered.
       </p>
-      <Codeblock data={code2} isJson={false} />
+      <Codeblock data={code2} />
       <p>
         You can chain with <code>delegateStake()</code> to register and delegate
         to a stake pool.
       </p>
-      <Codeblock data={codeSnippet} isJson={false} />
+      <Codeblock data={codeSnippet} />
     </>
   );
 }
