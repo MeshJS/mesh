@@ -95,7 +95,7 @@ const ReactPage: NextPage = () => {
             <Codeblock data={example} isJson={false} />
             <p>
               Both on-chain and off-chain codes are open-source and available on{" "}
-              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/contracts/src/payment-splitter">
+              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/payment-splitter">
                 Mesh Github Repository
               </Link>
               .

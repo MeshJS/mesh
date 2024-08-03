@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { Wallet } from "@meshsdk/common";
-import { BrowserWallet } from "@meshsdk/wallet";
-
 import Button from "../common/button";
-import { useWallet } from "../hooks";
+import { useWallet, useWalletList } from "../hooks";
 import { MenuItem } from "./menu-item";
 import { WalletBalance } from "./wallet-balance";
 
@@ -21,9 +18,9 @@ export const CardanoWallet = ({
 }: ButtonProps) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [hideMenuList, setHideMenuList] = useState(true);
-  const [wallets, setWallets] = useState<Wallet[]>([]);
 
   const { connect, connecting, connected, disconnect, name } = useWallet();
+  const wallets = useWalletList();
 
   useEffect(() => {
     if (connected && onConnected) {
@@ -32,18 +29,14 @@ export const CardanoWallet = ({
   }, [connected]);
 
   useEffect(() => {
-    setWallets(BrowserWallet.getInstalledWallets());
-  }, []);
-
-  useEffect(() => {
     setIsDarkMode(isDark);
   }, [isDark]);
 
   return (
     <div
-      className="w-fit"
       onMouseEnter={() => setHideMenuList(false)}
       onMouseLeave={() => setHideMenuList(true)}
+      style={{ width: "min-content", zIndex: 50 }}
     >
       <Button
         isDarkMode={isDarkMode}
@@ -54,7 +47,7 @@ export const CardanoWallet = ({
           connected={connected}
           connecting={connecting}
           label={label}
-          wallet={wallets.find((wallet) => wallet.name === name)}
+          wallet={wallets.find((wallet) => wallet.id === name)}
         />
       </Button>
       <div
@@ -68,10 +61,10 @@ export const CardanoWallet = ({
                 icon={wallet.icon}
                 label={wallet.name}
                 action={() => {
-                  connect(wallet.name);
+                  connect(wallet.id);
                   setHideMenuList(!hideMenuList);
                 }}
-                active={name === wallet.name}
+                active={name === wallet.id}
               />
             ))}
             {/* <MenuItem
