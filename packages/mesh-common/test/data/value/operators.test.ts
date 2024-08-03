@@ -8,7 +8,6 @@ describe("MeshValue class", () => {
       const value = new MeshValue();
       const singleAsset: Asset = { unit: mockUnit, quantity: "100" };
       value.addAsset(singleAsset);
-      // Assertions to verify the behavior of addAsset...
       expect(value.value).toEqual({ [mockUnit]: BigInt(100) });
     });
     it("should add to an existing asset correctly", () => {
@@ -16,7 +15,6 @@ describe("MeshValue class", () => {
       const singleAsset: Asset = { unit: mockUnit, quantity: "100" };
       value.addAsset(singleAsset);
       value.addAsset(singleAsset);
-      // Assertions to verify the behavior of addAsset...
       expect(value.value).toEqual({ [mockUnit]: BigInt(200) });
     });
     it("should add multiple assets correctly", () => {
@@ -26,7 +24,6 @@ describe("MeshValue class", () => {
         { unit: "lovelace", quantity: "10" },
       ];
       value.addAsset(assets[0]!).addAsset(assets[1]!);
-      // Assertions to verify the behavior of addAsset...
       expect(value.value).toEqual({
         [mockUnit]: BigInt(100),
         lovelace: BigInt(10),
@@ -43,7 +40,6 @@ describe("MeshValue class", () => {
         { unit: "lovelace", quantity: "10" },
       ];
       value.addAssets(assets);
-      // Assertions to verify the behavior of addAssets...
       expect(value.value).toEqual({
         [mockUnit]: BigInt(200),
         lovelace: BigInt(20),
@@ -85,95 +81,73 @@ describe("MeshValue class", () => {
         const value = new MeshValue();
         value.value = { lovelace: 10n };
         value.negateAsset({ unit: "lovelace", quantity: "15" });
-        expect(value.value).toEqual({ lovelace: BigInt(-5) });
+        expect(Object.keys(value.value).length).toBe(0);
       });
 
       it("should add a new asset with negative quantity if the asset does not exist", () => {
         const value = new MeshValue();
         value.negateAsset({ unit: "lovelace", quantity: "5" });
-        expect(value.value).toEqual({ lovelace: BigInt(-5) });
+        expect(Object.keys(value.value).length).toBe(0);
       });
     });
   });
   describe("negateAssets", () => {
     it("should subtract quantities from existing assets", () => {
       const value = new MeshValue();
-      value.value = { lovelace: 20n, BTC: 10n };
+      value.value = { lovelace: 20n, [mockUnit]: 10n };
       value.negateAssets([
         { unit: "lovelace", quantity: "5" },
-        { unit: "BTC", quantity: "3" },
+        { unit: mockUnit, quantity: "3" },
       ]);
-      expect(value.value).toEqual({ lovelace: BigInt(15), BTC: BigInt(7) });
+      expect(value.value).toEqual({
+        lovelace: BigInt(15),
+        [mockUnit]: BigInt(7),
+      });
     });
 
     it("should remove the asset if the resulting quantity is zero", () => {
       const value = new MeshValue();
-      value.value = { lovelace: 10n, BTC: 5n };
+      value.value = { lovelace: 10n, [mockUnit]: 5n };
       value.negateAssets([
         { unit: "lovelace", quantity: "10" },
-        { unit: "BTC", quantity: "5" },
+        { unit: mockUnit, quantity: "5" },
       ]);
-      expect(value.value.lovelace).toBeUndefined();
-      expect(value.value.BTC).toBeUndefined();
+      expect(Object.keys(value.value).length).toBe(0);
     });
 
     it("should allow negative quantity if the subtraction results in negative value", () => {
       const value = new MeshValue();
-      value.value = { lovelace: 10n, BTC: 5n };
+      value.value = { lovelace: 10n, [mockUnit]: 5n };
       value.negateAssets([
         { unit: "lovelace", quantity: "15" },
-        { unit: "BTC", quantity: "10" },
+        { unit: mockUnit, quantity: "10" },
       ]);
-      expect(value.value).toEqual({ lovelace: BigInt(-5), BTC: BigInt(-5) });
-    });
-
-    it("should add new assets with negative quantities if the assets do not exist", () => {
-      const value = new MeshValue();
-      value.negateAssets([
-        { unit: "lovelace", quantity: "5" },
-        { unit: "BTC", quantity: "3" },
-      ]);
-      expect(value.value).toEqual({ lovelace: BigInt(-5), BTC: BigInt(-3) });
-    });
-
-    it("should handle a mix of existing and non-existing assets", () => {
-      const value = new MeshValue();
-      value.value = { lovelace: 10n };
-      value.negateAssets([
-        { unit: "lovelace", quantity: "5" },
-        { unit: "BTC", quantity: "3" },
-      ]);
-      expect(value.value).toEqual({ lovelace: BigInt(5), BTC: BigInt(-3) });
+      expect(Object.keys(value.value).length).toBe(0);
     });
   });
 
   describe("merge", () => {
     it("should merge two values correctly", () => {
       const value1 = new MeshValue();
-      value1.value = { lovelace: 20n, BTC: 10n };
+      value1.value = { lovelace: 20n, [mockUnit]: 10n };
       const value2 = new MeshValue();
-      value2.value = { lovelace: 10n, BTC: 5n };
-      expect(value1.merge(value2).value).toEqual({ lovelace: 30n, BTC: 15n });
+      value2.value = { lovelace: 10n, [mockUnit]: 5n };
+      expect(value1.merge(value2).value).toEqual({
+        lovelace: 30n,
+        [mockUnit]: 15n,
+      });
     });
 
     it("should merge two values correctly with different units", () => {
       const value1 = new MeshValue();
-      value1.value = { lovelace: 20n, BTC: 10n };
+      value1.value = { lovelace: 20n, [mockUnit]: 10n };
       const value2 = new MeshValue();
-      value2.value = { ETH: 10n, BTC: 5n };
+      value2.value = { ETH: 10n, [mockUnit]: 5n };
       expect(value1.merge(value2).value).toEqual({
         lovelace: 20n,
-        BTC: 15n,
+        [mockUnit]: 15n,
         ETH: 10n,
       });
-    });
-
-    it("should merge two values correctly with negative quantities", () => {
-      const value1 = new MeshValue();
-      value1.value = { lovelace: 20n, BTC: -10n };
-      const value2 = new MeshValue();
-      value2.value = { lovelace: 10n, BTC: 5n };
-      expect(value1.merge(value2).value).toEqual({ lovelace: 30n, BTC: -5n });
     });
   });
 });

@@ -4,6 +4,7 @@
  */
 
 import { Asset } from "../types";
+import { BigNum } from "../utils";
 import {
   assocMap,
   AssocMap,
@@ -105,15 +106,14 @@ export class MeshValue {
    * @returns The updated MeshValue object
    */
   negateAsset = (asset: Asset): this => {
-    const { unit, quantity } = asset;
+    const { unit, quantity: assetQty } = asset;
+    const quantity = BigNum.new(this.value[unit]);
+    quantity.clampedSub(BigNum.new(assetQty));
 
-    const currentQuantity = this.value[unit] || BigInt(0);
-    const newQuantity = currentQuantity - BigInt(quantity);
-
-    if (newQuantity === BigInt(0)) {
+    if (quantity.value === BigInt(0)) {
       delete this.value[unit];
     } else {
-      this.value[unit] = newQuantity;
+      this.value[unit] = quantity.value;
     }
     return this;
   };
@@ -148,18 +148,20 @@ export class MeshValue {
   };
 
   /**
-   * Check if the value is greater than or equal to an inputted value
-   * @param unit - The unit to compare (e.g., "ADA")
+   * Check if the value is greater than or equal to another value
    * @param other - The value to compare against
    * @returns boolean
    */
-  // geq = (unit: string, other: Value): boolean => {
-  //     const thisValue = this.get(unit);
-  //     const otherValue = other.get(unit);
-  //     return thisValue >= otherValue;
-  // };
+  geq = (other: MeshValue): boolean => {
+    return Object.keys(other.value).every((key) => this.geqUnit(key, other));
+  };
 
-  geq = (unit: string, other: MeshValue): boolean => {
+  /**
+   * Check if the specific unit of value is greater than or equal to that unit of another value
+   * @param other - The value to compare against
+   * @returns boolean
+   */
+  geqUnit = (unit: string, other: MeshValue): boolean => {
     if (this.value[unit] === undefined || other.value[unit] === undefined) {
       return false;
     }
@@ -167,22 +169,20 @@ export class MeshValue {
   };
 
   /**
-   * Check if the value is less than or equal to an inputted value
-   * @param unit - The unit to compare (e.g., "ADA")
+   * Check if the value is less than or equal to another value
    * @param other - The value to compare against
    * @returns boolean
    */
-  // leq = (unit: string, other: Value): boolean => {
-  //     const thisValue = this.get(unit);
-  //     const otherValue = other.get(unit);
-  //     if (otherValue === undefined) {
-  //         return false;
-  //     }
+  leq = (other: MeshValue): boolean => {
+    return Object.keys(other.value).every((key) => this.leqUnit(key, other));
+  };
 
-  //     return thisValue <= otherValue;
-  // };
-
-  leq = (unit: string, other: MeshValue): boolean => {
+  /**
+   * Check if the specific unit of value is less than or equal to that unit of another value
+   * @param other - The value to compare against
+   * @returns boolean
+   */
+  leqUnit = (unit: string, other: MeshValue): boolean => {
     if (this.value[unit] === undefined || other.value[unit] === undefined) {
       return false;
     }

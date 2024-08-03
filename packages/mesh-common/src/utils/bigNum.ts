@@ -1,8 +1,19 @@
 export class BigNum {
   value: bigint;
 
-  constructor(value: number | string) {
+  constructor(value?: bigint | number | string) {
+    if (!value) {
+      this.value = BigInt(0);
+      return;
+    }
     this.value = BigInt(value);
+  }
+
+  static new(value: number | string | bigint | undefined): BigNum {
+    if (!value) {
+      return new BigNum(0);
+    }
+    return new BigNum(value);
   }
 
   // Operators
@@ -48,10 +59,6 @@ export class BigNum {
       return 1;
     }
   }
-
-  static new = (value: number | string): BigNum => {
-    return new BigNum(value);
-  };
 
   // Override
 
