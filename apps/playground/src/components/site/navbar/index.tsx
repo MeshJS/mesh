@@ -12,7 +12,6 @@ import SvgMesh from "~/components/svgs/mesh";
 import { linksAbout } from "~/data/links-about";
 import { linksApi } from "~/data/links-api";
 import { linksGetStarted } from "~/data/links-get-started";
-import { linksGuides } from "~/data/links-guides";
 import { linksSmartContracts } from "~/data/links-smart-contracts";
 import { socials } from "~/data/social";
 import { useDarkmode } from "~/hooks/useDarkmode";
@@ -84,6 +83,7 @@ export default function Navbar() {
                   rel="noreferrer"
                   className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                   key={i}
+                  aria-label={social.link}
                 >
                   {React.createElement(social.icon, { className: "w-6 h-6" })}
                 </Link>
@@ -96,6 +96,7 @@ export default function Navbar() {
                 onClick={() => {
                   toggle();
                 }}
+                aria-label="Toggle dark mode"
               >
                 {isDark ? (
                   <MoonIcon className="h-4 w-4 text-gray-500" />
@@ -108,6 +109,7 @@ export default function Navbar() {
               type="button"
               className="ml-1 inline-flex items-center rounded-lg p-2 text-sm text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 lg:hidden dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
               onClick={() => toggleMobileMenu()}
+              aria-label="Toggle mobile"
             >
               <span className="sr-only">Open main menu</span>
               <Bars4Icon className={`${showMobileMenu && "hidden"} h-6 w-6`} />

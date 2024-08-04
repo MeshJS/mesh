@@ -22,6 +22,7 @@ export default function MenuItemDropdown({
       <button
         type="button"
         className="lg:hover:text-primary-600 lg:dark:hover:text-primary-500 dark:hover:text-primary-500 flex w-full items-center justify-between border-b border-gray-100 py-2 pl-3 pr-4 font-medium text-gray-700 hover:bg-gray-50 lg:w-auto lg:border-0 lg:p-0 lg:hover:bg-transparent dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 lg:dark:hover:bg-transparent"
+        aria-label="More"
       >
         {title}
         <ChevronDownIcon className="ml-1 h-5 w-5 lg:h-4 lg:w-4" />
