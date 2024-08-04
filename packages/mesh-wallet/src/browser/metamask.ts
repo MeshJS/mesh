@@ -12,7 +12,7 @@ const nufiDomain: { [key: string]: string } = {
   preview: "https://wallet-preview-staging.nu.fi",
 };
 
-export function checkIfMetamaskInstalled(
+export async function checkIfMetamaskInstalled(
   network = "preprod",
 ): Promise<Wallet | undefined> {
   try {
@@ -24,27 +24,34 @@ export function checkIfMetamaskInstalled(
       _nufiCoreSdk.init(network);
     }
 
-    const promise: Promise<Wallet | undefined> = new Promise((resolve) => {
-      return _nufiCoreSdk
-        .getApi()
-        .isMetamaskInstalled()
-        .then((isMetamaskInstalled: boolean) => {
-          if (isMetamaskInstalled) {
-            try {
-              initNufiDappCardanoSdk(_nufiCoreSdk, "snap");
-              resolve(nufiSnap);
-            } catch (err) {
-              console.error(
-                "Unknown error loading metamask Cardano wallet, please disable unrelated wallet browser extensions in other blockchain to try again",
-              );
-              resolve(undefined);
-            }
-          } else {
-            resolve(undefined);
-          }
-        });
-    });
-    return promise;
+    const metamask = (window as any).ethereum._metamask;
+    if (metamask) {
+      initNufiDappCardanoSdk(_nufiCoreSdk, "snap");
+      return nufiSnap;
+    }
+
+    // const promise: Promise<Wallet | undefined> = new Promise((resolve) => {
+    //   const res = await
+    //     .then((isMetamaskInstalled: boolean) => {
+    //       if (isMetamaskInstalled) {
+    //         try {
+    //           initNufiDappCardanoSdk(_nufiCoreSdk, "snap");
+    //           resolve(nufiSnap);
+    //         } catch (err) {
+    //           console.error(
+    //             "Unknown error loading metamask Cardano wallet, please disable unrelated wallet browser extensions in other blockchain to try again",
+    //           );
+    //           resolve(undefined);
+    //         }
+    //       } else {
+    //         resolve(undefined);
+    //       }
+    //     });
+    //   console.log("res?", res);
+    //   return res;
+    // });
+
+    return undefined;
   } catch (err) {
     return Promise.resolve(undefined);
   }

@@ -94,7 +94,13 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     nufiNetwork?: string;
   } = {}): Promise<Wallet[]> {
     if (window === undefined) return [];
-    await checkIfMetamaskInstalled(nufiNetwork);
+    try {
+      await checkIfMetamaskInstalled(nufiNetwork);
+    } catch (e) {
+      console.log("hello fail");
+
+      console.log(e);
+    }
     const wallets = BrowserWallet.getInstalledWallets();
     return wallets;
   }

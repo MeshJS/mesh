@@ -35,7 +35,7 @@ function Left() {
   codeScript += `  code: '${demoPlutusAlwaysSucceedScript}',\n`;
   codeScript += `  version: 'V2',\n`;
   codeScript += `};\n\n`;
-  codeScript += `const { address: scriptAddress} = serializePlutusScript(script, 0);\n`;
+  codeScript += `const { address: scriptAddress } = serializePlutusScript(script);\n`;
 
   let codeSnippetGetAssetUtxo = ``;
   codeSnippetGetAssetUtxo += `async function _getAssetUtxo({ scriptAddress, asset, datum }) {\n`;

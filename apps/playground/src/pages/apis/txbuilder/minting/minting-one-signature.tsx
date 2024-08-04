@@ -74,7 +74,6 @@ function Left() {
         APIs.
       </p>
       <Codeblock data={codeSnippet3} />
-      {/* <Codeblock data={code1} /> */}
     </>
   );
 }

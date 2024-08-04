@@ -12,21 +12,20 @@ import TxbuilderCommonFunctions from "./common-functions";
 import TxbuilderInitializeTxbuilder from "./initialize-txbuilder";
 import TxbuilderMultisig from "./multisig";
 import TxbuilderSendValues from "./send-values";
-import TxbuilderSetCollateral from "./set-collateral";
-import TxbuilderSetMetadata from "./set-metadata";
+// import TxbuilderSetMetadata from "./set-metadata";
 import TxbuilderSetRequiredSigners from "./set-required-signers";
 import TxbuilderSetTime from "./set-time";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Initialize Tx Builder", to: "initializeTxbuilder" },
-    { label: "Common functions", to: "commonFunctions" },
+    // { label: "Common functions", to: "commonFunctions" },
     { label: "Send value", to: "sendValue" },
     { label: "Multi-signature", to: "multisig" },
     { label: "Build with object", to: "buildWithObject" },
-    { label: "Set metadata", to: "metadata" },
-    { label: "Set transaction message", to: "cip20" },
-    { label: "Set collateral", to: "collateral" },
+    // { label: "Set metadata", to: "metadata" },
+    { label: "Set metadata", to: "cip20" },
+    // { label: "Set collateral", to: "collateral" },
     { label: "Set required signers", to: "requiredSigners" },
     { label: "Set time", to: "setTime" },
   ];
@@ -77,13 +76,13 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
 
         <TxbuilderInitializeTxbuilder />
-        <TxbuilderCommonFunctions />
+        {/* <TxbuilderCommonFunctions /> */}
         <TxbuilderSendValues />
         <TxbuilderMultisig />
         <TxbuilderBuildWithObject />
-        <TxbuilderSetMetadata />
+        {/* <TxbuilderSetMetadata /> */}
         <TxbuilderCip20 />
-        <TxbuilderSetCollateral />
+        {/* <TxbuilderSetCollateral /> */}
         <TxbuilderSetRequiredSigners />
         <TxbuilderSetTime />
       </SidebarFullwidth>

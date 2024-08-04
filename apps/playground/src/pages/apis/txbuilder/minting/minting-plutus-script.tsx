@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Link from "next/link";
 
 import {
   mConStr0,
@@ -14,11 +15,7 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import {
-  demoAddresses,
-  demoAssetMetadata,
-  demoPlutusMintingScript,
-} from "~/data/cardano";
+import { demoAssetMetadata, demoPlutusMintingScript } from "~/data/cardano";
 import { getTxBuilder } from "../common";
 
 export default function TxbuilderMintingPlutusScript() {
@@ -35,17 +32,10 @@ export default function TxbuilderMintingPlutusScript() {
 }
 
 function Left(userInput: string) {
-  let codeSnippet1 = ``;
-  codeSnippet1 += `const policyId = resolveScriptHash(${demoPlutusMintingScript}, "V2");\n`;
-
-  let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
-    demoAssetMetadata,
-    null,
-    2,
-  )};\n\n`;
-  codeSnippet2 += `const tokenName = "MeshToken";\n`;
-  codeSnippet2 += `const tokenNameHex = stringToHex(tokenName);\n`;
-  codeSnippet2 += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
+  let codeIndicator = ``;
+  codeIndicator += `.mintPlutusScriptV1()\n`;
+  codeIndicator += `.mintPlutusScriptV2()\n`;
+  codeIndicator += `.mintPlutusScriptV3()\n`;
 
   let codeSnippet3 = `const txBuilder = getTxBuilder();\n\n`;
 
@@ -68,27 +58,55 @@ function Left(userInput: string) {
   return (
     <>
       <p>
-        In this section, we will see how to mint native assets with a{" "}
-        <code>PlutusScript</code>.
+        Minting Plutus tokens with <code>MeshTxBuilder</code> starts with anyone
+        of the below script version indicators:
       </p>
+      <Codeblock data={codeIndicator} />
+      <p>Followed by specifying the minting information:</p>
+      <Codeblock
+        data={`.mint(quantity: string, policy: string, name: string)`}
+      />
       <p>
-        The <code>PlutusScript</code> object is used to define the Plutus script
-        that will be used to mint the asset. The <code>redeemer</code> object is
-        used to provide the data that the validator script will use to validate
-        the transaction.
+        Similar to unlocking assets, minting or burning Plutus tokens require
+        providing redeemer and scripts. However, no datum information is needed
+        in minting or burning.
       </p>
-      <Codeblock data={codeSnippet1} />
-      <p>
-        Similar to previous examples, we define the asset metadata. The asset
-        metadata is a JSON object that contains the metadata for the asset.
-      </p>
-      <Codeblock data={codeSnippet2} />
-      <p>
-        Finally, we create a transaction and mint the asset with the lower level
-        APIs. We set the required signers to include the address that is minting
-        the asset.
-      </p>
-      <Codeblock data={codeSnippet3} />
+      <h4>Script of the token</h4>
+      <div className="pl-4">
+        <p className="pl-4">
+          The actual script can be either provided by transaction builder or
+          referenced from an UTxO onchain.
+        </p>
+        <div className="pl-4">
+          <ul>
+            <li>
+              (i) Reference script{` `}
+              <Codeblock
+                data={`.mintTxInReference(txHash: string, txIndex: number)`}
+              />
+            </li>
+            <li>
+              (ii) Supplying script{` `}
+              <Codeblock data={`.mintingScript(scriptCbor: string)`} />
+            </li>
+          </ul>
+          <br />
+        </div>
+      </div>
+      <h4>Redeemer of the mint</h4>
+      <div className="pl-4">
+        <p className="pl-4">
+          Redeemer can be provided in different{" "}
+          <Link href="/apis/data">data types</Link>. If your MeshTxBuilder does
+          not include an <code>evaluator</code> instance, you can also provide
+          your budget for the unlock with this redeemer endpoint
+        </p>
+        <p className="pl-4">
+          <Codeblock
+            data={`.mintRedeemerValue(redeemer: Data | object | string, type: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)`}
+          />
+        </p>
+      </div>
     </>
   );
 }
@@ -130,7 +148,6 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     return txHash;
   }
 
-  // todo docs, determine the `cst` import
   let code = ``;
   code += `const utxos = await wallet.getUtxos();\n`;
   code += `const collateral: UTxO = (await wallet.getCollateral())[0]!;\n`;

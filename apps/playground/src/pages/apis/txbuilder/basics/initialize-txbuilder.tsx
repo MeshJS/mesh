@@ -20,6 +20,7 @@ function Left() {
   example += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n\n`;
   example += `const txBuilder = new MeshTxBuilder({\n`;
   example += `  fetcher: blockchainProvider,\n`;
+  example += `  evaluator: blockchainProvider,\n`;
   example += `});\n`;
 
   let signature = ``;
@@ -80,18 +81,6 @@ function Left() {
           <code>params</code>: You can pass in the protocol parameters directly.
         </li>
       </ol>
-
-      <p>
-        Below provides some examples of transaction building. Complete working
-        examples can be found in{" "}
-        <Link
-          href="https://github.com/sidan-lab/mesh-lower-level-api-demo"
-          target="_blank"
-          rel="noreferrer"
-        >
-          mesh-lower-level-api-demo
-        </Link>
-      </p>
     </>
   );
 }

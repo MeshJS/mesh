@@ -2,6 +2,7 @@
   "name": "@meshsdk/configs",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "files": [
     "eslint/library.js",
     "eslint/next.js",
