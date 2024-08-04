@@ -5,7 +5,7 @@ import { getProvider } from "~/components/cardano/mesh-wallet";
 export function getTxBuilder() {
   const blockchainProvider = getProvider();
   return new MeshTxBuilder({
-    evaluator: blockchainProvider,
+    // evaluator: blockchainProvider,
     fetcher: blockchainProvider,
   });
 }

@@ -13,7 +13,7 @@ export default function TxbuilderCip20() {
   return (
     <TwoColumnsScroll
       sidebarTo="cip20"
-      title="Transaction message"
+      title="Set Metadata - Taransaction message"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -28,7 +28,8 @@ function Left() {
     <>
       <p>
         Add messages / comments / memos as transaction metadata. This is useful
-        for attaching additional information to a transaction.
+        for attaching additional information to a transaction. This is an
+        example of setting metadata with transaction message.
       </p>
       <Codeblock data={code} />
       <p>

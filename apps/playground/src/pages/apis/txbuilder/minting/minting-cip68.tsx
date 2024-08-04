@@ -22,6 +22,7 @@ import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import Codeblock from "~/components/text/codeblock";
 import {
   demoPlutusAlwaysSucceedScript,
   oneTimeMintingPolicy,
@@ -41,10 +42,21 @@ export default function MintingCip68() {
   );
 }
 
+let code = `txBuilder
+  .mintPlutusScriptV2()
+  .mint("1", policyId, CIP68_100(tokenNameHex))
+  .mintingScript(scriptCode)
+  .mintRedeemerValue(mConStr0([]))
+  .mintPlutusScriptV2()
+  .mint("1", policyId, CIP68_222(tokenNameHex))
+  .mintingScript(scriptCode)
+  .mintRedeemerValue(mConStr0([]))`;
+
 function Left(userInput: string) {
   return (
     <>
       <p>
+        Minting{" "}
         <Link
           href="https://cips.cardano.org/cip/CIP-68"
           target="_blank"
@@ -52,57 +64,20 @@ function Left(userInput: string) {
         >
           CIP-68
         </Link>{" "}
-        proposes a metadata standard for assets on the Cardano blockchain, not
-        limited to just NFTs but any asset class. It aims to address the
-        limitations of a previous standard (
-        <Link
-          href="https://cips.cardano.org/cip/CIP-25"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-25
-        </Link>
-        ).
+        tokens with <code>MeshTxBuilder</code> means 2 consecutive sets of
+        minting APIs. The first is to mint the 100 token, and the second is the
+        mint the 222 tokens:
       </p>
 
-      <p>
-        The basic idea is to have two assets issued, where one references the
-        other. We call these two a <code>reference NFT</code> and an{" "}
-        <code>user token</code>, where the
-        <code>user token</code> can be an NFT, FT or any other asset class that
-        is transferable and represents any value. So, the{" "}
-        <code>user token</code> is the actual asset that lives in a user's
-        wallet.
-      </p>
-      <p>
-        To find the metadata for the <code>user token</code> you need to look
-        for the output, where the <code>reference NFT</code> is locked in. How
-        this is done concretely will become clear below. Moreover, this output
-        contains a datum, which holds the metadata. The advantage of this
-        approach is that the issuer of the assets can decide how the transaction
-        output with the <code>reference NFT</code> is locked and further
-        handled. If the issuer wants complete immutable metadata, the{" "}
-        <code>reference NFT</code> can be locked at the address of an
-        unspendable script. Similarly, if the issuer wants the NFTs/FTs to
-        evolve or wants a mechanism to update the metadata, the{" "}
-        <code>reference NFT</code>
-        can be locked at the address of a script with arbitrary logic that the
-        issuer decides.
-      </p>
-      <p>
-        Lastly and most importantly, with this construction, the metadata can be
-        used by a Plutus V2 script with the use of reference inputs (
-        <Link
-          href="https://cips.cardano.org/cip/CIP-31"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-31
-        </Link>
-        ) . This will drive further innovation in the token space.
-      </p>
+      <Codeblock data={code} />
 
-      {/* <Codeblock data={codeSnippet3} /> */}
+      <p>
+        A side note, Mesh also provides the utility function of{" "}
+        <code>CIP68_100(tokenNameHex: string)</code> and
+        <code>CIP68_222(tokenNameHex: string)</code> to help easily construct
+        the token names as needed. So you dont have to memorize the prefix bytes
+        to correctly mint the CIP68-compliant tokens.
+      </p>
     </>
   );
 }
