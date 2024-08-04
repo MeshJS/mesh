@@ -1,3 +1,3 @@
 {
-  "extends": "@meshsdk/typescript-config/base.json"
+  "extends": "@meshsdk/configs/typescript/base.json"
 }

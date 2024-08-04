@@ -30,13 +30,12 @@
     "bip39": "3.1.0"
   },
   "devDependencies": {
-    "@meshsdk/eslint-config": "*",
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },

@@ -1,5 +1,5 @@
 {
-  "extends": "@meshsdk/typescript-config/wasm-base.json",
+  "extends": "@meshsdk/configs/typescript/wasm-base.json",
   "compilerOptions": {
     "module": "commonjs",
     "outDir": "dist/cjs",

@@ -1,5 +1,5 @@
 {
-  "extends": "@meshsdk/typescript-config/nextjs.json",
+  "extends": "@meshsdk/configs/typescript/nextjs.json",
   "compilerOptions": {
     "plugins": [
       {

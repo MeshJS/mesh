@@ -25,8 +25,7 @@
     "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-contracts.json"
   },
   "devDependencies": {
-    "@meshsdk/eslint-config": "*",
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
@@ -38,7 +37,7 @@
     "@meshsdk/core-cst": "*",
     "@meshsdk/transaction": "*"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },

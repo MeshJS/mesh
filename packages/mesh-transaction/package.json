@@ -25,7 +25,7 @@
     "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-transactions.json"
   },
   "devDependencies": {
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "@types/json-bigint": "^1.0.4",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
@@ -37,7 +37,7 @@
     "@meshsdk/core-cst": "*",
     "json-bigint": "^1.0.0"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },

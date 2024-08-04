@@ -29,8 +29,7 @@
     "@sidan-lab/sidan-csl-rs-nodejs": "@sidan-lab/sidan-csl-rs-browser"
   },
   "devDependencies": {
-    "@meshsdk/eslint-config": "*",
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "@types/json-bigint": "^1.0.4",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
@@ -43,7 +42,7 @@
     "@sidan-lab/sidan-csl-rs-nodejs": "^0.6.13",
     "json-bigint": "^1.0.0"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },

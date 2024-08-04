@@ -25,8 +25,7 @@
     "format": "prettier --check . --ignore-path ../../.gitignore"
   },
   "devDependencies": {
-    "@meshsdk/eslint-config": "*",
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "@types/pbkdf2": "^3.1.2",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
@@ -42,7 +41,7 @@
     "hash.js": "^1.1.7",
     "pbkdf2": "^3.1.2"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },
