@@ -27,18 +27,14 @@ export default function StakingDelegate() {
 }
 
 function Left() {
-  let codeSnippet = `const addresses = await wallet.getRewardAddresses();\n`;
-  codeSnippet += `const rewardAddress = addresses[0];\n\n`;
-  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
-  codeSnippet += `tx.delegateStake(rewardAddress, '${demoPool}');`;
+  let codeSnippet = `txBuilder\n`;
+  codeSnippet += `  .delegateStakeCertificate(stakeKeyHash, poolIdHash)\n`;
 
   return (
     <>
       <p>
-        Delegation is the process by which ADA holders delegate the stake
-        associated with their ADA to a stake pool. Doing so, this allows ADA
-        holders to participate in the network and be rewarded in proportion to
-        the amount of stake delegated.
+        Delegation with <code>MeshTxBuilder</code> is exactly the same as first
+        delegate, but without registering stake key, so only one API is needed:
       </p>
       <Codeblock data={codeSnippet} />
     </>
@@ -75,13 +71,25 @@ function Right() {
   }
 
   let code = ``;
+  code += `const utxos = await wallet.getUtxos();\n`;
+  code += `const address = await wallet.getChangeAddress();\n`;
   code += `const addresses = await wallet.getRewardAddresses();\n`;
-  code += `const rewardAddress = addresses[0];\n`;
+  code += `const rewardAddress = addresses[0]!;\n`;
+  code += `const stakeKeyHash = resolveStakeKeyHash(rewardAddress);\n`;
+  code += `const poolIdHash = deserializePoolId("${userInput}");\n`;
   code += `\n`;
-  code += `const tx = new Transaction({ initiator: wallet });\n`;
-  code += `tx.delegateStake(rewardAddress, '${userInput}');\n`;
+  code += `if (rewardAddress === undefined) {\n`;
+  code += `  throw "No address found";\n`;
+  code += `}\n`;
   code += `\n`;
-  code += `const unsignedTx = await tx.build();\n`;
+  code += `const txBuilder = getTxBuilder();\n`;
+  code += `\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `  .delegateStakeCertificate(stakeKeyHash, poolIdHash)\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .changeAddress(address)\n`;
+  code += `  .complete();\n`;
+  code += `\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 

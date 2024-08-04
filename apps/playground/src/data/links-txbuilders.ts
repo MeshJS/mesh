@@ -38,7 +38,7 @@ export const linksTxbuilder = [
   metaTxbuilderBasic,
   metaTxbuilderMinting,
   metaTxbuilderSmartContract,
-  // metaTxbuilderStaking,
+  metaTxbuilderStaking,
 ];
 
 export const metaTxbuilder = {

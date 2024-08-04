@@ -18,7 +18,7 @@ export default function StakingDeregister() {
 }
 
 function Left() {
-  let codeSnippet = `deregisterStake(rewardAddress: string)`;
+  let codeSnippet = `txBuilder\n  .deregisterStakeCertificate(stakeKeyHash: string)`;
 
   return (
     <>
@@ -28,7 +28,7 @@ function Left() {
       </p>
       <ul>
         <li>
-          <b>rewardAddress (string)</b> - the reward address to deregister
+          <b>stakeKeyHash (string)</b> - the hash of stake key to deregister
         </li>
       </ul>
       <Codeblock data={codeSnippet} />
@@ -64,13 +64,24 @@ function Right() {
   }
 
   let code = ``;
+  code += `const utxos = await wallet.getUtxos();\n`;
+  code += `const address = await wallet.getChangeAddress();\n`;
   code += `const addresses = await wallet.getRewardAddresses();\n`;
-  code += `const rewardAddress = addresses[0];\n`;
+  code += `const rewardAddress = addresses[0]!;\n`;
+  code += `const stakeKeyHash = resolveStakeKeyHash(rewardAddress);\n`;
   code += `\n`;
-  code += `const tx = new Transaction({ initiator: wallet });\n`;
-  code += `tx.deregisterStake(rewardAddress);\n`;
+  code += `if (rewardAddress === undefined) {\n`;
+  code += `  throw "No address found";\n`;
+  code += `}\n`;
   code += `\n`;
-  code += `const unsignedTx = await tx.build();\n`;
+  code += `const txBuilder = getTxBuilder();\n`;
+  code += `\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `  .deregisterStakeCertificate(stakeKeyHash)\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .changeAddress(address)\n`;
+  code += `  .complete();\n`;
+  code += `\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
