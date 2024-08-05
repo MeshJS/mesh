@@ -89,18 +89,19 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a list of wallet names
    */
   static async getAvailableWallets({
-    nufiNetwork = "preprod",
+    metamask  = {
+      network: "preprod",
+    }
   }: {
-    nufiNetwork?: string;
+    metamask?: {
+      network: string;
+    }
   } = {}): Promise<Wallet[]> {
     if (window === undefined) return [];
-    try {
-      await checkIfMetamaskInstalled(nufiNetwork);
-    } catch (e) {
-      console.log("hello fail");
 
-      console.log(e);
-    }
+    if(metamask)
+      await checkIfMetamaskInstalled(metamask.network);
+    
     const wallets = BrowserWallet.getInstalledWallets();
     return wallets;
   }

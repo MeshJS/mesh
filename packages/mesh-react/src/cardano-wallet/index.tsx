@@ -9,20 +9,24 @@ interface ButtonProps {
   label?: string;
   onConnected?: Function;
   isDark?: boolean;
-  nufiNetwork?: string;
+  metamask?: {
+    network: string;
+  };
 }
 
 export const CardanoWallet = ({
   label = "Connect Wallet",
   onConnected = undefined,
   isDark = false,
-  nufiNetwork = "preprod",
+  metamask = {
+    network: "preprod",
+  },
 }: ButtonProps) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [hideMenuList, setHideMenuList] = useState(true);
 
   const { connect, connecting, connected, disconnect, name } = useWallet();
-  const wallets = useWalletList({ nufiNetwork });
+  const wallets = useWalletList({ metamask });
 
   useEffect(() => {
     if (connected && onConnected) {
@@ -54,6 +58,7 @@ export const CardanoWallet = ({
       </Button>
       <div
         className={`ui-mr-menu-list ui-absolute ui-w-60 ui-rounded-b-md ui-border ui-text-center ui-shadow-sm ui-backdrop-blur ${hideMenuList && "ui-hidden"} ${isDarkMode ? `ui-bg-neutral-950	ui-text-neutral-50` : `ui-bg-neutral-50	ui-text-neutral-950`}`}
+        style={{ zIndex: 50 }}
       >
         {!connected && wallets.length > 0 ? (
           <>

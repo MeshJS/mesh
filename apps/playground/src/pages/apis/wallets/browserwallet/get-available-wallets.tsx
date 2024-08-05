@@ -54,10 +54,10 @@ function Left() {
 
       <p>
         With NuFi's support, you can specify the network to connect to. By
-        default, it is set to "preprod". To define the <code>nufiNetwork</code>:
+        default, it is set to "preprod". To define the <code>network</code>:
       </p>
       <Codeblock
-        data={`await BrowserWallet.getAvailableWallets({ nufiNetwork: "mainnet" })`}
+        data={`await BrowserWallet.getAvailableWallets({ metamask:{ network: "mainnet"} })`}
       />
       <p>Available networks are:</p>
       <ul>
@@ -68,7 +68,7 @@ function Left() {
       </ul>
       <p>You can also specify the network by providing the URL:</p>
       <Codeblock
-        data={`await BrowserWallet.getAvailableWallets({ nufiNetwork: "https://wallet.nu.fi" })`}
+        data={`await BrowserWallet.getAvailableWallets({ metamask:{ network: "https://wallet.nu.fi"} })`}
       />
     </>
   );

@@ -40,6 +40,10 @@ function Left() {
   codeRunCode += `  );\n`;
   codeRunCode += `}\n`;
 
+  let codeMetamask = `<CardanoWallet\n`;
+  codeMetamask += `  metamask={{network: "preprod"}}\n`;
+  codeMetamask += `/>\n`;
+
   return (
     <>
       <p>
@@ -79,10 +83,9 @@ function Left() {
       </p>
 
       <p>
-        You can define the NuFi network to connect to by adding the <code>nufiNetwork</code> prop.
+        You can define the NuFi network to connect to by adding the <code>network</code> prop.
       </p>
-
-      <Codeblock data={`<CardanoWallet nufiNetwork={"preprod"} />`} />
+      <Codeblock data={codeMetamask} />
     </>
   );
 }
