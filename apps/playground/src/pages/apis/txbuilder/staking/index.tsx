@@ -7,6 +7,7 @@ import { metaTxbuilderStaking } from "~/data/links-txbuilders";
 import StakingDelegate from "./delegate-stake";
 import StakingDeregister from "./deregister-stake";
 import StakingRegister from "./register-stake";
+import StakingScriptWithdrawal from "./script-withdrawal";
 import StakingWithdraw from "./withdraw-stake";
 
 const ReactPage: NextPage = () => {
@@ -15,6 +16,7 @@ const ReactPage: NextPage = () => {
     { label: "Delegate Stake", to: "delegateStake" },
     { label: "Withdraw Rewards", to: "withdrawRewards" },
     { label: "Deregister Stake", to: "deregisterStake" },
+    { label: "Script Withdrawal", to: "scriptWithdrawal" },
   ];
 
   return (
@@ -35,6 +37,7 @@ const ReactPage: NextPage = () => {
         <StakingDelegate />
         <StakingWithdraw />
         <StakingDeregister />
+        <StakingScriptWithdrawal />
       </SidebarFullwidth>
     </>
   );
