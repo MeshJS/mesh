@@ -23,6 +23,7 @@
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
     "test": "jest"
   },
   "browser": {

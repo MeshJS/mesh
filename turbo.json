@@ -58,6 +58,12 @@
     "clean": {
       "cache": false
     },
+    "pack": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
     "format": {
       "outputs": [
         "node_modules/.cache/.prettiercache"

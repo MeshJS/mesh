@@ -24,6 +24,7 @@
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

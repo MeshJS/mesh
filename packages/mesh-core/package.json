@@ -22,6 +22,7 @@
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
     "test": "jest"
   },
   "devDependencies": {
