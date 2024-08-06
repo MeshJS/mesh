@@ -23,53 +23,21 @@ export type Protocol = {
   coinsPerUtxoSize: number;
 };
 
-export const castProtocol = (data: Record<keyof Protocol, any>): Protocol => {
-  const {
-    epoch,
-    minFeeA,
-    minFeeB,
-    maxBlockSize,
-    maxTxSize,
-    maxBlockHeaderSize,
-    keyDeposit,
-    poolDeposit,
-    decentralisation,
-    minPoolCost,
-    priceMem,
-    priceStep,
-    maxTxExMem,
-    maxTxExSteps,
-    maxBlockExMem,
-    maxBlockExSteps,
-    maxValSize,
-    collateralPercent,
-    maxCollateralInputs,
-    coinsPerUtxoSize,
-  } = DEFAULT_PROTOCOL_PARAMETERS;
+export const castProtocol = (
+  data: Partial<Record<keyof Protocol, any>>,
+): Protocol => {
+  const result: Partial<Record<keyof Protocol, number | string>> = {};
 
-  const result = {
-    epoch: Number(data.epoch) || epoch,
-    minFeeA: Number(data.minFeeA) || minFeeA,
-    minFeeB: Number(data.minFeeB) || minFeeB,
-    maxBlockSize: Number(data.maxBlockSize) || maxBlockSize,
-    maxTxSize: Number(data.maxTxSize) || maxTxSize,
-    maxBlockHeaderSize: Number(data.maxBlockHeaderSize) || maxBlockHeaderSize,
-    keyDeposit: Number(data.keyDeposit) || keyDeposit,
-    poolDeposit: Number(data.poolDeposit) || poolDeposit,
-    decentralisation: Number(data.decentralisation) || decentralisation,
-    minPoolCost: data.minPoolCost.toString() || minPoolCost,
-    priceMem: Number(data.priceMem) || priceMem,
-    priceStep: Number(data.priceStep) || priceStep,
-    maxTxExMem: data.maxTxExMem.toString() || maxTxExMem,
-    maxTxExSteps: data.maxTxExSteps.toString() || maxTxExSteps,
-    maxBlockExMem: data.maxBlockExMem.toString() || maxBlockExMem,
-    maxBlockExSteps: data.maxBlockExSteps.toString() || maxBlockExSteps,
-    maxValSize: Number(data.maxValSize) || maxValSize,
-    collateralPercent: Number(data.collateralPercent) || collateralPercent,
-    maxCollateralInputs:
-      Number(data.maxCollateralInputs) || maxCollateralInputs,
-    coinsPerUtxoSize: Number(data.coinsPerUtxoSize) || coinsPerUtxoSize,
-  };
+  for (const rawKey in DEFAULT_PROTOCOL_PARAMETERS) {
+    const key = rawKey as keyof Protocol;
+    const defaultValue = DEFAULT_PROTOCOL_PARAMETERS[key];
+    const value = data[key];
+    if (typeof defaultValue === "number") {
+      result[key] = !value && value !== 0 ? defaultValue : Number(value);
+    } else if (typeof defaultValue === "string") {
+      result[key] = !value && value !== "" ? defaultValue : value.toString();
+    }
+  }
 
-  return result;
+  return result as Protocol;
 };
