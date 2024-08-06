@@ -1,4 +1,4 @@
-import { MeshWallet, ForgeScript, Mint, Transaction } from "@meshsdk/core";
+import { ForgeScript, MeshWallet, Mint, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
@@ -35,6 +35,20 @@ function Left() {
         The main idea of a multi-signature transaction is to have multiple
         signatures to authorize a transaction.
       </p>
+      <p>
+        Here are a few scenarios where multi-signature transactions are useful:
+      </p>
+      <ul>
+        <li>
+          you want to create a transaction with a backend and send to the
+          frontend for the user to sign
+        </li>
+        <li>
+          when you use a forge script which requires the user to pay for the
+          minting fee
+        </li>
+        <li>when redeeming an asset from a script</li>
+      </ul>
       <Codeblock data={codeTx} />
       <p>
         In the above code snippet, we are signing the transaction with the user

@@ -6,10 +6,12 @@
   "files": [
     "eslint/library.js",
     "eslint/next.js",
-    "eslint/react-internal.js"
+    "eslint/react-internal.js",
+    "jest/jest.config.ts"
   ],
   "exports": {
     "./prettier": "./prettier/index.js",
+    "./jest/jest.config": "./jest/jest.config.ts",
     "./tailwind/tailwind.config": "./tailwind/tailwind.config.ts",
     "./typescript/base.json": "./typescript/base.json",
     "./typescript/nextjs.json": "./typescript/nextjs.json",

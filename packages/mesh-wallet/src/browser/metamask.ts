@@ -30,27 +30,6 @@ export async function checkIfMetamaskInstalled(
       return nufiSnap;
     }
 
-    // const promise: Promise<Wallet | undefined> = new Promise((resolve) => {
-    //   const res = await
-    //     .then((isMetamaskInstalled: boolean) => {
-    //       if (isMetamaskInstalled) {
-    //         try {
-    //           initNufiDappCardanoSdk(_nufiCoreSdk, "snap");
-    //           resolve(nufiSnap);
-    //         } catch (err) {
-    //           console.error(
-    //             "Unknown error loading metamask Cardano wallet, please disable unrelated wallet browser extensions in other blockchain to try again",
-    //           );
-    //           resolve(undefined);
-    //         }
-    //       } else {
-    //         resolve(undefined);
-    //       }
-    //     });
-    //   console.log("res?", res);
-    //   return res;
-    // });
-
     return undefined;
   } catch (err) {
     return Promise.resolve(undefined);

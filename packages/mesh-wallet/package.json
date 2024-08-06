@@ -17,13 +17,13 @@
     "dist/**"
   ],
   "scripts": {
-    "build:mesh": "tsup src/index.ts --format esm,cjs --dts --minify",
-    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
-    "lint": "eslint",
+    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-wallets.json",
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "test": "jest",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "format": "prettier --check . --ignore-path ../../.gitignore",
-    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-wallets.json"
+    "lint": "eslint",
+    "test": "jest"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",

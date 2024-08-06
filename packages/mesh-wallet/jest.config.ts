@@ -1,3 +1,3 @@
-import jestConfig from "../config-jest/jest.config";
+import jestConfig from "../configs/jest/jest.config";
 
 export default jestConfig;

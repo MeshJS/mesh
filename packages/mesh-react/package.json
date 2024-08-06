@@ -18,13 +18,13 @@
     "dist/**"
   ],
   "scripts": {
+    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-react.json",
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts && tailwindcss -i ./src/styles.css -o ./dist/index.css",
-    "lint": "eslint",
-    "dev_old": "tailwindcss -i ./src/styles.css -o ./dist/index.css --watch",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
-    "type-check": "tsc --noEmit",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "format": "prettier --check . --ignore-path ../../.gitignore"
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "react": "^18.2.0",
