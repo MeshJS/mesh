@@ -1,7 +1,6 @@
 import {
   Action,
   Asset,
-  AssetMetadata,
   Budget,
   CIP68_100,
   CIP68_222,

@@ -19,7 +19,6 @@ import {
   buildEnterpriseAddress,
   buildRewardAddress,
   CardanoSDKSerializer,
-  deserializeAddress,
   deserializeTx,
   Ed25519KeyHashHex,
   fromTxUnspentOutput,

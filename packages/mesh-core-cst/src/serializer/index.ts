@@ -61,7 +61,7 @@ import {
   Value,
   VkeyWitness,
 } from "../types";
-import { toAddress, toNativeScript, toPlutusData, toValue } from "../utils";
+import { toAddress, toPlutusData, toValue } from "../utils";
 import { hashScriptData } from "../utils/script-data-hash";
 import { empty, mergeValue, negatives, subValue } from "../utils/value";
 
@@ -213,10 +213,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       referenceInputs,
       mints,
       changeAddress,
-      certificates,
+      // certificates,
       validityRange,
       requiredSignatures,
-      metadata,
+      // metadata,
     } = txBuilderBody;
 
     mints.sort((a, b) => a.policyId.localeCompare(b.policyId));
