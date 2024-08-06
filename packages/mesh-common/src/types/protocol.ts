@@ -1,3 +1,5 @@
+import { DEFAULT_PROTOCOL_PARAMETERS } from "../constants";
+
 export type Protocol = {
   epoch: number;
   minFeeA: number;
@@ -21,27 +23,53 @@ export type Protocol = {
   coinsPerUtxoSize: number;
 };
 
-export const castProtocol = (data: any): Protocol => {
-  return {
-    epoch: Number(data.epoch),
-    minFeeA: Number(data.minFeeA),
-    minFeeB: Number(data.minFeeB),
-    maxBlockSize: Number(data.maxBlockSize),
-    maxTxSize: Number(data.maxTxSize),
-    maxBlockHeaderSize: Number(data.maxBlockHeaderSize),
-    keyDeposit: Number(data.keyDeposit),
-    poolDeposit: Number(data.poolDeposit),
-    decentralisation: Number(data.decentralisation),
-    minPoolCost: data.minPoolCost.toString(),
-    priceMem: Number(data.priceMem),
-    priceStep: Number(data.priceStep),
-    maxTxExMem: data.maxTxExMem.toString(),
-    maxTxExSteps: data.maxTxExSteps.toString(),
-    maxBlockExMem: data.maxBlockExMem.toString(),
-    maxBlockExSteps: data.maxBlockExSteps.toString(),
-    maxValSize: Number(data.maxValSize),
-    collateralPercent: Number(data.collateralPercent),
-    maxCollateralInputs: Number(data.maxCollateralInputs),
-    coinsPerUtxoSize: Number(data.coinsPerUtxoSize),
+export const castProtocol = (data: Record<keyof Protocol, any>): Protocol => {
+  const {
+    epoch,
+    minFeeA,
+    minFeeB,
+    maxBlockSize,
+    maxTxSize,
+    maxBlockHeaderSize,
+    keyDeposit,
+    poolDeposit,
+    decentralisation,
+    minPoolCost,
+    priceMem,
+    priceStep,
+    maxTxExMem,
+    maxTxExSteps,
+    maxBlockExMem,
+    maxBlockExSteps,
+    maxValSize,
+    collateralPercent,
+    maxCollateralInputs,
+    coinsPerUtxoSize,
+  } = DEFAULT_PROTOCOL_PARAMETERS;
+
+  const result = {
+    epoch: Number(data.epoch) || epoch,
+    minFeeA: Number(data.minFeeA) || minFeeA,
+    minFeeB: Number(data.minFeeB) || minFeeB,
+    maxBlockSize: Number(data.maxBlockSize) || maxBlockSize,
+    maxTxSize: Number(data.maxTxSize) || maxTxSize,
+    maxBlockHeaderSize: Number(data.maxBlockHeaderSize) || maxBlockHeaderSize,
+    keyDeposit: Number(data.keyDeposit) || keyDeposit,
+    poolDeposit: Number(data.poolDeposit) || poolDeposit,
+    decentralisation: Number(data.decentralisation) || decentralisation,
+    minPoolCost: data.minPoolCost.toString() || minPoolCost,
+    priceMem: Number(data.priceMem) || priceMem,
+    priceStep: Number(data.priceStep) || priceStep,
+    maxTxExMem: data.maxTxExMem.toString() || maxTxExMem,
+    maxTxExSteps: data.maxTxExSteps.toString() || maxTxExSteps,
+    maxBlockExMem: data.maxBlockExMem.toString() || maxBlockExMem,
+    maxBlockExSteps: data.maxBlockExSteps.toString() || maxBlockExSteps,
+    maxValSize: Number(data.maxValSize) || maxValSize,
+    collateralPercent: Number(data.collateralPercent) || collateralPercent,
+    maxCollateralInputs:
+      Number(data.maxCollateralInputs) || maxCollateralInputs,
+    coinsPerUtxoSize: Number(data.coinsPerUtxoSize) || coinsPerUtxoSize,
   };
+
+  return result;
 };
