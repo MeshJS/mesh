@@ -1,3 +1,21 @@
-import jestConfig from "../configs/jest/jest.config";
+import type { Config } from "jest";
+
+// TODO: import from
+const jestConfig: Config = {
+  clearMocks: true,
+  maxWorkers: 1,
+  testEnvironment: "node",
+  testMatch: ["**/*.test.ts"],
+  setupFiles: ["dotenv/config"],
+  preset: "ts-jest",
+  moduleNameMapper: {
+    "^(\\.{1,2}/.*)\\.js$": "$1",
+  },
+  transform: {
+    "^.+\\.[jt]s?$": "ts-jest",
+  },
+  transformIgnorePatterns: ["/node_modules/(?!@meshsdk/.*)"],
+  passWithNoTests: true,
+};
 
 export default jestConfig;

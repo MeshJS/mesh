@@ -1,5 +1,6 @@
 import type { Config } from "jest";
 
+// TODO: import from
 const jestConfig: Config = {
   clearMocks: true,
   maxWorkers: 1,
@@ -14,6 +15,7 @@ const jestConfig: Config = {
     "^.+\\.[jt]s?$": "ts-jest",
   },
   transformIgnorePatterns: ["/node_modules/(?!@meshsdk/.*)"],
+  passWithNoTests: true,
 };
 
 export default jestConfig;
