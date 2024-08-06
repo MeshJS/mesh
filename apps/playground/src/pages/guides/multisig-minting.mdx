@@ -20,7 +20,7 @@ export default function MDXPage({ children }) {
   );
 }
 
-A multi-signature (multi-sig) transaction requires more than one user to sign a transaction prior to the transaction being broadcast on a blockchain. You can think of it like a husband and wife savings account, where both signatures are required to spend the funds, preventing one spouse from spending the money without the approval of the other. For a multi-sig transaction, you can include 2 or more required signers, these signers can be wallets ([Browser Wallet](https://meshjs.dev/apis/browserwallet) or [App Wallet](https://meshjs.dev/apis/appwallet)) or Plutus script.
+A multi-signature (multi-sig) transaction requires more than one user to sign a transaction prior to the transaction being broadcast on a blockchain. You can think of it like a husband and wife savings account, where both signatures are required to spend the funds, preventing one spouse from spending the money without the approval of the other. For a multi-sig transaction, you can include 2 or more required signers, these signers can be wallets ([Browser Wallet](https://meshjs.dev/apis/wallets/browserwallet) or [App Wallet](https://meshjs.dev/apis/wallets/meshwallet)) or Plutus script.
 
 In this guide, we will build a multi-sig transaction for minting. There are 2 wallets involved,
 
@@ -29,7 +29,7 @@ In this guide, we will build a multi-sig transaction for minting. There are 2 wa
 
 ## See it in action
 
-In this guide, we will connect our CIP wallet (**BrowserWallet**) to request for a minting transaction. Then, the backend application wallet (**AppWallet**) will build the transaction, and we will sign it with our wallet. Finally, the application wallet will sign the transaction and submit it to the blockchain. Note: this demo is on **preprod** network only.
+In this guide, we will connect our CIP wallet (**BrowserWallet**) to request for a minting transaction. Then, the backend application wallet (**MeshWallet**) will build the transaction, and we will sign it with our wallet. Finally, the application wallet will sign the transaction and submit it to the blockchain. Note: this demo is on **preprod** network only.
 
 Let's see it in action.
 
@@ -61,14 +61,14 @@ In this section, we will build the minting transaction.
 
 In this guide, we won't be showing how to set up RESTful APIs and backend servers. There are thousands of tutorials on YouTube, we recommend building your backend server with [Vercel API](https://vercel.com/docs/rest-api) or [NestJs](https://www.youtube.com/results?search_query=nestjs).
 
-First, we initialize the [blockchain provider](https://meshjs.dev/apis/providers) and **AppWallet**. In this example, we use mnemonic to restore our wallet, but you can initialize a wallet with mnemonic phrases, private keys, and Cardano CLI generated keys, see [App Wallet](https://meshjs.dev/apis/appwallet).
+First, we initialize the [blockchain provider](https://meshjs.dev/apis/providers) and **MeshWallet**. In this example, we use mnemonic to restore our wallet, but you can initialize a wallet with mnemonic phrases, private keys, and Cardano CLI generated keys, see [Mesh Wallet](https://meshjs.dev/apis/wallets/meshwallet).
 
 ```
 const blockchainProvider = new BlockfrostProvider(
   '<blockfrost key here>'
 );
 
-const appWallet = new AppWallet({
+const meshWallet = new MeshWallet({
   networkId: 0,
   fetcher: blockchainProvider,
   submitter: blockchainProvider,
@@ -82,8 +82,8 @@ const appWallet = new AppWallet({
 Next, let's define the forging script, here we used the first wallet address, but you can also define using **NativeScript**, see [Transaction - Minting assets](https://meshjs.dev/apis/transaction):
 
 ```
-const appWalletAddress = appWallet.getPaymentAddress();
-const forgingScript = ForgeScript.withOneSignature(appWalletAddress);
+const meshWalletAddress = meshWallet.getPaymentAddress();
+const forgingScript = ForgeScript.withOneSignature(meshWalletAddress);
 ```
 
 Then, we define the **AssetMetadata** which contains the NFT metadata. In a NFT collection mint, you would need a selection algorithm and a database to select available NFTs.
@@ -122,7 +122,7 @@ const bankWalletAddress = 'addr_test1qzmwuzc0qjenaljs2ytquyx8y8x02en3qxswlfcldwe
 Let's create the transaction.
 
 ```
-const tx = new Transaction({ initiator: appWallet });
+const tx = new Transaction({ initiator: meshWallet });
 tx.setTxInputs(selectedUtxos);
 tx.mintAsset(forgingScript, asset);
 tx.sendLovelace(bankWalletAddress, costLovelace);
@@ -167,8 +167,8 @@ const signedOriginalTx = Transaction.writeMetadata(
 Sign the transaction with the application wallet and submit the transaction:
 
 ```
-const appWalletSignedTx = await appWallet.signTx(signedOriginalTx, true);
-const txHash = await appWallet.submitTx(appWalletSignedTx);
+const meshWalletSignedTx = await meshWallet.signTx(signedOriginalTx, true);
+const txHash = await meshWallet.submitTx(meshWalletSignedTx);
 ```
 
 Voila! You can build any multi-sig transactions!

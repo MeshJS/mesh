@@ -1,6 +1,5 @@
 import type { Config } from "jest";
 
-// TODO: import from @meshsdk/configs
 const jestConfig: Config = {
   clearMocks: true,
   maxWorkers: 1,

@@ -1,6 +1,5 @@
 import type { Config } from "jest";
 
-// TODO: import from
 const jestConfig: Config = {
   clearMocks: true,
   maxWorkers: 1,
