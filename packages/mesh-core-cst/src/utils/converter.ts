@@ -16,7 +16,6 @@ import {
 import {
   Address,
   AssetId,
-  AssetName,
   BaseAddress,
   ConstrPlutusData,
   NativeScript as CstNativeScript,
@@ -28,7 +27,6 @@ import {
   PlutusV1Script,
   PlutusV2Script,
   PlutusV3Script,
-  PolicyId,
   RequireAllOf,
   RequireAnyOf,
   RequireNOf,

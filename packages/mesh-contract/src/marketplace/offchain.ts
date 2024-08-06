@@ -134,7 +134,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       marketplaceUtxo.output.plutusData!,
     );
 
-    const listingPrice = inputDatum.fields[1].int.toString();
+    // const listingPrice = inputDatum.fields[1].int.toString();
 
     const inputLovelace = marketplaceUtxo.output.amount.find(
       (a) => a.unit === "lovelace",

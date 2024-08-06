@@ -18,7 +18,6 @@ import {
   Quantity,
   Redeemer,
   RefTxIn,
-  RequiredWith,
   TxIn,
   TxInParameter,
   Unit,
