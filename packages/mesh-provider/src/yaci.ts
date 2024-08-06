@@ -5,6 +5,7 @@ import {
   Asset,
   AssetMetadata,
   BlockInfo,
+  castProtocol,
   fromUTF8,
   IFetcher,
   IListener,
@@ -266,7 +267,7 @@ export class YaciProvider implements IFetcher, IListener, ISubmitter {
       );
 
       if (status === 200)
-        return <Protocol>{
+        return castProtocol({
           coinsPerUtxoSize: data.coins_per_utxo_size,
           collateralPercent: data.collateral_percent,
           decentralisation: data.decentralisation_param,
@@ -287,7 +288,7 @@ export class YaciProvider implements IFetcher, IListener, ISubmitter {
           poolDeposit: data.pool_deposit,
           priceMem: data.price_mem,
           priceStep: data.price_step,
-        };
+        });
 
       throw parseHttpError(data);
     } catch (error) {

@@ -6,6 +6,7 @@ import {
   Asset,
   AssetMetadata,
   BlockInfo,
+  castProtocol,
   fromUTF8,
   IEvaluator,
   IFetcher,
@@ -342,7 +343,7 @@ export class MaestroProvider
             await this._axiosInstance.get("epochs/current");
           if (epochStatus === 200) {
             const epochData = timestampedDataEpochData.data;
-            return <Protocol>{
+            return castProtocol({
               coinsPerUtxoSize: parseInt(data.coins_per_utxo_byte),
               collateralPercent: parseInt(data.collateral_percentage),
               decentralisation: 0, // Deprecated in Babbage era.
@@ -367,7 +368,7 @@ export class MaestroProvider
               poolDeposit: parseInt(data.pool_deposit),
               priceMem: decimalFromRationalString(data.prices.memory),
               priceStep: decimalFromRationalString(data.prices.steps),
-            };
+            });
           }
           throw parseHttpError(timestampedDataEpochData);
         } catch (error) {

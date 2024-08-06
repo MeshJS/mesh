@@ -6,6 +6,7 @@ import {
   Asset,
   AssetMetadata,
   BlockInfo,
+  castProtocol,
   fromUTF8,
   IFetcher,
   IListener,
@@ -304,7 +305,7 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       );
 
       if (status === 200 || status == 202)
-        return <Protocol>{
+        return castProtocol({
           coinsPerUtxoSize: data.coins_per_utxo_word,
           collateralPercent: data.collateral_percent,
           decentralisation: data.decentralisation_param,
@@ -325,7 +326,7 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
           poolDeposit: data.pool_deposit,
           priceMem: data.price_mem,
           priceStep: data.price_step,
-        };
+        });
 
       throw parseHttpError(data);
     } catch (error) {
