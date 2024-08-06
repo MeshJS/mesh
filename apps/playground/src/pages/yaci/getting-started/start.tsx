@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "~/components/link/link";
 
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -46,7 +46,7 @@ function Left() {
 
       <p>
         After you have started your devnet, you can open Yaci Viewer from{" "}
-        <Link href="http://localhost:5173" target="_blank" rel="noreferrer">
+        <Link href="http://localhost:5173">
           http://localhost:5173
         </Link>
         . Here you can view the blocks, transactions, and other details of the

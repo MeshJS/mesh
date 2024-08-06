@@ -1,5 +1,5 @@
 import type { NextPage } from "next";
-import Link from "next/link";
+import Link from "~/components/link/link";
 
 import { OgmiosProvider } from "@meshsdk/core";
 

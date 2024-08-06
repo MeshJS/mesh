@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Link from "next/link";
+import Link from "~/components/link/link";
 
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";

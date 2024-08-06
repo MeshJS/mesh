@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Link from "next/link";
+import Link from "~/components/link/link";
 import { ChevronRightIcon } from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";

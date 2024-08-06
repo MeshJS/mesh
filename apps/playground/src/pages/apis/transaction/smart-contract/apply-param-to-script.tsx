@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "~/components/link/link";
 
 import { MeshMarketplaceBlueprint } from "@meshsdk/contract";
 import { integer, mPubKeyAddress, pubKeyAddress } from "@meshsdk/core";

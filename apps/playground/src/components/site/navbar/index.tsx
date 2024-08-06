@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "~/components/link/link";
 import { useRouter } from "next/router";
 import {
   Bars4Icon,

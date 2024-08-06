@@ -1,10 +1,10 @@
 import { useState } from "react";
-import Link from "next/link";
 
 import { StakeButton } from "@meshsdk/react";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
 import Input from "~/components/form/input";
+import Link from "~/components/link/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";

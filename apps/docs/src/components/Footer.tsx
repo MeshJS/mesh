@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "~/components/link/link";
 import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/Button";

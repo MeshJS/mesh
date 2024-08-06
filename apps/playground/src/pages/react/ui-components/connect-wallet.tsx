@@ -1,7 +1,6 @@
-import Link from "next/link";
-
 import { CardanoWallet } from "@meshsdk/react";
 
+import Link from "~/components/link/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -83,7 +82,8 @@ function Left() {
       </p>
 
       <p>
-        You can define the NuFi network to connect to by adding the <code>network</code> prop.
+        You can define the NuFi network to connect to by adding the{" "}
+        <code>network</code> prop.
       </p>
       <Codeblock data={codeMetamask} />
     </>

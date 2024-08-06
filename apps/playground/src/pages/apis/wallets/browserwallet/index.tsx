@@ -1,5 +1,5 @@
 import type { NextPage } from "next";
-import Link from "next/link";
+import Link from "~/components/link/link";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
