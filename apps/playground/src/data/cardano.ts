@@ -1,4 +1,5 @@
 import { MeshMarketplaceBlueprint } from "@meshsdk/contract";
+import { applyParamsToScript } from "@meshsdk/core-csl";
 
 export const demoAddresses = {
   mainnet: "addr1v9vx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c93pyfx",
@@ -85,3 +86,7 @@ export const yaci = {
   address:
     "addr_test1qryvgass5dsrf2kxl3vgfz76uhp83kv5lagzcp29tcana68ca5aqa6swlq6llfamln09tal7n5kvt4275ckwedpt4v7q48uhex",
 };
+export const alwaysSucceedMintingStakingScriptCbor = (pubKeyHash: string) =>
+  applyParamsToScript("55010000322322253330054a229309b2b1bae0015735", [
+    pubKeyHash,
+  ]);

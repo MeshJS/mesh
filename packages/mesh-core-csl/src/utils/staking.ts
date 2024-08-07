@@ -33,3 +33,32 @@ export const baseAddressToStakeAddress = (
 export const rewardAddressToKeyHash = (rewardBech32: string) => {
   return toRewardAddress(rewardBech32)?.payment_cred().to_keyhash()?.to_hex();
 };
+
+export const scriptHashToRewardAddress = (
+  scriptHashHex: string,
+  network = 1,
+) => {
+  const networkId =
+    network === 1
+      ? csl.NetworkId.mainnet().kind()
+      : csl.NetworkId.testnet().kind();
+  const scriptHash = csl.ScriptHash.from_hex(scriptHashHex);
+  const credential = csl.Credential.from_scripthash(scriptHash);
+  const rewardAddress = csl.RewardAddress.new(networkId, credential)
+    .to_address()
+    .to_bech32();
+  return rewardAddress;
+};
+
+export const keyHashToRewardAddress = (keyHashHex: string, network = 1) => {
+  const networkId =
+    network === 1
+      ? csl.NetworkId.mainnet().kind()
+      : csl.NetworkId.testnet().kind();
+  const keyHash = csl.Ed25519KeyHash.from_hex(keyHashHex);
+  const credential = csl.Credential.from_scripthash(keyHash);
+  const rewardAddress = csl.RewardAddress.new(networkId, credential)
+    .to_address()
+    .to_bech32();
+  return rewardAddress;
+};

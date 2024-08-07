@@ -35,7 +35,9 @@ import {
 import {
   calculateTxHash,
   deserializeBech32Address,
+  keyHashToRewardAddress,
   rewardAddressToKeyHash,
+  scriptHashToRewardAddress,
   serialzeAddress,
   signTransaction,
 } from "../utils";
@@ -94,6 +96,16 @@ export class CSLSerializer implements IMeshTxSerializer {
 
   serializePoolId(hash: string): string {
     return serializePoolId(hash);
+  }
+
+  serializeRewardAddress(
+    stakeKeyHash: string,
+    isScriptHash?: boolean,
+    network_id?: 0 | 1,
+  ): string {
+    return isScriptHash
+      ? scriptHashToRewardAddress(stakeKeyHash, network_id)
+      : keyHashToRewardAddress(stakeKeyHash, network_id);
   }
 
   deserializer: IDeserializer = {

@@ -1,12 +1,13 @@
 import { MeshTxBuilder } from "@meshsdk/core";
+import { CSLSerializer } from "@meshsdk/core-csl";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
 
 export function getTxBuilder() {
   const blockchainProvider = getProvider();
   return new MeshTxBuilder({
-    // evaluator: blockchainProvider,
     fetcher: blockchainProvider,
+    evaluator: blockchainProvider,
   });
 }
 

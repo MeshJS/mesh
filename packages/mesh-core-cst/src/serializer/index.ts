@@ -96,6 +96,13 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     );
     this.txWitnessSet = new TransactionWitnessSet();
   }
+  serializeRewardAddress(
+    stakeKeyHash: string,
+    isScriptHash?: boolean,
+    network_id?: 0 | 1,
+  ): string {
+    throw new Error("Method not implemented.");
+  }
   serializePoolId(hash: string): string {
     throw new Error("Method not implemented.");
   }

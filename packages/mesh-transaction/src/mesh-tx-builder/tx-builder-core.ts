@@ -705,7 +705,7 @@ export class MeshTxBuilderCore {
           coin: coin,
         },
       };
-      this.meshTxBuilderBody.withdrawals.push(withdrawal);
+      this.withdrawalItem = withdrawal;
       return this;
     }
     const withdrawal: Withdrawal = {
@@ -714,17 +714,16 @@ export class MeshTxBuilderCore {
         coin: coin,
       },
     };
-    this.meshTxBuilderBody.withdrawals.push(withdrawal);
+    this.withdrawalItem = withdrawal;
     return this;
   };
 
   /**
    * Add a withdrawal script to the MeshTxBuilder instance
    * @param scriptCbor The script in CBOR format
-   * @param version The language version
    * @returns The MeshTxBuilder instance
    */
-  withdrawalScript = (scriptCbor: string, version: LanguageVersion) => {
+  withdrawalScript = (scriptCbor: string) => {
     if (!this.withdrawalItem)
       throw Error("withdrawalScript: Undefined withdrawal");
     if (!("plutusScriptWithdrawal" in this.withdrawalItem))
