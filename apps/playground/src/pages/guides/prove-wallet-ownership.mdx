@@ -1,22 +1,14 @@
 import { CardanoWallet } from "@meshsdk/react";
-
+import { guideownership } from "~/data/links-guides";
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
-
-export const metadata = {
-  title: "Cryptographically Prove Wallet Ownership",
-  description:
-    "Cryptographically prove the ownership of a wallet by signing a piece of data using data sign.",
-  cover: "/guides/cryptographically-prove-wallet-ownership.png",
-  image: "/guides/door-gf0710cc4d_640.jpg",
-};
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={metadata.title}
-      description={metadata.description}
-      image={metadata.image}
-      cover={metadata.cover}
+      title={guideownership.title}
+      description={guideownership.description}
+      image={guideownership.image}
+      cover={guideownership.cover}
     >
       {children}
     </LayoutImageHeaderAndBody>

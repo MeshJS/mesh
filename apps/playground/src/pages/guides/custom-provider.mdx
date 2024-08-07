@@ -1,27 +1,20 @@
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
-
-export const metadata = {
-  title: "Implement Custom Provider",
-  description:
-    "Build custom Providers that provides an API to access and process information provided by services.",
-  cover: "/guides/implement-custom-provider.png",
-  image: "/guides/service-g2192fe835_640.jpg",
-};
+import { guideprovider } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={metadata.title}
-      description={metadata.description}
-      image={metadata.image}
-      cover={metadata.cover}
+      title={guideprovider.title}
+      description={guideprovider.description}
+      image={guideprovider.image}
+      cover={guideprovider.cover}
     >
       {children}
     </LayoutImageHeaderAndBody>
   );
 }
 
-As of writing (Dec 2022), Mesh offers three options: [Blockfrost](https://blockfrost.io/), [Tangocrypto](https://tangocrypto.com/), or [Koios](https://www.koios.rest/) (see a list of [Providers](https://meshjs.dev/providers)) . These blockchain providers allow developers to access the Cardano blockchain and retrieve intricate data. For example, they can be used to query the UTXO of a smart contract and use it as part of a transaction, or to submit a signed transaction to the chain.
+As of writing (Dec 2022), Mesh offers a few options: [Blockfrost](https://blockfrost.io/) or [Koios](https://www.koios.rest/) (see a list of [Providers](https://meshjs.dev/providers)). These blockchain providers allow developers to access the Cardano blockchain and retrieve intricate data. For example, they can be used to query the UTXO of a smart contract and use it as part of a transaction, or to submit a signed transaction to the chain.
 
 You can customize a provider to utilize GraphQL, cardano-cli, or websocket with Mesh SDK. Whatever the query method used to obtain the data, it will work perfectly with Mesh SDK so long as the output of the function is compatible with the interface.
 
