@@ -1,5 +1,4 @@
 import {
-  builtinByteString,
   DEFAULT_PROTOCOL_PARAMETERS,
   MeshTxBuilderBody,
 } from "@meshsdk/common";

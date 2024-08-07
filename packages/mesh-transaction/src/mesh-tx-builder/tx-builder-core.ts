@@ -800,8 +800,11 @@ export class MeshTxBuilderCore {
    */
   registerPoolCertificate = (poolParams: PoolParams) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "RegisterPool",
-      poolParams,
+      type: "BasicCertificate",
+      certType: {
+        type: "RegisterPool",
+        poolParams,
+      },
     });
     return this;
   };
@@ -813,8 +816,11 @@ export class MeshTxBuilderCore {
    */
   registerStakeCertificate = (stakeKeyHash: string) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "RegisterStake",
-      stakeKeyHash,
+      type: "BasicCertificate",
+      certType: {
+        type: "RegisterStake",
+        stakeKeyHash,
+      },
     });
     return this;
   };
@@ -828,9 +834,12 @@ export class MeshTxBuilderCore {
    */
   delegateStakeCertificate = (stakeKeyHash: string, poolId: string) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "DelegateStake",
-      stakeKeyHash,
-      poolId,
+      type: "BasicCertificate",
+      certType: {
+        type: "DelegateStake",
+        stakeKeyHash,
+        poolId,
+      },
     });
     return this;
   };
@@ -842,8 +851,11 @@ export class MeshTxBuilderCore {
    */
   deregisterStakeCertificate = (stakeKeyHash: string) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "DeregisterStake",
-      stakeKeyHash,
+      type: "BasicCertificate",
+      certType: {
+        type: "DeregisterStake",
+        stakeKeyHash,
+      },
     });
     return this;
   };
@@ -856,12 +868,55 @@ export class MeshTxBuilderCore {
    */
   retirePoolCertificate = (poolId: string, epoch: number) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "RetirePool",
-      poolId,
-      epoch,
+      type: "BasicCertificate",
+      certType: {
+        type: "RetirePool",
+        poolId,
+        epoch,
+      },
     });
     return this;
   };
+
+  /**
+   * Adds a script witness to the certificate
+   * @param scriptCbor The CborHex of the script
+   * @param version Optional - The plutus version of the script, null version implies Native Script
+   */
+  certificateScript = (scriptCbor: string, version?: LanguageVersion) => {
+    const currentCert = this.meshTxBuilderBody.certificates.pop();
+    if (!currentCert) {
+      throw Error(
+        "Certificate script attempted to be defined, but no certificate was found",
+      );
+    }
+    if (!version) {
+      this.meshTxBuilderBody.certificates.push({
+        type: "SimpleScriptCertificate",
+        certType: currentCert.certType,
+        simpleScriptSource: {
+          type: "Provided",
+          scriptCode: scriptCbor,
+        },
+      });
+    } else {
+      this.meshTxBuilderBody.certificates.push({
+        type: "ScriptCertificate",
+        certType: currentCert.certType,
+        scriptSource: {
+          type: "Provided",
+          script: {
+            code: scriptCbor,
+            version,
+          },
+        },
+      });
+    }
+  };
+
+  certificateTxInReference
+
+  certificateRedeemerValue
 
   /**
    * Configure the address to accept change UTxO

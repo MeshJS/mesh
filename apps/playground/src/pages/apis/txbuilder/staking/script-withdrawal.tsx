@@ -71,14 +71,19 @@ function Right() {
       // .withdrawalScript(demoPlutusAlwaysSucceedScript, "V2")
       // .withdrawalRedeemerValue(mConStr0([]))
       .registerStakeCertificate(stakeScriptHash)
-      .delegateStakeCertificate(stakeScriptHash, poolIdHash)
+      // .delegateStakeCertificate(stakeScriptHash, poolIdHash)
       .selectUtxosFrom(utxos)
       .changeAddress(address)
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx, true);
-    const txHash = await wallet.submitTx(signedTx);
-    return txHash;
+    console.log(signedTx);
+    try {
+      const txHash = await wallet.submitTx(signedTx);
+      return txHash;
+    } catch (e) {
+      console.log(e);
+    }
   }
 
   async function runDemo() {

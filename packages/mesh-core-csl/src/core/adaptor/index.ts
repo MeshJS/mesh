@@ -1,9 +1,6 @@
-import {
-  certificateToObj,
-  MeshTxBuilderBody,
-  validityRangeToObj,
-} from "@meshsdk/common";
+import { MeshTxBuilderBody, validityRangeToObj } from "@meshsdk/common";
 
+import { certificateToObj } from "./certificate";
 import { mintItemToObj } from "./mint";
 import { outputToObj } from "./output";
 import { collateralTxInToObj, txInToObj } from "./txIn";
