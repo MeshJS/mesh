@@ -1,7 +1,6 @@
-import Link from "~/components/link/link";
-
 import { AppWallet } from "@meshsdk/core";
 
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 
@@ -21,11 +20,7 @@ function Left() {
     <>
       <p>
         You can generate deterministic keys based on the{" "}
-        <Link
-          href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki">
           Bitcoin BIP39
         </Link>
         . These mnemonic phrases allow you to recover your wallet.

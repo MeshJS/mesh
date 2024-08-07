@@ -1,6 +1,6 @@
 import React from "react";
 import Image from "next/image";
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 
 import Card from "./card";
 

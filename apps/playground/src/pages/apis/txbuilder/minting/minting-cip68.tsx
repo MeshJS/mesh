@@ -1,15 +1,12 @@
 import { useState } from "react";
-import Link from "~/components/link/link";
 
 import {
   CIP68_100,
   CIP68_222,
   mConStr0,
   metadataToCip68,
-  Mint,
   mTxOutRef,
   PlutusScript,
-  resolvePlutusScriptAddress,
   resolveScriptHash,
   serializePlutusScript,
   stringToHex,
@@ -19,6 +16,7 @@ import { applyParamsToScript } from "@meshsdk/core-csl";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -56,14 +54,7 @@ function Left(userInput: string) {
   return (
     <>
       <p>
-        Minting{" "}
-        <Link
-          href="https://cips.cardano.org/cip/CIP-68"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-68
-        </Link>{" "}
+        Minting <Link href="https://cips.cardano.org/cip/CIP-68">CIP-68</Link>{" "}
         tokens with <code>MeshTxBuilder</code> means 2 consecutive sets of
         minting APIs. The first is to mint the 100 token, and the second is the
         mint the 222 tokens:

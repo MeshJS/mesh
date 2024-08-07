@@ -1,5 +1,4 @@
-import Link from "~/components/link/link";
-
+import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
@@ -58,11 +57,7 @@ function Left() {
       <p>
         If you face any issues, please check the installation instructions on
         the{" "}
-        <Link
-          href="https://aiken-lang.org/installation-instructions"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://aiken-lang.org/installation-instructions">
           Aiken website
         </Link>{" "}
         for more information.

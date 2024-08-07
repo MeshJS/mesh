@@ -1,7 +1,7 @@
 import React from "react";
 import Image from "next/image";
-import Link from "~/components/link/link";
 
+import Link from "~/components/link";
 import { socials } from "~/data/social";
 import Sitemap from "./sitemap";
 
@@ -41,8 +41,6 @@ export default function Footer() {
                     href={social.link}
                     className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                     key={i}
-                    target="_blank"
-                    rel="noreferrer"
                   >
                     {React.createElement(social.icon, {
                       className: "w-5 h-5",
@@ -59,11 +57,7 @@ export default function Footer() {
         <hr className="my-6 border-gray-200 sm:mx-auto lg:my-8 dark:border-gray-700" />
         <span className="block text-center text-sm text-gray-500 dark:text-gray-400">
           © {new Date().getFullYear()} Mesh.{" "}
-          <Link
-            href="https://github.com/MeshJS/mesh/blob/main/LICENSE.md"
-            target="_blank"
-            rel="noreferrer"
-          >
+          <Link href="https://github.com/MeshJS/mesh/blob/main/LICENSE.md">
             Apache-2.0 license
           </Link>
           .

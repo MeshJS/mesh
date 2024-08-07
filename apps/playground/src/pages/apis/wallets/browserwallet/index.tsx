@@ -1,7 +1,7 @@
 import type { NextPage } from "next";
-import Link from "~/components/link/link";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaBrowserwallet } from "~/data/links-wallets";
@@ -58,11 +58,7 @@ const ReactPage: NextPage = () => {
         >
           <p>
             These wallets APIs are in accordance to{" "}
-            <Link
-              href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <Link href="https://cips.cardano.org/cip/CIP-30">
               CIP-30
             </Link>
             , which defines the API for dApps to communicate with the user's

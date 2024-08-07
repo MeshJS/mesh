@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@meshsdk/common": "*",
+    "@meshsdk/core-csl": "*",
     "@meshsdk/core-cst": "*",
     "@meshsdk/transaction": "*",
     "@nufi/dapp-client-cardano": "^0.3.1",

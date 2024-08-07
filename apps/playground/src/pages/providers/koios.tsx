@@ -1,9 +1,9 @@
 import type { NextPage } from "next";
-import Link from "~/components/link/link";
 
 import { KoiosProvider } from "@meshsdk/core";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
@@ -51,15 +51,9 @@ const ReactPage: NextPage = () => {
           description={metaKoios.desc}
         >
           <p>
-            <Link
-              href="https://www.koios.rest/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Koios
-            </Link>{" "}
-            provides a query layer which allows your app to access information
-            stored on the blockchain.
+            <Link href="https://www.koios.rest/">Koios</Link> provides a query
+            layer which allows your app to access information stored on the
+            blockchain.
           </p>
           <iframe
             className="mx-auto h-64 w-full max-w-xl rounded-lg sm:h-96"

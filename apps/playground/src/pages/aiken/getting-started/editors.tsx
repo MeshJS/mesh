@@ -1,5 +1,4 @@
-import Link from "~/components/link/link";
-
+import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 
 export default function AikenEditorintegrations() {
@@ -20,11 +19,7 @@ function Left() {
         extension. This extension provides syntax highlighting, code snippets,
         and error checking for Aiken smart contracts. Download the extension
         from the{" "}
-        <Link
-          href="https://marketplace.visualstudio.com/items?itemName=TxPipe.aiken"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://marketplace.visualstudio.com/items?itemName=TxPipe.aiken">
           Visual Studio Code Marketplace
         </Link>{" "}
         or search <code>aiken</code> in the extensions tab of Visual Studio

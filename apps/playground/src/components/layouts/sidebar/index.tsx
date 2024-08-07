@@ -1,4 +1,4 @@
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 import { Link as RSLink } from "react-scroll";
 
 export default function Sidebar({

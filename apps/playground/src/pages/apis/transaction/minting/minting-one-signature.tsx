@@ -1,4 +1,4 @@
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 
 import { AssetMetadata, ForgeScript, Mint, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";

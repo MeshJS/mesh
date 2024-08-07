@@ -13,6 +13,7 @@ import {
   resolveFingerprint,
   toUTF8,
 } from "@meshsdk/common";
+import { resolvePrivateKey } from "@meshsdk/core-csl"; // todo replace this with cst when its implemented
 import {
   Address,
   buildBaseAddress,
@@ -23,7 +24,6 @@ import {
   Ed25519KeyHashHex,
   fromTxUnspentOutput,
   Hash28ByteBase16,
-  resolvePrivateKey,
   toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,

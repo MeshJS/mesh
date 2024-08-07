@@ -1,17 +1,15 @@
 import { useState } from "react";
-import Link from "~/components/link/link";
 
 import {
   ForgeScript,
   MeshTxBuilder,
-  Mint,
   resolveScriptHash,
   RoyaltiesStandard,
-  Transaction,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -42,14 +40,8 @@ function Left() {
         Royalty tokens is a special type of token that allows the creator to
         collect a royalty fee, this proposed standard will allow for uniform
         royalties' distributions across the secondary market space. Read{" "}
-        <Link
-          href="https://cips.cardano.org/cips/cip27/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-27
-        </Link>{" "}
-        for more information.
+        <Link href="https://cips.cardano.org/cips/cip27/">CIP-27</Link> for more
+        information.
       </p>
       <p>
         The implementation of royalty tokens is very simple, minting a token

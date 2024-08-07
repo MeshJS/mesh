@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -35,10 +36,8 @@ function Left(userInput: string) {
   return (
     <>
       <p>
-        <a href="https://adahandle.com/" target="_blank" rel="noreferrer">
-          ADA Handle
-        </a>{" "}
-        allows users to use a human-readable "Handle" to associate an address.
+        <Link href="https://adahandle.com/">ADA Handle</Link> allows users to
+        use a human-readable "Handle" to associate an address.
       </p>
       <p>
         Each Handle is a unique NFT, minted and issued on the Cardano

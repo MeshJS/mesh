@@ -1,4 +1,5 @@
 import HeaderAndCards from "~/components/layouts/header-and-cards";
+import Link from "~/components/link";
 import Metatags from "~/components/site/metatags";
 import { metaMediaKit } from "~/data/links-about";
 
@@ -35,9 +36,9 @@ function Image({ img }: { img: string }) {
   return (
     <>
       <div className="grid max-w-sm content-around justify-around rounded-lg border border-gray-200 bg-gray-200 shadow dark:border-gray-700 dark:bg-gray-800">
-        <a href={img} target="_blank" rel="noreferrer">
-          <img className="rounded-t-lg h-36" src={img} alt={img} />
-        </a>
+        <Link href={img} target="blank">
+          <img className="h-36 rounded-t-lg" src={img} alt={img} />
+        </Link>
       </div>
     </>
   );

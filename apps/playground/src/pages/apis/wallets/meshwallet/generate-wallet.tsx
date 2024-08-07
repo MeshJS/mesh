@@ -1,7 +1,6 @@
-import Link from "~/components/link/link";
-
 import { MeshWallet } from "@meshsdk/core";
 
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -22,11 +21,7 @@ function Left() {
     <>
       <p>
         You can generate deterministic keys based on the{" "}
-        <Link
-          href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki">
           Bitcoin BIP39
         </Link>
         . These mnemonic phrases allow you to recover your wallet.
@@ -48,17 +43,27 @@ function Left() {
 }
 
 function Right() {
-  async function runDemo() {
-    const mnemonic = MeshWallet.brew();
-    return mnemonic;
+  async function runDemo1() {
+    return MeshWallet.brew();
+  }
+  async function runDemo2() {
+    return MeshWallet.brew(true);
   }
 
   return (
-    <LiveCodeDemo
-      title="Generate Wallet"
-      subtitle="Generate new mnemonic phrases for your wallet"
-      code={`const mnemonic = MeshWallet.brew();`}
-      runCodeFunction={runDemo}
-    />
+    <>
+      <LiveCodeDemo
+        title="Generate mnemonic"
+        subtitle="Generate new mnemonic phrases for your wallet"
+        code={`const mnemonic = MeshWallet.brew();`}
+        runCodeFunction={runDemo1}
+      />
+      <LiveCodeDemo
+        title="Generate private key"
+        subtitle="Generate new private key for your wallet"
+        code={`const mnemonic = MeshWallet.brew(true);`}
+        runCodeFunction={runDemo2}
+      />
+    </>
   );
 }

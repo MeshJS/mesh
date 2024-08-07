@@ -1,9 +1,9 @@
 import type { NextPage } from "next";
-import Link from "~/components/link/link";
 
 import { MaestroProvider } from "@meshsdk/core";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
@@ -55,14 +55,8 @@ const ReactPage: NextPage = () => {
           description={metaMaestro.desc}
         >
           <p>
-            <Link
-              href="https://www.gomaestro.org/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Maestro
-            </Link>{" "}
-            is the complete Web3 stack for Cardano which provides among others:-
+            <Link href="https://www.gomaestro.org/">Maestro</Link> is the
+            complete Web3 stack for Cardano which provides among others:-
           </p>
           <ul>
             <li>⛓️ Enterprise-grade onchain data access.</li>

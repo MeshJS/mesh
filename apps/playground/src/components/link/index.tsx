@@ -6,17 +6,19 @@ export default function Link({
   href,
   className,
   icon,
+  target,
 }: {
   children: React.ReactNode;
   href: string;
   className?: string;
   icon?: any;
+  target?: string;
 }) {
   return (
     <NextLink
       href={href}
       className={className}
-      target={href.startsWith("http") ? "_blank" : "_self"}
+      target={target ? target : href.startsWith("http") ? "_blank" : "_self"}
       rel="noreferrer"
     >
       {icon && React.createElement(icon, { className: "mr-2 w-4 h-4" })}

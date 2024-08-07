@@ -1,9 +1,9 @@
 import { useState } from "react";
-import Link from "~/components/link/link";
 
 import { resolveFingerprint } from "@meshsdk/core";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -24,14 +24,7 @@ function Left() {
     <>
       <p>
         Takes policy ID and asset name, and return asset fingerprint based on{" "}
-        <Link
-          href="https://cips.cardano.org/cip/cip-14"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-14
-        </Link>
-        .
+        <Link href="https://cips.cardano.org/cip/cip-14">CIP-14</Link>.
       </p>
     </>
   );

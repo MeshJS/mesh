@@ -1,4 +1,4 @@
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 
 export default function MenuItem({
   title,

@@ -1,4 +1,4 @@
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 

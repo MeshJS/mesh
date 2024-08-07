@@ -1,4 +1,4 @@
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -23,8 +23,6 @@ function Left() {
         <code>plutus.json</code> file in the root folder. This file is a{" "}
         <Link
           href="https://cips.cardano.org/cip/CIP-0057"
-          target="_blank"
-          rel="noreferrer"
         >
           CIP-0057 Plutus blueprint
         </Link>

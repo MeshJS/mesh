@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import Link from "~/components/link/link";
 import { useRouter } from "next/router";
 import {
   Bars4Icon,
@@ -8,6 +7,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/solid";
 
+import Link from "~/components/link";
 import SvgMesh from "~/components/svgs/mesh";
 import { linksAbout } from "~/data/links-about";
 import { linksApi } from "~/data/links-api";
@@ -79,8 +79,6 @@ export default function Navbar() {
               return (
                 <Link
                   href={social.link}
-                  target="_blank"
-                  rel="noreferrer"
                   className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                   key={i}
                   aria-label={social.link}

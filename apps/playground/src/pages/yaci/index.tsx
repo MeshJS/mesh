@@ -1,5 +1,5 @@
 import type { NextPage } from "next";
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 import { ChevronRightIcon } from "@heroicons/react/24/solid";
 
 import Metatags from "~/components/site/metatags";

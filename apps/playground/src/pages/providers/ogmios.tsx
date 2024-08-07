@@ -1,9 +1,9 @@
 import type { NextPage } from "next";
-import Link from "~/components/link/link";
 
 import { OgmiosProvider } from "@meshsdk/core";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
@@ -34,14 +34,12 @@ const ReactPage: NextPage = () => {
           description={metaOgmios.desc}
         >
           <p>
-            <Link href="https://ogmios.dev/" target="_blank" rel="noreferrer">
-              Ogmios
-            </Link>{" "}
-            is a lightweight bridge interface for cardano-node. It offers a
-            WebSockets API that enables local clients to speak Ouroboros'
-            mini-protocols via JSON/RPC. Ogmios is a fast and lightweight
-            solution that can be deployed alongside relays to create entry
-            points on the Cardano network for various types of applications.
+            <Link href="https://ogmios.dev/">Ogmios</Link> is a lightweight
+            bridge interface for cardano-node. It offers a WebSockets API that
+            enables local clients to speak Ouroboros' mini-protocols via
+            JSON/RPC. Ogmios is a fast and lightweight solution that can be
+            deployed alongside relays to create entry points on the Cardano
+            network for various types of applications.
           </p>
 
           <p>Get started:</p>
