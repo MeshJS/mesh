@@ -1,19 +1,13 @@
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
-
-export const metadata = {
-  title: "Minting on Node.js",
-  description: "Load a CLI generated key and mint assets on Node.js",
-  cover: "/guides/minting-application.png",
-  image: "/guides/art-g68512aa8d_1280.jpg",
-};
+import { guidenodejs } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={metadata.title}
-      description={metadata.description}
-      image={metadata.image}
-      cover={metadata.cover}
+      title={guidenodejs.title}
+      description={guidenodejs.description}
+      image={guidenodejs.image}
+      cover={guidenodejs.cover}
     >
       {children}
     </LayoutImageHeaderAndBody>

@@ -1,20 +1,13 @@
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
-
-export const metadata = {
-  title: "Aiken Hello World",
-  description:
-    "Create smart contracts with Aiken and execute transactions with Mesh.",
-  cover: "/guides/aiken.png",
-  image: "/guides/arches-1866598_1280.jpg",
-};
+import { guideaiken } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={metadata.title}
-      description={metadata.description}
-      image={metadata.image}
-      cover={metadata.cover}
+      title={guideaiken.title}
+      description={guideaiken.description}
+      image={guideaiken.image}
+      cover={guideaiken.cover}
     >
       {children}
     </LayoutImageHeaderAndBody>

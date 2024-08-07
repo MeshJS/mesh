@@ -1,0 +1,17 @@
+import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
+import { blogNew16 } from "~/data/links-blogs";
+
+export default function MDXPage({ children }) {
+  return (
+    <LayoutImageHeaderAndBody
+      title={blogNew16.title}
+      description={blogNew16.description}
+      image={blogNew16.image}
+      cover={blogNew16.cover}
+    >
+      {children}
+    </LayoutImageHeaderAndBody>
+  );
+}
+
+New article

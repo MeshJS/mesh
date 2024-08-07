@@ -46,7 +46,7 @@ function Right() {
     return slot;
   }
 
-  let codeSnippet = `resolveDataHash('${userInput}');`;
+  let codeSnippet = `resolveSlotNo('${userInput}');`;
 
   return (
     <LiveCodeDemo

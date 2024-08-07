@@ -46,7 +46,7 @@ function Right() {
     return slot;
   }
 
-  let codeSnippet = `resolveDataHash('${userInput}');`;
+  let codeSnippet = `resolveEpochNo('${userInput}');`;
 
   return (
     <LiveCodeDemo

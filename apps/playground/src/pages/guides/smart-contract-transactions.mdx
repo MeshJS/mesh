@@ -1,27 +1,20 @@
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
-
-export const metadata = {
-  title: "Smart Contract Transactions with a Marketplace Contract",
-  description:
-    "Build a marketplace with Plutus (Haskell), where users can list their assets for sale and purchase the listed assets.",
-  cover: "/guides/smart-contract-transactions.png",
-  image: "/guides/supermarket-g42acef7c1_640.jpg",
-};
+import { guidetransactions } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={metadata.title}
-      description={metadata.description}
-      image={metadata.image}
-      cover={metadata.cover}
+      title={guidetransactions.title}
+      description={guidetransactions.description}
+      image={guidetransactions.image}
+      cover={guidetransactions.cover}
     >
       {children}
     </LayoutImageHeaderAndBody>
   );
 }
 
-In this guide, we will build a marketplace where users can list their assets for sale and purchase the listed assets. The seller can update or cancel the listing at any time. The contract is written in Haskell, and it is open-source and available on [GitHub](https://github.com/MeshJS/mesh.plutus/tree/marketplace).
+In this guide, we will build a marketplace where users can list their assets for sale and purchase the listed assets. The seller can update or cancel the listing at any time.
 
 ## Initialize the Plutus script
 
