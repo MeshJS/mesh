@@ -100,7 +100,6 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
 
       throw parseHttpError(data);
     } catch (error) {
-      console.error("error", error);
       throw parseHttpError(error);
     }
   }

@@ -25,7 +25,6 @@ export const useWalletSubmit = () => {
       );
     } catch (error) {
       setError(error);
-      console.error(error);
     }
 
     setSubmitting(false);

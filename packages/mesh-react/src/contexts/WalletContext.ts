@@ -40,7 +40,6 @@ export const useWalletStore = () => {
       setError(undefined);
     } catch (error) {
       setError(error);
-      console.error(error);
     }
 
     setConnectingWallet(false);

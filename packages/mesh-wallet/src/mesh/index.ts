@@ -131,10 +131,8 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
         this.getAddressesFromWallet(this._wallet);
         break;
       // case "address":
-      //   console.log(4);
       //   this._wallet = null;
       //   this.buildAddressFromBech32Address(options.key.address);
-      //   console.log(5);
       //   break;
     }
 

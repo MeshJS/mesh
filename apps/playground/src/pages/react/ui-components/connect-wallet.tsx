@@ -29,12 +29,12 @@ function Left() {
 
   let codeRunCode = ``;
   codeRunCode += `export default function Page() {\n\n`;
-  codeRunCode += `  function sayHello() {\n`;
-  codeRunCode += `    console.log("Hello, World!");\n`;
+  codeRunCode += `  function afterConnectedWallet() {\n`;
+  codeRunCode += `    // do something\n`;
   codeRunCode += `  }\n\n`;
   codeRunCode += `  return (\n`;
   codeRunCode += `    <>\n`;
-  codeRunCode += `      <CardanoWallet onConnected={sayHello} />\n`;
+  codeRunCode += `      <CardanoWallet onConnected={afterConnectedWallet} />\n`;
   codeRunCode += `    </>\n`;
   codeRunCode += `  );\n`;
   codeRunCode += `}\n`;
@@ -98,8 +98,8 @@ function Right() {
   example += `\n`;
   example += `export default function Page() {\n\n`;
 
-  example += `  function sayHello() {\n`;
-  example += `    console.log("Hello, World!");\n`;
+  example += `  function afterConnectedWallet() {\n`;
+  example += `    // do something\n`;
   example += `  }\n\n`;
 
   example += `  return (\n`;
@@ -107,15 +107,11 @@ function Right() {
   example += `      <CardanoWallet\n`;
   example += `        label={"Connect a Wallet"}\n`;
   example += `        isDark={isDark}\n`;
-  example += `        onConnected={sayHello}\n`;
+  example += `        onConnected={afterConnectedWallet}\n`;
   example += `      />\n`;
   example += `    </>\n`;
   example += `  );\n`;
   example += `}\n`;
-
-  function sayHello() {
-    console.log("Hello, World!");
-  }
 
   return (
     <LiveCodeDemo
@@ -124,11 +120,7 @@ function Right() {
       code={example}
       childrenAfterCodeFunctions={true}
     >
-      <CardanoWallet
-        label={"Connect a Wallet"}
-        isDark={isDark}
-        onConnected={sayHello}
-      />
+      <CardanoWallet label={"Connect a Wallet"} isDark={isDark} />
     </LiveCodeDemo>
   );
 }

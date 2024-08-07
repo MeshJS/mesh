@@ -97,7 +97,6 @@ const Delegate = ({
         setDone(true);
       }
     } catch (error) {
-      console.error("error", error);
       setError(error);
     }
     setProcessing(false);
@@ -119,7 +118,6 @@ const Delegate = ({
   //       setDone(true);
   //     }
   //   } catch (error) {
-  //     console.error("error", error);
   //     setError(error);
   //   }
   //   setProcessing(false);
