@@ -123,6 +123,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     } else {
       this.queueAllLastItem();
     }
+    this.addUtxosFromSelection();
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
