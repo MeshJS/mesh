@@ -75,9 +75,10 @@ function Right() {
       deserializeAddress(address).pubKeyHash,
     );
     const stakeScriptHash = resolveScriptHash(stakeScriptCbor, "V2");
+    const rewardAddress = serializeRewardAddress(stakeScriptHash, true, 0);
 
     const unsignedTx = await txBuilder
-      .registerStakeCertificate(stakeScriptHash)
+      .registerStakeCertificate(rewardAddress)
       .selectUtxosFrom(utxos)
       .changeAddress(address)
       .complete();
