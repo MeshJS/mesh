@@ -1,9 +1,6 @@
-import {
-  certificateToObj,
-  MeshTxBuilderBody,
-  validityRangeToObj,
-} from "@meshsdk/common";
+import { MeshTxBuilderBody, validityRangeToObj } from "@meshsdk/common";
 
+import { certificateToObj } from "./certificate";
 import { mintItemToObj } from "./mint";
 import { outputToObj } from "./output";
 import { collateralTxInToObj, txInToObj } from "./txIn";
@@ -38,3 +35,12 @@ export const meshTxBuilderBodyToObj = ({
     withdrawals: withdrawals.map(withdrawalToObj),
   };
 };
+
+export * from "./certificate";
+export * from "./data";
+export * from "./mint";
+export * from "./output";
+export * from "./script";
+export * from "./txIn";
+export * from "./utxo";
+export * from "./withdrawal";

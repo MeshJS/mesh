@@ -1,9 +1,10 @@
 import { UtxoSelectionStrategy } from "../../utxo-selection";
 import { UTxO } from "../utxo";
+import { Certificate } from "./certificate";
 import { MintItem } from "./mint";
 import { Output } from "./output";
 import { PubKeyTxIn, RefTxIn, TxIn } from "./txin";
-import { Certificate, Withdrawal } from "./withdrawal";
+import { Withdrawal } from "./withdrawal";
 
 export * from "./data";
 export * from "./mint";
@@ -11,6 +12,7 @@ export * from "./output";
 export * from "./script";
 export * from "./txin";
 export * from "./withdrawal";
+export * from "./certificate";
 
 export type MeshTxBuilderBody = {
   inputs: TxIn[];

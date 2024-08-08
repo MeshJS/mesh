@@ -44,7 +44,7 @@ export const applyParamsToScript = (
       break;
   }
 
-  return csl.apply_params_to_script(rawScript, cslParams, paramType);
+  return csl.js_apply_params_to_script(rawScript, cslParams, paramType);
 };
 
 /**
@@ -54,7 +54,7 @@ export const applyParamsToScript = (
  * @returns The double-cbor encoded script CborHex.
  */
 export const applyCborEncoding = (rawScript: string): string => {
-  return csl.apply_params_to_script(
+  return csl.js_apply_params_to_script(
     rawScript,
     csl.JsVecString.new(),
     csl.BuilderDataType.CBOR,
