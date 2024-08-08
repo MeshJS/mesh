@@ -4,10 +4,10 @@ use aiken/transaction.{
   Input, OutputReference, ScriptContext, Transaction, placeholder,
 } as tx
 use aiken/transaction/value.{from_asset, to_minted_value, zero}
-use sidan_placeholder/address.{mock_pub_key_address}
-use sidan_placeholder/builder.{complete, mint, new_tx_tester, tx_in}
-use sidan_placeholder/key_hex.{mock_policy_id}
-use sidan_placeholder/output_reference.{mock_tx_hash, mock_utxo_ref}
+use mocktail.{complete, mint, mocktail_tx, tx_in}
+use mocktail/virgin_address.{mock_pub_key_address}
+use mocktail/virgin_key_hex.{mock_policy_id}
+use mocktail/virgin_output_reference.{mock_tx_hash, mock_utxo_ref}
 
 validator(token_name: ByteArray, policy_id: ByteArray) {
   fn redeem(_d: Data, _r: Data, ctx: ScriptContext) -> Bool {
@@ -63,10 +63,10 @@ fn get_mint_test_tx(test_case: TestCase) -> Transaction {
       "goodbye"
     }
 
-  new_tx_tester()
+  mocktail_tx()
     |> tx_in(True, mock_tx_hash(0), 0, zero(), mock_pub_key_address(0, None))
-    |> mint(is_mint_info_correct, mock_policy_id(0), token_name, 1)
-    |> mint(!is_mint_info_correct, mock_policy_id(0), token_name, 2)
+    |> mint(is_mint_info_correct, 1, mock_policy_id(0), token_name)
+    |> mint(!is_mint_info_correct, 2, mock_policy_id(0), token_name)
     |> complete()
 }
 

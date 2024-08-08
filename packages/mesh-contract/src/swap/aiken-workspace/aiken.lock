@@ -7,8 +7,8 @@ version = "1.9.0"
 source = "github"
 
 [[requirements]]
-name = "sidan-lab/aiken-utils"
-version = "0.1.6-beta"
+name = "sidan-lab/vodka"
+version = "0.0.1-beta"
 source = "github"
 
 [[packages]]
@@ -18,8 +18,8 @@ requirements = []
 source = "github"
 
 [[packages]]
-name = "sidan-lab/aiken-utils"
-version = "0.1.6-beta"
+name = "sidan-lab/vodka"
+version = "0.0.1-beta"
 requirements = []
 source = "github"
 

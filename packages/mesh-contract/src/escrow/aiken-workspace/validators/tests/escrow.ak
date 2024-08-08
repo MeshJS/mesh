@@ -1,18 +1,18 @@
 use aiken/transaction.{ScriptContext, Spend, Transaction}
 use aiken/transaction/credential.{Address}
 use aiken/transaction/value.{add, from_asset, from_lovelace}
+use escrow.{escrow}
 use escrow/types.{
   ActiveEscrow, CancelTrade, CompleteTrade, EscrowDatum, Initiation, MValue,
   RecipientDeposit,
 }
-use escrow/validators/escrow.{escrow_logic}
-use sidan_placeholder/address.{mock_pub_key_address, mock_script_address}
-use sidan_placeholder/builder.{
-  complete, new_tx_tester, required_signer_hash, tx_in, tx_in_inline_datum,
-  tx_out, tx_out_inline_datum,
+use mocktail.{
+  complete, mocktail_tx, required_signer_hash, tx_in, tx_in_inline_datum, tx_out,
+  tx_out_inline_datum,
 }
-use sidan_placeholder/key_hex.{mock_pub_key_hex}
-use sidan_placeholder/output_reference.{mock_tx_hash, mock_utxo_ref}
+use mocktail/virgin_address.{mock_pub_key_address, mock_script_address}
+use mocktail/virgin_key_hex.{mock_pub_key_hash}
+use mocktail/virgin_output_reference.{mock_tx_hash, mock_utxo_ref}
 
 type CancelTestCase {
   is_at_initiation: Bool,
@@ -74,7 +74,7 @@ fn get_cancel_test_tx(test_case: CancelTestCase) -> Transaction {
       from_lovelace(2_000_000)
     }
 
-  new_tx_tester()
+  mocktail_tx()
     |> tx_in(
         True,
         mock_tx_hash(0),
@@ -92,8 +92,8 @@ fn get_cancel_test_tx(test_case: CancelTestCase) -> Transaction {
       )
     |> tx_out(True, initiator_address(), initiator_output_value)
     |> tx_out(True, recipient_address(), recipient_output_value)
-    |> required_signer_hash(is_initiator_signed, mock_pub_key_hex(0))
-    |> required_signer_hash(is_recipient_signed, mock_pub_key_hex(1))
+    |> required_signer_hash(is_initiator_signed, mock_pub_key_hash(0))
+    |> required_signer_hash(is_recipient_signed, mock_pub_key_hash(1))
     |> complete()
 }
 
@@ -112,7 +112,7 @@ test success_cancel() {
 
   let tx = get_cancel_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  escrow_logic(unused_mock_datum, redeemer, ctx)
+  escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test success_cancel_at_initiation() {
@@ -130,7 +130,7 @@ test success_cancel_at_initiation() {
 
   let tx = get_cancel_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  escrow_logic(unused_mock_datum, redeemer, ctx)
+  escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test success_cancel_at_active_with_initiator_signed() {
@@ -148,7 +148,7 @@ test success_cancel_at_active_with_initiator_signed() {
 
   let tx = get_cancel_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  escrow_logic(unused_mock_datum, redeemer, ctx)
+  escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test success_cancel_at_active_with_recipient_signed() {
@@ -166,7 +166,7 @@ test success_cancel_at_active_with_recipient_signed() {
 
   let tx = get_cancel_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  escrow_logic(unused_mock_datum, redeemer, ctx)
+  escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_cancel_at_initiation_without_signature() {
@@ -184,7 +184,7 @@ test fail_cancel_at_initiation_without_signature() {
 
   let tx = get_cancel_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_cancel_without_signature() {
@@ -202,7 +202,7 @@ test fail_cancel_without_signature() {
 
   let tx = get_cancel_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_cancel_without_initiator_value_returned() {
@@ -220,7 +220,7 @@ test fail_cancel_without_initiator_value_returned() {
 
   let tx = get_cancel_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_cancel_without_recipient_value_returned() {
@@ -238,7 +238,7 @@ test fail_cancel_without_recipient_value_returned() {
 
   let tx = get_cancel_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 type RecipientDepositTestCase {
@@ -258,7 +258,7 @@ fn get_deposit_test_tx(test_case: RecipientDepositTestCase) -> Transaction {
           add(_, "", "", 1_000_000)
         }
 
-  new_tx_tester()
+  mocktail_tx()
     |> tx_in(True, mock_tx_hash(0), 1, input_value, mock_script_address(0, None))
     |> tx_in_inline_datum(True, initiation_datum())
     |> tx_out(True, mock_script_address(0, None), output_value)
@@ -289,7 +289,7 @@ test success_deposit() {
 
   let tx = get_deposit_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  escrow_logic(unused_mock_datum, redeemer, ctx)
+  escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_deposit_without_updating_datum() {
@@ -308,7 +308,7 @@ test fail_deposit_without_updating_datum() {
 
   let tx = get_deposit_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_deposit_without_depositing_value() {
@@ -327,7 +327,7 @@ test fail_deposit_without_depositing_value() {
 
   let tx = get_deposit_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 type CompleteTestCase {
@@ -352,9 +352,9 @@ fn get_complete_test_tx(test_case: CompleteTestCase) -> Transaction {
       recipient_assets: test_value(),
     }
 
-  new_tx_tester()
-    |> required_signer_hash(is_initiator_signed, mock_pub_key_hex(0))
-    |> required_signer_hash(is_recipient_signed, mock_pub_key_hex(1))
+  mocktail_tx()
+    |> required_signer_hash(is_initiator_signed, mock_pub_key_hash(0))
+    |> required_signer_hash(is_recipient_signed, mock_pub_key_hash(1))
     |> tx_in(
         True,
         mock_tx_hash(0),
@@ -390,7 +390,7 @@ test success_complete() {
 
   let tx = get_complete_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  escrow_logic(unused_mock_datum, redeemer, ctx)
+  escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_complete_without_initiator_signed() {
@@ -407,7 +407,7 @@ test fail_complete_without_initiator_signed() {
 
   let tx = get_complete_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_complete_without_value_sent_to_initiator() {
@@ -424,7 +424,7 @@ test fail_complete_without_value_sent_to_initiator() {
 
   let tx = get_complete_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_complete_without_recipeint_signed() {
@@ -441,7 +441,7 @@ test fail_complete_without_recipeint_signed() {
 
   let tx = get_complete_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }
 
 test fail_complete_without_value_sent_to_recipient() {
@@ -458,5 +458,5 @@ test fail_complete_without_value_sent_to_recipient() {
 
   let tx = get_complete_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !escrow_logic(unused_mock_datum, redeemer, ctx)
+  !escrow(unused_mock_datum, redeemer, ctx)
 }

@@ -1,11 +1,9 @@
 use aiken/transaction.{ScriptContext, Spend}
-use sidan_placeholder/builder.{
-  complete, invalid_before, new_tx_tester, required_signer_hash,
-}
-use sidan_placeholder/key_hex.{mock_pub_key_hex}
-use sidan_placeholder/output_reference.{mock_utxo_ref}
+use mocktail.{complete, invalid_before, mocktail_tx, required_signer_hash}
+use mocktail/virgin_key_hex.{mock_pub_key_hash}
+use mocktail/virgin_output_reference.{mock_utxo_ref}
+use vesting.{vesting}
 use vesting/types.{VestingDatum}
-use vesting/validators/vesting.{vesting_logic}
 
 type TestCase {
   is_owner_signed: Bool,
@@ -17,9 +15,9 @@ fn get_test_tx(test_case: TestCase) {
   let TestCase { is_owner_signed, is_beneficiary_signed, is_lock_time_passed } =
     test_case
 
-  new_tx_tester()
-    |> required_signer_hash(is_owner_signed, mock_pub_key_hex(1))
-    |> required_signer_hash(is_beneficiary_signed, mock_pub_key_hex(2))
+  mocktail_tx()
+    |> required_signer_hash(is_owner_signed, mock_pub_key_hash(1))
+    |> required_signer_hash(is_beneficiary_signed, mock_pub_key_hash(2))
     |> invalid_before(is_lock_time_passed, 1672843961001)
     |> complete()
 }
@@ -27,8 +25,8 @@ fn get_test_tx(test_case: TestCase) {
 fn vesting_datum() {
   VestingDatum {
     lock_until: 1672843961000,
-    owner: mock_pub_key_hex(1),
-    beneficiary: mock_pub_key_hex(2),
+    owner: mock_pub_key_hash(1),
+    beneficiary: mock_pub_key_hash(2),
   }
 }
 
@@ -44,7 +42,7 @@ test success_unlocking() {
 
   let tx = get_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  vesting_logic(datum, ctx)
+  vesting(datum, Void, ctx)
 }
 
 test success_unlocking_with_only_owner_signature() {
@@ -59,7 +57,7 @@ test success_unlocking_with_only_owner_signature() {
 
   let tx = get_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  vesting_logic(datum, ctx)
+  vesting(datum, Void, ctx)
 }
 
 test success_unlocking_with_beneficiary_signature_and_time_passed() {
@@ -74,7 +72,7 @@ test success_unlocking_with_beneficiary_signature_and_time_passed() {
 
   let tx = get_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  vesting_logic(datum, ctx)
+  vesting(datum, Void, ctx)
 }
 
 test fail_unlocking_with_only_beneficiary_signature() {
@@ -89,7 +87,7 @@ test fail_unlocking_with_only_beneficiary_signature() {
 
   let tx = get_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !vesting_logic(datum, ctx)
+  !vesting(datum, Void, ctx)
 }
 
 test fail_unlocking_with_only_time_passed() {
@@ -104,5 +102,5 @@ test fail_unlocking_with_only_time_passed() {
 
   let tx = get_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !vesting_logic(datum, ctx)
+  !vesting(datum, Void, ctx)
 }
