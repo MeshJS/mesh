@@ -2,7 +2,11 @@ import { customAlphabet } from "nanoid";
 
 import { DataSignature, stringToHex } from "@meshsdk/common";
 
-import { StricaPrivateKey, StricaPublicKey } from "../";
+import {
+  getPublicKeyFromCoseKey,
+  StricaCoseSign1,
+  StricaPrivateKey,
+} from "../";
 
 export const signData = (
   data: string,
@@ -22,11 +26,21 @@ export const checkSignature = (
   data: string,
   { key, signature }: DataSignature,
 ) => {
-  const publicKey = new StricaPublicKey(Buffer.from(key, "hex"));
-  return publicKey.verify(
-    Buffer.from(signature, "hex"),
-    Buffer.from(data, "hex"),
-  );
+  const builder = StricaCoseSign1.fromCbor(signature);
+
+  if (builder.getPayload() === null) {
+    return false;
+  }
+
+  if (Buffer.from(data, "hex").compare(builder.getPayload()!) !== 0) {
+    console.log(Buffer.from(data, "hex"));
+    console.log(builder.getPayload()!);
+    return false;
+  }
+
+  return builder.verifySignature({
+    publicKeyBuffer: getPublicKeyFromCoseKey(key),
+  });
 };
 
 export const generateNonce = (label = "", length = 32) => {
