@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 import clsx from "clsx";
 import { motion, useScroll, useTransform } from "framer-motion";
 

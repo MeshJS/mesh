@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import Link from "~/components/link/link";
+import Link from "~/components/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { AnimatePresence, motion, useIsPresent } from "framer-motion";
