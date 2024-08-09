@@ -1,6 +1,8 @@
 import strica from "@stricahq/bip32ed25519";
 import hash from "hash.js";
 
+import { CoseSign1, getPublicKeyFromCoseKey } from "./coseSign1";
+
 class PrivateKey extends strica.PrivateKey {
   constructor(privKey: Buffer, extended: Boolean = true) {
     if (!extended) {
@@ -23,4 +25,6 @@ export {
   PublicKey as StricaPublicKey,
   Bip32PrivateKey as StricaBip32PrivateKey,
   Bip32PublicKey as StricaBip32PublicKey,
+  CoseSign1 as StricaCoseSign1,
+  getPublicKeyFromCoseKey,
 };
