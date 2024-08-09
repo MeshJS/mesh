@@ -1,15 +1,10 @@
 import { useState } from "react";
-import Link from "~/components/link";
 
-import {
-  deserializePoolId,
-  resolveStakeKeyHash,
-  Transaction,
-} from "@meshsdk/core";
-import { CSLSerializer } from "@meshsdk/core-csl";
+import { deserializePoolId } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -30,13 +25,10 @@ export default function StakingRegister() {
 
 function Left() {
   let codeSnippet = `txBuilder\n`;
-  codeSnippet += `  .registerStakeCertificate(stakeKeyHash)\n`;
-  codeSnippet += `  .delegateStakeCertificate(stakeKeyHash, poolIdHash)\n`;
+  codeSnippet += `  .registerStakeCertificate(rewardAddress)\n`;
+  codeSnippet += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;
 
   let utilsSnippet = ``;
-  utilsSnippet += `const stakeKeyHash = resolveStakeKeyHash(\n`;
-  utilsSnippet += `  "stake_test1up64x8a7re5tz856zrdmch0c38k74y3jt2zmwk9mh7rntkgs6zxjp",\n`;
-  utilsSnippet += `);\n`;
   utilsSnippet += `const poolIdHash = deserializePoolId(\n`;
   utilsSnippet += `  "pool107k26e3wrqxwghju2py40ngngx2qcu48ppeg7lk0cm35jl2aenx",\n`;
   utilsSnippet += `);\n`;
@@ -52,8 +44,8 @@ function Left() {
       <Codeblock data={codeSnippet} />
 
       <p>
-        Since we need to provide the deserilized hashes of the stake key and
-        pool id, we can use the following utils to get them:
+        Since we need to provide the deserilized hash of pool id, we can use the
+        following util to get it:
       </p>
       <Codeblock data={utilsSnippet} />
     </>
@@ -69,7 +61,6 @@ function Right() {
     const address = await wallet.getChangeAddress();
     const addresses = await wallet.getRewardAddresses();
     const rewardAddress = addresses[0]!;
-    const stakeKeyHash = resolveStakeKeyHash(rewardAddress);
     const poolIdHash = deserializePoolId(userInput);
 
     if (rewardAddress === undefined) {
@@ -79,8 +70,8 @@ function Right() {
     const txBuilder = getTxBuilder();
 
     const unsignedTx = await txBuilder
-      .registerStakeCertificate(stakeKeyHash)
-      .delegateStakeCertificate(stakeKeyHash, poolIdHash)
+      .registerStakeCertificate(rewardAddress)
+      .delegateStakeCertificate(rewardAddress, poolIdHash)
       .selectUtxosFrom(utxos)
       .changeAddress(address)
       .complete();
@@ -95,7 +86,6 @@ function Right() {
   code += `const address = await wallet.getChangeAddress();\n`;
   code += `const addresses = await wallet.getRewardAddresses();\n`;
   code += `const rewardAddress = addresses[0]!;\n`;
-  code += `const stakeKeyHash = resolveStakeKeyHash(rewardAddress);\n`;
   code += `const poolIdHash = deserializePoolId("${userInput}");\n`;
   code += `\n`;
   code += `if (rewardAddress === undefined) {\n`;
@@ -105,8 +95,8 @@ function Right() {
   code += `const txBuilder = getTxBuilder();\n`;
   code += `\n`;
   code += `const unsignedTx = await txBuilder\n`;
-  code += `  .registerStakeCertificate(stakeKeyHash)\n`;
-  code += `  .delegateStakeCertificate(stakeKeyHash, poolIdHash)\n`;
+  code += `  .registerStakeCertificate(rewardAddress)\n`;
+  code += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;
   code += `  .selectUtxosFrom(utxos)\n`;
   code += `  .changeAddress(address)\n`;
   code += `  .complete();\n`;

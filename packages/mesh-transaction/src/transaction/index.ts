@@ -511,29 +511,19 @@ export class Transaction {
 
   delegateStake(rewardAddress: string, poolId: string): Transaction {
     this.txBuilder.delegateStakeCertificate(
-      this.txBuilder.serializer.resolver.keys.resolveStakeKeyHash(
-        rewardAddress,
-      ),
+      rewardAddress,
       this.txBuilder.serializer.resolver.keys.resolveEd25519KeyHash(poolId),
     );
     return this;
   }
 
   deregisterStake(rewardAddress: string): Transaction {
-    this.txBuilder.deregisterStakeCertificate(
-      this.txBuilder.serializer.resolver.keys.resolveStakeKeyHash(
-        rewardAddress,
-      ),
-    );
+    this.txBuilder.deregisterStakeCertificate(rewardAddress);
     return this;
   }
 
   registerStake(rewardAddress: string): Transaction {
-    this.txBuilder.registerStakeCertificate(
-      this.txBuilder.serializer.resolver.keys.resolveStakeKeyHash(
-        rewardAddress,
-      ),
-    );
+    this.txBuilder.registerStakeCertificate(rewardAddress);
     return this;
   }
 

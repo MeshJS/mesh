@@ -1,10 +1,6 @@
 import { useState } from "react";
 
-import {
-  deserializePoolId,
-  resolveStakeKeyHash,
-  Transaction,
-} from "@meshsdk/core";
+import { deserializePoolId } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -28,7 +24,7 @@ export default function StakingDelegate() {
 
 function Left() {
   let codeSnippet = `txBuilder\n`;
-  codeSnippet += `  .delegateStakeCertificate(stakeKeyHash, poolIdHash)\n`;
+  codeSnippet += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;
 
   return (
     <>
@@ -50,7 +46,6 @@ function Right() {
     const address = await wallet.getChangeAddress();
     const addresses = await wallet.getRewardAddresses();
     const rewardAddress = addresses[0]!;
-    const stakeKeyHash = resolveStakeKeyHash(rewardAddress);
     const poolIdHash = deserializePoolId(userInput);
 
     if (rewardAddress === undefined) {
@@ -60,7 +55,7 @@ function Right() {
     const txBuilder = getTxBuilder();
 
     const unsignedTx = await txBuilder
-      .delegateStakeCertificate(stakeKeyHash, poolIdHash)
+      .delegateStakeCertificate(rewardAddress, poolIdHash)
       .selectUtxosFrom(utxos)
       .changeAddress(address)
       .complete();
@@ -75,7 +70,6 @@ function Right() {
   code += `const address = await wallet.getChangeAddress();\n`;
   code += `const addresses = await wallet.getRewardAddresses();\n`;
   code += `const rewardAddress = addresses[0]!;\n`;
-  code += `const stakeKeyHash = resolveStakeKeyHash(rewardAddress);\n`;
   code += `const poolIdHash = deserializePoolId("${userInput}");\n`;
   code += `\n`;
   code += `if (rewardAddress === undefined) {\n`;
@@ -85,7 +79,7 @@ function Right() {
   code += `const txBuilder = getTxBuilder();\n`;
   code += `\n`;
   code += `const unsignedTx = await txBuilder\n`;
-  code += `  .delegateStakeCertificate(stakeKeyHash, poolIdHash)\n`;
+  code += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;
   code += `  .selectUtxosFrom(utxos)\n`;
   code += `  .changeAddress(address)\n`;
   code += `  .complete();\n`;
