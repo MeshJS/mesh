@@ -243,6 +243,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       address = (await this.getUsedAddresses())[0]!;
     }
     const signerAddress = toAddress(address).toBytes().toString();
+
+    // todo TW process this witness set and return DataSignature correctly
+
     return this._walletInstance.signData(signerAddress, fromUTF8(payload));
   }
 

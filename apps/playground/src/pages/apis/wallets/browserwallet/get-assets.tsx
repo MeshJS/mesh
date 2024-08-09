@@ -1,4 +1,5 @@
 import { useWallet } from "@meshsdk/react";
+import { useState } from "react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";

@@ -1,41 +1,45 @@
+import { useState } from "react";
+
 import { checkSignature, generateNonce } from "@meshsdk/core";
 import { CardanoWallet, useWallet } from "@meshsdk/react";
 
+import Button from "~/components/button/button";
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
 import { guideownership } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
-
 const { wallet, connected } = useWallet();
+  const [loading, setLoading] = useState(false);
 
-async function getNonce() {
+async function runDemo() {
 if(!connected) return;
 
+setLoading(true);
 const nonce = generateNonce('Sign to login in to Mesh: ');
 const signature = await wallet.signData(nonce);
 console.log(2, signature)
 
 const result = checkSignature(nonce, signature);
-console.log(4, result)
+console.log(4, result);
+setLoading(false);
 }
 
 return (
-
-<LayoutImageHeaderAndBody
-      title={guideownership.title}
-      description={guideownership.description}
-      image={guideownership.image}
-      cover={guideownership.cover}
-    >
-<>
-{children}
-
-        <h2>Demo</h2>
-        <CardanoWallet onConnected={getNonce} />
-      </>
-    </LayoutImageHeaderAndBody>
-
-);
+  <LayoutImageHeaderAndBody
+    title={guideownership.title}
+    description={guideownership.description}
+    image={guideownership.image}
+    cover={guideownership.cover}
+  >
+    <>
+      {children}
+      <h2>Demo</h2>
+      <p>Connect your wallet and click on the button to sign a message.</p>
+      <CardanoWallet />
+      <Button onClick={() => runDemo()} style={loading ? "warning" : "light"} disabled={loading || !connected}>Sign Message</Button>
+    </>
+  </LayoutImageHeaderAndBody>
+  );
 }
 
 It's cryptographically easy to prove the ownership of an account by signing a piece of data using a private key. Since a user's public address can be used as their identifier, we can build an authentication mechanism that is based on message signing. This mechanism is made possible because we are able to cryptographically prove the ownership of an account by signing a specific piece of data using the corresponding private key. If the data is correctly signed, then the backend will recognize it as coming from the owner of the public address.
