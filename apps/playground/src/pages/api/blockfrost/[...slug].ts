@@ -1,8 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
 
-import { bytesToHex, toBytes } from "@meshsdk/common";
-
 export default async function handler(
   _req: NextApiRequest,
   _res: NextApiResponse,

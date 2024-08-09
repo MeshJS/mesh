@@ -1,11 +1,15 @@
-import { BanknotesIcon, WalletIcon } from "@heroicons/react/24/solid";
+import {
+  BanknotesIcon,
+  CodeBracketSquareIcon,
+  WalletIcon,
+} from "@heroicons/react/24/solid";
 
-// export const metaAppwallet = {
-//   link: `/apis/wallets/appwallet`,
-//   title: "App Wallet",
-//   desc: "Core wallet functionality for building other user wallets and fully customed applications's backend.",
-//   icon: CodeBracketSquareIcon,
-// };
+export const metaAppwallet = {
+  link: `/apis/wallets/appwallet`,
+  title: "App Wallet",
+  desc: "Core wallet functionality for building other user wallets and fully customed applications's backend.",
+  icon: CodeBracketSquareIcon,
+};
 export const metaBrowserwallet = {
   link: `/apis/wallets/browserwallet`,
   title: "Browser Wallet",

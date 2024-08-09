@@ -1,6 +1,3 @@
-import { bool } from "@meshsdk/core";
-
-import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 
 export default function OtherUtils() {

@@ -1,6 +1,3 @@
-import { Asset, value, Value } from "@meshsdk/core";
-
-import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 
 export default function DataAssetsToPlutusValue() {
@@ -9,7 +6,6 @@ export default function DataAssetsToPlutusValue() {
       sidebarTo="DataAssetsToPlutusValue"
       title="Assets to Plutus Value"
       leftSection={Left()}
-      // rightSection={Right()}
     />
   );
 }

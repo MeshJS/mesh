@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Link from "~/components/link";
 
 import { MeshTxBuilderBody } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";

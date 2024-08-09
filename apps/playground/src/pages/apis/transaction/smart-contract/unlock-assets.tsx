@@ -1,9 +1,7 @@
 import { useState } from "react";
-import Link from "~/components/link";
 
 import {
   PlutusScript,
-  resolvePlutusScriptAddress,
   serializePlutusScript,
   Transaction,
 } from "@meshsdk/core";
@@ -11,6 +9,7 @@ import { useWallet } from "@meshsdk/react";
 
 import { fetchAssetUtxo } from "~/components/cardano/fetch-utxo-by-datum";
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";

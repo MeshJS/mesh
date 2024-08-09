@@ -3,7 +3,6 @@ import type { NextPage } from "next";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
-import Codeblock from "~/components/text/codeblock";
 import { metaSmartContract } from "~/data/links-smart-contracts";
 import { Intro } from "../common";
 import MintingPlutusScript from "../minting/minting-plutus-script";
