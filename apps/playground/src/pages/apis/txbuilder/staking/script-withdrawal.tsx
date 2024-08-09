@@ -24,17 +24,17 @@ export default function StakingWithdraw() {
 }
 
 function Left() {
-  let codeWithdraw = ``;
-  codeWithdraw += `.withdrawalPlutusScriptV2()\n`;
-  codeWithdraw += `.withdrawal(rewardAddress, withdrawalAmount)\n`;
-  codeWithdraw += `.withdrawalScript(stakeScriptCbor)\n`;
-  codeWithdraw += `.withdrawalRedeemerValue(redeemer)\n`;
+  let codeWithdraw = `txBuilder\n`;
+  codeWithdraw += `   .withdrawalPlutusScriptV2()\n`;
+  codeWithdraw += `   .withdrawal(rewardAddress, withdrawalAmount)\n`;
+  codeWithdraw += `   .withdrawalScript(stakeScriptCbor)\n`;
+  codeWithdraw += `   .withdrawalRedeemerValue(redeemer)\n`;
   let codeRegister = `txBuilder\n  .registerStakeCertificate(stakeScriptHash)`; // TODO
-  let codeWithdraw0 = ``;
-  codeWithdraw0 += `.withdrawalPlutusScriptV2()\n`;
-  codeWithdraw0 += `.withdrawal(rewardAddress, "0")\n`;
-  codeWithdraw0 += `.withdrawalScript(stakeScriptCbor)\n`;
-  codeWithdraw0 += `.withdrawalRedeemerValue(redeemer)\n`;
+  let codeWithdraw0 = `txBuilder\n`;
+  codeWithdraw0 += `  .withdrawalPlutusScriptV2()\n`;
+  codeWithdraw0 += `  .withdrawal(rewardAddress, "0")\n`;
+  codeWithdraw0 += `  .withdrawalScript(stakeScriptCbor)\n`;
+  codeWithdraw0 += `  .withdrawalRedeemerValue(redeemer)\n`;
 
   return (
     <>
@@ -76,6 +76,7 @@ function Right() {
     );
     const stakeScriptHash = resolveScriptHash(stakeScriptCbor, "V2");
     const rewardAddress = serializeRewardAddress(stakeScriptHash, true, 0);
+    console.log("rewardAddress", rewardAddress);
 
     const unsignedTx = await txBuilder
       .registerStakeCertificate(rewardAddress)

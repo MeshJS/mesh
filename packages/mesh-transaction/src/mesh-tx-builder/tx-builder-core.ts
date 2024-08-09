@@ -690,18 +690,18 @@ export class MeshTxBuilderCore {
 
   /**
    * Withdraw stake rewards in the MeshTxBuilder instance
-   * @param stakeAddress The address corresponding to the stake key
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
    * @param coin The amount of lovelaces in the withdrawal
    * @returns The MeshTxBuilder instance
    */
-  withdrawal = (stakeAddress: string, coin: string) => {
+  withdrawal = (rewardAddress: string, coin: string) => {
     if (this.withdrawalItem) {
       this.queueWithdrawal();
     }
     if (this.addingPlutusWithdrawal) {
       const withdrawal: Withdrawal = {
         type: "ScriptWithdrawal",
-        address: stakeAddress,
+        address: rewardAddress,
         coin: coin,
       };
       this.withdrawalItem = withdrawal;
@@ -710,7 +710,7 @@ export class MeshTxBuilderCore {
 
     const withdrawal: Withdrawal = {
       type: "PubKeyWithdrawal",
-      address: stakeAddress,
+      address: rewardAddress,
       coin: coin,
     };
     this.withdrawalItem = withdrawal;
@@ -823,15 +823,15 @@ export class MeshTxBuilderCore {
 
   /**
    * Creates a stake registration certificate, and adds it to the transaction
-   * @param stakeKeyAddress The address of the stake key
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
    * @returns The MeshTxBuilder instance
    */
-  registerStakeCertificate = (stakeKeyAddress: string) => {
+  registerStakeCertificate = (rewardAddress: string) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "RegisterStake",
-        stakeKeyAddress,
+        stakeKeyAddress: rewardAddress,
       },
     });
     return this;
@@ -840,16 +840,16 @@ export class MeshTxBuilderCore {
   /**
    * Creates a stake delegation certificate, and adds it to the transaction
    * This will delegate stake from the corresponding stake address to the pool
-   * @param stakeKeyAddress The address of the stake key
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
    * @param poolId poolId can be in either bech32 or hex form
    * @returns The MeshTxBuilder instance
    */
-  delegateStakeCertificate = (stakeKeyAddress: string, poolId: string) => {
+  delegateStakeCertificate = (rewardAddress: string, poolId: string) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "DelegateStake",
-        stakeKeyAddress,
+        stakeKeyAddress: rewardAddress,
         poolId,
       },
     });
@@ -858,15 +858,15 @@ export class MeshTxBuilderCore {
 
   /**
    * Creates a stake deregister certificate, and adds it to the transaction
-   * @param stakeKeyAddress The address of the stake key
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
    * @returns The MeshTxBuilder instance
    */
-  deregisterStakeCertificate = (stakeKeyAddress: string) => {
+  deregisterStakeCertificate = (rewardAddress: string) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "DeregisterStake",
-        stakeKeyAddress,
+        stakeKeyAddress: rewardAddress,
       },
     });
     return this;
