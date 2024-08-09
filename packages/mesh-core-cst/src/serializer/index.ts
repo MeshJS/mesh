@@ -28,7 +28,7 @@ import {
   ValidityRange,
 } from "@meshsdk/common";
 
-import { PrivateKey } from "../stricahq";
+import { StricaPrivateKey } from "../";
 import {
   Address,
   AssetId,
@@ -258,7 +258,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         if (keyHex.length === 68 && keyHex.substring(0, 4) === "5820") {
           keyHex = keyHex.substring(4);
         }
-        const cardanoSigner = new PrivateKey(Buffer.from(keyHex, "hex"), false);
+        const cardanoSigner = new StricaPrivateKey(
+          Buffer.from(keyHex, "hex"),
+          false,
+        );
         const signature = cardanoSigner.sign(
           Buffer.from(cardanoTx.getId(), "hex"),
         );

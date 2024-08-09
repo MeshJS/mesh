@@ -18,4 +18,9 @@ class PrivateKey extends strica.PrivateKey {
 
 const { PublicKey, Bip32PrivateKey, Bip32PublicKey } = strica;
 
-export { PrivateKey, PublicKey, Bip32PrivateKey, Bip32PublicKey };
+export {
+  PrivateKey as StricaPrivateKey,
+  PublicKey as StricaPublicKey,
+  Bip32PrivateKey as StricaBip32PrivateKey,
+  Bip32PublicKey as StricaBip32PublicKey,
+};

@@ -2,10 +2,7 @@ import { pbkdf2Sync } from "pbkdf2";
 
 import { HARDENED_KEY_START } from "@meshsdk/common";
 
-import {
-  PrivateKey,
-  Bip32PrivateKey as StricahqBip32PrivateKey,
-} from "../stricahq";
+import { StricaBip32PrivateKey, StricaPrivateKey } from "../";
 import {
   BaseAddress,
   Bip32PrivateKey,
@@ -94,11 +91,11 @@ export const buildKeys = (
   accountIndex: number,
   keyIndex = 0,
 ): {
-  paymentKey: PrivateKey;
-  stakeKey: PrivateKey;
+  paymentKey: StricaPrivateKey;
+  stakeKey: StricaPrivateKey;
 } => {
   if (typeof entropy === "string") {
-    const rootKey = new StricahqBip32PrivateKey(Buffer.from(entropy, "hex"));
+    const rootKey = new StricaBip32PrivateKey(Buffer.from(entropy, "hex"));
 
     // hardened derivation
     const accountKey = rootKey
@@ -117,8 +114,14 @@ export const buildKeys = (
 
     return { paymentKey, stakeKey };
   } else {
-    const paymentKey = new PrivateKey(Buffer.from(entropy[0], "hex"), false);
-    const stakeKey = new PrivateKey(Buffer.from(entropy[1], "hex"), false);
+    const paymentKey = new StricaPrivateKey(
+      Buffer.from(entropy[0], "hex"),
+      false,
+    );
+    const stakeKey = new StricaPrivateKey(
+      Buffer.from(entropy[1], "hex"),
+      false,
+    );
 
     return { paymentKey, stakeKey };
   }

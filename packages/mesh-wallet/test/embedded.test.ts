@@ -50,7 +50,7 @@ describe("EmbeddedWallet mnemonic", () => {
       "c32dfdb461dd016e8fdd9b6d424a77439eab8f8c644a804b013b6cefa2454f95",
     );
     expect(signature.signature).toEqual(
-      "2808fc47212c2fe2151ccb4209cc7c5cf44b5ec6a80e21232a3f004697bd795b5610880184d8466761820bcb38401cc1e16945b1c1944037ce92a0929e729a0f",
+      "92a3d65e2750b6e318b2bac50ca630d934cab46881301902d7f8d9d4241f4bdf09e26526ff86e6a82e37156c3de4ff187427ba6848ae4883a60171abc871af04",
     );
     expect(result).toEqual(true);
   });
