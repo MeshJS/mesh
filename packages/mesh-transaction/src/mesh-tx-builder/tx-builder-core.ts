@@ -1239,10 +1239,28 @@ export class MeshTxBuilderCore {
           break;
         }
         case "CERT":
-          // TODO
+          const cert =
+            meshTxBuilderBody.certificates[redeemerEvaluation.index]!;
+          if (cert.type === "ScriptCertificate" && cert.redeemer) {
+            cert.redeemer.exUnits.mem = Math.floor(
+              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+            );
+            cert.redeemer.exUnits.steps = Math.floor(
+              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+            );
+          }
           break;
         case "REWARD":
-          // TODO
+          const withdrawal =
+            meshTxBuilderBody.withdrawals[redeemerEvaluation.index]!;
+          if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
+            withdrawal.redeemer.exUnits.mem = Math.floor(
+              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+            );
+            withdrawal.redeemer.exUnits.steps = Math.floor(
+              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+            );
+          }
           break;
       }
     });
