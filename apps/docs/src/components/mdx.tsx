@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "~/components/link";
+import Link from "next/link";
 import clsx from "clsx";
 
 import { Feedback } from "@/components/Feedback";
