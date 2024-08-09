@@ -10,11 +10,9 @@ const { wallet, connected } = useWallet();
 
 async function getNonce() {
 if(!connected) return;
-const userAddress = (await wallet.getRewardAddresses())[0];
-console.log(1, userAddress)
 
 const nonce = generateNonce('Sign to login in to Mesh: ');
-const signature = await wallet.signData(userAddress, nonce);
+const signature = await wallet.signData(nonce);
 console.log(2, signature)
 
 const result = checkSignature(nonce, signature);

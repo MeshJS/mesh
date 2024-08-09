@@ -37,11 +37,13 @@ function Left() {
         the private key.
       </p>
       <p>
-        Here, we get the first wallet's address with{" "}
-        <code>wallet.getUsedAddresses()</code>, alternativelly you can use
-        reward addresses (<code>getRewardAddresses()</code>) too. It's really up
-        to you as the developer which address you want to use in your
-        application.
+        <code>signData</code> takes two arguments, the first one is the payload
+        to sign and the second one is the address (optional).
+      </p>
+      <p>
+        By default, we get the first wallet's address with{" "}
+        <code>wallet.getRewardAddresses()</code>, alternativelly you can specify
+        the address to use.
       </p>
       <p>Example of a response from the endpoint:</p>
       <Codeblock data={example} />
@@ -62,15 +64,11 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    const addresses = await wallet.getUsedAddresses();
-    const address = addresses[0];
-    return await wallet.signData(address!, payload);
+    return await wallet.signData(payload);
   }
 
   let code = ``;
-  code += `const addresses = await wallet.getUsedAddresses();\n`;
-  code += `const address = addresses[0];\n`;
-  code += `const signature =  await wallet.signData(address, ${payload});\n`;
+  code += `const signature =  await wallet.signData(${payload});\n`;
 
   return (
     <LiveCodeDemo

@@ -56,6 +56,31 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of wallet names
    */
+  static async getAvailableWallets({
+    metamask = {
+      network: "preprod",
+    },
+  }: {
+    metamask?: {
+      network: string;
+    };
+  } = {}): Promise<Wallet[]> {
+    if (window === undefined) return [];
+
+    if (metamask) await checkIfMetamaskInstalled(metamask.network);
+
+    const wallets = BrowserWallet.getInstalledWallets();
+    return wallets;
+  }
+
+  /**
+   * Returns a list of wallets installed on user's device. Each wallet is an object with the following properties:
+   * - A name is provided to display wallet's name on the user interface.
+   * - A version is provided to display wallet's version on the user interface.
+   * - An icon is provided to display wallet's icon on the user interface.
+   *
+   * @returns a list of wallet names
+   */
   static getInstalledWallets(): Wallet[] {
     if (window === undefined) return [];
     if (window.cardano === undefined) return [];
@@ -81,36 +106,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * Returns a list of wallets installed on user's device. Each wallet is an object with the following properties:
-   * - A name is provided to display wallet's name on the user interface.
-   * - A version is provided to display wallet's version on the user interface.
-   * - An icon is provided to display wallet's icon on the user interface.
-   *
-   * @returns a list of wallet names
-   */
-  static async getAvailableWallets({
-    metamask = {
-      network: "preprod",
-    },
-  }: {
-    metamask?: {
-      network: string;
-    };
-  } = {}): Promise<Wallet[]> {
-    if (window === undefined) return [];
-
-    if (metamask) await checkIfMetamaskInstalled(metamask.network);
-
-    const wallets = BrowserWallet.getInstalledWallets();
-    return wallets;
-  }
-
-  /**
    * This is the entrypoint to start communication with the user's wallet. The wallet should request the user's permission to connect the web page to the user's wallet, and if permission has been granted, the wallet will be returned and exposing the full API for the dApp to use.
    *
    * Query BrowserWallet.getInstalledWallets() to get a list of available wallets, then provide the wallet name for which wallet the user would like to connect with.
    *
-   * @param walletName
+   * @param walletName - the name of the wallet to enable (e.g. "eternl", "begin", "nufiSnap")
    * @returns WalletInstance
    */
   static async enable(walletName: string): Promise<BrowserWallet> {
@@ -129,15 +129,6 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       );
     }
   }
-
-  /**
-   * Retrieves the total available balance of the wallet, encoded in CBOR.
-   * @returns {Promise<Value>} - The balance of the wallet.
-   */
-  // async _getBalance(): Promise<Value> {
-  //   const balance = await this._walletInstance.getBalance();
-  //   return Value.fromCbor(HexBlob(balance));
-  // }
 
   /**
    * Returns a list of assets in the wallet. This API will return every assets in the wallet. Each asset is an object with the following properties:
@@ -241,15 +232,16 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * This endpoint utilizes the [CIP-8 - Message Signing](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030) to sign arbitrary data, to verify the data was signed by the owner of the private key.
-   *
-   * Here, we get the first wallet's address with wallet.getUsedAddresses(), alternativelly you can use reward addresses (getRewardAddresses()) too. It's really up to you as the developer which address you want to use in your application.
-   *
-   * @param address
-   * @param payload
+   * This endpoint utilizes the [CIP-8 - Message Signing](https://cips.cardano.org/cips/cip8/) to sign arbitrary data, to verify the data was signed by the owner of the private key.
+   * 
+   * @param payload - the data to be signed
+   * @param address - optional, if not provided, the first staking address will be used
    * @returns a signature
    */
-  signData(address: string, payload: string): Promise<DataSignature> {
+  async signData(payload: string, address?: string): Promise<DataSignature> {
+    if (address === undefined) {
+      address = (await this.getUsedAddresses())[0]!;
+    }
     const signerAddress = toAddress(address).toBytes().toString();
     return this._walletInstance.signData(signerAddress, fromUTF8(payload));
   }
@@ -257,8 +249,8 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   /**
    * Requests user to sign the provided transaction (tx). The wallet should ask the user for permission, and if given, try to sign the supplied body and return a signed transaction. partialSign should be true if the transaction provided requires multiple signatures.
    *
-   * @param unsignedTx
-   * @param partialSign
+   * @param unsignedTx - a transaction in CBOR
+   * @param partialSign - if the transaction is signed partially
    * @returns a signed transaction in CBOR
    */
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
