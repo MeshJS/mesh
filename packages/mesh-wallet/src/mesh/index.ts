@@ -326,7 +326,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
         "[MeshWallet] Read only wallet does not support signing data.",
       );
     }
-    return this._wallet.signData(this.getChangeAddress(), payload);
+    return this._wallet.signData(this.getRewardAddresses()[0]!, payload);
   }
 
   /**
