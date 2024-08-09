@@ -1,11 +1,8 @@
 "use client";
 
-import Link from "~/components/link";
-import { usePathname } from "next/navigation";
-
 import { Button } from "@/components/Button";
 import { discordUrl, githubUrl, twitterhUrl } from "@/config";
-// import { navigation } from '@/components/Navigation'
+import Link from "next/link";
 
 function PageLink({
   label,
