@@ -13,13 +13,10 @@ describe("MessageSigning", () => {
         signature:
           "84582aa201276761646472657373581de075531fbe1e68b11e9a10dbbc5df889edea92325a85b758bbbf8735d9a166686173686564f458805369676e20746f2076657269667920746865206164647265737320666f723a207374616b655f74657374317570363478386137726535747a3835367a72646d6368306333386b373479336a74327a6d776b396d6837726e746b6773367a786a70315a424e474e79506d3975565677514a533858377246634765514248436574335840321349435491a3b5992a9b172aebc2b78de5af639045fdb57703f5e39d22b757c597a00b333ef4130c1259858e4230e7bf9ae51e2fa24cdb63dfcebde810860b",
         key: "a40101032720062158201220e6aa326f24f12d644a1011dad9d138965c84566d2b7e20b79db7cf2aa73f",
-        //  "C60060BA8A101B84BCAA1169D358C6C23B3F602F2E2EA9430ECFE2A4D9E19DEA",
       },
     };
     const result = checkSignature(config.nonce, config.signature);
-    console.log("result", result);
-
-    // expect(result).toBe(true);
+    expect(result).toBe(true);
   });
   it("checkSignature2", () => {
     const data =
@@ -30,8 +27,6 @@ describe("MessageSigning", () => {
       key: "a40101032720062158201220e6aa326f24f12d644a1011dad9d138965c84566d2b7e20b79db7cf2aa73f",
     };
     const result = checkSignature(data, dataSignature);
-    console.log("result", result);
-
-    // expect(result).toBe(true);
+    expect(result).toBe(true);
   });
 });
