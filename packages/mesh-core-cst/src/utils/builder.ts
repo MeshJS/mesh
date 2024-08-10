@@ -1,20 +1,23 @@
+import { blake2b } from "@cardano-sdk/crypto";
+import { HexBlob } from "@cardano-sdk/util";
 import { pbkdf2Sync } from "pbkdf2";
 
 import { HARDENED_KEY_START } from "@meshsdk/common";
 
+import { StricaBip32PrivateKey, StricaPrivateKey } from "../";
 import {
-  PrivateKey,
-  Bip32PrivateKey as StricahqBip32PrivateKey,
-} from "../stricahq";
-import {
+  AddressType,
   BaseAddress,
   Bip32PrivateKey,
   CredentialType,
+  DRepID,
   Ed25519KeyHash,
   Ed25519KeyHashHex,
+  Ed25519PublicKeyHex,
   EnterpriseAddress,
   Hash28ByteBase16,
   NativeScript,
+  NetworkId,
   RewardAddress,
   ScriptPubkey,
 } from "../types";
@@ -94,11 +97,11 @@ export const buildKeys = (
   accountIndex: number,
   keyIndex = 0,
 ): {
-  paymentKey: PrivateKey;
-  stakeKey: PrivateKey;
+  paymentKey: StricaPrivateKey;
+  stakeKey: StricaPrivateKey;
 } => {
   if (typeof entropy === "string") {
-    const rootKey = new StricahqBip32PrivateKey(Buffer.from(entropy, "hex"));
+    const rootKey = new StricaBip32PrivateKey(Buffer.from(entropy, "hex"));
 
     // hardened derivation
     const accountKey = rootKey
@@ -117,8 +120,14 @@ export const buildKeys = (
 
     return { paymentKey, stakeKey };
   } else {
-    const paymentKey = new PrivateKey(Buffer.from(entropy[0], "hex"), false);
-    const stakeKey = new PrivateKey(Buffer.from(entropy[1], "hex"), false);
+    const paymentKey = new StricaPrivateKey(
+      Buffer.from(entropy[0], "hex"),
+      false,
+    );
+    const stakeKey = new StricaPrivateKey(
+      Buffer.from(entropy[1], "hex"),
+      false,
+    );
 
     return { paymentKey, stakeKey };
   }
@@ -127,4 +136,25 @@ export const buildKeys = (
 export const buildScriptPubkey = (keyHash: Ed25519KeyHash): NativeScript => {
   const scriptPubkey = new ScriptPubkey(Ed25519KeyHashHex(keyHash.hex()));
   return NativeScript.newScriptPubkey(scriptPubkey);
+};
+
+export const buildDRepID = (
+  dRepKey: Ed25519PublicKeyHex,
+  networkId: NetworkId = NetworkId.Testnet,
+  addressType: AddressType = AddressType.EnterpriseKey,
+) => {
+  const dRepKeyBytes = Buffer.from(dRepKey, "hex");
+  const dRepIdHex = blake2b(28).update(dRepKeyBytes).digest("hex");
+  const paymentAddress = EnterpriseAddress.packParts({
+    networkId,
+    paymentPart: {
+      hash: Hash28ByteBase16(dRepIdHex),
+      type: CredentialType.KeyHash,
+    },
+    type: addressType,
+  });
+  return HexBlob.toTypedBech32<DRepID>(
+    "drep",
+    HexBlob.fromBytes(paymentAddress),
+  );
 };

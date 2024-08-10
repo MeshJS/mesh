@@ -7,7 +7,7 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoAddresses, demoMnemonic } from "~/data/cardano";
+import { yaci } from "~/data/cardano";
 
 export default function YaciBasicTransaction() {
   return (
@@ -60,17 +60,13 @@ function Left() {
         and the wallet is funded. You can topup ADA in your wallet by running
         the following command from devnet:
       </p>
-      <Codeblock
-        data={`devnet:default>topup ${demoAddresses.testnetPayment} 1000`}
-      />
+      <Codeblock data={`devnet:default>topup ${yaci.address} 1000`} />
     </>
   );
 }
 
 function Right() {
-  const [userInput, setUserInput] = useState<string>(
-    demoAddresses.testnetPayment,
-  );
+  const [userInput, setUserInput] = useState<string>(yaci.address);
   const [userInput2, setUserInput2] = useState<string>(
     "http://localhost:8080/api/v1/",
   );
@@ -84,7 +80,7 @@ function Right() {
       submitter: blockchainProvider,
       key: {
         type: "mnemonic",
-        words: demoMnemonic,
+        words: yaci.mnemonic,
       },
     });
 

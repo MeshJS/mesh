@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "~/components/link";
 
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";

@@ -1,8 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
 
-import { bytesToHex, toBytes } from "@meshsdk/common";
-
 export default async function handler(
   _req: NextApiRequest,
   _res: NextApiResponse,
@@ -50,11 +48,11 @@ export default async function handler(
     /**
      * call blockfrost api
      */
-    if (url == "tx/submit") {
-      const tx = _req.body;
+    if (url == "tx/submit" || url == "utils/txs/evaluate") {
+      const body = _req.body;
 
       const headers = { "Content-Type": "application/cbor" };
-      const { data, status } = await axiosInstance.post("tx/submit", tx, {
+      const { data, status } = await axiosInstance.post(url, body, {
         headers,
       });
       _res.status(status).json(data);

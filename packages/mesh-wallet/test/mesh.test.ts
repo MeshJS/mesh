@@ -81,17 +81,4 @@ describe("MeshWallet", () => {
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
     );
   });
-
-  // todo: not implemented
-  // it("brew", () => {
-  //   const mnemonic = MeshWallet.brew();
-  //   expect(mnemonic.length).toEqual(24);
-
-  //   const privatekey = MeshWallet.brew(true);
-
-  //   expect(privatekey.length).toEqual(165);
-
-  //   if (typeof privatekey === "string")
-  //     expect(privatekey.substring(0, 5)).toEqual("xprv1");
-  // });
 });

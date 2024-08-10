@@ -37,7 +37,7 @@ function Right() {
     <LiveCodeDemo
       title="Get Change Address"
       subtitle="Get address that should be used for transaction's change"
-      code={`const changeAddress = await wallet.getChangeAddress();`}
+      code={`await wallet.getChangeAddress();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

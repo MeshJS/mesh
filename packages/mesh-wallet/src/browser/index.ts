@@ -15,11 +15,14 @@ import {
 import {
   Address,
   addressToBech32,
+  buildDRepID,
   CardanoSDKUtil,
   deserializeAddress,
   deserializeTx,
   deserializeTxUnspentOutput,
   deserializeValue,
+  Ed25519PublicKey,
+  Ed25519PublicKeyHex,
   fromTxUnspentOutput,
   fromValue,
   Serialization,
@@ -56,6 +59,31 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of wallet names
    */
+  static async getAvailableWallets({
+    metamask = {
+      network: "preprod",
+    },
+  }: {
+    metamask?: {
+      network: string;
+    };
+  } = {}): Promise<Wallet[]> {
+    if (window === undefined) return [];
+
+    if (metamask) await checkIfMetamaskInstalled(metamask.network);
+
+    const wallets = BrowserWallet.getInstalledWallets();
+    return wallets;
+  }
+
+  /**
+   * Returns a list of wallets installed on user's device. Each wallet is an object with the following properties:
+   * - A name is provided to display wallet's name on the user interface.
+   * - A version is provided to display wallet's version on the user interface.
+   * - An icon is provided to display wallet's icon on the user interface.
+   *
+   * @returns a list of wallet names
+   */
   static getInstalledWallets(): Wallet[] {
     if (window === undefined) return [];
     if (window.cardano === undefined) return [];
@@ -81,35 +109,23 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * Returns a list of wallets installed on user's device. Each wallet is an object with the following properties:
-   * - A name is provided to display wallet's name on the user interface.
-   * - A version is provided to display wallet's version on the user interface.
-   * - An icon is provided to display wallet's icon on the user interface.
-   *
-   * @returns a list of wallet names
-   */
-  static async getAvailableWallets({
-    nufiNetwork = "preprod",
-  }: {
-    nufiNetwork?: string;
-  } = {}): Promise<Wallet[]> {
-    if (window === undefined) return [];
-    await checkIfMetamaskInstalled(nufiNetwork);
-    const wallets = BrowserWallet.getInstalledWallets();
-    return wallets;
-  }
-
-  /**
    * This is the entrypoint to start communication with the user's wallet. The wallet should request the user's permission to connect the web page to the user's wallet, and if permission has been granted, the wallet will be returned and exposing the full API for the dApp to use.
    *
    * Query BrowserWallet.getInstalledWallets() to get a list of available wallets, then provide the wallet name for which wallet the user would like to connect with.
    *
-   * @param walletName
+   * @param walletName - the name of the wallet to enable (e.g. "eternl", "begin", "nufiSnap")
+   * @param extensions - optional, a list of CIPs that the wallet should support
    * @returns WalletInstance
    */
-  static async enable(walletName: string): Promise<BrowserWallet> {
+  static async enable(
+    walletName: string,
+    extensions: number[] = [],
+  ): Promise<BrowserWallet> {
     try {
-      const walletInstance = await BrowserWallet.resolveInstance(walletName);
+      const walletInstance = await BrowserWallet.resolveInstance(
+        walletName,
+        extensions,
+      );
 
       if (walletInstance !== undefined)
         return new BrowserWallet(walletInstance, walletName);
@@ -123,15 +139,6 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       );
     }
   }
-
-  /**
-   * Retrieves the total available balance of the wallet, encoded in CBOR.
-   * @returns {Promise<Value>} - The balance of the wallet.
-   */
-  // async _getBalance(): Promise<Value> {
-  //   const balance = await this._walletInstance.getBalance();
-  //   return Value.fromCbor(HexBlob(balance));
-  // }
 
   /**
    * Returns a list of assets in the wallet. This API will return every assets in the wallet. Each asset is an object with the following properties:
@@ -166,6 +173,21 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   async getCollateral(): Promise<UTxO[]> {
     const deserializedCollateral = await this.getCollateralUnspentOutput();
     return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
+  }
+
+  /**
+   * Return a list of supported CIPs of the wallet.
+   *
+   * @returns a list of CIPs
+   */
+  async getExtensions(): Promise<number[]> {
+    try {
+      const _extensions: { cip: number }[] =
+        await this._walletInstance.getExtensions();
+      return _extensions.map((e) => e.cip);
+    } catch (e) {
+      return [];
+    }
   }
 
   /**
@@ -235,24 +257,28 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * This endpoint utilizes the [CIP-8 - Message Signing](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030) to sign arbitrary data, to verify the data was signed by the owner of the private key.
+   * This endpoint utilizes the [CIP-8 - Message Signing](https://cips.cardano.org/cips/cip8/) to sign arbitrary data, to verify the data was signed by the owner of the private key.
    *
-   * Here, we get the first wallet's address with wallet.getUsedAddresses(), alternativelly you can use reward addresses (getRewardAddresses()) too. It's really up to you as the developer which address you want to use in your application.
-   *
-   * @param address
-   * @param payload
+   * @param payload - the data to be signed
+   * @param address - optional, if not provided, the first staking address will be used
    * @returns a signature
    */
-  signData(address: string, payload: string): Promise<DataSignature> {
+  async signData(payload: string, address?: string): Promise<DataSignature> {
+    if (address === undefined) {
+      address = (await this.getUsedAddresses())[0]!;
+    }
     const signerAddress = toAddress(address).toBytes().toString();
+
+    // todo TW process this witness set and return DataSignature correctly
+
     return this._walletInstance.signData(signerAddress, fromUTF8(payload));
   }
 
   /**
    * Requests user to sign the provided transaction (tx). The wallet should ask the user for permission, and if given, try to sign the supplied body and return a signed transaction. partialSign should be true if the transaction provided requires multiple signatures.
    *
-   * @param unsignedTx
-   * @param partialSign
+   * @param unsignedTx - a transaction in CBOR
+   * @param partialSign - if the transaction is signed partially
    * @returns a signed transaction in CBOR
    */
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
@@ -421,12 +447,84 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     ).filter((p) => p !== "lovelace");
   }
 
-  private static resolveInstance(walletName: string) {
+  async getPubDRepKey(): Promise<
+    | {
+        pubDRepKey: string;
+        dRepIDHash: string;
+        dRepIDBech32: string;
+      }
+    | undefined
+  > {
+    try {
+      if (this._walletInstance.cip95 === undefined) return undefined;
+
+      const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
+
+      const dRepKeyHex = Ed25519PublicKeyHex(dRepKey);
+      const dRepID = Ed25519PublicKey.fromHex(dRepKeyHex);
+      const dRepIDHex = (await dRepID.hash()).hex();
+
+      const networkId = await this.getNetworkId();
+      const dRepId = buildDRepID(dRepKeyHex, networkId);
+
+      return {
+        pubDRepKey: dRepKey,
+        dRepIDHash: dRepIDHex,
+        dRepIDBech32: dRepId, // todo to check
+      };
+    } catch (e) {
+      console.log(e);
+      return undefined;
+    }
+  }
+
+  async getRegisteredPubStakeKeys(): Promise<
+    | {
+        pubStakeKeys: string[];
+        pubStakeKeyHashes: string[];
+      }
+    | undefined
+  > {
+    try {
+      if (this._walletInstance.cip95 === undefined) return undefined;
+
+      const pubStakeKeys =
+        await this._walletInstance.cip95.getRegisteredPubStakeKeys();
+
+      const pubStakeKeyHashes = await Promise.all(
+        pubStakeKeys.map(async (pubStakeKey) => {
+          const pubStakeKeyHex = Ed25519PublicKeyHex(pubStakeKey);
+          const pubStakeKeyPubKey = Ed25519PublicKey.fromHex(pubStakeKeyHex);
+          const pubStakeKeyHash = (await pubStakeKeyPubKey.hash()).hex();
+          return pubStakeKeyHash.toString();
+        }),
+      );
+
+      return {
+        pubStakeKeys: pubStakeKeys,
+        pubStakeKeyHashes: pubStakeKeyHashes,
+      };
+    } catch (e) {
+      console.log(e);
+      return undefined;
+    }
+  }
+
+  private static resolveInstance(
+    walletName: string,
+    extensions: number[] = [],
+  ) {
     if (window.cardano === undefined) return undefined;
     if (window.cardano[walletName] === undefined) return undefined;
 
     const wallet = window.cardano[walletName];
-    return wallet?.enable();
+
+    if (extensions.length > 0) {
+      const _extensions = extensions.map((e) => ({ cip: e }));
+      return wallet.enable({ extensions: _extensions });
+    } else {
+      return wallet?.enable();
+    }
   }
 
   static addBrowserWitnesses(unsignedTx: string, witnesses: string) {
@@ -455,5 +553,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     );
 
     return new Transaction(tx.body(), witnessSet, tx.auxiliaryData()).toCbor();
+  }
+
+  static getSupportedExtensions(wallet: string) {
+    const _supportedExtensions = window?.cardano?.[wallet]?.supportedExtensions;
+    if (_supportedExtensions) return _supportedExtensions;
+    else return [];
   }
 }

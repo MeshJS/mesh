@@ -1,16 +1,15 @@
 use aiken/transaction.{InlineDatum, Input, ScriptContext, Spend, Transaction}
 use aiken/transaction/value.{add, from_lovelace}
+use marketplace.{marketplace}
 use marketplace/types.{Buy, Close, MarketplaceDatum}
-use marketplace/validators/marketplace.{marketplace_logic}
-use sidan_placeholder/address.{mock_pub_key_address, mock_script_address}
-use sidan_placeholder/builder.{
-  complete, new_tx_tester, required_signer_hash, tx_in, tx_in_inline_datum,
-  tx_out,
+use mocktail.{
+  add_input, complete, mocktail_tx, required_signer_hash, tx_in,
+  tx_in_inline_datum, tx_out,
 }
-use sidan_placeholder/key_hex.{mock_policy_id, mock_pub_key_hex}
-use sidan_placeholder/output_reference.{mock_tx_hash, mock_utxo_ref}
-use sidan_placeholder/outputs.{mock_script_output}
-use sidan_placeholder/transaction.{add_input} as sidan_tx
+use mocktail/virgin_address.{mock_pub_key_address, mock_script_address}
+use mocktail/virgin_key_hex.{mock_policy_id, mock_pub_key_hash}
+use mocktail/virgin_output_reference.{mock_tx_hash, mock_utxo_ref}
+use mocktail/virgin_outputs.{mock_script_output}
 
 type CloseTestCase {
   is_seller_signed: Bool,
@@ -28,7 +27,7 @@ fn mock_datum() -> MarketplaceDatum {
 fn get_close_test_tx(test_case: CloseTestCase) -> Transaction {
   let CloseTestCase { is_seller_signed } = test_case
 
-  new_tx_tester()
+  mocktail_tx()
     |> tx_in(
         True,
         mock_tx_hash(0),
@@ -37,7 +36,7 @@ fn get_close_test_tx(test_case: CloseTestCase) -> Transaction {
         mock_script_address(0, None),
       )
     |> tx_in_inline_datum(True, mock_datum())
-    |> required_signer_hash(is_seller_signed, mock_pub_key_hex(1))
+    |> required_signer_hash(is_seller_signed, mock_pub_key_hash(1))
     |> complete()
 }
 
@@ -48,13 +47,7 @@ test success_close() {
 
   let tx = get_close_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  marketplace_logic(
-    mock_pub_key_address(0, None),
-    100,
-    mock_datum(),
-    redeemer,
-    ctx,
-  )
+  marketplace(mock_pub_key_address(0, None), 100, mock_datum(), redeemer, ctx)
 }
 
 test fail_close_without_signature() {
@@ -64,13 +57,7 @@ test fail_close_without_signature() {
 
   let tx = get_close_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !marketplace_logic(
-    mock_pub_key_address(0, None),
-    100,
-    mock_datum(),
-    redeemer,
-    ctx,
-  )
+  !marketplace(mock_pub_key_address(0, None), 100, mock_datum(), redeemer, ctx)
 }
 
 type BuyTestCase {
@@ -89,7 +76,7 @@ fn get_buy_test_tx(test_case: BuyTestCase) -> Transaction {
   let input_value =
     from_lovelace(2_000_000) |> add(mock_policy_id(0), "Test Token", 1)
 
-  new_tx_tester()
+  mocktail_tx()
     |> tx_out(
         True,
         mock_pub_key_address(0, None),
@@ -145,13 +132,7 @@ test success_buy() {
 
   let tx = get_buy_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  marketplace_logic(
-    mock_pub_key_address(0, None),
-    100,
-    mock_datum(),
-    redeemer,
-    ctx,
-  )
+  marketplace(mock_pub_key_address(0, None), 100, mock_datum(), redeemer, ctx)
 }
 
 test fail_buy_with_multiple_script_inputs() {
@@ -166,13 +147,7 @@ test fail_buy_with_multiple_script_inputs() {
 
   let tx = get_buy_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !marketplace_logic(
-    mock_pub_key_address(0, None),
-    100,
-    mock_datum(),
-    redeemer,
-    ctx,
-  )
+  !marketplace(mock_pub_key_address(0, None), 100, mock_datum(), redeemer, ctx)
 }
 
 test fail_buy_without_fee_paid() {
@@ -187,13 +162,7 @@ test fail_buy_without_fee_paid() {
 
   let tx = get_buy_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !marketplace_logic(
-    mock_pub_key_address(0, None),
-    100,
-    mock_datum(),
-    redeemer,
-    ctx,
-  )
+  !marketplace(mock_pub_key_address(0, None), 100, mock_datum(), redeemer, ctx)
 }
 
 test fail_buy_without_proceed_paid() {
@@ -208,11 +177,5 @@ test fail_buy_without_proceed_paid() {
 
   let tx = get_buy_test_tx(test_case)
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
-  !marketplace_logic(
-    mock_pub_key_address(0, None),
-    100,
-    mock_datum(),
-    redeemer,
-    ctx,
-  )
+  !marketplace(mock_pub_key_address(0, None), 100, mock_datum(), redeemer, ctx)
 }

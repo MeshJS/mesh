@@ -18,7 +18,6 @@ import {
   Quantity,
   Redeemer,
   RefTxIn,
-  RequiredWith,
   TxIn,
   TxInParameter,
   Unit,
@@ -691,52 +690,60 @@ export class MeshTxBuilderCore {
 
   /**
    * Withdraw stake rewards in the MeshTxBuilder instance
-   * @param stakeAddress The address corresponding to the stake key
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
    * @param coin The amount of lovelaces in the withdrawal
    * @returns The MeshTxBuilder instance
    */
-  withdrawal = (stakeAddress: string, coin: string) => {
+  withdrawal = (rewardAddress: string, coin: string) => {
     if (this.withdrawalItem) {
       this.queueWithdrawal();
     }
     if (this.addingPlutusWithdrawal) {
       const withdrawal: Withdrawal = {
-        plutusScriptWithdrawal: {
-          address: stakeAddress,
-          coin: coin,
-        },
+        type: "ScriptWithdrawal",
+        address: rewardAddress,
+        coin: coin,
       };
-      this.meshTxBuilderBody.withdrawals.push(withdrawal);
+      this.withdrawalItem = withdrawal;
       return this;
     }
+
     const withdrawal: Withdrawal = {
-      pubKeyWithdrawal: {
-        address: stakeAddress,
-        coin: coin,
-      },
+      type: "PubKeyWithdrawal",
+      address: rewardAddress,
+      coin: coin,
     };
-    this.meshTxBuilderBody.withdrawals.push(withdrawal);
+    this.withdrawalItem = withdrawal;
     return this;
   };
 
   /**
    * Add a withdrawal script to the MeshTxBuilder instance
    * @param scriptCbor The script in CBOR format
-   * @param version The language version
    * @returns The MeshTxBuilder instance
    */
-  withdrawalScript = (scriptCbor: string, version: LanguageVersion) => {
+  withdrawalScript = (scriptCbor: string) => {
     if (!this.withdrawalItem)
       throw Error("withdrawalScript: Undefined withdrawal");
-    if (!("plutusScriptWithdrawal" in this.withdrawalItem))
-      throw Error("withdrawalScript: Adding script to non plutus withdrawal");
-    this.withdrawalItem.plutusScriptWithdrawal.scriptSource = {
-      type: "Provided",
-      script: {
-        code: scriptCbor,
-        version: this.plutusWithdrawalScriptVersion || "V2",
-      },
-    };
+    if (this.withdrawalItem.type === "PubKeyWithdrawal") {
+      this.withdrawalItem = {
+        type: "SimpleScriptWithdrawal",
+        address: this.withdrawalItem.address,
+        coin: this.withdrawalItem.coin,
+        scriptSource: {
+          type: "Provided",
+          scriptCode: scriptCbor,
+        },
+      };
+    } else {
+      this.withdrawalItem.scriptSource = {
+        type: "Provided",
+        script: {
+          code: scriptCbor,
+          version: this.plutusWithdrawalScriptVersion || "V2",
+        },
+      };
+    }
     return this;
   };
 
@@ -756,11 +763,11 @@ export class MeshTxBuilderCore {
   ) => {
     if (!this.withdrawalItem)
       throw Error("withdrawalTxInReference: Undefined withdrawal");
-    if (!("plutusScriptWithdrawal" in this.withdrawalItem))
+    if (this.withdrawalItem.type === "PubKeyWithdrawal")
       throw Error(
-        "withdrawalTxInReference: Adding script reference to non plutus withdrawal",
+        "withdrawalTxInReference: Adding script reference to pub key withdrawal",
       );
-    this.withdrawalItem.plutusScriptWithdrawal.scriptSource = {
+    this.withdrawalItem.scriptSource = {
       type: "Inline",
       txHash,
       txIndex,
@@ -768,6 +775,7 @@ export class MeshTxBuilderCore {
       version: this.plutusWithdrawalScriptVersion || "V2",
       scriptSize: scriptSize || "0",
     };
+    return this;
   };
 
   /**
@@ -784,12 +792,15 @@ export class MeshTxBuilderCore {
   ) => {
     if (!this.withdrawalItem)
       throw Error("withdrawalRedeemerValue: Undefined withdrawal");
-    if (!("plutusScriptWithdrawal" in this.withdrawalItem))
+    if (!(this.withdrawalItem.type === "ScriptWithdrawal"))
       throw Error(
         "withdrawalRedeemerValue: Adding redeemer to non plutus withdrawal",
       );
-    this.withdrawalItem.plutusScriptWithdrawal.redeemer =
-      this.castBuilderDataToRedeemer(redeemer, type, exUnits);
+    this.withdrawalItem.redeemer = this.castBuilderDataToRedeemer(
+      redeemer,
+      type,
+      exUnits,
+    );
 
     return this;
   };
@@ -801,21 +812,27 @@ export class MeshTxBuilderCore {
    */
   registerPoolCertificate = (poolParams: PoolParams) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "RegisterPool",
-      poolParams,
+      type: "BasicCertificate",
+      certType: {
+        type: "RegisterPool",
+        poolParams,
+      },
     });
     return this;
   };
 
   /**
    * Creates a stake registration certificate, and adds it to the transaction
-   * @param stakeKeyHash The keyHash of the stake key
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
    * @returns The MeshTxBuilder instance
    */
-  registerStakeCertificate = (stakeKeyHash: string) => {
+  registerStakeCertificate = (rewardAddress: string) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "RegisterStake",
-      stakeKeyHash,
+      type: "BasicCertificate",
+      certType: {
+        type: "RegisterStake",
+        stakeKeyAddress: rewardAddress,
+      },
     });
     return this;
   };
@@ -823,28 +840,34 @@ export class MeshTxBuilderCore {
   /**
    * Creates a stake delegation certificate, and adds it to the transaction
    * This will delegate stake from the corresponding stake address to the pool
-   * @param stakeKeyHash The keyHash of the stake key
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
    * @param poolId poolId can be in either bech32 or hex form
    * @returns The MeshTxBuilder instance
    */
-  delegateStakeCertificate = (stakeKeyHash: string, poolId: string) => {
+  delegateStakeCertificate = (rewardAddress: string, poolId: string) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "DelegateStake",
-      stakeKeyHash,
-      poolId,
+      type: "BasicCertificate",
+      certType: {
+        type: "DelegateStake",
+        stakeKeyAddress: rewardAddress,
+        poolId,
+      },
     });
     return this;
   };
 
   /**
    * Creates a stake deregister certificate, and adds it to the transaction
-   * @param stakeKeyHash The keyHash of the stake key
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
    * @returns The MeshTxBuilder instance
    */
-  deregisterStakeCertificate = (stakeKeyHash: string) => {
+  deregisterStakeCertificate = (rewardAddress: string) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "DeregisterStake",
-      stakeKeyHash,
+      type: "BasicCertificate",
+      certType: {
+        type: "DeregisterStake",
+        stakeKeyAddress: rewardAddress,
+      },
     });
     return this;
   };
@@ -857,10 +880,132 @@ export class MeshTxBuilderCore {
    */
   retirePoolCertificate = (poolId: string, epoch: number) => {
     this.meshTxBuilderBody.certificates.push({
-      type: "RetirePool",
-      poolId,
-      epoch,
+      type: "BasicCertificate",
+      certType: {
+        type: "RetirePool",
+        poolId,
+        epoch,
+      },
     });
+    return this;
+  };
+
+  /**
+   * Adds a script witness to the certificate
+   * @param scriptCbor The CborHex of the script
+   * @param version Optional - The plutus version of the script, null version implies Native Script
+   */
+  certificateScript = (scriptCbor: string, version?: LanguageVersion) => {
+    const currentCert = this.meshTxBuilderBody.certificates.pop();
+    if (!currentCert) {
+      throw Error(
+        "Certificate script attempted to be defined, but no certificate was found",
+      );
+    }
+    if (!version) {
+      this.meshTxBuilderBody.certificates.push({
+        type: "SimpleScriptCertificate",
+        certType: currentCert.certType,
+        simpleScriptSource: {
+          type: "Provided",
+          scriptCode: scriptCbor,
+        },
+      });
+    } else {
+      this.meshTxBuilderBody.certificates.push({
+        type: "ScriptCertificate",
+        certType: currentCert.certType,
+        scriptSource: {
+          type: "Provided",
+          script: {
+            code: scriptCbor,
+            version,
+          },
+        },
+        redeemer:
+          currentCert.type === "ScriptCertificate"
+            ? currentCert.redeemer
+            : undefined,
+      });
+    }
+    return this;
+  };
+
+  /**
+   * Adds a script witness to the certificate
+   * @param txHash The transaction hash of the reference UTxO
+   * @param txIndex The transaction index of the reference UTxO
+   * @param spendingScriptHash The script hash of the spending script
+   * @param version Optional - The plutus version of the script, null version implies Native Script
+   * @param scriptSize The size of the plutus script referenced
+   */
+  certificateTxInReference = (
+    txHash: string,
+    txIndex: number,
+    spendingScriptHash: string,
+    version?: LanguageVersion,
+    scriptSize = "0", // Must be set in Conway era
+  ) => {
+    const currentCert = this.meshTxBuilderBody.certificates.pop();
+    if (!currentCert) {
+      throw Error(
+        "Certificate script reference attempted to be defined, but no certificate was found",
+      );
+    }
+    if (!version) {
+      this.meshTxBuilderBody.certificates.push({
+        type: "SimpleScriptCertificate",
+        certType: currentCert.certType,
+        simpleScriptSource: {
+          type: "Inline",
+          txHash,
+          txIndex,
+          simpleScriptHash: spendingScriptHash,
+        },
+      });
+    } else {
+      this.meshTxBuilderBody.certificates.push({
+        type: "ScriptCertificate",
+        certType: currentCert.certType,
+        scriptSource: {
+          type: "Inline",
+          txHash,
+          txIndex,
+          scriptHash: spendingScriptHash,
+          scriptSize,
+        },
+        redeemer:
+          currentCert.type === "ScriptCertificate"
+            ? currentCert.redeemer
+            : undefined,
+      });
+    }
+    return this;
+  };
+
+  certificateRedeemerValue = (
+    redeemer: BuilderData["content"],
+    type: BuilderData["type"] = "Mesh",
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+  ) => {
+    const currentCert = this.meshTxBuilderBody.certificates.pop();
+    if (!currentCert) {
+      throw Error(
+        "Certificate redeemer value attempted to be defined, but no certificate was found",
+      );
+    }
+    if (currentCert.type === "ScriptCertificate") {
+      currentCert.redeemer = this.castBuilderDataToRedeemer(
+        redeemer,
+        type,
+        exUnits,
+      );
+    } else {
+      throw Error(
+        "Redeemer value attempted to be defined, but certificate has no script defined, or no script version was defined",
+      );
+    }
+    this.meshTxBuilderBody.certificates.push(currentCert);
     return this;
   };
 
@@ -1009,12 +1154,16 @@ export class MeshTxBuilderCore {
   private queueWithdrawal = () => {
     if (!this.withdrawalItem)
       throw Error("queueWithdrawal: Undefined withdrawal");
-    if ("plutusScriptWithdrawal" in this.withdrawalItem) {
-      if (!this.withdrawalItem.plutusScriptWithdrawal.scriptSource) {
+    if (this.withdrawalItem.type === "ScriptWithdrawal") {
+      if (!this.withdrawalItem.scriptSource) {
         throw Error("queueWithdrawal: Missing withdrawal script information");
       }
-      if (!this.withdrawalItem.plutusScriptWithdrawal.redeemer) {
+      if (!this.withdrawalItem.redeemer) {
         throw Error("queueWithdrawal: Missing withdrawal redeemer information");
+      }
+    } else if (this.withdrawalItem.type === "SimpleScriptWithdrawal") {
+      if (!this.withdrawalItem.scriptSource) {
+        throw Error("queueWithdrawal: Missing withdrawal script information");
       }
     }
     this.meshTxBuilderBody.withdrawals.push(this.withdrawalItem);
@@ -1090,10 +1239,28 @@ export class MeshTxBuilderCore {
           break;
         }
         case "CERT":
-          // TODO
+          const cert =
+            meshTxBuilderBody.certificates[redeemerEvaluation.index]!;
+          if (cert.type === "ScriptCertificate" && cert.redeemer) {
+            cert.redeemer.exUnits.mem = Math.floor(
+              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+            );
+            cert.redeemer.exUnits.steps = Math.floor(
+              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+            );
+          }
           break;
         case "REWARD":
-          // TODO
+          const withdrawal =
+            meshTxBuilderBody.withdrawals[redeemerEvaluation.index]!;
+          if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
+            withdrawal.redeemer.exUnits.mem = Math.floor(
+              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+            );
+            withdrawal.redeemer.exUnits.steps = Math.floor(
+              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+            );
+          }
           break;
       }
     });

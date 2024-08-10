@@ -174,15 +174,4 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
     return await this._getUtxoByTxHash(txHash);
   };
-
-  private getScripts = () => {
-    const giftCardScript = this.giftCardCbor(
-      this.tokenNameHex,
-      this.paramUtxo.txHash,
-      this.paramUtxo.outputIndex,
-    );
-    const giftCardPolicy = resolveScriptHash(giftCardScript, "V2");
-    const redeemScript = this.redeemCbor(this.tokenNameHex, giftCardPolicy);
-    return { giftCardScript, redeemScript };
-  };
 }

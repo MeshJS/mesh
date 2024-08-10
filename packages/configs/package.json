@@ -1,0 +1,35 @@
+{
+  "name": "@meshsdk/configs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "eslint/library.js",
+    "eslint/next.js",
+    "eslint/react-internal.js",
+    "jest/jest.config.ts"
+  ],
+  "exports": {
+    "./prettier": "./prettier/index.js",
+    "./jest/jest.config": "./jest/jest.config.ts",
+    "./tailwind/tailwind.config": "./tailwind/tailwind.config.ts",
+    "./typescript/base.json": "./typescript/base.json",
+    "./typescript/nextjs.json": "./typescript/nextjs.json",
+    "./typescript/react-library.json": "./typescript/react-library.json",
+    "./typescript/wasm-base.json": "./typescript/wasm-base.json"
+  },
+  "devDependencies": {
+    "@vercel/style-guide": "^5.2.0",
+    "eslint-config-turbo": "^1.12.4",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-only-warn": "^1.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "typescript": "^5.3.3",
+    "@ianvs/prettier-plugin-sort-imports": "^4.2.1",
+    "prettier": "^3.3.1",
+    "prettier-plugin-tailwindcss": "^0.5.14",
+    "tailwindcss": "^3.4.1"
+  },
+  "license": "Apache-2.0"
+}

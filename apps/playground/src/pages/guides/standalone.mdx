@@ -1,20 +1,13 @@
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
-
-export const metadata = {
-  title: "Executing a standalone script",
-  description:
-    "Learn how to execute a standalone script to manage wallets and creating transactions.",
-  cover: "/guides/standalone.png",
-  image: "/guides/salt-harvesting-3060093_1280.jpg",
-};
+import { guidestandalone } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={metadata.title}
-      description={metadata.description}
-      image={metadata.image}
-      cover={metadata.cover}
+      title={guidestandalone.title}
+      description={guidestandalone.description}
+      image={guidestandalone.image}
+      cover={guidestandalone.cover}
     >
       {children}
     </LayoutImageHeaderAndBody>

@@ -13,7 +13,7 @@ export default function TxbuilderCip20() {
   return (
     <TwoColumnsScroll
       sidebarTo="cip20"
-      title="Transaction message"
+      title="Set Metadata - Taransaction message"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -27,15 +27,16 @@ function Left() {
   return (
     <>
       <p>
-        Add messages/comments/memos as transaction metadata. This is useful for
-        attaching additional information to a transaction.
+        Add messages / comments / memos as transaction metadata. This is useful
+        for attaching additional information to a transaction. This is an
+        example of setting metadata with transaction message.
       </p>
       <Codeblock data={code} />
       <p>
         The specification for the individual strings follow the general design
         specification for JSON metadata, which is already implemented and in
         operation on the cardano blockchain. The used metadatum label is{" "}
-        <code>674</code>:, this number was choosen because it is the T9 encoding
+        <code>674</code>: this number was choosen because it is the T9 encoding
         of the string
         <code>msg</code>. The message content has the key <code>msg</code>: and
         consists of an array of individual message-strings. The number of theses

@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 
 export default function YaciSetup() {
@@ -23,13 +22,7 @@ function Left() {
       </p>
       <p>
         Go to the{" "}
-        <Link
-          href="https://docs.docker.com/get-docker/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Docker website
-        </Link>{" "}
+        <Link href="https://docs.docker.com/get-docker/">Docker website</Link>{" "}
         and download the latest version, then follow the instructions to install
         it.
       </p>
@@ -40,11 +33,7 @@ function Left() {
       <h3>Download the latest Yaci DevKit release</h3>
       <p>
         Go to{" "}
-        <Link
-          href="https://github.com/bloxbean/yaci-devkit/releases"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://github.com/bloxbean/yaci-devkit/releases">
           Yaci releases on Github
         </Link>{" "}
         and download the latest release. Under <code>Assets</code>, you will

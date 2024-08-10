@@ -64,7 +64,7 @@ function Right() {
       title="Get Collateral"
       subtitle="Get list of UTXOs that used as collateral inputs for transactions
             with plutus script inputs"
-      code={`const collateralUtxos = await wallet.getCollateral();`}
+      code={`await wallet.getCollateral();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Link from "next/link";
+import Link from "~/components/link";
 
 import { resolveEpochNo } from "@meshsdk/core";
 
@@ -46,7 +46,7 @@ function Right() {
     return slot;
   }
 
-  let codeSnippet = `resolveDataHash('${userInput}');`;
+  let codeSnippet = `resolveEpochNo('${userInput}');`;
 
   return (
     <LiveCodeDemo

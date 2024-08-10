@@ -1,32 +1,26 @@
 import type { NextPage } from "next";
-import Link from "next/link";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaTxbuilderBasic } from "~/data/links-txbuilders";
 import { Intro } from "../common";
 import TxbuilderBuildWithObject from "./build-with-object";
 import TxbuilderCip20 from "./cip20";
-import TxbuilderCommonFunctions from "./common-functions";
 import TxbuilderInitializeTxbuilder from "./initialize-txbuilder";
 import TxbuilderMultisig from "./multisig";
 import TxbuilderSendValues from "./send-values";
-import TxbuilderSetCollateral from "./set-collateral";
-import TxbuilderSetMetadata from "./set-metadata";
 import TxbuilderSetRequiredSigners from "./set-required-signers";
 import TxbuilderSetTime from "./set-time";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Initialize Tx Builder", to: "initializeTxbuilder" },
-    { label: "Common functions", to: "commonFunctions" },
     { label: "Send value", to: "sendValue" },
     { label: "Multi-signature", to: "multisig" },
     { label: "Build with object", to: "buildWithObject" },
-    { label: "Set metadata", to: "metadata" },
-    { label: "Set transaction message", to: "cip20" },
-    { label: "Set collateral", to: "collateral" },
+    { label: "Set metadata", to: "cip20" },
     { label: "Set required signers", to: "requiredSigners" },
     { label: "Set time", to: "setTime" },
   ];
@@ -51,22 +45,12 @@ const ReactPage: NextPage = () => {
               combination of the <code>MeshTxBuilder</code> APIs. With these
               lower level APIs, it builds the object to be passing to the
               serialization libraries like{" "}
-              <Link
-                href="https://github.com/input-output-hk/cardano-js-sdk"
-                target="_blank"
-                rel="noreferrer"
-              >
+              <Link href="https://github.com/input-output-hk/cardano-js-sdk">
                 cardano-sdk
               </Link>
               {" and "}
-              <Link
-                href="https://whisky.sidan.io"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Whisky SDK
-              </Link>{" "}
-              to construct transactions.
+              <Link href="https://whisky.sidan.io">Whisky SDK</Link> to
+              construct transactions.
             </p>
             <p>
               In this page, we will cover how to initialize the{" "}
@@ -77,13 +61,13 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
 
         <TxbuilderInitializeTxbuilder />
-        <TxbuilderCommonFunctions />
+        {/* <TxbuilderCommonFunctions /> */}
         <TxbuilderSendValues />
         <TxbuilderMultisig />
         <TxbuilderBuildWithObject />
-        <TxbuilderSetMetadata />
+        {/* <TxbuilderSetMetadata /> */}
         <TxbuilderCip20 />
-        <TxbuilderSetCollateral />
+        {/* <TxbuilderSetCollateral /> */}
         <TxbuilderSetRequiredSigners />
         <TxbuilderSetTime />
       </SidebarFullwidth>

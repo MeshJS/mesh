@@ -51,6 +51,7 @@ export default function Button({
       className={_style}
       onClick={onClick}
       disabled={disabled}
+      aria-label={`button`}
     >
       {children}
     </button>

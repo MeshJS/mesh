@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "~/components/link";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";

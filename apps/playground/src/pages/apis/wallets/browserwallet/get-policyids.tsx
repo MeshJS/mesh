@@ -41,7 +41,7 @@ function Right() {
     <LiveCodeDemo
       title="Get Policy IDs"
       subtitle="Get a list of policy IDs from all assets in wallet"
-      code={`const policyIds = await wallet.getPolicyIds();`}
+      code={`await wallet.getPolicyIds();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

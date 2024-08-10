@@ -1,4 +1,3 @@
-import { resolveStakeKeyHash, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
@@ -18,7 +17,7 @@ export default function StakingDeregister() {
 }
 
 function Left() {
-  let codeSnippet = `deregisterStake(rewardAddress: string)`;
+  let codeSnippet = `txBuilder\n  .deregisterStakeCertificate(rewardAddress: string)`;
 
   return (
     <>
@@ -28,7 +27,8 @@ function Left() {
       </p>
       <ul>
         <li>
-          <b>rewardAddress (string)</b> - the reward address to deregister
+          <b>rewardAddress (string)</b> - the bech32 reward address to
+          deregister
         </li>
       </ul>
       <Codeblock data={codeSnippet} />
@@ -44,7 +44,6 @@ function Right() {
     const address = await wallet.getChangeAddress();
     const addresses = await wallet.getRewardAddresses();
     const rewardAddress = addresses[0]!;
-    const stakeKeyHash = resolveStakeKeyHash(rewardAddress);
 
     if (rewardAddress === undefined) {
       throw "No address found";
@@ -53,7 +52,7 @@ function Right() {
     const txBuilder = getTxBuilder();
 
     const unsignedTx = await txBuilder
-      .deregisterStakeCertificate(stakeKeyHash)
+      .deregisterStakeCertificate(rewardAddress)
       .selectUtxosFrom(utxos)
       .changeAddress(address)
       .complete();
@@ -64,13 +63,23 @@ function Right() {
   }
 
   let code = ``;
+  code += `const utxos = await wallet.getUtxos();\n`;
+  code += `const address = await wallet.getChangeAddress();\n`;
   code += `const addresses = await wallet.getRewardAddresses();\n`;
-  code += `const rewardAddress = addresses[0];\n`;
+  code += `const rewardAddress = addresses[0]!;\n`;
   code += `\n`;
-  code += `const tx = new Transaction({ initiator: wallet });\n`;
-  code += `tx.deregisterStake(rewardAddress);\n`;
+  code += `if (rewardAddress === undefined) {\n`;
+  code += `  throw "No address found";\n`;
+  code += `}\n`;
   code += `\n`;
-  code += `const unsignedTx = await tx.build();\n`;
+  code += `const txBuilder = getTxBuilder();\n`;
+  code += `\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `  .deregisterStakeCertificate(rewardAddress)\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .changeAddress(address)\n`;
+  code += `  .complete();\n`;
+  code += `\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 

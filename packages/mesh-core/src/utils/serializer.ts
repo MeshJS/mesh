@@ -75,3 +75,20 @@ export const serializeAddressObj = (address: PubKeyAddress | ScriptAddress) => {
  * @returns The pool id
  */
 export const serializePoolId = (hash: string) => core.serializePoolId(hash);
+
+/**
+ * Serialize a script hash or key hash into bech32 reward address
+ * @param hash The script hash or key hash
+ * @param isScriptHash Whether the hash is a script hash
+ * @param networkId 0 (testnet) or 1 (mainnet). Default to be 0 (testnet).
+ * @returns Bech32 reward address
+ */
+export const serializeRewardAddress = (
+  hash: string,
+  isScriptHash = false,
+  networkId: 0 | 1 = 0,
+) => {
+  return isScriptHash
+    ? core.scriptHashToRewardAddress(hash, networkId)
+    : core.keyHashToRewardAddress(hash, networkId);
+};

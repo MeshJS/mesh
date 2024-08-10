@@ -1,7 +1,7 @@
 import type { NextPage } from "next";
-import Link from "next/link";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaBrowserwallet } from "~/data/links-wallets";
@@ -11,11 +11,15 @@ import BrowserWalletGetAvailableWallets from "./get-available-wallets";
 import BrowserWalletGetBalance from "./get-balance";
 import BrowserWalletGetChangeAddress from "./get-change-address";
 import BrowserWalletGetCollateral from "./get-collateral";
+import BrowserWalletGetExtensions from "./get-extensions";
 import BrowserWalletGetLovelace from "./get-lovelace";
 import BrowserWalletGetNetworkId from "./get-networkid";
 import BrowserWalletGetPolicyIdAssets from "./get-policyid-assets";
 import BrowserWalletGetPolicyIds from "./get-policyids";
+import BrowserWalletGetPubdrepkey from "./get-pubdrepkey";
+import BrowserWalletGetRegisteredpubstakekeys from "./get-registeredpubstakekeys";
 import BrowserWalletGetRewardAddresses from "./get-reward-addresses";
+import BrowserWalletGetSupportedExtensions from "./get-supported-extensions";
 import BrowserWalletGetUnusedAddresses from "./get-unused-addresses";
 import BrowserWalletGetUsedAddresses from "./get-used-addresses";
 import BrowserWalletGetUtxos from "./get-utxos";
@@ -42,6 +46,11 @@ const ReactPage: NextPage = () => {
     { label: "Get lovelace", to: "getLovelace" },
     { label: "Get policy IDs", to: "getPolicyIds" },
     { label: "Get collection of assets", to: "getPolicyIdAssets" },
+
+    { label: "Get supported extensions", to: "getSupportedExtensions" },
+    { label: "Get extensions", to: "getExtensions" },
+    { label: "Get DRep ID Key", to: "getPubdrepkey" },
+    { label: "Get pub stake keys", to: "getRegisteredpubstakekeys" },
   ];
 
   return (
@@ -58,14 +67,8 @@ const ReactPage: NextPage = () => {
         >
           <p>
             These wallets APIs are in accordance to{" "}
-            <Link
-              href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030"
-              target="_blank"
-              rel="noreferrer"
-            >
-              CIP-30
-            </Link>
-            , which defines the API for dApps to communicate with the user's
+            <Link href="https://cips.cardano.org/cip/CIP-30">CIP-30</Link>,
+            which defines the API for dApps to communicate with the user's
             wallet. Additional utility functions provided for developers that
             are useful for building dApps.
           </p>
@@ -78,9 +81,11 @@ const ReactPage: NextPage = () => {
 
         <BrowserWalletGetAvailableWallets />
         <BrowserWalletConnectWallet />
+
         <BrowserWalletGetBalance />
         <BrowserWalletGetChangeAddress />
         <BrowserWalletGetCollateral />
+
         <BrowserWalletGetNetworkId />
         <BrowserWalletGetRewardAddresses />
         <BrowserWalletGetUnusedAddresses />
@@ -93,6 +98,11 @@ const ReactPage: NextPage = () => {
         <BrowserWalletGetLovelace />
         <BrowserWalletGetPolicyIds />
         <BrowserWalletGetPolicyIdAssets />
+
+        <BrowserWalletGetSupportedExtensions />
+        <BrowserWalletGetExtensions />
+        <BrowserWalletGetPubdrepkey />
+        <BrowserWalletGetRegisteredpubstakekeys />
       </SidebarFullwidth>
     </>
   );

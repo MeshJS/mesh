@@ -4,6 +4,7 @@ import { Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -49,9 +50,9 @@ function Left() {
       <p>
         New address must "register" before they can delegate to stakepools. To
         check if a reward address has been register, use{" "}
-        <a href="https://meshjs.dev/providers/blockfrost#fetchAccountInfo">
+        <Link href="https://meshjs.dev/providers/blockfrost#fetchAccountInfo">
           blockchainProvider.fetchAccountInfo(rewardAddress)
-        </a>
+        </Link>
         . For example this account information, <code>active</code> shows the
         address is registered.
       </p>

@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -22,12 +21,13 @@ export default function StakingWithdraw() {
 }
 
 function Left() {
-  let codeSnippet = `tx.withdrawRewards(rewardAddress, lovelace);`;
+  let codeSnippet = `txBuilder\n  .withdrawal(rewardAddress, lovelace)`;
 
   return (
     <>
       <p>
-        Withdraw staking rewards. The function accepts the following parameters:
+        Withdrawal with <code>MeshTxBuilder</code> comes with only one API, to
+        specify the reward address and the amount to withdraw.
       </p>
       <ul>
         <li>
@@ -70,13 +70,23 @@ function Right() {
   }
 
   let code = ``;
+  code += `const utxos = await wallet.getUtxos();\n`;
+  code += `const address = await wallet.getChangeAddress();\n`;
   code += `const addresses = await wallet.getRewardAddresses();\n`;
-  code += `const rewardAddress = addresses[0];\n`;
+  code += `const rewardAddress = addresses[0]!;\n`;
   code += `\n`;
-  code += `const tx = new Transaction({ initiator: wallet });\n`;
-  code += `tx.withdrawRewards(rewardAddress, '${userInput}');\n`;
+  code += `if (rewardAddress === undefined) {\n`;
+  code += `  throw "No address found";\n`;
+  code += `}\n`;
   code += `\n`;
-  code += `const unsignedTx = await tx.build();\n`;
+  code += `const txBuilder = getTxBuilder();\n`;
+  code += `\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `  .withdrawal(rewardAddress, "${userInput}")\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .changeAddress(address)\n`;
+  code += `  .complete();\n`;
+  code += `\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 

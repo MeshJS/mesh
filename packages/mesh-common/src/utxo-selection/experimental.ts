@@ -113,8 +113,8 @@ export const experimentalSelectUtxos = (
 
   for (const assetUnit of totalRequiredAssets.keys()) {
     if (Number(totalRequiredAssets.get(assetUnit)) > 0) {
-      console.log("Insufficient funds for", assetUnit);
-      console.log(
+      console.warn("Insufficient funds for", assetUnit);
+      console.warn(
         "Remaining quantity",
         Number(totalRequiredAssets.get(assetUnit)),
       );

@@ -1,20 +1,13 @@
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
-
-export const metadata = {
-  title: "Start a Web3 app on Next.js",
-  description:
-    "A step-by-step guide to setup a Next.js web application, connect wallet and browse wallet's assets.",
-  cover: "/guides/develop-first-web-app.png",
-  image: "/guides/laptop-g44c60b4ed_1280.jpg",
-};
+import { guidenextjs } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={metadata.title}
-      description={metadata.description}
-      image={metadata.image}
-      cover={metadata.cover}
+      title={guidenextjs.title}
+      description={guidenextjs.description}
+      image={guidenextjs.image}
+      cover={guidenextjs.cover}
     >
       {children}
     </LayoutImageHeaderAndBody>

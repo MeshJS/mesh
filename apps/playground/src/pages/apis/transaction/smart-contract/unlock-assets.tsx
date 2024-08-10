@@ -1,15 +1,15 @@
 import { useState } from "react";
-import Link from "next/link";
 
 import {
   PlutusScript,
-  resolvePlutusScriptAddress,
+  serializePlutusScript,
   Transaction,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { fetchAssetUtxo } from "~/components/cardano/fetch-utxo-by-datum";
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -28,13 +28,13 @@ export default function ContractUnlockAssets() {
 }
 
 function Left() {
-  let codeScript = `import { resolvePlutusScriptAddress } from '@meshsdk/core';\n`;
+  let codeScript = `import { serializePlutusScript } from '@meshsdk/core';\n`;
   codeScript += `import type { PlutusScript } from '@meshsdk/core';\n\n`;
   codeScript += `const script: PlutusScript = {\n`;
   codeScript += `  code: '${demoPlutusAlwaysSucceedScript}',\n`;
   codeScript += `  version: 'V2',\n`;
   codeScript += `};\n\n`;
-  codeScript += `const scriptAddress = resolvePlutusScriptAddress(script, 0);\n`;
+  codeScript += `const { address: scriptAddress } = serializePlutusScript(script);\n`;
 
   let codeSnippetGetAssetUtxo = ``;
   codeSnippetGetAssetUtxo += `async function _getAssetUtxo({ scriptAddress, asset, datum }) {\n`;
@@ -135,7 +135,7 @@ function Right() {
   code += `  code: '${demoPlutusAlwaysSucceedScript}',\n`;
   code += `  version: "V2",\n`;
   code += `};\n`;
-  code += `const scriptAddress = resolvePlutusScriptAddress(script, 0);\n`;
+  code += `const { address: scriptAddress } = serializePlutusScript(script);\n`;
   code += `\n`;
   code += `// retrieve asset utxo\n`;
   code += `const assetUtxo = await fetchAssetUtxo({\n`;
@@ -171,7 +171,7 @@ function Right() {
       code: demoPlutusAlwaysSucceedScript,
       version: "V2",
     };
-    const scriptAddress = resolvePlutusScriptAddress(script, 0);
+    const { address: scriptAddress } = serializePlutusScript(script);
 
     // retrieve asset utxo
     const assetUtxo = await fetchAssetUtxo({

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import Link from "next/link";
+import Link from "~/components/link";
 
 import {
   Asset,
   PlutusScript,
-  resolvePlutusScriptAddress,
+  serializePlutusScript,
   Transaction,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
@@ -28,13 +28,13 @@ export default function ContractLockAssets() {
 }
 
 function Left() {
-  let codeScript = `import { resolvePlutusScriptAddress } from '@meshsdk/core';\n`;
+  let codeScript = `import { serializePlutusScript } from '@meshsdk/core';\n`;
   codeScript += `import type { PlutusScript } from '@meshsdk/core';\n\n`;
   codeScript += `const script: PlutusScript = {\n`;
   codeScript += `  code: '${demoPlutusAlwaysSucceedScript}',\n`;
   codeScript += `  version: 'V2',\n`;
   codeScript += `};\n\n`;
-  codeScript += `const scriptAddress = resolvePlutusScriptAddress(script, 0);\n`;
+  codeScript += `const { address: scriptAddress } = serializePlutusScript(script);\n`;
 
   let code1 = ``;
   code1 += `const assets: Asset[] = [\n`;
@@ -81,8 +81,8 @@ function Left() {
         First, we need to create a script and resolve the script address.
         Luckily Mesh has a handy function to "resolve" (work out) the script
         address using:{" "}
-        <Link href="/apis/resolvers#resolvePlutusScriptAddress">
-          Resolve Script Address
+        <Link href="/apis/serializers#serializePlutusScript">
+          serializePlutusScript
         </Link>{" "}
         from the script's CBOR. Here's how it's done:
       </p>
@@ -124,7 +124,7 @@ function Right() {
       code: demoPlutusAlwaysSucceedScript,
       version: "V2",
     };
-    const scriptAddress = resolvePlutusScriptAddress(script, 0);
+    const { address: scriptAddress } = serializePlutusScript(script);
 
     // asset
     const assets: Asset[] = [

@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/common",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -17,12 +17,13 @@
     "dist/**"
   ],
   "scripts": {
-    "build:mesh": "tsup src/index.ts --format esm,cjs --dts --minify",
-    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
-    "lint": "eslint",
-    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "format": "prettier --check . --ignore-path ../../.gitignore",
     "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-common.json",
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
     "test": "jest"
   },
   "dependencies": {
@@ -30,13 +31,12 @@
     "bip39": "3.1.0"
   },
   "devDependencies": {
-    "@meshsdk/eslint-config": "*",
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },

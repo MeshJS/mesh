@@ -7,9 +7,8 @@ interface WalletContext {
   connectedWalletInstance: BrowserWallet;
   connectedWalletName: string;
   connectingWallet: boolean;
-  connectWallet?: (walletName: string) => Promise<void>;
+  connectWallet?: (walletName: string, extensions?: number[]) => Promise<void>;
   disconnect?: () => void;
-  // setWallet?: () => void,
   error?: unknown;
 }
 
@@ -30,31 +29,31 @@ export const useWalletStore = () => {
     INITIAL_STATE.walletName,
   );
 
-  const connectWallet = useCallback(async (walletName: string) => {
-    setConnectingWallet(true);
+  const connectWallet = useCallback(
+    async (walletName: string, extensions?: number[]) => {
+      setConnectingWallet(true);
 
-    try {
-      const walletInstance = await BrowserWallet.enable(walletName);
-      setConnectedWalletInstance(walletInstance);
-      setConnectedWalletName(walletName);
-      setError(undefined);
-    } catch (error) {
-      setError(error);
-      console.error(error);
-    }
+      try {
+        const walletInstance = await BrowserWallet.enable(
+          walletName,
+          extensions,
+        );
+        setConnectedWalletInstance(walletInstance);
+        setConnectedWalletName(walletName);
+        setError(undefined);
+      } catch (error) {
+        setError(error);
+      }
 
-    setConnectingWallet(false);
-  }, []);
+      setConnectingWallet(false);
+    },
+    [],
+  );
 
   const disconnect = useCallback(() => {
     setConnectedWalletName(INITIAL_STATE.walletName);
     setConnectedWalletInstance(INITIAL_STATE.walletInstance);
   }, []);
-
-  // const setWallet = useCallback((wallet: AppWallet) => {
-  //   setConnectedWalletName(INITIAL_STATE.walletName);
-  //   setConnectedWalletInstance(wallet);
-  // }, []);
 
   return {
     hasConnectedWallet: INITIAL_STATE.walletName !== connectedWalletName,
@@ -63,7 +62,6 @@ export const useWalletStore = () => {
     connectingWallet,
     connectWallet,
     disconnect,
-    // setWallet,
     error,
   };
 };

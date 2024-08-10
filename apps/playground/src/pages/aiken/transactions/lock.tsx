@@ -1,8 +1,7 @@
-import Link from "next/link";
-
 import { Data, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -84,11 +83,7 @@ function Left() {
       <p>
         You notice here we use the <code>applyParamsToScript</code>, which apply
         parameters to a script allows you to create a custom{" "}
-        <Link
-          href="https://cips.cardano.org/cip/cip-57"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://cips.cardano.org/cip/cip-57">
           CIP-57 compliant script
         </Link>{" "}
         based on some inputs. For this script, we don't have any parameters to

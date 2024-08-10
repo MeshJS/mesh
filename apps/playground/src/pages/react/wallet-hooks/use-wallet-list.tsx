@@ -22,17 +22,17 @@ function Left() {
       <Codeblock data={`const wallets = useWalletList();`} />
       <p>
         You can define the NuFi network to connect to by adding the{" "}
-        <code>nufiNetwork</code> prop.
+        <code>network</code> prop.
       </p>
       <Codeblock
-        data={`const wallets = useWalletList({nufiNetwork: "preprod"});`}
+        data={`const wallets = useWalletList({ metamask:{ network: "preprod"} });`}
       />
     </>
   );
 }
 
 function Right() {
-  const wallets = useWalletList({ nufiNetwork: "preprod" });
+  const wallets = useWalletList({ metamask:{ network: "preprod"} });
 
   let code3 = `import { useWalletList } from '@meshsdk/react';\n\n`;
   code3 += `export default function Page() {\n`;

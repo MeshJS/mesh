@@ -1,20 +1,13 @@
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
-
-export const metadata = {
-  title: "Aiken Hello World",
-  description:
-    "Create smart contracts with Aiken and execute transactions with Mesh.",
-  cover: "/guides/aiken.png",
-  image: "/guides/arches-1866598_1280.jpg",
-};
+import { guideaiken } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={metadata.title}
-      description={metadata.description}
-      image={metadata.image}
-      cover={metadata.cover}
+      title={guideaiken.title}
+      description={guideaiken.description}
+      image={guideaiken.image}
+      cover={guideaiken.cover}
     >
       {children}
     </LayoutImageHeaderAndBody>
@@ -132,7 +125,7 @@ Let's compile the smart contract with the Aiken CLI:
 $ aiken build
 ```
 
-This command will compile the smart contract and generate the \`plutus.json\` file in the root folder. This file is a [CIP-0057 Plutus blueprint](https://github.com/cardano-foundation/CIPs/pull/258), blueprint describes your on-chain contract and its binary interface.
+This command will compile the smart contract and generate the \`plutus.json\` file in the root folder. This file is a [CIP-0057 Plutus blueprint](https://cips.cardano.org/cip/CIP-57), blueprint describes your on-chain contract and its binary interface.
 
 ## Creating locking transaction
 

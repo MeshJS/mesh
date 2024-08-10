@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
@@ -21,11 +20,7 @@ function Left() {
       <p>
         This command will compile the smart contract and generate the
         <code>plutus.json</code> file in the root folder. This file is a{" "}
-        <Link
-          href="https://cips.cardano.org/cip/CIP-0057"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://cips.cardano.org/cip/CIP-0057">
           CIP-0057 Plutus blueprint
         </Link>
         , blueprint describes your on-chain contract and its binary interface.

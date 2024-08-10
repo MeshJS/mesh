@@ -11,6 +11,8 @@ import {
 } from "@meshsdk/common";
 import { CSLSerializer } from "@meshsdk/core-csl";
 
+// import { CardanoSDKSerializer } from "@meshsdk/core-cst";
+
 import { MeshTxBuilderCore } from "./tx-builder-core";
 
 export interface MeshTxBuilderOptions {
@@ -121,6 +123,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     } else {
       this.queueAllLastItem();
     }
+    this.addUtxosFromSelection();
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
@@ -255,3 +258,5 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return true;
   };
 }
+
+export * from "./utils";

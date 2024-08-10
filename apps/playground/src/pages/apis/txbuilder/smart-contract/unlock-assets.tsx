@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Link from "~/components/link";
 
 import {
   mConStr0,
@@ -29,12 +30,103 @@ export default function TxbuilderContractUnlockAssets() {
 }
 
 function Left() {
-  let code1 = ``;
+  let codeIndicator = ``;
+  codeIndicator += `.spendingPlutusScriptV1()\n`;
+  codeIndicator += `.spendingPlutusScriptV2()\n`;
+  codeIndicator += `.spendingPlutusScriptV3()\n`;
+
+  let code = `mesh
+  .spendingPlutusScriptV2()
+  .txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)
+  .txInInlineDatumPresent() // or .txInDatumValue(datum: Data | string | object)
+  .txInRedeemerValue(redeemer: Data | object | string, type?: string, exUnits?: Budget)
+  .spendingTxInReference(txHash: string, txIndex: number, spendingScriptHash?: string) // or supplying script
+`;
 
   return (
     <>
-      <p></p>
-      <Codeblock data={code1} />
+      <>
+        <p>
+          Unlocking with <code>MeshTxBuilder</code> starts with anyone of the
+          below script version indicators:
+        </p>
+        <Codeblock data={codeIndicator} />
+        <p>Followed by specifying the exact script input to spend with:</p>
+        <Codeblock
+          data={`.txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)`}
+        />
+        <p>
+          In Cardano, if you want to unlock assets from a script address, you
+          have to provide 3 other necessary information apart from `.txIn()`
+          itself. They are:
+        </p>
+        <ul>
+          <li>Actual script</li>
+          <li>Datum of the input</li>
+          <li>Redeemer of the unlock</li>
+        </ul>
+        <h4>Actual script</h4>
+        <div className="pl-4">
+          <p className="pl-4">
+            The actual script can be either provided by transaction builder or
+            referenced from an UTxO onchain.
+          </p>
+          <div className="pl-4">
+            <ul>
+              <li>
+                (i) Reference script{` `}
+                <Codeblock data={`.spendingTxInReference()`} />
+              </li>
+              <li>
+                (ii) Supplying script{` `}
+                <Codeblock data={`.txInScript(scriptCbor: string)`} />
+              </li>
+            </ul>
+            <br />
+          </div>
+        </div>
+        <h4>Datum of the input</h4>
+        <div className="pl-4">
+          <p className="pl-4">
+            Similar to script, datum can also either be provided by transaction
+            builder or as inline datum.
+          </p>
+          <div className="pl-4">
+            <ul>
+              <li>
+                (i) Referencing inline datum{" "}
+                <Codeblock data={`.txInInlineDatumPresent()`} />
+              </li>
+              <li>
+                (ii) Supplying datum{" "}
+                <Codeblock
+                  data={`.txInDatumValue(datum: Data | object | string, type?: "Mesh" | "CBOR" | "JSON")`}
+                />
+              </li>
+            </ul>
+            <br />
+          </div>
+        </div>
+        <h4>Redeemer of the unlock</h4>
+        <div className="pl-4">
+          <p className="pl-4">
+            Redeemer can be provided in different{" "}
+            <Link href="/apis/data">data types</Link>. If your MeshTxBuilder
+            does not include an <code>evaluator</code> instance, you can also
+            provide your budget for the unlock with this redeemer endpoint
+          </p>
+          <p className="pl-4">
+            <Codeblock
+              data={`.txInRedeemerValue(redeemer: Data | object | string, type: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)`}
+            />
+          </p>
+        </div>
+      </>
+      <p>
+        An example of complete set of endpoints to unlock assets from a script
+        address:
+      </p>
+      <Codeblock data={code} />
     </>
   );
 }
@@ -57,8 +149,6 @@ function Right() {
     };
     const { address: scriptAddress } = serializePlutusScript(script);
 
-    console.log("scriptAddress", scriptAddress);
-
     const assetUtxo = await fetchAssetUtxo({
       address: scriptAddress,
       asset: userInput,
@@ -69,8 +159,6 @@ function Right() {
     }
 
     const txBuilder = getTxBuilder();
-
-    // todo
     const unsignedTx = await txBuilder
       .spendingPlutusScriptV2()
       .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)
@@ -92,7 +180,47 @@ function Right() {
     return txHash;
   }
 
-  let codeSnippet = `import { keepRelevant, MeshTxBuilder, Quantity, Unit } from "@meshsdk/core";\n\n`;
+  let codeSnippet = ``;
+  codeSnippet += `const utxos = await wallet.getUtxos();\n`;
+  codeSnippet += `const collateral = await wallet.getCollateral();\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const script: PlutusScript = {\n`;
+  codeSnippet += `  code: demoPlutusAlwaysSucceedScript,\n`;
+  codeSnippet += `  version: "V2",\n`;
+  codeSnippet += `};\n`;
+  codeSnippet += `const { address: scriptAddress } = serializePlutusScript(script);\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const assetUtxo = await fetchAssetUtxo({\n`;
+  codeSnippet += `  address: scriptAddress,\n`;
+  codeSnippet += `  asset: userInput,\n`;
+  codeSnippet += `  datum: userInput2,\n`;
+  codeSnippet += `});\n`;
+  codeSnippet += `if (assetUtxo === undefined) {\n`;
+  codeSnippet += `  throw "Asset UTXO not found";\n`;
+  codeSnippet += `}\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const txBuilder = getTxBuilder();\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const unsignedTx = await txBuilder\n`;
+  codeSnippet += `  .spendingPlutusScriptV2()\n`;
+  codeSnippet += `  .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)\n`;
+  codeSnippet += `  .txInInlineDatumPresent()\n`;
+  codeSnippet += `  .txInRedeemerValue(mConStr0([]))\n`;
+  codeSnippet += `  .txInScript(demoPlutusAlwaysSucceedScript)\n`;
+  codeSnippet += `  .changeAddress(changeAddress)\n`;
+  codeSnippet += `  .txInCollateral(\n`;
+  codeSnippet += `    collateral[0]?.input.txHash!,\n`;
+  codeSnippet += `    collateral[0]?.input.outputIndex!,\n`;
+  codeSnippet += `    collateral[0]?.output.amount!,\n`;
+  codeSnippet += `    collateral[0]?.output.address!,\n`;
+  codeSnippet += `  )\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos)\n`;
+  codeSnippet += `  .complete();\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  codeSnippet += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo

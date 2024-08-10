@@ -27,14 +27,14 @@ export const SLOT_CONFIG_NETWORK: Record<Network, SlotConfig> = {
     epochLength: 432000,
   }, // Starting at Shelley era
   preview: {
-    zeroTime: 1666656000000,
+    zeroTime: 1682467200000,
     zeroSlot: 0,
     slotLength: 1000,
     startEpoch: 183,
     epochLength: 86400,
   }, // Starting at Shelley era
   preprod: {
-    zeroTime: 1654041600000 + 1728000000,
+    zeroTime: 1682121600000,
     zeroSlot: 86400,
     slotLength: 1000,
     startEpoch: 65,
@@ -58,6 +58,12 @@ export const slotToBeginUnixTime = (
   return slotConfig.zeroTime + msAfterBegin;
 };
 
+/**
+ * Eqivalent to `slotToBeginUnixTime` but option to provide optional config
+ * @param unixTime Timestamp in milliseconds
+ * @param slotConfig Slot configuration for calculation
+ * @returns Slot number
+ */
 export const unixTimeToEnclosingSlot = (
   unixTime: number,
   slotConfig: SlotConfig,
@@ -67,6 +73,12 @@ export const unixTimeToEnclosingSlot = (
   return slotsPassed + slotConfig.zeroSlot;
 };
 
+/**
+ * Resolve slot number based on timestamp in milliseconds.
+ * @param network Network: mainnet | preprod | preview.
+ * @param milliseconds Timestamp in milliseconds
+ * @returns Slot number
+ */
 export const resolveSlotNo = (
   network: Network,
   milliseconds = Date.now(),
@@ -77,6 +89,12 @@ export const resolveSlotNo = (
   ).toString();
 };
 
+/**
+ * Resolve epoch number based on timestamp in  milliseconds.
+ * @param network Network: mainnet | preprod | preview.
+ * @param milliseconds Timestamp in milliseconds
+ * @returns Epoch number
+ */
 export const resolveEpochNo = (
   network: Network,
   milliseconds = Date.now(),
@@ -85,7 +103,7 @@ export const resolveEpochNo = (
 
   const msBigInt = BigInt(milliseconds);
   const epoch =
-    (msBigInt / 1000n - BigInt(config.zeroTime)) / BigInt(config.epochLength) +
+    (msBigInt - BigInt(config.zeroTime)) / 1000n / BigInt(config.epochLength) +
     BigInt(config.startEpoch);
 
   return Number(epoch);

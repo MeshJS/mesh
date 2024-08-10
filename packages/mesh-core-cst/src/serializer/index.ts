@@ -28,7 +28,7 @@ import {
   ValidityRange,
 } from "@meshsdk/common";
 
-import { PrivateKey } from "../stricahq";
+import { StricaPrivateKey } from "../";
 import {
   Address,
   AssetId,
@@ -61,7 +61,7 @@ import {
   Value,
   VkeyWitness,
 } from "../types";
-import { toAddress, toNativeScript, toPlutusData, toValue } from "../utils";
+import { toAddress, toPlutusData, toValue } from "../utils";
 import { hashScriptData } from "../utils/script-data-hash";
 import { empty, mergeValue, negatives, subValue } from "../utils/value";
 
@@ -95,6 +95,13 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       undefined,
     );
     this.txWitnessSet = new TransactionWitnessSet();
+  }
+  serializeRewardAddress(
+    stakeKeyHash: string,
+    isScriptHash?: boolean,
+    network_id?: 0 | 1,
+  ): string {
+    throw new Error("Method not implemented.");
   }
   serializePoolId(hash: string): string {
     throw new Error("Method not implemented.");
@@ -213,10 +220,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       referenceInputs,
       mints,
       changeAddress,
-      certificates,
+      // certificates,
       validityRange,
       requiredSignatures,
-      metadata,
+      // metadata,
     } = txBuilderBody;
 
     mints.sort((a, b) => a.policyId.localeCompare(b.policyId));
@@ -251,7 +258,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         if (keyHex.length === 68 && keyHex.substring(0, 4) === "5820") {
           keyHex = keyHex.substring(4);
         }
-        const cardanoSigner = new PrivateKey(Buffer.from(keyHex, "hex"), false);
+        const cardanoSigner = new StricaPrivateKey(
+          Buffer.from(keyHex, "hex"),
+          false,
+        );
         const signature = cardanoSigner.sign(
           Buffer.from(cardanoTx.getId(), "hex"),
         );

@@ -1,9 +1,9 @@
 import type { NextPage } from "next";
-import Link from "next/link";
 
 import { YaciProvider } from "@meshsdk/core";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
@@ -47,11 +47,7 @@ const ReactPage: NextPage = () => {
           description={metaYaci.desc}
         >
           <p>
-            <Link
-              href="https://github.com/bloxbean/yaci-devkit"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <Link href="https://github.com/bloxbean/yaci-devkit">
               Yaci DevKit
             </Link>{" "}
             is a development tool designed for rapid and efficient Cardano

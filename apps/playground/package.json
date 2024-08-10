@@ -34,9 +34,7 @@
     "json-bigint": "^1.0.0"
   },
   "devDependencies": {
-    "@meshsdk/eslint-config": "*",
-    "@meshsdk/tailwind-config": "*",
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "@next/eslint-plugin-next": "^14.1.1",
     "@tailwindcss/typography": "^0.5.13",
     "@types/eslint": "^8.56.5",
@@ -52,5 +50,5 @@
     "tailwindcss": "^3.4.3",
     "typescript": "^5.3.3"
   },
-  "prettier": "@meshsdk/prettier-config"
+  "prettier": "@meshsdk/configs/prettier"
 }

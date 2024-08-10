@@ -1,5 +1,5 @@
 import type { NextPage } from "next";
-import Link from "next/link";
+import Link from "~/components/link";
 
 import HeaderAndCards from "~/components/layouts/header-and-cards";
 import Metatags from "~/components/site/metatags";

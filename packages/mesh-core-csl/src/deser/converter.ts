@@ -8,7 +8,6 @@ import type {
   NativeScript,
   PlutusScript,
 } from "@meshsdk/common";
-import { LanguageVersion } from "@meshsdk/common";
 
 // import { LANGUAGE_VERSIONS } from ".";
 import { csl } from "./csl";

@@ -10,7 +10,7 @@ import {
 import { MenuItem } from "~/types/menu-item";
 
 export const metaMarketplace = {
-  title: "Markplace",
+  title: "Marketplace",
   desc: "Build a NFT marketplace effortlessly",
   link: "/smart-contracts/marketplace",
   icon: ShoppingCartIcon,

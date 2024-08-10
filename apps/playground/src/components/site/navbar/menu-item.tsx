@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "~/components/link";
 
 export default function MenuItem({
   title,

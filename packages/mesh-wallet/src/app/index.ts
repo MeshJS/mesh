@@ -210,8 +210,7 @@ export class AppWallet implements ISigner, ISubmitter {
     keyIndex = 0,
   ): string {
     try {
-      // todo
-      return "signedTx";
+      throw new Error(`[AppWallet] signTxSync() is not implemented.`);
     } catch (error) {
       throw new Error(`[AppWallet] An error occurred during signTx: ${error}.`);
     }

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Link from "next/link";
 
 import {
   DEFAULT_REDEEMER_BUDGET,
@@ -13,6 +12,7 @@ import { applyParamsToScript } from "@meshsdk/core-csl";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -22,41 +22,25 @@ import {
 } from "~/data/cardano";
 
 export default function MintingCip68() {
-  const [userInput, setUserInput] = useState<string>("MeshCIP68");
-
   return (
     <TwoColumnsScroll
       sidebarTo="mintingCip68"
       title="Minting Assets with CIP-68 Metadata standard"
-      leftSection={Left(userInput)}
-      rightSection={Right(userInput, setUserInput)}
+      leftSection={Left()}
+      rightSection={Right()}
     />
   );
 }
 
-function Left(userInput: string) {
-  let codeSnippet1 = ``;
-
+function Left() {
   return (
     <>
       <p>
-        <Link
-          href="https://cips.cardano.org/cip/CIP-68"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-68
-        </Link>{" "}
-        proposes a metadata standard for assets on the Cardano blockchain, not
-        limited to just NFTs but any asset class. It aims to address the
-        limitations of a previous standard (
-        <Link
-          href="https://cips.cardano.org/cip/CIP-25"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-25
-        </Link>
+        <Link href="https://cips.cardano.org/cip/CIP-68">CIP-68</Link> proposes
+        a metadata standard for assets on the Cardano blockchain, not limited to
+        just NFTs but any asset class. It aims to address the limitations of a
+        previous standard (
+        <Link href="https://cips.cardano.org/cip/CIP-25">CIP-25</Link>
         ).
       </p>
 
@@ -87,14 +71,8 @@ function Left(userInput: string) {
       <p>
         Lastly and most importantly, with this construction, the metadata can be
         used by a Plutus V2 script with the use of reference inputs (
-        <Link
-          href="https://cips.cardano.org/cip/CIP-31"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-31
-        </Link>
-        ) . This will drive further innovation in the token space.
+        <Link href="https://cips.cardano.org/cip/CIP-31">CIP-31</Link>) . This
+        will drive further innovation in the token space.
       </p>
 
       {/* <Codeblock data={codeSnippet3} /> */}
@@ -102,8 +80,9 @@ function Left(userInput: string) {
   );
 }
 
-function Right(userInput: string, setUserInput: (value: string) => void) {
+function Right() {
   const { wallet, connected } = useWallet();
+  const [userInput, setUserInput] = useState<string>("MeshCIP68");
 
   async function runDemo() {
     const usedAddress = await wallet.getUsedAddresses();

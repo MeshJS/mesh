@@ -20,10 +20,10 @@ import {
   Ed25519PublicKeyHex,
   Ed25519SignatureHex,
   Hash28ByteBase16,
-  PrivateKey,
   resolveTxHash,
   Serialization,
   signData,
+  StricaPrivateKey,
   Transaction,
   VkeyWitness,
 } from "@meshsdk/core-cst";
@@ -35,8 +35,8 @@ export type Account = {
   baseAddressBech32: string;
   enterpriseAddressBech32: string;
   rewardAddressBech32: string;
-  paymentKey: PrivateKey;
-  stakeKey: PrivateKey;
+  paymentKey: StricaPrivateKey;
+  stakeKey: StricaPrivateKey;
   paymentKeyHex: string;
   stakeKeyHex: string;
 };
@@ -85,8 +85,8 @@ export class WalletStaticMethods {
   }
 
   static getAddresses(
-    paymentKey: PrivateKey,
-    stakingKey: PrivateKey,
+    paymentKey: StricaPrivateKey,
+    stakingKey: StricaPrivateKey,
     networkId = 0,
   ): {
     baseAddress: Address;
@@ -225,7 +225,10 @@ export class EmbeddedWallet extends WalletStaticMethods {
           `[EmbeddedWallet] Address: ${address} doesn't belong to this account.`,
         );
 
-      return signData(payload, account.paymentKey);
+      return signData(payload, {
+        address: Address.fromBech32(address),
+        key: account.paymentKey,
+      });
     } catch (error) {
       throw new Error(
         `[EmbeddedWallet] An error occurred during signData: ${error}.`,

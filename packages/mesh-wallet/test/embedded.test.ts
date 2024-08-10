@@ -1,4 +1,5 @@
-import { checkSignature } from "@meshsdk/core-cst";
+import { stringToHex } from "@meshsdk/common";
+import { checkSignature, getPublicKeyFromCoseKey } from "@meshsdk/core-cst";
 import { EmbeddedWallet } from "@meshsdk/wallet";
 
 describe("EmbeddedWallet mnemonic", () => {
@@ -40,17 +41,15 @@ describe("EmbeddedWallet mnemonic", () => {
     const message = `meshjs's core-cst is pure typescript while core-csl is wasm rust.`;
     const signature = wallet.signData(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      message,
+      stringToHex(message),
       0,
       0,
     );
-    const result = checkSignature(message, signature);
 
-    expect(signature.key).toEqual(
+    const result = checkSignature(stringToHex(message), signature);
+
+    expect(getPublicKeyFromCoseKey(signature.key).toString("hex")).toEqual(
       "c32dfdb461dd016e8fdd9b6d424a77439eab8f8c644a804b013b6cefa2454f95",
-    );
-    expect(signature.signature).toEqual(
-      "2808fc47212c2fe2151ccb4209cc7c5cf44b5ec6a80e21232a3f004697bd795b5610880184d8466761820bcb38401cc1e16945b1c1944037ce92a0929e729a0f",
     );
     expect(result).toEqual(true);
   });

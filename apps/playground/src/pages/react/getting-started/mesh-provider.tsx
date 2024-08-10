@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
@@ -28,13 +27,7 @@ function Left() {
   return (
     <>
       <p>
-        <Link
-          href="https://reactjs.org/docs/context.html"
-          target="_blank"
-          rel="noreferrer"
-        >
-          React Context
-        </Link>{" "}
+        <Link href="https://reactjs.org/docs/context.html">React Context</Link>{" "}
         allows apps to share data across the app, and <code>MeshProvider</code>{" "}
         allows your app to subscribe to context changes. If you use the CLI to
         initialize your project, <code>MeshProvider</code> has been added in the

@@ -5,6 +5,7 @@ import {
   Asset,
   AssetMetadata,
   BlockInfo,
+  castProtocol,
   fromUTF8,
   IFetcher,
   IListener,
@@ -265,7 +266,7 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
       );
 
       if (status === 200)
-        return <Protocol>{
+        return castProtocol({
           coinsPerUtxoSize: data[0].coins_per_utxo_size,
           collateralPercent: data[0].collateral_percent,
           decentralisation: data[0].decentralisation,
@@ -286,7 +287,7 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
           poolDeposit: data[0].pool_deposit,
           priceMem: data[0].price_mem,
           priceStep: data[0].price_step,
-        };
+        });
 
       throw parseHttpError(data);
     } catch (error) {

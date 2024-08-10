@@ -1,17 +1,15 @@
 import { useState } from "react";
-import Link from "next/link";
 
 import {
   ForgeScript,
   MeshTxBuilder,
-  Mint,
   resolveScriptHash,
   RoyaltiesStandard,
-  Transaction,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -31,31 +29,10 @@ export default function MintingRoyaltyToken() {
 
 function Left() {
   let codeSnippet = ``;
-  codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippet += `const address = usedAddress[0];\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `// create forgingScript, you can also use native script here\n`;
-  codeSnippet += `const forgingScript = ForgeScript.withOneSignature(address);\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `const _assetMetadata = {\n`;
+  codeSnippet += `const assetMetadata = {\n`;
   codeSnippet += `  rate: '0.2',\n`;
   codeSnippet += `  addr: '${demoAddresses.testnet}'\n`;
   codeSnippet += `};\n`;
-  codeSnippet += `const asset: Mint = {\n`;
-  codeSnippet += `  assetName: '',\n`;
-  codeSnippet += `  assetQuantity: '1',\n`;
-  codeSnippet += `  metadata: _assetMetadata,\n`;
-  codeSnippet += `  label: '777',\n`;
-  codeSnippet += `  recipient: address,\n`;
-  codeSnippet += `};\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `tx.mintAsset(forgingScript, asset);\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `const unsignedTx = await tx.build();\n`;
-  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  codeSnippet += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <>
@@ -63,21 +40,15 @@ function Left() {
         Royalty tokens is a special type of token that allows the creator to
         collect a royalty fee, this proposed standard will allow for uniform
         royalties' distributions across the secondary market space. Read{" "}
-        <Link
-          href="https://cips.cardano.org/cips/cip27/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-27
-        </Link>{" "}
-        for more information.
+        <Link href="https://cips.cardano.org/cips/cip27/">CIP-27</Link> for more
+        information.
       </p>
       <p>
         The implementation of royalty tokens is very simple, minting a token
         with <code>777</code> label, with "rate" and "addr" in the metadata.
       </p>
 
-      <p>Here is the full code:</p>
+      <p>Here is the example of the metadata:</p>
       <Codeblock data={codeSnippet} />
     </>
   );
@@ -122,28 +93,32 @@ function Right() {
   }
 
   let code = ``;
+  code += `const utxos = await wallet.getUtxos();\n`;
   code += `const usedAddress = await wallet.getUsedAddresses();\n`;
   code += `const address = usedAddress[0];\n`;
   code += `\n`;
+  code += `if (address === undefined) {\n`;
+  code += `  throw "No address found";\n`;
+  code += `}\n`;
+  code += `\n`;
   code += `const forgingScript = ForgeScript.withOneSignature(address);\n`;
+  code += `const policyId = resolveScriptHash(forgingScript);\n`;
   code += `\n`;
-  code += `const tx = new Transaction({ initiator: wallet });\n`;
-  code += `\n`;
-  code += `const _assetMetadata: RoyaltiesStandard = {\n`;
-  code += `  rate: '${userInput}',\n`;
-  code += `  address: '${userInput2}',\n`;
-  code += `};\n`;
-  code += `const asset: Mint = {\n`;
-  code += `  assetName: "",\n`;
-  code += `  assetQuantity: "1",\n`;
-  code += `  metadata: _assetMetadata,\n`;
-  code += `  label: "777",\n`;
-  code += `  recipient: address,\n`;
+  code += `const assetMetadata: RoyaltiesStandard = {\n`;
+  code += `  rate: userInput,\n`;
+  code += `  address: userInput2,\n`;
   code += `};\n`;
   code += `\n`;
-  code += `tx.mintAsset(forgingScript, asset);\n`;
+  code += `const txBuilder = new MeshTxBuilder();\n`;
   code += `\n`;
-  code += `const unsignedTx = await tx.build();\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `  .mint("1", policyId, "")\n`;
+  code += `  .mintingScript(forgingScript)\n`;
+  code += `  .metadataValue("777", assetMetadata)\n`;
+  code += `  .changeAddress(address)\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .complete();\n`;
+  code += `\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 

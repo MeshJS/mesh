@@ -1,6 +1,6 @@
 import React from "react";
 import Image from "next/image";
-import Link from "next/link";
+import Link from "~/components/link";
 
 import Card from "./card";
 
@@ -32,7 +32,7 @@ export default function CardTitleDescImage({
               <div className="text-2xl font-black">{title}</div>
             </span>
             <Image
-              src="/logo-mesh/black/logo-mesh-black-64x64.png"
+              src="/logos/black/logo-mesh-black-64x64.png"
               className="absolute bottom-2 right-2 h-8"
               layout="fill"
               objectFit="contain"

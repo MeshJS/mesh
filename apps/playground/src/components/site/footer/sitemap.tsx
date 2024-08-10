@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "~/components/link";
 
 import { linksAbout } from "~/data/links-about";
 import { linksApi } from "~/data/links-api";

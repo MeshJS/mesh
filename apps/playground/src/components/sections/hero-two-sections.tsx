@@ -1,6 +1,6 @@
 import React from "react";
-import Link from "next/link";
 
+import Link from "~/components/link";
 import Codeblock from "../text/codeblock";
 
 export default function HeroTwoSections({
@@ -33,8 +33,6 @@ export default function HeroTwoSections({
             <Link
               href={link.href}
               className="bg-primary-700 hover:bg-primary-800 mr-3 inline-flex items-center justify-center rounded-lg px-5 py-3 text-center text-base font-medium text-white"
-              target="_blank"
-              rel="noreferrer"
             >
               {link.label}
               <svg

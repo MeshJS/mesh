@@ -1,9 +1,8 @@
-import Link from "next/link";
-
 import { MeshMarketplaceBlueprint } from "@meshsdk/contract";
 import { integer, mPubKeyAddress, pubKeyAddress } from "@meshsdk/core";
 import { applyParamsToScript, CSLSerializer } from "@meshsdk/core-csl";
 
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -59,11 +58,7 @@ function Left() {
     <>
       <p>
         Apply parameters to a script allows you to create a custom{" "}
-        <Link
-          href="https://cips.cardano.org/cip/cip-57"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://cips.cardano.org/cip/cip-57">
           CIP-57 compliant script
         </Link>{" "}
         based on some inputs. For example, for the{" "}

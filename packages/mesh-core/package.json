@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -17,15 +17,16 @@
     "dist/**"
   ],
   "scripts": {
-    "build:mesh": "tsup src/index.ts --format esm,cjs --dts --minify",
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "lint": "eslint",
-    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "format": "prettier --check . --ignore-path ../../.gitignore"
+    "pack": "npm pack --pack-destination=./dist",
+    "test": "jest"
   },
   "devDependencies": {
-    "@meshsdk/eslint-config": "*",
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
@@ -39,7 +40,7 @@
     "@meshsdk/transaction": "*",
     "@meshsdk/wallet": "*"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },

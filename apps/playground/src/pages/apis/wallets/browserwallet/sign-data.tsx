@@ -1,9 +1,9 @@
 import { useState } from "react";
-import Link from "next/link";
 
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -30,22 +30,20 @@ function Left() {
     <>
       <p>
         This endpoint utilizes the{" "}
-        <Link
-          href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://cips.cardano.org/cip/CIP-8">
           CIP-8 - Message Signing
         </Link>{" "}
         to sign arbitrary data, to verify the data was signed by the owner of
         the private key.
       </p>
       <p>
-        Here, we get the first wallet's address with{" "}
-        <code>wallet.getUsedAddresses()</code>, alternativelly you can use
-        reward addresses (<code>getRewardAddresses()</code>) too. It's really up
-        to you as the developer which address you want to use in your
-        application.
+        <code>signData</code> takes two arguments, the first one is the payload
+        to sign and the second one is the address (optional).
+      </p>
+      <p>
+        By default, we get the first wallet's address with{" "}
+        <code>wallet.getRewardAddresses()</code>, alternativelly you can specify
+        the address to use.
       </p>
       <p>Example of a response from the endpoint:</p>
       <Codeblock data={example} />
@@ -66,15 +64,11 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    const addresses = await wallet.getUsedAddresses();
-    const address = addresses[0];
-    return await wallet.signData(address!, payload);
+    return await wallet.signData(payload);
   }
 
   let code = ``;
-  code += `const addresses = await wallet.getUsedAddresses();\n`;
-  code += `const address = addresses[0];\n`;
-  code += `const signature =  await wallet.signData(address, ${payload});\n`;
+  code += `const signature =  await wallet.signData(${payload});\n`;
 
   return (
     <LiveCodeDemo

@@ -1,7 +1,6 @@
-import Link from "next/link";
-
 import { CardanoWallet } from "@meshsdk/react";
 
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -30,15 +29,23 @@ function Left() {
 
   let codeRunCode = ``;
   codeRunCode += `export default function Page() {\n\n`;
-  codeRunCode += `  function sayHello() {\n`;
-  codeRunCode += `    console.log("Hello, World!");\n`;
+  codeRunCode += `  function afterConnectedWallet() {\n`;
+  codeRunCode += `    // do something\n`;
   codeRunCode += `  }\n\n`;
   codeRunCode += `  return (\n`;
   codeRunCode += `    <>\n`;
-  codeRunCode += `      <CardanoWallet onConnected={sayHello} />\n`;
+  codeRunCode += `      <CardanoWallet onConnected={afterConnectedWallet} />\n`;
   codeRunCode += `    </>\n`;
   codeRunCode += `  );\n`;
   codeRunCode += `}\n`;
+
+  let codeMetamask = `<CardanoWallet\n`;
+  codeMetamask += `  metamask={{network: "preprod"}}\n`;
+  codeMetamask += `/>\n`;
+
+  let codeCip95 = `<CardanoWallet\n`;
+  codeCip95 += `  extensions={[95]}\n`;
+  codeCip95 += `/>\n`;
 
   return (
     <>
@@ -58,31 +65,46 @@ function Left() {
 
       <Codeblock data={codeSignature} />
 
+      <h3>Customization</h3>
       <p>For dark mode style, add isDark.</p>
-
       <Codeblock data={`<CardanoWallet isDark={${isDark}} />`} />
 
       <p>For a custom label, add the label prop.</p>
-
       <Codeblock data={`<CardanoWallet label={"Connect Wallet"} />`} />
 
+      <h3>onConnected</h3>
       <p>
         If you want to run a function after the wallet is connected, you can add
         the onConnected prop.
       </p>
 
       <Codeblock data={codeRunCode} />
-
       <p>
         The above code will log "Hello, World!" to the console when the wallet
         is connected.
       </p>
 
+      <h3>MetaMask Snaps</h3>
       <p>
-        You can define the NuFi network to connect to by adding the <code>nufiNetwork</code> prop.
+        You can define the NuFi network to connect to by adding the{" "}
+        <code>network</code> prop.
+      </p>
+      <Codeblock data={codeMetamask} />
+      <p>
+        This will connect to the preprod network. For the mainnet network, use{" "}
+        <code>mainnet</code>.
+      </p>
+      <p>
+        You can also define a custom network by passing a URL string to the{" "}
+        <code>network</code> prop.
       </p>
 
-      <Codeblock data={`<CardanoWallet nufiNetwork={"preprod"} />`} />
+      <h3>CIP 95</h3>
+      <p>
+        You can also provide an <code>extensions</code> object to enable
+        specific CIPs. For example, to enable CIP95, you would pass:
+      </p>
+      <Codeblock data={codeCip95} />
     </>
   );
 }
@@ -95,8 +117,8 @@ function Right() {
   example += `\n`;
   example += `export default function Page() {\n\n`;
 
-  example += `  function sayHello() {\n`;
-  example += `    console.log("Hello, World!");\n`;
+  example += `  function afterConnectedWallet() {\n`;
+  example += `    // do something\n`;
   example += `  }\n\n`;
 
   example += `  return (\n`;
@@ -104,15 +126,11 @@ function Right() {
   example += `      <CardanoWallet\n`;
   example += `        label={"Connect a Wallet"}\n`;
   example += `        isDark={isDark}\n`;
-  example += `        onConnected={sayHello}\n`;
+  example += `        onConnected={afterConnectedWallet}\n`;
   example += `      />\n`;
   example += `    </>\n`;
   example += `  );\n`;
   example += `}\n`;
-
-  function sayHello() {
-    console.log("Hello, World!");
-  }
 
   return (
     <LiveCodeDemo
@@ -121,11 +139,7 @@ function Right() {
       code={example}
       childrenAfterCodeFunctions={true}
     >
-      <CardanoWallet
-        label={"Connect a Wallet"}
-        isDark={isDark}
-        onConnected={sayHello}
-      />
+      <CardanoWallet label={"Connect a Wallet"} isDark={isDark} />
     </LiveCodeDemo>
   );
 }

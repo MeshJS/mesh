@@ -1,5 +1,5 @@
 {
-  "extends": "@meshsdk/typescript-config/base.json",
-  "include": ["src/**/*"],
+  "extends": "@meshsdk/configs/typescript/base.json",
+  "include": ["jest.config.ts", "src/**/*"],
   "exclude": ["dist", "node_modules"]
 }

@@ -23,7 +23,7 @@ export const metaMeshwallet = {
   icon: WalletIcon,
 };
 
-export const linksWallets = [metaBrowserwallet, metaMeshwallet, metaAppwallet];
+export const linksWallets = [metaBrowserwallet, metaMeshwallet];
 
 export const metaWallets = {
   title: "Wallets",

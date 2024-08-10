@@ -15,7 +15,7 @@ export function MenuItem({
       onClick={action}
     >
       {icon && <img className="ui-pr-2 ui-m-1 ui-h-8" src={icon} />}
-      <span className="ui-mr-menu-item ui-text-xl ui-font-normal">
+      <span className="ui-mr-menu-item ui-text-xl ui-font-normal ui-text-gray-700 hover:ui-text-black">
         {label
           .split(" ")
           .map((word: string) => {

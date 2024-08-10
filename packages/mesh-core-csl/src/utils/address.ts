@@ -79,12 +79,12 @@ export const serializePlutusAddressToBech32 = (
 export const deserializeBech32Address = (
   bech32Addr: string,
 ): DeserializedAddress => {
-  const serializedAddress = csl.serialize_bech32_address(bech32Addr);
+  const deserializedAddress = csl.deserialize_bech32_address(bech32Addr);
   return {
-    pubKeyHash: serializedAddress.get_pub_key_hash(),
-    scriptHash: serializedAddress.get_script_hash(),
-    stakeCredentialHash: serializedAddress.get_stake_key_hash(),
-    stakeScriptCredentialHash: serializedAddress.get_stake_key_script_hash(),
+    pubKeyHash: deserializedAddress.get_pub_key_hash(),
+    scriptHash: deserializedAddress.get_script_hash(),
+    stakeCredentialHash: deserializedAddress.get_stake_key_hash(),
+    stakeScriptCredentialHash: deserializedAddress.get_stake_key_script_hash(),
   };
 };
 

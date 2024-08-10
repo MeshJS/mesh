@@ -1,10 +1,4 @@
-import {
-  CheckBadgeIcon,
-  CodeBracketIcon,
-  FilmIcon,
-  HeartIcon,
-  NewspaperIcon,
-} from "@heroicons/react/24/solid";
+import { FilmIcon, HeartIcon } from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
 import { metaCatalyst } from "./links-catalyst";

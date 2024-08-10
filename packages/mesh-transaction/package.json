@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/transaction",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -17,15 +17,17 @@
     "dist/**"
   ],
   "scripts": {
-    "build:mesh": "tsup src/index.ts --format esm,cjs --dts --minify",
-    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
-    "lint": "eslint",
+    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-transactions.json",
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "format": "prettier --check . --ignore-path ../../.gitignore",
-    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-transactions.json"
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
+    "test": "jest"
   },
   "devDependencies": {
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "@types/json-bigint": "^1.0.4",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
@@ -37,7 +39,7 @@
     "@meshsdk/core-cst": "*",
     "json-bigint": "^1.0.0"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },

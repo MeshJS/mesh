@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core-cst",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -17,20 +17,21 @@
     "dist/**"
   ],
   "scripts": {
-    "build:mesh": "tsup src/index.ts --format esm,cjs --dts --minify",
-    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
-    "lint": "eslint",
-    "test": "jest",
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "format": "prettier --check . --ignore-path ../../.gitignore"
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
+    "test": "jest"
   },
   "devDependencies": {
-    "@meshsdk/eslint-config": "*",
-    "@meshsdk/typescript-config": "*",
+    "@meshsdk/configs": "*",
     "@types/pbkdf2": "^3.1.2",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
     "tsup": "^8.0.2",
+    "typedoc": "^0.26.3",
     "typescript": "^5.3.3"
   },
   "dependencies": {
@@ -39,10 +40,11 @@
     "@cardano-sdk/util": "^0.15.4",
     "@meshsdk/common": "*",
     "@stricahq/bip32ed25519": "^1.1.0",
+    "@stricahq/cbors": "^1.0.0",
     "hash.js": "^1.1.7",
     "pbkdf2": "^3.1.2"
   },
-  "prettier": "@meshsdk/prettier-config",
+  "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
   },

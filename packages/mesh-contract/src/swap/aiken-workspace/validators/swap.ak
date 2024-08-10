@@ -5,17 +5,14 @@ use aiken/transaction/credential.{Address}
 use aiken/transaction/value.{
   AssetName, PolicyId, from_asset, from_asset_list, from_lovelace,
 }
-use sidan_placeholder/address.{mock_pub_key_address, mock_script_address}
-use sidan_placeholder/builder.{
-  complete, new_tx_tester, tx_in, tx_in_inline_datum, tx_out,
-}
-use sidan_placeholder/key_hex.{mock_pub_key_hex}
-use sidan_placeholder/output_reference.{mock_tx_hash, mock_utxo_ref}
-use sidan_utils/address.{address_pub_key} as sidan_address
-use sidan_utils/extra_signatories.{key_signed}
-use sidan_utils/inputs.{inputs_at}
-use sidan_utils/value.{get_all_value_from,
-  get_all_value_to, value_geq} as sidan_value
+use mocktail.{complete, mocktail_tx, tx_in, tx_in_inline_datum, tx_out}
+use mocktail/virgin_address.{mock_pub_key_address, mock_script_address}
+use mocktail/virgin_key_hex.{mock_pub_key_hash}
+use mocktail/virgin_output_reference.{mock_tx_hash, mock_utxo_ref}
+use vodka_address.{address_pub_key}
+use vodka_extra_signatories.{key_signed}
+use vodka_inputs.{inputs_at}
+use vodka_value.{get_all_value_from, get_all_value_to, value_geq}
 
 pub type MValue =
   Pairs<PolicyId, Pairs<AssetName, Int>>
@@ -76,7 +73,7 @@ fn get_swap_test_tx(test_case: SwapTestCase) {
     is_proceed_paid,
   } = test_case
 
-  new_tx_tester()
+  mocktail_tx()
     |> tx_in(
         True,
         mock_tx_hash(1),
@@ -174,7 +171,7 @@ test fail_swapping_without_proceed_paid() {
 test success_cancel() {
   let output_reference = mock_utxo_ref(1, 1)
   let tx =
-    Transaction { ..placeholder(), extra_signatories: [mock_pub_key_hex(1)] }
+    Transaction { ..placeholder(), extra_signatories: [mock_pub_key_hash(1)] }
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
   swap(swap_datum(), Cancel, ctx)
 }
@@ -182,7 +179,7 @@ test success_cancel() {
 test fail_cancel_without_key() {
   let output_reference = mock_utxo_ref(1, 1)
   let tx =
-    Transaction { ..placeholder(), extra_signatories: [mock_pub_key_hex(2)] }
+    Transaction { ..placeholder(), extra_signatories: [mock_pub_key_hash(2)] }
   let ctx = ScriptContext { purpose: Spend(output_reference), transaction: tx }
   !swap(swap_datum(), Cancel, ctx)
 }

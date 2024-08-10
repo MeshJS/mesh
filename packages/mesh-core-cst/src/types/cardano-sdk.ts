@@ -241,3 +241,6 @@ export const VrfVkBech32 = Cardano.VrfVkBech32;
 
 export type ScriptPubkey = Serialization.ScriptPubkey;
 export const ScriptPubkey = Serialization.ScriptPubkey;
+
+export type DRepID = Cardano.DRepID;
+export const DRepID = Cardano.DRepID;

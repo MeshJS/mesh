@@ -1,10 +1,14 @@
-import Link from "next/link";
-
-import { AssetMetadata, Mint, NativeScript } from "@meshsdk/core";
-import { Transaction } from "@meshsdk/core";
-import { ForgeScript, resolvePaymentKeyHash } from "@meshsdk/core";
+import {
+  AssetMetadata,
+  deserializeAddress,
+  ForgeScript,
+  Mint,
+  NativeScript,
+  Transaction,
+} from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -29,7 +33,7 @@ function Left() {
   codeSnippetNative += `const usedAddress = await wallet.getUsedAddresses();\n`;
   codeSnippetNative += `const address = usedAddress[0];\n`;
   codeSnippetNative += `\n`;
-  codeSnippetNative += `const keyHash = resolvePaymentKeyHash(address);\n\n`;
+  codeSnippetNative += `const { pubKeyHash: keyHash } = deserializeAddress(address);\n\n`;
 
   codeSnippetNative += `const nativeScript: NativeScript = {\n`;
   codeSnippetNative += `  type: "all",\n`;
@@ -81,7 +85,7 @@ function Left() {
       <Codeblock data={codeSnippet1} />
       <p>
         To get the <code>keyHash</code>, use the{" "}
-        <code>resolvePaymentKeyHash()</code>. To get the slot, use the{" "}
+        <code>deserializeAddress()</code>. To get the slot, use the{" "}
         <code>resolveSlotNo()</code>. Check out{" "}
         <Link href="/apis/resolvers">Resolvers</Link> on how to use these
         functions.
@@ -127,7 +131,7 @@ function Right() {
       throw "Address not found";
     }
 
-    const keyHash = resolvePaymentKeyHash(address);
+    const { pubKeyHash: keyHash } = deserializeAddress(address);
 
     const nativeScript: NativeScript = {
       type: "all",

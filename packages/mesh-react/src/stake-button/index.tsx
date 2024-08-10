@@ -57,7 +57,7 @@ const Delegate = ({
 }) => {
   const { wallet } = useWallet();
   const rewardAddress = useRewardAddress();
-  const [error, setError] = useState<unknown>();
+  const [_, setError] = useState<unknown>();
   const [checking, setChecking] = useState(false);
   const [accountInfo, setAccountInfo] = useState<AccountInfo>();
   const [processing, setProcessing] = useState(false);
@@ -89,7 +89,7 @@ const Delegate = ({
 
         const unsignedTx = await tx.build();
         const signedTx = await wallet.signTx(unsignedTx);
-        const txHash = await wallet.submitTx(signedTx);
+        await wallet.submitTx(signedTx);
 
         if (onDelegated) {
           onDelegated();
@@ -97,33 +97,31 @@ const Delegate = ({
         setDone(true);
       }
     } catch (error) {
-      console.error("error", error);
       setError(error);
     }
     setProcessing(false);
   };
 
-  const delegateStake = async () => {
-    setProcessing(true);
-    setDone(false);
-    try {
-      if (rewardAddress) {
-        const tx = new Transaction({ initiator: wallet }).delegateStake(
-          rewardAddress,
-          poolId,
-        );
+  // const delegateStake = async () => {
+  //   setProcessing(true);
+  //   setDone(false);
+  //   try {
+  //     if (rewardAddress) {
+  //       const tx = new Transaction({ initiator: wallet }).delegateStake(
+  //         rewardAddress,
+  //         poolId,
+  //       );
 
-        const unsignedTx = await tx.build();
-        const signedTx = await wallet.signTx(unsignedTx);
-        const txHash = await wallet.submitTx(signedTx);
-        setDone(true);
-      }
-    } catch (error) {
-      console.error("error", error);
-      setError(error);
-    }
-    setProcessing(false);
-  };
+  //       const unsignedTx = await tx.build();
+  //       const signedTx = await wallet.signTx(unsignedTx);
+  //       await wallet.submitTx(signedTx);
+  //       setDone(true);
+  //     }
+  //   } catch (error) {
+  //     setError(error);
+  //   }
+  //   setProcessing(false);
+  // };
 
   useEffect(() => {
     checkAccountStatus();

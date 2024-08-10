@@ -1,4 +1,8 @@
-import { AcademicCapIcon, StarIcon } from "@heroicons/react/24/solid";
+import {
+  AcademicCapIcon,
+  Squares2X2Icon,
+  StarIcon,
+} from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
 import { metaAiken } from "./links-aiken";
@@ -10,6 +14,12 @@ import { metaYaci } from "./links-yaci";
 export const linksGetStarted: MenuItem[] = [
   metaGuides,
   // metaFrameworks,
+  {
+    link: `https://github.com/MeshJS/examples`,
+    title: "Examples",
+    desc: "Explore our examples to get started",
+    icon: Squares2X2Icon,
+  },
   {
     link: `https://pbl.meshjs.dev/`,
     title: "Project Based Learning",

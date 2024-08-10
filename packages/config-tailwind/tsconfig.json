@@ -1,4 +1,0 @@
-{
-  "extends": "@meshsdk/typescript-config/base.json",
-  "exclude": ["dist", "node_modules"]
-}

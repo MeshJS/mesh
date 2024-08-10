@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
@@ -38,14 +37,7 @@ function Left() {
         UTxO outputs, which allows us to use the UTxO to hold information which
         we can then use without having to spend it (as with normal UTxOs). You
         can learn more from{" "}
-        <a
-          href="https://cips.cardano.org/cips/cip32/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CIP-32
-        </a>
-        .
+        <Link href="https://cips.cardano.org/cips/cip32/">CIP-32</Link>.
       </p>
       <p>Here's an example of creating a UTxO with inline datum:</p>
       <Codeblock data={codeExample} />

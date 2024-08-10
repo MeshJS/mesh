@@ -20,6 +20,11 @@ export interface IMeshTxSerializer {
   serializeData(data: BuilderData): string;
   serializeAddress(address: DeserializedAddress, networkId?: 0 | 1): string;
   serializePoolId(hash: string): string;
+  serializeRewardAddress(
+    stakeKeyHash: string,
+    isScriptHash?: boolean,
+    network_id?: 0 | 1,
+  ): string;
 }
 export interface IResolver {
   keys: {

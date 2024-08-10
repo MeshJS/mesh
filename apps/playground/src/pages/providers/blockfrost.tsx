@@ -1,9 +1,9 @@
 import type { NextPage } from "next";
-import Link from "next/link";
 
 import { BlockfrostProvider } from "@meshsdk/core";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
@@ -54,15 +54,9 @@ const ReactPage: NextPage = () => {
           description={metaBlockfrost.desc}
         >
           <p>
-            <Link
-              href="https://blockfrost.io/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Blockfrost
-            </Link>{" "}
-            provides restful APIs which allows your app to access information
-            stored on the blockchain.
+            <Link href="https://blockfrost.io/">Blockfrost</Link> provides
+            restful APIs which allows your app to access information stored on
+            the blockchain.
           </p>
 
           <p>Get started:</p>

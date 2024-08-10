@@ -44,7 +44,7 @@ function Right() {
     <LiveCodeDemo
       title="Get Unused Addresses"
       subtitle="Get addresses that are unused"
-      code={`const unusedAddresses = await wallet.getUnusedAddresses();`}
+      code={`await wallet.getUnusedAddresses();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

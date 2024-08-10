@@ -1,14 +1,10 @@
 import { useState } from "react";
 
-import {
-  deserializePoolId,
-  resolveStakeKeyHash,
-  Transaction,
-} from "@meshsdk/core";
-import { CSLSerializer } from "@meshsdk/core-csl";
+import { deserializePoolId } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -28,45 +24,30 @@ export default function StakingRegister() {
 }
 
 function Left() {
-  let codeSnippet = `import { Transaction } from '@meshsdk/core';\n\n`;
+  let codeSnippet = `txBuilder\n`;
+  codeSnippet += `  .registerStakeCertificate(rewardAddress)\n`;
+  codeSnippet += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;
 
-  codeSnippet += `const addresses = await wallet.getRewardAddresses();\n`;
-  codeSnippet += `const rewardAddress = addresses[0];\n\n`;
-
-  codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
-  codeSnippet += `tx.registerStake(rewardAddress);\n`;
-  codeSnippet += `tx.delegateStake(rewardAddress, '${demoPool}');\n\n`;
-
-  codeSnippet += `const unsignedTx = await tx.build();\n`;
-  codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  codeSnippet += `const txHash = await wallet.submitTx(signedTx);`;
-
-  let code2 = ``;
-  code2 += `{\n`;
-  code2 += `  "active": true,\n`;
-  code2 += `  "poolId": "${demoPool}",\n`;
-  code2 += `  "balance": "389290551",\n`;
-  code2 += `  "rewards": "0",\n`;
-  code2 += `  "withdrawals": "0"\n`;
-  code2 += `}\n`;
+  let utilsSnippet = ``;
+  utilsSnippet += `const poolIdHash = deserializePoolId(\n`;
+  utilsSnippet += `  "pool107k26e3wrqxwghju2py40ngngx2qcu48ppeg7lk0cm35jl2aenx",\n`;
+  utilsSnippet += `);\n`;
 
   return (
     <>
       <p>
-        New address must "register" before they can delegate to stakepools. To
-        check if a reward address has been register, use{" "}
-        <a href="https://meshjs.dev/providers/blockfrost#fetchAccountInfo">
-          blockchainProvider.fetchAccountInfo(rewardAddress)
-        </a>
-        . For example this account information, <code>active</code> shows the
-        address is registered.
-      </p>
-      <Codeblock data={code2} />
-      <p>
-        You can chain with <code>delegateStake()</code> to register and delegate
-        to a stake pool.
+        Same as{" "}
+        <Link href="apis/transaction/staking#register-stake">Transaction</Link>,
+        with <code>MeshTxBuilder</code> you have to register a stake address
+        before delegate to stakepools. Here's the 2 APIs you need:
       </p>
       <Codeblock data={codeSnippet} />
+
+      <p>
+        Since we need to provide the deserilized hash of pool id, we can use the
+        following util to get it:
+      </p>
+      <Codeblock data={utilsSnippet} />
     </>
   );
 }
@@ -80,7 +61,6 @@ function Right() {
     const address = await wallet.getChangeAddress();
     const addresses = await wallet.getRewardAddresses();
     const rewardAddress = addresses[0]!;
-    const stakeKeyHash = resolveStakeKeyHash(rewardAddress);
     const poolIdHash = deserializePoolId(userInput);
 
     if (rewardAddress === undefined) {
@@ -90,8 +70,8 @@ function Right() {
     const txBuilder = getTxBuilder();
 
     const unsignedTx = await txBuilder
-      .registerStakeCertificate(stakeKeyHash)
-      .delegateStakeCertificate(stakeKeyHash, poolIdHash)
+      .registerStakeCertificate(rewardAddress)
+      .delegateStakeCertificate(rewardAddress, poolIdHash)
       .selectUtxosFrom(utxos)
       .changeAddress(address)
       .complete();
@@ -102,14 +82,25 @@ function Right() {
   }
 
   let code = ``;
+  code += `const utxos = await wallet.getUtxos();\n`;
+  code += `const address = await wallet.getChangeAddress();\n`;
   code += `const addresses = await wallet.getRewardAddresses();\n`;
-  code += `const rewardAddress = addresses[0];\n`;
+  code += `const rewardAddress = addresses[0]!;\n`;
+  code += `const poolIdHash = deserializePoolId("${userInput}");\n`;
   code += `\n`;
-  code += `const tx = new Transaction({ initiator: wallet });\n`;
-  code += `tx.registerStake(rewardAddress);\n`;
-  code += `tx.delegateStake(rewardAddress, '${userInput}');\n`;
+  code += `if (rewardAddress === undefined) {\n`;
+  code += `  throw "No address found";\n`;
+  code += `}\n`;
   code += `\n`;
-  code += `const unsignedTx = await tx.build();\n`;
+  code += `const txBuilder = getTxBuilder();\n`;
+  code += `\n`;
+  code += `const unsignedTx = await txBuilder\n`;
+  code += `  .registerStakeCertificate(rewardAddress)\n`;
+  code += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .changeAddress(address)\n`;
+  code += `  .complete();\n`;
+  code += `\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 

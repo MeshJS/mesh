@@ -64,7 +64,7 @@ function Right() {
     <LiveCodeDemo
       title="Get Balance"
       subtitle="Get all assets in the connected wallet"
-      code={`const balance = await wallet.getBalance();`}
+      code={`await wallet.getBalance();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

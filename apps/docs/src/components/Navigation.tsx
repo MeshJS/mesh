@@ -16,7 +16,6 @@ import getInterfaces from "@/data/get-interfaces";
 import getFunctions from "@/data/get-functions";
 import { pageRoutes } from "@/data/page-routes";
 import { useRouteContext } from "@/contexts/route-context";
-import { log } from "console";
 
 interface NavGroup {
   title: string;

@@ -1,3 +1,3 @@
 module.exports = {
-  extends: ["@meshsdk/eslint-config/react.js"],
+  extends: ["@meshsdk/configs/eslint/react.js"],
 };

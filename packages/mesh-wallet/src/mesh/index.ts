@@ -13,18 +13,17 @@ import {
   resolveFingerprint,
   toUTF8,
 } from "@meshsdk/common";
+import { resolvePrivateKey } from "@meshsdk/core-csl"; // todo replace this with cst when its implemented
 import {
   Address,
   buildBaseAddress,
   buildEnterpriseAddress,
   buildRewardAddress,
   CardanoSDKSerializer,
-  deserializeAddress,
   deserializeTx,
   Ed25519KeyHashHex,
   fromTxUnspentOutput,
   Hash28ByteBase16,
-  resolvePrivateKey,
   toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,
@@ -132,10 +131,8 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
         this.getAddressesFromWallet(this._wallet);
         break;
       // case "address":
-      //   console.log(4);
       //   this._wallet = null;
       //   this.buildAddressFromBech32Address(options.key.address);
-      //   console.log(5);
       //   break;
     }
 
@@ -194,6 +191,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * If this cannot be attained, an error message with an explanation of the blocking problem shall be returned. NOTE: wallets are free to return UTXOs that add up to a greater total ADA value than requested in the amount parameter, but wallets must never return any result where UTXOs would sum up to a smaller total ADA value, instead in a case like that an error message must be returned.
    *
+   * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns a list of UTXOs
    */
 
@@ -211,6 +209,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * This is used in transaction building.
    *
+   * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns a list of UTXOs
    */
   async getCollateralUnspentOutput(
@@ -298,6 +297,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * This is used in transaction building.
    *
+   * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns a list of UTXOs
    */
   async getUsedUTxOs(
@@ -309,6 +309,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   /**
    * Return a list of all UTXOs (unspent transaction outputs) controlled by the wallet.
    *
+   * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns a list of UTXOs
    */
   async getUtxos(addressType?: GetAddressType): Promise<UTxO[]> {
@@ -317,28 +318,29 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * This endpoint utilizes the [CIP-8 - Message Signing](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030) to sign arbitrary data, to verify the data was signed by the owner of the private key.
+   * This endpoint utilizes the [CIP-8 - Message Signing](https://cips.cardano.org/cips/cip8/) to sign arbitrary data, to verify the data was signed by the owner of the private key.
    *
-   * Here, we get the first wallet's address with wallet.getUsedAddresses(), alternativelly you can use reward addresses (getRewardAddresses()) too. It's really up to you as the developer which address you want to use in your application.
-   *
-   * @param address
-   * @param payload
+   * @param payload - the payload to sign
+   * @param address - the address to use for signing (optional)
    * @returns a signature
    */
-  signData(payload: string): DataSignature {
+  signData(payload: string, address?: string): DataSignature {
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
       );
     }
-    return this._wallet.signData(this.getChangeAddress(), payload);
+    if (address === undefined) {
+      address = this.getChangeAddress()!;
+    }
+    return this._wallet.signData(address, payload);
   }
 
   /**
    * Requests user to sign the provided transaction (tx). The wallet should ask the user for permission, and if given, try to sign the supplied body and return a signed transaction. partialSign should be true if the transaction provided requires multiple signatures.
    *
-   * @param unsignedTx
-   * @param partialSign
+   * @param unsignedTx - a transaction in CBOR
+   * @param partialSign - if the transaction is partially signed (default: false)
    * @returns a signed transaction in CBOR
    */
   signTx(unsignedTx: string, partialSign = false): string {
@@ -391,7 +393,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * As wallets should already have this ability to submit transaction, we allow dApps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction ID for the dApp to track. The wallet can return error messages or failure if there was an error in sending it.
    *
-   * @param tx
+   * @param tx - a signed transaction in CBOR
    * @returns a transaction hash
    */
   async submitTx(tx: string): Promise<string> {
@@ -408,6 +410,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * This is used in transaction building.
    *
+   * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns an Address object
    */
   getUsedAddress(addressType?: GetAddressType): Address {
@@ -423,6 +426,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * This is used in transaction building.
    *
+   * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns a list of UTXOs
    */
   async getUnspentOutputs(

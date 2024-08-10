@@ -1,7 +1,7 @@
 import { useState } from "react";
-import Link from "next/link";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -29,11 +29,7 @@ function Left() {
     <>
       <p>
         This endpoint utilizes the{" "}
-        <Link
-          href="https://github.com/cardano-foundation/CIPs/tree/master/CIP-0030"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <Link href="https://cips.cardano.org/cip/CIP-8">
           CIP-8 - Message Signing
         </Link>{" "}
         to sign arbitrary data, to verify the data was signed by the owner of
