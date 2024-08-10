@@ -19,10 +19,10 @@ function Left() {
   let code = ``;
   code += `{\n`;
   code += `  "pubStakeKeys": [\n`;
-  code += `    "d7eb3004c1464764660e6cb2f9a870f23c8c2f11b77ccc40f89c1a4b8a2eb0a3"\n`;
+  code += `    "d7eb3004c14647646...40f89c1a4b8a2eb0a3"\n`;
   code += `  ],\n`;
   code += `  "pubStakeKeyHashes": [\n`;
-  code += `    "8cfb40854d41392b624b678012443d61015f5575627a467c450396c9"\n`;
+  code += `    "8cfb40854d41392b..5575627a467c450396c9"\n`;
   code += `  ]\n`;
   code += `}\n`;
 

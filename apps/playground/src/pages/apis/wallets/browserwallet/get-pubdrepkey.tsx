@@ -17,15 +17,18 @@ export default function BrowserWalletGetPubdrepkey() {
 
 function Left() {
   let codeSample = ``;
-  codeSample += `[\n`;
-  codeSample += `  {\n`;
-  codeSample += `    "cip": 30\n`;
-  codeSample += `  }\n`;
-  codeSample += `]\n`;
+  codeSample += `{\n`;
+  codeSample += `  "pubDRepKey": "6984e406dd81...39e43d798fe1a89ab",\n`;
+  codeSample += `  "dRepIDHash": "9f7f4b78...df83bd227e943e9808450",\n`;
+  codeSample += `  "dRepIDBech32": "drep1vz0h7jmc...0axqgg5q4dls5u"\n`;
+  codeSample += `}\n`;
 
   return (
     <>
-      <p>Get a list of CIPs that are supported by the connected wallet.</p>
+      <p>
+        Get the key, hash, and bech32 address of the DRep ID. The DRep ID is a
+        unique identifier for the user&apos;s wallet.
+      </p>
       <p>Example:</p>
       <Codeblock data={codeSample} />
     </>
