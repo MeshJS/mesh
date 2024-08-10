@@ -39,7 +39,7 @@ function Right() {
     <LiveCodeDemo
       title="Get Network ID"
       subtitle="Get currently connected network"
-      code={`const networkId = await wallet.getNetworkId();`}
+      code={`await wallet.getNetworkId();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

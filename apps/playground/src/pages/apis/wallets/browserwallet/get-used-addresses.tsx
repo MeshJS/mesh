@@ -43,7 +43,7 @@ function Right() {
     <LiveCodeDemo
       title="Get Used Addresses"
       subtitle="Get addresses that are used"
-      code={`const usedAddresses = await wallet.getUsedAddresses();`}
+      code={`await wallet.getUsedAddresses();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

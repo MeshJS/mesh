@@ -12,6 +12,7 @@ interface ButtonProps {
   metamask?: {
     network: string;
   };
+  extensions?: number[];
 }
 
 export const CardanoWallet = ({
@@ -21,6 +22,7 @@ export const CardanoWallet = ({
   metamask = {
     network: "preprod",
   },
+  extensions = [],
 }: ButtonProps) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [hideMenuList, setHideMenuList] = useState(true);
@@ -68,7 +70,7 @@ export const CardanoWallet = ({
                 icon={wallet.icon}
                 label={wallet.name}
                 action={() => {
-                  connect(wallet.id);
+                  connect(wallet.id, extensions);
                   setHideMenuList(!hideMenuList);
                 }}
                 active={name === wallet.id}

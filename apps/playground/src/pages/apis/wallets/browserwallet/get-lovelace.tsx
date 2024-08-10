@@ -32,7 +32,7 @@ function Right() {
     <LiveCodeDemo
       title="Get Lovelace"
       subtitle="Get amount of ADA in connected wallet"
-      code={`const lovelace = await wallet.getLovelace();`}
+      code={`await wallet.getLovelace();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={
