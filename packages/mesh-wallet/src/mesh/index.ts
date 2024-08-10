@@ -331,7 +331,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
       );
     }
     if (address === undefined) {
-      address = this.getChangeAddress()[0]!;
+      address = this.getChangeAddress()!;
     }
     return this._wallet.signData(address, payload);
   }
