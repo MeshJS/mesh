@@ -14,7 +14,8 @@ export default function Markdown({ children }: { children: React.ReactNode }) {
     return (
       <MDXProvider
         components={{
-          pre: (props) => <Codeblock data={props.children} />,
+          //@ts-ignore
+          pre: (props) => <Codeblock data={props.children.props.children} />,
         }}
       >
         {children}

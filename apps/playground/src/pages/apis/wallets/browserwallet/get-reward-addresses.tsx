@@ -44,7 +44,7 @@ function Right() {
     <LiveCodeDemo
       title="Get Reward Addresses"
       subtitle="Get stake addresses"
-      code={`const rewardAddresses = await wallet.getRewardAddresses();`}
+      code={`await wallet.getRewardAddresses();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

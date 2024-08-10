@@ -81,7 +81,7 @@ function Right() {
 
   let codeSnippet = "";
   codeSnippet += `import { BrowserWallet } from '@meshsdk/core';\n\n`;
-  codeSnippet += `const wallets = await BrowserWallet.getAvailableWallets()`;
+  codeSnippet += `await BrowserWallet.getAvailableWallets()`;
 
   return (
     <LiveCodeDemo

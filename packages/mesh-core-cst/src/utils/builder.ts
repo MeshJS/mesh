@@ -1,17 +1,23 @@
+import { blake2b } from "@cardano-sdk/crypto";
+import { HexBlob } from "@cardano-sdk/util";
 import { pbkdf2Sync } from "pbkdf2";
 
 import { HARDENED_KEY_START } from "@meshsdk/common";
 
 import { StricaBip32PrivateKey, StricaPrivateKey } from "../";
 import {
+  AddressType,
   BaseAddress,
   Bip32PrivateKey,
   CredentialType,
+  DRepID,
   Ed25519KeyHash,
   Ed25519KeyHashHex,
+  Ed25519PublicKeyHex,
   EnterpriseAddress,
   Hash28ByteBase16,
   NativeScript,
+  NetworkId,
   RewardAddress,
   ScriptPubkey,
 } from "../types";
@@ -130,4 +136,25 @@ export const buildKeys = (
 export const buildScriptPubkey = (keyHash: Ed25519KeyHash): NativeScript => {
   const scriptPubkey = new ScriptPubkey(Ed25519KeyHashHex(keyHash.hex()));
   return NativeScript.newScriptPubkey(scriptPubkey);
+};
+
+export const buildDRepID = (
+  dRepKey: Ed25519PublicKeyHex,
+  networkId: NetworkId = NetworkId.Testnet,
+  addressType: AddressType = AddressType.EnterpriseKey,
+) => {
+  const dRepKeyBytes = Buffer.from(dRepKey, "hex");
+  const dRepIdHex = blake2b(28).update(dRepKeyBytes).digest("hex");
+  const paymentAddress = EnterpriseAddress.packParts({
+    networkId,
+    paymentPart: {
+      hash: Hash28ByteBase16(dRepIdHex),
+      type: CredentialType.KeyHash,
+    },
+    type: addressType,
+  });
+  return HexBlob.toTypedBech32<DRepID>(
+    "drep",
+    HexBlob.fromBytes(paymentAddress),
+  );
 };

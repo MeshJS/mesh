@@ -10,7 +10,7 @@ export default function Sidebar({
     <div className="mb-6 mr-6 hidden lg:w-72 xl:block">
       <div className="sticky top-24">
         <aside>
-          <nav className="overflow-y-auto rounded-lg border border-gray-200 p-6 font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <nav className="overflow-y-auto rounded-lg border border-gray-200 p-6 font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400 h-96">
             <ul className="space-y-4">
               {sidebarItems.map((item, i) => {
                 return (

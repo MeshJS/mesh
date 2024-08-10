@@ -1,8 +1,10 @@
+import { BrowserWallet } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import ConnectBrowserWallet from "~/components/cardano/connect-browser-wallet";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import Codeblock from "~/components/text/codeblock";
 
 export default function BrowserWalletConnectWallet() {
   return (
@@ -30,6 +32,11 @@ function Left() {
         available wallets, then provide the wallet <code>name</code> for which
         wallet the user would like to connect with.
       </p>
+      <p>
+        You can also provide an <code>extensions</code> object to enable
+        specific CIPs. For example, to enable CIP95, you would pass:
+      </p>
+      <Codeblock data={`await BrowserWallet.enable('eternl', [95]);`} />
     </>
   );
 }

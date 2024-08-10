@@ -5,7 +5,10 @@ export type Cardano = {
     name: string;
     icon: string;
     apiVersion: string;
-    enable: () => Promise<WalletInstance>;
+    enable: (extensions?: {
+      extensions: { cip: number }[];
+    }) => Promise<WalletInstance>;
+    supportedExtensions?: { cip: number }[];
   };
 };
 
@@ -18,6 +21,7 @@ export type WalletInstance = {
   experimental: ExperimentalFeatures;
   getBalance(): Promise<string>;
   getChangeAddress(): Promise<string>;
+  getExtensions(): Promise<{ cip: number }[]>;
   getNetworkId(): Promise<number>;
   getRewardAddresses(): Promise<string[]>;
   getUnusedAddresses(): Promise<string[]>;
@@ -28,6 +32,12 @@ export type WalletInstance = {
   signTxs?(txs: TransactionSignatureRequest[]): Promise<string[]>; // Overloading interface as currently no standard
   signTxs?(txs: string[], partialSign: boolean): Promise<string[]>; // Overloading interface as currently no standard
   submitTx(tx: string): Promise<string>;
+  cip95?: WalletInstanceCip95;
+};
+
+export type WalletInstanceCip95 = {
+  getPubDRepKey(): Promise<string>;
+  getRegisteredPubStakeKeys(): Promise<string[]>;
 };
 
 type ExperimentalFeatures = {

@@ -4,11 +4,11 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
-export default function BrowserWalletGetUnusedAddresses() {
+export default function BrowserWalletGetPubdrepkey() {
   return (
     <TwoColumnsScroll
-      sidebarTo="getUnusedAddresses"
-      title="Get Unused Addresses"
+      sidebarTo="getPubdrepkey"
+      title="Get DRep ID Key"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -16,19 +16,18 @@ export default function BrowserWalletGetUnusedAddresses() {
 }
 
 function Left() {
-  let example = ``;
-  example += `[\n`;
-  example += `  "addr_test1qzk9x08mtre4jp8f7j8zu8802...r8c3grjmys7fl22c",\n`;
-  example += `  "addr_test1qrmf35xyw2petfr0e0p4at0r7...8sc3grjmysm73dk8",\n`;
-  example += `  "addr_test1qq6ts58hdaasd2q78fdjj0arm...i8c3grjmys85k8mf",\n`;
-  example += `]\n`;
+  let codeSample = ``;
+  codeSample += `[\n`;
+  codeSample += `  {\n`;
+  codeSample += `    "cip": 30\n`;
+  codeSample += `  }\n`;
+  codeSample += `]\n`;
+
   return (
     <>
-      <p>
-        Returns a list of unused addresses controlled by the wallet. For
-        example:
-      </p>
-      <Codeblock data={example} />
+      <p>Get a list of CIPs that are supported by the connected wallet.</p>
+      <p>Example:</p>
+      <Codeblock data={codeSample} />
     </>
   );
 }
@@ -37,14 +36,14 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    let results = await wallet.getUnusedAddresses();
+    const results = await wallet.getPubDRepKey();
     return results;
   }
   return (
     <LiveCodeDemo
-      title="Get Unused Addresses"
-      subtitle="Get addresses that are unused"
-      code={`await wallet.getUnusedAddresses();`}
+      title="Get DRep ID Key"
+      subtitle="Get the key, hash, and bech32 address of the DRep ID"
+      code={`await wallet.getPubDRepKey();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

@@ -15,11 +15,14 @@ import {
 import {
   Address,
   addressToBech32,
+  buildDRepID,
   CardanoSDKUtil,
   deserializeAddress,
   deserializeTx,
   deserializeTxUnspentOutput,
   deserializeValue,
+  Ed25519PublicKey,
+  Ed25519PublicKeyHex,
   fromTxUnspentOutput,
   fromValue,
   Serialization,
@@ -111,11 +114,18 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * Query BrowserWallet.getInstalledWallets() to get a list of available wallets, then provide the wallet name for which wallet the user would like to connect with.
    *
    * @param walletName - the name of the wallet to enable (e.g. "eternl", "begin", "nufiSnap")
+   * @param extensions - optional, a list of CIPs that the wallet should support
    * @returns WalletInstance
    */
-  static async enable(walletName: string): Promise<BrowserWallet> {
+  static async enable(
+    walletName: string,
+    extensions: number[] = [],
+  ): Promise<BrowserWallet> {
     try {
-      const walletInstance = await BrowserWallet.resolveInstance(walletName);
+      const walletInstance = await BrowserWallet.resolveInstance(
+        walletName,
+        extensions,
+      );
 
       if (walletInstance !== undefined)
         return new BrowserWallet(walletInstance, walletName);
@@ -163,6 +173,21 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   async getCollateral(): Promise<UTxO[]> {
     const deserializedCollateral = await this.getCollateralUnspentOutput();
     return deserializedCollateral.map((dc) => fromTxUnspentOutput(dc));
+  }
+
+  /**
+   * Return a list of supported CIPs of the wallet.
+   *
+   * @returns a list of CIPs
+   */
+  async getExtensions(): Promise<number[]> {
+    try {
+      const _extensions: { cip: number }[] =
+        await this._walletInstance.getExtensions();
+      return _extensions.map((e) => e.cip);
+    } catch (e) {
+      return [];
+    }
   }
 
   /**
@@ -233,7 +258,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
   /**
    * This endpoint utilizes the [CIP-8 - Message Signing](https://cips.cardano.org/cips/cip8/) to sign arbitrary data, to verify the data was signed by the owner of the private key.
-   * 
+   *
    * @param payload - the data to be signed
    * @param address - optional, if not provided, the first staking address will be used
    * @returns a signature
@@ -422,12 +447,84 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     ).filter((p) => p !== "lovelace");
   }
 
-  private static resolveInstance(walletName: string) {
+  async getPubDRepKey(): Promise<
+    | {
+        pubDRepKey: string;
+        dRepIDHash: string;
+        dRepIDBech32: string;
+      }
+    | undefined
+  > {
+    try {
+      if (this._walletInstance.cip95 === undefined) return undefined;
+
+      const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
+
+      const dRepKeyHex = Ed25519PublicKeyHex(dRepKey);
+      const dRepID = Ed25519PublicKey.fromHex(dRepKeyHex);
+      const dRepIDHex = (await dRepID.hash()).hex();
+
+      const networkId = await this.getNetworkId();
+      const dRepId = buildDRepID(dRepKeyHex, networkId);
+
+      return {
+        pubDRepKey: dRepKey,
+        dRepIDHash: dRepIDHex,
+        dRepIDBech32: dRepId, // todo to check
+      };
+    } catch (e) {
+      console.log(e);
+      return undefined;
+    }
+  }
+
+  async getRegisteredPubStakeKeys(): Promise<
+    | {
+        pubStakeKeys: string[];
+        pubStakeKeyHashes: string[];
+      }
+    | undefined
+  > {
+    try {
+      if (this._walletInstance.cip95 === undefined) return undefined;
+
+      const pubStakeKeys =
+        await this._walletInstance.cip95.getRegisteredPubStakeKeys();
+
+      const pubStakeKeyHashes = await Promise.all(
+        pubStakeKeys.map(async (pubStakeKey) => {
+          const pubStakeKeyHex = Ed25519PublicKeyHex(pubStakeKey);
+          const pubStakeKeyPubKey = Ed25519PublicKey.fromHex(pubStakeKeyHex);
+          const pubStakeKeyHash = (await pubStakeKeyPubKey.hash()).hex();
+          return pubStakeKeyHash.toString();
+        }),
+      );
+
+      return {
+        pubStakeKeys: pubStakeKeys,
+        pubStakeKeyHashes: pubStakeKeyHashes,
+      };
+    } catch (e) {
+      console.log(e);
+      return undefined;
+    }
+  }
+
+  private static resolveInstance(
+    walletName: string,
+    extensions: number[] = [],
+  ) {
     if (window.cardano === undefined) return undefined;
     if (window.cardano[walletName] === undefined) return undefined;
 
     const wallet = window.cardano[walletName];
-    return wallet?.enable();
+
+    if (extensions.length > 0) {
+      const _extensions = extensions.map((e) => ({ cip: e }));
+      return wallet.enable({ extensions: _extensions });
+    } else {
+      return wallet?.enable();
+    }
   }
 
   static addBrowserWitnesses(unsignedTx: string, witnesses: string) {
@@ -456,5 +553,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     );
 
     return new Transaction(tx.body(), witnessSet, tx.auxiliaryData()).toCbor();
+  }
+
+  static getSupportedExtensions(wallet: string) {
+    const _supportedExtensions = window?.cardano?.[wallet]?.supportedExtensions;
+    if (_supportedExtensions) return _supportedExtensions;
+    else return [];
   }
 }
