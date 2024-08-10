@@ -3,22 +3,40 @@ import { customAlphabet } from "nanoid";
 import { DataSignature, stringToHex } from "@meshsdk/common";
 
 import {
+  getCoseKeyFromPublicKey,
   getPublicKeyFromCoseKey,
+  Signer,
   StricaCoseSign1,
-  StricaPrivateKey,
 } from "../";
 
-export const signData = (
-  data: string,
-  privateKey: StricaPrivateKey,
-): DataSignature => {
+export const signData = (data: string, signer: Signer): DataSignature => {
   const payload = Buffer.from(data, "hex");
-  const signature = privateKey.sign(payload).toString("hex");
-  const publicKey = privateKey.toPublicKey().toBytes().toString("hex");
+  const publicKey = signer.key.toPublicKey().toBytes();
+
+  const protectedMap = new Map();
+  // Set protected headers as per CIP08
+  // Set Algorthm used by Cardano keys
+  protectedMap.set(1, -8);
+  // Set PublicKey
+  protectedMap.set(4, publicKey);
+  // Set Address
+  protectedMap.set("address", Buffer.from(signer.address.toBytes(), "hex"));
+
+  const coseSign1Builder = new StricaCoseSign1({
+    protectedMap,
+    unProtectedMap: new Map(),
+    payload: payload,
+  });
+
+  const signature = signer.key.sign(coseSign1Builder.createSigStructure());
+
+  const coseSignature = coseSign1Builder
+    .buildMessage(signature)
+    .toString("hex");
 
   return {
-    key: publicKey,
-    signature: signature,
+    key: getCoseKeyFromPublicKey(publicKey.toString("hex")).toString("hex"),
+    signature: coseSignature,
   };
 };
 
@@ -33,8 +51,6 @@ export const checkSignature = (
   }
 
   if (Buffer.from(data, "hex").compare(builder.getPayload()!) !== 0) {
-    console.log(Buffer.from(data, "hex"));
-    console.log(builder.getPayload()!);
     return false;
   }
 

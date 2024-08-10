@@ -1,7 +1,7 @@
 import { checkSignature } from "@meshsdk/core-cst";
 
 describe("MessageSigning", () => {
-  describe("checkSignature", () => {
+  it("checkSignature", () => {
     const config = {
       wallet_address:
         "addr_test1qqmrzjhtanauj20wg37uk58adyrqfm82a9qr52vdnv0e54r42v0mu8ngky0f5yxmh3wl3z0da2fryk59kavth0u8xhvsufgmc8",
@@ -21,7 +21,7 @@ describe("MessageSigning", () => {
 
     // expect(result).toBe(true);
   });
-  describe("checkSignature", () => {
+  it("checkSignature2", () => {
     const data =
       "stake_test1up64x8a7re5tz856zrdmch0c38k74y3jt2zmwk9mh7rntkgs6zxjp";
     const dataSignature = {

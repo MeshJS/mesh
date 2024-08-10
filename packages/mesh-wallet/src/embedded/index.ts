@@ -225,7 +225,10 @@ export class EmbeddedWallet extends WalletStaticMethods {
           `[EmbeddedWallet] Address: ${address} doesn't belong to this account.`,
         );
 
-      return signData(payload, account.paymentKey);
+      return signData(payload, {
+        address: Address.fromBech32(address),
+        key: account.paymentKey,
+      });
     } catch (error) {
       throw new Error(
         `[EmbeddedWallet] An error occurred during signData: ${error}.`,

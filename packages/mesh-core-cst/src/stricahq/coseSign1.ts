@@ -165,4 +165,13 @@ const getPublicKeyFromCoseKey = (cbor: string): Buffer => {
   throw Error("Public key not found");
 };
 
-export { CoseSign1, getPublicKeyFromCoseKey };
+const getCoseKeyFromPublicKey = (cbor: string): Buffer => {
+  const coseKeyMap = new Map();
+  coseKeyMap.set(1, 1);
+  coseKeyMap.set(3, -8);
+  coseKeyMap.set(6, -2);
+  coseKeyMap.set(-2, Buffer.from(cbor, "hex"));
+  return Encoder.encode(coseKeyMap);
+};
+
+export { CoseSign1, getPublicKeyFromCoseKey, getCoseKeyFromPublicKey };

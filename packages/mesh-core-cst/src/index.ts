@@ -1,6 +1,7 @@
 import { Cardano, Serialization } from "@cardano-sdk/core";
 
 import {
+  getCoseKeyFromPublicKey,
   getPublicKeyFromCoseKey,
   StricaBip32PrivateKey,
   StricaBip32PublicKey,
@@ -28,4 +29,5 @@ export {
   StricaBip32PublicKey,
   StricaCoseSign1,
   getPublicKeyFromCoseKey,
+  getCoseKeyFromPublicKey,
 };

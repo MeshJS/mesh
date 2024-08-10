@@ -16,7 +16,7 @@ if(!connected) return;
 
 setLoading(true);
 const nonce = generateNonce('Sign to login in to Mesh: ');
-const signature = await wallet.signData(nonce);
+const signature = await wallet.signData("meshjs's core-cst is pure typescript while core-csl is wasm rust.");
 console.log(2, signature)
 
 const result = checkSignature(nonce, signature);
