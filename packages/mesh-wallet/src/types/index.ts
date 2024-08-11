@@ -38,6 +38,7 @@ export type WalletInstance = {
 export type WalletInstanceCip95 = {
   getPubDRepKey(): Promise<string>;
   getRegisteredPubStakeKeys(): Promise<string[]>;
+  getUnregisteredPubStakeKeys(): Promise<string[]>;
 };
 
 type ExperimentalFeatures = {

@@ -21,6 +21,7 @@ import {
   deserializeTx,
   deserializeTxUnspentOutput,
   deserializeValue,
+  Ed25519KeyHashHex,
   Ed25519PublicKey,
   Ed25519PublicKeyHex,
   fromTxUnspentOutput,
@@ -459,10 +460,8 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       if (this._walletInstance.cip95 === undefined) return undefined;
 
       const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
-
-      const dRepKeyHex = Ed25519PublicKeyHex(dRepKey);
-      const dRepID = Ed25519PublicKey.fromHex(dRepKeyHex);
-      const dRepIDHex = (await dRepID.hash()).hex();
+      const { dRepKeyHex, dRepIDHex } =
+        await BrowserWallet.dRepKeyToDRepID(dRepKey);
 
       const networkId = await this.getNetworkId();
       const dRepId = buildDRepID(dRepKeyHex, networkId);
@@ -493,10 +492,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       const pubStakeKeyHashes = await Promise.all(
         pubStakeKeys.map(async (pubStakeKey) => {
-          const pubStakeKeyHex = Ed25519PublicKeyHex(pubStakeKey);
-          const pubStakeKeyPubKey = Ed25519PublicKey.fromHex(pubStakeKeyHex);
-          const pubStakeKeyHash = (await pubStakeKeyPubKey.hash()).hex();
-          return pubStakeKeyHash.toString();
+          const { dRepIDHex } =
+            await BrowserWallet.dRepKeyToDRepID(pubStakeKey);
+          return dRepIDHex;
         }),
       );
 
@@ -508,6 +506,52 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       console.log(e);
       return undefined;
     }
+  }
+
+  async getUnregisteredPubStakeKeys(): Promise<
+    | {
+        pubStakeKeys: string[];
+        pubStakeKeyHashes: string[];
+      }
+    | undefined
+  > {
+    try {
+      if (this._walletInstance.cip95 === undefined) return undefined;
+
+      const pubStakeKeys =
+        await this._walletInstance.cip95.getUnregisteredPubStakeKeys();
+
+      const pubStakeKeyHashes = await Promise.all(
+        pubStakeKeys.map(async (pubStakeKey) => {
+          const { dRepIDHex } =
+            await BrowserWallet.dRepKeyToDRepID(pubStakeKey);
+          return dRepIDHex;
+        }),
+      );
+
+      return {
+        pubStakeKeys: pubStakeKeys,
+        pubStakeKeyHashes: pubStakeKeyHashes,
+      };
+    } catch (e) {
+      console.log(e);
+      return undefined;
+    }
+  }
+
+  private static async dRepKeyToDRepID(dRepKey: string): Promise<{
+    dRepKeyHex: Ed25519PublicKeyHex;
+    dRepID: Ed25519PublicKey;
+    dRepIDHex: Ed25519KeyHashHex;
+  }> {
+    const dRepKeyHex = Ed25519PublicKeyHex(dRepKey);
+    const dRepID = Ed25519PublicKey.fromHex(dRepKeyHex);
+    const dRepIDHex = (await dRepID.hash()).hex();
+    return {
+      dRepKeyHex,
+      dRepID,
+      dRepIDHex,
+    };
   }
 
   private static resolveInstance(
