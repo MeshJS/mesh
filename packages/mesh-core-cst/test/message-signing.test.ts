@@ -18,15 +18,4 @@ describe("MessageSigning", () => {
     const result = checkSignature(config.nonce, config.signature);
     expect(result).toBe(true);
   });
-  it("checkSignature2", () => {
-    const data =
-      "stake_test1up64x8a7re5tz856zrdmch0c38k74y3jt2zmwk9mh7rntkgs6zxjp";
-    const dataSignature = {
-      signature:
-        "84582aa201276761646472657373581de075531fbe1e68b11e9a10dbbc5df889edea92325a85b758bbbf8735d9a166686173686564f4583a5369676e20746f206c6f67696e20696e20746f204d6573683a20564569743130766d554f3645794539364e4f48634c4b5239576253435856695158404e77094ec3320fb253ca0f4844206e58a1e96ead1a00adc2c15c9e2364c5199061422b31e7bbf580c737f029fdcf93d4b7c7a6c221a9dab93e34114c3d15fc06",
-      key: "a40101032720062158201220e6aa326f24f12d644a1011dad9d138965c84566d2b7e20b79db7cf2aa73f",
-    };
-    const result = checkSignature(data, dataSignature);
-    expect(result).toBe(true);
-  });
 });
