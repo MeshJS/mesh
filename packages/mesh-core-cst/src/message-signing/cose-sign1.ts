@@ -1,7 +1,7 @@
 import { Buffer } from "buffer";
-import { PublicKey } from "@stricahq/bip32ed25519";
-import { Decoder, Encoder } from "@stricahq/cbors";
 import { blake2b } from "blakejs";
+
+import { StricaDecoder, StricaEncoder, StricaPublicKey } from "../stricahq";
 
 class CoseSign1 {
   private protectedMap: Map<any, any>;
@@ -30,7 +30,7 @@ class CoseSign1 {
   }
 
   static fromCbor(cbor: string) {
-    const decoded = Decoder.decode(Buffer.from(cbor, "hex"));
+    const decoded = StricaDecoder.decode(Buffer.from(cbor, "hex"));
 
     if (!(decoded.value instanceof Array)) throw Error("Invalid CBOR");
     if (decoded.value.length !== 4) throw Error("Invalid COSE_SIGN1");
@@ -39,7 +39,7 @@ class CoseSign1 {
     // Decode and Set ProtectedMap
     const protectedSerialized = decoded.value[0];
     try {
-      protectedMap = Decoder.decode(protectedSerialized).value;
+      protectedMap = StricaDecoder.decode(protectedSerialized).value;
       if (!(protectedMap instanceof Map)) {
         throw Error();
       }
@@ -69,7 +69,7 @@ class CoseSign1 {
     let protectedSerialized = Buffer.alloc(0);
 
     if (this.protectedMap.size !== 0) {
-      protectedSerialized = Encoder.encode(this.protectedMap);
+      protectedSerialized = StricaEncoder.encode(this.protectedMap);
     }
 
     const structure = [
@@ -79,7 +79,7 @@ class CoseSign1 {
       this.payload,
     ];
 
-    return Encoder.encode(structure);
+    return StricaEncoder.encode(structure);
   }
 
   buildMessage(signature: Buffer): Buffer {
@@ -87,7 +87,7 @@ class CoseSign1 {
 
     let protectedSerialized = Buffer.alloc(0);
     if (this.protectedMap.size !== 0) {
-      protectedSerialized = Encoder.encode(this.protectedMap);
+      protectedSerialized = StricaEncoder.encode(this.protectedMap);
     }
 
     const coseSign1 = [
@@ -97,7 +97,7 @@ class CoseSign1 {
       this.signature,
     ];
 
-    return Encoder.encode(coseSign1);
+    return StricaEncoder.encode(coseSign1);
   }
 
   verifySignature({
@@ -114,7 +114,7 @@ class CoseSign1 {
     if (!publicKeyBuffer) throw Error("Public key not found");
     if (!this.signature) throw Error("Signature not found");
 
-    const publicKey = new PublicKey(publicKeyBuffer);
+    const publicKey = new StricaPublicKey(publicKeyBuffer);
 
     return publicKey.verify(
       this.signature,
@@ -155,7 +155,7 @@ class CoseSign1 {
 }
 
 const getPublicKeyFromCoseKey = (cbor: string): Buffer => {
-  const decodedCoseKey = Decoder.decode(Buffer.from(cbor, "hex"));
+  const decodedCoseKey = StricaDecoder.decode(Buffer.from(cbor, "hex"));
   const publicKeyBuffer = decodedCoseKey.value.get(-2);
 
   if (publicKeyBuffer) {
@@ -171,7 +171,7 @@ const getCoseKeyFromPublicKey = (cbor: string): Buffer => {
   coseKeyMap.set(3, -8);
   coseKeyMap.set(6, -2);
   coseKeyMap.set(-2, Buffer.from(cbor, "hex"));
-  return Encoder.encode(coseKeyMap);
+  return StricaEncoder.encode(coseKeyMap);
 };
 
 export { CoseSign1, getPublicKeyFromCoseKey, getCoseKeyFromPublicKey };
