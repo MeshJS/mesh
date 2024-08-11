@@ -13,7 +13,12 @@ import DemoResult from "~/components/sections/demo-result";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import useMeshWallet from "~/contexts/mesh-wallet";
-import { demoCLIKey, demoMnemonic, demoPrivateKey } from "~/data/cardano";
+import {
+  demoAddresses,
+  demoCLIKey,
+  demoMnemonic,
+  demoPrivateKey,
+} from "~/data/cardano";
 
 export default function MeshWalletLoadWallet() {
   const [demoMethod, setDemoMethod] = useState<number>(0);
@@ -26,12 +31,22 @@ export default function MeshWalletLoadWallet() {
     demoCLIKey.paymentSkey,
   );
   const [stakeSkey, setStakeSkey] = useState<string>(demoCLIKey.stakeSkey);
+  const [walletAddress, setWalletAddress] = useState<string>(
+    demoAddresses.testnetPayment,
+  );
 
   return (
     <TwoColumnsScroll
       sidebarTo="initWallet"
       title="Initialize wallet"
-      leftSection={Left(mnemonic, network, privatekey, paymentSkey, stakeSkey)}
+      leftSection={Left(
+        mnemonic,
+        network,
+        privatekey,
+        paymentSkey,
+        stakeSkey,
+        walletAddress,
+      )}
       rightSection={Right(
         demoMethod,
         setDemoMethod,
@@ -45,6 +60,8 @@ export default function MeshWalletLoadWallet() {
         setPaymentSkey,
         stakeSkey,
         setStakeSkey,
+        walletAddress,
+        setWalletAddress,
       )}
     />
   );
@@ -56,6 +73,7 @@ function Left(
   privatekey: string,
   paymentSkey: string,
   stakeSkey: string,
+  walletAddress: string,
 ) {
   let _mnemonic = JSON.stringify(demoMnemonic);
   try {
@@ -102,6 +120,17 @@ function Left(
   code4 += `  },\n`;
   code4 += `});\n`;
 
+  let code5 = codeCommon;
+  code5 += `const wallet = new MeshWallet({\n`;
+  code5 += `  networkId: ${network}, // 0: testnet, 1: mainnet\n`;
+  code5 += `  fetcher: blockchainProvider,\n`;
+  code5 += `  submitter: blockchainProvider,\n`;
+  code5 += `  key: {\n`;
+  code5 += `    type: 'address',\n`;
+  code5 += `    bech32: '${walletAddress}',\n`;
+  code5 += `  },\n`;
+  code5 += `});\n`;
+
   return (
     <>
       <p>You can initialize Mesh Wallet with:</p>
@@ -109,6 +138,7 @@ function Left(
         <li>mnemonic phrases</li>
         <li>private keys</li>
         <li>Cardano CLI generated keys</li>
+        <li>address (read only wallet)</li>
       </ul>
 
       <p>
@@ -151,6 +181,15 @@ function Left(
         optional, but without it, you cannot sign staking transactions.
       </p>
       <Codeblock data={code4} />
+
+      <h3>Address</h3>
+      <p>
+        We can load wallet with address, this is useful for read-only wallets. A
+        read-only wallet can only query the blockchain, it cannot sign
+        transactions. This is useful for monitoring wallets. We can load wallet
+        with the <code>address</code> type:
+      </p>
+      <Codeblock data={code5} />
     </>
   );
 }
@@ -168,6 +207,8 @@ function Right(
   setPaymentSkey: (paymentSkey: string) => void,
   stakeSkey: string,
   setStakeSkey: (stakeSkey: string) => void,
+  walletAddress: string,
+  setWalletAddress: (address: string) => void,
 ) {
   const { setWallet } = useMeshWallet();
   const [loading, setLoading] = useState<boolean>(false);
@@ -249,6 +290,25 @@ function Right(
         setResponseError(`${error}`);
       }
     }
+    if (demoMethod == 3) {
+      try {
+        const _wallet = new MeshWallet({
+          networkId: network as 0 | 1,
+          fetcher: blockchainProvider,
+          submitter: blockchainProvider,
+          key: {
+            type: "address",
+            address: walletAddress,
+          },
+        });
+        setWallet(_wallet);
+
+        const address = _wallet.getChangeAddress();
+        setResponseAddress(address);
+      } catch (error) {
+        setResponseError(`${error}`);
+      }
+    }
 
     setLoading(false);
   }
@@ -260,7 +320,7 @@ function Right(
           items={[
             {
               key: 0,
-              label: "Mnemonic phrases",
+              label: "Mnemonic",
               onClick: () => setDemoMethod(0),
             },
             {
@@ -272,6 +332,11 @@ function Right(
               key: 2,
               label: "CLI keys",
               onClick: () => setDemoMethod(2),
+            },
+            {
+              key: 3,
+              label: "Address",
+              onClick: () => setDemoMethod(3),
             },
           ]}
           currentSelected={demoMethod}
@@ -289,6 +354,8 @@ function Right(
           setPaymentSkey={setPaymentSkey}
           stakeSkey={stakeSkey}
           setStakeSkey={setStakeSkey}
+          walletAddress={walletAddress}
+          setWalletAddress={setWalletAddress}
         />
         <RunDemoButton
           runFunction={runDemoLoadWallet}
@@ -315,6 +382,8 @@ function InputTable({
   setPaymentSkey,
   stakeSkey,
   setStakeSkey,
+  walletAddress,
+  setWalletAddress,
 }: {
   demoMethod: number;
   network: number;
@@ -327,6 +396,8 @@ function InputTable({
   setPaymentSkey: (paymentSkey: string) => void;
   stakeSkey: string;
   setStakeSkey: (stakeSkey: string) => void;
+  walletAddress: string;
+  setWalletAddress: (address: string) => void;
 }) {
   return (
     <div className="relative overflow-x-auto">
@@ -335,17 +406,17 @@ function InputTable({
           Load wallet with {demoMethod == 0 && "mnemonic phrases"}
           {demoMethod == 1 && "private keys"}
           {demoMethod == 2 && "CLI generated keys"}
+          {demoMethod == 3 && "address"}
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
             Provide the {demoMethod == 0 && "mnemonic phrases"}
             {demoMethod == 1 && "private keys"}
-            {demoMethod == 2 && "CLI generated keys"} to recover your wallet.
-            After initializing the <code>MeshWallet</code>, we will get the
-            wallet's payment address.
+            {demoMethod == 2 && "CLI generated keys"}
+            {demoMethod == 3 && "address"} to recover your wallet. After
+            initializing the <code>MeshWallet</code>, we will get the wallet's
+            payment address.
           </p>
           <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-            Note: Mesh Playground is safe if you really have to recover your
-            Mainnet wallet, but recovering your testing wallet on Mesh
-            Playground is recommended.
+            Note: Trying these demo with your Testnet wallet is recommended.
           </p>
         </caption>
         <tbody>
@@ -386,6 +457,14 @@ function InputTable({
                     label="Stake signing key (optional)"
                   />
                 </>
+              )}
+              {demoMethod == 3 && (
+                <Input
+                  value={walletAddress}
+                  onChange={(e) => setWalletAddress(e.target.value)}
+                  placeholder="Wallet address"
+                  label="Wallet address"
+                />
               )}
               <Input
                 value={network}
