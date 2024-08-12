@@ -1,4 +1,4 @@
-import strica from "@stricahq/bip32ed25519";
+import * as strica from "@stricahq/bip32ed25519";
 import hash from "hash.js";
 
 class PrivateKey extends strica.PrivateKey {

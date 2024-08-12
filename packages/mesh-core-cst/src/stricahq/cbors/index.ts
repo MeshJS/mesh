@@ -1,4 +1,4 @@
-import strica from "@stricahq/cbors";
+import * as strica from "@stricahq/cbors";
 
 const { Encoder, Decoder } = strica;
 

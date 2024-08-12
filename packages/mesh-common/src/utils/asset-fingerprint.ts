@@ -1,4 +1,4 @@
-import CIP14 from "@emurgo/cip14-js";
+import * as CIP14 from "@emurgo/cip14-js";
 
 import { toBytes } from "../data";
 

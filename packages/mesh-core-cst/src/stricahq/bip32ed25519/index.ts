@@ -1,4 +1,4 @@
-import strica from "@stricahq/bip32ed25519";
+import * as strica from "@stricahq/bip32ed25519";
 
 import { PrivateKey } from "./privateKey";
 
