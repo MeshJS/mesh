@@ -1,10 +1,8 @@
 import {
   AppWallet,
   ForgeScript,
-  Mint,
   resolveScriptHash,
   stringToHex,
-  Transaction,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
@@ -106,6 +104,7 @@ function Right() {
   codeSnippet += `    words: demoMnemonic,\n`;
   codeSnippet += `  },\n`;
   codeSnippet += `});\n`;
+  codeSnippet += `\n`;
   codeSnippet += `const forgingScript = ForgeScript.withOneSignature(\n`;
   codeSnippet += `  mintingWallet.getPaymentAddress(),\n`;
   codeSnippet += `);\n`;

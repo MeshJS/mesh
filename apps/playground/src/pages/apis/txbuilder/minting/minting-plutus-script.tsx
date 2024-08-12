@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Link from "~/components/link";
 
 import {
   mConStr0,
@@ -11,6 +10,7 @@ import {
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -72,41 +72,35 @@ function Left(userInput: string) {
         in minting or burning.
       </p>
       <h4>Script of the token</h4>
-      <div className="pl-4">
-        <p className="pl-4">
-          The actual script can be either provided by transaction builder or
-          referenced from an UTxO onchain.
-        </p>
-        <div className="pl-4">
-          <ul>
-            <li>
-              (i) Reference script{` `}
-              <Codeblock
-                data={`.mintTxInReference(txHash: string, txIndex: number)`}
-              />
-            </li>
-            <li>
-              (ii) Supplying script{` `}
-              <Codeblock data={`.mintingScript(scriptCbor: string)`} />
-            </li>
-          </ul>
-          <br />
-        </div>
+      <p>
+        The actual script can be either provided by transaction builder or
+        referenced from an UTxO onchain.
+      </p>
+      <div>
+        <ul>
+          <li>
+            (i) Reference script{` `}
+            <Codeblock
+              data={`.mintTxInReference(txHash: string, txIndex: number)`}
+            />
+          </li>
+          <li>
+            (ii) Supplying script{` `}
+            <Codeblock data={`.mintingScript(scriptCbor: string)`} />
+          </li>
+        </ul>
+        <br />
       </div>
       <h4>Redeemer of the mint</h4>
-      <div className="pl-4">
-        <p className="pl-4">
-          Redeemer can be provided in different{" "}
-          <Link href="/apis/data">data types</Link>. If your MeshTxBuilder does
-          not include an <code>evaluator</code> instance, you can also provide
-          your budget for the unlock with this redeemer endpoint
-        </p>
-        <p className="pl-4">
-          <Codeblock
-            data={`.mintRedeemerValue(redeemer: Data | object | string, type: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)`}
-          />
-        </p>
-      </div>
+      <p>
+        Redeemer can be provided in different{" "}
+        <Link href="/apis/data">data types</Link>. If your MeshTxBuilder does
+        not include an <code>evaluator</code> instance, you can also provide
+        your budget for the unlock with this redeemer endpoint
+      </p>
+      <Codeblock
+        data={`.mintRedeemerValue(redeemer: Data | object | string, type: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)`}
+      />
     </>
   );
 }

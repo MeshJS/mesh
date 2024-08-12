@@ -127,7 +127,7 @@ function Left(
   code5 += `  submitter: blockchainProvider,\n`;
   code5 += `  key: {\n`;
   code5 += `    type: 'address',\n`;
-  code5 += `    bech32: '${walletAddress}',\n`;
+  code5 += `    address: '${walletAddress}',\n`;
   code5 += `  },\n`;
   code5 += `});\n`;
 

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Link from "~/components/link";
 
 import { useWallet } from "@meshsdk/react";
 

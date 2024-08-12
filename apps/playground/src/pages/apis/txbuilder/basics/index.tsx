@@ -8,6 +8,7 @@ import { metaTxbuilderBasic } from "~/data/links-txbuilders";
 import { Intro } from "../common";
 import TxbuilderBuildWithObject from "./build-with-object";
 import TxbuilderCip20 from "./cip20";
+import TxbuilderCoinSelection from "./coin-selection";
 import TxbuilderInitializeTxbuilder from "./initialize-txbuilder";
 import TxbuilderMultisig from "./multisig";
 import TxbuilderSendValues from "./send-values";
@@ -20,6 +21,7 @@ const ReactPage: NextPage = () => {
     { label: "Send value", to: "sendValue" },
     { label: "Multi-signature", to: "multisig" },
     { label: "Build with object", to: "buildWithObject" },
+    { label: "Coin selection", to: "coinSelection" },
     { label: "Set metadata", to: "cip20" },
     { label: "Set required signers", to: "requiredSigners" },
     { label: "Set time", to: "setTime" },
@@ -66,6 +68,7 @@ const ReactPage: NextPage = () => {
         <TxbuilderMultisig />
         <TxbuilderBuildWithObject />
         {/* <TxbuilderSetMetadata /> */}
+        <TxbuilderCoinSelection />
         <TxbuilderCip20 />
         {/* <TxbuilderSetCollateral /> */}
         <TxbuilderSetRequiredSigners />
