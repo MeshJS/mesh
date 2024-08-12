@@ -99,6 +99,7 @@ export const buildKeys = (
 ): {
   paymentKey: StricaPrivateKey;
   stakeKey: StricaPrivateKey;
+  dRepKey?: StricaPrivateKey;
 } => {
   if (typeof entropy === "string") {
     const rootKey = new StricaBip32PrivateKey(Buffer.from(entropy, "hex"));
@@ -117,8 +118,12 @@ export const buildKeys = (
       .derive(2) // staking key
       .derive(0)
       .toPrivateKey();
+    const dRepKey = accountKey
+      .derive(3) // dRep Keys
+      .derive(keyIndex)
+      .toPrivateKey();
 
-    return { paymentKey, stakeKey };
+    return { paymentKey, stakeKey, dRepKey };
   } else {
     const paymentKey = new StricaPrivateKey(
       Buffer.from(entropy[0], "hex"),
@@ -142,7 +147,7 @@ export const buildDRepID = (
   dRepKey: Ed25519PublicKeyHex,
   networkId: NetworkId = NetworkId.Testnet,
   addressType: AddressType = AddressType.EnterpriseKey,
-) => {
+): DRepID => {
   const dRepKeyBytes = Buffer.from(dRepKey, "hex");
   const dRepIdHex = blake2b(28).update(dRepKeyBytes).digest("hex");
   const paymentAddress = EnterpriseAddress.packParts({

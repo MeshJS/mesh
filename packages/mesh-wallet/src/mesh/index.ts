@@ -20,6 +20,7 @@ import {
   buildEnterpriseAddress,
   buildRewardAddress,
   deserializeTx,
+  DRepID,
   Ed25519KeyHashHex,
   fromTxUnspentOutput,
   Hash28ByteBase16,
@@ -97,6 +98,9 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     baseAddressBech32?: string;
     enterpriseAddressBech32?: string;
     rewardAddressBech32?: string;
+    pubDRepKey?: string;
+    dRepIDBech32?: DRepID;
+    dRepIDHash?: Ed25519KeyHashHex;
   } = {};
 
   constructor(options: CreateMeshWalletOptions) {
@@ -530,6 +534,18 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     return txHash;
   }
 
+  getPubDRepKey(): {
+    pubDRepKey: string | undefined;
+    dRepIDBech32: string | undefined;
+    dRepIDHash: string | undefined;
+  } {
+    return {
+      pubDRepKey: this.addresses.pubDRepKey,
+      dRepIDBech32: this.addresses.dRepIDBech32,
+      dRepIDHash: this.addresses.dRepIDHash,
+    };
+  }
+
   /**
    * Generate mnemonic or private key
    *
@@ -546,7 +562,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     return mnemonic;
   }
 
-  getAddressesFromWallet(wallet: EmbeddedWallet) {
+  private getAddressesFromWallet(wallet: EmbeddedWallet) {
     const account = wallet.getAccount(this._accountIndex, this._keyIndex);
 
     this.addresses = {
@@ -556,6 +572,10 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
       baseAddressBech32: account.baseAddressBech32,
       enterpriseAddressBech32: account.enterpriseAddressBech32,
       rewardAddressBech32: account.rewardAddressBech32,
+
+      pubDRepKey: account.pubDRepKey,
+      dRepIDBech32: account.dRepIDBech32,
+      dRepIDHash: account.dRepIDHash,
     };
   }
 

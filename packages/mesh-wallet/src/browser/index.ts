@@ -448,6 +448,12 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     ).filter((p) => p !== "lovelace");
   }
 
+  /**
+   * The connected wallet account provides the account's public DRep Key, derivation as described in CIP-0105.
+   * These are used by the client to identify the user's on-chain CIP-1694 interactions, i.e. if a user has registered to be a DRep.
+   * 
+   * @returns wallet account's public DRep Key
+   */
   async getPubDRepKey(): Promise<
     | {
         pubDRepKey: string;
@@ -460,7 +466,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       if (this._walletInstance.cip95 === undefined) return undefined;
 
       const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
-      const { dRepKeyHex, dRepIDHex } =
+      const { dRepKeyHex, dRepIDHash } =
         await BrowserWallet.dRepKeyToDRepID(dRepKey);
 
       const networkId = await this.getNetworkId();
@@ -468,11 +474,11 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       return {
         pubDRepKey: dRepKey,
-        dRepIDHash: dRepIDHex,
+        dRepIDHash: dRepIDHash,
         dRepIDBech32: dRepId, // todo to check
       };
     } catch (e) {
-      console.log(e);
+      console.error(e);
       return undefined;
     }
   }
@@ -492,9 +498,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       const pubStakeKeyHashes = await Promise.all(
         pubStakeKeys.map(async (pubStakeKey) => {
-          const { dRepIDHex } =
+          const { dRepIDHash } =
             await BrowserWallet.dRepKeyToDRepID(pubStakeKey);
-          return dRepIDHex;
+          return dRepIDHash;
         }),
       );
 
@@ -503,7 +509,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
         pubStakeKeyHashes: pubStakeKeyHashes,
       };
     } catch (e) {
-      console.log(e);
+      console.error(e);
       return undefined;
     }
   }
@@ -523,9 +529,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       const pubStakeKeyHashes = await Promise.all(
         pubStakeKeys.map(async (pubStakeKey) => {
-          const { dRepIDHex } =
+          const { dRepIDHash } =
             await BrowserWallet.dRepKeyToDRepID(pubStakeKey);
-          return dRepIDHex;
+          return dRepIDHash;
         }),
       );
 
@@ -534,7 +540,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
         pubStakeKeyHashes: pubStakeKeyHashes,
       };
     } catch (e) {
-      console.log(e);
+      console.error(e);
       return undefined;
     }
   }
@@ -542,15 +548,15 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   private static async dRepKeyToDRepID(dRepKey: string): Promise<{
     dRepKeyHex: Ed25519PublicKeyHex;
     dRepID: Ed25519PublicKey;
-    dRepIDHex: Ed25519KeyHashHex;
+    dRepIDHash: Ed25519KeyHashHex;
   }> {
     const dRepKeyHex = Ed25519PublicKeyHex(dRepKey);
     const dRepID = Ed25519PublicKey.fromHex(dRepKeyHex);
-    const dRepIDHex = (await dRepID.hash()).hex();
+    const dRepIDHash = (await dRepID.hash()).hex();
     return {
       dRepKeyHex,
       dRepID,
-      dRepIDHex,
+      dRepIDHash,
     };
   }
 
