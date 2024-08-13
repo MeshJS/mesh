@@ -125,13 +125,11 @@ export const buildKeys = (
 
     return { paymentKey, stakeKey, dRepKey };
   } else {
-    const paymentKey = new StricaPrivateKey(
+    const paymentKey = StricaPrivateKey.fromSecretKey(
       Buffer.from(entropy[0], "hex"),
-      false,
     );
-    const stakeKey = new StricaPrivateKey(
+    const stakeKey = StricaPrivateKey.fromSecretKey(
       Buffer.from(entropy[1], "hex"),
-      false,
     );
 
     return { paymentKey, stakeKey };
