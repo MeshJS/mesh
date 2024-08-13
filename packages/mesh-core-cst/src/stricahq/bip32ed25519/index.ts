@@ -1,11 +1,13 @@
-import strica from "@stricahq/bip32ed25519";
+import {
+  Bip32PrivateKey,
+  Bip32PublicKey,
+  PublicKey,
+} from "@stricahq/bip32ed25519";
 
-import { PrivateKey } from "./privateKey";
-
-const { PublicKey, Bip32PrivateKey, Bip32PublicKey } = strica;
+import { StricaPrivateKey } from "./privateKey";
 
 export {
-  PrivateKey as StricaPrivateKey,
+  StricaPrivateKey,
   PublicKey as StricaPublicKey,
   Bip32PrivateKey as StricaBip32PrivateKey,
   Bip32PublicKey as StricaBip32PublicKey,
