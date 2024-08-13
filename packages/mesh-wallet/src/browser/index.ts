@@ -334,8 +334,17 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     for (let i = 0; i < witnessSets.length; i++) {
       const unsignedTx = unsignedTxs[i]!;
       const cWitness = witnessSets[i]!;
-      const signedTx = BrowserWallet.addBrowserWitnesses(unsignedTx, cWitness);
-      signedTxs.push(signedTx);
+      if (cWitness === "") {
+        // It's possible that txs are signed just to give 
+        // browser wallet the tx context
+        signedTxs.push(unsignedTx);
+      } else {
+        const signedTx = BrowserWallet.addBrowserWitnesses(
+          unsignedTx,
+          cWitness,
+        );
+        signedTxs.push(signedTx);
+      }
     }
 
     return signedTxs;
