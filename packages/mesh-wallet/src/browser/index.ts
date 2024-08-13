@@ -284,7 +284,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    */
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
     const witness = await this._walletInstance.signTx(unsignedTx, partialSign);
-
+    if (witness === "") {
+      return unsignedTx;
+    }
     return BrowserWallet.addBrowserWitnesses(unsignedTx, witness);
   }
 
@@ -451,7 +453,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   /**
    * The connected wallet account provides the account's public DRep Key, derivation as described in CIP-0105.
    * These are used by the client to identify the user's on-chain CIP-1694 interactions, i.e. if a user has registered to be a DRep.
-   * 
+   *
    * @returns wallet account's public DRep Key
    */
   async getPubDRepKey(): Promise<
