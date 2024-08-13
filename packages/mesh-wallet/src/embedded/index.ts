@@ -43,9 +43,9 @@ export type Account = {
   paymentKeyHex: string;
   stakeKeyHex: string;
 
-  pubDRepKey: string;
-  dRepIDBech32: DRepID;
-  dRepIDHash: Ed25519KeyHashHex;
+  pubDRepKey?: string;
+  dRepIDBech32?: DRepID;
+  dRepIDHash?: Ed25519KeyHashHex;
 };
 
 export type EmbeddedWalletKeyType =
@@ -94,17 +94,11 @@ export class WalletStaticMethods {
   static getAddresses(
     paymentKey: StricaPrivateKey,
     stakingKey: StricaPrivateKey,
-    dRepKey: StricaPrivateKey,
     networkId = 0,
   ): {
     baseAddress: Address;
     enterpriseAddress: Address;
     rewardAddress: Address;
-    dRep: {
-      pubDRepKey: string;
-      dRepIDBech32: DRepID;
-      dRepIDHash: Ed25519KeyHashHex;
-    };
   } {
     const baseAddress = buildBaseAddress(
       networkId,
@@ -114,23 +108,37 @@ export class WalletStaticMethods {
       Hash28ByteBase16.fromEd25519KeyHashHex(
         Ed25519KeyHashHex(stakingKey.toPublicKey().hash().toString("hex")),
       ),
-    );
+    ).toAddress();
 
     const enterpriseAddress = buildEnterpriseAddress(
       networkId,
       Hash28ByteBase16.fromEd25519KeyHashHex(
         Ed25519KeyHashHex(paymentKey.toPublicKey().hash().toString("hex")),
       ),
-    );
+    ).toAddress();
 
     const rewardAddress = buildRewardAddress(
       networkId,
       Hash28ByteBase16.fromEd25519KeyHashHex(
         Ed25519KeyHashHex(stakingKey.toPublicKey().hash().toString("hex")),
       ),
-    );
+    ).toAddress();
 
-    // DRep
+    return {
+      baseAddress: baseAddress,
+      enterpriseAddress: enterpriseAddress,
+      rewardAddress: rewardAddress,
+    };
+  }
+
+  static getDRepKey(
+    dRepKey: StricaPrivateKey,
+    networkId = 0,
+  ): {
+    pubDRepKey: string;
+    dRepIDBech32: DRepID;
+    dRepIDHash: Ed25519KeyHashHex;
+  } {
     const pubKey = dRepKey.toPublicKey().pubKey;
     const pubDRepKey = pubKey.toString("hex");
     const dRepIDBech32 = buildDRepID(
@@ -143,14 +151,9 @@ export class WalletStaticMethods {
     const dRepIDHash = dRep.toKeyHash()!;
 
     return {
-      baseAddress: baseAddress.toAddress(),
-      enterpriseAddress: enterpriseAddress.toAddress(),
-      rewardAddress: rewardAddress.toAddress(),
-      dRep: {
-        pubDRepKey,
-        dRepIDBech32,
-        dRepIDHash,
-      },
+      pubDRepKey,
+      dRepIDBech32,
+      dRepIDHash,
     };
   }
 
@@ -214,15 +217,10 @@ export class EmbeddedWallet extends WalletStaticMethods {
       keyIndex,
     );
 
-    const { baseAddress, enterpriseAddress, rewardAddress, dRep } =
-      WalletStaticMethods.getAddresses(
-        paymentKey,
-        stakeKey,
-        dRepKey!,
-        this._networkId,
-      );
+    const { baseAddress, enterpriseAddress, rewardAddress } =
+      WalletStaticMethods.getAddresses(paymentKey, stakeKey, this._networkId);
 
-    return {
+    let _account: Account = {
       baseAddress: baseAddress,
       enterpriseAddress: enterpriseAddress,
       rewardAddress: rewardAddress,
@@ -236,11 +234,17 @@ export class EmbeddedWallet extends WalletStaticMethods {
 
       paymentKeyHex: paymentKey.toBytes().toString("hex"),
       stakeKeyHex: stakeKey.toBytes().toString("hex"),
-
-      pubDRepKey: dRep.pubDRepKey,
-      dRepIDBech32: dRep.dRepIDBech32,
-      dRepIDHash: dRep.dRepIDHash,
     };
+
+    if (dRepKey) {
+      const { pubDRepKey, dRepIDBech32, dRepIDHash } =
+        WalletStaticMethods.getDRepKey(dRepKey, this._networkId);
+      _account.pubDRepKey = pubDRepKey;
+      _account.dRepIDBech32 = dRepIDBech32;
+      _account.dRepIDHash = dRepIDHash;
+    }
+
+    return _account;
   }
 
   getNetworkId(): number {

@@ -124,7 +124,6 @@ function Left(
   code5 += `const wallet = new MeshWallet({\n`;
   code5 += `  networkId: ${network}, // 0: testnet, 1: mainnet\n`;
   code5 += `  fetcher: blockchainProvider,\n`;
-  code5 += `  submitter: blockchainProvider,\n`;
   code5 += `  key: {\n`;
   code5 += `    type: 'address',\n`;
   code5 += `    address: '${walletAddress}',\n`;

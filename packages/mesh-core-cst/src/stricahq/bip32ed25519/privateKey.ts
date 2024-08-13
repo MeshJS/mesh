@@ -1,7 +1,7 @@
-import strica from "@stricahq/bip32ed25519";
+import { PrivateKey } from "@stricahq/bip32ed25519";
 import hash from "hash.js";
 
-class PrivateKey extends strica.PrivateKey {
+class StricaPrivateKey extends PrivateKey {
   constructor(privKey: Buffer, extended: Boolean = true) {
     if (!extended) {
       let extendedSecret = hash.sha512().update(privKey).digest();
@@ -16,4 +16,4 @@ class PrivateKey extends strica.PrivateKey {
   }
 }
 
-export { PrivateKey };
+export { StricaPrivateKey };
