@@ -59,7 +59,7 @@ function Right() {
     if (utxo === undefined) throw new Error("UTxO not found");
 
     const tx = await contract.relistAsset(utxo, parseInt(userInput2));
-    const signedTx = await wallet.signTx(tx);
+    const signedTx = await wallet.signTx(tx, true);
     const txHash = await wallet.submitTx(signedTx);
     return txHash;
   }
