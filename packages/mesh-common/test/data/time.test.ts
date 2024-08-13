@@ -1,4 +1,10 @@
-import { resolveEpochNo, resolveSlotNo } from "@meshsdk/core";
+import {
+  BlockfrostProvider,
+  resolveEpochNo,
+  resolveSlotNo,
+  // SLOT_CONFIG_NETWORK,
+  // unixTimeToEnclosingSlot,
+} from "@meshsdk/core";
 
 describe("Time", () => {
   describe("resolveSlotNo", () => {
@@ -10,12 +16,12 @@ describe("Time", () => {
     it("should resolve correct preprod slot number", () => {
       // Aug 07 2024 11:56:59 GMT+0800
       const res = resolveSlotNo("preprod", 1723003026421);
-      expect(res).toBe("40967826");
+      expect(res).toBe("67319826");
     });
     it("should resolve correct preview slot number", () => {
       // Aug 07 2024 11:56:59 GMT+0800
       const res = resolveSlotNo("preview", 1723003026421);
-      expect(res).toBe("40535826");
+      expect(res).toBe("56347026");
     });
   });
   describe("resolveEpochNo", () => {
@@ -84,6 +90,65 @@ describe("Time", () => {
         const res = resolveEpochNo("preview", 1723075200000 - 1);
         expect(res).toBe(652);
       });
+    });
+  });
+
+  describe("time tests using blockfrost", () => {
+    it("test preprod", async () => {
+      if (!process.env.BLOCKFROST_API_KEY_PREPROD) return true;
+      const preprodBlockfrost = new BlockfrostProvider(
+        process.env.BLOCKFROST_API_KEY_PREPROD!,
+      );
+
+      const latestBlockInfo = await preprodBlockfrost.fetchLatestBlock();
+      const calculatedSlot = Number(resolveSlotNo("preprod"));
+
+      const calculatedEpoch = Number(resolveEpochNo("preprod"));
+
+      // Allow calculated slot to be within 100 seconds of latest block
+      expect(calculatedSlot).toBeGreaterThan(
+        Number(latestBlockInfo.slot) - 100,
+      );
+      expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
+      expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
+    });
+
+    it("test mainnet", async () => {
+      if (!process.env.BLOCKFROST_API_KEY_MAINNET) return true;
+      const mainnetBlockfrost = new BlockfrostProvider(
+        process.env.BLOCKFROST_API_KEY_MAINNET!,
+      );
+
+      const latestBlockInfo = await mainnetBlockfrost.fetchLatestBlock();
+      const calculatedSlot = Number(resolveSlotNo("mainnet"));
+
+      const calculatedEpoch = Number(resolveEpochNo("mainnet"));
+
+      // Allow calculated slot to be within 100 seconds of latest block
+      expect(calculatedSlot).toBeGreaterThan(
+        Number(latestBlockInfo.slot) - 100,
+      );
+      expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
+      expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
+    });
+
+    it("test preview", async () => {
+      if (!process.env.BLOCKFROST_API_KEY_PREVIEW) return true;
+      const previewBlockfrost = new BlockfrostProvider(
+        process.env.BLOCKFROST_API_KEY_PREVIEW!,
+      );
+
+      const latestBlockInfo = await previewBlockfrost.fetchLatestBlock();
+      const calculatedSlot = Number(resolveSlotNo("preview"));
+
+      const calculatedEpoch = Number(resolveEpochNo("preview"));
+
+      // Allow calculated slot to be within 100 seconds of latest block
+      expect(calculatedSlot).toBeGreaterThan(
+        Number(latestBlockInfo.slot) - 100,
+      );
+      expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
+      expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
     });
   });
 });
