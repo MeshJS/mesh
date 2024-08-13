@@ -258,9 +258,8 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         if (keyHex.length === 68 && keyHex.substring(0, 4) === "5820") {
           keyHex = keyHex.substring(4);
         }
-        const cardanoSigner = new StricaPrivateKey(
+        const cardanoSigner = StricaPrivateKey.fromSecretKey(
           Buffer.from(keyHex, "hex"),
-          false,
         );
         const signature = cardanoSigner.sign(
           Buffer.from(cardanoTx.getId(), "hex"),
