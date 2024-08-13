@@ -26,7 +26,7 @@ function Left() {
   return (
     <>
       <p>
-        Get the key, hash, and bech32 address of the DRep ID. The DRep ID is a
+        Get the key, hash, and bech32 encoding of the DRep ID. The DRep ID is a
         unique identifier for the user&apos;s wallet.
       </p>
       <p>Example:</p>
