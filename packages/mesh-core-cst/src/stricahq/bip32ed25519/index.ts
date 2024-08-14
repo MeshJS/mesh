@@ -3,7 +3,7 @@ import {
   Bip32PublicKey,
   PrivateKey,
   PublicKey,
-} from "@stricahq/bip32ed25519";
+} from "@meshsdk/stricahq";
 
 export {
   PrivateKey as StricaPrivateKey,

@@ -1,3 +1,3 @@
-import { Decoder, Encoder } from "@stricahq/cbors";
+import { Decoder, Encoder } from "@meshsdk/stricahq";
 
 export { Encoder as StricaEncoder, Decoder as StricaDecoder };
