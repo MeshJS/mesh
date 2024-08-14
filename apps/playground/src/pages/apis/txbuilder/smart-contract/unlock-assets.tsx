@@ -1,16 +1,11 @@
 import { useState } from "react";
-import Link from "~/components/link";
 
-import {
-  mConStr0,
-  PlutusScript,
-  resolvePlutusScriptAddress,
-  serializePlutusScript,
-} from "@meshsdk/core";
+import { mConStr0, PlutusScript, serializePlutusScript } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { fetchAssetUtxo } from "~/components/cardano/fetch-utxo-by-datum";
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -57,8 +52,8 @@ function Left() {
         />
         <p>
           In Cardano, if you want to unlock assets from a script address, you
-          have to provide 3 other necessary information apart from `.txIn()`
-          itself. They are:
+          have to provide 3 other necessary information apart from{" "}
+          <code>.txIn()</code> itself. They are:
         </p>
         <ul>
           <li>Actual script</li>
@@ -66,61 +61,53 @@ function Left() {
           <li>Redeemer of the unlock</li>
         </ul>
         <h4>Actual script</h4>
-        <div className="pl-4">
-          <p className="pl-4">
-            The actual script can be either provided by transaction builder or
-            referenced from an UTxO onchain.
-          </p>
-          <div className="pl-4">
-            <ul>
-              <li>
-                (i) Reference script{` `}
-                <Codeblock data={`.spendingTxInReference()`} />
-              </li>
-              <li>
-                (ii) Supplying script{` `}
-                <Codeblock data={`.txInScript(scriptCbor: string)`} />
-              </li>
-            </ul>
-            <br />
-          </div>
+        <p>
+          The actual script can be either provided by transaction builder or
+          referenced from an UTxO onchain.
+        </p>
+        <div>
+          <ul>
+            <li>
+              (i) Reference script{` `}
+              <Codeblock data={`.spendingTxInReference()`} />
+            </li>
+            <li>
+              (ii) Supplying script{` `}
+              <Codeblock data={`.txInScript(scriptCbor: string)`} />
+            </li>
+          </ul>
+          <br />
         </div>
         <h4>Datum of the input</h4>
-        <div className="pl-4">
-          <p className="pl-4">
-            Similar to script, datum can also either be provided by transaction
-            builder or as inline datum.
-          </p>
-          <div className="pl-4">
-            <ul>
-              <li>
-                (i) Referencing inline datum{" "}
-                <Codeblock data={`.txInInlineDatumPresent()`} />
-              </li>
-              <li>
-                (ii) Supplying datum{" "}
-                <Codeblock
-                  data={`.txInDatumValue(datum: Data | object | string, type?: "Mesh" | "CBOR" | "JSON")`}
-                />
-              </li>
-            </ul>
-            <br />
-          </div>
+        <p>
+          Similar to script, datum can also either be provided by transaction
+          builder or as inline datum.
+        </p>
+        <div>
+          <ul>
+            <li>
+              (i) Referencing inline datum{" "}
+              <Codeblock data={`.txInInlineDatumPresent()`} />
+            </li>
+            <li>
+              (ii) Supplying datum{" "}
+              <Codeblock
+                data={`.txInDatumValue(datum: Data | object | string, type?: "Mesh" | "CBOR" | "JSON")`}
+              />
+            </li>
+          </ul>
+          <br />
         </div>
         <h4>Redeemer of the unlock</h4>
-        <div className="pl-4">
-          <p className="pl-4">
-            Redeemer can be provided in different{" "}
-            <Link href="/apis/data">data types</Link>. If your MeshTxBuilder
-            does not include an <code>evaluator</code> instance, you can also
-            provide your budget for the unlock with this redeemer endpoint
-          </p>
-          <p className="pl-4">
-            <Codeblock
-              data={`.txInRedeemerValue(redeemer: Data | object | string, type: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)`}
-            />
-          </p>
-        </div>
+        <p>
+          Redeemer can be provided in different{" "}
+          <Link href="/apis/data">data types</Link>. If your MeshTxBuilder does
+          not include an <code>evaluator</code> instance, you can also provide
+          your budget for the unlock with this redeemer endpoint
+        </p>
+        <Codeblock
+          data={`.txInRedeemerValue(redeemer: Data | object | string, type: "Mesh" | "CBOR" | "JSON", exUnits?: Budget)`}
+        />
       </>
       <p>
         An example of complete set of endpoints to unlock assets from a script

@@ -54,6 +54,10 @@ function Left() {
         <code>disconnect()</code>, a function, to disconnect the connected
         wallet.
       </p>
+      <p>
+        <code>error</code>, returns the error object if any error occurs during
+        wallet connection, such as "account not set".
+      </p>
     </>
   );
 }

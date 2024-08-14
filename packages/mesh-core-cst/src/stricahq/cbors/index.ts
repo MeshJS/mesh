@@ -1,5 +1,3 @@
-import strica from "@stricahq/cbors";
-
-const { Encoder, Decoder } = strica;
+import { Decoder, Encoder } from "@stricahq/cbors";
 
 export { Encoder as StricaEncoder, Decoder as StricaDecoder };

@@ -8,8 +8,8 @@ export function Logo(props: React.ComponentPropsWithoutRef<'svg'>) {
       <Image
         src={
           theme == 'light'
-            ? 'https://meshjs.dev/logo-mesh/black/logo-mesh-black-32x32.png'
-            : 'https://meshjs.dev/logo-mesh/white/logo-mesh-white-32x32.png'
+            ? 'https://meshjs.dev/logos/black/logo-mesh-black-32x32.png'
+            : 'https://meshjs.dev/logos/white/logo-mesh-white-32x32.png'
         }
         alt="Mesh SDK Docs"
         width={32}

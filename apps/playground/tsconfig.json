@@ -1,11 +1,6 @@
 {
   "extends": "@meshsdk/configs/typescript/nextjs.json",
   "compilerOptions": {
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
       "~/*": ["./src/*"]
     }

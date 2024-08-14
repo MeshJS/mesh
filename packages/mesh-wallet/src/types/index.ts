@@ -1,4 +1,5 @@
 import { DataSignature } from "@meshsdk/common";
+import { Ed25519PublicKeyHex } from "@meshsdk/core-cst";
 
 export type Cardano = {
   [key: string]: {
@@ -17,7 +18,7 @@ type TransactionSignatureRequest = {
   partialSign: boolean;
 };
 
-export type WalletInstance = {
+export interface Cip30WalletApi {
   experimental: ExperimentalFeatures;
   getBalance(): Promise<string>;
   getChangeAddress(): Promise<string>;
@@ -32,13 +33,16 @@ export type WalletInstance = {
   signTxs?(txs: TransactionSignatureRequest[]): Promise<string[]>; // Overloading interface as currently no standard
   signTxs?(txs: string[], partialSign: boolean): Promise<string[]>; // Overloading interface as currently no standard
   submitTx(tx: string): Promise<string>;
-  cip95?: WalletInstanceCip95;
-};
+  cip95?: Cip95WalletApi;
+}
 
-export type WalletInstanceCip95 = {
-  getPubDRepKey(): Promise<string>;
-  getRegisteredPubStakeKeys(): Promise<string[]>;
-};
+export interface Cip95WalletApi {
+  getRegisteredPubStakeKeys: () => Promise<Ed25519PublicKeyHex[]>;
+  getUnregisteredPubStakeKeys: () => Promise<Ed25519PublicKeyHex[]>;
+  getPubDRepKey: () => Promise<Ed25519PublicKeyHex>;
+}
+
+export type WalletInstance = Cip30WalletApi & Cip95WalletApi;
 
 type ExperimentalFeatures = {
   getCollateral(): Promise<string[] | undefined>;

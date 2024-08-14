@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "files": [
-    "eslint/library.js",
-    "eslint/next.js",
-    "eslint/react-internal.js",
-    "jest/jest.config.ts"
+    "./eslint/library.js",
+    "./eslint/next.js",
+    "./eslint/react-internal.js",
+    "./jest/jest.config.ts"
   ],
   "exports": {
+    "./eslint/library.js": "./eslint/library.js",
+    "./eslint/next.js": "./eslint/next.js",
+    "./eslint/react-internal.js": "./eslint/react-internal.js",
     "./prettier": "./prettier/index.js",
     "./jest/jest.config": "./jest/jest.config.ts",
     "./tailwind/tailwind.config": "./tailwind/tailwind.config.ts",

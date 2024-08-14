@@ -2,13 +2,12 @@ import { useWallet } from "@meshsdk/react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import Codeblock from "~/components/text/codeblock";
 
-export default function BrowserWalletGetExtensions() {
+export default function BrowserWalletGetUnregisteredPubStakeKeys() {
   return (
     <TwoColumnsScroll
-      sidebarTo="getExtensions"
-      title="Get Extensions"
+      sidebarTo="getUnregisteredPubStakeKeys"
+      title="Get Unregistered Pub Stake Keys"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -16,18 +15,9 @@ export default function BrowserWalletGetExtensions() {
 }
 
 function Left() {
-  let codeSample = ``;
-  codeSample += `[\n`;
-  codeSample += `  {\n`;
-  codeSample += `    "cip": 30\n`;
-  codeSample += `  }\n`;
-  codeSample += `]\n`;
-
   return (
     <>
-      <p>Get a list of CIP-30 extensions that have been enabled by the connected wallet.</p>
-      <p>Example:</p>
-      <Codeblock data={codeSample} />
+      <p>Get a list of unregistered public stake keys.</p>
     </>
   );
 }
@@ -36,14 +26,14 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    let results = await wallet.getExtensions();
+    const results = await wallet.getUnregisteredPubStakeKeys();
     return results;
   }
   return (
     <LiveCodeDemo
-      title="Get Extensions"
-      subtitle="Get a list of CIPs that are supported by the connected wallet"
-      code={`await wallet.getExtensions();`}
+      title="Get Unregistered Pub Stake Keys"
+      subtitle="Get a list of unregistered public stake keys"
+      code={`await wallet.getUnregisteredPubStakeKeys();`}
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={

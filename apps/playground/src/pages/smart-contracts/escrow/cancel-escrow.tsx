@@ -59,7 +59,7 @@ function Right() {
     }
 
     const tx = await contract.cancelEscrow(utxo);
-    const signedTx = await wallet.signTx(tx);
+    const signedTx = await wallet.signTx(tx, true);
     const txHash = await wallet.submitTx(signedTx);
     return txHash;
   }

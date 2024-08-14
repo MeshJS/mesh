@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/transaction",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

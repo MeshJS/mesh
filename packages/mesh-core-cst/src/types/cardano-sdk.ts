@@ -244,3 +244,9 @@ export const ScriptPubkey = Serialization.ScriptPubkey;
 
 export type DRepID = Cardano.DRepID;
 export const DRepID = Cardano.DRepID;
+
+export type DRep = Serialization.DRep;
+export const DRep = Serialization.DRep;
+
+export type StakeCredentialStatus = Cardano.StakeCredentialStatus;
+export const StakeCredentialStatus = Cardano.StakeCredentialStatus;

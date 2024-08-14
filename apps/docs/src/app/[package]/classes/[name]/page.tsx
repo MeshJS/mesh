@@ -23,7 +23,7 @@ export default function Page({ params }: { params: { name: string } }) {
         <Content comment={meshClass.comment} isMain={true} />
         <DefinedIn sources={meshClass.sources} />
 
-        {meshGroup.map((group, i) => {
+        {meshGroup.map((group: any) => {
           return <Group group={group} key={uuidv4()} />;
         })}
       </Prose>

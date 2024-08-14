@@ -22,7 +22,7 @@ export const scriptSourceToObj = (scriptSource: ScriptSource): object => {
         txHash: scriptSource.txHash,
         txIndex: scriptSource.txIndex,
       },
-      spendingScriptHash: scriptSource.scriptHash ?? "",
+      scriptHash: scriptSource.scriptHash ?? "",
       languageVersion: scriptSource.version!.toLocaleLowerCase(),
       scriptSize: BigInt(scriptSource.scriptSize ?? "0"),
     },

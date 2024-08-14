@@ -27,17 +27,17 @@ export const SLOT_CONFIG_NETWORK: Record<Network, SlotConfig> = {
     epochLength: 432000,
   }, // Starting at Shelley era
   preview: {
-    zeroTime: 1682467200000,
+    zeroTime: 1666656000000,
     zeroSlot: 0,
     slotLength: 1000,
-    startEpoch: 183,
+    startEpoch: 0,
     epochLength: 86400,
   }, // Starting at Shelley era
   preprod: {
-    zeroTime: 1682121600000,
+    zeroTime: 1654041600000 + 1728000000,
     zeroSlot: 86400,
     slotLength: 1000,
-    startEpoch: 65,
+    startEpoch: 4,
     epochLength: 432000,
   }, // Starting at Shelley era
   /** Customizable slot config (Initialized with 0 values). */

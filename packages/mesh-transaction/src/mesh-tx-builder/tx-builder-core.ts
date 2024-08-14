@@ -3,6 +3,7 @@ import JSONBig from "json-bigint";
 import {
   Action,
   Asset,
+  Budget,
   BuilderData,
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
@@ -1229,12 +1230,25 @@ export class MeshTxBuilderCore {
         case "MINT": {
           const mint = meshTxBuilderBody.mints[redeemerEvaluation.index]!;
           if (mint.type == "Plutus" && mint.redeemer) {
-            mint.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
-            );
-            mint.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
-            );
+            let newExUnits: Budget = {
+              mem: Math.floor(
+                redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+              ),
+              steps: Math.floor(
+                redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+              ),
+            };
+            // It's possible to have multiple mints with the same policy id but different
+            // asset name, so we need to loop over the mints after evaluation
+            for (
+              let i = redeemerEvaluation.index;
+              i < meshTxBuilderBody.mints.length;
+              i++
+            ) {
+              if (meshTxBuilderBody.mints[i]!.policyId === mint.policyId) {
+                meshTxBuilderBody.mints[i]!.redeemer!.exUnits = newExUnits;
+              }
+            }
           }
           break;
         }
