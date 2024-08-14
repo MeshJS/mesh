@@ -60,7 +60,7 @@ function Right() {
       <InputTable
         listInputs={[
           <Select
-            id="chooseNetwork"
+            id="chooseWallet"
             options={
               wallets.length > 0
                 ? wallets.reduce(
@@ -76,7 +76,7 @@ function Right() {
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
               setSelectedWallet(e.target.value)
             }
-            label="Select network"
+            label="Select wallet"
             key={1}
           />,
         ]}
