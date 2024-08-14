@@ -2,7 +2,7 @@ import { MeshLogo } from "./mesh-logo";
 
 export const MeshBadge = ({ isDark = false }) => (
   <a
-    className={`ui-flex ui-max-w-fit ui-flex-col ui-items-center ui-rounded-md ui-border ui-border-solid ui-border-current ui-p-1 ui-text-xl ui-font-semibold ui-no-underline ${isDark ? `ui-bg-neutral-950	ui-text-neutral-50` : `ui-bg-neutral-50	ui-text-neutral-950`}`}
+    className={`mesh-flex mesh-max-w-fit mesh-flex-col mesh-items-center mesh-rounded-md mesh-border mesh-border-solid mesh-border-current mesh-p-1 mesh-text-xl mesh-font-semibold mesh-no-underline ${isDark ? `mesh-bg-neutral-950	mesh-text-neutral-50` : `mesh-bg-neutral-50	mesh-text-neutral-950`}`}
     style={{
       color: isDark ? "#EEEEEE" : "#111111",
       backgroundColor: isDark ? "#111111" : "#EEEEEE",
