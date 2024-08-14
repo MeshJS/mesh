@@ -44,7 +44,6 @@
     "@meshsdk/common": "*",
     "@stricahq/bip32ed25519": "^1.1.0",
     "@stricahq/cbors": "^1.0.0",
-    "hash.js": "^1.1.7",
     "pbkdf2": "^3.1.2"
   },
   "prettier": "@meshsdk/configs/prettier",
