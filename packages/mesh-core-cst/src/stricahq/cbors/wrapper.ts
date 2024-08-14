@@ -1,8 +1,9 @@
 import * as cjsCbors from "@stricahq/cbors";
 
-export const cbors = cjsCbors;
+export const cbors: typeof cjsCbors & { default?: typeof cjsCbors } = cjsCbors;
+const exportedCbors = cbors?.default || cbors;
 
-export const StricaEncoder = cjsCbors.Encoder;
+export const StricaEncoder = exportedCbors.Encoder;
 
-export const StricaDecoder = cjsCbors.Decoder;
+export const StricaDecoder = exportedCbors.Decoder;
 export type StricaDecoder = cjsCbors.Decoder;
