@@ -1,6 +1,6 @@
 export const ChevronDown = () => (
   <svg
-    className="ui-m-2 ui-h-6"
+    className="mesh-m-2 mesh-h-6"
     fill="none"
     aria-hidden="true"
     viewBox="0 0 24 24"

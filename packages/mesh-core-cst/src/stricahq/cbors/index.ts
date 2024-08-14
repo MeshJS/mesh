@@ -1,3 +1,5 @@
-import { Decoder, Encoder } from "@stricahq/cbors";
+import { cbors, StricaDecoder, StricaEncoder } from "./wrapper";
 
-export { Encoder as StricaEncoder, Decoder as StricaDecoder };
+export default cbors;
+
+export { StricaEncoder, StricaDecoder };

@@ -11,11 +11,11 @@ export function MenuItem({
 }) {
   return (
     <div
-      className="ui-flex ui-cursor-pointer ui-items-center ui-px-4 ui-py-2 ui-opacity-80 hover:ui-opacity-100 ui-h-16"
+      className="mesh-flex mesh-cursor-pointer mesh-items-center mesh-px-4 mesh-py-2 mesh-opacity-80 hover:mesh-opacity-100 mesh-h-16"
       onClick={action}
     >
-      {icon && <img className="ui-pr-2 ui-m-1 ui-h-8" src={icon} />}
-      <span className="ui-mr-menu-item ui-text-xl ui-font-normal ui-text-gray-700 hover:ui-text-black">
+      {icon && <img className="mesh-pr-2 mesh-m-1 mesh-h-8" src={icon} />}
+      <span className="mesh-mr-menu-item mesh-text-xl mesh-font-normal mesh-text-gray-700 hover:mesh-text-black">
         {label
           .split(" ")
           .map((word: string) => {

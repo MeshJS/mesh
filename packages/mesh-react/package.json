@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/react",
-  "version": "1.6.5",
+  "version": "1.6.6",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
