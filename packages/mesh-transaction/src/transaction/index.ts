@@ -241,6 +241,7 @@ export class Transaction {
         .spendingTxInReference(
           script.input.txHash,
           script.input.outputIndex,
+          (script.output.scriptRef.length / 2).toString(),
           script.output.scriptHash,
         )
         .txInRedeemerValue(red.data, "Mesh", red.budget);
@@ -339,6 +340,8 @@ export class Transaction {
               .mintTxInReference(
                 forgeScript.input.txHash,
                 forgeScript.input.outputIndex,
+                (forgeScript.output.scriptRef.length / 2).toString(),
+                forgeScript.output.scriptHash,
               )
               .mintRedeemerValue(redeemer.data, "Mesh", redeemer.budget);
             if (mint.cip68ScriptAddress) {
@@ -347,6 +350,8 @@ export class Transaction {
                 .mintTxInReference(
                   forgeScript.input.txHash,
                   forgeScript.input.outputIndex,
+                  (forgeScript.output.scriptRef.length / 2).toString(),
+                  forgeScript.output.scriptHash,
                 )
                 .mintRedeemerValue(redeemer.data, "Mesh", redeemer.budget);
               break;
