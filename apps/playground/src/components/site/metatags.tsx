@@ -4,7 +4,7 @@ export default function Metatags({
   title,
   keywords,
   description,
-  image = "/logos/mesh.png",
+  image = "/logo-mesh/mesh.png",
 }: {
   title?: string;
   keywords?: string;

@@ -24,12 +24,12 @@ export default function HomePage() {
             ) : (
               <>
                 <img
-                  src="/logos/black/logo-mesh-black-512x512.png"
+                  src="/logo-mesh/black/logo-mesh-black-512x512.png"
                   className="dark:hidden"
                   alt="mockup"
                 />
                 <img
-                  src="/logos/white/logo-mesh-white-512x512.png"
+                  src="/logo-mesh/white/logo-mesh-white-512x512.png"
                   className="hidden dark:block"
                   alt="mockup dark"
                 />
