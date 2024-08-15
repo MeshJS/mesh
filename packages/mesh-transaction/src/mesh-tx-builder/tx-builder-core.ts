@@ -412,7 +412,7 @@ export class MeshTxBuilderCore {
   spendingTxInReference = (
     txHash: string,
     txIndex: number,
-    scriptSize: string,
+    scriptSize?: string,
     scriptHash?: string,
   ) => {
     if (!this.txInQueueItem) throw Error("Undefined input");
@@ -428,7 +428,7 @@ export class MeshTxBuilderCore {
       type: "Inline",
       txHash,
       txIndex,
-      scriptHash: scriptHash,
+      scriptHash,
       version: this.plutusSpendingScriptVersion || "V2",
       scriptSize,
     };
@@ -561,7 +561,7 @@ export class MeshTxBuilderCore {
   mintTxInReference = (
     txHash: string,
     txIndex: number,
-    scriptSize: string,
+    scriptSize?: string,
     scriptHash?: string,
   ) => {
     if (!this.mintItem) throw Error("Undefined mint");
@@ -768,7 +768,7 @@ export class MeshTxBuilderCore {
   withdrawalTxInReference = (
     txHash: string,
     txIndex: number,
-    scriptSize: string,
+    scriptSize?: string,
     scriptHash?: string,
   ) => {
     if (!this.withdrawalItem)
@@ -952,7 +952,7 @@ export class MeshTxBuilderCore {
   certificateTxInReference = (
     txHash: string,
     txIndex: number,
-    scriptSize: string,
+    scriptSize?: string,
     scriptHash?: string,
     version?: LanguageVersion,
   ) => {
@@ -963,11 +963,6 @@ export class MeshTxBuilderCore {
       );
     }
     if (!version) {
-      if (!scriptHash)
-        throw new Error(
-          "certificateTxInReference: scriptHash must be provided",
-        );
-
       this.meshTxBuilderBody.certificates.push({
         type: "SimpleScriptCertificate",
         certType: currentCert.certType,
