@@ -32,7 +32,7 @@ export default function CardTitleDescImage({
               <div className="text-2xl font-black">{title}</div>
             </span>
             <Image
-              src="/logos/black/logo-mesh-black-64x64.png"
+              src="/logo-mesh/black/logo-mesh-black-64x64.png"
               className="absolute bottom-2 right-2 h-8"
               layout="fill"
               objectFit="contain"
