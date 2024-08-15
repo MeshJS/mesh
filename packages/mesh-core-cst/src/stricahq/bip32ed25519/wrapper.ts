@@ -1,7 +1,6 @@
 import * as cjsBip32ed25519 from "@stricahq/bip32ed25519";
 
 // This ensures that TypeScript understands the types properly
-
 export const bip32ed25519: typeof cjsBip32ed25519 & {
   default?: typeof cjsBip32ed25519;
 } = cjsBip32ed25519;
