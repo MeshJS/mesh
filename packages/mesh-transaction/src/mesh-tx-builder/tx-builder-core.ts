@@ -405,13 +405,15 @@ export class MeshTxBuilderCore {
    * Set the reference input where it would also be spent in the transaction
    * @param txHash The transaction hash of the reference UTxO
    * @param txIndex The transaction index of the reference UTxO
-   * @param spendingScriptHash The script hash of the spending script
+   * @param scriptSize The script size in bytes of the spending script (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the spending script
    * @returns The MeshTxBuilder instance
    */
   spendingTxInReference = (
     txHash: string,
     txIndex: number,
-    spendingScriptHash?: string,
+    scriptSize: string,
+    scriptHash?: string,
   ) => {
     if (!this.txInQueueItem) throw Error("Undefined input");
     if (this.txInQueueItem.type === "PubKey")
@@ -426,9 +428,9 @@ export class MeshTxBuilderCore {
       type: "Inline",
       txHash,
       txIndex,
-      scriptHash: spendingScriptHash,
+      scriptHash: scriptHash,
       version: this.plutusSpendingScriptVersion || "V2",
-      scriptSize: "0", // TODO
+      scriptSize,
     };
     return this;
   };
@@ -552,9 +554,16 @@ export class MeshTxBuilderCore {
    * Use reference script for minting
    * @param txHash The transaction hash of the UTxO
    * @param txIndex The transaction index of the UTxO
+   * @param scriptSize The script size in bytes of the script (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the script
    * @returns The MeshTxBuilder instance
    */
-  mintTxInReference = (txHash: string, txIndex: number) => {
+  mintTxInReference = (
+    txHash: string,
+    txIndex: number,
+    scriptSize: string,
+    scriptHash?: string,
+  ) => {
     if (!this.mintItem) throw Error("Undefined mint");
     if (!this.mintItem.type) throw Error("Mint information missing");
     if (this.mintItem.type == "Native") {
@@ -569,8 +578,8 @@ export class MeshTxBuilderCore {
       txHash,
       txIndex,
       version: this.plutusMintingScriptVersion,
-      scriptSize: "0", // TODO
-      scriptHash: "", // TODO
+      scriptSize,
+      scriptHash,
     };
     return this;
   };
@@ -752,15 +761,15 @@ export class MeshTxBuilderCore {
    * Add a withdrawal reference to the MeshTxBuilder instance
    * @param txHash The transaction hash of reference UTxO
    * @param txIndex The transaction index of reference UTxO
-   * @param withdrawalScriptHash The script hash of the withdrawal script
-   * @param scriptSize The script size of the withdrawal script
+   * @param scriptSize The script size in bytes of the withdrawal script (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the withdrawal script
    * @returns The MeshTxBuilder instance
    */
   withdrawalTxInReference = (
     txHash: string,
     txIndex: number,
-    withdrawalScriptHash?: string,
-    scriptSize?: string,
+    scriptSize: string,
+    scriptHash?: string,
   ) => {
     if (!this.withdrawalItem)
       throw Error("withdrawalTxInReference: Undefined withdrawal");
@@ -772,9 +781,9 @@ export class MeshTxBuilderCore {
       type: "Inline",
       txHash,
       txIndex,
-      scriptHash: withdrawalScriptHash,
+      scriptHash,
       version: this.plutusWithdrawalScriptVersion || "V2",
-      scriptSize: scriptSize || "0",
+      scriptSize,
     };
     return this;
   };
@@ -936,16 +945,16 @@ export class MeshTxBuilderCore {
    * Adds a script witness to the certificate
    * @param txHash The transaction hash of the reference UTxO
    * @param txIndex The transaction index of the reference UTxO
-   * @param spendingScriptHash The script hash of the spending script
-   * @param version Optional - The plutus version of the script, null version implies Native Script
-   * @param scriptSize The size of the plutus script referenced
+   * @param scriptSize The size of the plutus script in bytes referenced (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the spending script
+   * @param version The plutus version of the script, null version implies Native Script
    */
   certificateTxInReference = (
     txHash: string,
     txIndex: number,
-    spendingScriptHash: string,
+    scriptSize: string,
+    scriptHash?: string,
     version?: LanguageVersion,
-    scriptSize = "0", // Must be set in Conway era
   ) => {
     const currentCert = this.meshTxBuilderBody.certificates.pop();
     if (!currentCert) {
@@ -954,6 +963,11 @@ export class MeshTxBuilderCore {
       );
     }
     if (!version) {
+      if (!scriptHash)
+        throw new Error(
+          "certificateTxInReference: scriptHash must be provided",
+        );
+
       this.meshTxBuilderBody.certificates.push({
         type: "SimpleScriptCertificate",
         certType: currentCert.certType,
@@ -961,7 +975,7 @@ export class MeshTxBuilderCore {
           type: "Inline",
           txHash,
           txIndex,
-          simpleScriptHash: spendingScriptHash,
+          simpleScriptHash: scriptHash,
         },
       });
     } else {
@@ -972,7 +986,7 @@ export class MeshTxBuilderCore {
           type: "Inline",
           txHash,
           txIndex,
-          scriptHash: spendingScriptHash,
+          scriptHash,
           scriptSize,
         },
         redeemer:
