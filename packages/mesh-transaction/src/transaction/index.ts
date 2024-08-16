@@ -398,8 +398,9 @@ export class Transaction {
         this.setMetadata(Number(mint.label), {
           [policyId]: { [mint.assetName]: mint.metadata },
         });
+      } else {
+        this.setMetadata(Number(mint.label), mint.metadata);
       }
-      this.setMetadata(Number(mint.label), mint.metadata);
     }
 
     return this;
