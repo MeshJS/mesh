@@ -23,6 +23,7 @@ export interface Cip30WalletApi {
   getBalance(): Promise<string>;
   getChangeAddress(): Promise<string>;
   getExtensions(): Promise<{ cip: number }[]>;
+  getCollateral(): Promise<string[] | undefined>;
   getNetworkId(): Promise<number>;
   getRewardAddresses(): Promise<string[]>;
   getUnusedAddresses(): Promise<string[]>;

@@ -22,7 +22,7 @@ function Left() {
   return (
     <>
       <p>Submit a serialized transaction to the network.</p>
-      <Codeblock data={`await blockchainProvider.submitTx(signedTx`} />
+      <Codeblock data={`await blockchainProvider.submitTx(signedTx);`} />
     </>
   );
 }
