@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  IEvaluator,
   IFetcher,
   IListener,
   ISubmitter,
@@ -28,7 +29,9 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
 
 export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
 
-export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
+export class BlockfrostProvider
+  implements IFetcher, IListener, ISubmitter, IEvaluator
+{
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: BlockfrostSupportedNetworks;
 
