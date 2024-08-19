@@ -99,7 +99,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const txEvaluation = await this.evaluator
         .evaluateTx(txHex)
         .catch((error) => {
-          throw Error(`Tx evaluation failed: ${error}`);
+          throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
       txHex = this.serializer.serializeTxBody(
