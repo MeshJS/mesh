@@ -95,7 +95,10 @@ describe("Time", () => {
 
   describe("time tests using blockfrost", () => {
     it("test preprod", async () => {
-      if (!process.env.BLOCKFROST_API_KEY_PREPROD) return true;
+      if (!process.env.BLOCKFROST_API_KEY_PREPROD) {
+        console.error("could not find blockfrost preprod api key in env");
+        process.exit(1);
+      }
       const preprodBlockfrost = new BlockfrostProvider(
         process.env.BLOCKFROST_API_KEY_PREPROD!,
       );
@@ -114,7 +117,10 @@ describe("Time", () => {
     });
 
     it("test mainnet", async () => {
-      if (!process.env.BLOCKFROST_API_KEY_MAINNET) return true;
+      if (!process.env.BLOCKFROST_API_KEY_MAINNET) {
+        console.error("could not find blockfrost mainnet api key in env");
+        process.exit(1);
+      }
       const mainnetBlockfrost = new BlockfrostProvider(
         process.env.BLOCKFROST_API_KEY_MAINNET!,
       );
@@ -133,7 +139,10 @@ describe("Time", () => {
     });
 
     it("test preview", async () => {
-      if (!process.env.BLOCKFROST_API_KEY_PREVIEW) return true;
+      if (!process.env.BLOCKFROST_API_KEY_PREVIEW) {
+        console.error("could not find blockfrost preview api key in env");
+        process.exit(1);
+      }
       const previewBlockfrost = new BlockfrostProvider(
         process.env.BLOCKFROST_API_KEY_PREVIEW!,
       );
