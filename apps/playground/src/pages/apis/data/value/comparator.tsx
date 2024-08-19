@@ -1,29 +1,7 @@
-import {
-  Asset,
-  byteString,
-  dict,
-  Dict,
-  Integer,
-  integer,
-  MeshValue,
-  MValue,
-  mValue,
-  Value,
-  value,
-} from "@meshsdk/common";
-import {
-  assocMap,
-  AssocMap,
-  CurrencySymbol,
-  currencySymbol,
-  mBool,
-  TokenName,
-  tokenName,
-} from "@meshsdk/core";
+import { MeshValue } from "@meshsdk/common";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { mockUnit } from "./common";
 
 export default function ValueComparator() {
   return (

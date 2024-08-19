@@ -11,19 +11,10 @@ import {
   Value,
   value,
 } from "@meshsdk/common";
-import {
-  assocMap,
-  AssocMap,
-  CurrencySymbol,
-  currencySymbol,
-  mBool,
-  TokenName,
-  tokenName,
-} from "@meshsdk/core";
+import { assocMap, currencySymbol, tokenName } from "@meshsdk/core";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { mockUnit } from "./common";
 
 export default function ValueConvertor() {
   return (
