@@ -4,12 +4,12 @@ import {
   ConStr0,
   mConStr0,
   mConStr1,
+  MeshValue,
   pubKeyAddress,
   PubKeyAddress,
   UTxO,
   value,
   Value,
-  MeshValue
 } from "@meshsdk/common";
 import {
   deserializeAddress,
@@ -89,7 +89,10 @@ export class MeshSwapContract extends MeshTxInitiator {
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptCbor)
-      .txOut(initiatorAddress, MeshValue.fromValue(initiatorToReceive).toAssets())
+      .txOut(
+        initiatorAddress,
+        MeshValue.fromValue(initiatorToReceive).toAssets(),
+      )
       .changeAddress(walletAddress)
       .txInCollateral(
         collateral.input.txHash,

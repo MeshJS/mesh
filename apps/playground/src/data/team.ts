@@ -23,4 +23,9 @@ export const team = [
     twitter: "https://x.com/HinsonSIDAN",
     github: "https://github.com/HinsonSIDAN",
   },
+  {
+    name: "Tszwai",
+    image: "tszwai.png",
+    github: "https://github.com/twwu123",
+  },
 ];
