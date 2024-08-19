@@ -19,6 +19,7 @@ export const meshTxBuilderBodyToObj = ({
   certificates,
   signingKey,
   withdrawals,
+  network,
 }: MeshTxBuilderBody) => {
   return {
     inputs: inputs.map(txInToObj),
@@ -33,6 +34,7 @@ export const meshTxBuilderBodyToObj = ({
     certificates: certificates.map(certificateToObj),
     signingKey: signingKey,
     withdrawals: withdrawals.map(withdrawalToObj),
+    network,
   };
 };
 

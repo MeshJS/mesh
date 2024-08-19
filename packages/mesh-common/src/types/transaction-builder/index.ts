@@ -33,6 +33,7 @@ export type MeshTxBuilderBody = {
     strategy: UtxoSelectionStrategy;
     includeTxFees: boolean;
   };
+  network: string;
 };
 
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
@@ -54,6 +55,7 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
     strategy: "experimental",
     includeTxFees: true,
   },
+  network: "mainnet",
 });
 
 // Here
