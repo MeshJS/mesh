@@ -1,5 +1,5 @@
 import Link from "~/components/link";
-import { AboutSection } from "./common";
+import { AboutSection } from "../";
 
 export default function AboutStatus() {
   return (

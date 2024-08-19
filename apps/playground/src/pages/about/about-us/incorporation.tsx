@@ -1,4 +1,4 @@
-import { AboutSection } from "./common";
+import { AboutSection } from "../";
 
 export default function AboutIncorporation() {
   return (

@@ -1,6 +1,6 @@
 import Link from "~/components/link";
 import { team } from "~/data/team";
-import { AboutSection } from "./common";
+import { AboutSection } from "../";
 
 export default function AboutTeam() {
   return (
