@@ -3,6 +3,7 @@ import JSONBig from "json-bigint";
 import {
   Action,
   Asset,
+  Budget,
   BuilderData,
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
@@ -11,6 +12,7 @@ import {
   LanguageVersion,
   MeshTxBuilderBody,
   MintItem,
+  Network,
   Output,
   PoolParams,
   Protocol,
@@ -404,13 +406,15 @@ export class MeshTxBuilderCore {
    * Set the reference input where it would also be spent in the transaction
    * @param txHash The transaction hash of the reference UTxO
    * @param txIndex The transaction index of the reference UTxO
-   * @param spendingScriptHash The script hash of the spending script
+   * @param scriptSize The script size in bytes of the spending script (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the spending script
    * @returns The MeshTxBuilder instance
    */
   spendingTxInReference = (
     txHash: string,
     txIndex: number,
-    spendingScriptHash?: string,
+    scriptSize?: string,
+    scriptHash?: string,
   ) => {
     if (!this.txInQueueItem) throw Error("Undefined input");
     if (this.txInQueueItem.type === "PubKey")
@@ -425,9 +429,9 @@ export class MeshTxBuilderCore {
       type: "Inline",
       txHash,
       txIndex,
-      scriptHash: spendingScriptHash,
+      scriptHash,
       version: this.plutusSpendingScriptVersion || "V2",
-      scriptSize: "0", // TODO
+      scriptSize,
     };
     return this;
   };
@@ -551,9 +555,16 @@ export class MeshTxBuilderCore {
    * Use reference script for minting
    * @param txHash The transaction hash of the UTxO
    * @param txIndex The transaction index of the UTxO
+   * @param scriptSize The script size in bytes of the script (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the script
    * @returns The MeshTxBuilder instance
    */
-  mintTxInReference = (txHash: string, txIndex: number) => {
+  mintTxInReference = (
+    txHash: string,
+    txIndex: number,
+    scriptSize?: string,
+    scriptHash?: string,
+  ) => {
     if (!this.mintItem) throw Error("Undefined mint");
     if (!this.mintItem.type) throw Error("Mint information missing");
     if (this.mintItem.type == "Native") {
@@ -568,8 +579,8 @@ export class MeshTxBuilderCore {
       txHash,
       txIndex,
       version: this.plutusMintingScriptVersion,
-      scriptSize: "0", // TODO
-      scriptHash: "", // TODO
+      scriptSize,
+      scriptHash,
     };
     return this;
   };
@@ -751,15 +762,15 @@ export class MeshTxBuilderCore {
    * Add a withdrawal reference to the MeshTxBuilder instance
    * @param txHash The transaction hash of reference UTxO
    * @param txIndex The transaction index of reference UTxO
-   * @param withdrawalScriptHash The script hash of the withdrawal script
-   * @param scriptSize The script size of the withdrawal script
+   * @param scriptSize The script size in bytes of the withdrawal script (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the withdrawal script
    * @returns The MeshTxBuilder instance
    */
   withdrawalTxInReference = (
     txHash: string,
     txIndex: number,
-    withdrawalScriptHash?: string,
     scriptSize?: string,
+    scriptHash?: string,
   ) => {
     if (!this.withdrawalItem)
       throw Error("withdrawalTxInReference: Undefined withdrawal");
@@ -771,9 +782,9 @@ export class MeshTxBuilderCore {
       type: "Inline",
       txHash,
       txIndex,
-      scriptHash: withdrawalScriptHash,
+      scriptHash,
       version: this.plutusWithdrawalScriptVersion || "V2",
-      scriptSize: scriptSize || "0",
+      scriptSize,
     };
     return this;
   };
@@ -935,16 +946,16 @@ export class MeshTxBuilderCore {
    * Adds a script witness to the certificate
    * @param txHash The transaction hash of the reference UTxO
    * @param txIndex The transaction index of the reference UTxO
-   * @param spendingScriptHash The script hash of the spending script
-   * @param version Optional - The plutus version of the script, null version implies Native Script
-   * @param scriptSize The size of the plutus script referenced
+   * @param scriptSize The size of the plutus script in bytes referenced (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the spending script
+   * @param version The plutus version of the script, null version implies Native Script
    */
   certificateTxInReference = (
     txHash: string,
     txIndex: number,
-    spendingScriptHash: string,
+    scriptSize?: string,
+    scriptHash?: string,
     version?: LanguageVersion,
-    scriptSize = "0", // Must be set in Conway era
   ) => {
     const currentCert = this.meshTxBuilderBody.certificates.pop();
     if (!currentCert) {
@@ -960,7 +971,7 @@ export class MeshTxBuilderCore {
           type: "Inline",
           txHash,
           txIndex,
-          simpleScriptHash: spendingScriptHash,
+          simpleScriptHash: scriptHash,
         },
       });
     } else {
@@ -971,7 +982,7 @@ export class MeshTxBuilderCore {
           type: "Inline",
           txHash,
           txIndex,
-          scriptHash: spendingScriptHash,
+          scriptHash,
           scriptSize,
         },
         redeemer:
@@ -1094,6 +1105,16 @@ export class MeshTxBuilderCore {
   protocolParams = (params: Partial<Protocol>) => {
     const updatedParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...params };
     this._protocolParams = updatedParams;
+    return this;
+  };
+
+  /**
+   * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
+   * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
+   * @returns The MeshTxBuilder instance
+   */
+  setNetwork = (network: Network) => {
+    this.meshTxBuilderBody.network = network;
     return this;
   };
 
@@ -1229,12 +1250,25 @@ export class MeshTxBuilderCore {
         case "MINT": {
           const mint = meshTxBuilderBody.mints[redeemerEvaluation.index]!;
           if (mint.type == "Plutus" && mint.redeemer) {
-            mint.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
-            );
-            mint.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
-            );
+            let newExUnits: Budget = {
+              mem: Math.floor(
+                redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+              ),
+              steps: Math.floor(
+                redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+              ),
+            };
+            // It's possible to have multiple mints with the same policy id but different
+            // asset name, so we need to loop over the mints after evaluation
+            for (
+              let i = redeemerEvaluation.index;
+              i < meshTxBuilderBody.mints.length;
+              i++
+            ) {
+              if (meshTxBuilderBody.mints[i]!.policyId === mint.policyId) {
+                meshTxBuilderBody.mints[i]!.redeemer!.exUnits = newExUnits;
+              }
+            }
           }
           break;
         }

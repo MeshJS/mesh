@@ -21,6 +21,7 @@ import {
   deserializeTx,
   deserializeTxUnspentOutput,
   deserializeValue,
+  Ed25519KeyHashHex,
   Ed25519PublicKey,
   Ed25519PublicKeyHex,
   fromTxUnspentOutput,
@@ -232,21 +233,6 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * Get a list of UTXOs to be used as collateral inputs for transactions with plutus script inputs.
-   *
-   * This is used in transaction building.
-   *
-   * @returns a list of UTXOs
-   */
-  async getUsedCollateral(
-    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
-  ): Promise<TransactionUnspentOutput[]> {
-    const collateral =
-      (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
-  }
-
-  /**
    * Return a list of all UTXOs (unspent transaction outputs) controlled by the wallet.
    *
    * @returns a list of UTXOs
@@ -283,7 +269,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    */
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
     const witness = await this._walletInstance.signTx(unsignedTx, partialSign);
-
+    if (witness === "") {
+      return unsignedTx;
+    }
     return BrowserWallet.addBrowserWitnesses(unsignedTx, witness);
   }
 
@@ -331,8 +319,17 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     for (let i = 0; i < witnessSets.length; i++) {
       const unsignedTx = unsignedTxs[i]!;
       const cWitness = witnessSets[i]!;
-      const signedTx = BrowserWallet.addBrowserWitnesses(unsignedTx, cWitness);
-      signedTxs.push(signedTx);
+      if (cWitness === "") {
+        // It's possible that txs are signed just to give
+        // browser wallet the tx context
+        signedTxs.push(unsignedTx);
+      } else {
+        const signedTx = BrowserWallet.addBrowserWitnesses(
+          unsignedTx,
+          cWitness,
+        );
+        signedTxs.push(signedTx);
+      }
     }
 
     return signedTxs;
@@ -370,10 +367,21 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of UTXOs
    */
-  async getCollateralUnspentOutput(): Promise<TransactionUnspentOutput[]> {
-    const collateral =
-      (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) => deserializeTxUnspentOutput(c));
+  async getCollateralUnspentOutput(
+    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
+  ): Promise<TransactionUnspentOutput[]> {
+    let collateral: string[] = [];
+    try {
+      collateral = (await this._walletInstance.getCollateral()) ?? [];
+    } catch (e) {
+      try {
+        collateral =
+          (await this._walletInstance.experimental.getCollateral()) ?? [];
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }
 
   /**
@@ -447,6 +455,12 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     ).filter((p) => p !== "lovelace");
   }
 
+  /**
+   * The connected wallet account provides the account's public DRep Key, derivation as described in CIP-0105.
+   * These are used by the client to identify the user's on-chain CIP-1694 interactions, i.e. if a user has registered to be a DRep.
+   *
+   * @returns wallet account's public DRep Key
+   */
   async getPubDRepKey(): Promise<
     | {
         pubDRepKey: string;
@@ -459,21 +473,19 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       if (this._walletInstance.cip95 === undefined) return undefined;
 
       const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
-
-      const dRepKeyHex = Ed25519PublicKeyHex(dRepKey);
-      const dRepID = Ed25519PublicKey.fromHex(dRepKeyHex);
-      const dRepIDHex = (await dRepID.hash()).hex();
+      const { dRepKeyHex, dRepIDHash } =
+        await BrowserWallet.dRepKeyToDRepID(dRepKey);
 
       const networkId = await this.getNetworkId();
       const dRepId = buildDRepID(dRepKeyHex, networkId);
 
       return {
         pubDRepKey: dRepKey,
-        dRepIDHash: dRepIDHex,
+        dRepIDHash: dRepIDHash,
         dRepIDBech32: dRepId, // todo to check
       };
     } catch (e) {
-      console.log(e);
+      console.error(e);
       return undefined;
     }
   }
@@ -493,10 +505,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
       const pubStakeKeyHashes = await Promise.all(
         pubStakeKeys.map(async (pubStakeKey) => {
-          const pubStakeKeyHex = Ed25519PublicKeyHex(pubStakeKey);
-          const pubStakeKeyPubKey = Ed25519PublicKey.fromHex(pubStakeKeyHex);
-          const pubStakeKeyHash = (await pubStakeKeyPubKey.hash()).hex();
-          return pubStakeKeyHash.toString();
+          const { dRepIDHash } =
+            await BrowserWallet.dRepKeyToDRepID(pubStakeKey);
+          return dRepIDHash;
         }),
       );
 
@@ -505,9 +516,55 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
         pubStakeKeyHashes: pubStakeKeyHashes,
       };
     } catch (e) {
-      console.log(e);
+      console.error(e);
       return undefined;
     }
+  }
+
+  async getUnregisteredPubStakeKeys(): Promise<
+    | {
+        pubStakeKeys: string[];
+        pubStakeKeyHashes: string[];
+      }
+    | undefined
+  > {
+    try {
+      if (this._walletInstance.cip95 === undefined) return undefined;
+
+      const pubStakeKeys =
+        await this._walletInstance.cip95.getUnregisteredPubStakeKeys();
+
+      const pubStakeKeyHashes = await Promise.all(
+        pubStakeKeys.map(async (pubStakeKey) => {
+          const { dRepIDHash } =
+            await BrowserWallet.dRepKeyToDRepID(pubStakeKey);
+          return dRepIDHash;
+        }),
+      );
+
+      return {
+        pubStakeKeys: pubStakeKeys,
+        pubStakeKeyHashes: pubStakeKeyHashes,
+      };
+    } catch (e) {
+      console.error(e);
+      return undefined;
+    }
+  }
+
+  private static async dRepKeyToDRepID(dRepKey: string): Promise<{
+    dRepKeyHex: Ed25519PublicKeyHex;
+    dRepID: Ed25519PublicKey;
+    dRepIDHash: Ed25519KeyHashHex;
+  }> {
+    const dRepKeyHex = Ed25519PublicKeyHex(dRepKey);
+    const dRepID = Ed25519PublicKey.fromHex(dRepKeyHex);
+    const dRepIDHash = (await dRepID.hash()).hex();
+    return {
+      dRepKeyHex,
+      dRepID,
+      dRepIDHash,
+    };
   }
 
   private static resolveInstance(

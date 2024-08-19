@@ -9,6 +9,7 @@
     "allowJs": true,
     "jsx": "preserve",
     "noEmit": true,
-    "noUnusedLocals": false
+    "noUnusedLocals": false,
+    "noImplicitAny": false
   }
 }

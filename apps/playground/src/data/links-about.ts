@@ -3,6 +3,12 @@ import { FilmIcon, HeartIcon } from "@heroicons/react/24/solid";
 import { MenuItem } from "~/types/menu-item";
 import { metaCatalyst } from "./links-catalyst";
 
+export const metaAboutUs = {
+  link: `/about`,
+  title: "About Us",
+  desc: "",
+  icon: HeartIcon,
+};
 export const metaSupportUs = {
   link: `/about/support-us`,
   title: "Support Us",
@@ -17,6 +23,7 @@ export const metaMediaKit = {
 };
 
 export const linksAbout: MenuItem[] = [
+  metaAboutUs,
   metaCatalyst,
   metaSupportUs,
   metaMediaKit,

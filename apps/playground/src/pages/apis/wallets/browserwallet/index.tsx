@@ -20,6 +20,7 @@ import BrowserWalletGetPubdrepkey from "./get-pubdrepkey";
 import BrowserWalletGetRegisteredpubstakekeys from "./get-registeredpubstakekeys";
 import BrowserWalletGetRewardAddresses from "./get-reward-addresses";
 import BrowserWalletGetSupportedExtensions from "./get-supported-extensions";
+import BrowserWalletGetUnregisteredPubStakeKeys from "./get-unregisteredpubstakekeys";
 import BrowserWalletGetUnusedAddresses from "./get-unused-addresses";
 import BrowserWalletGetUsedAddresses from "./get-used-addresses";
 import BrowserWalletGetUtxos from "./get-utxos";
@@ -51,6 +52,10 @@ const ReactPage: NextPage = () => {
     { label: "Get extensions", to: "getExtensions" },
     { label: "Get DRep ID Key", to: "getPubdrepkey" },
     { label: "Get pub stake keys", to: "getRegisteredpubstakekeys" },
+    {
+      label: "Get unregistered stakekeys",
+      to: "getUnregisteredPubStakeKeys",
+    },
   ];
 
   return (
@@ -103,6 +108,7 @@ const ReactPage: NextPage = () => {
         <BrowserWalletGetExtensions />
         <BrowserWalletGetPubdrepkey />
         <BrowserWalletGetRegisteredpubstakekeys />
+        <BrowserWalletGetUnregisteredPubStakeKeys />
       </SidebarFullwidth>
     </>
   );

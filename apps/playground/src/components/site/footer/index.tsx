@@ -13,14 +13,14 @@ export default function Footer() {
           <div className="mb-2 flex items-center text-2xl font-semibold text-gray-900 sm:mb-0 dark:text-white">
             <div className="mr-2 h-8">
               <Image
-                src="/logos/black/logo-mesh-black-32x32.png"
+                src="/logo-mesh/black/logo-mesh-black-32x32.png"
                 className="dark:hidden"
                 alt="logo"
                 width={32}
                 height={32}
               />
               <Image
-                src="/logos/white/logo-mesh-white-32x32.png"
+                src="/logo-mesh/white/logo-mesh-white-32x32.png"
                 className="hidden dark:block"
                 alt="logo dark"
                 width={32}

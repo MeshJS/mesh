@@ -18,7 +18,7 @@ export const guidenodejs = {
 };
 export const guideminting = {
   title: "Multi-Signatures Transaction",
-  desc: "Learn about multi-sig transaction, build a minting transaction involving AppWallet and BrowserWallet.",
+  desc: "Learn about multi-sig transaction, build a minting transaction involving MeshWallet and BrowserWallet.",
   link: "/guides/multisig-minting",
   thumbnail: "/guides/multi-signatures-transaction.png",
   image: "/guides/keys-g25a80b203_1280.jpg",

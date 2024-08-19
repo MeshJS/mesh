@@ -1,57 +1,28 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [
-    "**/.env.*local"
-  ],
+  "globalDependencies": ["**/.env.*local"],
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build:mesh",
-        "^build:docs",
-        "^build:apps"
-      ],
-      "outputs": [
-        "dist/**",
-        ".next/**",
-        "!.next/cache/**"
-      ]
+      "dependsOn": ["^build:mesh", "^build:docs", "^build:apps"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "build:apps": {
-      "dependsOn": [
-        "^build:mesh",
-        "^build:docs",
-        "^build:apps"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build:mesh", "^build:docs", "^build:apps"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "build:docs": {
-      "dependsOn": [
-        "^build:mesh",
-        "^build:docs"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build:mesh", "^build:docs"],
+      "outputs": ["dist/**"]
     },
     "build:mesh": {
-      "dependsOn": [
-        "^build:mesh"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build:mesh"],
+      "outputs": ["dist/**"]
     },
     "lint": {
-      "dependsOn": [
-        "^lint"
-      ]
+      "dependsOn": ["^lint"]
     },
     "dev": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
@@ -59,15 +30,11 @@
       "cache": false
     },
     "pack": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "cache": false
     },
     "format": {
-      "outputs": [
-        "node_modules/.cache/.prettiercache"
-      ],
+      "outputs": ["node_modules/.cache/.prettiercache"],
       "outputLogs": "new-only"
     },
     "test": {}

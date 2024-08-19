@@ -2,17 +2,20 @@ import axios, { AxiosInstance } from "axios";
 
 import {
   AccountInfo,
+  Action,
   Asset,
   AssetMetadata,
   BlockInfo,
   castProtocol,
   fromUTF8,
+  IEvaluator,
   IFetcher,
   IListener,
   ISubmitter,
   NativeScript,
   PlutusScript,
   Protocol,
+  RedeemerTagType,
   SUPPORTED_HANDLES,
   TransactionInfo,
   Unit,
@@ -23,7 +26,9 @@ import { resolveRewardAddress, toScriptRef } from "@meshsdk/core-cst";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
 
-export class YaciProvider implements IFetcher, IListener, ISubmitter {
+export class YaciProvider
+  implements IFetcher, IListener, ISubmitter, IEvaluator
+{
   private readonly _axiosInstance: AxiosInstance;
 
   /**
@@ -385,7 +390,7 @@ export class YaciProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async evaluateTx(txHex: string): Promise<string> {
+  async evaluateTx(txHex: string) {
     try {
       const headers = { "Content-Type": "application/cbor" };
       const { status, data } = await this._axiosInstance.post(
@@ -396,8 +401,26 @@ export class YaciProvider implements IFetcher, IListener, ISubmitter {
         },
       );
 
-      if (status === 200) {
-        return data;
+      if (status === 200 && data.result.EvaluationResult) {
+        const tagMap: { [key: string]: RedeemerTagType } = {
+          spend: "SPEND",
+          mint: "MINT",
+          certificate: "CERT",
+          withdrawal: "REWARD",
+        };
+        const result: Omit<Action, "data">[] = [];
+
+        Object.keys(data.result.EvaluationResult).forEach((key) => {
+          const [tagKey, index] = key.split(":");
+          const { memory, steps } = data.result.EvaluationResult[key];
+          result.push({
+            tag: tagMap[tagKey!]!,
+            index: Number(index),
+            budget: { mem: memory, steps },
+          });
+        });
+
+        return result;
       }
 
       throw parseHttpError(data);

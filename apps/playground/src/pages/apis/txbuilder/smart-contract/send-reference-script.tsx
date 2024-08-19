@@ -64,12 +64,11 @@ function Right() {
   codeSnippet += `\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx);\n`;
-  codeSnippet += `return txHash;\n`;
 
   return (
     <LiveCodeDemo
-      title="Lock Assets"
-      subtitle="Lock assets in a Plutus script"
+      title="Send Reference Script"
+      subtitle="Provide script as referencing onchain"
       code={codeSnippet}
       runCodeFunction={runDemo}
       disabled={!connected}

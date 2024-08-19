@@ -5,9 +5,9 @@ export const demoAddresses = {
   mainnet: "addr1v9vx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c93pyfx",
   testnet: "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr",
   testnetPayment:
-    "addr_test1qzl2r3fpmav0fmh0vrry0e0tmzxxqwv32sylnlty2jj8dwg636sfudakhsh65qggs4ttjjsk8fuu3fkd65uaxcxv0tfqv3z0y3",
+    "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
   testnetStake:
-    "stake_test1uqdgagy7x7mtcta2qyyg244efgtr57wg5mxa2wwnvrx845s4sa2vp",
+    "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n",
 };
 
 export const demoMnemonic = "solution,".repeat(24).split(",").slice(0, 24);

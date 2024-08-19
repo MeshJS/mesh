@@ -59,7 +59,7 @@ export const CardanoWallet = ({
         />
       </Button>
       <div
-        className={`ui-mr-menu-list ui-absolute ui-w-60 ui-rounded-b-md ui-border ui-text-center ui-shadow-sm ui-backdrop-blur ${hideMenuList && "ui-hidden"} ${isDarkMode ? `ui-bg-neutral-950	ui-text-neutral-50` : `ui-bg-neutral-50	ui-text-neutral-950`}`}
+        className={`mesh-mr-menu-list mesh-absolute mesh-w-60 mesh-rounded-b-md mesh-border mesh-text-center mesh-shadow-sm mesh-backdrop-blur ${hideMenuList && "mesh-hidden"} ${isDarkMode ? `mesh-bg-neutral-950	mesh-text-neutral-50` : `mesh-bg-neutral-50	mesh-text-neutral-950`}`}
         style={{ zIndex: 50 }}
       >
         {!connected && wallets.length > 0 ? (

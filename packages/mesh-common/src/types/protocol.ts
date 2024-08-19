@@ -21,6 +21,7 @@ export type Protocol = {
   collateralPercent: number;
   maxCollateralInputs: number;
   coinsPerUtxoSize: number;
+  minFeeRefScriptCostPerByte: number;
 };
 
 export const castProtocol = (

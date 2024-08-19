@@ -1,6 +1,6 @@
 <div align="center">
 
-![Mesh Logo](https://meshjs.dev/logos/mesh.png)
+![Mesh Logo](https://meshjs.dev/logo-mesh/mesh.png)
 
   <hr />
     <h2 align="center" style="border-bottom: none">Mesh SDK</h2>

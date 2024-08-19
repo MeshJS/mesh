@@ -6,39 +6,21 @@ import { CardanoWallet, useWallet } from "@meshsdk/react";
 import Button from "~/components/button/button";
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
 import { guideownership } from "~/data/links-guides";
+import Demo from "./demo";
 
 export default function MDXPage({ children }) {
-const { wallet, connected } = useWallet();
-  const [loading, setLoading] = useState(false);
-
-async function runDemo() {
-if(!connected) return;
-
-setLoading(true);
-const nonce = generateNonce('Sign to login in to Mesh: ');
-const signature = await wallet.signData(nonce);
-console.log(2, signature)
-
-const result = checkSignature(nonce, signature);
-console.log(4, result);
-setLoading(false);
-}
-
-return (
-  <LayoutImageHeaderAndBody
-    title={guideownership.title}
-    description={guideownership.description}
-    image={guideownership.image}
-    cover={guideownership.cover}
-  >
-    <>
-      {children}
-      <h2>Demo</h2>
-      <p>Connect your wallet and click on the button to sign a message.</p>
-      <CardanoWallet />
-      <Button onClick={() => runDemo()} style={loading ? "warning" : "light"} disabled={loading || !connected}>Sign Message</Button>
-    </>
-  </LayoutImageHeaderAndBody>
+  return (
+    <LayoutImageHeaderAndBody
+      title={guideownership.title}
+      description={guideownership.description}
+      image={guideownership.image}
+      cover={guideownership.cover}
+    >
+      <>
+        {children}
+        <Demo />
+      </>
+    </LayoutImageHeaderAndBody>
   );
 }
 

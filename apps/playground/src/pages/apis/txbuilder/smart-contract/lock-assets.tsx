@@ -1,10 +1,10 @@
 import { useState } from "react";
-import Link from "~/components/link";
 
 import { PlutusScript, serializePlutusScript } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -55,7 +55,7 @@ function Left() {
         The lower level APIs support providing your datum in all Mesh{" "}
         <code>Data</code> (default), JSON and CBOR representations. For details
         and helper utilities, please check{" "}
-          <Link href="/apis/data">Data section</Link>.
+        <Link href="/apis/data">Data section</Link>.
       </p>
       <Codeblock data={codeInlineJSON} />
     </>

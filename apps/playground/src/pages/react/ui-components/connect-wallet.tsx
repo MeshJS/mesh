@@ -72,6 +72,17 @@ function Left() {
       <p>For a custom label, add the label prop.</p>
       <Codeblock data={`<CardanoWallet label={"Connect Wallet"} />`} />
 
+      <p>
+        The customization is limited. For more customization, you can easily
+        build your own wallet connection component. If you are using React, the{" "}
+        <Link href="/react/wallet-hooks">React hooks</Link> will be useful. You
+        may also take reference from{" "}
+        <Link href="https://github.com/MeshJS/mesh/blob/main/packages/mesh-react/src/cardano-wallet/index.tsx">
+          this component
+        </Link>
+        .
+      </p>
+
       <h3>onConnected</h3>
       <p>
         If you want to run a function after the wallet is connected, you can add

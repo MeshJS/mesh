@@ -13,19 +13,19 @@ export default function Media() {
       />
       <div className="mx-auto max-w-screen-lg px-4 py-8 lg:px-6 lg:py-16">
         <div className="grid grid-cols-4 gap-4">
-          <Image img="/logos/black/logo-mesh-black-16x16.png" />
-          <Image img="/logos/black/logo-mesh-black-32x32.png" />
-          <Image img="/logos/black/logo-mesh-black-64x64.png" />
-          <Image img="/logos/black/logo-mesh-black-128x128.png" />
-          <Image img="/logos/black/logo-mesh-black-256x256.png" />
-          <Image img="/logos/black/logo-mesh-black-512x512.png" />
-          <Image img="/logos/white/logo-mesh-white-16x16.png" />
-          <Image img="/logos/white/logo-mesh-white-32x32.png" />
-          <Image img="/logos/white/logo-mesh-white-64x64.png" />
-          <Image img="/logos/white/logo-mesh-white-128x128.png" />
-          <Image img="/logos/white/logo-mesh-white-256x256.png" />
-          <Image img="/logos/white/logo-mesh-white-512x512.png" />
-          <Image img="/logos/mesh.png" />
+          <Image img="/logo-mesh/black/logo-mesh-black-16x16.png" />
+          <Image img="/logo-mesh/black/logo-mesh-black-32x32.png" />
+          <Image img="/logo-mesh/black/logo-mesh-black-64x64.png" />
+          <Image img="/logo-mesh/black/logo-mesh-black-128x128.png" />
+          <Image img="/logo-mesh/black/logo-mesh-black-256x256.png" />
+          <Image img="/logo-mesh/black/logo-mesh-black-512x512.png" />
+          <Image img="/logo-mesh/white/logo-mesh-white-16x16.png" />
+          <Image img="/logo-mesh/white/logo-mesh-white-32x32.png" />
+          <Image img="/logo-mesh/white/logo-mesh-white-64x64.png" />
+          <Image img="/logo-mesh/white/logo-mesh-white-128x128.png" />
+          <Image img="/logo-mesh/white/logo-mesh-white-256x256.png" />
+          <Image img="/logo-mesh/white/logo-mesh-white-512x512.png" />
+          <Image img="/logo-mesh/mesh.png" />
         </div>
       </div>
     </>

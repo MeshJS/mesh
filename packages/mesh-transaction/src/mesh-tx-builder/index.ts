@@ -99,7 +99,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const txEvaluation = await this.evaluator
         .evaluateTx(txHex)
         .catch((error) => {
-          throw Error(`Tx evaluation failed: ${error}`);
+          throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
       txHex = this.serializer.serializeTxBody(
@@ -227,8 +227,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         throw Error(
           `Couldn't find script reference utxo for ${scriptSource.txHash}#${scriptSource.txIndex}`,
         );
-      scriptSource.scriptHash = scriptRefUtxo?.output.scriptHash;
-      // TODO: Calculate script size
+      scriptSource.scriptHash = scriptRefUtxo?.output.scriptHash!;
+      scriptSource.scriptSize = (
+        scriptRefUtxo?.output.scriptRef!.length / 2
+      ).toString();
     }
   };
 
@@ -253,8 +255,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   private isRefScriptInfoComplete = (scriptTxIn: ScriptTxIn): boolean => {
     const { scriptSource } = scriptTxIn.scriptTxIn;
-    if (scriptSource?.type === "Inline" && !scriptSource?.scriptHash)
-      return false;
+    if (scriptSource?.type === "Inline") {
+      if (scriptSource?.scriptHash || scriptSource?.scriptSize) return false;
+    }
     return true;
   };
 }

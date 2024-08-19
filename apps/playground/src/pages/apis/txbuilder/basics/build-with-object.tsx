@@ -45,7 +45,7 @@ function Left() {
     <>
       <p>
         One alternative to use the lower level APIs is to build the transaction
-        with an object.
+        with JSON.
       </p>
       <p>
         The following shows a simple example of building a transaction to send
@@ -100,8 +100,8 @@ function Right() {
   code += `const meshTxBody: Partial<MeshTxBuilderBody> = {\n`;
   code += `  outputs: [\n`;
   code += `    {\n`;
-  code += `      address: "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr",\n`;
-  code += `      amount: [{ unit: "lovelace", quantity: "2000000" }],\n`;
+  code += `      address: "${address}",\n`;
+  code += `      amount: [{ unit: "lovelace", quantity: "${amount}" }],\n`;
   code += `    },\n`;
   code += `  ],\n`;
   code += `  changeAddress: changeAddress,\n`;

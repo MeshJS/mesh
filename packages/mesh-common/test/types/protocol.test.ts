@@ -49,6 +49,7 @@ describe("Protocol", () => {
         priceStep: 0,
         epoch: DEFAULT_PROTOCOL_PARAMETERS.epoch,
         decentralisation: DEFAULT_PROTOCOL_PARAMETERS.decentralisation,
+        minFeeRefScriptCostPerByte: 15,
       };
 
       const casted = castProtocol(uncasted);

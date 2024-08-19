@@ -21,6 +21,7 @@ export const DEFAULT_PROTOCOL_PARAMETERS: Protocol = {
   maxTxExSteps: "10000000000",
   maxBlockExMem: "80000000",
   maxBlockExSteps: "40000000000",
+  minFeeRefScriptCostPerByte: 15,
 };
 
 export const resolveTxFees = (

@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  IEvaluator,
   IFetcher,
   IListener,
   ISubmitter,
@@ -28,7 +29,9 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
 
 export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
 
-export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
+export class BlockfrostProvider
+  implements IFetcher, IListener, ISubmitter, IEvaluator
+{
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: BlockfrostSupportedNetworks;
 
@@ -199,6 +202,35 @@ export class BlockfrostProvider implements IFetcher, IListener, ISubmitter {
       if (status === 200 || status == 202)
         return <AssetMetadata>{
           ...data.onchain_metadata,
+        };
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchLatestBlock(): Promise<BlockInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.get(`blocks/latest`);
+
+      if (status === 200 || status == 202)
+        return <BlockInfo>{
+          confirmations: data.confirmations,
+          epoch: data.epoch,
+          epochSlot: data.epoch_slot.toString(),
+          fees: data.fees,
+          hash: data.hash,
+          nextBlock: data.next_block ?? "",
+          operationalCertificate: data.op_cert,
+          output: data.output ?? "0",
+          previousBlock: data.previous_block,
+          size: data.size,
+          slot: data.slot.toString(),
+          slotLeader: data.slot_leader ?? "",
+          time: data.time,
+          txCount: data.tx_count,
+          VRFKey: data.block_vrf,
         };
 
       throw parseHttpError(data);
