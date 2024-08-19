@@ -12,6 +12,7 @@ import {
   LanguageVersion,
   MeshTxBuilderBody,
   MintItem,
+  Network,
   Output,
   PoolParams,
   Protocol,
@@ -1104,6 +1105,16 @@ export class MeshTxBuilderCore {
   protocolParams = (params: Partial<Protocol>) => {
     const updatedParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...params };
     this._protocolParams = updatedParams;
+    return this;
+  };
+
+    /**
+   * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
+   * @param network The specific network this transaction is being built for
+   * @returns The MeshTxBuilder instance
+   */
+  setNetwork = (network: Network) => {
+    this.meshTxBuilderBody.network = network;
     return this;
   };
 
