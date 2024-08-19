@@ -1,6 +1,8 @@
 import {
   Asset,
+  assocMap,
   byteString,
+  currencySymbol,
   dict,
   Dict,
   Integer,
@@ -8,6 +10,7 @@ import {
   MeshValue,
   MValue,
   mValue,
+  tokenName,
   Value,
   value,
 } from "@meshsdk/common";
@@ -168,6 +171,102 @@ describe("MeshValue class", () => {
       const plutusValue: Value = value(val);
       const assets: Asset[] = MeshValue.fromValue(plutusValue).toAssets();
       expect(JSON.stringify(val)).toBe(JSON.stringify(assets));
+    });
+  });
+  describe("toData", () => {
+    test("Empty Value", () => {
+      const val: Asset[] = [];
+      const plutusValue: Value = value(val);
+      const data = MeshValue.fromValue(plutusValue).toData();
+      const expected: MValue = mValue(val);
+      expect(JSON.stringify(expected)).toBe(JSON.stringify(data));
+    });
+
+    test("Multiple Assets with Same Policy", () => {
+      const val: Asset[] = [
+        {
+          unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234",
+          quantity: "100",
+        },
+        {
+          unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234",
+          quantity: "200",
+        },
+      ];
+      const plutusValue: Value = value(val);
+      const data = MeshValue.fromValue(plutusValue).toData();
+      const expected: MValue = mValue(val);
+
+      expect(JSON.stringify(expected)).toBe(JSON.stringify(data));
+    });
+
+    test("Mixed Assets", () => {
+      const val: Asset[] = [
+        { unit: "lovelace", quantity: "1000000" },
+        {
+          unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234",
+          quantity: "567",
+        },
+        {
+          unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc8170074657374696e676e657777616c2e616461",
+          quantity: "345",
+        },
+        {
+          unit: "baefdc6c5b191be372a794cd8d40d839ec0dbdd3c28957267dc817001234",
+          quantity: "100",
+        },
+      ];
+      const plutusValue: Value = value(val);
+      const data = MeshValue.fromValue(plutusValue).toData();
+      const expected: MValue = mValue(val);
+      expect(JSON.stringify(expected)).toBe(JSON.stringify(data));
+    });
+
+    test("Single Asset with Large Quantity", () => {
+      const val: Asset[] = [{ unit: "lovelace", quantity: "1000000000000" }];
+      const plutusValue: Value = value(val);
+      const data = MeshValue.fromValue(plutusValue).toData();
+      const expected: MValue = mValue(val);
+      expect(JSON.stringify(expected)).toBe(JSON.stringify(data));
+    });
+  });
+  describe("toJSON", () => {
+    test("should correctly convert MeshValue to JSON with multiple assets", () => {
+      const assets: Asset[] = [
+        { unit: "lovelace", quantity: "1000000" },
+        {
+          unit: "c21d710605bb00e69f3c175150552fc498316d80e7efdb1b186db38c000643b04d65736820676f6f64",
+          quantity: "500",
+        },
+      ];
+
+      const expectedValue = assocMap([
+        [currencySymbol(""), assocMap([[tokenName(""), integer(1000000)]])],
+        [
+          currencySymbol(
+            "c21d710605bb00e69f3c175150552fc498316d80e7efdb1b186db38c",
+          ),
+          assocMap([[tokenName("000643b04d65736820676f6f64"), integer(500)]]),
+        ],
+      ]);
+
+      const meshValue = new MeshValue();
+      meshValue.toAssets = () => assets;
+
+      const jsonValue = meshValue.toJSON();
+      expect(JSON.stringify(jsonValue)).toEqual(JSON.stringify(expectedValue));
+    });
+
+    test("should correctly convert MeshValue to JSON with no asset", () => {
+      const assets: Asset[] = [];
+
+      const expectedValue = assocMap([]);
+
+      const meshValue = new MeshValue();
+      meshValue.toAssets = () => assets;
+
+      const jsonValue = meshValue.toJSON();
+      expect(JSON.stringify(jsonValue)).toEqual(JSON.stringify(expectedValue));
     });
   });
 });
