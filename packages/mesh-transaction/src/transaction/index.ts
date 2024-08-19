@@ -11,6 +11,7 @@ import {
   metadataToCip68,
   Mint,
   NativeScript,
+  Network,
   PlutusScript,
   POLICY_ID_LENGTH,
   PoolParams,
@@ -456,6 +457,16 @@ export class Transaction {
 
     return this;
   }
+
+  /**
+   * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
+   * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
+   * @returns The Transaction object.
+   */
+  setNetwork = (network: Network) => {
+    this.txBuilder.setNetwork(network);
+    return this;
+  };
 
   /**
    * Sets the required signers for the transaction.

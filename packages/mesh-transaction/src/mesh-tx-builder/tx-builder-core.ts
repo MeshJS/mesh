@@ -1108,9 +1108,9 @@ export class MeshTxBuilderCore {
     return this;
   };
 
-    /**
+  /**
    * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
-   * @param network The specific network this transaction is being built for
+   * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
    * @returns The MeshTxBuilder instance
    */
   setNetwork = (network: Network) => {
