@@ -12,6 +12,7 @@ import TxbuilderCoinSelection from "./coin-selection";
 import TxbuilderInitializeTxbuilder from "./initialize-txbuilder";
 import TxbuilderMultisig from "./multisig";
 import TxbuilderSendValues from "./send-values";
+import TxbuilderSetNetwork from "./set-network";
 import TxbuilderSetRequiredSigners from "./set-required-signers";
 import TxbuilderSetTime from "./set-time";
 
@@ -25,6 +26,7 @@ const ReactPage: NextPage = () => {
     { label: "Set metadata", to: "cip20" },
     { label: "Set required signers", to: "requiredSigners" },
     { label: "Set time", to: "setTime" },
+    { label: "Set network", to: "setNetwork" },
   ];
 
   return (
@@ -73,6 +75,7 @@ const ReactPage: NextPage = () => {
         {/* <TxbuilderSetCollateral /> */}
         <TxbuilderSetRequiredSigners />
         <TxbuilderSetTime />
+        <TxbuilderSetNetwork />
       </SidebarFullwidth>
     </>
   );

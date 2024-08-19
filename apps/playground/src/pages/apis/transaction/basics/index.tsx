@@ -15,6 +15,7 @@ import TransactionSendLovelace from "./send-lovelace";
 import TransactionSendValue from "./send-value";
 import TransactionSetCollateral from "./set-collateral";
 import TransactionSetMetadata from "./set-metadata";
+import TransactionSetNetwork from "./set-network";
 import TransactionSetRequiredSigners from "./set-required-signers";
 import TransactionSetTime from "./set-time";
 
@@ -37,6 +38,7 @@ const ReactPage: NextPage = () => {
     { label: "Set required signers", to: "requiredSigners" },
 
     { label: "Set time", to: "setTime" },
+    { label: "Set network", to: "setNetwork" },
   ];
 
   return (
@@ -78,6 +80,7 @@ const ReactPage: NextPage = () => {
         <TransactionSetRequiredSigners />
 
         <TransactionSetTime />
+        <TransactionSetNetwork />
       </SidebarFullwidth>
     </>
   );

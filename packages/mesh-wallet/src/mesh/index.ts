@@ -284,23 +284,6 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * Get a list of UTXOs to be used as collateral inputs for transactions with plutus script inputs.
-   *
-   * This is used in transaction building.
-   *
-   * @returns a list of UTXOs
-   */
-  async getUsedCollateral(): Promise<TransactionUnspentOutput[]> {
-    const collateralUtxo = await this.getCollateral();
-
-    const unspentOutput = collateralUtxo.map((utxo) => {
-      return toTxUnspentOutput(utxo);
-    });
-
-    return unspentOutput;
-  }
-
-  /**
    * Get a list of UTXOs to be used for transaction building.
    *
    * This is used in transaction building.

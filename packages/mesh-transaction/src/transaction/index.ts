@@ -11,6 +11,7 @@ import {
   metadataToCip68,
   Mint,
   NativeScript,
+  Network,
   PlutusScript,
   POLICY_ID_LENGTH,
   PoolParams,
@@ -241,6 +242,7 @@ export class Transaction {
         .spendingTxInReference(
           script.input.txHash,
           script.input.outputIndex,
+          (script.output.scriptRef.length / 2).toString(),
           script.output.scriptHash,
         )
         .txInRedeemerValue(red.data, "Mesh", red.budget);
@@ -339,6 +341,8 @@ export class Transaction {
               .mintTxInReference(
                 forgeScript.input.txHash,
                 forgeScript.input.outputIndex,
+                (forgeScript.output.scriptRef.length / 2).toString(),
+                forgeScript.output.scriptHash,
               )
               .mintRedeemerValue(redeemer.data, "Mesh", redeemer.budget);
             if (mint.cip68ScriptAddress) {
@@ -347,6 +351,8 @@ export class Transaction {
                 .mintTxInReference(
                   forgeScript.input.txHash,
                   forgeScript.input.outputIndex,
+                  (forgeScript.output.scriptRef.length / 2).toString(),
+                  forgeScript.output.scriptHash,
                 )
                 .mintRedeemerValue(redeemer.data, "Mesh", redeemer.budget);
               break;
@@ -393,8 +399,9 @@ export class Transaction {
         this.setMetadata(Number(mint.label), {
           [policyId]: { [mint.assetName]: mint.metadata },
         });
+      } else {
+        this.setMetadata(Number(mint.label), mint.metadata);
       }
-      this.setMetadata(Number(mint.label), mint.metadata);
     }
 
     return this;
@@ -450,6 +457,16 @@ export class Transaction {
 
     return this;
   }
+
+  /**
+   * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
+   * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
+   * @returns The Transaction object.
+   */
+  setNetwork = (network: Network) => {
+    this.txBuilder.setNetwork(network);
+    return this;
+  };
 
   /**
    * Sets the required signers for the transaction.

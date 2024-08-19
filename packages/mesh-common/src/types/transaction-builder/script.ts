@@ -23,5 +23,5 @@ export type SimpleScriptSourceInfo =
       type: "Inline";
       txHash: string;
       txIndex: number;
-      simpleScriptHash: string;
+      simpleScriptHash?: string;
     };

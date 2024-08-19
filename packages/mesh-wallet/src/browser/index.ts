@@ -233,21 +233,6 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
-   * Get a list of UTXOs to be used as collateral inputs for transactions with plutus script inputs.
-   *
-   * This is used in transaction building.
-   *
-   * @returns a list of UTXOs
-   */
-  async getUsedCollateral(
-    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
-  ): Promise<TransactionUnspentOutput[]> {
-    const collateral =
-      (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
-  }
-
-  /**
    * Return a list of all UTXOs (unspent transaction outputs) controlled by the wallet.
    *
    * @returns a list of UTXOs
@@ -335,7 +320,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       const unsignedTx = unsignedTxs[i]!;
       const cWitness = witnessSets[i]!;
       if (cWitness === "") {
-        // It's possible that txs are signed just to give 
+        // It's possible that txs are signed just to give
         // browser wallet the tx context
         signedTxs.push(unsignedTx);
       } else {
@@ -382,10 +367,21 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of UTXOs
    */
-  async getCollateralUnspentOutput(): Promise<TransactionUnspentOutput[]> {
-    const collateral =
-      (await this._walletInstance.experimental.getCollateral()) ?? [];
-    return collateral.map((c) => deserializeTxUnspentOutput(c));
+  async getCollateralUnspentOutput(
+    limit = DEFAULT_PROTOCOL_PARAMETERS.maxCollateralInputs,
+  ): Promise<TransactionUnspentOutput[]> {
+    let collateral: string[] = [];
+    try {
+      collateral = (await this._walletInstance.getCollateral()) ?? [];
+    } catch (e) {
+      try {
+        collateral =
+          (await this._walletInstance.experimental.getCollateral()) ?? [];
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return collateral.map((c) => deserializeTxUnspentOutput(c)).slice(0, limit);
   }
 
   /**

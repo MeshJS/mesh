@@ -33,8 +33,8 @@ export const deserializePlutusScript = (
   plutusScript: string,
   version: LanguageVersion,
 ) =>
-  csl.PlutusScript.from_bytes_with_version(
-    toBytes(plutusScript),
+  csl.PlutusScript.from_hex_with_version(
+    plutusScript,
     LANGUAGE_VERSIONS[version],
   );
 
