@@ -4,6 +4,7 @@ import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaSerializers } from "~/data/links-utilities";
+import SerializeNativeScript from "./serialize-native-script";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [{ label: "Coming soon", to: "resolveDataHash" }];
@@ -22,6 +23,8 @@ const ReactPage: NextPage = () => {
         >
           <></>
         </TitleIconDescriptionBody>
+
+        <SerializeNativeScript />
       </SidebarFullwidth>
     </>
   );

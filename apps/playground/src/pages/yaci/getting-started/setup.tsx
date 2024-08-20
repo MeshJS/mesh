@@ -37,7 +37,7 @@ function Left() {
           Yaci releases on Github
         </Link>{" "}
         and download the latest release. Under <code>Assets</code>, you will
-        find the <code>Source code (zip)</code> file.
+        find the <code>yaci-devkit-version.zip</code> file.
       </p>
       <p>
         Extract the zip file to a folder on your system. This folder will be

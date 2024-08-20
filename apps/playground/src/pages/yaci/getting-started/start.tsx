@@ -26,10 +26,10 @@ function Left() {
       <p>To create a new devnet, run the following command from yaci-cli:</p>
       <Codeblock data={`yaci-cli:>create-node -o --start`} />
       <p>
-        To create a new devnet with Conway era, run the following command from
+        To create a new devnet with Babbage era, run the following command from
         yaci-cli:
       </p>
-      <Codeblock data={`yaci-cli:>create-node -o --era conway --start`} />
+      <Codeblock data={`yaci-cli:>create-node -o --era babbage --start`} />
       <p>
         To start a devnet with zero fees, run the following command from
         yaci-cli:

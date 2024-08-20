@@ -8,12 +8,14 @@ import Codeblock from "~/components/text/codeblock";
 import { metaVesting } from "~/data/links-smart-contracts";
 import { InstallSmartContract } from "../common";
 import VestingDepositFund from "./deposit-fund";
+import VestingFullTutorial from "./full-tutorial";
 import VestingWithdrawFund from "./withdraw-fund";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Deposit Fund", to: "depositFund" },
     { label: "Withdraw Fund", to: "withdrawFund" },
+    { label: "Full Tutorial", to: "tutorial" },
   ];
 
   let example = ``;
@@ -85,6 +87,7 @@ const ReactPage: NextPage = () => {
 
         <VestingDepositFund />
         <VestingWithdrawFund />
+        <VestingFullTutorial />
       </SidebarFullwidth>
     </>
   );
