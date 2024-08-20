@@ -7,7 +7,7 @@ export default function LeqComparator() {
   return (
     <TwoColumnsScroll
       sidebarTo="LeqComparator"
-      title="Check if the value is less than or equal to another value with parameters - other"
+      title="Comparator - check if the value is less than or equal to another value with parameters - other"
       leftSection={Left()}
       rightSection={Right()}
     />

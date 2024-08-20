@@ -7,7 +7,7 @@ export default function LequnitComparator() {
   return (
     <TwoColumnsScroll
       sidebarTo="LequnitComparator"
-      title="Check if the specific unit of value is less than or equal to that unit of another value with parameters - unit, other"
+      title="Comparator - check if the specific unit of value is less than or equal to that unit of another value with parameters - unit, other"
       leftSection={Left()}
       rightSection={Right()}
     />

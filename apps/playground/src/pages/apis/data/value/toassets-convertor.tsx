@@ -7,7 +7,7 @@ export default function ToassetsConvertor() {
   return (
     <TwoColumnsScroll
       sidebarTo="ToassetsConvertor"
-      title="Converts the MeshValue object into an array of Asset"
+      title="Convertor - converts the MeshValue object into an array of Asset"
       leftSection={Left()}
       rightSection={Right()}
     />

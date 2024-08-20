@@ -7,7 +7,7 @@ export default function IsemptyComparator() {
   return (
     <TwoColumnsScroll
       sidebarTo="IsemptyComparator"
-      title="Check if the value is empty"
+      title="Comparator - check if the value is empty"
       leftSection={Left()}
       rightSection={Right()}
     />

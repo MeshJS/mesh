@@ -7,7 +7,7 @@ export default function UnitsAccessor() {
   return (
     <TwoColumnsScroll
       sidebarTo="UnitsAccessor"
-      title="Get all asset units with no parameters needed"
+      title="Accessor - get all asset units with no parameters needed"
       leftSection={Left()}
       rightSection={Right()}
     />

@@ -7,7 +7,7 @@ export default function GetAccessor() {
   return (
     <TwoColumnsScroll
       sidebarTo="GetAccessor"
-      title="Get the quantity of asset object per lovelace unit"
+      title="Accessor - get the quantity of asset object per lovelace unit"
       leftSection={Left()}
       rightSection={Right()}
     />

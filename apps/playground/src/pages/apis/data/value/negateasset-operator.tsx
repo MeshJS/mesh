@@ -7,7 +7,7 @@ export default function NegateassetOperator() {
   return (
     <TwoColumnsScroll
       sidebarTo="NegateassetOperator"
-      title="Substract an asset from the Value class's value record with parameters - asset"
+      title="Operator - substract an asset from the Value class's value record with parameters - asset"
       leftSection={Left()}
       rightSection={Right()}
     />

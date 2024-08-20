@@ -7,7 +7,7 @@ export default function GeqComparator() {
   return (
     <TwoColumnsScroll
       sidebarTo="GeqComparator"
-      title="Check if the value is greater than or equal to another value with parameters - other"
+      title="Comparator - check if the value is greater than or equal to another value with parameters - other"
       leftSection={Left()}
       rightSection={Right()}
     />

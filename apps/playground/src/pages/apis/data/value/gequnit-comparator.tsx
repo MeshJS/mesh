@@ -7,7 +7,7 @@ export default function GequnitComparator() {
   return (
     <TwoColumnsScroll
       sidebarTo="GequnitComparator"
-      title="Check if the value is greater than or equal to another value with parameters - unit, other"
+      title="Comparator - check if the value is greater than or equal to another value with parameters - unit, other"
       leftSection={Left()}
       rightSection={Right()}
     />

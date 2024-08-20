@@ -7,7 +7,7 @@ export default function FromvalueConvertor() {
   return (
     <TwoColumnsScroll
       sidebarTo="FromvalueConvertor"
-      title="Converting Value (the JSON representation of Cardano data Value) into MeshValue"
+      title="Convertor - converts Value (the JSON representation of Cardano data Value) into MeshValue"
       leftSection={Left()}
       rightSection={Right()}
     />

@@ -7,7 +7,7 @@ export default function FromassetsConvertor() {
   return (
     <TwoColumnsScroll
       sidebarTo="FromassetsConvertor"
-      title="Converts assets into MeshValue with parameters - asset[]"
+      title="Convertor - converts assets into MeshValue with parameters - asset[]"
       leftSection={Left()}
       rightSection={Right()}
     />

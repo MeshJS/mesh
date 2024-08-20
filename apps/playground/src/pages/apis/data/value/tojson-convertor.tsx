@@ -8,7 +8,7 @@ export default function TojsonConvertor() {
   return (
     <TwoColumnsScroll
       sidebarTo="TojsonConvertor"
-      title="Converts the MeshValue object into a JSON representation of Cardano data Value"
+      title="Convertor - converts the MeshValue object into a JSON representation of Cardano data Value"
       leftSection={Left()}
       rightSection={Right()}
     />

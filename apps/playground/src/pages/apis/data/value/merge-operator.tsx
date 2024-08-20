@@ -7,7 +7,7 @@ export default function MergeOperator() {
   return (
     <TwoColumnsScroll
       sidebarTo="MergeOperator"
-      title="Merge the given values with parameters - values"
+      title="Operator - merge the given values with parameters - values"
       leftSection={Left()}
       rightSection={Right()}
     />

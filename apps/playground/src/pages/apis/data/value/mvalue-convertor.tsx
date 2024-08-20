@@ -7,7 +7,7 @@ export default function MvalueConvertor() {
   return (
     <TwoColumnsScroll
       sidebarTo="MvalueConvertor"
-      title="The utility function to convert assets into Cardano data Value in Mesh Data type"
+      title="Convertor - converts assets into Cardano data Value in Mesh Data type"
       leftSection={Left()}
       rightSection={Right()}
     />

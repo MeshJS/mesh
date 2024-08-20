@@ -7,7 +7,7 @@ export default function AddassetsOperator() {
   return (
     <TwoColumnsScroll
       sidebarTo="AddassetsOperator"
-      title="Add an array of assets to the Value class's value record with parameters - assets"
+      title="Operator - add an array of assets to the Value class's value record with parameters - assets"
       leftSection={Left()}
       rightSection={Right()}
     />

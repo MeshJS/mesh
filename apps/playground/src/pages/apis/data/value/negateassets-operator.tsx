@@ -7,7 +7,7 @@ export default function NegateassetsOperator() {
   return (
     <TwoColumnsScroll
       sidebarTo="NegateassetsOperator"
-      title="Substract an array of assets from the Value class's value record with parameters - assets"
+      title="Operator - substract an array of assets from the Value class's value record with parameters - assets"
       leftSection={Left()}
       rightSection={Right()}
     />

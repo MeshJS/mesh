@@ -16,7 +16,7 @@ export default function ValueConvertor() {
   return (
     <TwoColumnsScroll
       sidebarTo="ValueConvertor"
-      title="The utility function to convert assets into Cardano data Value in JSON"
+      title="Convertor - converts assets into Cardano data Value in JSON"
       leftSection={Left()}
       rightSection={Right()}
     />
