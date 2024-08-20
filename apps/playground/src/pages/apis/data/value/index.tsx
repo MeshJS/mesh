@@ -4,17 +4,47 @@ import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaDataValue } from "~/data/links-data";
-import ValueAccessor from "./accessor";
-import ValueComparator from "./comparator";
-import ValueConvertor from "./convertor";
-import ValueOperator from "./operators";
+import AddassetOperator from "./addasset-operator";
+import AddassetsOperator from "./addassets-operator";
+import FromassetsConvertor from "./fromassets-convertor";
+import FromvalueConvertor from "./fromvalue-convertor";
+import GeqComparator from "./geq-comparator";
+import GequnitComparator from "./gequnit-comparator";
+import GetAccessor from "./get-accessor";
+import IsemptyComparator from "./isempty-comparator";
+import LeqComparator from "./leq-comparator";
+import LequnitComparator from "./lequnit-comparator";
+import MergeOperator from "./merge-operator";
+import MvalueConvertor from "./mvalue-convertor";
+import NegateassetOperator from "./negateasset-operator";
+import NegateassetsOperator from "./negateassets-operator";
+import ToassetsConvertor from "./toassets-convertor";
+import TodataConvertor from "./todata-convertor";
+import TojsonConvertor from "./tojson-convertor";
+import UnitsAccessor from "./units-accessor";
+import ValueConvertor from "./value-convertor";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
-    { label: "Value - Convertor", to: "ValueConvertor" },
-    { label: "Value - Operator", to: "ValueOperator" },
-    { label: "Value - Accessor", to: "ValueAccessor" },
-    { label: "Value - Comparator", to: "ValueComparator" },
+    { label: "Convertor - value", to: "ValueConvertor" },
+    { label: "Convertor - mValue", to: "MvalueConvertor" },
+    { label: "Convertor - fromAssets", to: "FromassetsConvertor" },
+    { label: "Convertor - toAssets", to: "ToassetsConvertor" },
+    { label: "Convertor - fromValue", to: "FromvalueConvertor" },
+    { label: "Convertor - toData", to: "TodataConvertor" },
+    { label: "Convertor - toJSON", to: "TojsonConvertor" },
+    { label: "Operator - addAsset", to: "AddassetOperator" },
+    { label: "Operator - addAssets", to: "AddassetsOperator" },
+    { label: "Operator - negateAsset", to: "NegateassetOperator" },
+    { label: "Operator - negateAssets", to: "NegateassetsOperator" },
+    { label: "Operator - merge", to: "MergeOperator" },
+    { label: "Accessor - get", to: "GetAccessor" },
+    { label: "Accessor - units", to: "UnitsAccessor" },
+    { label: "Comparator - gep", to: "GeqComparator" },
+    { label: "Comparator - gepUnit", to: "GequnitComparator" },
+    { label: "Comparator - leq", to: "LeqComparator" },
+    { label: "Comparator - leqUnit", to: "LequnitComparator" },
+    { label: "Comparator - isEmpty", to: "IsemptyComparator" },
   ];
 
   return (
@@ -27,8 +57,8 @@ const ReactPage: NextPage = () => {
           heroicon={metaDataValue.icon}
         >
           <p>
-            Mesh provides a full set of value methods to help accessing,
-            comparing, converting, and operating Cardano data.
+            Mesh provides a full set of value methods to help converting,
+            operating, accessing and comparing Cardano data.
           </p>
           <h3>Value Types Support</h3>
           <h4>Convertor</h4>
@@ -103,9 +133,24 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
 
         <ValueConvertor />
-        <ValueOperator />
-        <ValueAccessor />
-        <ValueComparator />
+        <MvalueConvertor />
+        <FromassetsConvertor />
+        <ToassetsConvertor />
+        <FromvalueConvertor />
+        <TodataConvertor />
+        <TojsonConvertor />
+        <AddassetOperator />
+        <AddassetsOperator />
+        <NegateassetOperator />
+        <NegateassetsOperator />
+        <MergeOperator />
+        <GetAccessor />
+        <UnitsAccessor />
+        <GeqComparator />
+        <GequnitComparator />
+        <LeqComparator />
+        <LequnitComparator />
+        <IsemptyComparator />
       </SidebarFullwidth>
     </>
   );
