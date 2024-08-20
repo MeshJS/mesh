@@ -72,6 +72,25 @@ function Right() {
   }
 
   let code = ``;
+  code += `const assets: Asset[] = [\n`;
+  code += `  {\n`;
+  code += `    unit: "lovelace",\n`;
+  code += `    quantity: '${userInput}',\n`;
+  code += `  },\n`;
+  code += `];\n`;
+  code += `\n`;
+  code += `const lockUntilTimeStamp = new Date();\n`;
+  code += `lockUntilTimeStamp.setMinutes(lockUntilTimeStamp.getMinutes() + 1);\n`;
+  code += `\n`;
+  code += `const beneficiary = '${userInput2}';\n`;
+  code += `\n`;
+  code += `const tx = await contract.depositFund(\n`;
+  code += `  assets,\n`;
+  code += `  lockUntilTimeStamp.getTime(),\n`;
+  code += `  beneficiary,\n`;
+  code += `);\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo

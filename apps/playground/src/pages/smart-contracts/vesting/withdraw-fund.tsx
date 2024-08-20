@@ -57,6 +57,10 @@ function Right() {
   }
 
   let code = ``;
+  code += `const utxo = await contract.getUtxoByTxHash('${userInput}');\n\n`;
+  code += `const tx = await contract.withdrawFund(utxo);\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo
