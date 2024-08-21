@@ -5,9 +5,13 @@ import TitleIconDescriptionBody from "~/components/sections/title-icon-descripti
 import Metatags from "~/components/site/metatags";
 import { metaSerializers } from "~/data/links-utilities";
 import SerializeNativeScript from "./serialize-native-script";
+import SerializePlutusScript from "./serialize-plutus-script";
 
 const ReactPage: NextPage = () => {
-  const sidebarItems = [{ label: "Coming soon", to: "resolveDataHash" }];
+  const sidebarItems = [
+    { label: "Serialize Native Script", to: "serializeNativeScript" },
+    { label: "Serialize Plutus Script", to: "serializePlutusScript" },
+  ];
 
   return (
     <>
@@ -25,6 +29,7 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
 
         <SerializeNativeScript />
+        <SerializePlutusScript />
       </SidebarFullwidth>
     </>
   );
