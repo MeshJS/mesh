@@ -5,10 +5,14 @@ import TitleIconDescriptionBody from "~/components/sections/title-icon-descripti
 import Metatags from "~/components/site/metatags";
 import { metaDeserializers } from "~/data/links-utilities";
 import DeserializeAddress from "./deserialize-address";
+import DeserializeDatum from "./deserialize-datum";
+import DeserializePoolId from "./deserialize-poolid";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Deserialize Address", to: "deserializeAddress" },
+    { label: "Deserialize Datum", to: "deserializeDatum" },
+    { label: "Deserialize Pool Id", to: "deserializePoolId" },
   ];
 
   return (
@@ -27,6 +31,8 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
 
         <DeserializeAddress />
+        <DeserializeDatum />
+        <DeserializePoolId />
       </SidebarFullwidth>
     </>
   );
