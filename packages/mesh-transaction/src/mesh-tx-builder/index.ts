@@ -256,7 +256,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   private isRefScriptInfoComplete = (scriptTxIn: ScriptTxIn): boolean => {
     const { scriptSource } = scriptTxIn.scriptTxIn;
     if (scriptSource?.type === "Inline") {
-      if (scriptSource?.scriptHash || scriptSource?.scriptSize) return false;
+      if (!scriptSource?.scriptHash || !scriptSource?.scriptSize) return false;
     }
     return true;
   };
