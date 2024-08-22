@@ -22,6 +22,7 @@ export interface MeshTxBuilderOptions {
   serializer?: IMeshTxSerializer;
   isHydra?: boolean;
   params?: Partial<Protocol>;
+  verbose?: boolean;
 }
 
 export class MeshTxBuilder extends MeshTxBuilderCore {
@@ -40,13 +41,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     evaluator,
     params,
     isHydra = false,
+    verbose = false,
   }: MeshTxBuilderOptions = {}) {
     super();
     if (serializer) {
       this.serializer = serializer;
     } else {
       // this.serializer = new CardanoSDKSerializer();
-      this.serializer = new CSLSerializer();
+      this.serializer = new CSLSerializer(); // add verbose in here
     }
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;

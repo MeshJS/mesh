@@ -40,10 +40,10 @@ function Right() {
   const [amount, setAmount] = useState<string>("1000000");
 
   async function runDemo() {
-    const tx = new Transaction({ initiator: wallet }).sendLovelace(
-      address,
-      amount,
-    );
+    const tx = new Transaction({
+      initiator: wallet,
+      verbose: true,
+    }).sendLovelace(address, amount);
 
     const unsignedTx = await tx.build();
     const signedTx = await wallet.signTx(unsignedTx);
