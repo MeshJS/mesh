@@ -4,7 +4,9 @@ import {
   ConStr0,
   deserializeAddress,
   Integer,
+  mConStr0,
   serializePlutusScript,
+  stringToHex,
   UTxO,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
@@ -43,7 +45,7 @@ export class MeshHelloWorldContract extends MeshTxInitiator {
 
     await this.mesh
       .txOut(scriptAddr, assets)
-      .txOutDatumHashValue(signerHash)
+      .txOutDatumHashValue(mConStr0([signerHash]))
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
       .complete();
@@ -51,7 +53,32 @@ export class MeshHelloWorldContract extends MeshTxInitiator {
   };
 
   unlockAsset = async (scriptUtxo: UTxO, message: string): Promise<string> => {
-    return "this.mesh.txHex";
+    const { utxos, walletAddress, collateral } =
+      await this.getWalletInfoForTx();
+    const signerHash = deserializeAddress(walletAddress).pubKeyHash;
+
+    await this.mesh
+      .spendingPlutusScriptV2()
+      .txIn(
+        scriptUtxo.input.txHash,
+        scriptUtxo.input.outputIndex,
+        scriptUtxo.output.amount,
+        scriptUtxo.output.address,
+      )
+      .txInScript(this.scriptCbor)
+      .txInRedeemerValue(mConStr0([stringToHex(message)]))
+      .txInDatumValue(mConStr0([signerHash]))
+      .changeAddress(walletAddress)
+      .txInCollateral(
+        collateral.input.txHash,
+        collateral.input.outputIndex,
+        collateral.output.amount,
+        collateral.output.address,
+      )
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    return this.mesh.txHex;
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
