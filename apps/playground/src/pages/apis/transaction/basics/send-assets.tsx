@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -8,7 +9,6 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAddresses, demoAsset } from "~/data/cardano";
-import { Transaction } from "@meshsdk/core";
 
 export default function TransactionSendAssets() {
   return (
@@ -59,13 +59,6 @@ function Right() {
         quantity: amount,
       },
     ]);
-    tx.setMetadata(674, {
-      msg: [
-        "Invoice-No: 1234567890",
-        "Customer-No: 555-1234",
-        "P.S.: i will shop again at your store :-)",
-      ],
-    });
 
     const unsignedTx = await tx.build();
     const signedTx = await wallet.signTx(unsignedTx);
