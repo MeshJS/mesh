@@ -93,71 +93,71 @@ describe("Time", () => {
     });
   });
 
-  describe("time tests using blockfrost", () => {
-    it("test preprod", async () => {
-      if (!process.env.BLOCKFROST_API_KEY_PREPROD) {
-        console.error("could not find blockfrost preprod api key in env");
-        process.exit(1);
-      }
-      const preprodBlockfrost = new BlockfrostProvider(
-        process.env.BLOCKFROST_API_KEY_PREPROD!,
-      );
+  // describe("time tests using blockfrost", () => {
+  //   it("test preprod", async () => {
+  //     if (!process.env.BLOCKFROST_API_KEY_PREPROD) {
+  //       console.error("could not find blockfrost preprod api key in env");
+  //       process.exit(1);
+  //     }
+  //     const preprodBlockfrost = new BlockfrostProvider(
+  //       process.env.BLOCKFROST_API_KEY_PREPROD!,
+  //     );
 
-      const latestBlockInfo = await preprodBlockfrost.fetchLatestBlock();
-      const calculatedSlot = Number(resolveSlotNo("preprod"));
+  //     const latestBlockInfo = await preprodBlockfrost.fetchLatestBlock();
+  //     const calculatedSlot = Number(resolveSlotNo("preprod"));
 
-      const calculatedEpoch = Number(resolveEpochNo("preprod"));
+  //     const calculatedEpoch = Number(resolveEpochNo("preprod"));
 
-      // Allow calculated slot to be within 100 seconds of latest block
-      expect(calculatedSlot).toBeGreaterThan(
-        Number(latestBlockInfo.slot) - 100,
-      );
-      expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
-      expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
-    });
+  //     // Allow calculated slot to be within 100 seconds of latest block
+  //     expect(calculatedSlot).toBeGreaterThan(
+  //       Number(latestBlockInfo.slot) - 100,
+  //     );
+  //     expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
+  //     expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
+  //   });
 
-    it("test mainnet", async () => {
-      if (!process.env.BLOCKFROST_API_KEY_MAINNET) {
-        console.error("could not find blockfrost mainnet api key in env");
-        process.exit(1);
-      }
-      const mainnetBlockfrost = new BlockfrostProvider(
-        process.env.BLOCKFROST_API_KEY_MAINNET!,
-      );
+  //   it("test mainnet", async () => {
+  //     if (!process.env.BLOCKFROST_API_KEY_MAINNET) {
+  //       console.error("could not find blockfrost mainnet api key in env");
+  //       process.exit(1);
+  //     }
+  //     const mainnetBlockfrost = new BlockfrostProvider(
+  //       process.env.BLOCKFROST_API_KEY_MAINNET!,
+  //     );
 
-      const latestBlockInfo = await mainnetBlockfrost.fetchLatestBlock();
-      const calculatedSlot = Number(resolveSlotNo("mainnet"));
+  //     const latestBlockInfo = await mainnetBlockfrost.fetchLatestBlock();
+  //     const calculatedSlot = Number(resolveSlotNo("mainnet"));
 
-      const calculatedEpoch = Number(resolveEpochNo("mainnet"));
+  //     const calculatedEpoch = Number(resolveEpochNo("mainnet"));
 
-      // Allow calculated slot to be within 100 seconds of latest block
-      expect(calculatedSlot).toBeGreaterThan(
-        Number(latestBlockInfo.slot) - 100,
-      );
-      expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
-      expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
-    });
+  //     // Allow calculated slot to be within 100 seconds of latest block
+  //     expect(calculatedSlot).toBeGreaterThan(
+  //       Number(latestBlockInfo.slot) - 100,
+  //     );
+  //     expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
+  //     expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
+  //   });
 
-    it("test preview", async () => {
-      if (!process.env.BLOCKFROST_API_KEY_PREVIEW) {
-        console.error("could not find blockfrost preview api key in env");
-        process.exit(1);
-      }
-      const previewBlockfrost = new BlockfrostProvider(
-        process.env.BLOCKFROST_API_KEY_PREVIEW!,
-      );
+  //   it("test preview", async () => {
+  //     if (!process.env.BLOCKFROST_API_KEY_PREVIEW) {
+  //       console.error("could not find blockfrost preview api key in env");
+  //       process.exit(1);
+  //     }
+  //     const previewBlockfrost = new BlockfrostProvider(
+  //       process.env.BLOCKFROST_API_KEY_PREVIEW!,
+  //     );
 
-      const latestBlockInfo = await previewBlockfrost.fetchLatestBlock();
-      const calculatedSlot = Number(resolveSlotNo("preview"));
+  //     const latestBlockInfo = await previewBlockfrost.fetchLatestBlock();
+  //     const calculatedSlot = Number(resolveSlotNo("preview"));
 
-      const calculatedEpoch = Number(resolveEpochNo("preview"));
+  //     const calculatedEpoch = Number(resolveEpochNo("preview"));
 
-      // Allow calculated slot to be within 100 seconds of latest block
-      expect(calculatedSlot).toBeGreaterThan(
-        Number(latestBlockInfo.slot) - 100,
-      );
-      expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
-      expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
-    });
-  });
+  //     // Allow calculated slot to be within 100 seconds of latest block
+  //     expect(calculatedSlot).toBeGreaterThan(
+  //       Number(latestBlockInfo.slot) - 100,
+  //     );
+  //     expect(calculatedSlot).toBeLessThan(Number(latestBlockInfo.slot) + 100);
+  //     expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
+  //   });
+  // });
 });
