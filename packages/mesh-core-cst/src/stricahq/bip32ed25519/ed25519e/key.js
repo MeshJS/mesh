@@ -74,33 +74,27 @@ class KeyPair {
   verify(message, sig) {
     return this.eddsa.verify(message, sig, this);
   }
-}
-
-cachedProperty(KeyPair, "pubBytes", function pubBytes() {
-  return this.eddsa.encodePoint(this.pub());
-});
-
-cachedProperty(KeyPair, "pub", function pub() {
-  if (this._pubBytes) {
-    return this.eddsa.decodePoint(this._pubBytes);
+  pub() {
+    if (this._pubBytes) {
+      return this.eddsa.decodePoint(this._pubBytes);
+    }
+    return this.eddsa.g.mul(this.kl());
   }
-  return this.eddsa.g.mul(this.kl());
-});
-
-cachedProperty(KeyPair, "privBytes", function privBytes() {
-  return this._secret;
-});
-
-cachedProperty(KeyPair, "priv", function priv() {
-  return this.eddsa.decodeInt(this.privBytes());
-});
-
-cachedProperty(KeyPair, "kl", function priv() {
-  return this.eddsa.decodeInt(this.privBytes().slice(0, 32));
-});
-
-cachedProperty(KeyPair, "messagePrefix", function messagePrefix() {
-  return this._secret.slice(32, 64);
-});
+  pubBytes() {
+    return this.eddsa.encodePoint(this.pub());
+  }
+  privBytes() {
+    return this._secret;
+  }
+  priv() {
+    return this.eddsa.decodeInt(this.privBytes());
+  }
+  kl() {
+    return this.eddsa.decodeInt(this.privBytes().slice(0, 32));
+  }
+  messagePrefix() {
+    return this._secret.slice(32, 64);
+  }
+}
 
 export { KeyPair };

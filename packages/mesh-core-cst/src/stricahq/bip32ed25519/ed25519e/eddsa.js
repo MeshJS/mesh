@@ -41,6 +41,7 @@ import { curves, utils } from "elliptic";
 import { sha512 } from "hash.js";
 
 import { Signature } from "./signature";
+import { KeyPair } from "./key";
 
 const parseBytes = utils.parseBytes;
 
@@ -93,10 +94,10 @@ class EDDSA {
     return utils.intFromLE(hash.digest()).umod(this.curve.n);
   }
   keyFromPublic(pub) {
-    return fromPublic(this, utils.parseBytes(pub));
+    return KeyPair.fromPublic(this, utils.parseBytes(pub));
   }
   keyFromSecret(secret) {
-    return fromSecret(this, utils.parseBytes(secret));
+    return KeyPair.fromSecret(this, utils.parseBytes(secret));
   }
   makeSignature(sig) {
     if (sig instanceof Signature) return sig;

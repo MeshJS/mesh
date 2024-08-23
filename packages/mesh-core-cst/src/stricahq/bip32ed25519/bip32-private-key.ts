@@ -40,9 +40,9 @@ class Bip32PrivateKey {
   }
 
   derive(index: number) {
-    const kl = this.xprv.slice(0, 32);
-    const kr = this.xprv.slice(32, 64);
-    const cc = this.xprv.slice(64, 96);
+    const kl = this.xprv.subarray(0, 32);
+    const kr = this.xprv.subarray(32, 64);
+    const cc = this.xprv.subarray(64, 96);
 
     let z;
     let i;
