@@ -38,9 +38,8 @@
  */
 
 import { isBN } from "bn.js";
-import { utils as _utils } from "elliptic";
+import { utils } from "elliptic";
 
-const utils = _utils;
 const assert = utils.assert;
 const cachedProperty = utils.cachedProperty;
 const parseBytes = utils.parseBytes;

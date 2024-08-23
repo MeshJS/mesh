@@ -37,12 +37,11 @@
  *
  */
 
-import { utils as _utils, curves } from "elliptic";
+import { curves, utils } from "elliptic";
 import { sha512 } from "hash.js";
 
 import { Signature } from "./signature";
 
-const utils = _utils;
 const parseBytes = utils.parseBytes;
 
 class EDDSA {

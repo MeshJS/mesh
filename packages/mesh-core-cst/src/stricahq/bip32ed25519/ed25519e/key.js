@@ -37,9 +37,8 @@
  *
  */
 
-import { utils as _utils } from "elliptic";
+import { utils } from "elliptic";
 
-const utils = _utils;
 const assert = utils.assert;
 const parseBytes = utils.parseBytes;
 const cachedProperty = utils.cachedProperty;
@@ -104,4 +103,4 @@ cachedProperty(KeyPair, "messagePrefix", function messagePrefix() {
   return this._secret.slice(32, 64);
 });
 
-export { KeyPair, fromPublic, fromSecret };
+export { KeyPair };
