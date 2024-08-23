@@ -1,5 +1,6 @@
-import { cbors, StricaDecoder, StricaEncoder } from "./wrapper";
+import encode from "./encoder";
 
-export default cbors;
-
-export { StricaEncoder, StricaDecoder };
+export * from "./decoder";
+export const StricaEncoder = {
+  encode,
+};
