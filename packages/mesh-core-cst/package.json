@@ -27,7 +27,6 @@
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
-    "@types/bn.js": "^5.1.5",
     "@types/pbkdf2": "^3.1.2",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
@@ -43,10 +42,8 @@
     "@harmoniclabs/plutus-data": "1.2.4",
     "@harmoniclabs/uplc": "1.2.4",
     "@meshsdk/common": "*",
-    "blakejs": "^1.1.1",
-    "bn.js": "^5.2.0",
-    "elliptic": "6.5.4",
-    "hash.js": "^1.1.7",
+    "@stricahq/bip32ed25519": "^1.1.0",
+    "@stricahq/cbors": "^1.0.0",
     "pbkdf2": "^3.1.2"
   },
   "prettier": "@meshsdk/configs/prettier",
