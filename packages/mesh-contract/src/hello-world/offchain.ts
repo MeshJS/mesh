@@ -68,6 +68,7 @@ export class MeshHelloWorldContract extends MeshTxInitiator {
       .txInScript(this.scriptCbor)
       .txInRedeemerValue(mConStr0([stringToHex(message)]))
       .txInDatumValue(mConStr0([signerHash]))
+      .requiredSignerHash(signerHash)
       .changeAddress(walletAddress)
       .txInCollateral(
         collateral.input.txHash,
