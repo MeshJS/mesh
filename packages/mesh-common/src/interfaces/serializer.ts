@@ -10,6 +10,7 @@ import {
 } from "../types";
 
 export interface IMeshTxSerializer {
+  verbose: boolean;
   serializeTxBody(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
