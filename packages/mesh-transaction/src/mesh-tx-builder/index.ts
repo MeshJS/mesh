@@ -87,7 +87,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const incompleteTxIns = [...inputs, ...collaterals].filter(
       (txIn) => !this.isInputComplete(txIn),
     );
-    const incompleteMints = mints.filter((mint) => this.isMintComplete(mint));
+    const incompleteMints = mints.filter((mint) => !this.isMintComplete(mint));
     // Getting all missing utxo information
     await this.queryAllTxInfo(incompleteTxIns, incompleteMints);
     // Completing all inputs
