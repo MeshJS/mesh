@@ -48,8 +48,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.serializer = serializer;
     } else {
       // this.serializer = new CardanoSDKSerializer();
-      this.serializer = new CSLSerializer(); // add verbose in here
+      this.serializer = new CSLSerializer();
     }
+    this.serializer.verbose = verbose;
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
     if (evaluator) this.evaluator = evaluator;
