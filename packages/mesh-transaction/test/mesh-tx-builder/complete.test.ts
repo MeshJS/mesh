@@ -4,7 +4,6 @@ import {
   IFetcher,
   MintItem,
   ScriptSource,
-  SimpleScriptSourceInfo,
   TransactionInfo,
   TxIn,
 } from "@meshsdk/common";

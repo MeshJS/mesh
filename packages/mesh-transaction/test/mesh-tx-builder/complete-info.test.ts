@@ -1,9 +1,4 @@
-import {
-  ScriptSource,
-  SimpleScriptSourceInfo,
-  TxIn,
-  UTxO,
-} from "@meshsdk/common";
+import { ScriptSource, SimpleScriptSourceInfo, TxIn } from "@meshsdk/common";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
 class MockTxBuilder extends MeshTxBuilder {
