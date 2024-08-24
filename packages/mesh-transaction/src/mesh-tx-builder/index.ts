@@ -4,8 +4,11 @@ import {
   IMeshTxSerializer,
   ISubmitter,
   MeshTxBuilderBody,
+  MintItem,
   Protocol,
+  ScriptSource,
   ScriptTxIn,
+  SimpleScriptSourceInfo,
   TxIn,
   UTxO,
 } from "@meshsdk/common";
@@ -80,15 +83,26 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.removeDuplicateInputs();
 
     // Checking if all inputs are complete
-    const { inputs, collaterals } = this.meshTxBuilderBody;
+    const { inputs, collaterals, mints } = this.meshTxBuilderBody;
     const incompleteTxIns = [...inputs, ...collaterals].filter(
       (txIn) => !this.isInputComplete(txIn),
     );
+    const incompleteMints = mints.filter((mint) => this.isMintComplete(mint));
     // Getting all missing utxo information
-    await this.queryAllTxInfo(incompleteTxIns);
+    await this.queryAllTxInfo(incompleteTxIns, incompleteMints);
     // Completing all inputs
     incompleteTxIns.forEach((txIn) => {
       this.completeTxInformation(txIn);
+    });
+    incompleteMints.forEach((mint) => {
+      if (mint.type === "Plutus") {
+        const scriptSource = mint.scriptSource as ScriptSource;
+        this.completeScriptInfo(scriptSource);
+      }
+      if (mint.type === "Native") {
+        const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
+        this.completeSimpleScriptInfo(scriptSource);
+      }
     });
     this.addUtxosFromSelection();
 
@@ -169,9 +183,15 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
   };
 
-  private queryAllTxInfo = (incompleteTxIns: TxIn[]) => {
+  private queryAllTxInfo = (
+    incompleteTxIns: TxIn[],
+    incompleteMints: MintItem[],
+  ) => {
     const queryUTxOPromises: Promise<void>[] = [];
-    if (incompleteTxIns.length > 0 && !this.fetcher)
+    if (
+      (incompleteTxIns.length > 0 || incompleteMints.length > 0) &&
+      !this.fetcher
+    )
       throw Error(
         "Transaction information is incomplete while no fetcher instance is provided",
       );
@@ -183,11 +203,22 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (
         currentTxIn.type === "Script" &&
         currentTxIn.scriptTxIn.scriptSource?.type === "Inline" &&
-        !this.isRefScriptInfoComplete(currentTxIn)
+        !this.isRefScriptInfoComplete(currentTxIn.scriptTxIn.scriptSource)
       ) {
         queryUTxOPromises.push(
           this.getUTxOInfo(currentTxIn.scriptTxIn.scriptSource.txHash),
         );
+      }
+    }
+    for (let i = 0; i < incompleteMints.length; i++) {
+      const currentMint = incompleteMints[i]!;
+      if (currentMint.type === "Plutus") {
+        const scriptSource = currentMint.scriptSource as ScriptSource;
+        if (scriptSource.type === "Inline") {
+          if (!this.isRefScriptInfoComplete(scriptSource)) {
+            queryUTxOPromises.push(this.getUTxOInfo(scriptSource.txHash));
+          }
+        }
       }
     }
     return Promise.all(queryUTxOPromises);
@@ -196,52 +227,75 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   private completeTxInformation = (input: TxIn) => {
     // Adding value and address information for inputs if missing
     if (!this.isInputInfoComplete(input)) {
-      const utxos: UTxO[] = this.queriedUTxOs[input.txIn.txHash]!;
-      const utxo = utxos?.find(
-        (utxo) => utxo.input.outputIndex === input.txIn.txIndex,
-      );
-      const amount = utxo?.output.amount;
-      const address = utxo?.output.address;
-      if (!amount || amount.length === 0)
-        throw Error(
-          `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-        );
-      input.txIn.amount = amount;
-      if (input.type === "PubKey") {
-        if (!address || address === "")
-          throw Error(
-            `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-          );
-        input.txIn.address = address;
-      }
+      this.completeInputInfo(input);
     }
     // Adding spendingScriptHash for script inputs' scriptSource if missing
     if (
       input.type === "Script" &&
-      input.scriptTxIn.scriptSource?.type == "Inline" &&
-      !this.isRefScriptInfoComplete(input)
+      !this.isRefScriptInfoComplete(input.scriptTxIn.scriptSource!)
     ) {
       const scriptSource = input.scriptTxIn.scriptSource;
-      const refUtxos = this.queriedUTxOs[scriptSource.txHash]!;
-      const scriptRefUtxo = refUtxos.find(
-        (utxo) => utxo.input.outputIndex === scriptSource.txIndex,
-      );
-      if (!scriptRefUtxo)
-        throw Error(
-          `Couldn't find script reference utxo for ${scriptSource.txHash}#${scriptSource.txIndex}`,
-        );
-      scriptSource.scriptHash = scriptRefUtxo?.output.scriptHash!;
-      scriptSource.scriptSize = (
-        scriptRefUtxo?.output.scriptRef!.length / 2
-      ).toString();
+      this.completeScriptInfo(scriptSource!);
     }
+  };
+
+  private completeInputInfo = (input: TxIn) => {
+    const utxos: UTxO[] = this.queriedUTxOs[input.txIn.txHash]!;
+    const utxo = utxos?.find(
+      (utxo) => utxo.input.outputIndex === input.txIn.txIndex,
+    );
+    const amount = utxo?.output.amount;
+    const address = utxo?.output.address;
+    if (!amount || amount.length === 0)
+      throw Error(
+        `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
+      );
+    input.txIn.amount = amount;
+    if (input.type === "PubKey") {
+      if (!address || address === "")
+        throw Error(
+          `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
+        );
+      input.txIn.address = address;
+    }
+  };
+
+  private completeScriptInfo = (scriptSource: ScriptSource) => {
+    if (scriptSource?.type != "Inline") return;
+    const refUtxos = this.queriedUTxOs[scriptSource.txHash]!;
+    const scriptRefUtxo = refUtxos.find(
+      (utxo) => utxo.input.outputIndex === scriptSource.txIndex,
+    );
+    if (!scriptRefUtxo)
+      throw Error(
+        `Couldn't find script reference utxo for ${scriptSource.txHash}#${scriptSource.txIndex}`,
+      );
+    scriptSource.scriptHash = scriptRefUtxo?.output.scriptHash!;
+    scriptSource.scriptSize = (
+      scriptRefUtxo?.output.scriptRef!.length / 2
+    ).toString();
+  };
+
+  private completeSimpleScriptInfo = (simpleScript: SimpleScriptSourceInfo) => {
+    if (simpleScript.type !== "Inline") return;
+    const refUtxos = this.queriedUTxOs[simpleScript.txHash]!;
+    const scriptRefUtxo = refUtxos.find(
+      (utxo) => utxo.input.outputIndex === simpleScript.txIndex,
+    );
+    if (!scriptRefUtxo)
+      throw Error(
+        `Couldn't find script reference utxo for ${simpleScript.txHash}#${simpleScript.txIndex}`,
+      );
+    simpleScript.simpleScriptHash = scriptRefUtxo?.output.scriptHash!;
   };
 
   private isInputComplete = (txIn: TxIn): boolean => {
     if (txIn.type === "PubKey") return this.isInputInfoComplete(txIn);
     if (txIn.type === "Script") {
+      const { scriptSource } = txIn.scriptTxIn;
       return (
-        this.isInputInfoComplete(txIn) && this.isRefScriptInfoComplete(txIn)
+        this.isInputInfoComplete(txIn) &&
+        this.isRefScriptInfoComplete(scriptSource!)
       );
     }
     return true;
@@ -256,8 +310,21 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return true;
   };
 
-  private isRefScriptInfoComplete = (scriptTxIn: ScriptTxIn): boolean => {
-    const { scriptSource } = scriptTxIn.scriptTxIn;
+  private isMintComplete = (mint: MintItem): boolean => {
+    if (mint.type === "Plutus") {
+      const scriptSource = mint.scriptSource as ScriptSource;
+      return this.isRefScriptInfoComplete(scriptSource);
+    }
+    if (mint.type === "Native") {
+      const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
+      if (scriptSource.type === "Inline") {
+        if (!scriptSource?.simpleScriptHash) return false;
+      }
+    }
+    return true;
+  };
+
+  private isRefScriptInfoComplete = (scriptSource: ScriptSource): boolean => {
     if (scriptSource?.type === "Inline") {
       if (!scriptSource?.scriptHash || !scriptSource?.scriptSize) return false;
     }
