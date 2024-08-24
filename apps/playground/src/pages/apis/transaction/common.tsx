@@ -3,7 +3,7 @@ import Codeblock from "~/components/text/codeblock";
 export function Intro() {
   let example = ``;
   example += `import { Transaction } from '@meshsdk/core';\n\n`;
-  example += `const tx = new Transaction({ initiator: wallet });\n`;
+  example += `const tx = new Transaction({ initiator: wallet, verbose: false });\n`;
   example += `tx.foo(...); // add transaction methods\n`;
   example += `tx.bar(...); // add transaction methods\n\n`;
   example += `const unsignedTx = await tx.build();\n`;
@@ -21,6 +21,11 @@ export function Intro() {
         inputs belonging to the wallet, calculates the fee for this transaction
         and returns the remaining assets to the change address. Use{" "}
         <code>wallet.signTx()</code> to sign transaction CBOR.
+      </p>
+      <p>
+        The <code>verbose</code> is optional and set to <code>false</code> by
+        default, setting it to <code>true</code> will enable verbose logging for
+        the txBodyJson prior going into build.
       </p>
       <Codeblock data={example} />
     </>

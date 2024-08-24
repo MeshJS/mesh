@@ -63,14 +63,11 @@ export class CSLSerializer implements IMeshTxSerializer {
     protocolParams?: Protocol,
   ): string {
     const txBodyJson = JSONbig.stringify(meshTxBuilderBodyToObj(txBody));
-  
+
     const params = JSONbig.stringify(protocolParams || this.protocolParams);
-  
+
     if (this.verbose) {
-      console.log(
-        "txBodyJson",
-        JSON.stringify(JSON.parse(txBodyJson), null, 2),
-      );
+      console.log("txBodyJson", txBodyJson);
     }
     const txBuildResult = csl.js_serialize_tx_body(txBodyJson, params);
     if (txBuildResult.get_status() !== "success") {

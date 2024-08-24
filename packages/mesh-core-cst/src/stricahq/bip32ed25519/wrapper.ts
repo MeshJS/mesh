@@ -1,12 +1,10 @@
 import * as cjsBip32ed25519 from "@stricahq/bip32ed25519";
 
-// This ensures that TypeScript understands the types properly
 export const bip32ed25519: typeof cjsBip32ed25519 & {
   default?: typeof cjsBip32ed25519;
 } = cjsBip32ed25519;
 const exportedBip32ed25519 = bip32ed25519?.default || bip32ed25519;
 
-// Export individual classes and types
 export type StricaPrivateKey = cjsBip32ed25519.PrivateKey;
 export type StricaPublicKey = cjsBip32ed25519.PublicKey;
 export type StricaBip32PrivateKey = cjsBip32ed25519.Bip32PrivateKey;
