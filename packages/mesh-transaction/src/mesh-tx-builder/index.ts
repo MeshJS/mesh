@@ -34,8 +34,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
   txHex: string = "";
-  private queriedTxHashes: Set<string> = new Set();
-  private queriedUTxOs: { [x: string]: UTxO[] } = {};
+  protected queriedTxHashes: Set<string> = new Set();
+  protected queriedUTxOs: { [x: string]: UTxO[] } = {};
 
   constructor({
     serializer,
@@ -172,9 +172,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * Get the UTxO information from the blockchain
-   * @param TxHash The TxIn object that contains the txHash and txIndex, while missing amount and address information
+   * @param txHash The TxIn object that contains the txHash and txIndex, while missing amount and address information
    */
-  private getUTxOInfo = async (txHash: string): Promise<void> => {
+  protected getUTxOInfo = async (txHash: string): Promise<void> => {
     let utxos: UTxO[] = [];
     if (!this.queriedTxHashes.has(txHash)) {
       this.queriedTxHashes.add(txHash);
@@ -183,7 +183,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
   };
 
-  private queryAllTxInfo = (
+  protected queryAllTxInfo = (
     incompleteTxIns: TxIn[],
     incompleteMints: MintItem[],
   ) => {
@@ -224,7 +224,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return Promise.all(queryUTxOPromises);
   };
 
-  private completeTxInformation = (input: TxIn) => {
+  protected completeTxInformation = (input: TxIn) => {
     // Adding value and address information for inputs if missing
     if (!this.isInputInfoComplete(input)) {
       this.completeInputInfo(input);
@@ -239,7 +239,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
   };
 
-  private completeInputInfo = (input: TxIn) => {
+  protected completeInputInfo = (input: TxIn) => {
     const utxos: UTxO[] = this.queriedUTxOs[input.txIn.txHash]!;
     const utxo = utxos?.find(
       (utxo) => utxo.input.outputIndex === input.txIn.txIndex,
@@ -260,7 +260,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
   };
 
-  private completeScriptInfo = (scriptSource: ScriptSource) => {
+  protected completeScriptInfo = (scriptSource: ScriptSource) => {
     if (scriptSource?.type != "Inline") return;
     const refUtxos = this.queriedUTxOs[scriptSource.txHash]!;
     const scriptRefUtxo = refUtxos.find(
@@ -276,7 +276,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     ).toString();
   };
 
-  private completeSimpleScriptInfo = (simpleScript: SimpleScriptSourceInfo) => {
+  protected completeSimpleScriptInfo = (
+    simpleScript: SimpleScriptSourceInfo,
+  ) => {
     if (simpleScript.type !== "Inline") return;
     const refUtxos = this.queriedUTxOs[simpleScript.txHash]!;
     const scriptRefUtxo = refUtxos.find(
@@ -289,7 +291,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     simpleScript.simpleScriptHash = scriptRefUtxo?.output.scriptHash!;
   };
 
-  private isInputComplete = (txIn: TxIn): boolean => {
+  protected isInputComplete = (txIn: TxIn): boolean => {
     if (txIn.type === "PubKey") return this.isInputInfoComplete(txIn);
     if (txIn.type === "Script") {
       const { scriptSource } = txIn.scriptTxIn;
@@ -301,16 +303,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return true;
   };
 
-  private isInputInfoComplete = (txIn: TxIn): boolean => {
+  protected isInputInfoComplete = (txIn: TxIn): boolean => {
     const { amount, address } = txIn.txIn;
-    if (txIn.type === "PubKey" && (!amount || !address)) return false;
-    if (txIn.type === "Script") {
-      if (!amount) return false;
-    }
+    if (!amount || !address) return false;
     return true;
   };
 
-  private isMintComplete = (mint: MintItem): boolean => {
+  protected isMintComplete = (mint: MintItem): boolean => {
     if (mint.type === "Plutus") {
       const scriptSource = mint.scriptSource as ScriptSource;
       return this.isRefScriptInfoComplete(scriptSource);
@@ -324,7 +323,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return true;
   };
 
-  private isRefScriptInfoComplete = (scriptSource: ScriptSource): boolean => {
+  protected isRefScriptInfoComplete = (scriptSource: ScriptSource): boolean => {
     if (scriptSource?.type === "Inline") {
       if (!scriptSource?.scriptHash || !scriptSource?.scriptSize) return false;
     }
