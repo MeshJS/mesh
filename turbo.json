@@ -3,7 +3,7 @@
   "globalDependencies": ["**/.env.*local"],
   "tasks": {
     "build": {
-      "dependsOn": ["^build:mesh", "^build:docs", "^build:apps"],
+      "dependsOn": ["^build:mesh", "^build:docs", "^build:apps", "^build:scripts"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "build:apps": {
@@ -16,6 +16,10 @@
     },
     "build:mesh": {
       "dependsOn": ["^build:mesh"],
+      "outputs": ["dist/**"]
+    },
+    "build:scripts": {
+      "dependsOn": ["^build:scripts"],
       "outputs": ["dist/**"]
     },
     "lint": {
