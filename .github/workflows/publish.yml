@@ -25,7 +25,7 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Build
-        run: npm run build:mesh && npm run build:docs && npm run build:apps
+        run: npm run build:mesh && npm run build:docs && npm run build:apps && npm run build:scripts
 
   check-version:
     runs-on: ubuntu-latest
