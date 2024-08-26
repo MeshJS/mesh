@@ -38,6 +38,11 @@ export class MeshTxInitiator {
     }
     if (networkId) {
       this.networkId = networkId;
+      if (networkId === 1) {
+        this.mesh.setNetwork("mainnet");
+      } else {
+        this.mesh.setNetwork("preprod");
+      }
     }
     if (stakeCredential) {
       this.stakeCredential = this.stakeCredential;
@@ -181,7 +186,7 @@ export class MeshTxInitiator {
           utxos.filter((utxo) => utxo.output.address === scriptAddr)[0] ||
           utxos[0];
       }
-      
+
       return scriptUtxo;
     }
 

@@ -116,7 +116,6 @@ export class MeshGiftCardContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .selectUtxosFrom(remainingUtxos)
-      .setNetwork('preprod')
       .complete();
 
     this.tokenNameHex = tokenNameHex;
@@ -168,7 +167,6 @@ export class MeshGiftCardContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .selectUtxosFrom(utxos)
-      .setNetwork('preprod')
       .complete();
     return this.mesh.txHex;
   };

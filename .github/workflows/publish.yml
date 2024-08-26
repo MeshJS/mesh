@@ -40,6 +40,7 @@ jobs:
       react-version-updated: ${{ steps.compare-versions.outputs.react-version-updated }}
       transaction-version-updated: ${{ steps.compare-versions.outputs.transaction-version-updated }}
       wallet-version-updated: ${{ steps.compare-versions.outputs.wallet-version-updated }}
+      cli-version-updated: ${{ steps.compare-versions.outputs.cli-version-updated }}
     steps:
       - name: Checkout main branch at commit before merge
         uses: actions/checkout@v4
@@ -58,6 +59,7 @@ jobs:
           REACT_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-react/package.json').version")
           TRANSACTION_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
           WALLET_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
+          CLI_PRE_MERGE_VERSION=$(node -p "require('./scripts/mesh-cli/package.json').version")
           echo "common_pre_merge_version=$COMMON_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "contract_pre_merge_version=$CONTRACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "core_pre_merge_version=$CORE_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
@@ -67,6 +69,7 @@ jobs:
           echo "react_pre_merge_version=$REACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "transaction_pre_merge_version=$TRANSACTION_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "wallet_pre_merge_version=$WALLET_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "cli_pre_merge_version=$CLI_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Checkout main branch at commit after merge
         uses: actions/checkout@v4
@@ -85,6 +88,7 @@ jobs:
           REACT_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-react/package.json').version")
           TRANSACTION_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
           WALLET_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
+          CLI_POST_MERGE_VERSION=$(node -p "require('./scripts/mesh-cli/package.json').version")
           echo "common_post_merge_version=$COMMON_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "contract_post_merge_version=$CONTRACT_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "core_post_merge_version=$CORE_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
@@ -94,6 +98,7 @@ jobs:
           echo "react_post_merge_version=$REACT_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "transaction_post_merge_version=$TRANSACTION_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "wallet_post_merge_version=$WALLET_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "cli_post_merge_version=$CLI_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Compare versions
         id: compare-versions
@@ -142,6 +147,11 @@ jobs:
               echo "wallet-version-updated=true" >> "$GITHUB_OUTPUT"
           else
               echo "wallet-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${{ steps.pre-merge-version.outputs.cli_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.cli_post_merge_version }}" ]]; then
+              echo "cli-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "cli-version-updated=false" >> "$GITHUB_OUTPUT"
           fi
 
   publish-meshsdk-common:
@@ -276,5 +286,20 @@ jobs:
           registry-url: https://registry.npmjs.org/
       - run: npm install && npm run build
       - run: cd packages/mesh-wallet && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+  publish-meshsdk-cli:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.cli-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm install && npm run build
+      - run: cd scripts/mesh-cli && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
