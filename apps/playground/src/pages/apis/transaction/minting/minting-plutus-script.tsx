@@ -123,6 +123,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     };
 
     const tx = new Transaction({ initiator: wallet })
+      .setNetwork("preprod")
       .mintAsset(script, asset, redeemer)
       .setRequiredSigners([address]);
 

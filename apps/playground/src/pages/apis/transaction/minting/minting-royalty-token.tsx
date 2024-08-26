@@ -90,7 +90,7 @@ function Right() {
 
     const forgingScript = ForgeScript.withOneSignature(address);
 
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
 
     const _assetMetadata: RoyaltiesStandard = {
       rate: userInput,

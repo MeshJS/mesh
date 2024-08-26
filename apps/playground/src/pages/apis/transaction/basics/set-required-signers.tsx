@@ -33,7 +33,7 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.setRequiredSigners(await wallet.getUsedAddresses());
 
     const unsignedTx = await tx.build();

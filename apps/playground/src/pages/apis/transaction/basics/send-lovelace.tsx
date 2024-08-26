@@ -43,7 +43,9 @@ function Right() {
     const tx = new Transaction({
       initiator: wallet,
       verbose: true,
-    }).sendLovelace(address, amount);
+    })
+      .setNetwork("preprod")
+      .sendLovelace(address, amount);
 
     const unsignedTx = await tx.build();
     const signedTx = await wallet.signTx(unsignedTx);

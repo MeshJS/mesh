@@ -51,7 +51,7 @@ function Right() {
     const beginId = await provider.resolveAddress(handle);
     const address = beginId.address;
 
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.sendLovelace(address, amount);
 
     const unsignedTx = await tx.build();

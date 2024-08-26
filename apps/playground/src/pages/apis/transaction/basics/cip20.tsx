@@ -54,7 +54,7 @@ function Right() {
   );
 
   async function runDemo() {
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.setMetadata(674, {
       msg: message.split("\n"),
     });

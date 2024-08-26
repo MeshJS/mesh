@@ -52,7 +52,7 @@ function Right() {
   const [amount, setAmount] = useState<string>("1");
 
   async function runDemo() {
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.sendAssets({ address: address }, [
       {
         unit: asset,
