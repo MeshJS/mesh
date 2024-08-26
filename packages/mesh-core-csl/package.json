@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core-csl",
-  "version": "1.6.10",
+  "version": "1.6.11",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
