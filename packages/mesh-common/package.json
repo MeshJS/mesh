@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/common",
-  "version": "1.6.11",
+  "version": "1.6.12",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
