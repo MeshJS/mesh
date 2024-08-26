@@ -32,7 +32,7 @@ function Right() {
     const utxo = (await wallet.getUtxos())[0];
 
     if (utxo) {
-      const tx = new Transaction({ initiator: wallet });
+      const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
       tx.setCollateral([utxo]);
 
       const unsignedTx = await tx.build();

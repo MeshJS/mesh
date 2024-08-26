@@ -61,7 +61,7 @@ function Right() {
     const utxo = utxos[0];
 
     if (utxo) {
-      const tx = new Transaction({ initiator: wallet });
+      const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
       tx.sendValue(await wallet.getChangeAddress(), utxo);
 
       const unsignedTx = await tx.build();

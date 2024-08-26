@@ -189,6 +189,7 @@ function Right() {
     const address = await wallet.getChangeAddress();
 
     const tx = new Transaction({ initiator: wallet })
+      .setNetwork("preprod")
       .redeemValue({
         value: assetUtxo,
         script: script as PlutusScript,

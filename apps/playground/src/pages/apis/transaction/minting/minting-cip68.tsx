@@ -138,6 +138,7 @@ function Right() {
     };
 
     const tx = new Transaction({ initiator: wallet })
+      .setNetwork("preprod")
       .setTxInputs([utxos[0]!])
       .mintAsset(script, cip68Token, redeemer);
 

@@ -132,6 +132,7 @@ export class MeshSwapContract extends MeshTxInitiator {
       )
       .requiredSignerHash(deserializeAddress(initiatorAddress).pubKeyHash)
       .selectUtxosFrom(utxos)
+      .setNetwork('preprod')
       .complete();
     return this.mesh.txHex;
   };

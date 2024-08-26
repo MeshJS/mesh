@@ -40,7 +40,7 @@ function Right() {
   );
 
   async function runDemo() {
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.setMetadata(0, message);
 
     const unsignedTx = await tx.build();

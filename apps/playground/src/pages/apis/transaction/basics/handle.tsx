@@ -50,7 +50,7 @@ function Right() {
     const blockchainprovider = getProvider("mainnet");
     const address = await blockchainprovider.fetchHandleAddress(handle);
 
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.sendLovelace(address, amount);
 
     const unsignedTx = await tx.build();

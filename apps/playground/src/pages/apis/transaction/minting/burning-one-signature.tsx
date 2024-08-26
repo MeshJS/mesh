@@ -109,7 +109,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     };
 
     // create transaction
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.burnAsset(forgingScript, asset);
 
     const unsignedTx = await tx.build();

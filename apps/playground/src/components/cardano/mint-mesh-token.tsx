@@ -1,4 +1,4 @@
-import { MeshWallet, ForgeScript, Mint, Transaction } from "@meshsdk/core";
+import { ForgeScript, MeshWallet, Mint, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { demoAssetMetadata, demoMnemonic } from "~/data/cardano";
@@ -34,7 +34,7 @@ export default function MintMeshToken() {
       recipient: address,
     };
 
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.mintAsset(forgingScript, asset);
 
     const unsignedTx = await tx.build();

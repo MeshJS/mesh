@@ -12,25 +12,13 @@ export const create = async (name, options) => {
   const template =
     options.template ??
     (await askUser('What template do you want to use?', [
-      { title: 'Starter Project', value: 'starter' },
-      { title: 'Multi-Sig Minting', value: 'minting' },
-      { title: 'Stake-Pool Website', value: 'staking' },
-      { title: 'Cardano Sign-In', value: 'signin' },
-      { title: 'E-Commerce Store', value: 'ecommerce' },
-      { title: 'Marketplace', value: 'marketplace' },
-      { title: 'Aiken', value: 'aiken' },
-    ]));
-
-  const stack =
-    options.stack ??
-    (await askUser('What Stack do you want to use?', [
-      { title: 'Next.js', value: 'next' },
-    ]));
-
-  const language =
-    options.language ??
-    (await askUser('What language do you want to use?', [
-      { title: 'TypeScript', value: 'ts' },
+      { title: 'NextJs starter template', value: 'mesh-nextjs' },
+      // { title: 'Multi-Sig Minting', value: 'minting' },
+      // { title: 'Stake-Pool Website', value: 'staking' },
+      // { title: 'Cardano Sign-In', value: 'signin' },
+      // { title: 'E-Commerce Store', value: 'ecommerce' },
+      // { title: 'Marketplace', value: 'marketplace' },
+      { title: 'Aiken template', value: 'mesh-aiken' },
     ]));
 
   console.log('\n');
@@ -39,7 +27,7 @@ export const create = async (name, options) => {
     createDirectory(name);
 
     logInfo('📡 - Downloading files..., This might take a moment.');
-    await fetchRepository(template, stack, language);
+    await fetchRepository(template);
 
     logInfo('🏠 - Starting a new git repository...');
     setNameAndCommitChanges(name);
@@ -85,9 +73,9 @@ const createDirectory = (name) => {
   process.chdir(path);
 };
 
-const fetchRepository = async (template, stack, language) => {
+const fetchRepository = async (template) => {
   const pipe = promisify(pipeline);
-  const name = `${template}-${stack}-${language}-template`;
+  const name = `${template}-template`;
   const link = `https://codeload.github.com/MeshJS/${name}/tar.gz/main`;
 
   await pipe(got.stream(link), extract({ strip: 1 }, [`${name}-main`]));

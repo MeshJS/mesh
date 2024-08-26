@@ -78,7 +78,7 @@ function Right() {
       throw "No address found";
     }
 
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.registerStake(rewardAddress);
     tx.delegateStake(rewardAddress, userInput);
 
