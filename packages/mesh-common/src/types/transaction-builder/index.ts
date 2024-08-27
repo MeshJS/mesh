@@ -51,7 +51,7 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   withdrawals: [],
   signingKey: [],
   selectionConfig: {
-    threshold: "5000000",
+    threshold: "0",
     strategy: "experimental",
     includeTxFees: true,
   },
