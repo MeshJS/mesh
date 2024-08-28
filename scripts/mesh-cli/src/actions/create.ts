@@ -1,38 +1,33 @@
-import got from 'got';
-import prompts from 'prompts';
-import { extract } from 'tar';
-import { promisify } from 'util';
-import { pipeline } from 'stream';
-import { existsSync, mkdirSync } from 'fs';
-import { execSync } from 'child_process';
-import { resolvePkgManager, setProjectName, tryGitInit } from '../helpers';
-import { logError, logInfo } from '../utils';
+import got from "got";
+import prompts from "prompts";
+import { extract } from "tar";
+import { promisify } from "util";
+import { pipeline } from "stream";
+import { existsSync, mkdirSync } from "fs";
+import { execSync } from "child_process";
+import { resolvePkgManager, setProjectName, tryGitInit } from "../helpers";
+import { logError, logInfo } from "../utils";
 
 export const create = async (name, options) => {
   const template =
     options.template ??
-    (await askUser('What template do you want to use?', [
-      { title: 'NextJs starter template', value: 'mesh-nextjs' },
-      // { title: 'Multi-Sig Minting', value: 'minting' },
-      // { title: 'Stake-Pool Website', value: 'staking' },
-      // { title: 'Cardano Sign-In', value: 'signin' },
-      // { title: 'E-Commerce Store', value: 'ecommerce' },
-      // { title: 'Marketplace', value: 'marketplace' },
-      { title: 'Aiken template', value: 'mesh-aiken' },
+    (await askUser("What template do you want to use?", [
+      { title: "Aiken", value: "mesh-aiken" },
+      { title: "NextJS", value: "mesh-nextjs" },
     ]));
 
-  console.log('\n');
+  console.log("\n");
 
   try {
     createDirectory(name);
 
-    logInfo('📡 - Downloading files..., This might take a moment.');
+    logInfo("📡 - Downloading files..., This might take a moment.");
     await fetchRepository(template);
 
-    logInfo('🏠 - Starting a new git repository...');
+    logInfo("🏠 - Starting a new git repository...");
     setNameAndCommitChanges(name);
 
-    logInfo('🧶 - Installing project dependencies...');
+    logInfo("🧶 - Installing project dependencies...");
     installDependencies();
   } catch (error) {
     logError(error);
@@ -43,9 +38,9 @@ export const create = async (name, options) => {
 const askUser = async (question, choices) => {
   const response = await prompts(
     {
-      type: 'select',
+      type: "select",
       message: question,
-      name: 'selection',
+      name: "selection",
       choices,
     },
     {
@@ -65,11 +60,11 @@ const createDirectory = (name) => {
   }
 
   if (mkdirSync(path, { recursive: true }) === undefined) {
-    logError('❌ Unable to create a project in current directory.');
+    logError("❌ Unable to create a project in current directory.");
     process.exit(1);
   }
 
-  logInfo('🏗️ - Creating a new mesh dApp in current directory...');
+  logInfo("🏗️ - Creating a new mesh dApp in current directory...");
   process.chdir(path);
 };
 
@@ -85,7 +80,7 @@ const setNameAndCommitChanges = (name) => {
   try {
     setProjectName(process.cwd(), name);
   } catch (_) {
-    logError('🚫 Failed to re-name package.json, continuing...');
+    logError("🚫 Failed to re-name package.json, continuing...");
   }
 
   tryGitInit();
@@ -96,6 +91,6 @@ const installDependencies = () => {
     const pkgManager = resolvePkgManager();
     execSync(`${pkgManager} install`, { stdio: [0, 1, 2] });
   } catch (_) {
-    logError('🚫 Failed to install project dependencies, continuing...');
+    logError("🚫 Failed to install project dependencies, continuing...");
   }
 };

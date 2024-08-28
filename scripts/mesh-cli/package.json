@@ -3,9 +3,11 @@
   "description": "A quick and easy way to bootstrap your dApps on Cardano using Mesh.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "license": "Apache-2.0",
-  "main": "dist/meshjs.cjs.js",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "bin": {
     "meshjs": "./bin/meshjs"
   },
@@ -23,7 +25,8 @@
     "npx"
   ],
   "scripts": {
-    "build:scripts": "preconstruct build",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "build:scripts": "tsup src/index.ts --format esm,cjs --dts",
     "start": "preconstruct watch"
   },
   "dependencies": {
@@ -37,6 +40,7 @@
   "devDependencies": {
     "@preconstruct/cli": "2.8.4",
     "@types/figlet": "1.5.8",
+    "@types/got": "^9.6.12",
     "@types/prompts": "2.4.9",
     "@types/tar": "6.1.13"
   }
