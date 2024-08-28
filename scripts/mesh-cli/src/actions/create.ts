@@ -12,13 +12,8 @@ export const create = async (name, options) => {
   const template =
     options.template ??
     (await askUser('What template do you want to use?', [
-      { title: 'NextJs starter template', value: 'mesh-nextjs' },
-      // { title: 'Multi-Sig Minting', value: 'minting' },
-      // { title: 'Stake-Pool Website', value: 'staking' },
-      // { title: 'Cardano Sign-In', value: 'signin' },
-      // { title: 'E-Commerce Store', value: 'ecommerce' },
-      // { title: 'Marketplace', value: 'marketplace' },
-      { title: 'Aiken template', value: 'mesh-aiken' },
+      { title: "Aiken", value: "mesh-aiken" },
+      { title: "NextJS", value: "mesh-nextjs" },
     ]));
 
   console.log('\n');
