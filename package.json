@@ -2,7 +2,7 @@
   "name": "@meshsdk/root",
   "private": true,
   "scripts": {
-    "build": "npm run build:mesh && npm run build:docs && npm run build:apps && npm run build:scripts",
+    "build": "turbo build",
     "build:apps": "turbo run build:apps",
     "build:docs": "turbo run build:docs",
     "build:mesh": "turbo run build:mesh",
