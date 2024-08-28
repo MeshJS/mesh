@@ -299,7 +299,7 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
-      - run: npm install && npm run build
+      - run: npm install && npm run build:scripts
       - run: cd scripts/mesh-cli && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
