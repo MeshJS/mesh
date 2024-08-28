@@ -2,7 +2,7 @@
   "name": "@meshsdk/root",
   "private": true,
   "scripts": {
-    "build": "turbo build --concurrency 15",
+    "build": "turbo build --concurrency 15 && npm run build:scripts",
     "build:apps": "turbo run build:apps",
     "build:docs": "turbo run build:docs",
     "build:mesh": "turbo run build:mesh",

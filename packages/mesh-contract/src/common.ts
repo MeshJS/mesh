@@ -26,7 +26,7 @@ export class MeshTxInitiator {
     mesh,
     fetcher,
     wallet,
-    networkId,
+    networkId = 0,
     stakeCredential,
   }: MeshTxInitiatorInput) {
     this.mesh = mesh;
@@ -36,14 +36,14 @@ export class MeshTxInitiator {
     if (wallet) {
       this.wallet = wallet;
     }
-    if (networkId) {
-      this.networkId = networkId;
-      if (networkId === 1) {
-        this.mesh.setNetwork("mainnet");
-      } else {
-        this.mesh.setNetwork("preprod");
-      }
+
+    this.networkId = networkId;
+    if (networkId === 1) {
+      this.mesh.setNetwork("mainnet");
+    } else {
+      this.mesh.setNetwork("preprod");
     }
+
     if (stakeCredential) {
       this.stakeCredential = this.stakeCredential;
     }
