@@ -21,9 +21,15 @@ export const experimentalSelectUtxos = (
   const singletons = new Set<number>();
   const pairs = new Set<number>();
   const rest = new Set<number>();
+  const collaterals = new Set<number>();
   for (let i = 0; i < inputs.length; i++) {
     switch (inputs[i]!.output.amount.length) {
       case 1: {
+        const quantity = inputs[i]!.output.amount[0]?.quantity;
+        if (quantity == "5000000" || quantity == "10000000") {
+          collaterals.add(i);
+          break;
+        }
         onlyLovelace.add(i);
         break;
       }
@@ -109,6 +115,12 @@ export const experimentalSelectUtxos = (
     const assetRequired = totalRequiredAssets.get("lovelace");
     if (!assetRequired || Number(assetRequired) <= 0) break;
     addUtxoWithAssetAmount(inputIndex, "lovelace", rest);
+  }
+
+  for (const inputIndex of collaterals) {
+    const assetRequired = totalRequiredAssets.get("lovelace");
+    if (!assetRequired || Number(assetRequired) <= 0) break;
+    addUtxoWithAssetAmount(inputIndex, "lovelace", collaterals);
   }
 
   for (const assetUnit of totalRequiredAssets.keys()) {

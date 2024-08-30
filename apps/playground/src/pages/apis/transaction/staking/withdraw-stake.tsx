@@ -53,7 +53,7 @@ function Right() {
       throw "No address found";
     }
 
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.withdrawRewards(rewardAddress, userInput);
 
     const unsignedTx = await tx.build();

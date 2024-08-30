@@ -145,6 +145,7 @@ function Right() {
     const redeemer = { data: { alternative: 0, fields: ["Hello, World!"] } };
 
     const tx = new Transaction({ initiator: wallet })
+      .setNetwork("preprod")
       .redeemValue({
         value: assetUtxo,
         script: script,

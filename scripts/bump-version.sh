@@ -19,6 +19,7 @@ FILES=(
   "packages/mesh-react/package.json"
   "packages/mesh-transaction/package.json"
   "packages/mesh-wallet/package.json"
+  "scripts/mesh-cli/package.json"
 )
 
 # Iterate over each specified package.json file and update the version field

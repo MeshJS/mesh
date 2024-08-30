@@ -160,7 +160,7 @@ function Right() {
       recipient: address,
     };
 
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.mintAsset(forgingScript, asset1);
     tx.setTimeToExpire("99999999");
 

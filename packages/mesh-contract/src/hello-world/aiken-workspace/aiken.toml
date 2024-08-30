@@ -12,3 +12,8 @@ platform = "github"
 name = "aiken-lang/stdlib"
 version = "1.9.0"
 source = "github"
+
+[[dependencies]]
+name = "sidan-lab/vodka"
+version = "0.0.1-beta"
+source = "github"

@@ -1,8 +1,7 @@
-import Link from "~/components/link";
-
 import { AssetMetadata, ForgeScript, Mint, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -104,7 +103,7 @@ function Right() {
     };
 
     // create transaction
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.mintAsset(forgingScript, asset);
 
     const unsignedTx = await tx.build();

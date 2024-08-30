@@ -401,7 +401,7 @@ export class YaciProvider
         },
       );
 
-      if (status === 200 && data.result.EvaluationResult) {
+      if (status === 202 && data.result.EvaluationResult) {
         const tagMap: { [key: string]: RedeemerTagType } = {
           spend: "SPEND",
           mint: "MINT",

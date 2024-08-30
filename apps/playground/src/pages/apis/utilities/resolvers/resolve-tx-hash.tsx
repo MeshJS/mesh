@@ -1,5 +1,4 @@
-import { Transaction } from "@meshsdk/core";
-import { resolveTxHash } from "@meshsdk/core";
+import { resolveTxHash, Transaction } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import { getMeshWallet } from "~/components/cardano/mesh-wallet";
@@ -34,7 +33,7 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    const tx = new Transaction({ initiator: wallet });
+    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.sendLovelace(demoAddresses.testnet, "1500000");
     const unsignedTx = await tx.build();
     const hash1 = resolveTxHash(unsignedTx);

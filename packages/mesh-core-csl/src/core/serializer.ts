@@ -71,7 +71,7 @@ export class CSLSerializer implements IMeshTxSerializer {
     }
     const txBuildResult = csl.js_serialize_tx_body(txBodyJson, params);
     if (txBuildResult.get_status() !== "success") {
-      throw new Error(txBuildResult.get_data());
+      throw new Error(`txBuildResult error: ${txBuildResult.get_data()}`);
     }
     return txBuildResult.get_data();
   }

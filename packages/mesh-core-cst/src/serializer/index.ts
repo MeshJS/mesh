@@ -66,6 +66,7 @@ import { hashScriptData } from "../utils/script-data-hash";
 import { empty, mergeValue, negatives, subValue } from "../utils/value";
 
 export class CardanoSDKSerializer implements IMeshTxSerializer {
+  verbose: boolean;
   private txBody: TransactionBody;
   private txWitnessSet: TransactionWitnessSet;
 
@@ -87,7 +88,8 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     [2]: false,
   };
 
-  constructor() {
+  constructor(verbose = false) {
+    this.verbose = verbose;
     this.txBody = new TransactionBody(
       Serialization.CborSet.fromCore([], TransactionInput.fromCore),
       [],
