@@ -26,6 +26,18 @@ FILES=(
 for FILE in "${FILES[@]}"; do
   if [ -f "$FILE" ]; then
     sed -i '' -e "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" "$FILE"
+
+    # Update @meshsdk dependencies to the latest version
+    sed -i '' -e "s/\"@meshsdk\/common\": \".*\"/\"@meshsdk\/common\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/contract\": \".*\"/\"@meshsdk\/contract\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/core\": \".*\"/\"@meshsdk\/core\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/core-csl\": \".*\"/\"@meshsdk\/core-csl\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/core-cst\": \".*\"/\"@meshsdk\/core-cst\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/provider\": \".*\"/\"@meshsdk\/provider\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/react\": \".*\"/\"@meshsdk\/react\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/transaction\": \".*\"/\"@meshsdk\/transaction\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/wallet\": \".*\"/\"@meshsdk\/wallet\": \"$VERSION\"/" "$FILE"
+ 
     echo "Updated version in $FILE"
   else
     echo "File not found: $FILE"
