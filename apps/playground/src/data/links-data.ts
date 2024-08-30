@@ -27,6 +27,13 @@ export const metaDataJson = {
   link: "/apis/data/json",
   icon: Bars3Icon,
 };
+// todoß
+export const metaDataValue = {
+  title: "Value",
+  desc: "Manipulate Cardano Value Easily",
+  link: "/apis/data/value",
+  icon: Bars3Icon,
+};
 export const metaDataCbor = {
   title: "CBOR Data",
   desc: "Parse and manipulate Cardano data with CBOR",
@@ -44,6 +51,7 @@ export const linksData: MenuItem[] = [
   metaOverview,
   metaDataMesh,
   metaDataJson,
+  metaDataValue,
   // metaDataCbor,
   // metaDataUtils,
 ];

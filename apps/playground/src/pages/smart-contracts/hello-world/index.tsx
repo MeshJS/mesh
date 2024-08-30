@@ -5,22 +5,20 @@ import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
-import { metaVesting } from "~/data/links-smart-contracts";
+import { metaGiftcard } from "~/data/links-smart-contracts";
 import { InstallSmartContract } from "../common";
-import VestingDepositFund from "./deposit-fund";
-import VestingFullTutorial from "./full-tutorial";
-import VestingWithdrawFund from "./withdraw-fund";
+import HelloWorldLock from "./lock-asset";
+import HelloWorldUnlock from "./unlock-asset";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
-    { label: "Deposit Fund", to: "depositFund" },
-    { label: "Withdraw Fund", to: "withdrawFund" },
-    { label: "Full Tutorial", to: "tutorial" },
+    { label: "Lock assets", to: "lockAsset" },
+    { label: "Unlock assets", to: "unlockAsset" },
   ];
 
   let example = ``;
 
-  example += `import { MeshVestingContract } from "@meshsdk/contract";\n`;
+  example += `import { MeshHelloWorldContract } from "@meshsdk/contract";\n`;
   example += `import { MeshTxBuilder } from "@meshsdk/core";\n`;
   example += `\n`;
   example += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n`;
@@ -30,7 +28,7 @@ const ReactPage: NextPage = () => {
   example += `  submitter: blockchainProvider,\n`;
   example += `});\n`;
   example += `\n`;
-  example += `const contract = new MeshVestingContract({\n`;
+  example += `const contract = new MeshHelloWorldContract({\n`;
   example += `  mesh: meshTxBuilder,\n`;
   example += `  fetcher: blockchainProvider,\n`;
   example += `  wallet: wallet,\n`;
@@ -39,31 +37,31 @@ const ReactPage: NextPage = () => {
 
   return (
     <>
-      <Metatags title={metaVesting.title} description={metaVesting.desc} />
+      <Metatags title={metaGiftcard.title} description={metaGiftcard.desc} />
       <SidebarFullwidth sidebarItems={sidebarItems}>
         <TitleIconDescriptionBody
-          title={metaVesting.title}
-          description={metaVesting.desc}
-          heroicon={metaVesting.icon}
+          title={metaGiftcard.title}
+          description={metaGiftcard.desc}
+          heroicon={metaGiftcard.icon}
         >
           <>
             <p>
-              When a new employee joins an organization, they typically receive
-              a promise of compensation to be disbursed after a specified
-              duration of employment. This arrangement often involves the
-              organization depositing the funds into a vesting contract, with
-              the employee gaining access to the funds upon the completion of a
-              predetermined lockup period. Through the utilization of vesting
-              contracts, organizations establish a mechanism to encourage
-              employee retention by linking financial rewards to tenure.
+              Giftcard contract allows users to create a transactions to lock
+              assets into the smart contract, which can be redeemed by any user.
             </p>
+            <p>
+              Creating a giftcard will mint a token and send the assets to the
+              contract. While redeeming will burn the token and send the assets
+              to the redeemer.
+            </p>
+
             <p>
               There are 2 actions (or endpoints) available to interact with this
               smart contract:
             </p>
             <ul>
-              <li>deposit asset</li>
-              <li>withdraw asset</li>
+              <li>create giftcard</li>
+              <li>redeem giftcard</li>
             </ul>
 
             <InstallSmartContract />
@@ -72,12 +70,12 @@ const ReactPage: NextPage = () => {
             <p>
               To initialize the contract, we need to initialize a{" "}
               <Link href="/providers">provider</Link>,{" "}
-              <code>MeshTxBuilder</code> and <code>MeshVestingContract</code>.
+              <code>MeshTxBuilder</code> and <code>MeshGiftCardContract</code>.
             </p>
             <Codeblock data={example} />
             <p>
               Both on-chain and off-chain codes are open-source and available on{" "}
-              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/vesting">
+              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/giftcard">
                 Mesh Github Repository
               </Link>
               .
@@ -85,9 +83,8 @@ const ReactPage: NextPage = () => {
           </>
         </TitleIconDescriptionBody>
 
-        <VestingDepositFund />
-        <VestingWithdrawFund />
-        <VestingFullTutorial />
+        <HelloWorldLock />
+        <HelloWorldUnlock />
       </SidebarFullwidth>
     </>
   );

@@ -8,11 +8,11 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import { getContract } from "./common";
 
-export default function VestingWithdrawFund() {
+export default function HelloWorldUnlock() {
   return (
     <TwoColumnsScroll
-      sidebarTo="withdrawFund"
-      title="Withdraw Fund"
+      sidebarTo="unlockAsset"
+      title="Unlock Asset"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -22,19 +22,7 @@ export default function VestingWithdrawFund() {
 function Left() {
   return (
     <>
-      <p>
-        After the lockup period has expired, the beneficiary can withdraw the
-        funds from the vesting contract.
-      </p>
-      <p>
-        <code>withdrawFund()</code> withdraw funds from a vesting contract. The
-        function accepts the following parameters:
-      </p>
-      <ul>
-        <li>
-          <b>vestingUtxo (UTxO)</b> - unspent transaction output in the script
-        </li>
-      </ul>
+      <p></p>
     </>
   );
 }
@@ -42,6 +30,7 @@ function Left() {
 function Right() {
   const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<string>("");
+  const [userInput2, setUserInput2] = useState<string>("Hello, World!");
 
   async function runDemo() {
     const contract = getContract(wallet);
@@ -50,22 +39,23 @@ function Right() {
 
     if (utxo === undefined) throw new Error("UTxO not found");
 
-    const tx = await contract.withdrawFund(utxo);
+    const tx = await contract.unlockAsset(utxo, userInput2);
     const signedTx = await wallet.signTx(tx, true);
     const txHash = await wallet.submitTx(signedTx);
     return txHash;
   }
 
   let code = ``;
-  code += `const utxo = await contract.getUtxoByTxHash('${userInput}');\n\n`;
-  code += `const tx = await contract.withdrawFund(utxo);\n`;
-  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const utxo = await contract.getUtxoByTxHash('${userInput}');\n`;
+  code += `\n`;
+  code += `const tx = await contract.unlockAsset(utxo, '${userInput2}');\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo
-      title="Withdraw Fund"
-      subtitle="Withdraw funds from a vesting contract"
+      title="Redeem Giftcard"
+      subtitle="Redeem a gift card given the gift card UTxO"
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}
@@ -81,6 +71,13 @@ function Right() {
             onChange={(e) => setUserInput(e.target.value)}
             placeholder="Tx hash"
             label="Tx hash"
+            key={0}
+          />,
+          <Input
+            value={userInput2}
+            onChange={(e) => setUserInput2(e.target.value)}
+            placeholder="Message"
+            label="Message"
             key={0}
           />,
         ]}

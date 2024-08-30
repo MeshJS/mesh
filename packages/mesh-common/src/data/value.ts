@@ -197,7 +197,7 @@ export class MeshValue {
    * @returns boolean
    */
   leq = (other: MeshValue): boolean => {
-    return Object.keys(other.value).every((key) => this.leqUnit(key, other));
+    return Object.keys(this.value).every((key) => this.leqUnit(key, other));
   };
 
   /**
