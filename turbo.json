@@ -7,11 +7,11 @@
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "build:apps": {
-      "dependsOn": ["^build:mesh", "^build:docs", "^build:apps"],
+      "dependsOn": ["^build:apps"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "build:docs": {
-      "dependsOn": ["^build:mesh", "^build:docs"],
+      "dependsOn": ["^build:docs"],
       "outputs": ["dist/**"]
     },
     "build:mesh": {
