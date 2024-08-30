@@ -347,6 +347,43 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Set the output embed datum for transaction
+   * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @returns The MeshTxBuilder instance
+   */
+
+  txOutDatumEmbedValue = (
+    datum: BuilderData["content"],
+    type: BuilderData["type"] = "Mesh",
+  ) => {
+    let content = datum;
+    if (this.txOutput) {
+      if (type === "Mesh") {
+        this.txOutput.datum = {
+          type: "Embedded",
+          data: {
+            type,
+            content: content as Data,
+          },
+        };
+        return this;
+      }
+      if (type === "JSON") {
+        content = this.castRawDataToJsonString(datum as object | string);
+      }
+      this.txOutput.datum = {
+        type: "Embedded",
+        data: {
+          type,
+          content: content as string,
+        },
+      };
+    }
+    return this;
+  };
+
+  /**
    * Set the reference script to be attached with the output
    * @param scriptCbor The CBOR hex of the script to be attached to UTxO as reference script
    * @param version Optional - The Plutus script version
