@@ -16,7 +16,7 @@ export default function VestingDepositFund() {
       sidebarTo="depositFund"
       title="Deposit Fund"
       leftSection={Left()}
-      rightSection={Right()}
+      rightSection={VestingDepositFundDemo()}
     />
   );
 }
@@ -41,7 +41,7 @@ function Left() {
   );
 }
 
-function Right() {
+export function VestingDepositFundDemo() {
   const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<string>("5000000");
   const [userInput2, setUserInput2] = useState<string>(demoAddresses.testnet);

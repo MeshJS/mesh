@@ -14,7 +14,7 @@ export default function VestingWithdrawFund() {
       sidebarTo="withdrawFund"
       title="Withdraw Fund"
       leftSection={Left()}
-      rightSection={Right()}
+      rightSection={VestingWithdrawFundDemo()}
     />
   );
 }
@@ -39,7 +39,7 @@ function Left() {
   );
 }
 
-function Right() {
+export function VestingWithdrawFundDemo() {
   const { wallet, connected } = useWallet();
   const [userInput, setUserInput] = useState<string>("");
 

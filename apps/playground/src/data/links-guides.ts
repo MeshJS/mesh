@@ -58,6 +58,13 @@ export const guidestandalone = {
   thumbnail: "/guides/standalone.png",
   image: "/guides/salt-harvesting-3060093_1280.jpg",
 };
+export const guideVesting = {
+  title: "Vesting Script End-to-End",
+  desc: "Learn how to vesting contract that locks up funds for a period of time and allows the owner to withdraw the funds after the lockup period.",
+  link: "/guides/vesting",
+  thumbnail: "/guides/vesting.png",
+  image: "/guides/laptop-3196481_640.jpg",
+};
 
 export const linksGuides: MenuItem[] = [
   guidenextjs,
@@ -68,6 +75,7 @@ export const linksGuides: MenuItem[] = [
   guidetransactions,
   guideaiken,
   guidestandalone,
+  guideVesting,
 ];
 
 export const metaGuides: MenuItem = {
