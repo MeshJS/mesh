@@ -1,5 +1,10 @@
 import { MenuItem } from "~/types/menu-item";
 
+export const metaYaciHosted = {
+  title: "Hosted Yaci Devnet",
+  desc: "Connect to the hosted Yaci Devnet",
+  link: "https://cloud.meshjs.dev/yaci",
+};
 export const metaYaciGettingStarted = {
   title: "Getting Started",
   desc: "Set up Yaci Dev Kit and start the devnet",
@@ -17,6 +22,7 @@ export const metaYaciProvider = {
 };
 export const linksYaci: MenuItem[] = [
   metaYaciGettingStarted,
+  metaYaciHosted,
   metaYaciTransactions,
   metaYaciProvider,
 ];

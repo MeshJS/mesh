@@ -6,6 +6,7 @@ import Metatags from "~/components/site/metatags";
 import { metaYaciGettingStarted } from "~/data/links-yaci";
 import { getPageLinks } from "../common";
 import YaciCommands from "./commands";
+import YaciHosted from "./hosted";
 import YaciSetup from "./setup";
 import YaciStart from "./start";
 
@@ -24,6 +25,7 @@ const ReactPage: NextPage = () => {
           <></>
         </TitleIconDescriptionBody>
 
+        <YaciHosted />
         <YaciSetup />
         <YaciStart />
         <YaciCommands />
