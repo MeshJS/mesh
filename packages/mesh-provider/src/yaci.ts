@@ -35,7 +35,7 @@ export class YaciProvider
    * Set the URL of the instance.
    * @param baseUrl The base URL of the instance.
    */
-  constructor(baseUrl = "http://localhost:8080/api/v1/") {
+  constructor(baseUrl = "https://yaci-node.meshjs.dev/api/v1/") {
     this._axiosInstance = axios.create({
       baseURL: baseUrl,
     });

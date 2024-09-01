@@ -99,7 +99,7 @@ Lastly, we will return the **nonce** for the user to sign using their private ke
 
 ## Client: Verify ownership by signing the nonce
 
-We are ready to use the private key associated with the wallet to sign the nonce with **await wallet.signData(userAddress, nonce)**, which enables the dApp to request the user to sign a payload according to [CIP-8](https://cips.cardano.org/cips/cip8/).
+We are ready to use the private key associated with the wallet to sign the nonce with **await wallet.signData(nonce, userAddress)**, which enables the dApp to request the user to sign a payload according to [CIP-8](https://cips.cardano.org/cips/cip8/).
 
 We request the user's authorization and show them the message that is to be signed: **Sign to login in to Mesh: nonce**. Once accepted, the signature will be generated and the dApp will process the signature to authenticate the user.
 
@@ -107,7 +107,7 @@ We request the user's authorization and show them the message that is to be sign
 async function frontendSignMessage(nonce) {
   try {
     const userAddress = (await wallet.getRewardAddresses())[0];
-    const signature = await wallet.signData(userAddress, nonce);
+    const signature = await wallet.signData(nonce, userAddress);
 
     // do: send request with 'signature' and 'userAddress' to the backend
   } catch (error) {
@@ -175,7 +175,7 @@ export default function Page() {
   async function frontendSignMessage(nonce) {
     try {
       const userAddress = (await wallet.getRewardAddresses())[0];
-      const signature = await wallet.signData(userAddress, nonce);
+      const signature = await wallet.signData(nonce, userAddress);
       await backendVerifySignature(userAddress, signature);
     } catch (error) {
       setState(0);

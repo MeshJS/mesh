@@ -15,7 +15,7 @@ export default function Sidebar({
               {sidebarItems.map((item, i) => {
                 return (
                   <li key={i}>
-                    {item.to.startsWith("/") ? (
+                    {item.to.startsWith("/") || item.to.startsWith("http") ? (
                       <Link href={item.to}>{item.label}</Link>
                     ) : (
                       <LinkWithinPage key={i} item={item} />

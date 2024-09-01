@@ -35,6 +35,10 @@ function Left() {
         to sign arbitrary data, to verify the data was signed by the owner of
         the private key.
       </p>
+      <p>
+        <code>signData</code> takes two arguments, the first one is the payload
+        to sign and the second one is the address (optional).
+      </p>
       <p>Example of a response from the endpoint:</p>
       <Codeblock data={example} />
       <p>

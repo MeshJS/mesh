@@ -12,6 +12,9 @@ export const outputToObj = (output: Output): object => {
       case "Hash":
         datum = { hash: builderDataToCbor(output.datum.data) };
         break;
+      case "Embedded":
+        datum = { embedded: builderDataToCbor(output.datum.data) };
+        break;
     }
   }
 

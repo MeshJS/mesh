@@ -68,7 +68,7 @@ function Left() {
 function Right() {
   const [userInput, setUserInput] = useState<string>(yaci.address);
   const [userInput2, setUserInput2] = useState<string>(
-    "http://localhost:8080/api/v1/",
+    "https://yaci-node.meshjs.dev/api/v1/",
   );
 
   async function runDemo() {

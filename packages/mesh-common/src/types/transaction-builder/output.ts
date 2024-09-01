@@ -5,7 +5,7 @@ export type Output = {
   address: string;
   amount: Asset[];
   datum?: {
-    type: "Hash" | "Inline";
+    type: "Hash" | "Inline" | "Embedded";
     data: BuilderData;
   };
   referenceScript?: PlutusScript;

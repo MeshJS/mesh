@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/contract",
-  "version": "1.6.13",
+  "version": "1.7.0",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -33,11 +33,11 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "*",
-    "@meshsdk/core": "*",
-    "@meshsdk/core-csl": "*",
-    "@meshsdk/core-cst": "*",
-    "@meshsdk/transaction": "*"
+    "@meshsdk/common": "1.7.0",
+    "@meshsdk/core": "1.7.0",
+    "@meshsdk/core-csl": "1.7.0",
+    "@meshsdk/core-cst": "1.7.0",
+    "@meshsdk/transaction": "1.7.0"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

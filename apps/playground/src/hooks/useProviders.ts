@@ -31,7 +31,7 @@ export const useProviders = create<State>(
         set({ maestroKey: { network, apiKey } }),
       koiosKey: undefined,
       setKoiosKey: (network, apiKey) => set({ koiosKey: { network, apiKey } }),
-      yaciUrl: "http://localhost:8080/api/v1/",
+      yaciUrl: "https://yaci-node.meshjs.dev/api/v1/",
       setYaciUrl: (url) => set({ yaciUrl: url }),
       ogmiosUrl: "",
       setOgmiosUrl: (url) => set({ ogmiosUrl: url }),
