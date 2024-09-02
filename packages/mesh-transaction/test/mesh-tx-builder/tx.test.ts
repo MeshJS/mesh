@@ -62,7 +62,6 @@ describe("MeshTxBuilder transactions", () => {
       .setNetwork("preprod")
       .completeSync();
 
-    console.log(txHex);
     expect(txHex !== "").toBeTruthy();
   });
 
@@ -100,7 +99,6 @@ describe("MeshTxBuilder transactions", () => {
       .setNetwork("preprod")
       .completeSync();
 
-    console.log(txHex);
     expect(txHex !== "").toBeTruthy();
   });
 });
