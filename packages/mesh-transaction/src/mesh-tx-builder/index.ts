@@ -7,7 +7,6 @@ import {
   MintItem,
   Protocol,
   ScriptSource,
-  ScriptTxIn,
   SimpleScriptSourceInfo,
   TxIn,
   UTxO,
