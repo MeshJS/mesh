@@ -1,4 +1,9 @@
-import { ScriptTxInParameter, TxIn, TxInParameter } from "@meshsdk/common";
+import {
+  ScriptTxInParameter,
+  SimpleScriptTxInParameter,
+  TxIn,
+  TxInParameter,
+} from "@meshsdk/common";
 
 import { builderDataToCbor, redeemerToObj } from "./data";
 import { scriptSourceToObj } from "./script";
@@ -21,8 +26,14 @@ export const txInToObj = (txIn: TxIn): object => {
       };
 
     case "SimpleScript":
-      // Not implemented
-      return {};
+      return {
+        simpleScriptTxIn: {
+          txIn: txInParameterToObj(txIn.txIn),
+          simpleScriptTxIn: simpleScriptTxInParameterToObj(
+            txIn.simpleScriptTxIn,
+          ),
+        },
+      };
   }
 };
 
@@ -78,4 +89,38 @@ export const scriptTxInParameterToObj = (
       ? redeemerToObj(scriptTxInParameter.redeemer)
       : null,
   };
+};
+
+export const simpleScriptTxInParameterToObj = (
+  simpleScriptTxInParameter: SimpleScriptTxInParameter,
+) => {
+  if (simpleScriptTxInParameter.scriptSource) {
+    let scriptSource: object | null = null;
+
+    switch (simpleScriptTxInParameter.scriptSource.type) {
+      case "Inline":
+        scriptSource = {
+          inlineSimpleScriptSource: {
+            refTxIn: {
+              txHash: simpleScriptTxInParameter.scriptSource.txHash,
+              txIndex: simpleScriptTxInParameter.scriptSource.txIndex,
+            },
+            simpleScriptHash:
+              simpleScriptTxInParameter.scriptSource.simpleScriptHash ?? "",
+            scriptSize: BigInt(
+              simpleScriptTxInParameter.scriptSource.scriptSize ?? "0",
+            ),
+          },
+        };
+        break;
+      case "Provided":
+        scriptSource = {
+          providedSimpleScriptSource: {
+            scriptCbor: simpleScriptTxInParameter.scriptSource.scriptCode,
+          },
+        };
+        break;
+    }
+    return scriptSource;
+  }
 };

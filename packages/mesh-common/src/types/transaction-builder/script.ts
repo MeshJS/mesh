@@ -24,4 +24,5 @@ export type SimpleScriptSourceInfo =
       txHash: string;
       txIndex: number;
       simpleScriptHash?: string;
+      scriptSize?: string;
     };
