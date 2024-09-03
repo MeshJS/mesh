@@ -7,6 +7,7 @@ export function getTxBuilder() {
   const txBuilder = new MeshTxBuilder({
     fetcher: blockchainProvider,
     evaluator: blockchainProvider,
+    verbose: true,
   });
   txBuilder.setNetwork("preprod");
   return txBuilder;
