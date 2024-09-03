@@ -22,7 +22,7 @@ const ReactPage: NextPage = () => {
     { label: "Initialize Tx Builder", to: "initializeTxbuilder" },
     { label: "Send value", to: "sendValue" },
     { label: "Multi-signature", to: "multisig" },
-    // { label: "Multisig native script", to: "multisigNativeScript" },
+    { label: "Multisig native script", to: "multisigNativeScript" },
     { label: "Build with object", to: "buildWithObject" },
     { label: "Coin selection", to: "coinSelection" },
     { label: "Set metadata", to: "cip20" },
@@ -70,7 +70,7 @@ const ReactPage: NextPage = () => {
         {/* <TxbuilderCommonFunctions /> */}
         <TxbuilderSendValues />
         <TxbuilderMultisig />
-        {/* <TxbuilderMultisigNativeScript /> */}
+        <TxbuilderMultisigNativeScript />
         <TxbuilderBuildWithObject />
         {/* <TxbuilderSetMetadata /> */}
         <TxbuilderCoinSelection />
