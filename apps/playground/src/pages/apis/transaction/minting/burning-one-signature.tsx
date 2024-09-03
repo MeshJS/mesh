@@ -50,7 +50,7 @@ function Left(userInput: string) {
   codeSnippet1 += `const forgingScript = ForgeScript.withOneSignature(address);`;
 
   let codeSnippet2 = `const asset: Asset = {\n`;
-  codeSnippet2 += `  unit: assetAsset,\n`;
+  codeSnippet2 += `  unit: '${userInput}',\n`;
   codeSnippet2 += `  quantity: '1',\n`;
   codeSnippet2 += `};\n`;
   codeSnippet2 += `tx.burnAsset(forgingScript, asset);`;

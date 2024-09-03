@@ -35,8 +35,8 @@ export const serialzeAddress = (
     );
 
   const addressObj = isPaymentScript
-    ? pubKeyAddress(paymentHash, stakeHash, isStakeScript)
-    : scriptAddress(paymentHash, stakeHash, isStakeScript);
+    ? scriptAddress(paymentHash, stakeHash, isStakeScript)
+    : pubKeyAddress(paymentHash, stakeHash, isStakeScript);
   return serializeAddressObj(addressObj, networkId);
 };
 

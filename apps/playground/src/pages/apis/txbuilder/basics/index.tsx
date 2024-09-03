@@ -15,12 +15,14 @@ import TxbuilderSendValues from "./send-values";
 import TxbuilderSetNetwork from "./set-network";
 import TxbuilderSetRequiredSigners from "./set-required-signers";
 import TxbuilderSetTime from "./set-time";
+import TxbuilderMultisigNativeScript from "./multisig-native-script";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Initialize Tx Builder", to: "initializeTxbuilder" },
     { label: "Send value", to: "sendValue" },
     { label: "Multi-signature", to: "multisig" },
+    { label: "Multisig native script", to: "multisigNativeScript" },
     { label: "Build with object", to: "buildWithObject" },
     { label: "Coin selection", to: "coinSelection" },
     { label: "Set metadata", to: "cip20" },
@@ -68,6 +70,7 @@ const ReactPage: NextPage = () => {
         {/* <TxbuilderCommonFunctions /> */}
         <TxbuilderSendValues />
         <TxbuilderMultisig />
+        <TxbuilderMultisigNativeScript />
         <TxbuilderBuildWithObject />
         {/* <TxbuilderSetMetadata /> */}
         <TxbuilderCoinSelection />

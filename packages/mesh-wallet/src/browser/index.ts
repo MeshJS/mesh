@@ -12,6 +12,7 @@ import {
   UTxO,
   Wallet,
 } from "@meshsdk/common";
+import { csl } from "@meshsdk/core-csl";
 import {
   Address,
   addressToBech32,
@@ -473,16 +474,18 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
       if (this._walletInstance.cip95 === undefined) return undefined;
 
       const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
-      const { dRepKeyHex, dRepIDHash } =
-        await BrowserWallet.dRepKeyToDRepID(dRepKey);
+      const { dRepIDHash } = await BrowserWallet.dRepKeyToDRepID(dRepKey);
 
-      const networkId = await this.getNetworkId();
-      const dRepId = buildDRepID(dRepKeyHex, networkId);
+      // const networkId = await this.getNetworkId();
+      // const dRepId = buildDRepID(dRepKey, networkId); // todo: this is not correct
+
+      const csldRepIdKeyHash = csl.PublicKey.from_hex(dRepKey).hash();
+      const dRepId = csldRepIdKeyHash.to_bech32("drep");
 
       return {
         pubDRepKey: dRepKey,
         dRepIDHash: dRepIDHash,
-        dRepIDBech32: dRepId, // todo to check
+        dRepIDBech32: dRepId,
       };
     } catch (e) {
       console.error(e);

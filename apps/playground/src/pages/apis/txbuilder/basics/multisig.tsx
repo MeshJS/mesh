@@ -1,5 +1,5 @@
 import {
-  AppWallet,
+  MeshWallet,
   ForgeScript,
   resolveScriptHash,
   stringToHex,
@@ -26,12 +26,17 @@ export default function TxbuilderMultisig() {
 
 function Left() {
   let codeTx = ``;
-  codeTx += `const tx = new Transaction({ initiator: wallet });\n`;
-  codeTx += `tx.mintAsset(forgingScript, asset);\n`;
+  codeTx += `const unsignedTx = await txBuilder\n`;
+  codeTx += `  .mint("1", policyId, stringToHex("MeshToken"))\n`;
+  codeTx += `  .mintingScript(forgingScript)\n`;
+  codeTx += `  .metadataValue("721", { [policyId]: { [assetName]: demoAssetMetadata } })\n`;
+  codeTx += `  .changeAddress(address)\n`;
+  codeTx += `  .selectUtxosFrom(utxos)\n`;
+  codeTx += `  .complete();\n`;
   codeTx += `\n`;
-  codeTx += `const unsignedTx = await tx.build();\n`;
   codeTx += `const signedTx = await wallet.signTx(unsignedTx, true);\n`;
-  codeTx += `const signedTx2 = await mintingWallet.signTx(signedTx, true);\n`;
+  codeTx += `const signedTx2 = mintingWallet.signTx(signedTx, true);\n`;
+  codeTx += `const txHash = await wallet.submitTx(signedTx2);\n`;
 
   let codeSign = `await wallet.signTx(unsignedTx, true);`;
 
@@ -59,7 +64,7 @@ function Right() {
 
   async function runDemo() {
     const blockchainProvider = getProvider();
-    const mintingWallet = new AppWallet({
+    const mintingWallet = new MeshWallet({
       networkId: 0,
       fetcher: blockchainProvider,
       submitter: blockchainProvider,
@@ -69,7 +74,7 @@ function Right() {
       },
     });
     const forgingScript = ForgeScript.withOneSignature(
-      mintingWallet.getPaymentAddress(),
+      mintingWallet.getChangeAddress(),
     );
     const assetName = "MeshToken";
     const policyId = resolveScriptHash(forgingScript);
@@ -94,8 +99,8 @@ function Right() {
     return txHash;
   }
 
-  let codeSnippet = `import { AppWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';\n\n`;
-  codeSnippet += `const mintingWallet = new AppWallet({\n`;
+  let codeSnippet = `import { MeshWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';\n\n`;
+  codeSnippet += `const mintingWallet = new MeshWallet({\n`;
   codeSnippet += `  networkId: 0,\n`;
   codeSnippet += `  fetcher: blockchainProvider,\n`;
   codeSnippet += `  submitter: blockchainProvider,\n`;
@@ -106,7 +111,7 @@ function Right() {
   codeSnippet += `});\n`;
   codeSnippet += `\n`;
   codeSnippet += `const forgingScript = ForgeScript.withOneSignature(\n`;
-  codeSnippet += `  mintingWallet.getPaymentAddress(),\n`;
+  codeSnippet += `  mintingWallet.getChangeAddress(),\n`;
   codeSnippet += `);\n`;
   codeSnippet += `\n`;
   codeSnippet += `const assetName = "MeshToken";\n`;
@@ -115,8 +120,6 @@ function Right() {
   codeSnippet += `const usedAddress = await wallet.getUsedAddresses();\n`;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const address = usedAddress[0]!;\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .mint("1", policyId, stringToHex("MeshToken"))\n`;

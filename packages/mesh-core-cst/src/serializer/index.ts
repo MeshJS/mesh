@@ -479,14 +479,11 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       this.scriptsProvided.add(
         Script.newNativeScript(
           NativeScript.fromCbor(
-            HexBlob(currentTxIn.simpleScriptTxIn.scriptSource.script),
+            HexBlob(currentTxIn.simpleScriptTxIn.scriptSource.scriptCode),
           ),
         ),
       );
-    } else if (
-      currentTxIn.simpleScriptTxIn.scriptSource.type === "Inline" &&
-      currentTxIn.simpleScriptTxIn.scriptSource.txInInfo.type === "Inline" // This is weird, TODO: refactor types
-    ) {
+    } else if (currentTxIn.simpleScriptTxIn.scriptSource.type === "Inline") {
       let referenceInputs =
         this.txBody.referenceInputs() ??
         Serialization.CborSet.fromCore([], TransactionInput.fromCore);
@@ -495,10 +492,8 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
 
       referenceInputsList.push(
         new TransactionInput(
-          TransactionId(
-            currentTxIn.simpleScriptTxIn.scriptSource.txInInfo.txHash,
-          ),
-          BigInt(currentTxIn.simpleScriptTxIn.scriptSource.txInInfo.txIndex),
+          TransactionId(currentTxIn.simpleScriptTxIn.scriptSource.txHash),
+          BigInt(currentTxIn.simpleScriptTxIn.scriptSource.txIndex),
         ),
       );
 

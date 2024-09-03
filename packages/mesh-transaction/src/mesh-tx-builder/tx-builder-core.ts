@@ -115,7 +115,7 @@ export class MeshTxBuilderCore {
         simpleScriptTxIn: {
           scriptSource: {
             type: "Provided",
-            script: scriptCbor,
+            scriptCode: scriptCbor,
           },
         },
       };
@@ -199,33 +199,47 @@ export class MeshTxBuilderCore {
     return this;
   };
 
-  // /**
-  //  * Native script - Set the reference input where it would also be spent in the transaction
-  //  * @param txHash The transaction hash of the reference UTxO
-  //  * @param txIndex The transaction index of the reference UTxO
-  //  * @param spendingScriptHash The script hash of the spending script
-  //  * @returns The MeshTxBuilder instance
-  //  */
-  // simpleScriptTxInReference = (
-  //   txHash: string,
-  //   txIndex: number,
-  //   spendingScriptHash?: string
-  // ) => {
-  //   if (!this.txInQueueItem) throw Error('Undefined input');
-  //   if (this.txInQueueItem.type === 'PubKey')
-  //     throw Error(
-  //       'Spending tx in reference attempted to be called a non script input'
-  //     );
-  //   this.txInQueueItem.scriptTxIn.scriptSource = {
-  //     type: 'Inline',
-  //     txInInfo: {
-  //       txHash,
-  //       txIndex,
-  //       spendingScriptHash,
-  //     },
-  //   };
-  //   return this;
-  // };
+  /**
+   * Native script - Set the reference input where it would also be spent in the transaction
+   * @param txHash The transaction hash of the reference UTxO
+   * @param txIndex The transaction index of the reference UTxO
+   * @param spendingScriptHash The script hash of the spending script
+   * @returns The MeshTxBuilder instance
+   */
+  simpleScriptTxInReference = (
+    txHash: string,
+    txIndex: number,
+    spendingScriptHash?: string,
+    scriptSize?: string,
+  ) => {
+    if (!this.txInQueueItem) throw Error("Undefined input");
+    if (this.txInQueueItem.type === "Script") {
+      throw Error(
+        "simpleScriptTxInReference called on a plutus script, use spendingTxInReference instead",
+      );
+    }
+    if (this.txInQueueItem.type === "SimpleScript") {
+      throw Error(
+        "simpleScriptTxInReference called on a native script input that already has a script defined",
+      );
+    }
+    if (this.txInQueueItem.type === "PubKey") {
+      this.txInQueueItem = {
+        type: "SimpleScript",
+        txIn: this.txInQueueItem.txIn,
+        simpleScriptTxIn: {
+          scriptSource: {
+            type: "Inline",
+            txHash,
+            txIndex,
+            simpleScriptHash: spendingScriptHash,
+            scriptSize,
+          },
+        },
+      };
+    }
+    return this;
+  };
 
   /**
    * Set the redeemer for the reference input to be spent in same transaction

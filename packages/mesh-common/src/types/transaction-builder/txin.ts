@@ -22,15 +22,7 @@ export type SimpleScriptTxIn = {
 };
 
 export type SimpleScriptTxInParameter = {
-  scriptSource?:
-    | {
-        type: "Provided";
-        script: string;
-      }
-    | {
-        type: "Inline";
-        txInInfo: SimpleScriptSourceInfo;
-      };
+  scriptSource?: SimpleScriptSourceInfo;
 };
 
 export type ScriptTxInParameter = {
