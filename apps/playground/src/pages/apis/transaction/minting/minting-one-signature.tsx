@@ -102,8 +102,8 @@ function Right() {
       recipient: address,
     };
 
-    // create transaction
-    const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
+    const tx = new Transaction({ initiator: wallet });
+    tx.setNetwork("preprod");
     tx.mintAsset(forgingScript, asset);
 
     const unsignedTx = await tx.build();

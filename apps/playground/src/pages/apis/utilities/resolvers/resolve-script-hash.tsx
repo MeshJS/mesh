@@ -1,17 +1,17 @@
 import { useState } from "react";
 
-import { resolvePlutusScriptHash } from "@meshsdk/core";
+import { resolveScriptHash } from "@meshsdk/core";
 
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 
-export default function ResolvePlutusScriptHash() {
+export default function ResolveScriptHash() {
   return (
     <TwoColumnsScroll
-      sidebarTo="resolvePlutusScriptHash"
-      title="Resolve Plutus Script Hash"
+      sidebarTo="resolveScriptHash"
+      title="Resolve Script Hash"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -22,10 +22,8 @@ function Left() {
   return (
     <>
       <p>
-        Provide the Plutus script address, and{" "}
-        <code>resolvePlutusScriptHash</code> will return a script hash. This
-        script hash can be use for building minting transaction with Plutus
-        contract.
+        <code>resolveScriptHash</code> will return a script hash. For example,
+        this is useful when you want to convert a script to a policy ID.
       </p>
     </>
   );
@@ -33,19 +31,19 @@ function Left() {
 
 function Right() {
   const [userInput, setUserInput] = useState<string>(
-    "addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8",
+    "8200581c5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f",
   );
 
   async function runDemo() {
-    return resolvePlutusScriptHash(userInput);
+    return resolveScriptHash(userInput);
   }
 
-  let codeSnippet = `resolvePlutusScriptHash('${userInput}')`;
+  let codeSnippet = `resolveScriptHash('${userInput}')`;
 
   return (
     <LiveCodeDemo
-      title="Resolve Plutus Script Hash"
-      subtitle="Convert Plutus script to hash"
+      title="Resolve Script Hash"
+      subtitle="Convert script to hash (like policy ID)"
       code={codeSnippet}
       runCodeFunction={runDemo}
     >
@@ -54,7 +52,7 @@ function Right() {
           <Input
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
-            label="Plutus script address"
+            label=" script address"
             key={0}
           />,
         ]}
