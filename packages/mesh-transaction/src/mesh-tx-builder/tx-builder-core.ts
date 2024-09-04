@@ -2,6 +2,7 @@ import JSONBig from "json-bigint";
 
 import {
   Action,
+  Anchor,
   Asset,
   Budget,
   BuilderData,
@@ -947,6 +948,30 @@ export class MeshTxBuilderCore {
         type: "RetirePool",
         poolId,
         epoch,
+      },
+    });
+    return this;
+  };
+
+  /**
+   * Registers DRep certificate, and adds it to the transaction
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @param coin DRep registration deposit
+   * @param anchor The DRep anchor, consists of a URL and a hash of the doc
+   * @returns The MeshTxBuilder instance
+   */
+  drepRegistrationCertificate = (
+    rewardAddreess: string,
+    coin: string,
+    anchor?: Anchor,
+  ) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: "BasicCertificate",
+      certType: {
+        type: "DRepRegistration",
+        votingKeyAddress: rewardAddreess,
+        coin: Number(coin),
+        anchor,
       },
     });
     return this;
