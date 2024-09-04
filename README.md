@@ -3,7 +3,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://meshjs.dev/logo-mesh/white/logo-mesh-white-512x512.png" width="200">
     <source media="(prefers-color-scheme: light)" srcset="https://meshjs.dev/logo-mesh/black/logo-mesh-black-512x512.png" width="200">
-    <img alt="Shows a black logo in light color mode and a white one in dark color mode." src="https://meshjs.dev/logo-mesh/mesh.png">
+    <img alt="mesh logo" src="https://meshjs.dev/logo-mesh/mesh.png">
   </picture>
 
   <h1 style="border-bottom: none"><a href='https://meshjs.dev/'>Mesh</a> TypeScript SDK</h1>
