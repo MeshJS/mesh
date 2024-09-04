@@ -52,7 +52,7 @@ export const baseCertToObj = (baseCert: CertificateType): object => {
       return {
         registerStake: {
           stakeKeyAddress: baseCert.stakeKeyAddress,
-          coin: 2000000, // TODO: change in conway era
+          coin: 2000000, // TODO: change in conway era (this should become an argument)
         },
       };
     case "DelegateStake":
