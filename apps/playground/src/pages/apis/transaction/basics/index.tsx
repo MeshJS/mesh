@@ -8,6 +8,7 @@ import { Intro } from "../common";
 import TransactionBegin from "./begin";
 import TransactionCip20 from "./cip20";
 import TransactionCoinSelection from "./coin-selection";
+import TransactionGetTxbuilder from "./get-txbuilder";
 import TransactionHandle from "./handle";
 import TransactionMultisig from "./multisig";
 import TransactionSendAssets from "./send-assets";
@@ -26,10 +27,12 @@ const ReactPage: NextPage = () => {
     { label: "Send value", to: "sendValue" },
     { label: "Multi-signature", to: "multisig" },
 
-    { label: "Send assets to Handle", to: "handler" },
-    { label: "Send assets to Begin ID", to: "begin" },
-
     { label: "Coin selection", to: "coinSelection" },
+
+    { label: "Get txbuilder", to: "getTxbuilder" },
+
+    { label: "ADA Handle", to: "handler" },
+    { label: "Begin ID", to: "begin" },
 
     { label: "Set metadata", to: "metadata" },
     { label: "Set transaction message", to: "cip20" },
@@ -69,10 +72,13 @@ const ReactPage: NextPage = () => {
         <TransactionSendValue />
         <TransactionMultisig />
 
+        <TransactionCoinSelection />
+
+        <TransactionGetTxbuilder />
+
         <TransactionHandle />
         <TransactionBegin />
 
-        <TransactionCoinSelection />
         <TransactionSetMetadata />
         <TransactionCip20 />
 

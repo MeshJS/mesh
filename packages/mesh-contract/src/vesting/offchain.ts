@@ -29,6 +29,7 @@ export class MeshVestingContract extends MeshTxInitiator {
 
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
+    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   depositFund = async (
@@ -41,7 +42,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     const scriptAddr = serializePlutusScript(
       { code: this.scriptCbor, version: "V2" },
       undefined,
-      0,
+      this.networkId,
     ).address;
     const { pubKeyHash: ownerPubKeyHash } = deserializeAddress(walletAddress);
     const { pubKeyHash: beneficiaryPubKeyHash } =
@@ -69,7 +70,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     const scriptAddr = serializePlutusScript(
       { code: this.scriptCbor, version: "V2" },
       undefined,
-      0,
+      this.networkId,
     ).address;
     const { pubKeyHash } = deserializeAddress(walletAddress);
 

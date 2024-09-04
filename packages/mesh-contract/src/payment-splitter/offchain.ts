@@ -48,6 +48,8 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
         "Wallet not provided. Therefore the payment address will not be added to the payees list which makes it impossible to trigger the payout.",
       );
     }
+
+    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   sendLovelaceToSplitter = async (lovelaceAmount: number): Promise<string> => {
@@ -65,7 +67,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     const { address: scriptAddress } = serializePlutusScript(
       script,
       undefined,
-      0,
+      this.networkId,
     );
 
     const { pubKeyHash } = deserializeAddress(walletAddress);
@@ -100,7 +102,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     const { address: scriptAddress } = serializePlutusScript(
       script,
       undefined,
-      0,
+      this.networkId,
     );
     const utxos = (await this.fetcher?.fetchAddressUTxOs(scriptAddress)) || [];
     const { pubKeyHash } = deserializeAddress(walletAddress);

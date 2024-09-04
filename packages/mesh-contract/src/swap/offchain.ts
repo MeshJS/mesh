@@ -35,8 +35,9 @@ export class MeshSwapContract extends MeshTxInitiator {
     this.scriptAddress = serializePlutusScript(
       { code: this.scriptCbor, version: "V2" },
       undefined,
-      0,
+      inputs.networkId,
     ).address;
+    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   initiateSwap = async (
