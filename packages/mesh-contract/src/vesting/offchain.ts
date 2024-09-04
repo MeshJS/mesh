@@ -41,7 +41,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     const scriptAddr = serializePlutusScript(
       { code: this.scriptCbor, version: "V2" },
       undefined,
-      0,
+      this.networkId,
     ).address;
     const { pubKeyHash: ownerPubKeyHash } = deserializeAddress(walletAddress);
     const { pubKeyHash: beneficiaryPubKeyHash } =
@@ -69,7 +69,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     const scriptAddr = serializePlutusScript(
       { code: this.scriptCbor, version: "V2" },
       undefined,
-      0,
+      this.networkId,
     ).address;
     const { pubKeyHash } = deserializeAddress(walletAddress);
 
