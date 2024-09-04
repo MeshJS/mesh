@@ -4,11 +4,11 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build:mesh", "^build:docs", "^build:apps", "^build:scripts"],
-      "outputs": ["*"]
+      "outputs": ["**"]
     },
     "build:apps": {
       "dependsOn": ["^build:mesh", "^build:docs", "^build:apps"],
-      "outputs": ["*"]
+      "outputs": ["**"]
     },
     "build:docs": {
       "dependsOn": ["^build:mesh", "^build:docs"],
