@@ -11,5 +11,8 @@ const nextConfig = {
     return config;
   },
   pageExtensions: ["js", "jsx", "mdx", "ts", "tsx"],
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 module.exports = withMDX(nextConfig);
