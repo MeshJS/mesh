@@ -70,7 +70,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       ],
       "JSON",
     );
-    this.mesh.setNetwork(inputs.networkId == 1 ? "mainnet" : "preprod");
+    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   listAsset = async (asset: string, price: number) => {

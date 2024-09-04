@@ -49,7 +49,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
       );
     }
 
-    this.mesh.setNetwork(inputs.networkId == 1 ? "mainnet" : "preprod");
+    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   sendLovelaceToSplitter = async (lovelaceAmount: number): Promise<string> => {
