@@ -29,6 +29,7 @@ export class MeshVestingContract extends MeshTxInitiator {
 
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
+    this.mesh.setNetwork(inputs.networkId == 1 ? "mainnet" : "preprod");
   }
 
   depositFund = async (

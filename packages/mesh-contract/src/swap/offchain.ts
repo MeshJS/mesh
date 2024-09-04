@@ -37,6 +37,7 @@ export class MeshSwapContract extends MeshTxInitiator {
       undefined,
       inputs.networkId,
     ).address;
+    this.mesh.setNetwork(inputs.networkId == 1 ? "mainnet" : "preprod");
   }
 
   initiateSwap = async (
