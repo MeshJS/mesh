@@ -9,14 +9,13 @@ export function getContract(wallet: BrowserWallet) {
   const meshTxBuilder = new MeshTxBuilder({
     fetcher: blockchainProvider,
     submitter: blockchainProvider,
-    verbose: true,
   });
 
   const contract = new MeshSwapContract({
     mesh: meshTxBuilder,
     fetcher: blockchainProvider,
     wallet: wallet,
-    networkId: 1,
+    networkId: 0,
   });
 
   return contract;
