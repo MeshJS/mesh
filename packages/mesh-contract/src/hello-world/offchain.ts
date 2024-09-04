@@ -25,7 +25,7 @@ export class MeshHelloWorldContract extends MeshTxInitiator {
 
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
-    this.mesh.setNetwork(inputs.networkId == 1 ? "mainnet" : "preprod");
+    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   getScript = () => {

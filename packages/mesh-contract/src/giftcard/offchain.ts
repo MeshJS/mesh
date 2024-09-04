@@ -57,7 +57,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     if (paramUtxo) {
       this.paramUtxo = paramUtxo;
     }
-    this.mesh.setNetwork(inputs.networkId == 1 ? "mainnet" : "preprod");
+    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   createGiftCard = async (
