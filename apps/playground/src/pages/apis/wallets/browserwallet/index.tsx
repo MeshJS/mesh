@@ -1,5 +1,6 @@
 import type { NextPage } from "next";
 
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
@@ -78,11 +79,15 @@ const ReactPage: NextPage = () => {
             are useful for building dApps.
           </p>
 
+          <p>Check out the full documentation on</p>
+
           <p>
             In this section, you can connect wallet and try APIs for dApps to
             communicate with your wallet.
           </p>
         </TitleIconDescriptionBody>
+
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/wallets/classes/BrowserWallet" />
 
         <BrowserWalletGetAvailableWallets />
         <BrowserWalletConnectWallet />

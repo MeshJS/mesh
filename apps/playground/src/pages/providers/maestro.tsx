@@ -13,6 +13,7 @@ import ProviderEvaluators from "./evaluators";
 import ProviderFetchers from "./fetchers";
 import ProviderListeners from "./listeners";
 import ProviderSubmitters from "./submitters";
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -75,6 +76,7 @@ const ReactPage: NextPage = () => {
           <p>Get started:</p>
           <Codeblock data={code1} />
         </TitleIconDescriptionBody>
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/MaestroProvider" />
 
         <ProviderFetchers
           blockchainProvider={blockchainProvider}

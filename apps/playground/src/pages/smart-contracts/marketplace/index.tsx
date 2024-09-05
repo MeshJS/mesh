@@ -13,6 +13,7 @@ import MarketplaceBuyAsset from "./buy-asset";
 import MarketplaceCancelListing from "./cancel-listing";
 import MarketplaceListAsset from "./list-asset";
 import MarketplaceUpdateListing from "./update-listing";
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -112,6 +113,8 @@ const ReactPage: NextPage = () => {
             <MintMeshToken />
           </>
         </TitleIconDescriptionBody>
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/contracts/classes/MeshMarketplaceContract" />
+
         <MarketplaceListAsset />
         <MarketplaceBuyAsset />
         <MarketplaceUpdateListing />
