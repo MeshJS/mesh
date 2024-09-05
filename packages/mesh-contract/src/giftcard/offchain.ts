@@ -93,12 +93,12 @@ export class MeshGiftCardContract extends MeshTxInitiator {
 
     const giftCardPolicy = resolveScriptHash(
       giftCardScript,
-      this.langaugeVersion(),
+      this.languageVersion(),
     );
 
     const redeemScript: PlutusScript = {
       code: this.redeemCbor(tokenNameHex, giftCardPolicy),
-      version: this.langaugeVersion(),
+      version: this.languageVersion(),
     };
 
     const redeemAddr = serializePlutusScript(
@@ -114,7 +114,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       firstUtxo.output.address,
     );
     await this.mesh
-      .mintPlutusScript(this.langaugeVersion())
+      .mintPlutusScript(this.languageVersion())
       .mint("1", giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
       .mintRedeemerValue(mConStr0([]))
@@ -161,13 +161,13 @@ export class MeshGiftCardContract extends MeshTxInitiator {
 
     const giftCardPolicy = resolveScriptHash(
       giftCardScript,
-      this.langaugeVersion(),
+      this.languageVersion(),
     );
 
     const redeemScript = this.redeemCbor(tokenNameHex, giftCardPolicy);
 
     await this.mesh
-      .spendingPlutusScript(this.langaugeVersion())
+      .spendingPlutusScript(this.languageVersion())
       .txIn(
         giftCardUtxo.input.txHash,
         giftCardUtxo.input.outputIndex,
@@ -177,7 +177,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue("")
       .txInScript(redeemScript)
-      .mintPlutusScript(this.langaugeVersion())
+      .mintPlutusScript(this.languageVersion())
       .mint("-1", giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
       .mintRedeemerValue(mConStr1([]))

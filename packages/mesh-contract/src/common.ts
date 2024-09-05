@@ -24,7 +24,7 @@ export class MeshTxInitiator {
   stakeCredential?: string;
   networkId = 0;
   version = 1;
-  langaugeVersion = (): LanguageVersion => {
+  languageVersion = (): LanguageVersion => {
     switch (this.version) {
       case 1:
         return "V2";

@@ -17,6 +17,7 @@ export function getContract(wallet: BrowserWallet) {
     fetcher: blockchainProvider,
     wallet: wallet,
     networkId: 0,
+    version: 2,
   });
 
   return contract;
