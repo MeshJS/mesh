@@ -23,7 +23,7 @@ export class MeshTxInitiator {
   wallet?: BrowserWallet | MeshWallet;
   stakeCredential?: string;
   networkId = 0;
-  version = 1;
+  version = 2;
   languageVersion: LanguageVersion = "V2";
 
   constructor({
@@ -32,7 +32,7 @@ export class MeshTxInitiator {
     wallet,
     networkId = 0,
     stakeCredential,
-    version = 1,
+    version = 2,
   }: MeshTxInitiatorInput) {
     this.mesh = mesh;
     if (fetcher) {
@@ -57,6 +57,7 @@ export class MeshTxInitiator {
     switch (this.version) {
       case 1:
         this.languageVersion = "V2";
+        break;
       default:
         this.languageVersion = "V3";
     }
