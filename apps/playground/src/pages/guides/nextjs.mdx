@@ -2,12 +2,17 @@ import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body
 import { guidenextjs } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
+  // const sidebarItems = [
+  //   { label: 'System setup', to: 'systemsetup' },
+  // ];
+
   return (
     <LayoutImageHeaderAndBody
       title={guidenextjs.title}
       description={guidenextjs.description}
       image={guidenextjs.image}
       cover={guidenextjs.cover}
+      // sidebarItems={sidebarItems}
     >
       {children}
     </LayoutImageHeaderAndBody>

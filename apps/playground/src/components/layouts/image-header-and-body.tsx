@@ -1,5 +1,6 @@
 import Metatags from "~/components/site/metatags";
 import Markdown from "./markdown";
+import StickySidebar from "./sidebar/sticky-sidebar";
 
 export default function LayoutImageHeaderAndBody({
   children,
@@ -7,12 +8,16 @@ export default function LayoutImageHeaderAndBody({
   description,
   image,
   cover,
+  sidebarItems,
+  authors,
 }: {
   children: React.ReactNode;
   title: string;
   description: string;
   image: string;
   cover: string;
+  sidebarItems?: { to: string; label: string }[];
+  authors?: { url: string; image: string; name: string; about: string }[];
 }) {
   return (
     <>
@@ -34,16 +39,21 @@ export default function LayoutImageHeaderAndBody({
           <article className="format format-blue dark:format-invert prose prose-slate w-full max-w-none xl:w-[828px]">
             <Markdown>{children}</Markdown>
           </article>
-          {/* <aside className="hidden xl:block" aria-labelledby="sidebar-label">
-            <div className="xl:w-[336px] sticky top-24">
-              <h3 id="sidebar-label" className="sr-only">
-                Sidebar
-              </h3>
-              <div className="mb-8">
-                <StickySidebar sidebarItems={sidebarItems} authors={authors} />
+          {sidebarItems && (
+            <aside className="hidden xl:block" aria-labelledby="sidebar-label">
+              <div className="sticky top-24 xl:w-[336px]">
+                <h3 id="sidebar-label" className="sr-only">
+                  Sidebar
+                </h3>
+                <div className="mb-8">
+                  <StickySidebar
+                    sidebarItems={sidebarItems}
+                    authors={authors}
+                  />
+                </div>
               </div>
-            </div>
-          </aside> */}
+            </aside>
+          )}
         </div>
       </main>
     </>
