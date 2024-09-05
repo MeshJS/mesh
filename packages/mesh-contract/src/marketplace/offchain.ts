@@ -70,7 +70,6 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       ],
       "JSON",
     );
-    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   listAsset = async (asset: string, price: number) => {
@@ -183,7 +182,10 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       (inputDatum.fields[1].int as number) + Number(inputLovelace);
 
     if (sellerToReceiveLovelace > 0) {
-      const sellerAddress = serializeAddressObj(inputDatum.fields[0], this.networkId);
+      const sellerAddress = serializeAddressObj(
+        inputDatum.fields[0],
+        this.networkId,
+      );
       const sellerToReceive = [
         {
           unit: "lovelace",
