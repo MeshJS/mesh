@@ -91,11 +91,14 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       firstUtxo.input.outputIndex,
     );
 
-    const giftCardPolicy = resolveScriptHash(giftCardScript, "V2");
+    const giftCardPolicy = resolveScriptHash(
+      giftCardScript,
+      this.langaugeVersion(),
+    );
 
     const redeemScript: PlutusScript = {
       code: this.redeemCbor(tokenNameHex, giftCardPolicy),
-      version: "V2",
+      version: this.langaugeVersion(),
     };
 
     const redeemAddr = serializePlutusScript(
@@ -104,14 +107,14 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       this.networkId,
     ).address;
 
+    this.mesh.txIn(
+      firstUtxo.input.txHash,
+      firstUtxo.input.outputIndex,
+      firstUtxo.output.amount,
+      firstUtxo.output.address,
+    );
+    this.mintPlutusScript();
     await this.mesh
-      .txIn(
-        firstUtxo.input.txHash,
-        firstUtxo.input.outputIndex,
-        firstUtxo.output.amount,
-        firstUtxo.output.address,
-      )
-      .mintPlutusScriptV2()
       .mint("1", giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
       .mintRedeemerValue(mConStr0([]))
@@ -156,12 +159,16 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       paramTxId,
     );
 
-    const giftCardPolicy = resolveScriptHash(giftCardScript, "V2");
+    const giftCardPolicy = resolveScriptHash(
+      giftCardScript,
+      this.langaugeVersion(),
+    );
 
     const redeemScript = this.redeemCbor(tokenNameHex, giftCardPolicy);
 
-    await this.mesh
-      .spendingPlutusScriptV2()
+    this.spendingPlutusScript();
+
+    this.mesh
       .txIn(
         giftCardUtxo.input.txHash,
         giftCardUtxo.input.outputIndex,
@@ -170,8 +177,10 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       )
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue("")
-      .txInScript(redeemScript)
-      .mintPlutusScriptV2()
+      .txInScript(redeemScript);
+
+    this.mintPlutusScript();
+    await this.mesh
       .mint("-1", giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
       .mintRedeemerValue(mConStr1([]))
