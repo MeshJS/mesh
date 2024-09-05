@@ -51,7 +51,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     let scriptCbor;
     switch (this.version) {
       case 2:
-        scriptCbor = blueprintV2.validators[1]!.compiledCode;
+        scriptCbor = blueprintV2.validators[2]!.compiledCode;
         break;
       default:
         scriptCbor = blueprintV1.validators[1]!.compiledCode;
