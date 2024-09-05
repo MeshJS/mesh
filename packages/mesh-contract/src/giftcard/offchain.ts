@@ -113,8 +113,8 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       firstUtxo.output.amount,
       firstUtxo.output.address,
     );
-    this.mintPlutusScript();
     await this.mesh
+      .mintPlutusScript(this.langaugeVersion())
       .mint("1", giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
       .mintRedeemerValue(mConStr0([]))
@@ -166,9 +166,8 @@ export class MeshGiftCardContract extends MeshTxInitiator {
 
     const redeemScript = this.redeemCbor(tokenNameHex, giftCardPolicy);
 
-    this.spendingPlutusScript();
-
-    this.mesh
+    await this.mesh
+      .spendingPlutusScript(this.langaugeVersion())
       .txIn(
         giftCardUtxo.input.txHash,
         giftCardUtxo.input.outputIndex,
@@ -177,10 +176,8 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       )
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue("")
-      .txInScript(redeemScript);
-
-    this.mintPlutusScript();
-    await this.mesh
+      .txInScript(redeemScript)
+      .mintPlutusScript(this.langaugeVersion())
       .mint("-1", giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
       .mintRedeemerValue(mConStr1([]))

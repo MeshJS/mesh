@@ -414,6 +414,20 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Set the reference script to be attached with the output
+   * @param languageVersion The Plutus script version
+   * @returns The MeshTxBuilder instance
+   */
+  spendingPlutusScript = (languageVersion: LanguageVersion) => {
+    // This flag should signal a start to a script input
+    // The next step after will be to add a tx-in
+    // After which, we will REQUIRE, script, datum and redeemer info
+    // for unlocking this particular input
+    this.addingPlutusScriptInput = true;
+    this.plutusSpendingScriptVersion = languageVersion;
+    return this;
+  };
+  /**
    * Set the instruction that it is currently using V1 Plutus spending scripts
    * @returns The MeshTxBuilder instance
    */
@@ -525,6 +539,16 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  /**
+   * Set the minting script for the current mint
+   * @param languageVersion The Plutus script version
+   * @returns The MeshTxBuilder instance
+   */
+  mintPlutusScript = (languageVersion: LanguageVersion) => {
+    this.addingPlutusMint = true;
+    this.plutusMintingScriptVersion = languageVersion;
+    return this;
+  };
   /**
    * Set the instruction that it is currently using V1 Plutus minting scripts
    * @returns The MeshTxBuilder instance
@@ -720,6 +744,16 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  /**
+   * Set the instruction that it is currently using V1 Plutus withdrawal scripts
+   * @param languageVersion The Plutus script version
+   * @returns The MeshTxBuilder instance
+   */
+  withdrawalPlutusScript = (languageVersion: LanguageVersion) => {
+    this.addingPlutusWithdrawal = true;
+    this.plutusWithdrawalScriptVersion = languageVersion;
+    return this;
+  };
   /**
    * Set the instruction that it is currently using V1 Plutus withdrawal scripts
    * @returns The MeshTxBuilder instance

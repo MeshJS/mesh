@@ -1,6 +1,7 @@
 import {
   BrowserWallet,
   IFetcher,
+  LanguageVersion,
   MeshTxBuilder,
   MeshWallet,
   UTxO,
@@ -23,6 +24,14 @@ export class MeshTxInitiator {
   stakeCredential?: string;
   networkId = 0;
   version = 1;
+  langaugeVersion = (): LanguageVersion => {
+    switch (this.version) {
+      case 1:
+        return "V2";
+      default:
+        return "V3";
+    }
+  };
 
   constructor({
     mesh,
