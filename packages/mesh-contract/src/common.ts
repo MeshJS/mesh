@@ -13,6 +13,7 @@ export type MeshTxInitiatorInput = {
   wallet?: BrowserWallet | MeshWallet;
   networkId?: number;
   stakeCredential?: string;
+  version?: number;
 };
 
 export class MeshTxInitiator {
@@ -21,6 +22,7 @@ export class MeshTxInitiator {
   wallet?: BrowserWallet | MeshWallet;
   stakeCredential?: string;
   networkId = 0;
+  version = 1;
 
   constructor({
     mesh,
@@ -28,6 +30,7 @@ export class MeshTxInitiator {
     wallet,
     networkId = 0,
     stakeCredential,
+    version = 1,
   }: MeshTxInitiatorInput) {
     this.mesh = mesh;
     if (fetcher) {
@@ -47,6 +50,8 @@ export class MeshTxInitiator {
     if (stakeCredential) {
       this.stakeCredential = this.stakeCredential;
     }
+
+    this.version = version;
   }
 
   protected signSubmitReset = async () => {

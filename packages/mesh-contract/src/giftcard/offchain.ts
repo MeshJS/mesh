@@ -19,9 +19,8 @@ import {
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
-import blueprint from "./aiken-workspace/plutus.json";
-
-export const MeshGiftCardBlueprint = blueprint;
+import blueprintV1 from "./aiken-workspace-v1/plutus.json";
+import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
 export class MeshGiftCardContract extends MeshTxInitiator {
   tokenNameHex: string = "";
@@ -32,18 +31,34 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     utxoTxHash: string,
     utxoTxId: number,
   ) => {
+    let scriptCbor;
+    switch (this.version) {
+      case 2:
+        scriptCbor = blueprintV2.validators[0]!.compiledCode;
+        break;
+      default:
+        scriptCbor = blueprintV1.validators[0]!.compiledCode;
+    }
+
     return applyParamsToScript(
-      blueprint.validators[0]!.compiledCode,
+      scriptCbor,
       [builtinByteString(tokenNameHex), txOutRef(utxoTxHash, utxoTxId)],
       "JSON",
     );
   };
 
-  redeemCbor = (tokenNameHex: string, policyId: string) =>
-    applyParamsToScript(blueprint.validators[1]!.compiledCode, [
-      tokenNameHex,
-      policyId,
-    ]);
+  redeemCbor = (tokenNameHex: string, policyId: string) => {
+    let scriptCbor;
+    switch (this.version) {
+      case 2:
+        scriptCbor = blueprintV2.validators[1]!.compiledCode;
+        break;
+      default:
+        scriptCbor = blueprintV1.validators[1]!.compiledCode;
+    }
+
+    return applyParamsToScript(scriptCbor, [tokenNameHex, policyId]);
+  };
 
   constructor(
     inputs: MeshTxInitiatorInput,
