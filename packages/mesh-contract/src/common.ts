@@ -24,14 +24,7 @@ export class MeshTxInitiator {
   stakeCredential?: string;
   networkId = 0;
   version = 1;
-  languageVersion = (): LanguageVersion => {
-    switch (this.version) {
-      case 1:
-        return "V2";
-      default:
-        return "V3";
-    }
-  };
+  languageVersion: LanguageVersion = "V2";
 
   constructor({
     mesh,
@@ -61,6 +54,12 @@ export class MeshTxInitiator {
     }
 
     this.version = version;
+    switch (this.version) {
+      case 1:
+        this.languageVersion = "V2";
+      default:
+        this.languageVersion = "V3";
+    }
   }
 
   protected signSubmitReset = async () => {
