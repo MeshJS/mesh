@@ -12,6 +12,7 @@ import EscrowCancelEscrow from "./cancel-escrow";
 import EscrowCompleteEscrow from "./complete-escrow";
 import EscrowInitiateEscrow from "./initiate-escrow";
 import EscrowRecipientDeposit from "./recipient-deposit";
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -86,6 +87,7 @@ const ReactPage: NextPage = () => {
             <MintMeshToken />
           </>
         </TitleIconDescriptionBody>
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/contracts/classes/MeshEscrowContract" />
 
         <EscrowInitiateEscrow />
         <EscrowRecipientDeposit />

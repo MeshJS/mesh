@@ -1,5 +1,6 @@
 import type { NextPage } from "next";
 
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
@@ -66,6 +67,7 @@ const ReactPage: NextPage = () => {
             sending assets and various options to customize the transaction.
           </p>
         </TitleIconDescriptionBody>
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/Transaction" />
 
         <TransactionSendLovelace />
         <TransactionSendAssets />

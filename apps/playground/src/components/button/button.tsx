@@ -4,6 +4,8 @@ export default function Button({
   style,
   onClick,
   disabled,
+  id,
+  tooltip,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -15,8 +17,10 @@ export default function Button({
     | "info"
     | "light"
     | "dark";
-  onClick: () => void;
+  onClick?: () => void;
   disabled?: boolean;
+  id?: string;
+  tooltip?: string;
 }) {
   const styles = {
     primary:
@@ -36,24 +40,32 @@ export default function Button({
   let _style = style && styles[style] ? styles[style] : styles.primary;
 
   if (className) {
-    style += ` ${className}`;
+    _style += ` ${className}`;
   }
 
   if (disabled) {
     _style += ` cursor-not-allowed`;
   }
 
-  style += ` not-format`;
+  _style += ` not-format button-with-tooltip`;
 
   return (
-    <button
-      type="button"
-      className={_style}
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={`button`}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        type="button"
+        className={_style}
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={`button`}
+        id={id}
+      >
+        {children}
+        {tooltip && (
+          <div className="button-with-tooltip-content tooltip invisible absolute z-10 -ml-4 mb-20 inline-block rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white shadow-sm dark:bg-gray-700">
+            {tooltip}
+          </div>
+        )}
+      </button>
+    </>
   );
 }

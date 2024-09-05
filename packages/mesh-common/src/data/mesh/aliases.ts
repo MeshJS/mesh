@@ -11,7 +11,7 @@ export type MAssetClass = MConStr0<[string, string]>;
  * Aiken alias
  * The Mesh Data output reference
  */
-export type MOutputReference = MConStr0<[MConStr0<[string]>, number]>;
+export type MOutputReference = MConStr0<[string, number]>;
 
 /**
  * PlutusTx alias
@@ -63,7 +63,7 @@ export const mOutputReference = (
   if (txHash.length !== 64) {
     throw new Error("Invalid transaction hash - should be 32 bytes long");
   }
-  return mConStr0([mConStr0([txHash]), index]);
+  return mConStr0([txHash, index]);
 };
 
 /**
@@ -72,8 +72,12 @@ export const mOutputReference = (
  * @param index The index of the output
  * @returns The Mesh Data TxOutRef object
  */
-export const mTxOutRef = (txHash: string, index: number): MTxOutRef =>
-  mOutputReference(txHash, index);
+export const mTxOutRef = (txHash: string, index: number): MTxOutRef => {
+  if (txHash.length !== 64) {
+    throw new Error("Invalid transaction hash - should be 32 bytes long");
+  }
+  return mConStr0([mConStr0([txHash]), index]);
+};
 
 /**
  * The utility function to create a Mesh Data tuple in Mesh Data type

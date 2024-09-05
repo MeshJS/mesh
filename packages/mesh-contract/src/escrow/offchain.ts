@@ -68,7 +68,6 @@ export class MeshEscrowContract extends MeshTxInitiator {
 
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
-    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   initiateEscrow = async (escrowAmount: Asset[]): Promise<string> => {
@@ -112,8 +111,14 @@ export class MeshEscrowContract extends MeshTxInitiator {
         recipientAmount,
       ] = inputDatum.fields;
 
-      const initiatorAddress = serializeAddressObj(initiatorAddressObj);
-      const recipientAddress = serializeAddressObj(recipientAddressObj!);
+      const initiatorAddress = serializeAddressObj(
+        initiatorAddressObj,
+        this.networkId,
+      );
+      const recipientAddress = serializeAddressObj(
+        recipientAddressObj!,
+        this.networkId,
+      );
       const initiatorToReceive =
         MeshValue.fromValue(initiatorAmount).toAssets();
       const recipientToReceive = MeshValue.fromValue(
@@ -220,8 +225,14 @@ export class MeshEscrowContract extends MeshTxInitiator {
       recipientAddressObj,
       recipientAmount,
     ] = inputDatum.fields;
-    const initiatorAddress = serializeAddressObj(initiatorAddressObj);
-    const recipientAddress = serializeAddressObj(recipientAddressObj);
+    const initiatorAddress = serializeAddressObj(
+      initiatorAddressObj,
+      this.networkId,
+    );
+    const recipientAddress = serializeAddressObj(
+      recipientAddressObj,
+      this.networkId,
+    );
     const initiatorToReceive = MeshValue.fromValue(recipientAmount).toAssets();
     const recipientToReceive = MeshValue.fromValue(initiatorAmount).toAssets();
 

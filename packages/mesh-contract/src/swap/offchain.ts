@@ -37,7 +37,6 @@ export class MeshSwapContract extends MeshTxInitiator {
       undefined,
       inputs.networkId,
     ).address;
-    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
 
   initiateSwap = async (
@@ -76,7 +75,10 @@ export class MeshSwapContract extends MeshTxInitiator {
     const inlineDatum = deserializeDatum<SwapDatum>(
       swapUtxo.output.plutusData!,
     );
-    const initiatorAddress = serializeAddressObj(inlineDatum.fields[0]);
+    const initiatorAddress = serializeAddressObj(
+      inlineDatum.fields[0],
+      this.networkId,
+    );
     const initiatorToReceive = inlineDatum.fields[2];
 
     await this.mesh
@@ -112,7 +114,10 @@ export class MeshSwapContract extends MeshTxInitiator {
     const inlineDatum = deserializeDatum<SwapDatum>(
       swapUtxo.output.plutusData!,
     );
-    const initiatorAddress = serializeAddressObj(inlineDatum.fields[0]);
+    const initiatorAddress = serializeAddressObj(
+      inlineDatum.fields[0],
+      this.networkId,
+    );
     await this.mesh
       .spendingPlutusScriptV2()
       .txIn(

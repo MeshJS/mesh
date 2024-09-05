@@ -1,6 +1,7 @@
 import {
   BrowserWallet,
   IFetcher,
+  LanguageVersion,
   MeshTxBuilder,
   MeshWallet,
   UTxO,
@@ -13,6 +14,7 @@ export type MeshTxInitiatorInput = {
   wallet?: BrowserWallet | MeshWallet;
   networkId?: number;
   stakeCredential?: string;
+  version?: number;
 };
 
 export class MeshTxInitiator {
@@ -21,6 +23,8 @@ export class MeshTxInitiator {
   wallet?: BrowserWallet | MeshWallet;
   stakeCredential?: string;
   networkId = 0;
+  version = 2;
+  languageVersion: LanguageVersion = "V2";
 
   constructor({
     mesh,
@@ -28,6 +32,7 @@ export class MeshTxInitiator {
     wallet,
     networkId = 0,
     stakeCredential,
+    version = 2,
   }: MeshTxInitiatorInput) {
     this.mesh = mesh;
     if (fetcher) {
@@ -46,6 +51,15 @@ export class MeshTxInitiator {
 
     if (stakeCredential) {
       this.stakeCredential = this.stakeCredential;
+    }
+
+    this.version = version;
+    switch (this.version) {
+      case 1:
+        this.languageVersion = "V2";
+        break;
+      default:
+        this.languageVersion = "V3";
     }
   }
 

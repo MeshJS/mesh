@@ -2,6 +2,7 @@ import type { NextPage } from "next";
 
 import { YaciProvider } from "@meshsdk/core";
 
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
@@ -59,6 +60,7 @@ const ReactPage: NextPage = () => {
           <p>Get started:</p>
           <Codeblock data={code1} />
         </TitleIconDescriptionBody>
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/YaciProvider" />
 
         <ProviderFetchers
           blockchainProvider={blockchainProvider}

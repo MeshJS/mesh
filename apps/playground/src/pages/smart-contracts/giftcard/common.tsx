@@ -9,7 +9,6 @@ export function getContract(wallet: BrowserWallet) {
   const meshTxBuilder = new MeshTxBuilder({
     fetcher: blockchainProvider,
     submitter: blockchainProvider,
-    verbose: true,
   });
 
   const contract = new MeshGiftCardContract({
@@ -17,6 +16,7 @@ export function getContract(wallet: BrowserWallet) {
     fetcher: blockchainProvider,
     wallet: wallet,
     networkId: 0,
+    version: 2,
   });
 
   return contract;

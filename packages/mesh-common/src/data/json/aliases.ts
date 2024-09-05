@@ -52,7 +52,7 @@ export type AssetClass = ConStr0<[CurrencySymbol, TokenName]>;
  * Aiken alias
  * The Plutus Data output reference in JSON
  */
-export type OutputReference = ConStr0<[ConStr0<[ByteString]>, Integer]>;
+export type OutputReference = ConStr0<[ByteString, Integer]>;
 
 /**
  * PlutusTx alias
@@ -166,7 +166,9 @@ export const assetClass = (
   conStr0([currencySymbol(currencySymbolHex), tokenName(tokenNameHex)]);
 
 /**
- * The utility function to create a Plutus Data output reference in JSON
+ * The utility function to create a Plutus Data output reference in JSON.
+ * Note that it is updated since aiken version v1.1.0.
+ * If you want to build the type before Chang, please use txOutRef instead.
  * @param txHash The transaction hash
  * @param index The index of the output
  * @returns The Plutus Data output reference object
@@ -178,7 +180,7 @@ export const outputReference = (
   if (txHash.length !== 64) {
     throw new Error("Invalid transaction hash - should be 32 bytes long");
   }
-  return conStr0([conStr0([byteString(txHash)]), integer(index)]);
+  return conStr0([byteString(txHash), integer(index)]);
 };
 
 /**
@@ -187,8 +189,12 @@ export const outputReference = (
  * @param index The index of the output
  * @returns The Plutus Data TxOutRef object
  */
-export const txOutRef = (txHash: string, index: number): TxOutRef =>
-  outputReference(txHash, index);
+export const txOutRef = (txHash: string, index: number): TxOutRef => {
+  if (txHash.length !== 64) {
+    throw new Error("Invalid transaction hash - should be 32 bytes long");
+  }
+  return conStr0([conStr0([byteString(txHash)]), integer(index)]);
+};
 
 /**
  * The utility function to create a Plutus Data POSIX time in JSON

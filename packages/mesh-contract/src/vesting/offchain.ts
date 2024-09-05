@@ -16,21 +16,36 @@ import {
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
-import blueprint from "./aiken-workspace/plutus.json";
-
-export const MeshVestingBlueprint = blueprint;
+import blueprintV1 from "./aiken-workspace-v1/plutus.json";
+import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
 export type VestingDatum = ConStr0<
   [Integer, BuiltinByteString, BuiltinByteString]
 >;
 
 export class MeshVestingContract extends MeshTxInitiator {
-  scriptCbor = applyParamsToScript(blueprint.validators[0]!.compiledCode, []);
-
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
-    this.mesh.setNetwork(inputs.networkId === 1 ? "mainnet" : "preprod");
   }
+
+  getScriptCbor = () => {
+    let scriptCbor;
+    switch (this.version) {
+      case 2:
+        scriptCbor = applyParamsToScript(
+          blueprintV2.validators[0]!.compiledCode,
+          [],
+        );
+        break;
+      default:
+        scriptCbor = applyParamsToScript(
+          blueprintV1.validators[0]!.compiledCode,
+          [],
+        );
+        break;
+    }
+    return scriptCbor;
+  };
 
   depositFund = async (
     amount: Asset[],
@@ -40,7 +55,7 @@ export class MeshVestingContract extends MeshTxInitiator {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
 
     const scriptAddr = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
+      { code: this.getScriptCbor(), version: this.languageVersion },
       undefined,
       this.networkId,
     ).address;
@@ -67,8 +82,10 @@ export class MeshVestingContract extends MeshTxInitiator {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
     const { input: collateralInput, output: collateralOutput } = collateral;
+
+    const scriptCbor = this.getScriptCbor();
     const scriptAddr = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
+      { code: scriptCbor, version: this.languageVersion },
       undefined,
       this.networkId,
     ).address;
@@ -87,7 +104,7 @@ export class MeshVestingContract extends MeshTxInitiator {
       ) + 1;
 
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         vestingUtxo.input.txHash,
         vestingUtxo.input.outputIndex,
@@ -96,7 +113,7 @@ export class MeshVestingContract extends MeshTxInitiator {
       )
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue("")
-      .txInScript(this.scriptCbor)
+      .txInScript(scriptCbor)
       .txOut(walletAddress, [])
       .txInCollateral(
         collateralInput.txHash,
@@ -113,6 +130,6 @@ export class MeshVestingContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    return await this._getUtxoByTxHash(txHash, this.scriptCbor);
+    return await this._getUtxoByTxHash(txHash, this.getScriptCbor());
   };
 }
