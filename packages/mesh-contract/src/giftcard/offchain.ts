@@ -5,6 +5,7 @@ import {
   List,
   mConStr0,
   mConStr1,
+  outputReference,
   PlutusScript,
   stringToHex,
   txOutRef,
@@ -32,17 +33,21 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     utxoTxId: number,
   ) => {
     let scriptCbor;
+    let utxo;
     switch (this.version) {
       case 2:
         scriptCbor = blueprintV2.validators[0]!.compiledCode;
+        utxo = outputReference(utxoTxHash, utxoTxId);
         break;
       default:
         scriptCbor = blueprintV1.validators[0]!.compiledCode;
+        utxo = txOutRef(utxoTxHash, utxoTxId);
+        break;
     }
 
     return applyParamsToScript(
       scriptCbor,
-      [builtinByteString(tokenNameHex), txOutRef(utxoTxHash, utxoTxId)],
+      [builtinByteString(tokenNameHex), utxo],
       "JSON",
     );
   };
@@ -107,13 +112,13 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       this.networkId,
     ).address;
 
-    this.mesh.txIn(
-      firstUtxo.input.txHash,
-      firstUtxo.input.outputIndex,
-      firstUtxo.output.amount,
-      firstUtxo.output.address,
-    );
     await this.mesh
+      .txIn(
+        firstUtxo.input.txHash,
+        firstUtxo.input.outputIndex,
+        firstUtxo.output.amount,
+        firstUtxo.output.address,
+      )
       .mintPlutusScript(this.languageVersion())
       .mint("1", giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
