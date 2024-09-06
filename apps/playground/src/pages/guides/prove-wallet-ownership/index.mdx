@@ -73,7 +73,7 @@ async function frontendStartLoginProcess() {
 
 ## Server: Generate Nonce and Store in Database
 
-In the backend, we first need to generate a new nonce, which is initialized as a random string. The purpose of this is to create a unique message that can be used for authentication of the user's wallet. This nonce will be the payload for the user to prove ownership of the wallet. With Mesh, you can generate a new nonce with **generateNonce()**, and set the message as **Sign to login in to Mesh: nonce**.
+In the backend, we first need to generate a new nonce, which is initialized as a random string. The purpose of this is to create a unique message that can be used for authentication of the user's wallet. This nonce will be the payload for the user to prove ownership of the wallet. With Mesh, you can generate a new nonce with **generateNonce()**, and set the message as **I agree to the term and conditions of the Mesh: nonce**.
 
 By utilizing the **userAddress**, we can look up the database to determine whether the user is new or already exists.
 
@@ -87,7 +87,7 @@ import { generateNonce } from '@meshsdk/core';
 async function backendGetNonce(userAddress) {
   // do: if new user, create new user model in the database
 
-  const nonce = generateNonce('Sign to login in to Mesh: ');
+  const nonce = generateNonce('I agree to the term and conditions of the Mesh: ');
 
   // do: store 'nonce' in user model in the database
 
@@ -101,7 +101,7 @@ Lastly, we will return the **nonce** for the user to sign using their private ke
 
 We are ready to use the private key associated with the wallet to sign the nonce with **await wallet.signData(nonce, userAddress)**, which enables the dApp to request the user to sign a payload according to [CIP-8](https://cips.cardano.org/cips/cip8/).
 
-We request the user's authorization and show them the message that is to be signed: **Sign to login in to Mesh: nonce**. Once accepted, the signature will be generated and the dApp will process the signature to authenticate the user.
+We request the user's authorization and show them the message that is to be signed: **I agree to the term and conditions of the Mesh: nonce**. Once accepted, the signature will be generated and the dApp will process the signature to authenticate the user.
 
 ```
 async function frontendSignMessage(nonce) {
@@ -199,7 +199,7 @@ And the server side code should have 2 REST endpoints, **backendGetNonce(userAdd
 import { checkSignature, generateNonce } from '@meshsdk/core';
 
 async function backendGetNonce(userAddress) {
-  const nonce = generateNonce('Sign to login in to Mesh: ');
+  const nonce = generateNonce('I agree to the term and conditions of the Mesh: ');
   return nonce;
 }
 

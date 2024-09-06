@@ -1,8 +1,6 @@
 <div align="center">
 
-  <a href="https://meshjs.dev">
-    <img src="https://meshjs.dev/logo-mesh/mesh.png" width="200" alt=""/>
-  </a>
+  <img src="https://meshjs.dev/logo-mesh/black/logo-mesh-black-512x512.png" width="200" alt=""/>
 
   <h1 style="border-bottom: none"><a href='https://meshjs.dev/'>Mesh</a> TypeScript SDK</h1>
 

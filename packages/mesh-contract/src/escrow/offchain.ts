@@ -3,6 +3,7 @@ import {
   conStr0,
   ConStr1,
   conStr1,
+  DEFAULT_REDEEMER_BUDGET,
   mConStr1,
   mConStr2,
   MeshValue,
@@ -23,9 +24,8 @@ import {
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
-import blueprint from "./aiken-workspace/plutus.json";
-
-export const MeshEscrowBlueprint = blueprint;
+import blueprintV1 from "./aiken-workspace-v1/plutus.json";
+import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
 export type InitiationDatum = ConStr0<[PubKeyAddress, Value]>;
 export const initiateEscrowDatum = (
@@ -64,16 +64,33 @@ export const recipientDepositRedeemer = (
 ) => initiateEscrowDatum(recipient, depositAmount);
 
 export class MeshEscrowContract extends MeshTxInitiator {
-  scriptCbor = applyParamsToScript(blueprint.validators[0]!.compiledCode, []);
-
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
   }
 
+  getScriptCbor = () => {
+    let scriptCbor;
+    switch (this.version) {
+      case 2:
+        scriptCbor = applyParamsToScript(
+          blueprintV2.validators[0]!.compiledCode,
+          [],
+        );
+        break;
+      default:
+        scriptCbor = applyParamsToScript(
+          blueprintV1.validators[0]!.compiledCode,
+          [],
+        );
+        break;
+    }
+    return scriptCbor;
+  };
+
   initiateEscrow = async (escrowAmount: Asset[]): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
     const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
+      { code: this.getScriptCbor(), version: this.languageVersion },
       undefined,
       this.networkId,
     );
@@ -94,7 +111,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
     const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
+      { code: this.getScriptCbor(), version: this.languageVersion },
       undefined,
       this.networkId,
     );
@@ -139,7 +156,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
       )
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
-      .txInScript(this.scriptCbor)
+      .txInScript(this.getScriptCbor())
       .requiredSignerHash(deserializeAddress(walletAddress).pubKeyHash)
       .changeAddress(walletAddress)
       .txInCollateral(
@@ -160,7 +177,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
     const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
+      { code: this.getScriptCbor(), version: this.languageVersion },
       undefined,
       this.networkId,
     );
@@ -188,12 +205,9 @@ export class MeshEscrowContract extends MeshTxInitiator {
       .txInRedeemerValue(
         recipientDepositRedeemer(walletAddress, depositAmount),
         "JSON",
-        {
-          mem: 7_000_000,
-          steps: 3_000_000_000,
-        },
+        DEFAULT_REDEEMER_BUDGET,
       )
-      .txInScript(this.scriptCbor)
+      .txInScript(this.getScriptCbor())
       .txOut(scriptAddr, escrowAmount)
       .txOutInlineDatumValue(outputDatum, "JSON")
       .changeAddress(walletAddress)
@@ -212,7 +226,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
     const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
+      { code: this.getScriptCbor(), version: this.languageVersion },
       undefined,
       this.networkId,
     );
@@ -246,7 +260,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
       )
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr2([]))
-      .txInScript(this.scriptCbor)
+      .txInScript(this.getScriptCbor())
       .txOut(initiatorAddress, initiatorToReceive)
       .txOut(recipientAddress, recipientToReceive)
       .requiredSignerHash(deserializeAddress(recipientAddress).pubKeyHash)
@@ -264,6 +278,6 @@ export class MeshEscrowContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    return await this._getUtxoByTxHash(txHash, this.scriptCbor);
+    return await this._getUtxoByTxHash(txHash, this.getScriptCbor());
   };
 }

@@ -1,0 +1,204 @@
+{
+  "preamble": {
+    "title": "meshjs/marketplace",
+    "description": "Aiken contracts for project 'meshjs/marketplace'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.29-alpha+unknown"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "marketplace.marketplace",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/marketplace~1types~1MarketplaceDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/marketplace~1types~1MarketplaceRedeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "owner",
+          "schema": {
+            "$ref": "#/definitions/aiken~1transaction~1credential~1Address"
+          }
+        },
+        {
+          "title": "fee_percentage_basis_point",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        }
+      ],
+      "compiledCode": "59082f01000032323232323232223223232322322533300b3232533300d3007300e375400226464a64666020601660226ea80204c94ccc044c030c048dd500089919191919191919299980c99299980e8008a501533301d302000114a22940cc88c8cc00400400c894ccc08000452f5c026464a66603e66ebcc044c084dd5180a18109baa00200513302300233004004001133004004001302400230220013758601660366ea8c02cc06cdd50079805980d9baa300e301b37540102a6660320022004294052819801998011bac3004301a3754601460346ea803805cc018cdc199b82375a601a60346ea805005520a09c0133002330013758600660326ea8c024c064dd50069804980c9baa0133005337006eb4c030c064dd50099998021bab300c30193754601860326ea801922010048810022323300100100322533301d00114bd6f7b63009991299980e19baf300e301e375400400a2646660020020046eacc048c07cdd50019112999811001080089919980200218130019991191980080080291299981380089981419bb037520086e9800d2f5bded8c0264646464a66605066e400200084cc0b0cdd81ba9008374c00e00a2a66605066e3c0200084c94ccc0a4c090c0a8dd500089981699bb03752012605c60566ea80040104010c94ccc0a54ccc0b00045288a5014c0103d87a80001301a3302d374c00297ae032333001001008002222533302e0021001132333004004303200333223233001001005225333033001133034337606ea4010dd4001a5eb7bdb1804c8c8c8c94ccc0d0cdc800400109981c19bb037520106ea001c01454ccc0d0cdc7804001099299981a9818181b1baa001133039337606ea4024c0e8c0dcdd5000802080219299981a98180008a60103d87a80001302633039375000297ae03370000e00226607066ec0dd48011ba800133006006003375a606a0066eb8c0cc008c0dc008c0d4004dd718168009bad302e001303000213302c337606ea4008dd3000998030030019bab3029003375c604e004605600460520026eb8c084004dd5981100098120010800980f800998010011810000911919800800991980080080191299980e8008a5eb804c8ccc888c8cc00400400c894ccc08c004400c4c8cc094dd3998129ba90063302530220013302530230014bd7019801801981380118128009bae301c0013756603a002660060066042004603e00244a66603800229444c94ccc068c8cdc49bad3007001333008006375c601a0026eb8c040004dd6180f8010998018018008a50301f0012301a301b301b0012223253330173011301837540022900009bad301c3019375400264a66602e602260306ea8004530103d87a8000132330010013756603a60346ea8008894ccc070004530103d87a8000132323232533301d337220100042a66603a66e3c0200084c038cc084dd4000a5eb80530103d87a8000133006006003375a603c0066eb8c070008c080008c078004c8cc004004010894ccc06c0045300103d87a8000132323232533301c337220100042a66603866e3c0200084c034cc080dd3000a5eb80530103d87a80001330060060033756603a0066eb8c06c008c07c008c07400494ccc04cc03800452f5bded8c0264646600200297adef6c6022533301900113301a337609801014000374c00697adef6c60132323232533301a3372091010000213301e337609801014000374c00e00a2a66603466e3d2210000213301e337609801014000374c00e00626603c66ec0dd48011ba600133006006003375660360066eb8c064008c074008c06c004c8cc0040052f5bded8c044a66603000226603266ec13001014000375000697adef6c6013232323253330193372091010000213301d337609801014000375000e00a2a66603266e3d2210000213301d337609801014000375000e00626603a66ec0dd48011ba800133006006003375a60340066eb8c060008c070008c068004c058c04cdd50008b19198008009bac300330133754600660266ea801c894ccc054004530103d87a80001323253330143375e600c602c6ea800801c4c014cc0600092f5c02660080080026032004602e002264a666022601860246ea80044cc88c8cc00400400c894ccc060004528099299980b19b8f375c603600400829444cc00c00c004c06c004dd6180b180b980b980b980b980b980b980b980b98099baa30033013375400e6eb8c058c04cdd50008b192999808980618091baa001130023301530163013375400297ae014c0103d87a8000300230123754600460246ea8030dd2a4000460280026024601e6ea8004528180098071baa00223011301200114984d958c94ccc028c01400454ccc034c030dd50010a4c2c2a66601460080022a66601a60186ea80085261616300a375400264a666010600660126ea80104c8c8c8c8c8c8c8c94ccc04cc0580084c9265333010300b3011375400e264646464a66602e6034004264649319299980b180880089919299980d980f00109924c64a666032602800226464a66603c604200426493180a0008b180f800980d9baa002153330193013001132323232323253330223025002149858dd6981180098118011bad30210013021002375a603e00260366ea800858c064dd50008b180e000980c1baa00315333016301000115333019301837540062930b0b180b1baa002300d003163018001301800230160013012375400e2c2c6eb8c050004c050008dd7180900098090011bad30100013010002300e001300a37540082c464a666012600800226464a66601c60220042930b1bae300f001300b37540042a666012600600226464a66601c60220042930b1bae300f001300b37540042c60126ea8004dc3a40046e1d2000375a002ae6955ceaab9e5573eae815d0aba21",
+      "hash": "96dbc09c69d812e157d42967587c459b60f5dd21b1902312045586c4"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Option$aiken/transaction/credential/Referenced$aiken/transaction/credential/Credential": {
+      "title": "Optional",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Referenced$aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "aiken/transaction/credential/Address": {
+      "title": "Address",
+      "description": "A Cardano `Address` typically holding one or two credential references.\n\n Note that legacy bootstrap addresses (a.k.a. 'Byron addresses') are\n completely excluded from Plutus contexts. Thus, from an on-chain\n perspective only exists addresses of type 00, 01, ..., 07 as detailed\n in [CIP-0019 :: Shelley Addresses](https://cips.cardano.org/cip/CIP-19).",
+      "anyOf": [
+        {
+          "title": "Address",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "payment_credential",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Credential"
+            },
+            {
+              "title": "stake_credential",
+              "$ref": "#/definitions/Option$aiken~1transaction~1credential~1Referenced$aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        }
+      ]
+    },
+    "aiken/transaction/credential/Credential": {
+      "title": "Credential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKeyCredential",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "ScriptCredential",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "aiken/transaction/credential/Referenced$aiken/transaction/credential/Credential": {
+      "title": "Referenced",
+      "description": "Represent a type of object that can be represented either inline (by hash)\n or via a reference (i.e. a pointer to an on-chain location).\n\n This is mainly use for capturing pointers to a stake credential\n registration certificate in the case of so-called pointer addresses.",
+      "anyOf": [
+        {
+          "title": "Inline",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "Pointer",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "slot_number",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "transaction_index",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "certificate_index",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "marketplace/types/MarketplaceDatum": {
+      "title": "MarketplaceDatum",
+      "anyOf": [
+        {
+          "title": "MarketplaceDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "seller",
+              "$ref": "#/definitions/aiken~1transaction~1credential~1Address"
+            },
+            {
+              "title": "price",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "policy",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "tokenName",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "marketplace/types/MarketplaceRedeemer": {
+      "title": "MarketplaceRedeemer",
+      "anyOf": [
+        {
+          "title": "Buy",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Close",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}
