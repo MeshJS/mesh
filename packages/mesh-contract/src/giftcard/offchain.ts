@@ -27,6 +27,20 @@ export class MeshGiftCardContract extends MeshTxInitiator {
   tokenNameHex: string = "";
   paramUtxo: UTxO["input"] = { outputIndex: 0, txHash: "" };
 
+  constructor(
+    inputs: MeshTxInitiatorInput,
+    tokenNameHex?: string,
+    paramUtxo?: UTxO["input"],
+  ) {
+    super(inputs);
+    if (tokenNameHex) {
+      this.tokenNameHex = tokenNameHex;
+    }
+    if (paramUtxo) {
+      this.paramUtxo = paramUtxo;
+    }
+  }
+
   giftCardCbor = (
     tokenNameHex: string,
     utxoTxHash: string,
@@ -64,20 +78,6 @@ export class MeshGiftCardContract extends MeshTxInitiator {
 
     return applyParamsToScript(scriptCbor, [tokenNameHex, policyId]);
   };
-
-  constructor(
-    inputs: MeshTxInitiatorInput,
-    tokenNameHex?: string,
-    paramUtxo?: UTxO["input"],
-  ) {
-    super(inputs);
-    if (tokenNameHex) {
-      this.tokenNameHex = tokenNameHex;
-    }
-    if (paramUtxo) {
-      this.paramUtxo = paramUtxo;
-    }
-  }
 
   createGiftCard = async (
     tokenName: string,

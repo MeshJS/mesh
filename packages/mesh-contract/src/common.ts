@@ -4,11 +4,9 @@ import {
   LanguageVersion,
   MeshTxBuilder,
   MeshWallet,
-  resolveScriptHash,
   serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
-import { v2ScriptToBech32 } from "@meshsdk/core-csl";
 
 export type MeshTxInitiatorInput = {
   mesh: MeshTxBuilder;
@@ -45,14 +43,12 @@ export class MeshTxInitiator {
     }
 
     this.networkId = networkId;
-    if (networkId === 1) {
-      this.mesh.setNetwork("mainnet");
-    } else {
-      this.mesh.setNetwork("preprod");
-    }
-
-    if (stakeCredential) {
-      this.stakeCredential = this.stakeCredential;
+    switch (this.networkId) {
+      case 1:
+        this.mesh.setNetwork("mainnet");
+        break;
+      default:
+        this.mesh.setNetwork("preprod");
     }
 
     this.version = version;
@@ -63,7 +59,20 @@ export class MeshTxInitiator {
       default:
         this.languageVersion = "V3";
     }
+
+    if (stakeCredential) {
+      this.stakeCredential = this.stakeCredential;
+    }
   }
+
+  getScriptAddress = (scriptCbor: string) => {
+    const { address } = serializePlutusScript(
+      { code: scriptCbor, version: this.languageVersion },
+      undefined,
+      this.networkId,
+    );
+    return address;
+  };
 
   protected signSubmitReset = async () => {
     const signedTx = this.mesh.completeSigning();
