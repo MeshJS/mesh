@@ -5,7 +5,6 @@ import {
   deserializeAddress,
   Integer,
   mConStr0,
-  serializePlutusScript,
   stringToHex,
   UTxO,
 } from "@meshsdk/core";

@@ -31,7 +31,7 @@ export class MeshTxInitiator {
     fetcher,
     wallet,
     networkId = 0,
-    stakeCredential,
+    stakeCredential = "", // TODO Jingles: add mesh staking cred as default
     version = 2,
   }: MeshTxInitiatorInput) {
     this.mesh = mesh;
@@ -68,7 +68,7 @@ export class MeshTxInitiator {
   getScriptAddress = (scriptCbor: string) => {
     const { address } = serializePlutusScript(
       { code: scriptCbor, version: this.languageVersion },
-      undefined,
+      this.stakeCredential,
       this.networkId,
     );
     return address;
@@ -204,7 +204,7 @@ export class MeshTxInitiator {
       if (scriptCbor) {
         const scriptAddr = serializePlutusScript(
           { code: scriptCbor, version: this.languageVersion },
-          undefined,
+          this.stakeCredential,
           this.networkId,
         ).address;
         scriptUtxo =

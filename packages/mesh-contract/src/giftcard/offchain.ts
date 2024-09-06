@@ -14,7 +14,6 @@ import {
   Asset,
   deserializeDatum,
   resolveScriptHash,
-  serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
@@ -105,11 +104,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       version: this.languageVersion,
     };
 
-    const redeemAddr = serializePlutusScript(
-      redeemScript,
-      undefined,
-      this.networkId,
-    ).address;
+    const redeemAddr = this.getScriptAddress(redeemScript.code);
 
     await this.mesh
       .txIn(
