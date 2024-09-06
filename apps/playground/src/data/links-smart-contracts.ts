@@ -11,7 +11,7 @@ import { MenuItem } from "~/types/menu-item";
 
 export const metaMarketplace = {
   title: "Marketplace",
-  desc: "Build a NFT marketplace effortlessly",
+  desc: "Build a NFT marketplace to buy and sell NFTs",
   link: "/smart-contracts/marketplace",
   icon: ShoppingCartIcon,
 };

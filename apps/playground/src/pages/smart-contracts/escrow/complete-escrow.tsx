@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -41,6 +42,13 @@ function Left() {
           Important: This is a multi-signature transaction. Both users must sign
           the transaction to complete the escrow.
         </b>
+      </p>
+      <p>
+        A{" "}
+        <Link href="https://preprod.cardanoscan.io/transaction/019b6ba41ee0a9de90068fe5c1eb1fd81489be5d2402bd560b548e1cd7f22056">
+          successful completion of the escrow
+        </Link>{" "}
+        will result in the assets being swapped between the two parties.
       </p>
     </>
   );

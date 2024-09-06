@@ -31,7 +31,7 @@ export class MeshTxInitiator {
     fetcher,
     wallet,
     networkId = 0,
-    stakeCredential = "", // TODO Jingles: add mesh staking cred as default
+    stakeCredential = "c08f0294ead5ab7ae0ce5471dd487007919297ba95230af22f25e575",
     version = 2,
   }: MeshTxInitiatorInput) {
     this.mesh = mesh;
@@ -61,7 +61,7 @@ export class MeshTxInitiator {
     }
 
     if (stakeCredential) {
-      this.stakeCredential = this.stakeCredential;
+      this.stakeCredential = stakeCredential;
     }
   }
 

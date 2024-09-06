@@ -33,22 +33,12 @@ export class MeshVestingContract extends MeshTxInitiator {
   }
 
   getScriptCbor = () => {
-    let scriptCbor;
     switch (this.version) {
       case 2:
-        scriptCbor = applyParamsToScript(
-          blueprintV2.validators[0]!.compiledCode,
-          [],
-        );
-        break;
+        return applyParamsToScript(blueprintV2.validators[0]!.compiledCode, []);
       default:
-        scriptCbor = applyParamsToScript(
-          blueprintV1.validators[0]!.compiledCode,
-          [],
-        );
-        break;
+        return applyParamsToScript(blueprintV1.validators[0]!.compiledCode, []);
     }
-    return scriptCbor;
   };
 
   depositFund = async (
