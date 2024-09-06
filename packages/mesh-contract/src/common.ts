@@ -4,6 +4,8 @@ import {
   LanguageVersion,
   MeshTxBuilder,
   MeshWallet,
+  resolveScriptHash,
+  serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
 import { v2ScriptToBech32 } from "@meshsdk/core-csl";
@@ -191,11 +193,11 @@ export class MeshTxInitiator {
       let scriptUtxo = utxos[0];
 
       if (scriptCbor) {
-        const scriptAddr = v2ScriptToBech32(
-          scriptCbor,
+        const scriptAddr = serializePlutusScript(
+          { code: scriptCbor, version: this.languageVersion },
           undefined,
           this.networkId,
-        );
+        ).address;
         scriptUtxo =
           utxos.filter((utxo) => utxo.output.address === scriptAddr)[0] ||
           utxos[0];
