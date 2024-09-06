@@ -18,7 +18,6 @@ import {
   deserializeDatum,
   Quantity,
   serializeAddressObj,
-  serializePlutusScript,
   Unit,
   UTxO,
 } from "@meshsdk/core";
@@ -256,5 +255,14 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
     return await this._getUtxoByTxHash(txHash, this.scriptCbor);
+  };
+
+  static getCompiledCode = (version = 2) => {
+    switch (version) {
+      case 2:
+        return blueprintV2.validators[0]!.compiledCode;
+      default:
+        return blueprintV1.validators[0]!.compiledCode;
+    }
   };
 }
