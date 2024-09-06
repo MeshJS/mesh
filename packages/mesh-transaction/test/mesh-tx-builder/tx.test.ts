@@ -121,7 +121,7 @@ describe("MeshTxBuilder transactions", () => {
         "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
       )
       .drepRegistrationCertificate(
-        "stake_test1uqwt2xd8pxkyezzrs2zgpmnhxnyzmh72eugv6urtklqtsfqjj57w3",
+        "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
         "500000000",
         {
           anchorUrl:

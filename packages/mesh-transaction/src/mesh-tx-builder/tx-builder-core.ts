@@ -961,7 +961,7 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   drepRegistrationCertificate = (
-    rewardAddreess: string,
+    drepId: string,
     coin: string,
     anchor?: Anchor,
   ) => {
@@ -969,7 +969,7 @@ export class MeshTxBuilderCore {
       type: "BasicCertificate",
       certType: {
         type: "DRepRegistration",
-        votingKeyAddress: rewardAddreess,
+        drepId,
         coin: Number(coin),
         anchor,
       },

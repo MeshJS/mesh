@@ -133,7 +133,7 @@ export const baseCertToObj = (baseCert: CertificateType): object => {
     case "DRepRegistration":
       return {
         dRepRegistration: {
-          votingKeyAddress: baseCert.votingKeyAddress,
+          drepId: baseCert.drepId,
           coin: baseCert.coin,
           anchor: baseCert.anchor ?? null,
         },
@@ -141,14 +141,14 @@ export const baseCertToObj = (baseCert: CertificateType): object => {
     case "DRepDeregistration":
       return {
         dRepDeregistration: {
-          votingKeyAddress: baseCert.votingKeyAddress,
+          drepId: baseCert.drepId,
           coin: baseCert.coin,
         },
       };
     case "DRepUpdate":
       return {
         dRepUpdate: {
-          votingKeyAddress: baseCert.votingKeyAddress,
+          drepId: baseCert.drepId,
           anchor: baseCert.anchor,
         },
       };
