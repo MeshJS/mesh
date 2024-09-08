@@ -85,6 +85,12 @@ export const resolveNativeScriptHash = (script: NativeScript) => {
   return toNativeScript(script).hash().to_hex();
 };
 
+export const resolveScriptHashDRepId = (scriptHash: string) => {
+  return csl.DRep.new_script_hash(
+    csl.ScriptHash.from_hex(scriptHash),
+  ).to_bech32();
+};
+
 export const resolveRewardAddress = (bech32: string) => {
   const buildRewardAddress = (
     networkId: number,
