@@ -633,8 +633,10 @@ export class Transaction {
   }
 
   private async addTxInputsAsNeeded() {
-    const utxos = await this.initiator.getUtxos();
-    this.txBuilder.selectUtxosFrom(utxos);
+    if (this.txBuilder.meshTxBuilderBody.extraInputs.length === 0) {
+      const utxos = await this.initiator.getUtxos();
+      this.txBuilder.selectUtxosFrom(utxos);
+    }
   }
 
   private async addChangeAddress() {

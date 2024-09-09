@@ -1,5 +1,6 @@
 import type { NextPage } from "next";
 
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
@@ -8,6 +9,7 @@ import { Intro } from "../common";
 import TransactionBegin from "./begin";
 import TransactionCip20 from "./cip20";
 import TransactionCoinSelection from "./coin-selection";
+import TransactionGetTxbuilder from "./get-txbuilder";
 import TransactionHandle from "./handle";
 import TransactionMultisig from "./multisig";
 import TransactionSendAssets from "./send-assets";
@@ -26,10 +28,12 @@ const ReactPage: NextPage = () => {
     { label: "Send value", to: "sendValue" },
     { label: "Multi-signature", to: "multisig" },
 
-    { label: "Send assets to Handle", to: "handler" },
-    { label: "Send assets to Begin ID", to: "begin" },
-
     { label: "Coin selection", to: "coinSelection" },
+
+    { label: "Get txbuilder", to: "getTxbuilder" },
+
+    { label: "ADA Handle", to: "handler" },
+    { label: "Begin ID", to: "begin" },
 
     { label: "Set metadata", to: "metadata" },
     { label: "Set transaction message", to: "cip20" },
@@ -63,16 +67,20 @@ const ReactPage: NextPage = () => {
             sending assets and various options to customize the transaction.
           </p>
         </TitleIconDescriptionBody>
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/Transaction" />
 
         <TransactionSendLovelace />
         <TransactionSendAssets />
         <TransactionSendValue />
         <TransactionMultisig />
 
+        <TransactionCoinSelection />
+
+        <TransactionGetTxbuilder />
+
         <TransactionHandle />
         <TransactionBegin />
 
-        <TransactionCoinSelection />
         <TransactionSetMetadata />
         <TransactionCip20 />
 

@@ -16,6 +16,7 @@ export default function Markdown({ children }: { children: React.ReactNode }) {
         components={{
           //@ts-ignore
           pre: (props) => <Codeblock data={props.children.props.children} />,
+          h2: (props) => <h2 id={(props.children as string).replace(/[^a-z0-9]/gi, '').toLowerCase()}>{props.children}</h2>,
         }}
       >
         {children}

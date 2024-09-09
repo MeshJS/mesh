@@ -63,10 +63,14 @@ export const serializePlutusScript = (
 /**
  * Serialize address in Cardano data JSON format into bech32 address
  * @param address The Cardano address in data JSON format
+ * @param networkId 0 (testnet) or 1 (mainnet). Default to be 0 (testnet).
  * @returns Bech32 address
  */
-export const serializeAddressObj = (address: PubKeyAddress | ScriptAddress) => {
-  return core.serializeAddressObj(address);
+export const serializeAddressObj = (
+  address: PubKeyAddress | ScriptAddress,
+  networkId = 0,
+) => {
+  return core.serializeAddressObj(address, networkId);
 };
 
 /**

@@ -1,11 +1,12 @@
+const flowbite = require("flowbite-react/tailwind");
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: "class",
   content: [
-    "./node_modules/flowbite/**/*.js",
-    "./node_modules/flowbite-react/**/*.js",
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    flowbite.content(),
   ],
   theme: {
     extend: {
@@ -73,5 +74,5 @@ module.exports = {
       ],
     },
   },
-  plugins: [require("flowbite-typography"), require("flowbite/plugin")],
+  plugins: [require("flowbite-typography"), flowbite.plugin()],
 };

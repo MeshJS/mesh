@@ -13,6 +13,7 @@ import ResolvePaymentKeyHash from "./resolve-payment-key-hash";
 import ResolvePlutusScriptAddress from "./resolve-plutus-script-address";
 import ResolvePlutusScriptHash from "./resolve-plutus-script-hash";
 import ResolvePrivateKey from "./resolve-private-key";
+import ResolveScriptHash from "./resolve-script-hash";
 import ResolveSlotNumber from "./resolve-slot-number";
 import ResolveRewardAddress from "./resolve-stake-address";
 import ResolveRewardHash from "./resolve-stake-hash";
@@ -28,6 +29,7 @@ const ReactPage: NextPage = () => {
     { label: "Plutus Script Address", to: "resolvePlutusScriptAddress" },
     { label: "Plutus Script Hash", to: "resolvePlutusScriptHash" },
     { label: "Private Key", to: "resolvePrivateKey" },
+    { label: "Script Hash", to: "resolveScriptHash" },
     { label: "Stake Address", to: "resolveRewardAddress" },
     { label: "Stake Key Hash", to: "resolveRewardHash" },
     { label: "Transaction Hash", to: "resolveTxHash" },
@@ -55,6 +57,7 @@ const ReactPage: NextPage = () => {
         <ResolvePlutusScriptAddress />
         <ResolvePlutusScriptHash />
         <ResolvePrivateKey />
+        <ResolveScriptHash />
         <ResolveRewardAddress />
         <ResolveRewardHash />
         <ResolveTxHash />

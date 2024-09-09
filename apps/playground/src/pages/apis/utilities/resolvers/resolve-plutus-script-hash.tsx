@@ -22,9 +22,10 @@ function Left() {
   return (
     <>
       <p>
-        Provide the Plutus script address, and <code>resolveScriptHash</code>{" "}
-        will return a script hash. This script hash can be use for building
-        minting transaction with Plutus contract.
+        Provide the Plutus script address, and{" "}
+        <code>resolvePlutusScriptHash</code> will return a script hash. This
+        script hash can be use for building minting transaction with Plutus
+        contract.
       </p>
     </>
   );
@@ -36,8 +37,7 @@ function Right() {
   );
 
   async function runDemo() {
-    const hash = resolvePlutusScriptHash(userInput);
-    return hash;
+    return resolvePlutusScriptHash(userInput);
   }
 
   let codeSnippet = `resolvePlutusScriptHash('${userInput}')`;
