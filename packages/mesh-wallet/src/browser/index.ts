@@ -1,5 +1,3 @@
-import { HexBlob } from "@cardano-sdk/util";
-
 import {
   Asset,
   AssetExtended,
@@ -76,8 +74,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
     if (metamask) await checkIfMetamaskInstalled(metamask.network);
 
-    const wallets = BrowserWallet.getInstalledWallets();
-    return wallets;
+    return BrowserWallet.getInstalledWallets();
   }
 
   /**
