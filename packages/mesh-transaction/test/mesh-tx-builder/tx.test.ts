@@ -130,7 +130,7 @@ describe("MeshTxBuilder transactions", () => {
         "500000000",
         {
           anchorUrl:
-            "https://raw.githubusercontent.com/HinsonSIDAN/cardano-drep/main/HinsonSIDAN.jsonld",
+            "https://path-to.jsonld",
           anchorDataHash:
             "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
         },

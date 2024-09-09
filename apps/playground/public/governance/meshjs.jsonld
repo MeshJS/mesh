@@ -63,6 +63,16 @@
         "@type": "Other",
         "label": "Label",
         "uri": "https://meshjs.dev/"
+      },
+      {
+        "@type": "Link",
+        "label": "Twitter",
+        "uri": "https://x.com/meshsdk"
+      },
+      {
+        "@type": "Identity",
+        "label": "Github",
+        "uri": "https://github.com/MeshJS"
       }
     ]
   }
