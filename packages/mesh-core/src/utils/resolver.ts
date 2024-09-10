@@ -72,6 +72,14 @@ export const resolveRewardAddress = (bech32: string) =>
 export const resolveStakeKeyHash = (bech32: string) =>
   core.resolveStakeKeyHash(bech32);
 
+/**
+ *
+ * @param scriptHash
+ * @returns
+ */
+export const resolveScriptHashDRepId = (scriptHash: string) =>
+  core.resolveScriptHashDRepId(scriptHash);
+
 // ------------------- Deprecated zone ---------------------
 
 /**

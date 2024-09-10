@@ -4,6 +4,7 @@ import {
   FireIcon,
   NewspaperIcon,
   PaperAirplaneIcon,
+  ScaleIcon,
 } from "@heroicons/react/24/solid";
 
 export const metaTxbuilderBasic = {
@@ -12,26 +13,29 @@ export const metaTxbuilderBasic = {
   desc: "Working with transactions and its various options",
   icon: PaperAirplaneIcon,
 };
-
 export const metaTxbuilderMinting = {
   link: `/apis/txbuilder/minting`,
   title: "Mint and Burn Assets",
   desc: "Minting and burning assets with Native Script and Plutus Script",
   icon: FireIcon,
 };
-
 export const metaTxbuilderSmartContract = {
   link: `/apis/txbuilder/smart-contract`,
   title: "Smart Contracts",
   desc: "Transactions to work with smart contracts",
   icon: NewspaperIcon,
 };
-
 export const metaTxbuilderStaking = {
   link: `/apis/txbuilder/staking`,
   title: "Staking Transactions",
   desc: "Transactions for delegating ADA and managing stakepools",
   icon: ArrowsPointingInIcon,
+};
+export const metaTxbuilderGovernance = {
+  link: `/apis/txbuilder/governance`,
+  title: "Governance Transactions",
+  desc: "Transactions for participating in Cardano's on-chain governance",
+  icon: ScaleIcon,
 };
 
 export const linksTxbuilder = [
@@ -39,6 +43,7 @@ export const linksTxbuilder = [
   metaTxbuilderMinting,
   metaTxbuilderSmartContract,
   metaTxbuilderStaking,
+  metaTxbuilderGovernance,
 ];
 
 export const metaTxbuilder = {

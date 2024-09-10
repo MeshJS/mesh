@@ -60,18 +60,18 @@ export type CertificateType =
     }
   | {
       type: "DRepRegistration";
-      votingKeyAddress: string;
+      drepId: string;
       coin: number;
       anchor?: Anchor;
     }
   | {
       type: "DRepDeregistration";
-      votingKeyAddress: string;
+      drepId: string;
       coin: number;
     }
   | {
       type: "DRepUpdate";
-      votingKeyAddress: string;
+      drepId: string;
       anchor: Anchor;
     };
 

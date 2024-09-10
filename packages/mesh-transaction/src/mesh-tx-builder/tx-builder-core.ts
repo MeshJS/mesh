@@ -2,12 +2,14 @@ import JSONBig from "json-bigint";
 
 import {
   Action,
+  Anchor,
   Asset,
   Budget,
   BuilderData,
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
+  DREP_DEPOSIT,
   emptyTxBuilderBody,
   LanguageVersion,
   MeshTxBuilderBody,
@@ -981,6 +983,51 @@ export class MeshTxBuilderCore {
         type: "RetirePool",
         poolId,
         epoch,
+      },
+    });
+    return this;
+  };
+
+  /**
+   * Registers DRep certificate, and adds it to the transaction
+   * @param drepId The bech32 drep id (i.e. starts with `drep1xxxxx`)
+   * @param anchor The DRep anchor, consists of a URL and a hash of the doc
+   * @param coin DRep registration deposit
+   * @returns The MeshTxBuilder instance
+   */
+  drepRegistrationCertificate = (
+    drepId: string,
+    anchor?: Anchor,
+    coin: string = DREP_DEPOSIT,
+  ) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: "BasicCertificate",
+      certType: {
+        type: "DRepRegistration",
+        drepId,
+        coin: Number(coin),
+        anchor,
+      },
+    });
+    return this;
+  };
+
+  /**
+   * Dregister DRep certificate, and adds it to the transaction
+   * @param drepId The bech32 drep id (i.e. starts with `drep1xxxxx`)
+   * @param coin DRep registration deposit
+   * @returns The MeshTxBuilder instance
+   */
+  drepDeregistrationCertificate = (
+    drepId: string,
+    coin: string = DREP_DEPOSIT,
+  ) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: "BasicCertificate",
+      certType: {
+        type: "DRepDeregistration",
+        drepId,
+        coin: Number(coin),
       },
     });
     return this;

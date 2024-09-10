@@ -1,2 +1,4 @@
 export * from "./asset-fingerprint";
-export * from "./bigNum";
+export * from "./big-num";
+export * from "./data-hash";
+export * from "./file";

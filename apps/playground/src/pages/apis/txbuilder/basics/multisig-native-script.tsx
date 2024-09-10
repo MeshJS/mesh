@@ -17,13 +17,7 @@ import { getProvider } from "~/components/cardano/mesh-wallet";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoAssetMetadata, demoMnemonic } from "~/data/cardano";
 import { getTxBuilder } from "../common";
-
-// const scriptAddress =
-//   "addr_test1vpd5480qj5jj4pnjwq9yxnac8l9dw2k3y6gz2cpp6jawzwq838jl8";
-// const scriptCbor =
-//   "8201828200581c556f3a70b8a68081cf36c918dd9933abdca34f20fc534499c817182b8200581c5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f";
 
 export default function TxbuilderMultisigNativeScript() {
   return (
