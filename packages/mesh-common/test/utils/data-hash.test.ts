@@ -15,8 +15,8 @@ describe("hashDrepAnchor", () => {
           "@container": "@set",
           "@context": {
             "GovernanceMetadata": "CIP100:GovernanceMetadataReference",
-            "Identity": "CIP119:IdentityReference",
-            "Link": "CIP119:LinkReference",
+            "Identity": "CIP100:IdentityReference",
+            "Link": "CIP100:LinkReference",
             "Other": "CIP100:OtherReference",
             "label": "CIP100:reference-label",
             "uri": "CIP100:reference-uri",
@@ -57,22 +57,26 @@ describe("hashDrepAnchor", () => {
   "authors": [],
   "hashAlgorithm": "blake2b-256",
   "body": {
-    "doNotList": false,
-    "givenName": "sidan-lab",
-    "motivations": "My motivation",
-    "objectives": "My objective",
-    "paymentAddress": "addr_test1qz8j439j54afpl4hw978xcw8qsa0dsmyd6wm9v8xzeyz7ucrj5rt3et7z59mvmmpxnejvn2scwmseezdq5h5fpw08z8s8d93my",
-    "qualifications": "My qualification",
+    "givenName": "MeshJS",
+    "motivations": "We're motivated by our deep belief in decentralized governance and our hands-on experience with MeshJS. We've seen firsthand how accessible tools can drive innovation, and we want to make sure developers' needs and voices are at the forefront of Cardano's evolution.",
+    "objectives": "We champion governance decisions that support open-source development and empower Cardano's developer community. We aim to make it easier for developers to innovate and contribute to the ecosystem.",
+    "paymentAddress": "addr1qyjtjxjkhskglfefwe9kanvk7wczft0q6ngyhyh9es0km27q3upff6k44dawpnj5w8w5suq8jxff0w54yv90yte9u46st87vk3",
+    "qualifications": "Our experience in blockchain tooling and commitment to open-source principles make us well-equipped to represent developers in Cardano's decision-making processes.",
     "references": [
+      {
+        "@type": "Other",
+        "label": "Label",
+        "uri": "https://meshjs.dev/"
+      },
       {
         "@type": "Link",
         "label": "Twitter",
-        "uri": "https://x.com/hinsonsidan"
+        "uri": "https://x.com/meshsdk"
       },
       {
         "@type": "Identity",
         "label": "Github",
-        "uri": "https://github.com/hinsonsidan"
+        "uri": "https://github.com/MeshJS"
       }
     ]
   }
@@ -80,7 +84,7 @@ describe("hashDrepAnchor", () => {
     const anchorObj = JSON.parse(drepAnchor);
     const anchorHash = hashDrepAnchor(anchorObj);
     expect(anchorHash).toBe(
-      "b421ba4290b257a235b3c4bfb442075c7dc35589261116ae7c73b79d30e5d8f5",
+      "09eca138de5472a78f612bfdb61ea09b692720ee5ca7c7f1649b5bd487ec24e5",
     );
   });
 });

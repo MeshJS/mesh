@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import {
+  DREP_DEPOSIT,
   getFile,
   hashDrepAnchor,
   keepRelevant,
@@ -9,19 +10,13 @@ import {
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
-import Button from "~/components/button/button";
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { getTxBuilder } from "../common";
-import {
-  deregisterDRep,
-  getNativeScript,
-  makePayment,
-  registerDRep,
-} from "./test-native-script";
 
 export default function GovernanceRegistration() {
   return (
@@ -40,19 +35,19 @@ function Left() {
   codeDrepId += `const dRepId = dRep.dRepIDCip105;\n`;
 
   let codeAnchor = ``;
-  codeAnchor += `async function getMeshJsonHash(url: string) {\n`;
+  codeAnchor += `async function getJsonHash(url: string) {\n`;
   codeAnchor += `  var drepAnchor = getFile(url);\n`;
   codeAnchor += `  const anchorObj = JSON.parse(drepAnchor);\n`;
   codeAnchor += `  return hashDrepAnchor(anchorObj);\n`;
   codeAnchor += `}\n`;
   codeAnchor += `\n`;
   codeAnchor += `const anchorUrl = "https://meshjs.dev/governance/meshjs.jsonld";\n`;
-  codeAnchor += `const anchorHash = await getMeshJsonHash(anchorUrl);\n`;
+  codeAnchor += `const anchorHash = await getJsonHash(anchorUrl);\n`;
 
   let codeUtxo = ``;
   codeUtxo += `// get utxo to pay for the registration\n`;
   codeUtxo += `const utxos = await wallet.getUtxos();\n`;
-  codeUtxo += `const registrationFee = "500000000";\n`;
+  codeUtxo += `const registrationFee = "${DREP_DEPOSIT}";\n`;
   codeUtxo += `const assetMap = new Map<Unit, Quantity>();\n`;
   codeUtxo += `assetMap.set("lovelace", registrationFee);\n`;
   codeUtxo += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
@@ -61,10 +56,13 @@ function Left() {
   codeTx += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeTx += `\n`;
   codeTx += `txBuilder\n`;
-  codeTx += `  .drepRegistrationCertificate(dRepId, {\n`;
-  codeTx += `    anchorUrl: anchorUrl,\n`;
-  codeTx += `    anchorDataHash: anchorHash,\n`;
-  codeTx += `  })\n`;
+  codeTx += `  .drepRegistrationCertificate(\n`;
+  codeTx += `    dRepId, \n`;
+  codeTx += `    {\n`;
+  codeTx += `      anchorUrl: anchorUrl,\n`;
+  codeTx += `      anchorDataHash: anchorHash,\n`;
+  codeTx += `    }\n`;
+  codeTx += `  )\n`;
   codeTx += `  .changeAddress(changeAddress)\n`;
   codeTx += `  .selectUtxosFrom(selectedUtxos);\n`;
 
@@ -98,11 +96,6 @@ function Left() {
         <li>a deposit</li>
         <li>an optional anchor</li>
       </ul>
-      <p>An anchor is a pair of:</p>
-      <ul>
-        <li>a URL to a JSON payload of metadata</li>
-        <li>a hash of the contents of the metadata URL</li>
-      </ul>
 
       <p>
         First we need to get the DRep ID of the DRep we want to register. We can
@@ -110,15 +103,24 @@ function Left() {
         return the DRep object which contains the DRep ID.
       </p>
       <Codeblock data={codeDrepId} />
+
+      <p>An anchor is a pair of:</p>
+      <ul>
+        <li>a URL to a JSON payload of metadata</li>
+        <li>a hash of the contents of the metadata URL</li>
+      </ul>
+
       <p>
-        Next we need to get the hash of the anchor. We can do this by calling
-        the <code>getMeshJsonHash</code> function. This function fetches the
-        anchor from the given URL and returns the hash of the anchor.
+        Next we need to get the hash of a JSON file. Here, we created a custom
+        function <code>getJsonHash</code> to fetch the JSON file from the given
+        URL and returns the hash of the anchor.
       </p>
+
       <Codeblock data={codeAnchor} />
       <p>
         Then, we select the UTxOs to pay for the registration. According to the
-        current protocol parameters, the deposit for registering a DRep is 500
+        current protocol parameters, the deposit for registering a DRep is{" "}
+        {parseInt(DREP_DEPOSIT) / 1000000}
         ADA.
       </p>
       <Codeblock data={codeUtxo} />
@@ -134,8 +136,16 @@ function Left() {
       <Codeblock data={codeBuildSign} />
       <p>
         The transaction will be submitted to the blockchain and the DRep will be
-        registered. The deposit will be taken from the DRep owner and the DRep
-        will be added to the list of registered DReps.
+        registered. A{" "}
+        <Link href="https://preprod.cardanoscan.io/transaction/22d287605ce30249ebc93dcf86ba2eabb2f8b35e995b840767a77d760818f66b">
+          successful transaction
+        </Link>{" "}
+        will deposit will be taken from the DRep owner and the DRep will be
+        added to the list of registered DReps. You are now{" "}
+        <Link href="https://preprod.cardanoscan.io/drep/drep1y09hnm54lxqfhjp7arnzef68ucwsd7t3nq4yvvej94t8f8qg0tqdt">
+          registered as a DRep
+        </Link>
+        .
       </p>
     </>
   );
@@ -146,7 +156,7 @@ function Right() {
 
   const [anchorUrl, setAnchorUrl] = useState<string>("");
 
-  async function getMeshJsonHash(url: string) {
+  async function getJsonHash(url: string) {
     var drepAnchor = getFile(url);
     const anchorObj = JSON.parse(drepAnchor);
     const anchorHash = hashDrepAnchor(anchorObj);
@@ -160,11 +170,11 @@ function Right() {
       throw new Error("No DRep key found, this wallet does not support CIP95");
 
     const dRepId = dRep.dRepIDCip105;
-    const anchorHash = await getMeshJsonHash(anchorUrl);
+    const anchorHash = await getJsonHash(anchorUrl);
 
     // get utxo to pay for the registration
     const utxos = await wallet.getUtxos();
-    const registrationFee = "500000000";
+    const registrationFee = DREP_DEPOSIT;
     const assetMap = new Map<Unit, Quantity>();
     assetMap.set("lovelace", registrationFee);
     const selectedUtxos = keepRelevant(assetMap, utxos);
@@ -191,11 +201,11 @@ function Right() {
   codeSnippet += `const dRepId = dRep.dRepIDCip105;\n`;
   codeSnippet += `\n`;
   codeSnippet += `const anchorUrl = '${anchorUrl}';\n`;
-  codeSnippet += `const anchorHash = await getMeshJsonHash(anchorUrl);\n`;
+  codeSnippet += `const anchorHash = await getJsonHash(anchorUrl);\n`;
   codeSnippet += `\n`;
   codeSnippet += `// get utxo to pay for the registration\n`;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
-  codeSnippet += `const registrationFee = "500000000";\n`;
+  codeSnippet += `const registrationFee = "${DREP_DEPOSIT}";\n`;
   codeSnippet += `const assetMap = new Map<Unit, Quantity>();\n`;
   codeSnippet += `assetMap.set("lovelace", registrationFee);\n`;
   codeSnippet += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;

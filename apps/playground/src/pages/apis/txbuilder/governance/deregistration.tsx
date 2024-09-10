@@ -77,7 +77,11 @@ function Left() {
       <Codeblock data={codeSign} />
       <p>
         The transaction will be submitted to the blockchain and the DRep will be
-        retired. The deposit will be refunded to the DRep owner.
+        retired. A{" "}
+        <Link href="https://preprod.cardanoscan.io/transaction/340c3fe684dc13fed83fa838a4a11c8628a6cadeb7eadab636fad5b0efde978a">
+          successful transaction
+        </Link>{" "}
+        , the deposit will be refunded to the DRep owner.
       </p>
     </>
   );

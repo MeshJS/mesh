@@ -127,13 +127,12 @@ describe("MeshTxBuilder transactions", () => {
       )
       .drepRegistrationCertificate(
         "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
-        "500000000",
         {
-          anchorUrl:
-            "https://path-to.jsonld",
+          anchorUrl: "https://path-to.jsonld",
           anchorDataHash:
             "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
         },
+        "500000000",
       )
       .completeSync();
 
@@ -169,12 +168,16 @@ describe("MeshTxBuilder transactions", () => {
         ],
         "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
       )
-      .drepRegistrationCertificate(drepId, "500000000", {
-        anchorUrl:
-          "https://raw.githubusercontent.com/HinsonSIDAN/cardano-drep/main/HinsonSIDAN.jsonld",
-        anchorDataHash:
-          "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
-      })
+      .drepRegistrationCertificate(
+        drepId,
+        {
+          anchorUrl:
+            "https://raw.githubusercontent.com/HinsonSIDAN/cardano-drep/main/HinsonSIDAN.jsonld",
+          anchorDataHash:
+            "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+        },
+        "500000000",
+      )
       .certificateScript(resolveNativeScriptHex(script))
       .completeSync();
 
@@ -214,7 +217,6 @@ describe("MeshTxBuilder transactions", () => {
       .certificateScript(resolveNativeScriptHex(script))
       .completeSync();
 
-    console.log(txHex);
     expect(txHex !== "").toBeTruthy();
   });
 });
