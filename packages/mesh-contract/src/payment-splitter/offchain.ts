@@ -65,7 +65,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     const { address: scriptAddress } = serializePlutusScript(
       script,
       undefined,
-      0,
+      this.networkId,
     );
 
     const { pubKeyHash } = deserializeAddress(walletAddress);
@@ -100,7 +100,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     const { address: scriptAddress } = serializePlutusScript(
       script,
       undefined,
-      0,
+      this.networkId,
     );
     const utxos = (await this.fetcher?.fetchAddressUTxOs(scriptAddress)) || [];
     const { pubKeyHash } = deserializeAddress(walletAddress);

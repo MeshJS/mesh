@@ -1,5 +1,6 @@
 import type { NextPage } from "next";
 
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import MintMeshToken from "~/components/cardano/mint-mesh-token";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
@@ -86,6 +87,7 @@ const ReactPage: NextPage = () => {
             <MintMeshToken />
           </>
         </TitleIconDescriptionBody>
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/contracts/classes/MeshSwapContract" />
 
         <SwapInitiateSwap />
         <SwapAcceptSwap />

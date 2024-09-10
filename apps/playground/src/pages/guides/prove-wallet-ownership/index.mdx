@@ -132,7 +132,7 @@ import { checkSignature } from '@meshsdk/core';
 async function backendVerifySignature(userAddress, signature) {
   // do: get 'nonce' from user (database) using 'userAddress'
 
-  const result = checkSignature(nonce, userAddress, signature);
+  const result = checkSignature(nonce, signature);
 
   // do: update 'nonce' in the database with another random string
 
@@ -206,7 +206,7 @@ async function backendGetNonce(userAddress) {
 async function backendVerifySignature(userAddress, signature) {
   // do: get 'nonce' from database
 
-  const result = checkSignature(nonce, userAddress, signature);
+  const result = checkSignature(nonce, signature);
   if(result){
     // create JWT or approve certain process
   }

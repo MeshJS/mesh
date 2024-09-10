@@ -5,11 +5,11 @@ import {
   conStr1,
   mConStr1,
   mConStr2,
+  MeshValue,
   PubKeyAddress,
   pubKeyAddress,
   Value,
   value,
-  MeshValue
 } from "@meshsdk/common";
 import {
   Asset,
@@ -111,10 +111,19 @@ export class MeshEscrowContract extends MeshTxInitiator {
         recipientAmount,
       ] = inputDatum.fields;
 
-      const initiatorAddress = serializeAddressObj(initiatorAddressObj);
-      const recipientAddress = serializeAddressObj(recipientAddressObj!);
-      const initiatorToReceive = MeshValue.fromValue(initiatorAmount).toAssets();
-      const recipientToReceive = MeshValue.fromValue(recipientAmount!).toAssets();
+      const initiatorAddress = serializeAddressObj(
+        initiatorAddressObj,
+        this.networkId,
+      );
+      const recipientAddress = serializeAddressObj(
+        recipientAddressObj!,
+        this.networkId,
+      );
+      const initiatorToReceive =
+        MeshValue.fromValue(initiatorAmount).toAssets();
+      const recipientToReceive = MeshValue.fromValue(
+        recipientAmount!,
+      ).toAssets();
       this.mesh
         .txOut(initiatorAddress, initiatorToReceive)
         .txOut(recipientAddress, recipientToReceive);
@@ -216,8 +225,14 @@ export class MeshEscrowContract extends MeshTxInitiator {
       recipientAddressObj,
       recipientAmount,
     ] = inputDatum.fields;
-    const initiatorAddress = serializeAddressObj(initiatorAddressObj);
-    const recipientAddress = serializeAddressObj(recipientAddressObj);
+    const initiatorAddress = serializeAddressObj(
+      initiatorAddressObj,
+      this.networkId,
+    );
+    const recipientAddress = serializeAddressObj(
+      recipientAddressObj,
+      this.networkId,
+    );
     const initiatorToReceive = MeshValue.fromValue(recipientAmount).toAssets();
     const recipientToReceive = MeshValue.fromValue(initiatorAmount).toAssets();
 

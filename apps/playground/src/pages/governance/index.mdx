@@ -1,0 +1,29 @@
+import { useState } from "react";
+
+import { checkSignature, generateNonce } from "@meshsdk/core";
+import { CardanoWallet, useWallet } from "@meshsdk/react";
+
+import Button from "~/components/button/button";
+import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
+
+export default function MDXPage({ children }) {
+  return (
+    <LayoutImageHeaderAndBody
+      title={'Governance'}
+      description={'Our guidelines and directives regarding governance actions as a dRep at the Cardano Ecosystem'}
+      image={'/governance/network-3524352_640.jpg'}
+    >
+      <>{children}</>
+    </LayoutImageHeaderAndBody>
+  );
+}
+
+## Intro
+
+With the adoption of Voltaire, we have created and followed certain guidelines and directives that will help us make our decision regarding governance actions as a dRep at the Cardano Ecosystem. This is NOT a document aimed at becoming a large set of strict rules for the whole community through social contract and to dictate how they make their decisions. It simply contains some guidelines we thought are important and we abide by them to the extent that it’s possible. Meaning, it’s a subjective assessment which we use and participants of Cardano's governance and its partner chains are free to adopt in order to make their own decisions.
+
+## Principles on Treasury Proposals at CardanoGov
+
+### 1. On-Chain Identity Verification
+
+Whenever possible, proposers must verify their on-chain identities to enhance trust and transparency. In cases where full on-chain verification isn’t available, proposers should make efforts to prove their web2 or web3 identities through alternative means. The reason for this, is that a lack of a verified ID, makes it difficult for all proposals to prove on-chain and to people without first-hand knowledge of the team, whether or not they are legitimate. Also, it perpetuates the risk of unknown malicious actors pretending to be other characters with a better reputation in future referendums.

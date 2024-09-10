@@ -35,7 +35,7 @@ export class MeshSwapContract extends MeshTxInitiator {
     this.scriptAddress = serializePlutusScript(
       { code: this.scriptCbor, version: "V2" },
       undefined,
-      0,
+      inputs.networkId,
     ).address;
   }
 
@@ -75,7 +75,10 @@ export class MeshSwapContract extends MeshTxInitiator {
     const inlineDatum = deserializeDatum<SwapDatum>(
       swapUtxo.output.plutusData!,
     );
-    const initiatorAddress = serializeAddressObj(inlineDatum.fields[0]);
+    const initiatorAddress = serializeAddressObj(
+      inlineDatum.fields[0],
+      this.networkId,
+    );
     const initiatorToReceive = inlineDatum.fields[2];
 
     await this.mesh
@@ -111,7 +114,10 @@ export class MeshSwapContract extends MeshTxInitiator {
     const inlineDatum = deserializeDatum<SwapDatum>(
       swapUtxo.output.plutusData!,
     );
-    const initiatorAddress = serializeAddressObj(inlineDatum.fields[0]);
+    const initiatorAddress = serializeAddressObj(
+      inlineDatum.fields[0],
+      this.networkId,
+    );
     await this.mesh
       .spendingPlutusScriptV2()
       .txIn(
