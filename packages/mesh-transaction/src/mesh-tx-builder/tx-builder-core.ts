@@ -990,14 +990,14 @@ export class MeshTxBuilderCore {
   /**
    * Registers DRep certificate, and adds it to the transaction
    * @param drepId The bech32 drep id (i.e. starts with `drep1xxxxx`)
-   * @param coin DRep registration deposit
    * @param anchor The DRep anchor, consists of a URL and a hash of the doc
+   * @param coin DRep registration deposit
    * @returns The MeshTxBuilder instance
    */
   drepRegistrationCertificate = (
     drepId: string,
-    coin: string,
     anchor?: Anchor,
+    coin: string = "500000000",
   ) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
@@ -1017,7 +1017,10 @@ export class MeshTxBuilderCore {
    * @param coin DRep registration deposit
    * @returns The MeshTxBuilder instance
    */
-  drepDeregistrationCertificate = (drepId: string, coin: string) => {
+  drepDeregistrationCertificate = (
+    drepId: string,
+    coin: string = "500000000",
+  ) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
