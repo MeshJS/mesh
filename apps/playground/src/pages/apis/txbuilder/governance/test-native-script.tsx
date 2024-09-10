@@ -1,5 +1,6 @@
 import {
   BrowserWallet,
+  getFile,
   hashDrepAnchor,
   keepRelevant,
   MeshWallet,
@@ -16,13 +17,6 @@ import { getProvider } from "~/components/cardano/mesh-wallet";
 import { getTxBuilder } from "../common";
 
 const network = 0;
-
-function getFile(url: string) {
-  var Httpreq = new XMLHttpRequest();
-  Httpreq.open("GET", url, false);
-  Httpreq.send(null);
-  return Httpreq.responseText;
-}
 
 async function getMeshJsonHash(url: string) {
   var drepAnchor = getFile(url);
@@ -46,19 +40,54 @@ export async function voteAction(wallet: BrowserWallet) {
   // test vote
 }
 
+export async function deregisterDRep(wallet: BrowserWallet) {
+  const { address: scriptAddress, scriptCbor, dRepId } = getNativeScript();
+
+  const blockchainProvider = getProvider();
+  const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
+  const assetMap = new Map<Unit, Quantity>();
+  assetMap.set("lovelace", "5000000");
+  const selectedUtxos = keepRelevant(assetMap, utxos);
+  if (selectedUtxos.length === 0) throw new Error("No relevant UTxOs found");
+
+  const txBuilder = getTxBuilder();
+
+  for (let utxo of selectedUtxos) {
+    txBuilder.txIn(
+      utxo.input.txHash,
+      utxo.input.outputIndex,
+      utxo.output.amount,
+      utxo.output.address,
+    );
+  }
+
+  txBuilder
+    .txInScript(scriptCbor)
+    .changeAddress(scriptAddress)
+    .drepDeregistrationCertificate(dRepId, "500000000")
+    .certificateScript(scriptCbor);
+
+  const unsignedTx = await txBuilder.complete();
+
+  console.log("Unsigned tx", unsignedTx);
+  const signedTx = walletsSign(unsignedTx);
+  console.log("signedTx", signedTx);
+
+  const txHash = await wallet.submitTx(signedTx);
+  console.log("txHash", txHash);
+}
+
 export async function registerDRep(wallet: BrowserWallet) {
   const registrationFee = "500000000";
 
   const blockchainProvider = getProvider();
 
   const { address: scriptAddress, scriptCbor, dRepId } = getNativeScript();
-  const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
 
+  const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
   const assetMap = new Map<Unit, Quantity>();
   assetMap.set("lovelace", registrationFee);
-
   const selectedUtxos = keepRelevant(assetMap, utxos);
-
   if (selectedUtxos.length === 0) throw new Error("No relevant UTxOs found");
 
   //
@@ -80,7 +109,7 @@ export async function registerDRep(wallet: BrowserWallet) {
 
   txBuilder
     .txInScript(scriptCbor)
-    .drepRegistrationCertificate(dRepId, registrationFee, {
+    .drepRegistrationCertificate(dRepId, {
       anchorUrl: anchorUrl,
       anchorDataHash: anchorHash,
     })
@@ -189,31 +218,57 @@ export function getWallet(seed: string[]) {
   return { wallet, walletAddress, walletKeyHash };
 }
 
+// const walletASeed = [
+//   "better",
+//   "high",
+//   "alley",
+//   "magnet",
+//   "gorilla",
+//   "tip",
+//   "kidney",
+//   "nurse",
+//   "angry",
+//   "sweet",
+//   "scare",
+//   "cart",
+//   "also",
+//   "work",
+//   "priority",
+//   "try",
+//   "stem",
+//   "rice",
+//   "clutch",
+//   "soon",
+//   "practice",
+//   "amused",
+//   "toast",
+//   "exile",
+// ];
 const walletASeed = [
-  "better",
-  "high",
-  "alley",
-  "magnet",
-  "gorilla",
-  "tip",
-  "kidney",
-  "nurse",
-  "angry",
-  "sweet",
-  "scare",
-  "cart",
-  "also",
-  "work",
-  "priority",
-  "try",
-  "stem",
-  "rice",
-  "clutch",
-  "soon",
-  "practice",
-  "amused",
-  "toast",
-  "exile",
+  "culture",
+  "enroll",
+  "swim",
+  "cereal",
+  "nose",
+  "caution",
+  "quantum",
+  "sight",
+  "shield",
+  "audit",
+  "south",
+  "deputy",
+  "find",
+  "submit",
+  "sister",
+  "reduce",
+  "ten",
+  "prize",
+  "track",
+  "bird",
+  "spring",
+  "snap",
+  "unfair",
+  "word",
 ];
 const walletBSeed = [
   "chronic",

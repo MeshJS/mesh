@@ -9,6 +9,7 @@ import {
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
+  DREP_DEPOSIT,
   emptyTxBuilderBody,
   LanguageVersion,
   MeshTxBuilderBody,
@@ -997,7 +998,7 @@ export class MeshTxBuilderCore {
   drepRegistrationCertificate = (
     drepId: string,
     anchor?: Anchor,
-    coin: string = "500000000",
+    coin: string = DREP_DEPOSIT,
   ) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
@@ -1019,7 +1020,7 @@ export class MeshTxBuilderCore {
    */
   drepDeregistrationCertificate = (
     drepId: string,
-    coin: string = "500000000",
+    coin: string = DREP_DEPOSIT,
   ) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",

@@ -24,6 +24,8 @@ export const DEFAULT_PROTOCOL_PARAMETERS: Protocol = {
   minFeeRefScriptCostPerByte: 15,
 };
 
+export const DREP_DEPOSIT = "500000000";
+
 export const resolveTxFees = (
   txSize: number,
   minFeeA = DEFAULT_PROTOCOL_PARAMETERS.minFeeA,

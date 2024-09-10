@@ -34,7 +34,7 @@ export const metaTxbuilderStaking = {
 export const metaTxbuilderGovernance = {
   link: `/apis/txbuilder/governance`,
   title: "Governance Transactions",
-  desc: "Transactions for voting and working with governance",
+  desc: "Transactions for participating in Cardano's on-chain governance",
   icon: ScaleIcon,
 };
 
