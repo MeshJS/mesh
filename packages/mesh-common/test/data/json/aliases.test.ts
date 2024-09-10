@@ -82,9 +82,7 @@ describe("Plutus data type", () => {
     test("outputReference", () => {
       const result = outputReference(testTxHash, 1);
       expect(JSON.stringify(result)).toBe(
-        JSON.stringify(
-          conStr0([conStr0([byteString(testTxHash)]), integer(1)]),
-        ),
+        JSON.stringify([conStr0([byteString(testTxHash)]), integer(1)]),
       );
     });
     test("outputReference - invalid length", () => {
