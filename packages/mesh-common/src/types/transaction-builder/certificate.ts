@@ -78,10 +78,10 @@ export type CertificateType =
 export type DRep =
   | { dRepId: string }
   | {
-      alwaysAbstain: {};
+      alwaysAbstain: null;
     }
   | {
-      alwaysNoConfidence: {};
+      alwaysNoConfidence: null;
     };
 
 export type Anchor = {
