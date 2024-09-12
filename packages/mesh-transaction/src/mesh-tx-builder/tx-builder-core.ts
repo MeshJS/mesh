@@ -9,6 +9,7 @@ import {
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
+  DRep,
   DREP_DEPOSIT,
   emptyTxBuilderBody,
   LanguageVersion,
@@ -1028,6 +1029,24 @@ export class MeshTxBuilderCore {
         type: "DRepDeregistration",
         drepId,
         coin: Number(coin),
+      },
+    });
+    return this;
+  };
+
+  /**
+   * Dregister DRep certificate, and adds it to the transaction
+   * @param drepId The bech32 drep id (i.e. starts with `drep1xxxxx`)
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @returns The MeshTxBuilder instance
+   */
+  voteDelegationCertificate = (drep: DRep, rewardAddress: string) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: "BasicCertificate",
+      certType: {
+        type: "VoteDelegation",
+        drep,
+        stakeKeyAddress: rewardAddress,
       },
     });
     return this;
