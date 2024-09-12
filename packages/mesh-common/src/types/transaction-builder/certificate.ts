@@ -76,8 +76,7 @@ export type CertificateType =
     };
 
 export type DRep =
-  | { keyHash: string }
-  | { scriptHash: string }
+  | { dRepId: string }
   | {
       alwaysAbstain: {};
     }

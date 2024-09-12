@@ -219,7 +219,7 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("Build tx to register script stake should succeed", () => {
-    let mesh = new MeshTxBuilder({ verbose: true });
+    let mesh = new MeshTxBuilder();
 
     let txHex = mesh
       .txIn(
@@ -246,7 +246,7 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("Build tx to withdraw from script stake should succeed", () => {
-    let mesh = new MeshTxBuilder({ verbose: true });
+    let mesh = new MeshTxBuilder();
     let scriptCbor =
       "58ff58fd01010033232323232322322533300432323232323232533300b3370e9002001099198011bac301030113011301130113011301130113011300e375400e014601e601a6ea800c54ccc02ccdc3a400c0042646464660086eb0c048c04cc04cc04cc04cc04cc04cc04cc04cc040dd5004806180898090011bad3010001300d37540062c44646600200200644a66602200229404c94ccc03ccdc79bae301300200414a2266006006002602600260146ea8004c030c034008c02c004c02c008c024004c018dd50008a4c26cac6eb80055cd2ab9d5573caae7d5d0aba24c011e581ce3d28c78fa125198affefff50269125c81ba34e598890ed1d077f1710001";
 
@@ -282,6 +282,36 @@ describe("MeshTxBuilder transactions", () => {
       .withdrawalRedeemerValue(mConStr0([]), "Mesh", DEFAULT_REDEEMER_BUDGET)
       .requiredSignerHash(
         "e3d28c78fa125198affefff50269125c81ba34e598890ed1d077f171",
+      )
+      .changeAddress(
+        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
+      )
+      .setNetwork("preprod")
+      .completeSync();
+
+    console.log(txHex);
+  });
+
+  it("Build tx to withdraw from script stake should succeed", () => {
+    let mesh = new MeshTxBuilder();
+
+    let txHex = mesh
+      .txIn(
+        "f5be282d696cc5ca269d18de02224c3717aabc01ab2b76002860a110e108016a",
+        0,
+        [
+          {
+            unit: "lovelace",
+            quantity: "554042851",
+          },
+        ],
+        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
+      )
+      .voteDelegationCertificate(
+        {
+          dRepId: "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
+        },
+        "stake_test1uzdx8vwxvz5wy45fwdrwk2l85ax7j5wtr4cee6a8xc632cc3p6psh",
       )
       .changeAddress(
         "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
