@@ -76,13 +76,12 @@ export type CertificateType =
     };
 
 export type DRep =
-  | { keyHash: string }
-  | { scriptHash: string }
+  | { dRepId: string }
   | {
-      alwaysAbstain: {};
+      alwaysAbstain: null;
     }
   | {
-      alwaysNoConfidence: {};
+      alwaysNoConfidence: null;
     };
 
 export type Anchor = {

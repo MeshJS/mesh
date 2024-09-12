@@ -406,7 +406,7 @@ export class YaciProvider
           spend: "SPEND",
           mint: "MINT",
           certificate: "CERT",
-          withdrawal: "REWARD",
+          reward: "REWARD",
         };
         const result: Omit<Action, "data">[] = [];
 
