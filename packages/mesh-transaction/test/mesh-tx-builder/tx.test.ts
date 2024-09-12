@@ -292,7 +292,7 @@ describe("MeshTxBuilder transactions", () => {
     console.log(txHex);
   });
 
-  it("Build tx to withdraw from script stake should succeed", () => {
+  it("Build tx to delegate vote should succeed", () => {
     let mesh = new MeshTxBuilder();
 
     let txHex = mesh
