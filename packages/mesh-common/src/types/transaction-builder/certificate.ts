@@ -72,7 +72,7 @@ export type CertificateType =
   | {
       type: "DRepUpdate";
       drepId: string;
-      anchor: Anchor;
+      anchor?: Anchor;
     };
 
 export type DRep =
