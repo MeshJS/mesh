@@ -6,6 +6,7 @@ import {
 } from "@meshsdk/core";
 
 import FetcherAccountInfo from "./fetch-account-info";
+import FetcherAddressAssets from "./fetch-address-assets";
 import FetcherAddressUtxos from "./fetch-address-utxos";
 import FetcherAssetAddresses from "./fetch-asset-addresses";
 import FetcherAssetMetadata from "./fetch-asset-metadata";
@@ -15,6 +16,7 @@ import FetcherHandle from "./fetch-handle";
 import FetcherHandleAddress from "./fetch-handle-address";
 import FetcherProtocolParameters from "./fetch-protocol-parameters";
 import FetcherTransactionInfo from "./fetch-transaction-info";
+import FetcherGet from "./get";
 
 export default function ProviderFetchers({
   blockchainProvider,
@@ -26,6 +28,10 @@ export default function ProviderFetchers({
   return (
     <>
       <FetcherAccountInfo
+        blockchainProvider={blockchainProvider}
+        provider={provider}
+      />
+      <FetcherAddressAssets
         blockchainProvider={blockchainProvider}
         provider={provider}
       />
@@ -65,6 +71,7 @@ export default function ProviderFetchers({
         blockchainProvider={blockchainProvider}
         provider={provider}
       />
+      <FetcherGet blockchainProvider={blockchainProvider} provider={provider} />
     </>
   );
 }

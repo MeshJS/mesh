@@ -1,8 +1,9 @@
 {
   "name": "@meshsdk/provider",
-  "version": "1.7.5",
+  "version": "1.7.6",
   "description": "",
   "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
@@ -33,8 +34,8 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.5",
-    "@meshsdk/core-cst": "1.7.5",
+    "@meshsdk/common": "1.7.6",
+    "@meshsdk/core-cst": "1.7.6",
     "axios": "^1.7.2"
   },
   "prettier": "@meshsdk/configs/prettier",

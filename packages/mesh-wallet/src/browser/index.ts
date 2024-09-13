@@ -16,7 +16,6 @@ import { csl } from "@meshsdk/core-csl";
 import {
   Address,
   addressToBech32,
-  buildDRepID,
   CardanoSDKUtil,
   deserializeAddress,
   deserializeTx,
