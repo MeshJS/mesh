@@ -27,6 +27,7 @@ import {
   VrfVkBech32,
 } from "@meshsdk/core-cst";
 
+import { utxosToAssets } from "./common/utxos-to-assets";
 import { MaestroAssetExtended, MaestroUTxO } from "./types/maestro";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
@@ -113,6 +114,13 @@ export class MaestroProvider
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchAddressAssets(
+    address: string,
+  ): Promise<{ [key: string]: string }> {
+    const utxos = await this.fetchAddressUTxOs(address);
+    return utxosToAssets(utxos);
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
@@ -419,6 +427,18 @@ export class MaestroProvider
         return outputs;
       }
       throw parseHttpError(timestampedData);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async get(url: string): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.get(url);
+      if (status === 200) {
+        return data;
+      }
+      throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
     }

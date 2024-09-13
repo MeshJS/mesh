@@ -1035,6 +1035,23 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Update DRep certificate, and adds it to the transaction
+   * @param drepId The bech32 drep id (i.e. starts with `drep1xxxxx`)
+   * @param anchor The DRep anchor, consists of a URL and a hash of the doc
+   */
+  drepUpdateCertificate = (drepId: string, anchor?: Anchor) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: "BasicCertificate",
+      certType: {
+        type: "DRepUpdate",
+        drepId,
+        anchor,
+      },
+    });
+    return this;
+  };
+
+  /**
    * Dregister DRep certificate, and adds it to the transaction
    * @param drepId The bech32 drep id (i.e. starts with `drep1xxxxx`)
    * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)

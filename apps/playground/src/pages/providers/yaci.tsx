@@ -18,6 +18,7 @@ import ProviderSubmitters from "./submitters";
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Fetch Account Info", to: "fetchAccountInfo" },
+    { label: "Fetch Address Assets", to: "fetchAddressAssets" },
     { label: "Fetch Address Utxos", to: "fetchAddressUtxos" },
     { label: "Fetch Asset Addresses", to: "fetchAssetAddresses" },
     { label: "Fetch Asset Metadata", to: "fetchAssetMetadata" },
@@ -27,6 +28,7 @@ const ReactPage: NextPage = () => {
     { label: "Fetch Handle", to: "fetchHandle" },
     { label: "Fetch Protocol Parameters", to: "fetchProtocolParameters" },
     { label: "Fetch Transaction Info", to: "fetchTxInfo" },
+    { label: "Get data from URL", to: "get" },
     { label: "Evaluate Tx", to: "evaluateTx" },
     { label: "Submit Tx", to: "submitTx" },
     { label: "On Transaction Confirmed", to: "onTxConfirmed" },
