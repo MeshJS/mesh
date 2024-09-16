@@ -69,6 +69,8 @@ function Right() {
   codeSnippet += `    },\n`;
   codeSnippet += `  ],\n`;
   codeSnippet += `};\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `serializeNativeScript(nativeScript);\n`;
 
   return (
     <LiveCodeDemo

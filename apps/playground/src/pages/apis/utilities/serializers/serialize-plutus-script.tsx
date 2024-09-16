@@ -40,8 +40,7 @@ function Right() {
   codeSnippet += `  code: demoPlutusAlwaysSucceedScript,\n`;
   codeSnippet += `  version: "V2",\n`;
   codeSnippet += `};\n\n`;
-  codeSnippet += `const address = serializePlutusScript(script);\n\n`;
-  codeSnippet += `return address;\n`;
+  codeSnippet += `serializePlutusScript(script);\n\n`;
 
   return (
     <LiveCodeDemo

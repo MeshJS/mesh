@@ -54,8 +54,7 @@ function Right() {
     codeSnippet += `      },\n`;
     codeSnippet += `    ],\n`;
     codeSnippet += `  };\n\n`;
-    codeSnippet += `const dataHash = resolveScriptHashDRepId(resolveNativeScriptHash(script));`;
-    codeSnippet += `return dataHash;`;
+    codeSnippet += `resolveScriptHashDRepId(resolveNativeScriptHash(script));`;
 
   return (
     <LiveCodeDemo
