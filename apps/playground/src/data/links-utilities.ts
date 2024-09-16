@@ -29,8 +29,8 @@ export const metaDeserializers = {
 };
 
 export const linksUtilities: MenuItem[] = [
-  // metaSerializers,
-  // metaDeserializers,
+  metaSerializers,
+  metaDeserializers,
   metaResolvers,
 ];
 

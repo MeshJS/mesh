@@ -66,7 +66,7 @@ function Right() {
   codeSnippet += `  ],\n`;
   codeSnippet += `};\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const hash = resolveNativeScriptHash(nativeScript);`;
+  codeSnippet += `resolveNativeScriptHash(nativeScript);`;
 
   return (
     <LiveCodeDemo
