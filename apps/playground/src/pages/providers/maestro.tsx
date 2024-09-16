@@ -2,6 +2,7 @@ import type { NextPage } from "next";
 
 import { MaestroProvider } from "@meshsdk/core";
 
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
@@ -13,11 +14,11 @@ import ProviderEvaluators from "./evaluators";
 import ProviderFetchers from "./fetchers";
 import ProviderListeners from "./listeners";
 import ProviderSubmitters from "./submitters";
-import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Fetch Account Info", to: "fetchAccountInfo" },
+    { label: "Fetch Address Assets", to: "fetchAddressAssets" },
     { label: "Fetch Address Utxos", to: "fetchAddressUtxos" },
     { label: "Fetch Asset Addresses", to: "fetchAssetAddresses" },
     { label: "Fetch Asset Metadata", to: "fetchAssetMetadata" },
@@ -27,6 +28,7 @@ const ReactPage: NextPage = () => {
     { label: "Fetch Handle", to: "fetchHandle" },
     { label: "Fetch Protocol Parameters", to: "fetchProtocolParameters" },
     { label: "Fetch Transaction Info", to: "fetchTxInfo" },
+    { label: "Get data from URL", to: "get" },
     { label: "Evaluate Tx", to: "evaluateTx" },
     { label: "Submit Tx", to: "submitTx" },
     { label: "On Transaction Confirmed", to: "onTxConfirmed" },

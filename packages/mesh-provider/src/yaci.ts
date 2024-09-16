@@ -23,6 +23,7 @@ import {
 } from "@meshsdk/common";
 import { resolveRewardAddress, toScriptRef } from "@meshsdk/core-cst";
 
+import { utxosToAssets } from "./common/utxos-to-assets";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
 
@@ -115,6 +116,13 @@ export class YaciProvider
       scriptHash: bfUTxO.reference_script_hash,
     },
   });
+
+  async fetchAddressAssets(
+    address: string,
+  ): Promise<{ [key: string]: string }> {
+    const utxos = await this.fetchAddressUTxOs(address);
+    return utxosToAssets(utxos);
+  }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : "";
@@ -344,6 +352,18 @@ export class YaciProvider
     }
   }
 
+  async get(url: string): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.get(url);
+      if (status === 200) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
@@ -406,7 +426,7 @@ export class YaciProvider
           spend: "SPEND",
           mint: "MINT",
           certificate: "CERT",
-          withdrawal: "REWARD",
+          reward: "REWARD",
         };
         const result: Omit<Action, "data">[] = [];
 
