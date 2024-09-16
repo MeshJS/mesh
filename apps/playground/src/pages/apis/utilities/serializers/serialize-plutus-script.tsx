@@ -36,6 +36,12 @@ function Right() {
   }
 
   let codeSnippet = ``;
+  codeSnippet += `const script: PlutusScript = {\n`;
+  codeSnippet += `  code: demoPlutusAlwaysSucceedScript,\n`;
+  codeSnippet += `  version: "V2",\n`;
+  codeSnippet += `};\n\n`;
+  codeSnippet += `const address = serializePlutusScript(script);\n\n`;
+  codeSnippet += `return address;\n`;
 
   return (
     <LiveCodeDemo

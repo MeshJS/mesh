@@ -53,6 +53,22 @@ function Right() {
   }
 
   let codeSnippet = ``;
+  codeSnippet += `const { pubKeyHash: keyHash } = deserializeAddress(\n`;
+  codeSnippet += `  '${demoAddresses.testnetPayment}',\n`;
+  codeSnippet += `);\n\n`;
+  codeSnippet += `const nativeScript: NativeScript = {\n`;
+  codeSnippet += `  type: "all",\n`;
+  codeSnippet += `  scripts: [\n`;
+  codeSnippet += `    {\n`;
+  codeSnippet += `      type: "before",\n`;
+  codeSnippet += `      slot: "99999999",\n`;
+  codeSnippet += `    },\n`;
+  codeSnippet += `    {\n`;
+  codeSnippet += `      type: "sig",\n`;
+  codeSnippet += `      keyHash: keyHash,\n`;
+  codeSnippet += `    },\n`;
+  codeSnippet += `  ],\n`;
+  codeSnippet += `};\n`;
 
   return (
     <LiveCodeDemo

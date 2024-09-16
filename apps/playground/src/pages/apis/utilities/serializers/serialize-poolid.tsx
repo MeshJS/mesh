@@ -1,5 +1,12 @@
+import { useState } from "react";
+
+import { serializePoolId } from "@meshsdk/core";
+
+import Input from "~/components/form/input";
+import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import { demoPubKeyHash } from "~/data/cardano";
 
 export default function SerializePoolId() {
   return (
@@ -21,11 +28,13 @@ function Left() {
 }
 
 function Right() {
+  const [userInput, setUserInput] = useState<string>(demoPubKeyHash);
+
   async function runDemo() {
-    // return serializePoolId(address);
+    return serializePoolId(userInput);
   }
 
-  let codeSnippet = ``;
+  let codeSnippet = `serializePoolId('${userInput}');`;
 
   return (
     <LiveCodeDemo
@@ -33,6 +42,17 @@ function Right() {
       subtitle="Resolve the pool ID from hash"
       code={codeSnippet}
       runCodeFunction={runDemo}
-    ></LiveCodeDemo>
+    >
+       <InputTable
+        listInputs={[
+          <Input
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            label="Pool Id"
+            key={0}
+          />,
+        ]}
+      />
+    </LiveCodeDemo>
   );
 }

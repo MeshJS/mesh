@@ -27,7 +27,7 @@ function Left() {
 }
 
 function Right() {
-  const [userInput, setUserInput] = useState<string>("");
+  const [userInput, setUserInput] = useState<string>("167a4a048d87fcee0425ed200615ff2356f472c6413472c6106b8c5da52e3fd0");
 
   async function runDemo() {
     return deserializeDatum(userInput);
