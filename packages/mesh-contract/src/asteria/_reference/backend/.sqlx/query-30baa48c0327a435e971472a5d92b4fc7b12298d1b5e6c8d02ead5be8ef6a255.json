@@ -1,0 +1,72 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, fuel, positionX as position_x, positionY as position_y, shipyardPolicy as policy_id, shipTokenName as token_name, pilotTokenName as pilot_name, class, totalRewards as total_rewards\n             FROM mapobjects\n             WHERE class = 'Fuel' AND shipyardPolicy = $1\n             LIMIT $2 OFFSET $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "fuel",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "position_x",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "position_y",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "policy_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "token_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "pilot_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "class",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "total_rewards",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "30baa48c0327a435e971472a5d92b4fc7b12298d1b5e6c8d02ead5be8ef6a255"
+}

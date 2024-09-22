@@ -1,0 +1,9 @@
+- [x] Create Specification
+- [x] Select Onchain Language
+- [x] Minting a CIP 102 compliant NFT with royalties
+  - [x] Timelocked MP
+  - [x] Always-Fails Validator
+  - [x] Reducible Validator
+- [x] Reading a CIP 102 NFT’s royalties off chain
+- [x] Reading and validating against CIP 102 NFT royalties on chain
+- [x] Final Cleanup

@@ -1,0 +1,13 @@
+{
+  "index": {
+    "title": "Home",
+    "type": "page",
+    "display": "hidden",
+    "theme": {
+      "layout": "full"
+    }
+  },
+  "introduction": "Introduction",
+  "rules": "Rules",
+  "guides": "Guides"
+}

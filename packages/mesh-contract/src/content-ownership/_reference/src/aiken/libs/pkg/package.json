@@ -1,0 +1,16 @@
+{
+  "name": "mesh-rust-utils",
+  "version": "0.1.0",
+  "files": [
+    "mesh_rust_utils_bg.wasm",
+    "mesh_rust_utils.js",
+    "mesh_rust_utils_bg.js",
+    "mesh_rust_utils.d.ts"
+  ],
+  "module": "mesh_rust_utils.js",
+  "types": "mesh_rust_utils.d.ts",
+  "sideEffects": [
+    "./mesh_rust_utils.js",
+    "./snippets/*"
+  ]
+}

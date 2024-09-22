@@ -1,0 +1,33 @@
+[package]
+name = "mesh-rust-utils"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+uplc = { git = "https://github.com/aiken-lang/aiken.git", rev = "49bd4ba33d9fd99180cd77321ad799e19f23c6ba", default-features = false}
+getrandom = { version = "0.2", features = ["js"] }
+cardano-serialization-lib = "11.5.0"
+
+# non-wasm
+[target.'cfg(not(all(target_arch = "wasm32", not(target_os = "emscripten"))))'.dependencies]
+rand_os = "0.1"
+noop_proc_macro = "0.3.0"
+
+# wasm
+[target.'cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))'.dependencies]
+wasm-bindgen = { version = "=0.2.87", features = ["serde-serialize"] }
+rand_os = { version = "0.1", features = ["wasm-bindgen"] }
+js-sys = "=0.3.61"
+wasm-bindgen-futures = "=0.4.34"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+codegen-units = 1
+opt-level = "s"
+incremental = true
+lto = true
