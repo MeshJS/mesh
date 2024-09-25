@@ -4,7 +4,7 @@ import Link from "~/components/link";
 import HeaderAndCards from "~/components/layouts/header-and-cards";
 import Metatags from "~/components/site/metatags";
 import Header3 from "~/components/text/header3";
-import { fund10, fund11, fund12, metaCatalyst } from "~/data/links-catalyst";
+import { fund10, fund11, fund12, metaCatalyst } from "~/data/catalyst";
 
 const ReactPage: NextPage = () => {
   return (
