@@ -9,11 +9,13 @@ import { metaTxbuilderGovernance } from "~/data/links-txbuilders";
 import { Intro } from "../common";
 import GovernanceDeregistration from "./deregistration";
 import GovernanceRegistration from "./registration";
+import GovernanceVoteDelegation from "./vote-delegation";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "DRep Registration", to: "registration" },
     { label: "DRep Deregistration", to: "deregistration" },
+    { label: "Vote Delegation", to: "delegation" },
   ];
 
   return (
@@ -46,6 +48,7 @@ const ReactPage: NextPage = () => {
 
         <GovernanceRegistration />
         <GovernanceDeregistration />
+        <GovernanceVoteDelegation />
       </SidebarFullwidth>
     </>
   );

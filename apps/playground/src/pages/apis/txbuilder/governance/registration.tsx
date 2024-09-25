@@ -9,19 +9,12 @@ import {
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
-import Button from "~/components/button/button";
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { getTxBuilder } from "../common";
-import {
-  deregisterDRep,
-  getNativeScript,
-  makePayment,
-  registerDRep,
-} from "./test-native-script";
 
 export default function GovernanceRegistration() {
   return (
