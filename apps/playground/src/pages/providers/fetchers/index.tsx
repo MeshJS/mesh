@@ -27,6 +27,8 @@ export default function ProviderFetchers({
 }) {
   return (
     <>
+      <FetcherGet blockchainProvider={blockchainProvider} provider={provider} />
+
       <FetcherAccountInfo
         blockchainProvider={blockchainProvider}
         provider={provider}
@@ -71,7 +73,6 @@ export default function ProviderFetchers({
         blockchainProvider={blockchainProvider}
         provider={provider}
       />
-      <FetcherGet blockchainProvider={blockchainProvider} provider={provider} />
     </>
   );
 }

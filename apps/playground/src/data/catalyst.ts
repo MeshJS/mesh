@@ -12,10 +12,11 @@ export const fund12 = [
     title: "Cardano Service Layer Framework for DApps",
     desc: "R&D a framework to quickly spin up a service layer for specific Cardano DApps, allowing DApps to re-use all infrastructure such as contracts and MeshJS, while possible for custom protocol parameters.",
     url: "https://cardano.ideascale.com/c/idea/121847",
-    completed: [],
-    tobecompleted: [
+    completed: [
       `Parallel Cardano Blockchain MeshJS Integration`,
       `Customized Protocol Parameters`,
+    ],
+    tobecompleted: [
       `Persistent Record & Immutability`,
       `Framework DevOps`,
       `Documentation and training materials`,
@@ -27,24 +28,20 @@ export const fund12 = [
       "Mesh New Features to Improve Developer experience and Cardano Adoption",
     desc: "We will upgrade Mesh by implementing CIP 45, WebRTC wallet connect, handle multiple serialization libs, revamp to support backend transactions building, and improve error messages to improve DevXP.",
     url: "https://cardano.ideascale.com/c/idea/122160",
-    completed: [],
-    tobecompleted: [
-      "CIP 45",
+    completed: [
       "Mesh application wallet",
       "Modular CSL library",
-      "Improve error messages",
       "Wallet support for private blockchain networks (e.g. Yaci)",
     ],
+    tobecompleted: ["CIP 45", "Improve error messages"],
     status: "In Progress",
   },
   {
     title: "Mesh Software as a Service",
     desc: "We provide hosted server instances for wallet and transactions builder by restful APIs, this allow integration and interaction to Cardano blockchain from any technology stacks and systems.",
     url: "https://cardano.ideascale.com/c/idea/122098",
-    completed: [],
+    completed: ["Cloud infrastructure and transaction endpoints"],
     tobecompleted: [
-      "Cloud infrastructure and transaction endpoints",
-      "Upgrade Mesh SDK to support SaaS",
       "Hosted wallet / private key for signing",
       "User-defined transaction building",
       "JSON schema for transaction",
@@ -56,13 +53,13 @@ export const fund12 = [
       "Maintaining Mesh SDK, community support and content creation to onboard developers",
     desc: "Maintenance and operations of Mesh SDK, community support and content creation, in order to onboard developers and users to the Cardano blockchain ecosystem.",
     url: "https://cardano.ideascale.com/c/idea/122471",
-    completed: [],
-    tobecompleted: [
+    completed: [
       `Provide community support`,
       `Resolve GitHub issues`,
       `Create tutorials and documentation`,
       `Create workshops and live coding sessions`,
     ],
+    tobecompleted: [],
     status: "In Progress",
   },
 ];
@@ -98,12 +95,11 @@ export const fund11 = [
       "Resolved numerous reported GitHub issues",
       "Active Discord engagement to help developers",
       "Transaction building support for Hydra apps",
-    ],
-    tobecompleted: [
       "Plutus version 3 integration",
       "Revamped/refactored transaction and utilities class",
       "Conway features",
     ],
+    tobecompleted: [],
     status: "In Progress",
   },
 ];
@@ -120,8 +116,9 @@ export const fund10 = [
       "Workshops and live coding",
       "Community Q&A support",
       "Demos and tutorials repository",
+      "Mesh PBL Season #1",
     ],
-    tobecompleted: ["Mesh PBL Season #1", "Student projects"],
+    tobecompleted: ["Student projects"],
     status: "In Progress",
   },
 ];
