@@ -36,6 +36,8 @@
   "dependencies": {
     "@meshsdk/common": "1.7.6",
     "@meshsdk/core-cst": "1.7.6",
+    "@utxorpc/sdk": "^0.6.2",
+    "@utxorpc/spec": "^0.10.1",
     "axios": "^1.7.2"
   },
   "prettier": "@meshsdk/configs/prettier",
