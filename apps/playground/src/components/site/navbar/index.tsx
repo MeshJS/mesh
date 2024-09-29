@@ -17,6 +17,7 @@ import { socials } from "~/data/social";
 import { useDarkmode } from "~/hooks/useDarkmode";
 import MenuItem from "./menu-item";
 import MenuItemDropdown from "./menu-item-dropdown";
+import { linksSolutions } from "~/data/links-solutions";
 
 export default function Navbar() {
   const isDark = useDarkmode((state) => state.isDark);
@@ -125,11 +126,12 @@ export default function Navbar() {
             <ul className="mt-4 flex flex-col font-medium lg:mt-0 lg:flex-row lg:space-x-8">
               <MenuItemDropdown title="Get Started" items={linksGetStarted} />
               <MenuItemDropdown title="API" items={linksApi} />
-              <MenuItemDropdown
-                title="Smart Contracts"
-                items={linksSmartContracts}
-              />
               <MenuItem title="Docs" link="https://docs.meshjs.dev/" />
+              <MenuItem title="Docs" link="https://docs.meshjs.dev/" />
+              <MenuItemDropdown
+                title="Solutions"
+                items={linksSolutions}
+              />
               <MenuItemDropdown title="About" items={linksAbout} />
             </ul>
           </div>

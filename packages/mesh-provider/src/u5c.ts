@@ -20,7 +20,6 @@ import {
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
-import { toAddress } from "@meshsdk/core-csl"; // todo: replace with core-cst
 import { Address, CardanoSDKUtil } from "@meshsdk/core-cst";
 
 export class U5CProvider
@@ -84,9 +83,8 @@ export class U5CProvider
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
-    const addressBytes = new Uint8Array(
-      Buffer.from(toAddress(address).to_bytes()),
-    );
+    const addressBytes = Buffer.from(Address.fromBech32(address).toBytes());
+
     const utxoSearchResult =
       await this.queryClient.searchUtxosByAddress(addressBytes);
 
