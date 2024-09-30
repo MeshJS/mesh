@@ -50,6 +50,11 @@ export class Transaction {
     return new Tx(tx.body(), tx.witnessSet()).toCbor().toString();
   }
 
+  static readMetadata(cborTx: string) {
+    const tx = deserializeTx(cborTx);
+    return tx.auxiliaryData()?.metadata()?.toCbor().toString() ?? '';
+  }
+
 
   /**
    * Adds an output to the transaction.
