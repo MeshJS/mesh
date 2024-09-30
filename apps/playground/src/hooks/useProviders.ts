@@ -19,6 +19,8 @@ interface State {
   setYaciUrl: (url: string) => void;
   ogmiosUrl: string;
   setOgmiosUrl: (url: string) => void;
+  hydraUrl: string;
+  setHydraUrl: (url: string) => void;
 }
 
 export const useProviders = create<State>(
@@ -35,6 +37,8 @@ export const useProviders = create<State>(
       setYaciUrl: (url) => set({ yaciUrl: url }),
       ogmiosUrl: "",
       setOgmiosUrl: (url) => set({ ogmiosUrl: url }),
+      hydraUrl: "",
+      setHydraUrl: (url) => set({ hydraUrl: url }),
     }),
     { name: "mesh-providers" },
   ),
