@@ -6,6 +6,7 @@ import {
   CIP68_222,
   Data,
   DEFAULT_REDEEMER_BUDGET,
+  Era,
   hexToString,
   IInitiator,
   metadataToCip68,
@@ -22,9 +23,11 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import {
+  deserializeTx,
   deserializeNativeScript,
   deserializePlutusScript,
   fromScriptRef,
+  Transaction as Tx,
 } from "@meshsdk/core-cst";
 
 import { MeshTxBuilder, MeshTxBuilderOptions } from "../mesh-tx-builder";
@@ -42,6 +45,11 @@ export class Transaction {
     this.txBuilder = new MeshTxBuilder(options);
     this.initiator = options.initiator;
   }
+  static deattachMetadata(cborTx: string) {
+    const tx = deserializeTx(cborTx);
+    return new Tx(tx.body(), tx.witnessSet()).toCbor().toString();
+  }
+
 
   /**
    * Adds an output to the transaction.
