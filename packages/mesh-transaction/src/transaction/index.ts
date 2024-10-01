@@ -23,10 +23,13 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import {
+  Cardano,
+  CardanoSDKUtil,
   deserializeTx,
   deserializeNativeScript,
   deserializePlutusScript,
   fromScriptRef,
+  Serialization,
   Transaction as Tx,
 } from "@meshsdk/core-cst";
 
@@ -45,6 +48,30 @@ export class Transaction {
     this.txBuilder = new MeshTxBuilder(options);
     this.initiator = options.initiator;
   }
+
+  static attachMetadata(
+    cborTx: string,
+    cborTxMetadata: string,
+  ) {
+    const tx = deserializeTx(cborTx);
+    const txAuxData = tx.auxiliaryData() ?? new Serialization.AuxiliaryData();
+
+    txAuxData.setMetadata(
+      Serialization.GeneralTransactionMetadata.fromCbor(CardanoSDKUtil.HexBlob(cborTxMetadata))
+    );
+
+    if (
+      Cardano.computeAuxiliaryDataHash(txAuxData.toCore())?.toString() !==
+      tx.body().auxiliaryDataHash()?.toString()
+    ) {
+      throw new Error(
+        '[Transaction] attachMetadata: The metadata hash does not match the auxiliary data hash.'
+      );
+    }
+
+    return new Tx(tx.body(), tx.witnessSet(), txAuxData).toCbor().toString();
+  }
+
   static deattachMetadata(cborTx: string) {
     const tx = deserializeTx(cborTx);
     return new Tx(tx.body(), tx.witnessSet()).toCbor().toString();
