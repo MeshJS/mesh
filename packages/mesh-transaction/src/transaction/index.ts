@@ -2,11 +2,11 @@ import {
   Action,
   Asset,
   Budget,
+  bytesToHex,
   CIP68_100,
   CIP68_222,
   Data,
   DEFAULT_REDEEMER_BUDGET,
-  Era,
   hexToString,
   IInitiator,
   metadataToCip68,
@@ -75,6 +75,33 @@ export class Transaction {
   static deattachMetadata(cborTx: string) {
     const tx = deserializeTx(cborTx);
     return new Tx(tx.body(), tx.witnessSet()).toCbor().toString();
+  }
+
+  static maskMetadata(cborTx: string) {
+    const tx = deserializeTx(cborTx);
+    const txMetadata = tx.auxiliaryData()?.metadata();
+
+    if (txMetadata !== undefined) {
+      const mockMetadata = new Map<bigint, Serialization.TransactionMetadatum>();
+      for (let index = 0; index < (txMetadata.metadata()?.size ?? 0); index += 1) {
+        mockMetadata.set(
+          BigInt(index),
+          Serialization.TransactionMetadatum.fromCbor(
+            CardanoSDKUtil.HexBlob(
+              bytesToHex(new Uint8Array(txMetadata.metadata()?.get(BigInt(index))?.toCbor().length ?? 0))
+            )
+          )
+        );
+      }
+
+      const txAuxData = tx.auxiliaryData();
+      const t = Serialization.GeneralTransactionMetadata.fromCbor(txMetadata.toCbor());
+      t.setMetadata(mockMetadata);
+      txAuxData?.setMetadata(t);
+      return new Tx(tx.body(), tx.witnessSet(), txAuxData).toCbor().toString();
+    }
+
+    return cborTx;
   }
 
   static readMetadata(cborTx: string) {
