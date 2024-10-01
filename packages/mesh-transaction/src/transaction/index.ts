@@ -82,6 +82,19 @@ export class Transaction {
     return tx.auxiliaryData()?.metadata()?.toCbor().toString() ?? '';
   }
 
+  static writeMetadata(
+    cborTx: string,
+    cborTxMetadata: string,
+  ) {
+    const tx = deserializeTx(cborTx);
+    const txAuxData = tx.auxiliaryData() ?? new Serialization.AuxiliaryData();
+
+    txAuxData.setMetadata(
+      Serialization.GeneralTransactionMetadata.fromCbor(CardanoSDKUtil.HexBlob(cborTxMetadata))
+    );
+
+    return new Tx(tx.body(), tx.witnessSet(), txAuxData).toCbor().toString();
+  }
 
   /**
    * Adds an output to the transaction.
