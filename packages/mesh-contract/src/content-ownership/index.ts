@@ -1,1 +1,1 @@
-export * from './offchain';
+export * from "./offchain/offchain";
