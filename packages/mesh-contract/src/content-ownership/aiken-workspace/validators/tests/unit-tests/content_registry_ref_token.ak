@@ -156,7 +156,7 @@ test fail_mint_with_unclean_registry_value() {
 
 test success_burn() {
   let redeemer = RBurn
-  let policy_id = mock_policy_id(0)
+  let policy_id = mock_policy_id(1)
 
   let tx = Transaction { ..placeholder, mint: from_asset(policy_id, "", -1) }
   content_registry_ref_token.content_registry_ref_token.mint(
@@ -169,12 +169,12 @@ test success_burn() {
 
 test success_burn_with_other_minting() {
   let redeemer = RBurn
-  let policy_id = mock_policy_id(0)
+  let policy_id = mock_policy_id(1)
 
   let tx =
     Transaction {
       ..placeholder,
-      mint: from_asset(policy_id, "", -1) |> add(mock_policy_id(1), "", 1),
+      mint: from_asset(policy_id, "", -1) |> add(mock_policy_id(0), "", 1),
     }
   content_registry_ref_token.content_registry_ref_token.mint(
     mock_policy_id(0),
@@ -186,7 +186,7 @@ test success_burn_with_other_minting() {
 
 test fail_burn_with_mint() {
   let redeemer = RBurn
-  let policy_id = mock_policy_id(0)
+  let policy_id = mock_policy_id(1)
 
   let tx = Transaction { ..placeholder, mint: from_asset(policy_id, "", 1) }
   !content_registry_ref_token.content_registry_ref_token.mint(
@@ -199,7 +199,7 @@ test fail_burn_with_mint() {
 
 test fail_burn_with_mix() {
   let redeemer = RBurn
-  let policy_id = mock_policy_id(0)
+  let policy_id = mock_policy_id(1)
 
   let tx =
     Transaction {
