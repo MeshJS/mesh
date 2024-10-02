@@ -30,18 +30,44 @@ import {
 } from "./type";
 
 export class MeshContentOwnershipContract extends MeshTxInitiator {
-  paramUtxo = { txHash: "", outputIndex: 0 };
-  scriptInfo = getScriptInfo({ outputIndex: 0, txHash: "" });
+  paramUtxo = {
+    txHash: "0000000000000000000000000000000000000000000000000000000000000000",
+    outputIndex: 0,
+  };
+  scriptInfo = getScriptInfo({
+    outputIndex: 0,
+    txHash: "0000000000000000000000000000000000000000000000000000000000000000",
+  });
   refScriptUtxos = {
-    contentRefToken: { txHash: "", outputIndex: 0 },
-    ownershipRefToken: { txHash: "", outputIndex: 0 },
-    contentRegistry: { txHash: "", outputIndex: 0 },
-    ownershipRegistry: { txHash: "", outputIndex: 0 },
+    contentRefToken: {
+      txHash:
+        "0000000000000000000000000000000000000000000000000000000000000000",
+      outputIndex: 0,
+    },
+    ownershipRefToken: {
+      txHash:
+        "0000000000000000000000000000000000000000000000000000000000000000",
+      outputIndex: 0,
+    },
+    contentRegistry: {
+      txHash:
+        "0000000000000000000000000000000000000000000000000000000000000000",
+      outputIndex: 0,
+    },
+    ownershipRegistry: {
+      txHash:
+        "0000000000000000000000000000000000000000000000000000000000000000",
+      outputIndex: 0,
+    },
   };
 
   constructor(
     inputs: MeshTxInitiatorInput,
-    paramUtxo: UTxO["input"] = { txHash: "", outputIndex: 0 },
+    paramUtxo: UTxO["input"] = {
+      txHash:
+        "0000000000000000000000000000000000000000000000000000000000000000",
+      outputIndex: 0,
+    },
   ) {
     super(inputs);
     this.paramUtxo = paramUtxo;
