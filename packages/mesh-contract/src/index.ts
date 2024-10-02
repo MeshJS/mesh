@@ -1,3 +1,4 @@
+export * from "./content-ownership";
 export * from "./escrow";
 export * from "./giftcard";
 export * from "./hello-world";

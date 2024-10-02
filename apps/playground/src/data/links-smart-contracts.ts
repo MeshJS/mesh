@@ -1,4 +1,5 @@
 import {
+  ArchiveBoxIcon,
   ArrowsPointingOutIcon,
   ArrowsRightLeftIcon,
   DocumentCheckIcon,
@@ -45,8 +46,15 @@ export const metaPaymentSplitter = {
   link: "/smart-contracts/payment-splitter",
   icon: ArrowsPointingOutIcon,
 };
+export const metaContentOwnership = {
+  title: "Content Ownership",
+  desc: "Manage ownership of digital content and assets",
+  link: "/smart-contracts/content-ownership",
+  icon: ArchiveBoxIcon,
+};
 
 export const linksSmartContracts: MenuItem[] = [
+  metaContentOwnership,
   metaEscrow,
   metaGiftcard,
   metaMarketplace,
