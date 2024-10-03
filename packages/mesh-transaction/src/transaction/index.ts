@@ -2,7 +2,6 @@ import {
   Action,
   Asset,
   Budget,
-  bytesToHex,
   CIP68_100,
   CIP68_222,
   Data,
@@ -83,21 +82,10 @@ export class Transaction {
 
     if (txMetadata !== undefined) {
       const mockMetadata = new Map<bigint, Serialization.TransactionMetadatum>();
-      for (let index = 0; index < (txMetadata.metadata()?.size ?? 0); index += 1) {
-        mockMetadata.set(
-          BigInt(index),
-          Serialization.TransactionMetadatum.fromCbor(
-            CardanoSDKUtil.HexBlob(
-              bytesToHex(new Uint8Array(txMetadata.metadata()?.get(BigInt(index))?.toCbor().length ?? 0))
-            )
-          )
-        );
-      }
-
+      txMetadata.metadata()?.forEach((metadatum, label) => mockMetadata.set(label, mask(metadatum)));
       const txAuxData = tx.auxiliaryData();
-      const t = Serialization.GeneralTransactionMetadata.fromCbor(txMetadata.toCbor());
-      t.setMetadata(mockMetadata);
-      txAuxData?.setMetadata(t);
+      txMetadata.setMetadata(mockMetadata);
+      txAuxData?.setMetadata(txMetadata);
       return new Tx(tx.body(), tx.witnessSet(), txAuxData).toCbor().toString();
     }
 
@@ -724,5 +712,31 @@ export class Transaction {
       const changeAddress = await this.initiator.getChangeAddress();
       this.setChangeAddress(changeAddress);
     }
+  }
+}
+
+function mask(metadatum: Serialization.TransactionMetadatum): Serialization.TransactionMetadatum {
+  switch (metadatum.getKind()) {
+    case Serialization.TransactionMetadatumKind.Text:
+      return Serialization.TransactionMetadatum.newText("0".repeat(metadatum.asText()?.length ?? 0));
+    case Serialization.TransactionMetadatumKind.Bytes:
+    case Serialization.TransactionMetadatumKind.Integer:
+      return metadatum
+    case Serialization.TransactionMetadatumKind.List:
+      const list = new Serialization.MetadatumList();
+      for (let i = 0; i < (metadatum.asList()?.getLength() ?? 0); i++) {
+        list.add(mask(metadatum.asList()?.get(i)!));
+      }
+      return Serialization.TransactionMetadatum.newList(list);
+    case Serialization.TransactionMetadatumKind.Map:
+      const map = new Serialization.MetadatumMap();
+      for (let i = 0; i < (metadatum.asMap()?.getLength() ?? 0); i++) {
+        const key = metadatum.asMap()?.getKeys().get(i)!;
+        const value = metadatum.asMap()?.get(key)!;
+        map.insert(key, mask(value));
+      }
+      return Serialization.TransactionMetadatum.newMap(map);
+    default:
+      throw new Error(`Unsupported metadatum kind: ${metadatum.getKind()}`);
   }
 }
