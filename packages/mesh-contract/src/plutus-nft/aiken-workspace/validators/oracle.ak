@@ -1,9 +1,16 @@
 use aiken/collection/list
 use aiken/crypto.{VerificationKeyHash}
-use cardano/assets.{flatten}
+use cardano/assets.{add, flatten, from_asset}
 use cardano/transaction.{
   InlineDatum, Input, Output, OutputReference, Transaction, find_input,
 }
+use mocktail.{
+  complete, mint, mocktail_tx, required_signer_hash, tx_in, tx_in_inline_datum,
+  tx_out, tx_out_inline_datum,
+}
+use mocktail/virgin_address.{mock_script_address}
+use mocktail/virgin_key_hash.{mock_policy_id, mock_pub_key_hash}
+use mocktail/virgin_output_reference.{mock_tx_hash, mock_utxo_ref}
 use vodka_extra_signatories.{key_signed}
 use vodka_inputs.{inputs_at_with_policy}
 use vodka_mints.{check_policy_only_burn}
@@ -61,4 +68,29 @@ validator account_oracle {
   else(_) {
     fail
   }
+}
+
+test success_mint() {
+  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
+  let redeemer = MintPlutusNFT
+  let input_value =
+    from_asset(mock_policy_id(0), "", 1) |> add("", "", 2_000_000)
+
+  let tx =
+    mocktail_tx()
+      |> tx_in(True, mock_tx_hash(0), 0, input_value, mock_script_address(0, None))
+      |> tx_in_inline_datum(
+          True,
+          OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) },
+        )
+      |> tx_out(True, mock_script_address(0, None), input_value)
+      |> tx_out_inline_datum(
+          True,
+          OracleDatum { count: 1, owner_key: mock_pub_key_hash(0) },
+        )
+      |> mint(True, 1, mock_policy_id(1), "collection (0)")
+      |> required_signer_hash(True, mock_pub_key_hash(0))
+      |> complete()
+
+  account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
