@@ -64,7 +64,9 @@ export default function Demo() {
     const signedTx = await wallet.signTx(unsignedTx, true);
 
     // backend sign and submit
-    const txHash = await backendSignTx(signedTx);
+    const backendSignedTx = await backendSignTx(signedTx);
+
+    const txHash = await wallet.submitTx(backendSignedTx);
 
     setResponse(txHash);
     setLoading(false);
@@ -105,8 +107,7 @@ export default function Demo() {
       signedOriginalTx,
       true,
     );
-    const txHash = await systemWallet.submitTx(meshWalletSignedTx);
-    return txHash;
+    return meshWalletSignedTx;
   }
 
   return (
