@@ -1,3 +1,6 @@
 import * as core from "@meshsdk/core-csl";
 
-export { core };
+const applyParamsToScript = core.applyParamsToScript;
+const applyCborEncoding = core.applyCborEncoding;
+
+export { core, applyParamsToScript, applyCborEncoding };
