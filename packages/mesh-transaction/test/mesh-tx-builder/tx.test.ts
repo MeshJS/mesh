@@ -352,4 +352,47 @@ describe("MeshTxBuilder transactions", () => {
     console.log(txHex);
     expect(txHex !== "").toBeTruthy();
   });
+
+  it("Drep vote", () => {
+    let mesh = new MeshTxBuilder({ verbose: true });
+
+    let txHex = mesh
+      .changeAddress(
+        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
+      )
+      .txIn(
+        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+        3,
+        [
+          {
+            unit: "lovelace",
+            quantity: "9891607895",
+          },
+        ],
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+      )
+      .vote(
+        {
+          type: "DRep",
+          drepId: "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
+        },
+        {
+          txHash:
+            "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+          txIndex: 3,
+        },
+        {
+          voteKind: "Yes",
+          anchor: {
+            anchorUrl: "https://path-to.jsonld",
+            anchorDataHash:
+              "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+          },
+        },
+      )
+      .completeSync();
+
+    console.log(txHex);
+    expect(txHex !== "").toBeTruthy();
+  });
 });
