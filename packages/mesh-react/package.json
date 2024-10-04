@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/react",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "description": "",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -30,9 +30,9 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "@meshsdk/common": "1.7.6",
-    "@meshsdk/transaction": "1.7.6",
-    "@meshsdk/wallet": "1.7.6"
+    "@meshsdk/common": "1.7.7",
+    "@meshsdk/transaction": "1.7.7",
+    "@meshsdk/wallet": "1.7.7"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
