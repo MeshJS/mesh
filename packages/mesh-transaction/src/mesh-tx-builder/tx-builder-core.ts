@@ -29,6 +29,9 @@ import {
   UTxO,
   UtxoSelection,
   UtxoSelectionStrategy,
+  Vote,
+  Voter,
+  VotingProcedure,
   Withdrawal,
 } from "@meshsdk/common";
 
@@ -41,6 +44,8 @@ export class MeshTxBuilderCore {
   private plutusMintingScriptVersion: LanguageVersion | undefined;
   private addingPlutusWithdrawal = false;
   private plutusWithdrawalScriptVersion: LanguageVersion | undefined;
+  private addingPlutusVote = false;
+  private plutusVoteScriptVersion: LanguageVersion | undefined;
 
   protected _protocolParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
 
@@ -49,6 +54,8 @@ export class MeshTxBuilderCore {
   protected txInQueueItem?: TxIn;
 
   protected withdrawalItem?: Withdrawal;
+
+  protected voteItem?: Vote;
 
   protected collateralQueueItem?: PubKeyTxIn;
 
@@ -758,7 +765,7 @@ export class MeshTxBuilderCore {
     return this;
   };
   /**
-   * Set the instruction that it is currently using V1 Plutus withdrawal scripts
+   * Set the instruction that it is currently using a Plutus withdrawal scripts
    * @returns The MeshTxBuilder instance
    */
   withdrawalPlutusScriptV1 = () => {
@@ -896,6 +903,181 @@ export class MeshTxBuilderCore {
         "withdrawalRedeemerValue: Adding redeemer to non plutus withdrawal",
       );
     this.withdrawalItem.redeemer = this.castBuilderDataToRedeemer(
+      redeemer,
+      type,
+      exUnits,
+    );
+
+    return this;
+  };
+
+  /**
+   * Set the instruction that it is currently using a Plutus voting scripts
+   * @param languageVersion The Plutus script version
+   * @returns The MeshTxBuilder instance
+   */
+  votingPlutusScript = (languageVersion: LanguageVersion) => {
+    this.addingPlutusVote = true;
+    this.plutusVoteScriptVersion = languageVersion;
+    return this;
+  };
+  /**
+   * Set the instruction that it is currently using V1 Plutus voting scripts
+   * @returns The MeshTxBuilder instance
+   */
+  votingPlutusScriptV1 = () => {
+    this.addingPlutusVote = true;
+    this.plutusVoteScriptVersion = "V1";
+    return this;
+  };
+
+  /**
+   * Set the instruction that it is currently using V2 Plutus voting scripts
+   * @returns The MeshTxBuilder instance
+   */
+  votingPlutusScriptV2 = () => {
+    this.addingPlutusVote = true;
+    this.plutusVoteScriptVersion = "V2";
+    return this;
+  };
+
+  /**
+   * Set the instruction that it is currently using V3 Plutus voting scripts
+   * @returns The MeshTxBuilder instance
+   */
+  votingPlutusScriptV3 = () => {
+    this.addingPlutusVote = true;
+    this.plutusVoteScriptVersion = "V3";
+    return this;
+  };
+
+  /**
+   * Add a vote in the MeshTxBuilder instance
+   * @param voter The voter, can be a ConstitutionalCommitee, a DRep or a StakePool
+   * @param govActionId - The transaction hash and transaction id of the governance action
+   * @param votingProcedure - The voting kind (Yes, No, Abstain) with an optional anchor
+   * @returns The MeshTxBuilder instance
+   */
+  vote = (
+    voter: Voter,
+    govActionId: RefTxIn,
+    votingProcedure: VotingProcedure,
+  ) => {
+    if (this.voteItem) {
+      this.queueVote();
+    }
+
+    if (this.addingPlutusVote) {
+      const vote: Vote = {
+        type: "ScriptVote",
+        vote: {
+          voter,
+          govActionId,
+          votingProcedure,
+        },
+      };
+      this.voteItem = vote;
+    } else {
+      const vote: Vote = {
+        type: "BasicVote",
+        vote: {
+          voter,
+          govActionId,
+          votingProcedure,
+        },
+      };
+      this.voteItem = vote;
+    }
+    return this;
+  };
+
+  /**
+   * Add a voting script to the MeshTxBuilder instance
+   * @param scriptCbor The script in CBOR format
+   * @returns The MeshTxBuilder instance
+   */
+  votingScript = (scriptCbor: string) => {
+    if (!this.voteItem) throw Error("voteScript: Undefined vote");
+    if (this.voteItem.type === "BasicVote") {
+      this.voteItem = {
+        type: "SimpleScriptVote",
+        vote: this.voteItem.vote,
+        simpleScriptSource: {
+          type: "Provided",
+          scriptCode: scriptCbor,
+        },
+      };
+    } else if (this.voteItem.type === "ScriptVote") {
+      this.voteItem.scriptSource = {
+        type: "Provided",
+        script: {
+          code: scriptCbor,
+          version: this.plutusVoteScriptVersion || "V2",
+        },
+      };
+    } else if (this.voteItem.type === "SimpleScriptVote") {
+      throw Error("voteScript: Script is already defined for current vote");
+    }
+    return this;
+  };
+
+  /**
+   * Add a vote reference to the MeshTxBuilder instance
+   * @param txHash The transaction hash of reference UTxO
+   * @param txIndex The transaction index of reference UTxO
+   * @param scriptSize The script size in bytes of the vote script (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the vote script
+   * @returns The MeshTxBuilder instance
+   */
+  votingTxInReference = (
+    txHash: string,
+    txIndex: number,
+    scriptSize?: string,
+    scriptHash?: string,
+  ) => {
+    if (!this.voteItem) throw Error("votingTxInReference: Undefined vote");
+    if (this.voteItem.type === "BasicVote")
+      throw Error(
+        "votingTxInReference: Adding script reference to a basic vote",
+      );
+    if (this.voteItem.type === "ScriptVote") {
+      this.voteItem.scriptSource = {
+        type: "Inline",
+        txHash,
+        txIndex,
+        scriptHash,
+        version: this.plutusWithdrawalScriptVersion || "V2",
+        scriptSize,
+      };
+    } else if (this.voteItem.type === "SimpleScriptVote") {
+      this.voteItem.simpleScriptSource = {
+        type: "Inline",
+        txHash,
+        txIndex,
+        scriptSize,
+        simpleScriptHash: scriptHash,
+      };
+    }
+
+    return this;
+  };
+
+  /**
+   * Set the transaction vote redeemer value in the MeshTxBuilder instance
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param exUnits The execution units budget for the redeemer
+   * @returns The MeshTxBuilder instance
+   */
+  votingRedeemerValue = (
+    redeemer: BuilderData["content"],
+    type: BuilderData["type"] = "Mesh",
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+  ) => {
+    if (!this.voteItem) throw Error("votingRedeemerValue: Undefined vote");
+    if (!(this.voteItem.type === "ScriptVote"))
+      throw Error("votingRedeemerValue: Adding redeemer to non plutus vote");
+    this.voteItem.redeemer = this.castBuilderDataToRedeemer(
       redeemer,
       type,
       exUnits,
@@ -1304,6 +1486,9 @@ export class MeshTxBuilderCore {
     if (this.withdrawalItem) {
       this.queueWithdrawal();
     }
+    if (this.voteItem) {
+      this.queueVote();
+    }
   };
 
   private queueInput = () => {
@@ -1357,6 +1542,26 @@ export class MeshTxBuilderCore {
     }
     this.meshTxBuilderBody.withdrawals.push(this.withdrawalItem);
     this.withdrawalItem = undefined;
+  };
+
+  private queueVote = () => {
+    if (!this.voteItem) {
+      throw Error("queueVote: Undefined vote");
+    }
+    if (this.voteItem.type === "ScriptVote") {
+      if (!this.voteItem.scriptSource) {
+        throw Error("queueVote: Missing vote script information");
+      }
+      if (!this.voteItem.redeemer) {
+        throw Error("queueVote: Missing vote redeemer information");
+      }
+    } else if (this.voteItem.type === "SimpleScriptVote") {
+      if (!this.voteItem.simpleScriptSource) {
+        throw Error("queueVote: Missing vote script information");
+      }
+    }
+    this.meshTxBuilderBody.votes.push(this.voteItem);
+    this.voteItem = undefined;
   };
 
   protected castRawDataToJsonString = (rawData: object | string) => {
@@ -1586,11 +1791,13 @@ export class MeshTxBuilderCore {
     this.addingPlutusMint = false;
     this.plutusMintingScriptVersion = undefined;
     this.addingPlutusWithdrawal = false;
+    this.addingPlutusVote = false;
     this.plutusWithdrawalScriptVersion = undefined;
     this._protocolParams = DEFAULT_PROTOCOL_PARAMETERS;
     this.mintItem = undefined;
     this.txInQueueItem = undefined;
     this.withdrawalItem = undefined;
+    this.voteItem = undefined;
     this.collateralQueueItem = undefined;
     this.refScriptTxInQueueItem = undefined;
   };

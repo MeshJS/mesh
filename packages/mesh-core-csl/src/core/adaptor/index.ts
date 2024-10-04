@@ -4,6 +4,7 @@ import { certificateToObj } from "./certificate";
 import { mintItemToObj } from "./mint";
 import { outputToObj } from "./output";
 import { collateralTxInToObj, txInToObj } from "./txIn";
+import { voteToObj } from "./vote";
 import { withdrawalToObj } from "./withdrawal";
 
 export const meshTxBuilderBodyToObj = ({
@@ -19,6 +20,7 @@ export const meshTxBuilderBodyToObj = ({
   certificates,
   signingKey,
   withdrawals,
+  votes,
   network,
 }: MeshTxBuilderBody) => {
   return {
@@ -34,6 +36,7 @@ export const meshTxBuilderBodyToObj = ({
     certificates: certificates.map(certificateToObj),
     signingKey: signingKey,
     withdrawals: withdrawals.map(withdrawalToObj),
+    votes: votes.map(voteToObj),
     network,
   };
 };
