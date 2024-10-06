@@ -13,7 +13,7 @@ use mocktail/virgin_key_hash.{mock_policy_id, mock_pub_key_hash}
 use mocktail/virgin_output_reference.{mock_tx_hash, mock_utxo_ref}
 use vodka_extra_signatories.{key_signed}
 use vodka_inputs.{inputs_at_with_policy}
-use vodka_mints.{check_policy_only_burn}
+use vodka_mints.{only_minted_token}
 use vodka_outputs.{outputs_at_with_policy}
 
 pub type OracleDatum {
@@ -57,7 +57,7 @@ validator account_oracle {
       }
       (StopOracle, [_], _) -> {
         let is_oracle_nft_burnt =
-          check_policy_only_burn(mint, oracle_nft_policy)
+          only_minted_token(mint, oracle_nft_policy, "", -1)
         let is_owner_signed = key_signed(extra_signatories, owner_key)
         is_oracle_nft_burnt? && is_owner_signed?
       }
@@ -70,27 +70,163 @@ validator account_oracle {
   }
 }
 
-test success_mint() {
-  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
-  let redeemer = MintPlutusNFT
+type MintTestCase {
+  is_oracle_output_clean: Bool,
+  is_owner_signed: Bool,
+  is_count_updated: Bool,
+}
+
+fn mock_mint_tx(test_case: MintTestCase) -> Transaction {
+  let MintTestCase { is_oracle_output_clean, is_owner_signed, is_count_updated } =
+    test_case
+
   let input_value =
     from_asset(mock_policy_id(0), "", 1) |> add("", "", 2_000_000)
 
+  mocktail_tx()
+    |> tx_in(True, mock_tx_hash(0), 0, input_value, mock_script_address(0, None))
+    |> tx_in_inline_datum(
+        True,
+        OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) },
+      )
+    |> tx_out(is_oracle_output_clean, mock_script_address(0, None), input_value)
+    |> tx_out(
+        !is_oracle_output_clean,
+        mock_script_address(0, None),
+        input_value |> add(mock_policy_id(1), "", 1),
+      )
+    |> tx_out_inline_datum(
+        True,
+        OracleDatum {
+          count: if is_count_updated {
+            1
+          } else {
+            0
+          },
+          owner_key: mock_pub_key_hash(0),
+        },
+      )
+    |> mint(True, 1, mock_policy_id(1), "collection (0)")
+    |> required_signer_hash(is_owner_signed, mock_pub_key_hash(0))
+    |> complete()
+}
+
+test success_mint() {
+  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
+  let redeemer = MintPlutusNFT
   let tx =
-    mocktail_tx()
-      |> tx_in(True, mock_tx_hash(0), 0, input_value, mock_script_address(0, None))
-      |> tx_in_inline_datum(
-          True,
-          OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) },
-        )
-      |> tx_out(True, mock_script_address(0, None), input_value)
-      |> tx_out_inline_datum(
-          True,
-          OracleDatum { count: 1, owner_key: mock_pub_key_hash(0) },
-        )
-      |> mint(True, 1, mock_policy_id(1), "collection (0)")
-      |> required_signer_hash(True, mock_pub_key_hash(0))
-      |> complete()
+    mock_mint_tx(
+      MintTestCase {
+        is_oracle_output_clean: True,
+        is_owner_signed: True,
+        is_count_updated: True,
+      },
+    )
 
   account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+}
+
+test fail_mint_with_unclean_output() {
+  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
+  let redeemer = MintPlutusNFT
+
+  let tx =
+    mock_mint_tx(
+      MintTestCase {
+        is_oracle_output_clean: False,
+        is_owner_signed: True,
+        is_count_updated: True,
+      },
+    )
+
+  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+}
+
+test fail_mint_without_owner_signature() {
+  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
+  let redeemer = MintPlutusNFT
+
+  let tx =
+    mock_mint_tx(
+      MintTestCase {
+        is_oracle_output_clean: True,
+        is_owner_signed: False,
+        is_count_updated: True,
+      },
+    )
+
+  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+}
+
+test fail_mint_without_count_updated() {
+  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
+  let redeemer = MintPlutusNFT
+
+  let tx =
+    mock_mint_tx(
+      MintTestCase {
+        is_oracle_output_clean: True,
+        is_owner_signed: True,
+        is_count_updated: False,
+      },
+    )
+
+  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+}
+
+type StopOracleTestCase {
+  is_oracle_nft_burnt: Bool,
+  is_owner_signed: Bool,
+}
+
+fn mock_stop_oracle_tx(test_case: StopOracleTestCase) -> Transaction {
+  let StopOracleTestCase { is_oracle_nft_burnt, is_owner_signed } = test_case
+
+  let input_value =
+    from_asset(mock_policy_id(0), "", 1) |> add("", "", 2_000_000)
+
+  mocktail_tx()
+    |> tx_in(True, mock_tx_hash(0), 0, input_value, mock_script_address(0, None))
+    |> tx_in_inline_datum(
+        True,
+        OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) },
+      )
+    |> mint(is_oracle_nft_burnt, -1, mock_policy_id(0), "")
+    |> required_signer_hash(is_owner_signed, mock_pub_key_hash(0))
+    |> complete()
+}
+
+test success_stop() {
+  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
+  let redeemer = StopOracle
+  let tx =
+    mock_stop_oracle_tx(
+      StopOracleTestCase { is_oracle_nft_burnt: True, is_owner_signed: True },
+    )
+
+  account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+}
+
+test fail_stop_without_owner_signature() {
+  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
+  let redeemer = StopOracle
+
+  let tx =
+    mock_stop_oracle_tx(
+      StopOracleTestCase { is_oracle_nft_burnt: True, is_owner_signed: False },
+    )
+
+  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+}
+
+test fail_stop_with_oracle_nft_not_burnt() {
+  let datum = OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) }
+  let redeemer = StopOracle
+
+  let tx =
+    mock_stop_oracle_tx(
+      StopOracleTestCase { is_oracle_nft_burnt: False, is_owner_signed: True },
+    )
+
+  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
