@@ -10,12 +10,14 @@ import { Intro } from "../common";
 import GovernanceDeregistration from "./deregistration";
 import GovernanceRegistration from "./registration";
 import GovernanceVoteDelegation from "./vote-delegation";
+import GovernanceVote from "./vote";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "DRep Registration", to: "registration" },
     { label: "DRep Deregistration", to: "deregistration" },
     { label: "Vote Delegation", to: "delegation" },
+    { label: "Vote", to: "vote" },
   ];
 
   return (
@@ -49,6 +51,7 @@ const ReactPage: NextPage = () => {
         <GovernanceRegistration />
         <GovernanceDeregistration />
         <GovernanceVoteDelegation />
+        <GovernanceVote />
       </SidebarFullwidth>
     </>
   );
