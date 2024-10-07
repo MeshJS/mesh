@@ -46,7 +46,7 @@ const ReactPage: NextPage = () => {
             the Mesh SDK.
           </p>
         </TitleIconDescriptionBody>
-        <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/Transaction" />
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/MeshTxBuilder" />
 
         <GovernanceRegistration />
         <GovernanceDeregistration />
