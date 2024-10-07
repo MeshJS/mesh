@@ -916,7 +916,7 @@ export class MeshTxBuilderCore {
    * @param languageVersion The Plutus script version
    * @returns The MeshTxBuilder instance
    */
-  votingPlutusScript = (languageVersion: LanguageVersion) => {
+  votePlutusScript = (languageVersion: LanguageVersion) => {
     this.addingPlutusVote = true;
     this.plutusVoteScriptVersion = languageVersion;
     return this;
@@ -925,7 +925,7 @@ export class MeshTxBuilderCore {
    * Set the instruction that it is currently using V1 Plutus voting scripts
    * @returns The MeshTxBuilder instance
    */
-  votingPlutusScriptV1 = () => {
+  votePlutusScriptV1 = () => {
     this.addingPlutusVote = true;
     this.plutusVoteScriptVersion = "V1";
     return this;
@@ -935,7 +935,7 @@ export class MeshTxBuilderCore {
    * Set the instruction that it is currently using V2 Plutus voting scripts
    * @returns The MeshTxBuilder instance
    */
-  votingPlutusScriptV2 = () => {
+  votePlutusScriptV2 = () => {
     this.addingPlutusVote = true;
     this.plutusVoteScriptVersion = "V2";
     return this;
@@ -945,7 +945,7 @@ export class MeshTxBuilderCore {
    * Set the instruction that it is currently using V3 Plutus voting scripts
    * @returns The MeshTxBuilder instance
    */
-  votingPlutusScriptV3 = () => {
+  votePlutusScriptV3 = () => {
     this.addingPlutusVote = true;
     this.plutusVoteScriptVersion = "V3";
     return this;
@@ -996,7 +996,7 @@ export class MeshTxBuilderCore {
    * @param scriptCbor The script in CBOR format
    * @returns The MeshTxBuilder instance
    */
-  votingScript = (scriptCbor: string) => {
+  voteScript = (scriptCbor: string) => {
     if (!this.voteItem) throw Error("voteScript: Undefined vote");
     if (this.voteItem.type === "BasicVote") {
       this.voteItem = {
@@ -1029,16 +1029,16 @@ export class MeshTxBuilderCore {
    * @param scriptHash The script hash of the vote script
    * @returns The MeshTxBuilder instance
    */
-  votingTxInReference = (
+  voteTxInReference = (
     txHash: string,
     txIndex: number,
     scriptSize?: string,
     scriptHash?: string,
   ) => {
-    if (!this.voteItem) throw Error("votingTxInReference: Undefined vote");
+    if (!this.voteItem) throw Error("voteTxInReference: Undefined vote");
     if (this.voteItem.type === "BasicVote")
       throw Error(
-        "votingTxInReference: Adding script reference to a basic vote",
+        "voteTxInReference: Adding script reference to a basic vote",
       );
     if (this.voteItem.type === "ScriptVote") {
       this.voteItem.scriptSource = {
@@ -1069,14 +1069,14 @@ export class MeshTxBuilderCore {
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
-  votingRedeemerValue = (
+  voteRedeemerValue = (
     redeemer: BuilderData["content"],
     type: BuilderData["type"] = "Mesh",
     exUnits = { ...DEFAULT_REDEEMER_BUDGET },
   ) => {
-    if (!this.voteItem) throw Error("votingRedeemerValue: Undefined vote");
+    if (!this.voteItem) throw Error("voteRedeemerValue: Undefined vote");
     if (!(this.voteItem.type === "ScriptVote"))
-      throw Error("votingRedeemerValue: Adding redeemer to non plutus vote");
+      throw Error("voteRedeemerValue: Adding redeemer to non plutus vote");
     this.voteItem.redeemer = this.castBuilderDataToRedeemer(
       redeemer,
       type,
