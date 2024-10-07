@@ -12,7 +12,7 @@
   },
   "validators": [
     {
-      "title": "oracle.account_oracle.spend",
+      "title": "oracle.oracle.spend",
       "datum": {
         "title": "datum_opt",
         "schema": {
@@ -29,7 +29,7 @@
       "hash": "80fc391e9f953c47f3de4248f9bcc0003e81ae73bda4a1616c4d2e4d"
     },
     {
-      "title": "oracle.account_oracle.else",
+      "title": "oracle.oracle.else",
       "redeemer": {
         "schema": {}
       },

@@ -26,7 +26,7 @@ pub type OracleRedeemer {
   StopOracle
 }
 
-validator account_oracle {
+validator oracle {
   spend(
     datum_opt: Option<OracleDatum>,
     redeemer: OracleRedeemer,
@@ -123,7 +123,7 @@ test success_mint() {
       },
     )
 
-  account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+  oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
 
 test fail_mint_with_unclean_output() {
@@ -139,7 +139,7 @@ test fail_mint_with_unclean_output() {
       },
     )
 
-  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+  !oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
 
 test fail_mint_without_owner_signature() {
@@ -155,7 +155,7 @@ test fail_mint_without_owner_signature() {
       },
     )
 
-  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+  !oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
 
 test fail_mint_without_count_updated() {
@@ -171,7 +171,7 @@ test fail_mint_without_count_updated() {
       },
     )
 
-  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+  !oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
 
 type StopOracleTestCase {
@@ -204,7 +204,7 @@ test success_stop() {
       StopOracleTestCase { is_oracle_nft_burnt: True, is_owner_signed: True },
     )
 
-  account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+  oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
 
 test fail_stop_without_owner_signature() {
@@ -216,7 +216,7 @@ test fail_stop_without_owner_signature() {
       StopOracleTestCase { is_oracle_nft_burnt: True, is_owner_signed: False },
     )
 
-  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+  !oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
 
 test fail_stop_with_oracle_nft_not_burnt() {
@@ -228,5 +228,5 @@ test fail_stop_with_oracle_nft_not_burnt() {
       StopOracleTestCase { is_oracle_nft_burnt: False, is_owner_signed: True },
     )
 
-  !account_oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
+  !oracle.spend(Some(datum), redeemer, mock_utxo_ref(0, 0), tx)
 }
