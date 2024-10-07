@@ -1,4 +1,5 @@
 import { Anchor } from "./certificate";
+import { Credential } from "./credential";
 import { Redeemer } from "./data";
 import { ScriptSource, SimpleScriptSourceInfo } from "./script";
 import { RefTxIn } from "./txin";
@@ -32,7 +33,7 @@ export type VoteType = {
 export type Voter =
   | {
       type: "ConstitutionalCommittee";
-      hotAddress: string;
+      hotCred: Credential;
     }
   | {
       type: "DRep";

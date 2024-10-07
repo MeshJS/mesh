@@ -42,8 +42,23 @@ const voteTypeToObj = (voteType: VoteType) => {
 
   switch (voteType.voter.type) {
     case "ConstitutionalCommittee": {
+      let ccCred = {};
+      switch (voteType.voter.hotCred.type) {
+        case "ScriptHash": {
+          ccCred = {
+            scriptHash: voteType.voter.hotCred.scriptHash,
+          };
+          break;
+        }
+        case "KeyHash": {
+          ccCred = {
+            keyHash: voteType.voter.hotCred.keyHash,
+          };
+          break;
+        }
+      }
       voter = {
-        constitutionalCommitteeHotAddress: voteType.voter.hotAddress,
+        constitutionalCommitteeHotCred: ccCred,
       };
       break;
     }
