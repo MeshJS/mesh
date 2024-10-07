@@ -210,10 +210,15 @@ export class MaestroProvider
         `assets/${policyId}${assetName}`,
       );
       if (status === 200) {
+        
         const data = timestampedData.data;
         return <AssetMetadata>{
           ...data.asset_standards.cip25_metadata,
           ...data.asset_standards.cip68_metadata,
+          fingerprint: data.fingerprint,
+          totalSupply: data.total_supply,
+          mintingTxHash: data.latest_mint_tx.tx_hash,
+          mintCount: data.mint_tx_count,
         };
       }
 

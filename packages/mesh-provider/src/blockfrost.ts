@@ -210,6 +210,10 @@ export class BlockfrostProvider
       if (status === 200 || status == 202)
         return <AssetMetadata>{
           ...data.onchain_metadata,
+          fingerprint: data.fingerprint,
+          totalSupply: data.quantity,
+          mintingTxHash: data.initial_mint_tx_hash, // todo: request for `initial_mint_tx_hash`
+          mintCount: data.mint_or_burn_count,
         };
 
       throw parseHttpError(data);

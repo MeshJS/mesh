@@ -25,9 +25,7 @@ In this guide, we will build a multi-sig transaction for minting. There are 2 wa
 1. client wallet belonging to the user who wishes to buy a native asset
 2. application wallet that holds the forging script
 
-## See it in action
-
-In this guide, we will connect to user's CIP30 wallet (`BrowserWallet`) to request for a minting transaction. Then, the backend application wallet (`MeshWallet`) will build the transaction, and we will sign it with our wallet.
+In this guide, we will connect to user's CIP30 wallet (`BrowserWallet`) to request for a minting transaction. Then, the backend application wallet (`MeshWallet`) will build the transaction, and we will sign it with our wallet. [Check out the code here](https://github.com/MeshJS/mesh/blob/main/apps/playground/src/pages/guides/multisig-minting/demo.tsx).
 
 ## Connect wallet (client)
 
@@ -140,13 +138,15 @@ tx.setChangeAddress(recipientAddress);
 const unsignedTx = await tx.build();
 ```
 
-The backend will sign the transaction with the application wallet:
+Optionally, we can mask the metadata so users do not see the NFT metadata:
 
 ```
-const meshWalletSignedTx = await systemWallet.signTx(unsignedTx, true);
+originalMetadata = Transaction.readMetadata(unsignedTx);
 ```
 
-And send the signed transaction to the client for their signature.
+This `originalMetadata` can be stored in a database to merge with the original transaction after user signature.
+
+Send the transaction to the client for their signature.
 
 ## Sign transaction (client)
 
@@ -154,7 +154,37 @@ In this section, we need the client's signature to send the payment to the `bank
 
 ```
 const signedTx = await wallet.signTx(unsignedTx, true);
+```
+
+## Sign transaction (application)
+
+The backend will sign the transaction with the application wallet:
+
+```
+const meshWalletSignedTx = await systemWallet.signTx(unsignedTx, true);
+```
+
+If you have masked the metadata, you can merge the metadata with the signed transaction:
+
+```
+const signedOriginalTx = Transaction.writeMetadata(
+  unsignedTx,
+  originalMetadata,
+);
+const meshWalletSignedTx = await systemWallet.signTx(
+  signedOriginalTx,
+  true,
+);
+```
+
+## Submit transaction (application)
+
+Finally, we submit the transaction to the blockchain:
+
+```
 const txHash = await wallet.submitTx(signedTx);
 ```
 
 Voila! You can build any multi-sig transactions!
+
+[Check out the code here](https://github.com/MeshJS/mesh/blob/main/apps/playground/src/pages/guides/multisig-minting/demo.tsx).
