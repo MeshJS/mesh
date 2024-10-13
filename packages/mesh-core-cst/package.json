@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core-cst",
-  "version": "1.7.8",
+  "version": "1.7.9",
   "description": "",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -36,13 +36,13 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@cardano-sdk/core": "^0.35.4",
+    "@cardano-sdk/core": "^0.7.0",
     "@cardano-sdk/crypto": "^0.1.28",
     "@cardano-sdk/util": "^0.15.4",
     "@harmoniclabs/cbor": "1.3.0",
     "@harmoniclabs/plutus-data": "1.2.4",
     "@harmoniclabs/uplc": "1.2.4",
-    "@meshsdk/common": "1.7.8",
+    "@meshsdk/common": "1.7.9",
     "@stricahq/bip32ed25519": "^1.1.0",
     "@stricahq/cbors": "^1.0.0",
     "pbkdf2": "^3.1.2"

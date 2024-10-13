@@ -15,11 +15,14 @@ import {
   UTxO,
 } from "@meshsdk/common";
 
-import { HydraAssets, HydraUTxO } from "./types/hydra";
+import { HydraAssets, HydraUTxO } from "./types";
 import { parseHttpError } from "./utils";
 
 import "@meshsdk/core-cst";
 
+/**
+ * Experimental Hydra provider - WIP and breaking changes are expected
+ */
 export class HydraProvider {
   private readonly _baseUrl: string;
   private readonly _eventEmitter: EventEmitter;
@@ -33,6 +36,10 @@ export class HydraProvider {
     this._axiosInstance = axios.create({ baseURL: url });
   }
 
+  /**
+   * Submit a transaction to the Hydra node. Note, unlike other providers, Hydra does not return a transaction hash.
+   * @param tx - The transaction in CBOR hex format
+   */
   async submitTx(tx: string): Promise<void> {
     try {
       const payload = {
