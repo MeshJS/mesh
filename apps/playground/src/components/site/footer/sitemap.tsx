@@ -1,10 +1,10 @@
 import Link from "~/components/link";
-
 import { linksAbout } from "~/data/links-about";
 import { linksApi } from "~/data/links-api";
 import { metaGetStarted } from "~/data/links-get-started";
 import { metaGuides } from "~/data/links-guides";
 import { metaSmartContract } from "~/data/links-smart-contracts";
+import { metaSolutions } from "~/data/links-solutions";
 import { MenuItem } from "~/types/menu-item";
 
 export default function Sitemap() {
@@ -12,6 +12,7 @@ export default function Sitemap() {
     <div className="mx-auto max-w-screen-xl p-4 py-6 md:p-8 lg:p-10">
       <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-4">
         <Section menuItem={metaGetStarted} />
+        <Section menuItem={metaSolutions} />
 
         {linksApi.map((api, i) => (
           <Section menuItem={api} key={i} />

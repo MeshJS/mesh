@@ -14,7 +14,7 @@ import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAddresses, demoAssetMetadata } from "~/data/cardano";
 
-export default function MintingNativeScript() {
+export default function MintingMaskMetadata() {
   return (
     <TwoColumnsScroll
       sidebarTo="maskMetadata"
@@ -26,96 +26,57 @@ export default function MintingNativeScript() {
 }
 
 function Left() {
-  let codeSnippetNative = ``;
-  codeSnippetNative += `import type { NativeScript } from '@meshsdk/core';\n`;
-  codeSnippetNative += `\n`;
+  let codeSnippet1 = ``;
+  codeSnippet1 += `const tx = new Transaction({ initiator: wallet });\n`;
+  codeSnippet1 += `tx.mintAsset(forgingScript, asset1);\n`;
+  codeSnippet1 += `...\n`;
+  codeSnippet1 += `const unsignedTx = await tx.build();\n`;
 
-  codeSnippetNative += `const usedAddress = await wallet.getUsedAddresses();\n`;
-  codeSnippetNative += `const address = usedAddress[0];\n`;
-  codeSnippetNative += `\n`;
-  codeSnippetNative += `const { pubKeyHash: keyHash } = deserializeAddress(address);\n\n`;
+  let codeSnippet2 = `const originalMetadata = Transaction.readMetadata(unsignedTx);`;
 
-  codeSnippetNative += `const nativeScript: NativeScript = {\n`;
-  codeSnippetNative += `  type: "all",\n`;
-  codeSnippetNative += `  scripts: [\n`;
-  codeSnippetNative += `    {\n`;
-  codeSnippetNative += `      type: "before",\n`;
-  codeSnippetNative += `      slot: "99999999",\n`;
-  codeSnippetNative += `    },\n`;
-  codeSnippetNative += `    {\n`;
-  codeSnippetNative += `      type: "sig",\n`;
-  codeSnippetNative += `      keyHash: keyHash,\n`;
-  codeSnippetNative += `    },\n`;
-  codeSnippetNative += `  ],\n`;
-  codeSnippetNative += `};\n`;
+  let codeSnippet3 = `const maskedTx = Transaction.maskMetadata(unsignedTx);`;
 
-  let codeSnippet1 = `const forgingScript = ForgeScript.fromNativeScript(nativeScript);\n`;
+  let codeSnippet4 = `const signedTx = await wallet.signTx(maskedTx);`;
 
-  let codeSnippet2 = `const assetMetadata: AssetMetadata = ${JSON.stringify(
-    demoAssetMetadata,
-    null,
-    2,
-  )};\n\n`;
-  codeSnippet2 += `const asset: Mint = {\n`;
-  codeSnippet2 += `  assetName: 'MeshToken',\n`;
-  codeSnippet2 += `  assetQuantity: '1',\n`;
-  codeSnippet2 += `  metadata: assetMetadata,\n`;
-  codeSnippet2 += `  label: '721',\n`;
-  codeSnippet2 += `  recipient: '${demoAddresses.testnet}' \n`;
-  codeSnippet2 += `};\n`;
-
-  let codeSnippet3 = `const tx = new Transaction({ initiator: wallet });\n`;
-  codeSnippet3 += `tx.mintAsset(\n`;
-  codeSnippet3 += `  forgingScript,\n`;
-  codeSnippet3 += `  asset,\n`;
-  codeSnippet3 += `);\n\n`;
-  codeSnippet3 += `const unsignedTx = await tx.build();\n`;
-  codeSnippet3 += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  codeSnippet3 += `const txHash = await wallet.submitTx(signedTx);\n`;
+  let codeSnippet5 = ``;
+  codeSnippet5 += `const signedOriginalTx = Transaction.writeMetadata(\n`;
+  codeSnippet5 += `  signedTx,\n`;
+  codeSnippet5 += `  originalMetadata,\n`;
+  codeSnippet5 += `);\n\n`;
+  codeSnippet5 += `const txHash = await wallet.submitTx(signedOriginalTx);`;
 
   return (
     <>
       <p>
-        Additionally, you can define the forging script with{" "}
-        <code>NativeScript</code>. For example if you want to have a policy
-        locking script, you can create a new <code>ForgeScript</code> from{" "}
-        <code>NativeScript</code>:
+        Masking metadata is a way to hide the metadata from the transaction
+        before signing it. This is useful when you want to keep the metadata
+        private until the transaction is signed. Check the{" "}
+        <Link href="guides/multisig-minting">Multisig Multing guide</Link> for a
+        end-to-end example.
       </p>
-      <Codeblock data={codeSnippetNative} />
+      <p>
+        In the following code snippet, we will see how to mask metadata before
+        signing the transaction. First we build the minting transaction, check
+        the other sections for more details.
+      </p>
       <Codeblock data={codeSnippet1} />
       <p>
-        To get the <code>keyHash</code>, use the{" "}
-        <code>deserializeAddress()</code>. To get the slot, use the{" "}
-        <code>resolveSlotNo()</code>. Check out{" "}
-        <Link href="/apis/resolvers">Resolvers</Link> on how to use these
-        functions.
+        After building the transaction, we can save the original metadata to use
+        it later.
       </p>
-      <p>
-        Important: if you are using a policy locking script, you must define{" "}
-        <code>setTimeToExpire</code> before the expiry; otherwise, you will
-        catch the <code>ScriptWitnessNotValidatingUTXOW</code> error. See{" "}
-        <Link href="/apis/transaction#setTime">Transaction - set time</Link>.
-      </p>
-
-      <p>
-        Next, we define the metadata for the asset and create the asset object:
-      </p>
-
       <Codeblock data={codeSnippet2} />
-
       <p>
-        Finally, we create a transaction and mint the asset with the{" "}
-        <code>mintAsset</code> method:
+        Mask the metadata before sending it to the user for signing the
+        transaction.
       </p>
       <Codeblock data={codeSnippet3} />
-
+      <p>The user signs the transaction with the masked metadata.</p>
+      <Codeblock data={codeSnippet4} />
       <p>
-        You can get the policy ID for this Native Script with{" "}
-        <code>resolveNativeScriptHash</code>:
+        After the user signs the transaction, we can write the original metadata
+        back to the transaction. Then we submit the transaction to the network.
       </p>
-      <Codeblock
-        data={`const policyId = resolveNativeScriptHash(nativeScript);`}
-      />
+      <Codeblock data={codeSnippet5} />
     </>
   );
 }
@@ -149,13 +110,10 @@ function Right() {
 
     const forgingScript = ForgeScript.fromNativeScript(nativeScript);
 
-    // define asset metadata
-    const assetMetadata1: AssetMetadata = demoAssetMetadata;
-
     const asset1: Mint = {
       assetName: "MeshToken",
       assetQuantity: "1",
-      metadata: assetMetadata1,
+      metadata: demoAssetMetadata,
       label: "721",
       recipient: address,
     };
@@ -163,18 +121,28 @@ function Right() {
     const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.mintAsset(forgingScript, asset1);
     tx.setTimeToExpire("99999999");
-
     const unsignedTx = await tx.build();
-    const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await wallet.submitTx(signedTx);
+
+    const originalMetadata = Transaction.readMetadata(unsignedTx);
+
+    const maskedTx = Transaction.maskMetadata(unsignedTx);
+
+    const signedTx = await wallet.signTx(maskedTx);
+
+    const signedOriginalTx = Transaction.writeMetadata(
+      signedTx,
+      originalMetadata,
+    );
+
+    const txHash = await wallet.submitTx(signedOriginalTx);
 
     return txHash;
   }
 
   return (
     <LiveCodeDemo
-      title="Mint Assets with Native Script"
-      subtitle="Mint native assets with Native Script"
+      title="Mint Assets with Masked Metadata"
+      subtitle="Mint native assets with ForgeScript and mask metadata"
       runCodeFunction={runDemo}
       disabled={!connected}
       runDemoButtonTooltip={
