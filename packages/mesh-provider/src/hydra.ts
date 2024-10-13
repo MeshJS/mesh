@@ -1,10 +1,24 @@
 import { EventEmitter } from "events";
 import axios, { AxiosInstance } from "axios";
 
-import { UTxO } from "@meshsdk/common";
+import {
+  AccountInfo,
+  Asset,
+  AssetMetadata,
+  BlockInfo,
+  castProtocol,
+  IFetcher,
+  ISubmitter,
+  Protocol,
+  toBytes,
+  TransactionInfo,
+  UTxO,
+} from "@meshsdk/common";
 
-import { HydraUTxO } from "./types/hydra";
+import { HydraAssets, HydraUTxO } from "./types/hydra";
 import { parseHttpError } from "./utils";
+
+import "@meshsdk/core-cst";
 
 export class HydraProvider {
   private readonly _baseUrl: string;
@@ -17,6 +31,24 @@ export class HydraProvider {
     this._eventEmitter = new EventEmitter();
 
     this._axiosInstance = axios.create({ baseURL: url });
+  }
+
+  async submitTx(tx: string): Promise<void> {
+    try {
+      const payload = {
+        tag: "NewTx",
+        transaction: {
+          type: "Witnessed Tx ConwayEra",
+          description: "Ledger Cddl Format",
+          cborHex: tx,
+        },
+      };
+      this.check();
+      this.sendCommand(payload);
+      // throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
   }
 
   async connect(): Promise<void> {
@@ -54,16 +86,93 @@ export class HydraProvider {
     this.sendCommand({ tag: "Init" });
   }
 
-  async fetchAddressUTxOs(address: string): Promise<UTxO[]> {
+  async fetchUtxoSnapshot(): Promise<UTxO[]> {
     const { data, status } = await this._axiosInstance.get(`snapshot/utxo`);
     if (status === 200) {
-      const utxos = data.map((utxo: HydraUTxO) =>
-        this.toUTxO(utxo, utxo.tx_hash),
-      );
+      console.log("UTXOs: ", data);
+      const utxos: UTxO[] = [];
+      for (const [key, value] of Object.entries(data)) {
+        const utxo = this.toUTxO(value as HydraUTxO, key);
+        utxos.push(utxo);
+      }
+
       return utxos;
     }
     throw parseHttpError(data);
   }
+
+  async fetchAddressUTxOs(address: string): Promise<UTxO[]> {
+    const utxos = await this.fetchUtxoSnapshot();
+    return utxos.filter((utxo) => utxo.output.address === address);
+  }
+
+  async fetchProtocolParameters(): Promise<Protocol> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        "protocol-parameters",
+      );
+
+      if (status === 200)
+        return castProtocol({
+          coinsPerUtxoSize: data.utxoCostPerByte,
+          collateralPercent: data.collateralPercentage,
+          maxBlockExMem: data.maxBlockExecutionUnits.memory,
+          maxBlockExSteps: data.maxBlockExecutionUnits.steps,
+          maxBlockHeaderSize: data.maxBlockHeaderSize,
+          maxBlockSize: data.maxBlockBodySize,
+          maxCollateralInputs: data.maxCollateralInputs,
+          maxTxExMem: data.maxTxExecutionUnits.memory,
+          maxTxExSteps: data.maxTxExecutionUnits.steps,
+          maxTxSize: data.maxTxSize,
+          maxValSize: data.maxValueSize,
+          minFeeA: data.txFeePerByte,
+          minFeeB: data.txFeeFixed,
+          minPoolCost: data.minPoolCost,
+          poolDeposit: data.stakePoolDeposit,
+          priceMem: data.executionUnitPrices.priceMemory,
+          priceStep: data.executionUnitPrices.priceSteps,
+        });
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+  // fetchAccountInfo(address: string): Promise<AccountInfo> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // fetchAssetAddresses(
+  //   asset: string,
+  // ): Promise<{ address: string; quantity: string }[]> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // fetchBlockInfo(hash: string): Promise<BlockInfo> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // fetchCollectionAssets(
+  //   policyId: string,
+  //   cursor?: number | string,
+  // ): Promise<{ assets: Asset[]; next?: string | number | null }> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // fetchHandle(handle: string): Promise<object> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // fetchHandleAddress(handle: string): Promise<string> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // fetchTxInfo(hash: string): Promise<TransactionInfo> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // fetchUTxOs(hash: string): Promise<UTxO[]> {
+  //   throw new Error("Method not implemented.");
+  // }
+  // get(url: string): Promise<any> {
+  //   throw new Error("Method not implemented.");
+  // }
 
   async receiveMessage(message: MessageEvent) {
     const data = JSON.parse(message.data);
@@ -78,20 +187,32 @@ export class HydraProvider {
     this._client!.send(JSON.stringify(data));
   }
 
-  private toUTxO = async (
-    hUTxO: HydraUTxO,
-    tx_hash: string,
-  ): Promise<UTxO> => ({
-    input: {
-      outputIndex: hUTxO.output_index,
-      txHash: tx_hash,
-    },
-    output: {
-      address: hUTxO.address,
-      amount: hUTxO.amount,
-      dataHash: hUTxO.data_hash ?? undefined,
-      plutusData: hUTxO.inline_datum ?? undefined,
-      scriptHash: hUTxO.reference_script_hash,
-    },
-  });
+  private toUTxO = (hUTxO: HydraUTxO, txId: string): UTxO => {
+    const [txHash, txIndex] = txId.split("#");
+
+    return {
+      input: {
+        outputIndex: Number(txIndex),
+        txHash: txHash!,
+      },
+      output: {
+        address: hUTxO.address,
+        amount: this.toAssets(hUTxO.value),
+        dataHash: hUTxO.datumhash ?? undefined,
+        plutusData: hUTxO.inlineDatum?.toString() ?? undefined, // TODO: cast to correct cbor
+        scriptHash: hUTxO.referenceScript?.toString() ?? undefined, // TODO: cast to correct cbor
+      },
+    };
+  };
+
+  private toAssets = (hAssets: HydraAssets): Asset[] => {
+    const assets: Asset[] = [];
+    for (const [policy, amount] of Object.entries(hAssets)) {
+      assets.push({
+        unit: policy,
+        quantity: amount.toString(),
+      });
+    }
+    return assets;
+  };
 }

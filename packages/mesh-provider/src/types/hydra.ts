@@ -1,17 +1,31 @@
-import { Asset, Quantity, Unit } from "@meshsdk/common";
-
-export type HydraUTxO = {
-  output_index: number;
-  amount: Array<Asset>;
-  address: string;
-  data_hash?: string;
-  inline_datum?: string;
-  collateral?: boolean;
-  reference_script_hash?: string;
-  tx_hash: string;
+export type HydraUTxOs = {
+  [x: string]: HydraUTxO;
 };
 
-export type HydraAsset = {
-  asset: Unit;
-  quantity: Quantity;
+export type HydraUTxO = {
+  address: string;
+  value: HydraAssets;
+  referenceScript?: HydraReferenceScript;
+  datumhash?: string;
+  inlineDatum?: object;
+  inlineDatumhash?: string;
+  datum?: string;
+};
+
+export type HydraAssets = {
+  lovelace: number;
+  [x: string]: number;
+};
+
+export type HydraReferenceScript = {
+  scriptLanguage: string;
+  script: {
+    cborHex: string;
+    description: string;
+    type:
+      | "SimpleScript"
+      | "PlutusScriptV1"
+      | "PlutusScriptV2"
+      | "PlutusScriptV3";
+  };
 };
