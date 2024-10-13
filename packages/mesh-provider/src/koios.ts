@@ -162,10 +162,13 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
       const { data, status } = await this._axiosInstance.get(
         `asset_info?_asset_policy=${policyId}&_asset_name=${assetName}`,
       );
-
       if (status === 200)
         return <AssetMetadata>{
           ...data[0].minting_tx_metadata[721][policyId][toUTF8(assetName)],
+          fingerprint: data[0].fingerprint,
+          totalSupply: data[0].total_supply,
+          mintingTxHash: data[0].minting_tx_hash,
+          mintCount: data[0].mint_cnt,
         };
 
       throw parseHttpError(data);

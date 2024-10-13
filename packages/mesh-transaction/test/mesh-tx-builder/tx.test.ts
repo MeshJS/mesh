@@ -4,8 +4,10 @@ import {
   NativeScript,
   resolveNativeScriptHash,
   resolveNativeScriptHex,
+  resolveScriptHash,
   resolveScriptHashDRepId,
 } from "@meshsdk/core";
+import { applyCborEncoding } from "@meshsdk/core-csl";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
 describe("MeshTxBuilder transactions", () => {
@@ -349,6 +351,163 @@ describe("MeshTxBuilder transactions", () => {
         },
       )
       .completeSync();
+    console.log(txHex);
+    expect(txHex !== "").toBeTruthy();
+  });
+
+  it("Drep vote", () => {
+    let mesh = new MeshTxBuilder();
+
+    let txHex = mesh
+      .changeAddress(
+        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
+      )
+      .txIn(
+        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+        3,
+        [
+          {
+            unit: "lovelace",
+            quantity: "9891607895",
+          },
+        ],
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+      )
+      .vote(
+        {
+          type: "DRep",
+          drepId: "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
+        },
+        {
+          txHash:
+            "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+          txIndex: 3,
+        },
+        {
+          voteKind: "Yes",
+          anchor: {
+            anchorUrl: "https://path-to.jsonld",
+            anchorDataHash:
+              "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+          },
+        },
+      )
+      .completeSync();
+
+    console.log(txHex);
+    expect(txHex !== "").toBeTruthy();
+  });
+
+  it("Script drep vote", () => {
+    let mesh = new MeshTxBuilder();
+
+    let txHex = mesh
+      .changeAddress(
+        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
+      )
+      .txIn(
+        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+        3,
+        [
+          {
+            unit: "lovelace",
+            quantity: "9891607895",
+          },
+        ],
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+      )
+      .txInCollateral(
+        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+        3,
+        [
+          {
+            unit: "lovelace",
+            quantity: "9891607895",
+          },
+        ],
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+      )
+      .votePlutusScriptV3()
+      .vote(
+        {
+          type: "DRep",
+          drepId: resolveScriptHashDRepId(
+            resolveScriptHash(
+              applyCborEncoding(
+                "5834010100323232322533300232323232324a260106012004600e002600e004600a00260066ea8004526136565734aae795d0aba201",
+              ),
+              "V3",
+            ),
+          ),
+        },
+        {
+          txHash:
+            "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+          txIndex: 3,
+        },
+        {
+          voteKind: "Yes",
+          anchor: {
+            anchorUrl: "https://path-to.jsonld",
+            anchorDataHash:
+              "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+          },
+        },
+      )
+      .voteScript(
+        applyCborEncoding(
+          "5834010100323232322533300232323232324a260106012004600e002600e004600a00260066ea8004526136565734aae795d0aba201",
+        ),
+      )
+      .voteRedeemerValue("")
+      .completeSync();
+
+    console.log(txHex);
+    expect(txHex !== "").toBeTruthy();
+  });
+
+  it("CC vote", () => {
+    let mesh = new MeshTxBuilder();
+
+    let txHex = mesh
+      .changeAddress(
+        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
+      )
+      .txIn(
+        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+        3,
+        [
+          {
+            unit: "lovelace",
+            quantity: "9891607895",
+          },
+        ],
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+      )
+      .vote(
+        {
+          type: "ConstitutionalCommittee",
+          hotCred: {
+            type: "KeyHash",
+            keyHash: "e3a4c41d67592a1b8d87c62e5c5d73f7e8db836171945412d13f40f8",
+          },
+        },
+        {
+          txHash:
+            "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+          txIndex: 3,
+        },
+        {
+          voteKind: "Yes",
+          anchor: {
+            anchorUrl: "https://path-to.jsonld",
+            anchorDataHash:
+              "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+          },
+        },
+      )
+      .completeSync();
+
     console.log(txHex);
     expect(txHex !== "").toBeTruthy();
   });

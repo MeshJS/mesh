@@ -4,6 +4,7 @@ import { Certificate } from "./certificate";
 import { MintItem } from "./mint";
 import { Output } from "./output";
 import { PubKeyTxIn, RefTxIn, TxIn } from "./txin";
+import { Vote } from "./vote";
 import { Withdrawal } from "./withdrawal";
 
 export * from "./data";
@@ -13,6 +14,7 @@ export * from "./script";
 export * from "./txin";
 export * from "./withdrawal";
 export * from "./certificate";
+export * from "./vote";
 
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
@@ -26,6 +28,7 @@ export type MeshTxBuilderBody = {
   validityRange: ValidityRange;
   certificates: Certificate[];
   withdrawals: Withdrawal[];
+  votes: Vote[];
   signingKey: string[];
   extraInputs: UTxO[];
   selectionConfig: {
@@ -49,6 +52,7 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   validityRange: {},
   certificates: [],
   withdrawals: [],
+  votes: [],
   signingKey: [],
   selectionConfig: {
     threshold: "0",

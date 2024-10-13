@@ -21,6 +21,7 @@ const ReactPage: NextPage = () => {
     { label: "Mint with Plutus Script", to: "mintingPlutusScript" },
     { label: "Mint with CIP-68", to: "mintingCip68" },
     { label: "Mint Royalty Token", to: "mintingRoyaltyToken" },
+    { label: "Mask metadata", to: "maskMetadata" },
   ];
 
   return (

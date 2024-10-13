@@ -153,8 +153,17 @@ function Right() {
       throw new Error("No DRep key found, this wallet does not support CIP95");
 
     const dRepId = dRep.dRepIDCip105;
-    const anchorHash = await getMeshJsonHash(anchorUrl);
 
+    let anchor: { anchorUrl: string; anchorDataHash: string } | undefined =
+      undefined;
+    if (anchorUrl.length > 0) {
+      const anchorHash = await getMeshJsonHash(anchorUrl);
+      anchor = {
+        anchorUrl: anchorUrl,
+        anchorDataHash: anchorHash,
+      };
+    }
+    
     // get utxo to pay for the registration
     const utxos = await wallet.getUtxos();
     const registrationFee = "500000000";
@@ -166,10 +175,7 @@ function Right() {
 
     const txBuilder = getTxBuilder();
     txBuilder
-      .drepRegistrationCertificate(dRepId, {
-        anchorUrl: anchorUrl,
-        anchorDataHash: anchorHash,
-      })
+      .drepRegistrationCertificate(dRepId, anchor)
       .changeAddress(changeAddress)
       .selectUtxosFrom(selectedUtxos);
 
