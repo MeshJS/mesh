@@ -36,9 +36,9 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@cardano-sdk/core": "^0.35.4",
-    "@cardano-sdk/crypto": "^0.1.28",
-    "@cardano-sdk/util": "^0.15.4",
+    "@cardano-sdk/core": "0.35.4",
+    "@cardano-sdk/crypto": "0.1.28",
+    "@cardano-sdk/util": "0.15.4",
     "@harmoniclabs/cbor": "1.3.0",
     "@harmoniclabs/plutus-data": "1.2.4",
     "@harmoniclabs/uplc": "1.2.4",
