@@ -48,7 +48,7 @@ export const linksProviders: MenuItem[] = [
   metaBlockfrost,
   metaKoios,
   metaMaestro,
-  metaHydra,
+  // metaHydra,
   metaOgmios,
   metaYaci,
 ];
