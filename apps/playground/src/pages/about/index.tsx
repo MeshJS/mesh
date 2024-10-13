@@ -3,13 +3,15 @@ import AboutIncorporation from "./about-us/incorporation";
 // import AboutMeeting from "./about-us/meeting";
 import AboutStatus from "./about-us/status";
 import AboutTeam from "./about-us/team";
+import AboutWhatWorkingOn from "./about-us/what-working-on";
 
 export default function AboutPage() {
   return (
     <>
       <AboutHero />
-      {/* <AboutMeeting /> */}
       <AboutTeam />
+      {/* <AboutMeeting /> */}
+      <AboutWhatWorkingOn />
       <AboutIncorporation />
       <AboutStatus />
     </>
@@ -23,7 +25,7 @@ export function AboutSection({
 }: {
   children: React.ReactNode;
   title: string;
-  description: string;
+  description: React.ReactNode;
 }) {
   return (
     <section className="bg-white dark:bg-gray-900">
@@ -32,9 +34,9 @@ export function AboutSection({
           <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white">
             {title}
           </h2>
-          <p className="font-light text-gray-500 sm:text-xl dark:text-gray-400">
+          <div className="font-light text-gray-500 sm:text-xl dark:text-gray-400">
             {description}
-          </p>
+          </div>
         </div>
         {children}
       </div>

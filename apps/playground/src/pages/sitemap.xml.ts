@@ -3,6 +3,7 @@ import { linksApi } from "~/data/links-api";
 import { linksGetStarted } from "~/data/links-get-started";
 import { linksGuides } from "~/data/links-guides";
 import { linksSmartContracts } from "~/data/links-smart-contracts";
+import { linksSolutions } from "~/data/links-solutions";
 import { rootUrl } from "~/data/site";
 import { MenuItem } from "~/types/menu-item";
 
@@ -45,6 +46,7 @@ export async function getServerSideProps({ res }: { res: any }) {
   addLinks(pagesUrls, linksGuides);
   addLinks(pagesUrls, linksApi);
   addLinks(pagesUrls, linksSmartContracts);
+  addLinks(pagesUrls, linksSolutions);
   addLinks(pagesUrls, linksAbout);
 
   const sitemap = generateSiteMap(pagesUrls);

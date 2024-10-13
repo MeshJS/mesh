@@ -12,7 +12,7 @@ import SvgMesh from "~/components/svgs/mesh";
 import { linksAbout } from "~/data/links-about";
 import { linksApi } from "~/data/links-api";
 import { linksGetStarted } from "~/data/links-get-started";
-import { linksSmartContracts } from "~/data/links-smart-contracts";
+import { linksSolutions } from "~/data/links-solutions";
 import { socials } from "~/data/social";
 import { useDarkmode } from "~/hooks/useDarkmode";
 import MenuItem from "./menu-item";
@@ -124,11 +124,8 @@ export default function Navbar() {
           >
             <ul className="mt-4 flex flex-col font-medium lg:mt-0 lg:flex-row lg:space-x-8">
               <MenuItemDropdown title="Get Started" items={linksGetStarted} />
-              <MenuItemDropdown title="API" items={linksApi} />
-              <MenuItemDropdown
-                title="Smart Contracts"
-                items={linksSmartContracts}
-              />
+              <MenuItemDropdown title="SDK" items={linksApi} />
+              <MenuItemDropdown title="Solutions" items={linksSolutions} />
               <MenuItem title="Docs" link="https://docs.meshjs.dev/" />
               <MenuItemDropdown title="About" items={linksAbout} />
             </ul>
