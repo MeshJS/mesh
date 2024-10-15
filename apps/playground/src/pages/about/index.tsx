@@ -1,6 +1,6 @@
 import AboutHero from "./about-us/hero";
 import AboutIncorporation from "./about-us/incorporation";
-// import AboutMeeting from "./about-us/meeting";
+import AboutMeeting from "./about-us/meeting";
 import AboutStatus from "./about-us/status";
 import AboutTeam from "./about-us/team";
 import AboutWhatWorkingOn from "./about-us/what-working-on";
@@ -10,7 +10,7 @@ export default function AboutPage() {
     <>
       <AboutHero />
       <AboutTeam />
-      {/* <AboutMeeting /> */}
+      <AboutMeeting />
       <AboutWhatWorkingOn />
       <AboutIncorporation />
       <AboutStatus />
