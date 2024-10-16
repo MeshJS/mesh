@@ -1,10 +1,10 @@
 import type { NextPage } from "next";
-import Link from "~/components/link";
 
 import HeaderAndCards from "~/components/layouts/header-and-cards";
+import Link from "~/components/link";
 import Metatags from "~/components/site/metatags";
 import Header3 from "~/components/text/header3";
-import { fund10, fund11, fund12, metaCatalyst } from "~/data/catalyst";
+import { fund10, fund11, fund12, fund13, metaCatalyst } from "~/data/catalyst";
 
 const ReactPage: NextPage = () => {
   return (
@@ -14,6 +14,7 @@ const ReactPage: NextPage = () => {
         headerTitle={metaCatalyst.title}
         headerParagraph={metaCatalyst.desc}
       />
+      <Section title="Fund 13" items={fund13} />
       <Section title="Fund 12" items={fund12} />
       <Section title="Fund 11" items={fund11} />
       <Section title="Fund 10" items={fund10} />
@@ -37,6 +38,7 @@ function Section({ title, items }: { title: string; items: any[] }) {
               completed={item.completed}
               tobecompleted={item.tobecompleted}
               status={item.status}
+              key={index}
             />
           ))}
         </div>

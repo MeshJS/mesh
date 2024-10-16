@@ -9,11 +9,8 @@ import { metaAiken } from "./links-aiken";
 import { metaGuides } from "./links-guides";
 import { metaYaci } from "./links-yaci";
 
-// import { metaFrameworks } from "./links-frameworks";
-
 export const linksGetStarted: MenuItem[] = [
   metaGuides,
-  // metaFrameworks,
   {
     link: `https://github.com/MeshJS/examples`,
     title: "Examples",
@@ -28,18 +25,6 @@ export const linksGetStarted: MenuItem[] = [
   },
   metaAiken,
   metaYaci,
-  // {
-  //   link: `/getting-started/starter-templates`,
-  //   title: "Starter Templates",
-  //   desc: "Kick start your projects with our templates using CLI",
-  //   icon: RocketLaunchIcon,
-  // },
-  // {
-  //   link: `/getting-started/migration-manual-installation`,
-  //   title: "Migration / Manual Installation",
-  //   desc: "Install Mesh into your existing project",
-  //   icon: WrenchScrewdriverIcon,
-  // },
 ];
 
 export const metaGetStarted: MenuItem = {

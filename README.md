@@ -27,7 +27,44 @@ Explore the features on [Mesh Playground](https://meshjs.dev/).
 
 ## What's inside?
 
-This repo includes the following packages/apps:
+```mermaid
+graph TD
+  package-core[@meshsdk/core]
+  package-core-csl[@meshsdk/core-csl]
+  package-core-cst[@meshsdk/core-cst]
+  package-provider[@meshsdk/provider]
+  package-react[@meshsdk/react]
+  package-transaction[@meshsdk/transaction]
+  package-wallet[@meshsdk/wallet]
+  package-sidan-csl[@sidan-lab/*]
+  package-cardano-sdk[@cardano-sdk/*]
+  package-harmoniclabs[@harmoniclabs/*]
+  package-stricahq[@stricahq/*]
+  package-core --> package-core-csl
+  package-core --> package-core-cst
+  package-core --> package-provider
+  package-core --> package-react
+  package-core --> package-transaction
+  package-core --> package-wallet
+  package-provider --> package-core-cst
+  
+  package-react --> package-transaction
+  package-react --> package-wallet
+  package-transaction --> package-core-csl
+  package-transaction --> package-core-cst
+  subgraph serializer
+  package-core-csl --> package-sidan-csl
+  package-core-cst --> package-cardano-sdk
+  package-core-cst --> package-harmoniclabs
+  package-core-cst --> package-stricahq
+  end
+  click package-core-csl "https://docs.meshjs.dev/core-csl" _parent
+  click package-core-cst "https://docs.meshjs.dev/core-cst" _parent
+  click package-provider "https://docs.meshjs.dev/providers" _parent
+  click package-react "https://meshjs.dev/react" _parent
+  click package-transaction "https://docs.meshjs.dev/transactions" _parent
+  click package-wallet "https://docs.meshjs.dev/wallets" _parent
+```
 
 ### Packages
 

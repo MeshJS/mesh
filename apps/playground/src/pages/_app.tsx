@@ -4,6 +4,7 @@ import "@meshsdk/react/styles.css";
 
 import type { AppProps } from "next/app";
 import { GoogleTagManager } from "@next/third-parties/google";
+import { Toaster } from "react-hot-toast";
 
 import { MeshProvider } from "@meshsdk/react";
 
@@ -27,7 +28,7 @@ export default function App({ Component, pageProps }: AppProps) {
             <Component {...pageProps} />
           </main>
           <Footer />
-          {/* <Scroller /> */}
+          <Toaster />
         </div>
       </Providers>
     </MeshProvider>

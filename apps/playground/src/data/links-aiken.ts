@@ -20,12 +20,18 @@ export const metaAikenContractsLib = {
   desc: "A library of smart contracts to help you start building and learning",
   link: "/smart-contracts",
 };
+export const metaAikenCourse = {
+  title: "Aiken Smart Contract course by STOIC Pool",
+  desc: "You'll learn the core concepts of Aiken while enjoying live coding examples",
+  link: "https://www.youtube.com/playlist?list=PLCuyQuWCJVQ1Zz9ySRMH_J6EymxhnZ0Hu",
+};
 
 export const linksAiken: MenuItem[] = [
   metaAikenGettingStarted,
   metaAikenFirstScript,
   metaAikenTransactions,
   metaAikenContractsLib,
+  metaAikenCourse,
 ];
 
 export const metaAiken: MenuItem = {
