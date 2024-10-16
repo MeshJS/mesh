@@ -22,14 +22,14 @@ export const fund13 = [
     status: "Voting",
   },
   {
-    title: "Cardano Devkit - 'Ganache' for better devxp",
+    title: "Cardano Devkit - 'Ganache' of Cardano for better DevXP",
     desc: "An app to launch local blockchain to test and deploy transactions and smart contracts, to run tests and experiments to develop Cardano applications.",
     url: "https://cardano.ideascale.com/c/idea/130825",
     completed: [],
     tobecompleted: [
       `Improve devnet deployment`,
       `Desktop app to launch local blockchain`,
-      `Show UTXOs and balances`,
+      `Get blockchain data e.g. UTXOs and balances`,
     ],
     status: "Voting",
   },
