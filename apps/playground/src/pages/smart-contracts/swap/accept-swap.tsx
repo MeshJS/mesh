@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -39,6 +40,14 @@ function Left() {
       <p>
         The function accepts a swap transaction hash and returns a transaction
         hash if the swap is successfully accepted.
+      </p>
+      <p>
+        A{" "}
+        <Link href="https://preprod.cardanoscan.io/transaction/e266fc6b0b2481988f9742a28b914dabf7da5403a3893d5ba4b05530d2519f3a">
+          successful transaction
+        </Link>{" "}
+        will send the assets to the wallet that signed the transaction to accept
+        the swap.
       </p>
     </>
   );

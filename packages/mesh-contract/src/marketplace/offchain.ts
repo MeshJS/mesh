@@ -18,16 +18,14 @@ import {
   deserializeDatum,
   Quantity,
   serializeAddressObj,
-  serializePlutusScript,
   Unit,
   UTxO,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
-import blueprint from "./aiken-workspace/plutus.json";
-
-export const MeshMarketplaceBlueprint = blueprint;
+import blueprintV1 from "./aiken-workspace-v1/plutus.json";
+import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
 export type MarketplaceDatum = ConStr0<
   [PubKeyAddress, Integer, CurrencySymbol, TokenName]
@@ -51,6 +49,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
   ownerAddress: string;
   feePercentageBasisPoint: number;
   scriptCbor: string;
+  scriptAddress: string;
 
   constructor(
     inputs: MeshTxInitiatorInput,
@@ -60,17 +59,44 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     super(inputs);
     this.ownerAddress = ownerAddress;
     this.feePercentageBasisPoint = feePercentageBasisPoint;
+
     const { pubKeyHash, stakeCredentialHash } =
       deserializeAddress(ownerAddress);
-    this.scriptCbor = applyParamsToScript(
-      blueprint.validators[0]!.compiledCode,
-      [
-        pubKeyAddress(pubKeyHash, stakeCredentialHash),
-        integer(feePercentageBasisPoint),
-      ],
-      "JSON",
+
+    this.scriptCbor = this.getScriptCbor(
+      pubKeyHash,
+      stakeCredentialHash,
+      feePercentageBasisPoint,
     );
+    this.scriptAddress = this.getScriptAddress(this.scriptCbor);
   }
+
+  getScriptCbor = (
+    pubKeyHash: string,
+    stakeCredentialHash: string,
+    feePercentageBasisPoint: number,
+  ) => {
+    switch (this.version) {
+      case 2:
+        return applyParamsToScript(
+          blueprintV2.validators[0]!.compiledCode,
+          [
+            pubKeyAddress(pubKeyHash, stakeCredentialHash),
+            integer(feePercentageBasisPoint),
+          ],
+          "JSON",
+        );
+      default:
+        return applyParamsToScript(
+          blueprintV1.validators[0]!.compiledCode,
+          [
+            pubKeyAddress(pubKeyHash, stakeCredentialHash),
+            integer(feePercentageBasisPoint),
+          ],
+          "JSON",
+        );
+    }
+  };
 
   listAsset = async (asset: string, price: number) => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
@@ -78,17 +104,11 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     const assetMap = new Map<Unit, Quantity>();
     assetMap.set(asset, "1");
 
-    const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
-      undefined,
-      this.networkId,
-    );
-
     const tokenForSale = [{ unit: asset, quantity: "1" }];
     const outputDatum = marketplaceDatum(walletAddress, price, asset);
 
     await this.mesh
-      .txOut(scriptAddr, tokenForSale)
+      .txOut(this.scriptAddress, tokenForSale)
       .txOutInlineDatumValue(outputDatum, "JSON")
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
@@ -102,7 +122,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       await this.getWalletInfoForTx();
 
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         marketplaceUtxo.input.txHash,
         marketplaceUtxo.input.outputIndex,
@@ -134,14 +154,12 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       marketplaceUtxo.output.plutusData!,
     );
 
-    // const listingPrice = inputDatum.fields[1].int.toString();
-
     const inputLovelace = marketplaceUtxo.output.amount.find(
       (a) => a.unit === "lovelace",
     )!.quantity;
 
     const tx = this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         marketplaceUtxo.input.txHash,
         marketplaceUtxo.input.outputIndex,
@@ -168,14 +186,13 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     }
 
     if (ownerToReceiveLovelace > 0) {
-      const ownerAddress = this.ownerAddress;
       const ownerToReceive = [
         {
           unit: "lovelace",
           quantity: Math.ceil(ownerToReceiveLovelace).toString(),
         },
       ];
-      tx.txOut(ownerAddress, ownerToReceive);
+      tx.txOut(this.ownerAddress, ownerToReceive);
     }
 
     const sellerToReceiveLovelace =
@@ -209,14 +226,8 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     const tokenForSale = [{ unit: inputAsset, quantity: "1" }];
     const outputDatum = marketplaceDatum(walletAddress, newPrice, inputAsset);
 
-    const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
-      undefined,
-      this.networkId,
-    );
-
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         marketplaceUtxo.input.txHash,
         marketplaceUtxo.input.outputIndex,
@@ -226,7 +237,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptCbor)
-      .txOut(scriptAddr, tokenForSale)
+      .txOut(this.scriptAddress, tokenForSale)
       .txOutInlineDatumValue(outputDatum, "JSON")
       .changeAddress(walletAddress)
       .requiredSignerHash(deserializeAddress(walletAddress).pubKeyHash)
@@ -244,5 +255,14 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
     return await this._getUtxoByTxHash(txHash, this.scriptCbor);
+  };
+
+  static getCompiledCode = (version = 2) => {
+    switch (version) {
+      case 2:
+        return blueprintV2.validators[0]!.compiledCode;
+      default:
+        return blueprintV1.validators[0]!.compiledCode;
+    }
   };
 }

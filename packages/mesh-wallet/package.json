@@ -39,8 +39,8 @@
     "@meshsdk/core-csl": "1.7.9",
     "@meshsdk/core-cst": "1.7.9",
     "@meshsdk/transaction": "1.7.9",
-    "@nufi/dapp-client-cardano": "^0.3.1",
-    "@nufi/dapp-client-core": "^0.3.1"
+    "@nufi/dapp-client-cardano": "0.3.5",
+    "@nufi/dapp-client-core": "0.3.5"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

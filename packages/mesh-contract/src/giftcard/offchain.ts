@@ -14,7 +14,6 @@ import {
   Asset,
   deserializeDatum,
   resolveScriptHash,
-  serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
@@ -26,6 +25,20 @@ import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 export class MeshGiftCardContract extends MeshTxInitiator {
   tokenNameHex: string = "";
   paramUtxo: UTxO["input"] = { outputIndex: 0, txHash: "" };
+
+  constructor(
+    inputs: MeshTxInitiatorInput,
+    tokenNameHex?: string,
+    paramUtxo?: UTxO["input"],
+  ) {
+    super(inputs);
+    if (tokenNameHex) {
+      this.tokenNameHex = tokenNameHex;
+    }
+    if (paramUtxo) {
+      this.paramUtxo = paramUtxo;
+    }
+  }
 
   giftCardCbor = (
     tokenNameHex: string,
@@ -65,20 +78,6 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     return applyParamsToScript(scriptCbor, [tokenNameHex, policyId]);
   };
 
-  constructor(
-    inputs: MeshTxInitiatorInput,
-    tokenNameHex?: string,
-    paramUtxo?: UTxO["input"],
-  ) {
-    super(inputs);
-    if (tokenNameHex) {
-      this.tokenNameHex = tokenNameHex;
-    }
-    if (paramUtxo) {
-      this.paramUtxo = paramUtxo;
-    }
-  }
-
   createGiftCard = async (
     tokenName: string,
     giftValue: Asset[],
@@ -105,11 +104,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
       version: this.languageVersion,
     };
 
-    const redeemAddr = serializePlutusScript(
-      redeemScript,
-      undefined,
-      this.networkId,
-    ).address;
+    const redeemAddr = this.getScriptAddress(redeemScript.code);
 
     await this.mesh
       .txIn(

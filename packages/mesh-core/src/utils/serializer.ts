@@ -11,7 +11,9 @@ import { core } from "../core";
 /**
  * Serialize Native script into bech32 address
  * @param script The native script object
+ * @param stakeCredentialHash The stake credential hash
  * @param networkId 0 (testnet) or 1 (mainnet). Default to be 0 (testnet).
+ * @param isScriptStakeCredential Whether the script is a stake credential. Default to be false.
  * @returns Bech32 address
  */
 export const serializeNativeScript = (
@@ -38,7 +40,9 @@ export const serializeNativeScript = (
 /**
  * Serialize Native script into bech32 address
  * @param script The native script object
+ * @param stakeCredentialHash The stake credential hash
  * @param networkId 0 (testnet) or 1 (mainnet). Default to be 0 (testnet).
+ * @param isScriptStakeCredential Whether the script is a stake credential. Default to be false.
  * @returns Bech32 address
  */
 export const serializePlutusScript = (

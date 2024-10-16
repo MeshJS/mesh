@@ -10,7 +10,6 @@ import {
   Asset,
   deserializeAddress,
   deserializeDatum,
-  serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
@@ -24,27 +23,22 @@ export type VestingDatum = ConStr0<
 >;
 
 export class MeshVestingContract extends MeshTxInitiator {
+  scriptCbor: string;
+  scriptAddress: string;
+
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
+    this.scriptCbor = this.getScriptCbor();
+    this.scriptAddress = this.getScriptAddress(this.scriptCbor);
   }
 
   getScriptCbor = () => {
-    let scriptCbor;
     switch (this.version) {
       case 2:
-        scriptCbor = applyParamsToScript(
-          blueprintV2.validators[0]!.compiledCode,
-          [],
-        );
-        break;
+        return applyParamsToScript(blueprintV2.validators[0]!.compiledCode, []);
       default:
-        scriptCbor = applyParamsToScript(
-          blueprintV1.validators[0]!.compiledCode,
-          [],
-        );
-        break;
+        return applyParamsToScript(blueprintV1.validators[0]!.compiledCode, []);
     }
-    return scriptCbor;
   };
 
   depositFund = async (
@@ -54,17 +48,12 @@ export class MeshVestingContract extends MeshTxInitiator {
   ): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
 
-    const scriptAddr = serializePlutusScript(
-      { code: this.getScriptCbor(), version: this.languageVersion },
-      undefined,
-      this.networkId,
-    ).address;
     const { pubKeyHash: ownerPubKeyHash } = deserializeAddress(walletAddress);
     const { pubKeyHash: beneficiaryPubKeyHash } =
       deserializeAddress(beneficiary);
 
     await this.mesh
-      .txOut(scriptAddr, amount)
+      .txOut(this.scriptAddress, amount)
       .txOutInlineDatumValue(
         mConStr0([
           lockUntilTimeStampMs,
@@ -83,12 +72,6 @@ export class MeshVestingContract extends MeshTxInitiator {
       await this.getWalletInfoForTx();
     const { input: collateralInput, output: collateralOutput } = collateral;
 
-    const scriptCbor = this.getScriptCbor();
-    const scriptAddr = serializePlutusScript(
-      { code: scriptCbor, version: this.languageVersion },
-      undefined,
-      this.networkId,
-    ).address;
     const { pubKeyHash } = deserializeAddress(walletAddress);
 
     const datum = deserializeDatum<VestingDatum>(
@@ -109,11 +92,11 @@ export class MeshVestingContract extends MeshTxInitiator {
         vestingUtxo.input.txHash,
         vestingUtxo.input.outputIndex,
         vestingUtxo.output.amount,
-        scriptAddr,
+        this.scriptAddress,
       )
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue("")
-      .txInScript(scriptCbor)
+      .txInScript(this.scriptCbor)
       .txOut(walletAddress, [])
       .txInCollateral(
         collateralInput.txHash,
@@ -130,6 +113,6 @@ export class MeshVestingContract extends MeshTxInitiator {
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {
-    return await this._getUtxoByTxHash(txHash, this.getScriptCbor());
+    return await this._getUtxoByTxHash(txHash, this.scriptCbor);
   };
 }

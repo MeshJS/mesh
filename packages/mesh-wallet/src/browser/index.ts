@@ -21,6 +21,7 @@ import {
   deserializeTx,
   deserializeTxUnspentOutput,
   deserializeValue,
+  DRepID,
   Ed25519KeyHashHex,
   Ed25519PublicKey,
   Ed25519PublicKeyHex,
@@ -73,8 +74,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
     if (metamask) await checkIfMetamaskInstalled(metamask.network);
 
-    const wallets = BrowserWallet.getInstalledWallets();
-    return wallets;
+    return BrowserWallet.getInstalledWallets();
   }
 
   /**
@@ -253,10 +253,12 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     if (address === undefined) {
       address = (await this.getUsedAddresses())[0]!;
     }
+
+    if (address.startsWith("drep1")) {
+      return this._walletInstance.cip95!.signData(address, fromUTF8(payload));
+    }
+
     const signerAddress = toAddress(address).toBytes().toString();
-
-    // todo TW process this witness set and return DataSignature correctly
-
     return this._walletInstance.signData(signerAddress, fromUTF8(payload));
   }
 
