@@ -1,5 +1,6 @@
 import {
   Data,
+  deserializeAddress,
   mConStr,
   mConStr0,
   mConStr1,
@@ -12,15 +13,7 @@ import {
 import { applyParamsToScript, parseInlineDatum } from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../../common";
-import {
-  blueprint,
-  getScriptCbor,
-  getScriptInfo,
-  opsKey,
-  refScriptsAddress,
-  ScriptIndex,
-  stopKey,
-} from "./common";
+import { blueprint, getScriptCbor, getScriptInfo, ScriptIndex } from "./common";
 import {
   ContentRegistryDatum,
   OracleDatum,
@@ -60,6 +53,10 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       outputIndex: 0,
     },
   };
+  refScriptsAddress: string;
+  operationAddress: string;
+  opsKey: string;
+  stopKey: string;
 
   constructor(
     inputs: MeshTxInitiatorInput,
@@ -68,6 +65,8 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         "0000000000000000000000000000000000000000000000000000000000000000",
       outputIndex: 0,
     },
+    refScriptsAddress: string,
+    operationAddress: string,
   ) {
     super(inputs);
     this.paramUtxo = paramUtxo;
@@ -76,6 +75,14 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       inputs.stakeCredential,
       inputs.networkId,
     );
+
+    this.refScriptsAddress = refScriptsAddress;
+    this.operationAddress = operationAddress;
+
+    const serializedOpsPlutusAddr = deserializeAddress(operationAddress);
+    const serializedStopPlutusAddr = deserializeAddress(refScriptsAddress);
+    this.opsKey = serializedOpsPlutusAddr.pubKeyHash;
+    this.stopKey = serializedStopPlutusAddr.pubKeyHash;
   }
 
   // Setup
@@ -126,7 +133,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
   sendRefScriptOnchain = async (scriptIndex: ScriptIndex) => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
     const txHex = await this.mesh
-      .txOut(refScriptsAddress, [])
+      .txOut(this.refScriptsAddress, [])
       .txOutReferenceScript(getScriptCbor(this.paramUtxo, scriptIndex))
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
@@ -535,7 +542,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.amount,
         collateral.output.address,
       )
-      .requiredSignerHash(stopKey)
+      .requiredSignerHash(this.stopKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -582,7 +589,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.amount,
         collateral.output.address,
       )
-      .requiredSignerHash(stopKey)
+      .requiredSignerHash(this.stopKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -617,8 +624,8 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.amount,
         collateral.output.address,
       )
-      .requiredSignerHash(opsKey)
-      .requiredSignerHash(stopKey)
+      .requiredSignerHash(this.opsKey)
+      .requiredSignerHash(this.stopKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -667,8 +674,8 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.scriptInfo.ownershipRefToken.hash,
       ownershipRegistryAddr,
       ownershipRegistryCount,
-      opsKey,
-      stopKey,
+      this.opsKey,
+      this.stopKey,
     ]);
   };
 
