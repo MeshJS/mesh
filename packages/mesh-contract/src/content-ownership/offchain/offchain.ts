@@ -60,27 +60,29 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
 
   constructor(
     inputs: MeshTxInitiatorInput,
-    paramUtxo: UTxO["input"] = {
+    contract: {
+      refScriptsAddress: string;
+      operationAddress: string;
+      paramUtxo?: UTxO["input"];
+    },
+  ) {
+    super(inputs);
+    this.paramUtxo = contract.paramUtxo || {
       txHash:
         "0000000000000000000000000000000000000000000000000000000000000000",
       outputIndex: 0,
-    },
-    refScriptsAddress: string,
-    operationAddress: string,
-  ) {
-    super(inputs);
-    this.paramUtxo = paramUtxo;
+    };
     this.scriptInfo = getScriptInfo(
-      paramUtxo,
+      this.paramUtxo,
       inputs.stakeCredential,
       inputs.networkId,
     );
 
-    this.refScriptsAddress = refScriptsAddress;
-    this.operationAddress = operationAddress;
+    this.refScriptsAddress = contract.refScriptsAddress;
+    this.operationAddress = contract.operationAddress;
 
-    const serializedOpsPlutusAddr = deserializeAddress(operationAddress);
-    const serializedStopPlutusAddr = deserializeAddress(refScriptsAddress);
+    const serializedOpsPlutusAddr = deserializeAddress(this.operationAddress);
+    const serializedStopPlutusAddr = deserializeAddress(this.refScriptsAddress);
     this.opsKey = serializedOpsPlutusAddr.pubKeyHash;
     this.stopKey = serializedStopPlutusAddr.pubKeyHash;
   }
@@ -127,7 +129,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.stakeCredential,
       this.networkId,
     );
-    return txHex;
+    return { tx: txHex, paramUtxo: paramUtxo.input };
   };
 
   sendRefScriptOnchain = async (scriptIndex: ScriptIndex) => {

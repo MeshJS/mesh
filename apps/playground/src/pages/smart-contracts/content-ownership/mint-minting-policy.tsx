@@ -30,13 +30,15 @@ function Right() {
   const [userInput, setUserInput] = useState<string>("10000000");
 
   async function runDemo() {
-    console.log(33232)
+    console.log(33232);
 
     const contract = getContract(wallet);
-    // const tx = await contract.mintOneTimeMintingPolicy();
-    // const signedTx = await wallet.signTx(tx);
-    // const txHash = await wallet.submitTx(signedTx);
-    // return txHash;
+    const { tx, paramUtxo } = await contract.mintOneTimeMintingPolicy();
+    const signedTx = await wallet.signTx(tx);
+    const txHash = await wallet.submitTx(signedTx);
+    console.log(1, "txHash", txHash);
+    console.log(2, "paramUtxo", paramUtxo, JSON.stringify(paramUtxo));
+    return txHash;
   }
 
   let code = ``;
