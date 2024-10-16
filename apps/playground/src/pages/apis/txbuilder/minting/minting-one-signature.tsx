@@ -1,13 +1,7 @@
-import Link from "~/components/link";
-
-import {
-  cst,
-  ForgeScript,
-  resolveScriptHash,
-  stringToHex,
-} from "@meshsdk/core";
+import { ForgeScript, resolveScriptHash, stringToHex } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -128,10 +122,11 @@ function Right() {
   codeSnippet += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
-  codeSnippet += `  .txIn(utxo.input.txHash, utxo.input.outputIndex)\n`;
-  codeSnippet += `  .mint("1", policyId, tokenName)\n`;
+  codeSnippet += `  .mint("1", policyId, tokenNameHex)\n`;
   codeSnippet += `  .mintingScript(forgingScript)\n`;
+  codeSnippet += `  .metadataValue("721", metadata)\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos)\n`;
   codeSnippet += `  .complete();\n`;
   codeSnippet += `\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
