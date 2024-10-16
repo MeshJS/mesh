@@ -12,10 +12,12 @@ import TxbuilderMintingNativeScript from "./minting-native-script";
 import TxbuilderMintAsset from "./minting-one-signature";
 import TxbuilderMintingPlutusScript from "./minting-plutus-script";
 import TxbuilderMintingRoyaltyToken from "./minting-royalty-token";
+import TxbuilderMintMultipleAssets from "./multiple-assets";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Mint with One Signature", to: "mintingOneSignature" },
+    { label: "Mint Multiple Assets", to: "mintingMultipleAssets" },
     { label: "Burn asset", to: "burningOneSignature" },
     { label: "Mint with Native Script", to: "mintingNativeScript" },
     { label: "Mint with Plutus Script", to: "mintingPlutusScript" },
@@ -51,6 +53,7 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/MeshTxBuilder" />
 
         <TxbuilderMintAsset />
+        <TxbuilderMintMultipleAssets />
         <TxbuilderBurningOneSignature />
         <TxbuilderMintingNativeScript />
         <TxbuilderMintingPlutusScript />
