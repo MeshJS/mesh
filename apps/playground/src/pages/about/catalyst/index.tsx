@@ -38,6 +38,7 @@ function Section({ title, items }: { title: string; items: any[] }) {
               completed={item.completed}
               tobecompleted={item.tobecompleted}
               status={item.status}
+              key={index}
             />
           ))}
         </div>
