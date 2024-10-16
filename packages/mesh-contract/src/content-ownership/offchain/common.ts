@@ -14,9 +14,6 @@ export { blueprint };
 
 export type InputUTxO = UTxO["input"];
 
-export const refScriptsAddress = process.env.NEXT_PUBLIC_REF_SCRIPTS_ADDR!;
-export const operationAddress = process.env.NEXT_PUBLIC_WALLET_ADDRESS!;
-
 export type ScriptIndex =
   | "OracleNFT"
   | "OracleValidator"
@@ -134,8 +131,3 @@ export const getScriptInfo = (
 
   return info;
 };
-
-export const serializedOpsPlutusAddr = deserializeAddress(operationAddress);
-export const serializedStopPlutusAddr = deserializeAddress(refScriptsAddress);
-export const opsKey = serializedOpsPlutusAddr.pubKeyHash;
-export const stopKey = serializedStopPlutusAddr.pubKeyHash;
