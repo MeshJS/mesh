@@ -52,12 +52,19 @@ export const metaContentOwnership = {
   link: "/smart-contracts/content-ownership",
   icon: ArchiveBoxIcon,
 };
+export const metaMintPlutusNft = {
+  title: "Mint Plutus NFT",
+  desc: "Mint NFT that ensure the token name is incremented by a counter",
+  link: "/smart-contracts/plutus-nft",
+  icon: ArchiveBoxIcon,
+};
 
 export const linksSmartContracts: MenuItem[] = [
   metaContentOwnership,
   metaEscrow,
   metaGiftcard,
   metaMarketplace,
+  metaMintPlutusNft,
   metaPaymentSplitter,
   metaSwap,
   metaVesting,

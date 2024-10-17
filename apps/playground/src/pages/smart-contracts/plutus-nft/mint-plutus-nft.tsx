@@ -6,11 +6,11 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import { getContract } from "./common";
 
-export default function OwnershipSendRefScriptOnchain() {
+export default function PlutusNftMint() {
   return (
     <TwoColumnsScroll
-      sidebarTo="sendRefScriptOnchain"
-      title="Send Ref Script Onchain"
+      sidebarTo="plutusNftMint"
+      title="Mint Token"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -30,11 +30,9 @@ function Right() {
   const [userInput, setUserInput] = useState<string>("10000000");
 
   async function runDemo() {
-    const contract = getContract(wallet);
-    // "OracleNFT" | "OracleValidator" | "ContentRegistry" | "ContentRefToken" | "OwnershipRegistry" | "OwnershipRefToken"
-    const tx = await contract.sendRefScriptOnchain("OracleValidator");
+    const contract = getContract(wallet, "mesh");
+    const tx = await contract.mintPlutusNFT();
     const signedTx = await wallet.signTx(tx);
-    console.log('signedTx', signedTx)
     const txHash = await wallet.submitTx(signedTx);
     return txHash;
   }

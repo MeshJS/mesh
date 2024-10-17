@@ -15,7 +15,7 @@ import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
 import blueprint from "./aiken-workspace/plutus.json";
 import { OracleDatum } from "./type";
 
-export class MeshPlutusNFT extends MeshTxInitiator {
+export class MeshPlutusNFTContract extends MeshTxInitiator {
   collectionName: string;
   paramUtxo: UTxO["input"] = { outputIndex: 0, txHash: "" };
   oracleAddress: string;
@@ -40,13 +40,15 @@ export class MeshPlutusNFT extends MeshTxInitiator {
 
   constructor(
     inputs: MeshTxInitiatorInput,
-    collectionName: string,
-    paramUtxo?: UTxO["input"],
+    contract: {
+      collectionName: string;
+      paramUtxo?: UTxO["input"];
+    },
   ) {
     super(inputs);
-    this.collectionName = collectionName;
-    if (paramUtxo) {
-      this.paramUtxo = paramUtxo;
+    this.collectionName = contract.collectionName;
+    if (contract.paramUtxo) {
+      this.paramUtxo = contract.paramUtxo;
     }
     this.oracleAddress = serializePlutusScript(
       {
@@ -96,12 +98,12 @@ export class MeshPlutusNFT extends MeshTxInitiator {
         collateral.output.address,
       )
       .changeAddress(walletAddress)
+      .selectUtxosFrom(utxos)
       .complete();
 
     this.paramUtxo = paramUtxo.input;
-    console.log("Param utxo", this.paramUtxo);
 
-    return txHex;
+    return { tx: txHex, paramUtxo };
   };
 
   // Mint
