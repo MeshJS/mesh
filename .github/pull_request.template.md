@@ -45,8 +45,8 @@ Remember to follow our [Contributing Guide](CONTRIBUTING.md) before submitting y
 - [ ] My code is appropriately commented and includes relevant documentation, if necessary
 - [ ] I have added tests to cover my changes, if necessary
 - [ ] I have updated the documentation, if necessary
-- [ ] All new and existing tests pass
-- [ ] Both rust and wasm build pass
+- [ ] All new and existing tests pass (i.e. `npm run test`)
+- [ ] The build is pass (i.e. `npm run build`)
 
 ## Additional Information
 
