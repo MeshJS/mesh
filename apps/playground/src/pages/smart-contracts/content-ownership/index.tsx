@@ -9,6 +9,8 @@ import Codeblock from "~/components/text/codeblock";
 import { metaContentOwnership } from "~/data/links-smart-contracts";
 import { InstallSmartContract } from "../common";
 import OwnershipMintMintingPolicy from "./mint-minting-policy";
+import OwnershipSendRefScriptOnchain from "./send-ref-script-onchain";
+import OwnershipSetupOracleUtxo from "./setup-oracle-utxo";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -86,6 +88,8 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/contracts/classes/MeshEscrowContract" />
 
         <OwnershipMintMintingPolicy />
+        <OwnershipSetupOracleUtxo />
+        <OwnershipSendRefScriptOnchain />
       </SidebarFullwidth>
     </>
   );

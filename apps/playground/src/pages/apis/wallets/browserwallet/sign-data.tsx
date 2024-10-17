@@ -65,19 +65,7 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    // return await wallet.signData(payload);
-
-    const drep = await wallet.getPubDRepKey();
-
-    if (drep === undefined) return;
-
-    const drepid = drep.dRepIDBech32;
-    console.log(1, drepid, payload);
-    const signature = await wallet.signData(payload, drepid);
-    console.log(4, signature);
-
-    const result = checkSignature(payload, signature);
-    console.log(5, result);
+    return await wallet.signData(payload);
   }
 
   let code = ``;

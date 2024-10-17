@@ -6,11 +6,11 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import { getContract } from "./common";
 
-export default function OwnershipMintMintingPolicy() {
+export default function OwnershipSetupOracleUtxo() {
   return (
     <TwoColumnsScroll
-      sidebarTo="mintOneTimeMintingPolicy"
-      title="Mint One Time Minting Policy"
+      sidebarTo="setupOracleUtxo"
+      title="Setup Oracle Utxo"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -31,10 +31,9 @@ function Right() {
 
   async function runDemo() {
     const contract = getContract(wallet);
-    const { tx, paramUtxo } = await contract.mintOneTimeMintingPolicy();
+    const tx = await contract.setupOracleUtxo();
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);
-    console.log(2, "paramUtxo", JSON.stringify(paramUtxo));
     return txHash;
   }
 
@@ -45,7 +44,7 @@ function Right() {
 
   return (
     <LiveCodeDemo
-      title="Mint One Time Minting Policy"
+      title="Setup Oracle Utxo"
       subtitle=""
       runCodeFunction={runDemo}
       code={code}

@@ -21,7 +21,6 @@ import {
   deserializeTx,
   deserializeTxUnspentOutput,
   deserializeValue,
-  DRepID,
   Ed25519KeyHashHex,
   Ed25519PublicKey,
   Ed25519PublicKeyHex,

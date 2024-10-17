@@ -64,14 +64,19 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       refScriptsAddress: string;
       operationAddress: string;
       paramUtxo?: UTxO["input"];
+      refScriptUtxos?: {
+        contentRefToken: UTxO["input"];
+        ownershipRefToken: UTxO["input"];
+        contentRegistry: UTxO["input"];
+        ownershipRegistry: UTxO["input"];
+      };
     },
   ) {
     super(inputs);
-    this.paramUtxo = contract.paramUtxo || {
-      txHash:
-        "0000000000000000000000000000000000000000000000000000000000000000",
-      outputIndex: 0,
-    };
+
+    this.paramUtxo = contract.paramUtxo || this.paramUtxo;
+    this.refScriptUtxos = contract.refScriptUtxos || this.refScriptUtxos;
+
     this.scriptInfo = getScriptInfo(
       this.paramUtxo,
       inputs.stakeCredential,
@@ -157,6 +162,27 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       .complete();
 
     return txHex;
+  };
+
+  // WIP. need to chain tx, and also need to manage the UTXOs not consumed
+  handleSetup = async () => {
+    const { tx: txHexMintOneTimeMintingPolicy, paramUtxo } =
+      await this.mintOneTimeMintingPolicy();
+
+    this.paramUtxo = paramUtxo;
+    this.scriptInfo = getScriptInfo(
+      paramUtxo,
+      this.stakeCredential,
+      this.networkId,
+    );
+
+    const txHexSetupOracleUtxo = await this.setupOracleUtxo();
+
+    return {
+      txHexMintOneTimeMintingPolicy,
+      txHexSetupOracleUtxo,
+      paramUtxo,
+    };
   };
 
   createContentRegistry = async () => {

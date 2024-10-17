@@ -10,6 +10,7 @@ export function getContract(wallet: BrowserWallet, paramUtxo?: UTxO["input"]) {
   const meshTxBuilder = new MeshTxBuilder({
     fetcher: blockchainProvider,
     submitter: blockchainProvider,
+    verbose: true,
   });
 
   const contract = new MeshContentOwnershipContract(
@@ -22,7 +23,12 @@ export function getContract(wallet: BrowserWallet, paramUtxo?: UTxO["input"]) {
     {
       refScriptsAddress: demoAddresses.testnet,
       operationAddress: demoAddresses.testnet,
-      paramUtxo: paramUtxo,
+      // paramUtxo: paramUtxo,
+      paramUtxo: {
+        outputIndex: 0,
+        txHash:
+          "e781a02ed4159b47b144e960c4b155918f50b4841eafc443c66fec40616b6df2",
+      },
     },
   );
 
