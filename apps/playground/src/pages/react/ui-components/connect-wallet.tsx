@@ -138,6 +138,7 @@ function Right() {
   example += `        label={"Connect a Wallet"}\n`;
   example += `        isDark={isDark}\n`;
   example += `        onConnected={afterConnectedWallet}\n`;
+  example += `        metamask={{ network: "preprod" }}\n`;
   example += `      />\n`;
   example += `    </>\n`;
   example += `  );\n`;
@@ -150,7 +151,11 @@ function Right() {
       code={example}
       childrenAfterCodeFunctions={true}
     >
-      <CardanoWallet label={"Connect a Wallet"} isDark={isDark} />
+      <CardanoWallet
+        label={"Connect a Wallet"}
+        isDark={isDark}
+        metamask={{ network: "preprod" }}
+      />
     </LiveCodeDemo>
   );
 }

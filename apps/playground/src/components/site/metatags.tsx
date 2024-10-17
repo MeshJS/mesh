@@ -17,13 +17,13 @@ export default function Metatags({
   }
   if (keywords === undefined) {
     keywords =
-      "developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis";
+      "developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis, aiken";
   }
   if (title === undefined) {
-    title = "Web3 Development Made Easy";
+    title = "Cardano Web3 TypeScript SDK & off-chain Framework";
   }
 
-  title = title + " - MeshJS";
+  title = title + " - Mesh JS";
 
   return (
     <Head>
@@ -31,9 +31,17 @@ export default function Metatags({
       <meta charSet="utf-8" />
 
       <title>{title}</title>
-
-      <meta name="keywords" content={keywords} />
       <meta name="description" content={description} />
+      <meta name="keywords" content={keywords} />
+
+      <meta property="og:title" content={title} />
+      <meta property="og:site_name" content={title} />
+      <meta property="og:type" content="website" />
+      <meta property="og:description" content={description} />
+      {image && (
+        <meta property="og:image" content={`https://meshjs.dev${image}`} />
+      )}
+      {image && <meta property="og:image:alt" content={title} />}
 
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@meshsdk" />
@@ -44,14 +52,6 @@ export default function Metatags({
         <meta name="twitter:image" content={`https://meshjs.dev${image}`} />
       )}
       {image && <meta name="twitter:image:alt" content={title} />}
-
-      <meta property="og:title" content={title} />
-      <meta property="og:type" content="article" />
-      <meta property="og:site_name" content="Mesh Playground" />
-      <meta property="og:description" content={description} />
-      {image && (
-        <meta property="og:image" content={`https://meshjs.dev${image}`} />
-      )}
 
       <link
         rel="apple-touch-icon"

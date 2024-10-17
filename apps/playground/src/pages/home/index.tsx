@@ -12,7 +12,7 @@ export default function HomePage() {
     <div className="flex flex-col gap-4">
       <HeroTwoSections
         title="Build applications on Cardano with ease"
-        description="Mesh is an open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
+        description="Mesh is a TypeScript open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
         link={{ label: "Get started", href: "/getting-started" }}
         image={
           <div className="col-span-6 hidden lg:block h-96">
