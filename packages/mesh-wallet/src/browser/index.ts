@@ -61,9 +61,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a list of wallet names
    */
   static async getAvailableWallets({
-    metamask = {
-      network: "preprod",
-    },
+    metamask = undefined,
   }: {
     metamask?: {
       network: string;
