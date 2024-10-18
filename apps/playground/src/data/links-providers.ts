@@ -23,6 +23,13 @@ export const metaBlockfrost = {
   thumbnail: "/providers/blockfrost.png",
 };
 
+export const metaU5c = {
+  title: "UTxORPC",
+  link: "/providers/utxorpc",
+  desc: "Facilitates access to this state in a standardized and efficient manner through gRPC",
+  thumbnail: "/providers/utxo-rpc.png",
+};
+
 export const metaYaci = {
   title: "Yaci DevKit",
   link: "/providers/yaci",
@@ -42,6 +49,7 @@ export const linksProviders: MenuItem[] = [
   metaKoios,
   metaMaestro,
   metaOgmios,
+  metaU5c,
   metaYaci,
 ];
 

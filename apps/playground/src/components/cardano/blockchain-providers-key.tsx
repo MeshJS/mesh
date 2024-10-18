@@ -23,6 +23,8 @@ export default function BlockchainProviderKey({
   const setYaciUrl = useProviders((state) => state.setYaciUrl);
   const ogmiosUrl = useProviders((state) => state.ogmiosUrl);
   const setOgmiosUrl = useProviders((state) => state.setOgmiosUrl);
+  const utxorpc = useProviders((state) => state.utxorpc);
+  const setUTxORPC = useProviders((state) => state.setUTxORPC);
 
   if (provider == "maestro") {
     return (
@@ -140,6 +142,30 @@ export default function BlockchainProviderKey({
             placeholder="Instance URL"
             label="Instance URL"
             key={0}
+          />,
+        ]}
+      />
+    );
+  }
+
+  if (provider == "utxorpc") {
+    return (
+      <InputTable
+        listInputs={[
+          <Input
+            value={utxorpc.url}
+            onChange={(e) => setUTxORPC(e.target.value, utxorpc.key)}
+            placeholder="Instance URL"
+            label="Instance URL"
+            key={0}
+          />,
+          <Input
+            value={utxorpc.key}
+            onChange={(e) => setUTxORPC(utxorpc.url, e.target.value)}
+            placeholder="Key"
+            label="Key"
+            type="password"
+            key={1}
           />,
         ]}
       />
