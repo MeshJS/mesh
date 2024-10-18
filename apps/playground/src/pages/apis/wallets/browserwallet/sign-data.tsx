@@ -49,7 +49,7 @@ function Left() {
       <Codeblock data={example} />
       <p>
         Continue reading this{" "}
-        <Link href="https://meshjs.dev/guides/prove-wallet-ownership">
+        <Link href="/guides/prove-wallet-ownership">
           guide
         </Link>{" "}
         to learn how to verify the signature.

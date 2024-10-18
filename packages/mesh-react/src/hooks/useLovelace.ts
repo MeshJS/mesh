@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { WalletContext } from "../contexts";
 
@@ -6,12 +6,22 @@ export const useLovelace = () => {
   const [lovelace, setLovelace] = useState<string>();
   const { hasConnectedWallet, connectedWalletName, connectedWalletInstance } =
     useContext(WalletContext);
+  const hasFetchedLovelace = useRef(false);
 
   useEffect(() => {
-    if (hasConnectedWallet) {
-      connectedWalletInstance.getLovelace().then(setLovelace);
+    async function getLovelace() {
+      console.log(333, lovelace, hasConnectedWallet, connectedWalletName);
+      setLovelace(await connectedWalletInstance.getLovelace());
     }
-  }, [connectedWalletName]);
+    if (hasConnectedWallet && !hasFetchedLovelace.current) {
+      getLovelace();
+      hasFetchedLovelace.current = true;
+    }
+  }, [hasConnectedWallet, connectedWalletInstance]);
 
-  return lovelace;
+  const _lovelace = useMemo(() => {
+    return lovelace;
+  }, [lovelace]);
+
+  return _lovelace;
 };

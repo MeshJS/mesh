@@ -42,6 +42,16 @@ declare global {
   }
 }
 
+/**
+ * Browser Wallet provides a set of APIs to interact with the blockchain. This wallet is compatible with Mesh transaction builders.
+ *
+ * These wallets APIs are in accordance to CIP-30, which defines the API for dApps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building dApps.
+ * ```javascript
+ * import { BrowserWallet } from '@meshsdk/core';
+ *
+ * const wallet = await BrowserWallet.enable('eternl');
+ * ```
+ */
 export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   walletInstance: WalletInstance;
 
@@ -61,9 +71,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a list of wallet names
    */
   static async getAvailableWallets({
-    metamask = {
-      network: "preprod",
-    },
+    metamask = undefined,
   }: {
     metamask?: {
       network: string;
@@ -149,6 +157,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a list of assets and their quantities
    */
   async getBalance(): Promise<Asset[]> {
+    console.log(999)
     const balance = await this._walletInstance.getBalance();
     return fromValue(deserializeValue(balance));
   }

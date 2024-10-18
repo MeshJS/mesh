@@ -97,7 +97,7 @@ You just saved a few weeks of learning and a number days trying to get started. 
 
 React context is an essential tool for building web applications. It allow you to easily share state in your applications, so you can use the data in any component within the app. This means that when the user has connected their wallet, visiting different pages on the app ensure their wallet is still connected.
 
-Open **pages/\_app.tsx**, import and include [**MeshProvider**](https://meshjs.dev/react/getting-started). Your **\_app.tsx** should look similar to this:
+Open **pages/\_app.tsx**, import and include [**MeshProvider**](/react/getting-started). Your **\_app.tsx** should look similar to this:
 
 ```
 import "../styles/globals.css";
@@ -118,7 +118,7 @@ export default MyApp;
 
 ### 2. Add connect wallet component and check wallet's assets
 
-Lets add the [connect wallet component](https://meshjs.dev/react/ui-components) to allow users to connect wallets they have installed on their device. Connecting to wallets will ask the user for permission if not granted, and proceed to connect the selected wallet.
+Lets add the [connect wallet component](/react/ui-components) to allow users to connect wallets they have installed on their device. Connecting to wallets will ask the user for permission if not granted, and proceed to connect the selected wallet.
 
 Lastly, we link those components together, allowing users to choose a wallet to connect, and query for assets in the wallet with **wallet.getAssets()**.
 
@@ -187,8 +187,10 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000/) to connect available wallets and view the assets in wallet.
 
+If you do not have any assets in your wallet, you can receive test ADA (tADA) from the [official faucet](https://docs.cardano.org/cardano-testnets/tools/faucet/).
+
 If you are new to Cardano, you will first have to download one of the Cardano wallets. _Tall Nupinks_ has written a detailed [Cardano Wallets 101](https://cutedumborcs.substack.com/p/cardano-wallets-101) guide to help you understand the fundamentals of a Cardano wallet, including its features and how it works. With this guide, you will be able to make an informed decision on the best Cardano wallet for your needs.
 
 ### 3. Try on your own
 
-Implement another component to display wallet's address and the amount of lovelace in your Next.js application. Check out the [wallet](https://meshjs.dev/apis/browserwallet) page for more details.
+Implement another component to display wallet's address and the amount of lovelace in your Next.js application. Check out the [wallet](/apis/wallets/browserwallet) page for more details.

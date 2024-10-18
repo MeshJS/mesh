@@ -30,7 +30,7 @@ function Left() {
       <Codeblock data={code1} />
       <p>
         <code>wallet</code> is a{" "}
-        <Link href="/apis/browserwallet">Browser Wallet</Link> instance, which
+        <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> instance, which
         expose all CIP wallets functions from getting assets to signing
         tranasction.
       </p>

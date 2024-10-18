@@ -139,7 +139,7 @@ const datumConstr: Data = {
 };
 ```
 
-For cancel, update and purchase endpoints, we need the UTxO in the script address as inputs to create the transaction. We use **fetchAddressUTxOs()** from one of the [providers](https://meshjs.dev/providers) to query for UTxOs that contain the asset of our interest. Next, we filter the UTxO list by the datum hash, which we can get from the datum with **resolveDataHash()** (see [resolvers](https://meshjs.dev/apis/resolvers)). Here is the implementation for **\_getAssetUtxo()**, to get the UTxO in the script address that consists of the listed asset, and we use the datum hash to filter and get the correct UTxO for the transaction's input:
+For cancel, update and purchase endpoints, we need the UTxO in the script address as inputs to create the transaction. We use **fetchAddressUTxOs()** from one of the [providers](/providers) to query for UTxOs that contain the asset of our interest. Next, we filter the UTxO list by the datum hash, which we can get from the datum with **resolveDataHash()** (see [resolvers](/apis/utilities/resolvers)). Here is the implementation for **\_getAssetUtxo()**, to get the UTxO in the script address that consists of the listed asset, and we use the datum hash to filter and get the correct UTxO for the transaction's input:
 
 ```
 async function _getAssetUtxo({ scriptAddress, asset, datum }) {

@@ -24,9 +24,9 @@ export const metaBlockfrost = {
 };
 
 export const metaU5c = {
-  title: "UTxORPC",
+  title: "UTxORPC Provider",
   link: "/providers/utxorpc",
-  desc: "Facilitates access to this state in a standardized and efficient manner through gRPC",
+  desc: "Highly efficient through gRPC, using a compact and high-performance binary format",
   thumbnail: "/providers/utxo-rpc.png",
 };
 

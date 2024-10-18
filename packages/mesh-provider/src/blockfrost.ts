@@ -30,6 +30,15 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
 
 export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
 
+/**
+ * Blockfrost provides restful APIs which allows your app to access information stored on the blockchain.
+ *
+ * Usage:
+ * ```
+ * import { BlockfrostProvider } from "@meshsdk/core";
+ *
+ * const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');
+ */
 export class BlockfrostProvider
   implements IFetcher, IListener, ISubmitter, IEvaluator
 {
@@ -69,6 +78,10 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Evaluates the resources required to execute the transaction
+   * @param tx - The transaction to evaluate
+   */
   async evaluateTx(cbor: string): Promise<any> {
     try {
       const headers = { "Content-Type": "application/cbor" };
@@ -108,6 +121,10 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Obtain information about a specific stake account.
+   * @param address - Wallet address to fetch account information
+   */
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
     const rewardAddress = address.startsWith("addr")
       ? resolveRewardAddress(address)
@@ -133,6 +150,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the assets for a given address.
+   * @param address - The address to fetch assets for
+   * @returns A map of asset unit to quantity
+   */
   async fetchAddressAssets(
     address: string,
   ): Promise<{ [key: string]: string }> {
@@ -174,6 +196,10 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the asset addresses for a given asset.
+   * @param asset - The asset to fetch addresses for
+   */
   async fetchAssetAddresses(
     asset: string,
   ): Promise<{ address: string; quantity: string }[]> {
@@ -201,6 +227,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the metadata for a given asset.
+   * @param asset - The asset to fetch metadata for
+   * @returns The metadata for the asset
+   */
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
@@ -222,6 +253,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the metadata for a given asset.
+   * @param asset - The asset to fetch metadata for
+   * @returns The metadata for the asset
+   */
   async fetchLatestBlock(): Promise<BlockInfo> {
     try {
       const { data, status } = await this._axiosInstance.get(`blocks/latest`);
@@ -432,6 +468,12 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Allow you to listen to a transaction confirmation. Upon confirmation, the callback will be called.
+   * @param txHash - The transaction hash to listen for confirmation
+   * @param callback - The callback function to call when the transaction is confirmed
+   * @param limit - The number of blocks to wait for confirmation
+   */
   onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
@@ -457,6 +499,11 @@ export class BlockfrostProvider
     }, 5_000);
   }
 
+  /**
+   * Submit a serialized transaction to the network.
+   * @param tx - The serialized transaction in hex to submit
+   * @returns The transaction hash of the submitted transaction
+   */
   async submitTx(tx: string): Promise<string> {
     try {
       const headers = { "Content-Type": "application/cbor" };
