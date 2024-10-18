@@ -2,6 +2,7 @@ import {
   BlockfrostProvider,
   MaestroProvider,
   OgmiosProvider,
+  U5CProvider,
   YaciProvider,
 } from "@meshsdk/core";
 
@@ -28,4 +29,5 @@ export type SupportedEvaluators =
   | BlockfrostProvider
   | YaciProvider
   | MaestroProvider
-  | OgmiosProvider;
+  | OgmiosProvider
+  | U5CProvider;

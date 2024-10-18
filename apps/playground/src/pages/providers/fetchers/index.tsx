@@ -2,6 +2,7 @@ import {
   BlockfrostProvider,
   KoiosProvider,
   MaestroProvider,
+  U5CProvider,
   YaciProvider,
 } from "@meshsdk/core";
 
@@ -81,4 +82,5 @@ export type SupportedFetchers =
   | BlockfrostProvider
   | KoiosProvider
   | YaciProvider
-  | MaestroProvider;
+  | MaestroProvider
+  | U5CProvider;

@@ -2,6 +2,7 @@ import {
   BlockfrostProvider,
   KoiosProvider,
   MaestroProvider,
+  U5CProvider,
   YaciProvider,
 } from "@meshsdk/core";
 
@@ -28,4 +29,5 @@ export type SupportedListeners =
   | BlockfrostProvider
   | YaciProvider
   | MaestroProvider
-  | KoiosProvider;
+  | KoiosProvider
+  | U5CProvider;
