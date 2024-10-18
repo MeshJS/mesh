@@ -1,12 +1,7 @@
-import Link from "~/components/link";
-
 import {
-  AssetMetadata,
-  cst,
   deserializeAddress,
   ForgeScript,
   NativeScript,
-  resolvePaymentKeyHash,
   resolveScriptHash,
   stringToHex,
 } from "@meshsdk/core";
@@ -15,7 +10,7 @@ import { useWallet } from "@meshsdk/react";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoAddresses, demoAssetMetadata } from "~/data/cardano";
+import { demoAssetMetadata } from "~/data/cardano";
 import { getTxBuilder } from "../common";
 
 export default function TxbuilderMintingNativeScript() {
@@ -97,7 +92,6 @@ function Right() {
 
     const signedTx = await wallet.signTx(unsignedTx);
     const txHash = await wallet.submitTx(signedTx);
-
     return txHash;
   }
 

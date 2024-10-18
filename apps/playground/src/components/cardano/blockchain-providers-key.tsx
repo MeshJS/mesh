@@ -25,6 +25,8 @@ export default function BlockchainProviderKey({
   const setOgmiosUrl = useProviders((state) => state.setOgmiosUrl);
   const utxorpc = useProviders((state) => state.utxorpc);
   const setUTxORPC = useProviders((state) => state.setUTxORPC);
+  const hydraUrl = useProviders((state) => state.hydraUrl);
+  const setHydraUrl = useProviders((state) => state.setHydraUrl);
 
   if (provider == "maestro") {
     return (
@@ -125,6 +127,7 @@ export default function BlockchainProviderKey({
             onChange={(e) => setYaciUrl(e.target.value)}
             placeholder="Instance URL"
             label="Instance URL"
+            type="password"
             key={0}
           />,
         ]}
@@ -141,6 +144,24 @@ export default function BlockchainProviderKey({
             onChange={(e) => setOgmiosUrl(e.target.value)}
             placeholder="Instance URL"
             label="Instance URL"
+            type="password"
+            key={0}
+          />,
+        ]}
+      />
+    );
+  }
+
+  if (provider == "hydra") {
+    return (
+      <InputTable
+        listInputs={[
+          <Input
+            value={hydraUrl ?? ""}
+            onChange={(e) => setHydraUrl(e.target.value)}
+            placeholder="e.g. http://123.45.67.890:4001"
+            label="Hydra Head URL and Port"
+            type="password"
             key={0}
           />,
         ]}

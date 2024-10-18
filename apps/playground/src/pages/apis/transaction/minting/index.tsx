@@ -6,7 +6,9 @@ import TitleIconDescriptionBody from "~/components/sections/title-icon-descripti
 import Metatags from "~/components/site/metatags";
 import { metaMinting } from "~/data/links-transactions";
 import { Intro } from "../common";
+import MintingAssetMetadata from "./asset-metadata";
 import BurningOneSignature from "./burning-one-signature";
+import MintingMaskMetadata from "./mask-metadata";
 import MintingCip68 from "./minting-cip68";
 import MintingNativeScript from "./minting-native-script";
 import MintingOneSignature from "./minting-one-signature";
@@ -16,11 +18,13 @@ import MintingRoyaltyToken from "./minting-royalty-token";
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Mint with One Signature", to: "mintingOneSignature" },
+    { label: "Asset Metadata", to: "assetMetadata" },
     { label: "Burn asset", to: "burningOneSignature" },
     { label: "Mint with Native Script", to: "mintingNativeScript" },
     { label: "Mint with Plutus Script", to: "mintingPlutusScript" },
     { label: "Mint with CIP-68", to: "mintingCip68" },
     { label: "Mint Royalty Token", to: "mintingRoyaltyToken" },
+    { label: "Mask metadata", to: "maskMetadata" },
   ];
 
   return (
@@ -48,11 +52,13 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/Transaction" />
 
         <MintingOneSignature />
+        <MintingAssetMetadata />
         <BurningOneSignature />
         <MintingNativeScript />
         <MintingPlutusScript />
         <MintingCip68 />
         <MintingRoyaltyToken />
+        <MintingMaskMetadata />
       </SidebarFullwidth>
     </>
   );

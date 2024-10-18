@@ -17,7 +17,7 @@ export default function Link({
   return (
     <NextLink
       href={href}
-      className={className}
+      className={`${className}`}
       target={target ? target : href.startsWith("http") ? "_blank" : "_self"}
       rel="noreferrer"
     >

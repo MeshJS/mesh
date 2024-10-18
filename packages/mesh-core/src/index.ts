@@ -1,3 +1,4 @@
+export * from "./core";
 export * from "./utils";
 export * from "@meshsdk/common";
 export * as cst from "@meshsdk/core-cst";

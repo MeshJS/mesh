@@ -6,13 +6,6 @@ export const team = [
     github: "https://github.com/abdelkrimdev",
   },
   {
-    name: "Jingles",
-    image: "jingles.png",
-    twitter: "https://x.com/jinglescode",
-    github: "https://github.com/jinglescode",
-    website: "https://jingles.dev/",
-  },
-  {
     name: "Felix",
     image: "felix.png",
     twitter: "https://x.com/CatalystSwarm",
@@ -22,6 +15,13 @@ export const team = [
     image: "hinson.png",
     twitter: "https://x.com/HinsonSIDAN",
     github: "https://github.com/HinsonSIDAN",
+  },
+  {
+    name: "Jingles",
+    image: "jingles.png",
+    twitter: "https://x.com/jinglescode",
+    github: "https://github.com/jinglescode",
+    website: "https://jingles.dev/",
   },
   {
     name: "Tszwai",

@@ -7,6 +7,85 @@ export const metaCatalyst = {
   icon: LightBulbIcon,
 };
 
+export const fund13 = [
+  {
+    title: "Hydra Tools for administrating & interacting with Hydra Heads",
+    desc: "Provide all the tools needed to integration Hydra on apps, to enable end-user operations like interacting with wallet, query UTXOs/balance and submit transactions.",
+    url: "https://cardano.ideascale.com/c/idea/130856",
+    completed: [],
+    tobecompleted: [
+      `Hydra Provider`,
+      `Wallets integration`,
+      `Transaction building`,
+      `End-to-end working example`,
+    ],
+    status: "Voting",
+  },
+  {
+    title: "Cardano Devkit - 'Ganache' of Cardano for better DevXP",
+    desc: "An app to launch local blockchain to test and deploy transactions and smart contracts, to run tests and experiments to develop Cardano applications.",
+    url: "https://cardano.ideascale.com/c/idea/130825",
+    completed: [],
+    tobecompleted: [
+      `Improve devnet deployment`,
+      `Desktop app to launch local blockchain`,
+      `Get blockchain data e.g. UTXOs and balances`,
+    ],
+    status: "Voting",
+  },
+  {
+    title: "Cquisitor - Transaction Investigation Tool",
+    desc: "Enhancing Devtools with hosted Rust-based validation modules, and improving error handling to provide clearer feedback, helping developers debug and validate efficiently.",
+    url: "https://cardano.ideascale.com/c/idea/131631",
+    completed: [],
+    tobecompleted: [
+      `Update Cquisitor`,
+      `Phase-1 validation`,
+      `Phase-2 validation`,
+      `Integration with Whisky and Mesh`,
+    ],
+    status: "Voting",
+  },
+  {
+    title: "Multisig Platform",
+    desc: "Open source multisig platform for teams and organizations to manage their treasury and participate in governance.",
+    url: "https://cardano.ideascale.com/c/idea/131036",
+    completed: [],
+    tobecompleted: [
+      `Full governance features`,
+      `Native tokens support`,
+      `Discord integrations`,
+      `Fluidtokens and Minswap integrations`,
+      `Plutus script multisig wallet`,
+    ],
+    status: "Voting",
+  },
+  {
+    title: "Builder Fest #2 in Asia",
+    desc: "Hosting Buidler Fest #2, a 2-day event for tech-savvy Cardano builders to connect, showcase and share.",
+    url: "https://cardano.ideascale.com/c/idea/131981",
+    completed: [],
+    tobecompleted: [
+      `Gathering of developers in Vietnam`,
+      `Increase collaboration between projects for Cardano ecosystem open-source`,
+    ],
+    status: "Voting",
+  },
+  {
+    title: "Maintain Mesh and Build Developer Community",
+    desc: "Maintenance and operations of the Mesh open source libraries and tool suits. Growing Cardano developer community.",
+    url: "https://cardano.ideascale.com/c/idea/131363",
+    completed: [],
+    tobecompleted: [
+      `Provide community support`,
+      `Resolve GitHub issues`,
+      `Create tutorials and documentation`,
+      `Create workshops and live coding sessions`,
+    ],
+    status: "Voting",
+  },
+];
+
 export const fund12 = [
   {
     title: "Cardano Service Layer Framework for DApps",
@@ -24,8 +103,7 @@ export const fund12 = [
     status: "In Progress",
   },
   {
-    title:
-      "Mesh New Features to Improve Developer experience and Cardano Adoption",
+    title: "New Features to Improve Developer experience and Adoption",
     desc: "We will upgrade Mesh by implementing CIP 45, WebRTC wallet connect, handle multiple serialization libs, revamp to support backend transactions building, and improve error messages to improve DevXP.",
     url: "https://cardano.ideascale.com/c/idea/122160",
     completed: [
@@ -60,7 +138,7 @@ export const fund12 = [
       `Create workshops and live coding sessions`,
     ],
     tobecompleted: [],
-    status: "In Progress",
+    status: "Closing",
   },
 ];
 
@@ -100,7 +178,7 @@ export const fund11 = [
       "Conway features",
     ],
     tobecompleted: [],
-    status: "In Progress",
+    status: "Closing",
   },
 ];
 
@@ -119,6 +197,6 @@ export const fund10 = [
       "Mesh PBL Season #1",
     ],
     tobecompleted: ["Student projects"],
-    status: "In Progress",
+    status: "Closing",
   },
 ];
