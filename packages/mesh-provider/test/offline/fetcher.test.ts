@@ -7,7 +7,7 @@ import {
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
-import { OfflineFetcher } from "../../src";
+import { OfflineFetcher } from "@meshsdk/provider";
 
 describe("OfflineFetcher", () => {
   let fetcher: OfflineFetcher;
@@ -16,14 +16,22 @@ describe("OfflineFetcher", () => {
     fetcher = new OfflineFetcher();
   });
 
-  const validBech32Address = "addr_test1qrhsnfvaqnd8r7dm9f9c5fscyfqmqzptyrn63dzrgvfw6p7vxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qkdr4hz";
-  const validBase58Address= "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo"
-  const validPoolId = "pool1v0hm27ywsufus3xl6v4jayw7rccflmll642lsf7vnmskgtvnnx7";
-  const validVrfVk = "vrf_vk1qthm27ywsufus3xl6v4jayw7rccflmll642lsf7vnmskgqgzqvzqtwha9s"
-  const validTxHash = "0443456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-  const validBlockHash = "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
-  const validAsset = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-  const validPolicyId = "0123456789abcdef0123456789abcdef0123456789abcdef01234567";
+  const validBech32Address =
+    "addr_test1qrhsnfvaqnd8r7dm9f9c5fscyfqmqzptyrn63dzrgvfw6p7vxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qkdr4hz";
+  const validBase58Address =
+    "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo";
+  const validPoolId =
+    "pool1v0hm27ywsufus3xl6v4jayw7rccflmll642lsf7vnmskgtvnnx7";
+  const validVrfVk =
+    "vrf_vk1qthm27ywsufus3xl6v4jayw7rccflmll642lsf7vnmskgqgzqvzqtwha9s";
+  const validTxHash =
+    "0443456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const validBlockHash =
+    "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+  const validAsset =
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const validPolicyId =
+    "0123456789abcdef0123456789abcdef0123456789abcdef01234567";
   const validEpoch = 100;
 
   const sampleAccountInfo: AccountInfo = {
@@ -67,8 +75,10 @@ describe("OfflineFetcher", () => {
     txCount: 10,
     output: "1000000000",
     fees: "500000",
-    previousBlock: "bbcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
-    nextBlock: "bbcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef",
+    previousBlock:
+      "bbcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    nextBlock:
+      "bbcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef",
     confirmations: 10,
     operationalCertificate: validTxHash,
     VRFKey: validVrfVk,
@@ -122,18 +132,27 @@ describe("OfflineFetcher", () => {
 
   describe("addAccount", () => {
     it("should add a valid Bech32 account", () => {
-      expect(() => fetcher.addAccount(validBech32Address, sampleAccountInfo)).not.toThrow();
+      expect(() =>
+        fetcher.addAccount(validBech32Address, sampleAccountInfo),
+      ).not.toThrow();
     });
 
     it("should add a valid Base58 account", () => {
-      const accountInfoBase58 = { ...sampleAccountInfo, address: validBase58Address };
-      expect(() => fetcher.addAccount(validBase58Address, accountInfoBase58)).not.toThrow();
+      const accountInfoBase58 = {
+        ...sampleAccountInfo,
+        address: validBase58Address,
+      };
+      expect(() =>
+        fetcher.addAccount(validBase58Address, accountInfoBase58),
+      ).not.toThrow();
     });
 
     it("should throw an error for invalid address", () => {
-      const invalidAddress = "asasdsadasd44499(("
-      expect(() => fetcher.addAccount(invalidAddress, sampleAccountInfo)).toThrowError(
-        "Invalid address: must be a valid Bech32 or Base58 address"
+      const invalidAddress = "asasdsadasd44499((";
+      expect(() =>
+        fetcher.addAccount(invalidAddress, sampleAccountInfo),
+      ).toThrowError(
+        "Invalid address: must be a valid Bech32 or Base58 address",
       );
     });
   });
@@ -146,9 +165,9 @@ describe("OfflineFetcher", () => {
     });
 
     it("should throw an error if account info is not found", async () => {
-      await expect(fetcher.fetchAccountInfo(validBech32Address)).rejects.toThrowError(
-        `Account not found: ${validBech32Address}`
-      );
+      await expect(
+        fetcher.fetchAccountInfo(validBech32Address),
+      ).rejects.toThrowError(`Account not found: ${validBech32Address}`);
     });
   });
 
@@ -158,9 +177,12 @@ describe("OfflineFetcher", () => {
     });
 
     it("should throw an error for invalid UTxOs", () => {
-      const invalidUTxO = { ...sampleUTxO, input: { ...sampleUTxO.input, txHash: "invalid_hash" } };
+      const invalidUTxO = {
+        ...sampleUTxO,
+        input: { ...sampleUTxO.input, txHash: "invalid_hash" },
+      };
       expect(() => fetcher.addUTxOs([invalidUTxO])).toThrowError(
-        "Invalid txHash for UTxO at index 0: must be a 64-character hexadecimal string"
+        "Invalid txHash for UTxO at index 0: must be a 64-character hexadecimal string",
       );
     });
   });
@@ -180,13 +202,17 @@ describe("OfflineFetcher", () => {
 
   describe("addAssetMetadata", () => {
     it("should add valid asset metadata", () => {
-      expect(() => fetcher.addAssetMetadata(validAsset, sampleAssetMetadata)).not.toThrow();
+      expect(() =>
+        fetcher.addAssetMetadata(validAsset, sampleAssetMetadata),
+      ).not.toThrow();
     });
 
     it("should throw an error for invalid asset", () => {
       const invalidAsset = "short_asset";
-      expect(() => fetcher.addAssetMetadata(invalidAsset, sampleAssetMetadata)).toThrowError(
-        `Invalid asset ${invalidAsset}: must be a string longer than 56 characters`
+      expect(() =>
+        fetcher.addAssetMetadata(invalidAsset, sampleAssetMetadata),
+      ).toThrowError(
+        `Invalid asset ${invalidAsset}: must be a string longer than 56 characters`,
       );
     });
   });
@@ -200,7 +226,7 @@ describe("OfflineFetcher", () => {
 
     it("should throw an error if asset metadata is not found", async () => {
       await expect(fetcher.fetchAssetMetadata(validAsset)).rejects.toThrowError(
-        `Asset metadata not found: ${validAsset}`
+        `Asset metadata not found: ${validAsset}`,
       );
     });
   });
@@ -213,7 +239,7 @@ describe("OfflineFetcher", () => {
     it("should throw an error for invalid block hash", () => {
       const invalidBlockInfo = { ...sampleBlockInfo, hash: "invalid_hash" };
       expect(() => fetcher.addBlock(invalidBlockInfo)).toThrowError(
-        "Invalid block hash: must be a 64-character hexadecimal string"
+        "Invalid block hash: must be a 64-character hexadecimal string",
       );
     });
   });
@@ -226,22 +252,24 @@ describe("OfflineFetcher", () => {
     });
 
     it("should throw an error if block info is not found", async () => {
-      await expect(fetcher.fetchBlockInfo(sampleBlockInfo.hash)).rejects.toThrowError(
-        `Block not found: ${sampleBlockInfo.hash}`
-      );
+      await expect(
+        fetcher.fetchBlockInfo(sampleBlockInfo.hash),
+      ).rejects.toThrowError(`Block not found: ${sampleBlockInfo.hash}`);
     });
   });
 
   describe("addProtocolParameters", () => {
     it("should add valid protocol parameters", () => {
-      expect(() => fetcher.addProtocolParameters(sampleProtocolParameters)).not.toThrow();
+      expect(() =>
+        fetcher.addProtocolParameters(sampleProtocolParameters),
+      ).not.toThrow();
     });
 
     it("should throw an error for invalid epoch", () => {
       const invalidParameters = { ...sampleProtocolParameters, epoch: -1 };
-      expect(() => fetcher.addProtocolParameters(invalidParameters)).toThrowError(
-        "Invalid epoch: must be a non-negative integer"
-      );
+      expect(() =>
+        fetcher.addProtocolParameters(invalidParameters),
+      ).toThrowError("Invalid epoch: must be a non-negative integer");
     });
   });
 
@@ -253,8 +281,10 @@ describe("OfflineFetcher", () => {
     });
 
     it("should throw an error if protocol parameters are not found", async () => {
-      await expect(fetcher.fetchProtocolParameters(validEpoch)).rejects.toThrowError(
-        `Protocol parameters not found for epoch: ${validEpoch}`
+      await expect(
+        fetcher.fetchProtocolParameters(validEpoch),
+      ).rejects.toThrowError(
+        `Protocol parameters not found for epoch: ${validEpoch}`,
       );
     });
   });
@@ -265,9 +295,12 @@ describe("OfflineFetcher", () => {
     });
 
     it("should throw an error for invalid transaction hash", () => {
-      const invalidTransactionInfo = { ...sampleTransactionInfo, hash: "invalid_hash" };
+      const invalidTransactionInfo = {
+        ...sampleTransactionInfo,
+        hash: "invalid_hash",
+      };
       expect(() => fetcher.addTransaction(invalidTransactionInfo)).toThrowError(
-        "Invalid transaction hash: must be a 64-character hexadecimal string"
+        "Invalid transaction hash: must be a 64-character hexadecimal string",
       );
     });
   });
@@ -280,21 +313,30 @@ describe("OfflineFetcher", () => {
     });
 
     it("should throw an error if transaction info is not found", async () => {
-      await expect(fetcher.fetchTxInfo(sampleTransactionInfo.hash)).rejects.toThrowError(
-        `Transaction not found: ${sampleTransactionInfo.hash}`
+      await expect(
+        fetcher.fetchTxInfo(sampleTransactionInfo.hash),
+      ).rejects.toThrowError(
+        `Transaction not found: ${sampleTransactionInfo.hash}`,
       );
     });
   });
 
   describe("addAssetAddresses", () => {
     it("should add valid asset addresses", () => {
-      expect(() => fetcher.addAssetAddresses(validAsset, [sampleAssetAddress])).not.toThrow();
+      expect(() =>
+        fetcher.addAssetAddresses(validAsset, [sampleAssetAddress]),
+      ).not.toThrow();
     });
 
     it("should throw an error for invalid addresses", () => {
-      const invalidAssetAddress = { ...sampleAssetAddress, address: "invalid_address" };
-      expect(() => fetcher.addAssetAddresses(validAsset, [invalidAssetAddress])).toThrowError(
-        "Invalid 'address' field at index 0, should be bech32 string"
+      const invalidAssetAddress = {
+        ...sampleAssetAddress,
+        address: "invalid_address",
+      };
+      expect(() =>
+        fetcher.addAssetAddresses(validAsset, [invalidAssetAddress]),
+      ).toThrowError(
+        "Invalid 'address' field at index 0, should be bech32 string",
       );
     });
   });
@@ -307,9 +349,9 @@ describe("OfflineFetcher", () => {
     });
 
     it("should throw an error if asset addresses are not found", async () => {
-      await expect(fetcher.fetchAssetAddresses(validAsset)).rejects.toThrowError(
-        `Asset addresses not found: ${validAsset}`
-      );
+      await expect(
+        fetcher.fetchAssetAddresses(validAsset),
+      ).rejects.toThrowError(`Asset addresses not found: ${validAsset}`);
     });
   });
 
@@ -321,7 +363,7 @@ describe("OfflineFetcher", () => {
     it("should throw an error for invalid asset units", () => {
       const invalidAsset = { ...sampleAsset, unit: "short_unit" };
       expect(() => fetcher.addCollectionAssets([invalidAsset])).toThrowError(
-        "Invalid unit for asset at index 0: must be a string longer than 56 characters"
+        "Invalid unit for asset at index 0: must be a string longer than 56 characters",
       );
     });
   });
@@ -329,15 +371,16 @@ describe("OfflineFetcher", () => {
   describe("fetchCollectionAssets", () => {
     it("should fetch collection assets after adding them", async () => {
       fetcher.addCollectionAssets([sampleAsset]);
-      const { assets, next } = await fetcher.fetchCollectionAssets(validPolicyId);
+      const { assets, next } =
+        await fetcher.fetchCollectionAssets(validPolicyId);
       expect(assets).toEqual([sampleAsset]);
       expect(next).toBeUndefined();
     });
 
     it("should throw an error if collection is not found", async () => {
-      await expect(fetcher.fetchCollectionAssets(validPolicyId)).rejects.toThrowError(
-        `Collection not found: ${validPolicyId}`
-      );
+      await expect(
+        fetcher.fetchCollectionAssets(validPolicyId),
+      ).rejects.toThrowError(`Collection not found: ${validPolicyId}`);
     });
   });
 
@@ -356,13 +399,27 @@ describe("OfflineFetcher", () => {
       const newFetcher = OfflineFetcher.fromJSON(json);
 
       // Test fetch methods
-      expect(newFetcher.fetchAccountInfo(validBech32Address)).resolves.toEqual(sampleAccountInfo);
-      expect(newFetcher.fetchAddressUTxOs(validBech32Address)).resolves.toEqual([sampleUTxO]);
-      expect(newFetcher.fetchAssetMetadata(validAsset)).resolves.toEqual(sampleAssetMetadata);
-      expect(newFetcher.fetchBlockInfo(sampleBlockInfo.hash)).resolves.toEqual(sampleBlockInfo);
-      expect(newFetcher.fetchProtocolParameters(validEpoch)).resolves.toEqual(sampleProtocolParameters);
-      expect(newFetcher.fetchTxInfo(sampleTransactionInfo.hash)).resolves.toEqual(sampleTransactionInfo);
-      expect(newFetcher.fetchAssetAddresses(validAsset)).resolves.toEqual([sampleAssetAddress]);
+      expect(newFetcher.fetchAccountInfo(validBech32Address)).resolves.toEqual(
+        sampleAccountInfo,
+      );
+      expect(newFetcher.fetchAddressUTxOs(validBech32Address)).resolves.toEqual(
+        [sampleUTxO],
+      );
+      expect(newFetcher.fetchAssetMetadata(validAsset)).resolves.toEqual(
+        sampleAssetMetadata,
+      );
+      expect(newFetcher.fetchBlockInfo(sampleBlockInfo.hash)).resolves.toEqual(
+        sampleBlockInfo,
+      );
+      expect(newFetcher.fetchProtocolParameters(validEpoch)).resolves.toEqual(
+        sampleProtocolParameters,
+      );
+      expect(
+        newFetcher.fetchTxInfo(sampleTransactionInfo.hash),
+      ).resolves.toEqual(sampleTransactionInfo);
+      expect(newFetcher.fetchAssetAddresses(validAsset)).resolves.toEqual([
+        sampleAssetAddress,
+      ]);
       expect(newFetcher.fetchCollectionAssets(validPolicyId)).resolves.toEqual({
         assets: [sampleAsset],
         next: undefined,
@@ -373,12 +430,14 @@ describe("OfflineFetcher", () => {
   describe("Error handling in fetch methods", () => {
     it("fetchUTxOs should throw error if no UTxOs are found for txHash", async () => {
       await expect(fetcher.fetchUTxOs(validTxHash)).rejects.toThrowError(
-        `No UTxOs found for transaction hash: ${validTxHash}`
+        `No UTxOs found for transaction hash: ${validTxHash}`,
       );
     });
 
     it("fetchHandleAddress should throw error if handle is invalid", async () => {
-      await expect(fetcher.fetchHandleAddress("$invalidHandle")).rejects.toThrow();
+      await expect(
+        fetcher.fetchHandleAddress("$invalidHandle"),
+      ).rejects.toThrow();
     });
   });
 
@@ -402,9 +461,8 @@ describe("OfflineFetcher", () => {
     });
 
     it("should return the first page of assets", async () => {
-      const { assets: fetchedAssets, next } = await fetcher.fetchCollectionAssets(
-        validPolicyId
-      );
+      const { assets: fetchedAssets, next } =
+        await fetcher.fetchCollectionAssets(validPolicyId);
       expect(fetchedAssets.length).toBe(pageSize);
       expect(fetchedAssets).toEqual(assets.slice(0, pageSize));
       expect(next).toBe(pageSize); // Next cursor should be the index of the next item
@@ -413,17 +471,15 @@ describe("OfflineFetcher", () => {
     it("should return the second page of assets using the next cursor", async () => {
       // Fetch the first page to get the 'next' cursor
       const firstPage = await fetcher.fetchCollectionAssets(validPolicyId);
-      const nextCursor: number| string | undefined = firstPage.next;
+      const nextCursor: number | string | undefined = firstPage.next;
 
       // Fetch the second page using the next cursor
       const secondPage = await fetcher.fetchCollectionAssets(
         validPolicyId,
-        nextCursor
+        nextCursor,
       );
       expect(secondPage.assets.length).toBe(pageSize);
-      expect(secondPage.assets).toEqual(
-        assets.slice(pageSize, pageSize * 2)
-      );
+      expect(secondPage.assets).toEqual(assets.slice(pageSize, pageSize * 2));
       expect(secondPage.next).toBe(pageSize * 2);
     });
 
@@ -431,10 +487,8 @@ describe("OfflineFetcher", () => {
       // Calculate the cursor for the last page
       const lastPageStartIndex = Math.floor(totalAssets / pageSize) * pageSize;
 
-      const { assets: fetchedAssets, next } = await fetcher.fetchCollectionAssets(
-        validPolicyId,
-        lastPageStartIndex
-      );
+      const { assets: fetchedAssets, next } =
+        await fetcher.fetchCollectionAssets(validPolicyId, lastPageStartIndex);
 
       const expectedAssets = assets.slice(lastPageStartIndex);
 
@@ -445,10 +499,8 @@ describe("OfflineFetcher", () => {
 
     it("should return an empty array if cursor is beyond total assets", async () => {
       const beyondLastIndex = totalAssets + 10;
-      const { assets: fetchedAssets, next } = await fetcher.fetchCollectionAssets(
-        validPolicyId,
-        beyondLastIndex
-      );
+      const { assets: fetchedAssets, next } =
+        await fetcher.fetchCollectionAssets(validPolicyId, beyondLastIndex);
       expect(fetchedAssets.length).toBe(0);
       expect(fetchedAssets).toEqual([]);
       expect(next).toBeUndefined();
@@ -456,10 +508,9 @@ describe("OfflineFetcher", () => {
 
     it("should handle invalid cursor gracefully by treating it as zero", async () => {
       const invalidCursor = "invalid_cursor";
-      await expect(fetcher.fetchCollectionAssets(
-        validPolicyId,
-        invalidCursor
-      )).rejects.toThrow();
+      await expect(
+        fetcher.fetchCollectionAssets(validPolicyId, invalidCursor),
+      ).rejects.toThrow();
     });
 
     it("should handle custom page sizes", async () => {
@@ -470,14 +521,13 @@ describe("OfflineFetcher", () => {
       const originalPaginate = (fetcher as any).paginate;
       (fetcher as any).paginate = function (
         items: any[],
-        cursor: number | string | undefined
+        cursor: number | string | undefined,
       ) {
         return originalPaginate.call(this, items, cursor, customPageSize);
       };
 
-      const { assets: fetchedAssets, next } = await fetcher.fetchCollectionAssets(
-        validPolicyId
-      );
+      const { assets: fetchedAssets, next } =
+        await fetcher.fetchCollectionAssets(validPolicyId);
 
       expect(fetchedAssets.length).toBe(customPageSize);
       expect(fetchedAssets).toEqual(assets.slice(0, customPageSize));
@@ -488,46 +538,58 @@ describe("OfflineFetcher", () => {
   describe("Validation Tests", () => {
     describe("addAccount", () => {
       it("should throw an error if 'balance' is not a string of digits", () => {
-        const invalidAccountInfo = { ...sampleAccountInfo, balance: "invalid_balance" };
-        expect(() => fetcher.addAccount(validBech32Address, invalidAccountInfo)).toThrow(
-          "Invalid 'balance': must be a string of digits"
-        );
+        const invalidAccountInfo = {
+          ...sampleAccountInfo,
+          balance: "invalid_balance",
+        };
+        expect(() =>
+          fetcher.addAccount(validBech32Address, invalidAccountInfo),
+        ).toThrow("Invalid 'balance': must be a string of digits");
       });
 
       it("should throw an error if 'rewards' is not a string of digits", () => {
         const invalidAccountInfo = { ...sampleAccountInfo, rewards: "-100" };
-        expect(() => fetcher.addAccount(validBech32Address, invalidAccountInfo)).toThrow(
-          "Invalid 'rewards': must be a string of digits"
-        );
+        expect(() =>
+          fetcher.addAccount(validBech32Address, invalidAccountInfo),
+        ).toThrow("Invalid 'rewards': must be a string of digits");
       });
 
       it("should throw an error if 'withdrawals' is not a string of digits", () => {
         const invalidAccountInfo = { ...sampleAccountInfo, withdrawals: "abc" };
-        expect(() => fetcher.addAccount(validBech32Address, invalidAccountInfo)).toThrow(
-          "Invalid 'withdrawals': must be a string of digits"
-        );
+        expect(() =>
+          fetcher.addAccount(validBech32Address, invalidAccountInfo),
+        ).toThrow("Invalid 'withdrawals': must be a string of digits");
       });
 
       it("should throw an error if 'poolId' is invalid", () => {
-        const invalidAccountInfo = { ...sampleAccountInfo, poolId: "invalid_poolId" };
-        expect(() => fetcher.addAccount(validBech32Address, invalidAccountInfo)).toThrow(
-          "Invalid 'poolId': must be a valid Bech32 pool address"
-        );
+        const invalidAccountInfo = {
+          ...sampleAccountInfo,
+          poolId: "invalid_poolId",
+        };
+        expect(() =>
+          fetcher.addAccount(validBech32Address, invalidAccountInfo),
+        ).toThrow("Invalid 'poolId': must be a valid Bech32 pool address");
       });
     });
 
     describe("addUTxOs", () => {
       it("should throw an error if 'outputIndex' is negative", () => {
-        const invalidUTxO = { ...sampleUTxO, input: { ...sampleUTxO.input, outputIndex: -1 } };
+        const invalidUTxO = {
+          ...sampleUTxO,
+          input: { ...sampleUTxO.input, outputIndex: -1 },
+        };
         expect(() => fetcher.addUTxOs([invalidUTxO])).toThrow(
-          "Invalid outputIndex for UTxO at index 0: must be a non-negative integer"
+          "Invalid outputIndex for UTxO at index 0: must be a non-negative integer",
         );
       });
 
       it("should throw an error if 'output.amount' is empty", () => {
-        const invalidUTxO = { ...sampleUTxO, output: { ...sampleUTxO.output, amount: [] } };
+        const invalidUTxO = {
+          ...sampleUTxO,
+          output: { ...sampleUTxO.output, amount: [] },
+        };
         expect(() => fetcher.addUTxOs([invalidUTxO])).toThrow(
-          "Invalid amount for UTxO at index 0: must be a non-empty array of assets"
+          "Invalid amount for UTxO at index 0: must be a non-empty array of assets",
         );
       });
 
@@ -540,7 +602,7 @@ describe("OfflineFetcher", () => {
           },
         };
         expect(() => fetcher.addUTxOs([invalidUTxO])).toThrow(
-          "Invalid unit for asset at index 0 in UTxO at index 0"
+          "Invalid unit for asset at index 0 in UTxO at index 0",
         );
       });
 
@@ -553,7 +615,7 @@ describe("OfflineFetcher", () => {
           },
         };
         expect(() => fetcher.addUTxOs([invalidUTxO])).toThrow(
-          "Invalid quantity for asset at index 0 in UTxO at index 0: must be a string of digits"
+          "Invalid quantity for asset at index 0 in UTxO at index 0: must be a string of digits",
         );
       });
 
@@ -563,7 +625,7 @@ describe("OfflineFetcher", () => {
           output: { ...sampleUTxO.output, dataHash: "invalid_dataHash" },
         };
         expect(() => fetcher.addUTxOs([invalidUTxO])).toThrow(
-          "Invalid dataHash for UTxO at index 0: must be a 64-character hexadecimal string or undefined"
+          "Invalid dataHash for UTxO at index 0: must be a 64-character hexadecimal string or undefined",
         );
       });
 
@@ -573,7 +635,7 @@ describe("OfflineFetcher", () => {
           output: { ...sampleUTxO.output, plutusData: "invalid_plutusData" },
         };
         expect(() => fetcher.addUTxOs([invalidUTxO])).toThrow(
-          "Invalid plutusData for UTxO at index 0: must be a hexadecimal string or undefined"
+          "Invalid plutusData for UTxO at index 0: must be a hexadecimal string or undefined",
         );
       });
 
@@ -583,7 +645,7 @@ describe("OfflineFetcher", () => {
           output: { ...sampleUTxO.output, scriptRef: "invalid_scriptRef" },
         };
         expect(() => fetcher.addUTxOs([invalidUTxO])).toThrow(
-          "Invalid scriptRef for UTxO at index 0: must be a hexadecimal string or undefined"
+          "Invalid scriptRef for UTxO at index 0: must be a hexadecimal string or undefined",
         );
       });
 
@@ -593,7 +655,7 @@ describe("OfflineFetcher", () => {
           output: { ...sampleUTxO.output, scriptHash: "invalid_scriptHash" },
         };
         expect(() => fetcher.addUTxOs([invalidUTxO])).toThrow(
-          "Invalid scriptHash for UTxO at index 0: must be a 56-character hexadecimal string or undefined"
+          "Invalid scriptHash for UTxO at index 0: must be a 56-character hexadecimal string or undefined",
         );
       });
     });
@@ -601,7 +663,7 @@ describe("OfflineFetcher", () => {
     describe("addAssetMetadata", () => {
       it("should throw an error if 'metadata' is not an object", () => {
         expect(() => fetcher.addAssetMetadata(validAsset, null as any)).toThrow(
-          "Invalid metadata object"
+          "Invalid metadata object",
         );
       });
     });
@@ -610,42 +672,54 @@ describe("OfflineFetcher", () => {
       it("should throw an error if 'index' is negative", () => {
         const invalidTransactionInfo = { ...sampleTransactionInfo, index: -1 };
         expect(() => fetcher.addTransaction(invalidTransactionInfo)).toThrow(
-          "Invalid 'index': must be a non-negative integer"
+          "Invalid 'index': must be a non-negative integer",
         );
       });
 
       it("should throw an error if 'fees' is not a string of digits", () => {
-        const invalidTransactionInfo = { ...sampleTransactionInfo, fees: "-5000" };
+        const invalidTransactionInfo = {
+          ...sampleTransactionInfo,
+          fees: "-5000",
+        };
         expect(() => fetcher.addTransaction(invalidTransactionInfo)).toThrow(
-          "Invalid 'fees': must be a string of digits"
+          "Invalid 'fees': must be a string of digits",
         );
       });
 
       it("should throw an error if 'size' is not a positive integer", () => {
         const invalidTransactionInfo = { ...sampleTransactionInfo, size: 0 };
         expect(() => fetcher.addTransaction(invalidTransactionInfo)).toThrow(
-          "Invalid 'size': must be a positive integer"
+          "Invalid 'size': must be a positive integer",
         );
       });
 
       it("should throw an error if 'deposit' is not an integer string", () => {
-        const invalidTransactionInfo = { ...sampleTransactionInfo, deposit: "invalid_deposit" };
+        const invalidTransactionInfo = {
+          ...sampleTransactionInfo,
+          deposit: "invalid_deposit",
+        };
         expect(() => fetcher.addTransaction(invalidTransactionInfo)).toThrow(
-          "Invalid 'deposit': must be a string representing an integer (positive or negative)"
+          "Invalid 'deposit': must be a string representing an integer (positive or negative)",
         );
       });
 
       it("should throw an error if 'invalidBefore' is invalid", () => {
-        const invalidTransactionInfo = { ...sampleTransactionInfo, invalidBefore: "abc" };
+        const invalidTransactionInfo = {
+          ...sampleTransactionInfo,
+          invalidBefore: "abc",
+        };
         expect(() => fetcher.addTransaction(invalidTransactionInfo)).toThrow(
-          "Invalid 'invalidBefore': must be a string of digits or empty string"
+          "Invalid 'invalidBefore': must be a string of digits or empty string",
         );
       });
 
       it("should throw an error if 'invalidAfter' is invalid", () => {
-        const invalidTransactionInfo = { ...sampleTransactionInfo, invalidAfter: "-100" };
+        const invalidTransactionInfo = {
+          ...sampleTransactionInfo,
+          invalidAfter: "-100",
+        };
         expect(() => fetcher.addTransaction(invalidTransactionInfo)).toThrow(
-          "Invalid 'invalidAfter': must be a string of digits or empty string"
+          "Invalid 'invalidAfter': must be a string of digits or empty string",
         );
       });
     });
@@ -654,42 +728,48 @@ describe("OfflineFetcher", () => {
       it("should throw an error if 'time' is negative", () => {
         const invalidBlockInfo = { ...sampleBlockInfo, time: -1 };
         expect(() => fetcher.addBlock(invalidBlockInfo)).toThrow(
-          "Invalid 'time': must be a non-negative integer"
+          "Invalid 'time': must be a non-negative integer",
         );
       });
 
       it("should throw an error if 'epoch' is negative", () => {
         const invalidBlockInfo = { ...sampleBlockInfo, epoch: -1 };
         expect(() => fetcher.addBlock(invalidBlockInfo)).toThrow(
-          "Invalid 'epoch': must be a non-negative integer"
+          "Invalid 'epoch': must be a non-negative integer",
         );
       });
 
       it("should throw an error if 'size' is not a positive integer", () => {
         const invalidBlockInfo = { ...sampleBlockInfo, size: 0 };
         expect(() => fetcher.addBlock(invalidBlockInfo)).toThrow(
-          "Invalid 'size': must be a positive integer"
+          "Invalid 'size': must be a positive integer",
         );
       });
 
       it("should throw an error if 'txCount' is negative", () => {
         const invalidBlockInfo = { ...sampleBlockInfo, txCount: -1 };
         expect(() => fetcher.addBlock(invalidBlockInfo)).toThrow(
-          "Invalid 'txCount': must be a non-negative integer"
+          "Invalid 'txCount': must be a non-negative integer",
         );
       });
 
       it("should throw an error if 'slotLeader' is invalid", () => {
-        const invalidBlockInfo = { ...sampleBlockInfo, slotLeader: "invalid_slotLeader" };
+        const invalidBlockInfo = {
+          ...sampleBlockInfo,
+          slotLeader: "invalid_slotLeader",
+        };
         expect(() => fetcher.addBlock(invalidBlockInfo)).toThrow(
-          "Invalid 'slotLeader': must be a bech32 string with pool prefix"
+          "Invalid 'slotLeader': must be a bech32 string with pool prefix",
         );
       });
 
       it("should throw an error if 'VRFKey' is invalid", () => {
-        const invalidBlockInfo = { ...sampleBlockInfo, VRFKey: "invalid_VRFKey" };
+        const invalidBlockInfo = {
+          ...sampleBlockInfo,
+          VRFKey: "invalid_VRFKey",
+        };
         expect(() => fetcher.addBlock(invalidBlockInfo)).toThrow(
-          "Invalid 'VRFKey': must be a bech32 string with vrf_vk1 prefix"
+          "Invalid 'VRFKey': must be a bech32 string with vrf_vk1 prefix",
         );
       });
     });
@@ -698,54 +778,74 @@ describe("OfflineFetcher", () => {
       it("should throw an error if 'minFeeA' is negative", () => {
         const invalidParameters = { ...sampleProtocolParameters, minFeeA: -1 };
         expect(() => fetcher.addProtocolParameters(invalidParameters)).toThrow(
-          "Invalid 'minFeeA': must be a non-negative integer"
+          "Invalid 'minFeeA': must be a non-negative integer",
         );
       });
 
       it("should throw an error if 'priceMem' is negative", () => {
-        const invalidParameters = { ...sampleProtocolParameters, priceMem: -0.1 };
+        const invalidParameters = {
+          ...sampleProtocolParameters,
+          priceMem: -0.1,
+        };
         expect(() => fetcher.addProtocolParameters(invalidParameters)).toThrow(
-          "Invalid 'priceMem': must be non-negative"
+          "Invalid 'priceMem': must be non-negative",
         );
       });
 
       it("should throw an error if 'decentralisation' is out of bounds", () => {
-        const invalidParametersHigh = { ...sampleProtocolParameters, decentralisation: 1.1 };
-        const invalidParametersLow = { ...sampleProtocolParameters, decentralisation: -0.1 };
-        expect(() => fetcher.addProtocolParameters(invalidParametersHigh)).toThrow(
-          "Invalid 'decentralisation': must be between 0 and 1"
-        );
-        expect(() => fetcher.addProtocolParameters(invalidParametersLow)).toThrow(
-          "Invalid 'decentralisation': must be between 0 and 1"
-        );
+        const invalidParametersHigh = {
+          ...sampleProtocolParameters,
+          decentralisation: 1.1,
+        };
+        const invalidParametersLow = {
+          ...sampleProtocolParameters,
+          decentralisation: -0.1,
+        };
+        expect(() =>
+          fetcher.addProtocolParameters(invalidParametersHigh),
+        ).toThrow("Invalid 'decentralisation': must be between 0 and 1");
+        expect(() =>
+          fetcher.addProtocolParameters(invalidParametersLow),
+        ).toThrow("Invalid 'decentralisation': must be between 0 and 1");
       });
 
       it("should throw an error if 'maxTxExMem' is not a string of digits", () => {
-        const invalidParameters = { ...sampleProtocolParameters, maxTxExMem: "invalid_value" };
+        const invalidParameters = {
+          ...sampleProtocolParameters,
+          maxTxExMem: "invalid_value",
+        };
         expect(() => fetcher.addProtocolParameters(invalidParameters)).toThrow(
-          "Invalid 'maxTxExMem': must be a string of digits"
+          "Invalid 'maxTxExMem': must be a string of digits",
         );
       });
 
       it("should throw an error if 'maxValSize' is negative", () => {
-        const invalidParameters = { ...sampleProtocolParameters, maxValSize: -1 };
+        const invalidParameters = {
+          ...sampleProtocolParameters,
+          maxValSize: -1,
+        };
         expect(() => fetcher.addProtocolParameters(invalidParameters)).toThrow(
-          "Invalid 'maxValSize': must be a non-negative integer"
+          "Invalid 'maxValSize': must be a non-negative integer",
         );
       });
     });
 
     describe("addAssetAddresses", () => {
       it("should throw an error if 'quantity' is not a string of digits", () => {
-        const invalidAssetAddress = { ...sampleAssetAddress, quantity: "-1000" };
-        expect(() => fetcher.addAssetAddresses(validAsset, [invalidAssetAddress])).toThrow(
-          "Invalid 'quantity' field at index 0, should be a string of digits"
+        const invalidAssetAddress = {
+          ...sampleAssetAddress,
+          quantity: "-1000",
+        };
+        expect(() =>
+          fetcher.addAssetAddresses(validAsset, [invalidAssetAddress]),
+        ).toThrow(
+          "Invalid 'quantity' field at index 0, should be a string of digits",
         );
       });
 
       it("should throw an error if 'addresses' is empty", () => {
         expect(() => fetcher.addAssetAddresses(validAsset, [])).toThrow(
-          "Invalid addresses: must be a non-empty array"
+          "Invalid addresses: must be a non-empty array",
         );
       });
     });
@@ -753,14 +853,14 @@ describe("OfflineFetcher", () => {
     describe("addCollectionAssets", () => {
       it("should throw an error if 'assets' is empty", () => {
         expect(() => fetcher.addCollectionAssets([])).toThrow(
-          "Invalid assets: must be a non-empty array"
+          "Invalid assets: must be a non-empty array",
         );
       });
 
       it("should throw an error if 'quantity' is not a string of digits", () => {
         const invalidAsset = { ...sampleAsset, quantity: "-1000" };
         expect(() => fetcher.addCollectionAssets([invalidAsset])).toThrow(
-          "Invalid quantity for asset at index 0: must be a string of digits"
+          "Invalid quantity for asset at index 0: must be a string of digits",
         );
       });
     });

@@ -90,7 +90,8 @@ describe("Builder", () => {
       certificates: [],
       withdrawals: [],
       signingKey: [],
-      network: 'preprod'
+      network: "preprod",
+      votes: [],
     };
     const txHex = serializer.serializeTxBody(body, DEFAULT_PROTOCOL_PARAMETERS);
     expect(txHex).toEqual(
