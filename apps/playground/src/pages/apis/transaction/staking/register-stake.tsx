@@ -50,7 +50,7 @@ function Left() {
       <p>
         New address must "register" before they can delegate to stakepools. To
         check if a reward address has been register, use{" "}
-        <Link href="https://meshjs.dev/providers/blockfrost#fetchAccountInfo">
+        <Link href="/providers/blockfrost#fetchAccountInfo">
           blockchainProvider.fetchAccountInfo(rewardAddress)
         </Link>
         . For example this account information, <code>active</code> shows the

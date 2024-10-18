@@ -87,7 +87,7 @@ function Left() {
         To get the <code>keyHash</code>, use the{" "}
         <code>deserializeAddress()</code>. To get the slot, use the{" "}
         <code>resolveSlotNo()</code>. Check out{" "}
-        <Link href="/apis/resolvers">Resolvers</Link> on how to use these
+        <Link href="/apis/utilities/resolvers">Resolvers</Link> on how to use these
         functions.
       </p>
       <p>

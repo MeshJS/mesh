@@ -127,8 +127,6 @@ export default function Navbar() {
               <MenuItemDropdown title="SDK" items={linksApi} />
               <MenuItemDropdown title="Solutions" items={linksSolutions} />
               <MenuItem title="Docs" link="https://docs.meshjs.dev/" />
-              <MenuItem title="Docs" link="https://docs.meshjs.dev/" />
-              <MenuItemDropdown title="Solutions" items={linksSolutions} />
               <MenuItemDropdown title="About" items={linksAbout} />
             </ul>
           </div>

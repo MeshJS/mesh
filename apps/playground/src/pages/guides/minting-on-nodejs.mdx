@@ -14,7 +14,7 @@ export default function MDXPage({ children }) {
   );
 }
 
-In this guide, we will be minting some assets with **AppWallet** on Node.js.
+In this guide, we will be minting some assets with **MeshWallet** on Node.js.
 
 ## System setup
 
@@ -125,7 +125,7 @@ Lets create a file named **main.ts** and import the packages we need and the fil
 
 ```
 import {
-  AppWallet,
+  MeshWallet,
   Transaction,
   ForgeScript,
   BlockfrostProvider,
@@ -155,7 +155,7 @@ const blockfrostKey = 'BLOCKFROST_KEY_HERE';
 
 ### 5\. Build the minting transaction
 
-In this guide, we are building a minting transaction, but it could be any transactions. [Learn more about Transaction](https://meshjs.dev/apis/transaction).
+In this guide, we are building a minting transaction, but it could be any transactions. [Learn more about Transaction](/apis/transaction).
 
 Firstly, we need a blockchain provider, in this guide, we will import **BlockfrostProvider**, but you can use other providers as well:
 
@@ -163,10 +163,10 @@ Firstly, we need a blockchain provider, in this guide, we will import **Blockfro
 const blockchainProvider = new BlockfrostProvider(blockfrostKey);
 ```
 
-Next, lets initialize the **AppWallet** and its forging script. In this example, we initialize using CLI generated keys, but you can also load your wallet with private key and mnemonic phrases. [Learn more about AppWallet](https://meshjs.dev/apis/appwallet).
+Next, lets initialize the **MeshWallet** and its forging script. In this example, we initialize using CLI generated keys, but you can also load your wallet with private key and mnemonic phrases. [Learn more about MeshWallet](/apis/wallets/meshwallet).
 
 ```
-const wallet = new AppWallet({
+const wallet = new MeshWallet({
   networkId: networkId,
   fetcher: blockchainProvider,
   submitter: blockchainProvider,
@@ -182,7 +182,7 @@ const walletAddress = wallet.getPaymentAddress();
 const forgingScript = ForgeScript.withOneSignature(walletAddress);
 ```
 
-Then, lets create a new **Transaction**, loop through each recipient, and mint an assets with **mintAsset** ([Learn more about minting transactions](https://meshjs.dev/apis/transaction)):
+Then, lets create a new **Transaction**, loop through each recipient, and mint an assets with **mintAsset** ([Learn more about minting transactions](/apis/transaction)):
 
 ```
 const tx = new Transaction({ initiator: wallet });
