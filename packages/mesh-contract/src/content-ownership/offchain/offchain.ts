@@ -6,7 +6,9 @@ import {
   mConStr1,
   mOutputReference,
   mScriptAddress,
+  NativeScript,
   resolveScriptHash,
+  serializeNativeScript,
   stringToHex,
   UTxO,
 } from "@meshsdk/core";
@@ -53,15 +55,15 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       outputIndex: 0,
     },
   };
-  refScriptsAddress: string;
+  // refScriptsAddress: string;
   operationAddress: string;
   opsKey: string;
-  stopKey: string;
+  // stopKey: string;
 
   constructor(
     inputs: MeshTxInitiatorInput,
     contract: {
-      refScriptsAddress: string;
+      // refScriptsAddress: string;
       operationAddress: string;
       paramUtxo?: UTxO["input"];
       refScriptUtxos?: {
@@ -83,14 +85,41 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       inputs.networkId,
     );
 
-    this.refScriptsAddress = contract.refScriptsAddress;
+    // this.refScriptsAddress = contract.refScriptsAddress;
     this.operationAddress = contract.operationAddress;
 
     const serializedOpsPlutusAddr = deserializeAddress(this.operationAddress);
-    const serializedStopPlutusAddr = deserializeAddress(this.refScriptsAddress);
+    // const serializedStopPlutusAddr = deserializeAddress(this.refScriptsAddress);
     this.opsKey = serializedOpsPlutusAddr.pubKeyHash;
-    this.stopKey = serializedStopPlutusAddr.pubKeyHash;
+    // this.stopKey = serializedStopPlutusAddr.pubKeyHash;
   }
+
+  getOwnerNativeScript = () => {
+    const { pubKeyHash: keyHash } = deserializeAddress(this.operationAddress);
+    const nativeScript: NativeScript = {
+      type: "all",
+      scripts: [
+        {
+          type: "sig",
+          keyHash: keyHash,
+        },
+      ],
+    };
+
+    const { address: scriptAddress } = serializeNativeScript(
+      nativeScript,
+      undefined,
+      this.networkId,
+    );
+
+    const serializedStopPlutusAddr = deserializeAddress(scriptAddress);
+
+    return {
+      nativeScript,
+      scriptAddress,
+      stopKey: serializedStopPlutusAddr.pubKeyHash,
+    };
+  };
 
   // Setup
   mintOneTimeMintingPolicy = async () => {
@@ -140,8 +169,9 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
 
   sendRefScriptOnchain = async (scriptIndex: ScriptIndex) => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
+    const { scriptAddress } = this.getOwnerNativeScript();
     const txHex = await this.mesh
-      .txOut(this.refScriptsAddress, [])
+      .txOut(scriptAddress, [])
       .txOutReferenceScript(getScriptCbor(this.paramUtxo, scriptIndex))
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
@@ -548,6 +578,8 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     const { txHash: validatorTxHash, outputIndex: validatorTxId } =
       scriptUtxos[0]!.input;
 
+    const { stopKey } = this.getOwnerNativeScript();
+
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
       .txIn(validatorTxHash, validatorTxId)
@@ -571,7 +603,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.amount,
         collateral.output.address,
       )
-      .requiredSignerHash(this.stopKey)
+      .requiredSignerHash(stopKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -594,6 +626,8 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       oracleUtxo[0]!.input;
     const { txHash: validatorTxHash, outputIndex: validatorTxId } =
       scriptUtxos[0]!.input;
+
+    const { stopKey } = this.getOwnerNativeScript();
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
@@ -618,7 +652,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.amount,
         collateral.output.address,
       )
-      .requiredSignerHash(this.stopKey)
+      .requiredSignerHash(stopKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -634,6 +668,8 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.scriptInfo.oracleNFT.hash,
     );
     const { txHash, outputIndex } = oracleUtxo[0]!.input;
+
+    const { stopKey } = this.getOwnerNativeScript();
 
     const txHex = await this.mesh
       .txIn(txInHash, txInId)
@@ -654,7 +690,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .requiredSignerHash(this.opsKey)
-      .requiredSignerHash(this.stopKey)
+      .requiredSignerHash(stopKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -693,6 +729,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.scriptInfo.ownershipRegistry.hash,
       this.stakeCredential,
     );
+    const { stopKey } = this.getOwnerNativeScript();
 
     return mConStr0([
       this.scriptInfo.oracleNFT.hash,
@@ -704,7 +741,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       ownershipRegistryAddr,
       ownershipRegistryCount,
       this.opsKey,
-      this.stopKey,
+      stopKey,
     ]);
   };
 

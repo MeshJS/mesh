@@ -30,7 +30,11 @@ function Right() {
   const [userInput, setUserInput] = useState<string>("10000000");
 
   async function runDemo() {
-    const contract = getContract(wallet, "mesh");
+    const contract = getContract(wallet, "mesh", {
+      outputIndex: 0,
+      txHash:
+        "5e338419ce3ce5a3ec301fdc6d1c52d70909b28e446c97430301ba525cbae678",
+    });
     const tx = await contract.mintPlutusNFT();
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);

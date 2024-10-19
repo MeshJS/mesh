@@ -21,7 +21,6 @@ export function getContract(wallet: BrowserWallet, paramUtxo?: UTxO["input"]) {
       networkId: 0,
     },
     {
-      refScriptsAddress: demoAddresses.testnet,
       operationAddress: demoAddresses.testnet,
       // paramUtxo: paramUtxo,
       paramUtxo: {

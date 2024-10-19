@@ -103,7 +103,7 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
 
     this.paramUtxo = paramUtxo.input;
 
-    return { tx: txHex, paramUtxo };
+    return { tx: txHex, paramUtxo: paramUtxo.input };
   };
 
   // Mint
@@ -155,9 +155,9 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .changeAddress(walletAddress)
+      .selectUtxosFrom(utxos)
       .complete();
 
-    console.log("Param utxo", this.paramUtxo);
     return txHex;
   };
 

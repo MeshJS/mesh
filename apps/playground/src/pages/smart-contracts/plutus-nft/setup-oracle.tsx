@@ -35,7 +35,7 @@ function Right() {
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);
     console.log(2, "paramUtxo", JSON.stringify(paramUtxo));
-    return txHash;
+    return { txHash, paramUtxo };
   }
 
   let code = ``;

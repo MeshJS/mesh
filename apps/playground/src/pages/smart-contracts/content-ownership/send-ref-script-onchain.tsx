@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { useWallet } from "@meshsdk/react";
 
+import { getProvider } from "~/components/cardano/mesh-wallet";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import { getContract } from "./common";
@@ -34,8 +35,10 @@ function Right() {
     // "OracleNFT" | "OracleValidator" | "ContentRegistry" | "ContentRefToken" | "OwnershipRegistry" | "OwnershipRefToken"
     const tx = await contract.sendRefScriptOnchain("OracleValidator");
     const signedTx = await wallet.signTx(tx);
-    console.log('signedTx', signedTx)
-    const txHash = await wallet.submitTx(signedTx);
+    console.log("signedTx", signedTx);
+    // const txHash = await wallet.submitTx(signedTx);
+    const blockchainProvider = getProvider();
+    const txHash = await blockchainProvider.submitTx(signedTx);
     return txHash;
   }
 
@@ -46,7 +49,7 @@ function Right() {
 
   return (
     <LiveCodeDemo
-      title="Setup Oracle Utxo"
+      title="Send Ref Script Onchain"
       subtitle=""
       runCodeFunction={runDemo}
       code={code}
