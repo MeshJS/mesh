@@ -140,7 +140,7 @@ export function InputsParamUtxo() {
         <Input
           value={paramUtxo}
           onChange={(e) => setParamUtxo(e.target.value)}
-          placeholder="{outputIndex: 0, txHash: '...'}"
+          placeholder="{outputIndex: 0, txHash: 'txhash...txhash'}"
           label="Param UTxO"
           key={0}
         />,
@@ -176,28 +176,28 @@ export function InputsRefScriptUtxos() {
         <Input
           value={contentRegistry}
           onChange={(e) => setContentRegistry(e.target.value)}
-          placeholder=""
+          placeholder="txhash...txhash"
           label="Content Registry Tx Hash"
           key={0}
         />,
         <Input
           value={contentRefToken}
           onChange={(e) => setContentRefToken(e.target.value)}
-          placeholder=""
+          placeholder="txhash...txhash"
           label="Content Ref Token Tx Hash"
           key={1}
         />,
         <Input
           value={ownershipRegistry}
           onChange={(e) => setOwnershipRegistry(e.target.value)}
-          placeholder=""
+          placeholder="txhash...txhash"
           label="Ownership Registry Tx Hash"
           key={2}
         />,
         <Input
           value={ownershipRefToken}
           onChange={(e) => setOwnershipRefToken(e.target.value)}
-          placeholder=""
+          placeholder="txhash...txhash"
           label="Ownership Ref Token Tx Hash"
           key={3}
         />,
