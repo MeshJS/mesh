@@ -112,12 +112,9 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.networkId,
     );
 
-    const serializedStopPlutusAddr = deserializeAddress(scriptAddress);
-
     return {
       nativeScript,
       scriptAddress,
-      stopKey: serializedStopPlutusAddr.pubKeyHash,
     };
   };
 
@@ -578,8 +575,6 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     const { txHash: validatorTxHash, outputIndex: validatorTxId } =
       scriptUtxos[0]!.input;
 
-    const { stopKey } = this.getOwnerNativeScript();
-
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
       .txIn(validatorTxHash, validatorTxId)
@@ -603,7 +598,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.amount,
         collateral.output.address,
       )
-      .requiredSignerHash(stopKey)
+      .requiredSignerHash(this.opsKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -626,8 +621,6 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       oracleUtxo[0]!.input;
     const { txHash: validatorTxHash, outputIndex: validatorTxId } =
       scriptUtxos[0]!.input;
-
-    const { stopKey } = this.getOwnerNativeScript();
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
@@ -652,7 +645,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.amount,
         collateral.output.address,
       )
-      .requiredSignerHash(stopKey)
+      .requiredSignerHash(this.opsKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -668,8 +661,6 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.scriptInfo.oracleNFT.hash,
     );
     const { txHash, outputIndex } = oracleUtxo[0]!.input;
-
-    const { stopKey } = this.getOwnerNativeScript();
 
     const txHex = await this.mesh
       .txIn(txInHash, txInId)
@@ -690,7 +681,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .requiredSignerHash(this.opsKey)
-      .requiredSignerHash(stopKey)
+      .requiredSignerHash(this.opsKey)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -729,7 +720,6 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.scriptInfo.ownershipRegistry.hash,
       this.stakeCredential,
     );
-    const { stopKey } = this.getOwnerNativeScript();
 
     return mConStr0([
       this.scriptInfo.oracleNFT.hash,
@@ -741,7 +731,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       ownershipRegistryAddr,
       ownershipRegistryCount,
       this.opsKey,
-      stopKey,
+      this.opsKey,
     ]);
   };
 
