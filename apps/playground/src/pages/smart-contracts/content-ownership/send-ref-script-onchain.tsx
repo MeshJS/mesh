@@ -2,12 +2,16 @@ import { useState } from "react";
 
 import { useWallet } from "@meshsdk/react";
 
-import Input from "~/components/form/input";
 import Select from "~/components/form/select";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { getContract, useContentOwnership } from "./common";
+import {
+  getContract,
+  InputsOperationAddress,
+  InputsParamUtxo,
+  useContentOwnership,
+} from "./common";
 
 export default function OwnershipSendRefScriptOnchain() {
   return (
@@ -30,6 +34,11 @@ function Left() {
 
 function Right() {
   const { wallet, connected } = useWallet();
+  const operationAddress = useContentOwnership(
+    (state) => state.operationAddress,
+  );
+  const paramUtxo = useContentOwnership((state) => state.paramUtxo);
+
   const [scriptIndex, setScriptIndex] = useState<
     | "OracleNFT"
     | "OracleValidator"
@@ -38,22 +47,12 @@ function Right() {
     | "OwnershipRegistry"
     | "OwnershipRefToken"
   >("OracleNFT");
-  const operationAddress = useContentOwnership(
-    (state) => state.operationAddress,
-  );
-  const setOperationAddress = useContentOwnership(
-    (state) => state.setOperationAddress,
-  );
-  const paramUtxo = useContentOwnership((state) => state.paramUtxo);
-  const setParamUtxo = useContentOwnership((state) => state.setParamUtxo);
 
-  console.log(1, operationAddress)
-  console.log(2, paramUtxo)
   async function runDemo() {
     const contract = getContract(
       wallet,
       operationAddress,
-      JSON.parse(paramUtxo),
+      JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
     );
     const tx = await contract.sendRefScriptOnchain(scriptIndex);
     const signedTx = await wallet.signTx(tx);
@@ -78,22 +77,10 @@ function Right() {
       }
       runDemoShowBrowseWalletConnect={true}
     >
+      <InputsOperationAddress />
+      <InputsParamUtxo />
       <InputTable
         listInputs={[
-          <Input
-            value={operationAddress}
-            onChange={(e) => setOperationAddress(e.target.value)}
-            placeholder="addr1..."
-            label="Operation address"
-            key={0}
-          />,
-          <Input
-            value={paramUtxo}
-            onChange={(e) => setParamUtxo(e.target.value)}
-            placeholder="{outputIndex: 0, txHash: '...'}"
-            label="Param UTxO"
-            key={1}
-          />,
           <Select
             id="choose"
             options={{
@@ -117,7 +104,7 @@ function Right() {
               )
             }
             label="Select script index"
-            key={2}
+            key={0}
           />,
         ]}
       />

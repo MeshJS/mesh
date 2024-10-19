@@ -1,10 +1,12 @@
 import { useWallet } from "@meshsdk/react";
 
-import Input from "~/components/form/input";
-import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { getContract, useContentOwnership } from "./common";
+import {
+  getContract,
+  InputsOperationAddress,
+  useContentOwnership,
+} from "./common";
 
 export default function OwnershipMintMintingPolicy() {
   return (
@@ -29,9 +31,6 @@ function Right() {
   const { wallet, connected } = useWallet();
   const operationAddress = useContentOwnership(
     (state) => state.operationAddress,
-  );
-  const setOperationAddress = useContentOwnership(
-    (state) => state.setOperationAddress,
   );
 
   async function runDemo() {
@@ -59,17 +58,7 @@ function Right() {
       }
       runDemoShowBrowseWalletConnect={true}
     >
-      <InputTable
-        listInputs={[
-          <Input
-            value={operationAddress}
-            onChange={(e) => setOperationAddress(e.target.value)}
-            placeholder="addr1..."
-            label="Operation address"
-            key={0}
-          />,
-        ]}
-      />
+      <InputsOperationAddress />
     </LiveCodeDemo>
   );
 }

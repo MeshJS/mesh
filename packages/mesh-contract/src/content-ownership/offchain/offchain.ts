@@ -55,22 +55,19 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       outputIndex: 0,
     },
   };
-  // refScriptsAddress: string;
   operationAddress: string;
   opsKey: string;
-  // stopKey: string;
 
   constructor(
     inputs: MeshTxInitiatorInput,
     contract: {
-      // refScriptsAddress: string;
       operationAddress: string;
       paramUtxo?: UTxO["input"];
       refScriptUtxos?: {
-        contentRefToken: UTxO["input"];
-        ownershipRefToken: UTxO["input"];
         contentRegistry: UTxO["input"];
+        contentRefToken: UTxO["input"];
         ownershipRegistry: UTxO["input"];
+        ownershipRefToken: UTxO["input"];
       };
     },
   ) {
@@ -85,13 +82,10 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       inputs.networkId,
     );
 
-    // this.refScriptsAddress = contract.refScriptsAddress;
     this.operationAddress = contract.operationAddress;
 
     const serializedOpsPlutusAddr = deserializeAddress(this.operationAddress);
-    // const serializedStopPlutusAddr = deserializeAddress(this.refScriptsAddress);
     this.opsKey = serializedOpsPlutusAddr.pubKeyHash;
-    // this.stopKey = serializedStopPlutusAddr.pubKeyHash;
   }
 
   getOwnerNativeScript = () => {
@@ -187,7 +181,6 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
       .complete();
-
     return txHex;
   };
 
@@ -230,6 +223,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       ownershipNumber,
     );
     console.log("Oracle Datum", oracleDatumValue);
+    console.log("this.refScriptUtxos", this.refScriptUtxos);
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
