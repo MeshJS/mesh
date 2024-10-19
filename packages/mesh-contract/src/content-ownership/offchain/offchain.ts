@@ -78,8 +78,8 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
 
     this.scriptInfo = getScriptInfo(
       this.paramUtxo,
-      inputs.stakeCredential,
-      inputs.networkId,
+      this.stakeCredential,
+      this.networkId,
     );
 
     this.operationAddress = contract.operationAddress;
