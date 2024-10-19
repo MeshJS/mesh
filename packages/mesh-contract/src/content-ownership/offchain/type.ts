@@ -9,16 +9,16 @@ import {
 
 export type OracleDatum = ConStr0<
   [
-    BuiltinByteString,
-    ScriptAddress,
-    BuiltinByteString,
-    ScriptAddress,
-    Integer,
-    BuiltinByteString,
-    ScriptAddress,
-    Integer,
-    BuiltinByteString,
-    BuiltinByteString,
+    BuiltinByteString, // oracle_nft: PolicyId,
+    ScriptAddress, // oracle_address: Address,
+    BuiltinByteString, // content_registry_ref_token: PolicyId,
+    ScriptAddress, // content_registry_address: Address,
+    Integer, // content_registry_count: Int,
+    BuiltinByteString, // ownership_registry_ref_token: PolicyId,
+    ScriptAddress, // ownership_registry_address: Address,
+    Integer, // ownership_registry_count: Int,
+    BuiltinByteString, // operation_key: ByteArray,
+    BuiltinByteString, // stop_key: ByteArray,
   ]
 >;
 
