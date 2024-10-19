@@ -31,9 +31,9 @@ function Right() {
 
   async function runDemo() {
     const contract = getContract(wallet, "mesh", {
-      outputIndex: 0,
+      outputIndex: 5,
       txHash:
-        "5e338419ce3ce5a3ec301fdc6d1c52d70909b28e446c97430301ba525cbae678",
+        "9f6c599d2de21d6c309873068c7f4549a0ea15d226b10f8f87cbb2a27335f490",
     });
     const tx = await contract.mintPlutusNFT();
     const signedTx = await wallet.signTx(tx);

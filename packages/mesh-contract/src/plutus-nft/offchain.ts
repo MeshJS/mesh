@@ -32,7 +32,7 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
 
   getNFTCbor = () => {
     const oracleNftPolicyId = resolveScriptHash(this.getOracleNFTCbor(), "V3");
-    return applyParamsToScript(blueprint.validators[5]!.compiledCode, [
+    return applyParamsToScript(blueprint.validators[4]!.compiledCode, [
       stringToHex(this.collectionName),
       oracleNftPolicyId,
     ]);
@@ -140,14 +140,15 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
       .txInRedeemerValue(mConStr0([]))
       .txInScript(this.getOracleCbor())
       .txInInlineDatumPresent()
-      .mintPlutusScriptV3()
-      .mint("1", policyId, tokenName)
-      .mintingScript(this.getNFTCbor())
-      .mintRedeemerValue(mConStr0([]))
       .txOut(this.oracleAddress, [{ unit: oracleNftPolicyId, quantity: "1" }])
       .txOutInlineDatumValue(
         mConStr0([(existingCounter as number) + 1, pubKeyHash]),
       )
+      .mintPlutusScriptV3()
+      .mint("1", policyId, tokenName)
+      .mintingScript(this.getNFTCbor())
+      .mintRedeemerValue(mConStr0([]))
+      .requiredSignerHash(pubKeyHash)
       .txInCollateral(
         collateral.input.txHash,
         collateral.input.outputIndex,
