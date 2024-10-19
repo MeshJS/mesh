@@ -1037,9 +1037,7 @@ export class MeshTxBuilderCore {
   ) => {
     if (!this.voteItem) throw Error("voteTxInReference: Undefined vote");
     if (this.voteItem.type === "BasicVote")
-      throw Error(
-        "voteTxInReference: Adding script reference to a basic vote",
-      );
+      throw Error("voteTxInReference: Adding script reference to a basic vote");
     if (this.voteItem.type === "ScriptVote") {
       this.voteItem.scriptSource = {
         type: "Inline",
@@ -1430,7 +1428,7 @@ export class MeshTxBuilderCore {
    */
   selectUtxosFrom = (
     extraInputs: UTxO[],
-    strategy: UtxoSelectionStrategy = "experimental",
+    strategy: UtxoSelectionStrategy = "keepRelevant",
     threshold = "5000000",
     includeTxFees = true,
   ) => {

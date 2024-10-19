@@ -1,13 +1,10 @@
-import { useState } from "react";
-
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { demoAddresses } from "~/data/cardano";
-import { getContract, sampleParamUtxo, useContentOwnership } from "./common";
+import { getContract, useContentOwnership } from "./common";
 
 export default function OwnershipMintMintingPolicy() {
   return (
@@ -42,12 +39,11 @@ function Right() {
     const { tx, paramUtxo } = await contract.mintOneTimeMintingPolicy();
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);
-    console.log(2, "paramUtxo", JSON.stringify(paramUtxo));
-    return { txHash };
+    return { txHash, paramUtxo };
   }
 
   let code = ``;
-  code += `const tx = await contract.mintOneTimeMintingPolicy();\n`;
+  code += `const { tx, paramUtxo } = await contract.mintOneTimeMintingPolicy();\n`;
   code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 

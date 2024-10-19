@@ -62,7 +62,7 @@ export const useContentOwnership = create<State>(
       paramUtxo: JSON.stringify(sampleParamUtxo),
       setParamUtxo: (paramUtxo: string) => set({ paramUtxo }),
     }),
-    { name: "mesh-providers" },
+    { name: "mesh-contentownership" },
   ),
 );
 

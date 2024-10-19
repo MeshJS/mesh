@@ -1,16 +1,19 @@
+import { useState } from "react";
+
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import { demoAddresses } from "~/data/cardano";
 import { getContract, useContentOwnership } from "./common";
 
-export default function OwnershipSetupOracleUtxo() {
+export default function OwnershipCreateOwnershipRegistry() {
   return (
     <TwoColumnsScroll
-      sidebarTo="setupOracleUtxo"
-      title="Setup Oracle Utxo"
+      sidebarTo="createOwnershipRegistry"
+      title="Create Ownership Registry"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -40,7 +43,7 @@ function Right() {
     const contract = getContract(
       wallet,
       operationAddress,
-      JSON.parse(paramUtxo),
+      JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
     );
     const tx = await contract.setupOracleUtxo();
     const signedTx = await wallet.signTx(tx);
@@ -49,13 +52,13 @@ function Right() {
   }
 
   let code = ``;
-  code += `const tx = await contract.setupOracleUtxo();\n`;
+  code += `const tx = await contract.mintOneTimeMintingPolicy();\n`;
   code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo
-      title="Setup Oracle Utxo"
+      title="Create Ownership Registry"
       subtitle=""
       runCodeFunction={runDemo}
       code={code}
