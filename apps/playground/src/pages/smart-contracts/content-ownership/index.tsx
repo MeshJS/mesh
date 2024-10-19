@@ -8,6 +8,7 @@ import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
 import { metaContentOwnership } from "~/data/links-smart-contracts";
 import { InstallSmartContract } from "../common";
+import OwnershipCreateOwnershipRegistry from "./create-ownership-registry";
 import OwnershipMintMintingPolicy from "./mint-minting-policy";
 import OwnershipSendRefScriptOnchain from "./send-ref-script-onchain";
 import OwnershipSetupOracleUtxo from "./setup-oracle-utxo";
@@ -81,8 +82,6 @@ const ReactPage: NextPage = () => {
               </Link>
               .
             </p>
-
-            {/* <MintMeshToken /> */}
           </>
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/contracts/classes/MeshEscrowContract" />
@@ -90,6 +89,7 @@ const ReactPage: NextPage = () => {
         <OwnershipMintMintingPolicy />
         <OwnershipSetupOracleUtxo />
         <OwnershipSendRefScriptOnchain />
+        <OwnershipCreateOwnershipRegistry />
       </SidebarFullwidth>
     </>
   );

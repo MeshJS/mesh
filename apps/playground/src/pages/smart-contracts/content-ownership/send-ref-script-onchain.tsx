@@ -47,6 +47,8 @@ function Right() {
   const paramUtxo = useContentOwnership((state) => state.paramUtxo);
   const setParamUtxo = useContentOwnership((state) => state.setParamUtxo);
 
+  console.log(1, operationAddress)
+  console.log(2, paramUtxo)
   async function runDemo() {
     const contract = getContract(
       wallet,

@@ -1,13 +1,8 @@
-import { persistNSync } from "persist-and-sync";
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 import { MeshContentOwnershipContract } from "@meshsdk/contract";
-import {
-  BrowserWallet,
-  KoiosSupportedNetworks,
-  MeshTxBuilder,
-  UTxO,
-} from "@meshsdk/core";
+import { BrowserWallet, MeshTxBuilder, UTxO } from "@meshsdk/core";
 
 import { demoAddresses } from "~/data/cardano";
 import { getProvider } from "../../../components/cardano/mesh-wallet";
@@ -53,16 +48,26 @@ interface State {
   setParamUtxo: (paramUtxo: string) => void;
 }
 
-export const useContentOwnership = create<State>(
-  persistNSync(
-    (set) => ({
+export const useContentOwnership = create<State>()(
+  persist(
+    (set, get) => ({
       operationAddress: demoAddresses.testnet,
-      setOperationAddress: (address: string) =>
-        set({ operationAddress: address }),
+      setOperationAddress: (address: string) => {
+        set(() => ({
+          operationAddress: address,
+          paramUtxo: get().paramUtxo,
+        }));
+      },
       paramUtxo: JSON.stringify(sampleParamUtxo),
-      setParamUtxo: (paramUtxo: string) => set({ paramUtxo }),
+      setParamUtxo: (paramUtxo: string) =>
+        set(() => ({
+          operationAddress: get().operationAddress,
+          paramUtxo: paramUtxo,
+        })),
     }),
-    { name: "mesh-contentownership" },
+    {
+      name: "mesh-contentownership",
+    },
   ),
 );
 
