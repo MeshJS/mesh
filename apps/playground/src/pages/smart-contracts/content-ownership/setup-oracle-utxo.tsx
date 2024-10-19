@@ -2,9 +2,12 @@ import { useState } from "react";
 
 import { useWallet } from "@meshsdk/react";
 
+import Input from "~/components/form/input";
+import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { getContract } from "./common";
+import { demoAddresses } from "~/data/cardano";
+import { getContract, useContentOwnership } from "./common";
 
 export default function OwnershipSetupOracleUtxo() {
   return (
@@ -27,10 +30,21 @@ function Left() {
 
 function Right() {
   const { wallet, connected } = useWallet();
-  const [userInput, setUserInput] = useState<string>("10000000");
+  const operationAddress = useContentOwnership(
+    (state) => state.operationAddress,
+  );
+  const setOperationAddress = useContentOwnership(
+    (state) => state.setOperationAddress,
+  );
+  const paramUtxo = useContentOwnership((state) => state.paramUtxo);
+  const setParamUtxo = useContentOwnership((state) => state.setParamUtxo);
 
   async function runDemo() {
-    const contract = getContract(wallet);
+    const contract = getContract(
+      wallet,
+      operationAddress,
+      JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
+    );
     const tx = await contract.setupOracleUtxo();
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);
@@ -53,6 +67,25 @@ function Right() {
         !connected ? "Connect wallet to run this demo" : undefined
       }
       runDemoShowBrowseWalletConnect={true}
-    ></LiveCodeDemo>
+    >
+      <InputTable
+        listInputs={[
+          <Input
+            value={operationAddress}
+            onChange={(e) => setOperationAddress(e.target.value)}
+            placeholder="addr1..."
+            label="Operation address"
+            key={0}
+          />,
+          <Input
+            value={paramUtxo}
+            onChange={(e) => setParamUtxo(e.target.value)}
+            placeholder="{outputIndex: 0, txHash: '...'}"
+            label="Param UTxO"
+            key={1}
+          />,
+        ]}
+      />
+    </LiveCodeDemo>
   );
 }

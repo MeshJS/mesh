@@ -2,9 +2,12 @@ import { useState } from "react";
 
 import { useWallet } from "@meshsdk/react";
 
+import Input from "~/components/form/input";
+import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { getContract } from "./common";
+import { demoAddresses } from "~/data/cardano";
+import { getContract, sampleParamUtxo, useContentOwnership } from "./common";
 
 export default function OwnershipMintMintingPolicy() {
   return (
@@ -27,15 +30,20 @@ function Left() {
 
 function Right() {
   const { wallet, connected } = useWallet();
-  const [userInput, setUserInput] = useState<string>("10000000");
+  const operationAddress = useContentOwnership(
+    (state) => state.operationAddress,
+  );
+  const setOperationAddress = useContentOwnership(
+    (state) => state.setOperationAddress,
+  );
 
   async function runDemo() {
-    const contract = getContract(wallet);
+    const contract = getContract(wallet, operationAddress);
     const { tx, paramUtxo } = await contract.mintOneTimeMintingPolicy();
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);
     console.log(2, "paramUtxo", JSON.stringify(paramUtxo));
-    return txHash;
+    return { txHash };
   }
 
   let code = ``;
@@ -54,6 +62,18 @@ function Right() {
         !connected ? "Connect wallet to run this demo" : undefined
       }
       runDemoShowBrowseWalletConnect={true}
-    ></LiveCodeDemo>
+    >
+      <InputTable
+        listInputs={[
+          <Input
+            value={operationAddress}
+            onChange={(e) => setOperationAddress(e.target.value)}
+            placeholder="addr1..."
+            label="Operation address"
+            key={0}
+          />,
+        ]}
+      />
+    </LiveCodeDemo>
   );
 }
