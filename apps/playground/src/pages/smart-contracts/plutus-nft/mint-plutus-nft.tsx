@@ -4,7 +4,7 @@ import { useWallet } from "@meshsdk/react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { getContract } from "./common";
+import { getContract, InputsParamUtxo, usePlutusNft } from "./common";
 
 export default function PlutusNftMint() {
   return (
@@ -27,14 +27,10 @@ function Left() {
 
 function Right() {
   const { wallet, connected } = useWallet();
-  const [userInput, setUserInput] = useState<string>("10000000");
+  const paramUtxo = usePlutusNft((state) => state.paramUtxo);
 
   async function runDemo() {
-    const contract = getContract(wallet, "mesh", {
-      outputIndex: 5,
-      txHash:
-        "9f6c599d2de21d6c309873068c7f4549a0ea15d226b10f8f87cbb2a27335f490",
-    });
+    const contract = getContract(wallet, "mesh", JSON.parse(paramUtxo));
     const tx = await contract.mintPlutusNFT();
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);
@@ -42,13 +38,13 @@ function Right() {
   }
 
   let code = ``;
-  code += `const tx = await contract.mintOneTimeMintingPolicy();\n`;
+  code += `const tx = await contract.mintPlutusNFT();\n`;
   code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo
-      title="Setup Oracle Utxo"
+      title="Mint Token"
       subtitle=""
       runCodeFunction={runDemo}
       code={code}
@@ -57,6 +53,8 @@ function Right() {
         !connected ? "Connect wallet to run this demo" : undefined
       }
       runDemoShowBrowseWalletConnect={true}
-    ></LiveCodeDemo>
+    >
+      <InputsParamUtxo />
+    </LiveCodeDemo>
   );
 }

@@ -260,7 +260,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos)
+      .selectUtxosFrom(utxos, "largestFirstMultiAsset")
       .complete();
 
     return txHex;

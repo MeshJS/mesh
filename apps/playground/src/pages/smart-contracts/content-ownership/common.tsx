@@ -68,18 +68,16 @@ interface State {
 
 export const useContentOwnership = create<State>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       operationAddress: demoAddresses.testnet,
       setOperationAddress: (address: string) => {
         set(() => ({
           operationAddress: address,
-          paramUtxo: get().paramUtxo,
         }));
       },
       paramUtxo: JSON.stringify(sampleParamUtxo),
       setParamUtxo: (paramUtxo: string) =>
         set(() => ({
-          operationAddress: get().operationAddress,
           paramUtxo: paramUtxo,
         })),
       contentRegistry: "",
