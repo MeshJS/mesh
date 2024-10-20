@@ -19,6 +19,8 @@ interface State {
   setYaciUrl: (url: string) => void;
   ogmiosUrl: string;
   setOgmiosUrl: (url: string) => void;
+  utxorpc: { url: string; key: string };
+  setUTxORPC: (url: string, key: string) => void;
   hydraUrl: string;
   setHydraUrl: (url: string) => void;
 }
@@ -37,6 +39,8 @@ export const useProviders = create<State>()(
       setYaciUrl: (url) => set({ yaciUrl: url }),
       ogmiosUrl: "",
       setOgmiosUrl: (url) => set({ ogmiosUrl: url }),
+      utxorpc: { url: "http://localhost:50051", key: "api-key" },
+      setUTxORPC: (url, key) => set({ utxorpc: { url, key } }),
       hydraUrl: "",
       setHydraUrl: (url) => set({ hydraUrl: url }),
     }),

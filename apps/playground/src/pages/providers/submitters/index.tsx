@@ -3,6 +3,7 @@ import {
   KoiosProvider,
   MaestroProvider,
   OgmiosProvider,
+  U5CProvider,
   YaciProvider,
 } from "@meshsdk/core";
 
@@ -30,4 +31,5 @@ export type SupportedSubmitters =
   | YaciProvider
   | MaestroProvider
   | KoiosProvider
-  | OgmiosProvider;
+  | OgmiosProvider
+  | U5CProvider;

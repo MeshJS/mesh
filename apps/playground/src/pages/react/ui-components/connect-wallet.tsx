@@ -57,7 +57,7 @@ function Left() {
       <p>
         Add this CardanoWallet to allow the user to select a wallet to connect
         to your dApp. After the wallet is connected, see{" "}
-        <Link href="/apis/browserwallet">Browser Wallet</Link> for a list of
+        <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> for a list of
         CIP-30 APIs.
       </p>
 
@@ -138,6 +138,7 @@ function Right() {
   example += `        label={"Connect a Wallet"}\n`;
   example += `        isDark={isDark}\n`;
   example += `        onConnected={afterConnectedWallet}\n`;
+  example += `        metamask={{ network: "preprod" }}\n`;
   example += `      />\n`;
   example += `    </>\n`;
   example += `  );\n`;
@@ -150,7 +151,11 @@ function Right() {
       code={example}
       childrenAfterCodeFunctions={true}
     >
-      <CardanoWallet label={"Connect a Wallet"} isDark={isDark} />
+      <CardanoWallet
+        label={"Connect a Wallet"}
+        isDark={isDark}
+        metamask={{ network: "preprod" }}
+      />
     </LiveCodeDemo>
   );
 }

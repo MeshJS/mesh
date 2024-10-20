@@ -23,6 +23,13 @@ export const metaBlockfrost = {
   thumbnail: "/providers/blockfrost.png",
 };
 
+export const metaU5c = {
+  title: "UTxORPC Provider",
+  link: "/providers/utxorpc",
+  desc: "Highly efficient through gRPC, using a compact and high-performance binary format",
+  thumbnail: "/providers/utxo-rpc.png",
+};
+
 export const metaYaci = {
   title: "Yaci Provider",
   link: "/providers/yaci",
@@ -50,6 +57,7 @@ export const linksProviders: MenuItem[] = [
   metaMaestro,
   // metaHydra,
   metaOgmios,
+  metaU5c,
   metaYaci,
 ];
 

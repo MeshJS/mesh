@@ -19,9 +19,7 @@ export const CardanoWallet = ({
   label = "Connect Wallet",
   onConnected = undefined,
   isDark = false,
-  metamask = {
-    network: "preprod",
-  },
+  metamask = undefined,
   extensions = [],
 }: ButtonProps) => {
   const [isDarkMode, setIsDarkMode] = useState(false);

@@ -18,7 +18,7 @@ export default function MDXPage({ children }) {
   );
 }
 
-A multi-signature (multi-sig) transaction requires more than one user to sign a transaction prior to the transaction being broadcast on a blockchain. You can think of it like a husband and wife savings account, where both signatures are required to spend the funds, preventing one spouse from spending the money without the approval of the other. For a multi-sig transaction, you can include 2 or more required signers, these signers can be wallets ([Browser Wallet](https://meshjs.dev/apis/wallets/browserwallet) or [Mesh Wallet](https://meshjs.dev/apis/wallets/meshwallet)) or Plutus script.
+A multi-signature (multi-sig) transaction requires more than one user to sign a transaction prior to the transaction being broadcast on a blockchain. You can think of it like a husband and wife savings account, where both signatures are required to spend the funds, preventing one spouse from spending the money without the approval of the other. For a multi-sig transaction, you can include 2 or more required signers, these signers can be wallets ([Browser Wallet](/apis/wallets/browserwallet) or [Mesh Wallet](/apis/wallets/meshwallet)) or Plutus script.
 
 In this guide, we will build a multi-sig transaction for minting. There are 2 wallets involved,
 
@@ -77,7 +77,7 @@ In this section, we will build the minting transaction.
 
 In this guide, we won't be showing how to set up RESTful APIs and backend servers. There are thousands of tutorials on YouTube, we recommend building your backend server with [Vercel API](https://vercel.com/docs/rest-api) or [NestJs](https://www.youtube.com/results?search_query=nestjs) or [ExpressJs](https://www.youtube.com/results?search_query=expressjs).
 
-First, we initialize a [blockchain provider](https://meshjs.dev/providers) and [`Mesh Wallet`](https://meshjs.dev/apis/wallets/meshwallet). In this example, we use mnemonic to restore our wallet, but you can initialize a wallet with mnemonic phrases, private keys, and Cardano CLI generated keys.
+First, we initialize a [blockchain provider](/providers) and [`Mesh Wallet`](/apis/wallets/meshwallet). In this example, we use mnemonic to restore our wallet, but you can initialize a wallet with mnemonic phrases, private keys, and Cardano CLI generated keys.
 
 ```
 const blockchainProvider = new BlockfrostProvider(
@@ -95,7 +95,7 @@ const meshWallet = new MeshWallet({
 });
 ```
 
-Next, let's define the forging script, here we used the first wallet address, but you can also define using `NativeScript`, see [Transaction - Minting assets](https://meshjs.dev/apis/transaction/minting):
+Next, let's define the forging script, here we used the first wallet address, but you can also define using `NativeScript`, see [Transaction - Minting assets](/apis/transaction/minting):
 
 ```
 const meshWalletAddress = meshWallet.getChangeAddress();
