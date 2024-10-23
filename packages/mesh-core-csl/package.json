@@ -39,8 +39,8 @@
   },
   "dependencies": {
     "@meshsdk/common": "1.7.9",
-    "@sidan-lab/sidan-csl-rs-browser": "0.8.7",
-    "@sidan-lab/sidan-csl-rs-nodejs": "0.8.7",
+    "@sidan-lab/sidan-csl-rs-browser": "0.9.4",
+    "@sidan-lab/sidan-csl-rs-nodejs": "0.9.4",
     "json-bigint": "^1.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",

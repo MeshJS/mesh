@@ -544,8 +544,16 @@ export class MeshTxBuilderCore {
    * @param txIndex The transaction index of the reference UTxO
    * @returns The MeshTxBuilder instance
    */
-  readOnlyTxInReference = (txHash: string, txIndex: number) => {
-    this.meshTxBuilderBody.referenceInputs.push({ txHash, txIndex });
+  readOnlyTxInReference = (
+    txHash: string,
+    txIndex: number,
+    scriptSize?: number,
+  ) => {
+    this.meshTxBuilderBody.referenceInputs.push({
+      txHash,
+      txIndex,
+      scriptSize,
+    });
     return this;
   };
 
@@ -1037,9 +1045,7 @@ export class MeshTxBuilderCore {
   ) => {
     if (!this.voteItem) throw Error("voteTxInReference: Undefined vote");
     if (this.voteItem.type === "BasicVote")
-      throw Error(
-        "voteTxInReference: Adding script reference to a basic vote",
-      );
+      throw Error("voteTxInReference: Adding script reference to a basic vote");
     if (this.voteItem.type === "ScriptVote") {
       this.voteItem.scriptSource = {
         type: "Inline",
@@ -1755,6 +1761,15 @@ export class MeshTxBuilderCore {
         },
       };
       this.meshTxBuilderBody.inputs.push(pubKeyTxIn);
+      // If an input selected has script ref, then we must
+      // provide the script size to the tx builder also
+      if (input.output.scriptRef) {
+        this.meshTxBuilderBody.referenceInputs.push({
+          txHash: input.input.txHash,
+          txIndex: input.input.outputIndex,
+          scriptSize: input.output.scriptRef!.length / 2,
+        });
+      }
     });
   };
 
