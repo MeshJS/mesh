@@ -1,7 +1,16 @@
-import { Data, mConStr0, mOutputReference, stringToHex } from "@meshsdk/common";
+import {
+  conStr0,
+  Data,
+  integer,
+  mConStr0,
+  mOutputReference,
+  mPubKeyAddress,
+  stringToHex,
+} from "@meshsdk/common";
 import {
   deserializeAddress,
   resolveScriptHash,
+  serializeAddressObj,
   serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
@@ -61,7 +70,7 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
   }
 
   // Setup
-  setupOracle = async () => {
+  setupOracle = async (lovelacePrice: number) => {
     const { utxos, collateral, walletAddress } =
       await this.getWalletInfoForTx();
     if (utxos?.length <= 0) {
@@ -76,7 +85,8 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
     const paramScript = applyParamsToScript(script, [param]);
     const policyId = resolveScriptHash(paramScript, "V3");
     const tokenName = "";
-    const pubKeyHash = deserializeAddress(walletAddress).pubKeyHash;
+    const { pubKeyHash, stakeCredentialHash } =
+      deserializeAddress(walletAddress);
 
     const txHex = await this.mesh
       .txIn(
@@ -90,7 +100,13 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
       .mintingScript(paramScript)
       .mintRedeemerValue(mConStr0([]))
       .txOut(this.oracleAddress, [{ unit: policyId, quantity: "1" }])
-      .txOutInlineDatumValue(mConStr0([0, pubKeyHash]))
+      .txOutInlineDatumValue(
+        mConStr0([
+          0,
+          lovelacePrice,
+          mPubKeyAddress(pubKeyHash, stakeCredentialHash),
+        ]),
+      )
       .txInCollateral(
         collateral.input.txHash,
         collateral.input.outputIndex,
@@ -121,13 +137,23 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
       oracleUtxo!.output.plutusData!,
     );
     const existingCounter = oracleDatum.fields[0].int;
-
-    const pubKeyHash = deserializeAddress(walletAddress).pubKeyHash;
+    const lovelacePrice = oracleDatum.fields[1].int;
+    const feeCollectorAddressObj = oracleDatum.fields[2];
+    const feeCollectorAddress = serializeAddressObj(
+      feeCollectorAddressObj,
+      this.networkId,
+    );
 
     const policyId = resolveScriptHash(this.getNFTCbor(), "V3");
     const tokenName = stringToHex(
       `${this.collectionName} (${existingCounter})`,
     );
+
+    const updatedOracleDatum: OracleDatum = conStr0([
+      integer((existingCounter as number) + 1),
+      integer(lovelacePrice),
+      feeCollectorAddressObj,
+    ]);
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
@@ -141,14 +167,14 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
       .txInScript(this.getOracleCbor())
       .txInInlineDatumPresent()
       .txOut(this.oracleAddress, [{ unit: oracleNftPolicyId, quantity: "1" }])
-      .txOutInlineDatumValue(
-        mConStr0([(existingCounter as number) + 1, pubKeyHash]),
-      )
+      .txOutInlineDatumValue(updatedOracleDatum, "JSON")
       .mintPlutusScriptV3()
       .mint("1", policyId, tokenName)
       .mintingScript(this.getNFTCbor())
       .mintRedeemerValue(mConStr0([]))
-      .requiredSignerHash(pubKeyHash)
+      .txOut(feeCollectorAddress, [
+        { unit: "lovelace", quantity: lovelacePrice.toString() },
+      ])
       .txInCollateral(
         collateral.input.txHash,
         collateral.input.outputIndex,

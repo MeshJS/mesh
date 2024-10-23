@@ -1,3 +1,3 @@
-import { ConStr0, Integer, PubKeyHash } from "@meshsdk/common";
+import { ConStr0, Integer, PubKeyAddress } from "@meshsdk/common";
 
-export type OracleDatum = ConStr0<[Integer, PubKeyHash]>;
+export type OracleDatum = ConStr0<[Integer, Integer, PubKeyAddress]>;
