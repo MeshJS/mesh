@@ -2,8 +2,8 @@ use aiken/primitive/bytearray.{concat}
 use cardano/assets.{PolicyId, add, from_asset}
 use cardano/transaction.{InlineDatum, Input, Transaction}
 use mocktail.{complete, mint, mocktail_tx, tx_in, tx_in_inline_datum}
-use mocktail/virgin_address.{mock_script_address}
-use mocktail/virgin_key_hash.{mock_policy_id, mock_pub_key_hash}
+use mocktail/virgin_address.{mock_pub_key_address, mock_script_address}
+use mocktail/virgin_key_hash.{mock_policy_id}
 use mocktail/virgin_output_reference.{mock_tx_hash}
 use oracle.{OracleDatum}
 use vodka_converter.{convert_int_to_bytes}
@@ -51,7 +51,11 @@ test success_mint() {
       |> tx_in(True, mock_tx_hash(0), 0, input_value, mock_script_address(0, None))
       |> tx_in_inline_datum(
           True,
-          OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) },
+          OracleDatum {
+            count: 0,
+            lovelace_price: 1_000_000,
+            fee_address: mock_pub_key_address(0, None),
+          },
         )
       |> mint(True, 1, policy_id, "collection (0)")
       |> complete()
@@ -70,7 +74,11 @@ test fail_mint_with_incorrect_name() {
       |> tx_in(True, mock_tx_hash(0), 0, input_value, mock_script_address(0, None))
       |> tx_in_inline_datum(
           True,
-          OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) },
+          OracleDatum {
+            count: 0,
+            lovelace_price: 1_000_000,
+            fee_address: mock_pub_key_address(0, None),
+          },
         )
       |> mint(True, 1, policy_id, "collection (1)")
       |> complete()
@@ -89,7 +97,11 @@ test fail_mint_with_mix() {
       |> tx_in(True, mock_tx_hash(0), 0, input_value, mock_script_address(0, None))
       |> tx_in_inline_datum(
           True,
-          OracleDatum { count: 0, owner_key: mock_pub_key_hash(0) },
+          OracleDatum {
+            count: 0,
+            lovelace_price: 1_000_000,
+            fee_address: mock_pub_key_address(0, None),
+          },
         )
       |> mint(True, 1, policy_id, "collection (0)")
       |> mint(True, 1, mock_policy_id(0), "collection (0)")
