@@ -5,3 +5,4 @@ export * from "./marketplace";
 export * from "./payment-splitter";
 export * from "./swap";
 export * from "./vesting";
+export * from "./affirmation";
