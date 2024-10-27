@@ -1,7 +1,7 @@
 import {
   OfflineEvaluator,
   OfflineFetcher
-} from "../../src";
+} from "@meshsdk/provider";
 
 describe("Offline Evaluator", () => {
   let evaluator: OfflineEvaluator;
