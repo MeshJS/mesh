@@ -1,10 +1,10 @@
 import {
-  ArchiveBoxIcon,
   ArrowsPointingOutIcon,
   ArrowsRightLeftIcon,
   DocumentCheckIcon,
   GiftIcon,
   LockClosedIcon,
+  PhotoIcon,
   ShoppingCartIcon,
 } from "@heroicons/react/24/solid";
 
@@ -50,17 +50,17 @@ export const metaContentOwnership = {
   title: "Content Ownership",
   desc: "Manage ownership of digital content and assets",
   link: "/smart-contracts/content-ownership",
-  icon: ArchiveBoxIcon,
+  icon: DocumentCheckIcon,
 };
 export const metaMintPlutusNft = {
   title: "Mint Plutus NFT",
   desc: "Mint NFT that ensure the token name is incremented by a counter",
   link: "/smart-contracts/plutus-nft",
-  icon: ArchiveBoxIcon,
+  icon: PhotoIcon,
 };
 
 export const linksSmartContracts: MenuItem[] = [
-  metaContentOwnership,
+  // metaContentOwnership,
   metaEscrow,
   metaGiftcard,
   metaMarketplace,

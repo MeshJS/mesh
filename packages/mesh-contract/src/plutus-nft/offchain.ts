@@ -1,4 +1,5 @@
 import {
+  AssetMetadata,
   conStr0,
   Data,
   integer,
@@ -69,7 +70,11 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
     ).address;
   }
 
-  // Setup
+  /**
+   * Setup Oracle for NFT minting
+   * @param lovelacePrice - Price of the NFT in lovelace
+   * @returns - Transaction hex and paramUtxo
+   */
   setupOracle = async (lovelacePrice: number) => {
     const { utxos, collateral, walletAddress } =
       await this.getWalletInfoForTx();
@@ -123,39 +128,33 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
   };
 
   // Mint
-  mintPlutusNFT = async () => {
+  mintPlutusNFT = async (assetMetadata?: AssetMetadata) => {
     const { utxos, collateral, walletAddress } =
       await this.getWalletInfoForTx();
     if (utxos?.length <= 0) {
       throw new Error("No UTxOs found");
     }
-    const oracleNftPolicyId = resolveScriptHash(this.getOracleNFTCbor(), "V3");
-    const oracleUtxo = (
-      await this.getAddressUtxosWithToken(this.oracleAddress, oracleNftPolicyId)
-    )[0]!;
-    const oracleDatum: OracleDatum = parseDatumCbor(
-      oracleUtxo!.output.plutusData!,
-    );
-    const existingCounter = oracleDatum.fields[0].int;
-    const lovelacePrice = oracleDatum.fields[1].int;
-    const feeCollectorAddressObj = oracleDatum.fields[2];
-    const feeCollectorAddress = serializeAddressObj(
-      feeCollectorAddressObj,
-      this.networkId,
-    );
 
-    const policyId = resolveScriptHash(this.getNFTCbor(), "V3");
-    const tokenName = stringToHex(
-      `${this.collectionName} (${existingCounter})`,
-    );
+    const {
+      nftIndex,
+      policyId,
+      lovelacePrice,
+      oracleUtxo,
+      oracleNftPolicyId,
+      feeCollectorAddress,
+      feeCollectorAddressObj,
+    } = await this.getOracleData();
+
+    const tokenName = `${this.collectionName} (${nftIndex})`;
+    const tokenNameHex = stringToHex(tokenName);
 
     const updatedOracleDatum: OracleDatum = conStr0([
-      integer((existingCounter as number) + 1),
+      integer((nftIndex as number) + 1),
       integer(lovelacePrice),
       feeCollectorAddressObj,
     ]);
 
-    const txHex = await this.mesh
+    const tx = this.mesh
       .spendingPlutusScriptV3()
       .txIn(
         oracleUtxo.input.txHash,
@@ -169,9 +168,15 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
       .txOut(this.oracleAddress, [{ unit: oracleNftPolicyId, quantity: "1" }])
       .txOutInlineDatumValue(updatedOracleDatum, "JSON")
       .mintPlutusScriptV3()
-      .mint("1", policyId, tokenName)
-      .mintingScript(this.getNFTCbor())
-      .mintRedeemerValue(mConStr0([]))
+      .mint("1", policyId, tokenNameHex)
+      .mintingScript(this.getNFTCbor());
+
+    if (assetMetadata) {
+      const metadata = { [policyId]: { [tokenName]: { ...assetMetadata } } };
+      tx.metadataValue("721", metadata);
+    }
+
+    tx.mintRedeemerValue(mConStr0([]))
       .txOut(feeCollectorAddress, [
         { unit: "lovelace", quantity: lovelacePrice.toString() },
       ])
@@ -182,10 +187,40 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos)
-      .complete();
+      .selectUtxosFrom(utxos);
 
+    const txHex = await tx.complete();
     return txHex;
+  };
+
+  getOracleData = async () => {
+    const oracleNftPolicyId = resolveScriptHash(this.getOracleNFTCbor(), "V3");
+    const oracleUtxo = (
+      await this.getAddressUtxosWithToken(this.oracleAddress, oracleNftPolicyId)
+    )[0]!;
+    const oracleDatum: OracleDatum = parseDatumCbor(
+      oracleUtxo!.output.plutusData!,
+    );
+
+    const nftIndex = oracleDatum.fields[0].int;
+    const lovelacePrice = oracleDatum.fields[1].int;
+    const feeCollectorAddressObj = oracleDatum.fields[2];
+    const feeCollectorAddress = serializeAddressObj(
+      feeCollectorAddressObj,
+      this.networkId,
+    );
+
+    const policyId = resolveScriptHash(this.getNFTCbor(), "V3");
+
+    return {
+      nftIndex,
+      policyId,
+      lovelacePrice,
+      oracleUtxo,
+      oracleNftPolicyId,
+      feeCollectorAddress,
+      feeCollectorAddressObj,
+    };
   };
 
   getUtxoByTxHash = async (txHash: string): Promise<UTxO | undefined> => {

@@ -4,9 +4,9 @@ import { persist } from "zustand/middleware";
 import { MeshPlutusNFTContract } from "@meshsdk/contract";
 import { BrowserWallet, MeshTxBuilder, UTxO } from "@meshsdk/core";
 
-import { getProvider } from "../../../components/cardano/mesh-wallet";
-import InputTable from "~/components/sections/input-table";
 import Input from "~/components/form/input";
+import InputTable from "~/components/sections/input-table";
+import { getProvider } from "../../../components/cardano/mesh-wallet";
 
 export function getContract(
   wallet: BrowserWallet,
@@ -37,22 +37,30 @@ export function getContract(
   return contract;
 }
 
+export const demoParamUtxo = {
+  outputIndex: 0,
+  txHash: "63dbd563ee9979574401599a42841e0d5b63a691af95df863cbf37d5cb44a558",
+};
+
 interface State {
   paramUtxo: string;
   setParamUtxo: (paramUtxo: string) => void;
+  collectionName: string;
+  setCollectionName: (collectionName: string) => void;
 }
 
 export const usePlutusNft = create<State>()(
   persist(
     (set) => ({
-      paramUtxo: JSON.stringify({
-        outputIndex: 0,
-        txHash:
-          "8190f693414b4922c4cc46f8e4bb2d8d6cd80cca4992a68bd53a332b0d991abf",
-      }),
+      paramUtxo: JSON.stringify(demoParamUtxo),
       setParamUtxo: (paramUtxo: string) =>
         set(() => ({
           paramUtxo: paramUtxo,
+        })),
+      collectionName: "mesh",
+      setCollectionName: (collectionName: string) =>
+        set(() => ({
+          collectionName: collectionName,
         })),
     }),
     {
@@ -64,9 +72,19 @@ export const usePlutusNft = create<State>()(
 export function InputsParamUtxo() {
   const paramUtxo = usePlutusNft((state) => state.paramUtxo);
   const setParamUtxo = usePlutusNft((state) => state.setParamUtxo);
+  const collectionName = usePlutusNft((state) => state.collectionName);
+  const setCollectionName = usePlutusNft((state) => state.setCollectionName);
+
   return (
     <InputTable
       listInputs={[
+        <Input
+          value={collectionName}
+          onChange={(e) => setCollectionName(e.target.value)}
+          placeholder="e.g. mesh"
+          label="Collection Name"
+          key={0}
+        />,
         <Input
           value={paramUtxo}
           onChange={(e) => setParamUtxo(e.target.value)}
@@ -77,6 +95,10 @@ export function InputsParamUtxo() {
       ]}
     />
   );
+}
+
+export function getContractCodeSnippet() {
+  return;
 }
 
 export default function Placeholder() {

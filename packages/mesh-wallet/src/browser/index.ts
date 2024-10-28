@@ -156,7 +156,6 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a list of assets and their quantities
    */
   async getBalance(): Promise<Asset[]> {
-    console.log(999)
     const balance = await this._walletInstance.getBalance();
     return fromValue(deserializeValue(balance));
   }

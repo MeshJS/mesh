@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { useWallet } from "@meshsdk/react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
@@ -8,11 +6,11 @@ import Codeblock from "~/components/text/codeblock";
 import { demoAssetMetadata } from "~/data/cardano";
 import { getContract, InputsParamUtxo, usePlutusNft } from "./common";
 
-export default function PlutusNftMint() {
+export default function PlutusNftGetOracleData() {
   return (
     <TwoColumnsScroll
-      sidebarTo="plutusNftMint"
-      title="Mint Token"
+      sidebarTo="getOracleData"
+      title="Get Oracle Data"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -36,23 +34,13 @@ function Left() {
   codeInit += `  },\n`;
   codeInit += `);\n`;
 
-  let codeAsset = ``;
-  codeAsset += `const oracleData = await contract.getOracleData();\n`;
-  codeAsset += `\n`;
-  codeAsset += `const assetMetadata = {\n`;
-  codeAsset += `  ...demoAssetMetadata,\n`;
-  codeAsset += "  name: `Mesh Token ${oracleData.nftIndex}`,\n";
-  codeAsset += `};\n`;
+  let codeOrcle = ``;
+  codeOrcle += `const oracleData = await contract.getOracleData();\n`;
 
-  let codeMint = ``;
-  codeMint += `const tx = await contract.mintPlutusNFT(assetMetadata);\n`;
-  codeMint += `const signedTx = await wallet.signTx(tx);\n`;
-  codeMint += `const txHash = await wallet.submitTx(signedTx);\n`;
   return (
     <>
       <p>
-        This NFT minting script enables users to mint NFTs with an automatically
-        incremented index, which increases by one for each newly minted NFT.
+        Getting the oracle data is essential to fetch the current NFT index.
       </p>
       <p>
         To facilitate this process, you must provide the <code>paramUtxo</code>{" "}
@@ -61,19 +49,10 @@ function Left() {
       </p>
       <Codeblock data={codeInit} />
       <p>
-        The <code>mintPlutusNFT()</code> function mints an NFT with asset
-        metadata, which is a JSON object containing the NFT metadata. You can
-        use the <code>getOracleData()</code> function to fetch the oracle data,
-        which includes the current NFT index. This index will be helpful if you
-        need to define the NFT name and its metadata. Here is an example of the
-        how we can define the asset metadata:
+        The <code>getOracleData()</code> function will return the current oracle
+        data.
       </p>
-      <Codeblock data={codeAsset} />
-      <p>
-        The <code>mintPlutusNFT()</code> function will return a transaction
-        object that can be signed and submitted using the following code:
-      </p>
-      <Codeblock data={codeMint} />
+      <Codeblock data={codeOrcle} />
     </>
   );
 }
@@ -85,18 +64,8 @@ function Right() {
 
   async function runDemo() {
     const contract = getContract(wallet, collectionName, JSON.parse(paramUtxo));
-
     const oracleData = await contract.getOracleData();
-
-    const assetMetadata = {
-      ...demoAssetMetadata,
-      name: `Mesh Token ${oracleData.nftIndex}`,
-    };
-
-    const tx = await contract.mintPlutusNFT(assetMetadata);
-    const signedTx = await wallet.signTx(tx);
-    const txHash = await wallet.submitTx(signedTx);
-    return txHash;
+    return oracleData;
   }
 
   let code = ``;
@@ -120,23 +89,12 @@ function Right() {
   code += `);\n`;
   code += `\n`;
   code += `// Get Oracle Data\n`;
-  code += `const oracleData = await contract.getOracleData(); // see getOracleData()\n`;
-  code += `\n`;
-  code += `// define your NFT metadata here\n`;
-  code += `const assetMetadata = {\n`;
-  code += `  ...demoAssetMetadata,\n`;
-  code += "  name: `Mesh Token ${oracleData.nftIndex}`,\n";
-  code += `};\n`;
-  code += `\n`;
-  code += `const tx = await contract.mintPlutusNFT(assetMetadata);\n`;
-
-  code += `const signedTx = await wallet.signTx(tx);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+  code += `const oracleData = await contract.getOracleData();\n`;
 
   return (
     <LiveCodeDemo
-      title="Mint Token"
-      subtitle="Mint an NFT with asset metadata"
+      title="Get Oracle Data"
+      subtitle="Fetch the current oracle data to get the current NFT index and other information"
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}

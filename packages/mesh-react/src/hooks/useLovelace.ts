@@ -4,13 +4,12 @@ import { WalletContext } from "../contexts";
 
 export const useLovelace = () => {
   const [lovelace, setLovelace] = useState<string>();
-  const { hasConnectedWallet, connectedWalletName, connectedWalletInstance } =
+  const { hasConnectedWallet, connectedWalletInstance } =
     useContext(WalletContext);
   const hasFetchedLovelace = useRef(false);
 
   useEffect(() => {
     async function getLovelace() {
-      console.log(333, lovelace, hasConnectedWallet, connectedWalletName);
       setLovelace(await connectedWalletInstance.getLovelace());
     }
     if (hasConnectedWallet && !hasFetchedLovelace.current) {
