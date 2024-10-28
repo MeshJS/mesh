@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { checkSignature } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";

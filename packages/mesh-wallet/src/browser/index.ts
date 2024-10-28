@@ -81,8 +81,7 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
 
     if (metamask) await checkIfMetamaskInstalled(metamask.network);
 
-    const wallets = BrowserWallet.getInstalledWallets();
-    return wallets;
+    return BrowserWallet.getInstalledWallets();
   }
 
   /**
@@ -157,7 +156,6 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
    * @returns a list of assets and their quantities
    */
   async getBalance(): Promise<Asset[]> {
-    console.log(999)
     const balance = await this._walletInstance.getBalance();
     return fromValue(deserializeValue(balance));
   }
@@ -262,10 +260,12 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
     if (address === undefined) {
       address = (await this.getUsedAddresses())[0]!;
     }
+
+    if (address.startsWith("drep1")) {
+      return this._walletInstance.cip95!.signData(address, fromUTF8(payload));
+    }
+
     const signerAddress = toAddress(address).toBytes().toString();
-
-    // todo TW process this witness set and return DataSignature correctly
-
     return this._walletInstance.signData(signerAddress, fromUTF8(payload));
   }
 

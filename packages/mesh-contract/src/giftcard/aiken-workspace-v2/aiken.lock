@@ -24,4 +24,4 @@ requirements = []
 source = "github"
 
 [etags]
-"aiken-lang/stdlib@v2" = [{ secs_since_epoch = 1725550729, nanos_since_epoch = 704384000 }, "d79382d2b6ecb3aee9b0755c31d8a5bbafe88a7b3706d7fb8a52fd4d05818501"]
+"aiken-lang/stdlib@v2" = [{ secs_since_epoch = 1725599208, nanos_since_epoch = 36586000 }, "d79382d2b6ecb3aee9b0755c31d8a5bbafe88a7b3706d7fb8a52fd4d05818501"]

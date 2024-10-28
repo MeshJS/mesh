@@ -3,6 +3,7 @@ import {
   conStr0,
   ConStr1,
   conStr1,
+  DEFAULT_REDEEMER_BUDGET,
   mConStr1,
   mConStr2,
   MeshValue,
@@ -17,15 +18,13 @@ import {
   deserializeDatum,
   mergeAssets,
   serializeAddressObj,
-  serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
-import blueprint from "./aiken-workspace/plutus.json";
-
-export const MeshEscrowBlueprint = blueprint;
+import blueprintV1 from "./aiken-workspace-v1/plutus.json";
+import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
 export type InitiationDatum = ConStr0<[PubKeyAddress, Value]>;
 export const initiateEscrowDatum = (
@@ -64,22 +63,29 @@ export const recipientDepositRedeemer = (
 ) => initiateEscrowDatum(recipient, depositAmount);
 
 export class MeshEscrowContract extends MeshTxInitiator {
-  scriptCbor = applyParamsToScript(blueprint.validators[0]!.compiledCode, []);
+  scriptCbor: string;
+  scriptAddress: string;
 
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
+    this.scriptCbor = this.getScriptCbor();
+    this.scriptAddress = this.getScriptAddress(this.scriptCbor);
   }
+
+  getScriptCbor = () => {
+    switch (this.version) {
+      case 2:
+        return applyParamsToScript(blueprintV2.validators[0]!.compiledCode, []);
+      default:
+        return applyParamsToScript(blueprintV1.validators[0]!.compiledCode, []);
+    }
+  };
 
   initiateEscrow = async (escrowAmount: Asset[]): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
-    const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
-      undefined,
-      this.networkId,
-    );
 
     await this.mesh
-      .txOut(scriptAddr, escrowAmount)
+      .txOut(this.scriptAddress, escrowAmount)
       .txOutInlineDatumValue(
         initiateEscrowDatum(walletAddress, escrowAmount),
         "JSON",
@@ -93,11 +99,6 @@ export class MeshEscrowContract extends MeshTxInitiator {
   cancelEscrow = async (escrowUtxo: UTxO): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
-    const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
-      undefined,
-      this.networkId,
-    );
 
     const inputDatum = deserializeDatum<InitiationDatum | ActiveEscrowDatum>(
       escrowUtxo.output.plutusData!,
@@ -130,12 +131,12 @@ export class MeshEscrowContract extends MeshTxInitiator {
     }
 
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         escrowUtxo.input.txHash,
         escrowUtxo.input.outputIndex,
         escrowUtxo.output.amount,
-        scriptAddr,
+        this.scriptAddress,
       )
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
@@ -159,11 +160,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
   ): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
-    const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
-      undefined,
-      this.networkId,
-    );
+
     const inputDatum = deserializeDatum<InitiationDatum>(
       escrowUtxo.output.plutusData!,
     );
@@ -177,24 +174,21 @@ export class MeshEscrowContract extends MeshTxInitiator {
     const escrowAmount = mergeAssets([...depositAmount, ...inputAssets]);
 
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         escrowUtxo.input.txHash,
         escrowUtxo.input.outputIndex,
         escrowUtxo.output.amount,
-        scriptAddr,
+        this.scriptAddress,
       )
       .spendingReferenceTxInInlineDatumPresent()
       .txInRedeemerValue(
         recipientDepositRedeemer(walletAddress, depositAmount),
         "JSON",
-        {
-          mem: 7_000_000,
-          steps: 3_000_000_000,
-        },
+        DEFAULT_REDEEMER_BUDGET,
       )
       .txInScript(this.scriptCbor)
-      .txOut(scriptAddr, escrowAmount)
+      .txOut(this.scriptAddress, escrowAmount)
       .txOutInlineDatumValue(outputDatum, "JSON")
       .changeAddress(walletAddress)
       .txInCollateral(
@@ -211,11 +205,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
   completeEscrow = async (escrowUtxo: UTxO): Promise<string> => {
     const { utxos, walletAddress, collateral } =
       await this.getWalletInfoForTx();
-    const { address: scriptAddr } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
-      undefined,
-      this.networkId,
-    );
+
     const inputDatum = deserializeDatum<ActiveEscrowDatum>(
       escrowUtxo.output.plutusData!,
     );
@@ -237,12 +227,12 @@ export class MeshEscrowContract extends MeshTxInitiator {
     const recipientToReceive = MeshValue.fromValue(initiatorAmount).toAssets();
 
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         escrowUtxo.input.txHash,
         escrowUtxo.input.outputIndex,
         escrowUtxo.output.amount,
-        scriptAddr,
+        this.scriptAddress,
       )
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr2([]))
