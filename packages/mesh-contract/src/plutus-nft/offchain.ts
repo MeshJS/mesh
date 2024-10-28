@@ -25,6 +25,15 @@ import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
 import blueprint from "./aiken-workspace/plutus.json";
 import { OracleDatum } from "./type";
 
+/**
+ * Mesh Plutus NFT contract class
+ * 
+ * This NFT minting script enables users to mint NFTs with an automatically incremented index, which increases by one for each newly minted NFT. 
+ * 
+ * To facilitate this process, the first step is to set up a one-time minting policy by minting an oracle token. This oracle token is essential as it holds the current state and index of the NFTs, acting as a reference for the minting sequence. 
+ * 
+ * With each new NFT minted, the token index within the oracle is incremented by one, ensuring a consistent and orderly progression in the numbering of the NFTs.
+ */
 export class MeshPlutusNFTContract extends MeshTxInitiator {
   collectionName: string;
   paramUtxo: UTxO["input"] = { outputIndex: 0, txHash: "" };
@@ -71,9 +80,14 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
   }
 
   /**
-   * Setup Oracle for NFT minting
+   * Set up a one-time minting policy by minting an oracle token. This oracle token is essential as it holds the current state and index of the NFTs, acting as a reference for the minting sequence.
    * @param lovelacePrice - Price of the NFT in lovelace
    * @returns - Transaction hex and paramUtxo
+   *
+   * @example
+   * ```typescript
+   * const { tx, paramUtxo } = await contract.setupOracle(lovelacePrice);
+   * ```
    */
   setupOracle = async (lovelacePrice: number) => {
     const { utxos, collateral, walletAddress } =
@@ -127,7 +141,20 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
     return { tx: txHex, paramUtxo: paramUtxo.input };
   };
 
-  // Mint
+  /**
+   * Mint NFT token with an automatically incremented index, which increases by one for each newly minted NFT.
+   * @param assetMetadata - Asset metadata
+   * @returns - Transaction hex
+   *
+   * @example
+   * ```typescript
+   * const assetMetadata = {
+   *  ...demoAssetMetadata,
+   * name: `Mesh Token ${oracleData.nftIndex}`,
+   * };
+   * const tx = await contract.mintPlutusNFT(assetMetadata);
+   * ```
+   */
   mintPlutusNFT = async (assetMetadata?: AssetMetadata) => {
     const { utxos, collateral, walletAddress } =
       await this.getWalletInfoForTx();
@@ -193,6 +220,16 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
     return txHex;
   };
 
+  /**
+   * Get the current oracle data.
+   *
+   * @returns - Oracle data
+   *
+   * @example
+   * ```typescript
+   * const oracleData = await contract.getOracleData();
+   * ```
+   */
   getOracleData = async () => {
     const oracleNftPolicyId = resolveScriptHash(this.getOracleNFTCbor(), "V3");
     const oracleUtxo = (
