@@ -35,6 +35,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   txHex: string = "";
   protected queriedTxHashes: Set<string> = new Set();
   protected queriedUTxOs: { [x: string]: UTxO[] } = {};
+  protected utxosWithRefScripts: UTxO[] = [];
 
   constructor({
     serializer,
@@ -83,12 +84,39 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     // Checking if all inputs are complete
     const { inputs, collaterals, mints } = this.meshTxBuilderBody;
-    const incompleteTxIns = [...inputs, ...collaterals].filter(
-      (txIn) => !this.isInputComplete(txIn),
-    );
+    // We must check every input for ref scripts
+    const incompleteTxIns = [...inputs, ...collaterals];
     const incompleteMints = mints.filter((mint) => !this.isMintComplete(mint));
     // Getting all missing utxo information
     await this.queryAllTxInfo(incompleteTxIns, incompleteMints);
+    // Gather all utxos with ref scripts
+    Object.values(this.queriedUTxOs).forEach((utxos) => {
+      for (let utxo of utxos) {
+        if (utxo.output.scriptRef !== undefined) {
+          this.utxosWithRefScripts.push(utxo);
+        }
+      }
+    });
+    const missingRefInput = this.utxosWithRefScripts.filter((utxo) => {
+      this.meshTxBuilderBody.referenceInputs.forEach((refInput) => {
+        if (
+          refInput.txHash === utxo.input.txHash &&
+          refInput.txIndex === utxo.input.outputIndex
+        ) {
+          return false;
+        }
+      });
+      return true;
+    });
+    // Add any inputs with ref scripts into reference inputs
+    // serializer will then deduplicate, but keep the script size for fee calc
+    missingRefInput.forEach((utxo) => {
+      this.meshTxBuilderBody.referenceInputs.push({
+        txHash: utxo.input.txHash,
+        txIndex: utxo.input.outputIndex,
+        scriptSize: utxo.output.scriptRef!.length / 2,
+      });
+    });
     // Completing all inputs
     incompleteTxIns.forEach((txIn) => {
       this.completeTxInformation(txIn);
