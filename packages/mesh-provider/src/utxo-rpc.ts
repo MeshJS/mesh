@@ -21,6 +21,7 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import { Address, CardanoSDKUtil } from "@meshsdk/core-cst";
+import { utxosToAssets } from "./common/utxos-to-assets";
 
 /**
  * A UTxO RPC Provider for [MeshJS](https://meshjs.dev/) Transaction Builder Library.
@@ -198,7 +199,8 @@ export class U5CProvider
   async fetchAddressAssets(
     address: string,
   ): Promise<{ [key: string]: string }> {
-    throw new Error("Method not implemented.");
+    const utxos = await this.fetchAddressUTxOs(address);
+    return utxosToAssets(utxos);
   }
 
   /**
