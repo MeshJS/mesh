@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
+    "@meshsdk/provider": "*",
     "@types/json-bigint": "^1.0.4",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",

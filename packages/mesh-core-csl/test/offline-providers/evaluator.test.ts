@@ -1,7 +1,5 @@
-import {
-  OfflineEvaluator,
-  OfflineFetcher
-} from "@meshsdk/provider";
+import { OfflineFetcher } from "@meshsdk/provider";
+import { OfflineEvaluator } from "@meshsdk/core-csl";
 
 describe("Offline Evaluator", () => {
   let evaluator: OfflineEvaluator;

@@ -5,7 +5,7 @@ import {
   Action,
   Network
 } from "@meshsdk/common";
-import { evaluateTransaction, getTransactionInputs } from "@meshsdk/core-csl";
+import { evaluateTransaction, getTransactionInputs } from "../utils";
 
 export class OfflineEvaluator implements IEvaluator {
 
