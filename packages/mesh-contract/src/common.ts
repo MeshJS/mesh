@@ -4,9 +4,9 @@ import {
   LanguageVersion,
   MeshTxBuilder,
   MeshWallet,
+  serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
-import { v2ScriptToBech32 } from "@meshsdk/core-csl";
 
 export type MeshTxInitiatorInput = {
   mesh: MeshTxBuilder;
@@ -31,7 +31,7 @@ export class MeshTxInitiator {
     fetcher,
     wallet,
     networkId = 0,
-    stakeCredential,
+    stakeCredential = "c08f0294ead5ab7ae0ce5471dd487007919297ba95230af22f25e575",
     version = 2,
   }: MeshTxInitiatorInput) {
     this.mesh = mesh;
@@ -43,14 +43,12 @@ export class MeshTxInitiator {
     }
 
     this.networkId = networkId;
-    if (networkId === 1) {
-      this.mesh.setNetwork("mainnet");
-    } else {
-      this.mesh.setNetwork("preprod");
-    }
-
-    if (stakeCredential) {
-      this.stakeCredential = this.stakeCredential;
+    switch (this.networkId) {
+      case 1:
+        this.mesh.setNetwork("mainnet");
+        break;
+      default:
+        this.mesh.setNetwork("preprod");
     }
 
     this.version = version;
@@ -61,7 +59,20 @@ export class MeshTxInitiator {
       default:
         this.languageVersion = "V3";
     }
+
+    if (stakeCredential) {
+      this.stakeCredential = stakeCredential;
+    }
   }
+
+  getScriptAddress = (scriptCbor: string) => {
+    const { address } = serializePlutusScript(
+      { code: scriptCbor, version: this.languageVersion },
+      this.stakeCredential,
+      this.networkId,
+    );
+    return address;
+  };
 
   protected signSubmitReset = async () => {
     const signedTx = this.mesh.completeSigning();
@@ -191,11 +202,11 @@ export class MeshTxInitiator {
       let scriptUtxo = utxos[0];
 
       if (scriptCbor) {
-        const scriptAddr = v2ScriptToBech32(
-          scriptCbor,
-          undefined,
+        const scriptAddr = serializePlutusScript(
+          { code: scriptCbor, version: this.languageVersion },
+          this.stakeCredential,
           this.networkId,
-        );
+        ).address;
         scriptUtxo =
           utxos.filter((utxo) => utxo.output.address === scriptAddr)[0] ||
           utxos[0];

@@ -1,0 +1,78 @@
+{
+  "preamble": {
+    "title": "meshjs/aiken",
+    "description": "Aiken on MeshJS",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.0+unknown"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "hello_world.hello_world.spend",
+      "datum": {
+        "title": "datum_opt",
+        "schema": {
+          "$ref": "#/definitions/hello_world~1Datum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/hello_world~1Redeemer"
+        }
+      },
+      "compiledCode": "59010801010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00513232533300f30110021533300c3370e900018069baa00313232533300e3371e6eb8c008c040dd5004a450d48656c6c6f2c20576f726c642100100114a06644646600200200644a66602800229404c94ccc048cdc79bae301600200414a2266006006002602c0026eb0c044c048c048c048c048c048c048c048c048c03cdd50051bae3001300f37546022601e6ea80108c0440045858dd7180780098061baa00516300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae89",
+      "hash": "7aef0f7e3fa04defd42c73815891623f7b56d4b98c47610dd59395fe"
+    },
+    {
+      "title": "hello_world.hello_world.else",
+      "compiledCode": "59010801010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00513232533300f30110021533300c3370e900018069baa00313232533300e3371e6eb8c008c040dd5004a450d48656c6c6f2c20576f726c642100100114a06644646600200200644a66602800229404c94ccc048cdc79bae301600200414a2266006006002602c0026eb0c044c048c048c048c048c048c048c048c048c03cdd50051bae3001300f37546022601e6ea80108c0440045858dd7180780098061baa00516300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae89",
+      "hash": "7aef0f7e3fa04defd42c73815891623f7b56d4b98c47610dd59395fe"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "hello_world/Datum": {
+      "title": "Datum",
+      "anyOf": [
+        {
+          "title": "Datum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/VerificationKeyHash"
+            }
+          ]
+        }
+      ]
+    },
+    "hello_world/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

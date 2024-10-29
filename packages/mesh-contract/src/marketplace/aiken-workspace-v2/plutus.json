@@ -1,0 +1,257 @@
+{
+  "preamble": {
+    "title": "meshjs/marketplace",
+    "description": "Aiken contracts for project 'meshjs/marketplace'",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.0+unknown"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "marketplace.marketplace.spend",
+      "datum": {
+        "title": "datum_opt",
+        "schema": {
+          "$ref": "#/definitions/marketplace~1MarketplaceDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/marketplace~1MarketplaceRedeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "owner",
+          "schema": {
+            "$ref": "#/definitions/cardano~1address~1Address"
+          }
+        },
+        {
+          "title": "fee_percentage_basis_point",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        }
+      ],
+      "compiledCode": "5906f401010032323232323232223225333005323232323253323300b3001300c37540042646464646464a66602260060022a66602860266ea8024540085854ccc044c01c00454ccc050c04cdd50048a8010b0b18089baa0081533300f30013010375400426464a64666024600860266ea80284c94ccc04cc014c050dd50008991919191919191919299980e1929998100008a5015333020302300114a22940cc88c8cc00400400c894ccc08c00452f5c026464a66604466ebcc048c090dd5180718121baa002005133026002330040040011330040040013027002302500137586018603c6ea8058c030c078dd51804180f1baa0091533301c001100214a02940cc00ccc008dd61802180e9baa01501a30063370666e08dd69803980e9baa00c018482827004cc008cc004dd61801980e1baa014300a301c3754016600a66e00dd69803180e1baa00b3330043756600c60386ea8c018c070dd5003a450048810022323300100100322533302000114bd6f7b63009991299980f99baf300f3021375400400a2646660020020046eacc030c088dd50019112999812801080089919980200218148019991191980080080291299981500089981599bb037520086e9800d2f5bded8c0264646464a66605666e400200084cc0bccdd81ba9008374c00e00a2a66605666e3c0200084c94ccc0b0c078c0b4dd500089981819bb037520126062605c6ea80040104010c94ccc0b14ccc0bc0045288a5014c0103d87a80001301b33030374c00297ae03233300100100800222253330310021001132333004004303500333223233001001005225333036001133037337606ea4010dd4001a5eb7bdb1804c8c8c8c94ccc0dccdc800400109981d99bb037520106ea001c01454ccc0dccdc7804001099299981c1815181c9baa00113303c337606ea4024c0f4c0e8dd5000802080219299981c18150008a60103d87a8000130273303c375000297ae03370000e00226607666ec0dd48011ba800133006006003375a60700066eb8c0d8008c0e8008c0e0004dd718180009bad3031001303300213302f337606ea4008dd3000998030030019bab302c003375c6054004605c00460580026eb8c090004dd5981280098138010800981100099801001181180091191980080099198008008019129998100008a5eb804c8ccc888c8cc00400400c894ccc098004400c4c8cc0a0dd3998141ba90063302830250013302830260014bd7019801801981500118140009bae301f00137566040002660060066048004604400244a66603e00229444c94ccc074c8cdc49bad3007001333008006375c601c0026eb8c028004dd618110010998018018008a5030220012301d301e301e00122232533301a3010301b37540022900009bad301f301c375400264a666034602060366ea8004530103d87a80001323300100137566040603a6ea8008894ccc07c004530103d87a80001323232325333020337220100042a66604066e3c0200084c03ccc090dd4000a5eb80530103d87a8000133006006003375a60420066eb8c07c008c08c008c084004c8cc004004010894ccc0780045300103d87a8000132323232533301f337220100042a66603e66e3c0200084c038cc08cdd3000a5eb80530103d87a8000133006006003375660400066eb8c078008c088008c08000494ccc058c02000452f5bded8c0264646600200297adef6c6022533301c00113301d337609801014000374c00697adef6c60132323232533301d33720910100002133021337609801014000374c00e00a2a66603a66e3d22100002133021337609801014000374c00e00626604266ec0dd48011ba6001330060060033756603c0066eb8c070008c080008c078004c8cc0040052f5bded8c044a66603600226603866ec13001014000375000697adef6c60132323232533301c33720910100002133020337609801014000375000e00a2a66603866e3d22100002133020337609801014000375000e00626604066ec0dd48011ba800133006006003375a603a0066eb8c06c008c07c008c0740048c068c06c004c060c054dd50008b19198008009bac30033015375401a44a66602e002298103d87a80001323253330163375e600c60306ea80080284c014cc0680092f5c026600800800260360046032002264a666026600a60286ea80044cc88c8cc00400400c894ccc068004528099299980c19b8f375c603a00400829444cc00c00c004c074004dd6180c180c980c980c980c980c980c980c980c980a9baa00d375c6030602a6ea800458c94ccc04cc014c050dd5000898011980b980c180a9baa0014bd700a60103d87a8000300230143754600460286ea800cdd2a40004602c002602860226ea800858dc3a4000602460260046022002601a6ea8008dc3a40042c601c601e004601a002601a0046016002600e6ea800452613656375a002ae6955ceaab9e5573eae815d0aba201",
+      "hash": "464b45f4a6b3b34e2583796622c329a7f084eb47a6b0c1fc2bd08ad8"
+    },
+    {
+      "title": "marketplace.marketplace.else",
+      "parameters": [
+        {
+          "title": "owner",
+          "schema": {
+            "$ref": "#/definitions/cardano~1address~1Address"
+          }
+        },
+        {
+          "title": "fee_percentage_basis_point",
+          "schema": {
+            "$ref": "#/definitions/Int"
+          }
+        }
+      ],
+      "compiledCode": "5906f401010032323232323232223225333005323232323253323300b3001300c37540042646464646464a66602260060022a66602860266ea8024540085854ccc044c01c00454ccc050c04cdd50048a8010b0b18089baa0081533300f30013010375400426464a64666024600860266ea80284c94ccc04cc014c050dd50008991919191919191919299980e1929998100008a5015333020302300114a22940cc88c8cc00400400c894ccc08c00452f5c026464a66604466ebcc048c090dd5180718121baa002005133026002330040040011330040040013027002302500137586018603c6ea8058c030c078dd51804180f1baa0091533301c001100214a02940cc00ccc008dd61802180e9baa01501a30063370666e08dd69803980e9baa00c018482827004cc008cc004dd61801980e1baa014300a301c3754016600a66e00dd69803180e1baa00b3330043756600c60386ea8c018c070dd5003a450048810022323300100100322533302000114bd6f7b63009991299980f99baf300f3021375400400a2646660020020046eacc030c088dd50019112999812801080089919980200218148019991191980080080291299981500089981599bb037520086e9800d2f5bded8c0264646464a66605666e400200084cc0bccdd81ba9008374c00e00a2a66605666e3c0200084c94ccc0b0c078c0b4dd500089981819bb037520126062605c6ea80040104010c94ccc0b14ccc0bc0045288a5014c0103d87a80001301b33030374c00297ae03233300100100800222253330310021001132333004004303500333223233001001005225333036001133037337606ea4010dd4001a5eb7bdb1804c8c8c8c94ccc0dccdc800400109981d99bb037520106ea001c01454ccc0dccdc7804001099299981c1815181c9baa00113303c337606ea4024c0f4c0e8dd5000802080219299981c18150008a60103d87a8000130273303c375000297ae03370000e00226607666ec0dd48011ba800133006006003375a60700066eb8c0d8008c0e8008c0e0004dd718180009bad3031001303300213302f337606ea4008dd3000998030030019bab302c003375c6054004605c00460580026eb8c090004dd5981280098138010800981100099801001181180091191980080099198008008019129998100008a5eb804c8ccc888c8cc00400400c894ccc098004400c4c8cc0a0dd3998141ba90063302830250013302830260014bd7019801801981500118140009bae301f00137566040002660060066048004604400244a66603e00229444c94ccc074c8cdc49bad3007001333008006375c601c0026eb8c028004dd618110010998018018008a5030220012301d301e301e00122232533301a3010301b37540022900009bad301f301c375400264a666034602060366ea8004530103d87a80001323300100137566040603a6ea8008894ccc07c004530103d87a80001323232325333020337220100042a66604066e3c0200084c03ccc090dd4000a5eb80530103d87a8000133006006003375a60420066eb8c07c008c08c008c084004c8cc004004010894ccc0780045300103d87a8000132323232533301f337220100042a66603e66e3c0200084c038cc08cdd3000a5eb80530103d87a8000133006006003375660400066eb8c078008c088008c08000494ccc058c02000452f5bded8c0264646600200297adef6c6022533301c00113301d337609801014000374c00697adef6c60132323232533301d33720910100002133021337609801014000374c00e00a2a66603a66e3d22100002133021337609801014000374c00e00626604266ec0dd48011ba6001330060060033756603c0066eb8c070008c080008c078004c8cc0040052f5bded8c044a66603600226603866ec13001014000375000697adef6c60132323232533301c33720910100002133020337609801014000375000e00a2a66603866e3d22100002133020337609801014000375000e00626604066ec0dd48011ba800133006006003375a603a0066eb8c06c008c07c008c0740048c068c06c004c060c054dd50008b19198008009bac30033015375401a44a66602e002298103d87a80001323253330163375e600c60306ea80080284c014cc0680092f5c026600800800260360046032002264a666026600a60286ea80044cc88c8cc00400400c894ccc068004528099299980c19b8f375c603a00400829444cc00c00c004c074004dd6180c180c980c980c980c980c980c980c980c980a9baa00d375c6030602a6ea800458c94ccc04cc014c050dd5000898011980b980c180a9baa0014bd700a60103d87a8000300230143754600460286ea800cdd2a40004602c002602860226ea800858dc3a4000602460260046022002601a6ea8008dc3a40042c601c601e004601a002601a0046016002600e6ea800452613656375a002ae6955ceaab9e5573eae815d0aba201",
+      "hash": "464b45f4a6b3b34e2583796622c329a7f084eb47a6b0c1fc2bd08ad8"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Option$StakeCredential": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/StakeCredential"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "PaymentCredential": {
+      "title": "PaymentCredential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/VerificationKeyHash"
+            }
+          ]
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/ScriptHash"
+            }
+          ]
+        }
+      ]
+    },
+    "ScriptHash": {
+      "title": "ScriptHash",
+      "dataType": "bytes"
+    },
+    "StakeCredential": {
+      "title": "StakeCredential",
+      "description": "Represent a type of object that can be represented either inline (by hash)\n or via a reference (i.e. a pointer to an on-chain location).\n\n This is mainly use for capturing pointers to a stake credential\n registration certificate in the case of so-called pointer addresses.",
+      "anyOf": [
+        {
+          "title": "Inline",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/cardano~1address~1Credential"
+            }
+          ]
+        },
+        {
+          "title": "Pointer",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "slot_number",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "transaction_index",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "certificate_index",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "cardano/address/Address": {
+      "title": "Address",
+      "description": "A Cardano `Address` typically holding one or two credential references.\n\n Note that legacy bootstrap addresses (a.k.a. 'Byron addresses') are\n completely excluded from Plutus contexts. Thus, from an on-chain\n perspective only exists addresses of type 00, 01, ..., 07 as detailed\n in [CIP-0019 :: Shelley Addresses](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0019/#shelley-addresses).",
+      "anyOf": [
+        {
+          "title": "Address",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "payment_credential",
+              "$ref": "#/definitions/PaymentCredential"
+            },
+            {
+              "title": "stake_credential",
+              "$ref": "#/definitions/Option$StakeCredential"
+            }
+          ]
+        }
+      ]
+    },
+    "cardano/address/Credential": {
+      "title": "Credential",
+      "description": "A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/VerificationKeyHash"
+            }
+          ]
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/ScriptHash"
+            }
+          ]
+        }
+      ]
+    },
+    "marketplace/MarketplaceDatum": {
+      "title": "MarketplaceDatum",
+      "anyOf": [
+        {
+          "title": "MarketplaceDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "seller",
+              "$ref": "#/definitions/cardano~1address~1Address"
+            },
+            {
+              "title": "price",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "policy",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "tokenName",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "marketplace/MarketplaceRedeemer": {
+      "title": "MarketplaceRedeemer",
+      "anyOf": [
+        {
+          "title": "Buy",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Close",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}

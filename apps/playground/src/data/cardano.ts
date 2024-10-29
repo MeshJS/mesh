@@ -1,4 +1,3 @@
-import { MeshMarketplaceBlueprint } from "@meshsdk/contract";
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
 export const demoAddresses = {
@@ -41,8 +40,6 @@ export const demoAssetMetadata = {
 
 export const demoPool =
   "pool107k26e3wrqxwghju2py40ngngx2qcu48ppeg7lk0cm35jl2aenx";
-
-export const demoMarketplaceCompiledCode = MeshMarketplaceBlueprint;
 
 export const demoPubKeyHash =
   "aa048e4cc8a1e67e1d97ffbd4be614388014cbc2b2451527202943b6";

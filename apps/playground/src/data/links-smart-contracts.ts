@@ -4,6 +4,7 @@ import {
   DocumentCheckIcon,
   GiftIcon,
   LockClosedIcon,
+  PhotoIcon,
   ShoppingCartIcon,
 } from "@heroicons/react/24/solid";
 
@@ -11,7 +12,7 @@ import { MenuItem } from "~/types/menu-item";
 
 export const metaMarketplace = {
   title: "Marketplace",
-  desc: "Build a NFT marketplace effortlessly",
+  desc: "Build a NFT marketplace to buy and sell NFTs",
   link: "/smart-contracts/marketplace",
   icon: ShoppingCartIcon,
 };
@@ -45,11 +46,25 @@ export const metaPaymentSplitter = {
   link: "/smart-contracts/payment-splitter",
   icon: ArrowsPointingOutIcon,
 };
+export const metaContentOwnership = {
+  title: "Content Ownership",
+  desc: "Manage ownership of digital content and assets",
+  link: "/smart-contracts/content-ownership",
+  icon: DocumentCheckIcon,
+};
+export const metaMintPlutusNft = {
+  title: "Mint Plutus NFT",
+  desc: "Mint NFT that ensure the token name is incremented by a counter",
+  link: "/smart-contracts/plutus-nft",
+  icon: PhotoIcon,
+};
 
 export const linksSmartContracts: MenuItem[] = [
+  // metaContentOwnership,
   metaEscrow,
   metaGiftcard,
   metaMarketplace,
+  metaMintPlutusNft,
   metaPaymentSplitter,
   metaSwap,
   metaVesting,

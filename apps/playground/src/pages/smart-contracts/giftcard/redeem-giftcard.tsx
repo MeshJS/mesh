@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -44,6 +45,14 @@ function Left() {
         We have provided a very handle function, <code>getUtxoByTxHash</code>,
         which will return the UTxO object for a given transaction hash. You can
         always create another function that searches by token name.
+      </p>
+      <p>
+        A{" "}
+        <Link href="https://preprod.cardanoscan.io/transaction/2bc1c39337de3ebcb2650aa41c73b1a873288282b8c7e1ed130d31f5c34090b7">
+          successful redemption
+        </Link>{" "}
+        will send the value to the wallet that signed the transaction to redeem
+        the gift card.
       </p>
     </>
   );
