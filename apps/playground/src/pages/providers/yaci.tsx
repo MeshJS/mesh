@@ -14,6 +14,7 @@ import ProviderEvaluators from "./evaluators";
 import ProviderFetchers from "./fetchers";
 import ProviderListeners from "./listeners";
 import ProviderSubmitters from "./submitters";
+import ProviderYaciEndpoints from "./yaci-endpoints";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -32,14 +33,19 @@ const ReactPage: NextPage = () => {
     { label: "Evaluate Tx", to: "evaluateTx" },
     { label: "Submit Tx", to: "submitTx" },
     { label: "On Transaction Confirmed", to: "onTxConfirmed" },
+
+    { label: "Admin Get Devnet Info", to: "getDevnetInfo" },
+    { label: "Admin Get Genesis Info By Era", to: "getGenesisByEra" },
+    { label: "Admin Address Topup", to: "addressTopup" },
   ];
 
   let code1 = `import { YaciProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new YaciProvider('<YACI_URL>');`;
+  code1 += `const blockchainProvider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');`;
 
   const yaciUrl = useProviders((state) => state.yaciUrl);
+  const yaciAdminUrl = useProviders((state) => state.yaciAdminUrl);
 
-  const blockchainProvider = new YaciProvider(yaciUrl);
+  const blockchainProvider = new YaciProvider(yaciUrl, yaciAdminUrl);
 
   return (
     <>
@@ -78,6 +84,10 @@ const ReactPage: NextPage = () => {
         />
         <ProviderListeners
           blockchainProvider={blockchainProvider}
+          provider="yaci"
+        />
+        <ProviderYaciEndpoints
+          yaciProvider={blockchainProvider}
           provider="yaci"
         />
       </SidebarFullwidth>

@@ -21,6 +21,8 @@ export default function BlockchainProviderKey({
   const setMaestroKey = useProviders((state) => state.setMaestroKey);
   const yaciUrl = useProviders((state) => state.yaciUrl);
   const setYaciUrl = useProviders((state) => state.setYaciUrl);
+  const yaciAdminUrl = useProviders((state) => state.yaciAdminUrl);
+  const setYaciAdminUrl = useProviders((state) => state.setYaciAdminUrl);
   const ogmiosUrl = useProviders((state) => state.ogmiosUrl);
   const setOgmiosUrl = useProviders((state) => state.setOgmiosUrl);
   const utxorpc = useProviders((state) => state.utxorpc);
@@ -125,9 +127,15 @@ export default function BlockchainProviderKey({
           <Input
             value={yaciUrl}
             onChange={(e) => setYaciUrl(e.target.value)}
-            placeholder="Instance URL"
+            placeholder="e.g. http://localhost:8080/api/v1/"
             label="Instance URL"
-            type="password"
+            key={0}
+          />,
+          <Input
+            value={yaciAdminUrl}
+            onChange={(e) => setYaciAdminUrl(e.target.value)}
+            placeholder="e.g. http://localhost:10000"
+            label="Instance Admin URL"
             key={0}
           />,
         ]}

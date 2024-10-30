@@ -27,19 +27,37 @@ import { utxosToAssets } from "./common/utxos-to-assets";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
 
+/**
+ * Yaci DevKit is a development tool designed for rapid and efficient Cardano blockchain development. It allows developers to create and destroy custom Cardano devnets in seconds, providing fast feedback loops and simplifying the iteration process.
+ * 
+ * Get started:
+ * ```typescript
+ * import { YaciProvider } from "@meshsdk/core";
+ * const blockchainProvider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');
+ * ```
+ */
 export class YaciProvider
   implements IFetcher, IListener, ISubmitter, IEvaluator
 {
   private readonly _axiosInstance: AxiosInstance;
+  private readonly _adminAxiosInstance: AxiosInstance | undefined;
 
   /**
    * Set the URL of the instance.
    * @param baseUrl The base URL of the instance.
    */
-  constructor(baseUrl = "https://yaci-node.meshjs.dev/api/v1/") {
+  constructor(
+    baseUrl = "https://yaci-node.meshjs.dev/api/v1/",
+    adminUrl?: string,
+  ) {
     this._axiosInstance = axios.create({
       baseURL: baseUrl,
     });
+    if (adminUrl) {
+      this._adminAxiosInstance = axios.create({
+        baseURL: adminUrl,
+      });
+    }
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -443,6 +461,67 @@ export class YaciProvider
         return result;
       }
 
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async getDevnetInfo(): Promise<void> {
+    try {
+      if (this._adminAxiosInstance === undefined)
+        throw parseHttpError("Admin URL not provided");
+      const { status, data } = await this._adminAxiosInstance.get(
+        `local-cluster/api/admin/devnet`,
+      );
+
+      if (status === 200) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async getGenesisByEra(era: string): Promise<void> {
+    try {
+      if (this._adminAxiosInstance === undefined)
+        throw parseHttpError("Admin URL not provided");
+      const { status, data } = await this._adminAxiosInstance.get(
+        `local-cluster/api/admin/devnet/genesis/${era}`,
+      );
+
+      if (status === 200) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * Topup address with ADA
+   * @param address - Address to topup
+   * @param amount - Amount to topup
+   */
+  async addressTopup(address: string, amount: string): Promise<void> {
+    try {
+      if (this._adminAxiosInstance === undefined)
+        throw parseHttpError("Admin URL not provided");
+      const headers = { "Content-Type": "application/json", accept: "*/*" };
+      const { status, data } = await this._adminAxiosInstance.post(
+        "local-cluster/api/addresses/topup",
+        JSON.stringify({ address: address, adaAmount: parseInt(amount) }),
+        {
+          headers,
+        },
+      );
+
+      if (status === 200) {
+        return data;
+      }
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
