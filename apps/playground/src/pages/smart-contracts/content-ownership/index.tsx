@@ -8,6 +8,7 @@ import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
 import { metaContentOwnership } from "~/data/links-smart-contracts";
 import { InstallSmartContract } from "../common";
+import OwnershipCreateContentRegistry from "./create-content-registry";
 import OwnershipCreateOwnershipRegistry from "./create-ownership-registry";
 import OwnershipMintMintingPolicy from "./mint-minting-policy";
 import OwnershipSendRefScriptOnchain from "./send-ref-script-onchain";
@@ -89,6 +90,7 @@ const ReactPage: NextPage = () => {
         <OwnershipMintMintingPolicy />
         <OwnershipSetupOracleUtxo />
         <OwnershipSendRefScriptOnchain />
+        <OwnershipCreateContentRegistry />
         <OwnershipCreateOwnershipRegistry />
       </SidebarFullwidth>
     </>

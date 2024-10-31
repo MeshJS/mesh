@@ -10,11 +10,11 @@ import {
   useContentOwnership,
 } from "./common";
 
-export default function OwnershipCreateOwnershipRegistry() {
+export default function OwnershipCreateContentRegistry() {
   return (
     <TwoColumnsScroll
-      sidebarTo="createOwnershipRegistry"
-      title="Create Ownership Registry"
+      sidebarTo="createContentRegistry"
+      title="Create Content Registry"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -71,14 +71,14 @@ function Right() {
       JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
       refScriptUtxos,
     );
-    const tx = await contract.createOwnershipRegistry();
+    const tx = await contract.createContentRegistry();
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);
     return txHash;
   }
 
   let code = ``;
-  code += `const tx = await contract.createOwnershipRegistry();\n`;
+  code += `const tx = await contract.createContentRegistry();\n`;
   code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
