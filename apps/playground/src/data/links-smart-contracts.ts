@@ -60,7 +60,7 @@ export const metaMintPlutusNft = {
 };
 
 export const linksSmartContracts: MenuItem[] = [
-  // metaContentOwnership,
+  metaContentOwnership,
   metaEscrow,
   metaGiftcard,
   metaMarketplace,

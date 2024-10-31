@@ -165,7 +165,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       .txOut(scriptAddress, [])
       .txOutReferenceScript(getScriptCbor(this.paramUtxo, scriptIndex))
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos)
+      .selectUtxosFrom(utxos, 'experimental')
       .complete();
     return txHex;
   };
@@ -179,7 +179,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       ])
       .txOutInlineDatumValue(datumValue)
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos)
+      .selectUtxosFrom(utxos, 'experimental')
       .complete();
     return txHex;
   };
