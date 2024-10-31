@@ -26,10 +26,14 @@ import {
 
 /**
  * Mesh Content Ownership Contract
- * 
+ *
  * This contract is used to manage the ownership of content.
- * (write about this contract)
- * 
+ * It facilitates on-chain record of content (i.e. file on IPFS) ownership and transfer.
+ * While one cannot prefer others from obtaining a copy of the content, the app owner of the
+ * contract can serve the single source of truth of who owns the content. With the blockchain
+ * trace and record in place, it provides a trustless way to verify the ownership of the content
+ * and facilitates further application logics such as royalties, licensing, etc.
+ *
  * @example
  * ```typescript
  *  const meshTxBuilder = new MeshTxBuilder({
@@ -37,7 +41,7 @@ import {
  *   submitter: blockchainProvider,
  *   verbose: true,
  * });
- * 
+ *
  * const contract = new MeshContentOwnershipContract(
  *   {
  *     mesh: meshTxBuilder,
@@ -46,7 +50,7 @@ import {
  *     networkId: 0,
  *   },
  *   {
- *     operationAddress: operationAddress, // (write who address is this, and how someone should choose which address to put)
+ *     operationAddress: operationAddress, // the address of the app owner, where most of the actions should be signed by the spending key of this address
  *     paramUtxo: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" }, // you can get this from the output of `mintOneTimeMintingPolicy()` transaction
  *     refScriptUtxos?: { // you can get these from the output of `sendRefScriptOnchain()` transactions
  *       contentRegistry: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },
@@ -150,8 +154,9 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
    * [Setup phase]
    * This is the first transaction you need to setup the contract.
    *
-   * This transaction (write does what)
-   * 
+   * This transaction mints the one-time minting policy (a NFT) for the contract.
+   * It will be attached with the datum which serves as the single source of truth for the contract oracle.
+   *
    * Note: You must save the `paramUtxo` for future transactions.
    *
    * @returns {Promise<{ txHexMintOneTimeMintingPolicy: string, txHexSetupOracleUtxo: string, paramUtxo: UTxO["input"] }>}
@@ -215,10 +220,11 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
    * [Setup phase]
    * This is the second transaction you need to setup the contract.
    *
-   * This transaction (write does what)
-   * 
+   * This transaction send the NFT to a oracle contract locking the datum,
+   * which serves as the single source of truth for the contract oracle with data integrity.
+   *
    * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
-   * 
+   *
    * @returns {Promise<string>}
    *
    * @example
@@ -247,8 +253,9 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
    * This are the next transactions you need to setup the contract.
    * You need to run once for each script, and you would likely have to run one after the previous one is confirmed.
    *
-   * This transaction (write does what)
-   * 
+   * This transaction sends the reference scripts to the blockchain for later stage usage,
+   * boosting efficiency and avoid exceeding 16kb of transaction size limits enforced by protocol parameter.
+   *
    * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
    * Note: You must save txHash (after signed and submitted) for `ContentRegistry`, `ContentRefToken`, `OwnershipRegistry`, `OwnershipRefToken` transactions for future transactions.
    *
@@ -284,14 +291,16 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
   /**
    * [Setup phase]
    * This is the next transaction you need to setup the contract after completing all the `sendRefScriptOnchain` transactions.
-   * 
-   * This transaction (write does what)
-   * 
+   *
+   * This transaction creates one content registry. Each registry should comes in pair with one ownership registry and
+   * each pair of registry serves around 50 records of content ownership. The application can be scaled indefinitely
+   * according to the number of parallelization needed and volumes of content expected to be managed.
+   *
    * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
    * Note: You must provide the txHash for `ContentRegistry`, `ContentRefToken`, `OwnershipRegistry`, `OwnershipRefToken`
-   * 
+   *
    * @returns {Promise<string>}
-   * 
+   *
    * @example
    * ```typescript
    * const txHex = await contract.createContentRegistry();
@@ -363,14 +372,16 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
   /**
    * [Setup phase]
    * This is the last transaction you need to setup the contract after completing all the `sendRefScriptOnchain` transactions.
-   * 
-   * This transaction (write does what)
-   * 
+   *
+   * This transaction creates one content registry. Each registry should comes in pair with one content registry and
+   * each pair of registry serves around 50 records of content ownership. The application can be scaled indefinitely
+   * according to the number of parallelization needed and volumes of content expected to be managed.
+   *
    * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
    * Note: You must provide the txHash for `ContentRegistry`, `ContentRefToken`, `OwnershipRegistry`, `OwnershipRefToken`
-   * 
+   *
    * @returns {Promise<string>}
-   * 
+   *
    * @example
    * ```typescript
    * const txHex = await contract.createOwnershipRegistry();
