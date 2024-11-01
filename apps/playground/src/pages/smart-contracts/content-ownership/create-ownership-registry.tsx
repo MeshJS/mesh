@@ -24,7 +24,27 @@ export default function OwnershipCreateOwnershipRegistry() {
 function Left() {
   return (
     <>
-      <p></p>
+      <p>
+        This is the last transaction you need to setup the contract after
+        completing all the `sendRefScriptOnchain` transactions.
+      </p>
+      <p>
+        This transaction creates one content registry. Each registry should
+        comes in pair with one content registry and each pair of registry serves
+        around 50 records of content ownership. The application can be scaled
+        indefinitely according to the number of parallelization needed and
+        volumes of content expected to be managed.
+      </p>
+      <p>
+        <b>Note:</b> You must provide the <code>paramUtxo</code> from the{" "}
+        <code>mintOneTimeMintingPolicy</code> transaction.
+      </p>
+      <p>
+        <b>Note:</b> You must provide the txHash for
+        <code>ContentRegistry</code>, <code>ContentRefToken</code>,{" "}
+        <code>OwnershipRegistry</code>,<code>OwnershipRefToken</code>{" "}
+        transactions.
+      </p>
     </>
   );
 }
@@ -85,7 +105,7 @@ function Right() {
   return (
     <LiveCodeDemo
       title="Create Ownership Registry"
-      subtitle=""
+      subtitle="This transaction creates one content registry"
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}

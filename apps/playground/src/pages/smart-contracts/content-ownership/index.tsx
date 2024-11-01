@@ -8,8 +8,10 @@ import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
 import { metaContentOwnership } from "~/data/links-smart-contracts";
 import { InstallSmartContract } from "../common";
+import OwnershipCreateContent from "./create-content";
 import OwnershipCreateContentRegistry from "./create-content-registry";
 import OwnershipCreateOwnershipRegistry from "./create-ownership-registry";
+import OwnershipGetContent from "./get-content";
 import OwnershipGetOracleData from "./get-oracle-data";
 import OwnershipMintMintingPolicy from "./mint-minting-policy";
 import OwnershipMintUserToken from "./mint-user-token";
@@ -19,6 +21,13 @@ import OwnershipSetupOracleUtxo from "./setup-oracle-utxo";
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Mint Policy", to: "mintOneTimeMintingPolicy" },
+    { label: "Setup Oracle Utxo", to: "setupOracleUtxo" },
+    { label: "Send Ref Script Onchain", to: "sendRefScriptOnchain" },
+    { label: "Create Content Registry", to: "createContentRegistry" },
+    { label: "Create Ownership Registry", to: "createOwnershipRegistry" },
+    { label: "Get Oracle Data", to: "getOracleData" },
+    { label: "Mint User Token", to: "mintUserToken" },
+    { label: "Create Content", to: "createContent" },
   ];
 
   let example = ``;
@@ -96,6 +105,8 @@ const ReactPage: NextPage = () => {
         <OwnershipCreateOwnershipRegistry />
         <OwnershipGetOracleData />
         <OwnershipMintUserToken />
+        <OwnershipCreateContent />
+        <OwnershipGetContent />
       </SidebarFullwidth>
     </>
   );

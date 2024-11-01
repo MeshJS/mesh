@@ -254,7 +254,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
    * This are the next transactions you need to setup the contract.
    * You need to run once for each script, and you would likely have to run one after the previous one is confirmed.
    *
-   * This transaction sends the reference scripts to the blockchain for later stage usage,
+   * This transaction sends the reference scripts to the blockchain for later transactions,
    * boosting efficiency and avoid exceeding 16kb of transaction size limits enforced by protocol parameter.
    *
    * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
@@ -481,54 +481,33 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
 
   // User
   mintUserToken = async (tokenName: string, tokenMetadata = {}) => {
-    const { utxos, collateral, walletAddress } =
-      await this.getWalletInfoForTx();
+    const { utxos, walletAddress } = await this.getWalletInfoForTx();
 
-    /**
-     * using native script
-     */
-    // const { nativeScript } = this.getOwnerNativeScript();
-    // const forgingScript = ForgeScript.fromNativeScript(nativeScript);
+    const { pubKeyHash: keyHash } = deserializeAddress(walletAddress);
+    const nativeScript: NativeScript = {
+      type: "all",
+      scripts: [
+        {
+          type: "sig",
+          keyHash: keyHash,
+        },
+      ],
+    };
 
-    // const policyId = resolveScriptHash(forgingScript);
-    // const tokenNameHex = stringToHex(tokenName);
-    // const metadata = { [policyId]: { [tokenName]: { ...tokenMetadata } } };
+    const forgingScript = ForgeScript.fromNativeScript(nativeScript);
 
-    // const txHex = await this.mesh
-    //   .mint("1", policyId, tokenNameHex)
-    //   .mintingScript(forgingScript)
-    //   .metadataValue("721", metadata)
-    //   .changeAddress(walletAddress)
-    //   .selectUtxosFrom(utxos)
-    //   .complete();
-
-    // return txHex;
-
-    /**
-     * using this.scriptInfo.oracleValidator.cbor
-     */
-    const policyId = resolveScriptHash(
-      this.scriptInfo.oracleValidator.cbor,
-      "V2",
-    );
+    const policyId = resolveScriptHash(forgingScript);
     const tokenNameHex = stringToHex(tokenName);
     const metadata = { [policyId]: { [tokenName]: { ...tokenMetadata } } };
 
     const txHex = await this.mesh
-      .mintPlutusScriptV2()
       .mint("1", policyId, tokenNameHex)
-      .mintingScript(this.scriptInfo.oracleValidator.cbor)
-      .mintRedeemerValue(mConStr0([tokenName]))
+      .mintingScript(forgingScript)
       .metadataValue("721", metadata)
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
-      .txInCollateral(
-        collateral.input.txHash,
-        collateral.input.outputIndex,
-        collateral.output.amount,
-        collateral.output.address,
-      )
       .complete();
+
     return txHex;
   };
 
@@ -628,6 +607,32 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       .complete();
 
     return txHex;
+  };
+
+  getContent = async (registryNumber: number, contentNumber: number) => {
+    /**
+     * todo
+     * after doing createContent(), need to get the content, that is `contentHashHex`
+     * this function is to get the content from the registry
+     * what are the inputs required
+     */
+    // const registryTokenNameHex = stringToHex(`Registry (${registryNumber})`);
+    // const [oracle, content, ownership] =
+    //   await this.getScriptUtxos(registryNumber);
+
+    // console.log("registryTokenNameHex", registryTokenNameHex);
+    // console.log("oracle", oracle);
+    // console.log("content", content);
+    // console.log("ownership", ownership);
+
+    // if(content === undefined) throw new Error("Content not found");
+
+    // const contentDatam = parseInlineDatum<any, any>({
+    //   inline_datum: content.output.plutusData!,
+    // });
+    // console.log('contentDatam', contentDatam)
+
+    return {};
   };
 
   updateContent = async ({

@@ -23,7 +23,16 @@ export default function OwnershipSetupOracleUtxo() {
 function Left() {
   return (
     <>
-      <p></p>
+      <p>
+        This transaction send the NFT to a oracle contract locking the datum,
+        which serves as the single source of truth for the contract oracle with
+        data integrity.
+      </p>
+      <p>This is the second transaction you need to setup the contract.</p>
+      <p>
+        <b>Note:</b> You must provide the <code>paramUtxo</code> from the{" "}
+        <code>mintOneTimeMintingPolicy</code> transaction.
+      </p>
     </>
   );
 }
@@ -55,7 +64,7 @@ function Right() {
   return (
     <LiveCodeDemo
       title="Setup Oracle Utxo"
-      subtitle=""
+      subtitle="This transaction send the NFT to a oracle contract locking the datum."
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}

@@ -11,11 +11,11 @@ import {
   useContentOwnership,
 } from "./common";
 
-export default function OwnershipGetOracleData() {
+export default function OwnershipGetContent() {
   return (
     <TwoColumnsScroll
-      sidebarTo="getOracleData"
-      title="Get Oracle Data"
+      sidebarTo="getContent"
+      title="Get Content"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -24,30 +24,11 @@ export default function OwnershipGetOracleData() {
 
 function Left() {
   let codeOracle = ``;
-  codeOracle += `const oracleData = await contract.getOracleData();\n`;
-  let codeExample = `{\n`;
-  codeExample += `  "contentNumber": 2,\n`;
-  codeExample += `  "ownershipNumber": 2\n`;
-  codeExample += `}\n`;
 
   return (
     <>
-      <p>
-        Getting the oracle data is essential to fetch the current state of the
-        registry.
-      </p>
-      <p>
-        To facilitate this process, you must provide the <code>paramUtxo</code>{" "}
-        that contains the output index and transaction hash of the NFT minting
-        policy.
-      </p>
-      <p>
-        The <code>getOracleData()</code> function will return the current oracle
-        data.
-      </p>
+      <p></p>
       <Codeblock data={codeOracle} />
-      <p>For example:</p>
-      <Codeblock data={codeExample} />
     </>
   );
 }
@@ -93,8 +74,8 @@ function Right() {
       JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
       refScriptUtxos,
     );
-    const oracleData = await contract.getOracleData();
-    return oracleData;
+    const content = await contract.getContent(0, 0);
+    return content;
   }
 
   let code = ``;

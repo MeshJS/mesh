@@ -55,8 +55,8 @@ function Right() {
   let code = ``;
   return (
     <LiveCodeDemo
-      title="Get Oracle Data"
-      subtitle="Fetch the current oracle data to get the current NFT index and other information"
+      title="Mint User Token"
+      subtitle="Mint a token that users can use to create content"
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}

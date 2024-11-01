@@ -2,7 +2,7 @@ import { useWallet } from "@meshsdk/react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import Codeblock from "~/components/text/codeblock";
+import { demoAsset } from "~/data/cardano";
 import {
   getContract,
   InputsOperationAddress,
@@ -11,11 +11,11 @@ import {
   useContentOwnership,
 } from "./common";
 
-export default function OwnershipGetOracleData() {
+export default function OwnershipCreateContent() {
   return (
     <TwoColumnsScroll
-      sidebarTo="getOracleData"
-      title="Get Oracle Data"
+      sidebarTo="createContent"
+      title="Create Content"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -23,37 +23,26 @@ export default function OwnershipGetOracleData() {
 }
 
 function Left() {
-  let codeOracle = ``;
-  codeOracle += `const oracleData = await contract.getOracleData();\n`;
-  let codeExample = `{\n`;
-  codeExample += `  "contentNumber": 2,\n`;
-  codeExample += `  "ownershipNumber": 2\n`;
-  codeExample += `}\n`;
-
   return (
     <>
+      <p></p>
       <p>
-        Getting the oracle data is essential to fetch the current state of the
-        registry.
+        <b>Note:</b> You must provide the <code>paramUtxo</code> from the{" "}
+        <code>mintOneTimeMintingPolicy</code> transaction.
       </p>
       <p>
-        To facilitate this process, you must provide the <code>paramUtxo</code>{" "}
-        that contains the output index and transaction hash of the NFT minting
-        policy.
+        <b>Note:</b> You must provide the txHash for
+        <code>ContentRegistry</code>, <code>ContentRefToken</code>,{" "}
+        <code>OwnershipRegistry</code>,<code>OwnershipRefToken</code>{" "}
+        transactions.
       </p>
-      <p>
-        The <code>getOracleData()</code> function will return the current oracle
-        data.
-      </p>
-      <Codeblock data={codeOracle} />
-      <p>For example:</p>
-      <Codeblock data={codeExample} />
     </>
   );
 }
 
 function Right() {
   const { wallet, connected } = useWallet();
+
   const operationAddress = useContentOwnership(
     (state) => state.operationAddress,
   );
@@ -93,15 +82,30 @@ function Right() {
       JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
       refScriptUtxos,
     );
-    const oracleData = await contract.getOracleData();
-    return oracleData;
+
+    const asset = demoAsset;
+    const contentHashHex = "ipfs://contentHashHex";
+    const registryNumber = 0;
+
+    const tx = await contract.createContent(
+      asset,
+      contentHashHex,
+      registryNumber,
+    );
+    const signedTx = await wallet.signTx(tx);
+    const txHash = await wallet.submitTx(signedTx);
+    return txHash;
   }
 
   let code = ``;
+  code += `const tx = await contract.createContent();\n`;
+  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <LiveCodeDemo
-      title="Get Oracle Data"
-      subtitle="Fetch the current oracle data"
+      title="Create Content"
+      subtitle="For users to create a content attached to the registry reference by a token"
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}

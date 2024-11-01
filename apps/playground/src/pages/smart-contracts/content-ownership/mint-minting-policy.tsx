@@ -22,7 +22,18 @@ export default function OwnershipMintMintingPolicy() {
 function Left() {
   return (
     <>
-      <p></p>
+      <p>This is the first transaction you need to setup the contract.</p>
+      <p>
+        This transaction mints the one-time minting policy (a NFT) for the
+        contract.
+      </p>
+      <p>
+        It will be attached with the datum which serves as the single source of
+        truth for the contract oracle.
+      </p>
+      <p>
+        Note: You must save the <code>paramUtxo</code> for future transactions.
+      </p>
     </>
   );
 }
@@ -49,7 +60,7 @@ function Right() {
   return (
     <LiveCodeDemo
       title="Mint One Time Minting Policy"
-      subtitle=""
+      subtitle="This transaction mints the one-time minting policy (a NFT) for the contract."
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}
