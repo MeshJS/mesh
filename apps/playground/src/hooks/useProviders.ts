@@ -17,6 +17,8 @@ interface State {
   setKoiosKey: (network: KoiosSupportedNetworks, apiKey: string) => void;
   yaciUrl: string;
   setYaciUrl: (url: string) => void;
+  yaciAdminUrl: string;
+  setYaciAdminUrl: (url: string) => void;
   ogmiosUrl: string;
   setOgmiosUrl: (url: string) => void;
   utxorpc: { url: string; key: string };
@@ -37,6 +39,8 @@ export const useProviders = create<State>()(
       setKoiosKey: (network, apiKey) => set({ koiosKey: { network, apiKey } }),
       yaciUrl: "https://yaci-node.meshjs.dev/api/v1/",
       setYaciUrl: (url) => set({ yaciUrl: url }),
+      yaciAdminUrl: "http://localhost:10000/",
+      setYaciAdminUrl: (url) => set({ yaciAdminUrl: url }),
       ogmiosUrl: "",
       setOgmiosUrl: (url) => set({ ogmiosUrl: url }),
       utxorpc: { url: "http://localhost:50051", key: "api-key" },
