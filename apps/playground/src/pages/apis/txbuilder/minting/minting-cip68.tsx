@@ -114,7 +114,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     const changeAddress = await wallet.getChangeAddress();
 
     const policyId = resolveScriptHash(scriptCode, "V2");
-    const tokenName = "MeshToken";
+    const tokenName = userInput;
     const tokenNameHex = stringToHex(tokenName);
 
     const txBuilder = getTxBuilder();
@@ -192,7 +192,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
   code += `const changeAddress = await wallet.getChangeAddress();\n`;
   code += `\n`;
   code += `const policyId = resolveScriptHash(scriptCode, "V2");\n`;
-  code += `const tokenName = "MeshToken";\n`;
+  code += `const tokenName = '${userInput}';\n`;
   code += `const tokenNameHex = stringToHex(tokenName);\n`;
   code += `\n`;
   code += `const txBuilder = getTxBuilder();\n`;
