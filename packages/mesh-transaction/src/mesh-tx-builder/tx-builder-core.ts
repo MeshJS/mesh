@@ -1436,7 +1436,7 @@ export class MeshTxBuilderCore {
    */
   selectUtxosFrom = (
     extraInputs: UTxO[],
-    strategy: UtxoSelectionStrategy = "keepRelevant",
+    strategy: UtxoSelectionStrategy = "experimental",
     threshold = "5000000",
     includeTxFees = true,
   ) => {

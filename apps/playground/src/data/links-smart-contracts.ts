@@ -18,7 +18,7 @@ export const metaMarketplace = {
 };
 export const metaVesting = {
   title: "Vesting",
-  desc: "Vesting contract is a smart contract that locks up funds for a period of time and allows the owner to withdraw the funds after the lockup period.",
+  desc: "Locks up funds for a period of time and allows the owner to withdraw the funds after the lockup period",
   link: "/smart-contracts/vesting",
   icon: LockClosedIcon,
 };
@@ -60,7 +60,7 @@ export const metaMintPlutusNft = {
 };
 
 export const linksSmartContracts: MenuItem[] = [
-  // metaContentOwnership,
+  metaContentOwnership,
   metaEscrow,
   metaGiftcard,
   metaMarketplace,

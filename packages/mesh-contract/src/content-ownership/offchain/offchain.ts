@@ -1,6 +1,10 @@
 import {
+  builtinByteString,
+  bytesToHex,
   Data,
   deserializeAddress,
+  ForgeScript,
+  fromUTF8,
   mConStr,
   mConStr0,
   mConStr1,
@@ -10,9 +14,14 @@ import {
   resolveScriptHash,
   serializeNativeScript,
   stringToHex,
+  toUTF8,
   UTxO,
 } from "@meshsdk/core";
-import { applyParamsToScript, parseInlineDatum } from "@meshsdk/core-csl";
+import {
+  applyParamsToScript,
+  parseDatumCbor,
+  parseInlineDatum,
+} from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../../common";
 import { blueprint, getScriptCbor, getScriptInfo, ScriptIndex } from "./common";
@@ -24,6 +33,44 @@ import {
   UpdateContent,
 } from "./type";
 
+/**
+ * Mesh Content Ownership Contract
+ *
+ * This contract is used to manage the ownership of content.
+ * It facilitates on-chain record of content (i.e. file on IPFS) ownership and transfer.
+ * While one cannot prefer others from obtaining a copy of the content, the app owner of the
+ * contract can serve the single source of truth of who owns the content. With the blockchain
+ * trace and record in place, it provides a trustless way to verify the ownership of the content
+ * and facilitates further application logics such as royalties, licensing, etc.
+ *
+ * @example
+ * ```typescript
+ *  const meshTxBuilder = new MeshTxBuilder({
+ *   fetcher: blockchainProvider, // one of the Providers
+ *   submitter: blockchainProvider,
+ *   verbose: true,
+ * });
+ *
+ * const contract = new MeshContentOwnershipContract(
+ *   {
+ *     mesh: meshTxBuilder,
+ *     fetcher: blockchainProvider,
+ *     wallet: wallet,
+ *     networkId: 0,
+ *   },
+ *   {
+ *     operationAddress: operationAddress, // the address of the app owner, where most of the actions should be signed by the spending key of this address
+ *     paramUtxo: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" }, // you can get this from the output of `mintOneTimeMintingPolicy()` transaction
+ *     refScriptUtxos?: { // you can get these from the output of `sendRefScriptOnchain()` transactions
+ *       contentRegistry: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },
+ *       contentRefToken: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },
+ *       ownershipRegistry: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },
+ *       ownershipRefToken: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },
+ *     },
+ *   },
+ * );
+ * ```
+ */
 export class MeshContentOwnershipContract extends MeshTxInitiator {
   paramUtxo = {
     txHash: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -112,7 +159,24 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     };
   };
 
-  // Setup
+  /**
+   * [Setup phase]
+   * This is the first transaction you need to setup the contract.
+   *
+   * This transaction mints the one-time minting policy (a NFT) for the contract.
+   * It will be attached with the datum which serves as the single source of truth for the contract oracle.
+   *
+   * Note: You must save the `paramUtxo` for future transactions.
+   *
+   * @returns {Promise<{ txHexMintOneTimeMintingPolicy: string, txHexSetupOracleUtxo: string, paramUtxo: UTxO["input"] }>}
+   *
+   * @example
+   * ```typescript
+   * const { tx, paramUtxo } = await contract.mintOneTimeMintingPolicy();
+   * const signedTx = await wallet.signTx(tx);
+   * const txHash = await wallet.submitTx(signedTx);
+   * ```
+   */
   mintOneTimeMintingPolicy = async () => {
     const { utxos, collateral, walletAddress } =
       await this.getWalletInfoForTx();
@@ -155,21 +219,30 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.stakeCredential,
       this.networkId,
     );
+
+    this.paramUtxo = paramUtxo.input;
+
     return { tx: txHex, paramUtxo: paramUtxo.input };
   };
 
-  sendRefScriptOnchain = async (scriptIndex: ScriptIndex) => {
-    const { utxos, walletAddress } = await this.getWalletInfoForTx();
-    const { scriptAddress } = this.getOwnerNativeScript();
-    const txHex = await this.mesh
-      .txOut(scriptAddress, [])
-      .txOutReferenceScript(getScriptCbor(this.paramUtxo, scriptIndex))
-      .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos)
-      .complete();
-    return txHex;
-  };
-
+  /**
+   * [Setup phase]
+   * This is the second transaction you need to setup the contract.
+   *
+   * This transaction send the NFT to a oracle contract locking the datum,
+   * which serves as the single source of truth for the contract oracle with data integrity.
+   *
+   * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
+   *
+   * @returns {Promise<string>}
+   *
+   * @example
+   * ```typescript
+   * const txHex = await contract.setupOracleUtxo();
+   * const signedTx = await wallet.signTx(txHex);
+   * const txHash = await wallet.submitTx(signedTx);
+   * ```
+   */
   setupOracleUtxo = async () => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
     const datumValue = this.getOracleDatum(0, 0);
@@ -184,27 +257,66 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     return txHex;
   };
 
-  // WIP. need to chain tx, and also need to manage the UTXOs not consumed
-  handleSetup = async () => {
-    const { tx: txHexMintOneTimeMintingPolicy, paramUtxo } =
-      await this.mintOneTimeMintingPolicy();
-
-    this.paramUtxo = paramUtxo;
-    this.scriptInfo = getScriptInfo(
-      paramUtxo,
-      this.stakeCredential,
-      this.networkId,
-    );
-
-    const txHexSetupOracleUtxo = await this.setupOracleUtxo();
-
-    return {
-      txHexMintOneTimeMintingPolicy,
-      txHexSetupOracleUtxo,
-      paramUtxo,
-    };
+  /**
+   * [Setup phase]
+   * This are the next transactions you need to setup the contract.
+   * You need to run once for each script, and you would likely have to run one after the previous one is confirmed.
+   *
+   * This transaction sends the reference scripts to the blockchain for later transactions,
+   * boosting efficiency and avoid exceeding 16kb of transaction size limits enforced by protocol parameter.
+   *
+   * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
+   * Note: You must save txHash (after signed and submitted) for `ContentRegistry`, `ContentRefToken`, `OwnershipRegistry`, `OwnershipRefToken` transactions for future transactions.
+   *
+   * @param scriptIndex - "OracleNFT" | "OracleValidator" | "ContentRegistry" | "ContentRefToken" | "OwnershipRegistry" | "OwnershipRefToken"
+   * @returns {Promise<string>}
+   *
+   * @example
+   * ```typescript
+   * const txHexOracleNFT = await contract.sendRefScriptOnchain("OracleNFT");
+   * const signedTxOracleNFT = await wallet.signTx(txHexOracleNFT);
+   * const txHashOracleNFT = await wallet.submitTx(signedTxOracleNFT);
+   *
+   * const txHexOracleValidator = await contract.sendRefScriptOnchain("OracleValidator");
+   * ... // repeat for each script
+   *
+   * const txHexOwnershipRefToken = await contract.sendRefScriptOnchain("OwnershipRefToken");
+   * const signedTxOwnershipRefToken = await wallet.signTx(txHexOwnershipRefToken);
+   * const txHashOwnershipRefToken = await wallet.submitTx(signedTxOwnershipRefToken);
+   * ```
+   */
+  sendRefScriptOnchain = async (scriptIndex: ScriptIndex) => {
+    const { utxos, walletAddress } = await this.getWalletInfoForTx();
+    const { scriptAddress } = this.getOwnerNativeScript();
+    const txHex = await this.mesh
+      .txOut(scriptAddress, [])
+      .txOutReferenceScript(getScriptCbor(this.paramUtxo, scriptIndex))
+      .changeAddress(walletAddress)
+      .selectUtxosFrom(utxos, "experimental", "20000000")
+      .complete();
+    return txHex;
   };
 
+  /**
+   * [Setup phase]
+   * This is the next transaction you need to setup the contract after completing all the `sendRefScriptOnchain` transactions.
+   *
+   * This transaction creates one content registry. Each registry should comes in pair with one ownership registry and
+   * each pair of registry serves around 50 records of content ownership. The application can be scaled indefinitely
+   * according to the number of parallelization needed and volumes of content expected to be managed.
+   *
+   * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
+   * Note: You must provide the txHash for `ContentRegistry`, `ContentRefToken`, `OwnershipRegistry`, `OwnershipRefToken`
+   *
+   * @returns {Promise<string>}
+   *
+   * @example
+   * ```typescript
+   * const txHex = await contract.createContentRegistry();
+   * const signedTx = await wallet.signTx(txHex);
+   * const txHash = await wallet.submitTx(signedTx);
+   * ```
+   */
   createContentRegistry = async () => {
     const { utxos, collateral, walletAddress } =
       await this.getWalletInfoForTx();
@@ -266,6 +378,26 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     return txHex;
   };
 
+  /**
+   * [Setup phase]
+   * This is the last transaction you need to setup the contract after completing all the `sendRefScriptOnchain` transactions.
+   *
+   * This transaction creates one content registry. Each registry should comes in pair with one content registry and
+   * each pair of registry serves around 50 records of content ownership. The application can be scaled indefinitely
+   * according to the number of parallelization needed and volumes of content expected to be managed.
+   *
+   * Note: You must provide the `paramUtxo` from the `mintOneTimeMintingPolicy` transaction.
+   * Note: You must provide the txHash for `ContentRegistry`, `ContentRefToken`, `OwnershipRegistry`, `OwnershipRefToken`
+   *
+   * @returns {Promise<string>}
+   *
+   * @example
+   * ```typescript
+   * const txHex = await contract.createOwnershipRegistry();
+   * const signedTx = await wallet.signTx(txHex);
+   * const txHash = await wallet.submitTx(signedTx);
+   * ```
+   */
   createOwnershipRegistry = async () => {
     const { utxos, collateral, walletAddress } =
       await this.getWalletInfoForTx();
@@ -320,14 +452,97 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .changeAddress(walletAddress)
+      .selectUtxosFrom(utxos, "largestFirstMultiAsset")
+      .complete();
+
+    return txHex;
+  };
+
+  /**
+   * Get the current oracle data.
+   *
+   * @returns {Promise<{
+   *  contentNumber: number,
+   *  ownershipNumber: number,
+   * }>}
+   *
+   * @example
+   * ```typescript
+   * const oracleData = await contract.getOracleData();
+   * ```
+   */
+  getOracleData = async () => {
+    const scriptUtxo = await this.fetcher!.fetchAddressUTxOs(
+      this.scriptInfo.oracleValidator.address,
+      this.scriptInfo.oracleNFT.hash,
+    );
+    const currentOracleDatum = await this.getCurrentOracleDatum(scriptUtxo);
+
+    const contentNumber = currentOracleDatum.fields[4].int as number;
+    const ownershipNumber = currentOracleDatum.fields[7].int as number;
+
+    return {
+      contentNumber,
+      ownershipNumber,
+    };
+  };
+
+  /**
+   * [User]
+   *
+   * This transaction mints a user token which can be used to represent the ownership of the content. This token is used in `createContent()` transaction.
+   *
+   * @param tokenName - The name of the token that you can specify.
+   * @param tokenMetadata - The metadata of the token that you can specify.
+   * @returns {Promise<string>}
+   *
+   * @example
+   * ```typescript
+   * const tx = await contract.mintUserToken("MeshContentOwnership", {
+   *   name: "Mesh Content Ownership",
+   *   description: "Demo at https://meshjs.dev/smart-contracts/content-ownership",
+   * });
+   * const signedTx = await wallet.signTx(tx, true);
+   * const txHash = await wallet.submitTx(signedTx);
+   */
+  mintUserToken = async (tokenName: string, tokenMetadata = {}) => {
+    const { utxos, walletAddress } = await this.getWalletInfoForTx();
+
+    const { pubKeyHash: keyHash } = deserializeAddress(walletAddress);
+    const nativeScript: NativeScript = {
+      type: "all",
+      scripts: [
+        {
+          type: "sig",
+          keyHash: keyHash,
+        },
+      ],
+    };
+
+    const forgingScript = ForgeScript.fromNativeScript(nativeScript);
+
+    const policyId = resolveScriptHash(forgingScript);
+    const tokenNameHex = stringToHex(tokenName);
+    const metadata = { [policyId]: { [tokenName]: { ...tokenMetadata } } };
+
+    const txHex = await this.mesh
+      .mint("1", policyId, tokenNameHex)
+      .mintingScript(forgingScript)
+      .metadataValue("721", metadata)
+      .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
       .complete();
 
     return txHex;
   };
 
-  // User
-
+  /**
+   *
+   * @param ownerAssetHex
+   * @param contentHashHex
+   * @param registryNumber
+   * @returns
+   */
   createContent = async (
     ownerAssetHex: string,
     contentHashHex: string,
@@ -424,6 +639,31 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       .complete();
 
     return txHex;
+  };
+
+  /**
+   * Get the content at the registry given the registry number and content number.
+   * @param registryNumber
+   * @param contentNumber
+   * @returns
+   */
+  getContent = async (registryNumber: number, contentNumber: number) => {
+    const [content] = await this.getScriptUtxos(registryNumber, ["content"]);
+
+    if (content === undefined) throw new Error("Content registry not found");
+
+    const contentDatam: ContentRegistryDatum = parseDatumCbor(
+      content.output.plutusData!,
+    );
+
+    const contentAtRegistry = contentDatam.fields[1].list;
+
+    if (contentAtRegistry.length <= contentNumber)
+      throw new Error("Content not found");
+
+    const decoded = toUTF8(contentAtRegistry[contentNumber]?.bytes!);
+
+    return decoded;
   };
 
   updateContent = async ({
