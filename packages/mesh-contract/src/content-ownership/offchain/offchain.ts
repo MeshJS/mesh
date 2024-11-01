@@ -13,7 +13,11 @@ import {
   stringToHex,
   UTxO,
 } from "@meshsdk/core";
-import { applyParamsToScript, parseInlineDatum } from "@meshsdk/core-csl";
+import {
+  applyParamsToScript,
+  parseDatumCbor,
+  parseInlineDatum,
+} from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../../common";
 import { blueprint, getScriptCbor, getScriptInfo, ScriptIndex } from "./common";
@@ -617,22 +621,26 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
      * what are the inputs required
      */
     // const registryTokenNameHex = stringToHex(`Registry (${registryNumber})`);
-    // const [oracle, content, ownership] =
-    //   await this.getScriptUtxos(registryNumber);
+    const [content] = await this.getScriptUtxos(registryNumber, ["content"]);
 
     // console.log("registryTokenNameHex", registryTokenNameHex);
     // console.log("oracle", oracle);
     // console.log("content", content);
     // console.log("ownership", ownership);
 
-    // if(content === undefined) throw new Error("Content not found");
+    if (content === undefined) throw new Error("Content registry not found");
 
-    // const contentDatam = parseInlineDatum<any, any>({
-    //   inline_datum: content.output.plutusData!,
-    // });
+    const contentDatam: ContentRegistryDatum = parseDatumCbor(
+      content.output.plutusData!,
+    );
     // console.log('contentDatam', contentDatam)
 
-    return {};
+    const contentAtRegistry = contentDatam.fields[1].list;
+
+    if (contentAtRegistry.length <= contentNumber)
+      throw new Error("Content not found");
+
+    return contentAtRegistry[contentNumber];
   };
 
   updateContent = async ({
