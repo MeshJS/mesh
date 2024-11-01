@@ -23,9 +23,23 @@ export default function OwnershipMintUserToken() {
 }
 
 function Left() {
-  let code = ``;
-
-  return <></>;
+  return (
+    <>
+      <p>
+        This transaction mints a token that users can use to create content.
+      </p>
+      <p>
+        Note that you can actually use any tokens for{" "}
+        <code>createContent()</code>, this <code>mintUserToken()</code> function
+        is just helpful if you want to mint a token specifically for this
+        purpose.
+      </p>
+      <p>
+        Note that you signTx with <code>true</code> to mint the token to enable
+        partial signing.
+      </p>
+    </>
+  );
 }
 
 function Right() {
@@ -53,6 +67,13 @@ function Right() {
   }
 
   let code = ``;
+  code += `const tx = await contract.mintUserToken("MeshContentOwnership", {\n`;
+  code += `  name: "Mesh Content Ownership",\n`;
+  code += `  description: "Demo at https://meshjs.dev/smart-contracts/content-ownership",\n`;
+  code += `});\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
+  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+
   return (
     <LiveCodeDemo
       title="Mint User Token"

@@ -28,12 +28,13 @@ const ReactPage: NextPage = () => {
     { label: "Get Oracle Data", to: "getOracleData" },
     { label: "Mint User Token", to: "mintUserToken" },
     { label: "Create Content", to: "createContent" },
+    { label: "Get Content", to: "getContent" },
   ];
 
   let example = ``;
 
-  example += `import { MeshEscrowContract } from "@meshsdk/contract";\n`;
-  example += `import { MeshTxBuilder } from "@meshsdk/core";\n`;
+  example += `import { MeshContentOwnershipContract } from "@meshsdk/contract";\n`;
+  example += `import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";\n`;
   example += `\n`;
   example += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n`;
   example += `\n`;
@@ -42,12 +43,24 @@ const ReactPage: NextPage = () => {
   example += `  submitter: blockchainProvider,\n`;
   example += `});\n`;
   example += `\n`;
-  example += `const contract = new MeshEscrowContract({\n`;
-  example += `  mesh: meshTxBuilder,\n`;
-  example += `  fetcher: blockchainProvider,\n`;
-  example += `  wallet: wallet,\n`;
-  example += `  networkId: 0,\n`;
-  example += `});\n`;
+  example += `const contract = new MeshContentOwnershipContract(\n`;
+  example += `  {\n`;
+  example += `    mesh: meshTxBuilder,\n`;
+  example += `    fetcher: blockchainProvider,\n`;
+  example += `    wallet: wallet,\n`;
+  example += `    networkId: 0,\n`;
+  example += `  },\n`;
+  example += `  {\n`;
+  example += `    operationAddress: operationAddress, // the address of the app owner, where most of the actions should be signed by the spending key of this address\n`;
+  example += `    paramUtxo: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" }, // you can get this from the output of mintOneTimeMintingPolicy() transaction\n`;
+  example += `    refScriptUtxos?: { // you can get these from the output of sendRefScriptOnchain() transactions\n`;
+  example += `      contentRegistry: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },\n`;
+  example += `      contentRefToken: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },\n`;
+  example += `      ownershipRegistry: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },\n`;
+  example += `      ownershipRefToken: { outputIndex: 0, txHash: "0000000000000000000000000000000000000000000000000000000000000000" },\n`;
+  example += `    },\n`;
+  example += `  },\n`;
+  example += `);\n`;
 
   return (
     <>
@@ -63,40 +76,40 @@ const ReactPage: NextPage = () => {
         >
           <>
             <p>
-              The escrow smart contract allows two parties to exchange assets
-              securely. The contract holds the assets until both parties agree
-              and sign off on the transaction.
+              This contract allows you to create a content registry and users
+              can create content that is stored in the registry.
             </p>
+
             <p>
-              There are 4 actions available to interact with this smart
-              contract:
+              It facilitates on-chain record of content (i.e. file on IPFS)
+              ownership and transfer. While one cannot prefer others from
+              obtaining a copy of the content, the app owner of the contract can
+              serve the single source of truth of who owns the content. With the
+              blockchain trace and record in place, it provides a trustless way
+              to verify the ownership of the content and facilitates further
+              application logics such as royalties, licensing, etc.
             </p>
-            <ul>
-              <li>initiate escrow and deposit assets</li>
-              <li>deposit assets</li>
-              <li>complete escrow</li>
-              <li>cancel escrow</li>
-            </ul>
 
             <InstallSmartContract />
 
             <h3>Initialize the contract</h3>
             <p>
-              To initialize the escrow, we need to initialize a{" "}
+              To initialize the contract, we need to initialize a{" "}
               <Link href="/providers">provider</Link>,{" "}
-              <code>MeshTxBuilder</code> and <code>MeshEscrowContract</code>.
+              <code>MeshTxBuilder</code> and{" "}
+              <code>MeshContentOwnershipContract</code>.
             </p>
             <Codeblock data={example} />
             <p>
               Both on-chain and off-chain codes are open-source and available on{" "}
-              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/escrow">
+              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/content-ownership">
                 Mesh Github Repository
               </Link>
               .
             </p>
           </>
         </TitleIconDescriptionBody>
-        <ButtonFloatDocumentation href="https://docs.meshjs.dev/contracts/classes/MeshEscrowContract" />
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/contracts/classes/MeshContentOwnershipContract" />
 
         <OwnershipMintMintingPolicy />
         <OwnershipSetupOracleUtxo />

@@ -1,7 +1,10 @@
 import {
+  builtinByteString,
+  bytesToHex,
   Data,
   deserializeAddress,
   ForgeScript,
+  fromUTF8,
   mConStr,
   mConStr0,
   mConStr1,
@@ -11,6 +14,7 @@ import {
   resolveScriptHash,
   serializeNativeScript,
   stringToHex,
+  toUTF8,
   UTxO,
 } from "@meshsdk/core";
 import {
@@ -483,7 +487,24 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     };
   };
 
-  // User
+  /**
+   * [User]
+   *
+   * This transaction mints a user token which can be used to represent the ownership of the content. This token is used in `createContent()` transaction.
+   *
+   * @param tokenName - The name of the token that you can specify.
+   * @param tokenMetadata - The metadata of the token that you can specify.
+   * @returns {Promise<string>}
+   *
+   * @example
+   * ```typescript
+   * const tx = await contract.mintUserToken("MeshContentOwnership", {
+   *   name: "Mesh Content Ownership",
+   *   description: "Demo at https://meshjs.dev/smart-contracts/content-ownership",
+   * });
+   * const signedTx = await wallet.signTx(tx, true);
+   * const txHash = await wallet.submitTx(signedTx);
+   */
   mintUserToken = async (tokenName: string, tokenMetadata = {}) => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
 
@@ -515,6 +536,13 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     return txHex;
   };
 
+  /**
+   *
+   * @param ownerAssetHex
+   * @param contentHashHex
+   * @param registryNumber
+   * @returns
+   */
   createContent = async (
     ownerAssetHex: string,
     contentHashHex: string,
@@ -613,34 +641,29 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     return txHex;
   };
 
+  /**
+   * Get the content at the registry given the registry number and content number.
+   * @param registryNumber
+   * @param contentNumber
+   * @returns
+   */
   getContent = async (registryNumber: number, contentNumber: number) => {
-    /**
-     * todo
-     * after doing createContent(), need to get the content, that is `contentHashHex`
-     * this function is to get the content from the registry
-     * what are the inputs required
-     */
-    // const registryTokenNameHex = stringToHex(`Registry (${registryNumber})`);
     const [content] = await this.getScriptUtxos(registryNumber, ["content"]);
-
-    // console.log("registryTokenNameHex", registryTokenNameHex);
-    // console.log("oracle", oracle);
-    // console.log("content", content);
-    // console.log("ownership", ownership);
 
     if (content === undefined) throw new Error("Content registry not found");
 
     const contentDatam: ContentRegistryDatum = parseDatumCbor(
       content.output.plutusData!,
     );
-    // console.log('contentDatam', contentDatam)
 
     const contentAtRegistry = contentDatam.fields[1].list;
 
     if (contentAtRegistry.length <= contentNumber)
       throw new Error("Content not found");
 
-    return contentAtRegistry[contentNumber];
+    const decoded = toUTF8(contentAtRegistry[contentNumber]?.bytes!);
+
+    return decoded;
   };
 
   updateContent = async ({

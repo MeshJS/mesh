@@ -25,7 +25,11 @@ export default function OwnershipCreateContent() {
 function Left() {
   return (
     <>
-      <p></p>
+      <p>
+        This transaction creates a content attached to the registry reference by
+        a token. You can use any token for <code>ownerAssetHex</code> and the{" "}
+        <code>contentHashHex</code> is a string to identify the content.
+      </p>
       <p>
         <b>Note:</b> You must provide the <code>paramUtxo</code> from the{" "}
         <code>mintOneTimeMintingPolicy</code> transaction.
@@ -98,7 +102,15 @@ function Right() {
   }
 
   let code = ``;
-  code += `const tx = await contract.createContent();\n`;
+  code += `const asset = demoAsset;\n`;
+  code += `const contentHashHex = "ipfs://contentHashHex";\n`;
+  code += `const registryNumber = 0;\n`;
+  code += `\n`;
+  code += `const tx = await contract.createContent(\n`;
+  code += `  asset,\n`;
+  code += `  contentHashHex,\n`;
+  code += `  registryNumber,\n`;
+  code += `);\n`;
   code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 

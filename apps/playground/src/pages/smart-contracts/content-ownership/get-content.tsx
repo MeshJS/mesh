@@ -2,7 +2,6 @@ import { useWallet } from "@meshsdk/react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import Codeblock from "~/components/text/codeblock";
 import {
   getContract,
   InputsOperationAddress,
@@ -23,12 +22,9 @@ export default function OwnershipGetContent() {
 }
 
 function Left() {
-  let codeOracle = ``;
-
   return (
     <>
-      <p></p>
-      <Codeblock data={codeOracle} />
+      <p>This transaction fetches the content data from the registry.</p>
     </>
   );
 }
@@ -78,7 +74,8 @@ function Right() {
     return content;
   }
 
-  let code = ``;
+  let code = `const content = await contract.getContent(0, 0);`;
+
   return (
     <LiveCodeDemo
       title="Get Oracle Data"
