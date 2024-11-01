@@ -1,6 +1,7 @@
 import {
   Data,
   deserializeAddress,
+  ForgeScript,
   mConStr,
   mConStr0,
   mConStr1,
@@ -443,13 +444,94 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos)
+      .selectUtxosFrom(utxos, "largestFirstMultiAsset")
       .complete();
 
     return txHex;
   };
 
+  /**
+   * Get the current oracle data.
+   *
+   * @returns {Promise<{
+   *  contentNumber: number,
+   *  ownershipNumber: number,
+   * }>}
+   *
+   * @example
+   * ```typescript
+   * const oracleData = await contract.getOracleData();
+   * ```
+   */
+  getOracleData = async () => {
+    const scriptUtxo = await this.fetcher!.fetchAddressUTxOs(
+      this.scriptInfo.oracleValidator.address,
+      this.scriptInfo.oracleNFT.hash,
+    );
+    const currentOracleDatum = await this.getCurrentOracleDatum(scriptUtxo);
+
+    const contentNumber = currentOracleDatum.fields[4].int as number;
+    const ownershipNumber = currentOracleDatum.fields[7].int as number;
+
+    return {
+      contentNumber,
+      ownershipNumber,
+    };
+  };
+
   // User
+  mintUserToken = async (tokenName: string, tokenMetadata = {}) => {
+    const { utxos, collateral, walletAddress } =
+      await this.getWalletInfoForTx();
+
+    /**
+     * using native script
+     */
+    // const { nativeScript } = this.getOwnerNativeScript();
+    // const forgingScript = ForgeScript.fromNativeScript(nativeScript);
+
+    // const policyId = resolveScriptHash(forgingScript);
+    // const tokenNameHex = stringToHex(tokenName);
+    // const metadata = { [policyId]: { [tokenName]: { ...tokenMetadata } } };
+
+    // const txHex = await this.mesh
+    //   .mint("1", policyId, tokenNameHex)
+    //   .mintingScript(forgingScript)
+    //   .metadataValue("721", metadata)
+    //   .changeAddress(walletAddress)
+    //   .selectUtxosFrom(utxos)
+    //   .complete();
+
+    // return txHex;
+
+    /**
+     * using this.scriptInfo.oracleValidator.cbor
+     */
+    const policyId = resolveScriptHash(
+      this.scriptInfo.oracleValidator.cbor,
+      "V2",
+    );
+    const tokenNameHex = stringToHex(tokenName);
+    const metadata = { [policyId]: { [tokenName]: { ...tokenMetadata } } };
+
+    const txHex = await this.mesh
+      .mintPlutusScriptV2()
+      .mint("1", policyId, tokenNameHex)
+      .mintingScript(this.scriptInfo.oracleValidator.cbor)
+      .mintRedeemerValue(mConStr0([tokenName]))
+      .metadataValue("721", metadata)
+      .changeAddress(walletAddress)
+      .selectUtxosFrom(utxos)
+      .txInCollateral(
+        collateral.input.txHash,
+        collateral.input.outputIndex,
+        collateral.output.amount,
+        collateral.output.address,
+      )
+      .complete();
+    return txHex;
+  };
+
   createContent = async (
     ownerAssetHex: string,
     contentHashHex: string,

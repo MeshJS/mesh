@@ -3,7 +3,6 @@ import { useWallet } from "@meshsdk/react";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoAssetMetadata } from "~/data/cardano";
 import { getContract, InputsParamUtxo, usePlutusNft } from "./common";
 
 export default function PlutusNftGetOracleData() {
@@ -34,8 +33,8 @@ function Left() {
   codeInit += `  },\n`;
   codeInit += `);\n`;
 
-  let codeOrcle = ``;
-  codeOrcle += `const oracleData = await contract.getOracleData();\n`;
+  let codeOracle = ``;
+  codeOracle += `const oracleData = await contract.getOracleData();\n`;
 
   return (
     <>
@@ -52,7 +51,7 @@ function Left() {
         The <code>getOracleData()</code> function will return the current oracle
         data.
       </p>
-      <Codeblock data={codeOrcle} />
+      <Codeblock data={codeOracle} />
     </>
   );
 }

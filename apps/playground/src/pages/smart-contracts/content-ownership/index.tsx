@@ -10,7 +10,9 @@ import { metaContentOwnership } from "~/data/links-smart-contracts";
 import { InstallSmartContract } from "../common";
 import OwnershipCreateContentRegistry from "./create-content-registry";
 import OwnershipCreateOwnershipRegistry from "./create-ownership-registry";
+import OwnershipGetOracleData from "./get-oracle-data";
 import OwnershipMintMintingPolicy from "./mint-minting-policy";
+import OwnershipMintUserToken from "./mint-user-token";
 import OwnershipSendRefScriptOnchain from "./send-ref-script-onchain";
 import OwnershipSetupOracleUtxo from "./setup-oracle-utxo";
 
@@ -92,6 +94,8 @@ const ReactPage: NextPage = () => {
         <OwnershipSendRefScriptOnchain />
         <OwnershipCreateContentRegistry />
         <OwnershipCreateOwnershipRegistry />
+        <OwnershipGetOracleData />
+        <OwnershipMintUserToken />
       </SidebarFullwidth>
     </>
   );

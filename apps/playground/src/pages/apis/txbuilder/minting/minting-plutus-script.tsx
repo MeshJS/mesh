@@ -19,19 +19,17 @@ import { demoAssetMetadata, demoPlutusMintingScript } from "~/data/cardano";
 import { getTxBuilder } from "../common";
 
 export default function TxbuilderMintingPlutusScript() {
-  const [userInput, setUserInput] = useState<string>("mesh");
-
   return (
     <TwoColumnsScroll
       sidebarTo="mintingPlutusScript"
       title="Minting Assets with Plutus Script"
-      leftSection={Left(userInput)}
-      rightSection={Right(userInput, setUserInput)}
+      leftSection={Left()}
+      rightSection={Right()}
     />
   );
 }
 
-function Left(userInput: string) {
+function Left() {
   let codeIndicator = ``;
   codeIndicator += `.mintPlutusScriptV1()\n`;
   codeIndicator += `.mintPlutusScriptV2()\n`;
@@ -105,7 +103,9 @@ function Left(userInput: string) {
   );
 }
 
-function Right(userInput: string, setUserInput: (value: string) => void) {
+function Right() {
+  const [userInput, setUserInput] = useState<string>("mesh");
+
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
@@ -114,7 +114,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     const changeAddress = await wallet.getChangeAddress();
 
     const policyId = resolveScriptHash(demoPlutusMintingScript, "V2");
-    const tokenName = "MeshToken";
+    const tokenName = userInput;
     const tokenNameHex = stringToHex(tokenName);
     const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };
 
@@ -148,7 +148,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
   code += `const changeAddress = await wallet.getChangeAddress();\n`;
   code += `\n`;
   code += `const policyId = resolveScriptHash(demoPlutusMintingScript, "V2");\n`;
-  code += `const tokenName = "MeshToken";\n`;
+  code += `const tokenName = '${userInput}';\n`;
   code += `const tokenNameHex = stringToHex(tokenName);\n`;
   code += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
   code += `\n`;
@@ -158,7 +158,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
   code += `  .mintPlutusScriptV2()\n`;
   code += `  .mint("1", policyId, tokenNameHex)\n`;
   code += `  .mintingScript(demoPlutusMintingScript)\n`;
-  code += `  .mintRedeemerValue(mConStr0([userInput]))\n`;
+  code += `  .mintRedeemerValue(mConStr0(['${userInput}']))\n`;
   code += `  .metadataValue("721", metadata)\n`;
   code += `  .changeAddress(changeAddress)\n`;
   code += `  .selectUtxosFrom(utxos)\n`;
