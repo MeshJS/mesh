@@ -54,7 +54,7 @@ export const metaContentOwnership = {
   icon: DocumentCheckIcon,
 };
 export const metaMintPlutusNft = {
-  title: "Mint Plutus NFT",
+  title: "NFT Minting Vending Machine",
   desc: "Mint NFT that ensure the token name is incremented by a counter",
   link: "/smart-contracts/plutus-nft",
   icon: PhotoIcon,
