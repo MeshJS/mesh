@@ -102,26 +102,28 @@ const Delegate = ({
     setProcessing(false);
   };
 
-  // const delegateStake = async () => {
-  //   setProcessing(true);
-  //   setDone(false);
-  //   try {
-  //     if (rewardAddress) {
-  //       const tx = new Transaction({ initiator: wallet }).delegateStake(
-  //         rewardAddress,
-  //         poolId,
-  //       );
+  const delegateStake = async () => {
+    setProcessing(true);
+    setDone(false);
+    try {
+      if (rewardAddress) {
+        const tx = new Transaction({ initiator: wallet })
+          .delegateStake(rewardAddress, poolId);
 
-  //       const unsignedTx = await tx.build();
-  //       const signedTx = await wallet.signTx(unsignedTx);
-  //       await wallet.submitTx(signedTx);
-  //       setDone(true);
-  //     }
-  //   } catch (error) {
-  //     setError(error);
-  //   }
-  //   setProcessing(false);
-  // };
+        const unsignedTx = await tx.build();
+        const signedTx = await wallet.signTx(unsignedTx);
+        await wallet.submitTx(signedTx);
+
+        if (onDelegated) {
+          onDelegated();
+        }
+        setDone(true);
+      }
+    } catch (error) {
+      setError(error);
+    }
+    setProcessing(false);
+  };
 
   useEffect(() => {
     checkAccountStatus();
@@ -141,8 +143,7 @@ const Delegate = ({
     return accountInfo.poolId === poolId ? (
       <span>Stake Delegated</span>
     ) : (
-      // <span onClick={delegateStake}>Delegate Stake</span>
-      <span onClick={registerAddress}>Begin Staking</span>
+      <span onClick={delegateStake}>Begin Staking</span>
     );
   }
 
