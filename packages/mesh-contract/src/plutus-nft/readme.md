@@ -1,4 +1,4 @@
-# NFT Minting Vendoring Machine
+# NFT Minting Vending Machine
 
 This NFT minting script enables users to mint NFTs with an automatically incremented index, which increases by one for each newly minted NFT.
 
