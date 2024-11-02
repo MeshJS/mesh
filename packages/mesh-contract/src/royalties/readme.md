@@ -1,1 +1,3 @@
-# Content Ownership contract
+# Royalties
+
+> Work in progress

@@ -47,7 +47,7 @@ export function getContract(
 
 export const sampleParamUtxo = {
   outputIndex: 0,
-  txHash: "e781a02ed4159b47b144e960c4b155918f50b4841eafc443c66fec40616b6df2",
+  txHash: "2aba4d6705cfe6405cf02e4e2c8b71965d2b86b828e3f6ffbf3f8bded3df2359",
 };
 
 interface State {
@@ -80,22 +80,22 @@ export const useContentOwnership = create<State>()(
         set(() => ({
           paramUtxo: paramUtxo,
         })),
-      contentRegistry: "",
+      contentRegistry: "dfd2a2616e6154a092807b1ceebb9ddcadc0f22cf5c8e0e6b0757815083ccb70",
       setContentRegistry: (address: string) =>
         set(() => ({
           contentRegistry: address,
         })),
-      contentRefToken: "",
+      contentRefToken: "8f731be135171df172c07578a5d74589ec8fb30b37c12fdbe2639d69b7587f5e",
       setContentRefToken: (address: string) =>
         set(() => ({
           contentRefToken: address,
         })),
-      ownershipRegistry: "",
+      ownershipRegistry: "ec874b61eec4e5e8e395dead6c9bb18690e6d6ea64d773760c5e654ec9ff5f97",
       setOwnershipRegistry: (address: string) =>
         set(() => ({
           ownershipRegistry: address,
         })),
-      ownershipRefToken: "",
+      ownershipRefToken: "e1bdfc7ae6929f934cf9d418273dde143cbb65ec0eec23bdb6c342e4cd91dbd0",
       setOwnershipRefToken: (address: string) =>
         set(() => ({
           ownershipRefToken: address,

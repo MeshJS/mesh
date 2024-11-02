@@ -5,7 +5,7 @@ import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
-import { metaGiftcard } from "~/data/links-smart-contracts";
+import { metaHelloWorld } from "~/data/links-smart-contracts";
 import { InstallSmartContract } from "../common";
 import HelloWorldLock from "./lock-asset";
 import HelloWorldUnlock from "./unlock-asset";
@@ -37,31 +37,38 @@ const ReactPage: NextPage = () => {
 
   return (
     <>
-      <Metatags title={metaGiftcard.title} description={metaGiftcard.desc} />
+      <Metatags
+        title={metaHelloWorld.title}
+        description={metaHelloWorld.desc}
+      />
       <SidebarFullwidth sidebarItems={sidebarItems}>
         <TitleIconDescriptionBody
-          title={metaGiftcard.title}
-          description={metaGiftcard.desc}
-          heroicon={metaGiftcard.icon}
+          title={metaHelloWorld.title}
+          description={metaHelloWorld.desc}
+          heroicon={metaHelloWorld.icon}
         >
           <>
             <p>
-              Giftcard contract allows users to create a transactions to lock
-              assets into the smart contract, which can be redeemed by any user.
+              The Hello World smart contract is a simple lock-and-unlock assets
+              contract, providing a hands-on introduction to end-to-end smart
+              contract validation and transaction building.
             </p>
-            <p>
-              Creating a giftcard will mint a token and send the assets to the
-              contract. While redeeming will burn the token and send the assets
-              to the redeemer.
-            </p>
+
+            <p>There are 2 conditions to unlock the assets:</p>
+            <ul>
+              <li>Signer must be the same as the one who locked the assets</li>
+              <li>
+                Signer must provide the message <code>Hello, World!</code>
+              </li>
+            </ul>
 
             <p>
               There are 2 actions (or endpoints) available to interact with this
               smart contract:
             </p>
             <ul>
-              <li>create giftcard</li>
-              <li>redeem giftcard</li>
+              <li>Lock assets</li>
+              <li>Redeem assets</li>
             </ul>
 
             <InstallSmartContract />
@@ -75,7 +82,7 @@ const ReactPage: NextPage = () => {
             <Codeblock data={example} />
             <p>
               Both on-chain and off-chain codes are open-source and available on{" "}
-              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/giftcard">
+              <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/hello-world">
                 Mesh Github Repository
               </Link>
               .

@@ -1,5 +1,16 @@
-# mesh-contracts
+# Mesh Smart Contracts Library
 
-A collection of smart contracts and its transactions - [meshjs.dev/smart-contracts](https://meshjs.dev/smart-contracts)
+Here's a list of open-source smart contracts, complete with documentation, live demos, and end-to-end source code.
 
-[meshjs.dev](https://meshjs.dev/)
+[meshjs.dev/smart-contracts](https://meshjs.dev/smart-contracts)
+
+| Contract | Description | Links |
+| --- | --- | --- |
+| Content Ownership | Create a content registry and users can create content that is stored in the registry | [[demo](https://meshjs.dev/smart-contracts/content-ownership)] [[source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/content-ownership)] |
+| Escrow | Facilitates the secure exchange of assets between two parties by acting as a trusted intermediary that holds the assets until the conditions of the agreement are met | [[demo](https://meshjs.dev/smart-contracts/escrow)] [[source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/escrow)] |
+| Giftcard | Allows users to create a transactions to lock assets into the smart contract, which can be redeemed by any user | [[demo](https://meshjs.dev/smart-contracts/giftcard)] [[source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/giftcard)] |
+| Marketplace | Allows anyone to buy and sell native assets such as NFTs | [[demo](https://meshjs.dev/smart-contracts/marketplace)] [[source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/marketplace)] |
+| NFT Minting | Mint NFTs with an automatically incremented index, which increases by one for each newly minted NFT | [[demo](https://meshjs.dev/smart-contracts/plutus-nft)] [[source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/plutus-nft)] |
+| Payment Splitter | Allows users to split incoming payments among a group of accounts | [[demo](https://meshjs.dev/smart-contracts/payment-splitter)] [[source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/payment-splitter)] |
+| Swap | Facilitates the exchange of assets between two parties | [[demo](https://meshjs.dev/smart-contracts/swap)] [[source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/swap)] |
+| Vesting | Allows users to lock tokens for a period of time and withdraw the funds after the lockup period | [[demo](https://meshjs.dev/smart-contracts/vesting)] [[source](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract/src/vesting)] |

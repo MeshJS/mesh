@@ -1,13 +1,15 @@
-# 💸 Aiken Payment Splitter
+# Payment Splitter
 
 A simple payment splitter validator written in Aiken and its off-chain counterpart. The Aiken code is located in the onchain directory, while the off-chain code is in the offchain directory.
-
-[Demo](https://meshjs.dev/smart-contracts/payment-splitter)
 
 There are 2 actions (or endpoints) available to interact with this smart contract:
 
 - Send Lovelace to Payment Splitter
 - Trigger Payout
+
+[Read more and live demo](https://meshjs.dev/smart-contracts/payment-splitter)
+
+## Usage
 
 To initialize the payment splitter, we need to initialize a provider, MeshTxBuilder and MeshPaymentSplitterContract.
 

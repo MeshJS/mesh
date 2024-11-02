@@ -5,6 +5,7 @@ import {
   GiftIcon,
   LockClosedIcon,
   PhotoIcon,
+  PlayIcon,
   ShoppingCartIcon,
 } from "@heroicons/react/24/solid";
 
@@ -18,7 +19,7 @@ export const metaMarketplace = {
 };
 export const metaVesting = {
   title: "Vesting",
-  desc: "Locks up funds for a period of time and allows the owner to withdraw the funds after the lockup period",
+  desc: "Locks up funds and allows the beneficiary to withdraw the funds after the lockup period",
   link: "/smart-contracts/vesting",
   icon: LockClosedIcon,
 };
@@ -58,11 +59,18 @@ export const metaMintPlutusNft = {
   link: "/smart-contracts/plutus-nft",
   icon: PhotoIcon,
 };
+export const metaHelloWorld = {
+  title: "Hello World",
+  desc: "Simple lock and unlock assets contract",
+  link: "/smart-contracts/hello-world",
+  icon: PlayIcon,
+};
 
 export const linksSmartContracts: MenuItem[] = [
   metaContentOwnership,
   metaEscrow,
   metaGiftcard,
+  metaHelloWorld,
   metaMarketplace,
   metaMintPlutusNft,
   metaPaymentSplitter,
@@ -72,7 +80,7 @@ export const linksSmartContracts: MenuItem[] = [
 
 export const metaSmartContract: MenuItem = {
   title: "Smart Contracts",
-  desc: "Want to get started with smart contracts? Here are some contracts for the most common use-cases.",
+  desc: "Here's a list of open-source smart contracts, complete with documentation, live demos, and end-to-end source code.",
   link: "/smart-contracts",
   icon: DocumentCheckIcon,
   items: linksSmartContracts,
