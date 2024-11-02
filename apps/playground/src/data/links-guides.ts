@@ -60,7 +60,7 @@ export const guidestandalone = {
 };
 export const guideVesting = {
   title: "Vesting Script End-to-End",
-  desc: "Learn how to vesting contract that locks up funds for a period of time and allows the owner to withdraw the funds after the lockup period.",
+  desc: "Learn how to vesting contract that locks up funds for a period of time and allows the beneficiary to withdraw the funds after the lockup period.",
   link: "/guides/vesting",
   thumbnail: "/guides/vesting.png",
   image: "/guides/laptop-3196481_640.jpg",
