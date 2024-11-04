@@ -11,7 +11,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-4">
       <HeroTwoSections
-        title="Build applications on Cardano with ease"
+        title="Web3 TypeScript SDK & off-chain Framework"
         description="Mesh is a TypeScript open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
         link={{ label: "Get started", href: "/getting-started" }}
         image={
