@@ -10,11 +10,11 @@ import {
   useContentOwnership,
 } from "./common";
 
-export default function OwnershipCreateOwnershipRegistry() {
+export default function OwnershipGetContent() {
   return (
     <TwoColumnsScroll
-      sidebarTo="createOwnershipRegistry"
-      title="Create Ownership Registry"
+      sidebarTo="getContent"
+      title="Get Content"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -24,34 +24,13 @@ export default function OwnershipCreateOwnershipRegistry() {
 function Left() {
   return (
     <>
-      <p>
-        This is the last transaction you need to setup the contract after
-        completing all the `sendRefScriptOnchain` transactions.
-      </p>
-      <p>
-        This transaction creates one content registry. Each registry should
-        comes in pair with one content registry and each pair of registry serves
-        around 50 records of content ownership. The application can be scaled
-        indefinitely according to the number of parallelization needed and
-        volumes of content expected to be managed.
-      </p>
-      <p>
-        <b>Note:</b> You must provide the <code>paramUtxo</code> from the{" "}
-        <code>mintOneTimeMintingPolicy</code> transaction.
-      </p>
-      <p>
-        <b>Note:</b> You must provide the txHash for
-        <code>ContentRegistry</code>, <code>ContentRefToken</code>,{" "}
-        <code>OwnershipRegistry</code>,<code>OwnershipRefToken</code>{" "}
-        transactions.
-      </p>
+      <p>This transaction fetches the content data from the registry.</p>
     </>
   );
 }
 
 function Right() {
   const { wallet, connected } = useWallet();
-
   const operationAddress = useContentOwnership(
     (state) => state.operationAddress,
   );
@@ -91,21 +70,16 @@ function Right() {
       JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
       refScriptUtxos,
     );
-    const tx = await contract.createOwnershipRegistry();
-    const signedTx = await wallet.signTx(tx);
-    const txHash = await wallet.submitTx(signedTx);
-    return txHash;
+    const content = await contract.getContent(0, 0);
+    return content;
   }
 
-  let code = ``;
-  code += `const tx = await contract.createOwnershipRegistry();\n`;
-  code += `const signedTx = await wallet.signTx(tx);\n`;
-  code += `const txHash = await wallet.submitTx(signedTx);\n`;
+  let code = `const content = await contract.getContent(0, 0);`;
 
   return (
     <LiveCodeDemo
-      title="Create Ownership Registry"
-      subtitle="This transaction creates one content registry"
+      title="Get Oracle Data"
+      subtitle="Fetch the current oracle data"
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}

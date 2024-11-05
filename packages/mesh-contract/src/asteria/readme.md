@@ -1,5 +1,7 @@
 # Asteria contract
 
+> Work in progress
+
 A Cardano bot challenge to showcase the capabilities of the eUTxO model.
 
 ## Mechanics

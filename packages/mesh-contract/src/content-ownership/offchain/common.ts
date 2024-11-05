@@ -1,6 +1,5 @@
 import {
   builtinByteString,
-  deserializeAddress,
   outputReference,
   resolveScriptHash,
   serializePlutusScript,

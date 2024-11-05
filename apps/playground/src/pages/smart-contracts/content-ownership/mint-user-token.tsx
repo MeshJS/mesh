@@ -2,6 +2,8 @@ import { useWallet } from "@meshsdk/react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import Codeblock from "~/components/text/codeblock";
+import { demoAssetMetadata } from "~/data/cardano";
 import {
   getContract,
   InputsOperationAddress,
@@ -9,11 +11,11 @@ import {
   useContentOwnership,
 } from "./common";
 
-export default function OwnershipSetupOracleUtxo() {
+export default function OwnershipMintUserToken() {
   return (
     <TwoColumnsScroll
-      sidebarTo="setupOracleUtxo"
-      title="Setup Oracle Utxo"
+      sidebarTo="mintUserToken"
+      title="Mint User Token"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -24,14 +26,17 @@ function Left() {
   return (
     <>
       <p>
-        This transaction send the NFT to a oracle contract locking the datum,
-        which serves as the single source of truth for the contract oracle with
-        data integrity.
+        This transaction mints a token that users can use to create content.
       </p>
-      <p>This is the second transaction you need to setup the contract.</p>
       <p>
-        <b>Note:</b> You must provide the <code>paramUtxo</code> from the{" "}
-        <code>mintOneTimeMintingPolicy</code> transaction.
+        Note that you can actually use any tokens for{" "}
+        <code>createContent()</code>, this <code>mintUserToken()</code> function
+        is just helpful if you want to mint a token specifically for this
+        purpose.
+      </p>
+      <p>
+        Note that you signTx with <code>true</code> to mint the token to enable
+        partial signing.
       </p>
     </>
   );
@@ -50,21 +55,29 @@ function Right() {
       operationAddress,
       JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
     );
-    const tx = await contract.setupOracleUtxo();
-    const signedTx = await wallet.signTx(tx);
+    const tx = await contract.mintUserToken("MeshContentOwnership", {
+      ...demoAssetMetadata,
+      name: "Mesh Content Ownership",
+      description:
+        "Demo at https://meshjs.dev/smart-contracts/content-ownership",
+    });
+    const signedTx = await wallet.signTx(tx, true);
     const txHash = await wallet.submitTx(signedTx);
     return txHash;
   }
 
   let code = ``;
-  code += `const tx = await contract.setupOracleUtxo();\n`;
-  code += `const signedTx = await wallet.signTx(tx);\n`;
+  code += `const tx = await contract.mintUserToken("MeshContentOwnership", {\n`;
+  code += `  name: "Mesh Content Ownership",\n`;
+  code += `  description: "Demo at https://meshjs.dev/smart-contracts/content-ownership",\n`;
+  code += `});\n`;
+  code += `const signedTx = await wallet.signTx(tx, true);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo
-      title="Setup Oracle Utxo"
-      subtitle="This transaction send the NFT to a oracle contract locking the datum."
+      title="Mint User Token"
+      subtitle="Mint a token that users can use to create content"
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}
