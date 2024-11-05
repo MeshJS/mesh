@@ -29,10 +29,11 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "react": "^18.2.0",
+    "@fabianbormann/cardano-peer-connect": "^1.2.17",
     "@meshsdk/common": "1.7.12",
     "@meshsdk/transaction": "1.7.12",
-    "@meshsdk/wallet": "1.7.12"
+    "@meshsdk/wallet": "1.7.12",
+    "react": "^18.2.0"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
