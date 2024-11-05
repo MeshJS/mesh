@@ -5,46 +5,45 @@ import {
   deserializeAddress,
   Integer,
   mConStr0,
-  serializePlutusScript,
   stringToHex,
   UTxO,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
-import blueprint from "./aiken-workspace/plutus.json";
+import blueprintV1 from "./aiken-workspace-v1/plutus.json";
+import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
 export type HelloWorldDatum = ConStr0<
   [Integer, BuiltinByteString, BuiltinByteString]
 >;
 
-export const MeshHelloWorldBlueprint = blueprint;
-
 export class MeshHelloWorldContract extends MeshTxInitiator {
-  scriptCbor = applyParamsToScript(blueprint.validators[0]!.compiledCode, []);
+  scriptCbor: string;
+  scriptAddress: string;
 
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
+    this.scriptCbor = this.getScriptCbor();
+    this.scriptAddress = this.getScriptAddress(this.scriptCbor);
   }
 
-  getScript = () => {
-    const { address } = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
-      undefined,
-      this.networkId,
-    );
-    return {
-      scriptAddr: address,
-    };
+  getScriptCbor = () => {
+    switch (this.version) {
+      case 2:
+        return applyParamsToScript(blueprintV2.validators[0]!.compiledCode, []);
+      default:
+        return applyParamsToScript(blueprintV1.validators[0]!.compiledCode, []);
+    }
   };
 
   lockAsset = async (assets: Asset[]): Promise<string> => {
     const { utxos, walletAddress } = await this.getWalletInfoForTx();
-    const { scriptAddr } = this.getScript();
+
     const signerHash = deserializeAddress(walletAddress).pubKeyHash;
 
     await this.mesh
-      .txOut(scriptAddr, assets)
+      .txOut(this.scriptAddress, assets)
       .txOutDatumHashValue(mConStr0([signerHash]))
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
@@ -58,7 +57,7 @@ export class MeshHelloWorldContract extends MeshTxInitiator {
     const signerHash = deserializeAddress(walletAddress).pubKeyHash;
 
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         scriptUtxo.input.txHash,
         scriptUtxo.input.outputIndex,

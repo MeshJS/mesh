@@ -10,6 +10,8 @@ export const useNetwork = () => {
   useEffect(() => {
     if (hasConnectedWallet) {
       connectedWalletInstance.getNetworkId().then(setNetworkId);
+    } else {
+      setNetworkId(undefined);
     }
   }, [connectedWalletName]);
 

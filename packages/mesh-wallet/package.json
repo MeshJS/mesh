@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/wallet",
-  "version": "1.7.9",
+  "version": "1.7.12",
   "description": "",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -35,12 +35,12 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.9",
-    "@meshsdk/core-csl": "1.7.9",
-    "@meshsdk/core-cst": "1.7.9",
-    "@meshsdk/transaction": "1.7.9",
-    "@nufi/dapp-client-cardano": "^0.3.1",
-    "@nufi/dapp-client-core": "^0.3.1"
+    "@meshsdk/common": "1.7.12",
+    "@meshsdk/core-csl": "1.7.12",
+    "@meshsdk/core-cst": "1.7.12",
+    "@meshsdk/transaction": "1.7.12",
+    "@nufi/dapp-client-cardano": "0.3.5",
+    "@nufi/dapp-client-core": "0.3.5"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

@@ -1,4 +1,4 @@
-import { MeshMarketplaceBlueprint } from "@meshsdk/contract";
+import { MeshMarketplaceContract } from "@meshsdk/contract";
 import { integer, mPubKeyAddress, pubKeyAddress } from "@meshsdk/core";
 import { applyParamsToScript, CSLSerializer } from "@meshsdk/core-csl";
 
@@ -14,7 +14,7 @@ import {
 
 const serializer = new CSLSerializer();
 
-const demoCompiledCode = MeshMarketplaceBlueprint.validators[0]!.compiledCode;
+const demoCompiledCode = MeshMarketplaceContract.getCompiledCode();
 
 export default function ContractApplyParamToScript() {
   return (

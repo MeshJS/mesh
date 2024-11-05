@@ -145,7 +145,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the input datum for transaction input
    * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @returns The MeshTxBuilder instance
    */
   txInDatumValue = (
@@ -254,7 +254,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the redeemer for the reference input to be spent in same transaction
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -301,7 +301,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the output datum hash for transaction
    * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @returns The MeshTxBuilder instance
    */
   txOutDatumHashValue = (
@@ -337,7 +337,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the output inline datum for transaction
    * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @returns The MeshTxBuilder instance
    */
   txOutInlineDatumValue = (
@@ -373,7 +373,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the output embed datum for transaction
    * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @returns The MeshTxBuilder instance
    */
 
@@ -410,12 +410,12 @@ export class MeshTxBuilderCore {
   /**
    * Set the reference script to be attached with the output
    * @param scriptCbor The CBOR hex of the script to be attached to UTxO as reference script
-   * @param version Optional - The Plutus script version
+   * @param version Optional - The Plutus script version. Default to be V3 (Plutus V3)
    * @returns The MeshTxBuilder instance
    */
   txOutReferenceScript = (
     scriptCbor: string,
-    version: LanguageVersion = "V2",
+    version: LanguageVersion = "V3",
   ) => {
     if (this.txOutput) {
       this.txOutput.referenceScript = { code: scriptCbor, version };
@@ -525,7 +525,7 @@ export class MeshTxBuilderCore {
   /**
    * [Alias of txInRedeemerValue] Set the redeemer for the reference input to be spent in same transaction
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -544,8 +544,16 @@ export class MeshTxBuilderCore {
    * @param txIndex The transaction index of the reference UTxO
    * @returns The MeshTxBuilder instance
    */
-  readOnlyTxInReference = (txHash: string, txIndex: number) => {
-    this.meshTxBuilderBody.referenceInputs.push({ txHash, txIndex });
+  readOnlyTxInReference = (
+    txHash: string,
+    txIndex: number,
+    scriptSize?: number,
+  ) => {
+    this.meshTxBuilderBody.referenceInputs.push({
+      txHash,
+      txIndex,
+      scriptSize,
+    });
     return this;
   };
 
@@ -673,7 +681,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the redeemer for minting
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -702,7 +710,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the redeemer for the reference input to be spent in same transaction
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -887,7 +895,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the transaction withdrawal redeemer value in the MeshTxBuilder instance
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -1037,9 +1045,7 @@ export class MeshTxBuilderCore {
   ) => {
     if (!this.voteItem) throw Error("voteTxInReference: Undefined vote");
     if (this.voteItem.type === "BasicVote")
-      throw Error(
-        "voteTxInReference: Adding script reference to a basic vote",
-      );
+      throw Error("voteTxInReference: Adding script reference to a basic vote");
     if (this.voteItem.type === "ScriptVote") {
       this.voteItem.scriptSource = {
         type: "Inline",
@@ -1755,6 +1761,15 @@ export class MeshTxBuilderCore {
         },
       };
       this.meshTxBuilderBody.inputs.push(pubKeyTxIn);
+      // If an input selected has script ref, then we must
+      // provide the script size to the tx builder also
+      if (input.output.scriptRef) {
+        this.meshTxBuilderBody.referenceInputs.push({
+          txHash: input.input.txHash,
+          txIndex: input.input.outputIndex,
+          scriptSize: input.output.scriptRef!.length / 2,
+        });
+      }
     });
   };
 

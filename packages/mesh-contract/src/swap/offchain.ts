@@ -15,29 +15,33 @@ import {
   deserializeAddress,
   deserializeDatum,
   serializeAddressObj,
-  serializePlutusScript,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-csl";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
-import blueprint from "./aiken-workspace/plutus.json";
-
-export const MeshSwapBlueprint = blueprint;
+import blueprintV1 from "./aiken-workspace-v1/plutus.json";
+import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
 export type SwapDatum = ConStr0<[PubKeyAddress, Value, Value]>;
 
 export class MeshSwapContract extends MeshTxInitiator {
-  scriptCbor = applyParamsToScript(blueprint.validators[0]!.compiledCode, []);
+  scriptCbor: string;
   scriptAddress: string;
 
   constructor(inputs: MeshTxInitiatorInput) {
     super(inputs);
-    this.scriptAddress = serializePlutusScript(
-      { code: this.scriptCbor, version: "V2" },
-      undefined,
-      inputs.networkId,
-    ).address;
+    this.scriptCbor = this.getScriptCbor();
+    this.scriptAddress = this.getScriptAddress(this.scriptCbor);
   }
+
+  getScriptCbor = () => {
+    switch (this.version) {
+      case 2:
+        return applyParamsToScript(blueprintV2.validators[0]!.compiledCode, []);
+      default:
+        return applyParamsToScript(blueprintV1.validators[0]!.compiledCode, []);
+    }
+  };
 
   initiateSwap = async (
     toProvide: Asset[],
@@ -82,7 +86,7 @@ export class MeshSwapContract extends MeshTxInitiator {
     const initiatorToReceive = inlineDatum.fields[2];
 
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         swapUtxo.input.txHash,
         swapUtxo.input.outputIndex,
@@ -119,7 +123,7 @@ export class MeshSwapContract extends MeshTxInitiator {
       this.networkId,
     );
     await this.mesh
-      .spendingPlutusScriptV2()
+      .spendingPlutusScript(this.languageVersion)
       .txIn(
         swapUtxo.input.txHash,
         swapUtxo.input.outputIndex,
