@@ -162,6 +162,45 @@ export class BlockfrostProvider
     return utxosToAssets(utxos);
   }
 
+  /**
+   * Transactions for an address.
+   * @param address
+   * @returns - partial TransactionInfo
+   */
+  async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `/addresses/${address}/transactions`,
+      );
+      if (status === 200 || status == 202) {
+        return data.map((tx: any) => {
+          return <TransactionInfo>{
+            blockHeight: tx.block_height,
+            blockTime: tx.block_time,
+            hash: tx.tx_hash,
+            index: tx.tx_index,
+            block: "",
+            slot: "",
+            fees: "",
+            size: 0,
+            deposit: "",
+            invalidBefore: "",
+            invalidAfter: "",
+          };
+        });
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * UTXOs of the address.
+   * @param address - The address to fetch UTXO
+   * @param asset - UTXOs of a given asset​
+   * @returns - Array of UTxOs
+   */
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : "";
     const url = `addresses/${address}/utxos` + filter;
@@ -456,12 +495,42 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * A generic method to fetch data from a URL.
+   * @param url - The URL to fetch data from
+   * @returns - The data fetched from the URL
+   */
   async get(url: string): Promise<any> {
     try {
       const { data, status } = await this._axiosInstance.get(url);
       if (status === 200 || status == 202) {
         return data;
       }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * A generic method to post data to a URL.
+   * @param url - The URL to fetch data from
+   * @param body - Payload
+   * @param headers - Specify headers, default: { "Content-Type": "application/json" }
+   * @returns - Data
+   */
+  async post(
+    url: string,
+    body: any,
+    headers = { "Content-Type": "application/json" },
+  ): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.post(url, body, {
+        headers,
+      });
+
+      if (status === 200 || status == 202) return data;
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);

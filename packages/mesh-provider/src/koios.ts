@@ -102,6 +102,42 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     return utxosToAssets(utxos);
   }
 
+  /**
+   * Transactions for an address.
+   * @param address
+   * @returns - partial TransactionInfo
+   */
+  async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
+    try {
+      const { data, status } = await this._axiosInstance.post(
+        `/address_txs`,
+        {
+          _addresses: [address],
+        }
+      );
+      if (status === 200 || status == 202) {
+        return data.map((tx: any) => {
+          return <TransactionInfo>{
+            blockHeight: tx.block_height,
+            blockTime: tx.block_time,
+            hash: tx.tx_hash,
+            index: 0,
+            block: "",
+            slot: "",
+            fees: "",
+            size: 0,
+            deposit: "",
+            invalidBefore: "",
+            invalidAfter: "",
+          };
+        });
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.post("address_info", {
@@ -349,12 +385,42 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * A generic method to fetch data from a URL.
+   * @param url - The URL to fetch data from
+   * @returns - The data fetched from the URL
+   */
   async get(url: string): Promise<any> {
     try {
       const { data, status } = await this._axiosInstance.get(url);
-      if (status === 200) {
+      if (status === 200 || status == 202) {
         return data;
       }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * A generic method to post data to a URL.
+   * @param url - The URL to fetch data from
+   * @param body - Payload
+   * @param headers - Specify headers, default: { "Content-Type": "application/json" }
+   * @returns - Data
+   */
+  async post(
+    url: string,
+    body: any,
+    headers = { "Content-Type": "application/json" },
+  ): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.post(url, body, {
+        headers,
+      });
+
+      if (status === 200 || status == 202) return data;
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
