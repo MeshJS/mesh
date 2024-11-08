@@ -220,7 +220,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       !this.fetcher
     )
       throw Error(
-        "Transaction information is incomplete while no fetcher instance is provided",
+        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
       );
     for (let i = 0; i < incompleteTxIns.length; i++) {
       const currentTxIn = incompleteTxIns[i]!;

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { DocumentCheckIcon } from "@heroicons/react/24/solid";
 
+import Link from "~/components/link";
 import HeroTwoSections from "~/components/sections/hero-two-sections";
 
 export default function HomePage() {
@@ -11,11 +13,11 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-4">
       <HeroTwoSections
-        title="Build applications on Cardano with ease"
+        title="Web3 TypeScript SDK & off-chain Framework"
         description="Mesh is a TypeScript open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
         link={{ label: "Get started", href: "/getting-started" }}
         image={
-          <div className="col-span-6 hidden lg:block h-96">
+          <div className="col-span-6 hidden h-96 lg:block">
             {!isSSR ? (
               <video className="w-full" autoPlay muted>
                 <source src="/home/starter-template-cli.mp4" type="video/mp4" />
@@ -37,7 +39,15 @@ export default function HomePage() {
             )}
           </div>
         }
-        // children={<SendPayment />}
+        children={
+          <Link
+            href={`/about/catalyst`}
+            className="mr-3 inline-flex items-center justify-center rounded-lg bg-gray-700 px-5 py-3 text-center text-base font-medium text-white hover:bg-gray-800"
+          >
+            Catalyst Proposals
+            <DocumentCheckIcon className="-mr-1 ml-2 h-5 w-5" />
+          </Link>
+        }
       />
     </div>
   );
