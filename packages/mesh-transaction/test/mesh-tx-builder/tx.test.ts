@@ -7,7 +7,10 @@ import {
   resolveScriptHash,
   resolveScriptHashDRepId,
 } from "@meshsdk/core";
-import { applyCborEncoding } from "@meshsdk/core-csl";
+import {
+  applyCborEncoding,
+  resolvePlutusScriptAddress,
+} from "@meshsdk/core-csl";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
 describe("MeshTxBuilder transactions", () => {
@@ -505,6 +508,54 @@ describe("MeshTxBuilder transactions", () => {
               "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
           },
         },
+      )
+      .completeSync();
+
+    console.log(txHex);
+    expect(txHex !== "").toBeTruthy();
+  });
+
+  it("Custom cost models", () => {
+    let mesh = new MeshTxBuilder();
+
+    let txHex = mesh
+      .spendingPlutusScriptV3()
+      .txIn(
+        "fc1c806abc9981f4bee2ce259f61578c3341012f3d04f22e82e7e40c7e7e3c3c",
+        0,
+        [
+          {
+            unit: "lovelace",
+            quantity: "9692479606",
+          },
+        ],
+        resolvePlutusScriptAddress(
+          {
+            code: "58365834010100323232322533300232323232324a260106012004600e002600e004600a00260066ea8004526136565734aae795d0aba201",
+            version: "V3",
+          },
+          0,
+        ),
+      )
+      .txInScript(
+        "58365834010100323232322533300232323232324a260106012004600e002600e004600a00260066ea8004526136565734aae795d0aba201",
+      )
+      .txInDatumValue(mConStr0([]))
+      .txInRedeemerValue(mConStr0([]), "Mesh", { mem: 100000, steps: 1000000 })
+      .setNetwork([[1], [1], [1]])
+      .changeAddress(
+        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
+      )
+      .txInCollateral(
+        "3fbdf2b0b4213855dd9b87f7c94a50cf352ba6edfdded85ecb22cf9ceb75f814",
+        7,
+        [
+          {
+            unit: "lovelace",
+            quantity: "10000000",
+          },
+        ],
+        "addr_test1vpw22xesfv0hnkfw4k5vtrz386tfgkxu6f7wfadug7prl7s6gt89x",
       )
       .completeSync();
 

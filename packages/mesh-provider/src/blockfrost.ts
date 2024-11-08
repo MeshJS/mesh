@@ -175,8 +175,6 @@ export class BlockfrostProvider
       if (status === 200 || status == 202) {
         return data.map((tx: any) => {
           return <TransactionInfo>{
-            blockHeight: tx.block_height,
-            blockTime: tx.block_time,
             hash: tx.tx_hash,
             index: tx.tx_index,
             block: "",

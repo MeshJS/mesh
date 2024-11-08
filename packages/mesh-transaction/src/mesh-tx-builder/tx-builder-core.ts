@@ -1469,7 +1469,7 @@ export class MeshTxBuilderCore {
    * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
    * @returns The MeshTxBuilder instance
    */
-  setNetwork = (network: Network) => {
+  setNetwork = (network: Network | number[][]) => {
     this.meshTxBuilderBody.network = network;
     return this;
   };
