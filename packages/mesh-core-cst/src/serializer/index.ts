@@ -703,6 +703,7 @@ class CardanoSDKSerializerCore {
                 ),
               ),
             );
+            this.usedLanguages[PlutusLanguageVersion.V1] = true;
             break;
           case "V2":
             this.scriptsProvided.add(
@@ -712,6 +713,7 @@ class CardanoSDKSerializerCore {
                 ),
               ),
             );
+            this.usedLanguages[PlutusLanguageVersion.V2] = true;
             break;
           case "V3":
             this.scriptsProvided.add(
@@ -721,6 +723,7 @@ class CardanoSDKSerializerCore {
                 ),
               ),
             );
+            this.usedLanguages[PlutusLanguageVersion.V3] = true;
             break;
         }
       } else if (plutusScriptSource.type === "Inline") {
