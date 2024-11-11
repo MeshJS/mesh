@@ -4,10 +4,12 @@ export default function Metatags({
   title,
   keywords,
   description,
+  image,
 }: {
   title?: string;
   keywords?: string;
   description?: string;
+  image?: string;
 }) {
   if (description === undefined) {
     description =
@@ -38,15 +40,10 @@ export default function Metatags({
       <meta property="og:site_name" content={_title} />
       <meta property="og:type" content="website" />
       <meta property="og:description" content={description} />
-      {/* {image ? (
+      {image && (
         <meta property="og:image" content={`https://meshjs.dev${image}`} />
-      ) : (
-        <meta
-          property="og:image"
-          content={`https://meshjs.dev/api/og?title=${title}`}
-        />
-      )} */}
-      {title && (
+      )}
+      {title && image === undefined && (
         <meta
           property="og:image"
           content={`https://meshjs.dev/api/og?title=${title}`}
@@ -59,15 +56,10 @@ export default function Metatags({
       <meta name="twitter:title" content={_title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:creator" content="@meshsdk" />
-      {/* {image ? (
-        <meta name="twitter:image" content={`https://meshjs.dev${image}`} />
-      ) : (
-        <meta
-          name="twitter:image"
-          content={`https://meshjs.dev/api/og?title=${title}`}
-        />
-      )} */}
-      {title && (
+      {image && (
+        <meta property="twitter:image" content={`https://meshjs.dev${image}`} />
+      )}
+      {title && image === undefined && (
         <meta
           property="twitter:image"
           content={`https://meshjs.dev/api/og?title=${title}`}
