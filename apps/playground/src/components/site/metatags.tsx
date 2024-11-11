@@ -15,14 +15,14 @@ export default function Metatags({
     description =
       "Intuitive and easy-to-use Web3 development framework to build amazing applications on Cardano.";
   }
+
   if (keywords === undefined) {
     keywords =
       "developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis, aiken";
   }
 
-  let _title = title;
   if (title === undefined) {
-    _title = "Mesh JS - Cardano Web3 TypeScript SDK & Off-Chain Framework";
+    title = "Mesh JS - Cardano Web3 TypeScript SDK & Off-Chain Framework";
   } else {
     title = title + " - Mesh JS";
   }
@@ -32,12 +32,12 @@ export default function Metatags({
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta charSet="utf-8" />
 
-      <title>{title ? title : _title}</title>
+      {title && <title>{title}</title>}
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
 
-      <meta property="og:title" content={_title} />
-      <meta property="og:site_name" content={_title} />
+      {title && <meta property="og:title" content={title} />}
+      {title && <meta property="og:site_name" content={title} />}
       <meta property="og:type" content="website" />
       <meta property="og:description" content={description} />
       {image && (
@@ -49,11 +49,11 @@ export default function Metatags({
           content={`https://meshjs.dev/api/og?title=${title}`}
         />
       )}
-      <meta property="og:image:alt" content={_title} />
+      {title && <meta property="og:image:alt" content={title} />}
 
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@meshsdk" />
-      <meta name="twitter:title" content={_title} />
+      {title && <meta name="twitter:title" content={title} />}
       <meta name="twitter:description" content={description} />
       <meta name="twitter:creator" content="@meshsdk" />
       {image && (
@@ -65,7 +65,7 @@ export default function Metatags({
           content={`https://meshjs.dev/api/og?title=${title}`}
         />
       )}
-      <meta name="twitter:image:alt" content={_title} />
+      {title && <meta name="twitter:image:alt" content={title} />}
 
       <link
         rel="apple-touch-icon"

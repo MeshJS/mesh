@@ -473,16 +473,6 @@ export class BlockfrostProvider
     }
   }
 
-  async fetchUTxO(hash: string, index?: number): Promise<UTxO | undefined> {
-    try {
-      const utxos = await this.fetchUTxOs(hash);
-      const utxo = utxos.find((utxo) => utxo.input.outputIndex === index);
-      return utxo;
-    } catch (error) {
-      throw parseHttpError(error);
-    }
-  }
-
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
