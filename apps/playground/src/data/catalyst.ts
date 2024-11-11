@@ -3,7 +3,7 @@ import { LightBulbIcon } from "@heroicons/react/24/solid";
 export const metaCatalyst = {
   link: `/about/catalyst`,
   title: "Project Catalyst",
-  desc: "Here are proposals that we have submitted to Project Catalyst and its progress.",
+  desc: "Proposals that we have submitted to Project Catalyst and its progress.",
   icon: LightBulbIcon,
 };
 
