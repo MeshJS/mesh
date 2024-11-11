@@ -9,6 +9,7 @@ export type TxInParameter = {
   txIndex: number;
   amount?: Asset[];
   address?: string;
+  scriptSize?: number;
 };
 
 export type TxIn = PubKeyTxIn | SimpleScriptTxIn | ScriptTxIn;
