@@ -4,12 +4,10 @@ export default function Metatags({
   title,
   keywords,
   description,
-  image,
 }: {
   title?: string;
   keywords?: string;
   description?: string;
-  image?: string;
 }) {
   if (description === undefined) {
     description =
@@ -19,49 +17,63 @@ export default function Metatags({
     keywords =
       "developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis, aiken";
   }
-  if (title === undefined) {
-    title = "Cardano Web3 TypeScript SDK & off-chain Framework";
-  }
 
-  title = title + " - Mesh JS";
+  let _title = title;
+  if (title === undefined) {
+    _title = "Mesh JS - Cardano Web3 TypeScript SDK & Off-Chain Framework";
+  } else {
+    title = title + " - Mesh JS";
+  }
 
   return (
     <Head>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta charSet="utf-8" />
 
-      <title>{title}</title>
+      <title>{title ? title : _title}</title>
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
 
-      <meta property="og:title" content={title} />
-      <meta property="og:site_name" content={title} />
+      <meta property="og:title" content={_title} />
+      <meta property="og:site_name" content={_title} />
       <meta property="og:type" content="website" />
       <meta property="og:description" content={description} />
-      {image ? (
+      {/* {image ? (
         <meta property="og:image" content={`https://meshjs.dev${image}`} />
       ) : (
         <meta
           property="og:image"
           content={`https://meshjs.dev/api/og?title=${title}`}
         />
+      )} */}
+      {title && (
+        <meta
+          property="og:image"
+          content={`https://meshjs.dev/api/og?title=${title}`}
+        />
       )}
-      <meta property="og:image:alt" content={title} />
+      <meta property="og:image:alt" content={_title} />
 
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@meshsdk" />
-      <meta name="twitter:title" content={title} />
+      <meta name="twitter:title" content={_title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:creator" content="@meshsdk" />
-      {image ? (
+      {/* {image ? (
         <meta name="twitter:image" content={`https://meshjs.dev${image}`} />
       ) : (
         <meta
           name="twitter:image"
           content={`https://meshjs.dev/api/og?title=${title}`}
         />
+      )} */}
+      {title && (
+        <meta
+          property="twitter:image"
+          content={`https://meshjs.dev/api/og?title=${title}`}
+        />
       )}
-      <meta name="twitter:image:alt" content={title} />
+      <meta name="twitter:image:alt" content={_title} />
 
       <link
         rel="apple-touch-icon"
