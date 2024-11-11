@@ -2,12 +2,20 @@ import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body
 import { guideaiken } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'System setup', to: 'systemsetup' },
+    { label: 'Writing a smart contract with Aiken', to: 'writingasmartcontractwithaiken' },
+    { label: 'Creating locking transaction', to: 'creatinglockingtransaction' },
+    { label: 'Unlocking assets', to: 'unlockingassets' },
+  ]
+
   return (
     <LayoutImageHeaderAndBody
       title={guideaiken.title}
       description={guideaiken.description}
       image={guideaiken.image}
       cover={guideaiken.cover}
+      sidebarItems={sidebarItems}
     >
       {children}
     </LayoutImageHeaderAndBody>

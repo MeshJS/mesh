@@ -210,7 +210,6 @@ export class MaestroProvider
         `assets/${policyId}${assetName}`,
       );
       if (status === 200) {
-        
         const data = timestampedData.data;
         return <AssetMetadata>{
           ...data.asset_standards.cip25_metadata,
@@ -420,7 +419,7 @@ export class MaestroProvider
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
         `transactions/${hash}`,
@@ -429,6 +428,11 @@ export class MaestroProvider
       if (status === 200) {
         const msOutputs = timestampedData.data.outputs as MaestroUTxO[];
         const outputs = msOutputs.map(this.toUTxO);
+
+        if (index !== undefined) {
+          return outputs.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return outputs;
       }
       throw parseHttpError(timestampedData);

@@ -29,6 +29,7 @@ const ReactPage: NextPage = () => {
     { label: "Fetch Handle", to: "fetchHandle" },
     { label: "Fetch Protocol Parameters", to: "fetchProtocolParameters" },
     { label: "Fetch Transaction Info", to: "fetchTxInfo" },
+    { label: "Fetch UTxOs", to: "fetchUtxos" },
     { label: "Evaluate Tx", to: "evaluateTx" },
     { label: "Submit Tx", to: "submitTx" },
     { label: "On Transaction Confirmed", to: "onTxConfirmed" },

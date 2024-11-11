@@ -8,6 +8,4 @@ export type TransactionInfo = {
   deposit: string;
   invalidBefore: string;
   invalidAfter: string;
-  blockHeight: number;
-  blockTime: number;
 };

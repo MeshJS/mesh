@@ -109,17 +109,12 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
    */
   async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
     try {
-      const { data, status } = await this._axiosInstance.post(
-        `/address_txs`,
-        {
-          _addresses: [address],
-        }
-      );
+      const { data, status } = await this._axiosInstance.post(`/address_txs`, {
+        _addresses: [address],
+      });
       if (status === 200 || status == 202) {
         return data.map((tx: any) => {
           return <TransactionInfo>{
-            blockHeight: tx.block_height,
-            blockTime: tx.block_time,
             hash: tx.tx_hash,
             index: 0,
             block: "",
@@ -367,16 +362,21 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.post("tx_info", {
         _tx_hashes: [hash],
       });
 
       if (status === 200) {
-        const utxos = data[0].outputs.map((utxo: KoiosUTxO) =>
+        const utxos: UTxO[] = data[0].outputs.map((utxo: KoiosUTxO) =>
           this.toUTxO(utxo, "undefined"),
         );
+
+        if (index !== undefined) {
+          return utxos.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return utxos;
       }
       throw parseHttpError(data);

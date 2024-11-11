@@ -2,12 +2,21 @@ import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body
 import { guidetransactions } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'Initialize the Plutus script', to: 'initializetheplutusscript' },
+    { label: 'Listing Asset for Sale', to: 'listingassetforsale' },
+    { label: 'Cancel the Listing', to: 'cancelthelisting' },
+    { label: 'Purchase the Listed Asset', to: 'purchasethelistedasset' },
+    { label: 'Update the Listing', to: 'updatethelisting' },
+  ];
+
   return (
     <LayoutImageHeaderAndBody
       title={guidetransactions.title}
       description={guidetransactions.description}
       image={guidetransactions.image}
       cover={guidetransactions.cover}
+      sidebarItems={sidebarItems}
     >
       {children}
     </LayoutImageHeaderAndBody>
