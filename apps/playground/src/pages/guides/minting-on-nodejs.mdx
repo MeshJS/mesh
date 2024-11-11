@@ -2,12 +2,18 @@ import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body
 import { guidenodejs } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'System setup', to: 'systemsetup' },
+    { label: 'Build the minting transaction', to: 'buildthemintingtransaction' },
+  ];
+
   return (
     <LayoutImageHeaderAndBody
       title={guidenodejs.title}
       description={guidenodejs.description}
       image={guidenodejs.image}
       cover={guidenodejs.cover}
+      sidebarItems={sidebarItems}
     >
       {children}
     </LayoutImageHeaderAndBody>
