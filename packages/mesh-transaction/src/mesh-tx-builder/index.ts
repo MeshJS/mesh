@@ -84,39 +84,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     // Checking if all inputs are complete
     const { inputs, collaterals, mints } = this.meshTxBuilderBody;
-    // We must check every input for ref scripts
-    const incompleteTxIns = [...inputs, ...collaterals];
+    const incompleteTxIns = [...inputs, ...collaterals].filter(
+      (txIn) => !this.isInputComplete(txIn),
+    );
     const incompleteMints = mints.filter((mint) => !this.isMintComplete(mint));
     // Getting all missing utxo information
     await this.queryAllTxInfo(incompleteTxIns, incompleteMints);
-    // Gather all utxos with ref scripts
-    Object.values(this.queriedUTxOs).forEach((utxos) => {
-      for (let utxo of utxos) {
-        if (utxo.output.scriptRef !== undefined) {
-          this.utxosWithRefScripts.push(utxo);
-        }
-      }
-    });
-    const missingRefInput = this.utxosWithRefScripts.filter((utxo) => {
-      this.meshTxBuilderBody.referenceInputs.forEach((refInput) => {
-        if (
-          refInput.txHash === utxo.input.txHash &&
-          refInput.txIndex === utxo.input.outputIndex
-        ) {
-          return false;
-        }
-      });
-      return true;
-    });
-    // Add any inputs with ref scripts into reference inputs
-    // serializer will then deduplicate, but keep the script size for fee calc
-    missingRefInput.forEach((utxo) => {
-      this.meshTxBuilderBody.referenceInputs.push({
-        txHash: utxo.input.txHash,
-        txIndex: utxo.input.outputIndex,
-        scriptSize: utxo.output.scriptRef!.length / 2,
-      });
-    });
     // Completing all inputs
     incompleteTxIns.forEach((txIn) => {
       this.completeTxInformation(txIn);
@@ -129,6 +102,22 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (mint.type === "Native") {
         const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
         this.completeSimpleScriptInfo(scriptSource);
+      }
+    });
+    this.meshTxBuilderBody.inputs.forEach((input) => {
+      if (input.txIn.scriptSize && input.txIn.scriptSize > 0) {
+        if (
+          this.meshTxBuilderBody.referenceInputs.find((refTxIn) => {
+            refTxIn.txHash === input.txIn.txHash &&
+              refTxIn.txIndex === input.txIn.txIndex;
+          }) === undefined
+        ) {
+          this.meshTxBuilderBody.referenceInputs.push({
+            txHash: input.txIn.txHash,
+            txIndex: input.txIn.txIndex,
+            scriptSize: input.txIn.scriptSize,
+          });
+        }
       }
     });
     this.addUtxosFromSelection();
@@ -285,6 +274,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         );
       input.txIn.address = address;
     }
+    if (utxo?.output.scriptRef) {
+      input.txIn.scriptSize = utxo.output.scriptRef.length / 2;
+    } else {
+      input.txIn.scriptSize = 0;
+    }
   };
 
   protected completeScriptInfo = (scriptSource: ScriptSource) => {
@@ -331,8 +325,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   protected isInputInfoComplete = (txIn: TxIn): boolean => {
-    const { amount, address } = txIn.txIn;
-    if (!amount || !address) return false;
+    const { amount, address, scriptSize } = txIn.txIn;
+    if (!amount || !address || !scriptSize) return false;
     return true;
   };
 
