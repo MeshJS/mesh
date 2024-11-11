@@ -4,7 +4,7 @@ export default function Metatags({
   title,
   keywords,
   description,
-  image = "/logo-mesh/mesh.png",
+  image,
 }: {
   title?: string;
   keywords?: string;
@@ -38,20 +38,30 @@ export default function Metatags({
       <meta property="og:site_name" content={title} />
       <meta property="og:type" content="website" />
       <meta property="og:description" content={description} />
-      {image && (
+      {image ? (
         <meta property="og:image" content={`https://meshjs.dev${image}`} />
+      ) : (
+        <meta
+          property="og:image"
+          content={`https://meshjs.dev/api/og?title=${title}`}
+        />
       )}
-      {image && <meta property="og:image:alt" content={title} />}
+      <meta property="og:image:alt" content={title} />
 
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@meshsdk" />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:creator" content="@meshsdk" />
-      {image && (
+      {image ? (
         <meta name="twitter:image" content={`https://meshjs.dev${image}`} />
+      ) : (
+        <meta
+          name="twitter:image"
+          content={`https://meshjs.dev/api/og?title=${title}`}
+        />
       )}
-      {image && <meta name="twitter:image:alt" content={title} />}
+      <meta name="twitter:image:alt" content={title} />
 
       <link
         rel="apple-touch-icon"
