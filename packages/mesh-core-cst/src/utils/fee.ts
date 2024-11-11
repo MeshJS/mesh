@@ -4,9 +4,11 @@ export const calculateFees = (
   minFeeA: number,
   minFeeB: number,
   minFeeRefScriptCostPerByte: number,
+  priceMem: number,
+  priceStep: number,
   tx: Transaction,
   refScriptSize: number,
-): number => {
+): bigint => {
   let fee = minFeeB + (tx.toCbor().length / 2) * minFeeA;
   const tierSize = 25600;
   let currentRefScriptSize = refScriptSize;
@@ -19,5 +21,30 @@ export const calculateFees = (
   if (currentRefScriptSize > 0) {
     fee += currentRefScriptSize * multiplier * minFeeRefScriptCostPerByte;
   }
-  return Math.floor(fee);
+  let scriptFee = BigInt(0);
+  let priceMemNumerator = priceMem;
+  let priceMemDenominator = 1;
+  while (priceMemNumerator % 1) {
+    priceMemNumerator *= 10;
+    priceMemDenominator *= 10;
+  }
+  let priceStepNumerator = priceStep;
+  let priceStepDenominator = 1;
+  while (priceStepNumerator % 1) {
+    priceStepNumerator *= 10;
+    priceStepDenominator *= 10;
+  }
+  if (tx.witnessSet().redeemers()) {
+    for (const redeemer of tx.witnessSet().redeemers()!.values()) {
+      scriptFee +=
+        (redeemer.exUnits().mem() * BigInt(priceMemNumerator.toString())) /
+          BigInt(priceMemDenominator.toString()) +
+        BigInt(1);
+      scriptFee +=
+        (redeemer.exUnits().steps() * BigInt(priceStepNumerator.toString())) /
+          BigInt(priceStepDenominator.toString()) +
+        BigInt(1);
+    }
+  }
+  return BigInt(fee) + scriptFee;
 };

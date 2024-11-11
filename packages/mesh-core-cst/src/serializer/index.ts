@@ -980,11 +980,13 @@ class CardanoSDKSerializerCore {
       this.protocolParams.minFeeA,
       this.protocolParams.minFeeB,
       this.protocolParams.minFeeRefScriptCostPerByte,
+      this.protocolParams.priceMem,
+      this.protocolParams.priceStep,
       dummyTx,
       this.refScriptSize,
     );
 
-    this.txBody.setFee(BigInt(fee));
+    this.txBody.setFee(fee);
 
     // The change output should be the last element in outputs
     // so we can simply take away the calculated fees from it
@@ -994,10 +996,10 @@ class CardanoSDKSerializerCore {
         "Somehow the output length was 0 after attempting to calculate fees",
       );
     }
-    if (changeOutput.amount().coin() - BigInt(fee) > 0) {
-      changeOutput.amount().setCoin(changeOutput.amount().coin() - BigInt(fee));
+    if (changeOutput.amount().coin() - fee > 0) {
+      changeOutput.amount().setCoin(changeOutput.amount().coin() - fee);
       currentOutputs.push(changeOutput);
-    } else if (changeOutput.amount().coin() - BigInt(fee) < 0) {
+    } else if (changeOutput.amount().coin() - fee < 0) {
       throw new Error(
         "There was enough inputs to cover outputs, but not enough to cover fees",
       );
