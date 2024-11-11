@@ -112,7 +112,6 @@ export default function Demo() {
 
   return (
     <>
-      <h2>Demo</h2>
       <p>Connect your wallet and click on the button to mint a token.</p>
       <CardanoWallet />
       <Button

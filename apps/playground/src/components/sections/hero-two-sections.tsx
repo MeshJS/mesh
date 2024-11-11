@@ -42,7 +42,7 @@ export default function HeroTwoSections({
 
           {code && <Codeblock data={code} />}
 
-          {children && children}
+          {children && <div className="my-1">{children}</div>}
         </div>
         <div className="hidden lg:col-span-5 lg:mt-0 lg:flex">
           {typeof image === "string" ? <img src={image} /> : image}
