@@ -24,9 +24,9 @@ import {
 import {
   Cardano,
   CardanoSDKUtil,
-  deserializeTx,
   deserializeNativeScript,
   deserializePlutusScript,
+  deserializeTx,
   fromScriptRef,
   Serialization,
   Transaction as Tx,
@@ -48,15 +48,14 @@ export class Transaction {
     this.initiator = options.initiator;
   }
 
-  static attachMetadata(
-    cborTx: string,
-    cborTxMetadata: string,
-  ) {
+  static attachMetadata(cborTx: string, cborTxMetadata: string) {
     const tx = deserializeTx(cborTx);
     const txAuxData = tx.auxiliaryData() ?? new Serialization.AuxiliaryData();
 
     txAuxData.setMetadata(
-      Serialization.GeneralTransactionMetadata.fromCbor(CardanoSDKUtil.HexBlob(cborTxMetadata))
+      Serialization.GeneralTransactionMetadata.fromCbor(
+        CardanoSDKUtil.HexBlob(cborTxMetadata),
+      ),
     );
 
     if (
@@ -64,7 +63,7 @@ export class Transaction {
       tx.body().auxiliaryDataHash()?.toString()
     ) {
       throw new Error(
-        '[Transaction] attachMetadata: The metadata hash does not match the auxiliary data hash.'
+        "[Transaction] attachMetadata: The metadata hash does not match the auxiliary data hash.",
       );
     }
 
@@ -81,8 +80,15 @@ export class Transaction {
     const txMetadata = tx.auxiliaryData()?.metadata();
 
     if (txMetadata !== undefined) {
-      const mockMetadata = new Map<bigint, Serialization.TransactionMetadatum>();
-      txMetadata.metadata()?.forEach((metadatum, label) => mockMetadata.set(label, mask(metadatum)));
+      const mockMetadata = new Map<
+        bigint,
+        Serialization.TransactionMetadatum
+      >();
+      txMetadata
+        .metadata()
+        ?.forEach((metadatum, label) =>
+          mockMetadata.set(label, mask(metadatum)),
+        );
       const txAuxData = tx.auxiliaryData();
       txMetadata.setMetadata(mockMetadata);
       txAuxData?.setMetadata(txMetadata);
@@ -94,18 +100,17 @@ export class Transaction {
 
   static readMetadata(cborTx: string) {
     const tx = deserializeTx(cborTx);
-    return tx.auxiliaryData()?.metadata()?.toCbor().toString() ?? '';
+    return tx.auxiliaryData()?.metadata()?.toCbor().toString() ?? "";
   }
 
-  static writeMetadata(
-    cborTx: string,
-    cborTxMetadata: string,
-  ) {
+  static writeMetadata(cborTx: string, cborTxMetadata: string) {
     const tx = deserializeTx(cborTx);
     const txAuxData = tx.auxiliaryData() ?? new Serialization.AuxiliaryData();
 
     txAuxData.setMetadata(
-      Serialization.GeneralTransactionMetadata.fromCbor(CardanoSDKUtil.HexBlob(cborTxMetadata))
+      Serialization.GeneralTransactionMetadata.fromCbor(
+        CardanoSDKUtil.HexBlob(cborTxMetadata),
+      ),
     );
 
     return new Tx(tx.body(), tx.witnessSet(), txAuxData).toCbor().toString();
@@ -216,6 +221,7 @@ export class Transaction {
         input.input.outputIndex,
         input.output.amount,
         input.output.address,
+        input.output.scriptRef ? input.output.scriptRef.length / 2 : 0,
       );
     });
 
@@ -715,13 +721,17 @@ export class Transaction {
   }
 }
 
-function mask(metadatum: Serialization.TransactionMetadatum): Serialization.TransactionMetadatum {
+function mask(
+  metadatum: Serialization.TransactionMetadatum,
+): Serialization.TransactionMetadatum {
   switch (metadatum.getKind()) {
     case Serialization.TransactionMetadatumKind.Text:
-      return Serialization.TransactionMetadatum.newText("0".repeat(metadatum.asText()?.length ?? 0));
+      return Serialization.TransactionMetadatum.newText(
+        "0".repeat(metadatum.asText()?.length ?? 0),
+      );
     case Serialization.TransactionMetadatumKind.Bytes:
     case Serialization.TransactionMetadatumKind.Integer:
-      return metadatum
+      return metadatum;
     case Serialization.TransactionMetadatumKind.List:
       const list = new Serialization.MetadatumList();
       for (let i = 0; i < (metadatum.asList()?.getLength() ?? 0); i++) {

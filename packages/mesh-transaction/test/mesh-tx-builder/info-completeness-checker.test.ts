@@ -41,7 +41,7 @@ describe("MeshTxBuilder", () => {
     it("should return true for complete PubKey input", () => {
       const txIn: TxIn = {
         type: "PubKey",
-        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address" },
+        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address", scriptSize: 0 },
       };
       expect(txBuilder.isInputCompleteExtended(txIn)).toBe(true);
     });
@@ -89,7 +89,7 @@ describe("MeshTxBuilder", () => {
     it("should return true for complete Script input", () => {
       const txIn: TxIn = {
         type: "Script",
-        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address" },
+        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address", scriptSize: 0 },
         scriptTxIn: {
           scriptSource: {
             type: "Provided",
@@ -102,7 +102,7 @@ describe("MeshTxBuilder", () => {
     it("should return true for complete Script input, with complete script ref", () => {
       const txIn: TxIn = {
         type: "Script",
-        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address" },
+        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address", scriptSize: 0 },
         scriptTxIn: {
           scriptSource: {
             type: "Inline",
@@ -176,7 +176,7 @@ describe("MeshTxBuilder", () => {
     it("should return true for complete PubKey input", () => {
       const txIn: TxIn = {
         type: "PubKey",
-        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address" },
+        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address", scriptSize: 0 },
       };
       expect(txBuilder.isInputInfoCompleteExtended(txIn)).toBe(true);
     });
