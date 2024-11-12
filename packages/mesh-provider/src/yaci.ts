@@ -29,7 +29,7 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
 
 /**
  * Yaci DevKit is a development tool designed for rapid and efficient Cardano blockchain development. It allows developers to create and destroy custom Cardano devnets in seconds, providing fast feedback loops and simplifying the iteration process.
- * 
+ *
  * Get started:
  * ```typescript
  * import { YaciProvider } from "@meshsdk/core";
@@ -350,7 +350,7 @@ export class YaciProvider
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
         `txs/${hash}/utxos`,
@@ -362,6 +362,11 @@ export class YaciProvider
           outputsPromises.push(this.toUTxO(output, hash));
         });
         const outputs = await Promise.all(outputsPromises);
+
+        if (index !== undefined) {
+          return outputs.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return outputs;
       }
       throw parseHttpError(data);

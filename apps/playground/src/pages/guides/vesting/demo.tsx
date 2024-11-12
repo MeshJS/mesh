@@ -4,7 +4,6 @@ import { VestingWithdrawFundDemo } from "../../smart-contracts/vesting/withdraw-
 export default function Demo() {
   return (
     <>
-      <h2>Demo</h2>
       <VestingDepositFundDemo />
       <VestingWithdrawFundDemo />
     </>

@@ -9,12 +9,23 @@ import { guideownership } from "~/data/links-guides";
 import Demo from "./demo";
 
 export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'How does it work?', to: 'howdoesitwork' },
+    { label: 'Client: Connect Wallet and Get Staking Address', to: 'clientconnectwalletandgetstakingaddress' },
+    { label: 'Server: Generate Nonce and Store in Database', to: 'servergeneratenonceandstoreindatabase' },
+    { label: 'Client: Verify ownership by signing the nonce', to: 'clientverifyownershipbysigningthenonce' },
+    { label: 'Server: Verify Signature', to: 'serververifysignature' },
+    { label: 'Putting It All Together', to: 'puttingitalltogether' },
+    { label: 'Demo', to: 'demo' },
+  ];
+
   return (
     <LayoutImageHeaderAndBody
       title={guideownership.title}
       description={guideownership.description}
       image={guideownership.image}
       cover={guideownership.cover}
+      sidebarItems={sidebarItems}
     >
       <>
         {children}
@@ -34,7 +45,7 @@ Some example uses of data signing to cryptographically prove ownership:
 - **Authenticate user's action**. If the backend wants to confirm a user's authorization on an off-chain action, for example, engaging in in-game trading.
 - **Off chain account flow**. If you need to display certain data that is off-chain or on a website only to a particular user identified by their wallet, you could use message signing as a means of doing so.
 
-## How does It Work?
+## How does it work?
 
 ![image](/guides/cryptographically-prove-wallet-ownership-process.png)
 
@@ -217,3 +228,5 @@ async function backendVerifySignature(userAddress, signature) {
 ```
 
 There you go! Although this guide shows you how somebody can sign in with wallet, the same technique can be used to authenticate any of a user's actions.
+
+## Demo

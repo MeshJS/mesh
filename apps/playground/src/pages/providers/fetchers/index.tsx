@@ -18,6 +18,7 @@ import FetcherHandleAddress from "./fetch-handle-address";
 import FetcherProtocolParameters from "./fetch-protocol-parameters";
 import FetcherTransactionInfo from "./fetch-transaction-info";
 import FetcherGet from "./get";
+import FetcherUtxos from "./fetch-utxos";
 
 export default function ProviderFetchers({
   blockchainProvider,
@@ -71,6 +72,10 @@ export default function ProviderFetchers({
         provider={provider}
       />
       <FetcherTransactionInfo
+        blockchainProvider={blockchainProvider}
+        provider={provider}
+      />
+      <FetcherUtxos
         blockchainProvider={blockchainProvider}
         provider={provider}
       />
