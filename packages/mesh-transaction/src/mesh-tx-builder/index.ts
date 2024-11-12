@@ -326,7 +326,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   protected isInputInfoComplete = (txIn: TxIn): boolean => {
     const { amount, address, scriptSize } = txIn.txIn;
-    if (!amount || !address || !scriptSize) return false;
+    if (!amount || !address || scriptSize === undefined) return false;
     return true;
   };
 
