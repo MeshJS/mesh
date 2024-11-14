@@ -44,7 +44,7 @@
     "@harmoniclabs/uplc": "1.2.4",
     "@meshsdk/common": "1.7.14",
     "@stricahq/bip32ed25519": "^1.1.0",
-    "@stricahq/cbors": "^1.0.0",
+    "@stricahq/cbors": "^1.0.3",
     "pbkdf2": "^3.1.2"
   },
   "prettier": "@meshsdk/configs/prettier",
