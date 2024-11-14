@@ -1,3 +1,4 @@
+import Metatags from "~/components/site/metatags";
 import AboutHero from "./about-us/hero";
 import AboutIncorporation from "./about-us/incorporation";
 import AboutMeeting from "./about-us/meeting";
@@ -8,6 +9,7 @@ import AboutWhatWorkingOn from "./about-us/what-working-on";
 export default function AboutPage() {
   return (
     <>
+      <Metatags title="About Mesh SDK" />
       <AboutHero />
       <AboutTeam />
       <AboutMeeting />

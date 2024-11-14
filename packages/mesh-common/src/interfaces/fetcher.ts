@@ -27,6 +27,6 @@ export interface IFetcher {
   fetchHandleAddress(handle: string): Promise<string>;
   fetchProtocolParameters(epoch: number): Promise<Protocol>;
   fetchTxInfo(hash: string): Promise<TransactionInfo>;
-  fetchUTxOs(hash: string): Promise<UTxO[]>;
+  fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>;
   get(url: string): Promise<any>;
 }

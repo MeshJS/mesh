@@ -1,4 +1,5 @@
 import { UtxoSelectionStrategy } from "../../utxo-selection";
+import { Network } from "../network";
 import { UTxO } from "../utxo";
 import { Certificate } from "./certificate";
 import { MintItem } from "./mint";
@@ -36,7 +37,7 @@ export type MeshTxBuilderBody = {
     strategy: UtxoSelectionStrategy;
     includeTxFees: boolean;
   };
-  network: string;
+  network: Network | number[][];
 };
 
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({

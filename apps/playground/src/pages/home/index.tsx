@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { DocumentCheckIcon } from "@heroicons/react/24/solid";
 
+import Link from "~/components/link";
 import HeroTwoSections from "~/components/sections/hero-two-sections";
+import Metatags from "~/components/site/metatags";
 
 export default function HomePage() {
   const [isSSR, setIsSSR] = useState(true);
@@ -9,36 +12,50 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-4">
-      <HeroTwoSections
-        title="Build applications on Cardano with ease"
-        description="Mesh is a TypeScript open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
-        link={{ label: "Get started", href: "/getting-started" }}
-        image={
-          <div className="col-span-6 hidden lg:block h-96">
-            {!isSSR ? (
-              <video className="w-full" autoPlay muted>
-                <source src="/home/starter-template-cli.mp4" type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
-            ) : (
-              <>
-                <img
-                  src="/logo-mesh/black/logo-mesh-black-512x512.png"
-                  className="dark:hidden"
-                  alt="mockup"
-                />
-                <img
-                  src="/logo-mesh/white/logo-mesh-white-512x512.png"
-                  className="hidden dark:block"
-                  alt="mockup dark"
-                />
-              </>
-            )}
-          </div>
-        }
-        // children={<SendPayment />}
-      />
-    </div>
+    <>
+      <Metatags />
+      <div className="flex flex-col gap-4">
+        <HeroTwoSections
+          title="Web3 TypeScript SDK & off-chain Framework"
+          description="Mesh is a TypeScript open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
+          link={{ label: "Get started", href: "/getting-started" }}
+          image={
+            <div className="col-span-6 hidden h-96 lg:block">
+              {!isSSR ? (
+                <video className="w-full" autoPlay muted>
+                  <source
+                    src="/home/starter-template-cli.mp4"
+                    type="video/mp4"
+                  />
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <>
+                  <img
+                    src="/logo-mesh/black/logo-mesh-black-512x512.png"
+                    className="dark:hidden"
+                    alt="mockup"
+                  />
+                  <img
+                    src="/logo-mesh/white/logo-mesh-white-512x512.png"
+                    className="hidden dark:block"
+                    alt="mockup dark"
+                  />
+                </>
+              )}
+            </div>
+          }
+          children={
+            <Link
+              href={`/about/catalyst`}
+              className="mr-3 inline-flex items-center justify-center rounded-lg bg-gray-700 px-5 py-3 text-center text-base font-medium text-white hover:bg-gray-800"
+            >
+              Catalyst Proposals
+              <DocumentCheckIcon className="-mr-1 ml-2 h-5 w-5" />
+            </Link>
+          }
+        />
+      </div>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import { outputToObj } from "./output";
 import { collateralTxInToObj, txInToObj } from "./txIn";
 import { voteToObj } from "./vote";
 import { withdrawalToObj } from "./withdrawal";
+import { networkToObj } from "./network";
 
 export const meshTxBuilderBodyToObj = ({
   inputs,
@@ -37,7 +38,7 @@ export const meshTxBuilderBodyToObj = ({
     signingKey: signingKey,
     withdrawals: withdrawals.map(withdrawalToObj),
     votes: votes.map(voteToObj),
-    network,
+    network: networkToObj(network),
   };
 };
 

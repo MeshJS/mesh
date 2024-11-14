@@ -73,6 +73,7 @@ export class MeshTxBuilderCore {
    * @param txIndex The transaction index of the input UTxO
    * @param amount The asset amount of index of the input UTxO
    * @param address The address of the input UTxO
+   * @param scriptSize The size of the ref script at this input (if there isn't one, explicitly put 0 as scriptSize for offline tx building)
    * @returns The MeshTxBuilder instance
    */
   txIn = (
@@ -80,6 +81,7 @@ export class MeshTxBuilderCore {
     txIndex: number,
     amount?: Asset[],
     address?: string,
+    scriptSize?: number,
   ) => {
     if (this.txInQueueItem) {
       this.queueInput();
@@ -92,6 +94,7 @@ export class MeshTxBuilderCore {
           txIndex: txIndex,
           amount: amount,
           address: address,
+          scriptSize: scriptSize,
         },
       };
     } else {
@@ -102,6 +105,7 @@ export class MeshTxBuilderCore {
           txIndex: txIndex,
           amount: amount,
           address: address,
+          scriptSize: scriptSize,
         },
         scriptTxIn: {},
       };
@@ -1469,7 +1473,7 @@ export class MeshTxBuilderCore {
    * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
    * @returns The MeshTxBuilder instance
    */
-  setNetwork = (network: Network) => {
+  setNetwork = (network: Network | number[][]) => {
     this.meshTxBuilderBody.network = network;
     return this;
   };
