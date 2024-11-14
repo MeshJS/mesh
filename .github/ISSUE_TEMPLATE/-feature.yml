@@ -32,7 +32,7 @@ body:
     validations:
       required: false
   - type: textarea
-    id: alternatives
+    id: context
     attributes:
       label: Additional context
       description: Add any other context or screenshots about the feature request here.
