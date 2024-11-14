@@ -97,12 +97,63 @@ export class OfflineFetcher implements IFetcher {
    * Fetches addresses holding a specific asset.
    * @param asset - Asset identifier
    * @returns Promise resolving to array of asset addresses and quantities
-   * @throws Error if asset addresses not found
    */
   async fetchAssetAddresses(asset: string): Promise<AssetAddress[]> {
-    const addresses = this.assetAddresses[asset];
-    if (!addresses) throw new Error(`Asset addresses not found: ${asset}`);
-    return addresses;
+    if (!OfflineFetcher.isValidHex(asset)) {
+      throw new Error("Invalid asset: must be a hex string");
+    }
+
+    const addressMap = new Map<string, bigint>();
+
+    // Get addresses from asset addresses registry
+    const registryAddresses = this.assetAddresses[asset] || [];
+    for (const addr of registryAddresses) {
+      addressMap.set(addr.address, BigInt(addr.quantity));
+    }
+
+    // Get addresses from UTXOs
+    for (const [address, utxos] of Object.entries(this.utxos)) {
+      for (const utxo of utxos) {
+        const assetAmount = utxo.output.amount.find(amt => amt.unit === asset);
+        if (assetAmount) {
+          const currentAmount = addressMap.get(address) || BigInt(0);
+          addressMap.set(address, currentAmount + BigInt(assetAmount.quantity));
+        }
+      }
+    }
+
+    // Convert map to array of AssetAddress objects
+    return Array.from(addressMap.entries())
+      .filter(([_, quantity]) => quantity > BigInt(0))
+      .map(([address, quantity]) => ({
+        address,
+        quantity: quantity.toString()
+      }));
+  }
+
+  /**
+   * Fetches all assets associated with an address.
+   * @param address - Address to fetch assets for
+   * @returns Promise resolving to array of assets held by the address
+   */
+  async fetchAddressAssets(address: string): Promise<Asset[]> {
+    if (!OfflineFetcher.isValidAddress(address)) {
+      throw new Error("Invalid address: must be a valid Bech32 or Base58 address");
+    }
+
+    const assets: Asset[] = [];
+
+    for (const [assetId, addresses] of Object.entries(this.assetAddresses)) {
+      const assetAddress = addresses.find(addr => addr.address === address);
+      if (assetAddress) {
+        assets.push({
+          unit: assetId,
+          quantity: assetAddress.quantity
+        });
+      }
+    }
+
+    return assets;
   }
 
   /**
@@ -148,6 +199,7 @@ export class OfflineFetcher implements IFetcher {
     return { assets: paginatedItems, next: nextCursor };
   }
 
+
   /**
    * Fetches metadata for a handle.
    * @param handle - Handle to fetch metadata for
@@ -189,7 +241,11 @@ export class OfflineFetcher implements IFetcher {
    * @returns Promise resolving to protocol parameters
    * @throws Error if parameters not found for epoch
    */
-  async fetchProtocolParameters(epoch: number): Promise<Protocol> {
+  async fetchProtocolParameters(epoch?: number): Promise<Protocol> {
+    if(!epoch) {
+      const maxEpochNumber = Math.max(...Object.keys(this.protocolParameters).map(Number));
+      return this.protocolParameters[maxEpochNumber]!;
+    }
     const parameters = this.protocolParameters[epoch];
     if (!parameters) throw new Error(`Protocol parameters not found for epoch: ${epoch}`);
     return parameters;
