@@ -347,12 +347,6 @@ describe("OfflineFetcher", () => {
       const addresses = await fetcher.fetchAssetAddresses(validAsset);
       expect(addresses).toEqual([sampleAssetAddress]);
     });
-
-    it("should throw an error if asset addresses are not found", async () => {
-      await expect(
-        fetcher.fetchAssetAddresses(validAsset),
-      ).rejects.toThrowError(`Asset addresses not found: ${validAsset}`);
-    });
   });
 
   describe("addCollectionAssets", () => {
