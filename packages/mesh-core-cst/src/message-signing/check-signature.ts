@@ -14,6 +14,7 @@ import {
 } from "../types";
 import { CoseSign1, getPublicKeyFromCoseKey } from "./cose-sign1";
 
+/** @param address - Optional Bech32 string of a stake, stake_test1, addr, or addr_test1 address. If provided, this function will validate the signer's address against this value. */
 export const checkSignature = (
   data: string,
   { key, signature }: DataSignature,
