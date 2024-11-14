@@ -24,7 +24,6 @@ export const checkSignature = (
   const publicKeyBuffer = getPublicKeyFromCoseKey(key);
 
   if (address) {
-    let providedAddress = address;
     let network = NetworkId.Mainnet;
     const paymentAddress = BaseAddress.fromAddress(Address.fromBech32(address));
     const coseSign1PublicKey = new Bip32PublicKey(publicKeyBuffer);
@@ -79,7 +78,7 @@ export const checkSignature = (
         )
           .toAddress()
           .toBech32();
-        if (enterpriseAddress !== providedAddress) {
+        if (enterpriseAddress !== address) {
           return false;
         }
       }
@@ -91,7 +90,7 @@ export const checkSignature = (
         .toAddress()
         .toBech32();
 
-      if (rewardAddress !== providedAddress) {
+      if (rewardAddress !== address) {
         return false;
       }
     } else {
