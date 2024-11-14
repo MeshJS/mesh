@@ -20,7 +20,7 @@ import {
 } from "@meshsdk/common";
 import {
   deserializeNativeScript,
-  fromNativeScript,
+  fromNativeScript, normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
 } from "@meshsdk/core-cst";
@@ -500,12 +500,16 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     kScriptRef: KoiosReferenceScript | undefined,
   ): string | undefined => {
     if (kScriptRef) {
-      const script = kScriptRef.type.startsWith("plutus")
-        ? <PlutusScript>{
-            code: kScriptRef.bytes,
-            version: kScriptRef.type.replace("plutus", ""),
-          }
-        : fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
+      let script;
+      if(kScriptRef.type.startsWith("plutus")) {
+        const normalized = normalizePlutusScript(kScriptRef.bytes, "DoubleCBOR");
+        script = <PlutusScript>{
+          code: normalized,
+          version: kScriptRef.type.replace("plutus", ""),
+        }
+      } else {
+        script = fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
+      }
 
       if (script) return toScriptRef(script).toCbor().toString();
     }
