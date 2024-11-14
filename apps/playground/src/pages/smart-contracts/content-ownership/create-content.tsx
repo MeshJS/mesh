@@ -2,6 +2,7 @@ import { useWallet } from "@meshsdk/react";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import { demoAsset } from "~/data/cardano";
 import {
   getContract,
   InputsOperationAddress,
@@ -10,11 +11,11 @@ import {
   useContentOwnership,
 } from "./common";
 
-export default function OwnershipCreateOwnershipRegistry() {
+export default function OwnershipCreateContent() {
   return (
     <TwoColumnsScroll
-      sidebarTo="createOwnershipRegistry"
-      title="Create Ownership Registry"
+      sidebarTo="createContent"
+      title="Create Content"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -25,15 +26,9 @@ function Left() {
   return (
     <>
       <p>
-        This is the last transaction you need to setup the contract after
-        completing all the `sendRefScriptOnchain` transactions.
-      </p>
-      <p>
-        This transaction creates one content registry. Each registry should
-        comes in pair with one content registry and each pair of registry serves
-        around 50 records of content ownership. The application can be scaled
-        indefinitely according to the number of parallelization needed and
-        volumes of content expected to be managed.
+        This transaction creates a content attached to the registry reference by
+        a token. You can use any token for <code>ownerAssetHex</code> and the{" "}
+        <code>contentHashHex</code> is a string to identify the content.
       </p>
       <p>
         <b>Note:</b> You must provide the <code>paramUtxo</code> from the{" "}
@@ -91,21 +86,38 @@ function Right() {
       JSON.parse(paramUtxo) as { outputIndex: number; txHash: string },
       refScriptUtxos,
     );
-    const tx = await contract.createOwnershipRegistry();
+
+    const asset = demoAsset;
+    const contentHashHex = "ipfs://contentHashHex";
+    const registryNumber = 0;
+
+    const tx = await contract.createContent(
+      asset,
+      contentHashHex,
+      registryNumber,
+    );
     const signedTx = await wallet.signTx(tx);
     const txHash = await wallet.submitTx(signedTx);
     return txHash;
   }
 
   let code = ``;
-  code += `const tx = await contract.createOwnershipRegistry();\n`;
+  code += `const asset = demoAsset;\n`;
+  code += `const contentHashHex = "ipfs://contentHashHex";\n`;
+  code += `const registryNumber = 0;\n`;
+  code += `\n`;
+  code += `const tx = await contract.createContent(\n`;
+  code += `  asset,\n`;
+  code += `  contentHashHex,\n`;
+  code += `  registryNumber,\n`;
+  code += `);\n`;
   code += `const signedTx = await wallet.signTx(tx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <LiveCodeDemo
-      title="Create Ownership Registry"
-      subtitle="This transaction creates one content registry"
+      title="Create Content"
+      subtitle="For users to create a content attached to the registry reference by a token"
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}

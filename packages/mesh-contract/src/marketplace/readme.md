@@ -1,8 +1,6 @@
-# Marketplace Contract
+# Marketplace
 
 This marketplace allows anyone to buy and sell native assets such as NFTs.
-
-[Demo](https://meshjs.dev/smart-contracts/marketplace)
 
 The marketplace smart contract allows users to buy and sell NFTs. A seller list an NFT for sales by specifying a certain price, and anyone can buy it by paying the demanded price.
 
@@ -13,7 +11,9 @@ There are 4 actions (or endpoints) available to interact with this smart contrac
 - updating listing
 - cancel listing
 
-## Initialize the Marketplace
+[Read more and live demo](https://meshjs.dev/smart-contracts/marketplace)
+
+## Usage
 
 Utilizing the Marketplace contract requires a blockchain provider and a connected browser wallet. Here is an example how we can initialize the Marketplace.
 

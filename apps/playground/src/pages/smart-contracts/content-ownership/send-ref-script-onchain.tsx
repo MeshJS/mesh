@@ -27,7 +27,26 @@ export default function OwnershipSendRefScriptOnchain() {
 function Left() {
   return (
     <>
-      <p></p>
+      <p>
+        This are the next transactions you need to setup the contract. You need
+        to run once for each script, and you would likely have to run one after
+        the previous one is confirmed.
+      </p>
+      <p>
+        This transaction sends the reference scripts to the blockchain for later
+        transactions, boosting efficiency and avoid exceeding 16kb of
+        transaction size limits enforced by protocol parameter.
+      </p>
+      <p>
+        <b>Note:</b> You must provide the <code>paramUtxo</code> from the{" "}
+        <code>mintOneTimeMintingPolicy</code> transaction.
+      </p>
+      <p>
+        <b>Note:</b> You must save txHash (after signed and submitted) for
+        <code>ContentRegistry</code>, <code>ContentRefToken</code>,{" "}
+        <code>OwnershipRegistry</code>,<code>OwnershipRefToken</code>{" "}
+        transactions for future transactions.
+      </p>
     </>
   );
 }
@@ -68,7 +87,7 @@ function Right() {
   return (
     <LiveCodeDemo
       title="Send Ref-Script Onchain"
-      subtitle=""
+      subtitle="This transaction sends the reference scripts to the blockchain for later transactions."
       runCodeFunction={runDemo}
       code={code}
       disabled={!connected}

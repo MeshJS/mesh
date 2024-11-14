@@ -105,8 +105,8 @@ function Right() {
   code += `const policyId = resolveScriptHash(forgingScript);\n`;
   code += `\n`;
   code += `const assetMetadata: RoyaltiesStandard = {\n`;
-  code += `  rate: userInput,\n`;
-  code += `  address: userInput2,\n`;
+  code += `  rate: '${userInput}',\n`;
+  code += `  address: '${userInput2}',\n`;
   code += `};\n`;
   code += `\n`;
   code += `const txBuilder = new MeshTxBuilder();\n`;

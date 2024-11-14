@@ -27,7 +27,7 @@ function Left() {
         First, We import <code>YaciProvider</code>
       </p>
       <Codeblock
-        data={`import { YaciProvider } from "@meshsdk/core";\n\nconst blockchainProvider = new YaciProvider('<YACI_URL>');`}
+        data={`import { YaciProvider } from "@meshsdk/core";\n\nconst blockchainProvider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');`}
       />
       <p>
         By default, the <code>YaciProvider</code> will use the default URL,{" "}
