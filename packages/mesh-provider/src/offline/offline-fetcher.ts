@@ -141,19 +141,32 @@ export class OfflineFetcher implements IFetcher {
       throw new Error("Invalid address: must be a valid Bech32 or Base58 address");
     }
 
-    const assets: Asset[] = [];
+    const assetMap = new Map<string, bigint>();
 
-    for (const [assetId, addresses] of Object.entries(this.assetAddresses)) {
-      const assetAddress = addresses.find(addr => addr.address === address);
-      if (assetAddress) {
-        assets.push({
-          unit: assetId,
-          quantity: assetAddress.quantity
-        });
+    // Get assets from UTXOs
+    const addressUtxos = this.utxos[address] || [];
+    for (const utxo of addressUtxos) {
+      for (const amount of utxo.output.amount) {
+        const currentAmount = assetMap.get(amount.unit) || BigInt(0);
+        assetMap.set(amount.unit, currentAmount + BigInt(amount.quantity));
       }
     }
 
-    return assets;
+    // Get assets from asset addresses registry
+    for (const [assetId, addresses] of Object.entries(this.assetAddresses)) {
+      const assetAddress = addresses.find(addr => addr.address === address);
+      if (assetAddress) {
+        const currentAmount = assetMap.get(assetId) || BigInt(0);
+        assetMap.set(assetId, currentAmount + BigInt(assetAddress.quantity));
+      }
+    }
+
+    // Convert map back to array of Assets
+    return Array.from(assetMap.entries())
+      .map(([unit, quantity]) => ({
+        unit,
+        quantity: quantity.toString()
+      }));
   }
 
   /**
