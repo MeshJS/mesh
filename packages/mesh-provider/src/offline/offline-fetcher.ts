@@ -17,6 +17,41 @@ type AssetAddress = {
   quantity: string;
 }
 
+/**
+ * OfflineFetcher implements the IFetcher interface to provide offline access to blockchain data.
+ * This class allows working with pre-loaded blockchain data without requiring network connectivity.
+ * It's useful for testing, development, and scenarios where offline operation is needed.
+ *
+ * The class maintains internal storage for various blockchain data types:
+ * - Account information
+ * - UTXOs (Unspent Transaction Outputs)
+ * - Asset addresses and metadata
+ * - Block information
+ * - Protocol parameters
+ * - Transaction information
+ *
+ * Example usage:
+ * ```typescript
+ * import { OfflineFetcher } from '@meshsdk/core';
+ *
+ * // Create a new instance
+ * const fetcher = new OfflineFetcher();
+ *
+ * // Add some blockchain data
+ * fetcher.addAccount(address, accountInfo);
+ * fetcher.addUTxOs(utxos);
+ *
+ * // Use the fetcher with MeshWallet
+ * const wallet = new MeshWallet({
+ *   networkId: 0,
+ *   fetcher: fetcher,
+ *   key: {
+ *     type: 'address',
+ *     address: walletAddress
+ *   }
+ * });
+ * ```
+ */
 export class OfflineFetcher implements IFetcher {
   private accounts: Record<string, AccountInfo> = {};
   private utxos: Record<string, UTxO[]> = {};
@@ -34,35 +69,73 @@ export class OfflineFetcher implements IFetcher {
     return { paginatedItems, nextCursor };
   }
 
+
+  /**
+   * Fetches account information for a given address.
+   * @param address - Address to fetch info for
+   * @returns Promise resolving to account information
+   * @throws Error if account not found
+   */
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
     const account = this.accounts[address];
     if (!account) throw new Error(`Account not found: ${address}`);
     return account;
   }
 
+  /**
+   * Fetches UTXOs for a given address, optionally filtered by asset.
+   * @param address - Address to fetch UTXOs for
+   * @param asset - Optional asset ID to filter UTXOs
+   * @returns Promise resolving to array of UTXOs
+   */
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const addressUtxos = this.utxos[address] || [];
     return asset ? addressUtxos.filter(utxo => utxo.output.amount.some(a => a.unit === asset)) : addressUtxos;
   }
 
+  /**
+   * Fetches addresses holding a specific asset.
+   * @param asset - Asset identifier
+   * @returns Promise resolving to array of asset addresses and quantities
+   * @throws Error if asset addresses not found
+   */
   async fetchAssetAddresses(asset: string): Promise<AssetAddress[]> {
     const addresses = this.assetAddresses[asset];
     if (!addresses) throw new Error(`Asset addresses not found: ${asset}`);
     return addresses;
   }
 
+  /**
+   * Fetches metadata for a specific asset.
+   * @param asset - Asset identifier
+   * @returns Promise resolving to asset metadata
+   * @throws Error if asset metadata not found
+   */
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     const metadata = this.assetMetadata[asset];
     if (!metadata) throw new Error(`Asset metadata not found: ${asset}`);
     return metadata;
   }
 
+  /**
+   * Fetches information about a specific block.
+   * @param hash - Block hash
+   * @returns Promise resolving to block information
+   * @throws Error if block not found
+   */
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     const block = this.blocks[hash];
     if (!block) throw new Error(`Block not found: ${hash}`);
     return block;
   }
 
+  /**
+   * Fetches assets in a collection (by policy ID) with pagination.
+   * @param policyId - Policy ID of the collection
+   * @param cursor - Optional pagination cursor
+   * @returns Promise resolving to paginated assets and next cursor
+   * @throws Error if collection not found or invalid cursor
+   */
   async fetchCollectionAssets(policyId: string, cursor?: number | string): Promise<{ assets: Asset[], next?: string | number }> {
     const assets = this.collections[policyId];
     if (!assets) throw new Error(`Collection not found: ${policyId}`);
@@ -75,6 +148,12 @@ export class OfflineFetcher implements IFetcher {
     return { assets: paginatedItems, next: nextCursor };
   }
 
+  /**
+   * Fetches metadata for a handle.
+   * @param handle - Handle to fetch metadata for
+   * @returns Promise resolving to handle metadata
+   * @throws Error if handle not found or invalid
+   */
   async fetchHandle(handle: string): Promise<AssetMetadata> {
     try {
       const assetName = fromUTF8(handle.replace("$", ""));
@@ -85,6 +164,12 @@ export class OfflineFetcher implements IFetcher {
     }
   }
 
+  /**
+   * Fetches address associated with a handle.
+   * @param handle - Handle to fetch address for
+   * @returns Promise resolving to address
+   * @throws Error if no address found for handle
+   */
   async fetchHandleAddress(handle: string): Promise<string> {
     const assetName = fromUTF8(handle.replace("$", ""));
     const policyId = SUPPORTED_HANDLES[1];
@@ -98,28 +183,55 @@ export class OfflineFetcher implements IFetcher {
     return address;
   }
 
+  /**
+   * Fetches protocol parameters for a specific epoch.
+   * @param epoch - Epoch number
+   * @returns Promise resolving to protocol parameters
+   * @throws Error if parameters not found for epoch
+   */
   async fetchProtocolParameters(epoch: number): Promise<Protocol> {
     const parameters = this.protocolParameters[epoch];
     if (!parameters) throw new Error(`Protocol parameters not found for epoch: ${epoch}`);
     return parameters;
   }
 
+  /**
+   * Fetches information about a specific transaction.
+   * @param hash - Transaction hash
+   * @returns Promise resolving to transaction information
+   * @throws Error if transaction not found
+   */
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     const transaction = this.transactions[hash];
     if (!transaction) throw new Error(`Transaction not found: ${hash}`);
     return transaction;
   }
 
+  /**
+   * Fetches all UTXOs associated with a specific transaction hash.
+   * @param hash - Transaction hash to fetch UTXOs for
+   * @returns Promise resolving to array of UTXOs associated with the transaction
+   * @throws Error if no UTXOs found for the transaction hash
+   */
   async fetchUTxOs(hash: string): Promise<UTxO[]> {
     const utxos = Object.values(this.utxos).flat().filter(utxo => utxo.input.txHash === hash);
     if (!utxos.length) throw new Error(`No UTxOs found for transaction hash: ${hash}`);
     return utxos;
   }
 
+  /**
+   * HTTP GET method required by IFetcher interface but not implemented in OfflineFetcher.
+   * @param url - URL to fetch from
+   * @throws Error always, as this fetcher operates offline
+   */
   async get(url: string): Promise<any> {
     throw new Error("Method not implemented in OfflineFetcher.");
   }
 
+  /**
+   * Serializes fetcher data to JSON string.
+   * @returns JSON string containing all fetcher data
+   */
   toJSON(): string {
     return JSON.stringify({
       accounts: this.accounts,
@@ -133,6 +245,11 @@ export class OfflineFetcher implements IFetcher {
     });
   }
 
+  /**
+   * Creates an OfflineFetcher instance from JSON data.
+   * @param json - JSON string containing fetcher data
+   * @returns New OfflineFetcher instance
+   */
   static fromJSON(json: string): OfflineFetcher {
     const data = JSON.parse(json);
     const fetcher = new OfflineFetcher();
@@ -227,6 +344,13 @@ export class OfflineFetcher implements IFetcher {
     return OfflineFetcher.isValidHex(asset);
   }
 
+
+  /**
+   * Adds account information to the fetcher.
+   * @param address - Account address
+   * @param accountInfo - Account information
+   * @throws Error if address or account info invalid
+   */
   addAccount(address: string, accountInfo: AccountInfo): void {
     if (!OfflineFetcher.isValidAddress(address)) {
       throw new Error("Invalid address: must be a valid Bech32 or Base58 address");
@@ -253,6 +377,12 @@ export class OfflineFetcher implements IFetcher {
     this.accounts[address] = accountInfo;
   }
 
+
+  /**
+   * Adds UTXOs to the fetcher.
+   * @param utxos - Array of UTXOs
+   * @throws Error if UTXOs invalid
+   */
   addUTxOs(utxos: UTxO[]): void {
     if (!Array.isArray(utxos) || utxos.length === 0) {
       throw new Error("Invalid utxos: must be a non-empty array");
@@ -304,6 +434,12 @@ export class OfflineFetcher implements IFetcher {
     }
   }
 
+  /**
+   * Adds asset address information to the fetcher.
+   * @param asset - Asset identifier
+   * @param addresses - Array of asset addresses
+   * @throws Error if asset or addresses invalid
+   */
   addAssetAddresses(asset: string, addresses: AssetAddress[]): void {
     if (!OfflineFetcher.isValidHex(asset)) {
       throw new Error("Invalid asset: must be a hex string");
@@ -322,6 +458,12 @@ export class OfflineFetcher implements IFetcher {
     this.assetAddresses[asset] = addresses;
   }
 
+  /**
+   * Adds asset metadata to the fetcher.
+   * @param asset - Asset identifier
+   * @param metadata - Asset metadata
+   * @throws Error if asset or metadata invalid
+   */
   addAssetMetadata(asset: string, metadata: AssetMetadata): void {
     if (asset.length < 56) {
       throw new Error(`Invalid asset ${asset}: must be a string longer than 56 characters`);
@@ -336,6 +478,11 @@ export class OfflineFetcher implements IFetcher {
     this.assetMetadata[asset] = metadata;
   }
 
+  /**
+   * Adds collection assets to the fetcher.
+   * @param assets - Array of assets
+   * @throws Error if assets invalid
+   */
   addCollectionAssets(assets: Asset[]): void {
     if (!Array.isArray(assets) || assets.length === 0) {
       throw new Error("Invalid assets: must be a non-empty array");
@@ -376,6 +523,11 @@ export class OfflineFetcher implements IFetcher {
     }
   }
 
+  /**
+   * Adds protocol parameters to the fetcher.
+   * @param parameters - Protocol parameters
+   * @throws Error if parameters invalid
+   */
   addProtocolParameters(parameters: Protocol): void {
     if (parameters.epoch < 0 || !Number.isInteger(parameters.epoch)) {
       throw new Error("Invalid epoch: must be a non-negative integer");
@@ -446,6 +598,11 @@ export class OfflineFetcher implements IFetcher {
     this.protocolParameters[parameters.epoch] = parameters;
   }
 
+  /**
+   * Adds transaction information to the fetcher.
+   * @param txInfo - Transaction information
+   * @throws Error if transaction info invalid
+   */
   addTransaction(txInfo: TransactionInfo): void {
     if (!OfflineFetcher.isValidHex(txInfo.hash, 64)) {
       throw new Error("Invalid transaction hash: must be a 64-character hexadecimal string");
@@ -477,6 +634,11 @@ export class OfflineFetcher implements IFetcher {
     this.transactions[txInfo.hash] = txInfo;
   }
 
+  /**
+   * Adds block information to the fetcher.
+   * @param blockInfo - Block information
+   * @throws Error if block info invalid
+   */
   addBlock(blockInfo: BlockInfo): void {
     if (!OfflineFetcher.isValidHex(blockInfo.hash, 64)) {
       throw new Error("Invalid block hash: must be a 64-character hexadecimal string");
