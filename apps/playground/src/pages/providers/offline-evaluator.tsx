@@ -15,7 +15,8 @@ const ReactPage: NextPage = () => {
     { label: "Evaluate Transaction", to: "evaluateTx" },
   ];
 
-let code1 = `import { OfflineEvaluator, OfflineFetcher } from "@meshsdk/core";\n\n`;
+let code1 = `import { OfflineEvaluator } from "@meshsdk/core-csl";\n\n`;
+code1 += `import { OfflineFetcher } from "@meshsdk/core";\n\n`;
 code1 += `// Create fetcher for resolving UTXOs\n`;
 code1 += `const fetcher = new OfflineFetcher();\n\n`;
 code1 += `// Add UTXOs required for script evaluation\n`;
