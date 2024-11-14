@@ -2,13 +2,14 @@ import { Asset } from "../asset";
 import { DatumSource, Redeemer } from "./data";
 import { ScriptSource, SimpleScriptSourceInfo } from "./script";
 
-export type RefTxIn = { txHash: string; txIndex: number, scriptSize?: number };
+export type RefTxIn = { txHash: string; txIndex: number; scriptSize?: number };
 
 export type TxInParameter = {
   txHash: string;
   txIndex: number;
   amount?: Asset[];
   address?: string;
+  scriptSize?: number;
 };
 
 export type TxIn = PubKeyTxIn | SimpleScriptTxIn | ScriptTxIn;
