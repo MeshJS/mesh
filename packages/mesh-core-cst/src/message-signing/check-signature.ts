@@ -25,7 +25,7 @@ export const checkSignature = (
   if (address) {
     let providedAddress = address;
     let network = NetworkId.Mainnet;
-    const paymentAddress = Address.fromBech32(address);
+    const paymentAddress = BaseAddress.fromAddress(Address.fromBech32(address));
     const coseSign1PublicKey = new Bip32PublicKey(publicKeyBuffer);
 
     const credential: Credential = {
@@ -42,19 +42,20 @@ export const checkSignature = (
         network = NetworkId.Testnet;
       }
 
-      const paymentRewardAddress = paymentAddress.asReward();
-      if (paymentRewardAddress) {
+      const stakeCredential = paymentAddress?.getStakeCredential();
+      if (stakeCredential) {
         const paymentAddressBech32 = BaseAddress.fromCredentials(
           network,
           credential,
-          paymentRewardAddress.getPaymentCredential(),
+          stakeCredential,
         )
           .toAddress()
           .toBech32();
+
         if (address !== paymentAddressBech32) {
           const extractedRewardAddress = RewardAddress.fromCredentials(
             network,
-            paymentRewardAddress.getPaymentCredential(),
+            stakeCredential,
           )
             .toAddress()
             .toBech32();
@@ -69,16 +70,16 @@ export const checkSignature = (
           if (rewardAddress !== extractedRewardAddress) {
             return false;
           }
-        } else {
-          const enterpriseAddress = EnterpriseAddress.fromCredentials(
-            network,
-            credential,
-          )
-            .toAddress()
-            .toBech32();
-          if (enterpriseAddress !== providedAddress) {
-            return false;
-          }
+        }
+      } else {
+        const enterpriseAddress = EnterpriseAddress.fromCredentials(
+          network,
+          credential,
+        )
+          .toAddress()
+          .toBech32();
+        if (enterpriseAddress !== providedAddress) {
+          return false;
         }
       }
     } else if (address.startsWith("stake")) {
