@@ -10,14 +10,15 @@ import { evaluateTransaction, getTransactionInputs } from "../utils";
 
 /**
  * OfflineEvaluator implements the IEvaluator interface to provide offline evaluation of Plutus scripts.
- * This class evaluates Plutus scripts contained in Cardano transactions without requiring network connectivity.
- * It works in conjunction with an IFetcher implementation to resolve transaction UTXOs needed for script validation.
+ * This class evaluates Plutus scripts contained in Cardano transactions without requiring network connectivity,
+ * determining their execution costs in terms of memory and CPU steps.
  *
- * The evaluator returns Action objects that contain:
- * - tag: The type of script being executed (CERT, MINT, REWARD, SPEND, VOTE, PROPOSE)
- * - index: Execution index of the script
- * - budget: Memory and CPU step costs for script execution
- * - data: The script's redeemer data (excluded from return type)
+ * Each script evaluation returns an Action object (excluding the redeemer data) that contains:
+ * - tag: The type of script being executed (CERT | MINT | REWARD | SPEND | VOTE | PROPOSE)
+ * - index: Execution index of the script within the transaction
+ * - budget: Execution costs including:
+ *   - mem: Memory units required
+ *   - steps: CPU steps required
  *
  * Example usage:
  * ```typescript
@@ -25,16 +26,35 @@ import { evaluateTransaction, getTransactionInputs } from "../utils";
  *
  * // Create fetcher and evaluator instances
  * const fetcher = new OfflineFetcher();
- * const evaluator = new OfflineEvaluator(fetcher, 'mainnet');
+ * const evaluator = new OfflineEvaluator(fetcher, 'preprod');
+ *
+ * // Add required UTXOs that the transaction references
+ * fetcher.addUTxOs([
+ *   {
+ *     input: {
+ *       txHash: "1234...",
+ *       outputIndex: 0
+ *     },
+ *     output: {
+ *       address: "addr1...",
+ *       amount: [{ unit: "lovelace", quantity: "1000000" }],
+ *       scriptHash: "abcd..." // If this is a script UTXO
+ *     }
+ *   }
+ * ]);
  *
  * // Evaluate Plutus scripts in a transaction
  * try {
- *   const actions = await evaluator.evaluateTx(transactionCborHex);
- *   actions.forEach(action => {
- *     console.log(`Script type: ${action.tag}`);
- *     console.log(`Memory units: ${action.budget.mem}`);
- *     console.log(`CPU steps: ${action.budget.steps}`);
- *   });
+ *   const actions = await evaluator.evaluateTx(transactionCbor);
+ *   // Example result for a minting script:
+ *   // [{
+ *   //   index: 0,
+ *   //   tag: "MINT",
+ *   //   budget: {
+ *   //     mem: 508703,    // Memory units used
+ *   //     steps: 164980381 // CPU steps used
+ *   //   }
+ *   // }]
  * } catch (error) {
  *   console.error('Plutus script evaluation failed:', error);
  * }
