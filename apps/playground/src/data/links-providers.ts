@@ -51,6 +51,13 @@ export const metaHydra = {
   thumbnail: "/providers/hydra.svg",
 };
 
+export const metaOfflineEvaluator = {
+  title: "Offline Evaluator",
+  link: "/providers/offline-evaluator",
+  desc: "An offline Plutus script evaluator for testing and validation.",
+  thumbnail: "/providers/hydra.png",
+};
+
 export const linksProviders: MenuItem[] = [
   metaBlockfrost,
   metaKoios,
@@ -59,6 +66,7 @@ export const linksProviders: MenuItem[] = [
   metaOgmios,
   metaU5c,
   metaYaci,
+  metaOfflineEvaluator,
 ];
 
 export const metaProviders = {
