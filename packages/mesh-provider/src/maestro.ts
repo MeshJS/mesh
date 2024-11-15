@@ -22,6 +22,7 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import {
+  normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
   VrfVkBech32,
@@ -515,13 +516,21 @@ export class MaestroProvider
 
   private resolveScript = (utxo: MaestroUTxO) => {
     if (utxo.reference_script) {
-      const script =
-        utxo.reference_script.type === "native"
-          ? <NativeScript>utxo.reference_script.json
-          : <PlutusScript>{
-              code: utxo.reference_script.bytes,
-              version: utxo.reference_script.type.replace("plutusv", "V"),
-            };
+      let script;
+      if (utxo.reference_script.type === "native") {
+        script = <NativeScript>utxo.reference_script.json;
+      } else {
+        const scriptBytes = utxo.reference_script.bytes;
+        if(scriptBytes) {
+          const normalized = normalizePlutusScript(scriptBytes, "DoubleCBOR");
+          script = <PlutusScript>{
+            code: normalized,
+            version: utxo.reference_script.type.replace("plutusv", "V"),
+          };
+        } else {
+          throw new Error("Script bytes not found");
+        }
+      }
       return toScriptRef(script).toCbor().toString();
     } else return undefined;
   };
