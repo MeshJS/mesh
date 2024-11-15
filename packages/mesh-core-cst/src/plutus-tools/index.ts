@@ -1,18 +1,18 @@
 /**
  * MIT License
- * 
+ *
  * Copyright (c) 2024 Evgenii Lisitskii
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -61,7 +61,7 @@ export type OutputEncoding = "SingleCBOR" | "DoubleCBOR" | "PurePlutusScriptByte
  * - This function modifies the structure of the Plutus script by applying arguments, which can change its behavior when executed.
  * - The function assumes that the input arguments are in a compatible format (CBOR-encoded) and that the program is a valid Plutus script.
  */
-export const applyArgsToPlutusScript = (args: Uint8Array[], program: Uint8Array, outputEncoding: OutputEncoding): Uint8Array => {
+const applyArgsToPlutusScript = (args: Uint8Array[], program: Uint8Array, outputEncoding: OutputEncoding): Uint8Array => {
     const purePlutusBytes = getPurePlutusBytes(program);
     const parsedProgram = parseUPLC(purePlutusBytes, "flat");
     const decodedArgs = args.map((arg) => dataFromCbor(arg));
@@ -86,16 +86,18 @@ export const applyArgsToPlutusScript = (args: Uint8Array[], program: Uint8Array,
  *
  * @description
  * This function performs the following steps:
- * 1. Extracts the pure Plutus bytes from the input script.
+ * 1. Extracts the pure Plutus bytes in hex from the input script.
  * 2. Applies the specified encoding to the pure Plutus bytes.
  *
  * @note
  * - This function is useful for standardizing the format of Plutus scripts, ensuring they are in a consistent state for further processing or comparison.
  * - The normalization process does not modify the logical content of the script, only its representation.
  */
-export const normalizePlutusScript = (plutusScript: Uint8Array, encoding: OutputEncoding): Uint8Array => {
-    const purePlutusBytes = getPurePlutusBytes(plutusScript);
-    return applyEncoding(purePlutusBytes, encoding);
+export const normalizePlutusScript = (plutusScript: string, encoding: OutputEncoding): string => {
+    const bytes = Buffer.from(plutusScript, "hex");
+    const purePlutusBytes = getPurePlutusBytes(bytes);
+    const normalizedBytes = applyEncoding(purePlutusBytes, encoding);
+    return Buffer.from(normalizedBytes).toString("hex");
 }
 
 const hasSupportedPlutusVersion = (plutusScript: Uint8Array): boolean => {
@@ -112,8 +114,10 @@ const hasSupportedPlutusVersion = (plutusScript: Uint8Array): boolean => {
 
 const getPurePlutusBytes = (plutusScript: Uint8Array): Uint8Array => {
     let unwrappedScript = plutusScript;
+    let length = 0;
     try {
-        while (unwrappedScript.length >= 3) {
+        while (unwrappedScript.length >= 3 && length != unwrappedScript.length) {
+            length = unwrappedScript.length;
             if (hasSupportedPlutusVersion(unwrappedScript)) {
                 return unwrappedScript;
             }

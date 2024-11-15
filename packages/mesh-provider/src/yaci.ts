@@ -21,7 +21,11 @@ import {
   Unit,
   UTxO,
 } from "@meshsdk/common";
-import { resolveRewardAddress, toScriptRef } from "@meshsdk/core-cst";
+import {
+  normalizePlutusScript,
+  resolveRewardAddress,
+  toScriptRef
+} from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 import { parseHttpError } from "./utils";
@@ -94,12 +98,17 @@ export class YaciProvider
       );
 
       if (status === 200) {
-        const script = data.type.startsWith("plutus")
-          ? <PlutusScript>{
-              code: await this.fetchPlutusScriptCBOR(scriptHash),
-              version: data.type.replace("plutus", ""),
-            }
-          : await this.fetchNativeScriptJSON(scriptHash);
+        let script;
+        if (data.type.startsWith("plutus")) {
+          const plutusScript = await this.fetchPlutusScriptCBOR(scriptHash);
+          const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
+          script = <PlutusScript>{
+            version: data.type.replace("plutus", ""),
+            code: normalized
+          };
+        } else {
+          script = await this.fetchNativeScriptJSON(scriptHash);
+        }
 
         return toScriptRef(script).toCbor();
       }
