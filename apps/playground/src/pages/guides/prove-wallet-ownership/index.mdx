@@ -1,8 +1,4 @@
 import { useState } from "react";
-
-import { checkSignature, generateNonce } from "@meshsdk/core";
-import { CardanoWallet, useWallet } from "@meshsdk/react";
-
 import Button from "~/components/button/button";
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
 import { guideownership } from "~/data/links-guides";
@@ -66,7 +62,7 @@ To ensure the signature is valid, the same cryptographic algorithm is applied to
 
 The User model stored in the database of the backend server must have two compulsory fields: public address and nonce. Furthermore, this address has to be unique. Other details about the user, such as username, Twitter ID, and name fields can be added, but are not essential for this process.
 
-On Cardano, to obtain a user's public address as an identifier, we can use their wallet's staking address. This will be stored in the server side database, so that authorized wallets can be linked. The user never has to worry about manually entering their address, since it can be retrieved using **wallet.getRewardAddresses()**.
+On Cardano, to obtain a user's public address as an identifier, we can use their wallet's staking address. This will be stored in the server side database, so that authorized wallets can be linked. The user never has to worry about manually entering their address, since it can be retrieved using **wallet.getUsedAddresses()**.
 
 With the user's wallet connected, the first step is to get the user's staking address and send it to our backend server.
 
@@ -75,7 +71,7 @@ const { wallet, connected } = useWallet();
 
 async function frontendStartLoginProcess() {
   if (connected) {
-    const userAddress = (await wallet.getRewardAddresses())[0];
+    const userAddress = (await wallet.getUsedAddresses())[0];
 
      // do: send request with 'userAddress' to the backend
   }
@@ -117,7 +113,7 @@ We request the user's authorization and show them the message that is to be sign
 ```
 async function frontendSignMessage(nonce) {
   try {
-    const userAddress = (await wallet.getRewardAddresses())[0];
+    const userAddress = (await wallet.getUsedAddresses())[0];
     const signature = await wallet.signData(nonce, userAddress);
 
     // do: send request with 'signature' and 'userAddress' to the backend
@@ -143,7 +139,7 @@ import { checkSignature } from '@meshsdk/core';
 async function backendVerifySignature(userAddress, signature) {
   // do: get 'nonce' from user (database) using 'userAddress'
 
-  const result = checkSignature(nonce, signature);
+  const result = checkSignature(nonce, signature, userAddress);
 
   // do: update 'nonce' in the database with another random string
 
@@ -177,7 +173,7 @@ export default function Page() {
 
   async function frontendStartLoginProcess() {
     if (connected) {
-      const userAddress = (await wallet.getRewardAddresses())[0];
+      const userAddress = (await wallet.getUsedAddresses())[0];
       const nonce = await backendGetNonce(userAddress);
       await frontendSignMessage(nonce);
     }
@@ -185,7 +181,7 @@ export default function Page() {
 
   async function frontendSignMessage(nonce) {
     try {
-      const userAddress = (await wallet.getRewardAddresses())[0];
+      const userAddress = (await wallet.getUsedAddresses())[0];
       const signature = await wallet.signData(nonce, userAddress);
       await backendVerifySignature(userAddress, signature);
     } catch (error) {
@@ -217,7 +213,7 @@ async function backendGetNonce(userAddress) {
 async function backendVerifySignature(userAddress, signature) {
   // do: get 'nonce' from database
 
-  const result = checkSignature(nonce, signature);
+  const result = checkSignature(nonce, signature, userAddress);
   if(result){
     // create JWT or approve certain process
   }
