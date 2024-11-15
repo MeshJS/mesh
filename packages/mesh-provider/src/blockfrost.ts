@@ -21,7 +21,11 @@ import {
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
-import { resolveRewardAddress, toScriptRef } from "@meshsdk/core-cst";
+import {
+  resolveRewardAddress,
+  toScriptRef,
+  normalizePlutusScript,
+} from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 import { BlockfrostAsset, BlockfrostUTxO } from "./types";
@@ -489,7 +493,7 @@ export class BlockfrostProvider
         if(index !== undefined) {
           return outputs.filter((utxo) => utxo.input.outputIndex === index);
         }
-        
+
         return outputs;
       }
       throw parseHttpError(data);
@@ -602,12 +606,17 @@ export class BlockfrostProvider
       );
 
       if (status === 200 || status == 202) {
-        const script = data.type.startsWith("plutus")
-          ? <PlutusScript>{
-              code: await this.fetchPlutusScriptCBOR(scriptHash),
-              version: data.type.replace("plutus", ""),
-            }
-          : await this.fetchNativeScriptJSON(scriptHash);
+        let script;
+        if (data.type.startsWith("plutus")) {
+          const plutusScript = await this.fetchPlutusScriptCBOR(scriptHash);
+          const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
+          script = <PlutusScript>{
+            version: data.type.replace("plutus", ""),
+            code: normalized
+          };
+        } else {
+          script = await this.fetchNativeScriptJSON(scriptHash);
+        }
 
         return toScriptRef(script).toCbor().toString();
       }
