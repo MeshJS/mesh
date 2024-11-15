@@ -4,6 +4,7 @@ import {
   MaestroProvider,
   U5CProvider,
   YaciProvider,
+  OfflineFetcher
 } from "@meshsdk/core";
 
 import FetcherAccountInfo from "./fetch-account-info";
@@ -88,4 +89,5 @@ export type SupportedFetchers =
   | KoiosProvider
   | YaciProvider
   | MaestroProvider
-  | U5CProvider;
+  | U5CProvider
+  | OfflineFetcher;
