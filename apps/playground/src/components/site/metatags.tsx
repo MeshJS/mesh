@@ -22,9 +22,7 @@ export default function Metatags({
   }
 
   if (title === undefined) {
-    title = "Mesh JS - Cardano Web3 TypeScript SDK & Off-Chain Framework";
-  } else {
-    title = title + " - Mesh JS";
+    title = "Cardano Web3 TypeScript SDK & Off-Chain Framework";
   }
 
   return (
@@ -32,7 +30,7 @@ export default function Metatags({
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta charSet="utf-8" />
 
-      {title && <title>{title}</title>}
+      {title && <title>{`${title} - Mesh JS`}</title>}
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
 

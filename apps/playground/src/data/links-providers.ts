@@ -55,7 +55,14 @@ export const metaOfflineFetcher = {
   title: "Offline Fetcher",
   link: "/providers/offline-fetcher",
   desc: "Provider for testing, development and offline scenarios",
-  thumbnail: "/providers/hydra.svg",
+  thumbnail: "/logo-mesh/mesh.png",
+};
+
+export const metaOfflineEvaluator = {
+  title: "Offline Evaluator",
+  link: "/providers/offline-evaluator",
+  desc: "An offline Plutus script evaluator for testing and validation.",
+  thumbnail: "/logo-mesh/mesh.png",
 };
 
 export const linksProviders: MenuItem[] = [
@@ -66,7 +73,8 @@ export const linksProviders: MenuItem[] = [
   metaOgmios,
   metaU5c,
   metaYaci,
-  metaOfflineFetcher
+  metaOfflineFetcher,
+  metaOfflineEvaluator,
 ];
 
 export const metaProviders = {
