@@ -51,6 +51,13 @@ export const metaHydra = {
   thumbnail: "/providers/hydra.svg",
 };
 
+export const metaOfflineFetcher = {
+  title: "Offline Fetcher",
+  link: "/providers/offline-fetcher",
+  desc: "Provider for testing, development and offline scenarios",
+  thumbnail: "/providers/hydra.svg",
+};
+
 export const linksProviders: MenuItem[] = [
   metaBlockfrost,
   metaKoios,
@@ -59,6 +66,7 @@ export const linksProviders: MenuItem[] = [
   metaOgmios,
   metaU5c,
   metaYaci,
+  metaOfflineFetcher
 ];
 
 export const metaProviders = {

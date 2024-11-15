@@ -347,11 +347,113 @@ describe("OfflineFetcher", () => {
       const addresses = await fetcher.fetchAssetAddresses(validAsset);
       expect(addresses).toEqual([sampleAssetAddress]);
     });
+    it("should combine addresses from UTXOs and asset addresses registry", async () => {
+      // Add UTXOs
+      const utxo1 = {
+        ...sampleUTxO,
+        output: {
+          address: validBech32Address,
+          amount: [{ unit: validAsset, quantity: "500" }]
+        }
+      };
+      const utxo2 = {
+        ...sampleUTxO,
+        output: {
+          address: validBase58Address,
+          amount: [{ unit: validAsset, quantity: "300" }]
+        }
+      };
+      fetcher.addUTxOs([utxo1, utxo2]);
 
-    it("should throw an error if asset addresses are not found", async () => {
-      await expect(
-        fetcher.fetchAssetAddresses(validAsset),
-      ).rejects.toThrowError(`Asset addresses not found: ${validAsset}`);
+      // Add asset addresses
+      fetcher.addAssetAddresses(validAsset, [
+        { address: validBech32Address, quantity: "200" },
+        { address: "addr_test1qp9xn9gwdjkj5l2vylwu3zrj7whkpe8xj7k0g04w93uthp7vxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qrc4l2c", quantity: "100" }
+      ]);
+
+      const addresses = await fetcher.fetchAssetAddresses(validAsset);
+      const expected = [
+        { address: validBech32Address, quantity: "700" }, // 500 + 200
+        { address: validBase58Address, quantity: "300" },
+        { address: "addr_test1qp9xn9gwdjkj5l2vylwu3zrj7whkpe8xj7k0g04w93uthp7vxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qrc4l2c", quantity: "100" },
+      ];
+
+      expect(addresses).toEqual(expect.arrayContaining(expected));
+    });
+
+    it("should throw error for invalid asset", async () => {
+      await expect(fetcher.fetchAssetAddresses("invalid_asset"))
+        .rejects.toThrow("Invalid asset: must be a hex string");
+    });
+
+    it("should handle case when no addresses found", async () => {
+      const addresses = await fetcher.fetchAssetAddresses(validAsset);
+      expect(addresses).toEqual([]);
+    });
+
+    it("should filter out zero quantity addresses", async () => {
+      const utxo = {
+        ...sampleUTxO,
+        output: {
+          address: validBech32Address,
+          amount: [{ unit: validAsset, quantity: "0" }]
+        }
+      };
+      fetcher.addUTxOs([utxo]);
+
+      const addresses = await fetcher.fetchAssetAddresses(validAsset);
+      expect(addresses).toEqual([]);
+    });
+  });
+
+  describe("fetchAddressAssets", () => {
+    it("should fetch assets from UTXOs and asset addresses", async () => {
+      // Add UTXOs with multiple assets
+      const utxo1 = {
+        ...sampleUTxO,
+        output: {
+          ...sampleUTxO.output,
+          amount: [
+            { unit: "lovelace", quantity: "1000000" },
+            { unit: validAsset, quantity: "500" }
+          ]
+        }
+      };
+      const utxo2 = {
+        ...sampleUTxO,
+        input: { ...sampleUTxO.input, outputIndex: 1 },
+        output: {
+          ...sampleUTxO.output,
+          amount: [
+            { unit: "lovelace", quantity: "2000000" },
+            { unit: validAsset, quantity: "300" }
+          ]
+        }
+      };
+      fetcher.addUTxOs([utxo1, utxo2]);
+
+      // Add asset addresses
+      fetcher.addAssetAddresses(validAsset, [{
+        address: validBech32Address,
+        quantity: "200"
+      }]);
+
+      const assets = await fetcher.fetchAddressAssets(validBech32Address);
+      const expected = [
+        { unit: validAsset, quantity: "1000" } // 500 + 300 + 200
+      ];
+
+      expect(assets).toEqual(expect.arrayContaining(expected));
+    });
+
+    it("should throw error for invalid address", async () => {
+      await expect(fetcher.fetchAddressAssets("invalid_address"))
+        .rejects.toThrow("Invalid address: must be a valid Bech32 or Base58 address");
+    });
+
+    it("should return empty array if no assets found", async () => {
+      const assets = await fetcher.fetchAddressAssets(validBech32Address);
+      expect(assets).toEqual([]);
     });
   });
 
