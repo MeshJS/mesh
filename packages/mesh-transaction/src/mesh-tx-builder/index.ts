@@ -82,6 +82,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     this.removeDuplicateInputs();
 
+    // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
+    for (let collateral of this.meshTxBuilderBody.collaterals) {
+      collateral.txIn.scriptSize = 0;
+    }
+
     // Checking if all inputs are complete
     const { inputs, collaterals, mints } = this.meshTxBuilderBody;
     const incompleteTxIns = [...inputs, ...collaterals].filter(
