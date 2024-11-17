@@ -1,8 +1,8 @@
 import { Credential } from "@cardano-sdk/core/dist/cjs/Cardano";
-import { Bip32PublicKey } from "@stricahq/bip32ed25519";
 
 import { DataSignature } from "@meshsdk/common";
 
+import { StricaBip32PublicKey } from "../stricahq";
 import {
   Address,
   BaseAddress,
@@ -26,7 +26,7 @@ export const checkSignature = (
   if (address) {
     let network = NetworkId.Mainnet;
     const paymentAddress = BaseAddress.fromAddress(Address.fromBech32(address));
-    const coseSign1PublicKey = new Bip32PublicKey(publicKeyBuffer);
+    const coseSign1PublicKey = new StricaBip32PublicKey(publicKeyBuffer);
 
     const credential: Credential = {
       hash: Hash28ByteBase16.fromEd25519KeyHashHex(
