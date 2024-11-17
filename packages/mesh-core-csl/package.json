@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core-csl",
-  "version": "1.7.17",
+  "version": "1.7.18",
   "description": "",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
-    "@meshsdk/provider": "1.7.17",
+    "@meshsdk/provider": "1.7.18",
     "@types/json-bigint": "^1.0.4",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
@@ -39,9 +39,9 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.17",
-    "@sidan-lab/sidan-csl-rs-browser": "0.9.5",
-    "@sidan-lab/sidan-csl-rs-nodejs": "0.9.5",
+    "@meshsdk/common": "1.7.18",
+    "@sidan-lab/sidan-csl-rs-browser": "0.9.6",
+    "@sidan-lab/sidan-csl-rs-nodejs": "0.9.6",
     "json-bigint": "^1.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",
