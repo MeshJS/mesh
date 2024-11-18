@@ -106,6 +106,11 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   constructor(options: CreateMeshWalletOptions) {
     this._networkId = options.networkId;
 
+    if (options.fetcher) this._fetcher = options.fetcher;
+    if (options.submitter) this._submitter = options.submitter;
+    if (options.accountIndex) this._accountIndex = options.accountIndex;
+    if (options.keyIndex) this._keyIndex = options.keyIndex;
+
     switch (options.key.type) {
       case "root":
         this._wallet = new EmbeddedWallet({
@@ -143,11 +148,6 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
         this.buildAddressFromBech32Address(options.key.address);
         break;
     }
-
-    if (options.fetcher) this._fetcher = options.fetcher;
-    if (options.submitter) this._submitter = options.submitter;
-    if (options.accountIndex) this._accountIndex = options.accountIndex;
-    if (options.keyIndex) this._keyIndex = options.keyIndex;
   }
 
   /**
@@ -324,7 +324,12 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     if (address === undefined) {
       address = this.getChangeAddress()!;
     }
-    return this._wallet.signData(address, payload);
+    return this._wallet.signData(
+      address,
+      payload,
+      this._accountIndex,
+      this._keyIndex,
+    );
   }
 
   /**
