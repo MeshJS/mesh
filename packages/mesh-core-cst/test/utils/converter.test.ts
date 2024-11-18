@@ -1,5 +1,5 @@
 import { PlutusScript } from "@meshsdk/common";
-import { fromScriptRef, toDRepId } from "@meshsdk/core-cst";
+import { fromScriptRef, toDRep } from "@meshsdk/core-cst";
 
 describe("fromScriptRef", () => {
   // it("with native script cbor should return correct NativeScript", () => {});
@@ -20,7 +20,7 @@ describe("DRepId", () => {
   it("CIP-105 vkey dRepId should decode properly", () => {
     const dRepId = "drep1msc78mfqlnh6pr5q5g5mmpp3se84n9veskmljafwwd0rv0gdxlw";
 
-    expect(toDRepId(dRepId).toKeyHash()).toEqual(
+    expect(toDRep(dRepId).toKeyHash()).toEqual(
       "dc31e3ed20fcefa08e80a229bd8431864f59959985b7f9752e735e36",
     );
   });
@@ -29,7 +29,7 @@ describe("DRepId", () => {
     const dRepId =
       "drep_script190xv8v32n43luhu9ag05s5mvcs6079lg4zghzyg3j9vlgle68y3";
 
-    expect(toDRepId(dRepId).toScriptHash()).toEqual(
+    expect(toDRep(dRepId).toScriptHash()).toEqual(
       "2bccc3b22a9d63fe5f85ea1f48536cc434ff17e8a8917111119159f4",
     );
   });
@@ -37,7 +37,7 @@ describe("DRepId", () => {
   it("CIP-129 vkey dRepId should decode properly", () => {
     const dRepId = "drep1ytwrrcldyr7wlgywsz3zn0vyxxry7kv4nxzm07t49ee4udsmz3s9l";
 
-    expect(toDRepId(dRepId).toKeyHash()).toEqual(
+    expect(toDRep(dRepId).toKeyHash()).toEqual(
       "dc31e3ed20fcefa08e80a229bd8431864f59959985b7f9752e735e36",
     );
   });
@@ -45,7 +45,7 @@ describe("DRepId", () => {
   it("CIP-129 script dRepId should decode properly", () => {
     const dRepId = "drep1yv4uesaj92wk8ljlsh4p7jzndnzrflchaz5fzug3zxg4naqkpeas3";
 
-    expect(toDRepId(dRepId).toScriptHash()).toBe(
+    expect(toDRep(dRepId).toScriptHash()).toBe(
       "2bccc3b22a9d63fe5f85ea1f48536cc434ff17e8a8917111119159f4",
     );
   });

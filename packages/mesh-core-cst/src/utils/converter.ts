@@ -372,7 +372,7 @@ export const toValue = (assets: Asset[]) => {
   return value;
 };
 
-export const toDRepId = (dRepId: string): Serialization.DRep => {
+export const toDRep = (dRepId: string): Serialization.DRep => {
   if (dRepId.length === 58) {
     // CIP-129 DRepIds have length of 58
     const { prefix, words } = bech32.decode(dRepId);
