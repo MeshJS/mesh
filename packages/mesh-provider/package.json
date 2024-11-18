@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/provider",
-  "version": "1.7.18",
+  "version": "1.7.19",
   "description": "",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -34,8 +34,8 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.18",
-    "@meshsdk/core-cst": "1.7.18",
+    "@meshsdk/common": "1.7.19",
+    "@meshsdk/core-cst": "1.7.19",
     "@utxorpc/sdk": "0.6.2",
     "@utxorpc/spec": "0.10.1",
     "axios": "^1.7.2"
