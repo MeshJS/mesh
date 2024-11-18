@@ -1,4 +1,4 @@
-import { MeshTxBuilderBody, NativeScript } from "@meshsdk/common";
+import { mConStr0, MeshTxBuilderBody, NativeScript } from "@meshsdk/common";
 import {
   resolveNativeScriptAddress,
   serializeNativeScript,
@@ -100,6 +100,16 @@ describe("Transaction serializer - core-cst", () => {
               code: "5883588101000032323232323232322232533300632323232533300a3370e9000000899b8f375c601c601000e911046d6573680014a0601000260180026018002600800429309b2b19299980319b87480000044c8c94ccc02cc03400852616375c601600260080062c60080044600a6ea80048c00cdd5000ab9a5573aaae7955cfaba15745",
             },
           },
+          redeemer: {
+            data: {
+              content: mConStr0([]),
+              type: "Mesh"
+            },
+            exUnits: {
+              mem: 1000,
+              steps: 100,
+            }
+          }
         },
       ],
       changeAddress:
