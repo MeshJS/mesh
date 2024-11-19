@@ -1,6 +1,5 @@
 import { mConStr0, MeshTxBuilderBody, NativeScript } from "@meshsdk/common";
 import {
-  resolveNativeScriptAddress,
   serializeNativeScript,
 } from "@meshsdk/core";
 import {
