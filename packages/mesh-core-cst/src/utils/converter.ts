@@ -376,6 +376,9 @@ export const toDRep = (dRepId: string): Serialization.DRep => {
   if (dRepId.length === 58) {
     // CIP-129 DRepIds have length of 58
     const { prefix, words } = bech32.decode(dRepId);
+    if (prefix !== "drep") {
+      throw new Error("Invalid DRepId prefix");
+    }
     const bytes = base32.decode(new Uint8Array(words));
     if (bytes[0] === 0x22) {
       return Serialization.DRep.newKeyHash(
