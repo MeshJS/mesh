@@ -3,6 +3,7 @@ import { HexBlob } from "@cardano-sdk/util";
 
 import {
   BuilderData,
+  Certificate,
   NativeScript as CommonNativeScript,
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
@@ -73,6 +74,7 @@ import {
   VkeyWitness,
 } from "../types";
 import { toAddress, toPlutusData, toValue } from "../utils";
+import { toCardanoCert } from "../utils/certificate";
 import { calculateFees } from "../utils/fee";
 import { hashScriptData } from "../utils/script-data-hash";
 import { empty, mergeValue, negatives, subValue } from "../utils/value";
@@ -292,7 +294,7 @@ class CardanoSDKSerializerCore {
       referenceInputs,
       mints,
       changeAddress,
-      // certificates,
+      certificates,
       // withdrawals,
       validityRange,
       requiredSignatures,
@@ -311,6 +313,7 @@ class CardanoSDKSerializerCore {
     this.addAllInputs(inputs);
     this.addAllOutputs(this.sanitizeOutputs(outputs));
     this.addAllMints(mints);
+    this.addAllCerts(certificates);
     this.addAllCollateralInputs(collaterals);
     this.addAllReferenceInputs(referenceInputs);
     this.setValidityInterval(validityRange);
@@ -687,6 +690,110 @@ class CardanoSDKSerializerCore {
           new ExUnits(
             BigInt(mint.redeemer.exUnits.mem),
             BigInt(mint.redeemer.exUnits.steps),
+          ),
+        ),
+      );
+      redeemers.setValues(redeemersList);
+      this.txWitnessSet.setRedeemers(redeemers);
+
+      if (plutusScriptSource.type === "Provided") {
+        switch (plutusScriptSource.script.version) {
+          case "V1":
+            this.scriptsProvided.add(
+              Script.newPlutusV1Script(
+                PlutusV1Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
+              ),
+            );
+            this.usedLanguages[PlutusLanguageVersion.V1] = true;
+            break;
+          case "V2":
+            this.scriptsProvided.add(
+              Script.newPlutusV2Script(
+                PlutusV2Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
+              ),
+            );
+            this.usedLanguages[PlutusLanguageVersion.V2] = true;
+            break;
+          case "V3":
+            this.scriptsProvided.add(
+              Script.newPlutusV3Script(
+                PlutusV3Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
+              ),
+            );
+            this.usedLanguages[PlutusLanguageVersion.V3] = true;
+            break;
+        }
+      } else if (plutusScriptSource.type === "Inline") {
+        this.addScriptRef(plutusScriptSource);
+      }
+    }
+  };
+
+  private addAllCerts = (certs: Certificate[]) => {
+    for (let i = 0; i < certs.length; i++) {
+      this.addCert(certs[i]!, i);
+    }
+  };
+
+  private addCert = (cert: Certificate, index: number) => {
+    const currentCerts =
+      this.txBody.certs() ??
+      Serialization.CborSet.fromCore([], Serialization.Certificate.fromCore);
+    let currentCertsValues = [...currentCerts.values()];
+    currentCertsValues.push(toCardanoCert(cert.certType));
+    currentCerts.setValues(currentCertsValues);
+    this.txBody.setCerts(currentCerts);
+
+    if (cert.type === "SimpleScriptCertificate") {
+      if (!cert.simpleScriptSource)
+        throw new Error("Script source not provided for native script cert");
+      const nativeScriptSource: SimpleScriptSourceInfo =
+        cert.simpleScriptSource as SimpleScriptSourceInfo;
+      if (!nativeScriptSource)
+        throw new Error(
+          "A script source for a native script was not a native script somehow",
+        );
+      if (nativeScriptSource.type === "Provided") {
+        this.scriptsProvided.add(
+          Script.newNativeScript(
+            NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
+          ),
+        );
+      } else if (nativeScriptSource.type === "Inline") {
+        this.addSimpleScriptRef(nativeScriptSource);
+      }
+    } else if (cert.type === "ScriptCertificate") {
+      if (!cert.scriptSource)
+        throw new Error(
+          "Script source not provided for plutus script certificate",
+        );
+      const plutusScriptSource = cert.scriptSource as ScriptSource;
+      if (!plutusScriptSource) {
+        throw new Error(
+          "A script source for a plutus certificate was not plutus script somehow",
+        );
+      }
+      if (!cert.redeemer) {
+        throw new Error("A redeemer was not provided for a plutus certificate");
+      }
+
+      // Add cert redeemer to witness set
+      let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
+      let redeemersList = [...redeemers.values()];
+      redeemersList.push(
+        new Redeemer(
+          RedeemerTag.Cert,
+          BigInt(index),
+          toPlutusData(cert.redeemer.data.content as Data), // TODO: handle json / raw datum
+          new ExUnits(
+            BigInt(cert.redeemer.exUnits.mem),
+            BigInt(cert.redeemer.exUnits.steps),
           ),
         ),
       );
