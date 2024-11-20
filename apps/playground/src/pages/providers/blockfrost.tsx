@@ -36,9 +36,7 @@ const ReactPage: NextPage = () => {
   ];
 
   let code1 = `import { BlockfrostProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code1 += `  '<Your-API-Key>'\n`;
-  code1 += `);\n`;
+  code1 += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n`;
 
   let code2 = `const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_URL>');\n`;
 

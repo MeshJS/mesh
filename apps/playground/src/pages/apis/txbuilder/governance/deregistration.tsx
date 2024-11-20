@@ -10,7 +10,7 @@ export default function GovernanceDeregistration() {
   return (
     <TwoColumnsScroll
       sidebarTo="deregistration"
-      title="DRep Deregistration"
+      title="DRep Retirement"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -127,7 +127,7 @@ function Right() {
 
   return (
     <LiveCodeDemo
-      title="DRep De-registration"
+      title="DRep Retirement"
       subtitle="Retire a DRep certificate amd return the deposit"
       code={codeSnippet}
       runCodeFunction={runDemo}

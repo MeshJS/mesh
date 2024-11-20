@@ -1436,7 +1436,8 @@ export class MeshTxBuilderCore {
    * Selects utxos to fill output value and puts them into inputs
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
    * @param strategy The strategy to be used in utxo selection
-   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output
+   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output (default to 5000000)
+   * @param includeTxFees Whether to include transaction fees in the threshold (default to true)
    */
   selectUtxosFrom = (
     extraInputs: UTxO[],
