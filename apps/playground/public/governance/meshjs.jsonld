@@ -25,12 +25,28 @@
             }
           }
         },
+        "comment": "CIP100:comment",
+        "externalUpdates": {
+          "@id": "CIP100:externalUpdates",
+          "@context": {
+            "title": "CIP100:update-title",
+            "uri": "CIP100:update-uri"
+          }
+        },
         "paymentAddress": "CIP119:paymentAddress",
         "givenName": "CIP119:givenName",
-        "image": "CIP119:image",
+        "image": {
+          "@id": "CIP119:image",
+          "@context": {
+            "ImageObject": "https://schema.org/ImageObject"
+          }
+        },
         "objectives": "CIP119:objectives",
         "motivations": "CIP119:motivations",
         "qualifications": "CIP119:qualifications",
+        "title": "CIP108:title",
+        "abstract": "CIP108:abstract",
+        "rationale": "CIP108:rationale",
         "doNotList": "CIP119:doNotList"
       }
     },
@@ -50,14 +66,18 @@
       }
     }
   },
-  "authors": [],
   "hashAlgorithm": "blake2b-256",
   "body": {
+    "title": "MeshJS",
     "givenName": "MeshJS",
     "motivations": "We're motivated by our deep belief in decentralized governance and our hands-on experience with MeshJS. We've seen firsthand how accessible tools can drive innovation, and we want to make sure developers' needs and voices are at the forefront of Cardano's evolution.",
     "objectives": "We champion governance decisions that support open-source development and empower Cardano's developer community. We aim to make it easier for developers to innovate and contribute to the ecosystem.",
     "paymentAddress": "addr1qyjtjxjkhskglfefwe9kanvk7wczft0q6ngyhyh9es0km27q3upff6k44dawpnj5w8w5suq8jxff0w54yv90yte9u46st87vk3",
-    "qualifications": "Our experience in blockchain tooling and commitment to open-source principles make us well-equipped to represent developers in Cardano's decision-making processes.",
+    "qualifications": "Experience in blockchain tooling and commitment to open-source principles make us well-equipped to represent developers in Cardano's decision-making processes.",
+    "image": {
+      "@type": "ImageObject",
+      "contentUrl": "https://meshjs.dev/logo-mesh/mesh.png"
+    },
     "references": [
       {
         "@type": "Other",
@@ -75,5 +95,10 @@
         "uri": "https://github.com/MeshJS"
       }
     ]
-  }
+  },
+  "authors": [
+    {
+      "name": "MeshJS"
+    }
+  ]
 }
