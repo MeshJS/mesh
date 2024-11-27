@@ -1,7 +1,7 @@
 {
   "name": "@meshsdk/react",
   "version": "1.7.19",
-  "description": "",
+  "description": "React component library - https://meshjs.dev/react",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
   "module": "./dist/index.js",
@@ -19,7 +19,6 @@
     "dist/**"
   ],
   "scripts": {
-    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-react.json",
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts && tailwindcss -i ./src/styles.css -o ./dist/index.css",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
