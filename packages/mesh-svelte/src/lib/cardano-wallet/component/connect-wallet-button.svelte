@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import {BrowserWallet, type Wallet } from "@meshsdk/core"
 	import { BrowserWalletState, connectWallet, disconnectWallet } from '../state/browser-wallet-state.svelte.js';
-	import { type ConnectWalletButtonProps} from '.';
+	import { type ConnectWalletButtonProps} from './';
 
 	const {
 		label = 'Connect Wallet',
