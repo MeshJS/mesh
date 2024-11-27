@@ -57,8 +57,8 @@ function Left() {
       <p>
         Add this CardanoWallet to allow the user to select a wallet to connect
         to your dApp. After the wallet is connected, see{" "}
-        <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> for a list of
-        CIP-30 APIs.
+        <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> for a
+        list of CIP-30 APIs.
       </p>
 
       <p>The signature for the CardanoWallet component is as follows:</p>
@@ -155,6 +155,19 @@ function Right() {
         label={"Connect a Wallet"}
         isDark={isDark}
         metamask={{ network: "preprod" }}
+        cardanoPeerConnect={{
+          dAppInfo: {
+            name: "Mesh Localhost",
+            url: "http://localhost:3000/",
+          },
+          announce: [
+            'https://pro.passwordchaos.gimbalabs.io',
+          'wss://tracker.files.fm:7073/announce',
+          'wss://tracker.btorrent.xyz',
+          'ws://tracker.files.fm:7072/announce',
+          'wss://tracker.openwebtorrent.com:443/announce',
+          ],
+        }}
       />
     </LiveCodeDemo>
   );
