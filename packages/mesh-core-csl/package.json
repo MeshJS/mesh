@@ -1,7 +1,7 @@
 {
   "name": "@meshsdk/core-csl",
   "version": "1.7.19",
-  "description": "",
+  "description": "Types and utilities functions between Mesh and cardano-serialization-lib",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

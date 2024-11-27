@@ -1,0 +1,61 @@
+{
+  "name": "@meshsdk/svelte",
+  "version": "0.0.1",
+  "description": "Svelte component library - https://meshjs.dev/svelte",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "svelte": "./dist/index.js",
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "svelte-kit sync && svelte-package && publint && tailwindcss -i ./src/styles.css -o ./dist/index.css",
+    "dev:tsup": "tsup src/index.ts --format esm,js --watch --dts",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
+    "type-check": "tsc --noEmit",
+    "package": "svelte-kit sync && svelte-package && publint",
+    "dev": "vite dev"
+  },
+  "dependencies": {
+    "@meshsdk/common": "1.7.19",
+    "@meshsdk/transaction": "1.7.19",
+    "@meshsdk/wallet": "1.7.19"
+  },
+  "devDependencies": {
+    "@meshsdk/configs": "*",
+    "@sveltejs/adapter-auto": "^3.0.0",
+    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/package": "^2.0.0",
+    "publint": "^0.2.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "autoprefixer": "^10.4.20",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.0.0",
+    "tailwindcss": "^3.4.9",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.3",
+    "vite-plugin-node-polyfills": "^0.22.0",
+    "vite-plugin-top-level-await": "^1.4.4",
+    "vite-plugin-wasm": "^3.3.0"
+  },
+  "prettier": "@meshsdk/configs/prettier",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "cardano",
+    "ada",
+    "web3",
+    "blockchain",
+    "sdk"
+  ]
+}
