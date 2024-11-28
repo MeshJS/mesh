@@ -209,8 +209,8 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       console.log("txBodyJson", JSON.stringify(txBuilderBody));
     }
 
-    const serializerCore = new CardanoSDKSerializerCore(protocolParams);
-    return serializerCore.coreSerializeTxBody(txBuilderBody, protocolParams);
+    const serializerCore = new CardanoSDKSerializerCore(protocolParams ?? this.protocolParams);
+    return serializerCore.coreSerializeTxBody(txBuilderBody);
   };
 
   addSigningKeys = (txHex: string, signingKeys: string[]): string => {
@@ -285,7 +285,6 @@ class CardanoSDKSerializerCore {
 
   coreSerializeTxBody = (
     txBuilderBody: MeshTxBuilderBody,
-    protocolParams?: Protocol,
   ): string => {
     const {
       inputs,
