@@ -1,5 +1,6 @@
 import { POLICY_ID_LENGTH } from "../../constants";
-import { mConStr0, MConStr0, MConStr1 } from "./constructors";
+import { Data } from "../../types";
+import { mConStr0, MConStr0, mConStr1, MConStr1 } from "./constructors";
 
 /**
  * PlutusTx alias
@@ -25,7 +26,23 @@ export type MTxOutRef = MConStr0<[MConStr0<[string]>, number]>;
  */
 export type MTuple<K, V> = [K, V];
 
-export type MOption<T> = MConStr0<[T]> | MConStr1<[]>;
+/**
+ * Aiken alias
+ * The Mesh Data Option type
+ */
+export type MOption<T> = MSome<T> | MNone;
+
+/**
+ * Aiken alias
+ * The Mesh Data Option - Some type
+ */
+export type MSome<T> = MConStr0<[T]>;
+
+/**
+ * Aiken alias
+ * The Mesh Data Option - None type
+ */
+export type MNone = MConStr1<[]>;
 
 /**
  * The utility function to create a Mesh Data asset class
@@ -88,3 +105,29 @@ export const mTxOutRef = (txHash: string, index: number): MTxOutRef => {
  * @returns The Mesh Data tuple object
  */
 export const mTuple = <K, V>(key: K, value: V): MTuple<K, V> => [key, value];
+
+/**
+ * The utility function to create a Mesh Data Option type in Mesh Data type
+ * @param value The value of the option
+ * @returns The Mesh Data Option object
+ */
+export const mOption = <T extends Data>(value?: T): MOption<T> => {
+  if (value) {
+    return mSome(value);
+  }
+  return mNone();
+};
+
+/**
+ * The utility function to create a Mesh Data Option type in Mesh Data type
+ * @param value The value of the option
+ * @returns The Mesh Data Option object
+ */
+export const mSome = <T extends Data>(value: T): MSome<T> =>
+  mConStr0([value]) as MSome<T>;
+
+/**
+ * The utility function to create a Mesh Data Option - None type in Mesh Data type
+ * @returns The Mesh Data Option - None object
+ */
+export const mNone = (): MNone => mConStr1([]);
