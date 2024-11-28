@@ -29,6 +29,7 @@ import {
   SimpleScriptTxIn,
   TxIn,
   ValidityRange,
+  Withdrawal,
 } from "@meshsdk/common";
 
 import { StricaPrivateKey } from "../";
@@ -209,7 +210,9 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       console.log("txBodyJson", JSON.stringify(txBuilderBody));
     }
 
-    const serializerCore = new CardanoSDKSerializerCore(protocolParams ?? this.protocolParams);
+    const serializerCore = new CardanoSDKSerializerCore(
+      protocolParams ?? this.protocolParams,
+    );
     return serializerCore.coreSerializeTxBody(txBuilderBody);
   };
 
@@ -283,9 +286,7 @@ class CardanoSDKSerializerCore {
     this.txWitnessSet = new TransactionWitnessSet();
   }
 
-  coreSerializeTxBody = (
-    txBuilderBody: MeshTxBuilderBody,
-  ): string => {
+  coreSerializeTxBody = (txBuilderBody: MeshTxBuilderBody): string => {
     const {
       inputs,
       outputs,
@@ -294,7 +295,7 @@ class CardanoSDKSerializerCore {
       mints,
       changeAddress,
       certificates,
-      // withdrawals,
+      withdrawals,
       validityRange,
       requiredSignatures,
       // metadata,
@@ -313,6 +314,7 @@ class CardanoSDKSerializerCore {
     this.addAllOutputs(this.sanitizeOutputs(outputs));
     this.addAllMints(mints);
     this.addAllCerts(certificates);
+    this.addAllWithdrawals(withdrawals);
     this.addAllCollateralInputs(collaterals);
     this.addAllReferenceInputs(referenceInputs);
     this.setValidityInterval(validityRange);
@@ -793,6 +795,118 @@ class CardanoSDKSerializerCore {
           new ExUnits(
             BigInt(cert.redeemer.exUnits.mem),
             BigInt(cert.redeemer.exUnits.steps),
+          ),
+        ),
+      );
+      redeemers.setValues(redeemersList);
+      this.txWitnessSet.setRedeemers(redeemers);
+
+      if (plutusScriptSource.type === "Provided") {
+        switch (plutusScriptSource.script.version) {
+          case "V1":
+            this.scriptsProvided.add(
+              Script.newPlutusV1Script(
+                PlutusV1Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
+              ),
+            );
+            this.usedLanguages[PlutusLanguageVersion.V1] = true;
+            break;
+          case "V2":
+            this.scriptsProvided.add(
+              Script.newPlutusV2Script(
+                PlutusV2Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
+              ),
+            );
+            this.usedLanguages[PlutusLanguageVersion.V2] = true;
+            break;
+          case "V3":
+            this.scriptsProvided.add(
+              Script.newPlutusV3Script(
+                PlutusV3Script.fromCbor(
+                  HexBlob(plutusScriptSource.script.code),
+                ),
+              ),
+            );
+            this.usedLanguages[PlutusLanguageVersion.V3] = true;
+            break;
+        }
+      } else if (plutusScriptSource.type === "Inline") {
+        this.addScriptRef(plutusScriptSource);
+      }
+    }
+  };
+
+  private addAllWithdrawals = (withdrawals: Withdrawal[]) => {
+    for (let i = 0; i < withdrawals.length; i++) {
+      this.addWithdrawal(withdrawals[i]!, i);
+    }
+  };
+
+  private addWithdrawal = (withdrawal: Withdrawal, index: number) => {
+    const currentWithdrawals =
+      this.txBody.withdrawals() ?? new Map<RewardAccount, bigint>();
+    const address = Address.fromBech32(withdrawal.address);
+    const rewardAddress = address.asReward();
+    if (!rewardAddress) {
+      throw new Error("Failed to parse reward address for withdrawal");
+    }
+    currentWithdrawals.set(
+      RewardAccount.fromCredential(
+        rewardAddress.getPaymentCredential(),
+        address.getNetworkId(),
+      ),
+      BigInt(withdrawal.coin),
+    );
+    this.txBody.setWithdrawals(currentWithdrawals);
+
+    if (withdrawal.type === "SimpleScriptWithdrawal") {
+      if (!withdrawal.scriptSource)
+        throw new Error("Script source not provided for native script cert");
+      const nativeScriptSource: SimpleScriptSourceInfo =
+        withdrawal.scriptSource as SimpleScriptSourceInfo;
+      if (!nativeScriptSource)
+        throw new Error(
+          "A script source for a native script was not a native script somehow",
+        );
+      if (nativeScriptSource.type === "Provided") {
+        this.scriptsProvided.add(
+          Script.newNativeScript(
+            NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
+          ),
+        );
+      } else if (nativeScriptSource.type === "Inline") {
+        this.addSimpleScriptRef(nativeScriptSource);
+      }
+    } else if (withdrawal.type === "ScriptWithdrawal") {
+      if (!withdrawal.scriptSource)
+        throw new Error(
+          "Script source not provided for plutus script certificate",
+        );
+      const plutusScriptSource = withdrawal.scriptSource as ScriptSource;
+      if (!plutusScriptSource) {
+        throw new Error(
+          "A script source for a plutus certificate was not plutus script somehow",
+        );
+      }
+      if (!withdrawal.redeemer) {
+        throw new Error("A redeemer was not provided for a plutus certificate");
+      }
+
+      // Add cert redeemer to witness set
+      let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
+      let redeemersList = [...redeemers.values()];
+      redeemersList.push(
+        new Redeemer(
+          RedeemerTag.Cert,
+          BigInt(index),
+          toPlutusData(withdrawal.redeemer.data.content as Data), // TODO: handle json / raw datum
+          new ExUnits(
+            BigInt(withdrawal.redeemer.exUnits.mem),
+            BigInt(withdrawal.redeemer.exUnits.steps),
           ),
         ),
       );
