@@ -1,5 +1,5 @@
 import { POLICY_ID_LENGTH } from "../../constants";
-import { mConStr0, MConStr0 } from "./constructors";
+import { mConStr0, MConStr0, MConStr1 } from "./constructors";
 
 /**
  * PlutusTx alias
@@ -24,6 +24,8 @@ export type MTxOutRef = MConStr0<[MConStr0<[string]>, number]>;
  * The Mesh Data tuple
  */
 export type MTuple<K, V> = [K, V];
+
+export type MOption<T> = MConStr0<[T]> | MConStr1<[]>;
 
 /**
  * The utility function to create a Mesh Data asset class
