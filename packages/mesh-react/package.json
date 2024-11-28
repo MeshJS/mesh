@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/react",
-  "version": "1.7.19",
+  "version": "1.7.20",
   "description": "React component library - https://meshjs.dev/react",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -29,9 +29,9 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "@meshsdk/common": "1.7.19",
-    "@meshsdk/transaction": "1.7.19",
-    "@meshsdk/wallet": "1.7.19"
+    "@meshsdk/common": "1.7.20",
+    "@meshsdk/transaction": "1.7.20",
+    "@meshsdk/wallet": "1.7.20"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
