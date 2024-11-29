@@ -157,15 +157,16 @@ function Right() {
         metamask={{ network: "preprod" }}
         cardanoPeerConnect={{
           dAppInfo: {
-            name: "Mesh Localhost",
-            url: "http://localhost:3000/",
+            name: "Mesh SDK",
+            url: "https://meshjs.dev/",
           },
           announce: [
-            'https://pro.passwordchaos.gimbalabs.io',
-          'wss://tracker.files.fm:7073/announce',
-          'wss://tracker.btorrent.xyz',
-          'ws://tracker.files.fm:7072/announce',
-          'wss://tracker.openwebtorrent.com:443/announce',
+            "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",
+            "https://pro.passwordchaos.gimbalabs.io",
+            "wss://tracker.files.fm:7073/announce",
+            "wss://tracker.btorrent.xyz",
+            "ws://tracker.files.fm:7072/announce",
+            "wss://tracker.openwebtorrent.com:443/announce",
           ],
         }}
       />
