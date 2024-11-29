@@ -62,6 +62,15 @@ function CardLink({
   tobecompleted: string[];
   status: string;
 }) {
+  function getDomain(url) {
+    url = url.replace(/(https?:\/\/)?(www.)?/i, "");
+
+    if (url.indexOf("/") !== -1) {
+      return url.split("/")[0];
+    }
+
+    return url;
+  }
   return (
     <div className="block max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
       <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -118,7 +127,7 @@ function CardLink({
         <div className="mt-4 text-sm text-gray-500 dark:text-gray-300">
           <Link href={url}>
             <span className="text-blue-500 hover:text-blue-700">
-              projectcatalyst.io
+              {getDomain(url)}
             </span>
           </Link>
         </div>

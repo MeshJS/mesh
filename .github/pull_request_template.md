@@ -17,6 +17,7 @@ Remember to follow our [Contributing Guide](CONTRIBUTING.md) before submitting y
 - [ ] `@meshsdk/core-cst`
 - [ ] `@meshsdk/provider`
 - [ ] `@meshsdk/react`
+- [ ] `@meshsdk/svelte`
 - [ ] `@meshsdk/transaction`
 - [ ] `@meshsdk/wallet`
 - [ ] Mesh playground (i.e. <https://meshjs.dev/>)

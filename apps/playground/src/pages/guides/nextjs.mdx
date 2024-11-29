@@ -2,9 +2,11 @@ import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body
 import { guidenextjs } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
-  // const sidebarItems = [
-  //   { label: 'System setup', to: 'systemsetup' },
-  // ];
+  const sidebarItems = [
+    { label: 'System setup', to: 'systemsetup' },
+    { label: 'Setup Mesh', to: 'setupmesh' },
+    { label: 'See it in action', to: 'seeitinaction' },
+  ];
 
   return (
     <LayoutImageHeaderAndBody
@@ -12,12 +14,14 @@ export default function MDXPage({ children }) {
       description={guidenextjs.description}
       image={guidenextjs.image}
       cover={guidenextjs.cover}
-      // sidebarItems={sidebarItems}
+      sidebarItems={sidebarItems}
     >
       {children}
     </LayoutImageHeaderAndBody>
   );
 }
+
+In this guide, you will get your application running, [check this demo](https://starter-template.meshjs.dev/) to see the final result.
 
 [Next.js](https://nextjs.org/) is a web development framework built on top of Node.js enabling React-based web applications functionalities such as server-side rendering and generating static websites.
 
@@ -43,8 +47,20 @@ Create a new folder for your project, and give the folder a meaningful name. Ope
 
 From the menu options in on your Visual Studio Code, open the **Terminal** and execute this command to create a new NextJs application:
 
-```
+```bash
 npx create-next-app@latest --typescript .
+```
+
+```bash
+Need to install the following packages:
+Ok to proceed? (y) 
+
+✔ Would you like to use ESLint? … Yes
+✔ Would you like to use Tailwind CSS? … Yes
+✔ Would you like your code inside a `src/` directory? … Yes
+✔ Would you like to use App Router? … No
+✔ Would you like to use Turbopack for next dev? … No
+✔ Would you like to customize the import alias (@/* by default)? … No
 ```
 
 ### 3. Start development server

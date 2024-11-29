@@ -21,7 +21,11 @@ import {
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
-import { resolveRewardAddress, toScriptRef } from "@meshsdk/core-cst";
+import {
+  resolveRewardAddress,
+  toScriptRef,
+  normalizePlutusScript,
+} from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 import { BlockfrostAsset, BlockfrostUTxO } from "./types";
@@ -162,6 +166,43 @@ export class BlockfrostProvider
     return utxosToAssets(utxos);
   }
 
+  /**
+   * Transactions for an address.
+   * @param address
+   * @returns - partial TransactionInfo
+   */
+  async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `/addresses/${address}/transactions`,
+      );
+      if (status === 200 || status == 202) {
+        return data.map((tx: any) => {
+          return <TransactionInfo>{
+            hash: tx.tx_hash,
+            index: tx.tx_index,
+            block: "",
+            slot: "",
+            fees: "",
+            size: 0,
+            deposit: "",
+            invalidBefore: "",
+            invalidAfter: "",
+          };
+        });
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * UTXOs of the address.
+   * @param address - The address to fetch UTXO
+   * @param asset - UTXOs of a given asset​
+   * @returns - Array of UTxOs
+   */
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : "";
     const url = `addresses/${address}/utxos` + filter;
@@ -436,7 +477,7 @@ export class BlockfrostProvider
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
         `txs/${hash}/utxos`,
@@ -448,6 +489,11 @@ export class BlockfrostProvider
           outputsPromises.push(this.toUTxO(output, hash));
         });
         const outputs = await Promise.all(outputsPromises);
+
+        if(index !== undefined) {
+          return outputs.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return outputs;
       }
       throw parseHttpError(data);
@@ -456,12 +502,42 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * A generic method to fetch data from a URL.
+   * @param url - The URL to fetch data from
+   * @returns - The data fetched from the URL
+   */
   async get(url: string): Promise<any> {
     try {
       const { data, status } = await this._axiosInstance.get(url);
       if (status === 200 || status == 202) {
         return data;
       }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * A generic method to post data to a URL.
+   * @param url - The URL to fetch data from
+   * @param body - Payload
+   * @param headers - Specify headers, default: { "Content-Type": "application/json" }
+   * @returns - Data
+   */
+  async post(
+    url: string,
+    body: any,
+    headers = { "Content-Type": "application/json" },
+  ): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.post(url, body, {
+        headers,
+      });
+
+      if (status === 200 || status == 202) return data;
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
@@ -530,12 +606,17 @@ export class BlockfrostProvider
       );
 
       if (status === 200 || status == 202) {
-        const script = data.type.startsWith("plutus")
-          ? <PlutusScript>{
-              code: await this.fetchPlutusScriptCBOR(scriptHash),
-              version: data.type.replace("plutus", ""),
-            }
-          : await this.fetchNativeScriptJSON(scriptHash);
+        let script;
+        if (data.type.startsWith("plutus")) {
+          const plutusScript = await this.fetchPlutusScriptCBOR(scriptHash);
+          const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
+          script = <PlutusScript>{
+            version: data.type.replace("plutus", ""),
+            code: normalized
+          };
+        } else {
+          script = await this.fetchNativeScriptJSON(scriptHash);
+        }
 
         return toScriptRef(script).toCbor().toString();
       }

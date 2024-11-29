@@ -9,7 +9,6 @@ import { Toaster } from "react-hot-toast";
 import { MeshProvider } from "@meshsdk/react";
 
 import Footer from "~/components/site/footer";
-import Metatags from "~/components/site/metatags";
 import Navbar from "~/components/site/navbar";
 import Providers from "~/contexts/providers";
 
@@ -19,7 +18,6 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <MeshProvider>
       <Providers>
-        <Metatags />
         <div className="cursor-default">
           <header>
             <Navbar />

@@ -11,6 +11,8 @@ const ReactPage: NextPage = () => {
           <div className="mx-auto max-w-screen-sm text-center">
             <p className="mb-8 font-medium text-gray-500 sm:text-2xl dark:text-gray-400">
               Whoops! This page doesn't exist.
+              <br />
+              Check the links below to find what you're looking for.
             </p>
           </div>
         </div>

@@ -3,12 +3,22 @@ import { guideminting } from "~/data/links-guides";
 import Demo from "./demo";
 
 export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'Connect wallet (client)', to: 'connectwalletclient' },
+    { label: 'Build transaction (application)', to: 'buildtransactionapplication' },
+    { label: 'Sign transaction (client)', to: 'signtransactionclient' },
+    { label: 'Sign transaction (application)', to: 'signtransactionapplication' },
+    { label: 'Submit transaction (application)', to: 'submittransactionapplication' },
+    { label: 'Demo', to: 'demo' },
+  ];
+
   return (
     <LayoutImageHeaderAndBody
       title={guideminting.title}
       description={guideminting.description}
       image={guideminting.image}
       cover={guideminting.cover}
+      sidebarItems={sidebarItems}
     >
       <>
         {children}
@@ -188,3 +198,5 @@ const txHash = await wallet.submitTx(signedTx);
 Voila! You can build any multi-sig transactions!
 
 [Check out the code here](https://github.com/MeshJS/mesh/blob/main/apps/playground/src/pages/guides/multisig-minting/demo.tsx).
+
+## Demo

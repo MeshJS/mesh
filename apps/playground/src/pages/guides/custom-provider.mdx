@@ -2,12 +2,22 @@ import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body
 import { guideprovider } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'How does it work?', to: 'howdoesitwork' },
+    { label: 'Implement your own provider', to: 'implementyourownprovider' },
+    {
+      label: 'Implement Constructor and Functions',
+      to: 'implementconstructorandfunctions'
+    }
+  ]
+
   return (
     <LayoutImageHeaderAndBody
       title={guideprovider.title}
       description={guideprovider.description}
       image={guideprovider.image}
       cover={guideprovider.cover}
+      sidebarItems={sidebarItems}
     >
       {children}
     </LayoutImageHeaderAndBody>
