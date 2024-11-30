@@ -3,8 +3,8 @@
  * - handle show when no wallet in device
  */
 import { useEffect, useRef, useState } from "react";
-import { DAppPeerConnect } from "@fabianbormann/cardano-peer-connect";
-import { IWalletInfo } from "@fabianbormann/cardano-peer-connect/dist/src/types";
+// import { DAppPeerConnect } from "@fabianbormann/cardano-peer-connect";
+// import { IWalletInfo } from "@fabianbormann/cardano-peer-connect/dist/src/types";
 
 import { Button } from "../common/button";
 import {
@@ -108,9 +108,9 @@ export const CardanoWallet = ({
             setScreen={setScreen}
           />
         )}
-        {screen == "p2p" && (
+        {/* {screen == "p2p" && (
           <P2PScreen cardanoPeerConnect={cardanoPeerConnect} />
-        )}
+        )} */}
 
         <DialogFooter className="mesh-justify-center mesh-text-sm">
           <a
@@ -216,7 +216,7 @@ function MainScreen({
           setScreen("p2p");
         }}
       />
-      <WalletIcon
+      {/* <WalletIcon
         iconReactNode={IconDownload()}
         name={`P2P`}
         action={() => {
@@ -225,84 +225,84 @@ function MainScreen({
             "_blank",
           );
         }}
-      />
+      /> */}
     </div>
   );
 }
 
-function P2PScreen({
-  cardanoPeerConnect,
-}: {
-  cardanoPeerConnect?: {
-    dAppInfo: {
-      name: string;
-      url: string;
-    };
-    announce: string[];
-  };
-}) {
-  const dAppConnect = useRef<DAppPeerConnect | null>(null);
-  const qrCodeField = useRef<HTMLDivElement | null>(null);
-  const [address, setAddress] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [connected, setConnected] = useState(false);
-  console.log("address", address);
+// function P2PScreen({
+//   cardanoPeerConnect,
+// }: {
+//   cardanoPeerConnect?: {
+//     dAppInfo: {
+//       name: string;
+//       url: string;
+//     };
+//     announce: string[];
+//   };
+// }) {
+//   const dAppConnect = useRef<DAppPeerConnect | null>(null);
+//   const qrCodeField = useRef<HTMLDivElement | null>(null);
+//   const [address, setAddress] = useState("");
+//   const [copied, setCopied] = useState(false);
+//   const [connected, setConnected] = useState(false);
+//   console.log("address", address);
 
-  useEffect(() => {
-    if (cardanoPeerConnect) {
-      if (dAppConnect.current === null) {
-        dAppConnect.current = new DAppPeerConnect({
-          dAppInfo: {
-            name: cardanoPeerConnect.dAppInfo.name,
-            url: cardanoPeerConnect.dAppInfo.url,
-          },
-          announce: cardanoPeerConnect.announce,
-          onApiInject: (name: string, address: string) => {
-            console.log("onApiInject", name, address);
-          },
-          onApiEject: (name: string, address: string) => {
-            console.log("onApiEject", name, address);
-          },
-          onConnect: (address: string, walletInfo?: IWalletInfo) => {
-            console.log("Connected to wallet", address, walletInfo);
-          },
-          onDisconnect: () => {
-            console.log("Disconnected from wallet");
-          },
-          verifyConnection: (
-            walletInfo: IWalletInfo,
-            callback: (granted: boolean, autoconnect: boolean) => void,
-          ) => {
-            console.log("verifyConnection", walletInfo);
-            callback(true, true);
-          },
-          useWalletDiscovery: true,
-        });
-        console.log(1, dAppConnect.current);
-        if (dAppConnect.current) {
-          setAddress(dAppConnect.current.getAddress());
+//   useEffect(() => {
+//     if (cardanoPeerConnect) {
+//       if (dAppConnect.current === null) {
+//         dAppConnect.current = new DAppPeerConnect({
+//           dAppInfo: {
+//             name: cardanoPeerConnect.dAppInfo.name,
+//             url: cardanoPeerConnect.dAppInfo.url,
+//           },
+//           announce: cardanoPeerConnect.announce,
+//           onApiInject: (name: string, address: string) => {
+//             console.log("onApiInject", name, address);
+//           },
+//           onApiEject: (name: string, address: string) => {
+//             console.log("onApiEject", name, address);
+//           },
+//           onConnect: (address: string, walletInfo?: IWalletInfo) => {
+//             console.log("Connected to wallet", address, walletInfo);
+//           },
+//           onDisconnect: () => {
+//             console.log("Disconnected from wallet");
+//           },
+//           verifyConnection: (
+//             walletInfo: IWalletInfo,
+//             callback: (granted: boolean, autoconnect: boolean) => void,
+//           ) => {
+//             console.log("verifyConnection", walletInfo);
+//             callback(true, true);
+//           },
+//           useWalletDiscovery: true,
+//         });
+//         console.log(1, dAppConnect.current);
+//         if (dAppConnect.current) {
+//           setAddress(dAppConnect.current.getAddress());
 
-          if (qrCodeField.current !== null) {
-            dAppConnect.current.generateQRCode(qrCodeField.current);
-          }
-        }
-      }
-    }
-  }, []);
+//           if (qrCodeField.current !== null) {
+//             dAppConnect.current.generateQRCode(qrCodeField.current);
+//           }
+//         }
+//       }
+//     }
+//   }, []);
 
-  return (
-    <div className="mesh-flex mesh-flex-col mesh-items-center mesh-justify-center">
-      <div style={{ marginTop: 16, marginBottom: 16 }} ref={qrCodeField}></div>
-      <Button
-        variant="outline"
-        className="mesh-text-white"
-        onClick={() => {
-          navigator.clipboard.writeText(address);
-          setCopied(true);
-        }}
-      >
-        {copied ? "Copied" : "Copy Address"}
-      </Button>
-    </div>
-  );
-}
+//   return (
+//     <div className="mesh-flex mesh-flex-col mesh-items-center mesh-justify-center">
+//       <div style={{ marginTop: 16, marginBottom: 16 }} ref={qrCodeField}></div>
+//       <Button
+//         variant="outline"
+//         className="mesh-text-white"
+//         onClick={() => {
+//           navigator.clipboard.writeText(address);
+//           setCopied(true);
+//         }}
+//       >
+//         {copied ? "Copied" : "Copy Address"}
+//       </Button>
+//     </div>
+//   );
+// }
