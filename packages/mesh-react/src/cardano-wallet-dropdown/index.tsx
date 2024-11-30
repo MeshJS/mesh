@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { DAppPeerConnect } from "@fabianbormann/cardano-peer-connect";
-import { IWalletInfo } from "@fabianbormann/cardano-peer-connect/dist/src/types";
 
 import ButtonDropdown from "../common/button-dropdown";
 import { useWallet, useWalletList } from "../hooks";
@@ -48,74 +46,6 @@ export const CardanoWallet = ({
     setIsDarkMode(isDark);
   }, [isDark]);
 
-  // useEffect(() => {
-  //   if (
-  //     typeof window !== "undefined" &&
-  //     typeof navigator !== "undefined" &&
-  //     cardanoPeerConnect
-  //   ) {
-  //     import("@fabianbormann/cardano-peer-connect").then((module) => {
-  //       const dAppPeerConnect = new module.DAppPeerConnect({
-  //         dAppInfo: {
-  //           name: cardanoPeerConnect.dAppInfo.name,
-  //           url: cardanoPeerConnect.dAppInfo.url,
-  //         },
-  //         announce: cardanoPeerConnect.announce,
-  //         onApiInject: (name: string, address: string) => {},
-  //         onApiEject: (name: string, address: string) => {},
-  //         onConnect: (address: string, walletInfo?: IWalletInfo) => {
-  //           console.log("Connected to wallet", address, walletInfo);
-  //         },
-  //         onDisconnect: () => {
-  //           console.log("Disconnected from wallet");
-  //         },
-  //         verifyConnection: (
-  //           walletInfo: IWalletInfo,
-  //           callback: (granted: boolean, autoconnect: boolean) => void,
-  //         ) => {
-  //           console.log("verifyConnection", walletInfo);
-  //           callback(true, true);
-  //         },
-  //         useWalletDiscovery: true,
-  //       });
-
-  //       console.log(dAppPeerConnect);
-  //       console.log(dAppPeerConnect.getAddress());
-  //     });
-  //   }
-  // }, []);
-
-  function tempCip45() {
-    if (cardanoPeerConnect) {
-      const dAppPeerConnect = new DAppPeerConnect({
-        dAppInfo: {
-          name: cardanoPeerConnect.dAppInfo.name,
-          url: cardanoPeerConnect.dAppInfo.url,
-        },
-        announce: cardanoPeerConnect.announce,
-        onApiInject: (name: string, address: string) => {},
-        onApiEject: (name: string, address: string) => {},
-        onConnect: (address: string, walletInfo?: IWalletInfo) => {
-          console.log("Connected to wallet", address, walletInfo);
-        },
-        onDisconnect: () => {
-          console.log("Disconnected from wallet");
-        },
-        verifyConnection: (
-          walletInfo: IWalletInfo,
-          callback: (granted: boolean, autoconnect: boolean) => void,
-        ) => {
-          console.log("verifyConnection", walletInfo);
-          callback(true, true);
-        },
-        useWalletDiscovery: true,
-      });
-
-      console.log(dAppPeerConnect);
-      console.log(dAppPeerConnect.getAddress());
-    }
-  }
-
   return (
     <div
       onMouseEnter={() => setHideMenuList(false)}
@@ -152,20 +82,6 @@ export const CardanoWallet = ({
                 active={name === wallet.id}
               />
             ))}
-
-            <MenuItem
-              icon={
-                isDarkMode
-                  ? `https://meshjs.dev/logo-mesh/white/logo-mesh-white-128x128.png`
-                  : `https://meshjs.dev/logo-mesh/black/logo-mesh-black-128x128.png`
-              }
-              label={"P2P"}
-              action={() => {
-                tempCip45();
-                setHideMenuList(!hideMenuList);
-              }}
-              active={false}
-            />
 
             {/* <MenuItem
               icon={

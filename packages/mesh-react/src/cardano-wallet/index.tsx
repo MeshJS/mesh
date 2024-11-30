@@ -1,7 +1,3 @@
-/**
- * todo:
- * - handle show when no wallet in device
- */
 import { useEffect, useRef, useState } from "react";
 import { DAppPeerConnect } from "@fabianbormann/cardano-peer-connect";
 import { IWalletInfo } from "@fabianbormann/cardano-peer-connect/dist/src/types";
