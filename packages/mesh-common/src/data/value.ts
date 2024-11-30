@@ -259,8 +259,9 @@ export class MeshValue {
   toData = (): MValue => {
     const valueMap: MValue = new Map();
     this.toAssets().forEach((asset) => {
-      const policy = asset.unit.slice(0, 56) || "";
-      const token = asset.unit.slice(56) || "";
+      const sanitizedName = asset.unit.replace("lovelace", "");
+      const policy = sanitizedName.slice(0, 56) || "";
+      const token = sanitizedName.slice(56) || "";
 
       if (!valueMap.has(policy)) {
         valueMap.set(policy, new Map());

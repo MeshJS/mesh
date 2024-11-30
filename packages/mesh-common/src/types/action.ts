@@ -1,6 +1,6 @@
 import { Data } from "./data";
 
-export type RedeemerTagType = "CERT" | "MINT" | "REWARD" | "SPEND";
+export type RedeemerTagType = "CERT" | "MINT" | "REWARD" | "SPEND" | "VOTE" | "PROPOSE";
 
 export type Action = {
   data: Data;

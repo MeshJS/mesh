@@ -32,7 +32,6 @@ const ReactPage: NextPage = () => {
   ];
 
   let example = ``;
-
   example += `import { MeshContentOwnershipContract } from "@meshsdk/contract";\n`;
   example += `import { MeshTxBuilder, BlockfrostProvider } from "@meshsdk/core";\n`;
   example += `\n`;

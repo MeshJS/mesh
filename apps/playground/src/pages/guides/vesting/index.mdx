@@ -3,12 +3,21 @@ import { guideVesting } from "~/data/links-guides";
 import Demo from "./demo";
 
 export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'On-Chain code', to: 'onchaincode' },
+    { label: 'Testing', to: 'testing' },
+    { label: 'Compile and build script', to: 'compileandbuildscript' },
+    { label: 'Off-Chain code', to: 'offchaincode' },
+    { label: 'Demo', to: 'demo' },
+  ];
+
   return (
     <LayoutImageHeaderAndBody
       title={guideVesting.title}
       description={guideVesting.description}
       image={guideVesting.image}
       cover={guideVesting.cover}
+      sidebarItems={sidebarItems}
     >
       <>
         {children}
@@ -285,3 +294,5 @@ npm run withdraw
 ```
 
 Example of a [successful withdraw transaction](https://preprod.cardanoscan.io/transaction/b108f91a1dcd1b4c0bc978fb7557fc23ad052f1681cca078aa2515f8ab01e05e).
+
+## Demo

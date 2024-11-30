@@ -22,3 +22,4 @@ export * from "./utxo";
 export * from "./wallet";
 export * from "./transaction-builder";
 export * from "./deserialized";
+export * from "./blueprint";

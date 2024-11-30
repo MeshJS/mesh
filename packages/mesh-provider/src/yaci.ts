@@ -21,7 +21,11 @@ import {
   Unit,
   UTxO,
 } from "@meshsdk/common";
-import { resolveRewardAddress, toScriptRef } from "@meshsdk/core-cst";
+import {
+  normalizePlutusScript,
+  resolveRewardAddress,
+  toScriptRef
+} from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 import { parseHttpError } from "./utils";
@@ -29,7 +33,7 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
 
 /**
  * Yaci DevKit is a development tool designed for rapid and efficient Cardano blockchain development. It allows developers to create and destroy custom Cardano devnets in seconds, providing fast feedback loops and simplifying the iteration process.
- * 
+ *
  * Get started:
  * ```typescript
  * import { YaciProvider } from "@meshsdk/core";
@@ -94,12 +98,17 @@ export class YaciProvider
       );
 
       if (status === 200) {
-        const script = data.type.startsWith("plutus")
-          ? <PlutusScript>{
-              code: await this.fetchPlutusScriptCBOR(scriptHash),
-              version: data.type.replace("plutus", ""),
-            }
-          : await this.fetchNativeScriptJSON(scriptHash);
+        let script;
+        if (data.type.startsWith("plutus")) {
+          const plutusScript = await this.fetchPlutusScriptCBOR(scriptHash);
+          const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
+          script = <PlutusScript>{
+            version: data.type.replace("plutus", ""),
+            code: normalized
+          };
+        } else {
+          script = await this.fetchNativeScriptJSON(scriptHash);
+        }
 
         return toScriptRef(script).toCbor();
       }
@@ -350,7 +359,7 @@ export class YaciProvider
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
         `txs/${hash}/utxos`,
@@ -362,6 +371,11 @@ export class YaciProvider
           outputsPromises.push(this.toUTxO(output, hash));
         });
         const outputs = await Promise.all(outputsPromises);
+
+        if (index !== undefined) {
+          return outputs.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return outputs;
       }
       throw parseHttpError(data);

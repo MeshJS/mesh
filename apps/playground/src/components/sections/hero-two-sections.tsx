@@ -1,4 +1,5 @@
 import React from "react";
+import { ArrowRightIcon } from "@heroicons/react/24/solid";
 
 import Link from "~/components/link";
 import Codeblock from "../text/codeblock";
@@ -32,27 +33,16 @@ export default function HeroTwoSections({
           {link && (
             <Link
               href={link.href}
-              className="bg-primary-700 hover:bg-primary-800 mr-3 inline-flex items-center justify-center rounded-lg px-5 py-3 text-center text-base font-medium text-white"
+              className="mr-3 inline-flex items-center justify-center rounded-lg bg-gray-700 px-5 py-3 text-center text-base font-medium text-white hover:bg-gray-800"
             >
               {link.label}
-              <svg
-                className="-mr-1 ml-2 h-5 w-5"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                ></path>
-              </svg>
+              <ArrowRightIcon className="-mr-1 ml-2 h-5 w-5" />
             </Link>
           )}
 
           {code && <Codeblock data={code} />}
 
-          {children && children}
+          {children && <div className="my-1">{children}</div>}
         </div>
         <div className="hidden lg:col-span-5 lg:mt-0 lg:flex">
           {typeof image === "string" ? <img src={image} /> : image}

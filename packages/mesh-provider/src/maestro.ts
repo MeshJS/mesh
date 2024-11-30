@@ -22,6 +22,7 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import {
+  normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
   VrfVkBech32,
@@ -210,7 +211,6 @@ export class MaestroProvider
         `assets/${policyId}${assetName}`,
       );
       if (status === 200) {
-        
         const data = timestampedData.data;
         return <AssetMetadata>{
           ...data.asset_standards.cip25_metadata,
@@ -420,7 +420,7 @@ export class MaestroProvider
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
         `transactions/${hash}`,
@@ -429,6 +429,11 @@ export class MaestroProvider
       if (status === 200) {
         const msOutputs = timestampedData.data.outputs as MaestroUTxO[];
         const outputs = msOutputs.map(this.toUTxO);
+
+        if (index !== undefined) {
+          return outputs.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return outputs;
       }
       throw parseHttpError(timestampedData);
@@ -511,13 +516,21 @@ export class MaestroProvider
 
   private resolveScript = (utxo: MaestroUTxO) => {
     if (utxo.reference_script) {
-      const script =
-        utxo.reference_script.type === "native"
-          ? <NativeScript>utxo.reference_script.json
-          : <PlutusScript>{
-              code: utxo.reference_script.bytes,
-              version: utxo.reference_script.type.replace("plutusv", "V"),
-            };
+      let script;
+      if (utxo.reference_script.type === "native") {
+        script = <NativeScript>utxo.reference_script.json;
+      } else {
+        const scriptBytes = utxo.reference_script.bytes;
+        if(scriptBytes) {
+          const normalized = normalizePlutusScript(scriptBytes, "DoubleCBOR");
+          script = <PlutusScript>{
+            code: normalized,
+            version: utxo.reference_script.type.replace("plutusv", "V"),
+          };
+        } else {
+          throw new Error("Script bytes not found");
+        }
+      }
       return toScriptRef(script).toCbor().toString();
     } else return undefined;
   };
