@@ -4,8 +4,8 @@
   "exclude": ["node_modules", "dist"],
   "compilerOptions": {
     "paths": {
-      "$lib": ["../src/lib"],
-      "$lib/*": ["../src/lib/*"]
+      "$lib": ["./src/lib"],
+      "$lib/*": ["./src/lib/*"]
     },
     "rootDirs": ["..", "./types"],
     "verbatimModuleSyntax": true,
