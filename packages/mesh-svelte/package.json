@@ -28,9 +28,9 @@
     "dev": "vite dev"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.20",
-    "@meshsdk/transaction": "1.7.20",
-    "@meshsdk/wallet": "1.7.20"
+    "@meshsdk/common": "1.7.21",
+    "@meshsdk/transaction": "1.7.21",
+    "@meshsdk/wallet": "1.7.21"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",

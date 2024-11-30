@@ -259,6 +259,9 @@ export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
   async signData(payload: string, address?: string): Promise<DataSignature> {
     if (address === undefined) {
       address = (await this.getUsedAddresses())[0]!;
+      if (address === undefined) {
+        address = await this.getChangeAddress();
+      }
     }
 
     if (address.startsWith("drep1")) {
