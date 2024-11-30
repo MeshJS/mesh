@@ -11,7 +11,7 @@
   } from "../state/browser-wallet-state.svelte.js";
   import { type ConnectWalletButtonProps } from "./";
 
-	// todo: looks like the typescript types are not exported?
+  // todo: looks like the typescript types are not exported?
   const {
     label = "Connect Wallet",
     isDark = false,
@@ -29,8 +29,8 @@
 
   let hideMenuList: boolean = $state(true);
 
-	// todo: get lovelace balance in this component, rather than in the state
-	// todo: the clickable area should be the whole button, not just the text
+  // todo: get lovelace balance in this component, rather than in the state
+  // todo: the clickable area should be the whole button, not just the text
 </script>
 
 <div
@@ -78,9 +78,9 @@
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
         d="M19 9l-7 7-7-7"
       />
     </svg>

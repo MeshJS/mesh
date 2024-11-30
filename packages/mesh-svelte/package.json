@@ -2,19 +2,16 @@
   "name": "@meshsdk/svelte",
   "version": "0.0.4",
   "description": "Svelte component library - https://meshjs.dev/svelte",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "browser": "./dist/index.js"
+      "svelte": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
-  "svelte": "./dist/index.js",
   "files": [
-    "dist/**"
+    "dist"
   ],
   "scripts": {
     "build:mesh": "svelte-kit sync && svelte-package && publint && tailwindcss -i ./src/styles.css -o ./dist/index.css",
