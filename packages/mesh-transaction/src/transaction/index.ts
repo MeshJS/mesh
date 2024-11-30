@@ -33,6 +33,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import { MeshTxBuilder, MeshTxBuilderOptions } from "../mesh-tx-builder";
+import { MetadataMergeLevel } from "../utils";
 
 export interface TransactionOptions extends MeshTxBuilderOptions {
   initiator: IInitiator;
@@ -472,9 +473,9 @@ export class Transaction {
       if (mint.label === "721" || mint.label === "20") {
         this.setMetadata(Number(mint.label), {
           [policyId]: { [mint.assetName]: mint.metadata },
-        });
+        }, mint.label === "721" ? 2 : true);
       } else {
-        this.setMetadata(Number(mint.label), mint.metadata);
+        this.setMetadata(Number(mint.label), mint.metadata, true);
       }
     }
 
@@ -587,11 +588,13 @@ export class Transaction {
    *
    * @param {number} key The key to use for the metadata entry.
    * @param {unknown} value The value to use for the metadata entry.
+   * @param {MetadataMergeLevel} mergeExistingMetadataByTag Whether to merge the new metadata
+   *    under a tag (key) with the existing metadata with the same tag
    * @returns {Transaction} The Transaction object.
    * @see {@link https://meshjs.dev/apis/transaction#setMetadata}
    */
-  setMetadata(key: number, value: unknown): Transaction {
-    this.txBuilder.metadataValue(key.toString(), value as object);
+  setMetadata(key: number, value: unknown, mergeExistingMetadataByTag: MetadataMergeLevel = false): Transaction {
+    this.txBuilder.metadataValue(key.toString(), value as object, mergeExistingMetadataByTag);
     return this;
   }
 
