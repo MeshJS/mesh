@@ -11,6 +11,7 @@
   } from "../state/browser-wallet-state.svelte.js";
   import { type ConnectWalletButtonProps } from "./";
 
+	// todo: looks like the typescript types are not exported?
   const {
     label = "Connect Wallet",
     isDark = false,
@@ -38,7 +39,8 @@
       });
     }
   });
-  // todo: the clickable area should be the whole button, not just the text
+	// todo: the clickable area should be the whole button, not just the text
+
 </script>
 
 <div

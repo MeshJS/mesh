@@ -1,36 +1,47 @@
 import type { Wallet } from "@meshsdk/core";
 import { BrowserWallet } from "@meshsdk/core";
 
-let browserWallet: BrowserWallet | undefined = $state();
-let wallet: Wallet | undefined = $state();
+let wallet: BrowserWallet | undefined = $state();
+let name: string | undefined = $state();
 let connecting: boolean = $state(false);
+let connected: boolean = $state(false);
 
 export const BrowserWalletState = {
   get wallet() {
     return wallet;
   },
+  get name() {
+    return name;
+  },
   get connecting() {
     return connecting;
-  },
-  get browserWallet() {
-    return browserWallet;
   },
 };
 
 export async function connectWallet(w: Wallet) {
   connecting = true;
   try {
-
-  browserWallet = await BrowserWallet.enable(w.id);
-
-  wallet = w;
+  wallet = await BrowserWallet.enable(w.id);
+  name = w.name
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
   } catch(e) {
     console.error(`error while connecting wallet ${w.name}: ${e}`)
   }
   connecting = false;
+  connected = true;
 }
 
 export function disconnectWallet() {
   wallet = undefined;
-  browserWallet = undefined;
+  name = undefined;
+  connected = false;
 }
+
+
+// todo: export the following:
+// import {
+//   BrowserWalletState,
+// } from "@meshsdk/svelte";
+// const { wallet, connected, name, connecting, connect, disconnect, error } = BrowserWalletState;
