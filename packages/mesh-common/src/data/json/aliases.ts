@@ -5,7 +5,7 @@
 
 import { PlutusData } from ".";
 import { POLICY_ID_LENGTH } from "../../constants";
-import { conStr0, ConStr0 } from "./constructors";
+import { conStr0, ConStr0, conStr1, ConStr1 } from "./constructors";
 import { byteString, ByteString, integer, Integer } from "./primitives";
 
 /**
@@ -83,6 +83,24 @@ export type Dict<V> = { map: DictItem<V>[] };
  * The Plutus Data tuple in JSON
  */
 export type Tuple<K, V> = { list: [K, V] };
+
+/**
+ * Aiken alias
+ * The Plutus Data Option in JSON
+ */
+export type Option<T> = Some<T> | None;
+
+/**
+ * Aiken alias
+ * The Plutus Data Option - Some in JSON
+ */
+export type Some<T> = ConStr0<[T]>;
+
+/**
+ * Aiken alias
+ * The Plutus Data Option - None in JSON
+ */
+export type None = ConStr1<[]>;
 
 /**
  * Internal utility function to create a Plutus Data byte string in JSON, checking correct length
@@ -222,3 +240,28 @@ export const tuple = <K = PlutusData, V = PlutusData>(
   key: K,
   value: V,
 ): Tuple<K, V> => ({ list: [key, value] });
+
+/**
+ * The utility function to create a Plutus Data Option in JSON
+ * @param value The optional value of the option
+ * @returns Return None constructor if the value is not provided, otherwise return Some constructor with the value
+ */
+export const option = <T>(value?: T): Option<T> => {
+  if (!value) {
+    return none();
+  }
+  return some(value);
+};
+
+/**
+ * The utility function to create a Plutus Data Option - Some in JSON
+ * @param value The value of the option
+ * @returns The Plutus Data Option - Some object
+ */
+export const some = <T>(value: T): Some<T> => conStr0([value]);
+
+/**
+ * The utility function to create a Plutus Data Option - None in JSON
+ * @returns The Plutus Data Option - None object
+ */
+export const none = (): None => conStr1([]);

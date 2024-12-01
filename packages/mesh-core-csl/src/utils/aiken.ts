@@ -1,4 +1,4 @@
-import { Data } from "@meshsdk/common";
+import { Data, PlutusDataType } from "@meshsdk/common";
 
 import { csl, toPlutusData } from "../deser";
 
@@ -13,7 +13,7 @@ import { csl, toPlutusData } from "../deser";
 export const applyParamsToScript = (
   rawScript: string,
   params: object[] | Data[],
-  type: "Mesh" | "JSON" | "CBOR" = "Mesh",
+  type: PlutusDataType = "Mesh",
 ): string => {
   const cslParams = csl.JsVecString.new();
   let paramType = csl.BuilderDataType.CBOR;

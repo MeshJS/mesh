@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { AccountInfo } from "@meshsdk/common";
 import { Transaction } from "@meshsdk/transaction";
 
-import { CardanoWallet } from "../cardano-wallet";
-import Button from "../common/button";
+import { CardanoWallet } from "../cardano-wallet-dropdown";
+import ButtonDropdown from "../common/button-dropdown";
 import { useRewardAddress, useWallet } from "../hooks";
 
 interface ButtonProps {
@@ -32,13 +32,13 @@ export const StakeButton = ({
   return (
     <>
       {connected ? (
-        <Button isDarkMode={isDarkMode}>
+        <ButtonDropdown isDarkMode={isDarkMode}>
           <Delegate
             poolId={poolId}
             onCheck={onCheck}
             onDelegated={onDelegated}
           />
-        </Button>
+        </ButtonDropdown>
       ) : (
         <CardanoWallet label={label} isDark={isDark} />
       )}

@@ -51,7 +51,7 @@ function Left() {
   signature += `applyParamsToScript(\n`;
   signature += `  rawScript: string, \n`;
   signature += `  params: object[] | Data[], \n`;
-  signature += `  type?: "Mesh" | "JSON" | "CBOR"\n`;
+  signature += `  type?: PlutusDataType\n`;
   signature += `): string\n`;
 
   return (

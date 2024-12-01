@@ -5,3 +5,4 @@ export * from "./credentials";
 export * from "./staking";
 export * from "./transaction";
 export * from "./aiken";
+export * from "./drep";
