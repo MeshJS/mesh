@@ -11,7 +11,6 @@
   } from "../state/browser-wallet-state.svelte.js";
   import { type ConnectWalletButtonProps } from "./";
 
-  // todo: looks like the typescript types are not exported?
   const {
     label = "Connect Wallet",
     isDark = false,
@@ -29,7 +28,16 @@
 
   let hideMenuList: boolean = $state(true);
 
-  // todo: get lovelace balance in this component, rather than in the state
+  let lovelaceBalance: string | undefined = $state();
+
+  $effect(() => {
+    // get lovelace balance on wallet state change.
+    if (BrowserWalletState.browserWallet) {
+      BrowserWalletState.browserWallet.getLovelace().then((l) => {
+        lovelaceBalance = l;
+      });
+    }
+  });
   // todo: the clickable area should be the whole button, not just the text
 </script>
 
@@ -49,25 +57,18 @@
       Connecting...
     {:else if BrowserWalletState.browserWallet === undefined}
       {label}
-    {:else if BrowserWalletState.wallet && BrowserWalletState.browserWallet && BrowserWalletState.lovelaceBalance}
+    {:else if BrowserWalletState.wallet && BrowserWalletState.browserWallet && lovelaceBalance}
       <img
         alt="Wallet Icon"
         class="mesh-m-2 mesh-h-6"
         src={BrowserWalletState.wallet.icon}
       />₳{" "}
-      {parseInt(
-        (
-          parseInt(BrowserWalletState.lovelaceBalance, 10) / 1_000_000
-        ).toString(),
-        10,
-      )}.
+      {parseInt((parseInt(lovelaceBalance, 10) / 1_000_000).toString(), 10)}.
       <span class="mesh-text-xs"
-        >{BrowserWalletState.lovelaceBalance.substring(
-          BrowserWalletState.lovelaceBalance.length - 6,
-        )}</span
+        >{lovelaceBalance.substring(lovelaceBalance.length - 6)}</span
       >
-    {:else if BrowserWalletState.wallet && BrowserWalletState.browserWallet && BrowserWalletState.lovelaceBalance === undefined}
-      Getting Balance...
+    {:else if BrowserWalletState.wallet && BrowserWalletState.browserWallet && lovelaceBalance === undefined}
+      Loading...
     {/if}
     <svg
       class="mesh-m-2 mesh-h-6"
@@ -105,7 +106,7 @@
 </div>
 {#snippet menuItem(icon: string | undefined, onclick: () => void, name: string)}
   <button
-    class="mesh-flex mesh-h-16 mesh-cursor-pointer mesh-items-center mesh-px-4 w-full mesh-py-2 mesh-opacity-80 hover:mesh-opacity-100"
+    class="mesh-flex mesh-h-16 mesh-cursor-pointer mesh-items-center mesh-px-4 mesh-w-full mesh-py-2 mesh-opacity-80 hover:mesh-opacity-100"
     {onclick}
   >
     {#if icon}
@@ -116,9 +117,8 @@
       />
     {/if}
     <span
-      class="mesh-mr-menu-item mesh-text-xl mesh-font-normal mesh-text-gray-700 hover:mesh-text-black"
+      class="mesh-mr-menu-item mesh-text-xl mesh-font-normal mesh-text-gray-700"
       class:mesh-text-white={isDark}
-      class:hover:mesh-text-gray-700={isDark}
     >
       {name
         .split(" ")

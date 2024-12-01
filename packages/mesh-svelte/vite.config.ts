@@ -5,6 +5,17 @@ import topLevelAwait from "vite-plugin-top-level-await";
 import wasm from "vite-plugin-wasm";
 
 export default defineConfig({
+  esbuild: {
+    target: "es2022",
+  },
+  build: {
+    target: "es2022",
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: "es2022",
+    },
+  },
   plugins: [
     sveltekit(),
     wasm(),
