@@ -1,44 +1,55 @@
-import { BrowserWallet, type Wallet } from "@meshsdk/core";
+import type { Wallet } from "@meshsdk/core";
+import { BrowserWallet } from "@meshsdk/core";
 
-let browserWallet: BrowserWallet | undefined = $state();
-let wallet: Wallet | undefined = $state();
-let walletName: string | undefined = $state();
+let wallet: BrowserWallet | undefined = $state();
+let name: string | undefined = $state();
+let icon: string | undefined = $state();
 let connecting: boolean = $state(false);
-let lovelaceBalance: string | undefined = $state();
+let connected: boolean = $state(false);
 
 export const BrowserWalletState = {
   get wallet() {
     return wallet;
   },
-  get walletName() {
-    return walletName;
+  get name() {
+    return name;
+  },
+  get icon() {
+    return icon;
+  },
+  get connected() {
+    return connected;
   },
   get connecting() {
     return connecting;
   },
-  get lovelaceBalance() {
-    return lovelaceBalance;
-  },
-  get browserWallet() {
-    return browserWallet;
-  },
 };
 
-export async function connectWallet(w: Wallet) {
+export async function connect(w: Wallet) {
   connecting = true;
-  browserWallet = await BrowserWallet.enable(w.id);
-  wallet = w;
-  walletName = w.name
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-  lovelaceBalance = await browserWallet.getLovelace();
+  try {
+    wallet = await BrowserWallet.enable(w.id);
+    name = w.name
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
+    icon = w.icon;
+  } catch (e) {
+    console.error(`error while connecting wallet ${w.name}: ${e}`);
+  }
   connecting = false;
+  connected = true;
 }
 
-export function disconnectWallet() {
+export function disconnect() {
   wallet = undefined;
-  browserWallet = undefined;
-  walletName = undefined;
-  lovelaceBalance = undefined;
+  name = undefined;
+  icon = undefined;
+  connected = false;
 }
+
+// todo: export the following:
+// import {
+//   BrowserWalletState,
+// } from "@meshsdk/svelte";
+// const { wallet, connected, name, connecting, connect, disconnect, error } = BrowserWalletState;

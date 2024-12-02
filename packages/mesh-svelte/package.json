@@ -1,9 +1,10 @@
 {
   "name": "@meshsdk/svelte",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Svelte component library - https://meshjs.dev/svelte",
   "type": "module",
   "exports": {
+    "./styles.css": "./dist/index.css",
     ".": {
       "types": "./dist/index.d.ts",
       "svelte": "./dist/index.js",
@@ -14,10 +15,10 @@
     "dist"
   ],
   "scripts": {
-    "build:mesh": "svelte-kit sync && svelte-package && publint && tailwindcss -i ./src/styles.css -o ./dist/index.css",
+    "build:mesh": "svelte-kit sync && svelte-package && tailwindcss -i ./src/styles.css -o ./dist/index.css && publint",
     "dev:tsup": "tsup src/index.ts --format esm,js --watch --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "format": "prettier --write . --ignore-path ../../.gitignore",
     "lint": "eslint",
     "pack": "npm pack --pack-destination=./dist",
     "type-check": "tsc --noEmit",
@@ -25,15 +26,13 @@
     "dev": "vite dev"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.22",
-    "@meshsdk/transaction": "1.7.22",
-    "@meshsdk/wallet": "1.7.22"
+    "@meshsdk/core": "1.7.22"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
     "@sveltejs/adapter-auto": "^3.0.0",
     "@sveltejs/kit": "^2.0.0",
-    "@sveltejs/package": "^2.0.0",
+    "@sveltejs/package": "2.3.7",
     "publint": "^0.2.0",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "autoprefixer": "^10.4.20",
@@ -45,6 +44,9 @@
     "vite-plugin-node-polyfills": "^0.22.0",
     "vite-plugin-top-level-await": "^1.4.4",
     "vite-plugin-wasm": "^3.3.0"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
