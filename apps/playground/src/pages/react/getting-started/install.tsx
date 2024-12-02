@@ -19,7 +19,8 @@ function Left() {
 
       <p>
         Next, add the Mesh CSS to your application, doing so will apply the
-        default styles to the components:
+        default styles to the components. You can add this in{" "}
+        <code>/pages/_app.tsx</code>.
       </p>
       <Codeblock data={`import "@meshsdk/react/styles.css";`} />
     </>

@@ -1,5 +1,3 @@
-import { CardanoWallet } from "@meshsdk/react";
-
 import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -70,7 +68,7 @@ function Left() {
       <Codeblock data={`<CardanoWallet isDark={${isDark}} />`} />
 
       <p>For a custom label, add the label prop.</p>
-      <Codeblock data={`<CardanoWallet label={"Connect Wallet"} />`} />
+      <Codeblock data={`<CardanoWallet label={"Connect a Wallet"} />`} />
 
       <p>
         The customization is limited. For more customization, you can easily
@@ -94,7 +92,7 @@ function Left() {
         is connected.
       </p>
 
-      <h3>MetaMask Snaps</h3>
+      {/* <h3>MetaMask Snaps</h3>
       <p>
         You can define the NuFi network to connect to by adding the{" "}
         <code>network</code> prop.
@@ -114,34 +112,20 @@ function Left() {
         You can also provide an <code>extensions</code> object to enable
         specific CIPs. For example, to enable CIP95, you would pass:
       </p>
-      <Codeblock data={codeCip95} />
+      <Codeblock data={codeCip95} /> */}
     </>
   );
 }
 
 function Right() {
-  const isDark = useDarkmode((state) => state.isDark);
-
   let example = ``;
-  example += `import { CardanoWallet } from '@meshsdk/svelte';\n`;
+  example += `<script lang="ts">\n`;
+  example += `  import { CardanoWallet } from "@meshsdk/svelte";\n`;
+  example += `</script>\n`;
   example += `\n`;
-  example += `export default function Page() {\n\n`;
-
-  example += `  function afterConnectedWallet() {\n`;
-  example += `    // do something\n`;
-  example += `  }\n\n`;
-
-  example += `  return (\n`;
-  example += `    <>\n`;
-  example += `      <CardanoWallet\n`;
-  example += `        label={"Connect a Wallet"}\n`;
-  example += `        isDark={isDark}\n`;
-  example += `        onConnected={afterConnectedWallet}\n`;
-  example += `        metamask={{ network: "preprod" }}\n`;
-  example += `      />\n`;
-  example += `    </>\n`;
-  example += `  );\n`;
-  example += `}\n`;
+  example += `<main>\n`;
+  example += `  <CardanoWallet />\n`;
+  example += `</main>\n`;
 
   return (
     <LiveCodeDemo
@@ -149,12 +133,6 @@ function Right() {
       subtitle="Connect to user's wallet to interact with dApp"
       code={example}
       childrenAfterCodeFunctions={true}
-    >
-      <CardanoWallet
-        label={"Connect a Wallet"}
-        isDark={isDark}
-        metamask={{ network: "preprod" }}
-      />
-    </LiveCodeDemo>
+    ></LiveCodeDemo>
   );
 }
