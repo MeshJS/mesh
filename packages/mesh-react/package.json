@@ -48,6 +48,9 @@
     "tailwindcss": "^3.4.1",
     "typescript": "latest"
   },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"

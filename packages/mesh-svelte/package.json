@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/svelte",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Svelte component library - https://meshjs.dev/svelte",
   "type": "module",
   "exports": {
@@ -33,9 +33,9 @@
     "@sveltejs/adapter-auto": "^3.0.0",
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/package": "2.3.7",
-    "publint": "^0.2.0",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "autoprefixer": "^10.4.20",
+    "publint": "^0.2.0",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
     "tailwindcss": "^3.4.9",

@@ -11,7 +11,7 @@
   } from "../state/browser-wallet-state.svelte.js";
   import { type ConnectWalletButtonProps } from "./";
 
-	// todo: looks like the typescript types are not exported?
+  // todo: looks like the typescript types are not exported?
   const {
     label = "Connect Wallet",
     isDark = false,
@@ -33,14 +33,13 @@
 
   $effect(() => {
     // get lovelace balance on wallet state change.
-    if (BrowserWalletState.browserWallet) {
-      BrowserWalletState.browserWallet.getLovelace().then((l) => {
+    if (BrowserWalletState.wallet) {
+      BrowserWalletState.wallet.getLovelace().then((l) => {
         lovelaceBalance = l;
       });
     }
   });
-	// todo: the clickable area should be the whole button, not just the text
-
+  // todo: the clickable area should be the whole button, not just the text
 </script>
 
 <div
@@ -57,19 +56,19 @@
   >
     {#if BrowserWalletState.connecting}
       Connecting...
-    {:else if BrowserWalletState.browserWallet === undefined}
+    {:else if BrowserWalletState.wallet === undefined}
       {label}
-    {:else if BrowserWalletState.wallet && BrowserWalletState.browserWallet && lovelaceBalance}
+    {:else if BrowserWalletState.wallet && BrowserWalletState.wallet && lovelaceBalance}
       <img
         alt="Wallet Icon"
         class="mesh-m-2 mesh-h-6"
-        src={BrowserWalletState.wallet.icon}
+        src={BrowserWalletState.icon}
       />₳{" "}
       {parseInt((parseInt(lovelaceBalance, 10) / 1_000_000).toString(), 10)}.
       <span class="mesh-text-xs"
         >{lovelaceBalance.substring(lovelaceBalance.length - 6)}</span
       >
-    {:else if BrowserWalletState.wallet && BrowserWalletState.browserWallet && lovelaceBalance === undefined}
+    {:else if BrowserWalletState.wallet && BrowserWalletState.wallet && lovelaceBalance === undefined}
       Loading...
     {/if}
     <svg
@@ -101,7 +100,7 @@
       {/each}
     {:else if BrowserWalletState.wallet === undefined && availableWallets.length === 0}
       <span>No Wallet Found</span>
-    {:else if BrowserWalletState.browserWallet}
+    {:else if BrowserWalletState.wallet}
       {@render menuItem(undefined, () => disconnectWallet(), "Disconnect")}
     {/if}
   </div>

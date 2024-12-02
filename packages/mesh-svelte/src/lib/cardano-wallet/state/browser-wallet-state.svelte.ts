@@ -5,6 +5,7 @@ let wallet: BrowserWallet | undefined = $state();
 let name: string | undefined = $state();
 let connecting: boolean = $state(false);
 let connected: boolean = $state(false);
+let icon: string | undefined = $state();
 
 export const BrowserWalletState = {
   get wallet() {
@@ -12,6 +13,9 @@ export const BrowserWalletState = {
   },
   get name() {
     return name;
+  },
+  get icon() {
+    return icon;
   },
   get connecting() {
     return connecting;
@@ -26,6 +30,7 @@ export async function connectWallet(w: Wallet) {
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
+  icon = w.icon;
   } catch(e) {
     console.error(`error while connecting wallet ${w.name}: ${e}`)
   }
