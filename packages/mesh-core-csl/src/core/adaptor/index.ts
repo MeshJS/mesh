@@ -2,11 +2,11 @@ import { MeshTxBuilderBody, validityRangeToObj } from "@meshsdk/common";
 
 import { certificateToObj } from "./certificate";
 import { mintItemToObj } from "./mint";
+import { networkToObj } from "./network";
 import { outputToObj } from "./output";
 import { collateralTxInToObj, txInToObj } from "./txIn";
 import { voteToObj } from "./vote";
 import { withdrawalToObj } from "./withdrawal";
-import { networkToObj } from "./network";
 
 export const meshTxBuilderBodyToObj = ({
   inputs,
@@ -22,6 +22,7 @@ export const meshTxBuilderBodyToObj = ({
   signingKey,
   withdrawals,
   votes,
+  fee,
   network,
 }: MeshTxBuilderBody) => {
   return {
@@ -38,6 +39,7 @@ export const meshTxBuilderBodyToObj = ({
     signingKey: signingKey,
     withdrawals: withdrawals.map(withdrawalToObj),
     votes: votes.map(voteToObj),
+    fee,
     network: networkToObj(network),
   };
 };

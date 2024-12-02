@@ -37,6 +37,7 @@ export type MeshTxBuilderBody = {
     strategy: UtxoSelectionStrategy;
     includeTxFees: boolean;
   };
+  fee?: string;
   network: Network | number[][];
 };
 
