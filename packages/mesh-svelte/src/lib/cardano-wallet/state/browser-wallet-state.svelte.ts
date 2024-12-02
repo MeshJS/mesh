@@ -23,6 +23,12 @@ export const BrowserWalletState = {
   get connecting() {
     return connecting;
   },
+  get connect() {
+    return connect;
+  },
+  get disconnect() {
+    return disconnect;
+  },
 };
 
 export async function connect(w: Wallet) {
@@ -47,9 +53,3 @@ export function disconnect() {
   icon = undefined;
   connected = false;
 }
-
-// todo: export the following:
-// import {
-//   BrowserWalletState,
-// } from "@meshsdk/svelte";
-// const { wallet, connected, name, connecting, connect, disconnect, error } = BrowserWalletState;
