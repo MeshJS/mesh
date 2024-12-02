@@ -1,13 +1,50 @@
+import {
+  Action,
+  Budget,
+  Network,
+  RedeemerTagType,
+  UTxO,
+} from "@meshsdk/common";
+
 import { csl, deserializeTx } from "../deser";
 import { parseWasmResult } from "../wasm";
-import { UTxO, Network, Action, Budget, RedeemerTagType } from "@meshsdk/common";
 
-type RedeemerTagWasm = "cert" | "mint" | "reward" | "spend" | "vote" | "propose";
-type ActionWasm = {
+type RedeemerTagWasm =
+  | "cert"
+  | "mint"
+  | "reward"
+  | "spend"
+  | "vote"
+  | "propose";
+type ActionWasm =
+  | {
+      success: SuccessAction;
+    }
+  | {
+      error: ErrorAction;
+    };
+type SuccessAction = {
   index: number;
   budget: BudgetWasm;
   tag: RedeemerTagWasm;
 };
+type ErrorAction = {
+  index: number;
+  budget: BudgetWasm;
+  tag: RedeemerTagWasm;
+  errorMessage: string;
+  logs: string[];
+};
+function isSuccessAction(
+  action: ActionWasm,
+): action is { success: SuccessAction } {
+  return (action as { success: SuccessAction }).success !== undefined;
+}
+
+function isErrorAction(action: ActionWasm): action is { error: ErrorAction } {
+  return (action as { error: ErrorAction }).error !== undefined;
+}
+
 type BudgetWasm = {
   mem: number;
   steps: number;
@@ -27,61 +64,83 @@ export const signTransaction = (txHex: string, signingKeys: string[]) => {
   return parseWasmResult(result);
 };
 
-export const evaluateTransaction = (txHex: string, resolvedUtxos: UTxO[], network: Network): Omit<Action, "data">[] => {
+export const evaluateTransaction = (
+  txHex: string,
+  resolvedUtxos: UTxO[],
+  network: Network,
+): Omit<Action, "data">[] => {
   const additionalTxs = csl.JsVecString.new();
   const mappedUtxos = csl.JsVecString.new();
   for (const utxo of resolvedUtxos) {
     mappedUtxos.add(JSON.stringify(utxo));
   }
-  const result = csl.evaluate_tx_scripts_js(txHex, mappedUtxos, additionalTxs, network);
+  const result = csl.evaluate_tx_scripts_js(
+    txHex,
+    mappedUtxos,
+    additionalTxs,
+    network,
+  );
   const unwrappedResult = parseWasmResult(result);
-  try {
-    const actions = JSON.parse(unwrappedResult) as ActionWasm[];
-    return actions.map(mapAction);
-  } catch (e) {
-    throw new Error("Cannot parse result from evaluate_tx_scripts_js. Expected Action[] type");
-  }
-}
 
-const mapAction = (action: ActionWasm): Omit<Action, "data"> => {
+  const actions = JSON.parse(unwrappedResult) as ActionWasm[];
+  let parsedSuccessActions: SuccessAction[] = [];
+  let parsedErrorActions: ErrorAction[] = [];
+  actions.map((action) => {
+    if (isSuccessAction(action)) {
+      parsedSuccessActions.push(action.success);
+    } else if (isErrorAction(action)) {
+      parsedErrorActions.push(action.error);
+    } else {
+      throw new Error("Invalid action type found");
+    }
+  });
+  if (parsedErrorActions.length > 0) {
+    throw new Error(JSON.stringify(parsedErrorActions));
+  }
+  return parsedSuccessActions.map(mapAction);
+};
+
+const mapAction = (action: SuccessAction): Omit<Action, "data"> => {
   return {
     index: action.index,
     budget: mapBudget(action.budget),
     tag: mapRedeemerTag(action.tag),
   };
-}
+};
 
 const mapBudget = (budget: BudgetWasm): Budget => {
   return {
     mem: budget.mem,
     steps: budget.steps,
   };
-}
+};
 
 const mapRedeemerTag = (tag: RedeemerTagWasm): RedeemerTagType => {
   switch (tag) {
     case "cert":
-      return "CERT"
+      return "CERT";
     case "mint":
-      return "MINT"
+      return "MINT";
     case "reward":
-      return "REWARD"
+      return "REWARD";
     case "spend":
-      return "SPEND"
+      return "SPEND";
     case "vote":
-      return "VOTE"
+      return "VOTE";
     case "propose":
-      return "PROPOSE"
+      return "PROPOSE";
     default:
       throw new Error(`Unknown RedeemerTag: ${tag}`);
   }
-}
+};
 
-export const getTransactionInputs = (txHex: string): {
+export const getTransactionInputs = (
+  txHex: string,
+): {
   txHash: string;
   index: number;
 }[] => {
-  const inputs = []
+  const inputs = [];
   const deserializedTx = deserializeTx(txHex);
   const body = deserializedTx.body();
   const cslInputs = body.inputs();
@@ -114,4 +173,4 @@ export const getTransactionInputs = (txHex: string): {
   }
 
   return inputs;
-}
+};
