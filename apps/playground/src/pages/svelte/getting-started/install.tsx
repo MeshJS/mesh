@@ -14,7 +14,7 @@ export default function SvelteInstall() {
 function Left() {
   let addStyle = ``;
   addStyle += `<script lang="ts">\n`;
-  addStyle += `	import '../app.css';\n`;
+  addStyle += `	import '@meshsdk/svelte/styles.css';\n`;
   addStyle += `	let { children } = $props();\n`;
   addStyle += `</script>\n`;
   addStyle += `\n`;

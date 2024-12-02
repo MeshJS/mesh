@@ -120,11 +120,18 @@ function Left() {
 function Right() {
   let example = ``;
   example += `<script lang="ts">\n`;
-  example += `  import { CardanoWallet } from "@meshsdk/svelte";\n`;
+  example += `  import { CardanoWallet, BrowserWalletState} from "@meshsdk/svelte";\n`;
+  example += `\n`;
+  example += `  export async function getAddress() {\n`;
+  example += `    const { browserWallet } = BrowserWalletState;\n`;
+  example += `    const address = await browserWallet.getChangeAddress();\n`;
+  example += `    console.log(address);\n`;
+  example += `  }\n`;
   example += `</script>\n`;
   example += `\n`;
   example += `<main>\n`;
   example += `  <CardanoWallet />\n`;
+  example += `  <button on:click={getAddress}>getAddress</button>\n`;
   example += `</main>\n`;
 
   return (
