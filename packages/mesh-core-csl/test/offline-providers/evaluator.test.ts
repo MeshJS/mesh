@@ -182,13 +182,13 @@ describe("Offline Evaluator", () => {
       });
     expect(res).toBeInstanceOf(Error);
     expect(res.message).toBe(
-      JSON.stringify({
+      JSON.stringify([{
         index: 0,
         budget: { mem: 550, steps: 1203691 },
         tag: "mint",
         errorMessage: "the validator crashed / exited prematurely",
         logs: ["This is a trace"],
-      }),
+      }]),
     );
   });
 });

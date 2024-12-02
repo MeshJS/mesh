@@ -83,15 +83,21 @@ export const evaluateTransaction = (
   const unwrappedResult = parseWasmResult(result);
 
   const actions = JSON.parse(unwrappedResult) as ActionWasm[];
-  const parsedActions: SuccessAction[] = actions.map((action) => {
+  let parsedSuccessActions: SuccessAction[] = [];
+  let parsedErrorActions: ErrorAction[] = [];
+  actions.map((action) => {
     if (isSuccessAction(action)) {
-      return action.success;
+      parsedSuccessActions.push(action.success);
     } else if (isErrorAction(action)) {
-      throw new Error(JSON.stringify(action.error));
+      parsedErrorActions.push(action.error);
+    } else {
+      throw new Error("Invalid action type found");
     }
-    throw new Error("Invalid action type found");
   });
-  return parsedActions.map(mapAction);
+  if (parsedErrorActions.length > 0) {
+    throw new Error(JSON.stringify(parsedErrorActions));
+  }
+  return parsedSuccessActions.map(mapAction);
 };
 
 const mapAction = (action: SuccessAction): Omit<Action, "data"> => {
