@@ -9,7 +9,7 @@
     connect,
     disconnect,
   } from "../state/browser-wallet-state.svelte.js";
-  import { type ConnectWalletButtonProps } from "./";
+  import { type CardanoWalletButtonProps } from "./";
 
   const {
     label = "Connect Wallet",
@@ -17,7 +17,7 @@
     isDark = true,
     metamask = undefined,
     extensions = [],
-  }: ConnectWalletButtonProps = $props();
+  }: CardanoWalletButtonProps = $props();
 
   let availableWallets: Wallet[] = $state([]);
 
