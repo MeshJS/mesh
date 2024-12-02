@@ -6,11 +6,13 @@ import Metatags from "~/components/site/metatags";
 import { metaSvelteGettingstarted } from "~/data/links-svelte";
 import SvelteConnectWallet from "../ui-components/connect-wallet";
 import SvelteInstall from "./install";
+import SvelteState from "./state";
 
 const SveltePage: NextPage = () => {
   const sidebarItems = [
     { label: "Install", to: "SvelteInstall" },
     { label: "Connect Wallet", to: "connectWallet" },
+    { label: "Get Wallet State", to: "svelteState" },
   ];
 
   return (
@@ -34,6 +36,7 @@ const SveltePage: NextPage = () => {
 
         <SvelteInstall />
         <SvelteConnectWallet />
+        <SvelteState />
       </SidebarFullwidth>
     </>
   );

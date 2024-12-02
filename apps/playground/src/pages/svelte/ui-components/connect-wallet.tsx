@@ -16,8 +16,6 @@ export default function SvelteConnectWallet() {
 }
 
 function Left() {
-  const isDark = useDarkmode((state) => state.isDark);
-
   let codeSignature = ``;
   codeSignature += `{\n`;
   codeSignature += `  label?: string;\n`;
@@ -65,7 +63,7 @@ function Left() {
 
       <h3>Customization</h3>
       <p>For dark mode style, add isDark.</p>
-      <Codeblock data={`<CardanoWallet isDark={${isDark}} />`} />
+      <Codeblock data={`<CardanoWallet isDark={true} />`} />
 
       <p>For a custom label, add the label prop.</p>
       <Codeblock data={`<CardanoWallet label={"Connect a Wallet"} />`} />
@@ -120,18 +118,11 @@ function Left() {
 function Right() {
   let example = ``;
   example += `<script lang="ts">\n`;
-  example += `  import { CardanoWallet, BrowserWalletState} from "@meshsdk/svelte";\n`;
-  example += `\n`;
-  example += `  export async function getAddress() {\n`;
-  example += `    const { browserWallet } = BrowserWalletState;\n`;
-  example += `    const address = await browserWallet.getChangeAddress();\n`;
-  example += `    console.log(address);\n`;
-  example += `  }\n`;
+  example += `  import { CardanoWallet } from "@meshsdk/svelte";\n`;
   example += `</script>\n`;
   example += `\n`;
   example += `<main>\n`;
   example += `  <CardanoWallet />\n`;
-  example += `  <button on:click={getAddress}>getAddress</button>\n`;
   example += `</main>\n`;
 
   return (

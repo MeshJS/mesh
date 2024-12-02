@@ -136,7 +136,7 @@ function Right() {
   example += `    <>\n`;
   example += `      <CardanoWallet\n`;
   example += `        label={"Connect a Wallet"}\n`;
-  example += `        isDark={isDark}\n`;
+  example += `        isDark={${isDark}}\n`;
   example += `        onConnected={afterConnectedWallet}\n`;
   example += `        metamask={{ network: "preprod" }}\n`;
   example += `      />\n`;
