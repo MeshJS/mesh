@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/react",
-  "version": "1.7.25",
+  "version": "1.7.26-alpha.0",
   "description": "React component library - https://meshjs.dev/react",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+// import { DAppPeerConnect, IWalletInfo } from "../common/cardano-peer-connect";
+
+import { DAppPeerConnect } from "@fabianbormann/cardano-peer-connect";
+import { IWalletInfo } from "@fabianbormann/cardano-peer-connect/dist/src/types";
 
 import { Button } from "../common/button";
-import { DAppPeerConnect, IWalletInfo } from "../common/cardano-peer-connect";
 
 export default function ScreenP2P({
   cardanoPeerConnect,
