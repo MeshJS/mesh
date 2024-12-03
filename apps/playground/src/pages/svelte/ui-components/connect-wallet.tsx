@@ -1,12 +1,10 @@
-import { CardanoWallet } from "@meshsdk/react";
-
 import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { useDarkmode } from "~/hooks/useDarkmode";
 
-export default function ReactConnectWallet() {
+export default function SvelteConnectWallet() {
   return (
     <TwoColumnsScroll
       sidebarTo="connectWallet"
@@ -18,8 +16,6 @@ export default function ReactConnectWallet() {
 }
 
 function Left() {
-  const isDark = useDarkmode((state) => state.isDark);
-
   let codeSignature = ``;
   codeSignature += `{\n`;
   codeSignature += `  label?: string;\n`;
@@ -67,17 +63,16 @@ function Left() {
 
       <h3>Customization</h3>
       <p>For dark mode style, add isDark.</p>
-      <Codeblock data={`<CardanoWallet isDark={${isDark}} />`} />
+      <Codeblock data={`<CardanoWallet isDark={true} />`} />
 
       <p>For a custom label, add the label prop.</p>
-      <Codeblock data={`<CardanoWallet label={"Connect Wallet"} />`} />
+      <Codeblock data={`<CardanoWallet label={"Connect a Wallet"} />`} />
 
       <p>
         The customization is limited. For more customization, you can easily
-        build your own wallet connection component. If you are using React, the{" "}
-        <Link href="/react/wallet-hooks">React hooks</Link> will be useful. You
-        may also take reference from{" "}
-        <Link href="https://github.com/MeshJS/mesh/blob/main/packages/mesh-react/src/cardano-wallet/index.tsx">
+        build your own wallet connection component. You may also take reference
+        from{" "}
+        <Link href="https://github.com/MeshJS/mesh/tree/main/packages/mesh-svelte/src/lib/cardano-wallet">
           this component
         </Link>
         .
@@ -95,7 +90,7 @@ function Left() {
         is connected.
       </p>
 
-      <h3>MetaMask Snaps</h3>
+      {/* <h3>MetaMask Snaps</h3>
       <p>
         You can define the NuFi network to connect to by adding the{" "}
         <code>network</code> prop.
@@ -115,34 +110,20 @@ function Left() {
         You can also provide an <code>extensions</code> object to enable
         specific CIPs. For example, to enable CIP95, you would pass:
       </p>
-      <Codeblock data={codeCip95} />
+      <Codeblock data={codeCip95} /> */}
     </>
   );
 }
 
 function Right() {
-  const isDark = useDarkmode((state) => state.isDark);
-
   let example = ``;
-  example += `import { CardanoWallet } from '@meshsdk/react';\n`;
+  example += `<script lang="ts">\n`;
+  example += `  import { CardanoWallet } from "@meshsdk/svelte";\n`;
+  example += `</script>\n`;
   example += `\n`;
-  example += `export default function Page() {\n\n`;
-
-  example += `  function afterConnectedWallet() {\n`;
-  example += `    // do something\n`;
-  example += `  }\n\n`;
-
-  example += `  return (\n`;
-  example += `    <>\n`;
-  example += `      <CardanoWallet\n`;
-  example += `        label={"Connect a Wallet"}\n`;
-  example += `        isDark={${isDark}}\n`;
-  example += `        onConnected={afterConnectedWallet}\n`;
-  example += `        metamask={{ network: "preprod" }}\n`;
-  example += `      />\n`;
-  example += `    </>\n`;
-  example += `  );\n`;
-  example += `}\n`;
+  example += `<main>\n`;
+  example += `  <CardanoWallet />\n`;
+  example += `</main>\n`;
 
   return (
     <LiveCodeDemo
@@ -150,26 +131,6 @@ function Right() {
       subtitle="Connect to user's wallet to interact with dApp"
       code={example}
       childrenAfterCodeFunctions={true}
-    >
-      <CardanoWallet
-        label={"Connect a Wallet"}
-        isDark={isDark}
-        metamask={{ network: "preprod" }}
-        cardanoPeerConnect={{
-          dAppInfo: {
-            name: "Mesh SDK",
-            url: "https://meshjs.dev/",
-          },
-          announce: [
-            "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",
-            "https://pro.passwordchaos.gimbalabs.io",
-            "wss://tracker.files.fm:7073/announce",
-            "wss://tracker.btorrent.xyz",
-            "ws://tracker.files.fm:7072/announce",
-            "wss://tracker.openwebtorrent.com:443/announce",
-          ],
-        }}
-      />
-    </LiveCodeDemo>
+    ></LiveCodeDemo>
   );
 }

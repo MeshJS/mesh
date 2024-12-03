@@ -1,4 +1,4 @@
-export type ConnectWalletButtonProps = {
+export type CardanoWalletButtonProps = {
   label?: string;
   onConnected?: Function;
   isDark?: boolean;
