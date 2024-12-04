@@ -1,5 +1,6 @@
 import { CardanoWallet } from "@meshsdk/react";
 
+import { CommonCardanoWallet } from "~/components/cardano/connect-browser-wallet";
 import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -46,6 +47,13 @@ function Left() {
   let codeCip95 = `<CardanoWallet\n`;
   codeCip95 += `  extensions={[95]}\n`;
   codeCip95 += `/>\n`;
+
+  let codeBurner = `<CardanoWallet\n`;
+  codeBurner += `  burnerWallet={{\n`;
+  codeBurner += `    networkId: 0,\n`;
+  codeBurner += `    provider: blockchainProvider,\n`;
+  codeBurner += `  }}\n`;
+  codeBurner += `/>\n`;
 
   return (
     <>
@@ -116,6 +124,14 @@ function Left() {
         specific CIPs. For example, to enable CIP95, you would pass:
       </p>
       <Codeblock data={codeCip95} />
+
+      <h3>Burner wallet</h3>
+      <p>
+        Burner wallets are wallets that are created on the fly on the user's
+        device. They are temporary wallets useful for testing purposes. The
+        private keys are generated and stored on the user's device.
+      </p>
+      <Codeblock data={codeBurner} />
     </>
   );
 }
@@ -136,9 +152,21 @@ function Right() {
   example += `    <>\n`;
   example += `      <CardanoWallet\n`;
   example += `        label={"Connect a Wallet"}\n`;
-  example += `        isDark={${isDark}}\n`;
   example += `        onConnected={afterConnectedWallet}\n`;
   example += `        metamask={{ network: "preprod" }}\n`;
+  example += `        cardanoPeerConnect={{\n`;
+  example += `          dAppInfo: {\n`;
+  example += `            name: "Mesh SDK",\n`;
+  example += `            url: "https://meshjs.dev/",\n`;
+  example += `          },\n`;
+  example += `          announce: [\n`;
+  example += `            "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",\n`;
+  example += `          ],\n`;
+  example += `        }}\n`;
+  example += `        burnerWallet={{\n`;
+  example += `          networkId: 0,\n`;
+  example += `          provider: provider,\n`;
+  example += `        }}\n`;
   example += `      />\n`;
   example += `    </>\n`;
   example += `  );\n`;
@@ -151,20 +179,7 @@ function Right() {
       code={example}
       childrenAfterCodeFunctions={true}
     >
-      <CardanoWallet
-        label={"Connect a Wallet"}
-        isDark={isDark}
-        metamask={{ network: "preprod" }}
-        cardanoPeerConnect={{
-          dAppInfo: {
-            name: "Mesh SDK",
-            url: "https://meshjs.dev/",
-          },
-          announce: [
-            "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",
-          ],
-        }}
-      />
+      <CommonCardanoWallet />
     </LiveCodeDemo>
   );
 }
