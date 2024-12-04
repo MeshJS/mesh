@@ -15,7 +15,7 @@ export default function HeroTwoSections({
   children?: React.ReactNode;
   title: string;
   description: string;
-  image: string | React.ReactNode;
+  image?: string | React.ReactNode;
   link?: { label: string; href: string };
   code?: string;
 }) {
@@ -45,7 +45,7 @@ export default function HeroTwoSections({
           {children && <div className="my-1">{children}</div>}
         </div>
         <div className="hidden lg:col-span-5 lg:mt-0 lg:flex">
-          {typeof image === "string" ? <img src={image} /> : image}
+          {image && typeof image === "string" ? <img src={image} /> : image}
         </div>
       </div>
     </section>
