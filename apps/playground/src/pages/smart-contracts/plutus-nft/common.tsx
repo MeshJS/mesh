@@ -2,14 +2,14 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { MeshPlutusNFTContract } from "@meshsdk/contract";
-import { BrowserWallet, MeshTxBuilder, UTxO } from "@meshsdk/core";
+import { IWallet, MeshTxBuilder, UTxO } from "@meshsdk/core";
 
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import { getProvider } from "../../../components/cardano/mesh-wallet";
 
 export function getContract(
-  wallet: BrowserWallet,
+  wallet: IWallet,
   collectionName: string,
   paramUtxo?: UTxO["input"],
 ) {

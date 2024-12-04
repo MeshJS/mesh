@@ -1,7 +1,11 @@
 import { BlockfrostProvider, MeshWallet } from "@meshsdk/core";
 
 export function getProvider(network = "preprod") {
-  return new BlockfrostProvider(`/api/blockfrost/${network}/`);
+  const blockchainProvider = new BlockfrostProvider(
+    `/api/blockfrost/${network}/`,
+  );
+  blockchainProvider.setSubmitTxToBytes(false);
+  return blockchainProvider;
 }
 
 export function getMeshWallet() {

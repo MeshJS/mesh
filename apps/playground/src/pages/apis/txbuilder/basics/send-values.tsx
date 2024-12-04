@@ -73,7 +73,7 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   const [address, setAddress] = useState<string>(demoAddresses.testnet);
-  const [amount, setAmount] = useState<string>("2000000");
+  const [amount, setAmount] = useState<string>("1000000");
 
   async function runDemo() {
     const utxos = await wallet.getUtxos();

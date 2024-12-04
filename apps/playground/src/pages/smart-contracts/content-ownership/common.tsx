@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { MeshContentOwnershipContract } from "@meshsdk/contract";
-import { BrowserWallet, MeshTxBuilder, UTxO } from "@meshsdk/core";
+import { IWallet, MeshTxBuilder, UTxO } from "@meshsdk/core";
 
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
@@ -10,7 +10,7 @@ import { demoAddresses } from "~/data/cardano";
 import { getProvider } from "../../../components/cardano/mesh-wallet";
 
 export function getContract(
-  wallet: BrowserWallet,
+  wallet: IWallet,
   operationAddress: string,
   paramUtxo?: UTxO["input"],
   refScriptUtxos?: {
@@ -80,22 +80,26 @@ export const useContentOwnership = create<State>()(
         set(() => ({
           paramUtxo: paramUtxo,
         })),
-      contentRegistry: "dfd2a2616e6154a092807b1ceebb9ddcadc0f22cf5c8e0e6b0757815083ccb70",
+      contentRegistry:
+        "dfd2a2616e6154a092807b1ceebb9ddcadc0f22cf5c8e0e6b0757815083ccb70",
       setContentRegistry: (address: string) =>
         set(() => ({
           contentRegistry: address,
         })),
-      contentRefToken: "8f731be135171df172c07578a5d74589ec8fb30b37c12fdbe2639d69b7587f5e",
+      contentRefToken:
+        "8f731be135171df172c07578a5d74589ec8fb30b37c12fdbe2639d69b7587f5e",
       setContentRefToken: (address: string) =>
         set(() => ({
           contentRefToken: address,
         })),
-      ownershipRegistry: "ec874b61eec4e5e8e395dead6c9bb18690e6d6ea64d773760c5e654ec9ff5f97",
+      ownershipRegistry:
+        "ec874b61eec4e5e8e395dead6c9bb18690e6d6ea64d773760c5e654ec9ff5f97",
       setOwnershipRegistry: (address: string) =>
         set(() => ({
           ownershipRegistry: address,
         })),
-      ownershipRefToken: "e1bdfc7ae6929f934cf9d418273dde143cbb65ec0eec23bdb6c342e4cd91dbd0",
+      ownershipRefToken:
+        "e1bdfc7ae6929f934cf9d418273dde143cbb65ec0eec23bdb6c342e4cd91dbd0",
       setOwnershipRefToken: (address: string) =>
         set(() => ({
           ownershipRefToken: address,
