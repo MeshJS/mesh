@@ -1469,7 +1469,7 @@ export class MeshTxBuilderCore {
     return this;
   };
 
-    /**
+  /**
    * Sets a specific fee for the transaction to use
    * @param fee The specified fee
    * @returns The MeshTxBuilder instance
@@ -1477,7 +1477,7 @@ export class MeshTxBuilderCore {
   setFee = (fee: string) => {
     this.meshTxBuilderBody.fee = fee;
     return this;
-  }
+  };
 
   /**
    * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
