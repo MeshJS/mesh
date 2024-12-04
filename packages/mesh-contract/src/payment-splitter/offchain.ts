@@ -27,15 +27,9 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     super(inputs);
 
     if (inputs.wallet) {
-      // We add the initiator to the payees list, as only the payees can trigger the payout in the next steps
-      if (inputs.wallet instanceof MeshWallet) {
-        this.payees = [inputs.wallet.getUsedAddresses()[0]!, ...payees];
-      }
-      if (inputs.wallet instanceof BrowserWallet) {
-        inputs.wallet.getUsedAddresses().then((addresses) => {
-          this.payees = [addresses[0]!, ...payees];
-        });
-      }
+      inputs.wallet.getUsedAddresses().then((addresses) => {
+        this.payees = [addresses[0]!, ...payees];
+      });
     } else {
       this.payees = payees;
       console.warn(

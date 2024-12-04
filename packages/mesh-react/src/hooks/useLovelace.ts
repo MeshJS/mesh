@@ -10,12 +10,12 @@ export const useLovelace = () => {
 
   useEffect(() => {
     async function getLovelace() {
-      setLovelace(await connectedWalletInstance.getLovelace());
+      if (hasConnectedWallet && !hasFetchedLovelace.current) {
+        setLovelace(await connectedWalletInstance.getLovelace());
+        hasFetchedLovelace.current = true;
+      }
     }
-    if (hasConnectedWallet && !hasFetchedLovelace.current) {
-      getLovelace();
-      hasFetchedLovelace.current = true;
-    }
+    getLovelace();
   }, [hasConnectedWallet, connectedWalletInstance]);
 
   const _lovelace = useMemo(() => {

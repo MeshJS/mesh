@@ -4,9 +4,7 @@ import {
   DataSignature,
   DEFAULT_PROTOCOL_PARAMETERS,
   fromUTF8,
-  IInitiator,
-  ISigner,
-  ISubmitter,
+  IWallet,
   POLICY_ID_LENGTH,
   resolveFingerprint,
   UTxO,
@@ -52,7 +50,7 @@ declare global {
  * const wallet = await BrowserWallet.enable('eternl');
  * ```
  */
-export class BrowserWallet implements IInitiator, ISigner, ISubmitter {
+export class BrowserWallet implements IWallet {
   walletInstance: WalletInstance;
 
   private constructor(
