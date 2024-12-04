@@ -22,9 +22,9 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import {
+  normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
-  normalizePlutusScript,
 } from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
@@ -48,6 +48,7 @@ export class BlockfrostProvider
 {
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: BlockfrostSupportedNetworks;
+  private submitTxToBytes = true;
 
   /**
    * If you are using a privately hosted Blockfrost instance, you can set the URL in the parameter.
@@ -80,6 +81,10 @@ export class BlockfrostProvider
       });
       this._network = network as BlockfrostSupportedNetworks;
     }
+  }
+
+  setSubmitTxToBytes(value: boolean): void {
+    this.submitTxToBytes = value;
   }
 
   /**
@@ -490,7 +495,7 @@ export class BlockfrostProvider
         });
         const outputs = await Promise.all(outputsPromises);
 
-        if(index !== undefined) {
+        if (index !== undefined) {
           return outputs.filter((utxo) => utxo.input.outputIndex === index);
         }
 
@@ -585,7 +590,7 @@ export class BlockfrostProvider
       const headers = { "Content-Type": "application/cbor" };
       const { data, status } = await this._axiosInstance.post(
         "tx/submit",
-        toBytes(tx),
+        this.submitTxToBytes ? toBytes(tx) : tx,
         { headers },
       );
 
@@ -612,7 +617,7 @@ export class BlockfrostProvider
           const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
           script = <PlutusScript>{
             version: data.type.replace("plutus", ""),
-            code: normalized
+            code: normalized,
           };
         } else {
           script = await this.fetchNativeScriptJSON(scriptHash);

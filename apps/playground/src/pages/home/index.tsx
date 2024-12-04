@@ -14,7 +14,7 @@ export default function HomePage() {
           title="Web3 TypeScript SDK & off-chain Framework"
           description="Mesh is a TypeScript open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
           link={{ label: "Get started", href: "/getting-started" }}
-          image={<Video />}
+          // image={<Video />}
           children={
             <Link
               href={`/about/catalyst`}
