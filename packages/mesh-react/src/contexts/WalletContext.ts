@@ -8,9 +8,9 @@ interface WalletContext {
   connectedWalletInstance: IWallet;
   connectedWalletName: string | undefined;
   connectingWallet: boolean;
-  connectWallet?: (walletName: string, extensions?: number[]) => Promise<void>;
-  disconnect?: () => void;
-  setWallet?: (walletInstance: IWallet, walletName: string) => void;
+  connectWallet: (walletName: string, extensions?: number[]) => Promise<void>;
+  disconnect: () => void;
+  setWallet: (walletInstance: IWallet, walletName: string) => void;
   error?: unknown;
 }
 
@@ -24,9 +24,8 @@ export const useWalletStore = () => {
 
   const [connectingWallet, setConnectingWallet] = useState<boolean>(false);
 
-  const [connectedWalletInstance, setConnectedWalletInstance] = useState<
-    IWallet
-  >(INITIAL_STATE.walletInstance);
+  const [connectedWalletInstance, setConnectedWalletInstance] =
+    useState<IWallet>(INITIAL_STATE.walletInstance);
 
   const [connectedWalletName, setConnectedWalletName] = useState<
     string | undefined
@@ -83,4 +82,7 @@ export const WalletContext = createContext<WalletContext>({
   connectedWalletInstance: INITIAL_STATE.walletInstance,
   connectedWalletName: INITIAL_STATE.walletName,
   connectingWallet: false,
+  connectWallet: async () => {},
+  disconnect: () => {},
+  setWallet: async () => {},
 });
