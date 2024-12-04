@@ -7,6 +7,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IFetcher,
   IListener,
   ISubmitter,
@@ -383,6 +384,10 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented");
   }
 
   /**

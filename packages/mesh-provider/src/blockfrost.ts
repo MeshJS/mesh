@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
   IListener,
@@ -22,9 +23,9 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import {
+  normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
-  normalizePlutusScript,
 } from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
@@ -490,12 +491,40 @@ export class BlockfrostProvider
         });
         const outputs = await Promise.all(outputsPromises);
 
-        if(index !== undefined) {
+        if (index !== undefined) {
           return outputs.filter((utxo) => utxo.input.outputIndex === index);
         }
 
         return outputs;
       }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `governance/proposals/${txHash}/${certIndex}`,
+      );
+      if (status === 200 || status == 202)
+        return <GovernanceProposalInfo>{
+          txHash: data.tx_hash,
+          certIndex: data.cert_index,
+          governanceType: data.governance_type,
+          deposit: data.deposit,
+          returnAddress: data.return_address,
+          governanceDescription: data.governance_description,
+          ratifiedEpoch: data.ratified_epoch,
+          enactedEpoch: data.enacted_epoch,
+          droppedEpoch: data.dropped_epoch,
+          expiredEpoch: data.expired_epoch,
+          expiration: data.expiration,
+        };
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
@@ -612,7 +641,7 @@ export class BlockfrostProvider
           const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
           script = <PlutusScript>{
             version: data.type.replace("plutus", ""),
-            code: normalized
+            code: normalized,
           };
         } else {
           script = await this.fetchNativeScriptJSON(scriptHash);
