@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/contract",
-  "version": "1.7.26",
+  "version": "1.7.27",
   "description": "List of open-source smart contracts, complete with documentation, live demos, and end-to-end source code. https://meshjs.dev/smart-contracts",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -34,9 +34,9 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.26",
-    "@meshsdk/core": "1.7.26",
-    "@meshsdk/core-csl": "1.7.26"
+    "@meshsdk/common": "1.7.27",
+    "@meshsdk/core": "1.7.27",
+    "@meshsdk/core-csl": "1.7.27"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

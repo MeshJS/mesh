@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/svelte",
-  "version": "1.7.26",
+  "version": "1.7.27",
   "description": "Svelte component library - https://meshjs.dev/svelte",
   "type": "module",
   "exports": {
