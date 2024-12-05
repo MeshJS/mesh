@@ -26,7 +26,8 @@
     "dev": "vite dev"
   },
   "dependencies": {
-    "@meshsdk/core": "1.7.25"
+    "@meshsdk/core": "1.7.25",
+    "bits-ui": "1.0.0-next.65"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
