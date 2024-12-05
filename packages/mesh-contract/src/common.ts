@@ -1,6 +1,7 @@
 import {
   BrowserWallet,
   IFetcher,
+  IWallet,
   LanguageVersion,
   MeshTxBuilder,
   MeshWallet,
@@ -11,7 +12,7 @@ import {
 export type MeshTxInitiatorInput = {
   mesh: MeshTxBuilder;
   fetcher?: IFetcher;
-  wallet?: BrowserWallet | MeshWallet;
+  wallet?: IWallet;
   networkId?: number;
   stakeCredential?: string;
   version?: number;
@@ -20,7 +21,7 @@ export type MeshTxInitiatorInput = {
 export class MeshTxInitiator {
   mesh: MeshTxBuilder;
   fetcher?: IFetcher;
-  wallet?: BrowserWallet | MeshWallet;
+  wallet?: IWallet;
   stakeCredential?: string;
   networkId = 0;
   version = 2;

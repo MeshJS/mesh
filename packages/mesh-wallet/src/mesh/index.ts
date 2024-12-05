@@ -2,12 +2,11 @@ import type {
   Asset,
   AssetExtended,
   DataSignature,
+  IWallet,
   UTxO,
 } from "@meshsdk/common";
 import {
   IFetcher,
-  IInitiator,
-  ISigner,
   ISubmitter,
   POLICY_ID_LENGTH,
   resolveFingerprint,
@@ -84,7 +83,7 @@ export type CreateMeshWalletOptions = {
  * });
  * ```
  */
-export class MeshWallet implements IInitiator, ISigner, ISubmitter {
+export class MeshWallet implements IWallet {
   private readonly _wallet: EmbeddedWallet | null;
   private readonly _accountIndex: number = 0;
   private readonly _keyIndex: number = 0;
@@ -213,6 +212,15 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
+   * Return a list of supported CIPs of the wallet.
+   *
+   * @returns a list of CIPs
+   */
+  async getExtensions(): Promise<number[]> {
+    return [];
+  }
+
+  /**
    * Get a list of UTXOs to be used as collateral inputs for transactions with plutus script inputs.
    *
    * This is used in transaction building.
@@ -248,11 +256,28 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
+   * The connected wallet account provides the account's public DRep Key, derivation as described in CIP-0105.
+   * These are used by the client to identify the user's on-chain CIP-1694 interactions, i.e. if a user has registered to be a DRep.
+   *
+   * @returns wallet account's public DRep Key
+   */
+  async getDRep(): Promise<
+    | {
+        publicKey: string;
+        publicKeyHash: string;
+        dRepIDCip105: string;
+      }
+    | undefined
+  > {
+    console.warn("Not implemented yet");
+    return undefined;
+  }
+  /**
    * Returns the network ID of the currently connected account. 0 is testnet and 1 is mainnet but other networks can possibly be returned by wallets. Those other network ID values are not governed by CIP-30. This result will stay the same unless the connected account has changed.
    *
    * @returns network ID
    */
-  getNetworkId(): number {
+  async getNetworkId(): Promise<number> {
     return this._networkId;
   }
 
@@ -261,7 +286,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of reward addresses
    */
-  getRewardAddresses(): string[] {
+  async getRewardAddresses(): Promise<string[]> {
     return [this.addresses.rewardAddressBech32!];
   }
 
@@ -270,7 +295,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of unused addresses
    */
-  getUnusedAddresses(): string[] {
+  async getUnusedAddresses(): Promise<string[]> {
     return [this.getChangeAddress()];
   }
 
@@ -279,7 +304,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of used addresses
    */
-  getUsedAddresses(): string[] {
+  async getUsedAddresses(): Promise<string[]> {
     return [this.getChangeAddress()];
   }
 
@@ -506,6 +531,28 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     return Array.from(
       new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH))),
     ).filter((p) => p !== "lovelace");
+  }
+
+  async getRegisteredPubStakeKeys(): Promise<
+    | {
+        pubStakeKeys: string[];
+        pubStakeKeyHashes: string[];
+      }
+    | undefined
+  > {
+    console.warn("Not implemented yet");
+    return undefined;
+  }
+
+  async getUnregisteredPubStakeKeys(): Promise<
+    | {
+        pubStakeKeys: string[];
+        pubStakeKeyHashes: string[];
+      }
+    | undefined
+  > {
+    console.warn("Not implemented yet");
+    return undefined;
   }
 
   /**

@@ -1,5 +1,4 @@
-import { CardanoWallet } from "@meshsdk/react";
-
+import { CommonCardanoWallet } from "~/components/cardano/connect-browser-wallet";
 import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -46,6 +45,13 @@ function Left() {
   let codeCip95 = `<CardanoWallet\n`;
   codeCip95 += `  extensions={[95]}\n`;
   codeCip95 += `/>\n`;
+
+  let codeBurner = `<CardanoWallet\n`;
+  codeBurner += `  burnerWallet={{\n`;
+  codeBurner += `    networkId: 0,\n`;
+  codeBurner += `    provider: blockchainProvider,\n`;
+  codeBurner += `  }}\n`;
+  codeBurner += `/>\n`;
 
   return (
     <>
@@ -113,16 +119,32 @@ function Left() {
       <h3>CIP 95</h3>
       <p>
         You can also provide an <code>extensions</code> object to enable
-        specific CIPs. For example, to enable CIP95, you would pass:
+        specific CIPs. For example, to enable{" "}
+        <Link href="https://cips.cardano.org/cip/CIP-95">CIP-95</Link>, you
+        would pass:
       </p>
       <Codeblock data={codeCip95} />
+
+      <h3>Decentralized WebRTC dApp-Wallet Communication (CIP 45)</h3>
+      <p>
+        <Link href="https://cips.cardano.org/cip/CIP-45">CIP-45</Link> is a
+        communication method between dApps and wallets based on WebTorrent
+        trackers and WebRTC. Using WebTorrent trackers for the peer discovery to
+        remove the need of this central component.
+      </p>
+
+      <h3>Burner wallet</h3>
+      <p>
+        Burner wallets are wallets that are created on the fly on the user's
+        device. They are temporary wallets useful for testing purposes. The
+        private keys are generated and stored on the user's device.
+      </p>
+      <Codeblock data={codeBurner} />
     </>
   );
 }
 
 function Right() {
-  const isDark = useDarkmode((state) => state.isDark);
-
   let example = ``;
   example += `import { CardanoWallet } from '@meshsdk/react';\n`;
   example += `\n`;
@@ -136,9 +158,21 @@ function Right() {
   example += `    <>\n`;
   example += `      <CardanoWallet\n`;
   example += `        label={"Connect a Wallet"}\n`;
-  example += `        isDark={${isDark}}\n`;
   example += `        onConnected={afterConnectedWallet}\n`;
   example += `        metamask={{ network: "preprod" }}\n`;
+  example += `        cardanoPeerConnect={{\n`;
+  example += `          dAppInfo: {\n`;
+  example += `            name: "Mesh SDK",\n`;
+  example += `            url: "https://meshjs.dev/",\n`;
+  example += `          },\n`;
+  example += `          announce: [\n`;
+  example += `            "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",\n`;
+  example += `          ],\n`;
+  example += `        }}\n`;
+  example += `        burnerWallet={{\n`;
+  example += `          networkId: 0,\n`;
+  example += `          provider: provider,\n`;
+  example += `        }}\n`;
   example += `      />\n`;
   example += `    </>\n`;
   example += `  );\n`;
@@ -151,25 +185,7 @@ function Right() {
       code={example}
       childrenAfterCodeFunctions={true}
     >
-      <CardanoWallet
-        label={"Connect a Wallet"}
-        isDark={isDark}
-        metamask={{ network: "preprod" }}
-        cardanoPeerConnect={{
-          dAppInfo: {
-            name: "Mesh SDK",
-            url: "https://meshjs.dev/",
-          },
-          announce: [
-            "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",
-            "https://pro.passwordchaos.gimbalabs.io",
-            "wss://tracker.files.fm:7073/announce",
-            "wss://tracker.btorrent.xyz",
-            "ws://tracker.files.fm:7072/announce",
-            "wss://tracker.openwebtorrent.com:443/announce",
-          ],
-        }}
-      />
+      <CommonCardanoWallet />
     </LiveCodeDemo>
   );
 }

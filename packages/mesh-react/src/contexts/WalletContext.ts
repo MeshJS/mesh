@@ -1,20 +1,22 @@
 import { createContext, useCallback, useState } from "react";
 
+import { IWallet } from "@meshsdk/common";
 import { BrowserWallet } from "@meshsdk/wallet";
 
 interface WalletContext {
   hasConnectedWallet: boolean;
-  connectedWalletInstance: BrowserWallet;
-  connectedWalletName: string;
+  connectedWalletInstance: IWallet;
+  connectedWalletName: string | undefined;
   connectingWallet: boolean;
-  connectWallet?: (walletName: string, extensions?: number[]) => Promise<void>;
-  disconnect?: () => void;
+  connectWallet: (walletName: string, extensions?: number[]) => Promise<void>;
+  disconnect: () => void;
+  setWallet: (walletInstance: IWallet, walletName: string) => void;
   error?: unknown;
 }
 
 const INITIAL_STATE = {
-  walletName: "",
-  walletInstance: {} as BrowserWallet,
+  walletName: undefined,
+  walletInstance: {} as IWallet,
 };
 
 export const useWalletStore = () => {
@@ -23,11 +25,11 @@ export const useWalletStore = () => {
   const [connectingWallet, setConnectingWallet] = useState<boolean>(false);
 
   const [connectedWalletInstance, setConnectedWalletInstance] =
-    useState<BrowserWallet>(INITIAL_STATE.walletInstance);
+    useState<IWallet>(INITIAL_STATE.walletInstance);
 
-  const [connectedWalletName, setConnectedWalletName] = useState<string>(
-    INITIAL_STATE.walletName,
-  );
+  const [connectedWalletName, setConnectedWalletName] = useState<
+    string | undefined
+  >(INITIAL_STATE.walletName);
 
   const connectWallet = useCallback(
     async (walletName: string, extensions?: number[]) => {
@@ -55,6 +57,14 @@ export const useWalletStore = () => {
     setConnectedWalletInstance(INITIAL_STATE.walletInstance);
   }, []);
 
+  const setWallet = useCallback(
+    async (walletInstance: IWallet, walletName: string) => {
+      setConnectedWalletInstance(walletInstance);
+      setConnectedWalletName(walletName);
+    },
+    [],
+  );
+
   return {
     hasConnectedWallet: INITIAL_STATE.walletName !== connectedWalletName,
     connectedWalletInstance,
@@ -62,6 +72,7 @@ export const useWalletStore = () => {
     connectingWallet,
     connectWallet,
     disconnect,
+    setWallet,
     error,
   };
 };
@@ -71,4 +82,7 @@ export const WalletContext = createContext<WalletContext>({
   connectedWalletInstance: INITIAL_STATE.walletInstance,
   connectedWalletName: INITIAL_STATE.walletName,
   connectingWallet: false,
+  connectWallet: async () => {},
+  disconnect: () => {},
+  setWallet: async () => {},
 });

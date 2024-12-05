@@ -5,3 +5,4 @@ export * from "./submitter";
 export * from "./serializer";
 export * from "./signer";
 export * from "./evaluator";
+export * from "./wallet";
