@@ -29,7 +29,7 @@ function Left() {
   codeTx += `const unsignedTx = await txBuilder\n`;
   codeTx += `  .mint("1", policyId, stringToHex("MeshToken"))\n`;
   codeTx += `  .mintingScript(forgingScript)\n`;
-  codeTx += `  .metadataValue("721", { [policyId]: { [assetName]: demoAssetMetadata } })\n`;
+  codeTx += `  .metadataValue(721, { [policyId]: { [assetName]: demoAssetMetadata } })\n`;
   codeTx += `  .changeAddress(address)\n`;
   codeTx += `  .selectUtxosFrom(utxos)\n`;
   codeTx += `  .complete();\n`;
@@ -88,7 +88,7 @@ function Right() {
     const unsignedTx = await txBuilder
       .mint("1", policyId, stringToHex("MeshToken"))
       .mintingScript(forgingScript)
-      .metadataValue("721", { [policyId]: { [assetName]: demoAssetMetadata } })
+      .metadataValue(721, { [policyId]: { [assetName]: demoAssetMetadata } })
       .changeAddress(address)
       .selectUtxosFrom(utxos)
       .complete();
@@ -124,7 +124,7 @@ function Right() {
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .mint("1", policyId, stringToHex("MeshToken"))\n`;
   codeSnippet += `  .mintingScript(forgingScript)\n`;
-  codeSnippet += `  .metadataValue("721", { [policyId]: { [assetName]: demoAssetMetadata } })\n`;
+  codeSnippet += `  .metadataValue(721, { [policyId]: { [assetName]: demoAssetMetadata } })\n`;
   codeSnippet += `  .changeAddress(address)\n`;
   codeSnippet += `  .selectUtxosFrom(utxos)\n`;
   codeSnippet += `  .complete();\n`;

@@ -84,7 +84,7 @@ function Right() {
     const unsignedTx = await txBuilder
       .mint("1", policyId, tokenNameHex)
       .mintingScript(forgingScript)
-      .metadataValue("721", metadata)
+      .metadataValue(721, metadata)
       .changeAddress(changeAddress)
       .invalidHereafter(99999999)
       .selectUtxosFrom(utxos)
@@ -125,7 +125,7 @@ const txBuilder = getTxBuilder();
 const unsignedTx = await txBuilder
   .mint("1", policyId, tokenNameHex)
   .mintingScript(forgingScript)
-  .metadataValue("721", metadata)
+  .metadataValue(721, metadata)
   .changeAddress(changeAddress)
   .invalidHereafter(99999999)
   .selectUtxosFrom(utxos)

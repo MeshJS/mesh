@@ -1,34 +1,64 @@
 import JSONBig from "json-bigint";
-import { Metadata } from "@meshsdk/common";
-
-type ValueType = "array" | "object" | "primitive" | "nullish";
+import type { TxMetadata, Metadatum, MetadatumMap } from "@meshsdk/common";
 
 export type MetadataMergeLevel = boolean | number;
 
-const getMergeDepth = (mergeOption: MetadataMergeLevel): number => {
-    return typeof mergeOption === "number"
-        ? mergeOption
-        : mergeOption === true
-            ? 1
-            : 0;
-}
-
-const getType = (value: unknown): ValueType => {
-    if (Array.isArray(value))
-        return "array";
-    if (value !== null && typeof value === "object")
-        return "object";
-    if (value === null || value === undefined)
-        return "nullish";
-    return "primitive";
+export const metadataObjToMap = (metadata: any): Metadatum => {
+    if (typeof metadata === "bigint") {
+        return metadata;
+    } else if (typeof metadata === "string") {
+        return metadata;
+    } else if (typeof metadata === "number") {
+        return metadata;
+    } else if (metadata instanceof Uint8Array) {
+        return metadata;
+    } else if (Array.isArray(metadata)) {
+        // Recursively process each element in the array
+        return metadata.map(metadataObjToMap);
+    } else if (metadata && typeof metadata === "object") {
+        // Convert object to MetadatumMap
+        const map: MetadatumMap = new Map();
+        Object.entries(metadata).forEach(([key, value]) => {
+            map.set(metadataObjToMap(key), metadataObjToMap(value));
+        });
+        return map;
+    } else {
+        throw new Error("Metadata map conversion: Unsupported metadata type");
+    }
 }
 
 /**
- * Recursively merge two items. Returns the 2nd item if the maximum allowed
+ * Insert new metadata under a label into the transaction's metadata section
+ * and optionally merge with the existing metadata under the same label recursively
+ * upto a specified depth.
+ * 
+ * @param txMetadata metadata map of meshTxBuilderBody, updated implicitly
+ * @param label label that the new metadata corresponds to
+ * @param metadata the new metadata
+ * @param mergeOption the effective depth till which the merge should happen,
+ *      beyond this depth, the newer element would replace the older one.
+ *      If false or 0, the new metadata overwrites any existing metadata
+ *      under the same label
+ * @returns updated metadata map for meshTxBuilderBody
+ */
+export const setAndMergeTxMetadata = (txMetadata: TxMetadata, label: bigint, metadata: Metadatum, mergeOption: MetadataMergeLevel): TxMetadata => {
+    const mergeDepth = getMergeDepth(mergeOption);
+
+    if (txMetadata.has(label)) {
+        txMetadata.set(label, mergeContents(txMetadata.get(label) as Metadatum, metadata, mergeDepth));
+    } else {
+        txMetadata.set(label, metadata);
+    }
+
+    return txMetadata;
+}
+
+/**
+ * Recursively merge two metadata. Returns the 2nd item if the maximum allowed
  * merge depth has passed.
  * 
- * Merging objects ({ key: value }):
- * Two objects are merged by recursively including the (key, value) pairs from both the objects.
+ * Merging maps ({ key: value }):
+ * Two maps are merged by recursively including the (key, value) pairs from both the maps.
  * When further merge isn't allowed (by currentDepth), the 2nd item is preferred,
  * replacing the 1st item.
  * 
@@ -46,88 +76,71 @@ const getType = (value: unknown): ValueType => {
  * @param currentDepth the current merge depth; decreases in a recursive call
  * @returns merged item or a preferred item, chosen according to currentDepth
  */
-const mergeContents = (a: any, b: any, currentDepth: number): any => {
-    const type_a = getType(a);
-    const type_b = getType(b);
-
-    if (currentDepth <= 0 || type_a === "nullish" || type_b === "nullish") {
-        // Tend to return the 2nd item, which is supposed to be the updated one
-        // If both are nullish, 2nd item is returned
-        return b ?? a ?? b;
+const mergeContents = (a: Metadatum, b: Metadatum, currentDepth: number): Metadatum => {
+    // Handle no merge
+    if (currentDepth <= 0) {
+        return b;
     }
-
-    if (type_a === "primitive" && type_b === "primitive") {
-        if (a === b) {
-            return b;
-        } else {
-            throw new Error(`Tx metadata merge error: cannot merge ${a} with ${b}`);
-        }
-    }
-
-    else if (type_a === "array" && type_b === "array") {
-        return [...a, ...b];
-    }
-
-    else if (type_a === "object" && type_b === "object") {
-        for (const key in b) {
-            Object.assign(a, { [key]: mergeContents(a[key], b[key], currentDepth - 1) });
-        }
+    // Handle merging of maps
+    if (a instanceof Map && b instanceof Map) {
+        b.forEach((value: Metadatum, key: Metadatum) => {
+            if (a.has(key)) {
+                a.set(key, mergeContents(a.get(key) as Metadatum, value, currentDepth - 1));
+            } else {
+                a.set(key, value);
+            }
+        });
         return a;
     }
+    // Handle merging of arrays
+    else if (Array.isArray(a) && Array.isArray(b)) {
+        return [...a, ...b];
+    }
+    // Handle merging of primitive types
+    if (
+        (typeof a === "number" || typeof a === "bigint" || typeof a === "string" || a instanceof Uint8Array) &&
+        (typeof b === "number" || typeof b === "bigint" || typeof b === "string" || b instanceof Uint8Array)
+    ) {
+        if (typeof a === typeof b) {
+            if (a === b) {
+                // Equal primitive types (string, number or bigint)
+                return b;
+            }
+            if (a instanceof Uint8Array && b instanceof Uint8Array && areUint8ArraysEqual(a, b)) {
+                // Equal Uint8Array values
+                return b;
+            }
+        }
+        // If values are not equal or types are mismatched
+        throw new Error(`Tx metadata merge error: cannot merge ${JSONBig.stringify(a)} with ${JSONBig.stringify(b)}`);
+    }
 
-    throw new Error(`Tx metadata merge error: cannot merge ${type_a} type with ${type_b} type`);
+    // Unsupported or mismatched types
+    throw new Error(`Tx metadata merge error: cannot merge ${getMetadatumType(a)} type with ${getMetadatumType(b)} type`);
 }
 
-const mergeChosenMetadata = (metadataArr: string[], tag: string, mergeDepth: number): Metadata[] => {
-    if (!metadataArr.length)
-        return [];
+const getMergeDepth = (mergeOption: MetadataMergeLevel): number => {
+    return typeof mergeOption === "number"
+        ? mergeOption
+        : mergeOption === true
+            ? 1
+            : 0;
+}
 
-    // Assuming all the elements are JSON stringified, parse them first
-    for (let i = 0; i < metadataArr.length; i++) {
-        try {
-            metadataArr[i] = JSONBig.parse(metadataArr[i]!);
-        } catch (e) {
-            throw new Error(`Tx metadata merge error: cannot parse metadata value: ${e}`);
+const getMetadatumType = (a: Metadatum): string => {
+    if (a instanceof Map) return "map";
+    if (Array.isArray(a)) return "array";
+    return "primitive";
+}
+
+const areUint8ArraysEqual = (a: Uint8Array, b: Uint8Array): boolean => {
+    if (a.length !== b.length) {
+        return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
         }
     }
-
-    let mergedSoFar = metadataArr[0];
-
-    for (let i = 1; i < metadataArr.length; i++) {
-        mergedSoFar = mergeContents(mergedSoFar, metadataArr[i], mergeDepth);
-    }
-
-    return [{ tag, metadata: JSONBig.stringify(mergedSoFar) }];
-};
-
-/**
- * Merges multiple metadata entries in an array of metadata that belong to the same tag.
- * Can merge objects upto a defined depth.
- * 
- * @param metadataList metadata array of meshTxBuilderBody
- * @param tag tag value to group all the metadata belonging to that same tag
- * @param mergeOption the effective depth till which the merge will happen,
- *      beyond this depth, the newer element would replace the older one.
- *      If false or 0, the latest metadata entry with the specified tag is preserved
- *      and the earlier ones are discarded
- * @returns metadata array for meshTxBuilderBody; with  all the metadata entries not belonging
- *      to the specified tag are preserved
- */
-export const mergeAllMetadataByTag = (metadataList: Metadata[], tag: string, mergeOption: MetadataMergeLevel): Metadata[] => {
-    const mergeDepth = getMergeDepth(mergeOption);
-
-    const chosenElementsMetadata = [];
-    const restElements = [];
-
-    for (const metadata of metadataList) {
-        if (metadata.tag == tag) {  // Number can also match here
-            chosenElementsMetadata.push(metadata.metadata);
-        } else {
-            restElements.push(metadata);
-        }
-    }
-
-    const mergedItem = mergeChosenMetadata(chosenElementsMetadata, tag, mergeDepth);
-
-    return [...restElements, ...mergedItem];
+    return true;
 }

@@ -586,15 +586,15 @@ export class Transaction {
   /**
    * Add a JSON metadata entry to the transaction.
    *
-   * @param {number} key The key to use for the metadata entry.
-   * @param {unknown} value The value to use for the metadata entry.
-   * @param {MetadataMergeLevel} mergeExistingMetadataByTag Whether to merge the new metadata
-   *    under a tag (key) with the existing metadata with the same tag
+   * @param {number} label The label to use for the metadata entry.
+   * @param {unknown} metadata The value to use for the metadata entry.
+   * @param {MetadataMergeLevel} mergeExistingMetadataByLabel Whether to merge the new metadata
+   *    with any existing metadata under the same label, and upto what level
    * @returns {Transaction} The Transaction object.
    * @see {@link https://meshjs.dev/apis/transaction#setMetadata}
    */
-  setMetadata(key: number, value: unknown, mergeExistingMetadataByTag: MetadataMergeLevel = false): Transaction {
-    this.txBuilder.metadataValue(key.toString(), value as object, mergeExistingMetadataByTag);
+  setMetadata(label: number, metadata: unknown, mergeExistingMetadataByLabel: MetadataMergeLevel = false): Transaction {
+    this.txBuilder.metadataValue(label, metadata as object, mergeExistingMetadataByLabel);
     return this;
   }
 
