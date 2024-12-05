@@ -17,6 +17,7 @@
   }: CardanoWalletButtonProps = $props();
 
   let availableWallets: Wallet[] = $state([]);
+  let dialogOpen: boolean = $state(false);
 
   onMount(() => {
     BrowserWallet.getAvailableWallets().then((aw) => {
@@ -43,49 +44,69 @@
   });
 </script>
 
-<Dialog.Root>
-  <Dialog.Trigger
-    class={`mesh-inline-flex mesh-h-12 mesh-items-center mesh-justify-center mesh-whitespace-nowrap mesh-rounded-input  px-[21px]
-	mesh-text-[15px] mesh-font-semibold mesh-text-background mesh-shadow-mini mesh-transition-colors hover:mesh-bg-dark/95 ${isDark === true ? "mesh-bg-neutral-950 mesh-text-neutral-50" : "mesh-bg-neutral-50 mesh-text-neutral-950"`}
-  >
-    New API key
-  </Dialog.Trigger>
+<Dialog.Root bind:open={dialogOpen}>
+  {#if BrowserWalletState.connecting}
+    Connecting...
+  {:else if BrowserWalletState.wallet === undefined}
+    <Dialog.Trigger
+      class={`mesh-inline-flex mesh-items-center mesh-justify-center mesh-whitespace-nowrap mesh-rounded-md mesh-text-sm mesh-font-medium mesh-transition-colors focus-visible:mesh-outline-none focus-visible:mesh-ring-1 focus-visible:mesh-ring-zinc-950 disabled:mesh-pointer-events-none disabled:mesh-opacity-50 mesh-h-9 mesh-px-4 mesh-py-2 hover:mesh-bg-zinc-300 ${isDark === true ? "mesh-bg-neutral-950 mesh-text-neutral-50" : "mesh-bg-neutral-50 mesh-text-neutral-950 "}`}
+    >
+      {label}
+    </Dialog.Trigger>
+  {:else if BrowserWalletState.wallet && BrowserWalletState.wallet && lovelaceBalance}
+    <button
+      class={`mesh-inline-flex mesh-items-center mesh-justify-center mesh-whitespace-nowrap mesh-rounded-md mesh-text-sm mesh-font-medium mesh-transition-colors focus-visible:mesh-outline-none focus-visible:mesh-ring-1 focus-visible:mesh-ring-zinc-950 disabled:mesh-pointer-events-none disabled:mesh-opacity-50 mesh-h-9 mesh-px-4 mesh-py-2 hover:mesh-bg-zinc-300 ${isDark === true ? "mesh-bg-neutral-950 mesh-text-neutral-50" : "mesh-bg-neutral-50 mesh-text-neutral-950 "}`}
+      onclick={() => disconnect()}
+    >
+      <img
+        alt="Wallet Icon"
+        class="mesh-m-2 mesh-h-6"
+        src={BrowserWalletState.icon}
+      />₳{" "}
+      {parseInt((parseInt(lovelaceBalance, 10) / 1_000_000).toString(), 10)}.
+      <span class="mesh-text-xs"
+        >{lovelaceBalance.substring(lovelaceBalance.length - 6)}</span
+      >
+    </button>
+  {:else if BrowserWalletState.wallet && BrowserWalletState.wallet && lovelaceBalance === undefined}
+    Loading...
+  {/if}
   <Dialog.Portal>
-    <Dialog.Overlay class="fixed inset-0 z-50 bg-black/80" />
+    <Dialog.Overlay
+      class="mesh-fixed mesh-inset-0 mesh-z-50 mesh-bg-black/80"
+    />
     <Dialog.Content
-      class="fixed left-[50%] top-[50%] z-50 w-full max-w-[94%] translate-x-[-50%] translate-y-[-50%] rounded-card-lg border bg-background p-5 shadow-popover outline-none sm:max-w-[490px] md:w-full"
+      class={`mesh-fixed mesh-left-[50%] mesh-top-[50%] mesh-z-50 mesh-w-full mesh-max-w-[94%] mesh-translate-x-[-50%] mesh-translate-y-[-50%] mesh-rounded-card-lg mesh-border mesh-rounded-xl ${isDark === true ? "mesh-bg-neutral-950 mesh-text-neutral-50" : "mesh-bg-neutral-50 mesh-text-neutral-950"} mesh-p-5 mesh-shadow-popover mesh-outline-none sm:mesh-max-w-[490px] md:mesh-w-full`}
     >
       <Dialog.Title
-        class="flex w-full items-center justify-center text-lg font-semibold tracking-tight"
+        class="mesh-flex mesh-w-full mesh-items-center mesh-justify-center mesh-text-lg mesh-font-semibold mesh-tracking-tight"
         >Create API key</Dialog.Title
       >
-      <Separator.Root class="-mx-5 mb-6 mt-5 block h-px bg-muted" />
-      <Dialog.Description class="text-sm text-foreground-alt">
-        Create and manage API keys. You can create multiple keys to organize
-        your applications.
+      <Separator.Root
+        class={`mesh-mx-10 mesh-mb-6 mesh-mt-5 mesh-block mesh-h-px ${isDark === true ? "mesh-bg-neutral-50" : "mesh-bg-neutral-950"}`}
+      />
+      <Dialog.Description
+        class="mesh-text-sm mesh-text-center mesh-text-foreground-alt"
+      >
+        Securely Connect your Cardano Wallet.
       </Dialog.Description>
-      <div class="flex flex-col items-start gap-1 pb-11 pt-7">
-        <Label.Root for="apiKey" class="text-sm font-medium">API Key</Label.Root
-        >
-        <div class="relative w-full">
-          <input
-            id="apiKey"
-            class="inline-flex h-input w-full items-center rounded-card-sm border border-border-input bg-background px-4 text-sm placeholder:text-foreground-alt/50 hover:border-dark-40 focus:outline-none focus:ring-2 focus:ring-foreground focus:ring-offset-2 focus:ring-offset-background"
-            placeholder="secret_api_key"
-            type="password"
-            autocomplete="off"
+      <div
+        class="mesh-grid mesh-gap-4 mesh-grid-cols-2 mesh-mt-5 mesh-mb-5 mesh-place-items-center"
+      >
+        {#each availableWallets as wallet}
+          <img
+            class="mesh-w-32 mesh-h-32 hover:mesh-cursor-pointer"
+            alt={wallet.name + " icon"}
+            src={wallet.icon}
+            onclick={() => {
+              connect(wallet);
+              dialogOpen = false;
+            }}
           />
-        </div>
-      </div>
-      <div class="flex w-full justify-end">
-        <Dialog.Close
-          class="inline-flex h-input items-center justify-center rounded-input bg-dark px-[50px] text-[15px] font-semibold text-background shadow-mini hover:bg-dark/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dark focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-98"
-        >
-          Save
-        </Dialog.Close>
+        {/each}
       </div>
       <Dialog.Close
-        class="absolute right-5 top-5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-98"
+        class="mesh-absolute mesh-right-5 mesh-top-5 mesh-rounded-md focus-visible:mesh-outline-none focus-visible:mesh-ring-2 focus-visible:mesh-ring-foreground focus-visible:mesh-ring-offset-2 focus-visible:mesh-ring-offset-background active:mesh-scale-98"
       >
         <div>
           <span>Close</span>
