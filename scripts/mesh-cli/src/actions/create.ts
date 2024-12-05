@@ -12,8 +12,9 @@ export const create = async (name, options) => {
   const template =
     options.template ??
     (await askUser('What template do you want to use?', [
-      { title: "Aiken", value: "mesh-aiken" },
       { title: "NextJS", value: "mesh-nextjs" },
+      { title: "Svelte", value: "mesh-svelte" },
+      { title: "Aiken", value: "mesh-aiken" },
     ]));
 
   console.log('\n');

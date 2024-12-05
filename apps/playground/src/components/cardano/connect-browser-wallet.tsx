@@ -31,6 +31,9 @@ export function CommonCardanoWallet() {
         },
         announce: [
           "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",
+          "wss://dev.tracker.cf-identity-wallet.metadata.dev.cf-deployments.org",
+          "wss://tracker.files.fm:7073/announce",
+          "wss://tracker.de-0.eternl.art",
         ],
       }}
       burnerWallet={{

@@ -1,5 +1,3 @@
-import { CardanoWallet } from "@meshsdk/react";
-
 import { CommonCardanoWallet } from "~/components/cardano/connect-browser-wallet";
 import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
@@ -121,9 +119,19 @@ function Left() {
       <h3>CIP 95</h3>
       <p>
         You can also provide an <code>extensions</code> object to enable
-        specific CIPs. For example, to enable CIP95, you would pass:
+        specific CIPs. For example, to enable{" "}
+        <Link href="https://cips.cardano.org/cip/CIP-95">CIP-95</Link>, you
+        would pass:
       </p>
       <Codeblock data={codeCip95} />
+
+      <h3>Decentralized WebRTC dApp-Wallet Communication (CIP 45)</h3>
+      <p>
+        <Link href="https://cips.cardano.org/cip/CIP-45">CIP-45</Link> is a
+        communication method between dApps and wallets based on WebTorrent
+        trackers and WebRTC. Using WebTorrent trackers for the peer discovery to
+        remove the need of this central component.
+      </p>
 
       <h3>Burner wallet</h3>
       <p>
@@ -137,8 +145,6 @@ function Left() {
 }
 
 function Right() {
-  const isDark = useDarkmode((state) => state.isDark);
-
   let example = ``;
   example += `import { CardanoWallet } from '@meshsdk/react';\n`;
   example += `\n`;
