@@ -4,6 +4,7 @@ import { certificateToObj } from "./certificate";
 import { mintItemToObj } from "./mint";
 import { networkToObj } from "./network";
 import { outputToObj } from "./output";
+import { txMetadataToObj } from "./metadata";
 import { collateralTxInToObj, txInToObj } from "./txIn";
 import { voteToObj } from "./vote";
 import { withdrawalToObj } from "./withdrawal";
@@ -33,7 +34,7 @@ export const meshTxBuilderBodyToObj = ({
     referenceInputs: referenceInputs,
     mints: mints.map((mint) => mintItemToObj(mint)),
     changeAddress,
-    metadata: metadata,
+    metadata: txMetadataToObj(metadata),
     validityRange: validityRangeToObj(validityRange),
     certificates: certificates.map(certificateToObj),
     signingKey: signingKey,

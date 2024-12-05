@@ -35,7 +35,7 @@ function Left() {
 
   let codeSnippet2 = ``;
   codeSnippet2 += `txBuilder\n`;
-  codeSnippet2 += `  .metadataValue("721", metadata)\n`;
+  codeSnippet2 += `  .metadataValue(721, metadata)\n`;
   codeSnippet2 += `  .changeAddress(changeAddress)\n`;
   codeSnippet2 += `  .selectUtxosFrom(utxos);\n`;
   codeSnippet2 += `\n`;
@@ -88,7 +88,7 @@ function Right() {
     }
 
     txBuilder
-      .metadataValue("721", metadata)
+      .metadataValue(721, metadata)
       .changeAddress(changeAddress)
       .selectUtxosFrom(utxos);
 
@@ -125,7 +125,7 @@ function Right() {
   codeSnippet += `}\n`;
   codeSnippet += `\n`;
   codeSnippet += `txBuilder\n`;
-  codeSnippet += `  .metadataValue("721", metadata)\n`;
+  codeSnippet += `  .metadataValue(721, metadata)\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;
   codeSnippet += `  .selectUtxosFrom(utxos);\n`;
   codeSnippet += `\n`;

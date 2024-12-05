@@ -85,7 +85,7 @@ describe("Builder", () => {
       mints: [],
       changeAddress:
         "addr_test1qq0yavv5uve45rwvfaw96qynrqt8ckpmkwcg08vlwxxdncxk82f5wz75mzaesmqzl79xqsmedwgucwtuav5str6untqqmykcpn",
-      metadata: [],
+      metadata: new Map(),
       validityRange: {},
       certificates: [],
       withdrawals: [],

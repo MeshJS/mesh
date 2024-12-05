@@ -35,6 +35,8 @@ import {
   Withdrawal,
 } from "@meshsdk/common";
 
+import { MetadataMergeLevel, metadataObjToMap, setAndMergeTxMetadata } from "../utils";
+
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;
   private txOutput?: Output;
@@ -1412,13 +1414,16 @@ export class MeshTxBuilderCore {
 
   /**
    * Add metadata to the transaction
-   * @param tag The tag of the metadata
+   * @param label The label of the metadata, preferably number
    * @param metadata The metadata in any format
+   * @param mergeExistingMetadataByLabel Whether to merge the new metadata
+   *    with any existing metadata under the same label, and upto what level
    * @returns The MeshTxBuilder instance
    */
-  metadataValue = (tag: string, metadata: any) => {
-    const metadataString = JSONBig.stringify(metadata);
-    this.meshTxBuilderBody.metadata.push({ tag, metadata: metadataString });
+  metadataValue = (label: number | bigint | string, metadata: any, mergeExistingMetadataByLabel: MetadataMergeLevel = false) => {
+    label = BigInt(label);
+    metadata = metadataObjToMap(metadata);
+    setAndMergeTxMetadata(this.meshTxBuilderBody.metadata, label, metadata, mergeExistingMetadataByLabel);
     return this;
   };
 
