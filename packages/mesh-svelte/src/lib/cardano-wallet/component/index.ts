@@ -1,4 +1,3 @@
-import Root from "./connect-wallet-button.svelte";
-import { type CardanoWalletButtonProps } from "./types";
+import Root from "./cardano-wallet.svelte";
 
-export { Root as CardanoWallet, type CardanoWalletButtonProps };
+export { Root as CardanoWallet };
