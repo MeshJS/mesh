@@ -89,7 +89,10 @@ export const CardanoWallet = ({
           />
         )}
         {screen == "p2p" && (
-          <ScreenP2P cardanoPeerConnect={cardanoPeerConnect} />
+          <ScreenP2P
+            cardanoPeerConnect={cardanoPeerConnect}
+            setOpen={setOpen}
+          />
         )}
         {screen == "burner" && burnerWallet && (
           <ScreenBurner
