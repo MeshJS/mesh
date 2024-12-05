@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "../common/button";
 import { DAppPeerConnect, IWalletInfo } from "../common/cardano-peer-connect";
+import { useWallet } from "../hooks";
 
 export default function ScreenP2P({
   cardanoPeerConnect,
+  setOpen,
 }: {
   cardanoPeerConnect?: {
     dAppInfo: {
@@ -13,11 +15,13 @@ export default function ScreenP2P({
     };
     announce: string[];
   };
+  setOpen: Function;
 }) {
   const dAppConnect = useRef<DAppPeerConnect | null>(null);
   const qrCodeField = useRef<HTMLDivElement | null>(null);
   const [address, setAddress] = useState("");
   const [copied, setCopied] = useState(false);
+  const { connect } = useWallet();
 
   useEffect(() => {
     if (cardanoPeerConnect) {
@@ -28,23 +32,25 @@ export default function ScreenP2P({
             url: cardanoPeerConnect.dAppInfo.url,
           },
           announce: cardanoPeerConnect.announce,
-          onApiInject: (name: string, address: string) => {
-            console.log("onApiInject", name, address);
+          onApiInject: async (name: string, address: string) => {
+            console.log(5, "onApiInject", name, address);
+            await connect(name);
+            setOpen(false);
           },
           onApiEject: (name: string, address: string) => {
-            console.log("onApiEject", name, address);
+            console.log(5, "onApiEject", name, address);
           },
           onConnect: (address: string, walletInfo?: IWalletInfo) => {
-            console.log("Connected to wallet", address, walletInfo);
+            console.log(5, "Connected to wallet", address, walletInfo);
           },
           onDisconnect: () => {
-            console.log("Disconnected from wallet");
+            console.log(5, "Disconnected from wallet");
           },
           verifyConnection: (
             walletInfo: IWalletInfo,
             callback: (granted: boolean, autoconnect: boolean) => void,
           ) => {
-            console.log("verifyConnection", walletInfo);
+            console.log(5, "verifyConnection", walletInfo);
             callback(true, true);
           },
           useWalletDiscovery: true,
@@ -53,8 +59,6 @@ export default function ScreenP2P({
         if (dAppConnect.current) {
           const address = dAppConnect.current.getAddress();
           setAddress(address);
-          console.log("address", address);
-
           if (qrCodeField.current !== null) {
             dAppConnect.current.generateQRCode(qrCodeField.current);
           }
