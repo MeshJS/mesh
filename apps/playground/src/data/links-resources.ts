@@ -9,7 +9,7 @@ import { metaAiken } from "./links-aiken";
 import { metaGuides } from "./links-guides";
 import { metaYaci } from "./links-yaci";
 
-export const linksGetStarted: MenuItem[] = [
+export const linksResources: MenuItem[] = [
   metaGuides,
   {
     link: `https://github.com/MeshJS/examples`,
@@ -27,10 +27,10 @@ export const linksGetStarted: MenuItem[] = [
   metaYaci,
 ];
 
-export const metaGetStarted: MenuItem = {
-  title: "Get Started",
+export const metaResources: MenuItem = {
+  title: "Resources",
   desc: "Whether you are new to web development or a seasoned blockchain full-stack developer, Mesh is the SDK for you.",
-  link: "/getting-started",
+  link: "/resources",
   icon: StarIcon,
-  items: linksGetStarted,
+  items: linksResources,
 };
