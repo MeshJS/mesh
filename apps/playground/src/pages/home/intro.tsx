@@ -49,7 +49,7 @@ export default function SectionIntro() {
       <div className="mx-auto max-w-screen-xl items-center gap-8 px-4 py-8 sm:py-16 lg:grid lg:grid-cols-2 lg:px-6 xl:gap-16 ">
         <img
           className="mb-4 hidden w-full rounded-lg lg:mb-0 lg:block"
-          src="https://flowbite.s3.amazonaws.com/blocks/marketing-ui/features/feature-office-long.png"
+          src="/home/developer-8764521_640.jpg"
           alt="feature image"
         />
         <div className="text-gray-500 sm:text-lg dark:text-gray-400">
