@@ -18,16 +18,16 @@ function Left() {
   let code = ``;
   code += `<script lang="ts">\n`;
   code += `  import { BrowserWalletState } from "@meshsdk/svelte";\n`;
-  code += `\n`;
-  code += `  const { wallet, connected, name, connecting, connect, disconnect } = BrowserWalletState;\n`;
   code += `</script>`;
 
   return (
     <>
       <p>
-        Provide information on the current wallet's state, and functions for
-        connecting and disconnecting user wallet.
+        Obtain information on the current wallet's state, all fields on the{" "}
+        <code>BrowserWalletState</code> JavaScript object are Svelte 5 runes,
+        meaning when using the accessor, these values are reactive.
       </p>
+
       <Codeblock data={code} />
       <p>
         <code>wallet</code> is a{" "}
@@ -46,15 +46,6 @@ function Left() {
         <code>connecting</code>, a boolean, <code>true</code> if the wallet is
         connecting and initializing.
       </p>
-      <p>
-        <code>connect(walletName: string)</code>, a function, provide the wallet
-        name to connect wallet. Retrive a list of available wallets with{" "}
-        <code>useWalletList()</code>.
-      </p>
-      <p>
-        <code>disconnect()</code>, a function, to disconnect the connected
-        wallet.
-      </p>
     </>
   );
 }
@@ -64,19 +55,19 @@ function Right() {
   example += `<script lang="ts">\n`;
   example += `  import { CardanoWallet, BrowserWalletState } from "@meshsdk/svelte";\n`;
   example += `\n`;
-  example += `  export async function getAddress() {\n`;
-  example += `    const { wallet } = BrowserWalletState;\n`;
+  example += `  // Will run every time the underlying BrowserWallet instance changes.`;
+  example += `  $effect(() => {\n`;
   example += `\n`;
-  example += `    if (wallet) {\n`;
-  example += `      const address = await wallet.getChangeAddress();\n`;
-  example += `      console.log(address);\n`;
+  example += `    if (BrowserWalletState.wallet) {\n`;
+  example += `      BrowserWalletState.wallet.getChangeAddress().then(address => {\n`;
+  example += `        console.log(address);\n`;
+  example += `      });\n`;
   example += `    }\n`;
-  example += `  }\n`;
+  example += `  });\n`;
   example += `</script>\n`;
   example += `\n`;
-  example += `<main>\n`;
+  example += `<div>\n`;
   example += `  <CardanoWallet />\n`;
-  example += `  <button on:click={getAddress}>getAddress</button>\n`;
   example += `</div>\n`;
 
   return (
