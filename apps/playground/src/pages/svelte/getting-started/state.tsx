@@ -59,7 +59,7 @@ function Right() {
   example += `  $effect(() => {\n`;
   example += `\n`;
   example += `    if (BrowserWalletState.wallet) {\n`;
-  example += `      wallet.getChangeAddress().then(address => {\n`;
+  example += `      BrowserWalletState.wallet.getChangeAddress().then(address => {\n`;
   example += `        console.log(address);\n`;
   example += `      });\n`;
   example += `    }\n`;
