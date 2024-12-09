@@ -25,7 +25,7 @@ export type MeshTxBuilderBody = {
   referenceInputs: RefTxIn[];
   mints: MintItem[];
   changeAddress: string;
-  metadata: Metadata[];
+  metadata: TxMetadata;
   validityRange: ValidityRange;
   certificates: Certificate[];
   withdrawals: Withdrawal[];
@@ -50,7 +50,7 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   referenceInputs: [],
   mints: [],
   changeAddress: "",
-  metadata: [],
+  metadata: new Map<bigint, Metadatum>(),
   validityRange: {},
   certificates: [],
   withdrawals: [],
@@ -73,6 +73,13 @@ export type ValidityRange = {
 
 // Mint Types
 
+// Transaction Metadata
+
+export type MetadatumMap = Map<Metadatum, Metadatum>;
+export type Metadatum = bigint | number | string | Uint8Array | MetadatumMap | Metadatum[];
+export type TxMetadata = Map<bigint, Metadatum>;
+
+// to be used for serialization
 export type Metadata = {
   tag: string;
   metadata: string;
