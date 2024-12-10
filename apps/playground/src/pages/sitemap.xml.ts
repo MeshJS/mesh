@@ -1,7 +1,7 @@
 import { linksAbout } from "~/data/links-about";
 import { linksApi } from "~/data/links-api";
-import { linksGetStarted } from "~/data/links-get-started";
 import { linksGuides } from "~/data/links-guides";
+import { linksResources } from "~/data/links-resources";
 import { linksSmartContracts } from "~/data/links-smart-contracts";
 import { linksSolutions } from "~/data/links-solutions";
 import { rootUrl } from "~/data/site";
@@ -42,7 +42,7 @@ function addLinks(pagesUrls: string[], pages: MenuItem[]) {
 export async function getServerSideProps({ res }: { res: any }) {
   const pagesUrls: string[] = [];
 
-  addLinks(pagesUrls, linksGetStarted);
+  addLinks(pagesUrls, linksResources);
   addLinks(pagesUrls, linksGuides);
   addLinks(pagesUrls, linksApi);
   addLinks(pagesUrls, linksSmartContracts);
