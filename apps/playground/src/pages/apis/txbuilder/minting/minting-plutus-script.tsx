@@ -42,7 +42,7 @@ function Left() {
   codeSnippet3 += `  .mint("1", policyId, tokenNameHex)\n`;
   codeSnippet3 += `  .mintingScript(demoPlutusMintingScript)\n`;
   codeSnippet3 += `  .mintRedeemerValue(mConStr0([userInput]))\n`;
-  codeSnippet3 += `  .metadataValue("721", metadata)\n`;
+  codeSnippet3 += `  .metadataValue(721, metadata)\n`;
   codeSnippet3 += `  .changeAddress(changeAddress)\n`;
   codeSnippet3 += `  .selectUtxosFrom(utxos)\n`;
   codeSnippet3 += `  .txInCollateral(\n`;
@@ -125,7 +125,7 @@ function Right() {
       .mint("1", policyId, tokenNameHex)
       .mintingScript(demoPlutusMintingScript)
       .mintRedeemerValue(mConStr0([userInput]))
-      .metadataValue("721", metadata)
+      .metadataValue(721, metadata)
       .changeAddress(changeAddress)
       .selectUtxosFrom(utxos)
       .txInCollateral(
@@ -159,7 +159,7 @@ function Right() {
   code += `  .mint("1", policyId, tokenNameHex)\n`;
   code += `  .mintingScript(demoPlutusMintingScript)\n`;
   code += `  .mintRedeemerValue(mConStr0(['${userInput}']))\n`;
-  code += `  .metadataValue("721", metadata)\n`;
+  code += `  .metadataValue(721, metadata)\n`;
   code += `  .changeAddress(changeAddress)\n`;
   code += `  .selectUtxosFrom(utxos)\n`;
   code += `  .txInCollateral(\n`;

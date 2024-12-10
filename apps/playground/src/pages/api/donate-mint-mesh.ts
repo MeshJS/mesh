@@ -94,7 +94,7 @@ export default async function handler(
       .selectUtxosFrom(utxos)
       .mint("1", policyId, stringToHex(assetName))
       .mintingScript(forgingScript)
-      .metadataValue("721", fullAssetMetadata)
+      .metadataValue(721, fullAssetMetadata)
       .txOut(donateAddress, [
         { unit: "lovelace", quantity: costLovelace.toString() },
       ])
