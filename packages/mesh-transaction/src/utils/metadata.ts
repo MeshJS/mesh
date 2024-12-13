@@ -17,11 +17,19 @@ export const metadataObjToMap = (metadata: any): Metadatum => {
     // Recursively process each element in the array
     return metadata.map(metadataObjToMap);
   } else if (metadata && typeof metadata === "object") {
-    // Convert object to MetadatumMap
+    // Convert to MetadatumMap recursively
     const map: MetadatumMap = new Map();
-    Object.entries(metadata).forEach(([key, value]) => {
-      map.set(metadataObjToMap(key), metadataObjToMap(value));
-    });
+    if (metadata instanceof Map) {
+      // for Map
+      metadata.forEach((value, key) => {
+        map.set(metadataObjToMap(key), metadataObjToMap(value));
+      });
+    } else {
+      // for Object
+      Object.entries(metadata).forEach(([key, value]) => {
+        map.set(metadataObjToMap(key), metadataObjToMap(value));
+      });
+    }
     return map;
   } else {
     throw new Error("Metadata map conversion: Unsupported metadata type");
