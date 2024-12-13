@@ -1,6 +1,6 @@
 import JSONBig from "json-bigint";
 
-import type { Metadatum, MetadatumMap, TxMetadata } from "@meshsdk/common";
+import type { Metadatum, MetadatumMap } from "@meshsdk/common";
 
 export type MetadataMergeLevel = boolean | number;
 

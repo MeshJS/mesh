@@ -51,8 +51,7 @@ export interface TransactionV2 {
   setTimeToStart(slot: string): this;
   setMetadata(
     label: number,
-    metadata: unknown,
-    mergeExistingMetadataByLabel: MetadataMergeLevel
+    metadata: unknown
   ): this;
   withdrawRewards(rewardAddress: string, lovelace: string): this;
   delegateStake(rewardAddress: string, poolId: string): this;
