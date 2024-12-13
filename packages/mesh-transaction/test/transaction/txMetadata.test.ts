@@ -1,4 +1,4 @@
-import { metadataObjToMap, setAndMergeTxMetadata } from "@meshsdk/transaction";
+import { metadataObjToMap, mergeTxMetadata } from "@meshsdk/transaction";
 
 describe("Transaction Metadata Merge", () => {
   it("should merge two identical number metadata entries", () => {
@@ -10,7 +10,7 @@ describe("Transaction Metadata Merge", () => {
     const expectedOutput = new Map([
       [0n, 42]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, true);
+    mergeTxMetadata(txMetadata, label, metadata, true);
     expect(txMetadata).toEqual(expectedOutput);
   });
   it("should merge two identical string metadata entries", () => {
@@ -22,7 +22,7 @@ describe("Transaction Metadata Merge", () => {
     const expectedOutput = new Map([
       [1n, "Hey!"]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, true);
+    mergeTxMetadata(txMetadata, label, metadata, true);
     expect(txMetadata).toEqual(expectedOutput);
   });
   it("should not merge two different numbers", () => {
@@ -31,7 +31,7 @@ describe("Transaction Metadata Merge", () => {
     ]);
     const label = 1n;
     const metadata = 43;
-    expect(() => setAndMergeTxMetadata(txMetadata, label, metadata, true)).toThrow("cannot merge 42 with 43");
+    expect(() => mergeTxMetadata(txMetadata, label, metadata, true)).toThrow("cannot merge 42 with 43");
   });
   it("should not merge two different strings", () => {
     const txMetadata = new Map([
@@ -39,7 +39,7 @@ describe("Transaction Metadata Merge", () => {
     ]);
     const label = 0n;
     const metadata = "Bob";
-    expect(() => setAndMergeTxMetadata(txMetadata, label, metadata, true)).toThrow("cannot merge \"Alice\" with \"Bob\"");
+    expect(() => mergeTxMetadata(txMetadata, label, metadata, true)).toThrow("cannot merge \"Alice\" with \"Bob\"");
   });
   it("should not merge two same values of different types", () => {
     const txMetadata = new Map([
@@ -47,7 +47,7 @@ describe("Transaction Metadata Merge", () => {
     ]);
     const label = 0n;
     const metadata = "42";
-    expect(() => setAndMergeTxMetadata(txMetadata, label, metadata, true)).toThrow("cannot merge 42 with \"42\"");
+    expect(() => mergeTxMetadata(txMetadata, label, metadata, true)).toThrow("cannot merge 42 with \"42\"");
   });
   it("should replace with the latest item if there is no merge", () => {
     const txMetadata = new Map([
@@ -58,7 +58,7 @@ describe("Transaction Metadata Merge", () => {
     const expectedOutput = new Map([
       [1n, 43]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, false);
+    mergeTxMetadata(txMetadata, label, metadata, false);
     expect(txMetadata).toEqual(expectedOutput);
   });
 
@@ -68,7 +68,7 @@ describe("Transaction Metadata Merge", () => {
     ]);
     const label = 721n;
     const metadata = metadataObjToMap({ version: 2 });
-    expect(() => setAndMergeTxMetadata(txMetadata, label, metadata, 2)).toThrow("cannot merge 1 with 2");
+    expect(() => mergeTxMetadata(txMetadata, label, metadata, 2)).toThrow("cannot merge 1 with 2");
   });
   it("should replace with the latest value of the same object key if values are not merged", () => {
     const txMetadata = new Map([
@@ -79,23 +79,23 @@ describe("Transaction Metadata Merge", () => {
     const expectedOutput = new Map([
       [721n, metadataObjToMap({ version: 2 })]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, 1);
+    mergeTxMetadata(txMetadata, label, metadata, 1);
     expect(txMetadata).toEqual(expectedOutput);
   });
   it("should not merge different types", () => {
-    expect(() => setAndMergeTxMetadata(
+    expect(() => mergeTxMetadata(
       new Map([[0n, 0]]),
       0n,   // label
       [],   // metadata
       true
     )).toThrow("cannot merge primitive type with array type");
-    expect(() => setAndMergeTxMetadata(
+    expect(() => mergeTxMetadata(
       new Map([[0n, metadataObjToMap({})]]),
       0n,   // label
       "",   // metadata
       true
     )).toThrow("cannot merge map type with primitive type");
-    expect(() => setAndMergeTxMetadata(
+    expect(() => mergeTxMetadata(
       new Map([[0n, metadataObjToMap({})]]),
       0n,   // label
       [],   // metadata
@@ -129,7 +129,7 @@ describe("Transaction Metadata Merge", () => {
         })
       ]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, true);
+    mergeTxMetadata(txMetadata, label, metadata, true);
     expect(txMetadata).toEqual(expectedOutput);
   });
 
@@ -156,7 +156,7 @@ describe("Transaction Metadata Merge", () => {
         })
       ]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, 2);
+    mergeTxMetadata(txMetadata, label, metadata, 2);
     expect(txMetadata).toEqual(expectedOutput);
   });
 
@@ -198,7 +198,7 @@ describe("Transaction Metadata Merge", () => {
         })
       ]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, 2);
+    mergeTxMetadata(txMetadata, label, metadata, 2);
     expect(txMetadata).toEqual(expectedOutput);
   });
 
@@ -252,7 +252,7 @@ describe("Transaction Metadata Merge", () => {
         })
       ]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata1, 2);
+    mergeTxMetadata(txMetadata, label, metadata1, 2);
     expect(txMetadata).toEqual(expectedOutput1);
     // Merge more NFT metadata
     const metadata2 = metadataObjToMap({
@@ -294,7 +294,7 @@ describe("Transaction Metadata Merge", () => {
         })
       ]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata2, 2);
+    mergeTxMetadata(txMetadata, label, metadata2, 2);
     expect(txMetadata).toEqual(expectedOutput2);
   });
 
@@ -327,7 +327,7 @@ describe("Transaction Metadata Merge", () => {
         })
       ]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, 2);
+    mergeTxMetadata(txMetadata, label, metadata, 2);
     expect(txMetadata).toEqual(expectedOutput);
   });
 
@@ -355,7 +355,7 @@ describe("Transaction Metadata Merge", () => {
         })
       ]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, 2);
+    mergeTxMetadata(txMetadata, label, metadata, 2);
     expect(txMetadata).toEqual(expectedOutput);
   });
 
@@ -374,7 +374,7 @@ describe("Transaction Metadata Merge", () => {
       [721n, metadataObjToMap({ policyId1: { NFT1: { name: "line 3" }, NFT2: { name: "line 5" } } })],
       [1n, metadataObjToMap("line 4")]
     ]);
-    setAndMergeTxMetadata(txMetadata, label, metadata, 2);
+    mergeTxMetadata(txMetadata, label, metadata, 2);
     expect(txMetadata).toEqual(expectedOutput);
   });
 });

@@ -200,7 +200,7 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
 
     if (assetMetadata) {
       const metadata = { [policyId]: { [tokenName]: { ...assetMetadata } } };
-      tx.metadataValue(721, metadata, 2);
+      tx.metadataValue(721, metadata);
     }
 
     tx.mintRedeemerValue(mConStr0([]))

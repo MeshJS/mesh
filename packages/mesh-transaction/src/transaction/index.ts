@@ -9,6 +9,7 @@ import {
   hexToString,
   IInitiator,
   metadataToCip68,
+  Metadatum,
   Mint,
   NativeScript,
   Network,
@@ -33,7 +34,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import { MeshTxBuilder, MeshTxBuilderOptions } from "../mesh-tx-builder";
-import { MetadataMergeLevel } from "../utils";
+import { mergeContents, metadataObjToMap } from "../utils";
 
 export interface TransactionOptions extends MeshTxBuilderOptions {
   initiator: IInitiator;
@@ -471,11 +472,24 @@ export class Transaction {
     }
     if (!mint.cip68ScriptAddress && mint.metadata && mint.label) {
       if (mint.label === "721" || mint.label === "20") {
-        this.setMetadata(Number(mint.label), {
-          [policyId]: { [mint.assetName]: mint.metadata },
-        }, mint.label === "721" ? 2 : true);
+        let currentMetadata = this.txBuilder.meshTxBuilderBody.metadata;
+        if (currentMetadata.size === 0) {
+          this.setMetadata(Number(mint.label), {
+            [policyId]: { [mint.assetName]: mint.metadata },
+          });
+        } else {
+          let metadataMap = metadataObjToMap({
+            [policyId]: { [mint.assetName]: mint.metadata },
+          } as object);
+          let newMetadata = mergeContents(
+            currentMetadata.get(BigInt(mint.label)) as Metadatum,
+            metadataMap,
+            mint.label === "721" ? 2 : 0,
+          );
+          this.setMetadata(Number(mint.label), newMetadata);
+        }
       } else {
-        this.setMetadata(Number(mint.label), mint.metadata, true);
+        this.setMetadata(Number(mint.label), mint.metadata);
       }
     }
 
@@ -588,13 +602,11 @@ export class Transaction {
    *
    * @param {number} label The label to use for the metadata entry.
    * @param {unknown} metadata The value to use for the metadata entry.
-   * @param {MetadataMergeLevel} mergeExistingMetadataByLabel Whether to merge the new metadata
-   *    with any existing metadata under the same label, and upto what level
    * @returns {Transaction} The Transaction object.
    * @see {@link https://meshjs.dev/apis/transaction#setMetadata}
    */
-  setMetadata(label: number, metadata: unknown, mergeExistingMetadataByLabel: MetadataMergeLevel = false): Transaction {
-    this.txBuilder.metadataValue(label, metadata as object, mergeExistingMetadataByLabel);
+  setMetadata(label: number, metadata: Metadatum | object): Transaction {
+    this.txBuilder.metadataValue(label, metadata);
     return this;
   }
 

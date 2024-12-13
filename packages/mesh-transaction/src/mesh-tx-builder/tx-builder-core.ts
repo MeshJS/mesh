@@ -14,6 +14,7 @@ import {
   emptyTxBuilderBody,
   LanguageVersion,
   MeshTxBuilderBody,
+  Metadatum,
   MintItem,
   Network,
   Output,
@@ -25,6 +26,7 @@ import {
   RefTxIn,
   TxIn,
   TxInParameter,
+  TxMetadata,
   Unit,
   UTxO,
   UtxoSelection,
@@ -35,7 +37,7 @@ import {
   Withdrawal,
 } from "@meshsdk/common";
 
-import { MetadataMergeLevel, metadataObjToMap, setAndMergeTxMetadata } from "../utils";
+import { metadataObjToMap } from "../utils";
 
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;
@@ -1420,10 +1422,16 @@ export class MeshTxBuilderCore {
    *    with any existing metadata under the same label, and upto what level
    * @returns The MeshTxBuilder instance
    */
-  metadataValue = (label: number | bigint | string, metadata: any, mergeExistingMetadataByLabel: MetadataMergeLevel = false) => {
+  metadataValue = (
+    label: number | bigint | string,
+    metadata: Metadatum | object,
+  ) => {
     label = BigInt(label);
-    metadata = metadataObjToMap(metadata);
-    setAndMergeTxMetadata(this.meshTxBuilderBody.metadata, label, metadata, mergeExistingMetadataByLabel);
+    if (typeof metadata === "object" && !(metadata instanceof Map)) {
+      this.meshTxBuilderBody.metadata.set(label, metadataObjToMap(metadata));
+    } else {
+      this.meshTxBuilderBody.metadata.set(label, metadata);
+    }
     return this;
   };
 
@@ -1474,7 +1482,7 @@ export class MeshTxBuilderCore {
     return this;
   };
 
-    /**
+  /**
    * Sets a specific fee for the transaction to use
    * @param fee The specified fee
    * @returns The MeshTxBuilder instance
@@ -1482,7 +1490,7 @@ export class MeshTxBuilderCore {
   setFee = (fee: string) => {
     this.meshTxBuilderBody.fee = fee;
     return this;
-  }
+  };
 
   /**
    * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
