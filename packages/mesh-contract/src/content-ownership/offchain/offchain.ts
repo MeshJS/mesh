@@ -525,7 +525,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     const txHex = await this.mesh
       .mint("1", policyId, tokenNameHex)
       .mintingScript(forgingScript)
-      .metadataValue("721", metadata)
+      .metadataValue(721, metadata)
       .changeAddress(walletAddress)
       .selectUtxosFrom(utxos)
       .complete();
