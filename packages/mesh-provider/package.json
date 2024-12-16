@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
+    "@types/ws": "^8.5.13",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"

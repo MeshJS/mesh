@@ -47,10 +47,10 @@ function Left() {
 
 function Right(hydraProvider: HydraProvider, provider: string) {
   useEffect(() => {
-    hydraProvider.onMessage((message) => {
-      console.log("HydraProvider received message", message);
-      // do something with the message
-    });
+    // hydraProvider.onMessage((message) => {
+    //   console.log("HydraProvider received message", message);
+    //   // do something with the message
+    // });
   }, []);
 
   return <></>;
