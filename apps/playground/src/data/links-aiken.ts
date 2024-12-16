@@ -2,7 +2,7 @@ import { MenuItem } from "~/types/menu-item";
 
 export const metaAikenGettingStarted = {
   title: "Getting Started",
-  desc: "We will walk you through the process of setting up your system to compile Aiken smart contracts",
+  desc: "Setting up your system to compile Aiken smart contracts",
   link: "/aiken/getting-started",
 };
 export const metaAikenFirstScript = {
@@ -21,8 +21,8 @@ export const metaAikenContractsLib = {
   link: "/smart-contracts",
 };
 export const metaAikenCourse = {
-  title: "Aiken Smart Contract course by STOIC Pool",
-  desc: "You'll learn the core concepts of Aiken while enjoying live coding examples",
+  title: "Smart Contract course by STOIC Pool",
+  desc: "Learn the concepts of Aiken while enjoying live coding examples",
   link: "https://www.youtube.com/playlist?list=PLCuyQuWCJVQ1Zz9ySRMH_J6EymxhnZ0Hu",
 };
 
