@@ -11,7 +11,7 @@ import Link from "~/components/link";
 import SvgMesh from "~/components/svgs/mesh";
 import { linksAbout } from "~/data/links-about";
 import { linksApi } from "~/data/links-api";
-import { linksGetStarted } from "~/data/links-get-started";
+import { linksResources } from "~/data/links-resources";
 import { linksSolutions } from "~/data/links-solutions";
 import { socials } from "~/data/social";
 import { useDarkmode } from "~/hooks/useDarkmode";
@@ -90,7 +90,7 @@ export default function Navbar() {
             {!isSSR && (
               <button
                 type="button"
-                className="rounded-lg p-2.5 text-sm text-gray-500 hover:bg-gray-100 focus:outline-none dark:text-gray-400 dark:hover:bg-gray-700"
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
                 onClick={() => {
                   toggle();
                 }}
@@ -123,8 +123,8 @@ export default function Navbar() {
             } w-full items-center justify-between lg:order-1 lg:flex lg:w-auto`}
           >
             <ul className="mt-4 flex flex-col font-medium lg:mt-0 lg:flex-row lg:space-x-8">
-              <MenuItemDropdown title="Get Started" items={linksGetStarted} />
               <MenuItemDropdown title="SDK" items={linksApi} />
+              <MenuItemDropdown title="Resources" items={linksResources} />
               <MenuItemDropdown title="Solutions" items={linksSolutions} />
               <MenuItem title="Docs" link="https://docs.meshjs.dev/" />
               <MenuItemDropdown title="About" items={linksAbout} />

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { IFetcher, ISubmitter } from "@meshsdk/common";
+
 import { Button } from "../common/button";
 import {
   Dialog,
@@ -13,6 +15,8 @@ import {
 import IconChevronRight from "../common/icons/icon-chevron-right";
 import { useWallet } from "../hooks";
 import ConnectedButton from "./connected-button";
+import { screens } from "./data";
+import ScreenBurner from "./screen-burner";
 import ScreenMain from "./screen-main";
 import ScreenP2P from "./screen-p2p";
 
@@ -20,10 +24,10 @@ interface ButtonProps {
   label?: string;
   onConnected?: Function;
   isDark?: boolean;
+  extensions?: number[];
   metamask?: {
     network: string;
   };
-  extensions?: number[];
   cardanoPeerConnect?: {
     dAppInfo: {
       name: string;
@@ -31,15 +35,20 @@ interface ButtonProps {
     };
     announce: string[];
   };
+  burnerWallet?: {
+    networkId: 0 | 1;
+    provider: IFetcher & ISubmitter;
+  };
 }
 
 export const CardanoWallet = ({
   label = "Connect Wallet",
   onConnected = undefined,
   isDark = false,
-  metamask = undefined,
   extensions = [],
+  metamask = undefined,
   cardanoPeerConnect = undefined,
+  burnerWallet = undefined,
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState("main");
@@ -63,7 +72,10 @@ export const CardanoWallet = ({
         <ConnectedButton />
       )}
 
-      <DialogContent className="sm:mesh-max-w-[425px]">
+      <DialogContent
+        className="sm:mesh-max-w-[425px]"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <Header screen={screen} setScreen={setScreen} />
 
         {screen == "main" && (
@@ -72,11 +84,22 @@ export const CardanoWallet = ({
             extensions={extensions}
             setOpen={setOpen}
             setScreen={setScreen}
-            cardanoPeerConnect={cardanoPeerConnect}
+            cardanoPeerConnect={cardanoPeerConnect != undefined}
+            burnerWallet={burnerWallet != undefined}
           />
         )}
         {screen == "p2p" && (
-          <ScreenP2P cardanoPeerConnect={cardanoPeerConnect} />
+          <ScreenP2P
+            cardanoPeerConnect={cardanoPeerConnect}
+            setOpen={setOpen}
+          />
+        )}
+        {screen == "burner" && burnerWallet && (
+          <ScreenBurner
+            networkId={burnerWallet.networkId}
+            provider={burnerWallet.provider}
+            setOpen={setOpen}
+          />
         )}
 
         <Footer />
@@ -103,14 +126,14 @@ function Header({
           <span style={{ width: "24px" }}></span>
         )}
         <span>
-          {screen == "main" && "Connect Wallet"}
-          {screen == "p2p" && "P2P Connect"}
+          {/* @ts-ignore */}
+          {screens[screen].title}
         </span>
         <span style={{ width: "24px" }}></span>
       </DialogTitle>
       <DialogDescription>
-        {screen == "p2p" &&
-          "Use wallet that supports CIP-45, scan this QR code to connect."}
+        {/* @ts-ignore */}
+        {screens[screen].subtitle && screens[screen].subtitle}
       </DialogDescription>
     </DialogHeader>
   );

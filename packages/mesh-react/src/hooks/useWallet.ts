@@ -10,6 +10,7 @@ export const useWallet = () => {
     connectingWallet,
     connectWallet,
     disconnect,
+    setWallet,
     error,
   } = useContext(WalletContext);
 
@@ -26,6 +27,7 @@ export const useWallet = () => {
     wallet: connectedWalletInstance,
     connect: connectWallet,
     disconnect,
+    setWallet,
     error,
   };
 };

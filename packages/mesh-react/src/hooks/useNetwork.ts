@@ -4,7 +4,7 @@ import { WalletContext } from "../contexts";
 
 export const useNetwork = () => {
   const [networkId, setNetworkId] = useState<number>();
-  const { hasConnectedWallet, connectedWalletName, connectedWalletInstance } =
+  const { hasConnectedWallet, connectedWalletInstance } =
     useContext(WalletContext);
 
   useEffect(() => {
@@ -13,7 +13,7 @@ export const useNetwork = () => {
     } else {
       setNetworkId(undefined);
     }
-  }, [connectedWalletName]);
+  }, [hasConnectedWallet, connectedWalletInstance]);
 
   return networkId;
 };

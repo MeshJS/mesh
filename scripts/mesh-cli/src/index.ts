@@ -7,7 +7,7 @@ import {
   InvalidArgumentError,
 } from "commander";
 import { create } from "./actions";
-import { logError, logSuccess } from "./utils";
+import { logError, logSuccess, logInfo } from "./utils";
 
 const main = async () => {
   console.clear();
@@ -72,6 +72,7 @@ const main = async () => {
 main()
   .then(() => {
     logSuccess("✨✨ Welcome to Web 3.0! ✨✨");
+    logInfo('Run "cd <project-name>" and "npm run dev" to start your dApp.');
     process.exit(0);
   })
   .catch((error) => {

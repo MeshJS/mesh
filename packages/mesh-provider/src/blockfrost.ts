@@ -49,6 +49,7 @@ export class BlockfrostProvider
 {
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: BlockfrostSupportedNetworks;
+  private submitTxToBytes = true;
 
   /**
    * If you are using a privately hosted Blockfrost instance, you can set the URL in the parameter.
@@ -81,6 +82,10 @@ export class BlockfrostProvider
       });
       this._network = network as BlockfrostSupportedNetworks;
     }
+  }
+
+  setSubmitTxToBytes(value: boolean): void {
+    this.submitTxToBytes = value;
   }
 
   /**
@@ -614,7 +619,7 @@ export class BlockfrostProvider
       const headers = { "Content-Type": "application/cbor" };
       const { data, status } = await this._axiosInstance.post(
         "tx/submit",
-        toBytes(tx),
+        this.submitTxToBytes ? toBytes(tx) : tx,
         { headers },
       );
 

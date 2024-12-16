@@ -4,12 +4,8 @@
   import type { Wallet } from "@meshsdk/core";
   import { BrowserWallet } from "@meshsdk/core";
 
-  import {
-    BrowserWalletState,
-    connect,
-    disconnect,
-  } from "../state/browser-wallet-state.svelte.js";
-  import { type CardanoWalletButtonProps } from "./";
+  import { type CardanoWalletButtonProps } from "../../common";
+  import { BrowserWalletState, connect, disconnect } from "../../state";
 
   const {
     label = "Connect Wallet",
@@ -32,9 +28,12 @@
   let lovelaceBalance: string | undefined = $state();
 
   $effect(() => {
-    if (BrowserWalletState.connected && onConnected) {
+    if (BrowserWalletState.connected === true && onConnected) {
       onConnected();
     }
+  });
+
+  $effect(() => {
     if (BrowserWalletState.wallet) {
       BrowserWalletState.wallet.getLovelace().then((l) => {
         lovelaceBalance = l;
