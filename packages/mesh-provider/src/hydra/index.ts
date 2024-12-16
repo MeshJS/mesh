@@ -7,6 +7,7 @@ import {
   AssetMetadata,
   BlockInfo,
   castProtocol,
+  GovernanceProposalInfo,
   IFetcher,
   ISubmitter,
   Protocol,
@@ -80,6 +81,13 @@ export class HydraProvider implements IFetcher, ISubmitter {
     cursor?: string | number | undefined,
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     throw new Error("Method not implemented.");
+  }
+
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented");
   }
 
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
