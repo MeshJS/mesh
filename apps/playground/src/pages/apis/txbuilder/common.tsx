@@ -1,6 +1,7 @@
 import { MeshTxBuilder } from "@meshsdk/core";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
+import Link from "~/components/link";
 
 export function getTxBuilder() {
   const blockchainProvider = getProvider();
@@ -20,8 +21,13 @@ export function Intro() {
   return (
     <>
       <p>
-        The <code>MeshTxBuilder</code> is a powerful low-level APIs that allows
-        you to build and sign transactions.
+        In the code snippet, you will find <code>txBuilder</code>, which is an
+        instance of <code>MeshTxBuilder</code>, a powerful low-level APIs that
+        allows you to build transactions. Learn how to initialize{" "}
+        <Link href="/apis/txbuilder/basics#initializeTxbuilder">
+          <code>MeshTxBuilder</code>
+        </Link>
+        .
       </p>
     </>
   );
