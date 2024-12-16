@@ -33,7 +33,7 @@ const ReactPage: NextPage = () => {
   code1 += `\nawait hydraProvider.connect();`;
 
   const hydraUrl = useProviders((state) => state.hydraUrl);
-  const hydraProvider = new HydraProvider(hydraUrl);
+  const hydraProvider = new HydraProvider({ url: hydraUrl });
 
   return (
     <>

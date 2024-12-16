@@ -1,3 +1,17 @@
+export const HYDRA_STATUS = {
+  IDLE: "IDLE",
+  DISCONNECTED: "DISCONNECTED",
+  CONNECTING: "CONNECTING",
+  CONNECTED: "CONNECTED",
+  INITIALIZING: "INITIALIZING",
+  OPEN: "OPEN",
+  CLOSED: "CLOSED",
+  FANOUT_POSSIBLE: "FANOUT_POSSIBLE",
+  FINAL: "FINAL",
+} as const;
+
+export type HydraStatus = (typeof HYDRA_STATUS)[keyof typeof HYDRA_STATUS];
+
 export type HydraUTxOs = {
   [x: string]: HydraUTxO;
 };
@@ -14,7 +28,12 @@ export type HydraUTxO = {
 
 export type HydraAssets = {
   lovelace: number;
-  [x: string]: number;
+} & {
+  [x: string]:
+    | {
+        [y: string]: number;
+      }
+    | undefined;
 };
 
 export type HydraReferenceScript = {
@@ -28,4 +47,11 @@ export type HydraReferenceScript = {
       | "PlutusScriptV2"
       | "PlutusScriptV3";
   };
+};
+
+export type HydraCommitTransaction = {
+  cborHex: string;
+  description: string;
+  txId: string;
+  type: string;
 };

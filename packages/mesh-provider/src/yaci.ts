@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
   IListener,
@@ -24,7 +25,7 @@ import {
 import {
   normalizePlutusScript,
   resolveRewardAddress,
-  toScriptRef
+  toScriptRef,
 } from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
@@ -104,7 +105,7 @@ export class YaciProvider
           const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
           script = <PlutusScript>{
             version: data.type.replace("plutus", ""),
-            code: normalized
+            code: normalized,
           };
         } else {
           script = await this.fetchNativeScriptJSON(scriptHash);
@@ -382,6 +383,13 @@ export class YaciProvider
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented by Maestro");
   }
 
   async get(url: string): Promise<any> {
