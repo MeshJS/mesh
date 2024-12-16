@@ -14,6 +14,7 @@ import {
   emptyTxBuilderBody,
   LanguageVersion,
   MeshTxBuilderBody,
+  Metadatum,
   MintItem,
   Network,
   Output,
@@ -34,6 +35,8 @@ import {
   VotingProcedure,
   Withdrawal,
 } from "@meshsdk/common";
+
+import { metadataObjToMap } from "../utils";
 
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;
@@ -1412,13 +1415,20 @@ export class MeshTxBuilderCore {
 
   /**
    * Add metadata to the transaction
-   * @param tag The tag of the metadata
+   * @param label The label of the metadata, preferably number
    * @param metadata The metadata in any format
    * @returns The MeshTxBuilder instance
    */
-  metadataValue = (tag: string, metadata: any) => {
-    const metadataString = JSONBig.stringify(metadata);
-    this.meshTxBuilderBody.metadata.push({ tag, metadata: metadataString });
+  metadataValue = (
+    label: number | bigint | string,
+    metadata: Metadatum | object,
+  ) => {
+    label = BigInt(label);
+    if (typeof metadata === "object" && !(metadata instanceof Map)) {
+      this.meshTxBuilderBody.metadata.set(label, metadataObjToMap(metadata));
+    } else {
+      this.meshTxBuilderBody.metadata.set(label, metadata);
+    }
     return this;
   };
 
