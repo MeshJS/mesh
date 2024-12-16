@@ -53,7 +53,7 @@ export const mPubKeyAddress = (
   bytes: string,
   stakeCredential?: string,
   isStakeScriptCredential = false,
-): Data =>
+): MPubKeyAddress =>
   mConStr0([
     { alternative: 0, fields: [bytes] },
     mMaybeStakingHash(stakeCredential || "", isStakeScriptCredential),
@@ -70,7 +70,7 @@ export const mScriptAddress = (
   bytes: string,
   stakeCredential?: string,
   isStakeScriptCredential = false,
-): Data =>
+): MScriptAddress =>
   mConStr0([
     { alternative: 1, fields: [bytes] },
     mMaybeStakingHash(stakeCredential || "", isStakeScriptCredential),

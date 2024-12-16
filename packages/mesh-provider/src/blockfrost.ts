@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
   IListener,
@@ -501,6 +502,39 @@ export class BlockfrostProvider
 
         return outputs;
       }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `governance/proposals/${txHash}/${certIndex}`,
+      );
+      if (status === 200 || status == 202)
+        return <GovernanceProposalInfo>{
+          txHash: data.tx_hash,
+          certIndex: data.cert_index,
+          governanceType: data.governance_type,
+          deposit: data.deposit,
+          returnAddress: data.return_address,
+          governanceDescription: data.governance_description,
+          ratifiedEpoch: data.ratified_epoch,
+          enactedEpoch: data.enacted_epoch,
+          droppedEpoch: data.dropped_epoch,
+          expiredEpoch: data.expired_epoch,
+          expiration: data.expiration,
+          metadata: (
+            await this._axiosInstance.get(
+              `governance/proposals/${txHash}/${certIndex}/metadata`,
+            )
+          ).data,
+        };
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);

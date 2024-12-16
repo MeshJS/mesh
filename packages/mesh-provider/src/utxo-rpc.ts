@@ -10,6 +10,7 @@ import {
   BlockInfo,
   bytesToHex,
   castProtocol,
+  GovernanceProposalInfo,
   hexToBytes,
   IEvaluator,
   IFetcher,
@@ -315,6 +316,10 @@ export class U5CProvider
    */
   fetchUTxOs(hash: string): Promise<UTxO[]> {
     throw new Error("Method not implemented.");
+  }
+
+  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented");
   }
 
   get(url: string): Promise<any> {

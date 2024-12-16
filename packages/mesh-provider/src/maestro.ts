@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
   IListener,
@@ -440,6 +441,10 @@ export class MaestroProvider
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented by Maestro");
   }
 
   async get(url: string): Promise<any> {
