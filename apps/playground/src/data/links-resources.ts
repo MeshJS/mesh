@@ -1,16 +1,21 @@
 import {
   AcademicCapIcon,
+  DocumentTextIcon,
   Squares2X2Icon,
   StarIcon,
 } from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
-import { metaAiken } from "./links-aiken";
 import { metaGuides } from "./links-guides";
-import { metaYaci } from "./links-yaci";
 
 export const linksResources: MenuItem[] = [
   metaGuides,
+  {
+    title: "Documentation",
+    desc: "Full documentation for MeshJS",
+    link: "https://docs.meshjs.dev/",
+    icon: DocumentTextIcon,
+  },
   {
     link: `https://github.com/MeshJS/examples`,
     title: "Examples",
@@ -23,8 +28,6 @@ export const linksResources: MenuItem[] = [
     desc: "Start your building journey",
     icon: AcademicCapIcon,
   },
-  metaAiken,
-  metaYaci,
 ];
 
 export const metaResources: MenuItem = {
