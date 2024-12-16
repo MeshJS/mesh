@@ -529,6 +529,11 @@ export class BlockfrostProvider
           droppedEpoch: data.dropped_epoch,
           expiredEpoch: data.expired_epoch,
           expiration: data.expiration,
+          metadata: (
+            await this._axiosInstance.get(
+              `governance/proposals/${txHash}/${certIndex}/metadata`,
+            )
+          ).data,
         };
       throw parseHttpError(data);
     } catch (error) {

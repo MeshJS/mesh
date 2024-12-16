@@ -10,4 +10,5 @@ export type GovernanceProposalInfo = {
   droppedEpoch: number;
   expiredEpoch: number;
   expiration: number;
+  metadata: object;
 };
