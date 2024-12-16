@@ -42,15 +42,8 @@ function Left() {
   codeAnchor += `const anchorUrl = "https://meshjs.dev/governance/meshjs.jsonld";\n`;
   codeAnchor += `const anchorHash = await getMeshJsonHash(anchorUrl);\n`;
 
-  let codeUtxo = ``;
-  codeUtxo += `// get utxo to pay for the registration\n`;
-  codeUtxo += `const utxos = await wallet.getUtxos();\n`;
-  codeUtxo += `const registrationFee = "500000000";\n`;
-  codeUtxo += `const assetMap = new Map<Unit, Quantity>();\n`;
-  codeUtxo += `assetMap.set("lovelace", registrationFee);\n`;
-  codeUtxo += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
-
   let codeTx = ``;
+  codeTx += `const utxos = await wallet.getUtxos();\n`;
   codeTx += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeTx += `\n`;
   codeTx += `txBuilder\n`;
@@ -110,15 +103,11 @@ function Left() {
       </p>
       <Codeblock data={codeAnchor} />
       <p>
-        Then, we select the UTxOs to pay for the registration. According to the
-        current protocol parameters, the deposit for registering a DRep is 500
-        ADA.
-      </p>
-      <Codeblock data={codeUtxo} />
-      <p>
         We can now build the transaction by adding the DRep registration
         certificate to the transaction. We also need to add the change address
-        and the selected UTxOs to the transaction.
+        and the selected UTxOs to the transaction. Note that the deposit for
+        registering a DRep is 500 ADA, we would set 505 ADA as UTxO selection
+        threshold.
       </p>
       <Codeblock data={codeTx} />
       <p>
@@ -163,13 +152,9 @@ function Right() {
         anchorDataHash: anchorHash,
       };
     }
-    
+
     // get utxo to pay for the registration
     const utxos = await wallet.getUtxos();
-    const registrationFee = "500000000";
-    const assetMap = new Map<Unit, Quantity>();
-    assetMap.set("lovelace", registrationFee);
-    const selectedUtxos = keepRelevant(assetMap, utxos);
 
     const changeAddress = await wallet.getChangeAddress();
 
@@ -177,7 +162,7 @@ function Right() {
     txBuilder
       .drepRegistrationCertificate(dRepId, anchor)
       .changeAddress(changeAddress)
-      .selectUtxosFrom(selectedUtxos);
+      .selectUtxosFrom(utxos, "keepRelevant", "505000000");
 
     const unsignedTx = await txBuilder.complete();
     const signedTx = await wallet.signTx(unsignedTx);
@@ -194,11 +179,6 @@ function Right() {
   codeSnippet += `\n`;
   codeSnippet += `// get utxo to pay for the registration\n`;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
-  codeSnippet += `const registrationFee = "500000000";\n`;
-  codeSnippet += `const assetMap = new Map<Unit, Quantity>();\n`;
-  codeSnippet += `assetMap.set("lovelace", registrationFee);\n`;
-  codeSnippet += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
-  codeSnippet += `\n`;
   codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeSnippet += `\n`;
   codeSnippet += `txBuilder\n`;
@@ -207,7 +187,7 @@ function Right() {
   codeSnippet += `    anchorDataHash: anchorHash,\n`;
   codeSnippet += `  })\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;
-  codeSnippet += `  .selectUtxosFrom(selectedUtxos);\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos, "keepRelevant", "505000000");\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder.complete();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;

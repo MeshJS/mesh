@@ -24,8 +24,6 @@ export interface IFetcher {
     policyId: string,
     cursor?: number | string,
   ): Promise<{ assets: Asset[]; next?: string | number | null }>;
-  fetchHandle(handle: string): Promise<object>;
-  fetchHandleAddress(handle: string): Promise<string>;
   fetchProtocolParameters(epoch: number): Promise<Protocol>;
   fetchTxInfo(hash: string): Promise<TransactionInfo>;
   fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>;

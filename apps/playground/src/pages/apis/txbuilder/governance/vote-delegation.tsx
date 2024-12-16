@@ -28,21 +28,7 @@ function Left() {
   codeGetWalletInfo += `const rewardAddress = rewardAddresses[0];\n`;
   codeGetWalletInfo += `const changeAddress = await wallet.getChangeAddress();\n`;
 
-  let codeUtxo = ``;
-  codeUtxo += `const assetMap = new Map<Unit, Quantity>();\n`;
-  codeUtxo += `assetMap.set("lovelace", "5000000");\n`;
-  codeUtxo += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
-
   let codeTx = ``;
-  codeTx += `for (const utxo of selectedUtxos) {\n`;
-  codeTx += `  txBuilder.txIn(\n`;
-  codeTx += `    utxo.input.txHash,\n`;
-  codeTx += `    utxo.input.outputIndex,\n`;
-  codeTx += `    utxo.output.amount,\n`;
-  codeTx += `    utxo.output.address,\n`;
-  codeTx += `  );\n`;
-  codeTx += `}\n`;
-  codeTx += `\n`;
   codeTx += `txBuilder\n`;
   codeTx += `  .voteDelegationCertificate(\n`;
   codeTx += `    {\n`;
@@ -50,7 +36,8 @@ function Left() {
   codeTx += `    },\n`;
   codeTx += `    rewardAddress,\n`;
   codeTx += `  )\n`;
-  codeTx += `  .changeAddress(changeAddress);\n`;
+  codeTx += `  .changeAddress(changeAddress)`;
+  codeTx += `  .selectUtxos(utxos, "keepRelevant", "10000000")\n`;
 
   let codeBuildSign = ``;
   codeBuildSign += `const unsignedTx = await txBuilder.complete();\n`;
@@ -74,13 +61,14 @@ function Left() {
         will select the UTXOs that have at least 5 ADA. Though the fee is less
         than 1 ADA.
       </p>
-      <Codeblock data={codeUtxo} />
       <p>
         We can now start building the transaction. We will add the selected
         UTXOs as inputs to the transaction. We will also add the vote delegation
         certificate to the transaction. The vote delegation certificate requires
         the DRep ID of the DRep to delegate to and the reward address of the
-        delegator.
+        delegator. Note that we would need to have at least 5 ADA for the
+        certificate delegation, in the <code>selectUtxosFrom</code> we will
+        configure 10 ADA as threshold buffer.
       </p>
       <Codeblock data={codeTx} />
       <p>
@@ -111,20 +99,7 @@ function Right() {
 
     const changeAddress = await wallet.getChangeAddress();
 
-    const assetMap = new Map<Unit, Quantity>();
-    assetMap.set("lovelace", "5000000");
-    const selectedUtxos = keepRelevant(assetMap, utxos);
-
     const txBuilder = getTxBuilder();
-
-    for (const utxo of selectedUtxos) {
-      txBuilder.txIn(
-        utxo.input.txHash,
-        utxo.input.outputIndex,
-        utxo.output.amount,
-        utxo.output.address,
-      );
-    }
 
     txBuilder
       .voteDelegationCertificate(
@@ -133,7 +108,8 @@ function Right() {
         },
         rewardAddress,
       )
-      .changeAddress(changeAddress);
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos, "keepRelevant", "10000000");
 
     const unsignedTx = await txBuilder.complete();
     const signedTx = await wallet.signTx(unsignedTx);
@@ -148,20 +124,7 @@ function Right() {
   codeSnippet += `\n`;
   codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const assetMap = new Map<Unit, Quantity>();\n`;
-  codeSnippet += `assetMap.set("lovelace", "5000000");\n`;
-  codeSnippet += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
-  codeSnippet += `\n`;
   codeSnippet += `const txBuilder = getTxBuilder();\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `for (const utxo of selectedUtxos) {\n`;
-  codeSnippet += `  txBuilder.txIn(\n`;
-  codeSnippet += `    utxo.input.txHash,\n`;
-  codeSnippet += `    utxo.input.outputIndex,\n`;
-  codeSnippet += `    utxo.output.amount,\n`;
-  codeSnippet += `    utxo.output.address,\n`;
-  codeSnippet += `  );\n`;
-  codeSnippet += `}\n`;
   codeSnippet += `\n`;
   codeSnippet += `txBuilder\n`;
   codeSnippet += `  .voteDelegationCertificate(\n`;
@@ -171,6 +134,7 @@ function Right() {
   codeSnippet += `    rewardAddress,\n`;
   codeSnippet += `  )\n`;
   codeSnippet += `  .changeAddress(changeAddress);\n`;
+  codeSnippet += `  .selectUtxos(utxos, "keepRelevant", "10000000")\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder.complete();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
