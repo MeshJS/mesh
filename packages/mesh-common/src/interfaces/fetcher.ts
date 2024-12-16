@@ -7,6 +7,7 @@ import type {
   TransactionInfo,
   UTxO,
 } from "../types";
+import { GovernanceProposalInfo } from "../types/governance";
 
 /**
  * Fetcher interface defines end points to query blockchain data.
@@ -28,5 +29,9 @@ export interface IFetcher {
   fetchProtocolParameters(epoch: number): Promise<Protocol>;
   fetchTxInfo(hash: string): Promise<TransactionInfo>;
   fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>;
+  fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo>;
   get(url: string): Promise<any>;
 }

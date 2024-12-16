@@ -288,6 +288,10 @@ export class OfflineFetcher implements IFetcher {
     return utxos;
   }
 
+  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<any> {
+    throw new Error("Method not implemented");
+  }
+
   /**
    * HTTP GET method required by IFetcher interface but not implemented in OfflineFetcher.
    * @param url - URL to fetch from
