@@ -15,7 +15,6 @@ import { linksResources } from "~/data/links-resources";
 import { linksSolutions } from "~/data/links-solutions";
 import { socials } from "~/data/social";
 import { useDarkmode } from "~/hooks/useDarkmode";
-import MenuItem from "./menu-item";
 import MenuItemDropdown from "./menu-item-dropdown";
 
 export default function Navbar() {
@@ -229,7 +228,6 @@ export default function Navbar() {
               <MenuItemDropdown title="SDK" items={linksApi} />
               <MenuItemDropdown title="Resources" items={linksResources} />
               <MenuItemDropdown title="Solutions" items={linksSolutions} />
-              <MenuItem title="Docs" link="https://docs.meshjs.dev/" />
               <MenuItemDropdown title="About" items={linksAbout} />
             </ul>
           </div>

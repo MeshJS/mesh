@@ -34,7 +34,7 @@ export const linksReact: MenuItem[] = [
 
 export const metaReact = {
   title: "React Components",
-  desc: "Frontend components for wallet connections, and useful React hooks to getting wallet states - Mesh provides what you need to bring your Web3 user interface to life.",
+  desc: "Frontend components for wallet connections, and useful React hooks to getting wallet states",
   link: "/react",
   icon: ComputerDesktopIcon,
   items: linksReact,

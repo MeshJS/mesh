@@ -24,7 +24,7 @@ export default function Button({
 }) {
   const styles = {
     primary:
-      "inline-flex items-center border border-indigo-500 bg-indigo-500 text-white rounded-md px-4 py-2 mr-2 mt-2 mb-2 transition duration-500 ease select-none hover:bg-indigo-600 focus:outline-none focus:shadow-outline",
+      "inline-flex items-center border border-primary-500 bg-primary-500 text-white rounded-md px-4 py-2 mr-2 mt-2 mb-2 transition duration-500 ease select-none hover:bg-primary-600 focus:outline-none focus:shadow-outline",
     success:
       "inline-flex items-center border border-green-500 bg-green-500 text-white rounded-md px-4 py-2 mr-2 mt-2 mb-2 transition duration-500 ease select-none hover:bg-green-600 focus:outline-none focus:shadow-outline",
     error:
