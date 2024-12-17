@@ -2,7 +2,8 @@ import { Suspense, useEffect, useState } from "react";
 
 import HeroTwoSections from "~/components/sections/hero-two-sections";
 import Metatags from "~/components/site/metatags";
-import SectionIntro from "./intro";
+import SectionFeatures from "./features";
+import SectionGetStarted from "./get-started";
 
 export default function HomePage() {
   return (
@@ -12,7 +13,7 @@ export default function HomePage() {
         <HeroTwoSections
           title="Web3 TypeScript SDK & off-chain Framework"
           description="Mesh is a TypeScript open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
-          link={{ label: "Catalyst Proposals", href: "/about/catalyst" }}
+          // link={{ label: "Catalyst Proposals", href: "/about/catalyst" }}
           // image={<Video />}
           // children={
           //   <Link
@@ -26,7 +27,8 @@ export default function HomePage() {
         />
       </div>
 
-      <SectionIntro />
+      <SectionFeatures />
+      <SectionGetStarted />
     </>
   );
 }

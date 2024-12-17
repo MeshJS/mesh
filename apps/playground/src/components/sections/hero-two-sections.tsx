@@ -33,7 +33,7 @@ export default function HeroTwoSections({
           {link && (
             <Link
               href={link.href}
-              className="mr-3 inline-flex items-center justify-center rounded-lg bg-gray-700 px-5 py-3 text-center text-base font-medium text-white hover:bg-gray-800"
+              className="mr-3 inline-flex items-center justify-center rounded-lg bg-primary-700 px-5 py-3 text-center text-base font-medium text-white hover:bg-primary-800"
             >
               {link.label}
               <ArrowRightIcon className="-mr-1 ml-2 h-5 w-5" />

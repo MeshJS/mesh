@@ -43,7 +43,7 @@ const features = [
   },
 ];
 
-export default function SectionIntro() {
+export default function SectionGetStarted() {
   return (
     <section className="bg-white dark:bg-gray-900">
       <div className="mx-auto max-w-screen-xl items-center gap-8 px-4 py-8 sm:py-16 lg:grid lg:grid-cols-2 lg:px-6 xl:gap-16 ">

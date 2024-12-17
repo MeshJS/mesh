@@ -1,4 +1,4 @@
-import { DocumentTextIcon } from "@heroicons/react/24/solid";
+import { BookOpenIcon } from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
 
@@ -82,6 +82,6 @@ export const metaGuides: MenuItem = {
   link: `/guides`,
   title: "Guides",
   desc: "Whether you are new to web development or a seasoned blockchain full-stack developer, these guides will help you get started.",
-  icon: DocumentTextIcon,
+  icon: BookOpenIcon,
   items: linksGuides,
 };
