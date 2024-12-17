@@ -473,7 +473,7 @@ export class Transaction {
     if (!mint.cip68ScriptAddress && mint.metadata && mint.label) {
       if (mint.label === "721" || mint.label === "20") {
         let currentMetadata = this.txBuilder.meshTxBuilderBody.metadata;
-        if (currentMetadata.size === 0) {
+        if (currentMetadata.get(BigInt(mint.label)) === undefined) {
           this.setMetadata(Number(mint.label), {
             [policyId]: { [mint.assetName]: mint.metadata },
           });
