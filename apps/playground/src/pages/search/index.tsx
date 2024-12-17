@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 
 import { searchQuery } from "~/backend/search";
 import Link from "~/components/link";
+import Metatags from "~/components/site/metatags";
 
 export default function PageSearch() {
   const router = useRouter();
-
   const [query, setQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<
     {
@@ -16,10 +16,13 @@ export default function PageSearch() {
       displayUrl: string;
     }[]
   >([]);
+  const lastSearchQuery = useRef("0");
 
   async function search(_query?: string) {
-    console.log("search", _query ? _query : query);
-    const res = await searchQuery(_query ? _query : query);
+    const thisQuery = _query ? _query : query;
+    console.log("search", thisQuery);
+    lastSearchQuery.current = thisQuery;
+    const res = await searchQuery(thisQuery);
     setSearchResults(res);
   }
 
@@ -39,6 +42,8 @@ export default function PageSearch() {
 
   return (
     <>
+      <Metatags title="Search Mesh SDK" />
+
       <section className="bg-white py-8 antialiased md:py-16 dark:bg-gray-900">
         <div className="mx-auto max-w-screen-lg px-4 2xl:px-0">
           <div className="lg:flex lg:items-center lg:justify-between lg:gap-4">
