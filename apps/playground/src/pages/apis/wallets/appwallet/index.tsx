@@ -2,6 +2,7 @@ import type { NextPage } from "next";
 
 import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaAppwallet } from "~/data/links-wallets";
@@ -35,6 +36,14 @@ const ReactPage: NextPage = () => {
           description={metaAppwallet.desc}
           heroicon={metaAppwallet.icon}
         >
+          <p>
+            <code>AppWallet</code> has been deprecated and will be removed in
+            the next major release. Please use{" "}
+            <Link href="/apis/wallets/meshwallet">
+              <code>MeshWallet</code>
+            </Link>{" "}
+            instead.
+          </p>
           <p>
             <code>AppWallet</code> is useful for building other user wallets and
             fully customed applications's backend.

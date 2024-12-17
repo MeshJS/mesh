@@ -43,7 +43,7 @@ function Left() {
   return (
     <>
       <p>
-        The main idea of a multi-signature transaction is to have multiple
+        The main idea of a multi-signature (multisig) transaction is to have multiple
         signatures to authorize a transaction.
       </p>
       <Codeblock data={codeTx} />

@@ -6,7 +6,7 @@ import {
 
 export const metaAppwallet = {
   link: `/apis/wallets/appwallet`,
-  title: "App Wallet",
+  title: "App Wallet (deprecated)",
   desc: "Core wallet functionality for building other user wallets and fully customed applications's backend.",
   icon: CodeBracketSquareIcon,
 };
