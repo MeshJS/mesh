@@ -22,7 +22,7 @@ export default function CardTitleDescImage({
 }) {
   return (
     <Link href={link}>
-      <Card className="h-full cursor-pointer">
+      <Card className="h-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700">
         {icon ? (
           <div className="w-8 dark:text-white">
             <Icon icon={icon} />

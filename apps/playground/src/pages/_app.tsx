@@ -26,7 +26,7 @@ export default function App({ Component, pageProps }: AppProps) {
             <Component {...pageProps} />
           </main>
           <Footer />
-          <Toaster />
+          <Toaster position="bottom-right" />
         </div>
       </Providers>
     </MeshProvider>
