@@ -25,7 +25,7 @@ export function Intro() {
         instance of <code>MeshTxBuilder</code>, a powerful low-level APIs that
         allows you to build transactions. Learn how to initialize{" "}
         <Link href="/apis/txbuilder/basics#initializeTxbuilder">
-          <code>MeshTxBuilder</code>
+          MeshTxBuilder
         </Link>
         .
       </p>
