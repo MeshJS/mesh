@@ -40,7 +40,8 @@ export default async function handler(
           if (item.htmlSnippet.includes("&middot;")) {
             return false;
           }
-          if (searchBlacklistLinks.includes(item.link)) {
+          // if link is in blacklist, filter it out
+          if (searchBlacklistLinks.some((link) => item.link.includes(link))) {
             return false;
           }
           return true;

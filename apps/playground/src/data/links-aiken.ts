@@ -39,4 +39,5 @@ export const metaAiken: MenuItem = {
   desc: "A functional programming language created for Cardano smart contract development",
   link: "/aiken",
   items: linksAiken,
+  icon: "/images/aiken/aiken-icon.png",
 };

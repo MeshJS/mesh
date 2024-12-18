@@ -1,6 +1,8 @@
 import React from "react";
 import NextLink from "next/link";
 
+import Icon from "../icon";
+
 export default function Link({
   children,
   href,
@@ -21,7 +23,7 @@ export default function Link({
       target={target ? target : href.startsWith("http") ? "_blank" : "_self"}
       rel="noreferrer"
     >
-      {icon && React.createElement(icon, { className: "mr-2 w-4 h-4" })}
+      <Icon icon={icon} className="mr-2 h-4 w-4" />
       {children}
     </NextLink>
   );

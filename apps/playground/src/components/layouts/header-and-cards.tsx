@@ -27,7 +27,7 @@ export default function HeaderAndCards({
                 title={item.title}
                 desc={item.desc}
                 link={item.link}
-                thumbnailHeroicon={item.icon}
+                icon={item.icon}
                 thumbnailImage={item.thumbnail}
                 key={i}
               />

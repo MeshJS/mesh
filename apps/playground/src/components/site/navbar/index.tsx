@@ -7,6 +7,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/solid";
 
+import Icon from "~/components/icon";
 import Link from "~/components/link";
 import SvgMesh from "~/components/svgs/mesh";
 import { linksAbout } from "~/data/links-about";
@@ -131,7 +132,7 @@ export default function Navbar() {
                   key={i}
                   aria-label={social.link}
                 >
-                  {React.createElement(social.icon, { className: "w-6 h-6" })}
+                  <Icon icon={social.icon} className="h-6 w-6" />
                 </Link>
               );
             })}

@@ -1,6 +1,7 @@
 import React from "react";
 import Image from "next/image";
 
+import Icon from "~/components/icon";
 import Link from "~/components/link";
 import { socials } from "~/data/social";
 import Sitemap from "./sitemap";
@@ -42,9 +43,7 @@ export default function Footer() {
                     className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                     key={i}
                   >
-                    {React.createElement(social.icon, {
-                      className: "w-5 h-5",
-                    })}
+                    <Icon icon={social.icon} className="h-5 w-5" />
                   </Link>
                 </li>
               );

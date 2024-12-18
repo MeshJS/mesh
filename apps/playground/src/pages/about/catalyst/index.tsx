@@ -31,15 +31,7 @@ function Section({ title, items }: { title: string; items: any[] }) {
         <Header3>{title}</Header3>
         <div className="grid w-full grid-cols-1 gap-2 lg:grid-cols-3">
           {items.map((item, index) => (
-            <CardLink
-              title={item.title}
-              desc={item.desc}
-              url={item.url}
-              completed={item.completed}
-              tobecompleted={item.tobecompleted}
-              status={item.status}
-              key={index}
-            />
+            <CardLink item={item} key={index} />
           ))}
         </div>
       </div>
@@ -47,21 +39,7 @@ function Section({ title, items }: { title: string; items: any[] }) {
   );
 }
 
-function CardLink({
-  title,
-  desc,
-  url,
-  completed,
-  tobecompleted,
-  status,
-}: {
-  title: string;
-  desc: string;
-  url?: string;
-  completed: string[];
-  tobecompleted: string[];
-  status: string;
-}) {
+function CardLink({ item }: { item: any }) {
   function getDomain(url) {
     url = url.replace(/(https?:\/\/)?(www.)?/i, "");
 
@@ -74,16 +52,23 @@ function CardLink({
   return (
     <div className="block max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
       <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-        {title}
+        {item.title}
       </h5>
       <div className="mb-2 flex gap-2">
         <span className="me-2 rounded bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-300">
-          {status}
+          {item.status}
         </span>
+        {item.funded != undefined && item.funded == false && (
+          <span className="rounded bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900 dark:text-red-300">
+            Not funded
+          </span>
+        )}
       </div>
-      <p className="font-normal text-gray-700 dark:text-gray-400">{desc}</p>
+      <p className="font-normal text-gray-700 dark:text-gray-400">
+        {item.desc}
+      </p>
       <ul className="mt-4 text-sm text-gray-500 dark:text-gray-300">
-        {completed.map((item, index) => (
+        {item.completed.map((item, index) => (
           <li key={index} className="flex">
             <div className="mr-2 h-4 w-4">
               <svg
@@ -106,7 +91,7 @@ function CardLink({
         ))}
       </ul>
       <ul className="mt-4 text-sm text-gray-500 dark:text-gray-300">
-        {tobecompleted.map((item, index) => (
+        {item.tobecompleted.map((item, index) => (
           <li key={index} className="flex">
             <div className="mr-2 h-4 w-4">
               <svg
@@ -123,11 +108,11 @@ function CardLink({
           </li>
         ))}
       </ul>
-      {url && (
+      {item.url && (
         <div className="mt-4 text-sm text-gray-500 dark:text-gray-300">
-          <Link href={url}>
+          <Link href={item.url}>
             <span className="text-blue-500 hover:text-blue-700">
-              {getDomain(url)}
+              {getDomain(item.url)}
             </span>
           </Link>
         </div>
