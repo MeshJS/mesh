@@ -35,7 +35,7 @@ export default function Media() {
 function Image({ img }: { img: string }) {
   return (
     <>
-      <div className="grid max-w-sm content-around justify-around rounded-lg border border-gray-200 bg-gray-200 shadow dark:border-gray-700 dark:bg-gray-800">
+      <div className="grid max-w-sm content-around justify-around rounded-lg border border-neutral-200 bg-neutral-200 shadow dark:border-neutral-700 dark:bg-neutral-800">
         <Link href={img} target="blank">
           <img className="h-36 rounded-t-lg" src={img} alt={img} />
         </Link>

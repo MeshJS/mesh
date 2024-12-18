@@ -98,7 +98,7 @@ function Right() {
 
   // return (
   //   <Card>
-  //     <div className="p-5 text-lg font-semibold text-left text-gray-900 bg-white dark:text-white dark:bg-gray-800">
+  //     <div className="p-5 text-lg font-semibold text-left text-neutral-900 bg-white dark:text-white dark:bg-neutral-800">
   //       Sign Data
   //       "
   //     subtitle="Use connected wallet to sign a payload

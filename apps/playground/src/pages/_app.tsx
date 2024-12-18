@@ -22,11 +22,22 @@ export default function App({ Component, pageProps }: AppProps) {
           <header>
             <Navbar />
           </header>
-          <main className="bg-white pt-16 dark:bg-gray-900">
+          <main className="bg-white pt-16 dark:bg-neutral-900">
             <Component {...pageProps} />
           </main>
           <Footer />
-          <Toaster />
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              className: "",
+              style: {
+                background: "#262626",
+                border: "1px solid #d4d4d4",
+                padding: "8px",
+                color: "#d4d4d4",
+              },
+            }}
+          />
         </div>
       </Providers>
     </MeshProvider>

@@ -28,7 +28,7 @@ export default function Sidebar({
     <div className="mb-6 mr-6 hidden lg:w-72 xl:block">
       <div className="sticky top-24">
         <aside>
-          <nav className="h-[calc(100vh-150px)] overflow-y-auto rounded-lg border border-gray-200 p-6 font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <nav className="h-[calc(100vh-150px)] overflow-y-auto rounded-lg border border-neutral-200 p-6 font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
             <ul className="space-y-4">
               {sidebarItems.map((item, i) => {
                 return (

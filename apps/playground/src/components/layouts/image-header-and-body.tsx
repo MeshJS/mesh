@@ -22,7 +22,7 @@ export default function LayoutImageHeaderAndBody({
   return (
     <>
       <Metatags title={title} description={description} image={cover} />
-      <main className="bg-white pb-16 lg:pb-36 dark:bg-gray-900">
+      <main className="bg-white pb-16 lg:pb-36 dark:bg-neutral-900">
         <header
           style={{ backgroundImage: `url(${image})` }}
           className={`relative h-[460px] w-full bg-cover bg-center bg-no-repeat bg-blend-darken xl:h-[537px]`}
@@ -32,10 +32,10 @@ export default function LayoutImageHeaderAndBody({
             <h1 className="mb-4 max-w-4xl text-2xl font-extrabold leading-none text-white sm:text-3xl lg:text-4xl">
               {title}
             </h1>
-            <p className="text-lg font-normal text-gray-300">{description}</p>
+            <p className="text-lg font-normal text-neutral-300">{description}</p>
           </div>
         </header>
-        <div className="relative z-20 -m-36 mx-4 flex max-w-screen-xl justify-between rounded-lg border border-gray-200 bg-white p-6 shadow-md xl:-m-32 xl:mx-auto xl:p-9 dark:border-gray-700 dark:bg-gray-800">
+        <div className="relative z-20 -m-36 mx-4 flex max-w-screen-xl justify-between rounded-lg border border-neutral-200 bg-white p-6 shadow-md xl:-m-32 xl:mx-auto xl:p-9 dark:border-neutral-700 dark:bg-neutral-800">
           <article className="format format-blue dark:format-invert prose prose-slate w-full max-w-none xl:w-[828px]">
             <Markdown>{children}</Markdown>
           </article>

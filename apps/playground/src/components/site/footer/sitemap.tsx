@@ -21,10 +21,10 @@ export default function Sitemap() {
         <Section menuItem={metaGuides} />
 
         <div>
-          <h2 className="mb-6 text-sm font-semibold uppercase text-gray-900 dark:text-white">
+          <h2 className="mb-6 text-sm font-semibold uppercase text-neutral-900 dark:text-white">
             About Mesh
           </h2>
-          <ul className="text-gray-500 dark:text-gray-400">
+          <ul className="text-neutral-500 dark:text-neutral-400">
             {linksAbout.map((about, i) => (
               <SitemapLinks href={about.link} label={about.title} key={i} />
             ))}
@@ -48,10 +48,10 @@ function SitemapLinks({ href, label }: { href: string; label: string }) {
 function Section({ menuItem }: { menuItem: MenuItem }) {
   return (
     <div>
-      <h2 className="mb-6 text-sm font-semibold uppercase text-gray-900 dark:text-white">
+      <h2 className="mb-6 text-sm font-semibold uppercase text-neutral-900 dark:text-white">
         <SitemapLinks href={menuItem.link} label={menuItem.title} />
       </h2>
-      <ul className="text-gray-500 dark:text-gray-400">
+      <ul className="text-neutral-500 dark:text-neutral-400">
         {menuItem.items ? (
           menuItem.items.map((link, i) => (
             <SitemapLinks href={link.link} label={link.title} key={i} />

@@ -91,7 +91,7 @@ export default function LiveCodeDemo({
             label={runDemoButtonLabel}
           />
           {runDemoButtonTooltip && (
-            <p className="mt-0 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-0 text-sm text-neutral-500 dark:text-neutral-400">
               {runDemoButtonTooltip}
             </p>
           )}

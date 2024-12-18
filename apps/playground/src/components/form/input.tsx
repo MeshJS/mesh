@@ -16,7 +16,7 @@ export default function Input({
   label?: undefined | string;
 }) {
   let _classname =
-    "shadow-sm bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500 mb-4";
+    "shadow-sm bg-neutral-50 border border-neutral-300 text-neutral-900 sm:text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-neutral-700 dark:border-neutral-600 dark:placeholder-neutral-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500 mb-4";
 
   if (className.length > 0) {
     _classname += ` ${className}`;
@@ -25,7 +25,7 @@ export default function Input({
   return (
     <>
       {label && (
-        <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+        <label className="mb-2 block text-sm font-medium text-neutral-900 dark:text-white">
           {label}
         </label>
       )}

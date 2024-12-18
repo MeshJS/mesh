@@ -14,7 +14,7 @@ const Textarea = ({
   label?: undefined | string;
 }) => {
   let _classname =
-    "block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 mb-4";
+    "block p-2.5 w-full text-sm text-neutral-900 bg-neutral-50 rounded-lg border border-neutral-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-neutral-700 dark:border-neutral-600 dark:placeholder-neutral-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 mb-4";
 
   if (className.length > 0) {
     _classname = className;
@@ -23,7 +23,7 @@ const Textarea = ({
   return (
     <>
       {label && (
-        <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+        <label className="mb-2 block text-sm font-medium text-neutral-900 dark:text-white">
           {label}
         </label>
       )}

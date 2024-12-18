@@ -5,11 +5,11 @@ export default function InputTable({
 }) {
   return (
     <div className="relative overflow-x-auto">
-      <table className="m-0 w-full text-left text-sm text-gray-500 dark:text-gray-400">
+      <table className="m-0 w-full text-left text-sm text-neutral-500 dark:text-neutral-400">
         <tbody>
           {listInputs.map((input, i) => {
             return (
-              <tr key={i} className="border-none bg-white dark:bg-gray-800">
+              <tr key={i} className="border-none bg-white dark:bg-neutral-800">
                 <td>{input}</td>
               </tr>
             );

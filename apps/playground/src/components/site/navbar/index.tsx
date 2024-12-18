@@ -64,7 +64,7 @@ export default function Navbar() {
 
   return (
     <header>
-      <nav className="fixed z-30 w-full border-b border-gray-200 bg-white/80 px-4 py-2.5 backdrop-blur lg:px-6 dark:border-gray-700 dark:bg-gray-800/80">
+      <nav className="fixed z-30 w-full border-b border-neutral-200 bg-white/80 px-4 py-2.5 backdrop-blur lg:px-6 dark:border-neutral-700 dark:bg-neutral-800/80">
         <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between">
           {/* left logo start */}
           <Link href="/" className="flex items-center">
@@ -87,14 +87,14 @@ export default function Navbar() {
             <div id="search-div" className="mr-3 hidden w-full lg:inline-block">
               <label
                 htmlFor="search-bar"
-                className="sr-only mb-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                className="sr-only mb-2 text-sm font-medium text-neutral-900 dark:text-neutral-300"
               >
                 Search
               </label>
               <div className="relative">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <svg
-                    className="h-5 w-5 text-gray-500 dark:text-gray-400"
+                    className="h-5 w-5 text-neutral-500 dark:text-neutral-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -111,7 +111,7 @@ export default function Navbar() {
                 <input
                   type="search"
                   id="search-bar"
-                  className="focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 pl-10 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                  className="focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-neutral-300 bg-neutral-50 px-4 py-2 pl-10 text-sm text-neutral-900 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white dark:placeholder-neutral-400"
                   placeholder="Search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -128,7 +128,7 @@ export default function Navbar() {
               return (
                 <Link
                   href={social.link}
-                  className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                  className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-white"
                   key={i}
                   aria-label={social.link}
                 >
@@ -139,22 +139,22 @@ export default function Navbar() {
             {!isSSR && (
               <button
                 type="button"
-                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+                className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-white"
                 onClick={() => {
                   toggle();
                 }}
                 aria-label="Toggle dark mode"
               >
                 {isDark ? (
-                  <MoonIcon className="h-4 w-4 text-gray-500" />
+                  <MoonIcon className="h-4 w-4 text-neutral-500" />
                 ) : (
-                  <SunIcon className="h-4 w-4 text-gray-500" />
+                  <SunIcon className="h-4 w-4 text-neutral-500" />
                 )}
               </button>
             )}
             <button
               type="button"
-              className="ml-1 inline-flex items-center rounded-lg p-2 text-sm text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 lg:hidden dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
+              className="ml-1 inline-flex items-center rounded-lg p-2 text-sm text-neutral-500 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-200 lg:hidden dark:text-neutral-400 dark:hover:bg-neutral-700 dark:focus:ring-neutral-600"
               onClick={() => toggleMobileMenu()}
               aria-label="Toggle mobile"
             >
@@ -178,7 +178,7 @@ export default function Navbar() {
               <div className="relative w-full">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <svg
-                    className="h-5 w-5 text-gray-500 dark:text-gray-400"
+                    className="h-5 w-5 text-neutral-500 dark:text-neutral-400"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                     xmlns="http://www.w3.org/2000/svg"
@@ -193,7 +193,7 @@ export default function Navbar() {
                 <input
                   type="search"
                   id="search-mobile"
-                  className="focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 pl-10  text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400"
+                  className="focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-neutral-300 bg-neutral-50 p-2.5 pl-10  text-sm text-neutral-900 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white dark:placeholder-neutral-400"
                   placeholder="Search for anything..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
