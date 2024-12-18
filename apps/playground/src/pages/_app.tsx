@@ -26,7 +26,18 @@ export default function App({ Component, pageProps }: AppProps) {
             <Component {...pageProps} />
           </main>
           <Footer />
-          <Toaster position="bottom-right" />
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              className: "",
+              style: {
+                background: "#262626",
+                border: "1px solid #d4d4d4",
+                padding: "8px",
+                color: "#d4d4d4",
+              },
+            }}
+          />
         </div>
       </Providers>
     </MeshProvider>
