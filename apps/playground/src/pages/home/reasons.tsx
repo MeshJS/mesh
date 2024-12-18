@@ -8,7 +8,7 @@ import {
 
 export default function Reasons() {
   return (
-    <section className="bg-white dark:bg-neutral-900">
+    <section>
       <div className="mx-auto max-w-screen-xl px-4 py-8 text-center sm:py-16 lg:px-6">
         <h2 className="mb-4 text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
           The complete SDK for web3 development on Cardano

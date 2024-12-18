@@ -15,7 +15,7 @@ export default function HeroLogoTwoSectionsLinks({
   links: MenuItem[];
 }) {
   return (
-    <section className="bg-white dark:bg-neutral-900">
+    <section>
       <div className="mx-auto max-w-screen-xl px-4 py-8 sm:py-16 lg:px-6 lg:py-24">
         <div className="text-center">{logo}</div>
 

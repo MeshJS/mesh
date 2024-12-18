@@ -30,7 +30,7 @@ export function AboutSection({
   description: React.ReactNode;
 }) {
   return (
-    <section className="bg-white dark:bg-neutral-900">
+    <section>
       <div className="mx-auto max-w-screen-xl px-4 py-8 text-center lg:px-6 lg:py-16">
         <div className="mx-auto mb-8 flex max-w-screen-sm flex-col gap-4">
           <h2 className="text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-white">

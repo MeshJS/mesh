@@ -5,3 +5,45 @@
 .button-with-tooltip:hover .button-with-tooltip-content {
   visibility: visible;
 }
+
+/* Scrollbar */
+
+@layer base {
+  :root {
+    --primary: #ffffff;
+    --secondary: #a3a3a3;
+  }
+
+  :root[class~="dark"] {
+    --primary: #171717;
+    --secondary: #737373;
+  }
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--secondary) var(--primary);
+}
+
+/* Chrome, Edge, and Safari */
+*::-webkit-scrollbar {
+  width: 17px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--primary);
+  border-radius: 5px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--secondary);
+  border-radius: 14px;
+  border: 3px solid var(--primary);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--tertiary);
+}
+
+/* E Scrollbar */
