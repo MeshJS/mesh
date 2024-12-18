@@ -49,7 +49,7 @@ function Right(hydraProvider: HydraProvider, provider: string) {
     // return await hydraProvider.initializesHead();
   }
 
-  async function test1() {
+  async function fetchutxo() {
     const utxos = await hydraProvider.fetchUTxOs();
     console.log("UTXOs: ", utxos);
     const utxosAddress = await hydraProvider.fetchAddressUTxOs(
@@ -58,12 +58,12 @@ function Right(hydraProvider: HydraProvider, provider: string) {
     console.log("UTXOs Address: ", utxosAddress);
   }
 
-  async function test2() {
+  async function fetchpp() {
     const pp = await hydraProvider.fetchProtocolParameters();
     console.log("pp: ", pp);
   }
 
-  async function test3() {
+  async function maketx() {
     // wallet
     const walletA = {
       addr: "addr_test1vpsthwvxgfkkm2lm8ggy0c5345u6vrfctmug6tdyx4rf4mqn2xcyw",
@@ -110,9 +110,9 @@ function Right(hydraProvider: HydraProvider, provider: string) {
       runDemoShowProviderInit={true}
       runDemoProvider={provider}
     >
-      <Button onClick={test1}>test1</Button>
-      <Button onClick={test2}>test2</Button>
-      <Button onClick={test3}>test3</Button>
+      <Button onClick={fetchutxo}>fetchutxo</Button>
+      <Button onClick={fetchpp}>fetchpp</Button>
+      <Button onClick={maketx}>maketx</Button>
     </LiveCodeDemo>
   );
 }
