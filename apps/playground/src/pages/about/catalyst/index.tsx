@@ -50,8 +50,8 @@ function CardLink({ item }: { item: any }) {
     return url;
   }
   return (
-    <div className="block max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
-      <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+    <div className="block max-w-sm rounded-lg border border-neutral-200 bg-white p-6 shadow dark:border-neutral-700 dark:bg-neutral-800">
+      <h5 className="mb-2 text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
         {item.title}
       </h5>
       <div className="mb-2 flex gap-2">
@@ -64,10 +64,10 @@ function CardLink({ item }: { item: any }) {
           </span>
         )}
       </div>
-      <p className="font-normal text-gray-700 dark:text-gray-400">
+      <p className="font-normal text-neutral-700 dark:text-neutral-400">
         {item.desc}
       </p>
-      <ul className="mt-4 text-sm text-gray-500 dark:text-gray-300">
+      <ul className="mt-4 text-sm text-neutral-500 dark:text-neutral-300">
         {item.completed.map((item, index) => (
           <li key={index} className="flex">
             <div className="mr-2 h-4 w-4">
@@ -90,13 +90,13 @@ function CardLink({ item }: { item: any }) {
           </li>
         ))}
       </ul>
-      <ul className="mt-4 text-sm text-gray-500 dark:text-gray-300">
+      <ul className="mt-4 text-sm text-neutral-500 dark:text-neutral-300">
         {item.tobecompleted.map((item, index) => (
           <li key={index} className="flex">
             <div className="mr-2 h-4 w-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 text-gray-500"
+                className="h-4 w-4 text-neutral-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -109,7 +109,7 @@ function CardLink({ item }: { item: any }) {
         ))}
       </ul>
       {item.url && (
-        <div className="mt-4 text-sm text-gray-500 dark:text-gray-300">
+        <div className="mt-4 text-sm text-neutral-500 dark:text-neutral-300">
           <Link href={item.url}>
             <span className="text-blue-500 hover:text-blue-700">
               {getDomain(item.url)}

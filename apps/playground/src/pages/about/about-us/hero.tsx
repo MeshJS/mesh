@@ -1,12 +1,12 @@
 export default function AboutHero() {
   return (
-    <section className="bg-gray-700 bg-[url('https://flowbite.s3.amazonaws.com/blocks/marketing-ui/hero/coast-house-view.jpg')] bg-cover bg-center bg-no-repeat bg-blend-multiply ">
+    <section className="bg-neutral-700 bg-[url('https://flowbite.s3.amazonaws.com/blocks/marketing-ui/hero/coast-house-view.jpg')] bg-cover bg-center bg-no-repeat bg-blend-multiply ">
       <div className="z-1 relative mx-auto max-w-screen-xl px-4 py-8 text-white lg:py-16">
         <div className="mb-6 max-w-screen-lg lg:mb-0">
           <h1 className="mb-4 text-4xl font-extrabold leading-none tracking-tight md:text-5xl lg:text-6xl">
             We advance the Cardano's tech stack
           </h1>
-          <p className="mb-6 font-light text-gray-400 md:text-lg lg:mb-8 lg:text-xl">
+          <p className="mb-6 font-light text-neutral-400 md:text-lg lg:mb-8 lg:text-xl">
             Get started building blockchain applications with our
             enterprise-ready, well engineered, and professionally designed SDK,
             Mesh. From easy to use Transaction builder to low level APIs, from
@@ -33,10 +33,10 @@ export default function AboutHero() {
             </svg>
           </a> */}
         </div>
-        {/* <div className="mt-8 grid gap-8 border-t border-gray-600 pt-8 sm:grid-cols-2 lg:mt-12 lg:grid-cols-4 lg:pt-12">
+        {/* <div className="mt-8 grid gap-8 border-t border-neutral-600 pt-8 sm:grid-cols-2 lg:mt-12 lg:grid-cols-4 lg:pt-12">
           <div>
             <h2 className="mb-1 text-lg font-bold">Fourth quarter 2021</h2>
-            <p className="mb-1 text-sm text-gray-400">
+            <p className="mb-1 text-sm text-neutral-400">
               We announced fourth quarter 2021 results
             </p>
             <a

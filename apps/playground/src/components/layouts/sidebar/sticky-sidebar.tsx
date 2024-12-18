@@ -11,7 +11,7 @@ export default function StickySidebar({
     <div className="mb-6 hidden lg:w-72 xl:block">
       <div className="sticky top-20">
         {authors && (
-          <div className="mb-6 rounded-lg border border-gray-200 p-6 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <div className="mb-6 rounded-lg border border-neutral-200 p-6 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
             {authors &&
               authors!.map((author, i) => {
                 return (
@@ -30,7 +30,7 @@ export default function StickySidebar({
                       />
                     </div>
                     <div className="mr-3">
-                      <span className="block font-medium text-gray-900 dark:text-white">
+                      <span className="block font-medium text-neutral-900 dark:text-white">
                         {author.name}
                       </span>
                       <span className="text-sm">{author.about}</span>
@@ -45,7 +45,7 @@ export default function StickySidebar({
           <h3 id="categories-label" className="sr-only">
             Topics
           </h3>
-          <nav className="rounded-lg border border-gray-200 p-6 font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <nav className="rounded-lg border border-neutral-200 p-6 font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
             <ul className="space-y-4">
               {sidebarItems.map((item, i) => {
                 return (
@@ -65,14 +65,14 @@ export default function StickySidebar({
                 );
               })}
             </ul>
-            {/* <h4 className="mb-4 text-gray-900 dark:text-white">Others</h4> */}
+            {/* <h4 className="mb-4 text-neutral-900 dark:text-white">Others</h4> */}
           </nav>
         </aside>
         {/* <aside>
-          <div className="flex justify-center items-center mb-3 w-full h-32 bg-gray-100 rounded-lg dark:bg-gray-800">
+          <div className="flex justify-center items-center mb-3 w-full h-32 bg-neutral-100 rounded-lg dark:bg-neutral-800">
             <svg
               aria-hidden="true"
-              className="w-8 h-8 text-gray-400"
+              className="w-8 h-8 text-neutral-400"
               fill="currentColor"
               viewBox="0 0 20 20"
               xmlns="http://www.w3.org/2000/svg"
@@ -84,10 +84,10 @@ export default function StickySidebar({
               ></path>
             </svg>
           </div>
-          <p className="mb-2 text-sm font-light text-gray-500 dark:text-gray-400">
+          <p className="mb-2 text-sm font-light text-neutral-500 dark:text-neutral-400">
             Students and Teachers, save up to 60% on Flowbite Creative Cloud.
           </p>
-          <p className="text-xs font-light text-gray-400 uppercase dark:text-gray-500">
+          <p className="text-xs font-light text-neutral-400 uppercase dark:text-neutral-500">
             Ads placeholder
           </p>
         </aside> */}

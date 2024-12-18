@@ -15,7 +15,7 @@ export function MenuItem({
       onClick={action}
     >
       {icon && <img className="mesh-pr-2 mesh-m-1 mesh-h-8" src={icon} />}
-      <span className="mesh-mr-menu-item mesh-text-xl mesh-font-normal mesh-text-gray-700 hover:mesh-text-black">
+      <span className="mesh-mr-menu-item mesh-text-xl mesh-font-normal mesh-text-neutral-700 hover:mesh-text-black">
         {label
           .split(" ")
           .map((word: string) => {

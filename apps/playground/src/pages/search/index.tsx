@@ -44,10 +44,10 @@ export default function PageSearch() {
     <>
       <Metatags title="Search Mesh SDK" />
 
-      <section className="bg-white py-8 antialiased md:py-16 dark:bg-gray-900">
+      <section className="bg-white py-8 antialiased md:py-16 dark:bg-neutral-900">
         <div className="mx-auto max-w-screen-lg px-4 2xl:px-0">
           <div className="lg:flex lg:items-center lg:justify-between lg:gap-4">
-            <h2 className="shrink-0 text-xl font-semibold text-gray-900 sm:text-2xl dark:text-white">
+            <h2 className="shrink-0 text-xl font-semibold text-neutral-900 sm:text-2xl dark:text-white">
               Search results ({searchResults.length})
             </h2>
 
@@ -58,7 +58,7 @@ export default function PageSearch() {
               <div className="relative w-full flex-1 lg:max-w-sm">
                 <div className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3">
                   <svg
-                    className="h-4 w-4 text-gray-500 dark:text-gray-400"
+                    className="h-4 w-4 text-neutral-500 dark:text-neutral-400"
                     aria-hidden="true"
                     xmlns="http://www.w3.org/2000/svg"
                     width="24"
@@ -77,7 +77,7 @@ export default function PageSearch() {
                 <input
                   type="text"
                   id="simple-search"
-                  className="focus:border-primary-500 focus:ring-primary-500 dark:focus:border-primary-500 dark:focus:ring-primary-500 block w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 ps-9 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
+                  className="focus:border-primary-500 focus:ring-primary-500 dark:focus:border-primary-500 dark:focus:ring-primary-500 block w-full rounded-lg border border-neutral-300 bg-neutral-50 px-4 py-2.5 ps-9 text-sm text-neutral-900 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white dark:placeholder:text-neutral-400"
                   placeholder="Search Mesh Docs"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -102,7 +102,7 @@ export default function PageSearch() {
           </div>
 
           <div className="mt-6 flow-root">
-            <div className="-my-6 divide-y divide-gray-200 dark:divide-gray-800">
+            <div className="-my-6 divide-y divide-neutral-200 dark:divide-neutral-800">
               {searchResults.map((result, i) => {
                 return (
                   <Row
@@ -138,15 +138,15 @@ function Row({
       <div className="grid">
         <Link
           href={url}
-          className="text-xl font-semibold text-gray-900 hover:underline dark:text-white"
+          className="text-xl font-semibold text-neutral-900 hover:underline dark:text-white"
         >
           {title}
         </Link>
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-neutral-500">
           <div dangerouslySetInnerHTML={{ __html: displayUrl }} />
         </div>
       </div>
-      <div className="text-base font-normal text-gray-500 dark:text-gray-400">
+      <div className="text-base font-normal text-neutral-500 dark:text-neutral-400">
         <div dangerouslySetInnerHTML={{ __html: snippet }} />
       </div>
     </div>

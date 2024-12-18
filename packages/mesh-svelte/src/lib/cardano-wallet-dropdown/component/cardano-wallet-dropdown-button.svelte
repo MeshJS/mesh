@@ -118,7 +118,7 @@
       />
     {/if}
     <span
-      class="mesh-mr-menu-item mesh-text-xl mesh-font-normal mesh-text-gray-700"
+      class="mesh-mr-menu-item mesh-text-xl mesh-font-normal mesh-text-neutral-700"
       class:mesh-text-white={isDark}
     >
       {name

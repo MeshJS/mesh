@@ -8,12 +8,12 @@ import {
 
 export default function Reasons() {
   return (
-    <section className="bg-white dark:bg-gray-900">
+    <section className="bg-white dark:bg-neutral-900">
       <div className="mx-auto max-w-screen-xl px-4 py-8 text-center sm:py-16 lg:px-6">
-        <h2 className="mb-4 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+        <h2 className="mb-4 text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
           The complete SDK for web3 development on Cardano
         </h2>
-        <p className="text-gray-500 sm:text-xl dark:text-gray-400">
+        <p className="text-neutral-500 sm:text-xl dark:text-neutral-400">
           Here are a few reasons why you should use Mesh
         </p>
         <div className="mt-8 space-y-8 md:grid md:grid-cols-2 md:gap-12 md:space-y-0 lg:mt-12 lg:grid-cols-3">
@@ -22,7 +22,7 @@ export default function Reasons() {
             <h3 className="mb-2 text-xl font-bold dark:text-white">
               Always up to date
             </h3>
-            <p className="mb-4 text-gray-500 dark:text-gray-400">
+            <p className="mb-4 text-neutral-500 dark:text-neutral-400">
               Mesh is developed closely to network updates. By using Mesh, your
               application will always be ready for the latest network changes,
               so you can focus on building your application.
@@ -39,7 +39,7 @@ export default function Reasons() {
             <h3 className="mb-2 text-xl font-bold dark:text-white">
               Simple to use
             </h3>
-            <p className="mb-4 text-gray-500 dark:text-gray-400">
+            <p className="mb-4 text-neutral-500 dark:text-neutral-400">
               Getting started with dApp development has never been this easy.
               Mesh is conceived in a way that facilitates and speeds up
               development of decentralised applications.
@@ -56,7 +56,7 @@ export default function Reasons() {
             <h3 className="mb-2 text-xl font-bold dark:text-white">
               Best practices
             </h3>
-            <p className="mb-4 text-gray-500 dark:text-gray-400">
+            <p className="mb-4 text-neutral-500 dark:text-neutral-400">
               Mesh follows many CIPs that make it interoprable with other
               Cardano tools. In addition, the package is less than 300kB! This
               means your application is fast, responsive and adheres to

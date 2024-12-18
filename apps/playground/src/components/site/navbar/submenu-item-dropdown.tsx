@@ -38,12 +38,12 @@ export default function SubmenuItemDropdown({
       </Link>
 
       <div
-        className={`absolute z-10 w-56 divide-y divide-gray-100 rounded bg-white shadow dark:bg-gray-700 ${
+        className={`absolute z-10 w-56 divide-y divide-neutral-100 rounded bg-white shadow dark:bg-neutral-700 ${
           !showMenu && "hidden"
         }`}
         style={{ transform: "translate3d(210px, -40px, 0px)" }}
       >
-        <ul className="py-1 text-sm font-light text-gray-500 dark:text-gray-400">
+        <ul className="py-1 text-sm font-light text-neutral-500 dark:text-neutral-400">
           {items &&
             items.map((item, i) => (
               <Item

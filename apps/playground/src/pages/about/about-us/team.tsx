@@ -28,13 +28,13 @@ function Person({
   website?: string;
 }) {
   return (
-    <div className="text-center text-gray-500 dark:text-gray-400">
+    <div className="text-center text-neutral-500 dark:text-neutral-400">
       <img
         className="mx-auto mb-4 h-36 w-36 rounded-full"
         src={`team/${image}`}
         alt={name}
       />
-      <h3 className="mb-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+      <h3 className="mb-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
         {name}
       </h3>
       {/* <p></p> */}
@@ -43,7 +43,7 @@ function Person({
           <li>
             <Link
               href={twitter}
-              className="text-[#00acee] hover:text-gray-900 dark:hover:text-white"
+              className="text-[#00acee] hover:text-neutral-900 dark:hover:text-white"
             >
               <svg
                 className="h-6 w-6"
@@ -60,7 +60,7 @@ function Person({
           <li>
             <Link
               href={github}
-              className="text-gray-900 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+              className="text-neutral-900 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
             >
               <svg
                 className="h-6 w-6"
@@ -81,7 +81,7 @@ function Person({
           <li>
             <Link
               href={website}
-              className="text-[#ea4c89] hover:text-gray-900 dark:hover:text-white"
+              className="text-[#ea4c89] hover:text-neutral-900 dark:hover:text-white"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"

@@ -10,7 +10,7 @@ export default function AboutStatus() {
       <div className="grid gap-8 sm:gap-12 md:grid-cols-3">
         <div className="flex justify-center">
           <div>
-            <h3 className="mb-1 text-lg font-semibold leading-tight text-gray-900 dark:text-white">
+            <h3 className="mb-1 text-lg font-semibold leading-tight text-neutral-900 dark:text-white">
               Published on NPM
             </h3>
             <Link href="https://www.npmjs.com/package/@meshsdk/core">
@@ -20,7 +20,7 @@ export default function AboutStatus() {
         </div>
         <div className="flex justify-center">
           <div>
-            <h3 className="mb-1 text-lg font-semibold leading-tight text-gray-900 dark:text-white">
+            <h3 className="mb-1 text-lg font-semibold leading-tight text-neutral-900 dark:text-white">
               Build status
             </h3>
             <Link href="https://github.com/meshjs/mesh/actions/workflows/build.yml">
@@ -30,7 +30,7 @@ export default function AboutStatus() {
         </div>
         <div className="flex justify-center">
           <div>
-            <h3 className="mb-1 text-lg font-semibold leading-tight text-gray-900 dark:text-white">
+            <h3 className="mb-1 text-lg font-semibold leading-tight text-neutral-900 dark:text-white">
               Publish status
             </h3>
             <Link href="https://github.com/meshjs/mesh/actions/workflows/publish.yml">

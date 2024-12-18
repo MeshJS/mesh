@@ -58,11 +58,11 @@ export default function CardTitleDescImage({
             />
           )
         )}
-        <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
+        <h2 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
           {title}
         </h2>
         {desc && (
-          <p className="font-light text-gray-500 dark:text-gray-400">{desc}</p>
+          <p className="font-light text-neutral-500 dark:text-neutral-400">{desc}</p>
         )}
       </Card>
     </Link>
