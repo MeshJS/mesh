@@ -48,3 +48,4 @@ apps/docs/src/data/mesh-wallets.json
 
 # svelte
 .svelte-kit/
+vite.config.ts.*

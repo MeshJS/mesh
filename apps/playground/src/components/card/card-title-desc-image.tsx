@@ -2,20 +2,21 @@ import React from "react";
 import Image from "next/image";
 
 import Link from "~/components/link";
+import Icon from "../icon";
 import Card from "./card";
 
 export default function CardTitleDescImage({
   title,
   desc,
   link,
-  thumbnailHeroicon,
+  icon,
   thumbnailImage,
   thumbnailNotioly,
 }: {
   title: string;
   desc?: string;
   link: string;
-  thumbnailHeroicon?: any;
+  icon?: any;
   thumbnailImage?: string;
   thumbnailNotioly?: string;
 }) {
@@ -23,9 +24,9 @@ export default function CardTitleDescImage({
     <Link href={link}>
       <Card className="h-full cursor-pointer">
         <div className="flex flex-row items-center gap-2">
-          {thumbnailHeroicon ? (
+          {icon ? (
             <div className="w-8 dark:text-white">
-              {React.createElement(thumbnailHeroicon)}
+              <Icon icon={icon} />
             </div>
           ) : thumbnailNotioly ? (
             <div className="relative h-40 w-full bg-white">

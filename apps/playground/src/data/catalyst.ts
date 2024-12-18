@@ -19,7 +19,7 @@ export const fund13 = [
       `Transaction building`,
       `End-to-end working example`,
     ],
-    status: "Voting",
+    status: "In Progress",
   },
   {
     title: "Cardano Devkit - 'Ganache' of Cardano for better DevXP",
@@ -31,7 +31,8 @@ export const fund13 = [
       `Desktop app to launch local blockchain`,
       `Get blockchain data e.g. UTXOs and balances`,
     ],
-    status: "Voting",
+    status: "In Progress",
+    funded: false
   },
   {
     title: "Cquisitor - Transaction Investigation Tool",
@@ -44,7 +45,7 @@ export const fund13 = [
       `Phase-2 validation`,
       `Integration with Whisky and Mesh`,
     ],
-    status: "Voting",
+    status: "In Progress",
   },
   {
     title: "Multisig Platform",
@@ -58,7 +59,7 @@ export const fund13 = [
       `Fluidtokens and Minswap integrations`,
       `Plutus script multisig wallet`,
     ],
-    status: "Voting",
+    status: "In Progress",
   },
   {
     title: "Builder Fest #2 in Asia",
@@ -69,7 +70,7 @@ export const fund13 = [
       `Gathering of developers in Vietnam`,
       `Increase collaboration between projects for Cardano ecosystem open-source`,
     ],
-    status: "Voting",
+    status: "In Progress",
   },
   {
     title: "Maintain Mesh and Build Developer Community",
@@ -82,7 +83,7 @@ export const fund13 = [
       `Create tutorials and documentation`,
       `Create workshops and live coding sessions`,
     ],
-    status: "Voting",
+    status: "In Progress",
   },
 ];
 

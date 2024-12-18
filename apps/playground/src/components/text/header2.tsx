@@ -1,5 +1,7 @@
 import React from "react";
 
+import Icon from "../icon";
+
 export default function Header2({
   children,
   heroicon,
@@ -12,7 +14,7 @@ export default function Header2({
       <Title>
         <div className="flex items-center">
           <div className="mr-4 p-2">
-            {React.createElement(heroicon, { className: "w-16 h-16" })}
+            <Icon icon={heroicon} className="h-16 w-16" />
           </div>
           <span>{children}</span>
         </div>
