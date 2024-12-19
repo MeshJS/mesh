@@ -127,6 +127,24 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     });
     this.addUtxosFromSelection();
 
+    // Sort inputs based on txHash and txIndex
+    this.meshTxBuilderBody.inputs.sort((a, b) => {
+      if (a.txIn.txHash < b.txIn.txHash) return -1;
+      if (a.txIn.txHash > b.txIn.txHash) return 1;
+      if (a.txIn.txIndex < b.txIn.txIndex) return -1;
+      if (a.txIn.txIndex > b.txIn.txIndex) return 1;
+      return 0;
+    });
+
+    // Sort mints based on policy id and asset name
+    this.meshTxBuilderBody.mints.sort((a, b) => {
+      if (a.policyId < b.policyId) return -1;
+      if (a.policyId > b.policyId) return 1;
+      if (a.assetName < b.assetName) return -1;
+      if (a.assetName > b.assetName) return 1;
+      return 0;
+    });
+
     let txHex = this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
