@@ -1,4 +1,4 @@
-import { TxCBOR } from "@cardano-sdk/core";
+import { Serialization } from "@cardano-sdk/core"
 import { Ed25519KeyHashHex } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 
@@ -70,7 +70,7 @@ export const deserializeValue = (value: string): Value =>
   Value.fromCbor(HexBlob(value));
 
 export const deserializeTx = (tx: string): Transaction =>
-  Transaction.fromCbor(TxCBOR(tx));
+  Transaction.fromCbor(Serialization.TxCBOR(tx));
 
 export const deserializeTxHash = (txHash: string): TransactionId =>
   TransactionId.fromHexBlob(HexBlob(txHash));

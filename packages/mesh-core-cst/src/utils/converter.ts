@@ -1,6 +1,8 @@
 import { Serialization } from "@cardano-sdk/core";
 import { Ed25519KeyHash } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
+import base32 from "base32-encoding";
+import { bech32 } from "bech32";
 
 import {
   Asset,
@@ -20,7 +22,9 @@ import {
   ConstrPlutusData,
   NativeScript as CstNativeScript,
   Datum,
+  Ed25519KeyHashHex,
   EnterpriseAddress,
+  Hash28ByteBase16,
   PlutusData,
   PlutusList,
   PlutusMap,
@@ -313,43 +317,6 @@ export const toNativeScript = (script: NativeScript) => {
   }
 };
 
-export const toPlutusData = (data: Data): PlutusData => {
-  const toPlutusList = (data: Data[]) => {
-    const plutusList = new PlutusList();
-    data.forEach((element) => {
-      plutusList.add(toPlutusData(element));
-    });
-    return plutusList;
-  };
-
-  switch (typeof data) {
-    case "string":
-      return PlutusData.newBytes(toBytes(data));
-    case "number":
-      return PlutusData.newInteger(BigInt(data));
-    case "bigint":
-      return PlutusData.newInteger(BigInt(data));
-    case "object":
-      if (data instanceof Array) {
-        const plutusList = toPlutusList(data);
-        return PlutusData.newList(plutusList);
-      } else if (data instanceof Map) {
-        const plutusMap = new PlutusMap();
-        data.forEach((value, key) => {
-          plutusMap.insert(toPlutusData(key), toPlutusData(value));
-        });
-        return PlutusData.newMap(plutusMap);
-      } else {
-        return PlutusData.newConstrPlutusData(
-          new ConstrPlutusData(
-            BigInt(data.alternative),
-            toPlutusList(data.fields),
-          ),
-        );
-      }
-  }
-};
-
 export const toValue = (assets: Asset[]) => {
   const multiAsset: TokenMap = new Map();
   assets
@@ -366,4 +333,48 @@ export const toValue = (assets: Asset[]) => {
   }
 
   return value;
+};
+
+export const toDRep = (dRepId: string): Serialization.DRep => {
+  if (dRepId.length === 58) {
+    // CIP-129 DRepIds have length of 58
+    const { prefix, words } = bech32.decode(dRepId);
+    if (prefix !== "drep") {
+      throw new Error("Invalid DRepId prefix");
+    }
+    const bytes = base32.decode(new Uint8Array(words));
+    if (bytes[0] === 0x22) {
+      return Serialization.DRep.newKeyHash(
+        Ed25519KeyHashHex(bytes.subarray(1).toString("hex")),
+      );
+    } else if (bytes[0] === 0x23) {
+      return Serialization.DRep.newScriptHash(
+        Hash28ByteBase16(bytes.subarray(1).toString("hex")),
+      );
+    } else {
+      throw new Error("Malformed CIP129 DRepId");
+    }
+  } else {
+    // CIP-105 DRepIds have length of 56 or 63 depending on vkey or script prefix
+    const { prefix, words } = bech32.decode(dRepId);
+    switch (prefix) {
+      case "drep": {
+        return Serialization.DRep.newKeyHash(
+          Ed25519KeyHashHex(
+            base32.decode(new Uint8Array(words)).toString("hex"),
+          ),
+        );
+      }
+      case "drep_script": {
+        return Serialization.DRep.newScriptHash(
+          Hash28ByteBase16(
+            base32.decode(new Uint8Array(words)).toString("hex"),
+          ),
+        );
+      }
+      default: {
+        throw new Error("Malformed DRepId prefix");
+      }
+    }
+  }
 };

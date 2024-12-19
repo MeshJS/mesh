@@ -23,6 +23,18 @@ export type TransactionBody = Serialization.TransactionBody;
 export const TransactionWitnessSet = Serialization.TransactionWitnessSet;
 export type TransactionWitnessSet = Serialization.TransactionWitnessSet;
 
+export const AuxilliaryData = Serialization.AuxiliaryData;
+export type AuxiliaryData = Serialization.AuxiliaryData;
+
+export const TransactionMetadatum = Serialization.TransactionMetadatum;
+export type TransactionMetadatum = Serialization.TransactionMetadatum;
+
+export const MetadatumMap = Serialization.MetadatumMap;
+export type MetadatumMap = Serialization.MetadatumMap;
+
+export const MetadatumList = Serialization.MetadatumList;
+export type MetadatumList = Serialization.MetadatumList;
+
 export const TransactionUnspentOutput = Serialization.TransactionUnspentOutput;
 export type TransactionUnspentOutput = Serialization.TransactionUnspentOutput;
 
@@ -250,3 +262,5 @@ export const DRep = Serialization.DRep;
 
 export type StakeCredentialStatus = Cardano.StakeCredentialStatus;
 export const StakeCredentialStatus = Cardano.StakeCredentialStatus;
+
+export type Metadatum = Cardano.Metadatum;
