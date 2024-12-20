@@ -1,7 +1,7 @@
 import { Serialization } from "@cardano-sdk/core";
 import { HexBlob } from "@cardano-sdk/util";
-import { bech32 } from "bech32";
 import base32 from "base32-encoding";
+import { bech32 } from "bech32";
 
 import {
   BuilderData,
@@ -48,6 +48,7 @@ import {
   AuxilliaryData,
   Bip32PrivateKey,
   CertificateType,
+  computeAuxiliaryDataHash,
   CredentialCore,
   CredentialType,
   Datum,
@@ -320,12 +321,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         const entropy = mnemonicToEntropy(words.join(" "));
         const bip32PrivateKey = buildBip32PrivateKey(entropy);
         const bytes = base32.encode(bip32PrivateKey.bytes());
-        console.log("bytes", bytes);
-        const bech32PrivateKey = bech32.encode(
-          "xprv",
-          bytes,
-          1023,
-        );
+        const bech32PrivateKey = bech32.encode("xprv", bytes, 1023);
 
         return bech32PrivateKey;
       },
@@ -459,15 +455,6 @@ class CardanoSDKSerializerCore {
       withdrawals,
     } = txBuilderBody;
 
-    mints.sort((a, b) => a.policyId.localeCompare(b.policyId));
-    inputs.sort((a, b) => {
-      if (a.txIn.txHash === b.txIn.txHash) {
-        return a.txIn.txIndex - b.txIn.txIndex;
-      } else {
-        return a.txIn.txHash.localeCompare(b.txIn.txHash);
-      }
-    });
-
     this.addAllInputs(inputs);
     this.addAllOutputs(this.sanitizeOutputs(outputs));
     this.addAllMints(mints);
@@ -477,7 +464,9 @@ class CardanoSDKSerializerCore {
     this.addAllReferenceInputs(referenceInputs);
     this.setValidityInterval(validityRange);
     this.addAllRequiredSignatures(requiredSignatures);
-    this.addMetadata(metadata);
+    if (metadata.size > 0) {
+      this.addMetadata(metadata);
+    }
     this.buildWitnessSet();
     this.balanceTx(changeAddress);
     return new Transaction(
@@ -1203,8 +1192,6 @@ class CardanoSDKSerializerCore {
   };
 
   private buildWitnessSet = () => {
-    const inputs = this.txBody.inputs();
-
     // Add provided scripts to tx witness set
     let nativeScripts =
       this.txWitnessSet.nativeScripts() ??
@@ -1289,6 +1276,12 @@ class CardanoSDKSerializerCore {
     );
     if (scriptDataHash) {
       this.txBody.setScriptDataHash(scriptDataHash);
+    }
+    let auxiliaryDataHash = computeAuxiliaryDataHash(
+      this.txAuxilliaryData.toCore(),
+    );
+    if (auxiliaryDataHash) {
+      this.txBody.setAuxiliaryDataHash(auxiliaryDataHash);
     }
   };
 
@@ -1387,6 +1380,7 @@ class CardanoSDKSerializerCore {
       dummyTx,
       this.refScriptSize,
     );
+    console.log(dummyTx.toCbor());
 
     this.txBody.setFee(fee);
 
@@ -1424,7 +1418,7 @@ class CardanoSDKSerializerCore {
       Serialization.CborSet.fromCore(dummyVkeyWitnesses, VkeyWitness.fromCore),
     );
 
-    return new Transaction(this.txBody, dummyWitnessSet);
+    return new Transaction(this.txBody, dummyWitnessSet, this.txAuxilliaryData);
   };
 
   private addScriptRef = (scriptSource: ScriptSource): void => {

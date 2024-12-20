@@ -264,3 +264,5 @@ export type StakeCredentialStatus = Cardano.StakeCredentialStatus;
 export const StakeCredentialStatus = Cardano.StakeCredentialStatus;
 
 export type Metadatum = Cardano.Metadatum;
+
+export const computeAuxiliaryDataHash = Cardano.computeAuxiliaryDataHash;
