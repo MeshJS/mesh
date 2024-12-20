@@ -1,4 +1,6 @@
-import { Data, toBytes } from "@meshsdk/common";
+import { HexBlob } from "@cardano-sdk/util";
+
+import { BuilderData, Data, toBytes } from "@meshsdk/common";
 
 import { ConstrPlutusData, PlutusData, PlutusList, PlutusMap } from "../types";
 
@@ -134,5 +136,25 @@ export const fromJsonToPlutusData = (data: object): PlutusData => {
     }
   } else {
     throw new Error("Malformed Plutus data json");
+  }
+};
+
+export const fromBuilderToPlutusData = (data: BuilderData): PlutusData => {
+  if (data.type === "Mesh") {
+    return toPlutusData(data.content);
+  } else if (data.type === "CBOR") {
+    return PlutusData.fromCbor(HexBlob(data.content));
+  } else if (data.type === "JSON") {
+    let content: object;
+    if (typeof data.content === "string") {
+      content = JSON.parse(data.content);
+    } else {
+      content = data.content;
+    }
+    return fromJsonToPlutusData(content);
+  } else {
+    throw new Error(
+      "Malformed builder data, expected types of, Mesh, CBOR or JSON",
+    );
   }
 };

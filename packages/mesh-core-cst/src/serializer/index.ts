@@ -82,6 +82,7 @@ import {
   VkeyWitness,
 } from "../types";
 import {
+  fromBuilderToPlutusData,
   fromJsonToPlutusData,
   toAddress,
   toPlutusData,
@@ -193,23 +194,8 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   }
 
   serializeData(data: BuilderData): string {
-    if (data.type === "Mesh") {
-      return toPlutusData(data.content).toCbor();
-    } else if (data.type === "CBOR") {
-      return PlutusData.fromCbor(HexBlob(data.content)).toCbor();
-    } else if (data.type === "JSON") {
-      let content: object;
-      if (typeof data.content === "string") {
-        content = JSON.parse(data.content);
-      } else {
-        content = data.content;
-      }
-      return fromJsonToPlutusData(content).toCbor();
-    } else {
-      throw new Error(
-        "Malformed builder data, expected types of, Mesh, CBOR or JSON",
-      );
-    }
+    const plutusData = fromBuilderToPlutusData(data);
+    return plutusData.toCbor().toString();
   }
 
   deserializer: IDeserializer = {
