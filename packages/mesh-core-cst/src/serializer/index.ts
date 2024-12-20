@@ -1,5 +1,7 @@
 import { Serialization } from "@cardano-sdk/core";
 import { HexBlob } from "@cardano-sdk/util";
+import { bech32 } from "bech32";
+import base32 from "base32-encoding";
 
 import {
   BuilderData,
@@ -12,11 +14,13 @@ import {
   DEFAULT_V3_COST_MODEL_LIST,
   DeserializedAddress,
   DeserializedScript,
+  fromUTF8,
   IDeserializer,
   IMeshTxSerializer,
   IResolver,
   MeshTxBuilderBody,
   MintItem,
+  mnemonicToEntropy,
   Output,
   PlutusScript,
   Protocol,
@@ -27,6 +31,7 @@ import {
   ScriptTxIn,
   SimpleScriptSourceInfo,
   SimpleScriptTxIn,
+  toBytes,
   TxIn,
   TxMetadata,
   ValidityRange,
@@ -41,6 +46,7 @@ import {
   AssetName,
   AuxiliaryData,
   AuxilliaryData,
+  Bip32PrivateKey,
   CertificateType,
   CredentialCore,
   CredentialType,
@@ -85,6 +91,7 @@ import {
   fromBuilderToPlutusData,
   fromJsonToPlutusData,
   toAddress,
+  toNativeScript,
   toPlutusData,
   toValue,
 } from "../utils";
@@ -201,31 +208,70 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   deserializer: IDeserializer = {
     key: {
       deserializeAddress: function (bech32: string): DeserializedAddress {
-        throw new Error("Function not implemented.");
+        const address = Address.fromBech32(bech32);
+        const addressProps = address.getProps();
 
-        // return {
-        //   pubKeyHash: this.resolvePaymentKeyHash(address),
-        //   scriptHash: this.resolvePlutusScriptHash(address),
-        //   stakeCredentialHash: this.resolveStakeKeyHash(address),
-        //   stakeScriptCredentialHash: this.resolveStakeScriptHash(address),
-        // };
+        return {
+          pubKeyHash:
+            addressProps.paymentPart?.type === CredentialType.KeyHash
+              ? (addressProps.paymentPart?.hash ?? "")
+              : "",
+          scriptHash:
+            addressProps.paymentPart?.type === CredentialType.ScriptHash
+              ? (addressProps.paymentPart?.hash ?? "")
+              : "",
+          stakeCredentialHash:
+            addressProps.delegationPart?.type === CredentialType.KeyHash
+              ? (addressProps.paymentPart?.hash ?? "")
+              : "",
+          stakeScriptCredentialHash:
+            addressProps.delegationPart?.type === CredentialType.ScriptHash
+              ? (addressProps.paymentPart?.hash ?? "")
+              : "",
+        };
       },
     },
     script: {
       deserializeNativeScript: function (
         script: CommonNativeScript,
       ): DeserializedScript {
-        throw new Error("Function not implemented.");
+        const cardanoNativeScript = toNativeScript(script);
+        return {
+          scriptHash: cardanoNativeScript.hash().toString(),
+          scriptCbor: cardanoNativeScript.toCbor().toString(),
+        };
       },
       deserializePlutusScript: function (
         script: PlutusScript,
       ): DeserializedScript {
-        throw new Error("Function not implemented.");
+        let cardanoPlutusScript:
+          | PlutusV1Script
+          | PlutusV2Script
+          | PlutusV3Script;
+        switch (script.version) {
+          case "V1": {
+            cardanoPlutusScript = new PlutusV1Script(HexBlob(script.code));
+            break;
+          }
+          case "V2": {
+            cardanoPlutusScript = new PlutusV2Script(HexBlob(script.code));
+            break;
+          }
+          case "V3": {
+            cardanoPlutusScript = new PlutusV3Script(HexBlob(script.code));
+            break;
+          }
+        }
+        return {
+          scriptHash: cardanoPlutusScript.hash().toString(),
+          scriptCbor: cardanoPlutusScript.toCbor().toString(),
+        };
       },
     },
     cert: {
       deserializePoolId: function (poolId: string): string {
-        throw new Error("Function not implemented.");
+        const cardanoPoolId: PoolId = PoolId(poolId);
+        return PoolId.toKeyHash(cardanoPoolId).toString();
       },
     },
   };
@@ -261,7 +307,27 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       //     : "";
       // },
       resolvePrivateKey: function (words: string[]): string {
-        throw new Error("Function not implemented.");
+        const buildBip32PrivateKey = (
+          entropy: string,
+          password = "",
+        ): Bip32PrivateKey => {
+          return Bip32PrivateKey.fromBip39Entropy(
+            Buffer.from(toBytes(entropy)),
+            fromUTF8(password),
+          );
+        };
+
+        const entropy = mnemonicToEntropy(words.join(" "));
+        const bip32PrivateKey = buildBip32PrivateKey(entropy);
+        const bytes = base32.encode(bip32PrivateKey.bytes());
+        console.log("bytes", bytes);
+        const bech32PrivateKey = bech32.encode(
+          "xprv",
+          bytes,
+          1023,
+        );
+
+        return bech32PrivateKey;
       },
       resolveRewardAddress: function (bech32: string): string {
         throw new Error("Function not implemented.");
