@@ -90,7 +90,6 @@ import {
 } from "../types";
 import {
   fromBuilderToPlutusData,
-  fromJsonToPlutusData,
   toAddress,
   toNativeScript,
   toPlutusData,
@@ -359,7 +358,14 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     protocolParams?: Protocol,
   ): string => {
     if (this.verbose) {
-      console.log("txBodyJson", JSON.stringify(txBuilderBody));
+      console.log(
+        "txBodyJson",
+        JSON.stringify(txBuilderBody, (key, val) => {
+          if (key === "extraInputs") return undefined;
+          if (key === "selectionConfig") return undefined;
+          return val;
+        }),
+      );
     }
 
     const serializerCore = new CardanoSDKSerializerCore(
@@ -1380,7 +1386,6 @@ class CardanoSDKSerializerCore {
       dummyTx,
       this.refScriptSize,
     );
-    console.log(dummyTx.toCbor());
 
     this.txBody.setFee(fee);
 
