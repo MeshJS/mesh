@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Bars4Icon,
+  MagnifyingGlassIcon,
   MoonIcon,
   SunIcon,
   XMarkIcon,
@@ -93,26 +94,13 @@ export default function Navbar() {
               </label>
               <div className="relative">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <svg
-                    className="h-5 w-5 text-neutral-500 dark:text-neutral-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    ></path>
-                  </svg>
+                  <MagnifyingGlassIcon className="h-5 w-5 text-neutral-500 dark:text-neutral-400" />
                 </div>
                 <input
                   type="search"
                   id="search-bar"
                   className="focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-neutral-300 bg-neutral-50 px-4 py-2 pl-10 text-sm text-neutral-900 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white dark:placeholder-neutral-400"
-                  placeholder="Search"
+                  placeholder="Search..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -146,9 +134,9 @@ export default function Navbar() {
                 aria-label="Toggle dark mode"
               >
                 {isDark ? (
-                  <MoonIcon className="h-4 w-4 text-neutral-500" />
+                  <MoonIcon className="h-4 w-4" />
                 ) : (
-                  <SunIcon className="h-4 w-4 text-neutral-500" />
+                  <SunIcon className="h-4 w-4" />
                 )}
               </button>
             )}
@@ -177,24 +165,13 @@ export default function Navbar() {
               </label>
               <div className="relative w-full">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <svg
-                    className="h-5 w-5 text-neutral-500 dark:text-neutral-400"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                      clipRule="evenodd"
-                    ></path>
-                  </svg>
+                  <MagnifyingGlassIcon className="h-5 w-5 text-neutral-500 dark:text-neutral-400" />
                 </div>
                 <input
                   type="search"
                   id="search-mobile"
                   className="focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-500 dark:focus:border-primary-500 block w-full rounded-lg border border-neutral-300 bg-neutral-50 p-2.5 pl-10  text-sm text-neutral-900 dark:border-neutral-600 dark:bg-neutral-700 dark:text-white dark:placeholder-neutral-400"
-                  placeholder="Search for anything..."
+                  placeholder="Search..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -208,20 +185,6 @@ export default function Navbar() {
                 className="bg-primary-700 border-primary-700 hover:bg-primary-800 focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800 ml-2 inline-flex items-center rounded-lg border p-2.5 text-sm font-medium text-white focus:outline-none focus:ring-4"
                 onClick={() => search()}
               >
-                <svg
-                  className="mr-2 h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  ></path>
-                </svg>{" "}
                 Search
               </button>
             </div>

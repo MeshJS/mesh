@@ -48,7 +48,7 @@ export const linksTxbuilder = [
 
 export const metaTxbuilder = {
   title: "Transaction Builder",
-  desc: "Build all possible transaction with our cardano-cli like APIs",
+  desc: "Build transactions with cardano-cli like APIs",
   link: "/apis/txbuilder",
   icon: BanknotesIcon,
   items: linksTxbuilder,

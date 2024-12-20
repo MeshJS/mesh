@@ -34,7 +34,7 @@ export const linksReact: MenuItem[] = [
 
 export const metaReact = {
   title: "React Components",
-  desc: "Frontend components for wallet connections, and useful React hooks to getting wallet states",
+  desc: "Frontend React UI components and React hooks",
   link: "/react",
   icon: ComputerDesktopIcon,
   items: linksReact,

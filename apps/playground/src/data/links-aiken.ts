@@ -21,7 +21,7 @@ export const metaAikenContractsLib = {
   link: "/smart-contracts",
 };
 export const metaAikenCourse = {
-  title: "Smart Contract course by STOIC Pool",
+  title: "Smart Contract course by STOIC",
   desc: "Learn the concepts of Aiken while enjoying live coding examples",
   link: "https://www.youtube.com/playlist?list=PLCuyQuWCJVQ1Zz9ySRMH_J6EymxhnZ0Hu",
 };
@@ -36,7 +36,7 @@ export const linksAiken: MenuItem[] = [
 
 export const metaAiken: MenuItem = {
   title: "Aiken",
-  desc: "A functional programming language created for Cardano smart contract development",
+  desc: "Functional programming language created for Cardano smart contract development",
   link: "/aiken",
   items: linksAiken,
   icon: "/images/aiken/aiken-icon.png",
