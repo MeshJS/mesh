@@ -6,6 +6,7 @@ import {
 } from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
+import { metaData } from "./links-data";
 
 export const metaResolvers = {
   title: "Resolvers",
@@ -32,11 +33,12 @@ export const linksUtilities: MenuItem[] = [
   metaSerializers,
   metaDeserializers,
   metaResolvers,
+  metaData,
 ];
 
 export const metaUtilities = {
   title: "Utilities",
-  desc: "Useful functions that you need while building applications.",
+  desc: "Serializers, resolvers and data types for converting between different formats.",
   link: "/apis/utilities",
   icon: WrenchScrewdriverIcon,
   items: linksUtilities,

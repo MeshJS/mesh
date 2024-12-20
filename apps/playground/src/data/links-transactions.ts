@@ -40,7 +40,7 @@ export const linksTransactions = [
 
 export const metaTransaction = {
   title: "Transactions",
-  desc: "For sending and minting assets and working with smart contracts",
+  desc: "Easy-to-use APIs to build transactions to mint tokens and working with smart contracts",
   link: "/apis/transaction",
   icon: BanknotesIcon,
   items: linksTransactions,

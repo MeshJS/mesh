@@ -52,7 +52,7 @@ export default function Sidebar({
 function LinkWithinPage({ item }: { item: { to: string; label: string } }) {
   return (
     <RSLink
-      activeClass="text-primary-600 dark:text-primary-500"
+      activeClass="text-primary-600 dark:text-primary-300"
       className="cursor-pointer hover:text-black dark:hover:text-white"
       to={item.to}
       spy={true}
