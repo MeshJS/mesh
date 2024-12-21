@@ -11,9 +11,9 @@ import {
   TxIn,
   UTxO,
 } from "@meshsdk/common";
-import { CSLSerializer } from "@meshsdk/core-csl";
+// import { CSLSerializer } from "@meshsdk/core-csl";
 
-// import { CardanoSDKSerializer } from "@meshsdk/core-cst";
+import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
 import { MeshTxBuilderCore } from "./tx-builder-core";
 
@@ -50,8 +50,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (serializer) {
       this.serializer = serializer;
     } else {
-      // this.serializer = new CardanoSDKSerializer();
-      this.serializer = new CSLSerializer();
+      this.serializer = new CardanoSDKSerializer();
+      // this.serializer = new CSLSerializer();
     }
     this.serializer.verbose = verbose;
     if (fetcher) this.fetcher = fetcher;
