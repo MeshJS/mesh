@@ -65,7 +65,7 @@ import { evaluateTransaction, getTransactionInputs } from "../utils";
 export class OfflineEvaluator implements IEvaluator {
   private readonly fetcher: IFetcher;
   private readonly network: Network;
-  public slotConfig: SlotConfig;
+  public slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
 
   /**
    * Creates a new instance of OfflineEvaluator.
@@ -73,10 +73,18 @@ export class OfflineEvaluator implements IEvaluator {
    * @param network - The network to evaluate scripts for
    * @param slotConfig - Slot configuration for the network (optional, defaults to network-specific values)
    */
-  constructor(fetcher: IFetcher, network: Network, slotConfig?: SlotConfig) {
+  constructor(
+    fetcher: IFetcher,
+    network: Network,
+    slotConfig?: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
+  ) {
     this.fetcher = fetcher;
     this.network = network;
-    this.slotConfig = slotConfig ?? SLOT_CONFIG_NETWORK[network];
+    this.slotConfig = slotConfig ?? {
+      slotLength: SLOT_CONFIG_NETWORK[network].slotLength,
+      zeroSlot: SLOT_CONFIG_NETWORK[network].zeroSlot,
+      zeroTime: SLOT_CONFIG_NETWORK[network].zeroTime,
+    };
   }
 
   /**
@@ -95,9 +103,7 @@ export class OfflineEvaluator implements IEvaluator {
    *   - budget: Memory units and CPU steps required
    * @throws Error if any required UTXOs cannot be resolved or if script evaluation fails
    */
-  async evaluateTx(
-    tx: string,
-  ): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
     const inputsToResolve = getTransactionInputs(tx);
     const txHashesSet = new Set(inputsToResolve.map((input) => input.txHash));
     const resolvedUTXOs: UTxO[] = [];
