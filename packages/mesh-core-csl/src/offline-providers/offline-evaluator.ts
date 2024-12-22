@@ -71,6 +71,7 @@ export class OfflineEvaluator implements IEvaluator {
    * Creates a new instance of OfflineEvaluator.
    * @param fetcher - An implementation of IFetcher to resolve transaction UTXOs
    * @param network - The network to evaluate scripts for
+   * @param slotConfig - Slot configuration for the network (optional, defaults to network-specific values)
    */
   constructor(fetcher: IFetcher, network: Network, slotConfig?: SlotConfig) {
     this.fetcher = fetcher;
@@ -88,7 +89,6 @@ export class OfflineEvaluator implements IEvaluator {
    * 4. Evaluates each Plutus script to determine its memory and CPU costs
    *
    * @param tx - Transaction in CBOR hex format
-   * @param slotConfig - Slot configuration for the network (optional, defaults to mainnet)
    * @returns Promise resolving to array of script evaluation results, each containing:
    *   - tag: Type of script (CERT | MINT | REWARD | SPEND | VOTE | PROPOSE)
    *   - index: Script execution index
@@ -97,7 +97,6 @@ export class OfflineEvaluator implements IEvaluator {
    */
   async evaluateTx(
     tx: string,
-    slotConfig?: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
   ): Promise<Omit<Action, "data">[]> {
     const inputsToResolve = getTransactionInputs(tx);
     const txHashesSet = new Set(inputsToResolve.map((input) => input.txHash));
@@ -137,7 +136,7 @@ export class OfflineEvaluator implements IEvaluator {
       tx,
       resolvedUTXOs,
       this.network,
-      slotConfig ?? this.slotConfig,
+      this.slotConfig,
     );
   }
 }
