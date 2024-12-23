@@ -470,6 +470,7 @@ class CardanoSDKSerializerCore {
     this.addAllWithdrawals(withdrawals);
     this.addAllCollateralInputs(collaterals);
     this.addAllReferenceInputs(referenceInputs);
+    this.removeInputRefInputOverlap();
     this.setValidityInterval(validityRange);
     this.addAllRequiredSignatures(requiredSignatures);
     if (metadata.size > 0) {
@@ -741,7 +742,6 @@ class CardanoSDKSerializerCore {
     for (let i = 0; i < refInputs.length; i++) {
       this.addReferenceInput(refInputs[i]!);
     }
-    this.removeInputRefInputOverlap();
   };
 
   private addReferenceInput = (refInput: RefTxIn) => {
@@ -1192,13 +1192,17 @@ class CardanoSDKSerializerCore {
     if (this.txBody.referenceInputs()) {
       const currentRefInputValues = this.txBody.referenceInputs()!.values();
       currentRefInputValues.forEach((refInput) => {
+        let found = false;
         for (let i = 0; i < inputs.length; i++) {
           if (
-            refInput.transactionId() != inputs[i]!.transactionId() ||
-            refInput.index() != inputs[i]!.index()
+            refInput.transactionId() == inputs[i]!.transactionId() ||
+            refInput.index() == inputs[i]!.index()
           ) {
-            refInputsValues.push(refInput);
+            found = true;
           }
+        }
+        if (!found) {
+          refInputsValues.push(refInput);
         }
       });
       const referenceInputs = Serialization.CborSet.fromCore(
