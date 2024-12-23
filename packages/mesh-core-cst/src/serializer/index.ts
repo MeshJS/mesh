@@ -1194,10 +1194,7 @@ class CardanoSDKSerializerCore {
       currentRefInputValues.forEach((refInput) => {
         let found = false;
         for (let i = 0; i < inputs.length; i++) {
-          if (
-            refInput.transactionId() == inputs[i]!.transactionId() ||
-            refInput.index() == inputs[i]!.index()
-          ) {
+          if (refInput.toCbor() === inputs[i]!.toCbor()) {
             found = true;
           }
         }
@@ -1205,12 +1202,12 @@ class CardanoSDKSerializerCore {
           refInputsValues.push(refInput);
         }
       });
-      const referenceInputs = Serialization.CborSet.fromCore(
-        [],
-        TransactionInput.fromCore,
+      this.txBody.setReferenceInputs(
+        Serialization.CborSet.fromCore(
+          refInputsValues.map((input) => input.toCore()),
+          TransactionInput.fromCore,
+        ),
       );
-      referenceInputs.setValues(refInputsValues);
-      this.txBody.setReferenceInputs(referenceInputs);
     }
   };
 
