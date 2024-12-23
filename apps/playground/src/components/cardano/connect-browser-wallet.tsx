@@ -1,10 +1,13 @@
-import { CardanoWallet, useWalletList } from "@meshsdk/react";
+import { useEffect, useRef } from "react";
+
+import { CardanoWallet, useWallet, useWalletList } from "@meshsdk/react";
 
 import { getProvider } from "./mesh-wallet";
 
 export default function ConnectBrowserWallet() {
   const wallets = useWalletList();
   const hasAvailableWallets = wallets.length > 0;
+
   return (
     <>
       {hasAvailableWallets ? (

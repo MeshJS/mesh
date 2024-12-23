@@ -1,4 +1,3 @@
-import { BrowserWallet } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import ConnectBrowserWallet from "~/components/cardano/connect-browser-wallet";
