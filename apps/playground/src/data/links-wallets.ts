@@ -27,7 +27,7 @@ export const linksWallets = [metaBrowserwallet, metaMeshwallet];
 
 export const metaWallets = {
   title: "Wallets",
-  desc: "Wallet for building amazing applications",
+  desc: "Wallets APIs for interacting with the blockchain.",
   link: "/apis/wallets",
   icon: WalletIcon,
   items: linksWallets,

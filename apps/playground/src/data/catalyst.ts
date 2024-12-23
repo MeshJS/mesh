@@ -11,7 +11,7 @@ export const fund13 = [
   {
     title: "Hydra Tools for administrating & interacting with Hydra Heads",
     desc: "Provide all the tools needed to integration Hydra on apps, to enable end-user operations like interacting with wallet, query UTXOs/balance and submit transactions.",
-    url: "https://cardano.ideascale.com/c/cardano/idea/130856",
+    url: "https://projectcatalyst.io/funds/13/f13-cardano-open-developers/mesh-hydra-tools-for-administrating-and-interacting-with-hydra-heads",
     completed: [],
     tobecompleted: [
       `Hydra Provider`,
@@ -24,7 +24,7 @@ export const fund13 = [
   {
     title: "Cardano Devkit - 'Ganache' of Cardano for better DevXP",
     desc: "An app to launch local blockchain to test and deploy transactions and smart contracts, to run tests and experiments to develop Cardano applications.",
-    url: "https://cardano.ideascale.com/c/cardano/idea/130825",
+    url: "https://projectcatalyst.io/funds/13/f13-cardano-use-cases-concept/mesh-cardano-devkit-ganache-better-devxp-with-local-cardano-network",
     completed: [],
     tobecompleted: [
       `Improve devnet deployment`,
@@ -32,12 +32,12 @@ export const fund13 = [
       `Get blockchain data e.g. UTXOs and balances`,
     ],
     status: "In Progress",
-    funded: false
+    funded: false,
   },
   {
     title: "Cquisitor - Transaction Investigation Tool",
     desc: "Enhancing Devtools with hosted Rust-based validation modules, and improving error handling to provide clearer feedback, helping developers debug and validate efficiently.",
-    url: "https://cardano.ideascale.com/c/cardano/idea/131631",
+    url: "https://projectcatalyst.io/funds/13/f13-cardano-open-developers/mesh-cquisitor-transaction-investigation-tool",
     completed: [],
     tobecompleted: [
       `Update Cquisitor`,
@@ -50,7 +50,7 @@ export const fund13 = [
   {
     title: "Multisig Platform",
     desc: "Open source multisig platform for teams and organizations to manage their treasury and participate in governance.",
-    url: "https://cardano.ideascale.com/c/cardano/idea/131036",
+    url: "https://projectcatalyst.io/funds/13/f13-cardano-use-cases-product/cardano-multisig-platform-by-mesh-clarity-dao-and-fluid-tokens",
     completed: [],
     tobecompleted: [
       `Full governance features`,
@@ -64,7 +64,7 @@ export const fund13 = [
   {
     title: "Builder Fest #2 in Asia",
     desc: "Hosting Buidler Fest #2, a 2-day event for tech-savvy Cardano builders to connect, showcase and share.",
-    url: "https://cardano.ideascale.com/c/cardano/idea/131981",
+    url: "https://projectcatalyst.io/funds/13/f13-cardano-open-ecosystem/cardano-builder-fest-asia-by-mesh-socious-sidan-vietnam-cardano",
     completed: [],
     tobecompleted: [
       `Gathering of developers in Vietnam`,
@@ -75,7 +75,7 @@ export const fund13 = [
   {
     title: "Maintain Mesh and Build Developer Community",
     desc: "Maintenance and operations of the Mesh open source libraries and tool suits. Growing Cardano developer community.",
-    url: "https://cardano.ideascale.com/c/cardano/idea/131363",
+    url: "https://projectcatalyst.io/funds/13/f13-cardano-open-developers/maintain-mesh-and-build-developer-community",
     completed: [],
     tobecompleted: [
       `Provide community support`,
@@ -199,5 +199,14 @@ export const fund10 = [
     ],
     tobecompleted: [],
     status: "Closing",
+  },
+  {
+    title: "Support Teams Building Cardano dApps",
+    desc: "Pro-actively facilitate integration of our open source code into other Cardano Projects by directly providing financial and human resources to support and facilitate these integrations.",
+    url: "https://projectcatalyst.io/funds/10/f10-developer-ecosystem-the-evolution/mesh-support-teams-building-cardano-dapps-with-mesh-js-sdk-a-comprehensive-open-source-sdk-for-building-dapps-on-cardano",
+    completed: ["Provide community technical support"],
+    tobecompleted: ["Provide funding for integrating Cardano"],
+    status: "Completed",
+    funded: false,
   },
 ];

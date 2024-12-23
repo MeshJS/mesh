@@ -57,7 +57,7 @@ export const linksData: MenuItem[] = [
 
 export const metaData = {
   title: "Data",
-  desc: "Parse and manipulate data",
+  desc: "Useful utilities to parse and manipulate data",
   link: "/apis/data",
   icon: CircleStackIcon,
   items: linksData,

@@ -26,7 +26,7 @@ export const linksSvelte: MenuItem[] = [
 
 export const metaSvelte = {
   title: "Svelte Components",
-  desc: "Svelte frontend components for bringing your Web3 user interface to life.",
+  desc: "Svelte UI components for wallet connections",
   link: "/svelte",
   icon: ComputerDesktopIcon,
   items: linksSvelte,

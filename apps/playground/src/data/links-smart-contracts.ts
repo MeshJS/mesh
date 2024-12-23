@@ -79,7 +79,7 @@ export const linksSmartContracts: MenuItem[] = [
 ];
 
 export const metaSmartContract: MenuItem = {
-  title: "Smart Contracts",
+  title: "Smart Contracts Lib",
   desc: "Open-source smart contracts, complete with documentation, and live demos",
   link: "/smart-contracts",
   icon: DocumentCheckIcon,
