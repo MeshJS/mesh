@@ -290,13 +290,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
       );
     input.txIn.amount = amount;
-    if (input.type === "PubKey") {
-      if (!address || address === "")
-        throw Error(
-          `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-        );
-      input.txIn.address = address;
-    }
+
+    if (!address || address === "")
+      throw Error(
+        `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
+      );
+    input.txIn.address = address;
+
     if (utxo?.output.scriptRef) {
       input.txIn.scriptSize = utxo.output.scriptRef.length / 2;
     } else {
