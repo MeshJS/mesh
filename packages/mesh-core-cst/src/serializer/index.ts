@@ -989,12 +989,12 @@ class CardanoSDKSerializerCore {
         throw new Error("A redeemer was not provided for a plutus certificate");
       }
 
-      // Add cert redeemer to witness set
+      // Add withdraw redeemer to witness set
       let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
       let redeemersList = [...redeemers.values()];
       redeemersList.push(
         new Redeemer(
-          RedeemerTag.Cert,
+          RedeemerTag.Reward,
           BigInt(index),
           fromBuilderToPlutusData(withdrawal.redeemer.data),
           new ExUnits(
