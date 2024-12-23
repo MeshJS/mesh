@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Bars4Icon,
@@ -7,6 +7,9 @@ import {
   SunIcon,
   XMarkIcon,
 } from "@heroicons/react/24/solid";
+import toast from "react-hot-toast";
+
+import { useWallet } from "@meshsdk/react";
 
 import Icon from "~/components/icon";
 import Link from "~/components/link";
@@ -28,6 +31,16 @@ export default function Navbar() {
   const router = useRouter();
 
   const [query, setQuery] = useState<string>("");
+
+  const { connected } = useWallet();
+  const connectedRef = useRef(false);
+
+  useEffect(() => {
+    if (connected && !connectedRef.current) {
+      connectedRef.current = true;
+      toast("Wallet connected");
+    }
+  }, [connected]);
 
   useEffect(() => {
     setIsSSR(false);

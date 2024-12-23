@@ -1,12 +1,14 @@
 import {
+  Action,
   IEvaluator,
   IFetcher,
+  Network,
+  SLOT_CONFIG_NETWORK,
+  SlotConfig,
   UTxO,
-  Action,
-  Network
 } from "@meshsdk/common";
-import { evaluateTransaction, getTransactionInputs } from "../utils";
 
+import { evaluateTransaction, getTransactionInputs } from "../utils";
 
 /**
  * OfflineEvaluator implements the IEvaluator interface to provide offline evaluation of Plutus scripts.
@@ -61,18 +63,28 @@ import { evaluateTransaction, getTransactionInputs } from "../utils";
  * ```
  */
 export class OfflineEvaluator implements IEvaluator {
-
   private readonly fetcher: IFetcher;
   private readonly network: Network;
+  public slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
 
   /**
    * Creates a new instance of OfflineEvaluator.
    * @param fetcher - An implementation of IFetcher to resolve transaction UTXOs
    * @param network - The network to evaluate scripts for
+   * @param slotConfig - Slot configuration for the network (optional, defaults to network-specific values)
    */
-  constructor(fetcher: IFetcher, network: Network) {
+  constructor(
+    fetcher: IFetcher,
+    network: Network,
+    slotConfig?: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
+  ) {
     this.fetcher = fetcher;
     this.network = network;
+    this.slotConfig = slotConfig ?? {
+      slotLength: SLOT_CONFIG_NETWORK[network].slotLength,
+      zeroSlot: SLOT_CONFIG_NETWORK[network].zeroSlot,
+      zeroTime: SLOT_CONFIG_NETWORK[network].zeroTime,
+    };
   }
 
   /**
@@ -93,22 +105,44 @@ export class OfflineEvaluator implements IEvaluator {
    */
   async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
     const inputsToResolve = getTransactionInputs(tx);
-    const txHashesSet = new Set(inputsToResolve.map(input => input.txHash));
+    const txHashesSet = new Set(inputsToResolve.map((input) => input.txHash));
     const resolvedUTXOs: UTxO[] = [];
     for (const txHash of txHashesSet) {
       const utxos = await this.fetcher.fetchUTxOs(txHash);
       for (const utxo of utxos) {
         if (utxo)
-          if (inputsToResolve.find(input => input.txHash === txHash && input.index === utxo.input.outputIndex)) {
+          if (
+            inputsToResolve.find(
+              (input) =>
+                input.txHash === txHash &&
+                input.index === utxo.input.outputIndex,
+            )
+          ) {
             resolvedUTXOs.push(utxo);
           }
       }
     }
     if (resolvedUTXOs.length !== inputsToResolve.length) {
-      const missing = inputsToResolve.filter(input => !resolvedUTXOs.find(utxo => utxo.input.txHash === input.txHash && utxo.input.outputIndex === input.index));
-      const missingList = missing.map(m => `${m.txHash}:${m.index}`).join(", ");
-      throw new Error(`Can't resolve these UTXOs to execute plutus scripts: ${missingList}`);
+      const missing = inputsToResolve.filter(
+        (input) =>
+          !resolvedUTXOs.find(
+            (utxo) =>
+              utxo.input.txHash === input.txHash &&
+              utxo.input.outputIndex === input.index,
+          ),
+      );
+      const missingList = missing
+        .map((m) => `${m.txHash}:${m.index}`)
+        .join(", ");
+      throw new Error(
+        `Can't resolve these UTXOs to execute plutus scripts: ${missingList}`,
+      );
     }
-    return evaluateTransaction(tx, resolvedUTXOs, this.network);
+    return evaluateTransaction(
+      tx,
+      resolvedUTXOs,
+      this.network,
+      this.slotConfig,
+    );
   }
 }
