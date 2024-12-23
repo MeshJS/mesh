@@ -423,7 +423,9 @@ class CardanoSDKSerializerCore {
     TransactionOutput
   >();
 
-  private scriptsProvided: Set<Script> = new Set<Script>();
+  private mintRedeemers: Map<String, Redeemer> = new Map<String, Redeemer>();
+
+  private scriptsProvided: Set<string> = new Set<string>();
   private datumsProvided: Set<PlutusData> = new Set<PlutusData>();
   private usedLanguages: Record<PlutusLanguageVersion, boolean> = {
     [0]: false,
@@ -596,47 +598,13 @@ class CardanoSDKSerializerCore {
     }
     // Handle script info based on whether it's inlined or provided
     if (currentTxIn.scriptTxIn.scriptSource.type === "Provided") {
-      switch (currentTxIn.scriptTxIn.scriptSource.script.version) {
-        case "V1": {
-          this.scriptsProvided.add(
-            Script.newPlutusV1Script(
-              PlutusV1Script.fromCbor(
-                HexBlob(currentTxIn.scriptTxIn.scriptSource.script.code),
-              ),
-            ),
-          );
-          this.usedLanguages[PlutusLanguageVersion.V1] = true;
-          break;
-        }
-        case "V2": {
-          this.scriptsProvided.add(
-            Script.newPlutusV2Script(
-              PlutusV2Script.fromCbor(
-                HexBlob(currentTxIn.scriptTxIn.scriptSource.script.code),
-              ),
-            ),
-          );
-          this.usedLanguages[PlutusLanguageVersion.V2] = true;
-          break;
-        }
-        case "V3": {
-          this.scriptsProvided.add(
-            Script.newPlutusV3Script(
-              PlutusV3Script.fromCbor(
-                HexBlob(currentTxIn.scriptTxIn.scriptSource.script.code),
-              ),
-            ),
-          );
-          this.usedLanguages[PlutusLanguageVersion.V3] = true;
-          break;
-        }
-      }
+      this.addProvidedPlutusScript(currentTxIn.scriptTxIn.scriptSource.script);
     } else if (currentTxIn.scriptTxIn.scriptSource.type === "Inline") {
       this.addScriptRef(currentTxIn.scriptTxIn.scriptSource);
     }
     if (currentTxIn.scriptTxIn.datumSource.type === "Provided") {
       this.datumsProvided.add(
-        toPlutusData(currentTxIn.scriptTxIn.datumSource.data.content as Data), // TODO: handle json / raw datum
+        fromBuilderToPlutusData(currentTxIn.scriptTxIn.datumSource.data),
       );
     } else if (currentTxIn.scriptTxIn.datumSource.type === "Inline") {
       let referenceInputs =
@@ -665,7 +633,7 @@ class CardanoSDKSerializerCore {
       new Redeemer(
         RedeemerTag.Spend,
         BigInt(index),
-        toPlutusData(currentTxIn.scriptTxIn.redeemer.data.content as Data), // TODO: handle json / raw datum
+        fromBuilderToPlutusData(currentTxIn.scriptTxIn.redeemer.data),
         new ExUnits(BigInt(exUnits.mem), BigInt(exUnits.steps)),
       ),
     );
@@ -690,7 +658,7 @@ class CardanoSDKSerializerCore {
           NativeScript.fromCbor(
             HexBlob(currentTxIn.simpleScriptTxIn.scriptSource.scriptCode),
           ),
-        ),
+        ).toCbor(),
       );
     } else if (currentTxIn.simpleScriptTxIn.scriptSource.type === "Inline") {
       this.addSimpleScriptRef(currentTxIn.simpleScriptTxIn.scriptSource);
@@ -718,15 +686,13 @@ class CardanoSDKSerializerCore {
       cardanoOutput.setDatum(
         Datum.newDataHash(
           DatumHash.fromHexBlob(
-            HexBlob(toPlutusData(output.datum.data.content as Data).hash()),
+            HexBlob(fromBuilderToPlutusData(output.datum.data).hash()),
           ),
         ),
       );
     } else if (output.datum?.type === "Inline") {
       cardanoOutput.setDatum(
-        Datum.newInlineData(
-          toPlutusData(output.datum.data.content as Data), // TODO: handle json / raw datum
-        ),
+        Datum.newInlineData(fromBuilderToPlutusData(output.datum.data)),
       );
     } else if (output.datum?.type === "Embedded") {
       // Embedded datums get added to witness set
@@ -735,7 +701,7 @@ class CardanoSDKSerializerCore {
         Serialization.CborSet.fromCore([], Serialization.PlutusData.fromCore);
       const currentWitnessDatumValues = [...currentWitnessDatum.values()];
       currentWitnessDatumValues.push(
-        toPlutusData(output.datum.data.content as Data), // TODO: handle json / raw datum
+        fromBuilderToPlutusData(output.datum.data),
       );
       currentWitnessDatum.setValues(currentWitnessDatumValues);
       this.txWitnessSet.setPlutusData(currentWitnessDatum);
@@ -798,11 +764,26 @@ class CardanoSDKSerializerCore {
 
   private addAllMints = (mints: MintItem[]) => {
     for (let i = 0; i < mints.length; i++) {
-      this.addMint(mints[i]!, i);
+      this.addMint(mints[i]!);
     }
+    let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
+    let redeemersList = [...redeemers.values()];
+    let i = 0;
+    this.mintRedeemers.forEach((redeemer) => {
+      const newRedeemer = new Redeemer(
+        redeemer.tag(),
+        BigInt(i),
+        redeemer.data(),
+        redeemer.exUnits(),
+      );
+      redeemersList.push(newRedeemer);
+      redeemers.setValues(redeemersList);
+      i++;
+    });
+    this.txWitnessSet.setRedeemers(redeemers);
   };
 
-  private addMint = (mint: MintItem, index: number) => {
+  private addMint = (mint: MintItem) => {
     const currentMint: TokenMap = this.txBody.mint() ?? new Map();
 
     const mintAssetId = mint.policyId + mint.assetName;
@@ -832,7 +813,7 @@ class CardanoSDKSerializerCore {
         this.scriptsProvided.add(
           Script.newNativeScript(
             NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
-          ),
+          ).toCbor(),
         );
       } else if (nativeScriptSource.type === "Inline") {
         this.addSimpleScriptRef(nativeScriptSource);
@@ -849,56 +830,31 @@ class CardanoSDKSerializerCore {
       if (!mint.redeemer) {
         throw new Error("A redeemer was not provided for a plutus mint");
       }
-      // Add mint redeemer to witness set
-      let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
-      let redeemersList = [...redeemers.values()];
-      redeemersList.push(
-        new Redeemer(
-          RedeemerTag.Mint,
-          BigInt(index),
-          toPlutusData(mint.redeemer.data.content as Data), // TODO: handle json / raw datum
-          new ExUnits(
-            BigInt(mint.redeemer.exUnits.mem),
-            BigInt(mint.redeemer.exUnits.steps),
-          ),
+      // Add mint redeemer to mapping
+      const currentRedeemer = new Redeemer(
+        RedeemerTag.Mint,
+        BigInt(0),
+        fromBuilderToPlutusData(mint.redeemer.data),
+        new ExUnits(
+          BigInt(mint.redeemer.exUnits.mem),
+          BigInt(mint.redeemer.exUnits.steps),
         ),
       );
-      redeemers.setValues(redeemersList);
-      this.txWitnessSet.setRedeemers(redeemers);
+      if (this.mintRedeemers.has(mint.policyId)) {
+        if (
+          this.mintRedeemers.get(mint.policyId)?.toCbor() !==
+          currentRedeemer.toCbor()
+        ) {
+          throw new Error(
+            "The same minting policy must have the same redeemer",
+          );
+        }
+      } else {
+        this.mintRedeemers.set(mint.policyId, currentRedeemer);
+      }
 
       if (plutusScriptSource.type === "Provided") {
-        switch (plutusScriptSource.script.version) {
-          case "V1":
-            this.scriptsProvided.add(
-              Script.newPlutusV1Script(
-                PlutusV1Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V1] = true;
-            break;
-          case "V2":
-            this.scriptsProvided.add(
-              Script.newPlutusV2Script(
-                PlutusV2Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V2] = true;
-            break;
-          case "V3":
-            this.scriptsProvided.add(
-              Script.newPlutusV3Script(
-                PlutusV3Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V3] = true;
-            break;
-        }
+        this.addProvidedPlutusScript(plutusScriptSource.script);
       } else if (plutusScriptSource.type === "Inline") {
         this.addScriptRef(plutusScriptSource);
       }
@@ -933,7 +889,7 @@ class CardanoSDKSerializerCore {
         this.scriptsProvided.add(
           Script.newNativeScript(
             NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
-          ),
+          ).toCbor(),
         );
       } else if (nativeScriptSource.type === "Inline") {
         this.addSimpleScriptRef(nativeScriptSource);
@@ -960,7 +916,7 @@ class CardanoSDKSerializerCore {
         new Redeemer(
           RedeemerTag.Cert,
           BigInt(index),
-          toPlutusData(cert.redeemer.data.content as Data), // TODO: handle json / raw datum
+          fromBuilderToPlutusData(cert.redeemer.data),
           new ExUnits(
             BigInt(cert.redeemer.exUnits.mem),
             BigInt(cert.redeemer.exUnits.steps),
@@ -971,38 +927,7 @@ class CardanoSDKSerializerCore {
       this.txWitnessSet.setRedeemers(redeemers);
 
       if (plutusScriptSource.type === "Provided") {
-        switch (plutusScriptSource.script.version) {
-          case "V1":
-            this.scriptsProvided.add(
-              Script.newPlutusV1Script(
-                PlutusV1Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V1] = true;
-            break;
-          case "V2":
-            this.scriptsProvided.add(
-              Script.newPlutusV2Script(
-                PlutusV2Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V2] = true;
-            break;
-          case "V3":
-            this.scriptsProvided.add(
-              Script.newPlutusV3Script(
-                PlutusV3Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V3] = true;
-            break;
-        }
+        this.addProvidedPlutusScript(plutusScriptSource.script);
       } else if (plutusScriptSource.type === "Inline") {
         this.addScriptRef(plutusScriptSource);
       }
@@ -1045,7 +970,7 @@ class CardanoSDKSerializerCore {
         this.scriptsProvided.add(
           Script.newNativeScript(
             NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
-          ),
+          ).toCbor(),
         );
       } else if (nativeScriptSource.type === "Inline") {
         this.addSimpleScriptRef(nativeScriptSource);
@@ -1072,7 +997,7 @@ class CardanoSDKSerializerCore {
         new Redeemer(
           RedeemerTag.Cert,
           BigInt(index),
-          toPlutusData(withdrawal.redeemer.data.content as Data), // TODO: handle json / raw datum
+          fromBuilderToPlutusData(withdrawal.redeemer.data),
           new ExUnits(
             BigInt(withdrawal.redeemer.exUnits.mem),
             BigInt(withdrawal.redeemer.exUnits.steps),
@@ -1083,38 +1008,7 @@ class CardanoSDKSerializerCore {
       this.txWitnessSet.setRedeemers(redeemers);
 
       if (plutusScriptSource.type === "Provided") {
-        switch (plutusScriptSource.script.version) {
-          case "V1":
-            this.scriptsProvided.add(
-              Script.newPlutusV1Script(
-                PlutusV1Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V1] = true;
-            break;
-          case "V2":
-            this.scriptsProvided.add(
-              Script.newPlutusV2Script(
-                PlutusV2Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V2] = true;
-            break;
-          case "V3":
-            this.scriptsProvided.add(
-              Script.newPlutusV3Script(
-                PlutusV3Script.fromCbor(
-                  HexBlob(plutusScriptSource.script.code),
-                ),
-              ),
-            );
-            this.usedLanguages[PlutusLanguageVersion.V3] = true;
-            break;
-        }
+        this.addProvidedPlutusScript(plutusScriptSource.script);
       } else if (plutusScriptSource.type === "Inline") {
         this.addScriptRef(plutusScriptSource);
       }
@@ -1215,7 +1109,8 @@ class CardanoSDKSerializerCore {
       this.txWitnessSet.plutusV3Scripts() ??
       Serialization.CborSet.fromCore([], PlutusV3Script.fromCore);
 
-    this.scriptsProvided.forEach((script) => {
+    this.scriptsProvided.forEach((scriptHex) => {
+      const script = Script.fromCbor(HexBlob(scriptHex));
       if (script.asNative() !== undefined) {
         let nativeScriptsList = [...nativeScripts.values()];
         nativeScriptsList.push(script.asNative()!);
@@ -1638,7 +1533,8 @@ class CardanoSDKSerializerCore {
     }
 
     // Handle native scripts in provided scripts
-    for (const script of this.scriptsProvided) {
+    for (const scriptHex of this.scriptsProvided) {
+      const script = Script.fromCbor(HexBlob(scriptHex));
       let nativeScript = script.asNative();
       if (nativeScript) {
         this.addKeyHashesFromNativeScript(nativeScript, requiredWitnesses);
@@ -1701,4 +1597,36 @@ class CardanoSDKSerializerCore {
     }
     return keyHashes;
   }
+
+  private addProvidedPlutusScript = (script: PlutusScript) => {
+    switch (script.version) {
+      case "V1": {
+        this.scriptsProvided.add(
+          Script.newPlutusV1Script(
+            PlutusV1Script.fromCbor(HexBlob(script.code)),
+          ).toCbor(),
+        );
+        this.usedLanguages[PlutusLanguageVersion.V1] = true;
+        break;
+      }
+      case "V2": {
+        this.scriptsProvided.add(
+          Script.newPlutusV2Script(
+            PlutusV2Script.fromCbor(HexBlob(script.code)),
+          ).toCbor(),
+        );
+        this.usedLanguages[PlutusLanguageVersion.V2] = true;
+        break;
+      }
+      case "V3": {
+        this.scriptsProvided.add(
+          Script.newPlutusV3Script(
+            PlutusV3Script.fromCbor(HexBlob(script.code)),
+          ).toCbor(),
+        );
+        this.usedLanguages[PlutusLanguageVersion.V3] = true;
+        break;
+      }
+    }
+  };
 }
