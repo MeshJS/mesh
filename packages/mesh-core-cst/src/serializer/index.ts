@@ -92,7 +92,6 @@ import {
   fromBuilderToPlutusData,
   toAddress,
   toNativeScript,
-  toPlutusData,
   toValue,
 } from "../utils";
 import { toCardanoCert } from "../utils/certificate";
@@ -1252,6 +1251,101 @@ class CardanoSDKSerializerCore {
       if (output) {
         remainingValue = subValue(remainingValue, output.amount());
       }
+    }
+
+    // We then handle any certificate deposits, adding deregistrations and taking away registrations
+    const certs = this.txBody.certs();
+    if (certs) {
+      certs.values().forEach((cert) => {
+        switch (cert.toCore().__typename) {
+          case CertificateType.StakeRegistration: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(BigInt(this.protocolParams.keyDeposit)),
+            );
+            break;
+          }
+          case CertificateType.StakeDeregistration: {
+            remainingValue = mergeValue(
+              remainingValue,
+              new Value(BigInt(this.protocolParams.keyDeposit)),
+            );
+            break;
+          }
+          case CertificateType.Registration: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(BigInt(cert.asRegistrationCert()?.deposit() ?? 0)),
+            );
+            break;
+          }
+          case CertificateType.Unregistration: {
+            remainingValue = mergeValue(
+              remainingValue,
+              new Value(BigInt(cert.asUnregistrationCert()?.deposit() ?? 0)),
+            );
+            break;
+          }
+          case CertificateType.PoolRegistration: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(BigInt(this.protocolParams.poolDeposit)),
+            );
+            break;
+          }
+          case CertificateType.PoolRetirement: {
+            remainingValue = mergeValue(
+              remainingValue,
+              new Value(BigInt(this.protocolParams.poolDeposit)),
+            );
+            break;
+          }
+          case CertificateType.RegisterDelegateRepresentative: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(
+                BigInt(
+                  cert.asRegisterDelegateRepresentativeCert()?.deposit() ?? 0,
+                ),
+              ),
+            );
+            break;
+          }
+          case CertificateType.UnregisterDelegateRepresentative: {
+            remainingValue = mergeValue(
+              remainingValue,
+              new Value(
+                BigInt(
+                  cert.asUnregisterDelegateRepresentativeCert()?.deposit() ?? 0,
+                ),
+              ),
+            );
+            break;
+          }
+          case CertificateType.StakeRegistrationDelegation: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(
+                BigInt(
+                  cert.asStakeRegistrationDelegationCert()?.deposit() ?? 0,
+                ),
+              ),
+            );
+            break;
+          }
+          case CertificateType.StakeVoteRegistrationDelegation: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(
+                BigInt(
+                  cert.asStakeVoteRegistrationDelegationCert()?.deposit() ?? 0,
+                ),
+              ),
+            );
+            break;
+          }
+        }
+      });
     }
 
     // Add an initial change output, this is needed to generate dummy tx
