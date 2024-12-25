@@ -19,7 +19,7 @@
     "dist/**"
   ],
   "scripts": {
-    "build:mesh-old": "tsup src/index.ts --format esm,cjs --dts && tailwindcss -i ./src/styles.css -o ./dist/index.css",
+    "build:mesh-old": "tsup && tailwindcss -i ./src/styles.css -o ./dist/index.css",
     "build:mesh": "tsup src/index.ts --format esm,cjs --cjsInterop --dts && tailwindcss -i ./src/styles.css -o ./dist/index.css",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
@@ -38,7 +38,8 @@
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-tooltip": "^1.1.4",
     "class-variance-authority": "^0.7.1",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
