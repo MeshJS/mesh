@@ -3,6 +3,8 @@ import {
   Budget,
   Network,
   RedeemerTagType,
+  SLOT_CONFIG_NETWORK,
+  SlotConfig,
   UTxO,
 } from "@meshsdk/common";
 
@@ -68,6 +70,7 @@ export const evaluateTransaction = (
   txHex: string,
   resolvedUtxos: UTxO[],
   network: Network,
+  slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
 ): Omit<Action, "data">[] => {
   const additionalTxs = csl.JsVecString.new();
   const mappedUtxos = csl.JsVecString.new();
@@ -79,6 +82,7 @@ export const evaluateTransaction = (
     mappedUtxos,
     additionalTxs,
     network,
+    JSON.stringify(slotConfig),
   );
   const unwrappedResult = parseWasmResult(result);
 

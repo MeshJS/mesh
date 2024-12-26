@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-
-// import { DAppPeerConnect } from "@fabianbormann/cardano-peer-connect";
-// import { IWalletInfo } from "@fabianbormann/cardano-peer-connect/dist/src/types";
+import { DAppPeerConnect } from "@fabianbormann/cardano-peer-connect";
+import { IWalletInfo } from "@fabianbormann/cardano-peer-connect/dist/src/types";
 
 import { Button } from "../common/button";
-import { DAppPeerConnect, IWalletInfo } from "../common/cardano-peer-connect";
 import { useWallet } from "../hooks";
 
 export default function ScreenP2P({
@@ -36,24 +34,24 @@ export default function ScreenP2P({
           },
           announce: cardanoPeerConnect.announce,
           onApiInject: async (name: string, address: string) => {
-            console.log(5, "onApiInject", name, address);
+            // console.log(5, "onApiInject", name, address);
             await connect(name);
             setOpen(false);
           },
           onApiEject: (name: string, address: string) => {
-            console.log(5, "onApiEject", name, address);
+            // console.log(5, "onApiEject", name, address);
           },
           onConnect: (address: string, walletInfo?: IWalletInfo) => {
-            console.log(5, "Connected to wallet", address, walletInfo);
+            // console.log(5, "Connected to wallet", address, walletInfo);
           },
           onDisconnect: () => {
-            console.log(5, "Disconnected from wallet");
+            // console.log(5, "Disconnected from wallet");
           },
           verifyConnection: (
             walletInfo: IWalletInfo,
             callback: (granted: boolean, autoconnect: boolean) => void,
           ) => {
-            console.log(5, "verifyConnection", walletInfo);
+            // console.log(5, "verifyConnection", walletInfo);
             callback(true, true);
           },
           useWalletDiscovery: true,
