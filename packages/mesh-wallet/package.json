@@ -40,7 +40,8 @@
     "@meshsdk/core-cst": "1.8.3",
     "@meshsdk/transaction": "1.8.3",
     "@nufi/dapp-client-cardano": "0.3.5",
-    "@nufi/dapp-client-core": "0.3.5"
+    "@nufi/dapp-client-core": "0.3.5",
+    "@simplewebauthn/browser": "^13.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

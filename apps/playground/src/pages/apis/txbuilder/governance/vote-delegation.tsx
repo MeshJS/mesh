@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { keepRelevant, Quantity, Unit } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -36,8 +35,8 @@ function Left() {
   codeTx += `    },\n`;
   codeTx += `    rewardAddress,\n`;
   codeTx += `  )\n`;
-  codeTx += `  .changeAddress(changeAddress)`;
-  codeTx += `  .selectUtxos(utxos, "keepRelevant", "10000000")\n`;
+  codeTx += `  .changeAddress(changeAddress)\n`;
+  codeTx += `  .selectUtxos(utxos, "keepRelevant", "10000000")`;
 
   let codeBuildSign = ``;
   codeBuildSign += `const unsignedTx = await txBuilder.complete();\n`;
@@ -129,7 +128,7 @@ function Right() {
   codeSnippet += `txBuilder\n`;
   codeSnippet += `  .voteDelegationCertificate(\n`;
   codeSnippet += `    {\n`;
-  codeSnippet += `      dRepId: drepid,\n`;
+  codeSnippet += `      dRepId: '${drepid}',\n`;
   codeSnippet += `    },\n`;
   codeSnippet += `    rewardAddress,\n`;
   codeSnippet += `  )\n`;

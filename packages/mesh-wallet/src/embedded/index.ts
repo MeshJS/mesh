@@ -1,4 +1,6 @@
 import * as BaseEncoding from "@scure/base";
+import base32 from "base32-encoding";
+import { bech32 } from "bech32";
 
 import {
   bytesToHex,
@@ -61,6 +63,10 @@ export type EmbeddedWalletKeyType =
   | {
       type: "mnemonic";
       words: string[];
+    }
+  | {
+      type: "bip32Bytes";
+      bip32Bytes: Uint8Array;
     };
 
 export type CreateEmbeddedWalletOptions = {
@@ -69,8 +75,8 @@ export type CreateEmbeddedWalletOptions = {
 };
 
 export class WalletStaticMethods {
-  static privateKeyToEntropy(bech32: string): string {
-    const bech32DecodedBytes = BaseEncoding.bech32.decodeToBytes(bech32).bytes;
+  static privateKeyToEntropy(_bech32: string): string {
+    const bech32DecodedBytes = BaseEncoding.bech32.decodeToBytes(_bech32).bytes;
     const bip32PrivateKey = Bip32PrivateKey.fromBytes(bech32DecodedBytes);
     return bytesToHex(bip32PrivateKey.bytes());
   }
@@ -89,6 +95,11 @@ export class WalletStaticMethods {
       paymentKey.startsWith("5820") ? paymentKey.slice(4) : paymentKey,
       stakeKey.startsWith("5820") ? stakeKey.slice(4) : stakeKey,
     ];
+  }
+
+  static bip32BytesToEntropy(bip32Bytes: Uint8Array): string {
+    const bip32PrivateKey = Bip32PrivateKey.fromBytes(bip32Bytes);
+    return bytesToHex(bip32PrivateKey.bytes());
   }
 
   static getAddresses(
@@ -202,6 +213,11 @@ export class EmbeddedWallet extends WalletStaticMethods {
         this._entropy = WalletStaticMethods.signingKeyToEntropy(
           options.key.payment,
           options.key.stake ?? "f0".repeat(32),
+        );
+        break;
+      case "bip32Bytes":
+        this._entropy = WalletStaticMethods.bip32BytesToEntropy(
+          options.key.bip32Bytes,
         );
         break;
     }

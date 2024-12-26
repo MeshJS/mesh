@@ -242,8 +242,8 @@ function Right(
           });
           setWallet(_wallet);
 
-          const address = _wallet.getChangeAddress();
-          setResponseAddress(address);
+          const addresses = _wallet.getAddresses();
+          setResponseAddress(JSON.stringify(addresses, null, 2));
         }
       } catch (error) {
         setResponseError(`${error}`);
@@ -262,8 +262,8 @@ function Right(
         });
         setWallet(_wallet);
 
-        const address = _wallet.getChangeAddress();
-        setResponseAddress(address);
+        const addresses = _wallet.getAddresses();
+        setResponseAddress(JSON.stringify(addresses, null, 2));
       } catch (error) {
         setResponseError(`${error}`);
       }
@@ -283,8 +283,8 @@ function Right(
         });
         setWallet(_wallet);
 
-        const address = _wallet.getChangeAddress();
-        setResponseAddress(address);
+        const addresses = _wallet.getAddresses();
+        setResponseAddress(JSON.stringify(addresses, null, 2));
       } catch (error) {
         setResponseError(`${error}`);
       }
@@ -302,8 +302,8 @@ function Right(
         });
         setWallet(_wallet);
 
-        const address = _wallet.getChangeAddress();
-        setResponseAddress(address);
+        const addresses = _wallet.getAddresses();
+        setResponseAddress(JSON.stringify(addresses, null, 2));
       } catch (error) {
         setResponseError(`${error}`);
       }
@@ -362,7 +362,7 @@ function Right(
           response={responseAddress}
           label="Load wallet and get address"
         />
-        <DemoResult response={responseAddress} label="Wallet's address" />
+        <DemoResult response={responseAddress} label="Wallet's addresses" />
         <DemoResult response={responseError} label="Error" />
       </Card>
     </>

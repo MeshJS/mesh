@@ -42,6 +42,11 @@ export function CommonCardanoWallet() {
         networkId: 0,
         provider: provider,
       }}
+      // webauthn={{
+      //   networkId: 0,
+      //   provider: provider,
+      //   url: "http://localhost:3000",
+      // }}
     />
   );
 }
