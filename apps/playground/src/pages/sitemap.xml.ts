@@ -30,13 +30,20 @@ function SiteMap() {}
 
 function addLinks(pagesUrls: string[], pages: MenuItem[]) {
   pages.forEach((api) => {
-    pagesUrls.push(api.link);
+    pushLink(pagesUrls, api.link);
     if (api.items) {
       api.items.forEach((item) => {
-        pagesUrls.push(item.link);
+        pushLink(pagesUrls, item.link);
       });
     }
   });
+}
+
+function pushLink(pagesUrls: string[], link: string) {
+  if (link.includes("http") && !link.includes("meshjs.dev")) {
+    return;
+  }
+  pagesUrls.push(link);
 }
 
 export async function getServerSideProps({ res }: { res: any }) {

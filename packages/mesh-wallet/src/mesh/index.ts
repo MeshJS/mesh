@@ -51,6 +51,10 @@ export type CreateMeshWalletOptions = {
         words: string[];
       }
     | {
+        type: "bip32Bytes";
+        bip32Bytes: Uint8Array;
+      }
+    | {
         type: "address";
         address: string;
       };
@@ -142,11 +146,29 @@ export class MeshWallet implements IWallet {
         });
         this.getAddressesFromWallet(this._wallet);
         break;
+      case "bip32Bytes":
+        this._wallet = new EmbeddedWallet({
+          networkId: options.networkId,
+          key: {
+            type: "bip32Bytes",
+            bip32Bytes: options.key.bip32Bytes,
+          },
+        });
+        this.getAddressesFromWallet(this._wallet);
+        break;
       case "address":
         this._wallet = null;
         this.buildAddressFromBech32Address(options.key.address);
         break;
     }
+  }
+
+  /**
+   * Returns all derived addresses from the wallet.
+   * @returns a list of addresses
+   */
+  getAddresses() {
+    return this.addresses;
   }
 
   /**
