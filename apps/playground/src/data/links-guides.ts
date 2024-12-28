@@ -65,6 +65,13 @@ export const guideVesting = {
   thumbnail: "/guides/vesting.png",
   image: "/guides/laptop-3196481_640.jpg",
 };
+export const guideNodeSpecificImports = {
+  title: "Resolve Node-Specific Imports Errors",
+  desc: "How to Resolve Node-Specific Imports Errors (e.g., Buffer, TextEncoder) in Browser-Based Projects",
+  link: "/guides/node-specific-imports",
+  thumbnail: "/guides/node-specific-imports.png",
+  image: "/guides/electrician-3087536_640.jpg",
+};
 
 export const linksGuides: MenuItem[] = [
   guidenextjs,
@@ -76,6 +83,7 @@ export const linksGuides: MenuItem[] = [
   guideaiken,
   guidestandalone,
   guideVesting,
+  guideNodeSpecificImports,
 ];
 
 export const metaGuides: MenuItem = {
