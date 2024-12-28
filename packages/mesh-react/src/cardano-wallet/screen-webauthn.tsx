@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { IFetcher, ISubmitter } from "@meshsdk/common";
 import { connect, MeshWallet } from "@meshsdk/wallet";

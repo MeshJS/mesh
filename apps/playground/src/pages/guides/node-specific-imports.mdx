@@ -1,0 +1,342 @@
+import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
+import { guideNodeSpecificImports } from "~/data/links-guides";
+
+export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: '1. General Concepts', to: '1generalconcepts' },
+    { label: '2. Webpack', to: '2webpack' },
+    { label: '3. Vite', to: '3vite' },
+    { label: '4. Next.js', to: '4nextjs' },
+    { label: '5. Create React App (CRA)', to: '5createreactappcra' },
+    { label: '6. Angular', to: '6angular' },
+    { label: '7. Svelte', to: '7svelte' },
+  ];
+
+  return (
+    <LayoutImageHeaderAndBody
+      title={guideNodeSpecificImports.title}
+      description={guideNodeSpecificImports.description}
+      image={guideNodeSpecificImports.image}
+      cover={guideNodeSpecificImports.cover}
+      sidebarItems={sidebarItems}
+    >
+      {children}
+    </LayoutImageHeaderAndBody>
+  );
+}
+
+How to Resolve Node-Specific Imports Errors (e.g., Buffer, TextEncoder) in Browser-Based Projects?
+
+When working on a web-based project (React, Vue, Svelte, Angular, etc.), you may encounter errors such as:
+
+```
+Uncaught ReferenceError: Buffer is not defined
+```
+
+or
+
+```
+Module not found: Can't resolve 'buffer'
+```
+
+or
+
+```
+ReferenceError: TextEncoder is not defined
+```
+
+These errors often occur because your code (or one of your dependencies) is relying on **Node.js-specific modules** or globals that are not available by default in a browser environment. Common examples include:
+
+- `Buffer`
+- `TextEncoder` / `TextDecoder` (older browsers / polyfills)
+- `crypto`
+- `process`
+- Node’s built-in modules (e.g., `fs`, `path`, `stream`)
+
+Modern bundlers and frameworks (Webpack 5, Vite, Next.js, etc.) do **not** automatically include Node polyfills as was common in Webpack 4 and earlier. Below are some guidelines and configurations to fix these errors by adding the required polyfills for a browser environment.
+
+---
+
+## 1. General Concepts
+
+1. **Polyfill**: A script that implements functionality missing in certain environments.  
+   - Example: Using the `buffer` npm package to polyfill the `Buffer` API in the browser.
+
+2. **Fallback configuration**: Telling your bundler to replace Node modules (like `buffer`) with a browser-friendly version.  
+
+3. **npm dependencies**: You may need to install extra packages to provide browser equivalents:  
+   ```bash
+   npm install buffer process stream-browserify crypto-browserify --save
+   ```
+   (You may not need all of them, but this is just an example.)
+
+4. **ES Modules vs CommonJS**: Make sure your imports match your bundler’s expectations. Some polyfills are distributed as ESM (e.g., `import { Buffer } from 'buffer'`) or CommonJS.
+
+---
+
+## 2. Webpack
+
+### 2.1 Webpack 5 and Above
+
+Webpack 5 **no longer** includes Node polyfills by default. You have two main approaches:
+
+#### Approach A: Use NodePolyfillPlugin
+
+1. **Install** the plugin:
+   ```bash
+   npm install node-polyfill-webpack-plugin --save-dev
+   ```
+2. **Add** to your `webpack.config.js`:
+   ```js
+   const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
+
+   module.exports = {
+     // ...your existing config
+     plugins: [
+       new NodePolyfillPlugin(),
+       // ...other plugins
+     ],
+   };
+   ```
+   This plugin automatically injects commonly used polyfills (for `Buffer`, `process`, `stream`, etc.) where possible.
+
+#### Approach B: Use the `resolve.fallback` Setting
+
+For more granular control, you can manually configure fallbacks:
+
+1. **Install** the required polyfills (if not already):
+   ```bash
+   npm install buffer process stream-browserify --save
+   ```
+2. **Edit** `webpack.config.js`:
+   ```js
+   module.exports = {
+     // ...
+     resolve: {
+       fallback: {
+         buffer: require.resolve('buffer/'),  // or 'buffer'
+         process: require.resolve('process/browser'),
+         stream: require.resolve('stream-browserify'),
+         // ...add more if needed
+       },
+     },
+   };
+   ```
+3. **Import** polyfills if needed in your code:
+   ```js
+   import { Buffer } from 'buffer';
+   global.Buffer = global.Buffer || Buffer;
+   ```
+
+---
+
+## 3. Vite
+
+Vite uses [Rollup](https://rollupjs.org) under the hood, which does not automatically provide Node polyfills. However, there is a Rollup plugin that can help.
+
+1. **Install** the Rollup polyfill plugin:
+   ```bash
+   npm install rollup-plugin-polyfill-node --save-dev
+   ```
+2. **Add** it to `vite.config.js`:
+   ```js
+   import { defineConfig } from 'vite'
+   import vue from '@vitejs/plugin-vue' // or react, svelte, etc.
+   import rollupNodePolyFill from 'rollup-plugin-polyfill-node'
+
+   export default defineConfig({
+     plugins: [
+       vue(),
+       // any other plugins
+     ],
+     build: {
+       rollupOptions: {
+         plugins: [
+           rollupNodePolyFill()
+         ],
+       },
+     },
+     resolve: {
+       alias: {
+         // Optionally, if you want the polyfill for `buffer` and `process` as top-level
+         buffer: 'rollup-plugin-polyfill-node/polyfills/buffer-es6',
+         process: 'rollup-plugin-polyfill-node/polyfills/process-es6',
+         // Add more if needed
+       },
+     },
+   })
+   ```
+3. **Use** the polyfilled global in your code if necessary:
+   ```js
+   import { Buffer } from 'buffer';
+   globalThis.Buffer = globalThis.Buffer || Buffer;
+   ```
+
+---
+
+## 4. Next.js
+
+Next.js uses Webpack under the hood, so you can either:
+
+1. **Use `node-polyfill-webpack-plugin`** directly in your `next.config.js`.  
+2. **Manually configure** the `webpack` property in `next.config.js` with `resolve.fallback`.
+
+Example using `node-polyfill-webpack-plugin`:
+
+```js
+// next.config.js
+const NodePolyfillPlugin = require('node-polyfill-webpack-plugin')
+
+module.exports = {
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.plugins.push(new NodePolyfillPlugin())
+    }
+    return config
+  },
+}
+```
+
+Now, references to Node modules like `Buffer` or `process` will be polyfilled in the client build.
+
+---
+
+## 5. Create React App (CRA)
+
+Create React App **v5** switched to Webpack 5, which does not automatically include Node polyfills. Since CRA does not allow direct modifications to the Webpack config out of the box, you have two main options:
+
+1. **Eject** your CRA setup to edit the Webpack config directly (not recommended usually).
+2. Use a tool like [react-app-rewired](https://github.com/timarney/react-app-rewired) or [craco](https://github.com/gsoft-inc/craco) to override Webpack config without ejecting.
+
+### 5.1 Example with `craco`
+
+1. **Install** craco:
+   ```bash
+   npm install @craco/craco --save-dev
+   ```
+2. **Update** your `package.json` scripts:
+   ```json
+   {
+     "scripts": {
+       "start": "craco start",
+       "build": "craco build",
+       "test": "craco test"
+     }
+   }
+   ```
+3. **Create** `craco.config.js` in your project root:
+   ```js
+   const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
+
+   module.exports = {
+     webpack: {
+       plugins: {
+         add: [
+           new NodePolyfillPlugin()
+         ],
+       },
+       configure: (webpackConfig) => {
+         // Optionally, if you want to set fallback manually:
+         webpackConfig.resolve.fallback = {
+           ...webpackConfig.resolve.fallback,
+           buffer: require.resolve('buffer'),
+           process: require.resolve('process/browser'),
+         }
+         return webpackConfig;
+       }
+     },
+   };
+   ```
+4. **Use** your polyfills in code (e.g., `Buffer`):
+   ```js
+   import { Buffer } from 'buffer';
+   global.Buffer = global.Buffer || Buffer;
+   ```
+
+---
+
+## 6. Angular
+
+Angular CLI also uses Webpack behind the scenes. To polyfill Node modules:
+
+1. **Install** necessary polyfills:
+   ```bash
+   npm install buffer process stream-browserify --save
+   ```
+2. **Edit** `angular.json` to include the polyfill files or modify the Webpack config via a custom builder or a third-party library (e.g., [ngx-build-plus](https://github.com/manfredsteyer/ngx-build-plus)).
+
+An example using `ngx-build-plus` to extend the Angular CLI’s Webpack config:
+
+```bash
+npm install ngx-build-plus --save-dev
+```
+
+Then in your `angular.json`:
+
+```json
+{
+  "projects": {
+    "my-app": {
+      "architect": {
+        "build": {
+          "builder": "ngx-build-plus:browser",
+          "options": {
+            // ...
+          },
+          "configurations": {
+            "production": {
+              // ...
+            }
+          }
+        },
+        "serve": {
+          "builder": "ngx-build-plus:dev-server",
+          "options": {
+            // ...
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Create or update a `webpack.config.js`:
+
+```js
+const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
+
+module.exports = {
+  plugins: [
+    new NodePolyfillPlugin(),
+  ],
+  resolve: {
+    fallback: {
+      buffer: require.resolve('buffer'),
+      process: require.resolve('process/browser'),
+      // ...
+    },
+  },
+};
+```
+
+Then run your Angular commands via `ng build --extra-webpack-config webpack.config.js --output-hashing=none`.
+
+---
+
+## 7. Svelte
+
+SvelteKit or a custom Svelte setup may use Vite or Rollup. Use the Vite instructions (Section **3** above) or directly add the polyfill plugin if you’re using a plain Rollup config:
+
+```js
+// rollup.config.js
+import nodePolyfills from 'rollup-plugin-polyfill-node'
+
+export default {
+  plugins: [
+    nodePolyfills(),
+    // ...
+  ],
+  // ...
+}
+```
