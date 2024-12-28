@@ -1,10 +1,3 @@
-import {
-  BuilderData,
-  DeserializedAddress,
-  MeshTxBuilderBody,
-  Protocol,
-} from "@meshsdk/common";
-
 import { CSLSerializer } from "../../src/core/serializer";
 
 describe("CSLSerializer", () => {
@@ -44,10 +37,18 @@ describe("CSLSerializer", () => {
           "summer",
         ];
         const result = serializer.resolver.keys.resolvePrivateKey(words);
-        console.log(result);
-        // expect(result).toBeDefined();
-        // Add more assertions based on expected output
+        expect(result).toEqual(
+          "xprv19rumsw6emgv48dlcsthsk5z7a7008qp2wzf97cearz457pthd3wzyj6we3skrtv49ccezv3t25u4ykw5f3msgjs32cph5hrlf0gjkas458erpxveuznjq58sfg3v02mz820lnl9zf03hmaeca785d6kqsuyk403s",
+        );
       });
     });
+  });
+
+  it("should hash datum correctly", () => {
+    const datum = ["abc"];
+    const result = serializer.resolver.data.resolveDataHash(datum);
+    expect(result).toEqual(
+      "b52368c053c76240d861f42024266d14939934a9a30799cfd315ac34f75072e4",
+    );
   });
 });

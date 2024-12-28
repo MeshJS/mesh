@@ -277,20 +277,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
 
   resolver: IResolver = {
     keys: {
-      // resolvePaymentKeyHash: function (bech32: string): string {
-      //   const cardanoAddress = toAddress(bech32);
-      //   return cardanoAddress.asEnterprise()?.getPaymentCredential().type ===
-      //     CredentialType.KeyHash
-      //     ? cardanoAddress.asEnterprise()!.getPaymentCredential().hash
-      //     : "";
-      // },
-      // resolvePlutusScriptHash: function (bech32: string): string {
-      //   const cardanoAddress = toAddress(bech32);
-      //   return cardanoAddress.asEnterprise()?.getPaymentCredential().type ===
-      //     CredentialType.ScriptHash
-      //     ? cardanoAddress.asEnterprise()!.getPaymentCredential().hash
-      //     : "";
-      // },
       resolveStakeKeyHash: function (bech32: string): string {
         const cardanoAddress = toAddress(bech32);
         return cardanoAddress.asReward()?.getPaymentCredential().type ===
@@ -298,13 +284,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
           ? cardanoAddress.asReward()!.getPaymentCredential().hash
           : "";
       },
-      // resolveStakeScriptHash(bech32: string): string {
-      //   const cardanoAddress = toAddress(bech32);
-      //   return cardanoAddress.asReward()?.getPaymentCredential().type ===
-      //     CredentialType.ScriptHash
-      //     ? cardanoAddress.asReward()!.getPaymentCredential().hash
-      //     : "";
-      // },
       resolvePrivateKey: function (words: string[]): string {
         const buildBip32PrivateKey = (
           entropy: string,
@@ -324,10 +303,27 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         return bech32PrivateKey;
       },
       resolveRewardAddress: function (bech32: string): string {
-        throw new Error("Function not implemented.");
+        const cardanoAddress = toAddress(bech32);
+        const addressProps = cardanoAddress.getProps();
+        if (!addressProps.delegationPart) {
+          return "";
+        }
+        return (
+          RewardAddress.fromCredentials(
+            cardanoAddress.getNetworkId(),
+            addressProps.delegationPart,
+          )
+            .toAddress()
+            .toBech32() ?? ""
+        );
       },
       resolveEd25519KeyHash: function (bech32: string): string {
-        throw new Error("Function not implemented.");
+        const cardanoAddress = toAddress(bech32);
+        const addressProps = cardanoAddress.getProps();
+        if (!addressProps.paymentPart) {
+          return "";
+        }
+        return addressProps.paymentPart.hash.toString();
       },
     },
     tx: {
@@ -337,13 +333,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     },
     data: {
       resolveDataHash: function (data: Data): string {
-        throw new Error("Function not implemented.");
+        return fromBuilderToPlutusData({ type: "Mesh", content: data }).hash();
       },
     },
     script: {
-      // resolveNativeScript: function (script: CommonNativeScript): string {
-      //   return toNativeScript(script).toCbor();
-      // },
       resolveScriptRef: function (
         script: CommonNativeScript | PlutusScript,
       ): string {

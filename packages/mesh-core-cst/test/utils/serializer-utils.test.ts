@@ -237,4 +237,30 @@ describe("Serialization utils", () => {
       "xprv19rumsw6emgv48dlcsthsk5z7a7008qp2wzf97cearz457pthd3wzyj6we3skrtv49ccezv3t25u4ykw5f3msgjs32cph5hrlf0gjkas458erpxveuznjq58sfg3v02mz820lnl9zf03hmaeca785d6kqsuyk403s",
     );
   });
+
+  it("resolve reward address", () => {
+    expect(
+      serializer.resolver.keys.resolveRewardAddress(
+        "addr_test1qql3kkt57ncf7zt5hej4un8ff79z6zra7dut08hnj9kzdv437u94wweqf3nftw8kd6mw03uv2hk7jscqyn47cm74lpwsju87pd",
+      ),
+    ).toEqual(
+      "stake_test1uzclwz6h8vsyce54hrmxadh8c7x9tm0fgvqzf6lvdl2lshg5vr9cr",
+    );
+  });
+
+  it("resolve ed25519 key hash", () => {
+    expect(
+      serializer.resolver.keys.resolveEd25519KeyHash(
+        "addr_test1qql3kkt57ncf7zt5hej4un8ff79z6zra7dut08hnj9kzdv437u94wweqf3nftw8kd6mw03uv2hk7jscqyn47cm74lpwsju87pd",
+      ),
+    ).toEqual("3f1b5974f4f09f0974be655e4ce94f8a2d087df378b79ef3916c26b2");
+  });
+
+  it("should hash datum correctly", () => {
+    const datum = ["abc"];
+    const result = serializer.resolver.data.resolveDataHash(datum);
+    expect(result).toEqual(
+      "b52368c053c76240d861f42024266d14939934a9a30799cfd315ac34f75072e4",
+    );
+  });
 });
