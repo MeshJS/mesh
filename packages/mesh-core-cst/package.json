@@ -46,9 +46,9 @@
     "@meshsdk/common": "1.8.3",
     "@stricahq/bip32ed25519": "^1.1.0",
     "@stricahq/cbors": "^1.0.0",
-    "bech32": "^2.0.0",
     "@types/base32-encoding": "^1.0.2",
     "base32-encoding": "^1.0.0",
+    "bech32": "^2.0.0",
     "bn.js": "^5.2.0",
     "pbkdf2": "^3.1.2"
   },
