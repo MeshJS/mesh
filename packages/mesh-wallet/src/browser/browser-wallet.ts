@@ -116,7 +116,7 @@ export class BrowserWallet implements IWallet {
    *
    * Query BrowserWallet.getInstalledWallets() to get a list of available wallets, then provide the wallet name for which wallet the user would like to connect with.
    *
-   * @param walletName - the name of the wallet to enable (e.g. "eternl", "begin", "nufiSnap")
+   * @param walletName - the name of the wallet to enable (e.g. "eternl", "begin")
    * @param extensions - optional, a list of CIPs that the wallet should support
    * @returns WalletInstance
    */
