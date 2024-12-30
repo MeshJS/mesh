@@ -32,7 +32,6 @@ import {
 } from "@meshsdk/core-cst";
 
 import { Cardano, WalletInstance } from "../types";
-import { checkIfMetamaskInstalled } from "./metamask";
 
 declare global {
   interface Window {
@@ -69,15 +68,13 @@ export class BrowserWallet implements IWallet {
    * @returns a list of wallet names
    */
   static async getAvailableWallets({
-    metamask = undefined,
+    injectFn = undefined,
   }: {
-    metamask?: {
-      network: string;
-    };
+    injectFn?: () => Promise<void>;
   } = {}): Promise<Wallet[]> {
     if (window === undefined) return [];
 
-    if (metamask) await checkIfMetamaskInstalled(metamask.network);
+    if (injectFn) await injectFn();
 
     return BrowserWallet.getInstalledWallets();
   }
@@ -119,7 +116,7 @@ export class BrowserWallet implements IWallet {
    *
    * Query BrowserWallet.getInstalledWallets() to get a list of available wallets, then provide the wallet name for which wallet the user would like to connect with.
    *
-   * @param walletName - the name of the wallet to enable (e.g. "eternl", "begin", "nufiSnap")
+   * @param walletName - the name of the wallet to enable (e.g. "eternl", "begin")
    * @param extensions - optional, a list of CIPs that the wallet should support
    * @returns WalletInstance
    */

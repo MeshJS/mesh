@@ -4,16 +4,14 @@ import type { Wallet } from "@meshsdk/common";
 import { BrowserWallet } from "@meshsdk/wallet";
 
 export const useWalletList = ({
-  metamask = undefined,
+  injectFn = undefined,
 }: {
-  metamask?: {
-    network: string;
-  };
+  injectFn?: () => Promise<void>;
 } = {}) => {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   useEffect(() => {
     async function get() {
-      setWallets(await BrowserWallet.getAvailableWallets({ metamask }));
+      setWallets(await BrowserWallet.getAvailableWallets({ injectFn }));
     }
     get();
   }, []);

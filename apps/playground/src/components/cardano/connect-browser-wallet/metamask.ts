@@ -1,3 +1,35 @@
+import { initNufiDappCardanoSdk } from "@nufi/dapp-client-cardano";
+import nufiCoreSdk from "@nufi/dapp-client-core";
+
+const nufiDomain: { [key: string]: string } = {
+  production: "https://wallet.nu.fi",
+  mainnet: "https://wallet-staging.nu.fi",
+  preprod: "https://wallet-testnet-staging.nu.fi",
+  preview: "https://wallet-preview-staging.nu.fi",
+};
+
+export async function checkIfMetamaskInstalled(
+  network = "preprod",
+): Promise<void> {
+  try {
+    if (Object.keys(nufiDomain).includes(network)) {
+      nufiCoreSdk.init(nufiDomain[network]);
+    } else {
+      nufiCoreSdk.init(network);
+    }
+
+    const metamask = (window as any).ethereum._metamask;
+    if (metamask) {
+      initNufiDappCardanoSdk(nufiCoreSdk, "snap");
+      return;
+    }
+
+    return undefined;
+  } catch (err) {
+    return Promise.resolve(undefined);
+  }
+}
+
 export const nufiSnap = {
   id: "nufiSnap",
   name: "MetaMask",

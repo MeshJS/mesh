@@ -20,6 +20,8 @@
     "@meshsdk/react": "*",
     "@next/mdx": "^14.2.3",
     "@next/third-parties": "^14.2.5",
+    "@nufi/dapp-client-cardano": "0.3.5",
+    "@nufi/dapp-client-core": "0.3.5",
     "@vercel/og": "^0.6.3",
     "copy-to-clipboard": "^3.3.3",
     "flowbite": "^2.5.1",
