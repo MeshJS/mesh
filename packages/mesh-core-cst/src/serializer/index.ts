@@ -1,5 +1,14 @@
 import { Serialization } from "@cardano-sdk/core";
 import { HexBlob } from "@cardano-sdk/util";
+import {
+  Cbor,
+  CborArray,
+  CborBytes,
+  CborString,
+  CborTag,
+  CborUInt,
+  RawCborTag,
+} from "@harmoniclabs/cbor";
 import base32 from "base32-encoding";
 import { bech32 } from "bech32";
 
@@ -340,7 +349,68 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       resolveScriptRef: function (
         script: CommonNativeScript | PlutusScript,
       ): string {
-        throw new Error("Function not implemented.");
+        if ("code" in script) {
+          let plutusScriptCbor;
+          let versionByte;
+          switch (script.version) {
+            case "V1": {
+              plutusScriptCbor = PlutusV1Script.fromCbor(
+                HexBlob(script.code),
+              ).toCbor();
+              versionByte = 1;
+              break;
+            }
+            case "V2": {
+              plutusScriptCbor = PlutusV2Script.fromCbor(
+                HexBlob(script.code),
+              ).toCbor();
+              versionByte = 2;
+              break;
+            }
+            case "V3": {
+              plutusScriptCbor = PlutusV3Script.fromCbor(
+                HexBlob(script.code),
+              ).toCbor();
+              versionByte = 3;
+              break;
+            }
+          }
+          let taggedScript: CborTag = new CborTag(
+            24,
+            Cbor.parse(
+              CborString.fromCborObj(
+                new CborBytes(
+                  Cbor.encode(
+                    new CborArray([
+                      new CborUInt(versionByte),
+                      new CborString(plutusScriptCbor).toCborObj(),
+                    ]),
+                  ).toBuffer(),
+                ),
+              ),
+            ),
+          );
+          return Cbor.encode(taggedScript).toString();
+        } else {
+          const nativeScript = toNativeScript(script);
+          Cbor.parse(new CborString(nativeScript.toCbor()));
+          let taggedScript: CborTag = new CborTag(
+            24,
+            Cbor.parse(
+              CborString.fromCborObj(
+                new CborBytes(
+                  Cbor.encode(
+                    new CborArray([
+                      new CborUInt(0),
+                      new CborString(nativeScript.toCbor()).toCborObj(),
+                    ]),
+                  ).toBuffer(),
+                ),
+              ),
+            ),
+          );
+          return Cbor.encode(taggedScript).toString();
+        }
       },
     },
   };
