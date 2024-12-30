@@ -1,8 +1,7 @@
-import { useEffect, useRef } from "react";
+import { CardanoWallet, useWalletList } from "@meshsdk/react";
 
-import { CardanoWallet, useWallet, useWalletList } from "@meshsdk/react";
-
-import { getProvider } from "./mesh-wallet";
+import { getProvider } from "../mesh-wallet";
+import { checkIfMetamaskInstalled } from "./metamask";
 
 export default function ConnectBrowserWallet() {
   const wallets = useWalletList();
@@ -26,7 +25,6 @@ export function CommonCardanoWallet() {
     <CardanoWallet
       label={"Connect a Wallet"}
       extensions={[95]}
-      metamask={{ network: "preprod" }}
       cardanoPeerConnect={{
         dAppInfo: {
           name: "Mesh SDK",
@@ -50,6 +48,7 @@ export function CommonCardanoWallet() {
       //   provider: provider,
       //   url: "http://localhost:3000",
       // }}
+      injectFn={async () => await checkIfMetamaskInstalled("preprod")}
     />
   );
 }

@@ -8,7 +8,7 @@ import { screens } from "./data";
 import WalletIcon from "./wallet-icon";
 
 export default function ScreenMain({
-  metamask,
+  injectFn,
   extensions,
   setOpen,
   setScreen,
@@ -16,9 +16,7 @@ export default function ScreenMain({
   burnerWallet,
   webauthn,
 }: {
-  metamask?: {
-    network: string;
-  };
+  injectFn?: () => Promise<void>;
   extensions: number[];
   setOpen: Function;
   setScreen: Function;
@@ -26,7 +24,7 @@ export default function ScreenMain({
   burnerWallet: boolean;
   webauthn: boolean;
 }) {
-  const wallets = useWalletList({ metamask });
+  const wallets = useWalletList({ injectFn });
   const { connect } = useWallet();
 
   return (

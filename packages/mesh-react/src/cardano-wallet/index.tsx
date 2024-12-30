@@ -26,9 +26,7 @@ interface ButtonProps {
   onConnected?: Function;
   isDark?: boolean;
   extensions?: number[];
-  metamask?: {
-    network: string;
-  };
+  injectFn?: () => Promise<void>;
   cardanoPeerConnect?: {
     dAppInfo: {
       name: string;
@@ -52,7 +50,7 @@ export const CardanoWallet = ({
   onConnected = undefined,
   isDark = false,
   extensions = [],
-  metamask = undefined,
+  injectFn = undefined,
   cardanoPeerConnect = undefined,
   burnerWallet = undefined,
   webauthn = undefined,
@@ -87,7 +85,7 @@ export const CardanoWallet = ({
 
         {screen == "main" && (
           <ScreenMain
-            metamask={metamask}
+            injectFn={injectFn}
             extensions={extensions}
             setOpen={setOpen}
             setScreen={setScreen}

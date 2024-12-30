@@ -32,7 +32,6 @@ import {
 } from "@meshsdk/core-cst";
 
 import { Cardano, WalletInstance } from "../types";
-import { checkIfMetamaskInstalled } from "./metamask";
 
 declare global {
   interface Window {
@@ -69,15 +68,13 @@ export class BrowserWallet implements IWallet {
    * @returns a list of wallet names
    */
   static async getAvailableWallets({
-    metamask = undefined,
+    injectFn = undefined,
   }: {
-    metamask?: {
-      network: string;
-    };
+    injectFn?: () => Promise<void>;
   } = {}): Promise<Wallet[]> {
     if (window === undefined) return [];
 
-    if (metamask) await checkIfMetamaskInstalled(metamask.network);
+    if (injectFn) await injectFn();
 
     return BrowserWallet.getInstalledWallets();
   }

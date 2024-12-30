@@ -12,7 +12,6 @@
     label = "Connect Wallet",
     onConnected,
     isDark = true,
-    metamask = undefined,
     extensions = [],
   }: CardanoWalletButtonProps = $props();
 

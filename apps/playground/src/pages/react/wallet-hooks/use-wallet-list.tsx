@@ -21,18 +21,19 @@ function Left() {
       <p>Returns a list of wallets installed on user's device.</p>
       <Codeblock data={`const wallets = useWalletList();`} />
       <p>
-        You can define the NuFi network to connect to by adding the{" "}
-        <code>network</code> prop.
+        You can define a function to be injected into the wallet provider by
+        passing it as the
+        <code>injectFn</code> prop.
       </p>
       <Codeblock
-        data={`const wallets = useWalletList({ metamask:{ network: "preprod"} });`}
+        data={`const wallets = useWalletList({injectFn={async () => await checkIfMetamaskInstalled("preprod")})}`}
       />
     </>
   );
 }
 
 function Right() {
-  const wallets = useWalletList({ metamask:{ network: "preprod"} });
+  const wallets = useWalletList();
 
   let code3 = `import { useWalletList } from '@meshsdk/react';\n\n`;
   code3 += `export default function Page() {\n`;
