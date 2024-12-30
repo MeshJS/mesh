@@ -1,6 +1,6 @@
-Thank you for contributing to Mesh! We appreciate your effort and dedication to improving this project. To ensure that your contribution is in line with the project's guidelines and can be reviewed efficiently, please fill out the template below.
+> Thank you for contributing to Mesh! We appreciate your effort and dedication to improving this project. To ensure that your contribution is in line with the project's guidelines and can be reviewed efficiently, please fill out the template below.
 
-Remember to follow our [Contributing Guide](CONTRIBUTING.md) before submitting your pull request.
+> Remember to follow our [Contributing Guide](CONTRIBUTING.md) before submitting your pull request.
 
 ## Summary
 
@@ -35,9 +35,7 @@ Remember to follow our [Contributing Guide](CONTRIBUTING.md) before submitting y
 
 ## Related Issues
 
-> Please add the related issue here if any, e.g.:
->
-> - Issue - [#329](https://github.com/MeshJS/mesh/issues/329)
+> Please add the related issue here if any
 
 ## Checklist
 
