@@ -94,7 +94,7 @@ function Right() {
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx, true);
-    const signedTx2 = mintingWallet.signTx(signedTx, true);
+    const signedTx2 = await mintingWallet.signTx(signedTx, true);
     const txHash = await wallet.submitTx(signedTx2);
     return txHash;
   }

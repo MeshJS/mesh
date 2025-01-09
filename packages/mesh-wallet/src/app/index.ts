@@ -158,12 +158,12 @@ export class AppWallet implements ISigner, ISubmitter {
     return utxos.map((utxo) => toTxUnspentOutput(utxo));
   }
 
-  signData(
+  async signData(
     address: string,
     payload: string,
     accountIndex = 0,
     keyIndex = 0,
-  ): DataSignature {
+  ): Promise<DataSignature> {
     try {
       return this._wallet.signData(address, payload, accountIndex, keyIndex);
     } catch (error) {
@@ -173,12 +173,12 @@ export class AppWallet implements ISigner, ISubmitter {
     }
   }
 
-  signTx(
+  async signTx(
     unsignedTx: string,
     partialSign = false,
     accountIndex = 0,
     keyIndex = 0,
-  ): string {
+  ): Promise<string> {
     try {
       const tx = deserializeTx(unsignedTx);
       if (

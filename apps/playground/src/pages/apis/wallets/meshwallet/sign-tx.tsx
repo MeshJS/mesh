@@ -33,7 +33,7 @@ function Right() {
     <LiveCodeDemo
       title="Sign Transaction"
       subtitle="Create a transaction and sign it"
-      code={`const signedTx = wallet.signTx(tx, partialSign?);`}
+      code={`const signedTx = await wallet.signTx(tx, partialSign?);`}
     >
       <p>
         Check out <Link href="/apis/transaction">Transaction</Link> to learn

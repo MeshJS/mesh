@@ -13,10 +13,9 @@ export async function connect({
   serverUrl: string;
 }) {
   const responseRegister = await register({ serverUrl, username });
-
   if (
     responseRegister.success ||
-    responseRegister.errorCode == ERRORCODES.USEREXISTS
+    responseRegister.error.errorCode == ERRORCODES.USEREXISTS
   ) {
     const loginRes = await handleLogin({ serverUrl, username });
     if (loginRes.success && loginRes.authJSON) {

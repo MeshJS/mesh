@@ -90,7 +90,7 @@ export default function Demo() {
       .changeAddress(recipientAddress)
       .complete();
 
-    const unsignedTx = wallet.signTx(txHex, true);
+    const unsignedTx = await wallet.signTx(txHex, true);
     return unsignedTx;
   }
 

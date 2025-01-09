@@ -263,10 +263,23 @@ export class EmbeddedWallet extends WalletStaticMethods {
     return _account;
   }
 
+  /**
+   * Get wallet network ID.
+   *
+   * @returns network ID
+   */
   getNetworkId(): number {
     return this._networkId;
   }
 
+  /**
+   * This endpoint utilizes the [CIP-8 - Message Signing](https://cips.cardano.org/cips/cip8/) to sign arbitrary data, to verify the data was signed by the owner of the private key.
+   *
+   * @param address - bech32 address to sign the data with
+   * @param payload - the data to be signed
+   * @param accountIndex account index (default: 0)
+   * @returns a signature
+   */
   signData(
     address: string,
     payload: string,
@@ -297,6 +310,14 @@ export class EmbeddedWallet extends WalletStaticMethods {
     }
   }
 
+  /**
+   * This endpoints sign the provided transaction (unsignedTx) with the private key of the owner.
+   *
+   * @param unsignedTx - a transaction in CBOR
+   * @param accountIndex account index (default: 0)
+   * @param keyIndex key index (default: 0)
+   * @returns VkeyWitness
+   */
   signTx(unsignedTx: string, accountIndex = 0, keyIndex = 0): VkeyWitness {
     try {
       const txHash = deserializeTxHash(resolveTxHash(unsignedTx));

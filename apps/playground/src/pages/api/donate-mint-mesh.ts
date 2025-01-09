@@ -101,7 +101,7 @@ export default async function handler(
       .changeAddress(recipientAddress)
       .complete();
 
-    const unsignedTx = wallet.signTx(txHex, true);
+    const unsignedTx = await wallet.signTx(txHex, true);
 
     res.status(200).json({ unsignedTx });
   } catch (error) {
