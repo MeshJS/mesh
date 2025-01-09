@@ -99,7 +99,7 @@ import { utxosToAssets } from "./common/utxos-to-assets";
  *
  *   // Step #5
  *   // Sign the transaction
- *   const signedTx = wallet.signTx(unsignedTx);
+ *   const signedTx = await wallet.signTx(unsignedTx);
  *
  *   // Step #6
  *   // Submit the transaction to the blockchain network
