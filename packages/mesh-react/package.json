@@ -21,7 +21,7 @@
   "scripts": {
     "build:mesh_old": "tsup src/index.ts --format esm,cjs --cjsInterop --dts && tailwindcss -i ./src/styles.css -o ./dist/index.css",
     "build:mesh": "tsup && tailwindcss -i ./src/styles.css -o ./dist/index.css",
-    "dev": "tsup src/index.ts --format esm,cjs --watch --dts && tailwindcss -i ./src/styles.css -o ./dist/index.css",
+    "dev": "concurrently \"tsup src/index.ts --format esm,cjs --watch --dts\" \"tailwindcss -i ./src/styles.css -o ./dist/index.css --watch\"",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
@@ -46,6 +46,7 @@
     "@meshsdk/configs": "*",
     "@types/react": "^18.2.61",
     "autoprefixer": "^10.4.18",
+    "concurrently": "^8.0.1",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "latest"

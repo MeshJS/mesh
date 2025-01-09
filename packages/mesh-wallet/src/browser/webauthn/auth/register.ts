@@ -8,7 +8,7 @@ export async function register({
   username: string;
 }) {
   // 1. Get challenge from server
-  const initRegisterRes = await fetch(`${serverUrl}/init-register`, {
+  const initRegisterRes = await fetch(`${serverUrl}/register-init`, {
     credentials: "include",
     method: "POST",
     headers: {
@@ -28,11 +28,11 @@ export async function register({
   }
 
   // 2. Create passkey
-  const optionsJSON = initRegister.optionsJSON;
+  const optionsJSON = initRegister.data.optionsJSON;
   const registrationJSON = await startRegistration({ optionsJSON });
 
   // 3. Save passkey in DB
-  const verifyResponse = await fetch(`${serverUrl}/verify-register`, {
+  const verifyResponse = await fetch(`${serverUrl}/register-verify`, {
     credentials: "include",
     method: "POST",
     headers: {
@@ -50,7 +50,7 @@ export async function register({
       errorCode: verifyData.errorCode,
     };
   }
-  if (verifyData.verified) {
+  if (verifyData.data.verified) {
     console.log(`Successfully registered ${username}`);
     return { success: true };
   } else {
