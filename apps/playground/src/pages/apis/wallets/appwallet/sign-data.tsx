@@ -44,12 +44,12 @@ function Right(payload: string, setPayload: (payload: string) => void) {
 
   async function runDemo() {
     const address = wallet.getPaymentAddress();
-    const signature = wallet.signData(address, payload);
+    const signature = await wallet.signData(address, payload);
     return signature;
   }
 
   let code = `const address = wallet.getPaymentAddress();\n`;
-  code += `const signature = wallet.signData(address, '${payload}');`;
+  code += `const signature = await wallet.signData((address, '${payload}');`;
 
   return (
     <LiveCodeDemo
