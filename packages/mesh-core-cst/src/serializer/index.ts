@@ -100,6 +100,7 @@ import {
 import {
   fromBuilderToPlutusData,
   toAddress,
+  toCardanoAddress,
   toNativeScript,
   toValue,
 } from "../utils";
@@ -634,7 +635,7 @@ class CardanoSDKSerializerCore {
     inputs.setValues(txInputsList);
     // We save the output to a mapping so that we can calculate change
     const cardanoTxOut = new TransactionOutput(
-      Address.fromBech32(currentTxIn.txIn.address),
+      toCardanoAddress(currentTxIn.txIn.address),
       toValue(currentTxIn.txIn.amount),
     );
     this.utxoContext.set(cardanoTxIn, cardanoTxOut);
@@ -742,7 +743,7 @@ class CardanoSDKSerializerCore {
 
   private toCardanoOutput = (output: Output): TransactionOutput => {
     let cardanoOutput = new TransactionOutput(
-      Address.fromBech32(output.address),
+      toCardanoAddress(output.address),
       toValue(output.amount),
     );
     if (output.datum?.type === "Hash") {
@@ -1005,7 +1006,7 @@ class CardanoSDKSerializerCore {
   private addWithdrawal = (withdrawal: Withdrawal, index: number) => {
     const currentWithdrawals =
       this.txBody.withdrawals() ?? new Map<RewardAccount, bigint>();
-    const address = Address.fromBech32(withdrawal.address);
+    const address = toCardanoAddress(withdrawal.address);
     const rewardAddress = address.asReward();
     if (!rewardAddress) {
       throw new Error("Failed to parse reward address for withdrawal");
@@ -1112,7 +1113,7 @@ class CardanoSDKSerializerCore {
     // We save the output to a mapping so that we can calculate collateral return later
     // TODO: set collateral return
     const cardanoTxOut = new TransactionOutput(
-      Address.fromBech32(collateral.txIn.address),
+      toCardanoAddress(collateral.txIn.address),
       toValue(collateral.txIn.amount),
     );
     this.utxoContext.set(cardanoTxIn, cardanoTxOut);
@@ -1418,7 +1419,7 @@ class CardanoSDKSerializerCore {
     }
 
     currentOutputs.push(
-      new TransactionOutput(Address.fromBech32(changeAddress), remainingValue),
+      new TransactionOutput(toCardanoAddress(changeAddress), remainingValue),
     );
     this.txBody.setOutputs(currentOutputs);
 

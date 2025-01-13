@@ -57,6 +57,18 @@ import {
 export const toAddress = (bech32: string): Address =>
   Address.fromBech32(bech32);
 
+export const toCardanoAddress = (address: string): Address => {
+  try {
+    return Address.fromBech32(address);
+  } catch {
+    try {
+      return Address.fromBase58(address);
+    } catch {
+      throw new Error("Invalid address format");
+    }
+  }
+};
+
 export const toBaseAddress = (bech32: string): BaseAddress | undefined => {
   return BaseAddress.fromAddress(toAddress(bech32));
 };
