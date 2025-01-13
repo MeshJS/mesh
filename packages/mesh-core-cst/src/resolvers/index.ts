@@ -1,10 +1,23 @@
 import { Cardano } from "@cardano-sdk/core";
 import { blake2b } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
+import base32 from "base32-encoding";
+import { bech32 } from "bech32";
 
-import { Data, NativeScript, PlutusScript } from "@meshsdk/common";
+import {
+  Data,
+  fromUTF8,
+  mnemonicToEntropy,
+  NativeScript,
+  PlutusScript,
+  toBytes,
+} from "@meshsdk/common";
 
-import { Ed25519KeyHashHex, EnterpriseAddress } from "../types";
+import {
+  Bip32PrivateKey,
+  Ed25519KeyHashHex,
+  EnterpriseAddress,
+} from "../types";
 import {
   deserializePlutusScript,
   deserializeTx,
@@ -93,7 +106,22 @@ export const resolvePoolId = (hash: string) => {
 };
 
 export const resolvePrivateKey = (words: string[]) => {
-  return "not implemented";
+  const buildBip32PrivateKey = (
+    entropy: string,
+    password = "",
+  ): Bip32PrivateKey => {
+    return Bip32PrivateKey.fromBip39Entropy(
+      Buffer.from(toBytes(entropy)),
+      fromUTF8(password),
+    );
+  };
+
+  const entropy = mnemonicToEntropy(words.join(" "));
+  const bip32PrivateKey = buildBip32PrivateKey(entropy);
+  const bytes = base32.encode(bip32PrivateKey.bytes());
+  const bech32PrivateKey = bech32.encode("xprv", bytes, 1023);
+
+  return bech32PrivateKey;
 };
 
 export const resolveScriptRef = (script: PlutusScript | NativeScript) => {
