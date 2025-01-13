@@ -75,7 +75,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
         callback(result);
       }
 
-      this.send(client, "NextTx", {});
+      this.send(client, "NextTransaction", {});
     });
 
     return () => client.close();
