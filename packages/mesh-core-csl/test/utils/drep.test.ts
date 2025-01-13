@@ -1,4 +1,4 @@
-import { getDRepIds } from "@meshsdk/core-csl";
+import { getDRepIds } from "@meshsdk/core-cst";
 
 describe("DRep", () => {
   test("Get DRepIds of a CIP105 script", () => {
