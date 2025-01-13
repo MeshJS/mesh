@@ -389,7 +389,7 @@ export class YaciProvider
     txHash: string,
     certIndex: number,
   ): Promise<GovernanceProposalInfo> {
-    throw new Error("Method not implemented by Maestro");
+    throw new Error("Method not implemented");
   }
 
   async get(url: string): Promise<any> {

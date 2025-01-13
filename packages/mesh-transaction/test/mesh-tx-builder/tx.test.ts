@@ -626,4 +626,46 @@ describe("MeshTxBuilder transactions", () => {
 
     expect(txHex !== "").toBeTruthy();
   });
+
+  it("byron output test", () => {
+    let mesh = new MeshTxBuilder();
+    let txHex = mesh
+      .txIn(
+        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+        3,
+        [{ unit: "lovelace", quantity: "9891607895" }],
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+      )
+      .txOut(
+        "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt",
+        [{ unit: "lovelace", quantity: "2000000" }],
+      )
+      .changeAddress(
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+      )
+      .completeSync();
+
+    expect(txHex !== "").toBeTruthy();
+  });
+
+  it("byron change output test", () => {
+    let mesh = new MeshTxBuilder();
+    let txHex = mesh
+      .txIn(
+        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+        3,
+        [{ unit: "lovelace", quantity: "9891607895" }],
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+      )
+      .txOut(
+        "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt",
+        [{ unit: "lovelace", quantity: "2000000" }],
+      )
+      .changeAddress(
+        "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt",
+      )
+      .completeSync();
+
+    expect(txHex !== "").toBeTruthy();
+  });
 });

@@ -38,10 +38,6 @@ function Left() {
   codeRunCode += `  );\n`;
   codeRunCode += `}\n`;
 
-  let codeMetamask = `<CardanoWallet\n`;
-  codeMetamask += `  metamask={{network: "preprod"}}\n`;
-  codeMetamask += `/>\n`;
-
   let codeCip95 = `<CardanoWallet\n`;
   codeCip95 += `  extensions={[95]}\n`;
   codeCip95 += `/>\n`;
@@ -52,6 +48,10 @@ function Left() {
   codeBurner += `    provider: blockchainProvider,\n`;
   codeBurner += `  }}\n`;
   codeBurner += `/>\n`;
+
+  let codeMetamask = `<CardanoWallet\n`;
+  codeMetamask += `  injectFn={async () => await checkIfMetamaskInstalled("preprod")}\n`;
+  codeMetamask += `/>\n`;
 
   return (
     <>
@@ -101,21 +101,6 @@ function Left() {
         is connected.
       </p>
 
-      <h3>MetaMask Snaps</h3>
-      <p>
-        You can define the NuFi network to connect to by adding the{" "}
-        <code>network</code> prop.
-      </p>
-      <Codeblock data={codeMetamask} />
-      <p>
-        This will connect to the preprod network. For the mainnet network, use{" "}
-        <code>mainnet</code>.
-      </p>
-      <p>
-        You can also define a custom network by passing a URL string to the{" "}
-        <code>network</code> prop.
-      </p>
-
       <h3>CIP 95</h3>
       <p>
         You can also provide an <code>extensions</code> object to enable
@@ -140,6 +125,21 @@ function Left() {
         private keys are generated and stored on the user's device.
       </p>
       <Codeblock data={codeBurner} />
+
+      <h3>MetaMask Snaps</h3>
+      <p>
+        MetaMask Snaps are a new way to extend MetaMask with custom
+        functionality and integrations. You can check the implementation to
+        integrate NuFi from the{" "}
+        <Link href="https://github.com/MeshJS/mesh/tree/main/apps/playground/src/components/cardano/connect-browser-wallet">
+          GitHub repository
+        </Link>
+        .
+      </p>
+      <p>
+        Use the <code>injectFn</code> prop to add custom functionality.
+      </p>
+      <Codeblock data={codeMetamask} />
     </>
   );
 }
@@ -159,7 +159,6 @@ function Right() {
   example += `      <CardanoWallet\n`;
   example += `        label={"Connect a Wallet"}\n`;
   example += `        onConnected={afterConnectedWallet}\n`;
-  example += `        metamask={{ network: "preprod" }}\n`;
   example += `        cardanoPeerConnect={{\n`;
   example += `          dAppInfo: {\n`;
   example += `            name: "Mesh SDK",\n`;

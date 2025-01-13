@@ -19,15 +19,14 @@ import { screens } from "./data";
 import ScreenBurner from "./screen-burner";
 import ScreenMain from "./screen-main";
 import ScreenP2P from "./screen-p2p";
+import ScreenWebauthn from "./screen-webauthn";
 
 interface ButtonProps {
   label?: string;
   onConnected?: Function;
   isDark?: boolean;
   extensions?: number[];
-  metamask?: {
-    network: string;
-  };
+  injectFn?: () => Promise<void>;
   cardanoPeerConnect?: {
     dAppInfo: {
       name: string;
@@ -39,6 +38,11 @@ interface ButtonProps {
     networkId: 0 | 1;
     provider: IFetcher & ISubmitter;
   };
+  webauthn?: {
+    networkId: 0 | 1;
+    provider: IFetcher & ISubmitter;
+    url: string;
+  };
 }
 
 export const CardanoWallet = ({
@@ -46,16 +50,17 @@ export const CardanoWallet = ({
   onConnected = undefined,
   isDark = false,
   extensions = [],
-  metamask = undefined,
+  injectFn = undefined,
   cardanoPeerConnect = undefined,
   burnerWallet = undefined,
+  webauthn = undefined,
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState("main");
   const { wallet, connected } = useWallet();
 
   useEffect(() => {
-    if (connected && wallet) {
+    if (connected) {
       if (onConnected) onConnected();
     }
   }, [connected, wallet]);
@@ -80,12 +85,13 @@ export const CardanoWallet = ({
 
         {screen == "main" && (
           <ScreenMain
-            metamask={metamask}
+            injectFn={injectFn}
             extensions={extensions}
             setOpen={setOpen}
             setScreen={setScreen}
             cardanoPeerConnect={cardanoPeerConnect != undefined}
             burnerWallet={burnerWallet != undefined}
+            webauthn={webauthn != undefined}
           />
         )}
         {screen == "p2p" && (
@@ -101,7 +107,14 @@ export const CardanoWallet = ({
             setOpen={setOpen}
           />
         )}
-
+        {screen == "webauthn" && webauthn && (
+          <ScreenWebauthn
+            url={webauthn.url}
+            networkId={webauthn.networkId}
+            provider={webauthn.provider}
+            setOpen={setOpen}
+          />
+        )}
         <Footer />
       </DialogContent>
     </Dialog>

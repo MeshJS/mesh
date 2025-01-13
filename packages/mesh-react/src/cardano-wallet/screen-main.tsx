@@ -1,5 +1,6 @@
 import IconBookDashed from "../common/icons/icon-book-dashed";
 import IconDownload from "../common/icons/icon-download";
+import IconFingerprint from "../common/icons/icon-fingerprint";
 import IconMonitorSmartphone from "../common/icons/icon-monitor-smartphone";
 import { TooltipProvider } from "../common/tooltip";
 import { useWallet, useWalletList } from "../hooks";
@@ -7,23 +8,23 @@ import { screens } from "./data";
 import WalletIcon from "./wallet-icon";
 
 export default function ScreenMain({
-  metamask,
+  injectFn,
   extensions,
   setOpen,
   setScreen,
   cardanoPeerConnect,
   burnerWallet,
+  webauthn,
 }: {
-  metamask?: {
-    network: string;
-  };
+  injectFn?: () => Promise<void>;
   extensions: number[];
   setOpen: Function;
   setScreen: Function;
   cardanoPeerConnect: boolean;
   burnerWallet: boolean;
+  webauthn: boolean;
 }) {
-  const wallets = useWalletList({ metamask });
+  const wallets = useWalletList({ injectFn });
   const { connect } = useWallet();
 
   return (
@@ -41,6 +42,15 @@ export default function ScreenMain({
           />
         ))}
 
+        {webauthn && (
+          <WalletIcon
+            iconReactNode={IconFingerprint()}
+            name={screens.webauthn.title}
+            action={() => {
+              setScreen("webauthn");
+            }}
+          />
+        )}
         {cardanoPeerConnect && (
           <WalletIcon
             iconReactNode={IconMonitorSmartphone()}
@@ -50,7 +60,6 @@ export default function ScreenMain({
             }}
           />
         )}
-
         {burnerWallet && (
           <WalletIcon
             iconReactNode={IconBookDashed()}

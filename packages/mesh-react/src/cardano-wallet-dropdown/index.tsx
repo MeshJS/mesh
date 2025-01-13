@@ -9,9 +9,6 @@ interface ButtonProps {
   label?: string;
   onConnected?: Function;
   isDark?: boolean;
-  metamask?: {
-    network: string;
-  };
   extensions?: number[];
   cardanoPeerConnect?: {
     dAppInfo: {
@@ -26,7 +23,6 @@ export const CardanoWallet = ({
   label = "Connect Wallet",
   onConnected = undefined,
   isDark = false,
-  metamask = undefined,
   extensions = [],
   cardanoPeerConnect = undefined,
 }: ButtonProps) => {
@@ -34,7 +30,7 @@ export const CardanoWallet = ({
   const [hideMenuList, setHideMenuList] = useState(true);
 
   const { connect, connecting, connected, disconnect, name } = useWallet();
-  const wallets = useWalletList({ metamask });
+  const wallets = useWalletList();
 
   useEffect(() => {
     if (connected && onConnected) {

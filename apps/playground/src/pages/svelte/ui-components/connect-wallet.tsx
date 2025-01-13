@@ -35,10 +35,6 @@ function Left() {
   codeRunCode += `  );\n`;
   codeRunCode += `}\n`;
 
-  let codeMetamask = `<CardanoWallet\n`;
-  codeMetamask += `  metamask={{network: "preprod"}}\n`;
-  codeMetamask += `/>\n`;
-
   let codeCip95 = `<CardanoWallet\n`;
   codeCip95 += `  extensions={[95]}\n`;
   codeCip95 += `/>\n`;
@@ -89,28 +85,6 @@ function Left() {
         The above code will log "Hello, World!" to the console when the wallet
         is connected.
       </p>
-
-      {/* <h3>MetaMask Snaps</h3>
-      <p>
-        You can define the NuFi network to connect to by adding the{" "}
-        <code>network</code> prop.
-      </p>
-      <Codeblock data={codeMetamask} />
-      <p>
-        This will connect to the preprod network. For the mainnet network, use{" "}
-        <code>mainnet</code>.
-      </p>
-      <p>
-        You can also define a custom network by passing a URL string to the{" "}
-        <code>network</code> prop.
-      </p>
-
-      <h3>CIP 95</h3>
-      <p>
-        You can also provide an <code>extensions</code> object to enable
-        specific CIPs. For example, to enable CIP95, you would pass:
-      </p>
-      <Codeblock data={codeCip95} /> */}
     </>
   );
 }

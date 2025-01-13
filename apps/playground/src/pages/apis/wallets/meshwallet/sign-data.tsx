@@ -58,11 +58,11 @@ function Right() {
 
   async function runDemo() {
     const wallet = getWallet();
-    return wallet.signData(payload);
+    return await wallet.signData(payload);
   }
 
   let code = ``;
-  code += `const signature = wallet.signData('${payload}');`;
+  code += `const signature = await wallet.signData('${payload}');`;
 
   return (
     <LiveCodeDemo

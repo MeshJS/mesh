@@ -1,4 +1,6 @@
 import * as BaseEncoding from "@scure/base";
+import base32 from "base32-encoding";
+import { bech32 } from "bech32";
 
 import {
   bytesToHex,
@@ -61,6 +63,10 @@ export type EmbeddedWalletKeyType =
   | {
       type: "mnemonic";
       words: string[];
+    }
+  | {
+      type: "bip32Bytes";
+      bip32Bytes: Uint8Array;
     };
 
 export type CreateEmbeddedWalletOptions = {
@@ -69,8 +75,8 @@ export type CreateEmbeddedWalletOptions = {
 };
 
 export class WalletStaticMethods {
-  static privateKeyToEntropy(bech32: string): string {
-    const bech32DecodedBytes = BaseEncoding.bech32.decodeToBytes(bech32).bytes;
+  static privateKeyToEntropy(_bech32: string): string {
+    const bech32DecodedBytes = BaseEncoding.bech32.decodeToBytes(_bech32).bytes;
     const bip32PrivateKey = Bip32PrivateKey.fromBytes(bech32DecodedBytes);
     return bytesToHex(bip32PrivateKey.bytes());
   }
@@ -89,6 +95,11 @@ export class WalletStaticMethods {
       paymentKey.startsWith("5820") ? paymentKey.slice(4) : paymentKey,
       stakeKey.startsWith("5820") ? stakeKey.slice(4) : stakeKey,
     ];
+  }
+
+  static bip32BytesToEntropy(bip32Bytes: Uint8Array): string {
+    const bip32PrivateKey = Bip32PrivateKey.fromBytes(bip32Bytes);
+    return bytesToHex(bip32PrivateKey.bytes());
   }
 
   static getAddresses(
@@ -204,6 +215,11 @@ export class EmbeddedWallet extends WalletStaticMethods {
           options.key.stake ?? "f0".repeat(32),
         );
         break;
+      case "bip32Bytes":
+        this._entropy = WalletStaticMethods.bip32BytesToEntropy(
+          options.key.bip32Bytes,
+        );
+        break;
     }
   }
 
@@ -247,10 +263,23 @@ export class EmbeddedWallet extends WalletStaticMethods {
     return _account;
   }
 
+  /**
+   * Get wallet network ID.
+   *
+   * @returns network ID
+   */
   getNetworkId(): number {
     return this._networkId;
   }
 
+  /**
+   * This endpoint utilizes the [CIP-8 - Message Signing](https://cips.cardano.org/cips/cip8/) to sign arbitrary data, to verify the data was signed by the owner of the private key.
+   *
+   * @param address - bech32 address to sign the data with
+   * @param payload - the data to be signed
+   * @param accountIndex account index (default: 0)
+   * @returns a signature
+   */
   signData(
     address: string,
     payload: string,
@@ -281,6 +310,14 @@ export class EmbeddedWallet extends WalletStaticMethods {
     }
   }
 
+  /**
+   * This endpoints sign the provided transaction (unsignedTx) with the private key of the owner.
+   *
+   * @param unsignedTx - a transaction in CBOR
+   * @param accountIndex account index (default: 0)
+   * @param keyIndex key index (default: 0)
+   * @returns VkeyWitness
+   */
   signTx(unsignedTx: string, accountIndex = 0, keyIndex = 0): VkeyWitness {
     try {
       const txHash = deserializeTxHash(resolveTxHash(unsignedTx));
