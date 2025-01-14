@@ -8,7 +8,7 @@ export async function login({
   username: string;
 }) {
   // 1. Get challenge from server
-  const initAuthRes = await fetch(`${serverUrl}/init-auth`, {
+  const initAuthRes = await fetch(`${serverUrl}/auth-init`, {
     credentials: "include",
     method: "POST",
     headers: {
@@ -28,13 +28,13 @@ export async function login({
     };
   }
 
-  const optionsJSON = initAuth.optionsJSON;
+  const optionsJSON = initAuth.data.optionsJSON;
 
   // 2. Get passkey
   const authJSON = await startAuthentication({ optionsJSON });
 
   // 3. Verify passkey with DB
-  const verifyAuthRes = await fetch(`${serverUrl}/verify-auth`, {
+  const verifyAuthRes = await fetch(`${serverUrl}/auth-verify`, {
     credentials: "include",
     method: "POST",
     headers: {
@@ -48,7 +48,7 @@ export async function login({
   if (!verifyAuthRes.ok) {
     return { success: false, error: verifyAuth.error };
   }
-  if (verifyAuth.verified) {
+  if (verifyAuth.data.verified) {
     return { success: true, authJSON: authJSON };
   } else {
     return { success: false, error: "Failed to log in" };
