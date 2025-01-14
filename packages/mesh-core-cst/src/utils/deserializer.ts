@@ -1,11 +1,12 @@
-import { Serialization } from "@cardano-sdk/core"
+import { Serialization } from "@cardano-sdk/core";
 import { Ed25519KeyHashHex } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 
-import { LanguageVersion, toBytes } from "@meshsdk/common";
+import { DeserializedAddress, LanguageVersion, toBytes } from "@meshsdk/common";
 
 import {
   Address,
+  CredentialType,
   DatumHash,
   Ed25519KeyHash,
   NativeScript,
@@ -25,6 +26,32 @@ export const deserializeAddress = (address: string): Address => {
   const _address = Address.fromString(address);
   if (_address === null) throw new Error("Invalid address");
   return _address;
+};
+
+export const deserializeBech32Address = (
+  bech32Addr: string,
+): DeserializedAddress => {
+  const address = Address.fromBech32(bech32Addr);
+  const addressProps = address.getProps();
+
+  return {
+    pubKeyHash:
+      addressProps.paymentPart?.type === CredentialType.KeyHash
+        ? (addressProps.paymentPart?.hash ?? "")
+        : "",
+    scriptHash:
+      addressProps.paymentPart?.type === CredentialType.ScriptHash
+        ? (addressProps.paymentPart?.hash ?? "")
+        : "",
+    stakeCredentialHash:
+      addressProps.delegationPart?.type === CredentialType.KeyHash
+        ? (addressProps.paymentPart?.hash ?? "")
+        : "",
+    stakeScriptCredentialHash:
+      addressProps.delegationPart?.type === CredentialType.ScriptHash
+        ? (addressProps.paymentPart?.hash ?? "")
+        : "",
+  };
 };
 
 export const deserializeEd25519KeyHash = (ed25519KeyHash: string) =>
