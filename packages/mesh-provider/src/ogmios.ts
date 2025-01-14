@@ -48,7 +48,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
                 }),
               );
             } else {
-              reject(result.EvaluationFailure);
+              reject(result);
             }
 
             client.close();
@@ -89,8 +89,10 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   async submitTx(tx: string): Promise<string> {
     const client = await this.open();
 
-    this.send(client, "SubmitTx", {
-      submit: tx,
+    this.send(client, "submitTransaction", {
+      transaction: {
+        cbor: tx,
+      },
     });
 
     return new Promise((resolve, reject) => {
@@ -99,10 +101,18 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
         (response: MessageEvent<string>) => {
           try {
             const { result } = JSON.parse(response.data);
-            if (result.SubmitSuccess) {
-              resolve(result.SubmitSuccess.txId);
+
+            if (!result) {
+              reject(JSON.parse(response.data).error);
+            }
+
+            if (
+              result.transaction !== null &&
+              result.transaction !== undefined
+            ) {
+              resolve(result.transaction.id);
             } else {
-              reject(result.SubmitFail);
+              reject(result);
             }
 
             client.close();
