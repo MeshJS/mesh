@@ -22,7 +22,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
     const client = await this.open();
 
-    this.send(client, "EvaluateTx", {
+    this.send(client, "EvaluateTransaction", {
       evaluate: tx,
     });
 
@@ -75,7 +75,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
         callback(result);
       }
 
-      this.send(client, "NextTx", {});
+      this.send(client, "NextTransaction", {});
     });
 
     return () => client.close();
@@ -84,7 +84,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   async submitTx(tx: string): Promise<string> {
     const client = await this.open();
 
-    this.send(client, "SubmitTx", {
+    this.send(client, "SubmitTransaction", {
       submit: tx,
     });
 
@@ -124,9 +124,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   private send(client: WebSocket, methodname: string, args: unknown) {
     client.send(
       JSON.stringify({
-        version: "1.0",
-        type: "jsonwsp/request",
-        servicename: "ogmios",
+        version: "2.0",
         methodname,
         args,
       }),
