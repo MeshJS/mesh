@@ -22,8 +22,10 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
     const client = await this.open();
 
-    this.send(client, "EvaluateTx", {
-      evaluate: tx,
+    this.send(client, "evaluateTransaction", {
+      transaction: {
+        cbor: tx,
+      },
     });
 
     return new Promise((resolve, reject) => {
@@ -32,15 +34,15 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
         (response: MessageEvent<string>) => {
           try {
             const { result } = JSON.parse(response.data);
-            if (result.EvaluationResult) {
+            if (result) {
               resolve(
-                Object.keys(result.EvaluationResult).map((key) => {
+                Object.values(result).map((val: any) => {
                   return <Omit<Action, "data">>{
-                    index: parseInt(key.split(":")[1]!, 10),
-                    tag: key.split(":")[0]!.toUpperCase(),
+                    index: val.validator.index,
+                    tag: val.validator.purpose.toUpperCase(),
                     budget: {
-                      mem: result.EvaluationResult[key].memory,
-                      steps: result.EvaluationResult[key].steps,
+                      mem: val.budget.memory,
+                      steps: val.budget.cpu,
                     },
                   };
                 }),
@@ -94,7 +96,6 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
         (response: MessageEvent<string>) => {
           try {
             const { result } = JSON.parse(response.data);
-
             if (result.SubmitSuccess) {
               resolve(result.SubmitSuccess.txId);
             } else {
@@ -124,11 +125,11 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   private send(client: WebSocket, methodname: string, args: unknown) {
     client.send(
       JSON.stringify({
-        version: "1.0",
+        jsonrpc: "2.0",
         type: "jsonwsp/request",
         servicename: "ogmios",
-        methodname,
-        args,
+        method: methodname,
+        params: args,
       }),
     );
   }
