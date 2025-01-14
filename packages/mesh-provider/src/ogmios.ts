@@ -64,20 +64,23 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
   async onNextTx(callback: (tx: unknown) => void): Promise<() => void> {
     const client = await this.open();
 
-    this.send(client, "AwaitAcquire", {});
+    this.send(client, "acquireMempool", {});
 
     client.addEventListener("message", (response: MessageEvent<string>) => {
       const { result } = JSON.parse(response.data);
-
       if (result === null) {
-        return this.send(client, "AwaitAcquire", {});
+        return this.send(client, "acquireMempool", {});
       }
 
-      if (result.AwaitAcquired === undefined) {
+      if (result.transaction === null || result.transaction === undefined) {
+        this.send(client, "acquireMempool", {});
+      } else {
         callback(result);
       }
 
-      this.send(client, "NextTx", {});
+      this.send(client, "nextTransaction", {
+        fields: "all",
+      });
     });
 
     return () => client.close();
@@ -122,14 +125,14 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
     return client;
   }
 
-  private send(client: WebSocket, methodname: string, args: unknown) {
+  private send(client: WebSocket, method: string, params: unknown) {
     client.send(
       JSON.stringify({
         jsonrpc: "2.0",
         type: "jsonwsp/request",
         servicename: "ogmios",
-        method: methodname,
-        params: args,
+        method,
+        params,
       }),
     );
   }
