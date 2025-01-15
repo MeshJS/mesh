@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 
-import { HYDRA_STATUS, HydraStatus } from "./types";
+import { HYDRA_STATUS } from "./constants";
+import { HydraStatus } from "./types";
 
 export class HydraConnection extends EventEmitter {
   _websocket: WebSocket | undefined;
@@ -13,14 +14,18 @@ export class HydraConnection extends EventEmitter {
     url,
     eventEmitter,
     history = false,
+    address,
   }: {
     url: string;
     eventEmitter: EventEmitter;
     history?: boolean;
+    address?: string;
   }) {
     super();
     const wsUrl = url.replace("http", "ws");
-    this._websocketUrl = `${wsUrl}/?history=${history ? "yes" : "no"}`;
+    const _history = `history=${history ? "yes" : "no"}`;
+    const _address = address ? `&address=${address}` : "";
+    this._websocketUrl = `${wsUrl}/?${_history}${_address}`;
     this._eventEmitter = eventEmitter;
   }
 

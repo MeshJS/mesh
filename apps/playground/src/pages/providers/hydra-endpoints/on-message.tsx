@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { HydraProvider } from "@meshsdk/core";
 
@@ -37,7 +37,7 @@ function Left() {
         called with the message as the only argument. Check{" "}
         <Link href="https://hydra.family/head-protocol/api-reference/#operation-subscribe-/">
           all events emitted
-        </Link>
+        </Link>{" "}
         by the Hydra node.
       </p>
       <Codeblock data={code} />
@@ -47,10 +47,14 @@ function Left() {
 
 function Right(hydraProvider: HydraProvider, provider: string) {
   useEffect(() => {
-    // hydraProvider.onMessage((message) => {
-    //   console.log("HydraProvider received message", message);
-    //   // do something with the message
-    // });
+    hydraProvider.onStatusChange((status) => {
+      console.log("Hydra status", status);
+      if (status === "OPEN") {
+        hydraProvider.onMessage((message) => {
+          console.log("HydraProvider received message:", message);
+        });
+      }
+    });
   }, []);
 
   return <></>;

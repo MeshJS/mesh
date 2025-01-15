@@ -1,14 +1,4 @@
-export const HYDRA_STATUS = {
-  IDLE: "IDLE",
-  DISCONNECTED: "DISCONNECTED",
-  CONNECTING: "CONNECTING",
-  CONNECTED: "CONNECTED",
-  INITIALIZING: "INITIALIZING",
-  OPEN: "OPEN",
-  CLOSED: "CLOSED",
-  FANOUT_POSSIBLE: "FANOUT_POSSIBLE",
-  FINAL: "FINAL",
-} as const;
+import { HYDRA_STATUS } from "../constants";
 
 export type HydraStatus = (typeof HYDRA_STATUS)[keyof typeof HYDRA_STATUS];
 
