@@ -189,7 +189,6 @@ export class HydraProvider implements IFetcher, ISubmitter {
         this.onMessage((message) => {
           if (message.transaction && message.transaction.cborHex === tx) {
             if (message.tag === "TxValid") {
-              console.log("txid", message.transaction.txId);
               resolve(message.transaction.txId);
             } else if (message.tag == "TxInvalid") {
               throw JSON.stringify(message.validationError);

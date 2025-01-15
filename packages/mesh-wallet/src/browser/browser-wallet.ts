@@ -482,9 +482,9 @@ export class BrowserWallet implements IWallet {
       const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
       const { dRepIDHash } = await BrowserWallet.dRepKeyToDRepID(dRepKey);
 
+      // todo TW: need to replace CST or getDrepId function
       // const networkId = await this.getNetworkId();
       // const dRepId = buildDRepID(dRepKey, networkId); // todo: this is not correct
-
       const csldRepIdKeyHash = csl.PublicKey.from_hex(dRepKey).hash(); // todo: need to replace CST
       const dRepId = csldRepIdKeyHash.to_bech32("drep");
 

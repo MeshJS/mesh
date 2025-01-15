@@ -11,8 +11,6 @@ import {
   TxIn,
   UTxO,
 } from "@meshsdk/common";
-// import { CSLSerializer } from "@meshsdk/core-csl";
-
 import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
 import { MeshTxBuilderCore } from "./tx-builder-core";
