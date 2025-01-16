@@ -1,7 +1,7 @@
 import type { NextPage } from "next";
 import { useState } from "react";
 
-import { MeshWallet } from "@meshsdk/core";
+import { HydraInstance, HydraProvider, MeshWallet } from "@meshsdk/core";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
@@ -11,6 +11,8 @@ import { metaHydraTutorial } from "~/data/links-hydra";
 import { getPageLinks } from "../common";
 import HydraTutorialPrerequisites from "./prerequisites";
 import HydraTutorialStep2 from "./step2";
+import HydraTutorialStep3 from "./step3";
+import HydraTutorialStep4 from "./step4";
 
 const ReactPage: NextPage = () => {
   const [aliceNode, setAliceNode] = useState<MeshWallet | undefined>(undefined);
@@ -19,6 +21,11 @@ const ReactPage: NextPage = () => {
   );
   const [bobNode, setBobNode] = useState<MeshWallet | undefined>(undefined);
   const [bobFunds, setBobFunds] = useState<MeshWallet | undefined>(undefined);
+
+  const hydraProvider = new HydraProvider({ url: "http://" });
+  const hydraInstance = new HydraInstance({
+    provider: hydraProvider,
+  });
 
   return (
     <>
@@ -57,6 +64,19 @@ const ReactPage: NextPage = () => {
           setAliceFunds={setAliceFunds}
           setBobNode={setBobNode}
           setBobFunds={setBobFunds}
+        />
+        <HydraTutorialStep3
+          aliceNode={aliceNode}
+          aliceFunds={aliceFunds}
+          bobNode={bobNode}
+          bobFunds={bobFunds}
+        />
+        <HydraTutorialStep4
+          hydraInstance={hydraInstance}
+          aliceNode={aliceNode}
+          aliceFunds={aliceFunds}
+          bobNode={bobNode}
+          bobFunds={bobFunds}
         />
       </SidebarFullwidth>
     </>
