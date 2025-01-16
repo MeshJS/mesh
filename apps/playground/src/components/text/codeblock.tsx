@@ -34,7 +34,7 @@ export default function Codeblock({
   }
 
   return (
-    <div className="relative mb-4 max-h-96 overflow-auto">
+    <div className="relative max-h-96 overflow-auto">
       <button
         type="button"
         className="absolute right-1 top-1 rounded-lg border border-neutral-300 bg-white px-1 py-1 text-sm font-medium text-neutral-900 hover:bg-neutral-100 focus:ring-4 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white dark:hover:border-neutral-600 dark:hover:bg-neutral-700 dark:focus:ring-neutral-700"

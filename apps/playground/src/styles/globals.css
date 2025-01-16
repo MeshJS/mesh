@@ -13,7 +13,6 @@
     --primary: #ffffff;
     --secondary: #a3a3a3;
   }
-
   :root[class~="dark"] {
     --primary: #171717;
     --secondary: #737373;
