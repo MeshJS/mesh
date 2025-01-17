@@ -47,7 +47,7 @@ import {
   Withdrawal,
 } from "@meshsdk/common";
 
-import { StricaPrivateKey } from "../";
+import {CborWriter, StricaPrivateKey} from "../";
 import {
   Address,
   AddressType,
@@ -96,6 +96,8 @@ import {
   TransactionWitnessSet,
   Value,
   VkeyWitness,
+  BootstrapWitness,
+  ByronAttributes,
 } from "../types";
 import {
   fromBuilderToPlutusData,
@@ -109,6 +111,10 @@ import { calculateFees } from "../utils/fee";
 import { toCardanoMetadataMap } from "../utils/metadata";
 import { hashScriptData } from "../utils/script-data-hash";
 import { empty, mergeValue, negatives, subValue } from "../utils/value";
+
+const VKEY_PUBKEY_SIZE_BYTES = 32;
+const VKEY_SIGNATURE_SIZE_BYTES = 64;
+const CHAIN_CODE_SIZE_BYTES = 32;
 
 export class CardanoSDKSerializer implements IMeshTxSerializer {
   verbose: boolean;
@@ -482,8 +488,8 @@ class CardanoSDKSerializerCore {
   public txAuxilliaryData: AuxiliaryData;
 
   private utxoContext: Map<TransactionInput, TransactionOutput> = new Map<
-    TransactionInput,
-    TransactionOutput
+      TransactionInput,
+      TransactionOutput
   >();
 
   private mintRedeemers: Map<String, Redeemer> = new Map<String, Redeemer>();
@@ -501,10 +507,10 @@ class CardanoSDKSerializerCore {
   constructor(protocolParams?: Protocol) {
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
     this.txBody = new TransactionBody(
-      Serialization.CborSet.fromCore([], TransactionInput.fromCore),
-      [],
-      BigInt(0),
-      undefined,
+        Serialization.CborSet.fromCore([], TransactionInput.fromCore),
+        [],
+        BigInt(0),
+        undefined,
     );
     this.refScriptSize = 0;
     this.txWitnessSet = new TransactionWitnessSet();
@@ -542,9 +548,9 @@ class CardanoSDKSerializerCore {
     this.buildWitnessSet();
     this.balanceTx(changeAddress);
     return new Transaction(
-      this.txBody,
-      this.txWitnessSet,
-      this.txAuxilliaryData,
+        this.txBody,
+        this.txWitnessSet,
+        this.txAuxilliaryData,
     ).toCbor();
   };
 
@@ -563,11 +569,11 @@ class CardanoSDKSerializerCore {
             outputAmount.quantity = "10000000";
 
             let dummyCardanoOutput: TransactionOutput = this.toCardanoOutput(
-              currentOutput!,
+                currentOutput!,
             );
             let minUtxoValue =
-              (160 + dummyCardanoOutput.toCbor().length / 2 + 1) *
-              this.protocolParams.coinsPerUtxoSize;
+                (160 + dummyCardanoOutput.toCbor().length / 2 + 1) *
+                this.protocolParams.coinsPerUtxoSize;
             outputAmount.quantity = minUtxoValue.toString();
           }
         }
@@ -578,11 +584,11 @@ class CardanoSDKSerializerCore {
           };
           currentOutput!.amount.push(currentAmount);
           let dummyCardanoOutput: TransactionOutput = this.toCardanoOutput(
-            currentOutput!,
+              currentOutput!,
           );
           let minUtxoValue =
-            (160 + dummyCardanoOutput.toCbor().length / 2 + 1) *
-            this.protocolParams.coinsPerUtxoSize;
+              (160 + dummyCardanoOutput.toCbor().length / 2 + 1) *
+              this.protocolParams.coinsPerUtxoSize;
           currentAmount.quantity = minUtxoValue.toString();
         }
       }
@@ -600,16 +606,16 @@ class CardanoSDKSerializerCore {
           break;
         case "Script":
           this.addScriptTxIn(
-            currentTxIn as RequiredWith<ScriptTxIn, "txIn" | "scriptTxIn">,
-            i,
+              currentTxIn as RequiredWith<ScriptTxIn, "txIn" | "scriptTxIn">,
+              i,
           );
           break;
         case "SimpleScript":
           this.addSimpleScriptTxIn(
-            currentTxIn as RequiredWith<
-              SimpleScriptTxIn,
-              "txIn" | "simpleScriptTxIn"
-            >,
+              currentTxIn as RequiredWith<
+                  SimpleScriptTxIn,
+                  "txIn" | "simpleScriptTxIn"
+              >,
           );
       }
     }
@@ -618,16 +624,16 @@ class CardanoSDKSerializerCore {
   private addTxIn = (currentTxIn: RequiredWith<PubKeyTxIn, "txIn">) => {
     // First build Cardano tx in and add it to tx body
     let cardanoTxIn = new TransactionInput(
-      TransactionId(currentTxIn.txIn.txHash),
-      BigInt(currentTxIn.txIn.txIndex),
+        TransactionId(currentTxIn.txIn.txHash),
+        BigInt(currentTxIn.txIn.txIndex),
     );
     const inputs = this.txBody.inputs();
     const txInputsList: TransactionInput[] = [...inputs.values()];
     if (
-      txInputsList.find((input) => {
-        input.index() == cardanoTxIn.index() &&
+        txInputsList.find((input) => {
+          input.index() == cardanoTxIn.index() &&
           input.transactionId == cardanoTxIn.transactionId;
-      })
+        })
     ) {
       throw new Error("Duplicate input added to tx body");
     }
@@ -635,16 +641,16 @@ class CardanoSDKSerializerCore {
     inputs.setValues(txInputsList);
     // We save the output to a mapping so that we can calculate change
     const cardanoTxOut = new TransactionOutput(
-      toCardanoAddress(currentTxIn.txIn.address),
-      toValue(currentTxIn.txIn.amount),
+        toCardanoAddress(currentTxIn.txIn.address),
+        toValue(currentTxIn.txIn.amount),
     );
     this.utxoContext.set(cardanoTxIn, cardanoTxOut);
     this.txBody.setInputs(inputs);
   };
 
   private addScriptTxIn = (
-    currentTxIn: RequiredWith<ScriptTxIn, "txIn" | "scriptTxIn">,
-    index: number,
+      currentTxIn: RequiredWith<ScriptTxIn, "txIn" | "scriptTxIn">,
+      index: number,
   ) => {
     // we can add the input in first, and handle the script info after
     this.addTxIn({
@@ -668,20 +674,20 @@ class CardanoSDKSerializerCore {
     }
     if (currentTxIn.scriptTxIn.datumSource.type === "Provided") {
       this.datumsProvided.add(
-        fromBuilderToPlutusData(currentTxIn.scriptTxIn.datumSource.data),
+          fromBuilderToPlutusData(currentTxIn.scriptTxIn.datumSource.data),
       );
     } else if (currentTxIn.scriptTxIn.datumSource.type === "Inline") {
       let referenceInputs =
-        this.txBody.referenceInputs() ??
-        Serialization.CborSet.fromCore([], TransactionInput.fromCore);
+          this.txBody.referenceInputs() ??
+          Serialization.CborSet.fromCore([], TransactionInput.fromCore);
 
       let referenceInputsList = [...referenceInputs.values()];
 
       referenceInputsList.push(
-        new TransactionInput(
-          TransactionId(currentTxIn.txIn.txHash),
-          BigInt(currentTxIn.txIn.txIndex),
-        ),
+          new TransactionInput(
+              TransactionId(currentTxIn.txIn.txHash),
+              BigInt(currentTxIn.txIn.txIndex),
+          ),
       );
 
       referenceInputs.setValues(referenceInputsList);
@@ -694,19 +700,19 @@ class CardanoSDKSerializerCore {
     let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
     let redeemersList = [...redeemers.values()];
     redeemersList.push(
-      new Redeemer(
-        RedeemerTag.Spend,
-        BigInt(index),
-        fromBuilderToPlutusData(currentTxIn.scriptTxIn.redeemer.data),
-        new ExUnits(BigInt(exUnits.mem), BigInt(exUnits.steps)),
-      ),
+        new Redeemer(
+            RedeemerTag.Spend,
+            BigInt(index),
+            fromBuilderToPlutusData(currentTxIn.scriptTxIn.redeemer.data),
+            new ExUnits(BigInt(exUnits.mem), BigInt(exUnits.steps)),
+        ),
     );
     redeemers.setValues(redeemersList);
     this.txWitnessSet.setRedeemers(redeemers);
   };
 
   private addSimpleScriptTxIn = (
-    currentTxIn: RequiredWith<SimpleScriptTxIn, "txIn" | "simpleScriptTxIn">,
+      currentTxIn: RequiredWith<SimpleScriptTxIn, "txIn" | "simpleScriptTxIn">,
   ) => {
     // we can add the input in first, and handle the script info after
     this.addTxIn({
@@ -718,11 +724,11 @@ class CardanoSDKSerializerCore {
     }
     if (currentTxIn.simpleScriptTxIn.scriptSource.type === "Provided") {
       this.scriptsProvided.add(
-        Script.newNativeScript(
-          NativeScript.fromCbor(
-            HexBlob(currentTxIn.simpleScriptTxIn.scriptSource.scriptCode),
-          ),
-        ).toCbor(),
+          Script.newNativeScript(
+              NativeScript.fromCbor(
+                  HexBlob(currentTxIn.simpleScriptTxIn.scriptSource.scriptCode),
+              ),
+          ).toCbor(),
       );
     } else if (currentTxIn.simpleScriptTxIn.scriptSource.type === "Inline") {
       this.addSimpleScriptRef(currentTxIn.simpleScriptTxIn.scriptSource);
@@ -743,29 +749,29 @@ class CardanoSDKSerializerCore {
 
   private toCardanoOutput = (output: Output): TransactionOutput => {
     let cardanoOutput = new TransactionOutput(
-      toCardanoAddress(output.address),
-      toValue(output.amount),
+        toCardanoAddress(output.address),
+        toValue(output.amount),
     );
     if (output.datum?.type === "Hash") {
       cardanoOutput.setDatum(
-        Datum.newDataHash(
-          DatumHash.fromHexBlob(
-            HexBlob(fromBuilderToPlutusData(output.datum.data).hash()),
+          Datum.newDataHash(
+              DatumHash.fromHexBlob(
+                  HexBlob(fromBuilderToPlutusData(output.datum.data).hash()),
+              ),
           ),
-        ),
       );
     } else if (output.datum?.type === "Inline") {
       cardanoOutput.setDatum(
-        Datum.newInlineData(fromBuilderToPlutusData(output.datum.data)),
+          Datum.newInlineData(fromBuilderToPlutusData(output.datum.data)),
       );
     } else if (output.datum?.type === "Embedded") {
       // Embedded datums get added to witness set
       const currentWitnessDatum =
-        this.txWitnessSet.plutusData() ??
-        Serialization.CborSet.fromCore([], Serialization.PlutusData.fromCore);
+          this.txWitnessSet.plutusData() ??
+          Serialization.CborSet.fromCore([], Serialization.PlutusData.fromCore);
       const currentWitnessDatumValues = [...currentWitnessDatum.values()];
       currentWitnessDatumValues.push(
-        fromBuilderToPlutusData(output.datum.data),
+          fromBuilderToPlutusData(output.datum.data),
       );
       currentWitnessDatum.setValues(currentWitnessDatumValues);
       this.txWitnessSet.setPlutusData(currentWitnessDatum);
@@ -774,25 +780,25 @@ class CardanoSDKSerializerCore {
       switch (output.referenceScript.version) {
         case "V1": {
           cardanoOutput.setScriptRef(
-            Script.newPlutusV1Script(
-              PlutusV1Script.fromCbor(HexBlob(output.referenceScript.code)),
-            ),
+              Script.newPlutusV1Script(
+                  PlutusV1Script.fromCbor(HexBlob(output.referenceScript.code)),
+              ),
           );
           break;
         }
         case "V2": {
           cardanoOutput.setScriptRef(
-            Script.newPlutusV2Script(
-              PlutusV2Script.fromCbor(HexBlob(output.referenceScript.code)),
-            ),
+              Script.newPlutusV2Script(
+                  PlutusV2Script.fromCbor(HexBlob(output.referenceScript.code)),
+              ),
           );
           break;
         }
         case "V3": {
           cardanoOutput.setScriptRef(
-            Script.newPlutusV3Script(
-              PlutusV3Script.fromCbor(HexBlob(output.referenceScript.code)),
-            ),
+              Script.newPlutusV3Script(
+                  PlutusV3Script.fromCbor(HexBlob(output.referenceScript.code)),
+              ),
           );
           break;
         }
@@ -809,16 +815,16 @@ class CardanoSDKSerializerCore {
 
   private addReferenceInput = (refInput: RefTxIn) => {
     let referenceInputs =
-      this.txBody.referenceInputs() ??
-      Serialization.CborSet.fromCore([], TransactionInput.fromCore);
+        this.txBody.referenceInputs() ??
+        Serialization.CborSet.fromCore([], TransactionInput.fromCore);
 
     let referenceInputsList = [...referenceInputs.values()];
 
     referenceInputsList.push(
-      new TransactionInput(
-        TransactionId.fromHexBlob(HexBlob(refInput.txHash)),
-        BigInt(refInput.txIndex),
-      ),
+        new TransactionInput(
+            TransactionId.fromHexBlob(HexBlob(refInput.txHash)),
+            BigInt(refInput.txIndex),
+        ),
     );
     referenceInputs.setValues(referenceInputsList);
 
@@ -834,10 +840,10 @@ class CardanoSDKSerializerCore {
     let i = 0;
     this.mintRedeemers.forEach((redeemer) => {
       const newRedeemer = new Redeemer(
-        redeemer.tag(),
-        BigInt(i),
-        redeemer.data(),
-        redeemer.exUnits(),
+          redeemer.tag(),
+          BigInt(i),
+          redeemer.data(),
+          redeemer.exUnits(),
       );
       redeemersList.push(newRedeemer);
       redeemers.setValues(redeemersList);
@@ -858,8 +864,8 @@ class CardanoSDKSerializerCore {
     }
 
     currentMint.set(
-      AssetId.fromParts(PolicyId(mint.policyId), AssetName(mint.assetName)),
-      BigInt(mint.amount),
+        AssetId.fromParts(PolicyId(mint.policyId), AssetName(mint.assetName)),
+        BigInt(mint.amount),
     );
     this.txBody.setMint(currentMint);
 
@@ -867,16 +873,16 @@ class CardanoSDKSerializerCore {
       if (!mint.scriptSource)
         throw new Error("Script source not provided for native script mint");
       const nativeScriptSource: SimpleScriptSourceInfo =
-        mint.scriptSource as SimpleScriptSourceInfo;
+          mint.scriptSource as SimpleScriptSourceInfo;
       if (!nativeScriptSource)
         throw new Error(
-          "A script source for a native script was not a native script somehow",
+            "A script source for a native script was not a native script somehow",
         );
       if (nativeScriptSource.type === "Provided") {
         this.scriptsProvided.add(
-          Script.newNativeScript(
-            NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
-          ).toCbor(),
+            Script.newNativeScript(
+                NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
+            ).toCbor(),
         );
       } else if (nativeScriptSource.type === "Inline") {
         this.addSimpleScriptRef(nativeScriptSource);
@@ -887,7 +893,7 @@ class CardanoSDKSerializerCore {
       const plutusScriptSource = mint.scriptSource as ScriptSource;
       if (!plutusScriptSource) {
         throw new Error(
-          "A script source for a plutus mint was not plutus script somehow",
+            "A script source for a plutus mint was not plutus script somehow",
         );
       }
       if (!mint.redeemer) {
@@ -895,21 +901,21 @@ class CardanoSDKSerializerCore {
       }
       // Add mint redeemer to mapping
       const currentRedeemer = new Redeemer(
-        RedeemerTag.Mint,
-        BigInt(0),
-        fromBuilderToPlutusData(mint.redeemer.data),
-        new ExUnits(
-          BigInt(mint.redeemer.exUnits.mem),
-          BigInt(mint.redeemer.exUnits.steps),
-        ),
+          RedeemerTag.Mint,
+          BigInt(0),
+          fromBuilderToPlutusData(mint.redeemer.data),
+          new ExUnits(
+              BigInt(mint.redeemer.exUnits.mem),
+              BigInt(mint.redeemer.exUnits.steps),
+          ),
       );
       if (this.mintRedeemers.has(mint.policyId)) {
         if (
-          this.mintRedeemers.get(mint.policyId)?.toCbor() !==
-          currentRedeemer.toCbor()
+            this.mintRedeemers.get(mint.policyId)?.toCbor() !==
+            currentRedeemer.toCbor()
         ) {
           throw new Error(
-            "The same minting policy must have the same redeemer",
+              "The same minting policy must have the same redeemer",
           );
         }
       } else {
@@ -932,8 +938,8 @@ class CardanoSDKSerializerCore {
 
   private addCert = (cert: Certificate, index: number) => {
     const currentCerts =
-      this.txBody.certs() ??
-      Serialization.CborSet.fromCore([], Serialization.Certificate.fromCore);
+        this.txBody.certs() ??
+        Serialization.CborSet.fromCore([], Serialization.Certificate.fromCore);
     let currentCertsValues = [...currentCerts.values()];
     currentCertsValues.push(toCardanoCert(cert.certType));
     currentCerts.setValues(currentCertsValues);
@@ -943,16 +949,16 @@ class CardanoSDKSerializerCore {
       if (!cert.simpleScriptSource)
         throw new Error("Script source not provided for native script cert");
       const nativeScriptSource: SimpleScriptSourceInfo =
-        cert.simpleScriptSource as SimpleScriptSourceInfo;
+          cert.simpleScriptSource as SimpleScriptSourceInfo;
       if (!nativeScriptSource)
         throw new Error(
-          "A script source for a native script was not a native script somehow",
+            "A script source for a native script was not a native script somehow",
         );
       if (nativeScriptSource.type === "Provided") {
         this.scriptsProvided.add(
-          Script.newNativeScript(
-            NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
-          ).toCbor(),
+            Script.newNativeScript(
+                NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
+            ).toCbor(),
         );
       } else if (nativeScriptSource.type === "Inline") {
         this.addSimpleScriptRef(nativeScriptSource);
@@ -960,12 +966,12 @@ class CardanoSDKSerializerCore {
     } else if (cert.type === "ScriptCertificate") {
       if (!cert.scriptSource)
         throw new Error(
-          "Script source not provided for plutus script certificate",
+            "Script source not provided for plutus script certificate",
         );
       const plutusScriptSource = cert.scriptSource as ScriptSource;
       if (!plutusScriptSource) {
         throw new Error(
-          "A script source for a plutus certificate was not plutus script somehow",
+            "A script source for a plutus certificate was not plutus script somehow",
         );
       }
       if (!cert.redeemer) {
@@ -976,15 +982,15 @@ class CardanoSDKSerializerCore {
       let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
       let redeemersList = [...redeemers.values()];
       redeemersList.push(
-        new Redeemer(
-          RedeemerTag.Cert,
-          BigInt(index),
-          fromBuilderToPlutusData(cert.redeemer.data),
-          new ExUnits(
-            BigInt(cert.redeemer.exUnits.mem),
-            BigInt(cert.redeemer.exUnits.steps),
+          new Redeemer(
+              RedeemerTag.Cert,
+              BigInt(index),
+              fromBuilderToPlutusData(cert.redeemer.data),
+              new ExUnits(
+                  BigInt(cert.redeemer.exUnits.mem),
+                  BigInt(cert.redeemer.exUnits.steps),
+              ),
           ),
-        ),
       );
       redeemers.setValues(redeemersList);
       this.txWitnessSet.setRedeemers(redeemers);
@@ -1005,18 +1011,18 @@ class CardanoSDKSerializerCore {
 
   private addWithdrawal = (withdrawal: Withdrawal, index: number) => {
     const currentWithdrawals =
-      this.txBody.withdrawals() ?? new Map<RewardAccount, bigint>();
+        this.txBody.withdrawals() ?? new Map<RewardAccount, bigint>();
     const address = toCardanoAddress(withdrawal.address);
     const rewardAddress = address.asReward();
     if (!rewardAddress) {
       throw new Error("Failed to parse reward address for withdrawal");
     }
     currentWithdrawals.set(
-      RewardAccount.fromCredential(
-        rewardAddress.getPaymentCredential(),
-        address.getNetworkId(),
-      ),
-      BigInt(withdrawal.coin),
+        RewardAccount.fromCredential(
+            rewardAddress.getPaymentCredential(),
+            address.getNetworkId(),
+        ),
+        BigInt(withdrawal.coin),
     );
     this.txBody.setWithdrawals(currentWithdrawals);
 
@@ -1024,16 +1030,16 @@ class CardanoSDKSerializerCore {
       if (!withdrawal.scriptSource)
         throw new Error("Script source not provided for native script cert");
       const nativeScriptSource: SimpleScriptSourceInfo =
-        withdrawal.scriptSource as SimpleScriptSourceInfo;
+          withdrawal.scriptSource as SimpleScriptSourceInfo;
       if (!nativeScriptSource)
         throw new Error(
-          "A script source for a native script was not a native script somehow",
+            "A script source for a native script was not a native script somehow",
         );
       if (nativeScriptSource.type === "Provided") {
         this.scriptsProvided.add(
-          Script.newNativeScript(
-            NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
-          ).toCbor(),
+            Script.newNativeScript(
+                NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
+            ).toCbor(),
         );
       } else if (nativeScriptSource.type === "Inline") {
         this.addSimpleScriptRef(nativeScriptSource);
@@ -1041,12 +1047,12 @@ class CardanoSDKSerializerCore {
     } else if (withdrawal.type === "ScriptWithdrawal") {
       if (!withdrawal.scriptSource)
         throw new Error(
-          "Script source not provided for plutus script certificate",
+            "Script source not provided for plutus script certificate",
         );
       const plutusScriptSource = withdrawal.scriptSource as ScriptSource;
       if (!plutusScriptSource) {
         throw new Error(
-          "A script source for a plutus certificate was not plutus script somehow",
+            "A script source for a plutus certificate was not plutus script somehow",
         );
       }
       if (!withdrawal.redeemer) {
@@ -1057,15 +1063,15 @@ class CardanoSDKSerializerCore {
       let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
       let redeemersList = [...redeemers.values()];
       redeemersList.push(
-        new Redeemer(
-          RedeemerTag.Reward,
-          BigInt(index),
-          fromBuilderToPlutusData(withdrawal.redeemer.data),
-          new ExUnits(
-            BigInt(withdrawal.redeemer.exUnits.mem),
-            BigInt(withdrawal.redeemer.exUnits.steps),
+          new Redeemer(
+              RedeemerTag.Reward,
+              BigInt(index),
+              fromBuilderToPlutusData(withdrawal.redeemer.data),
+              new ExUnits(
+                  BigInt(withdrawal.redeemer.exUnits.mem),
+                  BigInt(withdrawal.redeemer.exUnits.steps),
+              ),
           ),
-        ),
       );
       redeemers.setValues(redeemersList);
       this.txWitnessSet.setRedeemers(redeemers);
@@ -1081,30 +1087,30 @@ class CardanoSDKSerializerCore {
   private addAllCollateralInputs = (collaterals: PubKeyTxIn[]) => {
     for (let i = 0; i < collaterals.length; i++) {
       this.addCollateralInput(
-        collaterals[i] as RequiredWith<PubKeyTxIn, "txIn">,
+          collaterals[i] as RequiredWith<PubKeyTxIn, "txIn">,
       );
     }
   };
 
   private addCollateralInput = (
-    collateral: RequiredWith<PubKeyTxIn, "txIn">,
+      collateral: RequiredWith<PubKeyTxIn, "txIn">,
   ) => {
     // First build Cardano tx in and add it to tx body
     let cardanoTxIn = new TransactionInput(
-      TransactionId(collateral.txIn.txHash),
-      BigInt(collateral.txIn.txIndex),
+        TransactionId(collateral.txIn.txHash),
+        BigInt(collateral.txIn.txIndex),
     );
     const collateralInputs =
-      this.txBody.collateral() ??
-      Serialization.CborSet.fromCore([], TransactionInput.fromCore);
+        this.txBody.collateral() ??
+        Serialization.CborSet.fromCore([], TransactionInput.fromCore);
     const collateralInputsList: TransactionInput[] = [
       ...collateralInputs.values(),
     ];
     if (
-      collateralInputsList.find((input) => {
-        input.index() == cardanoTxIn.index() &&
+        collateralInputsList.find((input) => {
+          input.index() == cardanoTxIn.index() &&
           input.transactionId == cardanoTxIn.transactionId;
-      })
+        })
     ) {
       throw new Error("Duplicate input added to tx body");
     }
@@ -1113,8 +1119,8 @@ class CardanoSDKSerializerCore {
     // We save the output to a mapping so that we can calculate collateral return later
     // TODO: set collateral return
     const cardanoTxOut = new TransactionOutput(
-      toCardanoAddress(collateral.txIn.address),
-      toValue(collateral.txIn.amount),
+        toCardanoAddress(collateral.txIn.address),
+        toValue(collateral.txIn.amount),
     );
     this.utxoContext.set(cardanoTxIn, cardanoTxOut);
     this.txBody.setCollateral(collateralInputs);
@@ -1131,15 +1137,15 @@ class CardanoSDKSerializerCore {
 
   private addAllRequiredSignatures = (requiredSignatures: string[]) => {
     const requiredSigners: Serialization.CborSet<
-      Ed25519KeyHashHex,
-      Serialization.Hash<Ed25519KeyHashHex>
+        Ed25519KeyHashHex,
+        Serialization.Hash<Ed25519KeyHashHex>
     > = this.txBody.requiredSigners() ??
-    Serialization.CborSet.fromCore([], Serialization.Hash.fromCore);
+        Serialization.CborSet.fromCore([], Serialization.Hash.fromCore);
 
     let requiredSignerValues = [...requiredSigners.values()];
     for (const requiredSigner of requiredSignatures) {
       requiredSignerValues.push(
-        Serialization.Hash.fromCore(Ed25519KeyHashHex(requiredSigner)),
+          Serialization.Hash.fromCore(Ed25519KeyHashHex(requiredSigner)),
       );
     }
     requiredSigners.setValues(requiredSignerValues);
@@ -1148,29 +1154,29 @@ class CardanoSDKSerializerCore {
 
   private addMetadata = (metadata: TxMetadata) => {
     this.txAuxilliaryData.setMetadata(
-      new Serialization.GeneralTransactionMetadata(
-        toCardanoMetadataMap(metadata),
-      ),
+        new Serialization.GeneralTransactionMetadata(
+            toCardanoMetadataMap(metadata),
+        ),
     );
   };
 
   private buildWitnessSet = () => {
     // Add provided scripts to tx witness set
     let nativeScripts =
-      this.txWitnessSet.nativeScripts() ??
-      Serialization.CborSet.fromCore([], NativeScript.fromCore);
+        this.txWitnessSet.nativeScripts() ??
+        Serialization.CborSet.fromCore([], NativeScript.fromCore);
 
     let v1Scripts =
-      this.txWitnessSet.plutusV1Scripts() ??
-      Serialization.CborSet.fromCore([], PlutusV1Script.fromCore);
+        this.txWitnessSet.plutusV1Scripts() ??
+        Serialization.CborSet.fromCore([], PlutusV1Script.fromCore);
 
     let v2Scripts =
-      this.txWitnessSet.plutusV2Scripts() ??
-      Serialization.CborSet.fromCore([], PlutusV2Script.fromCore);
+        this.txWitnessSet.plutusV2Scripts() ??
+        Serialization.CborSet.fromCore([], PlutusV2Script.fromCore);
 
     let v3Scripts =
-      this.txWitnessSet.plutusV3Scripts() ??
-      Serialization.CborSet.fromCore([], PlutusV3Script.fromCore);
+        this.txWitnessSet.plutusV3Scripts() ??
+        Serialization.CborSet.fromCore([], PlutusV3Script.fromCore);
 
     this.scriptsProvided.forEach((scriptHex) => {
       const script = Script.fromCbor(HexBlob(scriptHex));
@@ -1200,8 +1206,8 @@ class CardanoSDKSerializerCore {
 
     // Add provided datums to tx witness set
     let datums =
-      this.txWitnessSet.plutusData() ??
-      Serialization.CborSet.fromCore([], PlutusData.fromCore);
+        this.txWitnessSet.plutusData() ??
+        Serialization.CborSet.fromCore([], PlutusData.fromCore);
 
     let datumsList = [...datums.values()];
     this.datumsProvided.forEach((datum) => {
@@ -1213,13 +1219,13 @@ class CardanoSDKSerializerCore {
     // After building tx witness set, we must hash it with the cost models
     // and put the hash in the tx body
     let costModelV1 = Serialization.CostModel.newPlutusV1(
-      DEFAULT_V1_COST_MODEL_LIST,
+        DEFAULT_V1_COST_MODEL_LIST,
     );
     let costModelV2 = Serialization.CostModel.newPlutusV2(
-      DEFAULT_V2_COST_MODEL_LIST,
+        DEFAULT_V2_COST_MODEL_LIST,
     );
     let costModelV3 = Serialization.CostModel.newPlutusV3(
-      DEFAULT_V3_COST_MODEL_LIST,
+        DEFAULT_V3_COST_MODEL_LIST,
     );
     let costModels = new Serialization.Costmdls();
 
@@ -1234,15 +1240,15 @@ class CardanoSDKSerializerCore {
     }
     const redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
     let scriptDataHash = hashScriptData(
-      costModels,
-      redeemers.size() > 0 ? [...redeemers.values()] : undefined,
-      datums.size() > 0 ? [...datums.values()] : undefined,
+        costModels,
+        redeemers.size() > 0 ? [...redeemers.values()] : undefined,
+        datums.size() > 0 ? [...datums.values()] : undefined,
     );
     if (scriptDataHash) {
       this.txBody.setScriptDataHash(scriptDataHash);
     }
     let auxiliaryDataHash = computeAuxiliaryDataHash(
-      this.txAuxilliaryData.toCore(),
+        this.txAuxilliaryData.toCore(),
     );
     if (auxiliaryDataHash) {
       this.txBody.setAuxiliaryDataHash(auxiliaryDataHash);
@@ -1266,10 +1272,10 @@ class CardanoSDKSerializerCore {
         }
       });
       this.txBody.setReferenceInputs(
-        Serialization.CborSet.fromCore(
-          refInputsValues.map((input) => input.toCore()),
-          TransactionInput.fromCore,
-        ),
+          Serialization.CborSet.fromCore(
+              refInputsValues.map((input) => input.toCore()),
+              TransactionInput.fromCore,
+          ),
       );
     }
   };
@@ -1304,8 +1310,8 @@ class CardanoSDKSerializerCore {
 
     // Then we add all mint values
     remainingValue = mergeValue(
-      remainingValue,
-      new Value(BigInt(0), this.txBody.mint()),
+        remainingValue,
+        new Value(BigInt(0), this.txBody.mint()),
     );
 
     // We then take away any current outputs
@@ -1324,54 +1330,54 @@ class CardanoSDKSerializerCore {
         switch (cert.toCore().__typename) {
           case CertificateType.StakeRegistration: {
             remainingValue = subValue(
-              remainingValue,
-              new Value(BigInt(this.protocolParams.keyDeposit)),
+                remainingValue,
+                new Value(BigInt(this.protocolParams.keyDeposit)),
             );
             break;
           }
           case CertificateType.StakeDeregistration: {
             remainingValue = mergeValue(
-              remainingValue,
-              new Value(BigInt(this.protocolParams.keyDeposit)),
+                remainingValue,
+                new Value(BigInt(this.protocolParams.keyDeposit)),
             );
             break;
           }
           case CertificateType.Registration: {
             remainingValue = subValue(
-              remainingValue,
-              new Value(BigInt(cert.asRegistrationCert()?.deposit() ?? 0)),
+                remainingValue,
+                new Value(BigInt(cert.asRegistrationCert()?.deposit() ?? 0)),
             );
             break;
           }
           case CertificateType.Unregistration: {
             remainingValue = mergeValue(
-              remainingValue,
-              new Value(BigInt(cert.asUnregistrationCert()?.deposit() ?? 0)),
+                remainingValue,
+                new Value(BigInt(cert.asUnregistrationCert()?.deposit() ?? 0)),
             );
             break;
           }
           case CertificateType.PoolRegistration: {
             remainingValue = subValue(
-              remainingValue,
-              new Value(BigInt(this.protocolParams.poolDeposit)),
+                remainingValue,
+                new Value(BigInt(this.protocolParams.poolDeposit)),
             );
             break;
           }
           case CertificateType.PoolRetirement: {
             remainingValue = mergeValue(
-              remainingValue,
-              new Value(BigInt(this.protocolParams.poolDeposit)),
+                remainingValue,
+                new Value(BigInt(this.protocolParams.poolDeposit)),
             );
             break;
           }
           case CertificateType.RegisterDelegateRepresentative: {
             remainingValue = subValue(
-              remainingValue,
-              new Value(
-                BigInt(
-                  cert.asRegisterDelegateRepresentativeCert()?.deposit() ?? 0,
+                remainingValue,
+                new Value(
+                    BigInt(
+                        cert.asRegisterDelegateRepresentativeCert()?.deposit() ?? 0,
+                    ),
                 ),
-              ),
             );
             break;
           }
@@ -1399,12 +1405,12 @@ class CardanoSDKSerializerCore {
           }
           case CertificateType.StakeVoteRegistrationDelegation: {
             remainingValue = subValue(
-              remainingValue,
-              new Value(
-                BigInt(
-                  cert.asStakeVoteRegistrationDelegationCert()?.deposit() ?? 0,
+                remainingValue,
+                new Value(
+                    BigInt(
+                        cert.asStakeVoteRegistrationDelegationCert()?.deposit() ?? 0,
+                    ),
                 ),
-              ),
             );
             break;
           }
@@ -1419,7 +1425,7 @@ class CardanoSDKSerializerCore {
     }
 
     currentOutputs.push(
-      new TransactionOutput(toCardanoAddress(changeAddress), remainingValue),
+        new TransactionOutput(toCardanoAddress(changeAddress), remainingValue),
     );
     this.txBody.setOutputs(currentOutputs);
 
@@ -1432,13 +1438,13 @@ class CardanoSDKSerializerCore {
     // length of dummy tx, then calculate fees related to script
     // ref size
     const fee = calculateFees(
-      this.protocolParams.minFeeA,
-      this.protocolParams.minFeeB,
-      this.protocolParams.minFeeRefScriptCostPerByte,
-      this.protocolParams.priceMem,
-      this.protocolParams.priceStep,
-      dummyTx,
-      this.refScriptSize,
+        this.protocolParams.minFeeA,
+        this.protocolParams.minFeeB,
+        this.protocolParams.minFeeRefScriptCostPerByte,
+        this.protocolParams.priceMem,
+        this.protocolParams.priceStep,
+        dummyTx,
+        this.refScriptSize,
     );
 
     this.txBody.setFee(fee);
@@ -1448,7 +1454,7 @@ class CardanoSDKSerializerCore {
     const changeOutput = currentOutputs.pop();
     if (!changeOutput) {
       throw new Error(
-        "Somehow the output length was 0 after attempting to calculate fees",
+          "Somehow the output length was 0 after attempting to calculate fees",
       );
     }
     if (changeOutput.amount().coin() - fee > 0) {
@@ -1464,7 +1470,7 @@ class CardanoSDKSerializerCore {
 
   private createDummyTx = (numberOfRequiredWitnesses: number): Transaction => {
     let dummyWitnessSet = TransactionWitnessSet.fromCbor(
-      HexBlob(this.txWitnessSet.toCbor()),
+        HexBlob(this.txWitnessSet.toCbor()),
     );
     const dummyVkeyWitnesses: [Ed25519PublicKeyHex, Ed25519SignatureHex][] = [];
     for (let i = 0; i < numberOfRequiredWitnesses; i++) {
@@ -1474,7 +1480,7 @@ class CardanoSDKSerializerCore {
       ]);
     }
     dummyWitnessSet.setVkeys(
-      Serialization.CborSet.fromCore(dummyVkeyWitnesses, VkeyWitness.fromCore),
+        Serialization.CborSet.fromCore(dummyVkeyWitnesses, VkeyWitness.fromCore),
     );
 
     return new Transaction(this.txBody, dummyWitnessSet, this.txAuxilliaryData);
@@ -1485,16 +1491,16 @@ class CardanoSDKSerializerCore {
       return;
     }
     let referenceInputs =
-      this.txBody.referenceInputs() ??
-      Serialization.CborSet.fromCore([], TransactionInput.fromCore);
+        this.txBody.referenceInputs() ??
+        Serialization.CborSet.fromCore([], TransactionInput.fromCore);
 
     let referenceInputsList = [...referenceInputs.values()];
 
     referenceInputsList.push(
-      new TransactionInput(
-        TransactionId(scriptSource.txHash),
-        BigInt(scriptSource.txIndex),
-      ),
+        new TransactionInput(
+            TransactionId(scriptSource.txHash),
+            BigInt(scriptSource.txIndex),
+        ),
     );
 
     referenceInputs.setValues(referenceInputsList);
@@ -1519,28 +1525,28 @@ class CardanoSDKSerializerCore {
       this.refScriptSize += Number(scriptSource.scriptSize);
     } else {
       throw new Error(
-        "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
+          "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
       );
     }
   };
 
   private addSimpleScriptRef = (
-    simpleScriptSource: SimpleScriptSourceInfo,
+      simpleScriptSource: SimpleScriptSourceInfo,
   ): void => {
     if (simpleScriptSource.type !== "Inline") {
       return;
     }
     let referenceInputs =
-      this.txBody.referenceInputs() ??
-      Serialization.CborSet.fromCore([], TransactionInput.fromCore);
+        this.txBody.referenceInputs() ??
+        Serialization.CborSet.fromCore([], TransactionInput.fromCore);
 
     let referenceInputsList = [...referenceInputs.values()];
 
     referenceInputsList.push(
-      new TransactionInput(
-        TransactionId(simpleScriptSource.txHash),
-        BigInt(simpleScriptSource.txIndex),
-      ),
+        new TransactionInput(
+            TransactionId(simpleScriptSource.txHash),
+            BigInt(simpleScriptSource.txIndex),
+        ),
     );
 
     // Keep track of total size of reference scripts
@@ -1548,7 +1554,7 @@ class CardanoSDKSerializerCore {
       this.refScriptSize += Number(simpleScriptSource.scriptSize);
     } else {
       throw new Error(
-        "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
+          "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
       );
     }
 
@@ -1572,9 +1578,9 @@ class CardanoSDKSerializerCore {
       const input = inputs[i];
       // KeyHash credential type is enum 0
       const addressPaymentPart = this.utxoContext
-        .get(input!)
-        ?.address()
-        .getProps().paymentPart;
+          .get(input!)
+          ?.address()
+          .getProps().paymentPart;
       if (addressPaymentPart?.type === 0) {
         requiredWitnesses.add(addressPaymentPart.hash);
       }
@@ -1586,9 +1592,9 @@ class CardanoSDKSerializerCore {
       for (let i = 0; i < collateralInputs?.length; i++) {
         const collateralInput = collateralInputs[i];
         const addressPaymentPart = this.utxoContext
-          .get(collateralInput!)
-          ?.address()
-          .getProps().paymentPart;
+            .get(collateralInput!)
+            ?.address()
+            .getProps().paymentPart;
         if (addressPaymentPart?.type === 0) {
           requiredWitnesses.add(addressPaymentPart.hash);
         }
@@ -1711,8 +1717,8 @@ class CardanoSDKSerializerCore {
   }
 
   private addKeyHashesFromNativeScript(
-    script: NativeScript,
-    keyHashes: Set<String>,
+      script: NativeScript,
+      keyHashes: Set<String>,
   ) {
     const scriptCore = script.toCore();
     switch (scriptCore.kind) {
@@ -1729,8 +1735,8 @@ class CardanoSDKSerializerCore {
       case RequireAllOf: {
         for (const innerScript of scriptCore.scripts) {
           this.addKeyHashesFromNativeScript(
-            NativeScript.fromCore(innerScript),
-            keyHashes,
+              NativeScript.fromCore(innerScript),
+              keyHashes,
           );
         }
         return;
@@ -1738,8 +1744,8 @@ class CardanoSDKSerializerCore {
       case RequireAnyOf: {
         for (const innerScript of scriptCore.scripts) {
           this.addKeyHashesFromNativeScript(
-            NativeScript.fromCore(innerScript),
-            keyHashes,
+              NativeScript.fromCore(innerScript),
+              keyHashes,
           );
         }
         return;
@@ -1747,8 +1753,8 @@ class CardanoSDKSerializerCore {
       case RequireNOf: {
         for (const innerScript of scriptCore.scripts) {
           this.addKeyHashesFromNativeScript(
-            NativeScript.fromCore(innerScript),
-            keyHashes,
+              NativeScript.fromCore(innerScript),
+              keyHashes,
           );
         }
         return;
@@ -1761,31 +1767,110 @@ class CardanoSDKSerializerCore {
     switch (script.version) {
       case "V1": {
         this.scriptsProvided.add(
-          Script.newPlutusV1Script(
-            PlutusV1Script.fromCbor(HexBlob(script.code)),
-          ).toCbor(),
+            Script.newPlutusV1Script(
+                PlutusV1Script.fromCbor(HexBlob(script.code)),
+            ).toCbor(),
         );
         this.usedLanguages[PlutusLanguageVersion.V1] = true;
         break;
       }
       case "V2": {
         this.scriptsProvided.add(
-          Script.newPlutusV2Script(
-            PlutusV2Script.fromCbor(HexBlob(script.code)),
-          ).toCbor(),
+            Script.newPlutusV2Script(
+                PlutusV2Script.fromCbor(HexBlob(script.code)),
+            ).toCbor(),
         );
         this.usedLanguages[PlutusLanguageVersion.V2] = true;
         break;
       }
       case "V3": {
         this.scriptsProvided.add(
-          Script.newPlutusV3Script(
-            PlutusV3Script.fromCbor(HexBlob(script.code)),
-          ).toCbor(),
+            Script.newPlutusV3Script(
+                PlutusV3Script.fromCbor(HexBlob(script.code)),
+            ).toCbor(),
         );
         this.usedLanguages[PlutusLanguageVersion.V3] = true;
         break;
       }
     }
   };
+
+  private mockVkeyWitnesses = (numberOfRequiredWitnesses: number): VkeyWitness[] => {
+    let vkeyWitnesses: VkeyWitness[] = [];
+    for (let i = 0; i < numberOfRequiredWitnesses; i++) {
+      const numberInHex = this.numberToIntegerHex(i);
+      const pubKeyHex = this.mockPubkey(numberInHex);
+      const signature = this.mockSignature(numberInHex);
+      vkeyWitnesses.push(
+          new VkeyWitness(Ed25519PublicKeyHex(pubKeyHex), Ed25519SignatureHex(signature)),
+      );
+    }
+    return vkeyWitnesses;
+  }
+
+  private mockPubkey(numberInHex: string): string {
+    return "0".repeat((VKEY_PUBKEY_SIZE_BYTES * 2) - numberInHex.length).concat(numberInHex);
+  }
+
+  private mockSignature(numberInHex: string): string {
+    return "0".repeat((VKEY_SIGNATURE_SIZE_BYTES * 2) - numberInHex.length).concat(numberInHex);
+  }
+
+  private mockChainCode = (numberInHex: string): string => {
+    return "0".repeat((CHAIN_CODE_SIZE_BYTES * 2) - numberInHex.length).concat(numberInHex);
+  }
+
+  private numberToIntegerHex = (number: number): string => {
+    return BigInt(number).toString(16);
+  }
+
+  private mockBootstrapWitnesses = (byronAddresses: string[]): BootstrapWitness[] => {
+    let bootstrapWitnesses: BootstrapWitness[] = [];
+    for (let i = 0; i < byronAddresses.length; i++) {
+      const address = Address.fromBytes(<HexBlob>byronAddresses[i]).asByron();
+      if (!address) {
+        throw new Error(`Failed to parse byron address: ${byronAddresses[i]}`);
+      }
+      const numberInHex = this.numberToIntegerHex(i);
+      const pubKeyHex = this.mockPubkey(numberInHex);
+      const signature = this.mockSignature(numberInHex);
+      const chainCode = this.mockChainCode(numberInHex)
+      const attributes = address.getAttributes();
+      bootstrapWitnesses.push(
+          new BootstrapWitness(
+                Ed25519PublicKeyHex(pubKeyHex),
+                Ed25519SignatureHex(signature),
+                HexBlob(chainCode),
+                this.serializeByronAttributes(attributes),
+          )
+      );
+    }
+    return bootstrapWitnesses;
+  }
+
+  private serializeByronAttributes = (attributes: ByronAttributes): HexBlob => {
+    const writer = new CborWriter();
+    let mapSize = 0;
+    if (attributes.magic) {
+      mapSize++;
+    }
+    if (attributes.derivationPath) {
+      mapSize++;
+    }
+
+    writer.writeStartMap(mapSize);
+    if (attributes.derivationPath) {
+      writer.writeInt(1);
+      const encodedPathCbor = new CborWriter()
+          .writeByteString(Buffer.from(attributes.derivationPath, 'hex'))
+          .encode();
+      writer.writeByteString(encodedPathCbor);
+    }
+    if (attributes.magic) {
+      writer.writeInt(2);
+      const encodedMagicCbor = new CborWriter().writeInt(attributes.magic).encode();
+      writer.writeByteString(encodedMagicCbor);
+    }
+    return writer.encodeAsHex();
+  }
 }
