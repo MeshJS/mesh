@@ -67,22 +67,21 @@ export const CardanoWallet = ({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {!connected ? (
-        <DialogTrigger asChild>
-          <Button variant="outline" className="mesh-text-white">
-            {label}
-          </Button>
-        </DialogTrigger>
-      ) : (
-        <ConnectedButton />
-      )}
+      <div className={isDark ? "mesh-dark" : ""}>
+        {!connected ? (
+          <DialogTrigger asChild>
+            <Button variant="outline">{label}</Button>
+          </DialogTrigger>
+        ) : (
+          <ConnectedButton />
+        )}
+      </div>
 
       <DialogContent
-        className="sm:mesh-max-w-[425px]"
+        className="sm:mesh-max-w-[425px] mesh-dark"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <Header screen={screen} setScreen={setScreen} />
-
         {screen == "main" && (
           <ScreenMain
             injectFn={injectFn}

@@ -49,6 +49,7 @@ export function CommonCardanoWallet() {
       //   url: "http://localhost:8080",
       // }}
       injectFn={async () => await checkIfMetamaskInstalled("preprod")}
+      isDark={true}
     />
   );
 }
