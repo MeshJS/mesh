@@ -50,6 +50,7 @@ export function CommonCardanoWallet() {
       // }}
       injectFn={async () => await checkIfMetamaskInstalled("preprod")}
       isDark={true}
+      persist={true}
     />
   );
 }
