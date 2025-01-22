@@ -6,12 +6,12 @@ import Metatags from "~/components/site/metatags";
 import { metaReactUicomponents } from "~/data/links-react";
 import ReactConnectWallet from "./connect-wallet";
 import ReactPoweredMesh from "./powered-mesh";
-import ReactStakeButton from "./stake-button";
+// import ReactStakeButton from "./stake-button";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
     { label: "Connect Wallet", to: "connectWallet" },
-    { label: "Stake ADA Button", to: "stakeButton" },
+    // { label: "Stake ADA Button", to: "stakeButton" },
     { label: "Mesh Badge", to: "meshBadge" },
   ];
 
@@ -35,7 +35,7 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
 
         <ReactConnectWallet />
-        <ReactStakeButton />
+        {/* <ReactStakeButton /> */}
         <ReactPoweredMesh />
       </SidebarFullwidth>
     </>
