@@ -7,6 +7,7 @@ const config: Pick<
   "prefix" | "presets" | "content" | "theme" | "plugins" | "darkMode"
 > = {
   content: ["./src/**/*.tsx", "./src/common/**/*.tsx"],
+  darkMode: 'class',
   prefix: "mesh-",
   presets: [sharedConfig],
   theme: {
