@@ -17,6 +17,7 @@ interface WalletContext {
   setWallet: (walletInstance: IWallet, walletName: string) => void;
   setPersist: (persist: boolean) => void;
   error?: unknown;
+  address: string;
 }
 
 const INITIAL_STATE = {
@@ -30,10 +31,9 @@ export const useWalletStore = () => {
   const [error, setError] = useState<unknown>(undefined);
   const [connectingWallet, setConnectingWallet] = useState<boolean>(false);
   const [persistSession, setPersistSession] = useState<boolean>(false);
-
+  const [address, setAddress] = useState("");
   const [connectedWalletInstance, setConnectedWalletInstance] =
     useState<IWallet>(INITIAL_STATE.walletInstance);
-
   const [connectedWalletName, setConnectedWalletName] = useState<
     string | undefined
   >(INITIAL_STATE.walletName);
@@ -49,13 +49,15 @@ export const useWalletStore = () => {
         );
         setConnectedWalletInstance(walletInstance);
         setConnectedWalletName(walletName);
+        setError(undefined);
+
+        // if persist, set localstorage
         if (persist) {
           localStorage.setItem(
             localstoragePersist,
             JSON.stringify({ walletName }),
           );
         }
-        setError(undefined);
       } catch (error) {
         setError(error);
       }
@@ -83,6 +85,23 @@ export const useWalletStore = () => {
     setPersistSession(persist);
   }, []);
 
+  // after connected
+  useEffect(() => {
+    async function load() {
+      if (
+        Object.keys(connectedWalletInstance).length > 0 &&
+        address.length === 0
+      ) {
+        let address = (await connectedWalletInstance.getUnusedAddresses())[0];
+        if (!address)
+          address = await connectedWalletInstance.getChangeAddress();
+        setAddress(address);
+      }
+    }
+    load();
+  }, [connectedWalletInstance]);
+
+  // if persist
   useEffect(() => {
     const persist = localStorage.getItem(localstoragePersist);
     if (persistSession && persist) {
@@ -103,6 +122,7 @@ export const useWalletStore = () => {
     setWallet,
     setPersist,
     error,
+    address,
   };
 };
 
@@ -115,4 +135,5 @@ export const WalletContext = createContext<WalletContext>({
   disconnect: () => {},
   setWallet: async () => {},
   setPersist: () => {},
+  address: "",
 });
