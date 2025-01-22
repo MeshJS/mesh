@@ -13,6 +13,7 @@ import HydraTutorialPrerequisites from "./prerequisites";
 import HydraTutorialStep2 from "./step2";
 import HydraTutorialStep3 from "./step3";
 import HydraTutorialStep4 from "./step4";
+import HydraTutorialStep5 from "./step5";
 
 const ReactPage: NextPage = () => {
   const [aliceNode, setAliceNode] = useState<MeshWallet | undefined>(undefined);
@@ -22,7 +23,7 @@ const ReactPage: NextPage = () => {
   const [bobNode, setBobNode] = useState<MeshWallet | undefined>(undefined);
   const [bobFunds, setBobFunds] = useState<MeshWallet | undefined>(undefined);
 
-  const hydraProvider = new HydraProvider({ url: "http://" });
+  const hydraProvider = new HydraProvider({ url: "http://35.189.158.126:4001" });
   const hydraInstance = new HydraInstance({
     provider: hydraProvider,
   });
@@ -72,6 +73,13 @@ const ReactPage: NextPage = () => {
           bobFunds={bobFunds}
         />
         <HydraTutorialStep4
+          hydraInstance={hydraInstance}
+          aliceNode={aliceNode}
+          aliceFunds={aliceFunds}
+          bobNode={bobNode}
+          bobFunds={bobFunds}
+        />
+        <HydraTutorialStep5
           hydraInstance={hydraInstance}
           aliceNode={aliceNode}
           aliceFunds={aliceFunds}
