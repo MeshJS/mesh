@@ -22,46 +22,8 @@ import {
   Value,
 } from "../types";
 
-export const deserializeAddress = (address: string): Address => {
-  const _address = Address.fromString(address);
-  if (_address === null) throw new Error("Invalid address");
-  return _address;
-};
-
-export const deserializeBech32Address = (
-  bech32Addr: string,
-): DeserializedAddress => {
-  const address = Address.fromBech32(bech32Addr);
-  const addressProps = address.getProps();
-
-  return {
-    pubKeyHash:
-      addressProps.paymentPart?.type === CredentialType.KeyHash
-        ? (addressProps.paymentPart?.hash ?? "")
-        : "",
-    scriptHash:
-      addressProps.paymentPart?.type === CredentialType.ScriptHash
-        ? (addressProps.paymentPart?.hash ?? "")
-        : "",
-    stakeCredentialHash:
-      addressProps.delegationPart?.type === CredentialType.KeyHash
-        ? (addressProps.paymentPart?.hash ?? "")
-        : "",
-    stakeScriptCredentialHash:
-      addressProps.delegationPart?.type === CredentialType.ScriptHash
-        ? (addressProps.paymentPart?.hash ?? "")
-        : "",
-  };
-};
-
 export const deserializeEd25519KeyHash = (ed25519KeyHash: string) =>
   Ed25519KeyHash.fromBytes(toBytes(ed25519KeyHash));
-
-export const deserializeDataHash = (dataHash: string): DatumHash =>
-  DatumHash.fromHexBlob(HexBlob(dataHash));
-
-export const deserializePlutusData = (plutusData: string): PlutusData =>
-  PlutusData.fromCbor(HexBlob(plutusData));
 
 export const deserializePlutusScript = (
   plutusScript: string,

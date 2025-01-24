@@ -124,13 +124,14 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     isScriptHash?: boolean,
     network_id?: 0 | 1,
   ): string {
-    return RewardAddress.fromCredentials(network_id ?? 1, {
+    return RewardAddress.fromCredentials(network_id ?? 0, {
       type: isScriptHash ? CredentialType.ScriptHash : CredentialType.KeyHash,
       hash: Hash28ByteBase16(stakeKeyHash),
     })
       .toAddress()
       .toBech32();
   }
+
   serializePoolId(hash: string): string {
     return PoolId.fromKeyHash(Ed25519KeyHashHex(hash)).toString();
   }

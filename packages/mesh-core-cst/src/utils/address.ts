@@ -1,5 +1,3 @@
-import { CredentialType } from "@cardano-sdk/core/dist/cjs/Cardano";
-import { ConstrPlutusData } from "@cardano-sdk/core/dist/cjs/Serialization";
 import { HexBlob } from "@cardano-sdk/util";
 
 import {
@@ -14,11 +12,14 @@ import {
   Address,
   BaseAddress,
   CertIndex,
+  ConstrPlutusData,
+  CredentialType,
   EnterpriseAddress,
   Hash28ByteBase16,
   PlutusData,
   PlutusList,
   PointerAddress,
+  RewardAddress,
   Script,
   TxIndex,
 } from "../types";
@@ -344,6 +345,12 @@ export const deserializeBech32Address = (
   };
 };
 
+export const deserializeAddress = (address: string): Address => {
+  const _address = Address.fromString(address);
+  if (_address === null) throw new Error("Invalid address");
+  return _address;
+};
+
 export const scriptHashToBech32 = (
   scriptHash: string,
   stakeCredentialHash?: string,
@@ -362,7 +369,16 @@ export const scriptHashToBech32 = (
       },
     )
       .toAddress()
-      .toBech32();
+      .toBech32()
+      .toString();
+  } else {
+    return EnterpriseAddress.fromCredentials(networkId, {
+      hash: Hash28ByteBase16(scriptHash),
+      type: CredentialType.ScriptHash,
+    })
+      .toAddress()
+      .toBech32()
+      .toString();
   }
 };
 
@@ -378,3 +394,23 @@ export const v2ScriptToBech32 = (
     networkId,
     isScriptStakeCredential,
   );
+
+export const scriptHashToRewardAddress = (hash: string, networkId = 0) => {
+  return RewardAddress.fromCredentials(networkId, {
+    hash: Hash28ByteBase16(hash),
+    type: CredentialType.ScriptHash,
+  })
+    .toAddress()
+    .toBech32()
+    .toString();
+};
+
+export const keyHashToRewardAddress = (hash: string, networkId = 0) => {
+  return RewardAddress.fromCredentials(networkId, {
+    hash: Hash28ByteBase16(hash),
+    type: CredentialType.KeyHash,
+  })
+    .toAddress()
+    .toBech32()
+    .toString();
+};

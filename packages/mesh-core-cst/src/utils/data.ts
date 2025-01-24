@@ -4,6 +4,7 @@ import { BuilderData, Data, toBytes } from "@meshsdk/common";
 
 import {
   ConstrPlutusData,
+  DatumHash,
   PlutusData,
   PlutusDataKind,
   PlutusList,
@@ -240,3 +241,9 @@ export const parseDatumCbor = <T = any>(datumCbor: string): T => {
   const parsedDatum = PlutusData.fromCbor(HexBlob(datumCbor));
   return fromPlutusDataToJson(parsedDatum) as T;
 };
+
+export const deserializeDataHash = (dataHash: string): DatumHash =>
+  DatumHash.fromHexBlob(HexBlob(dataHash));
+
+export const deserializePlutusData = (plutusData: string): PlutusData =>
+  PlutusData.fromCbor(HexBlob(plutusData));
