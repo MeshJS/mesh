@@ -3,7 +3,9 @@ import * as core from "@meshsdk/core-cst";
 
 const applyParamsToScript = core.applyParamsToScript;
 const applyCborEncoding = (script: string) => {
-  core.applyEncoding(Buffer.from(script, "hex"), "DoubleCBOR");
+  return Buffer.from(
+    core.applyEncoding(Buffer.from(script, "hex"), "DoubleCBOR"),
+  ).toString("hex");
 };
 
 export { core, applyParamsToScript, applyCborEncoding };
