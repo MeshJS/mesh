@@ -15,8 +15,10 @@ import {
 
 import {
   Bip32PrivateKey,
+  DRepID,
   Ed25519KeyHashHex,
   EnterpriseAddress,
+  Hash28ByteBase16,
 } from "../types";
 import {
   deserializePlutusScript,
@@ -166,4 +168,28 @@ export const resolveTxHash = (txHex: string) => {
     .update(hexToBytes(txBody.toCbor()))
     .digest();
   return Cardano.TransactionId.fromHexBlob(HexBlob.fromBytes(hash));
+};
+
+export const resolveScriptHashDRepId = (scriptHash: string) => {
+  return DRepID.cip129FromCredential({
+    type: Cardano.CredentialType.ScriptHash,
+    hash: Hash28ByteBase16(scriptHash),
+  }).toString();
+};
+
+export const resolveEd25519KeyHash = (bech32: string) => {
+  try {
+    const keyHash = [
+      toBaseAddress(bech32)?.getPaymentCredential().hash,
+      toEnterpriseAddress(bech32)?.getPaymentCredential().hash,
+    ].find((kh) => kh !== undefined);
+
+    if (keyHash !== undefined) return keyHash.toString();
+
+    throw new Error(`Couldn't resolve key hash from address: ${bech32}`);
+  } catch (error) {
+    throw new Error(
+      `An error occurred during resolveEd25519KeyHash: ${error}.`,
+    );
+  }
 };

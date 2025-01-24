@@ -2,7 +2,13 @@ import { HexBlob } from "@cardano-sdk/util";
 
 import { BuilderData, Data, toBytes } from "@meshsdk/common";
 
-import { ConstrPlutusData, PlutusData, PlutusList, PlutusMap } from "../types";
+import {
+  ConstrPlutusData,
+  PlutusData,
+  PlutusDataKind,
+  PlutusList,
+  PlutusMap,
+} from "../types";
 
 export const toPlutusData = (data: Data): PlutusData => {
   const toPlutusList = (data: Data[]) => {
@@ -157,4 +163,80 @@ export const fromBuilderToPlutusData = (data: BuilderData): PlutusData => {
       "Malformed builder data, expected types of, Mesh, CBOR or JSON",
     );
   }
+};
+
+export const fromPlutusDataToJson = (data: PlutusData): object => {
+  if (data.getKind() === PlutusDataKind.ConstrPlutusData) {
+    const plutusData = data.asConstrPlutusData();
+    if (plutusData) {
+      const fields = plutusData.getData();
+      return {
+        constructor: plutusData.getAlternative(),
+        fields: fromPlutusDataToJson(PlutusData.newList(fields)),
+      };
+    } else {
+      throw new Error("Invalid constructor data found");
+    }
+  } else if (data.getKind() === PlutusDataKind.Map) {
+    const plutusMap = data.asMap();
+    const mapList: {
+      k: object;
+      v: object;
+    }[] = [];
+    if (plutusMap) {
+      const keys = plutusMap.getKeys();
+      for (let i = 0; i < keys.getLength(); i++) {
+        const key = keys.get(i);
+        const value = plutusMap.get(key);
+        if (value) {
+          mapList.push({
+            k: fromPlutusDataToJson(key),
+            v: fromPlutusDataToJson(value),
+          });
+        }
+      }
+      return {
+        map: mapList,
+      };
+    } else {
+      throw new Error("Invalid map data found");
+    }
+  } else if (data.getKind() === PlutusDataKind.List) {
+    const plutusList = data.asList();
+    if (plutusList) {
+      const list: object[] = [];
+      for (let i = 0; i < plutusList.getLength(); i++) {
+        const element = plutusList.get(i);
+        list.push(fromPlutusDataToJson(element));
+      }
+      return list;
+    } else {
+      throw new Error("Invalid list data found");
+    }
+  } else if (data.getKind() === PlutusDataKind.Integer) {
+    const plutusInt = data.asInteger();
+    if (plutusInt) {
+      return {
+        int: BigInt(plutusInt.toString()),
+      };
+    } else {
+      throw new Error("Invalid integer data found");
+    }
+  } else if (data.getKind() === PlutusDataKind.Bytes) {
+    const plutusBytes = data.asBoundedBytes();
+    if (plutusBytes) {
+      return {
+        bytes: Buffer.from(plutusBytes).toString("hex"),
+      };
+    } else {
+      throw new Error("Invalid bytes data found");
+    }
+  } else {
+    throw new Error("Invalid Plutus data found");
+  }
+};
+
+export const parseDatumCbor = <T = any>(datumCbor: string): T => {
+  const parsedDatum = PlutusData.fromCbor(HexBlob(datumCbor));
+  return fromPlutusDataToJson(parsedDatum) as T;
 };

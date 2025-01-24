@@ -135,24 +135,27 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     return PoolId.fromKeyHash(Ed25519KeyHashHex(hash)).toString();
   }
 
-  serializeAddress(address: DeserializedAddress, networkId?: 0 | 1): string {
+  serializeAddress(
+    address: Partial<DeserializedAddress>,
+    networkId?: 0 | 1,
+  ): string {
     let paymentCred: CredentialCore | undefined = undefined;
 
     let stakeCred: CredentialCore | undefined;
 
-    if (address.pubKeyHash !== "") {
+    if (address.pubKeyHash && address.pubKeyHash !== "") {
       paymentCred = {
         type: CredentialType.KeyHash,
         hash: Hash28ByteBase16(address.pubKeyHash),
       };
-    } else if (address.scriptHash !== "") {
+    } else if (address.scriptHash && address.scriptHash !== "") {
       paymentCred = {
         type: CredentialType.ScriptHash,
         hash: Hash28ByteBase16(address.scriptHash),
       };
     }
 
-    if (address.stakeCredentialHash !== "") {
+    if (address.stakeCredentialHash && address.stakeCredentialHash !== "") {
       stakeCred = {
         type: CredentialType.KeyHash,
         hash: Hash28ByteBase16(address.stakeCredentialHash),
