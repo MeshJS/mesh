@@ -5,7 +5,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAssetMetadata } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMintMultipleAssets() {
   return (
@@ -33,7 +33,7 @@ function Left() {
   codeSnippet1 += `  txBuilder.mintingScript(forgingScript);\n`;
   codeSnippet1 += `}\n`;
 
-  let codeSnippet2 = ``;
+  let codeSnippet2 = txbuilderCode;
   codeSnippet2 += `txBuilder\n`;
   codeSnippet2 += `  .metadataValue(721, metadata)\n`;
   codeSnippet2 += `  .changeAddress(changeAddress)\n`;
@@ -109,8 +109,7 @@ function Right() {
   codeSnippet += `\n`;
   codeSnippet += `const policyId = resolveScriptHash(forgingScript);\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
-  codeSnippet += `\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `const metadata = {};\n`;
   codeSnippet += `metadata[policyId] = {};\n`;
   codeSnippet += `for (let i = 1; i < 3; i++) {\n`;

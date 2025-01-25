@@ -6,7 +6,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAssetMetadata } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMintAsset() {
   return (
@@ -36,7 +36,7 @@ function Left() {
   codeSnippet2 += `const tokenNameHex = stringToHex(tokenName);\n`;
   codeSnippet2 += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
 
-  let codeSnippet3 = ``;
+  let codeSnippet3 = txbuilderCode;
   codeSnippet3 += `const unsignedTx = await txBuilder\n`;
   codeSnippet3 += `  .txIn(utxo.input.txHash, utxo.input.outputIndex)\n`;
   codeSnippet3 += `  .mint("1", policyId, tokenName)\n`;
@@ -104,8 +104,6 @@ function Right() {
   let codeSnippet = `import { MeshTxBuilder, ForgeScript, resolveScriptHash, stringToHex } from '@meshsdk/core';\n`;
   codeSnippet += `import type { Asset } from '@meshsdk/core';\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const { wallet, connected } = useWallet();\n`;
-  codeSnippet += `\n`;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeSnippet += `const forgingScript = ForgeScript.withOneSignature(changeAddress);\n`;
@@ -119,8 +117,8 @@ function Right() {
   codeSnippet += `const policyId = resolveScriptHash(forgingScript);\n`;
   codeSnippet += `const tokenName = "MeshToken";\n`;
   codeSnippet += `const tokenNameHex = stringToHex(tokenName);\n`;
-  codeSnippet += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
-  codeSnippet += `\n`;
+  codeSnippet += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .mint("1", policyId, tokenNameHex)\n`;
   codeSnippet += `  .mintingScript(forgingScript)\n`;

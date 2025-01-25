@@ -9,7 +9,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAddresses } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderBuildWithObject() {
   return (
@@ -95,8 +95,7 @@ function Right() {
 
   let code = `import { MeshTxBuilder } from "@meshsdk/core";\n\n`;
   code += `const changeAddress = await wallet.getChangeAddress();\n`;
-  code += `const utxos = await wallet.getUtxos();\n`;
-  code += `const txBuilder = getTxBuilder();\n`;
+  code += `const utxos = await wallet.getUtxos();\n\n`;
   code += `const meshTxBody: Partial<MeshTxBuilderBody> = {\n`;
   code += `  outputs: [\n`;
   code += `    {\n`;
@@ -113,6 +112,7 @@ function Right() {
   code += `  },\n`;
   code += `};\n`;
   code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder.complete(meshTxBody);\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);`;

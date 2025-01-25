@@ -9,7 +9,7 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function GovernanceUpdate() {
   return (
@@ -25,8 +25,8 @@ export default function GovernanceUpdate() {
 function Left() {
   let codeTx = ``;
   codeTx += `const utxos = await wallet.getUtxos();\n`;
-  codeTx += `const changeAddress = await wallet.getChangeAddress();\n`;
-  codeTx += `\n`;
+  codeTx += `const changeAddress = await wallet.getChangeAddress();\n\n`;
+  codeTx += txbuilderCode;
   codeTx += `txBuilder\n`;
   codeTx += `  .drepUpdateCertificate(dRepId, {\n`;
   codeTx += `    anchorUrl: anchorUrl,\n`;
@@ -112,8 +112,8 @@ function Right() {
   codeSnippet += `const anchorHash = await getMeshJsonHash(anchorUrl);\n`;
   codeSnippet += `\n`;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
-  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
-  codeSnippet += `\n`;
+  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `txBuilder\n`;
   codeSnippet += `  .drepUpdateCertificate(dRepId, {\n`;
   codeSnippet += `    anchorUrl: anchorUrl,\n`;

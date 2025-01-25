@@ -1,6 +1,6 @@
 import {
-  MeshWallet,
   ForgeScript,
+  MeshWallet,
   resolveScriptHash,
   stringToHex,
 } from "@meshsdk/core";
@@ -11,7 +11,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAssetMetadata, demoMnemonic } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMultisig() {
   return (
@@ -25,7 +25,7 @@ export default function TxbuilderMultisig() {
 }
 
 function Left() {
-  let codeTx = ``;
+  let codeTx = txbuilderCode;
   codeTx += `const unsignedTx = await txBuilder\n`;
   codeTx += `  .mint("1", policyId, stringToHex("MeshToken"))\n`;
   codeTx += `  .mintingScript(forgingScript)\n`;
@@ -34,8 +34,8 @@ function Left() {
   codeTx += `  .selectUtxosFrom(utxos)\n`;
   codeTx += `  .complete();\n`;
   codeTx += `\n`;
-  codeTx += `const signedTx = await wallet.signTx(unsignedTx, true);\n`;
-  codeTx += `const signedTx2 = mintingWallet.signTx(signedTx, true);\n`;
+  codeTx += `const signedTx = await wallet1.signTx(unsignedTx, true);\n`;
+  codeTx += `const signedTx2 = await mintingWallet.signTx(signedTx, true);\n`;
   codeTx += `const txHash = await wallet.submitTx(signedTx2);\n`;
 
   let codeSign = `await wallet.signTx(unsignedTx, true);`;
@@ -43,8 +43,8 @@ function Left() {
   return (
     <>
       <p>
-        The main idea of a multi-signature (multisig) transaction is to have multiple
-        signatures to authorize a transaction.
+        The main idea of a multi-signature (multisig) transaction is to have
+        multiple signatures to authorize a transaction.
       </p>
       <Codeblock data={codeTx} />
       <p>
@@ -99,14 +99,14 @@ function Right() {
     return txHash;
   }
 
-  let codeSnippet = `import { MeshWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';\n\n`;
+  let codeSnippet = ``;
   codeSnippet += `const mintingWallet = new MeshWallet({\n`;
   codeSnippet += `  networkId: 0,\n`;
   codeSnippet += `  fetcher: blockchainProvider,\n`;
   codeSnippet += `  submitter: blockchainProvider,\n`;
   codeSnippet += `  key: {\n`;
   codeSnippet += `    type: "mnemonic",\n`;
-  codeSnippet += `    words: demoMnemonic,\n`;
+  codeSnippet += `    words: ['your','mnemonic','here'],\n`;
   codeSnippet += `  },\n`;
   codeSnippet += `});\n`;
   codeSnippet += `\n`;
@@ -121,6 +121,7 @@ function Right() {
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const address = usedAddress[0]!;\n`;
   codeSnippet += `\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .mint("1", policyId, stringToHex("MeshToken"))\n`;
   codeSnippet += `  .mintingScript(forgingScript)\n`;
@@ -130,7 +131,7 @@ function Right() {
   codeSnippet += `  .complete();\n`;
   codeSnippet += `\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx, true);\n`;
-  codeSnippet += `const signedTx2 = mintingWallet.signTx(signedTx, true);\n`;
+  codeSnippet += `const signedTx2 = await mintingWallet.signTx(signedTx, true);\n`;
   codeSnippet += `const txHash = await wallet.submitTx(signedTx2);\n`;
 
   return (
