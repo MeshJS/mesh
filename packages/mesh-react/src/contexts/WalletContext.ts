@@ -18,6 +18,13 @@ interface WalletContext {
   setPersist: (persist: boolean) => void;
   error?: unknown;
   address: string;
+  state: WalletState;
+}
+
+export enum WalletState {
+  NOT_CONNECTED = "NOT_CONNECTED",
+  CONNECTING = "CONNECTING",
+  CONNECTED = "CONNECTED",
 }
 
 const INITIAL_STATE = {
@@ -25,10 +32,11 @@ const INITIAL_STATE = {
   walletInstance: {} as IWallet,
 };
 
-const localstoragePersist = "mesh-persist";
+const localstoragePersist = "mesh-wallet-persist";
 
 export const useWalletStore = () => {
   const [error, setError] = useState<unknown>(undefined);
+  const [state, setState] = useState<WalletState>(WalletState.NOT_CONNECTED);
   const [connectingWallet, setConnectingWallet] = useState<boolean>(false);
   const [persistSession, setPersistSession] = useState<boolean>(false);
   const [address, setAddress] = useState("");
@@ -41,6 +49,7 @@ export const useWalletStore = () => {
   const connectWallet = useCallback(
     async (walletName: string, extensions?: number[], persist?: boolean) => {
       setConnectingWallet(true);
+      setState(WalletState.CONNECTING);
 
       try {
         const walletInstance = await BrowserWallet.enable(
@@ -58,8 +67,12 @@ export const useWalletStore = () => {
             JSON.stringify({ walletName }),
           );
         }
+        setState(WalletState.CONNECTED);
       } catch (error) {
         setError(error);
+        setState(WalletState.NOT_CONNECTED);
+        setConnectedWalletName(INITIAL_STATE.walletName);
+        setConnectedWalletInstance(INITIAL_STATE.walletInstance);
       }
 
       setConnectingWallet(false);
@@ -70,6 +83,7 @@ export const useWalletStore = () => {
   const disconnect = useCallback(() => {
     setConnectedWalletName(INITIAL_STATE.walletName);
     setConnectedWalletInstance(INITIAL_STATE.walletInstance);
+    setState(WalletState.NOT_CONNECTED);
     localStorage.removeItem(localstoragePersist);
   }, []);
 
@@ -77,6 +91,7 @@ export const useWalletStore = () => {
     async (walletInstance: IWallet, walletName: string) => {
       setConnectedWalletInstance(walletInstance);
       setConnectedWalletName(walletName);
+      setState(WalletState.CONNECTED);
     },
     [],
   );
@@ -123,6 +138,7 @@ export const useWalletStore = () => {
     setPersist,
     error,
     address,
+    state,
   };
 };
 
@@ -136,4 +152,5 @@ export const WalletContext = createContext<WalletContext>({
   setWallet: async () => {},
   setPersist: () => {},
   address: "",
+  state: WalletState.NOT_CONNECTED,
 });
