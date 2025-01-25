@@ -14,7 +14,7 @@ export type KoiosUTxO = {
   asset_list: Array<KoiosAsset>;
   block_height: number;
   block_time: number;
-  outputs?: { payment_addr: { bech32: string } }[];
+  payment_addr: { cred: string, bech32: string };
 };
 
 export type KoiosAsset = {
