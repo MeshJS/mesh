@@ -11,7 +11,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAsset, demoPlutusAlwaysSucceedScript } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderContractUnlockAssets() {
   return (
@@ -30,7 +30,7 @@ function Left() {
   codeIndicator += `.spendingPlutusScriptV2()\n`;
   codeIndicator += `.spendingPlutusScriptV3()\n`;
 
-  let code = `mesh
+  let code = `${txbuilderCode}txBuilder
   .spendingPlutusScriptV2()
   .txIn(txHash: string, txIndex: number, amount?: Asset[], address?: string)
   .txInInlineDatumPresent() // or .txInDatumValue(datum: Data | string | object)
@@ -170,7 +170,6 @@ function Right() {
   let codeSnippet = ``;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const collateral = await wallet.getCollateral();\n`;
-  codeSnippet += `\n`;
   codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeSnippet += `\n`;
   codeSnippet += `const script: PlutusScript = {\n`;
@@ -188,8 +187,7 @@ function Right() {
   codeSnippet += `  throw "Asset UTXO not found";\n`;
   codeSnippet += `}\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
-  codeSnippet += `\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .spendingPlutusScriptV2()\n`;
   codeSnippet += `  .txIn(assetUtxo.input.txHash, assetUtxo.input.outputIndex)\n`;

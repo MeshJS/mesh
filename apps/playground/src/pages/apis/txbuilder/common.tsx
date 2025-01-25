@@ -32,3 +32,9 @@ export function Intro() {
     </>
   );
 }
+
+export let txbuilderCode = ``;
+txbuilderCode += `const txBuilder = new MeshTxBuilder({\n`;
+txbuilderCode += `  fetcher: blockchainProvider, // get a provider https://meshjs.dev/providers\n`;
+txbuilderCode += `  verbose: true,\n`;
+txbuilderCode += `});\n\n`;

@@ -15,6 +15,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAddresses } from "~/data/cardano";
+import { txbuilderCode } from "../common";
 
 export default function MintingRoyaltyToken() {
   return (
@@ -109,8 +110,7 @@ function Right() {
   code += `  address: '${userInput2}',\n`;
   code += `};\n`;
   code += `\n`;
-  code += `const txBuilder = new MeshTxBuilder();\n`;
-  code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
   code += `  .mint("1", policyId, "")\n`;
   code += `  .mintingScript(forgingScript)\n`;

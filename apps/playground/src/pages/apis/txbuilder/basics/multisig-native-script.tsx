@@ -10,7 +10,7 @@ import { getProvider } from "~/components/cardano/mesh-wallet";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMultisigNativeScript() {
   return (
@@ -53,6 +53,7 @@ function Left() {
   codeTx += `const utxo = utxos[0];\n`;
   codeTx += `\n`;
   codeTx += `// create tx\n`;
+  codeTx += txbuilderCode;
   codeTx += `const unsignedTx = await txBuilder\n`;
   codeTx += `  .txIn(\n`;
   codeTx += `    utxo.input.txHash,\n`;

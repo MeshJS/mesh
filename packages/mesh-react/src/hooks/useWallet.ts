@@ -14,6 +14,7 @@ export const useWallet = () => {
     setPersist,
     error,
     address,
+    state,
   } = useContext(WalletContext);
 
   if (connectWallet === undefined || disconnect === undefined) {
@@ -33,5 +34,6 @@ export const useWallet = () => {
     setPersist,
     error,
     address,
+    state,
   };
 };

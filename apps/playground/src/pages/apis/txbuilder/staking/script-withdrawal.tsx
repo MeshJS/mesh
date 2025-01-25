@@ -10,7 +10,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { alwaysSucceedMintingStakingScriptCbor } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function StakingWithdraw() {
   return (
@@ -121,8 +121,8 @@ function Right() {
   codeRegister += `const txBuilder = getTxBuilder();\n`;
   codeRegister += `const stakeScriptCbor = alwaysSucceedMintingStakingScriptCbor(\n`;
   codeRegister += `  deserializeAddress(address).pubKeyHash,\n`;
-  codeRegister += `);\n`;
-  codeRegister += `\n`;
+  codeRegister += `);\n\n`;
+  codeRegister += txbuilderCode;
   codeRegister += `const unsignedTx = await txBuilder\n`;
   codeRegister += `  .registerStakeCertificate(resolveScriptHash(stakeScriptCbor, "V2"))\n`;
   codeRegister += `  .selectUtxosFrom(utxos)\n`;
@@ -145,7 +145,7 @@ function Right() {
   codeWithdraw0 += `  0,\n`;
   codeWithdraw0 += `);\n`;
   codeWithdraw0 += `\n`;
-  codeWithdraw0 += `const txBuilder = getTxBuilder();\n`;
+  codeWithdraw0 += txbuilderCode;
   codeWithdraw0 += `const unsignedTx = await txBuilder\n`;
   codeWithdraw0 += `  .withdrawalPlutusScriptV2()\n`;
   codeWithdraw0 += `  .withdrawal(rewardAddress, "0")\n`;
