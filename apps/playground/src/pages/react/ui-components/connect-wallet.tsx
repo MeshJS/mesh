@@ -38,6 +38,10 @@ function Left() {
   codeRunCode += `  );\n`;
   codeRunCode += `}\n`;
 
+  let codePersist = `<CardanoWallet\n`;
+  codePersist += `  persist={true}\n`;
+  codePersist += `/>\n`;
+
   let codeCip95 = `<CardanoWallet\n`;
   codeCip95 += `  extensions={[95]}\n`;
   codeCip95 += `/>\n`;
@@ -89,6 +93,14 @@ function Left() {
         .
       </p>
 
+      <h3>Persist user session</h3>
+      <p>
+        If you would like to save the user last connected wallet and
+        automatically connect to it on the next visit, you can use the persist
+        prop.
+      </p>
+      <Codeblock data={codePersist} />
+
       <h3>onConnected</h3>
       <p>
         If you want to run a function after the wallet is connected, you can add
@@ -96,6 +108,7 @@ function Left() {
       </p>
 
       <Codeblock data={codeRunCode} />
+
       <p>
         The above code will log "Hello, World!" to the console when the wallet
         is connected.
@@ -148,17 +161,13 @@ function Right() {
   let example = ``;
   example += `import { CardanoWallet } from '@meshsdk/react';\n`;
   example += `\n`;
-  example += `export default function Page() {\n\n`;
-
-  example += `  function afterConnectedWallet() {\n`;
-  example += `    // do something\n`;
-  example += `  }\n\n`;
-
+  example += `export default function Page() {\n`;
   example += `  return (\n`;
   example += `    <>\n`;
   example += `      <CardanoWallet\n`;
   example += `        label={"Connect a Wallet"}\n`;
-  example += `        onConnected={afterConnectedWallet}\n`;
+  example += `        persist={true}\n`;
+  example += `        onConnected={()=>{console.log('on connected')}}\n`;
   example += `        cardanoPeerConnect={{\n`;
   example += `          dAppInfo: {\n`;
   example += `            name: "Mesh SDK",\n`;

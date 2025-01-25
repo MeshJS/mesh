@@ -1,12 +1,12 @@
 import { DataSignature } from "../types";
 
 export interface ISigner {
-  signData(payload: string, address?: string): SometimesPromise<DataSignature>;
-  signTx(unsignedTx: string, partialSign?: boolean): SometimesPromise<string>;
+  signData(payload: string, address?: string): Promise<DataSignature>;
+  signTx(unsignedTx: string, partialSign?: boolean): Promise<string>;
   signTxs(
     unsignedTxs: string[],
     partialSign?: boolean,
-  ): SometimesPromise<string[]>;
+  ): Promise<string[]>;
 }
 
 type SometimesPromise<T> = Promise<T> | T;

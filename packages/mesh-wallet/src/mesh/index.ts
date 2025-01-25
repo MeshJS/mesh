@@ -362,7 +362,7 @@ export class MeshWallet implements IWallet {
    * @param address - the address to use for signing (optional)
    * @returns a signature
    */
-  signData(payload: string, address?: string): DataSignature {
+  async signData(payload: string, address?: string): Promise<DataSignature> {
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -386,7 +386,7 @@ export class MeshWallet implements IWallet {
    * @param partialSign - if the transaction is partially signed (default: false)
    * @returns a signed transaction in CBOR
    */
-  signTx(unsignedTx: string, partialSign = false): string {
+  async signTx(unsignedTx: string, partialSign = false): Promise<string> {
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -420,7 +420,7 @@ export class MeshWallet implements IWallet {
    * @param partialSign - if the transactions are signed partially
    * @returns array of signed transactions CborHex string
    */
-  signTxs(unsignedTxs: string[], partialSign = false): string[] {
+  async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -430,7 +430,7 @@ export class MeshWallet implements IWallet {
     const signedTxs: string[] = [];
 
     for (const unsignedTx of unsignedTxs) {
-      const signedTx = this.signTx(unsignedTx, partialSign);
+      const signedTx = await this.signTx(unsignedTx, partialSign);
       signedTxs.push(signedTx);
     }
 

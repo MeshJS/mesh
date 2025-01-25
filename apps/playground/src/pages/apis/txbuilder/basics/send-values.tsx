@@ -8,7 +8,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAddresses } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderSendValue() {
   return (
@@ -92,10 +92,10 @@ function Right() {
   }
 
   let codeSnippet = ``;
-  codeSnippet += `const { wallet, connected } = useWallet();\n`;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeSnippet += `\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .txOut('${address}', [{ unit: "lovelace", quantity: '${amount}' }])\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;

@@ -19,7 +19,6 @@ function Left() {
   example += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n\n`;
   example += `const txBuilder = new MeshTxBuilder({\n`;
   example += `  fetcher: blockchainProvider,\n`;
-  example += `  evaluator: blockchainProvider,\n`;
   example += `  verbose: true,\n`;
   example += `});\n`;
 

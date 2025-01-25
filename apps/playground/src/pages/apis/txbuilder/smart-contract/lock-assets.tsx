@@ -10,7 +10,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAsset, demoPlutusAlwaysSucceedScript } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderContractLockAssets() {
   return (
@@ -103,7 +103,7 @@ function Right() {
   codeSnippet += `};\n`;
   codeSnippet += `const { address: scriptAddress } = serializePlutusScript(script);\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .txOut(scriptAddress, [{ unit: "${userInput}", quantity: "1" }])\n`;
   codeSnippet += `  .txOutInlineDatumValue("${userInput2}")\n`;

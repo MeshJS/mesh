@@ -122,15 +122,15 @@ export class OfflineEvaluator implements IEvaluator {
           }
       }
     }
-    if (resolvedUTXOs.length !== inputsToResolve.length) {
-      const missing = inputsToResolve.filter(
-        (input) =>
-          !resolvedUTXOs.find(
-            (utxo) =>
-              utxo.input.txHash === input.txHash &&
-              utxo.input.outputIndex === input.index,
-          ),
-      );
+    const missing = inputsToResolve.filter(
+      (input) =>
+        !resolvedUTXOs.find(
+          (utxo) =>
+            utxo.input.txHash === input.txHash &&
+            utxo.input.outputIndex === input.index,
+        ),
+    );
+    if (missing.length > 0) {
       const missingList = missing
         .map((m) => `${m.txHash}:${m.index}`)
         .join(", ");

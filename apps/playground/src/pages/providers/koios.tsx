@@ -37,7 +37,7 @@ const ReactPage: NextPage = () => {
   let code1 = `import { KoiosProvider } from "@meshsdk/core";\n\n`;
   code1 += `const blockchainProvider = new KoiosProvider(\n`;
   code1 += `  'preprod', // "api" | "preview" | "preprod" | "guild"\n`;
-  code1 += `  '<Your-API-Key>',\n`;
+  code1 += `  '<Your-API-Key>',\n`; // https://koios.rest/Profile.html;
   code1 += `);\n`;
 
   const koiosKey = useProviders((state) => state.koiosKey);
@@ -71,6 +71,14 @@ const ReactPage: NextPage = () => {
           <p>Get started:</p>
 
           <Codeblock data={code1} />
+
+          <p>
+            Get your API key from{" "}
+            <Link href="https://koios.rest/Profile.html">
+              Koios User Profile page
+            </Link>
+            .
+          </p>
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/KoiosProvider" />
 

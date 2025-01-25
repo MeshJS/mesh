@@ -19,7 +19,7 @@ export default function ReactHookUseWallet() {
 }
 
 function Left() {
-  let code1 = `const { wallet, connected, name, connecting, connect, disconnect, error } = useWallet();`;
+  let code1 = `const { wallet, state, connected, name, connecting, connect, disconnect, error } = useWallet();`;
 
   return (
     <>
@@ -30,9 +30,14 @@ function Left() {
       <Codeblock data={code1} />
       <p>
         <code>wallet</code> is a{" "}
-        <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> instance, which
-        expose all CIP wallets functions from getting assets to signing
+        <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> instance,
+        which expose all CIP wallets functions from getting assets to signing
         tranasction.
+      </p>
+      <p>
+        <code>state</code>, a enum string, the state of the wallet, can be{" "}
+        <code>NOT_CONNECTED</code>, <code>CONNECTING</code> or{" "}
+        <code>CONNECTED</code>.
       </p>
       <p>
         <code>connected</code>, a boolean, <code>true</code> if user's wallet is
@@ -64,13 +69,16 @@ function Left() {
 
 function Right() {
   const isDark = useDarkmode((state) => state.isDark);
-  const { connected, name, connecting, disconnect } = useWallet();
+  const { connected, name, connecting, disconnect, state } = useWallet();
 
   let code2 = `import { useWallet } from '@meshsdk/react';\n\n`;
   code2 += `export default function Page() {\n`;
-  code2 += `  const { wallet, connected, name, connecting, connect, disconnect, error } = useWallet();\n\n`;
+  code2 += `  const { wallet, state, connected, name, connecting, connect, disconnect, error } = useWallet();\n\n`;
   code2 += `  return (\n`;
   code2 += `    <div>\n`;
+  code2 += `      <p>\n`;
+  code2 += `        <b>State: </b> {state}\n`;
+  code2 += `      </p>\n`;
   code2 += `      <p>\n`;
   code2 += `        <b>Connected?: </b> {connected ? 'Is connected' : 'Not connected'}\n`;
   code2 += `      </p>\n`;
@@ -95,6 +103,9 @@ function Right() {
     >
       <CardanoWallet isDark={isDark} />
       <div>
+        <p>
+          <b>State: </b> {state}
+        </p>
         <p>
           <b>Connected?: </b> {connected ? "Is connected" : "Not connected"}
         </p>

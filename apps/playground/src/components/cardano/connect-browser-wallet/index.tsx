@@ -46,9 +46,11 @@ export function CommonCardanoWallet() {
       // webauthn={{
       //   networkId: 0,
       //   provider: provider,
-      //   url: "http://localhost:3000",
+      //   url: "http://localhost:8080",
       // }}
       injectFn={async () => await checkIfMetamaskInstalled("preprod")}
+      isDark={true}
+      persist={true}
     />
   );
 }

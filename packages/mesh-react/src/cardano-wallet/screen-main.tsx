@@ -12,6 +12,7 @@ export default function ScreenMain({
   extensions,
   setOpen,
   setScreen,
+  persist,
   cardanoPeerConnect,
   burnerWallet,
   webauthn,
@@ -20,6 +21,7 @@ export default function ScreenMain({
   extensions: number[];
   setOpen: Function;
   setScreen: Function;
+  persist: boolean;
   cardanoPeerConnect: boolean;
   burnerWallet: boolean;
   webauthn: boolean;
@@ -36,7 +38,7 @@ export default function ScreenMain({
             icon={wallet.icon}
             name={wallet.name}
             action={() => {
-              connect(wallet.id, extensions);
+              connect(wallet.id, extensions, persist);
               setOpen(false);
             }}
           />

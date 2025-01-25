@@ -11,7 +11,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAssetMetadata } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMintingNativeScript() {
   return (
@@ -120,8 +120,7 @@ const tokenName = "MeshToken";
 const tokenNameHex = stringToHex(tokenName);
 const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };
 
-const txBuilder = getTxBuilder();
-
+${txbuilderCode}
 const unsignedTx = await txBuilder
   .mint("1", policyId, tokenNameHex)
   .mintingScript(forgingScript)

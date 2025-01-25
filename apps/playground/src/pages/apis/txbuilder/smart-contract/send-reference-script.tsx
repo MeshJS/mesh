@@ -4,7 +4,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAddresses, demoPlutusAlwaysSucceedScript } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderContractSendReferenceScript() {
   return (
@@ -54,7 +54,7 @@ function Right() {
   let codeSnippet = ``;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n\n`;
-
+  codeSnippet += txbuilderCode;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .txOut("${demoAddresses.testnet}", [])\n`;
   codeSnippet += `  .txOutReferenceScript("${demoPlutusAlwaysSucceedScript}", "V2")\n`;
