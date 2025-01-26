@@ -44,10 +44,11 @@ import {
   TxIn,
   TxMetadata,
   ValidityRange,
-  Withdrawal,
+  Withdrawal, TxOutput,
 } from "@meshsdk/common";
 
-import {CborWriter, StricaPrivateKey} from "../";
+import {CborSet, StricaPrivateKey, toScriptRef} from "../"
+
 import {
   Address,
   AddressType,
@@ -98,6 +99,7 @@ import {
   VkeyWitness,
   BootstrapWitness,
   ByronAttributes,
+  CborWriter,
 } from "../types";
 import {
   fromBuilderToPlutusData,
@@ -111,6 +113,7 @@ import { calculateFees } from "../utils/fee";
 import { toCardanoMetadataMap } from "../utils/metadata";
 import { hashScriptData } from "../utils/script-data-hash";
 import { empty, mergeValue, negatives, subValue } from "../utils/value";
+import {Buffer} from "buffer";
 
 const VKEY_PUBKEY_SIZE_BYTES = 32;
 const VKEY_SIGNATURE_SIZE_BYTES = 64;
@@ -440,8 +443,13 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     const serializerCore = new CardanoSDKSerializerCore(
       protocolParams ?? this.protocolParams,
     );
-    return serializerCore.coreSerializeTxBody(txBuilderBody);
+    return serializerCore.coreSerializeTx(txBuilderBody);
   };
+
+  serializeTxBodyWithMockSignatures(txBuilderBody: MeshTxBuilderBody, protocolParams: Protocol): string {
+    const serializerCore = new CardanoSDKSerializerCore(protocolParams);
+    return serializerCore.coreSerializeTxWithMockSignatures(txBuilderBody);
+  }
 
   addSigningKeys = (txHex: string, signingKeys: string[]): string => {
     let cardanoTx = Transaction.fromCbor(Serialization.TxCBOR(txHex));
@@ -480,6 +488,26 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     cardanoTx.setWitnessSet(currentWitnessSet);
     return cardanoTx.toCbor();
   };
+
+  serializeOutput(output: TxOutput): string {
+    const txOut = new TransactionOutput(
+      toCardanoAddress(output.address),
+      toValue(output.amount),
+    );
+
+    if (output.scriptRef) {
+      txOut.setScriptRef(Script.fromCbor(HexBlob(output.scriptRef)));
+    }
+
+    if (output.plutusData) {
+      txOut.setDatum(Datum.newInlineData(PlutusData.fromCbor(HexBlob(output.plutusData))));
+    } else if (output.dataHash) {
+        txOut.setDatum(Datum.newDataHash(DatumHash.fromHexBlob(HexBlob(output.dataHash))));
+    }
+
+    return txOut.toCbor();
+  }
+
 }
 
 class CardanoSDKSerializerCore {
@@ -517,7 +545,7 @@ class CardanoSDKSerializerCore {
     this.txAuxilliaryData = new AuxilliaryData();
   }
 
-  coreSerializeTxBody = (txBuilderBody: MeshTxBuilderBody): string => {
+  coreSerializeTxBody = (txBuilderBody: MeshTxBuilderBody): TransactionBody => {
     const {
       inputs,
       outputs,
@@ -525,7 +553,6 @@ class CardanoSDKSerializerCore {
       requiredSignatures,
       referenceInputs,
       mints,
-      changeAddress,
       metadata,
       validityRange,
       certificates,
@@ -533,6 +560,7 @@ class CardanoSDKSerializerCore {
     } = txBuilderBody;
 
     this.addAllInputs(inputs);
+    this.setFee(txBuilderBody.fee)
     this.addAllOutputs(this.sanitizeOutputs(outputs));
     this.addAllMints(mints);
     this.addAllCerts(certificates);
@@ -545,14 +573,32 @@ class CardanoSDKSerializerCore {
     if (metadata.size > 0) {
       this.addMetadata(metadata);
     }
+
+    return this.txBody
+  };
+
+  coreSerializeTx(txBuilderBody: MeshTxBuilderBody): string {
+    const bodyCore = this.coreSerializeTxBody(txBuilderBody);
     this.buildWitnessSet();
-    this.balanceTx(changeAddress);
     return new Transaction(
-        this.txBody,
+        bodyCore,
         this.txWitnessSet,
         this.txAuxilliaryData,
     ).toCbor();
-  };
+  }
+
+  coreSerializeTxWithMockSignatures(txBuilderBody: MeshTxBuilderBody): string {
+    const bodyCore = this.coreSerializeTxBody(txBuilderBody);
+    const mockWitSet = this.createMockedWitnessSet(
+        txBuilderBody.expectedNumberKeyWitnesses,
+        txBuilderBody.expectedByronAddressWitnesses,
+    )
+    return new Transaction(
+        bodyCore,
+        mockWitSet,
+        this.txAuxilliaryData,
+    ).toCbor();
+  }
 
   private sanitizeOutputs = (outputs: Output[]): Output[] => {
     for (let i = 0; i < outputs.length; i++) {
@@ -1135,6 +1181,10 @@ class CardanoSDKSerializerCore {
     }
   };
 
+  private setFee = (fee: string) => {
+    this.txBody.setFee(BigInt(fee));
+  }
+
   private addAllRequiredSignatures = (requiredSignatures: string[]) => {
     const requiredSigners: Serialization.CborSet<
         Ed25519KeyHashHex,
@@ -1159,6 +1209,26 @@ class CardanoSDKSerializerCore {
         ),
     );
   };
+
+  private createMockedWitnessSet = (
+      requiredSignaturesCount: number,
+      requiredByronSignatures: string[]
+  ): TransactionWitnessSet => {
+    this.buildWitnessSet();
+    const clonedWitnessSet = TransactionWitnessSet.fromCbor(this.txWitnessSet.toCbor());
+    const bootstrapWitnesses = this.mockBootstrapWitnesses(requiredByronSignatures);
+    const vkeyWitnesses = this.mockVkeyWitnesses(requiredSignaturesCount);
+
+    const bootstrapsSet = CborSet.fromCore([], BootstrapWitness.fromCore);
+    bootstrapsSet.setValues(bootstrapWitnesses);
+    clonedWitnessSet.setBootstraps(bootstrapsSet);
+
+    const vkeysSet = CborSet.fromCore([], VkeyWitness.fromCore);
+    vkeysSet.setValues(vkeyWitnesses);
+    clonedWitnessSet.setVkeys(vkeysSet);
+
+    return clonedWitnessSet;
+  }
 
   private buildWitnessSet = () => {
     // Add provided scripts to tx witness set
@@ -1278,212 +1348,6 @@ class CardanoSDKSerializerCore {
           ),
       );
     }
-  };
-
-  private balanceTx = (changeAddress: string) => {
-    if (changeAddress === "") {
-      throw new Error("Can't balance tx without a change address");
-    }
-
-    // First we add up all input values
-    const inputs = this.txBody.inputs().values();
-    let remainingValue = new Value(BigInt(0));
-    for (let i = 0; i < inputs.length; i++) {
-      let input = inputs[i];
-      if (!input) {
-        throw new Error("Invalid input found");
-      }
-      const output = this.utxoContext.get(input);
-      if (!output) {
-        throw new Error(`Unable to resolve input: ${input.toCbor()}`);
-      }
-      remainingValue = mergeValue(remainingValue, output.amount());
-    }
-
-    // Then we add all withdrawal values
-    const withdrawals = this.txBody.withdrawals();
-    if (withdrawals) {
-      withdrawals.forEach((coin) => {
-        remainingValue = mergeValue(remainingValue, new Value(coin));
-      });
-    }
-
-    // Then we add all mint values
-    remainingValue = mergeValue(
-        remainingValue,
-        new Value(BigInt(0), this.txBody.mint()),
-    );
-
-    // We then take away any current outputs
-    const currentOutputs = this.txBody.outputs();
-    for (let i = 0; i < currentOutputs.length; i++) {
-      let output = currentOutputs.at(i);
-      if (output) {
-        remainingValue = subValue(remainingValue, output.amount());
-      }
-    }
-
-    // We then handle any certificate deposits, adding deregistrations and taking away registrations
-    const certs = this.txBody.certs();
-    if (certs) {
-      certs.values().forEach((cert) => {
-        switch (cert.toCore().__typename) {
-          case CertificateType.StakeRegistration: {
-            remainingValue = subValue(
-                remainingValue,
-                new Value(BigInt(this.protocolParams.keyDeposit)),
-            );
-            break;
-          }
-          case CertificateType.StakeDeregistration: {
-            remainingValue = mergeValue(
-                remainingValue,
-                new Value(BigInt(this.protocolParams.keyDeposit)),
-            );
-            break;
-          }
-          case CertificateType.Registration: {
-            remainingValue = subValue(
-                remainingValue,
-                new Value(BigInt(cert.asRegistrationCert()?.deposit() ?? 0)),
-            );
-            break;
-          }
-          case CertificateType.Unregistration: {
-            remainingValue = mergeValue(
-                remainingValue,
-                new Value(BigInt(cert.asUnregistrationCert()?.deposit() ?? 0)),
-            );
-            break;
-          }
-          case CertificateType.PoolRegistration: {
-            remainingValue = subValue(
-                remainingValue,
-                new Value(BigInt(this.protocolParams.poolDeposit)),
-            );
-            break;
-          }
-          case CertificateType.PoolRetirement: {
-            remainingValue = mergeValue(
-                remainingValue,
-                new Value(BigInt(this.protocolParams.poolDeposit)),
-            );
-            break;
-          }
-          case CertificateType.RegisterDelegateRepresentative: {
-            remainingValue = subValue(
-                remainingValue,
-                new Value(
-                    BigInt(
-                        cert.asRegisterDelegateRepresentativeCert()?.deposit() ?? 0,
-                    ),
-                ),
-            );
-            break;
-          }
-          case CertificateType.UnregisterDelegateRepresentative: {
-            remainingValue = mergeValue(
-              remainingValue,
-              new Value(
-                BigInt(
-                  cert.asUnregisterDelegateRepresentativeCert()?.deposit() ?? 0,
-                ),
-              ),
-            );
-            break;
-          }
-          case CertificateType.StakeRegistrationDelegation: {
-            remainingValue = subValue(
-              remainingValue,
-              new Value(
-                BigInt(
-                  cert.asStakeRegistrationDelegationCert()?.deposit() ?? 0,
-                ),
-              ),
-            );
-            break;
-          }
-          case CertificateType.StakeVoteRegistrationDelegation: {
-            remainingValue = subValue(
-                remainingValue,
-                new Value(
-                    BigInt(
-                        cert.asStakeVoteRegistrationDelegationCert()?.deposit() ?? 0,
-                    ),
-                ),
-            );
-            break;
-          }
-        }
-      });
-    }
-
-    // Add an initial change output, this is needed to generate dummy tx
-    // If inputs - outputs is negative, then throw error
-    if (remainingValue.coin() < 0 || !empty(negatives(remainingValue))) {
-      throw new Error(`Not enough funds to satisfy outputs`);
-    }
-
-    currentOutputs.push(
-        new TransactionOutput(toCardanoAddress(changeAddress), remainingValue),
-    );
-    this.txBody.setOutputs(currentOutputs);
-
-    // Create a dummy tx that we will use to calculate fees
-    this.txBody.setFee(BigInt("10000000"));
-    const numberOfRequiredWitnesses = this.countNumberOfRequiredWitnesses();
-    const dummyTx = this.createDummyTx(numberOfRequiredWitnesses);
-
-    // The calculate fees util will first calculate fee based on
-    // length of dummy tx, then calculate fees related to script
-    // ref size
-    const fee = calculateFees(
-        this.protocolParams.minFeeA,
-        this.protocolParams.minFeeB,
-        this.protocolParams.minFeeRefScriptCostPerByte,
-        this.protocolParams.priceMem,
-        this.protocolParams.priceStep,
-        dummyTx,
-        this.refScriptSize,
-    );
-
-    this.txBody.setFee(fee);
-
-    // The change output should be the last element in outputs
-    // so we can simply take away the calculated fees from it
-    const changeOutput = currentOutputs.pop();
-    if (!changeOutput) {
-      throw new Error(
-          "Somehow the output length was 0 after attempting to calculate fees",
-      );
-    }
-    if (changeOutput.amount().coin() - fee > 0) {
-      changeOutput.amount().setCoin(changeOutput.amount().coin() - fee);
-      currentOutputs.push(changeOutput);
-    } else if (changeOutput.amount().coin() - fee < 0) {
-      throw new Error(
-        "There was enough inputs to cover outputs, but not enough to cover fees",
-      );
-    }
-    this.txBody.setOutputs(currentOutputs);
-  };
-
-  private createDummyTx = (numberOfRequiredWitnesses: number): Transaction => {
-    let dummyWitnessSet = TransactionWitnessSet.fromCbor(
-        HexBlob(this.txWitnessSet.toCbor()),
-    );
-    const dummyVkeyWitnesses: [Ed25519PublicKeyHex, Ed25519SignatureHex][] = [];
-    for (let i = 0; i < numberOfRequiredWitnesses; i++) {
-      dummyVkeyWitnesses.push([
-        Ed25519PublicKeyHex(String(i).repeat(64)),
-        Ed25519SignatureHex(String(i).repeat(128)),
-      ]);
-    }
-    dummyWitnessSet.setVkeys(
-        Serialization.CborSet.fromCore(dummyVkeyWitnesses, VkeyWitness.fromCore),
-    );
-
-    return new Transaction(this.txBody, dummyWitnessSet, this.txAuxilliaryData);
   };
 
   private addScriptRef = (scriptSource: ScriptSource): void => {
