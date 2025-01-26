@@ -355,27 +355,17 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         script: CommonNativeScript | PlutusScript,
       ): string {
         if ("code" in script) {
-          let plutusScriptCbor;
           let versionByte;
           switch (script.version) {
             case "V1": {
-              plutusScriptCbor = PlutusV1Script.fromCbor(
-                HexBlob(script.code),
-              ).toCbor();
               versionByte = 1;
               break;
             }
             case "V2": {
-              plutusScriptCbor = PlutusV2Script.fromCbor(
-                HexBlob(script.code),
-              ).toCbor();
               versionByte = 2;
               break;
             }
             case "V3": {
-              plutusScriptCbor = PlutusV3Script.fromCbor(
-                HexBlob(script.code),
-              ).toCbor();
               versionByte = 3;
               break;
             }
@@ -388,7 +378,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
                   Cbor.encode(
                     new CborArray([
                       new CborUInt(versionByte),
-                      new CborString(plutusScriptCbor).toCborObj(),
+                      new CborString(script.code).toCborObj(),
                     ]),
                   ).toBuffer(),
                 ),
@@ -398,7 +388,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
           return Cbor.encode(taggedScript).toString();
         } else {
           const nativeScript = toNativeScript(script);
-          Cbor.parse(new CborString(nativeScript.toCbor()));
           let taggedScript: CborTag = new CborTag(
             24,
             Cbor.parse(
