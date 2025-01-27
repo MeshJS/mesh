@@ -237,9 +237,19 @@ export const fromPlutusDataToJson = (data: PlutusData): object => {
   }
 };
 
-export const parseDatumCbor = <T = any>(datumCbor: string): T => {
+const datumCborToJson = <T = any>(datumCbor: string): T => {
   const parsedDatum = PlutusData.fromCbor(HexBlob(datumCbor));
   return fromPlutusDataToJson(parsedDatum) as T;
+};
+export const parseDatumCbor = <T = any>(datumCbor: string): T => {
+  return datumCborToJson(datumCbor) as T;
+};
+
+export const parseInlineDatum = <T extends { inline_datum?: string }, X>(
+  utxo: T,
+): X => {
+  const datumCbor: string = utxo.inline_datum || "";
+  return datumCborToJson(datumCbor) as X;
 };
 
 export const deserializeDataHash = (dataHash: string): DatumHash =>
