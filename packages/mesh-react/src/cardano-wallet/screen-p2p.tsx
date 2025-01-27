@@ -73,7 +73,6 @@ export default function ScreenP2P({
       <div style={{ marginTop: 16, marginBottom: 16 }} ref={qrCodeField}></div>
       <Button
         variant="outline"
-        className="mesh-text-white"
         onClick={() => {
           navigator.clipboard.writeText(address);
           setCopied(true);

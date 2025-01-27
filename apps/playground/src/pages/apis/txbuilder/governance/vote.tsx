@@ -5,7 +5,7 @@ import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 const govActionTxHash =
   "aff2909f8175ee02a8c1bf96ff516685d25bf0c6b95aac91f4dfd53a5c0867cc";
@@ -23,16 +23,13 @@ export default function GovernanceVote() {
 }
 
 function Left() {
-  let codeDrepId = ``;
-  codeDrepId += `const dRep = await wallet.getDRep();\n`;
+  let codeDrepId = `const dRep = await wallet.getDRep();\n`;
   codeDrepId += `const dRepId = dRep.dRepIDCip105;\n`;
 
-  let codeWallet = ``;
-  codeWallet += `const utxos = await wallet.getUtxos();\n`;
+  let codeWallet = `const utxos = await wallet.getUtxos();\n`;
   codeWallet += `const changeAddress = await wallet.getChangeAddress();\n`;
 
-  let codeTx = ``;
-  codeTx += `txBuilder\n`;
+  let codeTx = `txBuilder\n`;
   codeTx += `  .vote(\n`;
   codeTx += `    {\n`;
   codeTx += `      type: "DRep",\n`;
@@ -230,9 +227,6 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    // const blockchainProvider = getProvider();
-    // const proposals = await blockchainProvider.get(`governance/proposals`);
-
     const dRep = await wallet.getDRep();
 
     if (dRep === undefined)
@@ -274,7 +268,7 @@ function Right() {
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `txBuilder\n`;
   codeSnippet += `  .vote(\n`;
   codeSnippet += `    {\n`;

@@ -3,7 +3,7 @@ import { useWallet } from "@meshsdk/react";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function StakingDeregister() {
   return (
@@ -72,8 +72,7 @@ function Right() {
   code += `  throw "No address found";\n`;
   code += `}\n`;
   code += `\n`;
-  code += `const txBuilder = getTxBuilder();\n`;
-  code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
   code += `  .deregisterStakeCertificate(rewardAddress)\n`;
   code += `  .selectUtxosFrom(utxos)\n`;
