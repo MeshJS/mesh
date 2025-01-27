@@ -36,7 +36,6 @@
   },
   "dependencies": {
     "@meshsdk/common": "1.8.9",
-    "@meshsdk/core-csl": "1.8.9",
     "@meshsdk/core-cst": "1.8.9",
     "json-bigint": "^1.0.0"
   },

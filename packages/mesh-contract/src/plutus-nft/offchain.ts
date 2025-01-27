@@ -14,12 +14,12 @@ import {
   serializeAddressObj,
   serializePlutusScript,
   UTxO,
-} from "@meshsdk/core";
-import {
   applyCborEncoding,
   applyParamsToScript,
-  parseDatumCbor,
-} from "@meshsdk/core-csl";
+} from "@meshsdk/core";
+import {
+  parseDatumCbor
+} from "@meshsdk/core-cst";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
 import blueprint from "./aiken-workspace/plutus.json";
