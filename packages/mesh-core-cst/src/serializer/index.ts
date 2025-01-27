@@ -83,6 +83,7 @@ import {
   RequireNOf,
   RequireSignature,
   RequireTimeAfter,
+  RequireTimeBefore,
   RewardAccount,
   RewardAddress,
   Script,
@@ -1711,13 +1712,13 @@ class CardanoSDKSerializerCore {
     switch (scriptCore.kind) {
       case RequireSignature: {
         keyHashes.add(scriptCore.keyHash);
-        return;
+        break;
       }
       case RequireTimeAfter: {
-        return;
+        break;
       }
-      case RequireTimeAfter: {
-        return;
+      case RequireTimeBefore: {
+        break;
       }
       case RequireAllOf: {
         for (const innerScript of scriptCore.scripts) {
@@ -1726,7 +1727,7 @@ class CardanoSDKSerializerCore {
             keyHashes,
           );
         }
-        return;
+        break;
       }
       case RequireAnyOf: {
         for (const innerScript of scriptCore.scripts) {
@@ -1735,7 +1736,7 @@ class CardanoSDKSerializerCore {
             keyHashes,
           );
         }
-        return;
+        break;
       }
       case RequireNOf: {
         for (const innerScript of scriptCore.scripts) {
@@ -1744,7 +1745,7 @@ class CardanoSDKSerializerCore {
             keyHashes,
           );
         }
-        return;
+        break;
       }
     }
     return keyHashes;
