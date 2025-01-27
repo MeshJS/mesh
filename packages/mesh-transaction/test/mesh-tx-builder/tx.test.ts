@@ -1,4 +1,5 @@
 import {
+  applyCborEncoding,
   DEFAULT_REDEEMER_BUDGET,
   mConStr0,
   NativeScript,
@@ -7,10 +8,7 @@ import {
   resolveScriptHash,
   resolveScriptHashDRepId,
 } from "@meshsdk/core";
-import {
-  applyCborEncoding,
-  resolvePlutusScriptAddress,
-} from "@meshsdk/core-csl";
+import { resolvePlutusScriptAddress } from "@meshsdk/core-cst";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
 describe("MeshTxBuilder transactions", () => {

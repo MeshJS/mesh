@@ -1,11 +1,12 @@
-import { TxCBOR } from "@cardano-sdk/core";
+import { Serialization } from "@cardano-sdk/core";
 import { Ed25519KeyHashHex } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 
-import { LanguageVersion, toBytes } from "@meshsdk/common";
+import { DeserializedAddress, LanguageVersion, toBytes } from "@meshsdk/common";
 
 import {
   Address,
+  CredentialType,
   DatumHash,
   Ed25519KeyHash,
   NativeScript,
@@ -21,20 +22,8 @@ import {
   Value,
 } from "../types";
 
-export const deserializeAddress = (address: string): Address => {
-  const _address = Address.fromString(address);
-  if (_address === null) throw new Error("Invalid address");
-  return _address;
-};
-
 export const deserializeEd25519KeyHash = (ed25519KeyHash: string) =>
   Ed25519KeyHash.fromBytes(toBytes(ed25519KeyHash));
-
-export const deserializeDataHash = (dataHash: string): DatumHash =>
-  DatumHash.fromHexBlob(HexBlob(dataHash));
-
-export const deserializePlutusData = (plutusData: string): PlutusData =>
-  PlutusData.fromCbor(HexBlob(plutusData));
 
 export const deserializePlutusScript = (
   plutusScript: string,
@@ -70,7 +59,7 @@ export const deserializeValue = (value: string): Value =>
   Value.fromCbor(HexBlob(value));
 
 export const deserializeTx = (tx: string): Transaction =>
-  Transaction.fromCbor(TxCBOR(tx));
+  Transaction.fromCbor(Serialization.TxCBOR(tx));
 
 export const deserializeTxHash = (txHash: string): TransactionId =>
   TransactionId.fromHexBlob(HexBlob(txHash));

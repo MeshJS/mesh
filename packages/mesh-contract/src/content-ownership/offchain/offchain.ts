@@ -18,7 +18,7 @@ import {
   applyParamsToScript,
   parseDatumCbor,
   parseInlineDatum,
-} from "@meshsdk/core-csl";
+} from "@meshsdk/core-cst";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../../common";
 import { blueprint, getScriptCbor, getScriptInfo, ScriptIndex } from "./common";

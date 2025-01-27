@@ -19,8 +19,8 @@ export function toUTxO(hUTxO: HydraUTxO, txId: string): UTxO {
       address: hUTxO.address,
       amount: toAssets(hUTxO.value),
       dataHash: hUTxO.datumhash ?? undefined,
-      plutusData: hUTxO.inlineDatum?.toString() ?? undefined, // TODO: cast to correct cbor
-      scriptHash: hUTxO.referenceScript?.toString() ?? undefined, // TODO: cast to correct cbor
+      plutusData: hUTxO.inlineDatum?.toString() ?? undefined,
+      scriptHash: hUTxO.referenceScript?.toString() ?? undefined,
     },
   };
 }

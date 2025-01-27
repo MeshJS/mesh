@@ -44,9 +44,9 @@ function Right(hydraProvider: HydraProvider, provider: string) {
       console.log("Hydra status", status);
     });
 
+    
     await hydraProvider.connect();
-
-    // return await hydraProvider.initializesHead();
+    // await hydraProvider.initializesHead();
   }
 
   async function fetchutxo() {
@@ -76,10 +76,15 @@ function Right(hydraProvider: HydraProvider, provider: string) {
         type: "cli",
         payment: walletA.key,
       },
+      fetcher: hydraProvider,
+      submitter: hydraProvider,
     });
 
     const pp = await hydraProvider.fetchProtocolParameters();
-    const utxos = await hydraProvider.fetchAddressUTxOs(walletA.addr);
+    // const utxos = await hydraProvider.fetchAddressUTxOs(walletA.addr);
+    // console.log("utxos", utxos);
+    const utxos = await wallet.getUtxos('enterprise');
+    // console.log("utxos", utxos);
     const changeAddress = walletA.addr;
 
     const txBuilder = new MeshTxBuilder({
@@ -98,7 +103,8 @@ function Right(hydraProvider: HydraProvider, provider: string) {
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await hydraProvider.submitTx(signedTx);
+    // const txHash = await hydraProvider.submitTx(signedTx);
+    const txHash = await wallet.submitTx(signedTx);
     console.log("txHash", txHash);
   }
 

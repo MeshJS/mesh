@@ -1,10 +1,11 @@
 import { Serialization } from "@cardano-sdk/core";
 import { Ed25519KeyHash } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
+import base32 from "base32-encoding";
+import { bech32 } from "bech32";
 
 import {
   Asset,
-  Data,
   NativeScript,
   PlutusScript,
   Quantity,
@@ -17,13 +18,11 @@ import {
   Address,
   AssetId,
   BaseAddress,
-  ConstrPlutusData,
   NativeScript as CstNativeScript,
   Datum,
+  Ed25519KeyHashHex,
   EnterpriseAddress,
-  PlutusData,
-  PlutusList,
-  PlutusMap,
+  Hash28ByteBase16,
   PlutusV1Script,
   PlutusV2Script,
   PlutusV3Script,
@@ -42,9 +41,8 @@ import {
   TransactionUnspentOutput,
   Value,
 } from "../types";
+import { deserializeDataHash, deserializePlutusData } from "./data";
 import {
-  deserializeDataHash,
-  deserializePlutusData,
   deserializePlutusScript,
   deserializeScriptRef,
   deserializeTxHash,
@@ -52,6 +50,18 @@ import {
 
 export const toAddress = (bech32: string): Address =>
   Address.fromBech32(bech32);
+
+export const toCardanoAddress = (address: string): Address => {
+  try {
+    return Address.fromBech32(address);
+  } catch {
+    try {
+      return Address.fromBase58(address);
+    } catch {
+      throw new Error("Invalid address format");
+    }
+  }
+};
 
 export const toBaseAddress = (bech32: string): BaseAddress | undefined => {
   return BaseAddress.fromAddress(toAddress(bech32));
@@ -313,43 +323,6 @@ export const toNativeScript = (script: NativeScript) => {
   }
 };
 
-export const toPlutusData = (data: Data): PlutusData => {
-  const toPlutusList = (data: Data[]) => {
-    const plutusList = new PlutusList();
-    data.forEach((element) => {
-      plutusList.add(toPlutusData(element));
-    });
-    return plutusList;
-  };
-
-  switch (typeof data) {
-    case "string":
-      return PlutusData.newBytes(toBytes(data));
-    case "number":
-      return PlutusData.newInteger(BigInt(data));
-    case "bigint":
-      return PlutusData.newInteger(BigInt(data));
-    case "object":
-      if (data instanceof Array) {
-        const plutusList = toPlutusList(data);
-        return PlutusData.newList(plutusList);
-      } else if (data instanceof Map) {
-        const plutusMap = new PlutusMap();
-        data.forEach((value, key) => {
-          plutusMap.insert(toPlutusData(key), toPlutusData(value));
-        });
-        return PlutusData.newMap(plutusMap);
-      } else {
-        return PlutusData.newConstrPlutusData(
-          new ConstrPlutusData(
-            BigInt(data.alternative),
-            toPlutusList(data.fields),
-          ),
-        );
-      }
-  }
-};
-
 export const toValue = (assets: Asset[]) => {
   const multiAsset: TokenMap = new Map();
   assets
@@ -366,4 +339,109 @@ export const toValue = (assets: Asset[]) => {
   }
 
   return value;
+};
+
+export const toDRep = (dRepId: string): Serialization.DRep => {
+  if (dRepId.length === 58) {
+    // CIP-129 DRepIds have length of 58
+    const { prefix, words } = bech32.decode(dRepId);
+    if (prefix !== "drep") {
+      throw new Error("Invalid DRepId prefix");
+    }
+    const bytes = base32.decode(new Uint8Array(words));
+    if (bytes[0] === 0x22) {
+      return Serialization.DRep.newKeyHash(
+        Ed25519KeyHashHex(bytes.subarray(1).toString("hex")),
+      );
+    } else if (bytes[0] === 0x23) {
+      return Serialization.DRep.newScriptHash(
+        Hash28ByteBase16(bytes.subarray(1).toString("hex")),
+      );
+    } else {
+      throw new Error("Malformed CIP129 DRepId");
+    }
+  } else {
+    // CIP-105 DRepIds have length of 56 or 63 depending on vkey or script prefix
+    const { prefix, words } = bech32.decode(dRepId);
+    switch (prefix) {
+      case "drep": {
+        return Serialization.DRep.newKeyHash(
+          Ed25519KeyHashHex(
+            base32.decode(new Uint8Array(words)).toString("hex"),
+          ),
+        );
+      }
+      case "drep_script": {
+        return Serialization.DRep.newScriptHash(
+          Hash28ByteBase16(
+            base32.decode(new Uint8Array(words)).toString("hex"),
+          ),
+        );
+      }
+      default: {
+        throw new Error("Malformed DRepId prefix");
+      }
+    }
+  }
+};
+
+export const getDRepIds = (
+  dRepId: string,
+): {
+  cip105: string;
+  cip129: string;
+} => {
+  let result = {
+    cip105: "",
+    cip129: "",
+  };
+  if (dRepId.length === 58) {
+    result.cip129 = dRepId;
+    const { prefix, words } = bech32.decode(dRepId);
+    if (prefix !== "drep") {
+      throw new Error("Malformed CIP129 DRepId");
+    }
+    const bytes = base32.decode(new Uint8Array(words));
+    if (bytes[0] === 0x22) {
+      result.cip105 = bech32.encode("drep", base32.encode(bytes.subarray(1)));
+    } else if (bytes[0] === 0x23) {
+      result.cip105 = bech32.encode(
+        "drep_script",
+        base32.encode(bytes.subarray(1)),
+      );
+    } else {
+      throw new Error("Malformed CIP129 DRepId");
+    }
+  } else {
+    result.cip105 = dRepId;
+    try {
+      const { prefix, words } = bech32.decode(dRepId);
+      let rawBytes = base32.decode(new Uint8Array(words));
+      if (prefix === "drep") {
+        if (!rawBytes) {
+          throw new Error("Malformed key hash in DRepId");
+        }
+        let rawBytesWithPrefix = new Uint8Array(rawBytes.length + 1);
+        rawBytesWithPrefix.set([0x22]);
+        rawBytesWithPrefix.set(rawBytes, 1);
+        let base32RawBytes = base32.encode(rawBytesWithPrefix);
+        result.cip129 = bech32.encode("drep", base32RawBytes);
+      } else if (prefix === "drep_script") {
+        if (!rawBytes) {
+          throw new Error("Malformed script hash in DRepId");
+        }
+        let rawBytesWithPrefix = new Uint8Array(rawBytes.length + 1);
+        rawBytesWithPrefix.set([0x23]);
+        rawBytesWithPrefix.set(rawBytes, 1);
+        let base32RawBytes = base32.encode(rawBytesWithPrefix);
+        result.cip129 = bech32.encode("drep", base32RawBytes);
+      } else {
+        throw new Error("Can only calculate DRepIds for script/key DReps");
+      }
+    } catch (e) {
+      console.error(e);
+      throw new Error("Malformed DRepId");
+    }
+  }
+  return result;
 };

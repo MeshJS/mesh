@@ -11,9 +11,7 @@ import {
   TxIn,
   UTxO,
 } from "@meshsdk/common";
-import { CSLSerializer } from "@meshsdk/core-csl";
-
-// import { CardanoSDKSerializer } from "@meshsdk/core-cst";
+import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
 import { MeshTxBuilderCore } from "./tx-builder-core";
 
@@ -50,8 +48,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (serializer) {
       this.serializer = serializer;
     } else {
-      // this.serializer = new CardanoSDKSerializer();
-      this.serializer = new CSLSerializer();
+      this.serializer = new CardanoSDKSerializer();
+      // this.serializer = new CSLSerializer();
     }
     this.serializer.verbose = verbose;
     if (fetcher) this.fetcher = fetcher;
@@ -290,13 +288,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
       );
     input.txIn.amount = amount;
-    if (input.type === "PubKey") {
-      if (!address || address === "")
-        throw Error(
-          `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-        );
-      input.txIn.address = address;
-    }
+
+    if (!address || address === "")
+      throw Error(
+        `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
+      );
+    input.txIn.address = address;
+
     if (utxo?.output.scriptRef) {
       input.txIn.scriptSize = utxo.output.scriptRef.length / 2;
     } else {
