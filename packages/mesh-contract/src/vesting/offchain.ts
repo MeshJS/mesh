@@ -12,7 +12,7 @@ import {
   deserializeDatum,
   UTxO,
 } from "@meshsdk/core";
-import { applyParamsToScript } from "@meshsdk/core-csl";
+import { applyParamsToScript } from "@meshsdk/core-cst";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
 import blueprintV1 from "./aiken-workspace-v1/plutus.json";
