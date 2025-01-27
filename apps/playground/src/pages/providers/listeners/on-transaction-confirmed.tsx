@@ -1,13 +1,3 @@
-import { useState } from "react";
-
-import { AssetMetadata, Mint, PlutusScript } from "@meshsdk/core";
-import { Transaction } from "@meshsdk/core";
-import { useWallet } from "@meshsdk/react";
-
-import { getMeshWallet } from "~/components/cardano/mesh-wallet";
-import Input from "~/components/form/input";
-import InputTable from "~/components/sections/input-table";
-import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { SupportedListeners } from ".";

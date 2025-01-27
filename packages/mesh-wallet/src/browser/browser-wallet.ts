@@ -10,7 +10,6 @@ import {
   UTxO,
   Wallet,
 } from "@meshsdk/common";
-import { csl } from "@meshsdk/core-csl";
 import {
   Address,
   addressToBech32,
@@ -520,11 +519,10 @@ export class BrowserWallet implements IWallet {
       const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
       const { dRepIDHash } = await BrowserWallet.dRepKeyToDRepID(dRepKey);
 
-      // const networkId = await this.getNetworkId();
-      // const dRepId = buildDRepID(dRepKey, networkId); // todo: this is not correct
-
-      const csldRepIdKeyHash = csl.PublicKey.from_hex(dRepKey).hash(); // todo: need to replace CST
-      const dRepId = csldRepIdKeyHash.to_bech32("drep");
+      const csldRepIdKeyHash = blake2b(28)
+        .update(Buffer.from(dRepKey, "hex"))
+        .digest("hex");
+      const dRepId = hexToBech32("drep", csldRepIdKeyHash);
 
       return {
         pubDRepKey: dRepKey,

@@ -5,7 +5,7 @@ import {
   serializePlutusScript,
   UTxO,
 } from "@meshsdk/core";
-import { applyParamsToScript } from "@meshsdk/core-csl";
+import { applyParamsToScript } from "@meshsdk/core-cst";
 
 import blueprint from "../aiken-workspace/plutus.json";
 

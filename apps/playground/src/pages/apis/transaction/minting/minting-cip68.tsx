@@ -8,7 +8,7 @@ import {
   resolvePlutusScriptAddress,
   Transaction,
 } from "@meshsdk/core";
-import { applyParamsToScript } from "@meshsdk/core-csl";
+import { applyParamsToScript } from "@meshsdk/core-cst";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";

@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "@meshsdk/common": "1.8.9",
-    "@meshsdk/core-csl": "1.8.9",
     "@meshsdk/core-cst": "1.8.9",
     "@meshsdk/provider": "1.8.9",
     "@meshsdk/react": "1.8.9",

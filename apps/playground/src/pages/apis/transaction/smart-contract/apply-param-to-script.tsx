@@ -1,6 +1,6 @@
 import { MeshMarketplaceContract } from "@meshsdk/contract";
 import { integer, mPubKeyAddress, pubKeyAddress } from "@meshsdk/core";
-import { applyParamsToScript, CSLSerializer } from "@meshsdk/core-csl";
+import { applyParamsToScript, CardanoSDKSerializer } from "@meshsdk/core-cst";
 
 import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
@@ -12,7 +12,7 @@ import {
   demoStakeCredential,
 } from "~/data/cardano";
 
-const serializer = new CSLSerializer();
+const serializer = new CardanoSDKSerializer();
 
 const demoCompiledCode = MeshMarketplaceContract.getCompiledCode();
 
@@ -71,7 +71,7 @@ function Left() {
         Note, currently only <code>core-csl</code> supports applying parameters
         to a script. As such, you must install the package to use this feature.
       </p>
-      <Codeblock data={`npm install @meshsdk/core-csl`} />
+      <Codeblock data={`npm install @meshsdk/core-cst`} />
 
       <p>
         <code>applyParamsToScript</code> has the following signature:
@@ -136,7 +136,7 @@ function DemoMeshType() {
     return scriptCbor;
   }
 
-  let code = `import { applyParamsToScript } from "@meshsdk/core-csl"; \n\n`;
+  let code = `import { applyParamsToScript } from "@meshsdk/core-cst"; \n\n`;
   code += `const scriptCbor = applyParamsToScript(\n`;
   code += `  '<compiled_script_here>',\n`;
   code += `  [mPubKeyAddress('${demoPubKeyHash}', '${demoStakeCredential}'), 100],\n`;

@@ -36,7 +36,6 @@
   },
   "dependencies": {
     "@meshsdk/common": "1.8.9",
-    "@meshsdk/core-csl": "1.8.9",
     "@meshsdk/core-cst": "1.8.9",
     "@meshsdk/transaction": "1.8.9",
     "@simplewebauthn/browser": "^13.0.0"
