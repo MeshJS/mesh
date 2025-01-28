@@ -3,6 +3,7 @@ import { HexBlob } from "@cardano-sdk/util";
 import { pbkdf2Sync } from "pbkdf2";
 
 import { HARDENED_KEY_START } from "@meshsdk/common";
+import { Crypto } from "@meshsdk/core-cst";
 
 import { StricaBip32PrivateKey, StricaPrivateKey } from "../";
 import {
@@ -122,6 +123,34 @@ export const buildKeys = (
       .derive(3) // dRep Keys
       .derive(keyIndex)
       .toPrivateKey();
+
+    //// cardano-sdk
+    const bytes = Buffer.from(entropy, "hex");
+    const privateKey = Crypto.Bip32PrivateKey.fromBytes(bytes);
+
+    // hardened derivation
+    const accountKey2 = privateKey.derive([
+      HARDENED_KEY_START + 1852,
+      HARDENED_KEY_START + 1815,
+      HARDENED_KEY_START + accountIndex,
+    ]); // purpose
+    // .derive(HARDENED_KEY_START + 1815) // coin type
+    // .derive(HARDENED_KEY_START + accountIndex); // account index
+
+    const paymentKey2 = accountKey2.derive([0, keyIndex]);
+
+    const stakeKey2 = accountKey2.derive([2, 0]);
+
+    const dRepKey2 = accountKey2.derive([3, keyIndex]);
+
+    console.log("paymentKey", paymentKey.toPublicKey().hash().toString("hex"));
+    console.log("paymentKey2", paymentKey2.toPublic().toRawKey().hash().hex());
+
+    console.log("stakeKey", stakeKey.toPublicKey().hash().toString("hex"));
+    console.log("stakeKey2", stakeKey2.toPublic().toRawKey().hash().hex());
+
+    console.log("dRepKey", dRepKey.toPublicKey().hash().toString("hex"));
+    console.log("dRepKey2", dRepKey2.toPublic().toRawKey().hash().hex());
 
     return { paymentKey, stakeKey, dRepKey };
   } else {
