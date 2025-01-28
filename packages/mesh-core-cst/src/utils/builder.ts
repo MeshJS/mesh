@@ -5,7 +5,7 @@ import { pbkdf2Sync } from "pbkdf2";
 import { HARDENED_KEY_START } from "@meshsdk/common";
 import { Crypto } from "@meshsdk/core-cst";
 
-import { StricaBip32PrivateKey, StricaPrivateKey } from "../";
+import { StricaPrivateKey } from "../";
 import {
   AddressType,
   BaseAddress,
@@ -98,67 +98,90 @@ export const buildKeys = (
   accountIndex: number,
   keyIndex = 0,
 ): {
-  paymentKey: StricaPrivateKey;
-  stakeKey: StricaPrivateKey;
-  dRepKey?: StricaPrivateKey;
+  paymentKey: Bip32PrivateKey;
+  stakeKey: Bip32PrivateKey;
+  dRepKey?: Bip32PrivateKey;
 } => {
   if (typeof entropy === "string") {
-    const rootKey = new StricaBip32PrivateKey(Buffer.from(entropy, "hex"));
+    // const rootKey = new StricaBip32PrivateKey(Buffer.from(entropy, "hex"));
 
-    // hardened derivation
-    const accountKey = rootKey
-      .derive(HARDENED_KEY_START + 1852) // purpose
-      .derive(HARDENED_KEY_START + 1815) // coin type
-      .derive(HARDENED_KEY_START + accountIndex); // account index
+    // // hardened derivation
+    // const accountKey = rootKey
+    //   .derive(HARDENED_KEY_START + 1852) // purpose
+    //   .derive(HARDENED_KEY_START + 1815) // coin type
+    //   .derive(HARDENED_KEY_START + accountIndex); // account index
 
-    const paymentKey = accountKey
-      .derive(0) // external chain
-      .derive(keyIndex) // payment key index
-      .toPrivateKey();
-    const stakeKey = accountKey
-      .derive(2) // staking key
-      .derive(0)
-      .toPrivateKey();
-    const dRepKey = accountKey
-      .derive(3) // dRep Keys
-      .derive(keyIndex)
-      .toPrivateKey();
+    // const paymentKey = accountKey
+    //   .derive(0) // external chain
+    //   .derive(keyIndex) // payment key index
+    //   .toPrivateKey();
+    // const stakeKey = accountKey
+    //   .derive(2) // staking key
+    //   .derive(0)
+    //   .toPrivateKey();
+    // const dRepKey = accountKey
+    //   .derive(3) // dRep Keys
+    //   .derive(keyIndex)
+    //   .toPrivateKey();
 
     //// cardano-sdk
+
     const bytes = Buffer.from(entropy, "hex");
     const privateKey = Crypto.Bip32PrivateKey.fromBytes(bytes);
 
     // hardened derivation
-    const accountKey2 = privateKey.derive([
-      HARDENED_KEY_START + 1852,
-      HARDENED_KEY_START + 1815,
-      HARDENED_KEY_START + accountIndex,
-    ]); // purpose
-    // .derive(HARDENED_KEY_START + 1815) // coin type
-    // .derive(HARDENED_KEY_START + accountIndex); // account index
+    const accountKey = privateKey.derive([
+      HARDENED_KEY_START + 1852, // purpose
+      HARDENED_KEY_START + 1815, // coin type
+      HARDENED_KEY_START + accountIndex, // account index
+    ]);
 
-    const paymentKey2 = accountKey2.derive([0, keyIndex]);
+    const paymentKey = accountKey.derive([0, keyIndex]); // external chain, payment key index
+    const stakeKey = accountKey.derive([2, 0]); // staking key, index 0
+    const dRepKey = accountKey.derive([3, keyIndex]); // dRep Keys, index
 
-    const stakeKey2 = accountKey2.derive([2, 0]);
-
-    const dRepKey2 = accountKey2.derive([3, keyIndex]);
-
-    console.log("paymentKey", paymentKey.toPublicKey().hash().toString("hex"));
-    console.log("paymentKey2", paymentKey2.toPublic().toRawKey().hash().hex());
-
-    console.log("stakeKey", stakeKey.toPublicKey().hash().toString("hex"));
-    console.log("stakeKey2", stakeKey2.toPublic().toRawKey().hash().hex());
-
-    console.log("dRepKey", dRepKey.toPublicKey().hash().toString("hex"));
-    console.log("dRepKey2", dRepKey2.toPublic().toRawKey().hash().hex());
+    // console.log(
+    //   "paymentKey",
+    //   paymentKey.toPublicKey().hash().toString("hex") ==
+    //     paymentKey2.toPublic().toRawKey().hash().hex(),
+    // );
+    // console.log(
+    //   "stakeKey",
+    //   stakeKey.toPublicKey().hash().toString("hex") ==
+    //     stakeKey2.toPublic().toRawKey().hash().hex(),
+    // );
+    // console.log(
+    //   "dRepKey",
+    //   dRepKey.toPublicKey().hash().toString("hex") ==
+    //     dRepKey2.toPublic().toRawKey().hash().hex(),
+    // );
 
     return { paymentKey, stakeKey, dRepKey };
   } else {
-    const paymentKey = StricaPrivateKey.fromSecretKey(
+    const paymentKeyS = StricaPrivateKey.fromSecretKey(
       Buffer.from(entropy[0], "hex"),
     );
-    const stakeKey = StricaPrivateKey.fromSecretKey(
+    const stakeKeyS = StricaPrivateKey.fromSecretKey(
       Buffer.from(entropy[1], "hex"),
+    );
+
+    // todo tw not correct
+    const paymentKey = Crypto.Bip32PrivateKey.fromHex(
+      Crypto.Bip32PrivateKeyHex(entropy[0]),
+    );
+    const stakeKey = Crypto.Bip32PrivateKey.fromHex(
+      Crypto.Bip32PrivateKeyHex(entropy[1]),
+    );
+
+    console.log(
+      "paymentKey",
+      paymentKeyS.toPublicKey().hash().toString("hex") ==
+        paymentKey.toPublic().toRawKey().hash().hex(),
+    );
+    console.log(
+      "stakingKey",
+      stakeKeyS.toPublicKey().hash().toString("hex") ==
+        stakeKey.toPublic().toRawKey().hash().hex(),
     );
 
     return { paymentKey, stakeKey };

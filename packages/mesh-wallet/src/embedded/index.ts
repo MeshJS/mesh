@@ -1,6 +1,4 @@
 import * as BaseEncoding from "@scure/base";
-import base32 from "base32-encoding";
-import { bech32 } from "bech32";
 
 import {
   bytesToHex,
@@ -40,8 +38,8 @@ export type Account = {
   baseAddressBech32: string;
   enterpriseAddressBech32: string;
   rewardAddressBech32: string;
-  paymentKey: StricaPrivateKey;
-  stakeKey: StricaPrivateKey;
+  paymentKey: Bip32PrivateKey;
+  stakeKey: Bip32PrivateKey;
   paymentKeyHex: string;
   stakeKeyHex: string;
 
@@ -103,37 +101,76 @@ export class WalletStaticMethods {
   }
 
   static getAddresses(
-    paymentKey: StricaPrivateKey,
-    stakingKey: StricaPrivateKey,
+    paymentKey: Bip32PrivateKey,
+    stakingKey: Bip32PrivateKey,
     networkId = 0,
   ): {
     baseAddress: Address;
     enterpriseAddress: Address;
     rewardAddress: Address;
   } {
+    // const baseAddress = buildBaseAddress(
+    //   networkId,
+    //   Hash28ByteBase16.fromEd25519KeyHashHex(
+    //     Ed25519KeyHashHex(paymentKey.toPublicKey().hash().toString("hex")),
+    //   ),
+    //   Hash28ByteBase16.fromEd25519KeyHashHex(
+    //     Ed25519KeyHashHex(stakingKey.toPublicKey().hash().toString("hex")),
+    //   ),
+    // ).toAddress();
+
+    // const enterpriseAddress = buildEnterpriseAddress(
+    //   networkId,
+    //   Hash28ByteBase16.fromEd25519KeyHashHex(
+    //     Ed25519KeyHashHex(paymentKey.toPublicKey().hash().toString("hex")),
+    //   ),
+    // ).toAddress();
+
+    // const rewardAddress = buildRewardAddress(
+    //   networkId,
+    //   Hash28ByteBase16.fromEd25519KeyHashHex(
+    //     Ed25519KeyHashHex(stakingKey.toPublicKey().hash().toString("hex")),
+    //   ),
+    // ).toAddress();
+
+    //// cardano-sdk
+
     const baseAddress = buildBaseAddress(
       networkId,
       Hash28ByteBase16.fromEd25519KeyHashHex(
-        Ed25519KeyHashHex(paymentKey.toPublicKey().hash().toString("hex")),
+        Ed25519KeyHashHex(paymentKey.toPublic().toRawKey().hash().hex()),
       ),
       Hash28ByteBase16.fromEd25519KeyHashHex(
-        Ed25519KeyHashHex(stakingKey.toPublicKey().hash().toString("hex")),
+        Ed25519KeyHashHex(stakingKey.toPublic().toRawKey().hash().hex()),
       ),
     ).toAddress();
 
     const enterpriseAddress = buildEnterpriseAddress(
       networkId,
       Hash28ByteBase16.fromEd25519KeyHashHex(
-        Ed25519KeyHashHex(paymentKey.toPublicKey().hash().toString("hex")),
+        Ed25519KeyHashHex(paymentKey.toPublic().toRawKey().hash().hex()),
       ),
     ).toAddress();
 
     const rewardAddress = buildRewardAddress(
       networkId,
       Hash28ByteBase16.fromEd25519KeyHashHex(
-        Ed25519KeyHashHex(stakingKey.toPublicKey().hash().toString("hex")),
+        Ed25519KeyHashHex(stakingKey.toPublic().toRawKey().hash().hex()),
       ),
     ).toAddress();
+
+    // console.log(
+    //   "baseAddress",
+    //   baseAddress.toBech32() == baseAddress2.toBech32(),
+    // );
+    // console.log(
+    //   "enterpriseAddress",
+    //   enterpriseAddress.toBech32() == enterpriseAddress2.toBech32(),
+    // );
+    // console.log(
+    //   "rewardAddress",
+    //   rewardAddress.toBech32() == rewardAddress2.toBech32(),
+    // );
 
     return {
       baseAddress: baseAddress,
@@ -143,21 +180,26 @@ export class WalletStaticMethods {
   }
 
   static getDRepKey(
-    dRepKey: StricaPrivateKey,
+    dRepKey: Bip32PrivateKey,
     networkId = 0,
   ): {
     pubDRepKey: string;
     dRepIDBech32: DRepID;
     dRepIDHash: Ed25519KeyHashHex;
   } {
-    const pubKey = dRepKey.toPublicKey().pubKey;
-    const pubDRepKey = pubKey.toString("hex");
+    // const pubKey = dRepKey.toPublicKey().pubKey;
+    // const pubDRepKey = pubKey.toString("hex");
+
+    const pubDRepKey = dRepKey.toPublic().toRawKey().hex().toString();
+    // console.log('pubDRepKey', pubDRepKey == pubDRepKey2);
+
     const dRepIDBech32 = buildDRepID(
       Ed25519PublicKeyHex(pubDRepKey),
       networkId,
     );
     const dRep = DRep.newKeyHash(
-      Ed25519KeyHashHex(dRepKey.toPublicKey().hash().toString("hex")),
+      // Ed25519KeyHashHex(dRepKey.toPublicKey().hash().toString("hex")),
+      Ed25519KeyHashHex(dRepKey.toPublic().toRawKey().hash().hex()),
     );
     const dRepIDHash = dRep.toKeyHash()!;
 
@@ -248,8 +290,8 @@ export class EmbeddedWallet extends WalletStaticMethods {
       paymentKey: paymentKey,
       stakeKey: stakeKey,
 
-      paymentKeyHex: paymentKey.toBytes().toString("hex"),
-      stakeKeyHex: stakeKey.toBytes().toString("hex"),
+      paymentKeyHex: paymentKey.toRawKey().bytes().toString("hex"),
+      stakeKeyHex: stakeKey.toRawKey().bytes().toString("hex"),
     };
 
     if (dRepKey) {
@@ -299,6 +341,7 @@ export class EmbeddedWallet extends WalletStaticMethods {
           `[EmbeddedWallet] Address: ${address} doesn't belong to this account.`,
         );
 
+      // todo tw
       return signData(payload, {
         address: Address.fromBech32(address),
         key: paymentKey,
@@ -323,7 +366,7 @@ export class EmbeddedWallet extends WalletStaticMethods {
       const txHash = deserializeTxHash(resolveTxHash(unsignedTx));
 
       const { paymentKey } = this.getAccount(accountIndex, keyIndex);
-
+      // todo tw
       const vKeyWitness = new VkeyWitness(
         Ed25519PublicKeyHex(paymentKey.toPublicKey().toBytes().toString("hex")),
         Ed25519SignatureHex(
