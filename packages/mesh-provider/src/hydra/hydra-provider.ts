@@ -196,6 +196,24 @@ export class HydraProvider implements IFetcher, ISubmitter {
   }
 
   /**
+   * A generic method to post data to a URL.
+   * @param url - The URL to post data to
+   * @param payload - The data to post
+   * @returns - The response from the URL
+   */
+  async post(url: string, payload: any): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.post(url, payload);
+      if (status === 200 || status == 202) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
    * Submit a transaction to the Hydra node. Note, unlike other providers, Hydra does not return a transaction hash.
    * @param tx - The transaction in CBOR hex format
    */
@@ -221,6 +239,20 @@ export class HydraProvider implements IFetcher, ISubmitter {
       throw parseHttpError(error);
     }
   }
+
+  /**
+   * Commands sent to the Hydra node.
+   * https://hydra.family/head-protocol/api-reference/#operation-publish-/
+   *
+   * Accepts one of the following commands:
+   * - Init: init()
+   * - Abort: abort()
+   * - NewTx: newTx()
+   * - Decommit: decommit()
+   * - Close: close()
+   * - Contest: contest()
+   * - Fanout: fanout()
+   */
 
   /**
    * Initializes a new Head. This command is a no-op when a Head is already open and the server will output an CommandFailed message should this happen.
@@ -316,6 +348,31 @@ export class HydraProvider implements IFetcher, ISubmitter {
     this._connection.send(data);
   }
 
+  // todo: is this function https://hydra.family/head-protocol/api-reference/#operation-publish-/commit the same as the POST?
+  // curl -X POST 127.0.0.1:4001/commit \
+  // --data @alice-commit-utxo.json \
+  // > alice-commit-tx.json
+  /**
+   * Draft a commit transaction, which can be completed and later submitted to the L1 network.
+   * https://hydra.family/head-protocol/api-reference/#operation-publish-/commit
+   */
+  async commit(){
+    await this.post("/commit", {
+      // todo --data @alice-commit-utxo.json
+    });
+    // return alice-commit-tx.json
+
+// If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction as shown below (example for bob):
+// curl -X POST 127.0.0.1:4002/commit --data "{}" > bob-commit-tx.json
+// cardano-cli transaction submit --tx-file bob-commit-tx.json
+  }
+
+  /**
+   * Events emitted by the Hydra node.
+   * https://hydra.family/head-protocol/api-reference/#operation-subscribe-/
+   *
+   * @param callback - The callback function to be called when a message is received
+   */
   onMessage(
     callback: (
       data:

@@ -40,7 +40,7 @@ function Right(hydraProvider: HydraProvider, provider: string) {
     hydraProvider.onMessage((message) => {
       console.log("Hydra onMessage", message);
       if(message.tag==='Greetings'){
-        console.log("Greetings", message);
+        console.log("Greetings", JSON.stringify(message));
       }
     });
     hydraProvider.onStatusChange((status) => {
