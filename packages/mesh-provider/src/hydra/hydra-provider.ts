@@ -18,8 +18,33 @@ import {
 import { parseHttpError } from "../utils";
 import { toUTxO } from "./convertor";
 import { HydraConnection } from "./hydra-connection";
-import { IHydraTransaction } from "./interfaces";
-import { HydraStatus, HydraUTxO } from "./types";
+import { HydraStatus, HydraTransaction, HydraUTxO } from "./types";
+import {
+  CommandFailed,
+  Committed,
+  DecommitApproved,
+  DecommitFinalized,
+  DecommitInvalid,
+  DecommitRequested,
+  GetUTxOResponse,
+  Greetings,
+  HeadIsAborted,
+  HeadIsClosed,
+  HeadIsContested,
+  HeadIsFinalized,
+  HeadIsInitializing,
+  HeadIsOpen,
+  IgnoredHeadInitializing,
+  InvalidInput,
+  PeerConnected,
+  PeerDisconnected,
+  PeerHandshakeFailure,
+  PostTxOnChainFailed,
+  ReadyToFanout,
+  SnapshotConfirmed,
+  TxInvalid,
+  TxValid,
+} from "./types/events";
 
 /**
  * HydraProvider is a tool for administrating & interacting with Hydra Heads.
@@ -177,13 +202,15 @@ export class HydraProvider implements IFetcher, ISubmitter {
   async submitTx(tx: string): Promise<string> {
     try {
       await this.newTx(tx, "Witnessed Tx ConwayEra");
-
       const txId = await new Promise<string>((resolve) => {
         this.onMessage((message) => {
-          if (message.transaction && message.transaction.cborHex === tx) {
-            if (message.tag === "TxValid") {
-              resolve(message.transaction.txId);
-            } else if (message.tag == "TxInvalid") {
+          if (message.tag === "TxValid") {
+            if (message.transaction && message.transaction.cborHex === tx) {
+              resolve(message.transaction.txId!);
+            }
+          }
+          if (message.tag === "TxInvalid") {
+            if (message.transaction && message.transaction.cborHex === tx) {
               throw JSON.stringify(message.validationError);
             }
           }
@@ -225,7 +252,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     description = "",
     txId?: string,
   ) {
-    const transaction: IHydraTransaction = {
+    const transaction: HydraTransaction = {
       type: type,
       description: description,
       cborHex: cborHex,
@@ -289,8 +316,113 @@ export class HydraProvider implements IFetcher, ISubmitter {
     this._connection.send(data);
   }
 
-  onMessage(callback: (message: any) => void) {
-    this._eventEmitter.on("onmessage", callback);
+  onMessage(
+    callback: (
+      data:
+        | Greetings
+        | PeerConnected
+        | PeerDisconnected
+        | PeerHandshakeFailure
+        | HeadIsInitializing
+        | Committed
+        | HeadIsOpen
+        | HeadIsClosed
+        | HeadIsContested
+        | ReadyToFanout
+        | HeadIsAborted
+        | HeadIsFinalized
+        | TxValid
+        | TxInvalid
+        | SnapshotConfirmed
+        | GetUTxOResponse
+        | InvalidInput
+        | PostTxOnChainFailed
+        | CommandFailed
+        | IgnoredHeadInitializing
+        | DecommitInvalid
+        | DecommitRequested
+        | DecommitApproved
+        | DecommitFinalized,
+    ) => void,
+  ) {
+    this._eventEmitter.on("onmessage", (message) => {
+      switch (message.tag) {
+        case "Greetings":
+          callback(message as Greetings);
+          break;
+        case "PeerConnected":
+          callback(message as PeerConnected);
+          break;
+        case "onPeerDisconnected":
+          callback(message as PeerDisconnected);
+          break;
+        case "PeerHandshakeFailure":
+          callback(message as PeerHandshakeFailure);
+          break;
+        case "HeadIsInitializing":
+          callback(message as HeadIsInitializing);
+          break;
+        case "Committed":
+          callback(message as Committed);
+          break;
+        case "HeadIsOpen":
+          callback(message as HeadIsOpen);
+          break;
+        case "HeadIsClosed":
+          callback(message as HeadIsClosed);
+          break;
+        case "HeadIsContested":
+          callback(message as HeadIsContested);
+          break;
+        case "ReadyToFanout":
+          callback(message as ReadyToFanout);
+          break;
+        case "HeadIsAborted":
+          callback(message as HeadIsAborted);
+          break;
+        case "HeadIsFinalized":
+          callback(message as HeadIsFinalized);
+          break;
+        case "TxValid":
+          callback(message as TxValid);
+          break;
+        case "TxInvalid":
+          callback(message as TxInvalid);
+          break;
+        case "SnapshotConfirmed":
+          callback(message as SnapshotConfirmed);
+          break;
+        case "GetUTxOResponse":
+          callback(message as GetUTxOResponse);
+          break;
+        case "InvalidInput":
+          callback(message as InvalidInput);
+          break;
+        case "PostTxOnChainFailed":
+          callback(message as PostTxOnChainFailed);
+          break;
+        case "CommandFailed":
+          callback(message as CommandFailed);
+          break;
+        case "IgnoredHeadInitializing":
+          callback(message as IgnoredHeadInitializing);
+          break;
+        case "DecommitInvalid":
+          callback(message as DecommitInvalid);
+          break;
+        case "DecommitRequested":
+          callback(message as DecommitRequested);
+          break;
+        case "DecommitApproved":
+          callback(message as DecommitApproved);
+          break;
+        case "DecommitFinalized":
+          callback(message as DecommitFinalized);
+          break;
+        default:
+          break;
+      }
+    });
   }
 
   onStatusChange(callback: (status: HydraStatus) => void) {

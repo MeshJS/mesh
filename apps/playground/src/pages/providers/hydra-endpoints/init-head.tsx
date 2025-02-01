@@ -39,14 +39,16 @@ function Right(hydraProvider: HydraProvider, provider: string) {
   async function runDemo() {
     hydraProvider.onMessage((message) => {
       console.log("Hydra onMessage", message);
+      if(message.tag==='Greetings'){
+        console.log("Greetings", message);
+      }
     });
     hydraProvider.onStatusChange((status) => {
       console.log("Hydra status", status);
     });
 
-    
     await hydraProvider.connect();
-    // await hydraProvider.initializesHead();
+    // await hydraProvider.init();
   }
 
   async function fetchutxo() {
@@ -83,7 +85,7 @@ function Right(hydraProvider: HydraProvider, provider: string) {
     const pp = await hydraProvider.fetchProtocolParameters();
     // const utxos = await hydraProvider.fetchAddressUTxOs(walletA.addr);
     // console.log("utxos", utxos);
-    const utxos = await wallet.getUtxos('enterprise');
+    const utxos = await wallet.getUtxos("enterprise");
     // console.log("utxos", utxos);
     const changeAddress = walletA.addr;
 
