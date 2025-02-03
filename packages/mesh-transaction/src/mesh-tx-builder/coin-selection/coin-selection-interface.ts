@@ -1,16 +1,17 @@
-import {Cardano} from "@cardano-sdk/core";
-import {Asset, TxOutput, UTxO} from "@meshsdk/common";
+import {Asset, Output, TxIn, TxOutput, UTxO} from "@meshsdk/common";
 
 export interface TransactionPrototype {
-    inputs: Set<UTxO>;
-    outputs: Set<TxOutput>;
+    new_inputs: Set<UTxO>;
+    new_outputs: Set<TxOutput>;
     change: Array<TxOutput>;
     fee: bigint;
 }
 
-export interface SelectionResult {
-    selection: TransactionPrototype;
-    remainingUTxO: Set<UTxO>;
+export interface ImplicitValue {
+    withdrawals: bigint
+    deposit: bigint
+    reclaimDeposit: bigint
+    mint: Asset[]
 }
 
 export declare type EstimateTxCosts = (selectionSkeleton: TransactionPrototype) => Promise<bigint>;
@@ -26,5 +27,5 @@ export interface BuilderCallbacks {
 }
 
 export interface IInputSelector {
-    select: (utxo: Set<UTxO>, constraints: BuilderCallbacks) => Promise<SelectionResult>;
+    select: (preselectedUtoxs: TxIn[], outputs: Output[], implicitValue: ImplicitValue, utxos: UTxO[], changeAddress: string) => Promise<TransactionPrototype>;
 }
