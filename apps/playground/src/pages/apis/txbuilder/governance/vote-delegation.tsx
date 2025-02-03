@@ -83,7 +83,9 @@ function Left() {
 
 function Right() {
   const { wallet, connected } = useWallet();
-  const [drepid, setDrepid] = useState<string>("drep1yv4uesaj92wk8ljlsh4p7jzndnzrflchaz5fzug3zxg4naqkpeas3");
+  const [drepid, setDrepid] = useState<string>(
+    "drep1yv4uesaj92wk8ljlsh4p7jzndnzrflchaz5fzug3zxg4naqkpeas3",
+  );
 
   async function runDemo() {
     if (!connected) throw new Error("Wallet not connected");
@@ -128,8 +130,8 @@ function Right() {
   codeSnippet += `    },\n`;
   codeSnippet += `    rewardAddress,\n`;
   codeSnippet += `  )\n`;
-  codeSnippet += `  .changeAddress(changeAddress);\n`;
-  codeSnippet += `  .selectUtxos(utxos, "keepRelevant", "10000000")\n`;
+  codeSnippet += `  .changeAddress(changeAddress)\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos, "keepRelevant", "10000000")\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder.complete();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;
