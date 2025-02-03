@@ -1,11 +1,7 @@
 import { useState } from "react";
 
-import {
-  HydraInstance,
-  HydraProvider,
-  MeshTxBuilder,
-  MeshWallet,
-} from "@meshsdk/core";
+import { MeshTxBuilder, MeshWallet } from "@meshsdk/core";
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
 
 import Button from "~/components/button/button";
 import Link from "~/components/link";
@@ -175,7 +171,7 @@ function Left(
       >
         Build Transaction
       </Button>
-      
+
       <p>
         The transation will be validated by both hydra-nodes and either result
         in a TxInvalid message with a reason, or a TxValid message and a

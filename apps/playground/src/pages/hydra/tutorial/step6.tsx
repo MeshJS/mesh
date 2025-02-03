@@ -3,7 +3,6 @@ import { useState } from "react";
 import { MeshWallet } from "@meshsdk/core";
 
 import Button from "~/components/button/button";
-import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 

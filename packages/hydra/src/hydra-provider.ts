@@ -15,7 +15,7 @@ import {
   UTxO,
 } from "@meshsdk/common";
 
-import { parseHttpError } from "../utils";
+import { parseHttpError } from "./utils";
 import { toUTxO } from "./convertor";
 import { HydraConnection } from "./hydra-connection";
 import { HydraStatus, HydraTransaction, HydraUTxO } from "./types";
