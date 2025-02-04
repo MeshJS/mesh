@@ -1,5 +1,6 @@
 import {
-  Asset, Certificate, CertificateType,
+  Action,
+  Asset, Budget, Certificate, CertificateType,
   IEvaluator,
   IFetcher,
   IMeshTxSerializer,
@@ -27,6 +28,8 @@ import {
 } from "@meshsdk/core-cst";
 
 import { MeshTxBuilderCore } from "./tx-builder-core";
+
+import BigNumber from "bignumber.js";
 
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
@@ -907,6 +910,72 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return referenceInputs;
   }
 
+  getTotalExecutionUnits = (): {
+    memUnits: bigint;
+    stepUnits: bigint;
+  } => {
+    let memUnits = 0n;
+    let stepUnits = 0n;
+    for (let input of this.meshTxBuilderBody.inputs) {
+      if (input.type === "Script" && input.scriptTxIn.redeemer) {
+        memUnits += BigInt(input.scriptTxIn.redeemer.exUnits.mem);
+        stepUnits += BigInt(input.scriptTxIn.redeemer.exUnits.steps);
+      }
+    }
+    for (let mint of this.meshTxBuilderBody.mints) {
+      if (mint.type === "Plutus" && mint.redeemer) {
+        memUnits += BigInt(mint.redeemer.exUnits.mem);
+        stepUnits += BigInt(mint.redeemer.exUnits.steps);
+      }
+    }
+    for (let cert of this.meshTxBuilderBody.certificates) {
+      if (cert.type === "ScriptCertificate" && cert.redeemer) {
+        memUnits += BigInt(cert.redeemer.exUnits.mem);
+        stepUnits += BigInt(cert.redeemer.exUnits.steps);
+      }
+    }
+    for (let withdrawal of this.meshTxBuilderBody.withdrawals) {
+      if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
+        memUnits += BigInt(withdrawal.redeemer.exUnits.mem);
+        stepUnits += BigInt(withdrawal.redeemer.exUnits.steps);
+      }
+    }
+    for (let vote of this.meshTxBuilderBody.votes) {
+      if (vote.type === "ScriptVote" && vote.redeemer) {
+        memUnits += BigInt(vote.redeemer.exUnits.mem);
+        stepUnits += BigInt(vote.redeemer.exUnits.steps);
+      }
+    }
+    return {
+      memUnits,
+      stepUnits,
+    }
+  }
+
+  calculateFee = (txSize: bigint): bigint => {
+    const refScriptFee = this.calculateRefScriptFee();
+    const redeemersFee = this.calculateRedeemersFee();
+    const minFeeCoeff = BigInt(this._protocolParams.minFeeA);
+    const minFeeConstant = BigInt(this._protocolParams.minFeeB);
+    const minFee = (minFeeCoeff * txSize) + minFeeConstant;
+    return minFee + refScriptFee + redeemersFee;
+  }
+
+  calculateRefScriptFee = (): bigint => {
+    const refSize = this.getTotalReferenceInputsSize();
+    const refScriptFee = this._protocolParams.minFeeRefScriptCostPerByte;
+    return minRefScriptFee(refSize, refScriptFee);
+  }
+
+  calculateRedeemersFee = (): bigint => {
+    const {memUnits, stepUnits} = this.getTotalExecutionUnits();
+    const stepPrice = BigNumber(this._protocolParams.priceStep);
+    const memPrice = BigNumber(this._protocolParams.priceMem);
+    const stepFee = stepPrice.multipliedBy(BigNumber(stepUnits.toString()));
+    const memFee = memPrice.multipliedBy(BigNumber(memUnits.toString()));
+    return BigInt(stepFee.plus(memFee).integerValue(BigNumber.ROUND_CEIL).toString());
+  }
+
   protected clone(): MeshTxBuilder {
     const newBuilder = super._cloneCore<MeshTxBuilder>(() => {
       return new MeshTxBuilder({
@@ -932,6 +1001,54 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     return newBuilder;
   }
+}
+
+function minRefScriptFee(
+    totalRefScriptsSize: bigint,
+    refScriptCoinsPerByte: number
+): bigint {
+  const multiplier = new BigNumber(12).dividedBy(new BigNumber(10)); // 1.2
+  const sizeIncrement = new BigNumber(25600);
+  const baseFee = new BigNumber(refScriptCoinsPerByte);
+
+  const totalSize = new BigNumber(totalRefScriptsSize.toString());
+
+  return tierRefScriptFee(multiplier, sizeIncrement, baseFee, totalSize);
+}
+
+function tierRefScriptFee(
+    multiplier: BigNumber,
+    sizeIncrement: BigNumber,
+    baseFee: BigNumber,
+    totalSize: BigNumber
+): bigint {
+  if (multiplier.lte(0) || sizeIncrement.eq(0)) {
+    throw new Error("Size increment and multiplier must be positive");
+  }
+
+  const fullTiers = totalSize.dividedToIntegerBy(sizeIncrement);
+  const partialTierSize = totalSize.mod(sizeIncrement);
+
+  const tierPrice = baseFee.multipliedBy(sizeIncrement);
+  let acc = new BigNumber(0);
+  const one = new BigNumber(1);
+
+  if (fullTiers.gt(0)) {
+    const multiplierPow = multiplier.pow(fullTiers.toNumber());
+    const progressionEnumerator = one.minus(multiplierPow);
+    const progressionDenom = one.minus(multiplier);
+    const tierProgressionSum = progressionEnumerator.dividedBy(progressionDenom);
+    acc = acc.plus(tierPrice.multipliedBy(tierProgressionSum));
+  }
+
+  if (partialTierSize.gt(0)) {
+    const multiplierPow = multiplier.pow(fullTiers.toNumber());
+    const lastTierPrice = baseFee.multipliedBy(multiplierPow);
+    const partialTierFee = lastTierPrice.multipliedBy(partialTierSize);
+    acc = acc.plus(partialTierFee);
+  }
+
+  return BigInt(acc.integerValue(BigNumber.ROUND_FLOOR).toString());
 }
 
 export * from "./utils";
