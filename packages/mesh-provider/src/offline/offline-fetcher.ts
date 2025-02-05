@@ -8,14 +8,15 @@ import {
   Protocol,
   SUPPORTED_HANDLES,
   TransactionInfo,
-  UTxO
+  UTxO,
 } from "@meshsdk/common";
+
 import { parseHttpError } from "../utils";
 
 type AssetAddress = {
   address: string;
   quantity: string;
-}
+};
 
 /**
  * OfflineFetcher implements the IFetcher interface to provide offline access to blockchain data.
@@ -62,13 +63,17 @@ export class OfflineFetcher implements IFetcher {
   private protocolParameters: Record<number, Protocol> = {};
   private transactions: Record<string, TransactionInfo> = {};
 
-  private paginate<T>(items: T[], cursor?: number | string, pageSize: number = 20): { paginatedItems: T[], nextCursor?: number  } {
+  private paginate<T>(
+    items: T[],
+    cursor?: number | string,
+    pageSize: number = 20,
+  ): { paginatedItems: T[]; nextCursor?: number } {
     const startIndex = cursor != null ? parseInt(String(cursor), 10) : 0;
     const paginatedItems = items.slice(startIndex, startIndex + pageSize);
-    const nextCursor = (startIndex + pageSize) < items.length ? startIndex + pageSize : undefined;
+    const nextCursor =
+      startIndex + pageSize < items.length ? startIndex + pageSize : undefined;
     return { paginatedItems, nextCursor };
   }
-
 
   /**
    * Fetches account information for a given address.
@@ -90,7 +95,11 @@ export class OfflineFetcher implements IFetcher {
    */
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const addressUtxos = this.utxos[address] || [];
-    return asset ? addressUtxos.filter(utxo => utxo.output.amount.some(a => a.unit === asset)) : addressUtxos;
+    return asset
+      ? addressUtxos.filter((utxo) =>
+          utxo.output.amount.some((a) => a.unit === asset),
+        )
+      : addressUtxos;
   }
 
   /**
@@ -114,7 +123,9 @@ export class OfflineFetcher implements IFetcher {
     // Get addresses from UTXOs
     for (const [address, utxos] of Object.entries(this.utxos)) {
       for (const utxo of utxos) {
-        const assetAmount = utxo.output.amount.find(amt => amt.unit === asset);
+        const assetAmount = utxo.output.amount.find(
+          (amt) => amt.unit === asset,
+        );
         if (assetAmount) {
           const currentAmount = addressMap.get(address) || BigInt(0);
           addressMap.set(address, currentAmount + BigInt(assetAmount.quantity));
@@ -127,7 +138,7 @@ export class OfflineFetcher implements IFetcher {
       .filter(([_, quantity]) => quantity > BigInt(0))
       .map(([address, quantity]) => ({
         address,
-        quantity: quantity.toString()
+        quantity: quantity.toString(),
       }));
   }
 
@@ -138,7 +149,9 @@ export class OfflineFetcher implements IFetcher {
    */
   async fetchAddressAssets(address: string): Promise<Asset[]> {
     if (!OfflineFetcher.isValidAddress(address)) {
-      throw new Error("Invalid address: must be a valid Bech32 or Base58 address");
+      throw new Error(
+        "Invalid address: must be a valid Bech32 or Base58 address",
+      );
     }
 
     const assetMap = new Map<string, bigint>();
@@ -154,7 +167,7 @@ export class OfflineFetcher implements IFetcher {
 
     // Get assets from asset addresses registry
     for (const [assetId, addresses] of Object.entries(this.assetAddresses)) {
-      const assetAddress = addresses.find(addr => addr.address === address);
+      const assetAddress = addresses.find((addr) => addr.address === address);
       if (assetAddress) {
         const currentAmount = assetMap.get(assetId) || BigInt(0);
         assetMap.set(assetId, currentAmount + BigInt(assetAddress.quantity));
@@ -162,11 +175,10 @@ export class OfflineFetcher implements IFetcher {
     }
 
     // Convert map back to array of Assets
-    return Array.from(assetMap.entries())
-      .map(([unit, quantity]) => ({
-        unit,
-        quantity: quantity.toString()
-      }));
+    return Array.from(assetMap.entries()).map(([unit, quantity]) => ({
+      unit,
+      quantity: quantity.toString(),
+    }));
   }
 
   /**
@@ -200,7 +212,10 @@ export class OfflineFetcher implements IFetcher {
    * @returns Promise resolving to paginated assets and next cursor
    * @throws Error if collection not found or invalid cursor
    */
-  async fetchCollectionAssets(policyId: string, cursor?: number | string): Promise<{ assets: Asset[], next?: string | number }> {
+  async fetchCollectionAssets(
+    policyId: string,
+    cursor?: number | string,
+  ): Promise<{ assets: Asset[]; next?: string | number }> {
     const assets = this.collections[policyId];
     if (!assets) throw new Error(`Collection not found: ${policyId}`);
 
@@ -211,7 +226,6 @@ export class OfflineFetcher implements IFetcher {
     const { paginatedItems, nextCursor } = this.paginate(assets, cursor);
     return { assets: paginatedItems, next: nextCursor };
   }
-
 
   /**
    * Fetches metadata for a handle.
@@ -255,12 +269,15 @@ export class OfflineFetcher implements IFetcher {
    * @throws Error if parameters not found for epoch
    */
   async fetchProtocolParameters(epoch?: number): Promise<Protocol> {
-    if(!epoch) {
-      const maxEpochNumber = Math.max(...Object.keys(this.protocolParameters).map(Number));
+    if (!epoch) {
+      const maxEpochNumber = Math.max(
+        ...Object.keys(this.protocolParameters).map(Number),
+      );
       return this.protocolParameters[maxEpochNumber]!;
     }
     const parameters = this.protocolParameters[epoch];
-    if (!parameters) throw new Error(`Protocol parameters not found for epoch: ${epoch}`);
+    if (!parameters)
+      throw new Error(`Protocol parameters not found for epoch: ${epoch}`);
     return parameters;
   }
 
@@ -283,12 +300,18 @@ export class OfflineFetcher implements IFetcher {
    * @throws Error if no UTXOs found for the transaction hash
    */
   async fetchUTxOs(hash: string): Promise<UTxO[]> {
-    const utxos = Object.values(this.utxos).flat().filter(utxo => utxo.input.txHash === hash);
-    if (!utxos.length) throw new Error(`No UTxOs found for transaction hash: ${hash}`);
+    const utxos = Object.values(this.utxos)
+      .flat()
+      .filter((utxo) => utxo.input.txHash === hash);
+    if (!utxos.length)
+      throw new Error(`No UTxOs found for transaction hash: ${hash}`);
     return utxos;
   }
 
-  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<any> {
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<any> {
     throw new Error("Method not implemented");
   }
 
@@ -314,7 +337,7 @@ export class OfflineFetcher implements IFetcher {
       blocks: this.blocks,
       collections: this.collections,
       protocolParameters: this.protocolParameters,
-      transactions: this.transactions
+      transactions: this.transactions,
     });
   }
 
@@ -328,34 +351,42 @@ export class OfflineFetcher implements IFetcher {
     const fetcher = new OfflineFetcher();
 
     Object.entries(data.accounts || {}).forEach(([address, info]) =>
-      fetcher.addAccount(address, info as AccountInfo));
+      fetcher.addAccount(address, info as AccountInfo),
+    );
 
     Object.entries(data.utxos || {}).forEach(([address, utxos]) =>
-      fetcher.addUTxOs(utxos as UTxO[]));
+      fetcher.addUTxOs(utxos as UTxO[]),
+    );
 
     Object.entries(data.assetAddresses || {}).forEach(([asset, addresses]) =>
-      fetcher.addAssetAddresses(asset, addresses as AssetAddress[]));
+      fetcher.addAssetAddresses(asset, addresses as AssetAddress[]),
+    );
 
     Object.entries(data.assetMetadata || {}).forEach(([asset, metadata]) =>
-      fetcher.addAssetMetadata(asset, metadata as AssetMetadata));
+      fetcher.addAssetMetadata(asset, metadata as AssetMetadata),
+    );
 
     Object.entries(data.blocks || {}).forEach(([_, info]) =>
-      fetcher.addBlock(info as BlockInfo));
+      fetcher.addBlock(info as BlockInfo),
+    );
 
     Object.entries(data.collections || {}).forEach(([policyId, assets]) =>
-      fetcher.addCollectionAssets(assets as Asset[]));
+      fetcher.addCollectionAssets(assets as Asset[]),
+    );
 
     Object.entries(data.protocolParameters || {}).forEach(([_, params]) =>
-      fetcher.addProtocolParameters(params as Protocol));
+      fetcher.addProtocolParameters(params as Protocol),
+    );
 
     Object.entries(data.transactions || {}).forEach(([_, info]) =>
-      fetcher.addTransaction(info as TransactionInfo));
+      fetcher.addTransaction(info as TransactionInfo),
+    );
 
     return fetcher;
   }
 
   private static isValidHex(str: string, length?: number): boolean {
-    if (length !== undefined && str.length !== length) {
+    if (length && str.length !== length) {
       return false;
     }
     return /^[0-9a-fA-F]+$/.test(str);
@@ -370,7 +401,8 @@ export class OfflineFetcher implements IFetcher {
 
   private static isValidBase58(input: string): boolean {
     // Base58 character set (Bitcoin alphabet)
-    const base58Regex = /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/;
+    const base58Regex =
+      /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/;
     // Check that input matches Base58 character set
     if (!base58Regex.test(input)) {
       return false;
@@ -386,29 +418,28 @@ export class OfflineFetcher implements IFetcher {
     }
 
     // Bech32 regex pattern for the given prefix
-    const pattern = new RegExp(`^${prefix}1[02-9ac-hj-np-z]+$`, 'i');
+    const pattern = new RegExp(`^${prefix}1[02-9ac-hj-np-z]+$`, "i");
     return pattern.test(input);
   }
 
   private static isValidBech32Address(address: string): boolean {
-    return OfflineFetcher.isValidBech32(address, '(addr|addr_test)');
+    return OfflineFetcher.isValidBech32(address, "(addr|addr_test)");
   }
 
   private static isValidBech32Pool(poolId: string): boolean {
-    return OfflineFetcher.isValidBech32(poolId, 'pool');
+    return OfflineFetcher.isValidBech32(poolId, "pool");
   }
 
   private static isValidBech32VrfVk(vrfKey: string): boolean {
-    return OfflineFetcher.isValidBech32(vrfKey, 'vrf_vk');
+    return OfflineFetcher.isValidBech32(vrfKey, "vrf_vk");
   }
-
 
   private static isIntegerString(str: string): boolean {
     return /^\d+$/.test(str);
   }
 
   private static isValidAssetOrLovelace(asset: string): boolean {
-    if (asset === 'lovelace') {
+    if (asset === "lovelace") {
       return true;
     }
     if (asset.length < 56) {
@@ -416,7 +447,6 @@ export class OfflineFetcher implements IFetcher {
     }
     return OfflineFetcher.isValidHex(asset);
   }
-
 
   /**
    * Adds account information to the fetcher.
@@ -426,12 +456,16 @@ export class OfflineFetcher implements IFetcher {
    */
   addAccount(address: string, accountInfo: AccountInfo): void {
     if (!OfflineFetcher.isValidAddress(address)) {
-      throw new Error("Invalid address: must be a valid Bech32 or Base58 address");
+      throw new Error(
+        "Invalid address: must be a valid Bech32 or Base58 address",
+      );
     }
 
-    if (accountInfo.poolId !== undefined) {
+    if (accountInfo.poolId) {
       if (!OfflineFetcher.isValidBech32Pool(accountInfo.poolId)) {
-        throw new Error("Invalid 'poolId': must be a valid Bech32 pool address");
+        throw new Error(
+          "Invalid 'poolId': must be a valid Bech32 pool address",
+        );
       }
     }
 
@@ -450,7 +484,6 @@ export class OfflineFetcher implements IFetcher {
     this.accounts[address] = accountInfo;
   }
 
-
   /**
    * Adds UTXOs to the fetcher.
    * @param utxos - Array of UTXOs
@@ -462,40 +495,77 @@ export class OfflineFetcher implements IFetcher {
     }
 
     utxos.forEach((utxo, index) => {
-      if (!Number.isInteger(utxo.input.outputIndex) || utxo.input.outputIndex < 0) {
-        throw new Error(`Invalid outputIndex for UTxO at index ${index}: must be a non-negative integer`);
+      if (
+        !Number.isInteger(utxo.input.outputIndex) ||
+        utxo.input.outputIndex < 0
+      ) {
+        throw new Error(
+          `Invalid outputIndex for UTxO at index ${index}: must be a non-negative integer`,
+        );
       }
       if (!OfflineFetcher.isValidHex(utxo.input.txHash, 64)) {
-        throw new Error(`Invalid txHash for UTxO at index ${index}: must be a 64-character hexadecimal string`);
+        throw new Error(
+          `Invalid txHash for UTxO at index ${index}: must be a 64-character hexadecimal string`,
+        );
       }
 
       if (!OfflineFetcher.isValidAddress(utxo.output.address)) {
-        throw new Error(`Invalid address in output for UTxO at index ${index}: must be a valid Bech32 or Base58 address`);
+        throw new Error(
+          `Invalid address in output for UTxO at index ${index}: must be a valid Bech32 or Base58 address`,
+        );
       }
-      if (!Array.isArray(utxo.output.amount) || utxo.output.amount.length === 0) {
-        throw new Error(`Invalid amount for UTxO at index ${index}: must be a non-empty array of assets`);
+      if (
+        !Array.isArray(utxo.output.amount) ||
+        utxo.output.amount.length === 0
+      ) {
+        throw new Error(
+          `Invalid amount for UTxO at index ${index}: must be a non-empty array of assets`,
+        );
       }
 
       utxo.output.amount.forEach((asset, assetIndex) => {
-        if(!OfflineFetcher.isValidAssetOrLovelace(asset.unit)) {
-          throw new Error(`Invalid unit for asset at index ${assetIndex} in UTxO at index ${index}`);
+        if (!OfflineFetcher.isValidAssetOrLovelace(asset.unit)) {
+          throw new Error(
+            `Invalid unit for asset at index ${assetIndex} in UTxO at index ${index}`,
+          );
         }
         if (!OfflineFetcher.isIntegerString(asset.quantity)) {
-          throw new Error(`Invalid quantity for asset at index ${assetIndex} in UTxO at index ${index}: must be a string of digits`);
+          throw new Error(
+            `Invalid quantity for asset at index ${assetIndex} in UTxO at index ${index}: must be a string of digits`,
+          );
         }
       });
-
-      if (utxo.output.dataHash !== undefined && !OfflineFetcher.isValidHex(utxo.output.dataHash, 64)) {
-        throw new Error(`Invalid dataHash for UTxO at index ${index}: must be a 64-character hexadecimal string or undefined`);
+      if (
+        utxo.output.dataHash &&
+        !OfflineFetcher.isValidHex(utxo.output.dataHash, 64)
+      ) {
+        throw new Error(
+          `Invalid dataHash for UTxO at index ${index}: must be a 64-character hexadecimal string or undefined`,
+        );
       }
-      if (utxo.output.plutusData !== undefined && !OfflineFetcher.isValidHex(utxo.output.plutusData)) {
-        throw new Error(`Invalid plutusData for UTxO at index ${index}: must be a hexadecimal string or undefined`);
+      if (
+        utxo.output.plutusData &&
+        !OfflineFetcher.isValidHex(utxo.output.plutusData)
+      ) {
+        throw new Error(
+          `Invalid plutusData for UTxO at index ${index}: must be a hexadecimal string or undefined`,
+        );
       }
-      if (utxo.output.scriptRef !== undefined && !OfflineFetcher.isValidHex(utxo.output.scriptRef)) {
-        throw new Error(`Invalid scriptRef for UTxO at index ${index}: must be a hexadecimal string or undefined`);
+      if (
+        utxo.output.scriptRef &&
+        !OfflineFetcher.isValidHex(utxo.output.scriptRef)
+      ) {
+        throw new Error(
+          `Invalid scriptRef for UTxO at index ${index}: must be a hexadecimal string or undefined`,
+        );
       }
-      if (utxo.output.scriptHash !== undefined && !OfflineFetcher.isValidHex(utxo.output.scriptHash, 56)) {
-        throw new Error(`Invalid scriptHash for UTxO at index ${index}: must be a 56-character hexadecimal string or undefined`);
+      if (
+        utxo.output.scriptHash &&
+        !OfflineFetcher.isValidHex(utxo.output.scriptHash, 56)
+      ) {
+        throw new Error(
+          `Invalid scriptHash for UTxO at index ${index}: must be a 56-character hexadecimal string or undefined`,
+        );
       }
     });
 
@@ -522,10 +592,14 @@ export class OfflineFetcher implements IFetcher {
     }
     addresses.forEach((item, index) => {
       if (!OfflineFetcher.isValidAddress(item.address)) {
-        throw new Error(`Invalid 'address' field at index ${index}, should be bech32 string`);
+        throw new Error(
+          `Invalid 'address' field at index ${index}, should be bech32 string`,
+        );
       }
       if (!OfflineFetcher.isIntegerString(item.quantity)) {
-        throw new Error(`Invalid 'quantity' field at index ${index}, should be a string of digits`);
+        throw new Error(
+          `Invalid 'quantity' field at index ${index}, should be a string of digits`,
+        );
       }
     });
     this.assetAddresses[asset] = addresses;
@@ -539,13 +613,15 @@ export class OfflineFetcher implements IFetcher {
    */
   addAssetMetadata(asset: string, metadata: AssetMetadata): void {
     if (asset.length < 56) {
-      throw new Error(`Invalid asset ${asset}: must be a string longer than 56 characters`);
+      throw new Error(
+        `Invalid asset ${asset}: must be a string longer than 56 characters`,
+      );
     }
     if (!OfflineFetcher.isValidHex(asset)) {
       throw new Error("Invalid asset: must be a hex string");
     }
 
-    if (typeof metadata !== 'object' || metadata === null) {
+    if (typeof metadata !== "object" || metadata === null) {
       throw new Error("Invalid metadata object");
     }
     this.assetMetadata[asset] = metadata;
@@ -565,21 +641,29 @@ export class OfflineFetcher implements IFetcher {
 
     assets.forEach((asset, index) => {
       if (asset.unit.length < 56) {
-        throw new Error(`Invalid unit for asset at index ${index}: must be a string longer than 56 characters`);
+        throw new Error(
+          `Invalid unit for asset at index ${index}: must be a string longer than 56 characters`,
+        );
       }
 
-      if(!OfflineFetcher.isValidHex(asset.unit)) {
-        throw new Error(`Invalid unit for asset at index ${index}: must be a hexadecimal string`);
+      if (!OfflineFetcher.isValidHex(asset.unit)) {
+        throw new Error(
+          `Invalid unit for asset at index ${index}: must be a hexadecimal string`,
+        );
       }
 
       const policyId = asset.unit.slice(0, 56);
 
       if (!OfflineFetcher.isValidHex(policyId, 56)) {
-        throw new Error(`Invalid policyId in asset unit at index ${index}: must be a 56-character hexadecimal string`);
+        throw new Error(
+          `Invalid policyId in asset unit at index ${index}: must be a 56-character hexadecimal string`,
+        );
       }
 
       if (!OfflineFetcher.isIntegerString(asset.quantity)) {
-        throw new Error(`Invalid quantity for asset at index ${index}: must be a string of digits`);
+        throw new Error(
+          `Invalid quantity for asset at index ${index}: must be a string of digits`,
+        );
       }
 
       if (!groupedAssets[policyId]) {
@@ -592,7 +676,8 @@ export class OfflineFetcher implements IFetcher {
       if (!this.collections[policyId]) {
         this.collections[policyId] = [];
       }
-      this.collections[policyId] = this.collections[policyId].concat(policyAssets);
+      this.collections[policyId] =
+        this.collections[policyId].concat(policyAssets);
     }
   }
 
@@ -612,19 +697,30 @@ export class OfflineFetcher implements IFetcher {
     if (parameters.minFeeB < 0 || !Number.isInteger(parameters.minFeeB)) {
       throw new Error("Invalid 'minFeeB': must be a non-negative integer");
     }
-    if (parameters.maxBlockSize <= 0 || !Number.isInteger(parameters.maxBlockSize)) {
+    if (
+      parameters.maxBlockSize <= 0 ||
+      !Number.isInteger(parameters.maxBlockSize)
+    ) {
       throw new Error("Invalid 'maxBlockSize': must be a positive integer");
     }
     if (parameters.maxTxSize <= 0 || !Number.isInteger(parameters.maxTxSize)) {
       throw new Error("Invalid 'maxTxSize': must be a positive integer");
     }
-    if (parameters.maxBlockHeaderSize <= 0 || !Number.isInteger(parameters.maxBlockHeaderSize)) {
-      throw new Error("Invalid 'maxBlockHeaderSize': must be a positive integer");
+    if (
+      parameters.maxBlockHeaderSize <= 0 ||
+      !Number.isInteger(parameters.maxBlockHeaderSize)
+    ) {
+      throw new Error(
+        "Invalid 'maxBlockHeaderSize': must be a positive integer",
+      );
     }
     if (parameters.keyDeposit < 0 || !Number.isInteger(parameters.keyDeposit)) {
       throw new Error("Invalid 'keyDeposit': must be a non-negative integer");
     }
-    if (parameters.poolDeposit < 0 || !Number.isInteger(parameters.poolDeposit)) {
+    if (
+      parameters.poolDeposit < 0 ||
+      !Number.isInteger(parameters.poolDeposit)
+    ) {
       throw new Error("Invalid 'poolDeposit': must be a non-negative integer");
     }
     if (parameters.decentralisation < 0 || parameters.decentralisation > 1) {
@@ -640,16 +736,25 @@ export class OfflineFetcher implements IFetcher {
       throw new Error("Invalid 'maxValSize': must be a non-negative integer");
     }
     if (parameters.collateralPercent < 0) {
-      throw new Error("Invalid 'collateralPercent': must be a non-negative integer");
+      throw new Error(
+        "Invalid 'collateralPercent': must be a non-negative integer",
+      );
     }
-    if (parameters.maxCollateralInputs < 0 || !Number.isInteger(parameters.maxCollateralInputs)) {
-      throw new Error("Invalid 'maxCollateralInputs': must be a non-negative integer");
+    if (
+      parameters.maxCollateralInputs < 0 ||
+      !Number.isInteger(parameters.maxCollateralInputs)
+    ) {
+      throw new Error(
+        "Invalid 'maxCollateralInputs': must be a non-negative integer",
+      );
     }
     if (parameters.coinsPerUtxoSize < 0) {
       throw new Error("Invalid 'coinsPerUtxoSize': must be non-negative");
     }
     if (parameters.minFeeRefScriptCostPerByte < 0) {
-      throw new Error("Invalid 'minFeeRefScriptCostPerByte': must be non-negative");
+      throw new Error(
+        "Invalid 'minFeeRefScriptCostPerByte': must be non-negative",
+      );
     }
 
     if (!OfflineFetcher.isIntegerString(parameters.minPoolCost)) {
@@ -678,13 +783,17 @@ export class OfflineFetcher implements IFetcher {
    */
   addTransaction(txInfo: TransactionInfo): void {
     if (!OfflineFetcher.isValidHex(txInfo.hash, 64)) {
-      throw new Error("Invalid transaction hash: must be a 64-character hexadecimal string");
+      throw new Error(
+        "Invalid transaction hash: must be a 64-character hexadecimal string",
+      );
     }
     if (!Number.isInteger(txInfo.index) || txInfo.index < 0) {
       throw new Error("Invalid 'index': must be a non-negative integer");
     }
     if (!OfflineFetcher.isValidHex(txInfo.block, 64)) {
-      throw new Error("Invalid 'block': must be a 64-character hexadecimal string");
+      throw new Error(
+        "Invalid 'block': must be a 64-character hexadecimal string",
+      );
     }
     if (!OfflineFetcher.isIntegerString(txInfo.slot)) {
       throw new Error("Invalid 'slot': must be a string of digits");
@@ -696,13 +805,25 @@ export class OfflineFetcher implements IFetcher {
       throw new Error("Invalid 'size': must be a positive integer");
     }
     if (!/^-?\d+$/.test(txInfo.deposit)) {
-      throw new Error("Invalid 'deposit': must be a string representing an integer (positive or negative)");
+      throw new Error(
+        "Invalid 'deposit': must be a string representing an integer (positive or negative)",
+      );
     }
-    if (txInfo.invalidBefore !== "" && !OfflineFetcher.isIntegerString(txInfo.invalidBefore)) {
-      throw new Error("Invalid 'invalidBefore': must be a string of digits or empty string");
+    if (
+      txInfo.invalidBefore !== "" &&
+      !OfflineFetcher.isIntegerString(txInfo.invalidBefore)
+    ) {
+      throw new Error(
+        "Invalid 'invalidBefore': must be a string of digits or empty string",
+      );
     }
-    if (txInfo.invalidAfter !== "" && !OfflineFetcher.isIntegerString(txInfo.invalidAfter)) {
-      throw new Error("Invalid 'invalidAfter': must be a string of digits or empty string");
+    if (
+      txInfo.invalidAfter !== "" &&
+      !OfflineFetcher.isIntegerString(txInfo.invalidAfter)
+    ) {
+      throw new Error(
+        "Invalid 'invalidAfter': must be a string of digits or empty string",
+      );
     }
     this.transactions[txInfo.hash] = txInfo;
   }
@@ -714,7 +835,9 @@ export class OfflineFetcher implements IFetcher {
    */
   addBlock(blockInfo: BlockInfo): void {
     if (!OfflineFetcher.isValidHex(blockInfo.hash, 64)) {
-      throw new Error("Invalid block hash: must be a 64-character hexadecimal string");
+      throw new Error(
+        "Invalid block hash: must be a 64-character hexadecimal string",
+      );
     }
     if (!Number.isInteger(blockInfo.time) || blockInfo.time < 0) {
       throw new Error("Invalid 'time': must be a non-negative integer");
@@ -729,7 +852,9 @@ export class OfflineFetcher implements IFetcher {
       throw new Error("Invalid 'epochSlot': must be a string of digits");
     }
     if (!OfflineFetcher.isValidBech32Pool(blockInfo.slotLeader)) {
-      throw new Error("Invalid 'slotLeader': must be a bech32 string with pool prefix");
+      throw new Error(
+        "Invalid 'slotLeader': must be a bech32 string with pool prefix",
+      );
     }
     if (!Number.isInteger(blockInfo.size) || blockInfo.size <= 0) {
       throw new Error("Invalid 'size': must be a positive integer");
@@ -741,13 +866,19 @@ export class OfflineFetcher implements IFetcher {
       throw new Error("Invalid 'output': must be a string of digits");
     }
     if (!OfflineFetcher.isValidHex(blockInfo.operationalCertificate, 64)) {
-      throw new Error("Invalid 'operationalCertificate': must be a 64-character hexadecimal string");
+      throw new Error(
+        "Invalid 'operationalCertificate': must be a 64-character hexadecimal string",
+      );
     }
     if (!OfflineFetcher.isValidHex(blockInfo.previousBlock, 64)) {
-      throw new Error("Invalid 'previousBlock': must be a 64-character hexadecimal string");
+      throw new Error(
+        "Invalid 'previousBlock': must be a 64-character hexadecimal string",
+      );
     }
     if (!OfflineFetcher.isValidBech32VrfVk(blockInfo.VRFKey)) {
-      throw new Error("Invalid 'VRFKey': must be a bech32 string with vrf_vk1 prefix");
+      throw new Error(
+        "Invalid 'VRFKey': must be a bech32 string with vrf_vk1 prefix",
+      );
     }
     this.blocks[blockInfo.hash] = blockInfo;
   }
