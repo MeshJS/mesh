@@ -1449,7 +1449,7 @@ class CardanoSDKSerializerCore {
       currentOutputs.push(changeOutput);
     } else if (changeOutput.amount().coin() - fee < 0) {
       throw new Error(
-        "There was enough inputs to cover outputs, but not enough to cover fees",
+        `There was enough inputs to cover outputs, but not enough to cover fees - fee: ${fee}`,
       );
     }
     this.txBody.setOutputs(currentOutputs);
