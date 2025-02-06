@@ -10,6 +10,7 @@ describe("Mesh Wallet data sign and verify", () => {
         words: "solution,".repeat(24).split(",").slice(0, 24),
       },
     });
+    await wallet.init();
 
     const nonce = generateNonce("Mesh wallet data sign test");
 

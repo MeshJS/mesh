@@ -7,7 +7,6 @@ import {
   CborString,
   CborTag,
   CborUInt,
-  RawCborTag,
 } from "@harmoniclabs/cbor";
 import base32 from "base32-encoding";
 import { bech32 } from "bech32";

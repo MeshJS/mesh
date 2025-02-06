@@ -5,12 +5,14 @@ import { mnemonicToEntropy } from "@meshsdk/common";
 import { buildBip32PrivateKey, buildKeys } from "../../src";
 
 describe("BIP32 Key Derivation", () => {
+  beforeAll(() => ready());
+
   it("should derive BIP32 keys correctly", async () => {
     const entropy = mnemonicToEntropy(
       "solution,".repeat(24).split(",").slice(0, 24).join(" "),
     );
 
-    const { paymentKey, stakeKey, dRepKey } = await buildKeys(
+    const { paymentKey, stakeKey, dRepKey } = buildKeys(
       buildBip32PrivateKey(entropy).hex(),
       0,
       0,
@@ -30,13 +32,12 @@ describe("BIP32 Key Derivation", () => {
   });
 
   it("should derive keys from secret correctly", async () => {
-    await ready();
     const privateKeyHex: [string, string] = [
       "f083e5878c6f980c53d30b9cc2baadd780307b08acec9e0792892e013bbe9241",
       "b810d6398db44f380a9ab279f63950c4b95432f44fafb5a6f026afe23bbe9241",
     ];
 
-    const { paymentKey, stakeKey } = await buildKeys(privateKeyHex, 0, 0);
+    const { paymentKey, stakeKey } = buildKeys(privateKeyHex, 0, 0);
 
     expect(paymentKey.hex()).toEqual(
       "484e934a6c950a9df50b4a8c2163b7eff51704c6c28349d7b3331523a072234ba0b9dac005eeb945581ceab4de83fd83e4ead554ebdbceeade9a0b17e5f0c0c6",

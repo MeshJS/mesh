@@ -1,11 +1,11 @@
 import { DataSignature } from "@meshsdk/common";
 
-import { Signer } from "../types";
+import { HexBlob, Signer } from "../types";
 import { CoseSign1, getCoseKeyFromPublicKey } from "./cose-sign1";
 
 export const signData = (data: string, signer: Signer): DataSignature => {
   const payload = Buffer.from(data, "hex");
-  const publicKey = signer.key.toPublicKey().toBytes();
+  const publicKey = Buffer.from(signer.key.toPublic().bytes());
 
   const protectedMap = new Map();
   // Set protected headers as per CIP08
@@ -22,10 +22,12 @@ export const signData = (data: string, signer: Signer): DataSignature => {
     payload: payload,
   });
 
-  const signature = signer.key.sign(coseSign1Builder.createSigStructure());
+  const signature = signer.key.sign(
+    HexBlob(Buffer.from(coseSign1Builder.createSigStructure()).toString("hex")),
+  );
 
   const coseSignature = coseSign1Builder
-    .buildMessage(signature)
+    .buildMessage(Buffer.from(signature.bytes()))
     .toString("hex");
 
   return {

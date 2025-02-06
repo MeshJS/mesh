@@ -1,5 +1,9 @@
 import { stringToHex } from "@meshsdk/common";
-import { checkSignature, getPublicKeyFromCoseKey } from "@meshsdk/core-cst";
+import {
+  checkSignature,
+  Crypto,
+  getPublicKeyFromCoseKey,
+} from "@meshsdk/core-cst";
 import { EmbeddedWallet } from "@meshsdk/wallet";
 
 describe("EmbeddedWallet mnemonic", () => {
@@ -9,6 +13,10 @@ describe("EmbeddedWallet mnemonic", () => {
       type: "mnemonic",
       words: "solution,".repeat(24).split(",").slice(0, 24),
     },
+  });
+
+  beforeAll(async () => {
+    await wallet.init();
   });
 
   it("generate mnemonic", () => {
@@ -98,12 +106,12 @@ describe("EmbeddedWallet privateKey", () => {
     },
   });
 
-  it("correct addresses", () => {
-    const accountMnemonic = walletMnemonic.getAccount(0, 0);
+  it("correct addresses", async () => {
+    const accountMnemonic = await walletMnemonic.getAccount(0, 0);
     expect(accountMnemonic.enterpriseAddressBech32).toEqual(
       "addr_test1vz0vlyux43d7c4su8uzkkqvm6vug28t3zvnycxjnuvnxa0c5gr4p9",
     );
-    const accountRoot = walletRoot.getAccount(0, 0);
+    const accountRoot = await walletRoot.getAccount(0, 0);
     expect(accountRoot.enterpriseAddressBech32).toEqual(
       "addr_test1vz0vlyux43d7c4su8uzkkqvm6vug28t3zvnycxjnuvnxa0c5gr4p9",
     );
@@ -121,8 +129,8 @@ describe("EmbeddedWallet signingKeys", () => {
     },
   });
 
-  it("correct addresses", () => {
-    const account = wallet.getAccount(0, 0);
+  it("correct addresses", async () => {
+    const account = await wallet.getAccount(0, 0);
     expect(account.baseAddressBech32).toEqual(
       "addr_test1qqdy60gf798xrl20wwvapvsxj3kr8yz8ac6zfmgwg6c5g9p3x07mt562mneg8jxgj03p2uvmhyfyvktjn259mws8e6wq3cdn8p",
     );

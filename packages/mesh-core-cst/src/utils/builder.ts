@@ -94,19 +94,26 @@ export const buildRewardAddress = (
   return RewardAddress.fromCredentials(networkId, cred);
 };
 
-export const buildKeys = async (
+/**
+ * Build a set of keys from a given private key
+ *
+ * NOTE - Must be called after `await Crypto.Ready()`
+ *
+ * @param privateKeyHex - The BIP32 private key hex to derive keys from
+ * @param accountIndex - The account index to derive keys for
+ * @param keyIndex - The key index to derive keys for
+ * @returns The payment and stake keys, and optionally the dRep key if a Bip32PrivateKey is provided
+ */
+export const buildKeys = (
   privateKeyHex: string | [string, string],
   accountIndex: number,
   keyIndex = 0,
-): Promise<{
+): {
   paymentKey: Ed25519PrivateKey;
   stakeKey: Ed25519PrivateKey;
   dRepKey?: Ed25519PrivateKey;
-}> => {
-  await ready();
+} => {
   if (typeof privateKeyHex === "string") {
-    // cardano-sdk
-    await ready();
     const privateKey = Bip32PrivateKey.fromHex(
       Bip32PrivateKeyHex(privateKeyHex),
     );
