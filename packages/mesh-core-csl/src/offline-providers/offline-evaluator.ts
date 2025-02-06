@@ -8,7 +8,11 @@ import {
   UTxO,
 } from "@meshsdk/common";
 
-import { evaluateTransaction, getTransactionInputs } from "../utils";
+import {
+  evaluateTransaction,
+  getTransactionInputs,
+  getTransactionOutputs,
+} from "../utils";
 
 /**
  * OfflineEvaluator implements the IEvaluator interface to provide offline evaluation of Plutus scripts.
@@ -103,10 +107,38 @@ export class OfflineEvaluator implements IEvaluator {
    *   - budget: Memory units and CPU steps required
    * @throws Error if any required UTXOs cannot be resolved or if script evaluation fails
    */
-  async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(
+    tx: string,
+    additionalUtxos: UTxO[],
+    additionalTxs: string[],
+  ): Promise<Omit<Action, "data">[]> {
     const inputsToResolve = getTransactionInputs(tx);
-    const txHashesSet = new Set(inputsToResolve.map((input) => input.txHash));
-    const resolvedUTXOs: UTxO[] = [];
+
+    // Track which utxos is resolved
+    const foundUtxos = new Set<string>();
+
+    for (const utxo of additionalUtxos) {
+      foundUtxos.add(`${utxo.input.txHash}:${utxo.input.outputIndex}`);
+    }
+    for (const tx of additionalTxs) {
+      const outputs = getTransactionOutputs(tx);
+      for (const output of outputs) {
+        foundUtxos.add(`${output.input.txHash}:${output.input.outputIndex}`);
+      }
+    }
+
+    const txHashesSet = new Set(
+      inputsToResolve
+        .filter((input) => {
+          if (foundUtxos.has(`${input.txHash}:${input.outputIndex}`)) {
+            return false;
+          }
+          return true;
+        })
+        .map((input) => input.txHash),
+    );
+
+    const resolvedUtxos: UTxO[] = [];
     for (const txHash of txHashesSet) {
       const utxos = await this.fetcher.fetchUTxOs(txHash);
       for (const utxo of utxos) {
@@ -115,24 +147,24 @@ export class OfflineEvaluator implements IEvaluator {
             inputsToResolve.find(
               (input) =>
                 input.txHash === txHash &&
-                input.index === utxo.input.outputIndex,
+                input.outputIndex === utxo.input.outputIndex,
             )
           ) {
-            resolvedUTXOs.push(utxo);
+            additionalUtxos.push(utxo);
           }
       }
     }
     const missing = inputsToResolve.filter(
       (input) =>
-        !resolvedUTXOs.find(
+        !resolvedUtxos.find(
           (utxo) =>
             utxo.input.txHash === input.txHash &&
-            utxo.input.outputIndex === input.index,
+            utxo.input.outputIndex === input.outputIndex,
         ),
     );
     if (missing.length > 0) {
       const missingList = missing
-        .map((m) => `${m.txHash}:${m.index}`)
+        .map((m) => `${m.txHash}:${m.outputIndex}`)
         .join(", ");
       throw new Error(
         `Can't resolve these UTXOs to execute plutus scripts: ${missingList}`,
@@ -140,7 +172,8 @@ export class OfflineEvaluator implements IEvaluator {
     }
     return evaluateTransaction(
       tx,
-      resolvedUTXOs,
+      resolvedUtxos,
+      additionalTxs,
       this.network,
       this.slotConfig,
     );

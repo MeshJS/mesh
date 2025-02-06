@@ -40,8 +40,8 @@
   },
   "dependencies": {
     "@meshsdk/common": "1.9.0-beta.1",
-    "@sidan-lab/sidan-csl-rs-browser": "0.9.18",
-    "@sidan-lab/sidan-csl-rs-nodejs": "0.9.18",
+    "@sidan-lab/sidan-csl-rs-browser": "0.9.21",
+    "@sidan-lab/sidan-csl-rs-nodejs": "0.9.21",
     "@types/base32-encoding": "^1.0.2",
     "base32-encoding": "^1.0.0",
     "bech32": "^2.0.0",

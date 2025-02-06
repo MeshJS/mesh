@@ -26,6 +26,7 @@ import {
   RefTxIn,
   TxIn,
   TxInParameter,
+  txInToUtxo,
   Unit,
   UTxO,
   UtxoSelection,
@@ -1499,6 +1500,54 @@ export class MeshTxBuilderCore {
     return this;
   };
 
+  /**
+   * Add a transaction that is used as input, but not yet reflected on the global blockchain
+   * @param txHex The transaction hex of chained transaction
+   * @returns The MeshTxBuilderCore instance
+   */
+  chainTx(txHex: string): this {
+    this.meshTxBuilderBody.chainedTxs.push(txHex);
+    return this;
+  }
+
+  /**
+   * Add a transaction input to provide information for offline evaluation
+   * @param input The input to be added
+   * @returns The MeshTxBuilderCore instance
+   */
+  inputForEvaluation(input: UTxO) {
+    const utxoId = `${input.input.txHash}${input.input.outputIndex}`;
+    const currentUtxo = this.meshTxBuilderBody.inputsForEvaluation[utxoId];
+
+    if (currentUtxo) {
+      const { address, amount, dataHash, plutusData, scriptRef, scriptHash } =
+        input.output;
+
+      const {
+        dataHash: currentDataHash,
+        plutusData: currentPlutusData,
+        scriptRef: currentScriptRef,
+        scriptHash: currentScriptHash,
+      } = currentUtxo.output;
+
+      const updatedUtxo: UTxO = {
+        ...input,
+        output: {
+          address,
+          amount,
+          dataHash: dataHash ?? currentDataHash,
+          plutusData: plutusData ?? currentPlutusData,
+          scriptRef: scriptRef ?? currentScriptRef,
+          scriptHash: scriptHash ?? currentScriptHash,
+        },
+      };
+      this.meshTxBuilderBody.inputsForEvaluation[utxoId] = updatedUtxo;
+    } else {
+      this.meshTxBuilderBody.inputsForEvaluation[utxoId] = input;
+    }
+    return this;
+  }
+
   protected queueAllLastItem = () => {
     if (this.txOutput) {
       this.meshTxBuilderBody.outputs.push(this.txOutput);
@@ -1545,6 +1594,7 @@ export class MeshTxBuilderCore {
       }
     }
     this.meshTxBuilderBody.inputs.push(this.txInQueueItem);
+    this.inputForEvaluation(txInToUtxo(this.txInQueueItem.txIn));
     this.txInQueueItem = undefined;
   };
 
@@ -1795,6 +1845,7 @@ export class MeshTxBuilderCore {
           scriptSize: input.output.scriptRef!.length / 2,
         });
       }
+      this.inputForEvaluation(input);
     });
   };
 

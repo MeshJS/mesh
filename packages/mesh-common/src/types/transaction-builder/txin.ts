@@ -1,4 +1,5 @@
 import { Asset } from "../asset";
+import { UTxO } from "../utxo";
 import { DatumSource, Redeemer } from "./data";
 import { ScriptSource, SimpleScriptSourceInfo } from "./script";
 
@@ -36,4 +37,17 @@ export type ScriptTxIn = {
   type: "Script";
   txIn: TxInParameter;
   scriptTxIn: ScriptTxInParameter;
+};
+
+export const txInToUtxo = (txIn: TxInParameter): UTxO => {
+  return {
+    input: {
+      txHash: txIn.txHash,
+      outputIndex: txIn.txIndex,
+    },
+    output: {
+      address: txIn.address || "",
+      amount: txIn.amount || [],
+    },
+  };
 };

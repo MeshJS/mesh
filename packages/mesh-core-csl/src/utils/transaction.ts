@@ -1,9 +1,10 @@
+import { js_get_tx_outs_utxo } from "@sidan-lab/sidan-csl-rs-nodejs";
+
 import {
   Action,
   Budget,
   Network,
   RedeemerTagType,
-  SLOT_CONFIG_NETWORK,
   SlotConfig,
   UTxO,
 } from "@meshsdk/common";
@@ -69,15 +70,19 @@ export const signTransaction = (txHex: string, signingKeys: string[]) => {
 export const evaluateTransaction = (
   txHex: string,
   resolvedUtxos: UTxO[],
+  chainedTxs: string[],
   network: Network,
   slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
 ): Omit<Action, "data">[] => {
   const additionalTxs = csl.JsVecString.new();
+  for (const tx of chainedTxs) {
+    additionalTxs.add(tx);
+  }
   const mappedUtxos = csl.JsVecString.new();
   for (const utxo of resolvedUtxos) {
     mappedUtxos.add(JSON.stringify(utxo));
   }
-  const result = csl.evaluate_tx_scripts_js(
+  const result = csl.js_evaluate_tx_scripts(
     txHex,
     mappedUtxos,
     additionalTxs,
@@ -142,7 +147,7 @@ export const getTransactionInputs = (
   txHex: string,
 ): {
   txHash: string;
-  index: number;
+  outputIndex: number;
 }[] => {
   const inputs = [];
   const deserializedTx = deserializeTx(txHex);
@@ -152,7 +157,7 @@ export const getTransactionInputs = (
     const input = cslInputs.get(i);
     inputs.push({
       txHash: input.transaction_id().to_hex(),
-      index: input.index(),
+      outputIndex: input.index(),
     });
   }
   const cslCollaterals = body.collateral();
@@ -161,7 +166,7 @@ export const getTransactionInputs = (
       const collateral = cslCollaterals.get(i);
       inputs.push({
         txHash: collateral.transaction_id().to_hex(),
-        index: collateral.index(),
+        outputIndex: collateral.index(),
       });
     }
   }
@@ -171,10 +176,16 @@ export const getTransactionInputs = (
       const refInput = cslRefInputs.get(i);
       inputs.push({
         txHash: refInput.transaction_id().to_hex(),
-        index: refInput.index(),
+        outputIndex: refInput.index(),
       });
     }
   }
 
   return inputs;
+};
+
+export const getTransactionOutputs = (txHex: string): UTxO[] => {
+  const outputs = js_get_tx_outs_utxo(txHex).get_data();
+  const utxos: UTxO[] = JSON.parse(outputs);
+  return utxos;
 };
