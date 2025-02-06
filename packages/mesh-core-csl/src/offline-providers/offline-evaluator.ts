@@ -127,7 +127,6 @@ export class OfflineEvaluator implements IEvaluator {
       }
     }
 
-    // TODO: filter only unresolved, go for fetcher
     const txHashesSet = new Set(
       inputsToResolve
         .filter((input) => {
