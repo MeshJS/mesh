@@ -1,7 +1,7 @@
 import type { OpaqueString } from "@cardano-sdk/util";
 import { Cardano, Serialization } from "@cardano-sdk/core";
 import * as Crypto from "@cardano-sdk/crypto";
-import { typedHex } from "@cardano-sdk/util";
+import { HexBlob as CardanoHexBlob, typedHex } from "@cardano-sdk/util";
 
 export const Slot = Cardano.Slot;
 export type Slot = Cardano.Slot;
@@ -276,6 +276,12 @@ export type StakeCredentialStatus = Cardano.StakeCredentialStatus;
 export const StakeCredentialStatus = Cardano.StakeCredentialStatus;
 
 export type Metadatum = Cardano.Metadatum;
+
+export type HexBlob = CardanoHexBlob;
+export const HexBlob = CardanoHexBlob;
+
+export type Ed25519PrivateKey = Crypto.Ed25519PrivateKey;
+export const Ed25519PrivateKey = Crypto.Ed25519PrivateKey;
 
 export const computeAuxiliaryDataHash = Cardano.computeAuxiliaryDataHash;
 export const blake2b = Crypto.blake2b;
