@@ -7,7 +7,7 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderSetMetadata() {
   return (
@@ -64,7 +64,7 @@ function Right() {
   let codeSnippet = ``;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const address = await wallet.getChangeAddress();\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `\n`;
   codeSnippet += `const label = 0;\n`;
   codeSnippet += `const metadata = "This is a message from the Mesh SDK";\n\n`;

@@ -167,7 +167,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     // Evaluating the transaction
     if (this.evaluator) {
       const txEvaluation = await this.evaluator
-        .evaluateTx(txHex)
+        .evaluateTx(
+          txHex,
+          Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+          this.meshTxBuilderBody.chainedTxs,
+        )
         .catch((error) => {
           throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
         });

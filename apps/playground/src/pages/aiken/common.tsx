@@ -5,7 +5,7 @@ import {
   resolvePaymentKeyHash,
   resolvePlutusScriptAddress,
 } from "@meshsdk/core";
-import { applyParamsToScript } from "@meshsdk/core-csl";
+import { applyParamsToScript } from "@meshsdk/core-cst";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
 import { linksAiken } from "~/data/links-aiken";

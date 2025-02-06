@@ -25,6 +25,7 @@ interface ButtonProps {
   label?: string;
   onConnected?: Function;
   isDark?: boolean;
+  persist?: boolean;
   extensions?: number[];
   injectFn?: () => Promise<void>;
   cardanoPeerConnect?: {
@@ -49,6 +50,7 @@ export const CardanoWallet = ({
   label = "Connect Wallet",
   onConnected = undefined,
   isDark = false,
+  persist = false,
   extensions = [],
   injectFn = undefined,
   cardanoPeerConnect = undefined,
@@ -57,7 +59,11 @@ export const CardanoWallet = ({
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState("main");
-  const { wallet, connected } = useWallet();
+  const { wallet, connected, setPersist } = useWallet();
+
+  useEffect(() => {
+    setPersist(persist);
+  }, [persist]);
 
   useEffect(() => {
     if (connected) {
@@ -67,28 +73,28 @@ export const CardanoWallet = ({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {!connected ? (
-        <DialogTrigger asChild>
-          <Button variant="outline" className="mesh-text-white">
-            {label}
-          </Button>
-        </DialogTrigger>
-      ) : (
-        <ConnectedButton />
-      )}
+      <div className={isDark ? "mesh-dark" : ""}>
+        {!connected ? (
+          <DialogTrigger asChild>
+            <Button variant="outline">{label}</Button>
+          </DialogTrigger>
+        ) : (
+          <ConnectedButton />
+        )}
+      </div>
 
       <DialogContent
-        className="sm:mesh-max-w-[425px]"
+        className="sm:mesh-max-w-[425px] mesh-dark"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <Header screen={screen} setScreen={setScreen} />
-
         {screen == "main" && (
           <ScreenMain
             injectFn={injectFn}
             extensions={extensions}
             setOpen={setOpen}
             setScreen={setScreen}
+            persist={persist}
             cardanoPeerConnect={cardanoPeerConnect != undefined}
             burnerWallet={burnerWallet != undefined}
             webauthn={webauthn != undefined}

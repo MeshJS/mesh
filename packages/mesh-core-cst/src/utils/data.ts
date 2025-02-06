@@ -2,7 +2,14 @@ import { HexBlob } from "@cardano-sdk/util";
 
 import { BuilderData, Data, toBytes } from "@meshsdk/common";
 
-import { ConstrPlutusData, PlutusData, PlutusList, PlutusMap } from "../types";
+import {
+  ConstrPlutusData,
+  DatumHash,
+  PlutusData,
+  PlutusDataKind,
+  PlutusList,
+  PlutusMap,
+} from "../types";
 
 export const toPlutusData = (data: Data): PlutusData => {
   const toPlutusList = (data: Data[]) => {
@@ -158,3 +165,100 @@ export const fromBuilderToPlutusData = (data: BuilderData): PlutusData => {
     );
   }
 };
+
+export const fromPlutusDataToJson = (data: PlutusData): object => {
+  if (data.getKind() === PlutusDataKind.ConstrPlutusData) {
+    const plutusData = data.asConstrPlutusData();
+    if (plutusData) {
+      const fields = plutusData.getData();
+      const list: object[] = [];
+      for (let i = 0; i < fields.getLength(); i++) {
+        const element = fields.get(i);
+        list.push(fromPlutusDataToJson(element));
+      }
+      return {
+        constructor: plutusData.getAlternative(),
+        fields: list,
+      };
+    } else {
+      throw new Error("Invalid constructor data found");
+    }
+  } else if (data.getKind() === PlutusDataKind.Map) {
+    const plutusMap = data.asMap();
+    const mapList: {
+      k: object;
+      v: object;
+    }[] = [];
+    if (plutusMap) {
+      const keys = plutusMap.getKeys();
+      for (let i = 0; i < keys.getLength(); i++) {
+        const key = keys.get(i);
+        const value = plutusMap.get(key);
+        if (value) {
+          mapList.push({
+            k: fromPlutusDataToJson(key),
+            v: fromPlutusDataToJson(value),
+          });
+        }
+      }
+      return {
+        map: mapList,
+      };
+    } else {
+      throw new Error("Invalid map data found");
+    }
+  } else if (data.getKind() === PlutusDataKind.List) {
+    const plutusList = data.asList();
+    if (plutusList) {
+      const list: object[] = [];
+      for (let i = 0; i < plutusList.getLength(); i++) {
+        const element = plutusList.get(i);
+        list.push(fromPlutusDataToJson(element));
+      }
+      return { list: list };
+    } else {
+      throw new Error("Invalid list data found");
+    }
+  } else if (data.getKind() === PlutusDataKind.Integer) {
+    const plutusInt = data.asInteger();
+    if (plutusInt) {
+      return {
+        int: BigInt(plutusInt.toString()),
+      };
+    } else {
+      throw new Error("Invalid integer data found");
+    }
+  } else if (data.getKind() === PlutusDataKind.Bytes) {
+    const plutusBytes = data.asBoundedBytes();
+    if (plutusBytes) {
+      return {
+        bytes: Buffer.from(plutusBytes).toString("hex"),
+      };
+    } else {
+      throw new Error("Invalid bytes data found");
+    }
+  } else {
+    throw new Error("Invalid Plutus data found");
+  }
+};
+
+const datumCborToJson = <T = any>(datumCbor: string): T => {
+  const parsedDatum = PlutusData.fromCbor(HexBlob(datumCbor));
+  return fromPlutusDataToJson(parsedDatum) as T;
+};
+export const parseDatumCbor = <T = any>(datumCbor: string): T => {
+  return datumCborToJson(datumCbor) as T;
+};
+
+export const parseInlineDatum = <T extends { inline_datum?: string }, X>(
+  utxo: T,
+): X => {
+  const datumCbor: string = utxo.inline_datum || "";
+  return datumCborToJson(datumCbor) as X;
+};
+
+export const deserializeDataHash = (dataHash: string): DatumHash =>
+  DatumHash.fromHexBlob(HexBlob(dataHash));
+
+export const deserializePlutusData = (plutusData: string): PlutusData =>
+  PlutusData.fromCbor(HexBlob(plutusData));

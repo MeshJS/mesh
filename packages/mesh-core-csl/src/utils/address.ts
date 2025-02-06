@@ -40,14 +40,14 @@ export const serialzeAddress = (
   return serializeAddressObj(addressObj, networkId);
 };
 
-export const addrBech32ToHex = (bech32: string): string => {
+export const addrBech32ToPlutusDataHex = (bech32: string): string => {
   const hexAddress = csl.Address.from_bech32(bech32).to_hex();
   const cslAddress = csl.Address.from_hex(hexAddress);
   const hex = csl.PlutusData.from_address(cslAddress).to_hex();
   return hex;
 };
 
-export const addrBech32ToObj = <T>(bech32: string): T => {
+export const addrBech32ToPlutusDataObj = <T>(bech32: string): T => {
   const hexAddress = csl.Address.from_bech32(bech32).to_hex();
   const cslAddress = csl.Address.from_hex(hexAddress);
   const json = JSON.parse(csl.PlutusData.from_address(cslAddress).to_json(1));

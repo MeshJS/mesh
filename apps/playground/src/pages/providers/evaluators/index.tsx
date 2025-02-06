@@ -7,13 +7,12 @@ import {
 } from "@meshsdk/core";
 
 import EvaluatorEvaluateTransaction from "./evaluate-tx";
-import {OfflineEvaluator} from "@meshsdk/core-csl";
 
 export default function ProviderEvaluators({
   blockchainProvider,
   provider,
 }: {
-  blockchainProvider: SupportedEvaluators;
+  blockchainProvider?: SupportedEvaluators;
   provider: string;
 }) {
   return (
@@ -31,5 +30,4 @@ export type SupportedEvaluators =
   | YaciProvider
   | MaestroProvider
   | OgmiosProvider
-  | U5CProvider
-  | OfflineEvaluator;
+  | U5CProvider;

@@ -9,7 +9,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoPool } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function StakingDelegate() {
   return (
@@ -76,8 +76,7 @@ function Right() {
   code += `  throw "No address found";\n`;
   code += `}\n`;
   code += `\n`;
-  code += `const txBuilder = getTxBuilder();\n`;
-  code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
   code += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;
   code += `  .selectUtxosFrom(utxos)\n`;

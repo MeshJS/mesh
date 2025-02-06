@@ -163,7 +163,7 @@ const applyCborEncoding = (plutusScript: Uint8Array): Uint8Array => {
   return Cbor.encode(new CborBytes(plutusScript)).toBuffer();
 };
 
-const applyEncoding = (
+export const applyEncoding = (
   plutusScript: Uint8Array,
   outputEncoding: OutputEncoding,
 ): Uint8Array => {

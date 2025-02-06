@@ -1,12 +1,6 @@
 import { useState } from "react";
 
-import {
-  mConStr0,
-  PlutusScript,
-  resolveScriptHash,
-  stringToHex,
-  UTxO,
-} from "@meshsdk/core";
+import { mConStr0, resolveScriptHash, stringToHex, UTxO } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -16,7 +10,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAssetMetadata, demoPlutusMintingScript } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMintingPlutusScript() {
   return (
@@ -35,8 +29,7 @@ function Left() {
   codeIndicator += `.mintPlutusScriptV2()\n`;
   codeIndicator += `.mintPlutusScriptV3()\n`;
 
-  let codeSnippet3 = `const txBuilder = getTxBuilder();\n\n`;
-
+  let codeSnippet3 = txbuilderCode;
   codeSnippet3 += `const unsignedTx = await txBuilder\n`;
   codeSnippet3 += `  .mintPlutusScriptV2()\n`;
   codeSnippet3 += `  .mint("1", policyId, tokenNameHex)\n`;
@@ -152,8 +145,7 @@ function Right() {
   code += `const tokenNameHex = stringToHex(tokenName);\n`;
   code += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
   code += `\n`;
-  code += `const txBuilder = getTxBuilder();\n`;
-  code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
   code += `  .mintPlutusScriptV2()\n`;
   code += `  .mint("1", policyId, tokenNameHex)\n`;

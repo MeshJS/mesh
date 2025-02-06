@@ -191,6 +191,18 @@ export type PlutusV2Script = Serialization.PlutusV2Script;
 export const PlutusV3Script = Serialization.PlutusV3Script;
 export type PlutusV3Script = Serialization.PlutusV3Script;
 
+export const PlutusDataKind = Serialization.PlutusDataKind;
+export type PlutusDataKind = Serialization.PlutusDataKind;
+
+export const PointerAddress = Cardano.PointerAddress;
+export type PointerAddress = Cardano.PointerAddress;
+
+export const CertIndex = Cardano.CertIndex;
+export type CertIndex = Cardano.CertIndex;
+
+export const TxIndex = Cardano.TxIndex;
+export type TxIndex = Cardano.TxIndex;
+
 export const Costmdls = Serialization.Costmdls;
 export type Costmdls = Serialization.Costmdls;
 
@@ -266,6 +278,7 @@ export const StakeCredentialStatus = Cardano.StakeCredentialStatus;
 export type Metadatum = Cardano.Metadatum;
 
 export const computeAuxiliaryDataHash = Cardano.computeAuxiliaryDataHash;
+export const blake2b = Crypto.blake2b;
 
 export type BootstrapWitness = Serialization.BootstrapWitness;
 export const BootstrapWitness = Serialization.BootstrapWitness;

@@ -6,7 +6,6 @@ import { bech32 } from "bech32";
 
 import {
   Asset,
-  Data,
   NativeScript,
   PlutusScript,
   Quantity,
@@ -19,15 +18,11 @@ import {
   Address,
   AssetId,
   BaseAddress,
-  ConstrPlutusData,
   NativeScript as CstNativeScript,
   Datum,
   Ed25519KeyHashHex,
   EnterpriseAddress,
   Hash28ByteBase16,
-  PlutusData,
-  PlutusList,
-  PlutusMap,
   PlutusV1Script,
   PlutusV2Script,
   PlutusV3Script,
@@ -46,9 +41,8 @@ import {
   TransactionUnspentOutput,
   Value,
 } from "../types";
+import { deserializeDataHash, deserializePlutusData } from "./data";
 import {
-  deserializeDataHash,
-  deserializePlutusData,
   deserializePlutusScript,
   deserializeScriptRef,
   deserializeTxHash,

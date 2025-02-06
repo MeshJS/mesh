@@ -15,8 +15,11 @@ import {
 
 import {
   Bip32PrivateKey,
+  DRepID,
   Ed25519KeyHashHex,
   EnterpriseAddress,
+  Hash28ByteBase16,
+  PoolId,
 } from "../types";
 import {
   deserializePlutusScript,
@@ -48,7 +51,7 @@ export const resolveNativeScriptAddress = (
     type: Cardano.CredentialType.ScriptHash,
   });
 
-  return enterpriseAddress.toAddress().toBech32();
+  return enterpriseAddress.toAddress().toBech32().toString();
 };
 
 export const resolveNativeScriptHash = (script: NativeScript) => {
@@ -85,7 +88,7 @@ export const resolvePlutusScriptAddress = (
     type: Cardano.CredentialType.ScriptHash,
   });
 
-  return enterpriseAddress.toAddress().toBech32();
+  return enterpriseAddress.toAddress().toBech32().toString();
 };
 
 export const resolvePlutusScriptHash = (bech32: string) => {
@@ -102,7 +105,7 @@ export const resolvePlutusScriptHash = (bech32: string) => {
 };
 
 export const resolvePoolId = (hash: string) => {
-  return Ed25519KeyHashHex(hash).toString();
+  return PoolId.fromKeyHash(Ed25519KeyHashHex(hash)).toString();
 };
 
 export const resolvePrivateKey = (words: string[]) => {
@@ -137,7 +140,8 @@ export const resolveRewardAddress = (bech32: string) => {
     if (stakeKeyHash !== undefined)
       return buildRewardAddress(address.getNetworkId(), stakeKeyHash)
         .toAddress()
-        .toBech32();
+        .toBech32()
+        .toString();
 
     throw new Error(`Couldn't resolve reward address from address: ${bech32}`);
   } catch (error) {
@@ -165,5 +169,29 @@ export const resolveTxHash = (txHex: string) => {
   const hash = blake2b(blake2b.BYTES)
     .update(hexToBytes(txBody.toCbor()))
     .digest();
-  return Cardano.TransactionId.fromHexBlob(HexBlob.fromBytes(hash));
+  return Cardano.TransactionId.fromHexBlob(HexBlob.fromBytes(hash)).toString();
+};
+
+export const resolveScriptHashDRepId = (scriptHash: string) => {
+  return DRepID.cip129FromCredential({
+    type: Cardano.CredentialType.ScriptHash,
+    hash: Hash28ByteBase16(scriptHash),
+  }).toString();
+};
+
+export const resolveEd25519KeyHash = (bech32: string) => {
+  try {
+    const keyHash = [
+      toBaseAddress(bech32)?.getPaymentCredential().hash,
+      toEnterpriseAddress(bech32)?.getPaymentCredential().hash,
+    ].find((kh) => kh !== undefined);
+
+    if (keyHash !== undefined) return keyHash.toString();
+
+    throw new Error(`Couldn't resolve key hash from address: ${bech32}`);
+  } catch (error) {
+    throw new Error(
+      `An error occurred during resolveEd25519KeyHash: ${error}.`,
+    );
+  }
 };

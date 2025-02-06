@@ -7,7 +7,7 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function GovernanceVoteDelegation() {
   return (
@@ -21,14 +21,12 @@ export default function GovernanceVoteDelegation() {
 }
 
 function Left() {
-  let codeGetWalletInfo = ``;
-  codeGetWalletInfo += `const utxos = await wallet.getUtxos();\n`;
+  let codeGetWalletInfo = `const utxos = await wallet.getUtxos();\n`;
   codeGetWalletInfo += `const rewardAddresses = await wallet.getRewardAddresses();\n`;
   codeGetWalletInfo += `const rewardAddress = rewardAddresses[0];\n`;
   codeGetWalletInfo += `const changeAddress = await wallet.getChangeAddress();\n`;
 
-  let codeTx = ``;
-  codeTx += `txBuilder\n`;
+  let codeTx = `txBuilder\n`;
   codeTx += `  .voteDelegationCertificate(\n`;
   codeTx += `    {\n`;
   codeTx += `      dRepId: drepid,\n`;
@@ -38,8 +36,7 @@ function Left() {
   codeTx += `  .changeAddress(changeAddress)\n`;
   codeTx += `  .selectUtxos(utxos, "keepRelevant", "10000000")`;
 
-  let codeBuildSign = ``;
-  codeBuildSign += `const unsignedTx = await txBuilder.complete();\n`;
+  let codeBuildSign = `const unsignedTx = await txBuilder.complete();\n`;
   codeBuildSign += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   codeBuildSign += `const txHash = await wallet.submitTx(signedTx);\n`;
 
@@ -86,7 +83,9 @@ function Left() {
 
 function Right() {
   const { wallet, connected } = useWallet();
-  const [drepid, setDrepid] = useState<string>("");
+  const [drepid, setDrepid] = useState<string>(
+    "drep1yv4uesaj92wk8ljlsh4p7jzndnzrflchaz5fzug3zxg4naqkpeas3",
+  );
 
   async function runDemo() {
     if (!connected) throw new Error("Wallet not connected");
@@ -123,8 +122,7 @@ function Right() {
   codeSnippet += `\n`;
   codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
-  codeSnippet += `\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `txBuilder\n`;
   codeSnippet += `  .voteDelegationCertificate(\n`;
   codeSnippet += `    {\n`;
@@ -132,8 +130,8 @@ function Right() {
   codeSnippet += `    },\n`;
   codeSnippet += `    rewardAddress,\n`;
   codeSnippet += `  )\n`;
-  codeSnippet += `  .changeAddress(changeAddress);\n`;
-  codeSnippet += `  .selectUtxos(utxos, "keepRelevant", "10000000")\n`;
+  codeSnippet += `  .changeAddress(changeAddress)\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos, "keepRelevant", "10000000")\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder.complete();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;

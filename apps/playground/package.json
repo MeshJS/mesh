@@ -16,7 +16,6 @@
     "@mdx-js/react": "^3.0.1",
     "@meshsdk/contract": "*",
     "@meshsdk/core": "*",
-    "@meshsdk/core-csl": "*",
     "@meshsdk/react": "*",
     "@next/mdx": "^14.2.3",
     "@next/third-parties": "^14.2.5",

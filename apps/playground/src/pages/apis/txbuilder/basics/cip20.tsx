@@ -7,7 +7,7 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderCip20() {
   return (
@@ -79,9 +79,7 @@ function Right() {
 
   let codeSnippet = ``;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
-  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
-  codeSnippet += `\n`;
+  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n\n`;
   codeSnippet += `const label = 674;\n`;
   codeSnippet += `const metadata = {\n`;
   codeSnippet += `  msg: [\n`;
@@ -90,6 +88,7 @@ function Right() {
   }
   codeSnippet += `  ],\n`;
   codeSnippet += `});\n\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;
   codeSnippet += `  .metadataValue(label, metadata)\n`;

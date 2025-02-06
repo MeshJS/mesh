@@ -365,13 +365,14 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
 
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
+      // get the assets too
       const { data, status } = await this._axiosInstance.post("tx_info", {
-        _tx_hashes: [hash],
+        _tx_hashes: [hash], _assets: true,
       });
 
       if (status === 200) {
         const utxos: UTxO[] = data[0].outputs.map((utxo: KoiosUTxO) =>
-          this.toUTxO(utxo, "undefined"),
+          this.toUTxO(utxo, utxo.payment_addr.bech32),
         );
 
         if (index !== undefined) {

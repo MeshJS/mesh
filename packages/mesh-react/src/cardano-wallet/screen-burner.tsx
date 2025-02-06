@@ -76,7 +76,6 @@ export default function ScreenBurner({
           {hasKeyInStorage && (
             <Button
               variant="outline"
-              className="mesh-text-white"
               onClick={() => {
                 handleRestoreWallet();
               }}
@@ -87,7 +86,6 @@ export default function ScreenBurner({
           )}
           <Button
             variant="outline"
-            className="mesh-text-white"
             onClick={() => {
               handleCreateWallet();
             }}

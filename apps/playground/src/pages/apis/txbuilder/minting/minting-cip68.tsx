@@ -12,7 +12,7 @@ import {
   stringToHex,
   UTxO,
 } from "@meshsdk/core";
-import { applyParamsToScript } from "@meshsdk/core-csl";
+import { applyParamsToScript } from "@meshsdk/core-cst";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -25,7 +25,7 @@ import {
   demoPlutusAlwaysSucceedScript,
   oneTimeMintingPolicy,
 } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function MintingCip68() {
   const [userInput, setUserInput] = useState<string>("Test1");
@@ -195,8 +195,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
   code += `const tokenName = '${userInput}';\n`;
   code += `const tokenNameHex = stringToHex(tokenName);\n`;
   code += `\n`;
-  code += `const txBuilder = getTxBuilder();\n`;
-  code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
   code += `  .txIn(\n`;
   code += `    utxos[0]?.input.txHash!,\n`;

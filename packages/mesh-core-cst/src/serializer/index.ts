@@ -84,6 +84,7 @@ import {
   RequireNOf,
   RequireSignature,
   RequireTimeAfter,
+  RequireTimeBefore,
   RewardAccount,
   RewardAddress,
   Script,
@@ -133,35 +134,39 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     isScriptHash?: boolean,
     network_id?: 0 | 1,
   ): string {
-    return RewardAddress.fromCredentials(network_id ?? 1, {
+    return RewardAddress.fromCredentials(network_id ?? 0, {
       type: isScriptHash ? CredentialType.ScriptHash : CredentialType.KeyHash,
       hash: Hash28ByteBase16(stakeKeyHash),
     })
       .toAddress()
       .toBech32();
   }
+
   serializePoolId(hash: string): string {
     return PoolId.fromKeyHash(Ed25519KeyHashHex(hash)).toString();
   }
 
-  serializeAddress(address: DeserializedAddress, networkId?: 0 | 1): string {
+  serializeAddress(
+    address: Partial<DeserializedAddress>,
+    networkId?: 0 | 1,
+  ): string {
     let paymentCred: CredentialCore | undefined = undefined;
 
     let stakeCred: CredentialCore | undefined;
 
-    if (address.pubKeyHash !== "") {
+    if (address.pubKeyHash && address.pubKeyHash !== "") {
       paymentCred = {
         type: CredentialType.KeyHash,
         hash: Hash28ByteBase16(address.pubKeyHash),
       };
-    } else if (address.scriptHash !== "") {
+    } else if (address.scriptHash && address.scriptHash !== "") {
       paymentCred = {
         type: CredentialType.ScriptHash,
         hash: Hash28ByteBase16(address.scriptHash),
       };
     }
 
-    if (address.stakeCredentialHash !== "") {
+    if (address.stakeCredentialHash && address.stakeCredentialHash !== "") {
       stakeCred = {
         type: CredentialType.KeyHash,
         hash: Hash28ByteBase16(address.stakeCredentialHash),
@@ -360,27 +365,17 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         script: CommonNativeScript | PlutusScript,
       ): string {
         if ("code" in script) {
-          let plutusScriptCbor;
           let versionByte;
           switch (script.version) {
             case "V1": {
-              plutusScriptCbor = PlutusV1Script.fromCbor(
-                HexBlob(script.code),
-              ).toCbor();
               versionByte = 1;
               break;
             }
             case "V2": {
-              plutusScriptCbor = PlutusV2Script.fromCbor(
-                HexBlob(script.code),
-              ).toCbor();
               versionByte = 2;
               break;
             }
             case "V3": {
-              plutusScriptCbor = PlutusV3Script.fromCbor(
-                HexBlob(script.code),
-              ).toCbor();
               versionByte = 3;
               break;
             }
@@ -393,7 +388,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
                   Cbor.encode(
                     new CborArray([
                       new CborUInt(versionByte),
-                      new CborString(plutusScriptCbor).toCborObj(),
+                      new CborString(script.code).toCborObj(),
                     ]),
                   ).toBuffer(),
                 ),
@@ -403,7 +398,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
           return Cbor.encode(taggedScript).toString();
         } else {
           const nativeScript = toNativeScript(script);
-          Cbor.parse(new CborString(nativeScript.toCbor()));
           let taggedScript: CborTag = new CborTag(
             24,
             Cbor.parse(
@@ -1588,13 +1582,13 @@ class CardanoSDKSerializerCore {
     switch (scriptCore.kind) {
       case RequireSignature: {
         keyHashes.add(scriptCore.keyHash);
-        return;
+        break;
       }
       case RequireTimeAfter: {
-        return;
+        break;
       }
-      case RequireTimeAfter: {
-        return;
+      case RequireTimeBefore: {
+        break;
       }
       case RequireAllOf: {
         for (const innerScript of scriptCore.scripts) {
@@ -1603,7 +1597,7 @@ class CardanoSDKSerializerCore {
               keyHashes,
           );
         }
-        return;
+        break;
       }
       case RequireAnyOf: {
         for (const innerScript of scriptCore.scripts) {
@@ -1612,7 +1606,7 @@ class CardanoSDKSerializerCore {
               keyHashes,
           );
         }
-        return;
+        break;
       }
       case RequireNOf: {
         for (const innerScript of scriptCore.scripts) {
@@ -1621,7 +1615,7 @@ class CardanoSDKSerializerCore {
               keyHashes,
           );
         }
-        return;
+        break;
       }
     }
     return keyHashes;

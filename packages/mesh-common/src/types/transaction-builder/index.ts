@@ -39,6 +39,8 @@ export type MeshTxBuilderBody = {
     strategy: UtxoSelectionStrategy;
     includeTxFees: boolean;
   };
+  chainedTxs: string[];
+  inputsForEvaluation: Record<string, UTxO>;
   network: Network | number[][];
   expectedNumberKeyWitnesses: number;
   expectedByronAddressWitnesses: string[];
@@ -65,6 +67,8 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
     strategy: "experimental",
     includeTxFees: true,
   },
+  chainedTxs: [],
+  inputsForEvaluation: {},
   network: "mainnet",
   expectedNumberKeyWitnesses: 0,
   expectedByronAddressWitnesses: []
@@ -82,7 +86,13 @@ export type ValidityRange = {
 // Transaction Metadata
 
 export type MetadatumMap = Map<Metadatum, Metadatum>;
-export type Metadatum = bigint | number | string | Uint8Array | MetadatumMap | Metadatum[];
+export type Metadatum =
+  | bigint
+  | number
+  | string
+  | Uint8Array
+  | MetadatumMap
+  | Metadatum[];
 export type TxMetadata = Map<bigint, Metadatum>;
 
 // to be used for serialization

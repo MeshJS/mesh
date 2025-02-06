@@ -1,6 +1,10 @@
-// todo TW: need to replace CST
-import * as core from "@meshsdk/core-csl";
+import * as core from "@meshsdk/core-cst";
+
 const applyParamsToScript = core.applyParamsToScript;
-const applyCborEncoding = core.applyCborEncoding;
+const applyCborEncoding = (script: string) => {
+  return Buffer.from(
+    core.applyEncoding(Buffer.from(script, "hex"), "SingleCBOR"),
+  ).toString("hex");
+};
 
 export { core, applyParamsToScript, applyCborEncoding };

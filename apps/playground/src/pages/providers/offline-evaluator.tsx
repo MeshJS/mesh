@@ -1,8 +1,5 @@
 import type { NextPage } from "next";
 
-import { OfflineFetcher } from "@meshsdk/core";
-import { OfflineEvaluator } from "@meshsdk/core-csl";
-
 import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
@@ -69,9 +66,6 @@ const ReactPage: NextPage = () => {
   code3 += `  });\n`;
   code3 += `});\n`;
 
-  const fetcher = new OfflineFetcher();
-  const evaluator = new OfflineEvaluator(fetcher, "preprod");
-
   return (
     <>
       <Metatags
@@ -116,7 +110,7 @@ const ReactPage: NextPage = () => {
 
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/OfflineEvaluator" />
 
-        <ProviderEvaluators blockchainProvider={evaluator} provider="offline" />
+        <ProviderEvaluators provider="offline" />
       </SidebarFullwidth>
     </>
   );
