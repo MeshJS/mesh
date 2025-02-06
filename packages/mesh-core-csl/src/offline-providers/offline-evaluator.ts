@@ -124,8 +124,8 @@ export class OfflineEvaluator implements IEvaluator {
         foundUtxos.add(`${output.input.txHash}:${output.input.outputIndex}`);
       }
     }
-    const inputsToResolve = getTransactionInputs(tx).filter((input) =>
-      foundUtxos.has(`${input.txHash}:${input.outputIndex}`),
+    const inputsToResolve = getTransactionInputs(tx).filter(
+      (input) => !foundUtxos.has(`${input.txHash}:${input.outputIndex}`),
     );
     const txHashesSet = new Set(inputsToResolve.map((input) => input.txHash));
     for (const txHash of txHashesSet) {
