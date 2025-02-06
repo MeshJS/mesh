@@ -1,6 +1,10 @@
+import JSONBig from "json-bigint";
+
 import { NativeScript } from "@meshsdk/common";
 import { applyCborEncoding } from "@meshsdk/core-csl";
 import { CardanoSDKSerializer } from "@meshsdk/core-cst";
+
+import { parseDatumCbor } from "../../src";
 
 describe("Serialization utils", () => {
   const serializer = new CardanoSDKSerializer();
@@ -204,6 +208,59 @@ describe("Serialization utils", () => {
       }),
     ).toEqual(
       "d8799fd87b9fd8799fd87a9f581c1a4c95cd8c6fc37e83914a5286358d530f99123806aa2f2c4d2b1fb7ffffffd87b9fd8799fd87a9f581c213b5f66a7cbe034eeb26223940e256f9add1a526efc22be22517e39ffffffd8799fd8799fa14130d8799f581c70c9a227cb5b55a221cfaca128b038f6f10e78f2015698781a296d52ffffd8799fd8799f58201c4ef054932bafcb4a59810f31fa0ed001d6611066938d1a1aef1d1237c0a441ff00ffd8799fd87a9f581c6f9114681e5690c9293ade8f4a0f2856ab43d8d1b3397d4e3ae6b2c3ffd87a80ffd8799f581c1cf9e87a5325a3f10afe0083bc6161f9b42298cd781fbaeb5d92c69840ffd8799f581c5ec37726eebe67f1db9f84e739b24e9e4dbb4c632a36a50ce74bfc864455534441ffd8799fd87a9f581c84bbee03e9403e186817e6b24790370a5ea4a63489753d94a7ff5866ffd87a80ffd8799fd8799f581cf95cab9352c14782a366802b7967746a89356e8915c17006149ff68cffd87a80ff0101ffff",
+    );
+  });
+
+  it("parse datum cbor", () => {
+    expect(
+      JSONBig.stringify(
+        parseDatumCbor(
+          "d8799f9f4040ff9f581c5066154a102ee037390c5236f78db23239b49c5748d3d349f3ccf04b4455534458ffd87a801a3c3360801a02faf0800a581c4ba6dd244255995969d2c05e323686bcbaba83b736e729941825d79bff",
+        ),
+      ),
+    ).toEqual(
+      JSONBig.stringify({
+        constructor: 0,
+        fields: [
+          {
+            list: [
+              {
+                bytes: "",
+              },
+              {
+                bytes: "",
+              },
+            ],
+          },
+          {
+            list: [
+              {
+                bytes:
+                  "5066154a102ee037390c5236f78db23239b49c5748d3d349f3ccf04b",
+              },
+              {
+                bytes: "55534458",
+              },
+            ],
+          },
+          {
+            constructor: 1,
+            fields: [],
+          },
+          {
+            int: 1010000000,
+          },
+          {
+            int: 50000000,
+          },
+          {
+            int: 10,
+          },
+          {
+            bytes: "4ba6dd244255995969d2c05e323686bcbaba83b736e729941825d79b",
+          },
+        ],
+      }),
     );
   });
 
