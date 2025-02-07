@@ -1,4 +1,12 @@
 import { Buffer } from "buffer";
+import {
+  Cbor,
+  isRawCborArray,
+  isRawCborMap,
+  RawCborArray,
+  RawCborBytes,
+  RawCborMap,
+} from "@harmoniclabs/cbor";
 import { blake2b } from "blakejs";
 
 import { StricaDecoder, StricaEncoder } from "../stricahq";
@@ -31,36 +39,53 @@ class CoseSign1 {
   }
 
   static fromCbor(cbor: string) {
-    const decoded = StricaDecoder.decode(Buffer.from(cbor, "hex"));
-
-    if (!(decoded.value instanceof Array)) throw Error("Invalid CBOR");
-    if (decoded.value.length !== 4) throw Error("Invalid COSE_SIGN1");
+    const decoded = Cbor.parse(cbor).toRawObj() as RawCborArray;
+    if (!isRawCborArray(decoded)) throw Error("Invalid CBOR");
+    if (decoded.array.length !== 4) throw Error("Invalid COSE_SIGN1");
 
     let protectedMap;
     // Decode and Set ProtectedMap
-    const protectedSerialized = decoded.value[0];
+    const protectedSerialized = decoded.array[0] as RawCborBytes;
     try {
-      protectedMap = StricaDecoder.decode(protectedSerialized).value;
-      if (!(protectedMap instanceof Map)) {
+      protectedMap = Cbor.parse(
+        protectedSerialized.bytes,
+      ).toRawObj() as RawCborMap;
+      if (!isRawCborMap(protectedMap)) {
         throw Error();
       }
     } catch (error) {
       throw Error("Invalid protected");
     }
-
+    const newProtectedMap = new Map();
+    protectedMap.map.forEach((value, _) => {
+      newProtectedMap.set(
+        Object.values(value.k)[0],
+        Object.keys(value.v)[0] === "bytes"
+          ? Buffer.from(Object.values(value.v)[0])
+          : Object.values(value.v)[0],
+      );
+    });
     // Set UnProtectedMap
-    const unProtectedMap = decoded.value[1];
-    if (!(unProtectedMap instanceof Map)) throw Error("Invalid unprotected");
-
+    let unProtectedMap = decoded.array[1] as RawCborMap;
+    if (!isRawCborMap(unProtectedMap)) throw Error("Invalid unprotected");
+    const newUnProtectedMap = new Map();
+    unProtectedMap.map.forEach((value, _) => {
+      newUnProtectedMap.set(
+        Object.values(value.k)[0],
+        Object.keys(value.v)[0] === "bytes"
+          ? Buffer.from(Object.values(value.v)[0])
+          : Object.values(value.v)[0],
+      );
+    });
     // Set Payload
-    const payload = decoded.value[2];
+    const payload = Buffer.from((decoded.array[2] as RawCborBytes).bytes);
 
     // Set Signature
-    const signature = decoded.value[3];
+    const signature = Buffer.from((decoded.array[3] as RawCborBytes).bytes);
 
     return new CoseSign1({
-      protectedMap,
-      unProtectedMap,
+      protectedMap: newProtectedMap,
+      unProtectedMap: newUnProtectedMap,
       payload,
       signature,
     });
