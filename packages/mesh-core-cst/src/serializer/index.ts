@@ -46,7 +46,6 @@ import {
   Withdrawal,
 } from "@meshsdk/common";
 
-import { StricaPrivateKey } from "../";
 import {
   Address,
   AddressType,
@@ -62,6 +61,7 @@ import {
   Datum,
   DatumHash,
   Ed25519KeyHashHex,
+  Ed25519PrivateKey,
   Ed25519PublicKeyHex,
   Ed25519SignatureHex,
   ExUnits,
@@ -98,6 +98,7 @@ import {
   VkeyWitness,
 } from "../types";
 import {
+  buildEd25519PrivateKeyFromSecretKey,
   fromBuilderToPlutusData,
   toAddress,
   toCardanoAddress,
@@ -442,18 +443,12 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         if (keyHex.length === 68 && keyHex.substring(0, 4) === "5820") {
           keyHex = keyHex.substring(4);
         }
-        const cardanoSigner = StricaPrivateKey.fromSecretKey(
-          Buffer.from(keyHex, "hex"),
-        );
-        const signature = cardanoSigner.sign(
-          Buffer.from(cardanoTx.getId(), "hex"),
-        );
+        const cardanoSigner = buildEd25519PrivateKeyFromSecretKey(keyHex);
+        const signature = cardanoSigner.sign(HexBlob(cardanoTx.getId()));
         currentWitnessSetVkeysValues.push(
           new VkeyWitness(
-            Ed25519PublicKeyHex(
-              cardanoSigner.toPublicKey().toBytes().toString("hex"),
-            ),
-            Ed25519SignatureHex(signature.toString("hex")),
+            Ed25519PublicKeyHex(cardanoSigner.toPublic().hex()),
+            Ed25519SignatureHex(signature.hex()),
           ),
         );
       }

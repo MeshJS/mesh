@@ -176,6 +176,12 @@ export type Bip32PrivateKey = Crypto.Bip32PrivateKey;
 export const Bip32PrivateKeyHex = Crypto.Bip32PrivateKeyHex;
 export type Bip32PrivateKeyHex = Crypto.Bip32PrivateKeyHex;
 
+export const Bip32PublicKey = Crypto.Bip32PublicKey;
+export type Bip32PublicKey = Crypto.Bip32PublicKey;
+
+export const Bip32PublicKeyHex = Crypto.Bip32PublicKeyHex;
+export type Bip32PublicKeyHex = Crypto.Bip32PublicKeyHex;
+
 export const PlutusLanguageVersion = Cardano.PlutusLanguageVersion;
 export type PlutusLanguageVersion = Cardano.PlutusLanguageVersion;
 

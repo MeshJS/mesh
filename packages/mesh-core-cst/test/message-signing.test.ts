@@ -17,13 +17,13 @@ const config = {
 };
 
 describe("MessageSigning", () => {
-  it("checkSignature", () => {
-    const result = checkSignature(config.nonce, config.signature);
+  it("checkSignature", async () => {
+    const result = await checkSignature(config.nonce, config.signature);
     expect(result).toBe(true);
   });
 
-  it("checkSignature validates signature's address against provided rewardAddress", () => {
-    const result = checkSignature(
+  it("checkSignature validates signature's address against provided rewardAddress", async () => {
+    const result = await checkSignature(
       config.nonce,
       config.signature,
       config.rewardAddress,
@@ -31,8 +31,8 @@ describe("MessageSigning", () => {
     expect(result).toBe(true);
   });
 
-  it("checkSignature validates signature's address against provided wallet_address", () => {
-    const result = checkSignature(
+  it("checkSignature validates signature's address against provided wallet_address", async () => {
+    const result = await checkSignature(
       config.nonce,
       config.signature,
       config.wallet_address,
@@ -40,8 +40,8 @@ describe("MessageSigning", () => {
     expect(result).toBe(true);
   });
 
-  it("checkSignature validates signature's address against provided invalidAddress", () => {
-    const result = checkSignature(
+  it("checkSignature validates signature's address against provided invalidAddress", async () => {
+    const result = await checkSignature(
       config.nonce,
       config.signature,
       config.invalidAddress,

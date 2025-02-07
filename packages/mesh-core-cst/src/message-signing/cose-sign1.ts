@@ -1,7 +1,8 @@
 import { Buffer } from "buffer";
 import { blake2b } from "blakejs";
 
-import { StricaDecoder, StricaEncoder, StricaPublicKey } from "../stricahq";
+import { StricaDecoder, StricaEncoder } from "../stricahq";
+import { Ed25519PublicKey, Ed25519Signature, HexBlob } from "../types";
 
 class CoseSign1 {
   private protectedMap: Map<any, any>;
@@ -114,11 +115,13 @@ class CoseSign1 {
     if (!publicKeyBuffer) throw Error("Public key not found");
     if (!this.signature) throw Error("Signature not found");
 
-    const publicKey = new StricaPublicKey(publicKeyBuffer);
+    const publicKey = new Ed25519PublicKey(publicKeyBuffer);
 
     return publicKey.verify(
-      this.signature,
-      this.createSigStructure(externalAad),
+      new Ed25519Signature(this.signature),
+      HexBlob(
+        Buffer.from(this.createSigStructure(externalAad)).toString("hex"),
+      ),
     );
   }
 

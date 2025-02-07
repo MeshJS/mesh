@@ -131,27 +131,23 @@ export const buildKeys = (
 
     return { paymentKey, stakeKey, dRepKey };
   } else {
-    const paymentKey = Ed25519PrivateKey.fromExtendedBytes(
-      new Uint8Array(
-        clampScalar(
-          Buffer.from(
-            hash.sha512().update(Buffer.from(privateKeyHex[0], "hex")).digest(),
-          ),
-        ),
-      ),
-    );
-    const stakeKey = Ed25519PrivateKey.fromExtendedBytes(
-      new Uint8Array(
-        clampScalar(
-          Buffer.from(
-            hash.sha512().update(Buffer.from(privateKeyHex[1], "hex")).digest(),
-          ),
-        ),
-      ),
-    );
+    const paymentKey = buildEd25519PrivateKeyFromSecretKey(privateKeyHex[0]);
+    const stakeKey = buildEd25519PrivateKeyFromSecretKey(privateKeyHex[1]);
 
     return { paymentKey, stakeKey };
   }
+};
+
+export const buildEd25519PrivateKeyFromSecretKey = (secretKeyHex: string) => {
+  return Ed25519PrivateKey.fromExtendedBytes(
+    new Uint8Array(
+      clampScalar(
+        Buffer.from(
+          hash.sha512().update(Buffer.from(secretKeyHex, "hex")).digest(),
+        ),
+      ),
+    ),
+  );
 };
 
 export const buildScriptPubkey = (keyHash: Ed25519KeyHash): NativeScript => {
