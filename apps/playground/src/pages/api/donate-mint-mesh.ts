@@ -94,14 +94,14 @@ export default async function handler(
       .selectUtxosFrom(utxos)
       .mint("1", policyId, stringToHex(assetName))
       .mintingScript(forgingScript)
-      .metadataValue("721", fullAssetMetadata)
+      .metadataValue(721, fullAssetMetadata)
       .txOut(donateAddress, [
         { unit: "lovelace", quantity: costLovelace.toString() },
       ])
       .changeAddress(recipientAddress)
       .complete();
 
-    const unsignedTx = wallet.signTx(txHex, true);
+    const unsignedTx = await wallet.signTx(txHex, true);
 
     res.status(200).json({ unsignedTx });
   } catch (error) {

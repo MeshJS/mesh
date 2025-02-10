@@ -20,6 +20,19 @@ import { demoAddresses, demoAssetMetadata, demoMnemonic } from "~/data/cardano";
 const walletSystemMnemonic = demoMnemonic;
 const walletAccountAddress = demoAddresses.testnetPayment;
 const mintingFee = "10000000";
+let originalMetadata = "";
+
+const blockchainProvider = getProvider();
+
+const systemWallet = new MeshWallet({
+  networkId: 0,
+  fetcher: blockchainProvider,
+  submitter: blockchainProvider,
+  key: {
+    type: "mnemonic",
+    words: walletSystemMnemonic,
+  },
+});
 
 export default function Demo() {
   const { wallet, connected } = useWallet();
@@ -46,26 +59,20 @@ export default function Demo() {
 
     // backend to build tx
     const unsignedTx = await backendBuildTx(selectedUtxos, recipientAddress);
+
+    // user sign
     const signedTx = await wallet.signTx(unsignedTx, true);
-    const txHash = await wallet.submitTx(signedTx);
+
+    // backend sign and submit
+    const backendSignedTx = await backendSignTx(signedTx);
+
+    const txHash = await wallet.submitTx(backendSignedTx);
 
     setResponse(txHash);
     setLoading(false);
   }
 
   async function backendBuildTx(userUtxos: UTxO[], recipientAddress: string) {
-    const blockchainProvider = getProvider();
-
-    const systemWallet = new MeshWallet({
-      networkId: 0,
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
-      key: {
-        type: "mnemonic",
-        words: walletSystemMnemonic,
-      },
-    });
-
     const systemWalletAddress = systemWallet.getChangeAddress();
     const forgingScript = ForgeScript.withOneSignature(systemWalletAddress);
     const assetName = "MeshToken";
@@ -85,14 +92,26 @@ export default function Demo() {
     tx.setChangeAddress(recipientAddress);
     const unsignedTx = await tx.build();
 
-    const meshWalletSignedTx = await systemWallet.signTx(unsignedTx, true);
+    originalMetadata = Transaction.readMetadata(unsignedTx);
 
+    const maskedTx = Transaction.maskMetadata(unsignedTx);
+    return maskedTx;
+  }
+
+  async function backendSignTx(unsignedTx: string) {
+    const signedOriginalTx = Transaction.writeMetadata(
+      unsignedTx,
+      originalMetadata,
+    );
+    const meshWalletSignedTx = await systemWallet.signTx(
+      signedOriginalTx,
+      true,
+    );
     return meshWalletSignedTx;
   }
 
   return (
     <>
-      <h2>Demo</h2>
       <p>Connect your wallet and click on the button to mint a token.</p>
       <CardanoWallet />
       <Button

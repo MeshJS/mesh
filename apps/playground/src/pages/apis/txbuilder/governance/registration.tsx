@@ -9,19 +9,12 @@ import {
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
-import Button from "~/components/button/button";
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
-import {
-  deregisterDRep,
-  getNativeScript,
-  makePayment,
-  registerDRep,
-} from "./test-native-script";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function GovernanceRegistration() {
   return (
@@ -49,17 +42,10 @@ function Left() {
   codeAnchor += `const anchorUrl = "https://meshjs.dev/governance/meshjs.jsonld";\n`;
   codeAnchor += `const anchorHash = await getMeshJsonHash(anchorUrl);\n`;
 
-  let codeUtxo = ``;
-  codeUtxo += `// get utxo to pay for the registration\n`;
-  codeUtxo += `const utxos = await wallet.getUtxos();\n`;
-  codeUtxo += `const registrationFee = "500000000";\n`;
-  codeUtxo += `const assetMap = new Map<Unit, Quantity>();\n`;
-  codeUtxo += `assetMap.set("lovelace", registrationFee);\n`;
-  codeUtxo += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
-
   let codeTx = ``;
-  codeTx += `const changeAddress = await wallet.getChangeAddress();\n`;
-  codeTx += `\n`;
+  codeTx += `const utxos = await wallet.getUtxos();\n`;
+  codeTx += `const changeAddress = await wallet.getChangeAddress();\n\n`;
+  codeTx += txbuilderCode;
   codeTx += `txBuilder\n`;
   codeTx += `  .drepRegistrationCertificate(dRepId, {\n`;
   codeTx += `    anchorUrl: anchorUrl,\n`;
@@ -127,7 +113,9 @@ function Left() {
       <p>
         We can now build the transaction by adding the DRep registration
         certificate to the transaction. We also need to add the change address
-        and the selected UTxOs to the transaction.
+        and the selected UTxOs to the transaction. Note that the deposit for
+        registering a DRep is 500 ADA, we would set 505 ADA as UTxO selection
+        threshold.
       </p>
       <Codeblock data={codeTx} />
       <p>
@@ -162,25 +150,27 @@ function Right() {
       throw new Error("No DRep key found, this wallet does not support CIP95");
 
     const dRepId = dRep.dRepIDCip105;
-    const anchorHash = await getMeshJsonHash(anchorUrl);
+
+    let anchor: { anchorUrl: string; anchorDataHash: string } | undefined =
+      undefined;
+    if (anchorUrl.length > 0) {
+      const anchorHash = await getMeshJsonHash(anchorUrl);
+      anchor = {
+        anchorUrl: anchorUrl,
+        anchorDataHash: anchorHash,
+      };
+    }
 
     // get utxo to pay for the registration
     const utxos = await wallet.getUtxos();
-    const registrationFee = "500000000";
-    const assetMap = new Map<Unit, Quantity>();
-    assetMap.set("lovelace", registrationFee);
-    const selectedUtxos = keepRelevant(assetMap, utxos);
 
     const changeAddress = await wallet.getChangeAddress();
 
     const txBuilder = getTxBuilder();
     txBuilder
-      .drepRegistrationCertificate(dRepId, {
-        anchorUrl: anchorUrl,
-        anchorDataHash: anchorHash,
-      })
+      .drepRegistrationCertificate(dRepId, anchor)
       .changeAddress(changeAddress)
-      .selectUtxosFrom(selectedUtxos);
+      .selectUtxosFrom(utxos, "keepRelevant", "505000000");
 
     const unsignedTx = await txBuilder.complete();
     const signedTx = await wallet.signTx(unsignedTx);
@@ -197,20 +187,15 @@ function Right() {
   codeSnippet += `\n`;
   codeSnippet += `// get utxo to pay for the registration\n`;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
-  codeSnippet += `const registrationFee = "500000000";\n`;
-  codeSnippet += `const assetMap = new Map<Unit, Quantity>();\n`;
-  codeSnippet += `assetMap.set("lovelace", registrationFee);\n`;
-  codeSnippet += `const selectedUtxos = keepRelevant(assetMap, utxos);\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
-  codeSnippet += `\n`;
+  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `txBuilder\n`;
   codeSnippet += `  .drepRegistrationCertificate(dRepId, {\n`;
   codeSnippet += `    anchorUrl: anchorUrl,\n`;
   codeSnippet += `    anchorDataHash: anchorHash,\n`;
   codeSnippet += `  })\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;
-  codeSnippet += `  .selectUtxosFrom(selectedUtxos);\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos, "keepRelevant", "505000000");\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder.complete();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;

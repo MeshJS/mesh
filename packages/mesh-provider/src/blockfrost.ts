@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
   IListener,
@@ -21,19 +22,34 @@ import {
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
-import { resolveRewardAddress, toScriptRef } from "@meshsdk/core-cst";
+import {
+  normalizePlutusScript,
+  resolveRewardAddress,
+  toScriptRef,
+} from "@meshsdk/core-cst";
 
+import { utxosToAssets } from "./common/utxos-to-assets";
 import { BlockfrostAsset, BlockfrostUTxO } from "./types";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
 
 export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
 
+/**
+ * Blockfrost provides restful APIs which allows your app to access information stored on the blockchain.
+ *
+ * Usage:
+ * ```
+ * import { BlockfrostProvider } from "@meshsdk/core";
+ *
+ * const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');
+ */
 export class BlockfrostProvider
   implements IFetcher, IListener, ISubmitter, IEvaluator
 {
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: BlockfrostSupportedNetworks;
+  private submitTxToBytes = true;
 
   /**
    * If you are using a privately hosted Blockfrost instance, you can set the URL in the parameter.
@@ -68,6 +84,14 @@ export class BlockfrostProvider
     }
   }
 
+  setSubmitTxToBytes(value: boolean): void {
+    this.submitTxToBytes = value;
+  }
+
+  /**
+   * Evaluates the resources required to execute the transaction
+   * @param tx - The transaction to evaluate
+   */
   async evaluateTx(cbor: string): Promise<any> {
     try {
       const headers = { "Content-Type": "application/cbor" };
@@ -107,6 +131,10 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Obtain information about a specific stake account.
+   * @param address - Wallet address to fetch account information
+   */
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
     const rewardAddress = address.startsWith("addr")
       ? resolveRewardAddress(address)
@@ -132,6 +160,55 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the assets for a given address.
+   * @param address - The address to fetch assets for
+   * @returns A map of asset unit to quantity
+   */
+  async fetchAddressAssets(
+    address: string,
+  ): Promise<{ [key: string]: string }> {
+    const utxos = await this.fetchAddressUTxOs(address);
+    return utxosToAssets(utxos);
+  }
+
+  /**
+   * Transactions for an address.
+   * @param address
+   * @returns - partial TransactionInfo
+   */
+  async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `/addresses/${address}/transactions`,
+      );
+      if (status === 200 || status == 202) {
+        return data.map((tx: any) => {
+          return <TransactionInfo>{
+            hash: tx.tx_hash,
+            index: tx.tx_index,
+            block: "",
+            slot: "",
+            fees: "",
+            size: 0,
+            deposit: "",
+            invalidBefore: "",
+            invalidAfter: "",
+          };
+        });
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * UTXOs of the address.
+   * @param address - The address to fetch UTXO
+   * @param asset - UTXOs of a given asset​
+   * @returns - Array of UTxOs
+   */
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : "";
     const url = `addresses/${address}/utxos` + filter;
@@ -166,6 +243,10 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the asset addresses for a given asset.
+   * @param asset - The asset to fetch addresses for
+   */
   async fetchAssetAddresses(
     asset: string,
   ): Promise<{ address: string; quantity: string }[]> {
@@ -193,6 +274,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the metadata for a given asset.
+   * @param asset - The asset to fetch metadata for
+   * @returns The metadata for the asset
+   */
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
@@ -202,6 +288,10 @@ export class BlockfrostProvider
       if (status === 200 || status == 202)
         return <AssetMetadata>{
           ...data.onchain_metadata,
+          fingerprint: data.fingerprint,
+          totalSupply: data.quantity,
+          mintingTxHash: data.initial_mint_tx_hash, // todo: request for `initial_mint_tx_hash`
+          mintCount: data.mint_or_burn_count,
         };
 
       throw parseHttpError(data);
@@ -210,6 +300,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the metadata for a given asset.
+   * @param asset - The asset to fetch metadata for
+   * @returns The metadata for the asset
+   */
   async fetchLatestBlock(): Promise<BlockInfo> {
     try {
       const { data, status } = await this._axiosInstance.get(`blocks/latest`);
@@ -388,7 +483,7 @@ export class BlockfrostProvider
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
         `txs/${hash}/utxos`,
@@ -400,6 +495,11 @@ export class BlockfrostProvider
           outputsPromises.push(this.toUTxO(output, hash));
         });
         const outputs = await Promise.all(outputsPromises);
+
+        if (index !== undefined) {
+          return outputs.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return outputs;
       }
       throw parseHttpError(data);
@@ -408,6 +508,87 @@ export class BlockfrostProvider
     }
   }
 
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
+    try {
+      const { data, status } = await this._axiosInstance.get(
+        `governance/proposals/${txHash}/${certIndex}`,
+      );
+      if (status === 200 || status == 202)
+        return <GovernanceProposalInfo>{
+          txHash: data.tx_hash,
+          certIndex: data.cert_index,
+          governanceType: data.governance_type,
+          deposit: data.deposit,
+          returnAddress: data.return_address,
+          governanceDescription: data.governance_description,
+          ratifiedEpoch: data.ratified_epoch,
+          enactedEpoch: data.enacted_epoch,
+          droppedEpoch: data.dropped_epoch,
+          expiredEpoch: data.expired_epoch,
+          expiration: data.expiration,
+          metadata: (
+            await this._axiosInstance.get(
+              `governance/proposals/${txHash}/${certIndex}/metadata`,
+            )
+          ).data,
+        };
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * A generic method to fetch data from a URL.
+   * @param url - The URL to fetch data from
+   * @returns - The data fetched from the URL
+   */
+  async get(url: string): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.get(url);
+      if (status === 200 || status == 202) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * A generic method to post data to a URL.
+   * @param url - The URL to fetch data from
+   * @param body - Payload
+   * @param headers - Specify headers, default: { "Content-Type": "application/json" }
+   * @returns - Data
+   */
+  async post(
+    url: string,
+    body: any,
+    headers = { "Content-Type": "application/json" },
+  ): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.post(url, body, {
+        headers,
+      });
+
+      if (status === 200 || status == 202) return data;
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * Allow you to listen to a transaction confirmation. Upon confirmation, the callback will be called.
+   * @param txHash - The transaction hash to listen for confirmation
+   * @param callback - The callback function to call when the transaction is confirmed
+   * @param limit - The number of blocks to wait for confirmation
+   */
   onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
@@ -433,12 +614,17 @@ export class BlockfrostProvider
     }, 5_000);
   }
 
+  /**
+   * Submit a serialized transaction to the network.
+   * @param tx - The serialized transaction in hex to submit
+   * @returns The transaction hash of the submitted transaction
+   */
   async submitTx(tx: string): Promise<string> {
     try {
       const headers = { "Content-Type": "application/cbor" };
       const { data, status } = await this._axiosInstance.post(
         "tx/submit",
-        toBytes(tx),
+        this.submitTxToBytes ? toBytes(tx) : tx,
         { headers },
       );
 
@@ -459,12 +645,17 @@ export class BlockfrostProvider
       );
 
       if (status === 200 || status == 202) {
-        const script = data.type.startsWith("plutus")
-          ? <PlutusScript>{
-              code: await this.fetchPlutusScriptCBOR(scriptHash),
-              version: data.type.replace("plutus", ""),
-            }
-          : await this.fetchNativeScriptJSON(scriptHash);
+        let script;
+        if (data.type.startsWith("plutus")) {
+          const plutusScript = await this.fetchPlutusScriptCBOR(scriptHash);
+          const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
+          script = <PlutusScript>{
+            version: data.type.replace("plutus", ""),
+            code: normalized,
+          };
+        } else {
+          script = await this.fetchNativeScriptJSON(scriptHash);
+        }
 
         return toScriptRef(script).toCbor().toString();
       }

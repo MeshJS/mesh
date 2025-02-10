@@ -11,7 +11,9 @@ import { core } from "../core";
 /**
  * Serialize Native script into bech32 address
  * @param script The native script object
+ * @param stakeCredentialHash The stake credential hash
  * @param networkId 0 (testnet) or 1 (mainnet). Default to be 0 (testnet).
+ * @param isScriptStakeCredential Whether the script is a stake credential. Default to be false.
  * @returns Bech32 address
  */
 export const serializeNativeScript = (
@@ -20,7 +22,10 @@ export const serializeNativeScript = (
   networkId = 0,
   isScriptStakeCredential = false,
 ) => {
-  const serializer = new core.CSLSerializer();
+  if (networkId !== 0 && networkId !== 1) {
+    throw new Error("Invalid network id");
+  }
+  const serializer = new core.CardanoSDKSerializer();
   const { scriptCbor, scriptHash } =
     serializer.deserializer.script.deserializeNativeScript(script);
   const deserializedAddress: Partial<DeserializedAddress> = {
@@ -38,7 +43,9 @@ export const serializeNativeScript = (
 /**
  * Serialize Native script into bech32 address
  * @param script The native script object
+ * @param stakeCredentialHash The stake credential hash
  * @param networkId 0 (testnet) or 1 (mainnet). Default to be 0 (testnet).
+ * @param isScriptStakeCredential Whether the script is a stake credential. Default to be false.
  * @returns Bech32 address
  */
 export const serializePlutusScript = (
@@ -50,7 +57,7 @@ export const serializePlutusScript = (
   const scriptHash = core
     .deserializePlutusScript(script.code, script.version)
     .hash()
-    .to_hex();
+    .toString();
   const address = core.scriptHashToBech32(
     scriptHash,
     stakeCredentialHash,
@@ -78,7 +85,7 @@ export const serializeAddressObj = (
  * @param hash The pool hash
  * @returns The pool id
  */
-export const serializePoolId = (hash: string) => core.serializePoolId(hash);
+export const serializePoolId = (hash: string) => core.resolvePoolId(hash);
 
 /**
  * Serialize a script hash or key hash into bech32 reward address

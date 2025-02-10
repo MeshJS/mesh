@@ -9,7 +9,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAsset, demoAssetId } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderBurningOneSignature() {
   const [userInput, setUserInput] = useState<string>(demoAsset);
@@ -33,7 +33,7 @@ function Left(userInput: string) {
   codeSnippet2 += `const policyId = resolveScriptHash(forgingScript);\n`;
   codeSnippet2 += `const tokenNameHex = stringToHex("MeshToken");\n`;
 
-  let codeSnippet3 = ``;
+  let codeSnippet3 = txbuilderCode;
   codeSnippet3 += `const unsignedTx = await txBuilder\n`;
   codeSnippet3 += `  .mint("-1", policyId, tokenNameHex)\n`;
   codeSnippet3 += `  .mintingScript(forgingScript)\n`;
@@ -112,20 +112,19 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
   code += `const { wallet, connected } = useWallet();\n`;
   code += `\n`;
   code += `const utxos = await wallet.getUtxos();\n`;
-  code += `const changeAddress = await wallet.getChangeAddress();\n`;
-  code += `const txBuilder = getTxBuilder();\n`;
-  code += `\n`;
+  code += `const changeAddress = await wallet.getChangeAddress();\n\n`;
   code += `const forgingScript = ForgeScript.withOneSignature(changeAddress);\n`;
   code += `\n`;
   code += `const policyId = resolveScriptHash(forgingScript);\n`;
   code += `const tokenNameHex = stringToHex("MeshToken");\n`;
   code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
-  code += `    .mint("-1", policyId, tokenNameHex)\n`;
-  code += `    .mintingScript(forgingScript)\n`;
-  code += `    .changeAddress(changeAddress)\n`;
-  code += `    .selectUtxosFrom(utxos)\n`;
-  code += `    .complete();\n`;
+  code += `  .mint("-1", policyId, tokenNameHex)\n`;
+  code += `  .mintingScript(forgingScript)\n`;
+  code += `  .changeAddress(changeAddress)\n`;
+  code += `  .selectUtxosFrom(utxos)\n`;
+  code += `  .complete();\n`;
   code += `\n`;
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;

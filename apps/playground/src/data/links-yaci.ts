@@ -29,7 +29,8 @@ export const linksYaci: MenuItem[] = [
 
 export const metaYaci: MenuItem = {
   title: "Yaci",
-  desc: "A custom Cardano devnet to tailor your devnet needs with a builtin indexer and custom viewer for devnet",
+  desc: "Custom Cardano devnet to tailor your devnet needs with a builtin indexer",
   link: "/yaci",
   items: linksYaci,
+  icon: "/providers/yaci.png",
 };

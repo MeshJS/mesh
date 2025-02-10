@@ -7,6 +7,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IFetcher,
   IListener,
   ISubmitter,
@@ -20,11 +21,12 @@ import {
 } from "@meshsdk/common";
 import {
   deserializeNativeScript,
-  fromNativeScript,
+  fromNativeScript, normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
 } from "@meshsdk/core-cst";
 
+import { utxosToAssets } from "./common/utxos-to-assets";
 import { KoiosAsset, KoiosReferenceScript, KoiosUTxO } from "./types";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
@@ -94,6 +96,44 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  async fetchAddressAssets(
+    address: string,
+  ): Promise<{ [key: string]: string }> {
+    const utxos = await this.fetchAddressUTxOs(address);
+    return utxosToAssets(utxos);
+  }
+
+  /**
+   * Transactions for an address.
+   * @param address
+   * @returns - partial TransactionInfo
+   */
+  async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
+    try {
+      const { data, status } = await this._axiosInstance.post(`/address_txs`, {
+        _addresses: [address],
+      });
+      if (status === 200 || status == 202) {
+        return data.map((tx: any) => {
+          return <TransactionInfo>{
+            hash: tx.tx_hash,
+            index: 0,
+            block: "",
+            slot: "",
+            fees: "",
+            size: 0,
+            deposit: "",
+            invalidBefore: "",
+            invalidAfter: "",
+          };
+        });
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.post("address_info", {
@@ -154,10 +194,13 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
       const { data, status } = await this._axiosInstance.get(
         `asset_info?_asset_policy=${policyId}&_asset_name=${assetName}`,
       );
-
       if (status === 200)
         return <AssetMetadata>{
           ...data[0].minting_tx_metadata[721][policyId][toUTF8(assetName)],
+          fingerprint: data[0].fingerprint,
+          totalSupply: data[0].total_supply,
+          mintingTxHash: data[0].minting_tx_hash,
+          mintCount: data[0].mint_cnt,
         };
 
       throw parseHttpError(data);
@@ -320,18 +363,70 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
+      // get the assets too
       const { data, status } = await this._axiosInstance.post("tx_info", {
-        _tx_hashes: [hash],
+        _tx_hashes: [hash], _assets: true,
       });
 
       if (status === 200) {
-        const utxos = data[0].outputs.map((utxo: KoiosUTxO) =>
-          this.toUTxO(utxo, "undefined"),
+        const utxos: UTxO[] = data[0].outputs.map((utxo: KoiosUTxO) =>
+          this.toUTxO(utxo, utxo.payment_addr.bech32),
         );
+
+        if (index !== undefined) {
+          return utxos.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return utxos;
       }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented");
+  }
+
+  /**
+   * A generic method to fetch data from a URL.
+   * @param url - The URL to fetch data from
+   * @returns - The data fetched from the URL
+   */
+  async get(url: string): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.get(url);
+      if (status === 200 || status == 202) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * A generic method to post data to a URL.
+   * @param url - The URL to fetch data from
+   * @param body - Payload
+   * @param headers - Specify headers, default: { "Content-Type": "application/json" }
+   * @returns - Data
+   */
+  async post(
+    url: string,
+    body: any,
+    headers = { "Content-Type": "application/json" },
+  ): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.post(url, body, {
+        headers,
+      });
+
+      if (status === 200 || status == 202) return data;
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
@@ -411,12 +506,16 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     kScriptRef: KoiosReferenceScript | undefined,
   ): string | undefined => {
     if (kScriptRef) {
-      const script = kScriptRef.type.startsWith("plutus")
-        ? <PlutusScript>{
-            code: kScriptRef.bytes,
-            version: kScriptRef.type.replace("plutus", ""),
-          }
-        : fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
+      let script;
+      if(kScriptRef.type.startsWith("plutus")) {
+        const normalized = normalizePlutusScript(kScriptRef.bytes, "DoubleCBOR");
+        script = <PlutusScript>{
+          code: normalized,
+          version: kScriptRef.type.replace("plutus", ""),
+        }
+      } else {
+        script = fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
+      }
 
       if (script) return toScriptRef(script).toCbor().toString();
     }

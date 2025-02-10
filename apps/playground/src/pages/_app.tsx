@@ -4,11 +4,11 @@ import "@meshsdk/react/styles.css";
 
 import type { AppProps } from "next/app";
 import { GoogleTagManager } from "@next/third-parties/google";
+import { Toaster } from "react-hot-toast";
 
 import { MeshProvider } from "@meshsdk/react";
 
 import Footer from "~/components/site/footer";
-import Metatags from "~/components/site/metatags";
 import Navbar from "~/components/site/navbar";
 import Providers from "~/contexts/providers";
 
@@ -18,16 +18,26 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <MeshProvider>
       <Providers>
-        <Metatags />
         <div className="cursor-default">
           <header>
             <Navbar />
           </header>
-          <main className="bg-white pt-16 dark:bg-gray-900">
+          <main className="bg-white pt-16 dark:bg-neutral-900">
             <Component {...pageProps} />
           </main>
           <Footer />
-          {/* <Scroller /> */}
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              className: "",
+              style: {
+                background: "#262626",
+                border: "1px solid #d4d4d4",
+                padding: "8px",
+                color: "#d4d4d4",
+              },
+            }}
+          />
         </div>
       </Providers>
     </MeshProvider>

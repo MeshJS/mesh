@@ -2,9 +2,11 @@ import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body
 import { guidenextjs } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
-  // const sidebarItems = [
-  //   { label: 'System setup', to: 'systemsetup' },
-  // ];
+  const sidebarItems = [
+    { label: 'Setup Next.js', to: 'setupnextjs' },
+    { label: 'Setup Mesh', to: 'setupmesh' },
+    { label: 'Connect wallet and view assets', to: 'connectwalletandviewassets' },
+  ];
 
   return (
     <LayoutImageHeaderAndBody
@@ -12,28 +14,28 @@ export default function MDXPage({ children }) {
       description={guidenextjs.description}
       image={guidenextjs.image}
       cover={guidenextjs.cover}
-      // sidebarItems={sidebarItems}
+      sidebarItems={sidebarItems}
     >
       {children}
     </LayoutImageHeaderAndBody>
   );
 }
 
-[Next.js](https://nextjs.org/) is a web development framework built on top of Node.js enabling React-based web applications functionalities such as server-side rendering and generating static websites.
+In this guide, we will set up a Next.js application and connect it to the Cardano blockchain using Mesh. We will create a simple application that allows users to connect their wallets and view the assets in their wallets.
 
-Next.js and Mesh are JavaScript libraries, and so we will assume that you have some familiarity with HTML and JavaScript language, but you should be able to follow along even if you are coming from a different programming language. If you don't feel very confident, we recommend going through this [JS tutorial](https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript), or the [MDN JavaScript Reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript) or my preferred method, by watch a few [videos from YouTube](https://www.youtube.com/results?search_query=get+started+with+nextjs).
+Though this guide is focused on Next.js which uses [Mesh React](/react) you can also use Mesh with other frameworks like Remix, React, and Vue. Mesh SDK has [Svelte UI components](/svelte) too.
 
-## System setup
+You may follow this guide to setup your project or use the [Mesh CLI](https://meshjs.dev/) to scaffold a new project.
 
-### 1. Visual Studio Code
-
-Visual Studio Code is a code editor made by Microsoft. Download and install [Visual Studio Code](https://code.visualstudio.com/) for code editing.
-
-### 2. Node.js
-
-Node.js is a cross-platform JavaScript runtime environment that runs on the V8 engine and executes JavaScript code. Install the Long-Term Support (LTS) version of [Node.js](https://nodejs.org/) (as of writing v16.16.0).
+```bash
+npx meshjs your-app-name
+```
 
 ## Setup Next.js
+
+[Next.js](https://nextjs.org/) is a web development framework built on top of Node.js enabling React-based web applications functionalities such as server-side rendering and generating static websites.
+
+Next.js and Mesh are JavaScript libraries, and so we will assume that you have some familiarity with HTML and JavaScript language, but you should be able to follow along even if you are coming from a different programming language. If you don't feel very confident, we recommend going through this [JS tutorial](https://developer.mozilla.org/en-US/docs/Web/JavaScript/A_re-introduction_to_JavaScript), or the [MDN JavaScript Reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript) or my preferred method, watching a few [videos from YouTube](https://www.youtube.com/results?search_query=get+started+with+nextjs).
 
 ### 1. Create project folder and open Visual Studio Code
 
@@ -43,8 +45,20 @@ Create a new folder for your project, and give the folder a meaningful name. Ope
 
 From the menu options in on your Visual Studio Code, open the **Terminal** and execute this command to create a new NextJs application:
 
-```
+```bash
 npx create-next-app@latest --typescript .
+```
+
+```bash
+Need to install the following packages:
+Ok to proceed? (y) 
+
+✔ Would you like to use ESLint? … Yes
+✔ Would you like to use Tailwind CSS? … Yes
+✔ Would you like your code inside a `src/` directory? … Yes
+✔ Would you like to use App Router? … No
+✔ Would you like to use Turbopack for next dev? … No
+✔ Would you like to customize the import alias (@/* by default)? … No
 ```
 
 ### 3. Start development server
@@ -59,6 +73,8 @@ Visit [http://localhost:3000](http://localhost:3000/) to view your application. 
 
 ## Setup Mesh
 
+Mesh is a JavaScript library that provides a simple way to interact with the Cardano blockchain. It provides a set of APIs that allow you to interact with the Cardano blockchain without having to deal with the complexities of the Cardano blockchain.
+
 ### 1. Install MeshJS package
 
 Install the latest version of Mesh with npm:
@@ -67,9 +83,9 @@ Install the latest version of Mesh with npm:
 npm install @meshsdk/core @meshsdk/react
 ```
 
-### 2. Add webpack in **next.config.js**
+### 2. Add webpack in next config
 
-Open **next.config.mjs** and append **webpack** configurations. Your **next.config.mjs** should look like this:
+Open **next.config.ts** and append **webpack** configurations. Your **next.config.ts** should look like this:
 
 ```
 /** @type {import('next').NextConfig} */
@@ -91,16 +107,17 @@ export default nextConfig;
 
 You just saved a few weeks of learning and a number days trying to get started. Your Next.js application is ready to connect wallet, browse assets and make some transactions.
 
-## See it in action
+## Connect wallet and view assets
 
 ### 1. Add **MeshProvider**
 
 React context is an essential tool for building web applications. It allow you to easily share state in your applications, so you can use the data in any component within the app. This means that when the user has connected their wallet, visiting different pages on the app ensure their wallet is still connected.
 
-Open **pages/\_app.tsx**, import and include [**MeshProvider**](https://meshjs.dev/react/getting-started). Your **\_app.tsx** should look similar to this:
+Open **pages/\_app.tsx**, import and include [**MeshProvider**](/react/getting-started). Your **\_app.tsx** should look similar to this:
 
 ```
 import "../styles/globals.css";
+import "@meshsdk/react/styles.css";
 import type { AppProps } from "next/app";
 import { MeshProvider } from "@meshsdk/react";
 
@@ -117,7 +134,7 @@ export default MyApp;
 
 ### 2. Add connect wallet component and check wallet's assets
 
-Lets add the [connect wallet component](https://meshjs.dev/react/ui-components) to allow users to connect wallets they have installed on their device. Connecting to wallets will ask the user for permission if not granted, and proceed to connect the selected wallet.
+Lets add the [connect wallet component](/react/ui-components) to allow users to connect wallets they have installed on their device. Connecting to wallets will ask the user for permission if not granted, and proceed to connect the selected wallet.
 
 Lastly, we link those components together, allowing users to choose a wallet to connect, and query for assets in the wallet with **wallet.getAssets()**.
 
@@ -186,8 +203,10 @@ npm run dev
 
 Visit [http://localhost:3000](http://localhost:3000/) to connect available wallets and view the assets in wallet.
 
+If you do not have any assets in your wallet, you can receive test ADA (tADA) from the [official faucet](https://docs.cardano.org/cardano-testnets/tools/faucet/).
+
 If you are new to Cardano, you will first have to download one of the Cardano wallets. _Tall Nupinks_ has written a detailed [Cardano Wallets 101](https://cutedumborcs.substack.com/p/cardano-wallets-101) guide to help you understand the fundamentals of a Cardano wallet, including its features and how it works. With this guide, you will be able to make an informed decision on the best Cardano wallet for your needs.
 
 ### 3. Try on your own
 
-Implement another component to display wallet's address and the amount of lovelace in your Next.js application. Check out the [wallet](https://meshjs.dev/apis/browserwallet) page for more details.
+Implement another component to display wallet's address and the amount of lovelace in your Next.js application. Check out the [wallet](/apis/wallets/browserwallet) page for more details.

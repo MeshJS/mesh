@@ -2,12 +2,18 @@ import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body
 import { guidestandalone } from "~/data/links-guides";
 
 export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'System setup', to: 'systemsetup' },
+    { label: 'Make a simple transaction', to: 'makeasimpletransaction' },
+  ];
+
   return (
     <LayoutImageHeaderAndBody
       title={guidestandalone.title}
       description={guidestandalone.description}
       image={guidestandalone.image}
       cover={guidestandalone.cover}
+      sidebarItems={sidebarItems}
     >
       {children}
     </LayoutImageHeaderAndBody>
@@ -27,7 +33,7 @@ In this tutorial, we'll cover:
 
 Let's get started!
 
-## Setting up
+## System setup
 
 ### Create a package.json file
 
@@ -114,7 +120,7 @@ Explanation:
 
 ### Run Your Application
 
-In the code, you must replace `YOUR\_KEY\_HERE` with a valid blockfrost key, and replace the mnemonic words with your own. You can visit [Blockfrost](https://blockfrost.io/) to get a free API key, and generate a new mnemonic key from the [Mesh website](https://meshjs.dev/apis/appwallet#generateWallet).
+In the code, you must replace `YOUR\_KEY\_HERE` with a valid blockfrost key, and replace the mnemonic words with your own. You can visit [Blockfrost](https://blockfrost.io/) to get a free API key, and generate a new mnemonic key from the [Mesh website](/apis/wallets/meshwallet#generateWallet).
 
 Finally, start your application by running this command:
 

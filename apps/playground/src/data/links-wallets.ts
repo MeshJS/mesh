@@ -6,7 +6,7 @@ import {
 
 export const metaAppwallet = {
   link: `/apis/wallets/appwallet`,
-  title: "App Wallet",
+  title: "App Wallet (deprecated)",
   desc: "Core wallet functionality for building other user wallets and fully customed applications's backend.",
   icon: CodeBracketSquareIcon,
 };
@@ -27,7 +27,7 @@ export const linksWallets = [metaBrowserwallet, metaMeshwallet];
 
 export const metaWallets = {
   title: "Wallets",
-  desc: "Wallet for building amazing applications",
+  desc: "Wallets APIs for interacting with the blockchain.",
   link: "/apis/wallets",
   icon: WalletIcon,
   items: linksWallets,

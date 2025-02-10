@@ -10,7 +10,11 @@ export const useWallet = () => {
     connectingWallet,
     connectWallet,
     disconnect,
+    setWallet,
+    setPersist,
     error,
+    address,
+    state,
   } = useContext(WalletContext);
 
   if (connectWallet === undefined || disconnect === undefined) {
@@ -26,6 +30,10 @@ export const useWallet = () => {
     wallet: connectedWalletInstance,
     connect: connectWallet,
     disconnect,
+    setWallet,
+    setPersist,
     error,
+    address,
+    state,
   };
 };

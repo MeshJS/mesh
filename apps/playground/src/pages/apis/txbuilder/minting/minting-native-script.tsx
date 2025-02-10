@@ -1,12 +1,7 @@
-import Link from "~/components/link";
-
 import {
-  AssetMetadata,
-  cst,
   deserializeAddress,
   ForgeScript,
   NativeScript,
-  resolvePaymentKeyHash,
   resolveScriptHash,
   stringToHex,
 } from "@meshsdk/core";
@@ -15,8 +10,8 @@ import { useWallet } from "@meshsdk/react";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoAddresses, demoAssetMetadata } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { demoAssetMetadata } from "~/data/cardano";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMintingNativeScript() {
   return (
@@ -89,7 +84,7 @@ function Right() {
     const unsignedTx = await txBuilder
       .mint("1", policyId, tokenNameHex)
       .mintingScript(forgingScript)
-      .metadataValue("721", metadata)
+      .metadataValue(721, metadata)
       .changeAddress(changeAddress)
       .invalidHereafter(99999999)
       .selectUtxosFrom(utxos)
@@ -97,7 +92,6 @@ function Right() {
 
     const signedTx = await wallet.signTx(unsignedTx);
     const txHash = await wallet.submitTx(signedTx);
-
     return txHash;
   }
 
@@ -126,12 +120,11 @@ const tokenName = "MeshToken";
 const tokenNameHex = stringToHex(tokenName);
 const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };
 
-const txBuilder = getTxBuilder();
-
+${txbuilderCode}
 const unsignedTx = await txBuilder
   .mint("1", policyId, tokenNameHex)
   .mintingScript(forgingScript)
-  .metadataValue("721", metadata)
+  .metadataValue(721, metadata)
   .changeAddress(changeAddress)
   .invalidHereafter(99999999)
   .selectUtxosFrom(utxos)

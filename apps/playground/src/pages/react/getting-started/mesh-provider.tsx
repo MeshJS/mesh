@@ -13,7 +13,7 @@ export default function ReactProvider() {
 }
 
 function Left() {
-  let example = ``;
+  let example = `import "@meshsdk/react/styles.css";`;
   example += `import { MeshProvider } from "@meshsdk/react";\n`;
   example += `\n`;
   example += `function MyApp({ Component, pageProps }: AppProps) {\n`;

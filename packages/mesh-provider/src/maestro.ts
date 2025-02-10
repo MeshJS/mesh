@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
   IListener,
@@ -22,11 +23,13 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import {
+  normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
   VrfVkBech32,
 } from "@meshsdk/core-cst";
 
+import { utxosToAssets } from "./common/utxos-to-assets";
 import { MaestroAssetExtended, MaestroUTxO } from "./types/maestro";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
@@ -113,6 +116,13 @@ export class MaestroProvider
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchAddressAssets(
+    address: string,
+  ): Promise<{ [key: string]: string }> {
+    const utxos = await this.fetchAddressUTxOs(address);
+    return utxosToAssets(utxos);
   }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
@@ -206,6 +216,10 @@ export class MaestroProvider
         return <AssetMetadata>{
           ...data.asset_standards.cip25_metadata,
           ...data.asset_standards.cip68_metadata,
+          fingerprint: data.fingerprint,
+          totalSupply: data.total_supply,
+          mintingTxHash: data.latest_mint_tx.tx_hash,
+          mintCount: data.mint_tx_count,
         };
       }
 
@@ -407,7 +421,7 @@ export class MaestroProvider
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
         `transactions/${hash}`,
@@ -416,9 +430,30 @@ export class MaestroProvider
       if (status === 200) {
         const msOutputs = timestampedData.data.outputs as MaestroUTxO[];
         const outputs = msOutputs.map(this.toUTxO);
+
+        if (index !== undefined) {
+          return outputs.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return outputs;
       }
       throw parseHttpError(timestampedData);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented by Maestro");
+  }
+
+  async get(url: string): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.get(url);
+      if (status === 200) {
+        return data;
+      }
+      throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -486,13 +521,21 @@ export class MaestroProvider
 
   private resolveScript = (utxo: MaestroUTxO) => {
     if (utxo.reference_script) {
-      const script =
-        utxo.reference_script.type === "native"
-          ? <NativeScript>utxo.reference_script.json
-          : <PlutusScript>{
-              code: utxo.reference_script.bytes,
-              version: utxo.reference_script.type.replace("plutusv", "V"),
-            };
+      let script;
+      if (utxo.reference_script.type === "native") {
+        script = <NativeScript>utxo.reference_script.json;
+      } else {
+        const scriptBytes = utxo.reference_script.bytes;
+        if(scriptBytes) {
+          const normalized = normalizePlutusScript(scriptBytes, "DoubleCBOR");
+          script = <PlutusScript>{
+            code: normalized,
+            version: utxo.reference_script.type.replace("plutusv", "V"),
+          };
+        } else {
+          throw new Error("Script bytes not found");
+        }
+      }
       return toScriptRef(script).toCbor().toString();
     } else return undefined;
   };

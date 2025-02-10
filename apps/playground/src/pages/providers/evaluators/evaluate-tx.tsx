@@ -1,33 +1,29 @@
 import { useState } from "react";
 
+import { getProvider } from "~/components/cardano/mesh-wallet";
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { demoTransactionCbor } from "~/data/cardano";
+import { demoTransactionCborScript } from "~/data/cardano";
 import { SupportedEvaluators } from ".";
 
 export default function EvaluatorEvaluateTransaction({
   blockchainProvider,
   provider,
 }: {
-  blockchainProvider: SupportedEvaluators;
+  blockchainProvider?: SupportedEvaluators;
   provider: string;
 }) {
-  const [userInput, setUserInput] = useState<string>(demoTransactionCbor);
+  const [userInput, setUserInput] = useState<string>(demoTransactionCborScript);
 
   return (
     <TwoColumnsScroll
       sidebarTo="evaluateTx"
       title="Evaluate Transaction"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        blockchainProvider,
-        userInput,
-        setUserInput,
-        provider,
-      )}
+      rightSection={Right(userInput, setUserInput, provider)}
     />
   );
 }
@@ -85,35 +81,46 @@ function Left(userInput: string) {
 }
 
 function Right(
-  blockchainProvider: SupportedEvaluators,
   userInput: string,
   setUserInput: (value: string) => void,
   provider: string,
 ) {
-  async function runDemo() {
-    const evaluateTx = await blockchainProvider.evaluateTx(userInput);
-    return evaluateTx;
-  }
+  // async function runDemo() {
+  //   const blockchainProvider = getProvider();
+  //   const offlineeval = new OfflineEvaluator(blockchainProvider, "preprod");
+  //   const evaluateTx = await offlineeval.evaluateTx(userInput);
+  //   return evaluateTx;
+  // }
 
-  return (
-    <LiveCodeDemo
-      title="Evaluate Transaction"
-      subtitle="Evaluate the resources required to execute a transaction"
-      runCodeFunction={runDemo}
-      runDemoShowProviderInit={true}
-      runDemoProvider={provider}
-    >
-      <InputTable
-        listInputs={[
-          <Input
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            placeholder="Transaction CBOR"
-            label="Transaction CBOR"
-            key={0}
-          />,
-        ]}
-      />
-    </LiveCodeDemo>
-  );
+  let code = ``;
+  code += `import { BlockfrostProvider } from "@meshsdk/core";\n`;
+  code += `import { OfflineEvaluator } from "@meshsdk/core-csl";\n`;
+  code += `\n`;
+  code += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n`;
+  code += `const offlineeval = new OfflineEvaluator(blockchainProvider, "preprod");\n\n`;
+  code += `const evaluateTx = await offlineeval.evaluateTx('<UNSIGNED-TX-HEX>');\n`;
+
+  return <></>;
+  // return (
+  //   <LiveCodeDemo
+  //     title="Evaluate Transaction"
+  //     subtitle="Evaluate the resources required to execute a transaction"
+  //     runCodeFunction={runDemo}
+  //     runDemoShowProviderInit={true}
+  //     runDemoProvider={provider}
+  //     code={code}
+  //   >
+  //     <InputTable
+  //       listInputs={[
+  //         <Input
+  //           value={userInput}
+  //           onChange={(e) => setUserInput(e.target.value)}
+  //           placeholder="Transaction CBOR"
+  //           label="Transaction CBOR"
+  //           key={0}
+  //         />,
+  //       ]}
+  //     />
+  //   </LiveCodeDemo>
+  // );
 }

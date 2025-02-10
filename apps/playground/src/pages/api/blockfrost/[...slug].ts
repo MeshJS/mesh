@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
 
+import { toBytes } from "@meshsdk/common";
+
 export default async function handler(
   _req: NextApiRequest,
   _res: NextApiResponse,
@@ -43,18 +45,31 @@ export default async function handler(
         url += `${key}=${params[key]}&`;
       }
     }
-    // end get params if exists
 
-    /**
-     * call blockfrost api
-     */
-    if (url == "tx/submit" || url == "utils/txs/evaluate") {
+    // end get params if exists
+    if (url == "tx/submit") {
       const body = _req.body;
 
       const headers = { "Content-Type": "application/cbor" };
-      const { data, status } = await axiosInstance.post(url, body, {
-        headers,
-      });
+      const { data, status } = await axiosInstance.post(
+        "tx/submit",
+        toBytes(body),
+        {
+          headers,
+        },
+      );
+      _res.status(status).json(data);
+    } else if (url == "utils/txs/evaluate") {
+      const body = _req.body;
+
+      const headers = { "Content-Type": "application/cbor" };
+      const { status, data } = await axiosInstance.post(
+        "utils/txs/evaluate",
+        body,
+        {
+          headers,
+        },
+      );
       _res.status(status).json(data);
     } else {
       const { data, status } = await axiosInstance.get(`${url}`);

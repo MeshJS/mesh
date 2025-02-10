@@ -1,9 +1,9 @@
 import { MeshVestingContract } from "@meshsdk/contract";
-import { BrowserWallet, MeshTxBuilder, MeshWallet } from "@meshsdk/core";
+import { IWallet, MeshTxBuilder } from "@meshsdk/core";
 
 import { getProvider } from "../../../components/cardano/mesh-wallet";
 
-export function getContract(wallet: BrowserWallet | MeshWallet) {
+export function getContract(wallet: IWallet) {
   const blockchainProvider = getProvider();
 
   const meshTxBuilder = new MeshTxBuilder({

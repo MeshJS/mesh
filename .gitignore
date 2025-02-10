@@ -27,7 +27,6 @@ out/
 build
 dist
 
-
 # Debug
 npm-debug.log*
 yarn-debug.log*
@@ -46,3 +45,7 @@ apps/docs/src/data/mesh-providers.json
 apps/docs/src/data/mesh-react.json
 apps/docs/src/data/mesh-transactions.json
 apps/docs/src/data/mesh-wallets.json
+
+# svelte
+.svelte-kit/
+vite.config.ts.*

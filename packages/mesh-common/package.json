@@ -1,16 +1,17 @@
 {
   "name": "@meshsdk/common",
-  "version": "1.7.4",
-  "description": "",
+  "version": "1.9.0-beta.3",
+  "description": "Contains constants, types and interfaces used across the SDK and different serialization libraries",
   "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "files": [

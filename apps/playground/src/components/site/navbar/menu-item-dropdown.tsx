@@ -21,18 +21,18 @@ export default function MenuItemDropdown({
     >
       <button
         type="button"
-        className="lg:hover:text-primary-600 lg:dark:hover:text-primary-500 dark:hover:text-primary-500 flex w-full items-center justify-between border-b border-gray-100 py-2 pl-3 pr-4 font-medium text-gray-700 hover:bg-gray-50 lg:w-auto lg:border-0 lg:p-0 lg:hover:bg-transparent dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 lg:dark:hover:bg-transparent"
+        className="dark:text-white lg:hover:text-black lg:dark:hover:text-white dark:hover:text-white flex w-full items-center justify-between border-b border-neutral-100 py-2 pl-3 pr-4 font-medium text-neutral-700 hover:bg-neutral-50 lg:w-auto lg:border-0 lg:p-0 lg:hover:bg-transparent dark:border-neutral-700 dark:hover:bg-neutral-700 lg:dark:hover:bg-transparent"
         aria-label="More"
       >
         {title}
         <ChevronDownIcon className="ml-1 h-5 w-5 lg:h-4 lg:w-4" />
       </button>
       <div
-        className={`absolute z-10 w-56 divide-y divide-gray-100 rounded bg-white shadow dark:bg-gray-700 ${
+        className={`absolute z-10 w-56 divide-y divide-neutral-100 rounded bg-white shadow dark:bg-neutral-700 ${
           !showMenu && "hidden"
         }`}
       >
-        <ul className="py-1 text-sm font-light text-gray-500 dark:text-gray-400">
+        <ul className="py-1 text-sm font-light text-neutral-500 dark:text-neutral-400">
           {items.map((item, i) =>
             item.items ? (
               <SubmenuItemDropdown

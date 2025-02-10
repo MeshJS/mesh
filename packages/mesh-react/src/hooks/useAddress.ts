@@ -4,7 +4,7 @@ import { WalletContext } from "../contexts";
 
 export const useAddress = (accountId = 0) => {
   const [address, setAddress] = useState<string>();
-  const { hasConnectedWallet, connectedWalletName, connectedWalletInstance } =
+  const { hasConnectedWallet, connectedWalletInstance } =
     useContext(WalletContext);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ export const useAddress = (accountId = 0) => {
         }
       });
     }
-  }, [accountId, connectedWalletName]);
+  }, [accountId, hasConnectedWallet, connectedWalletInstance]);
 
   return address;
 };

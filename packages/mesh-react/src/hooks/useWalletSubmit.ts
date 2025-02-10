@@ -12,11 +12,11 @@ export const useWalletSubmit = () => {
 
   const submitTx = useCallback(async (signedTx: string) => {
     setSubmitting(true);
+    setError(undefined);
 
     try {
       if (hasConnectedWallet) {
         const txHash = await connectedWalletInstance.submitTx(signedTx);
-        setError(undefined);
         setResult(txHash);
       }
 

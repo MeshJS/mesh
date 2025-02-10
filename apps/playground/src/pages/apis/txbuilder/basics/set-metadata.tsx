@@ -7,7 +7,7 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderSetMetadata() {
   return (
@@ -22,7 +22,7 @@ export default function TxbuilderSetMetadata() {
 
 function Left() {
   let code = `txBuilder\n`;
-  code += `  .metadataValue(tag, metadata)\n`;
+  code += `  .metadataValue(label, metadata)\n`;
 
   return (
     <>
@@ -47,12 +47,12 @@ function Right() {
     const changeAddress = await wallet.getChangeAddress();
     const txBuilder = getTxBuilder();
 
-    const tag = "0";
+    const label = 0;
     const metadata = "This is a message from the Mesh SDK";
 
     const unsignedTx = await txBuilder
       .changeAddress(changeAddress)
-      .metadataValue(tag.toString(), metadata)
+      .metadataValue(label, metadata)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -64,13 +64,13 @@ function Right() {
   let codeSnippet = ``;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
   codeSnippet += `const address = await wallet.getChangeAddress();\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `\n`;
-  codeSnippet += `const tag = "0";\n`;
+  codeSnippet += `const label = 0;\n`;
   codeSnippet += `const metadata = "This is a message from the Mesh SDK";\n\n`;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .changeAddress(address)\n`;
-  codeSnippet += `  .metadataValue(tag, metadata)\n`;
+  codeSnippet += `  .metadataValue(label, metadata)\n`;
   codeSnippet += `  .selectUtxosFrom(utxos)\n`;
   codeSnippet += `  .complete();\n`;
   codeSnippet += `\n`;

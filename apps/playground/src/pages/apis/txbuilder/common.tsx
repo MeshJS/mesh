@@ -1,12 +1,16 @@
 import { MeshTxBuilder } from "@meshsdk/core";
+import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
+import Link from "~/components/link";
 
 export function getTxBuilder() {
   const blockchainProvider = getProvider();
   const txBuilder = new MeshTxBuilder({
     fetcher: blockchainProvider,
+    submitter: blockchainProvider,
     evaluator: blockchainProvider,
+    serializer: new CardanoSDKSerializer(),
     verbose: true,
   });
   txBuilder.setNetwork("preprod");
@@ -19,9 +23,20 @@ export function Intro() {
   return (
     <>
       <p>
-        The <code>MeshTxBuilder</code> is a powerful low-level APIs that allows
-        you to build and sign transactions.
+        In the code snippet, you will find <code>txBuilder</code>, which is an
+        instance of <code>MeshTxBuilder</code>, a powerful low-level APIs that
+        allows you to build transactions. Learn how to initialize{" "}
+        <Link href="/apis/txbuilder/basics#initializeTxbuilder">
+          MeshTxBuilder
+        </Link>
+        .
       </p>
     </>
   );
 }
+
+export let txbuilderCode = ``;
+txbuilderCode += `const txBuilder = new MeshTxBuilder({\n`;
+txbuilderCode += `  fetcher: blockchainProvider, // get a provider https://meshjs.dev/providers\n`;
+txbuilderCode += `  verbose: true,\n`;
+txbuilderCode += `});\n\n`;

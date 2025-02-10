@@ -9,10 +9,12 @@ import {
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
+  DRep,
   DREP_DEPOSIT,
   emptyTxBuilderBody,
   LanguageVersion,
   MeshTxBuilderBody,
+  Metadatum,
   MintItem,
   Network,
   Output,
@@ -24,12 +26,18 @@ import {
   RefTxIn,
   TxIn,
   TxInParameter,
+  txInToUtxo,
   Unit,
   UTxO,
   UtxoSelection,
   UtxoSelectionStrategy,
+  Vote,
+  Voter,
+  VotingProcedure,
   Withdrawal,
 } from "@meshsdk/common";
+
+import { metadataObjToMap } from "../utils";
 
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;
@@ -40,6 +48,8 @@ export class MeshTxBuilderCore {
   private plutusMintingScriptVersion: LanguageVersion | undefined;
   private addingPlutusWithdrawal = false;
   private plutusWithdrawalScriptVersion: LanguageVersion | undefined;
+  private addingPlutusVote = false;
+  private plutusVoteScriptVersion: LanguageVersion | undefined;
 
   protected _protocolParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
 
@@ -48,6 +58,8 @@ export class MeshTxBuilderCore {
   protected txInQueueItem?: TxIn;
 
   protected withdrawalItem?: Withdrawal;
+
+  protected voteItem?: Vote;
 
   protected collateralQueueItem?: PubKeyTxIn;
 
@@ -65,6 +77,7 @@ export class MeshTxBuilderCore {
    * @param txIndex The transaction index of the input UTxO
    * @param amount The asset amount of index of the input UTxO
    * @param address The address of the input UTxO
+   * @param scriptSize The size of the ref script at this input (if there isn't one, explicitly put 0 as scriptSize for offline tx building)
    * @returns The MeshTxBuilder instance
    */
   txIn = (
@@ -72,6 +85,7 @@ export class MeshTxBuilderCore {
     txIndex: number,
     amount?: Asset[],
     address?: string,
+    scriptSize?: number,
   ) => {
     if (this.txInQueueItem) {
       this.queueInput();
@@ -84,6 +98,7 @@ export class MeshTxBuilderCore {
           txIndex: txIndex,
           amount: amount,
           address: address,
+          scriptSize: scriptSize,
         },
       };
     } else {
@@ -94,6 +109,7 @@ export class MeshTxBuilderCore {
           txIndex: txIndex,
           amount: amount,
           address: address,
+          scriptSize: scriptSize,
         },
         scriptTxIn: {},
       };
@@ -137,7 +153,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the input datum for transaction input
    * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @returns The MeshTxBuilder instance
    */
   txInDatumValue = (
@@ -246,7 +262,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the redeemer for the reference input to be spent in same transaction
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -293,7 +309,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the output datum hash for transaction
    * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @returns The MeshTxBuilder instance
    */
   txOutDatumHashValue = (
@@ -329,7 +345,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the output inline datum for transaction
    * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @returns The MeshTxBuilder instance
    */
   txOutInlineDatumValue = (
@@ -365,7 +381,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the output embed datum for transaction
    * @param datum The datum in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The datum type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @returns The MeshTxBuilder instance
    */
 
@@ -402,12 +418,12 @@ export class MeshTxBuilderCore {
   /**
    * Set the reference script to be attached with the output
    * @param scriptCbor The CBOR hex of the script to be attached to UTxO as reference script
-   * @param version Optional - The Plutus script version
+   * @param version Optional - The Plutus script version. Default to be V3 (Plutus V3)
    * @returns The MeshTxBuilder instance
    */
   txOutReferenceScript = (
     scriptCbor: string,
-    version: LanguageVersion = "V2",
+    version: LanguageVersion = "V3",
   ) => {
     if (this.txOutput) {
       this.txOutput.referenceScript = { code: scriptCbor, version };
@@ -517,7 +533,7 @@ export class MeshTxBuilderCore {
   /**
    * [Alias of txInRedeemerValue] Set the redeemer for the reference input to be spent in same transaction
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -536,8 +552,16 @@ export class MeshTxBuilderCore {
    * @param txIndex The transaction index of the reference UTxO
    * @returns The MeshTxBuilder instance
    */
-  readOnlyTxInReference = (txHash: string, txIndex: number) => {
-    this.meshTxBuilderBody.referenceInputs.push({ txHash, txIndex });
+  readOnlyTxInReference = (
+    txHash: string,
+    txIndex: number,
+    scriptSize?: number,
+  ) => {
+    this.meshTxBuilderBody.referenceInputs.push({
+      txHash,
+      txIndex,
+      scriptSize,
+    });
     return this;
   };
 
@@ -665,7 +689,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the redeemer for minting
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -694,7 +718,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the redeemer for the reference input to be spent in same transaction
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -757,7 +781,7 @@ export class MeshTxBuilderCore {
     return this;
   };
   /**
-   * Set the instruction that it is currently using V1 Plutus withdrawal scripts
+   * Set the instruction that it is currently using a Plutus withdrawal scripts
    * @returns The MeshTxBuilder instance
    */
   withdrawalPlutusScriptV1 = () => {
@@ -879,7 +903,7 @@ export class MeshTxBuilderCore {
   /**
    * Set the transaction withdrawal redeemer value in the MeshTxBuilder instance
    * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
-   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string. Default to be Mesh type
    * @param exUnits The execution units budget for the redeemer
    * @returns The MeshTxBuilder instance
    */
@@ -895,6 +919,179 @@ export class MeshTxBuilderCore {
         "withdrawalRedeemerValue: Adding redeemer to non plutus withdrawal",
       );
     this.withdrawalItem.redeemer = this.castBuilderDataToRedeemer(
+      redeemer,
+      type,
+      exUnits,
+    );
+
+    return this;
+  };
+
+  /**
+   * Set the instruction that it is currently using a Plutus voting scripts
+   * @param languageVersion The Plutus script version
+   * @returns The MeshTxBuilder instance
+   */
+  votePlutusScript = (languageVersion: LanguageVersion) => {
+    this.addingPlutusVote = true;
+    this.plutusVoteScriptVersion = languageVersion;
+    return this;
+  };
+  /**
+   * Set the instruction that it is currently using V1 Plutus voting scripts
+   * @returns The MeshTxBuilder instance
+   */
+  votePlutusScriptV1 = () => {
+    this.addingPlutusVote = true;
+    this.plutusVoteScriptVersion = "V1";
+    return this;
+  };
+
+  /**
+   * Set the instruction that it is currently using V2 Plutus voting scripts
+   * @returns The MeshTxBuilder instance
+   */
+  votePlutusScriptV2 = () => {
+    this.addingPlutusVote = true;
+    this.plutusVoteScriptVersion = "V2";
+    return this;
+  };
+
+  /**
+   * Set the instruction that it is currently using V3 Plutus voting scripts
+   * @returns The MeshTxBuilder instance
+   */
+  votePlutusScriptV3 = () => {
+    this.addingPlutusVote = true;
+    this.plutusVoteScriptVersion = "V3";
+    return this;
+  };
+
+  /**
+   * Add a vote in the MeshTxBuilder instance
+   * @param voter The voter, can be a ConstitutionalCommitee, a DRep or a StakePool
+   * @param govActionId - The transaction hash and transaction id of the governance action
+   * @param votingProcedure - The voting kind (Yes, No, Abstain) with an optional anchor
+   * @returns The MeshTxBuilder instance
+   */
+  vote = (
+    voter: Voter,
+    govActionId: RefTxIn,
+    votingProcedure: VotingProcedure,
+  ) => {
+    if (this.voteItem) {
+      this.queueVote();
+    }
+
+    if (this.addingPlutusVote) {
+      const vote: Vote = {
+        type: "ScriptVote",
+        vote: {
+          voter,
+          govActionId,
+          votingProcedure,
+        },
+      };
+      this.voteItem = vote;
+    } else {
+      const vote: Vote = {
+        type: "BasicVote",
+        vote: {
+          voter,
+          govActionId,
+          votingProcedure,
+        },
+      };
+      this.voteItem = vote;
+    }
+    return this;
+  };
+
+  /**
+   * Add a voting script to the MeshTxBuilder instance
+   * @param scriptCbor The script in CBOR format
+   * @returns The MeshTxBuilder instance
+   */
+  voteScript = (scriptCbor: string) => {
+    if (!this.voteItem) throw Error("voteScript: Undefined vote");
+    if (this.voteItem.type === "BasicVote") {
+      this.voteItem = {
+        type: "SimpleScriptVote",
+        vote: this.voteItem.vote,
+        simpleScriptSource: {
+          type: "Provided",
+          scriptCode: scriptCbor,
+        },
+      };
+    } else if (this.voteItem.type === "ScriptVote") {
+      this.voteItem.scriptSource = {
+        type: "Provided",
+        script: {
+          code: scriptCbor,
+          version: this.plutusVoteScriptVersion || "V2",
+        },
+      };
+    } else if (this.voteItem.type === "SimpleScriptVote") {
+      throw Error("voteScript: Script is already defined for current vote");
+    }
+    return this;
+  };
+
+  /**
+   * Add a vote reference to the MeshTxBuilder instance
+   * @param txHash The transaction hash of reference UTxO
+   * @param txIndex The transaction index of reference UTxO
+   * @param scriptSize The script size in bytes of the vote script (can be obtained by script hex length / 2)
+   * @param scriptHash The script hash of the vote script
+   * @returns The MeshTxBuilder instance
+   */
+  voteTxInReference = (
+    txHash: string,
+    txIndex: number,
+    scriptSize?: string,
+    scriptHash?: string,
+  ) => {
+    if (!this.voteItem) throw Error("voteTxInReference: Undefined vote");
+    if (this.voteItem.type === "BasicVote")
+      throw Error("voteTxInReference: Adding script reference to a basic vote");
+    if (this.voteItem.type === "ScriptVote") {
+      this.voteItem.scriptSource = {
+        type: "Inline",
+        txHash,
+        txIndex,
+        scriptHash,
+        version: this.plutusWithdrawalScriptVersion || "V2",
+        scriptSize,
+      };
+    } else if (this.voteItem.type === "SimpleScriptVote") {
+      this.voteItem.simpleScriptSource = {
+        type: "Inline",
+        txHash,
+        txIndex,
+        scriptSize,
+        simpleScriptHash: scriptHash,
+      };
+    }
+
+    return this;
+  };
+
+  /**
+   * Set the transaction vote redeemer value in the MeshTxBuilder instance
+   * @param redeemer The redeemer in Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param type The redeemer data type, either Mesh Data type, JSON in raw constructor like format, or CBOR hex string
+   * @param exUnits The execution units budget for the redeemer
+   * @returns The MeshTxBuilder instance
+   */
+  voteRedeemerValue = (
+    redeemer: BuilderData["content"],
+    type: BuilderData["type"] = "Mesh",
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+  ) => {
+    if (!this.voteItem) throw Error("voteRedeemerValue: Undefined vote");
+    if (!(this.voteItem.type === "ScriptVote"))
+      throw Error("voteRedeemerValue: Adding redeemer to non plutus vote");
+    this.voteItem.redeemer = this.castBuilderDataToRedeemer(
       redeemer,
       type,
       exUnits,
@@ -1028,6 +1225,41 @@ export class MeshTxBuilderCore {
         type: "DRepDeregistration",
         drepId,
         coin: Number(coin),
+      },
+    });
+    return this;
+  };
+
+  /**
+   * Update DRep certificate, and adds it to the transaction
+   * @param drepId The bech32 drep id (i.e. starts with `drep1xxxxx`)
+   * @param anchor The DRep anchor, consists of a URL and a hash of the doc
+   */
+  drepUpdateCertificate = (drepId: string, anchor?: Anchor) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: "BasicCertificate",
+      certType: {
+        type: "DRepUpdate",
+        drepId,
+        anchor,
+      },
+    });
+    return this;
+  };
+
+  /**
+   * Dregister DRep certificate, and adds it to the transaction
+   * @param drepId The bech32 drep id (i.e. starts with `drep1xxxxx`)
+   * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @returns The MeshTxBuilder instance
+   */
+  voteDelegationCertificate = (drep: DRep, rewardAddress: string) => {
+    this.meshTxBuilderBody.certificates.push({
+      type: "BasicCertificate",
+      certType: {
+        type: "VoteDelegation",
+        drep,
+        stakeKeyAddress: rewardAddress,
       },
     });
     return this;
@@ -1184,13 +1416,20 @@ export class MeshTxBuilderCore {
 
   /**
    * Add metadata to the transaction
-   * @param tag The tag of the metadata
+   * @param label The label of the metadata, preferably number
    * @param metadata The metadata in any format
    * @returns The MeshTxBuilder instance
    */
-  metadataValue = (tag: string, metadata: any) => {
-    const metadataString = JSONBig.stringify(metadata);
-    this.meshTxBuilderBody.metadata.push({ tag, metadata: metadataString });
+  metadataValue = (
+    label: number | bigint | string,
+    metadata: Metadatum | object,
+  ) => {
+    label = BigInt(label);
+    if (typeof metadata === "object" && !(metadata instanceof Map)) {
+      this.meshTxBuilderBody.metadata.set(label, metadataObjToMap(metadata));
+    } else {
+      this.meshTxBuilderBody.metadata.set(label, metadata);
+    }
     return this;
   };
 
@@ -1208,7 +1447,8 @@ export class MeshTxBuilderCore {
    * Selects utxos to fill output value and puts them into inputs
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
    * @param strategy The strategy to be used in utxo selection
-   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output
+   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output (default to 5000000)
+   * @param includeTxFees Whether to include transaction fees in the threshold (default to true)
    */
   selectUtxosFrom = (
     extraInputs: UTxO[],
@@ -1241,14 +1481,72 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Sets a specific fee for the transaction to use
+   * @param fee The specified fee
+   * @returns The MeshTxBuilder instance
+   */
+  setFee = (fee: string) => {
+    this.meshTxBuilderBody.fee = fee;
+    return this;
+  };
+
+  /**
    * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
    * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
    * @returns The MeshTxBuilder instance
    */
-  setNetwork = (network: Network) => {
+  setNetwork = (network: Network | number[][]) => {
     this.meshTxBuilderBody.network = network;
     return this;
   };
+
+  /**
+   * Add a transaction that is used as input, but not yet reflected on the global blockchain
+   * @param txHex The transaction hex of chained transaction
+   * @returns The MeshTxBuilderCore instance
+   */
+  chainTx(txHex: string): this {
+    this.meshTxBuilderBody.chainedTxs.push(txHex);
+    return this;
+  }
+
+  /**
+   * Add a transaction input to provide information for offline evaluation
+   * @param input The input to be added
+   * @returns The MeshTxBuilderCore instance
+   */
+  inputForEvaluation(input: UTxO) {
+    const utxoId = `${input.input.txHash}${input.input.outputIndex}`;
+    const currentUtxo = this.meshTxBuilderBody.inputsForEvaluation[utxoId];
+
+    if (currentUtxo) {
+      const { address, amount, dataHash, plutusData, scriptRef, scriptHash } =
+        input.output;
+
+      const {
+        dataHash: currentDataHash,
+        plutusData: currentPlutusData,
+        scriptRef: currentScriptRef,
+        scriptHash: currentScriptHash,
+      } = currentUtxo.output;
+
+      const updatedUtxo: UTxO = {
+        ...input,
+        output: {
+          address,
+          amount,
+          dataHash: dataHash ?? currentDataHash,
+          plutusData: plutusData ?? currentPlutusData,
+          scriptRef: scriptRef ?? currentScriptRef,
+          scriptHash: scriptHash ?? currentScriptHash,
+        },
+      };
+      this.meshTxBuilderBody.inputsForEvaluation[utxoId] = updatedUtxo;
+    } else {
+      this.meshTxBuilderBody.inputsForEvaluation[utxoId] = input;
+    }
+    return this;
+  }
 
   protected queueAllLastItem = () => {
     if (this.txOutput) {
@@ -1267,6 +1565,9 @@ export class MeshTxBuilderCore {
     }
     if (this.withdrawalItem) {
       this.queueWithdrawal();
+    }
+    if (this.voteItem) {
+      this.queueVote();
     }
   };
 
@@ -1293,6 +1594,7 @@ export class MeshTxBuilderCore {
       }
     }
     this.meshTxBuilderBody.inputs.push(this.txInQueueItem);
+    this.inputForEvaluation(txInToUtxo(this.txInQueueItem.txIn));
     this.txInQueueItem = undefined;
   };
 
@@ -1321,6 +1623,26 @@ export class MeshTxBuilderCore {
     }
     this.meshTxBuilderBody.withdrawals.push(this.withdrawalItem);
     this.withdrawalItem = undefined;
+  };
+
+  private queueVote = () => {
+    if (!this.voteItem) {
+      throw Error("queueVote: Undefined vote");
+    }
+    if (this.voteItem.type === "ScriptVote") {
+      if (!this.voteItem.scriptSource) {
+        throw Error("queueVote: Missing vote script information");
+      }
+      if (!this.voteItem.redeemer) {
+        throw Error("queueVote: Missing vote redeemer information");
+      }
+    } else if (this.voteItem.type === "SimpleScriptVote") {
+      if (!this.voteItem.simpleScriptSource) {
+        throw Error("queueVote: Missing vote script information");
+      }
+    }
+    this.meshTxBuilderBody.votes.push(this.voteItem);
+    this.voteItem = undefined;
   };
 
   protected castRawDataToJsonString = (rawData: object | string) => {
@@ -1514,6 +1836,16 @@ export class MeshTxBuilderCore {
         },
       };
       this.meshTxBuilderBody.inputs.push(pubKeyTxIn);
+      // If an input selected has script ref, then we must
+      // provide the script size to the tx builder also
+      if (input.output.scriptRef) {
+        this.meshTxBuilderBody.referenceInputs.push({
+          txHash: input.input.txHash,
+          txIndex: input.input.outputIndex,
+          scriptSize: input.output.scriptRef!.length / 2,
+        });
+      }
+      this.inputForEvaluation(input);
     });
   };
 
@@ -1550,11 +1882,13 @@ export class MeshTxBuilderCore {
     this.addingPlutusMint = false;
     this.plutusMintingScriptVersion = undefined;
     this.addingPlutusWithdrawal = false;
+    this.addingPlutusVote = false;
     this.plutusWithdrawalScriptVersion = undefined;
     this._protocolParams = DEFAULT_PROTOCOL_PARAMETERS;
     this.mintItem = undefined;
     this.txInQueueItem = undefined;
     this.withdrawalItem = undefined;
+    this.voteItem = undefined;
     this.collateralQueueItem = undefined;
     this.refScriptTxInQueueItem = undefined;
   };

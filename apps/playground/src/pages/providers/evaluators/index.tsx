@@ -2,6 +2,7 @@ import {
   BlockfrostProvider,
   MaestroProvider,
   OgmiosProvider,
+  U5CProvider,
   YaciProvider,
 } from "@meshsdk/core";
 
@@ -11,7 +12,7 @@ export default function ProviderEvaluators({
   blockchainProvider,
   provider,
 }: {
-  blockchainProvider: SupportedEvaluators;
+  blockchainProvider?: SupportedEvaluators;
   provider: string;
 }) {
   return (
@@ -28,4 +29,5 @@ export type SupportedEvaluators =
   | BlockfrostProvider
   | YaciProvider
   | MaestroProvider
-  | OgmiosProvider;
+  | OgmiosProvider
+  | U5CProvider;

@@ -83,7 +83,7 @@ describe("Plutus data type", () => {
       const result = outputReference(testTxHash, 1);
       expect(JSON.stringify(result)).toBe(
         JSON.stringify(
-          conStr0([conStr0([byteString(testTxHash)]), integer(1)]),
+          conStr0([byteString(testTxHash), integer(1)]),
         ),
       );
     });

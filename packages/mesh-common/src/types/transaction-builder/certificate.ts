@@ -72,17 +72,16 @@ export type CertificateType =
   | {
       type: "DRepUpdate";
       drepId: string;
-      anchor: Anchor;
+      anchor?: Anchor;
     };
 
 export type DRep =
-  | { keyHash: string }
-  | { scriptHash: string }
+  | { dRepId: string }
   | {
-      alwaysAbstain: {};
+      alwaysAbstain: null;
     }
   | {
-      alwaysNoConfidence: {};
+      alwaysNoConfidence: null;
     };
 
 export type Anchor = {

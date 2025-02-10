@@ -1,8 +1,9 @@
 import { linksAbout } from "~/data/links-about";
 import { linksApi } from "~/data/links-api";
-import { linksGetStarted } from "~/data/links-get-started";
 import { linksGuides } from "~/data/links-guides";
+import { linksResources } from "~/data/links-resources";
 import { linksSmartContracts } from "~/data/links-smart-contracts";
+import { linksSolutions } from "~/data/links-solutions";
 import { rootUrl } from "~/data/site";
 import { MenuItem } from "~/types/menu-item";
 
@@ -29,22 +30,30 @@ function SiteMap() {}
 
 function addLinks(pagesUrls: string[], pages: MenuItem[]) {
   pages.forEach((api) => {
-    pagesUrls.push(api.link);
+    pushLink(pagesUrls, api.link);
     if (api.items) {
       api.items.forEach((item) => {
-        pagesUrls.push(item.link);
+        pushLink(pagesUrls, item.link);
       });
     }
   });
 }
 
+function pushLink(pagesUrls: string[], link: string) {
+  if (link.includes("http") && !link.includes("meshjs.dev")) {
+    return;
+  }
+  pagesUrls.push(link);
+}
+
 export async function getServerSideProps({ res }: { res: any }) {
   const pagesUrls: string[] = [];
 
-  addLinks(pagesUrls, linksGetStarted);
+  addLinks(pagesUrls, linksResources);
   addLinks(pagesUrls, linksGuides);
   addLinks(pagesUrls, linksApi);
   addLinks(pagesUrls, linksSmartContracts);
+  addLinks(pagesUrls, linksSolutions);
   addLinks(pagesUrls, linksAbout);
 
   const sitemap = generateSiteMap(pagesUrls);

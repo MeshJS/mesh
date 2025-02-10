@@ -1,12 +1,6 @@
 import { useState } from "react";
 
-import {
-  mConStr0,
-  PlutusScript,
-  resolveScriptHash,
-  stringToHex,
-  UTxO,
-} from "@meshsdk/core";
+import { mConStr0, resolveScriptHash, stringToHex, UTxO } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -16,35 +10,32 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAssetMetadata, demoPlutusMintingScript } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMintingPlutusScript() {
-  const [userInput, setUserInput] = useState<string>("mesh");
-
   return (
     <TwoColumnsScroll
       sidebarTo="mintingPlutusScript"
       title="Minting Assets with Plutus Script"
-      leftSection={Left(userInput)}
-      rightSection={Right(userInput, setUserInput)}
+      leftSection={Left()}
+      rightSection={Right()}
     />
   );
 }
 
-function Left(userInput: string) {
+function Left() {
   let codeIndicator = ``;
   codeIndicator += `.mintPlutusScriptV1()\n`;
   codeIndicator += `.mintPlutusScriptV2()\n`;
   codeIndicator += `.mintPlutusScriptV3()\n`;
 
-  let codeSnippet3 = `const txBuilder = getTxBuilder();\n\n`;
-
+  let codeSnippet3 = txbuilderCode;
   codeSnippet3 += `const unsignedTx = await txBuilder\n`;
   codeSnippet3 += `  .mintPlutusScriptV2()\n`;
   codeSnippet3 += `  .mint("1", policyId, tokenNameHex)\n`;
   codeSnippet3 += `  .mintingScript(demoPlutusMintingScript)\n`;
   codeSnippet3 += `  .mintRedeemerValue(mConStr0([userInput]))\n`;
-  codeSnippet3 += `  .metadataValue("721", metadata)\n`;
+  codeSnippet3 += `  .metadataValue(721, metadata)\n`;
   codeSnippet3 += `  .changeAddress(changeAddress)\n`;
   codeSnippet3 += `  .selectUtxosFrom(utxos)\n`;
   codeSnippet3 += `  .txInCollateral(\n`;
@@ -105,7 +96,9 @@ function Left(userInput: string) {
   );
 }
 
-function Right(userInput: string, setUserInput: (value: string) => void) {
+function Right() {
+  const [userInput, setUserInput] = useState<string>("mesh");
+
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
@@ -114,7 +107,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
     const changeAddress = await wallet.getChangeAddress();
 
     const policyId = resolveScriptHash(demoPlutusMintingScript, "V2");
-    const tokenName = "MeshToken";
+    const tokenName = userInput;
     const tokenNameHex = stringToHex(tokenName);
     const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };
 
@@ -125,7 +118,7 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
       .mint("1", policyId, tokenNameHex)
       .mintingScript(demoPlutusMintingScript)
       .mintRedeemerValue(mConStr0([userInput]))
-      .metadataValue("721", metadata)
+      .metadataValue(721, metadata)
       .changeAddress(changeAddress)
       .selectUtxosFrom(utxos)
       .txInCollateral(
@@ -148,18 +141,17 @@ function Right(userInput: string, setUserInput: (value: string) => void) {
   code += `const changeAddress = await wallet.getChangeAddress();\n`;
   code += `\n`;
   code += `const policyId = resolveScriptHash(demoPlutusMintingScript, "V2");\n`;
-  code += `const tokenName = "MeshToken";\n`;
+  code += `const tokenName = '${userInput}';\n`;
   code += `const tokenNameHex = stringToHex(tokenName);\n`;
   code += `const metadata = { [policyId]: { [tokenName]: { ...demoAssetMetadata } } };\n`;
   code += `\n`;
-  code += `const txBuilder = getTxBuilder();\n`;
-  code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
   code += `  .mintPlutusScriptV2()\n`;
   code += `  .mint("1", policyId, tokenNameHex)\n`;
   code += `  .mintingScript(demoPlutusMintingScript)\n`;
-  code += `  .mintRedeemerValue(mConStr0([userInput]))\n`;
-  code += `  .metadataValue("721", metadata)\n`;
+  code += `  .mintRedeemerValue(mConStr0(['${userInput}']))\n`;
+  code += `  .metadataValue(721, metadata)\n`;
   code += `  .changeAddress(changeAddress)\n`;
   code += `  .selectUtxosFrom(utxos)\n`;
   code += `  .txInCollateral(\n`;

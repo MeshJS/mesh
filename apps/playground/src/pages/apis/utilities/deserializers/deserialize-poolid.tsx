@@ -22,7 +22,7 @@ export default function DeserializePoolId() {
 function Left() {
   return (
     <>
-      <p>Deserialize a script from a poolxxxx to Ed25519 key hash.</p>
+      <p>Deserialize a script from a pool id to Ed25519 key hash.</p>
     </>
   );
 }
@@ -39,7 +39,7 @@ function Right() {
   return (
     <LiveCodeDemo
       title="Deserialize Pool Id"
-      subtitle="Deserialize a script from a poolxxxx to Ed25519 key hash"
+      subtitle="Deserialize a script from a pool id to Ed25519 key hash"
       code={codeSnippet}
       runCodeFunction={runDemo}
     >

@@ -10,7 +10,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoPool } from "~/data/cardano";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function StakingRegister() {
   return (
@@ -28,8 +28,7 @@ function Left() {
   codeSnippet += `  .registerStakeCertificate(rewardAddress)\n`;
   codeSnippet += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;
 
-  let utilsSnippet = ``;
-  utilsSnippet += `const poolIdHash = deserializePoolId(\n`;
+  let utilsSnippet = `const poolIdHash = deserializePoolId(\n`;
   utilsSnippet += `  "pool107k26e3wrqxwghju2py40ngngx2qcu48ppeg7lk0cm35jl2aenx",\n`;
   utilsSnippet += `);\n`;
 
@@ -92,8 +91,7 @@ function Right() {
   code += `  throw "No address found";\n`;
   code += `}\n`;
   code += `\n`;
-  code += `const txBuilder = getTxBuilder();\n`;
-  code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
   code += `  .registerStakeCertificate(rewardAddress)\n`;
   code += `  .delegateStakeCertificate(rewardAddress, poolIdHash)\n`;

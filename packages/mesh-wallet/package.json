@@ -1,16 +1,17 @@
 {
   "name": "@meshsdk/wallet",
-  "version": "1.7.4",
-  "description": "",
+  "version": "1.9.0-beta.3",
+  "description": "Wallets - https://meshjs.dev/apis/wallets",
   "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "files": [
@@ -34,12 +35,10 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.4",
-    "@meshsdk/core-csl": "1.7.4",
-    "@meshsdk/core-cst": "1.7.4",
-    "@meshsdk/transaction": "1.7.4",
-    "@nufi/dapp-client-cardano": "^0.3.1",
-    "@nufi/dapp-client-core": "^0.3.1"
+    "@meshsdk/common": "1.9.0-beta.3",
+    "@meshsdk/core-cst": "1.9.0-beta.3",
+    "@meshsdk/transaction": "1.9.0-beta.3",
+    "@simplewebauthn/browser": "^13.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

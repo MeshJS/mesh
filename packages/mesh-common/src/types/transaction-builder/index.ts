@@ -1,9 +1,11 @@
 import { UtxoSelectionStrategy } from "../../utxo-selection";
+import { Network } from "../network";
 import { UTxO } from "../utxo";
 import { Certificate } from "./certificate";
 import { MintItem } from "./mint";
 import { Output } from "./output";
 import { PubKeyTxIn, RefTxIn, TxIn } from "./txin";
+import { Vote } from "./vote";
 import { Withdrawal } from "./withdrawal";
 
 export * from "./data";
@@ -13,6 +15,7 @@ export * from "./script";
 export * from "./txin";
 export * from "./withdrawal";
 export * from "./certificate";
+export * from "./vote";
 
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
@@ -22,10 +25,11 @@ export type MeshTxBuilderBody = {
   referenceInputs: RefTxIn[];
   mints: MintItem[];
   changeAddress: string;
-  metadata: Metadata[];
+  metadata: TxMetadata;
   validityRange: ValidityRange;
   certificates: Certificate[];
   withdrawals: Withdrawal[];
+  votes: Vote[];
   signingKey: string[];
   extraInputs: UTxO[];
   selectionConfig: {
@@ -33,7 +37,10 @@ export type MeshTxBuilderBody = {
     strategy: UtxoSelectionStrategy;
     includeTxFees: boolean;
   };
-  network: string;
+  chainedTxs: string[];
+  inputsForEvaluation: Record<string, UTxO>;
+  fee?: string;
+  network: Network | number[][];
 };
 
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
@@ -45,16 +52,19 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   referenceInputs: [],
   mints: [],
   changeAddress: "",
-  metadata: [],
+  metadata: new Map<bigint, Metadatum>(),
   validityRange: {},
   certificates: [],
   withdrawals: [],
+  votes: [],
   signingKey: [],
   selectionConfig: {
     threshold: "0",
     strategy: "experimental",
     includeTxFees: true,
   },
+  chainedTxs: [],
+  inputsForEvaluation: {},
   network: "mainnet",
 });
 
@@ -67,6 +77,19 @@ export type ValidityRange = {
 
 // Mint Types
 
+// Transaction Metadata
+
+export type MetadatumMap = Map<Metadatum, Metadatum>;
+export type Metadatum =
+  | bigint
+  | number
+  | string
+  | Uint8Array
+  | MetadatumMap
+  | Metadatum[];
+export type TxMetadata = Map<bigint, Metadatum>;
+
+// to be used for serialization
 export type Metadata = {
   tag: string;
   metadata: string;

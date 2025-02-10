@@ -2,18 +2,16 @@ import type {
   Asset,
   AssetExtended,
   DataSignature,
+  IWallet,
   UTxO,
 } from "@meshsdk/common";
 import {
   IFetcher,
-  IInitiator,
-  ISigner,
   ISubmitter,
   POLICY_ID_LENGTH,
   resolveFingerprint,
   toUTF8,
 } from "@meshsdk/common";
-import { resolvePrivateKey } from "@meshsdk/core-csl"; // todo replace this with cst when its implemented
 import {
   Address,
   buildBaseAddress,
@@ -24,6 +22,7 @@ import {
   Ed25519KeyHashHex,
   fromTxUnspentOutput,
   Hash28ByteBase16,
+  resolvePrivateKey,
   toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,
@@ -50,6 +49,10 @@ export type CreateMeshWalletOptions = {
     | {
         type: "mnemonic";
         words: string[];
+      }
+    | {
+        type: "bip32Bytes";
+        bip32Bytes: Uint8Array;
       }
     | {
         type: "address";
@@ -84,7 +87,7 @@ export type CreateMeshWalletOptions = {
  * });
  * ```
  */
-export class MeshWallet implements IInitiator, ISigner, ISubmitter {
+export class MeshWallet implements IWallet {
   private readonly _wallet: EmbeddedWallet | null;
   private readonly _accountIndex: number = 0;
   private readonly _keyIndex: number = 0;
@@ -105,6 +108,11 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
 
   constructor(options: CreateMeshWalletOptions) {
     this._networkId = options.networkId;
+
+    if (options.fetcher) this._fetcher = options.fetcher;
+    if (options.submitter) this._submitter = options.submitter;
+    if (options.accountIndex) this._accountIndex = options.accountIndex;
+    if (options.keyIndex) this._keyIndex = options.keyIndex;
 
     switch (options.key.type) {
       case "root":
@@ -138,16 +146,29 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
         });
         this.getAddressesFromWallet(this._wallet);
         break;
+      case "bip32Bytes":
+        this._wallet = new EmbeddedWallet({
+          networkId: options.networkId,
+          key: {
+            type: "bip32Bytes",
+            bip32Bytes: options.key.bip32Bytes,
+          },
+        });
+        this.getAddressesFromWallet(this._wallet);
+        break;
       case "address":
         this._wallet = null;
         this.buildAddressFromBech32Address(options.key.address);
         break;
     }
+  }
 
-    if (options.fetcher) this._fetcher = options.fetcher;
-    if (options.submitter) this._submitter = options.submitter;
-    if (options.accountIndex) this._accountIndex = options.accountIndex;
-    if (options.keyIndex) this._keyIndex = options.keyIndex;
+  /**
+   * Returns all derived addresses from the wallet.
+   * @returns a list of addresses
+   */
+  getAddresses() {
+    return this.addresses;
   }
 
   /**
@@ -213,6 +234,15 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
+   * Return a list of supported CIPs of the wallet.
+   *
+   * @returns a list of CIPs
+   */
+  async getExtensions(): Promise<number[]> {
+    return [];
+  }
+
+  /**
    * Get a list of UTXOs to be used as collateral inputs for transactions with plutus script inputs.
    *
    * This is used in transaction building.
@@ -248,11 +278,28 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
   }
 
   /**
+   * The connected wallet account provides the account's public DRep Key, derivation as described in CIP-0105.
+   * These are used by the client to identify the user's on-chain CIP-1694 interactions, i.e. if a user has registered to be a DRep.
+   *
+   * @returns wallet account's public DRep Key
+   */
+  async getDRep(): Promise<
+    | {
+        publicKey: string;
+        publicKeyHash: string;
+        dRepIDCip105: string;
+      }
+    | undefined
+  > {
+    console.warn("Not implemented yet");
+    return undefined;
+  }
+  /**
    * Returns the network ID of the currently connected account. 0 is testnet and 1 is mainnet but other networks can possibly be returned by wallets. Those other network ID values are not governed by CIP-30. This result will stay the same unless the connected account has changed.
    *
    * @returns network ID
    */
-  getNetworkId(): number {
+  async getNetworkId(): Promise<number> {
     return this._networkId;
   }
 
@@ -261,7 +308,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of reward addresses
    */
-  getRewardAddresses(): string[] {
+  async getRewardAddresses(): Promise<string[]> {
     return [this.addresses.rewardAddressBech32!];
   }
 
@@ -270,7 +317,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of unused addresses
    */
-  getUnusedAddresses(): string[] {
+  async getUnusedAddresses(): Promise<string[]> {
     return [this.getChangeAddress()];
   }
 
@@ -279,7 +326,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    *
    * @returns a list of used addresses
    */
-  getUsedAddresses(): string[] {
+  async getUsedAddresses(): Promise<string[]> {
     return [this.getChangeAddress()];
   }
 
@@ -315,7 +362,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @param address - the address to use for signing (optional)
    * @returns a signature
    */
-  signData(payload: string, address?: string): DataSignature {
+  async signData(payload: string, address?: string): Promise<DataSignature> {
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -324,7 +371,12 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     if (address === undefined) {
       address = this.getChangeAddress()!;
     }
-    return this._wallet.signData(address, payload);
+    return this._wallet.signData(
+      address,
+      payload,
+      this._accountIndex,
+      this._keyIndex,
+    );
   }
 
   /**
@@ -334,7 +386,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @param partialSign - if the transaction is partially signed (default: false)
    * @returns a signed transaction in CBOR
    */
-  signTx(unsignedTx: string, partialSign = false): string {
+  async signTx(unsignedTx: string, partialSign = false): Promise<string> {
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -368,7 +420,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
    * @param partialSign - if the transactions are signed partially
    * @returns array of signed transactions CborHex string
    */
-  signTxs(unsignedTxs: string[], partialSign = false): string[] {
+  async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -378,7 +430,7 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     const signedTxs: string[] = [];
 
     for (const unsignedTx of unsignedTxs) {
-      const signedTx = this.signTx(unsignedTx, partialSign);
+      const signedTx = await this.signTx(unsignedTx, partialSign);
       signedTxs.push(signedTx);
     }
 
@@ -501,6 +553,28 @@ export class MeshWallet implements IInitiator, ISigner, ISubmitter {
     return Array.from(
       new Set(balance.map((v) => v.unit.slice(0, POLICY_ID_LENGTH))),
     ).filter((p) => p !== "lovelace");
+  }
+
+  async getRegisteredPubStakeKeys(): Promise<
+    | {
+        pubStakeKeys: string[];
+        pubStakeKeyHashes: string[];
+      }
+    | undefined
+  > {
+    console.warn("Not implemented yet");
+    return undefined;
+  }
+
+  async getUnregisteredPubStakeKeys(): Promise<
+    | {
+        pubStakeKeys: string[];
+        pubStakeKeyHashes: string[];
+      }
+    | undefined
+  > {
+    console.warn("Not implemented yet");
+    return undefined;
   }
 
   /**

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -35,6 +36,14 @@ function Left() {
           <b>vestingUtxo (UTxO)</b> - unspent transaction output in the script
         </li>
       </ul>
+      <p>
+        A{" "}
+        <Link href="https://preprod.cardanoscan.io/transaction/e61815bcfe46ababf3d024ae470f779fa738cded55f02127b9e211847c77af8b">
+          successful withdrawal
+        </Link>{" "}
+        will send the funds to the wallet that signed the transaction to
+        withdraw the funds.
+      </p>
     </>
   );
 }

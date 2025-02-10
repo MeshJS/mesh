@@ -11,15 +11,15 @@ export default function Card({
 }) {
   return (
     <section
-      className={`mt-4 overflow-x-hidden rounded-lg border border-gray-200 bg-white p-6 shadow-md dark:border-gray-700 dark:bg-gray-800 ${
+      className={`mt-4 overflow-x-hidden rounded-lg border border-neutral-200 bg-white p-6 shadow-md dark:border-neutral-700 dark:bg-neutral-800 ${
         className && className
       }`}
     >
       {title && (
-        <div className="bg-white text-left text-lg font-semibold text-gray-900 dark:bg-gray-800 dark:text-white">
+        <div className="bg-white text-left text-lg font-semibold text-neutral-900 dark:bg-neutral-800 dark:text-white">
           {title}
           {subtitle && (
-            <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-sm font-normal text-neutral-500 dark:text-neutral-400">
               {subtitle}
             </p>
           )}

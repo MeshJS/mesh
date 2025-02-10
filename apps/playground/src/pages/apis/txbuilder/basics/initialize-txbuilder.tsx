@@ -1,5 +1,4 @@
 import Link from "~/components/link";
-
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
@@ -20,7 +19,7 @@ function Left() {
   example += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n\n`;
   example += `const txBuilder = new MeshTxBuilder({\n`;
   example += `  fetcher: blockchainProvider,\n`;
-  example += `  evaluator: blockchainProvider,\n`;
+  example += `  verbose: true,\n`;
   example += `});\n`;
 
   let signature = ``;
@@ -31,6 +30,7 @@ function Left() {
   signature += `  serializer?: IMeshTxSerializer;\n`;
   signature += `  isHydra?: boolean;\n`;
   signature += `  params?: Partial<Protocol>;\n`;
+  signature += `  verbose?: boolean;\n`;
   signature += `}\n`;
 
   return (
@@ -79,6 +79,10 @@ function Left() {
         </li>
         <li>
           <code>params</code>: You can pass in the protocol parameters directly.
+        </li>
+        <li>
+          <code>verbose</code>: Set to <code>true</code> to enable verbose
+          logging.
         </li>
       </ol>
     </>

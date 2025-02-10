@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
+import Link from "~/components/link";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -39,6 +40,14 @@ function Left() {
       <p>
         We have provided a very handle function, <code>getUtxoByTxHash</code>,
         which will return the UTxO object for a given transaction hash.
+      </p>
+      <p>
+        A{" "}
+        <Link href="https://preprod.cardanoscan.io/transaction/f9f7ddbbbe1c34717134c89c343aaa27d4c5f62e6e8a127757400ac8d45e64e8">
+          successful purchase
+        </Link>{" "}
+        will send the asset to the wallet that signed the transaction to
+        purchase the asset.
       </p>
     </>
   );

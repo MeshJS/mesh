@@ -1,5 +1,5 @@
 import { MeshMarketplaceContract } from "@meshsdk/contract";
-import { BrowserWallet, MeshTxBuilder } from "@meshsdk/core";
+import { IWallet, MeshTxBuilder } from "@meshsdk/core";
 
 import { getProvider } from "../../../components/cardano/mesh-wallet";
 import { demoAddresses, demoAsset } from "../../../data/cardano";
@@ -7,7 +7,7 @@ import { demoAddresses, demoAsset } from "../../../data/cardano";
 export const asset = demoAsset;
 export const price = 10000000;
 
-export function getContract(wallet: BrowserWallet) {
+export function getContract(wallet: IWallet) {
   const blockchainProvider = getProvider();
 
   const meshTxBuilder = new MeshTxBuilder({

@@ -7,7 +7,7 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderCip20() {
   return (
@@ -22,7 +22,7 @@ export default function TxbuilderCip20() {
 
 function Left() {
   let code = `txBuilder\n`;
-  code += `  .metadataValue(tag, metadata)\n`;
+  code += `  .metadataValue(label, metadata)\n`;
 
   return (
     <>
@@ -36,7 +36,7 @@ function Left() {
         The specification for the individual strings follow the general design
         specification for JSON metadata, which is already implemented and in
         operation on the cardano blockchain. The used metadatum label is{" "}
-        <code>674</code>: this number was choosen because it is the T9 encoding
+        <code>674</code>: this number was chosen because it is the T9 encoding
         of the string
         <code>msg</code>. The message content has the key <code>msg</code>: and
         consists of an array of individual message-strings. The number of theses
@@ -60,14 +60,14 @@ function Right() {
     const changeAddress = await wallet.getChangeAddress();
     const txBuilder = getTxBuilder();
 
-    const tag = "674";
+    const label = 674;
     const metadata = {
       msg: message.split("\n"),
     };
 
     const unsignedTx = await txBuilder
       .changeAddress(changeAddress)
-      .metadataValue(tag.toString(), metadata)
+      .metadataValue(label, metadata)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -79,10 +79,8 @@ function Right() {
 
   let codeSnippet = ``;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
-  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
-  codeSnippet += `const txBuilder = getTxBuilder();\n`;
-  codeSnippet += `\n`;
-  codeSnippet += `const tag = "674";\n`;
+  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n\n`;
+  codeSnippet += `const label = 674;\n`;
   codeSnippet += `const metadata = {\n`;
   codeSnippet += `  msg: [\n`;
   for (let line of message.split("\n")) {
@@ -90,9 +88,10 @@ function Right() {
   }
   codeSnippet += `  ],\n`;
   codeSnippet += `});\n\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `const unsignedTx = await txBuilder\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;
-  codeSnippet += `  .metadataValue(tag, metadata)\n`;
+  codeSnippet += `  .metadataValue(label, metadata)\n`;
   codeSnippet += `  .selectUtxosFrom(utxos)\n`;
   codeSnippet += `  .complete();\n`;
   codeSnippet += `\n`;

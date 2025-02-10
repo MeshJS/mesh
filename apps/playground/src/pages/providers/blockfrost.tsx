@@ -17,7 +17,9 @@ import ProviderSubmitters from "./submitters";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
+    { label: "Get data from URL", to: "get" },
     { label: "Fetch Account Info", to: "fetchAccountInfo" },
+    { label: "Fetch Address Assets", to: "fetchAddressAssets" },
     { label: "Fetch Address Utxos", to: "fetchAddressUtxos" },
     { label: "Fetch Asset Addresses", to: "fetchAssetAddresses" },
     { label: "Fetch Asset Metadata", to: "fetchAssetMetadata" },
@@ -27,15 +29,15 @@ const ReactPage: NextPage = () => {
     { label: "Fetch Handle", to: "fetchHandle" },
     { label: "Fetch Protocol Parameters", to: "fetchProtocolParameters" },
     { label: "Fetch Transaction Info", to: "fetchTxInfo" },
+    { label: "Fetch UTxOs", to: "fetchUtxos" },
+    { label: "Fetch Proposal Info", to: "fetchProposalInfo" },
     { label: "Evaluate Tx", to: "evaluateTx" },
     { label: "Submit Tx", to: "submitTx" },
     { label: "On Transaction Confirmed", to: "onTxConfirmed" },
   ];
 
   let code1 = `import { BlockfrostProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new BlockfrostProvider(\n`;
-  code1 += `  '<Your-API-Key>'\n`;
-  code1 += `);\n`;
+  code1 += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n`;
 
   let code2 = `const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_URL>');\n`;
 

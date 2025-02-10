@@ -1,16 +1,17 @@
 {
   "name": "@meshsdk/transaction",
-  "version": "1.7.4",
-  "description": "",
+  "version": "1.9.0-beta.3",
+  "description": "Transactions - https://meshjs.dev/apis/transaction",
   "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "files": [
@@ -34,9 +35,8 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.7.4",
-    "@meshsdk/core-csl": "1.7.4",
-    "@meshsdk/core-cst": "1.7.4",
+    "@meshsdk/common": "1.9.0-beta.3",
+    "@meshsdk/core-cst": "1.9.0-beta.3",
     "json-bigint": "^1.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",

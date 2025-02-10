@@ -35,8 +35,8 @@ describe("Transaction", () => {
     transaction.txBuilder = txBuilderMock;
   });
 
-  it("should trigger txOutDatumHashValue when recipient has datum with inline set to false", () => {
-    const address = wallet.getUsedAddresses()[0];
+  it("should trigger txOutDatumHashValue when recipient has datum with inline set to false", async () => {
+    const address = (await wallet.getUsedAddresses())[0];
     const recipient: Recipient = {
       address: address as string,
       datum: {
@@ -58,8 +58,8 @@ describe("Transaction", () => {
       "datum-value",
     );
   });
-  it("should trigger txOutInlineDatumValue when recipient has datum with inline set to false", () => {
-    const address = wallet.getUsedAddresses()[0];
+  it("should trigger txOutInlineDatumValue when recipient has datum with inline set to false", async () => {
+    const address = (await wallet.getUsedAddresses())[0];
     const recipient: Recipient = {
       address: address as string,
       datum: {

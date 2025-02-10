@@ -4,13 +4,13 @@ import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function GovernanceDeregistration() {
   return (
     <TwoColumnsScroll
       sidebarTo="deregistration"
-      title="DRep Deregistration"
+      title="DRep Retirement"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -26,14 +26,9 @@ function Left() {
   codeTxInit += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeTxInit += `const utxos = await wallet.getUtxos();\n`;
   codeTxInit += `\n`;
-  codeTxInit += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n`;
-  codeTxInit += `\n`;
-  codeTxInit += `const txBuilder = new MeshTxBuilder({\n`;
-  codeTxInit += `  fetcher: blockchainProvider,\n`;
-  codeTxInit += `  evaluator: blockchainProvider,\n`;
-  codeTxInit += `});\n`;
+  codeTxInit += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');`;
 
-  let codeTx = ``;
+  let codeTx = txbuilderCode;
   codeTx += `txBuilder\n`;
   codeTx += `  .drepDeregistrationCertificate(dRepId)\n`;
   codeTx += `  .selectUtxosFrom(selectedUtxos)\n`;
@@ -114,8 +109,8 @@ function Right() {
   codeSnippet += `const dRepId = dRep.dRepIDCip105;\n`;
   codeSnippet += `\n`;
   codeSnippet += `const utxos = await wallet.getUtxos();\n`;
-  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n`;
-  codeSnippet += `\n`;
+  codeSnippet += `const changeAddress = await wallet.getChangeAddress();\n\n`;
+  codeSnippet += txbuilderCode;
   codeSnippet += `txBuilder\n`;
   codeSnippet += `  .drepDeregistrationCertificate(dRepId)\n`;
   codeSnippet += `  .selectUtxosFrom(utxos)\n`;
@@ -127,7 +122,7 @@ function Right() {
 
   return (
     <LiveCodeDemo
-      title="DRep De-registration"
+      title="DRep Retirement"
       subtitle="Retire a DRep certificate amd return the deposit"
       code={codeSnippet}
       runCodeFunction={runDemo}

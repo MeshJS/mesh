@@ -1,5 +1,13 @@
+import { useState } from "react";
+
+import { serializeRewardAddress } from "@meshsdk/core";
+
+import Input from "~/components/form/input";
+import Select from "~/components/form/select";
+import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import { demoPubKeyHash } from "~/data/cardano";
 
 export default function SerializeRewardAddress() {
   return (
@@ -21,11 +29,15 @@ function Left() {
 }
 
 function Right() {
+  const [userInput, setUserInput] = useState(demoPubKeyHash)
+  const [isScriptHash, setIsScriptHash] = useState(true);
+  const [network, setNetwork] = useState<"testnet" | "mainnet">("testnet");
+
   async function runDemo() {
-    // return serializeRewardAddress(address);
+    return serializeRewardAddress(userInput, isScriptHash, network === "testnet" ? 0 : 1);
   }
 
-  let codeSnippet = ``;
+  let codeSnippet = `serializeRewardAddress('${userInput}', ${isScriptHash === true ? 'true': 'false'}, ${network === "testnet" ? 0 : 1});`;
 
   return (
     <LiveCodeDemo
@@ -33,6 +45,48 @@ function Right() {
       subtitle="Serialize a script hash or key hash into bech32 reward address"
       code={codeSnippet}
       runCodeFunction={runDemo}
-    ></LiveCodeDemo>
+    >
+      <InputTable
+        listInputs={[
+          <Input
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            label="Script Hash/Key Hash"
+            key={0}
+          />,
+          <Select
+          id="chooseIsScriptHash"
+          options={{
+            'true': 'true',
+            'false': 'false', 
+          }}
+          value={isScriptHash === true ? 'true': 'false'}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+            setIsScriptHash(
+              e.target.value === 'true' ? true : false,
+            )
+          }
+          label="Is Script Hash"
+          key={1}
+        />,
+        <Select
+            id="chooseNetwork"
+            options={{
+              testnet: "testnet",
+              mainnet: "mainnet",
+            }}
+            value={userInput}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+              setNetwork(
+                e.target.value as  "testnet" | "mainnet",
+              )
+            }
+            label="Select network"
+            key={2}
+          />,
+        ]}
+      />
+
+    </LiveCodeDemo>
   );
 }

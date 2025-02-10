@@ -242,8 +242,8 @@ function Right(
           });
           setWallet(_wallet);
 
-          const address = _wallet.getChangeAddress();
-          setResponseAddress(address);
+          const addresses = _wallet.getAddresses();
+          setResponseAddress(JSON.stringify(addresses, null, 2));
         }
       } catch (error) {
         setResponseError(`${error}`);
@@ -262,8 +262,8 @@ function Right(
         });
         setWallet(_wallet);
 
-        const address = _wallet.getChangeAddress();
-        setResponseAddress(address);
+        const addresses = _wallet.getAddresses();
+        setResponseAddress(JSON.stringify(addresses, null, 2));
       } catch (error) {
         setResponseError(`${error}`);
       }
@@ -283,8 +283,8 @@ function Right(
         });
         setWallet(_wallet);
 
-        const address = _wallet.getChangeAddress();
-        setResponseAddress(address);
+        const addresses = _wallet.getAddresses();
+        setResponseAddress(JSON.stringify(addresses, null, 2));
       } catch (error) {
         setResponseError(`${error}`);
       }
@@ -302,8 +302,8 @@ function Right(
         });
         setWallet(_wallet);
 
-        const address = _wallet.getChangeAddress();
-        setResponseAddress(address);
+        const addresses = _wallet.getAddresses();
+        setResponseAddress(JSON.stringify(addresses, null, 2));
       } catch (error) {
         setResponseError(`${error}`);
       }
@@ -362,7 +362,7 @@ function Right(
           response={responseAddress}
           label="Load wallet and get address"
         />
-        <DemoResult response={responseAddress} label="Wallet's address" />
+        <DemoResult response={responseAddress} label="Wallet's addresses" />
         <DemoResult response={responseError} label="Error" />
       </Card>
     </>
@@ -400,13 +400,13 @@ function InputTable({
 }) {
   return (
     <div className="relative overflow-x-auto">
-      <table className="m-0 w-full text-left text-sm text-gray-500 dark:text-gray-400">
-        <caption className="bg-white p-5 text-left text-lg font-semibold text-gray-900 dark:bg-gray-800 dark:text-white">
+      <table className="m-0 w-full text-left text-sm text-neutral-500 dark:text-neutral-400">
+        <caption className="bg-white p-5 text-left text-lg font-semibold text-neutral-900 dark:bg-neutral-800 dark:text-white">
           Load wallet with {demoMethod == 0 && "mnemonic phrases"}
           {demoMethod == 1 && "private keys"}
           {demoMethod == 2 && "CLI generated keys"}
           {demoMethod == 3 && "address"}
-          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm font-normal text-neutral-500 dark:text-neutral-400">
             Provide the {demoMethod == 0 && "mnemonic phrases"}
             {demoMethod == 1 && "private keys"}
             {demoMethod == 2 && "CLI generated keys"}
@@ -414,16 +414,16 @@ function InputTable({
             initializing the <code>MeshWallet</code>, we will get the wallet's
             payment address.
           </p>
-          <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm font-normal text-neutral-500 dark:text-neutral-400">
             Note: Trying these demo with your Testnet wallet is recommended.
           </p>
         </caption>
         <tbody>
-          <tr className="border-b bg-white dark:border-gray-700 dark:bg-gray-800">
+          <tr className="border-b bg-white dark:border-neutral-700 dark:bg-neutral-800">
             <td>
               {demoMethod == 0 && (
                 <>
-                  <label className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+                  <label className="mb-2 block text-sm font-medium text-neutral-900 dark:text-white">
                     Mnemonic phrases
                   </label>
                   <Textarea

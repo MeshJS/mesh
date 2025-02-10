@@ -23,7 +23,7 @@ export const resolvePrivateKey = (words: string[]) =>
  * @param txHex The transaction hex
  * @returns The transaction hash
  */
-export const resolveTxHash = (txHex: string) => core.calculateTxHash(txHex);
+export const resolveTxHash = (txHex: string) => core.resolveTxHash(txHex);
 
 /**
  * Hash Cardano data
@@ -51,9 +51,9 @@ export const resolveScriptHash = (
   version?: LanguageVersion,
 ): string => {
   if (!version) {
-    return core.deserializeNativeScript(scriptCode).hash().to_hex();
+    return core.deserializeNativeScript(scriptCode).hash().toString();
   }
-  return core.deserializePlutusScript(scriptCode, version).hash().to_hex();
+  return core.deserializePlutusScript(scriptCode, version).hash().toString();
 };
 
 /**
@@ -102,7 +102,7 @@ export const resolveNativeScriptAddress = (
  * Deprecated - use `serializeNativeScript` instead
  */
 export const resolveNativeScriptHex = (script: NativeScript) =>
-  core.toNativeScript(script).to_hex();
+  core.toNativeScript(script).toCbor();
 
 /**
  * Deprecated - use `deserializeAddress` instead
@@ -127,4 +127,4 @@ export const resolveScriptRef = (script: NativeScript | PlutusScript) =>
 /**
  * Deprecated - use `serializePoolId` instead
  */
-export const resolvePoolId = (hash: string) => core.serializePoolId(hash);
+export const resolvePoolId = (hash: string) => core.resolvePoolId(hash);

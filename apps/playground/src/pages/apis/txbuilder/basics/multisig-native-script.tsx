@@ -1,15 +1,8 @@
 import {
-  AppWallet,
   deserializeAddress,
-  ForgeScript,
-  MeshTxBuilder,
   MeshWallet,
   NativeScript,
-  resolveNativeScriptAddress,
-  resolveNativeScriptHash,
-  resolveScriptHash,
   serializeNativeScript,
-  stringToHex,
 } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
@@ -17,7 +10,7 @@ import { getProvider } from "~/components/cardano/mesh-wallet";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "../common";
+import { getTxBuilder, txbuilderCode } from "../common";
 
 export default function TxbuilderMultisigNativeScript() {
   return (
@@ -60,6 +53,7 @@ function Left() {
   codeTx += `const utxo = utxos[0];\n`;
   codeTx += `\n`;
   codeTx += `// create tx\n`;
+  codeTx += txbuilderCode;
   codeTx += `const unsignedTx = await txBuilder\n`;
   codeTx += `  .txIn(\n`;
   codeTx += `    utxo.input.txHash,\n`;
@@ -84,6 +78,10 @@ function Left() {
 
   return (
     <>
+      <p>
+        Here is an example of creating a multi-signature (multisig) transaction
+        with a native script, where you need to spend from a script address.
+      </p>
       <h4>Create native script</h4>
       <p>
         First, we need to create a native script. In this example, we will
@@ -218,8 +216,8 @@ function Right() {
 
   return (
     <LiveCodeDemo
-      title="Multi-signature Transaction with native script "
-      subtitle="Create a multi-signature transaction with a native script. In this demo, we will create a transaction with two signatures, where one signature is from the user wallet and the other is from a minting wallet."
+      title="Multi-signature Transaction with native script"
+      subtitle="Create a multi-signature transaction with a native script. In this demo, we will create a transaction with two signatures, where one signature is from the user wallet and the other is from the script."
       code={codeSnippet}
       runCodeFunction={runDemo}
       disabled={!connected}

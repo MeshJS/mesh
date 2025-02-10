@@ -15,6 +15,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAddresses } from "~/data/cardano";
+import { txbuilderCode } from "../common";
 
 export default function MintingRoyaltyToken() {
   return (
@@ -81,7 +82,7 @@ function Right() {
     const unsignedTx = await txBuilder
       .mint("1", policyId, "")
       .mintingScript(forgingScript)
-      .metadataValue("777", assetMetadata)
+      .metadataValue(777, assetMetadata)
       .changeAddress(address)
       .selectUtxosFrom(utxos)
       .complete();
@@ -105,16 +106,15 @@ function Right() {
   code += `const policyId = resolveScriptHash(forgingScript);\n`;
   code += `\n`;
   code += `const assetMetadata: RoyaltiesStandard = {\n`;
-  code += `  rate: userInput,\n`;
-  code += `  address: userInput2,\n`;
+  code += `  rate: '${userInput}',\n`;
+  code += `  address: '${userInput2}',\n`;
   code += `};\n`;
   code += `\n`;
-  code += `const txBuilder = new MeshTxBuilder();\n`;
-  code += `\n`;
+  code += txbuilderCode;
   code += `const unsignedTx = await txBuilder\n`;
   code += `  .mint("1", policyId, "")\n`;
   code += `  .mintingScript(forgingScript)\n`;
-  code += `  .metadataValue("777", assetMetadata)\n`;
+  code += `  .metadataValue(777, assetMetadata)\n`;
   code += `  .changeAddress(address)\n`;
   code += `  .selectUtxosFrom(utxos)\n`;
   code += `  .complete();\n`;

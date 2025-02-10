@@ -14,6 +14,7 @@ import TxbuilderInitializeTxbuilder from "./initialize-txbuilder";
 import TxbuilderMultisig from "./multisig";
 import TxbuilderMultisigNativeScript from "./multisig-native-script";
 import TxbuilderSendValues from "./send-values";
+import TxbuilderSetFee from "./set-fee";
 import TxbuilderSetNetwork from "./set-network";
 import TxbuilderSetRequiredSigners from "./set-required-signers";
 import TxbuilderSetTime from "./set-time";
@@ -30,6 +31,7 @@ const ReactPage: NextPage = () => {
     { label: "Set required signers", to: "requiredSigners" },
     { label: "Set time", to: "setTime" },
     { label: "Set network", to: "setNetwork" },
+    { label: "Set fee", to: "setFee" },
   ];
 
   return (
@@ -81,6 +83,7 @@ const ReactPage: NextPage = () => {
         <TxbuilderSetRequiredSigners />
         <TxbuilderSetTime />
         <TxbuilderSetNetwork />
+        <TxbuilderSetFee />
       </SidebarFullwidth>
     </>
   );

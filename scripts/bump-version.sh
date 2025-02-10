@@ -17,6 +17,7 @@ FILES=(
   "packages/mesh-core-cst/package.json"
   "packages/mesh-provider/package.json"
   "packages/mesh-react/package.json"
+  "packages/mesh-svelte/package.json"
   "packages/mesh-transaction/package.json"
   "packages/mesh-wallet/package.json"
   "scripts/mesh-cli/package.json"
@@ -35,6 +36,7 @@ for FILE in "${FILES[@]}"; do
     sed -i '' -e "s/\"@meshsdk\/core-cst\": \".*\"/\"@meshsdk\/core-cst\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/provider\": \".*\"/\"@meshsdk\/provider\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/react\": \".*\"/\"@meshsdk\/react\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/svelte\": \".*\"/\"@meshsdk\/svelte\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/transaction\": \".*\"/\"@meshsdk\/transaction\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/wallet\": \".*\"/\"@meshsdk\/wallet\": \"$VERSION\"/" "$FILE"
  

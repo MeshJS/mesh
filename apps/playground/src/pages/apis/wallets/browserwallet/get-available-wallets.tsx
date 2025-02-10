@@ -19,12 +19,6 @@ function Left() {
   let example = ``;
   example += `[\n`;
   example += `  {\n`;
-  example += `    "id": "nufiSnap",\n`;
-  example += `    "name": "MetaMask",\n`;
-  example += `    "icon": "data:image/svg+xml;base64,ICONBASE64HERE",\n`;
-  example += `    "version": "1.1.0"\n`;
-  example += `  },\n`;
-  example += `  {\n`;
   example += `    "name": "eternl",\n`;
   example += `    "icon": "data:image/png;base64,ICONBASE64HERE",\n`;
   example += `    "version": "0.1.0"\n`;
@@ -51,25 +45,6 @@ function Left() {
       </ul>
       <p>Example:</p>
       <Codeblock data={example} />
-
-      <p>
-        With NuFi's support, you can specify the network to connect to. By
-        default, it is set to "preprod". To define the <code>network</code>:
-      </p>
-      <Codeblock
-        data={`await BrowserWallet.getAvailableWallets({ metamask:{ network: "mainnet"} })`}
-      />
-      <p>Available networks are:</p>
-      <ul>
-        <li>production: https://wallet.nu.fi</li>
-        <li>mainnet: https://wallet-staging.nu.fi</li>
-        <li>preprod: https://wallet-testnet-staging.nu.fi</li>
-        <li>preview: https://wallet-preview-staging.nu.fi</li>
-      </ul>
-      <p>You can also specify the network by providing the URL:</p>
-      <Codeblock
-        data={`await BrowserWallet.getAvailableWallets({ metamask:{ network: "https://wallet.nu.fi"} })`}
-      />
     </>
   );
 }

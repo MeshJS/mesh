@@ -8,6 +8,7 @@ import {
   BlockInfo,
   castProtocol,
   fromUTF8,
+  GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
   IListener,
@@ -21,24 +22,47 @@ import {
   Unit,
   UTxO,
 } from "@meshsdk/common";
-import { resolveRewardAddress, toScriptRef } from "@meshsdk/core-cst";
+import {
+  normalizePlutusScript,
+  resolveRewardAddress,
+  toScriptRef,
+} from "@meshsdk/core-cst";
 
+import { utxosToAssets } from "./common/utxos-to-assets";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
 
+/**
+ * Yaci DevKit is a development tool designed for rapid and efficient Cardano blockchain development. It allows developers to create and destroy custom Cardano devnets in seconds, providing fast feedback loops and simplifying the iteration process.
+ *
+ * Get started:
+ * ```typescript
+ * import { YaciProvider } from "@meshsdk/core";
+ * const blockchainProvider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');
+ * ```
+ */
 export class YaciProvider
   implements IFetcher, IListener, ISubmitter, IEvaluator
 {
   private readonly _axiosInstance: AxiosInstance;
+  private readonly _adminAxiosInstance: AxiosInstance | undefined;
 
   /**
    * Set the URL of the instance.
    * @param baseUrl The base URL of the instance.
    */
-  constructor(baseUrl = "https://yaci-node.meshjs.dev/api/v1/") {
+  constructor(
+    baseUrl = "https://yaci-node.meshjs.dev/api/v1/",
+    adminUrl?: string,
+  ) {
     this._axiosInstance = axios.create({
       baseURL: baseUrl,
     });
+    if (adminUrl) {
+      this._adminAxiosInstance = axios.create({
+        baseURL: adminUrl,
+      });
+    }
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -75,12 +99,17 @@ export class YaciProvider
       );
 
       if (status === 200) {
-        const script = data.type.startsWith("plutus")
-          ? <PlutusScript>{
-              code: await this.fetchPlutusScriptCBOR(scriptHash),
-              version: data.type.replace("plutus", ""),
-            }
-          : await this.fetchNativeScriptJSON(scriptHash);
+        let script;
+        if (data.type.startsWith("plutus")) {
+          const plutusScript = await this.fetchPlutusScriptCBOR(scriptHash);
+          const normalized = normalizePlutusScript(plutusScript, "DoubleCBOR");
+          script = <PlutusScript>{
+            version: data.type.replace("plutus", ""),
+            code: normalized,
+          };
+        } else {
+          script = await this.fetchNativeScriptJSON(scriptHash);
+        }
 
         return toScriptRef(script).toCbor();
       }
@@ -115,6 +144,13 @@ export class YaciProvider
       scriptHash: bfUTxO.reference_script_hash,
     },
   });
+
+  async fetchAddressAssets(
+    address: string,
+  ): Promise<{ [key: string]: string }> {
+    const utxos = await this.fetchAddressUTxOs(address);
+    return utxosToAssets(utxos);
+  }
 
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const filter = asset !== undefined ? `/${asset}` : "";
@@ -324,7 +360,7 @@ export class YaciProvider
     }
   }
 
-  async fetchUTxOs(hash: string): Promise<UTxO[]> {
+  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
         `txs/${hash}/utxos`,
@@ -336,7 +372,31 @@ export class YaciProvider
           outputsPromises.push(this.toUTxO(output, hash));
         });
         const outputs = await Promise.all(outputsPromises);
+
+        if (index !== undefined) {
+          return outputs.filter((utxo) => utxo.input.outputIndex === index);
+        }
+
         return outputs;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented");
+  }
+
+  async get(url: string): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.get(url);
+      if (status === 200) {
+        return data;
       }
       throw parseHttpError(data);
     } catch (error) {
@@ -406,7 +466,7 @@ export class YaciProvider
           spend: "SPEND",
           mint: "MINT",
           certificate: "CERT",
-          withdrawal: "REWARD",
+          reward: "REWARD",
         };
         const result: Omit<Action, "data">[] = [];
 
@@ -423,6 +483,67 @@ export class YaciProvider
         return result;
       }
 
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async getDevnetInfo(): Promise<void> {
+    try {
+      if (this._adminAxiosInstance === undefined)
+        throw parseHttpError("Admin URL not provided");
+      const { status, data } = await this._adminAxiosInstance.get(
+        `local-cluster/api/admin/devnet`,
+      );
+
+      if (status === 200) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async getGenesisByEra(era: string): Promise<void> {
+    try {
+      if (this._adminAxiosInstance === undefined)
+        throw parseHttpError("Admin URL not provided");
+      const { status, data } = await this._adminAxiosInstance.get(
+        `local-cluster/api/admin/devnet/genesis/${era}`,
+      );
+
+      if (status === 200) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * Topup address with ADA
+   * @param address - Address to topup
+   * @param amount - Amount to topup
+   */
+  async addressTopup(address: string, amount: string): Promise<void> {
+    try {
+      if (this._adminAxiosInstance === undefined)
+        throw parseHttpError("Admin URL not provided");
+      const headers = { "Content-Type": "application/json", accept: "*/*" };
+      const { status, data } = await this._adminAxiosInstance.post(
+        "local-cluster/api/addresses/topup",
+        JSON.stringify({ address: address, adaAmount: parseInt(amount) }),
+        {
+          headers,
+        },
+      );
+
+      if (status === 200) {
+        return data;
+      }
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);

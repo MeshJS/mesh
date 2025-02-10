@@ -23,6 +23,18 @@ export type TransactionBody = Serialization.TransactionBody;
 export const TransactionWitnessSet = Serialization.TransactionWitnessSet;
 export type TransactionWitnessSet = Serialization.TransactionWitnessSet;
 
+export const AuxilliaryData = Serialization.AuxiliaryData;
+export type AuxiliaryData = Serialization.AuxiliaryData;
+
+export const TransactionMetadatum = Serialization.TransactionMetadatum;
+export type TransactionMetadatum = Serialization.TransactionMetadatum;
+
+export const MetadatumMap = Serialization.MetadatumMap;
+export type MetadatumMap = Serialization.MetadatumMap;
+
+export const MetadatumList = Serialization.MetadatumList;
+export type MetadatumList = Serialization.MetadatumList;
+
 export const TransactionUnspentOutput = Serialization.TransactionUnspentOutput;
 export type TransactionUnspentOutput = Serialization.TransactionUnspentOutput;
 
@@ -179,6 +191,18 @@ export type PlutusV2Script = Serialization.PlutusV2Script;
 export const PlutusV3Script = Serialization.PlutusV3Script;
 export type PlutusV3Script = Serialization.PlutusV3Script;
 
+export const PlutusDataKind = Serialization.PlutusDataKind;
+export type PlutusDataKind = Serialization.PlutusDataKind;
+
+export const PointerAddress = Cardano.PointerAddress;
+export type PointerAddress = Cardano.PointerAddress;
+
+export const CertIndex = Cardano.CertIndex;
+export type CertIndex = Cardano.CertIndex;
+
+export const TxIndex = Cardano.TxIndex;
+export type TxIndex = Cardano.TxIndex;
+
 export const Costmdls = Serialization.Costmdls;
 export type Costmdls = Serialization.Costmdls;
 
@@ -250,3 +274,8 @@ export const DRep = Serialization.DRep;
 
 export type StakeCredentialStatus = Cardano.StakeCredentialStatus;
 export const StakeCredentialStatus = Cardano.StakeCredentialStatus;
+
+export type Metadatum = Cardano.Metadatum;
+
+export const computeAuxiliaryDataHash = Cardano.computeAuxiliaryDataHash;
+export const blake2b = Crypto.blake2b;

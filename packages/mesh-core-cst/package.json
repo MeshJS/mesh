@@ -1,16 +1,17 @@
 {
   "name": "@meshsdk/core-cst",
-  "version": "1.7.4",
-  "description": "",
+  "version": "1.9.0-beta.3",
+  "description": "Types and utilities functions between Mesh and cardano-js-sdk",
   "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "files": [
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
+    "@types/bn.js": "^5.1.5",
     "@types/pbkdf2": "^3.1.2",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
@@ -35,15 +37,22 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@cardano-sdk/core": "^0.35.4",
-    "@cardano-sdk/crypto": "^0.1.28",
-    "@cardano-sdk/util": "^0.15.4",
+    "@cardano-sdk/core": "^0.43.0",
+    "@cardano-sdk/crypto": "^0.1.32",
+    "@cardano-sdk/util": "^0.15.5",
     "@harmoniclabs/cbor": "1.3.0",
     "@harmoniclabs/plutus-data": "1.2.4",
     "@harmoniclabs/uplc": "1.2.4",
-    "@meshsdk/common": "1.7.4",
+    "@harmoniclabs/crypto": "0.2.4",
+    "@harmoniclabs/pair": "1.0.0",
+    "@harmoniclabs/bytestring": "1.0.0",
+    "@meshsdk/common": "1.9.0-beta.3",
     "@stricahq/bip32ed25519": "^1.1.0",
     "@stricahq/cbors": "^1.0.0",
+    "@types/base32-encoding": "^1.0.2",
+    "base32-encoding": "^1.0.0",
+    "bech32": "^2.0.0",
+    "bn.js": "^5.2.0",
     "pbkdf2": "^3.1.2"
   },
   "prettier": "@meshsdk/configs/prettier",

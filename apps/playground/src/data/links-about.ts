@@ -1,7 +1,7 @@
 import { FilmIcon, HeartIcon } from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
-import { metaCatalyst } from "./links-catalyst";
+import { metaCatalyst } from "./catalyst";
 
 export const metaAboutUs = {
   link: `/about`,

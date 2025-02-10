@@ -1,3 +1,0 @@
-# Coupon Bond Guaranteed
-
-Debt agreement between an "Lender" and an "Borrower". "Lender" will advance the "Principal" amount at the beginning of the contract, and the "Borrower" will pay back "Interest instalment" every 30 slots and the "Principal" amount by the end of 3 instalments. The debt is backed by a collateral provided by the "Guarantor" which will be refunded as long as the "Borrower" pays back on time.

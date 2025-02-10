@@ -41,6 +41,7 @@ export interface Cip95WalletApi {
   getRegisteredPubStakeKeys: () => Promise<Ed25519PublicKeyHex[]>;
   getUnregisteredPubStakeKeys: () => Promise<Ed25519PublicKeyHex[]>;
   getPubDRepKey: () => Promise<Ed25519PublicKeyHex>;
+  signData(address: string, payload: string): Promise<DataSignature>;
 }
 
 export type WalletInstance = Cip30WalletApi & Cip95WalletApi;

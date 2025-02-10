@@ -9,11 +9,17 @@ import { metaTxbuilderGovernance } from "~/data/links-txbuilders";
 import { Intro } from "../common";
 import GovernanceDeregistration from "./deregistration";
 import GovernanceRegistration from "./registration";
+import GovernanceUpdate from "./update";
+import GovernanceVote from "./vote";
+import GovernanceVoteDelegation from "./vote-delegation";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
+    { label: "Vote Delegation", to: "delegation" },
     { label: "DRep Registration", to: "registration" },
-    { label: "DRep Deregistration", to: "deregistration" },
+    { label: "DRep Update", to: "update" },
+    { label: "DRep Retirement", to: "deregistration" },
+    { label: "Vote", to: "vote" },
   ];
 
   return (
@@ -45,10 +51,13 @@ const ReactPage: NextPage = () => {
             the Mesh SDK.
           </p>
         </TitleIconDescriptionBody>
-        <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/Transaction" />
+        <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/MeshTxBuilder" />
 
+        <GovernanceVoteDelegation />
         <GovernanceRegistration />
+        <GovernanceUpdate />
         <GovernanceDeregistration />
+        <GovernanceVote />
       </SidebarFullwidth>
     </>
   );

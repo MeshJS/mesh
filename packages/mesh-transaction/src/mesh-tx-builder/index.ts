@@ -11,9 +11,7 @@ import {
   TxIn,
   UTxO,
 } from "@meshsdk/common";
-import { CSLSerializer } from "@meshsdk/core-csl";
-
-// import { CardanoSDKSerializer } from "@meshsdk/core-cst";
+import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
 import { MeshTxBuilderCore } from "./tx-builder-core";
 
@@ -35,6 +33,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   txHex: string = "";
   protected queriedTxHashes: Set<string> = new Set();
   protected queriedUTxOs: { [x: string]: UTxO[] } = {};
+  protected utxosWithRefScripts: UTxO[] = [];
 
   constructor({
     serializer,
@@ -49,8 +48,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (serializer) {
       this.serializer = serializer;
     } else {
-      // this.serializer = new CardanoSDKSerializer();
-      this.serializer = new CSLSerializer();
+      this.serializer = new CardanoSDKSerializer();
+      // this.serializer = new CSLSerializer();
     }
     this.serializer.verbose = verbose;
     if (fetcher) this.fetcher = fetcher;
@@ -81,6 +80,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     this.removeDuplicateInputs();
 
+    // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
+    for (let collateral of this.meshTxBuilderBody.collaterals) {
+      collateral.txIn.scriptSize = 0;
+    }
+
     // Checking if all inputs are complete
     const { inputs, collaterals, mints } = this.meshTxBuilderBody;
     const incompleteTxIns = [...inputs, ...collaterals].filter(
@@ -103,7 +107,41 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         this.completeSimpleScriptInfo(scriptSource);
       }
     });
+    this.meshTxBuilderBody.inputs.forEach((input) => {
+      if (input.txIn.scriptSize && input.txIn.scriptSize > 0) {
+        if (
+          this.meshTxBuilderBody.referenceInputs.find((refTxIn) => {
+            refTxIn.txHash === input.txIn.txHash &&
+              refTxIn.txIndex === input.txIn.txIndex;
+          }) === undefined
+        ) {
+          this.meshTxBuilderBody.referenceInputs.push({
+            txHash: input.txIn.txHash,
+            txIndex: input.txIn.txIndex,
+            scriptSize: input.txIn.scriptSize,
+          });
+        }
+      }
+    });
     this.addUtxosFromSelection();
+
+    // Sort inputs based on txHash and txIndex
+    this.meshTxBuilderBody.inputs.sort((a, b) => {
+      if (a.txIn.txHash < b.txIn.txHash) return -1;
+      if (a.txIn.txHash > b.txIn.txHash) return 1;
+      if (a.txIn.txIndex < b.txIn.txIndex) return -1;
+      if (a.txIn.txIndex > b.txIn.txIndex) return 1;
+      return 0;
+    });
+
+    // Sort mints based on policy id and asset name
+    this.meshTxBuilderBody.mints.sort((a, b) => {
+      if (a.policyId < b.policyId) return -1;
+      if (a.policyId > b.policyId) return 1;
+      if (a.assetName < b.assetName) return -1;
+      if (a.assetName > b.assetName) return 1;
+      return 0;
+    });
 
     let txHex = this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
@@ -113,7 +151,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     // Evaluating the transaction
     if (this.evaluator) {
       const txEvaluation = await this.evaluator
-        .evaluateTx(txHex)
+        .evaluateTx(
+          txHex,
+          Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+          this.meshTxBuilderBody.chainedTxs,
+        )
         .catch((error) => {
           throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
         });
@@ -192,7 +234,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       !this.fetcher
     )
       throw Error(
-        "Transaction information is incomplete while no fetcher instance is provided",
+        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
       );
     for (let i = 0; i < incompleteTxIns.length; i++) {
       const currentTxIn = incompleteTxIns[i]!;
@@ -250,12 +292,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
       );
     input.txIn.amount = amount;
-    if (input.type === "PubKey") {
-      if (!address || address === "")
-        throw Error(
-          `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-        );
-      input.txIn.address = address;
+
+    if (!address || address === "")
+      throw Error(
+        `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
+      );
+    input.txIn.address = address;
+
+    if (utxo?.output.scriptRef) {
+      input.txIn.scriptSize = utxo.output.scriptRef.length / 2;
+    } else {
+      input.txIn.scriptSize = 0;
     }
   };
 
@@ -303,8 +350,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   protected isInputInfoComplete = (txIn: TxIn): boolean => {
-    const { amount, address } = txIn.txIn;
-    if (!amount || !address) return false;
+    const { amount, address, scriptSize } = txIn.txIn;
+    if (!amount || !address || scriptSize === undefined) return false;
     return true;
   };
 

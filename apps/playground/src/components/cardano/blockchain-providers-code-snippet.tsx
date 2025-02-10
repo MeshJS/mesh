@@ -26,6 +26,14 @@ export default function BlockchainProviderCodeSnippet() {
   codeMaestro += `  turboSubmit: false // Read about paid turbo transaction submission feature at https://docs.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.\n`;
   codeMaestro += `});\n`;
 
+  let codeU5c = `import { U5CProvider } from "@meshsdk/core";\n\n`;
+  codeU5c += `const blockchainProvider = new U5CProvider({\n`;
+  codeU5c += `  url: "http://localhost:5005U5c",\n`;
+  codeU5c += `  headers: {\n`;
+  codeU5c += `    "dmtr-api-key": "<api-key>",\n`;
+  codeU5c += `  },\n`;
+  codeU5c += `});\n`;
+
   let code = codeBF;
   if (blockchainProvider == "koios") {
     code = codeKoios;
@@ -35,6 +43,9 @@ export default function BlockchainProviderCodeSnippet() {
   }
   if (blockchainProvider == "maestro") {
     code = codeMaestro;
+  }
+  if (blockchainProvider == "utxorpc") {
+    code = codeU5c;
   }
 
   return (
@@ -55,6 +66,11 @@ export default function BlockchainProviderCodeSnippet() {
             key: "koios",
             label: "Koios",
             onClick: () => setBlockchainProvider("koios"),
+          },
+          {
+            key: "utxorpc",
+            label: "UTxORPC",
+            onClick: () => setBlockchainProvider("utxorpc"),
           },
         ]}
         currentSelected={blockchainProvider}

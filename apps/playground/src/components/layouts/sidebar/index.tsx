@@ -1,16 +1,34 @@
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import { Link as RSLink, scroller } from "react-scroll";
+
 import Link from "~/components/link";
-import { Link as RSLink } from "react-scroll";
 
 export default function Sidebar({
   sidebarItems,
 }: {
   sidebarItems: { to: string; label: string }[];
 }) {
+  const router = useRouter();
+  useEffect(() => {
+    if (router.asPath.includes("#")) {
+      setTimeout(() => {
+        const id = router.asPath.split("#")[1] as string;
+        scroller.scrollTo(id, {
+          duration: 500,
+          smooth: true,
+          offset: -100,
+          spy: true,
+        });
+      }, 1000);
+    }
+  }, []);
+
   return (
     <div className="mb-6 mr-6 hidden lg:w-72 xl:block">
       <div className="sticky top-24">
         <aside>
-          <nav className="overflow-y-auto rounded-lg border border-gray-200 p-6 font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400 max-h-96">
+          <nav className="h-[calc(100vh-150px)] overflow-y-auto rounded-lg border border-neutral-200 p-6 font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
             <ul className="space-y-4">
               {sidebarItems.map((item, i) => {
                 return (
@@ -34,7 +52,7 @@ export default function Sidebar({
 function LinkWithinPage({ item }: { item: { to: string; label: string } }) {
   return (
     <RSLink
-      activeClass="text-primary-600 dark:text-primary-500"
+      activeClass="text-primary-600 dark:text-primary-300"
       className="cursor-pointer hover:text-black dark:hover:text-white"
       to={item.to}
       spy={true}

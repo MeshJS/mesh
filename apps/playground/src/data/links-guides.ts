@@ -1,4 +1,4 @@
-import { DocumentTextIcon } from "@heroicons/react/24/solid";
+import { BookOpenIcon } from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
 
@@ -60,10 +60,17 @@ export const guidestandalone = {
 };
 export const guideVesting = {
   title: "Vesting Script End-to-End",
-  desc: "Learn how to vesting contract that locks up funds for a period of time and allows the owner to withdraw the funds after the lockup period.",
+  desc: "Learn how to vesting contract that locks up funds for a period of time and allows the beneficiary to withdraw the funds after the lockup period.",
   link: "/guides/vesting",
   thumbnail: "/guides/vesting.png",
   image: "/guides/laptop-3196481_640.jpg",
+};
+export const guideNodeSpecificImports = {
+  title: "Resolve Node-Specific Imports Errors",
+  desc: "How to Resolve Node-Specific Imports Errors (e.g., Buffer, TextEncoder) in Browser-Based Projects",
+  link: "/guides/node-specific-imports",
+  thumbnail: "/guides/node-specific-imports.png",
+  image: "/guides/electrician-3087536_640.jpg",
 };
 
 export const linksGuides: MenuItem[] = [
@@ -76,12 +83,13 @@ export const linksGuides: MenuItem[] = [
   guideaiken,
   guidestandalone,
   guideVesting,
+  guideNodeSpecificImports,
 ];
 
 export const metaGuides: MenuItem = {
   link: `/guides`,
   title: "Guides",
   desc: "Whether you are new to web development or a seasoned blockchain full-stack developer, these guides will help you get started.",
-  icon: DocumentTextIcon,
+  icon: BookOpenIcon,
   items: linksGuides,
 };

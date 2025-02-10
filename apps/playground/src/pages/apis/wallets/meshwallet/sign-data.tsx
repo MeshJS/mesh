@@ -43,7 +43,7 @@ function Left() {
       <Codeblock data={example} />
       <p>
         Continue reading this{" "}
-        <Link href="https://meshjs.dev/guides/prove-wallet-ownership">
+        <Link href="/guides/prove-wallet-ownership">
           guide
         </Link>{" "}
         to learn how to verify the signature.
@@ -58,11 +58,11 @@ function Right() {
 
   async function runDemo() {
     const wallet = getWallet();
-    return wallet.signData(payload);
+    return await wallet.signData(payload);
   }
 
   let code = ``;
-  code += `const signature = wallet.signData('${payload}');`;
+  code += `const signature = await wallet.signData('${payload}');`;
 
   return (
     <LiveCodeDemo
