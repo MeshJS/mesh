@@ -1,3 +1,12 @@
+import {
+  CborBytes,
+  CborMap,
+  CborMapEntry,
+  CborNegInt,
+  CborText,
+  CborUInt,
+} from "@harmoniclabs/cbor";
+
 import { DataSignature } from "@meshsdk/common";
 
 import { HexBlob, Signer } from "../types";
@@ -7,19 +16,22 @@ export const signData = (data: string, signer: Signer): DataSignature => {
   const payload = Buffer.from(data, "hex");
   const publicKey = Buffer.from(signer.key.toPublic().bytes());
 
-  const protectedMap = new Map();
+  const protectedMap: CborMapEntry[] = [];
   // Set protected headers as per CIP08
   // Set Algorthm used by Cardano keys
-  protectedMap.set(1, -8);
+  protectedMap.push({ k: new CborUInt(1), v: new CborNegInt(-8) });
   // Set PublicKey
-  protectedMap.set(4, publicKey);
+  protectedMap.push({ k: new CborUInt(4), v: new CborBytes(publicKey) });
   // Set Address
-  protectedMap.set("address", Buffer.from(signer.address.toBytes(), "hex"));
+  protectedMap.push({
+    k: new CborText("address"),
+    v: new CborBytes(Buffer.from(signer.address.toBytes(), "hex")),
+  });
 
   const coseSign1Builder = new CoseSign1({
-    protectedMap,
-    unProtectedMap: new Map(),
-    payload: payload,
+    protectedMap: new CborMap(protectedMap),
+    unProtectedMap: new CborMap([]),
+    payload: new CborBytes(payload),
   });
 
   const signature = signer.key.sign(
