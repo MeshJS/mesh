@@ -94,9 +94,9 @@ class CoseSign1 {
     let protectedSerialized = new CborBytes(Buffer.alloc(0));
 
     if (this.protectedMap.map.length !== 0) {
-      protectedSerialized = Cbor.encode(
-        this.protectedMap,
-      ).toCborObj() as CborBytes;
+      protectedSerialized = new CborBytes(
+        Cbor.encode(this.protectedMap).toBuffer(),
+      );
     }
 
     if (!this.payload) throw Error("Invalid payload");
