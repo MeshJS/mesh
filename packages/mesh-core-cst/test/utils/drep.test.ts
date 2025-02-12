@@ -1,4 +1,4 @@
-import { getDRepIds } from "@meshsdk/core-csl";
+import { getDRepIds } from "@meshsdk/core-cst";
 
 describe("DRep", () => {
   test("Get DRepIds of a CIP105 script", () => {
@@ -23,11 +23,9 @@ describe("DRep", () => {
 
   test("Get DRepIds of a CIP105 key hash", () => {
     expect(
-      getDRepIds(
-        "drep_vkh100gzgh095hxsgarhdvacsz8m98sdwkyhm5924w74au5djkq8f4h",
-      ),
+      getDRepIds("drep100gzgh095hxsgarhdvacsz8m98sdwkyhm5924w74au5djs8u5ud"),
     ).toEqual({
-      cip105: "drep_vkh100gzgh095hxsgarhdvacsz8m98sdwkyhm5924w74au5djkq8f4h",
+      cip105: "drep100gzgh095hxsgarhdvacsz8m98sdwkyhm5924w74au5djs8u5ud",
       cip129: "drep1yfaaqfzaukju6pr5wa4nhzqglv57p46cjlws424m6hhj3kg2k9vj7",
     });
   });
@@ -36,7 +34,7 @@ describe("DRep", () => {
     expect(
       getDRepIds("drep1yfaaqfzaukju6pr5wa4nhzqglv57p46cjlws424m6hhj3kg2k9vj7"),
     ).toEqual({
-      cip105: "drep_vkh100gzgh095hxsgarhdvacsz8m98sdwkyhm5924w74au5djkq8f4h",
+      cip105: "drep100gzgh095hxsgarhdvacsz8m98sdwkyhm5924w74au5djs8u5ud",
       cip129: "drep1yfaaqfzaukju6pr5wa4nhzqglv57p46cjlws424m6hhj3kg2k9vj7",
     });
   });

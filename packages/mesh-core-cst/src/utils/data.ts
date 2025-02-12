@@ -171,9 +171,14 @@ export const fromPlutusDataToJson = (data: PlutusData): object => {
     const plutusData = data.asConstrPlutusData();
     if (plutusData) {
       const fields = plutusData.getData();
+      const list: object[] = [];
+      for (let i = 0; i < fields.getLength(); i++) {
+        const element = fields.get(i);
+        list.push(fromPlutusDataToJson(element));
+      }
       return {
         constructor: plutusData.getAlternative(),
-        fields: fromPlutusDataToJson(PlutusData.newList(fields)),
+        fields: list,
       };
     } else {
       throw new Error("Invalid constructor data found");
@@ -210,7 +215,7 @@ export const fromPlutusDataToJson = (data: PlutusData): object => {
         const element = plutusList.get(i);
         list.push(fromPlutusDataToJson(element));
       }
-      return list;
+      return { list: list };
     } else {
       throw new Error("Invalid list data found");
     }
