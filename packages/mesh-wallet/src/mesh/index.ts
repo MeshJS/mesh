@@ -220,7 +220,7 @@ export class MeshWallet implements IWallet {
    *
    * @returns an address
    */
-  getChangeAddress(): string {
+  async getChangeAddress(): Promise<string> {
     return this.addresses.baseAddressBech32
       ? this.addresses.baseAddressBech32
       : this.addresses.enterpriseAddressBech32!;
@@ -329,7 +329,7 @@ export class MeshWallet implements IWallet {
    * @returns a list of unused addresses
    */
   async getUnusedAddresses(): Promise<string[]> {
-    return [this.getChangeAddress()];
+    return [await this.getChangeAddress()];
   }
 
   /**
@@ -338,7 +338,7 @@ export class MeshWallet implements IWallet {
    * @returns a list of used addresses
    */
   async getUsedAddresses(): Promise<string[]> {
-    return [this.getChangeAddress()];
+    return [await this.getChangeAddress()];
   }
 
   /**
@@ -380,7 +380,7 @@ export class MeshWallet implements IWallet {
       );
     }
     if (address === undefined) {
-      address = this.getChangeAddress()!;
+      address = await this.getChangeAddress()!;
     }
     return this._wallet.signData(
       address,
@@ -595,7 +595,7 @@ export class MeshWallet implements IWallet {
    */
   async createCollateral(): Promise<string> {
     const tx = new Transaction({ initiator: this });
-    tx.sendLovelace(this.getChangeAddress(), "5000000");
+    tx.sendLovelace(await this.getChangeAddress(), "5000000");
     const unsignedTx = await tx.build();
     const signedTx = await this.signTx(unsignedTx);
     const txHash = await this.submitTx(signedTx);
