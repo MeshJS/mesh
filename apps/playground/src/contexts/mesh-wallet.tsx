@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { MeshWallet } from "@meshsdk/core";
 
@@ -16,6 +22,16 @@ export const MeshWalletProvider = ({
   children: React.ReactNode;
 }) => {
   const [wallet, setWallet] = useState<MeshWallet>({} as MeshWallet);
+
+  useEffect(() => {
+    const initWallet = async () => {
+      if (JSON.stringify(wallet) !== "{}") {
+        await wallet.init();
+      }
+    };
+
+    initWallet();
+  }, [wallet]);
 
   const walletConnected = useMemo(() => {
     return Object.keys(wallet).length == 0 ? false : true;

@@ -9,6 +9,10 @@ describe("MeshWallet", () => {
     },
   });
 
+  beforeAll(async () => {
+    await wallet.init();
+  });
+
   it("private keys", async () => {
     const _wallet = new MeshWallet({
       networkId: 0,
@@ -66,7 +70,6 @@ describe("MeshWallet", () => {
   });
 
   it("getChangeAddress", async () => {
-    await wallet.init();
     const changeAddress = wallet.getChangeAddress();
     expect(changeAddress).toEqual(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
@@ -74,13 +77,11 @@ describe("MeshWallet", () => {
   });
 
   it("getNetworkId", async () => {
-    await wallet.init();
     const networkId = await wallet.getNetworkId();
     expect(networkId).toEqual(0);
   });
 
   it("getRewardAddresses", async () => {
-    await wallet.init();
     const addresses = await wallet.getRewardAddresses();
     expect(addresses).toEqual([
       "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n",
@@ -88,7 +89,6 @@ describe("MeshWallet", () => {
   });
 
   it("getUnusedAddresses", async () => {
-    await wallet.init();
     const addresses = await wallet.getUnusedAddresses();
     expect(addresses).toEqual([
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
@@ -96,7 +96,6 @@ describe("MeshWallet", () => {
   });
 
   it("getUsedAddresses", async () => {
-    await wallet.init();
     const addresses = await wallet.getUsedAddresses();
     expect(addresses).toEqual([
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
@@ -104,7 +103,6 @@ describe("MeshWallet", () => {
   });
 
   it("getUsedAddress", async () => {
-    await wallet.init();
     const address = wallet.getUsedAddress();
     expect(address.toBech32()).toEqual(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
