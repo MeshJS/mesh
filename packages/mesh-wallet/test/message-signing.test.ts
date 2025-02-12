@@ -16,7 +16,7 @@ describe("Mesh Wallet data sign and verify", () => {
 
     const signature = await wallet.signData(nonce);
 
-    const result = checkSignature(nonce, signature);
+    const result = await checkSignature(nonce, signature);
 
     expect(result).toEqual(true);
   });
