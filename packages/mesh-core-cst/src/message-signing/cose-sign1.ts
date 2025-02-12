@@ -17,7 +17,6 @@ import {
 import { blake2b } from "blakejs";
 import JSONBig from "json-bigint";
 
-import { StricaDecoder, StricaEncoder } from "../stricahq";
 import { Ed25519PublicKey, Ed25519Signature, HexBlob } from "../types";
 
 class CoseSign1 {
