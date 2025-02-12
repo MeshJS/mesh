@@ -37,7 +37,7 @@ describe("Build transaction with custom protocol params", () => {
   it("should build transaction with custom protocol params", async () => {
     const serializer = new CardanoSDKSerializer(HYDRA_PROTOCOL_PARAMETER);
 
-    console.log(
+    expect(
       serializer.serializeTxBody({
         inputs: [
           {
@@ -342,6 +342,6 @@ describe("Build transaction with custom protocol params", () => {
         chainedTxs: [],
         inputsForEvaluation: {},
       }),
-    );
+    ).toBeTruthy();
   });
 });
