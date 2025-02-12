@@ -339,6 +339,8 @@ describe("Build transaction with custom protocol params", () => {
           strategy: "largestFirst",
           includeTxFees: false,
         },
+        chainedTxs: [],
+        inputsForEvaluation: {},
       }),
     );
   });
