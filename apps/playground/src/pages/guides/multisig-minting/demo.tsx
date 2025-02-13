@@ -73,7 +73,7 @@ export default function Demo() {
   }
 
   async function backendBuildTx(userUtxos: UTxO[], recipientAddress: string) {
-    const systemWalletAddress = systemWallet.getChangeAddress();
+    const systemWalletAddress = await systemWallet.getChangeAddress();
     const forgingScript = ForgeScript.withOneSignature(systemWalletAddress);
     const assetName = "MeshToken";
 

@@ -29,7 +29,6 @@
   "devDependencies": {
     "@meshsdk/configs": "*",
     "@types/bn.js": "^5.1.5",
-    "@types/pbkdf2": "^3.1.2",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
     "tsup": "^8.0.2",
@@ -52,8 +51,12 @@
     "@types/base32-encoding": "^1.0.2",
     "base32-encoding": "^1.0.0",
     "bech32": "^2.0.0",
-    "bn.js": "^5.2.0",
-    "pbkdf2": "^3.1.2"
+    "bn.js": "^5.2.0"
+  },
+  "overrides": {
+    "@cardano-sdk/crypto": {
+      "pbkdf2": "crypto"
+    }
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

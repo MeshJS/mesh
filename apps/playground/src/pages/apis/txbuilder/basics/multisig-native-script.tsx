@@ -118,7 +118,7 @@ function Left() {
 function Right() {
   const { wallet, connected } = useWallet();
 
-  function getMeshWallet() {
+  async function getMeshWallet() {
     const blockchainProvider = getProvider();
 
     const wallet = new MeshWallet({
@@ -131,7 +131,7 @@ function Right() {
       },
     });
 
-    const walletAddress = wallet.getChangeAddress();
+    const walletAddress = await wallet.getChangeAddress();
 
     const { pubKeyHash: keyHash } = deserializeAddress(walletAddress);
     return { wallet, keyHash, walletAddress };
@@ -146,7 +146,7 @@ function Right() {
     const { pubKeyHash: keyHash1 } = deserializeAddress(walletAddress);
 
     // second wallet
-    const { keyHash: keyHash2 } = getMeshWallet();
+    const { keyHash: keyHash2 } = await getMeshWallet();
 
     const nativeScript: NativeScript = {
       type: "all",
@@ -185,7 +185,7 @@ function Right() {
     }
     const utxo = utxos[0]!;
 
-    const { wallet: walletB } = getMeshWallet();
+    const { wallet: walletB } = await getMeshWallet();
 
     const txBuilder = getTxBuilder();
 

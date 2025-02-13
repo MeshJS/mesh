@@ -20,7 +20,7 @@ export default function MintMeshToken() {
       },
     });
     const forgingScript = ForgeScript.withOneSignature(
-      mintingWallet.getChangeAddress(),
+      await mintingWallet.getChangeAddress(),
     );
 
     const usedAddress = await wallet.getUsedAddresses();

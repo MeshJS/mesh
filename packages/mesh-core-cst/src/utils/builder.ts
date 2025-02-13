@@ -1,7 +1,7 @@
 import { blake2b, ready } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 import hash from "hash.js";
-import { pbkdf2Sync } from "pbkdf2";
+import { pbkdf2Sync } from "crypto";
 
 import { HARDENED_KEY_START } from "@meshsdk/common";
 
