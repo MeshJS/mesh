@@ -51,12 +51,11 @@
     "@types/base32-encoding": "^1.0.2",
     "base32-encoding": "^1.0.0",
     "bech32": "^2.0.0",
-    "bn.js": "^5.2.0",
-    "pbkdf2": "npm:@ethersproject/pbkdf2@^5.7.0"
+    "bn.js": "^5.2.0"
   },
   "overrides": {
     "@cardano-sdk/crypto": {
-      "pbkdf2": "npm:@ethersproject/pbkdf2@^5.7.0"
+      "pbkdf2": "crypto"
     }
   },
   "prettier": "@meshsdk/configs/prettier",
