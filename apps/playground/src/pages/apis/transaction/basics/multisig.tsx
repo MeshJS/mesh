@@ -77,7 +77,7 @@ function Right() {
       },
     });
     const forgingScript = ForgeScript.withOneSignature(
-      mintingWallet.getChangeAddress(),
+      await mintingWallet.getChangeAddress(),
     );
 
     const usedAddress = await wallet.getUsedAddresses();
