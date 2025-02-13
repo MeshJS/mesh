@@ -2,6 +2,7 @@ import {
   AccountInfo,
   IFetcher,
   MintItem,
+  ScriptSource,
   TransactionInfo,
   TxIn,
   UTxO,
@@ -56,19 +57,28 @@ describe("MeshTxBuilder", () => {
           },
         },
       ];
-      const incompleteMints: MintItem[] = [];
 
       const getUTxOInfoMock = jest
         .spyOn(txBuilder as any, "getUTxOInfo")
         .mockResolvedValue({} as UTxO);
 
-      await txBuilder.queryAllTxInfoExtended(incompleteTxIns, incompleteMints);
+      await txBuilder.queryAllTxInfoExtended(
+        incompleteTxIns,
+        [
+          {
+            type: "Inline",
+            txHash: "txHash3",
+            txIndex: 2,
+          },
+        ],
+        [],
+      );
       expect(getUTxOInfoMock).toHaveBeenCalledWith("txHash1");
+      expect(getUTxOInfoMock).toHaveBeenCalledWith("txHash2");
       expect(getUTxOInfoMock).toHaveBeenCalledWith("txHash3");
     });
 
     it("should call getUTxOInfo for incomplete Mints", async () => {
-      const incompleteTxIns: TxIn[] = [];
       const incompleteMints: MintItem[] = [
         {
           type: "Plutus",
@@ -87,7 +97,11 @@ describe("MeshTxBuilder", () => {
         .spyOn(txBuilder as any, "getUTxOInfo")
         .mockResolvedValue({} as UTxO);
 
-      await txBuilder.queryAllTxInfoExtended(incompleteTxIns, incompleteMints);
+      await txBuilder.queryAllTxInfoExtended(
+        [],
+        incompleteMints.map((m) => m.scriptSource as ScriptSource),
+        [],
+      );
 
       expect(getUTxOInfoMock).toHaveBeenCalledWith("txHash4");
     });
