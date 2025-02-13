@@ -9,7 +9,9 @@ import {
   ScriptSource,
   SimpleScriptSourceInfo,
   TxIn,
+  txInToUtxo,
   UTxO,
+  Withdrawal,
 } from "@meshsdk/common";
 import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
@@ -153,11 +155,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const txEvaluation = await this.evaluator
         .evaluateTx(
           txHex,
-          Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+          (
+            Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[]
+          ).concat(
+            this.meshTxBuilderBody.inputs.map((val) => txInToUtxo(val.txIn)),
+          ),
           this.meshTxBuilderBody.chainedTxs,
         )
         .catch((error) => {
-          throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
+          throw new Error(
+            `Tx evaluation failed: ${JSON.stringify(error)} \n For txHex: ${txHex}`,
+          );
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
       txHex = this.serializer.serializeTxBody(
