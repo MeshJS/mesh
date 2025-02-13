@@ -141,7 +141,10 @@ export const addrBech32ToPlutusDataObj = <T>(bech32: string): T => {
   return fromPlutusDataToJson(addrBech32ToPlutusData(bech32)) as T;
 };
 
-const plutusDataToAddrBech32 = (plutusData: PlutusData, networkId = 0) => {
+const plutusDataToAddrBech32 = (
+  plutusData: PlutusData,
+  networkId = 0,
+): string => {
   const constrPlutusData = plutusData.asConstrPlutusData();
   if (!constrPlutusData || constrPlutusData.getAlternative() !== BigInt(0)) {
     throw new Error(
@@ -204,7 +207,8 @@ const plutusDataToAddrBech32 = (plutusData: PlutusData, networkId = 0) => {
       cardanoPaymentCredential,
     )
       .toAddress()
-      .toBech32();
+      .toBech32()
+      .toString();
   } else if (delegationConstrData.getAlternative() === BigInt(0)) {
     const delegationDataList = delegationConstrData.getData();
     if (delegationDataList.getLength() !== 1) {
@@ -250,7 +254,8 @@ const plutusDataToAddrBech32 = (plutusData: PlutusData, networkId = 0) => {
         cardanoStakeCredential,
       )
         .toAddress()
-        .toBech32();
+        .toBech32()
+        .toString();
     } else if (delegationDataInnerConstrData.getAlternative() === BigInt(1)) {
       const delegationDataInnerList = delegationDataInnerConstrData.getData();
       if (delegationDataInnerList.getLength() !== 3) {
@@ -292,7 +297,8 @@ const plutusDataToAddrBech32 = (plutusData: PlutusData, networkId = 0) => {
         cardanoPointer,
       )
         .toAddress()
-        .toBech32();
+        .toBech32()
+        .toString();
     } else {
       throw new Error(
         "Error: serializeAddressObj: Delegation inner part must be alternative 0 or 1",
@@ -318,7 +324,7 @@ export const serializePlutusAddressToBech32 = (
   networkId = 0,
 ) => {
   const cardanoPlutusData = PlutusData.fromCbor(HexBlob(plutusHex));
-  return plutusDataToAddrBech32(cardanoPlutusData, networkId);
+  return plutusDataToAddrBech32(cardanoPlutusData, networkId).toString();
 };
 
 export const deserializeBech32Address = (
