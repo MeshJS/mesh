@@ -23,7 +23,7 @@ describe("MeshWallet", () => {
       },
     });
     await _wallet.init();
-    expect(_wallet.getChangeAddress()).toEqual(
+    expect(await _wallet.getChangeAddress()).toEqual(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
     );
   });
@@ -40,7 +40,7 @@ describe("MeshWallet", () => {
       },
     });
     await _wallet.init();
-    expect(_wallet.getChangeAddress()).toEqual(
+    expect(await _wallet.getChangeAddress()).toEqual(
       "addr_test1qqdy60gf798xrl20wwvapvsxj3kr8yz8ac6zfmgwg6c5g9p3x07mt562mneg8jxgj03p2uvmhyfyvktjn259mws8e6wq3cdn8p",
     );
     expect((await _wallet.getRewardAddresses())[0]).toEqual(
@@ -70,7 +70,7 @@ describe("MeshWallet", () => {
   });
 
   it("getChangeAddress", async () => {
-    const changeAddress = wallet.getChangeAddress();
+    const changeAddress = await wallet.getChangeAddress();
     expect(changeAddress).toEqual(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
     );
