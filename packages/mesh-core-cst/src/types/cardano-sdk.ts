@@ -1,7 +1,7 @@
 import type { OpaqueString } from "@cardano-sdk/util";
 import { Cardano, Serialization } from "@cardano-sdk/core";
 import * as Crypto from "@cardano-sdk/crypto";
-import { typedHex } from "@cardano-sdk/util";
+import { HexBlob as CardanoHexBlob, typedHex } from "@cardano-sdk/util";
 
 export const Slot = Cardano.Slot;
 export type Slot = Cardano.Slot;
@@ -176,6 +176,12 @@ export type Bip32PrivateKey = Crypto.Bip32PrivateKey;
 export const Bip32PrivateKeyHex = Crypto.Bip32PrivateKeyHex;
 export type Bip32PrivateKeyHex = Crypto.Bip32PrivateKeyHex;
 
+export const Bip32PublicKey = Crypto.Bip32PublicKey;
+export type Bip32PublicKey = Crypto.Bip32PublicKey;
+
+export const Bip32PublicKeyHex = Crypto.Bip32PublicKeyHex;
+export type Bip32PublicKeyHex = Crypto.Bip32PublicKeyHex;
+
 export const PlutusLanguageVersion = Cardano.PlutusLanguageVersion;
 export type PlutusLanguageVersion = Cardano.PlutusLanguageVersion;
 
@@ -276,6 +282,15 @@ export type StakeCredentialStatus = Cardano.StakeCredentialStatus;
 export const StakeCredentialStatus = Cardano.StakeCredentialStatus;
 
 export type Metadatum = Cardano.Metadatum;
+
+export type HexBlob = CardanoHexBlob;
+export const HexBlob = CardanoHexBlob;
+
+export type TxCBOR = Serialization.TxCBOR;
+export const TxCBOR = Serialization.TxCBOR;
+
+export type Ed25519PrivateKey = Crypto.Ed25519PrivateKey;
+export const Ed25519PrivateKey = Crypto.Ed25519PrivateKey;
 
 export const computeAuxiliaryDataHash = Cardano.computeAuxiliaryDataHash;
 export const blake2b = Crypto.blake2b;

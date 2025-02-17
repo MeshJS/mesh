@@ -1,18 +1,20 @@
-import { blake2b } from "@cardano-sdk/crypto";
+import { blake2b, ready } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
-import { pbkdf2Sync } from "pbkdf2";
+import hash from "hash.js";
+import { pbkdf2Sync } from "crypto";
 
 import { HARDENED_KEY_START } from "@meshsdk/common";
 
-import { StricaBip32PrivateKey, StricaPrivateKey } from "../";
 import {
   AddressType,
   BaseAddress,
   Bip32PrivateKey,
+  Bip32PrivateKeyHex,
   CredentialType,
   DRepID,
   Ed25519KeyHash,
   Ed25519KeyHashHex,
+  Ed25519PrivateKey,
   Ed25519PublicKeyHex,
   EnterpriseAddress,
   Hash28ByteBase16,
@@ -50,6 +52,17 @@ export const buildEnterpriseAddress = (
   });
 };
 
+export const clampScalar = (scalar: Buffer): Buffer => {
+  if (scalar[0] !== undefined) {
+    scalar[0] &= 0b1111_1000;
+  }
+  if (scalar[31] !== undefined) {
+    scalar[31] &= 0b0001_1111;
+    scalar[31] |= 0b0100_0000;
+  }
+  return scalar;
+};
+
 export const buildBip32PrivateKey = (
   entropy: string,
   password = "",
@@ -57,17 +70,6 @@ export const buildBip32PrivateKey = (
   const PBKDF2_ITERATIONS = 4096;
   const PBKDF2_KEY_SIZE = 96;
   const PBKDF2_DIGEST_ALGORITHM = "sha512";
-
-  const clampScalar = (scalar: Buffer): Buffer => {
-    if (scalar[0] !== undefined) {
-      scalar[0] &= 0b1111_1000;
-    }
-    if (scalar[31] !== undefined) {
-      scalar[31] &= 0b0001_1111;
-      scalar[31] |= 0b0100_0000;
-    }
-    return scalar;
-  };
 
   const _entropy = Buffer.from(entropy, "hex");
 
@@ -92,48 +94,60 @@ export const buildRewardAddress = (
   return RewardAddress.fromCredentials(networkId, cred);
 };
 
+/**
+ * Build a set of keys from a given private key
+ *
+ * NOTE - Must be called after `await Crypto.Ready()`
+ *
+ * @param privateKeyHex - The BIP32 private key hex to derive keys from
+ * @param accountIndex - The account index to derive keys for
+ * @param keyIndex - The key index to derive keys for
+ * @returns The payment and stake keys, and optionally the dRep key if a Bip32PrivateKey is provided
+ */
 export const buildKeys = (
-  entropy: string | [string, string],
+  privateKeyHex: string | [string, string],
   accountIndex: number,
   keyIndex = 0,
 ): {
-  paymentKey: StricaPrivateKey;
-  stakeKey: StricaPrivateKey;
-  dRepKey?: StricaPrivateKey;
+  paymentKey: Ed25519PrivateKey;
+  stakeKey: Ed25519PrivateKey;
+  dRepKey?: Ed25519PrivateKey;
 } => {
-  if (typeof entropy === "string") {
-    const rootKey = new StricaBip32PrivateKey(Buffer.from(entropy, "hex"));
+  if (typeof privateKeyHex === "string") {
+    const privateKey = Bip32PrivateKey.fromHex(
+      Bip32PrivateKeyHex(privateKeyHex),
+    );
 
     // hardened derivation
-    const accountKey = rootKey
-      .derive(HARDENED_KEY_START + 1852) // purpose
-      .derive(HARDENED_KEY_START + 1815) // coin type
-      .derive(HARDENED_KEY_START + accountIndex); // account index
+    const accountKey = privateKey.derive([
+      HARDENED_KEY_START + 1852, // purpose
+      HARDENED_KEY_START + 1815, // coin type
+      HARDENED_KEY_START + accountIndex, // account index
+    ]);
 
-    const paymentKey = accountKey
-      .derive(0) // external chain
-      .derive(keyIndex) // payment key index
-      .toPrivateKey();
-    const stakeKey = accountKey
-      .derive(2) // staking key
-      .derive(0)
-      .toPrivateKey();
-    const dRepKey = accountKey
-      .derive(3) // dRep Keys
-      .derive(keyIndex)
-      .toPrivateKey();
+    const paymentKey = accountKey.derive([0, keyIndex]).toRawKey(); // external chain, payment key index
+    const stakeKey = accountKey.derive([2, 0]).toRawKey(); // staking key, index 0
+    const dRepKey = accountKey.derive([3, keyIndex]).toRawKey(); // dRep Keys, index
 
     return { paymentKey, stakeKey, dRepKey };
   } else {
-    const paymentKey = StricaPrivateKey.fromSecretKey(
-      Buffer.from(entropy[0], "hex"),
-    );
-    const stakeKey = StricaPrivateKey.fromSecretKey(
-      Buffer.from(entropy[1], "hex"),
-    );
+    const paymentKey = buildEd25519PrivateKeyFromSecretKey(privateKeyHex[0]);
+    const stakeKey = buildEd25519PrivateKeyFromSecretKey(privateKeyHex[1]);
 
     return { paymentKey, stakeKey };
   }
+};
+
+export const buildEd25519PrivateKeyFromSecretKey = (secretKeyHex: string) => {
+  return Ed25519PrivateKey.fromExtendedBytes(
+    new Uint8Array(
+      clampScalar(
+        Buffer.from(
+          hash.sha512().update(Buffer.from(secretKeyHex, "hex")).digest(),
+        ),
+      ),
+    ),
+  );
 };
 
 export const buildScriptPubkey = (keyHash: Ed25519KeyHash): NativeScript => {

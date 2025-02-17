@@ -9,7 +9,9 @@ import {
   ScriptSource,
   SimpleScriptSourceInfo,
   TxIn,
+  txInToUtxo,
   UTxO,
+  Withdrawal,
 } from "@meshsdk/common";
 import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
@@ -86,27 +88,121 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
 
     // Checking if all inputs are complete
-    const { inputs, collaterals, mints } = this.meshTxBuilderBody;
+    const { inputs, collaterals, mints, withdrawals, votes, certificates } =
+      this.meshTxBuilderBody;
     const incompleteTxIns = [...inputs, ...collaterals].filter(
       (txIn) => !this.isInputComplete(txIn),
     );
-    const incompleteMints = mints.filter((mint) => !this.isMintComplete(mint));
+    let incompleteScriptSources: ScriptSource[] = [];
+    let incompleteSimpleScriptSources: SimpleScriptSourceInfo[] = [];
+
+    // Get incomplete script sources for inputs
+    inputs.forEach((txIn) => {
+      if (
+        txIn.type === "Script" &&
+        txIn.scriptTxIn.scriptSource?.type === "Inline"
+      ) {
+        if (!this.isRefScriptInfoComplete(txIn.scriptTxIn.scriptSource!)) {
+          incompleteScriptSources.push(txIn.scriptTxIn.scriptSource);
+        }
+      } else if (
+        txIn.type === "SimpleScript" &&
+        txIn.simpleScriptTxIn?.scriptSource?.type === "Inline"
+      ) {
+        if (
+          !this.isSimpleRefScriptInfoComplete(
+            txIn.simpleScriptTxIn.scriptSource!,
+          )
+        ) {
+          incompleteSimpleScriptSources.push(
+            txIn.simpleScriptTxIn.scriptSource,
+          );
+        }
+      }
+    });
+
+    // Get incomplete script sources for mints
+    mints.forEach((mint) => {
+      if (mint.type === "Plutus") {
+        const scriptSource = mint.scriptSource as ScriptSource;
+        if (!this.isRefScriptInfoComplete(scriptSource)) {
+          incompleteScriptSources.push(scriptSource);
+        }
+      } else if (mint.type === "Native") {
+        const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
+        if (!this.isSimpleRefScriptInfoComplete(scriptSource)) {
+          incompleteSimpleScriptSources.push(scriptSource);
+        }
+      }
+    });
+
+    // Get incomplete script sources for withdrawals
+    withdrawals.forEach((withdrawal) => {
+      if (withdrawal.type === "ScriptWithdrawal") {
+        const scriptSource = withdrawal.scriptSource as ScriptSource;
+        if (!this.isRefScriptInfoComplete(scriptSource)) {
+          incompleteScriptSources.push(scriptSource);
+        }
+      } else if (withdrawal.type === "SimpleScriptWithdrawal") {
+        const scriptSource = withdrawal.scriptSource as SimpleScriptSourceInfo;
+        if (!this.isSimpleRefScriptInfoComplete(scriptSource)) {
+          incompleteSimpleScriptSources.push(scriptSource);
+        }
+      }
+    });
+
+    // Get incomplete script sources for votes
+    votes.forEach((vote) => {
+      if (vote.type === "ScriptVote") {
+        const scriptSource = vote.scriptSource as ScriptSource;
+        if (!this.isRefScriptInfoComplete(scriptSource)) {
+          incompleteScriptSources.push(scriptSource);
+        }
+      } else if (vote.type === "SimpleScriptVote") {
+        const scriptSource = vote.simpleScriptSource as SimpleScriptSourceInfo;
+        if (!this.isSimpleRefScriptInfoComplete(scriptSource)) {
+          incompleteSimpleScriptSources.push(scriptSource);
+        }
+      }
+    });
+
+    // Get incomplete script sources for certificates
+    certificates.forEach((certificate) => {
+      if (certificate.type === "ScriptCertificate") {
+        const scriptSource = certificate.scriptSource as ScriptSource;
+        if (!this.isRefScriptInfoComplete(scriptSource)) {
+          incompleteScriptSources.push(scriptSource);
+        }
+      } else if (certificate.type === "SimpleScriptCertificate") {
+        const scriptSource =
+          certificate.simpleScriptSource as SimpleScriptSourceInfo;
+        if (!this.isSimpleRefScriptInfoComplete(scriptSource)) {
+          incompleteSimpleScriptSources.push(scriptSource);
+        }
+      }
+    });
+
     // Getting all missing utxo information
-    await this.queryAllTxInfo(incompleteTxIns, incompleteMints);
+    await this.queryAllTxInfo(
+      incompleteTxIns,
+      incompleteScriptSources,
+      incompleteSimpleScriptSources,
+    );
     // Completing all inputs
     incompleteTxIns.forEach((txIn) => {
       this.completeTxInformation(txIn);
     });
-    incompleteMints.forEach((mint) => {
-      if (mint.type === "Plutus") {
-        const scriptSource = mint.scriptSource as ScriptSource;
-        this.completeScriptInfo(scriptSource);
-      }
-      if (mint.type === "Native") {
-        const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
-        this.completeSimpleScriptInfo(scriptSource);
-      }
+
+    // Completing all script sources
+    incompleteScriptSources.forEach((scriptSource) => {
+      this.completeScriptInfo(scriptSource);
     });
+
+    // Completing all simple script sources
+    incompleteSimpleScriptSources.forEach((simpleScriptSource) => {
+      this.completeSimpleScriptInfo(simpleScriptSource);
+    });
+
     this.meshTxBuilderBody.inputs.forEach((input) => {
       if (input.txIn.scriptSize && input.txIn.scriptSize > 0) {
         if (
@@ -153,11 +249,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const txEvaluation = await this.evaluator
         .evaluateTx(
           txHex,
-          Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+          (
+            Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[]
+          ).concat(
+            this.meshTxBuilderBody.inputs.map((val) => txInToUtxo(val.txIn)),
+          ),
           this.meshTxBuilderBody.chainedTxs,
         )
         .catch((error) => {
-          throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
+          throw new Error(
+            `Tx evaluation failed: ${JSON.stringify(error)} \n For txHex: ${txHex}`,
+          );
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
       txHex = this.serializer.serializeTxBody(
@@ -226,11 +328,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   protected queryAllTxInfo = (
     incompleteTxIns: TxIn[],
-    incompleteMints: MintItem[],
+    incompleteScriptSources: ScriptSource[],
+    incompleteSimpleScriptSources: SimpleScriptSourceInfo[],
   ) => {
     const queryUTxOPromises: Promise<void>[] = [];
     if (
-      (incompleteTxIns.length > 0 || incompleteMints.length > 0) &&
+      (incompleteTxIns.length > 0 ||
+        incompleteScriptSources.length > 0 ||
+        incompleteSimpleScriptSources.length) &&
       !this.fetcher
     )
       throw Error(
@@ -241,25 +346,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (!this.isInputInfoComplete(currentTxIn)) {
         queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
       }
-      if (
-        currentTxIn.type === "Script" &&
-        currentTxIn.scriptTxIn.scriptSource?.type === "Inline" &&
-        !this.isRefScriptInfoComplete(currentTxIn.scriptTxIn.scriptSource)
-      ) {
-        queryUTxOPromises.push(
-          this.getUTxOInfo(currentTxIn.scriptTxIn.scriptSource.txHash),
-        );
-      }
     }
-    for (let i = 0; i < incompleteMints.length; i++) {
-      const currentMint = incompleteMints[i]!;
-      if (currentMint.type === "Plutus") {
-        const scriptSource = currentMint.scriptSource as ScriptSource;
-        if (scriptSource.type === "Inline") {
-          if (!this.isRefScriptInfoComplete(scriptSource)) {
-            queryUTxOPromises.push(this.getUTxOInfo(scriptSource.txHash));
-          }
-        }
+    for (let i = 0; i < incompleteScriptSources.length; i++) {
+      const scriptSource = incompleteScriptSources[i]!;
+      if (scriptSource.type === "Inline") {
+        queryUTxOPromises.push(this.getUTxOInfo(scriptSource.txHash));
       }
     }
     return Promise.all(queryUTxOPromises);
@@ -372,6 +463,19 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   protected isRefScriptInfoComplete = (scriptSource: ScriptSource): boolean => {
     if (scriptSource?.type === "Inline") {
       if (!scriptSource?.scriptHash || !scriptSource?.scriptSize) return false;
+    }
+    return true;
+  };
+
+  protected isSimpleRefScriptInfoComplete = (
+    simpleScriptSource: SimpleScriptSourceInfo,
+  ): boolean => {
+    if (simpleScriptSource.type === "Inline") {
+      if (
+        !simpleScriptSource.simpleScriptHash ||
+        !simpleScriptSource.scriptSize
+      )
+        return false;
     }
     return true;
   };

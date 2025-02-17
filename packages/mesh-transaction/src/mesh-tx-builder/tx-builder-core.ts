@@ -26,7 +26,6 @@ import {
   RefTxIn,
   TxIn,
   TxInParameter,
-  txInToUtxo,
   Unit,
   UTxO,
   UtxoSelection,
@@ -1594,7 +1593,6 @@ export class MeshTxBuilderCore {
       }
     }
     this.meshTxBuilderBody.inputs.push(this.txInQueueItem);
-    this.inputForEvaluation(txInToUtxo(this.txInQueueItem.txIn));
     this.txInQueueItem = undefined;
   };
 

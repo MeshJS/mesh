@@ -1,9 +1,7 @@
 import { UTxO } from "../types";
 
 export interface IInitiator {
-  getChangeAddress(): SometimesPromise<string>;
-  getCollateral(): SometimesPromise<UTxO[]>;
-  getUtxos(): SometimesPromise<UTxO[]>;
+  getChangeAddress(): Promise<string>;
+  getCollateral(): Promise<UTxO[]>;
+  getUtxos(): Promise<UTxO[]>;
 }
-
-type SometimesPromise<T> = Promise<T> | T;

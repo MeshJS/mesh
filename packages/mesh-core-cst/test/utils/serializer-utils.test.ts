@@ -367,4 +367,14 @@ describe("Serialization utils", () => {
     const result = serializer.resolver.script.resolveScriptRef(nativeScript);
     expect(result).toEqual("d81846820082041864");
   });
+
+  it("should deserialize pool id correctly", () => {
+    const result = serializer.deserializer.cert.deserializePoolId(
+      "pool1kgzq2g7glzcu76ygcl2llhamjjutcts5vhe2mzglmn5jxt2cnfs",
+    );
+
+    expect(result).toEqual(
+      "b2040523c8f8b1cf6888c7d5ffdfbb94b8bc2e1465f2ad891fdce923",
+    );
+  });
 });

@@ -38,12 +38,16 @@ export const calculateFees = (
     for (const redeemer of tx.witnessSet().redeemers()!.values()) {
       scriptFee +=
         (redeemer.exUnits().mem() * BigInt(priceMemNumerator.toString())) /
-          BigInt(priceMemDenominator.toString()) +
-        BigInt(1);
+        BigInt(priceMemDenominator.toString());
       scriptFee +=
         (redeemer.exUnits().steps() * BigInt(priceStepNumerator.toString())) /
-          BigInt(priceStepDenominator.toString()) +
-        BigInt(1);
+        BigInt(priceStepDenominator.toString());
+      if (priceMemNumerator % priceMemDenominator !== 0) {
+        scriptFee += BigInt(1);
+      }
+      if (priceStepNumerator % priceStepDenominator !== 0) {
+        scriptFee += BigInt(1);
+      }
     }
   }
   return BigInt(fee) + scriptFee;

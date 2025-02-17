@@ -618,7 +618,7 @@ export class Transaction {
   delegateStake(rewardAddress: string, poolId: string): Transaction {
     this.txBuilder.delegateStakeCertificate(
       rewardAddress,
-      this.txBuilder.serializer.resolver.keys.resolveEd25519KeyHash(poolId),
+      this.txBuilder.serializer.deserializer.cert.deserializePoolId(poolId),
     );
     return this;
   }

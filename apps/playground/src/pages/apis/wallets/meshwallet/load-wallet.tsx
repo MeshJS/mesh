@@ -240,6 +240,7 @@ function Right(
               words: _mnemonic,
             },
           });
+          // await _wallet.init();
           setWallet(_wallet);
 
           const addresses = _wallet.getAddresses();
@@ -260,6 +261,7 @@ function Right(
             bech32: privatekey,
           },
         });
+        // await _wallet.init();
         setWallet(_wallet);
 
         const addresses = _wallet.getAddresses();
@@ -281,6 +283,7 @@ function Right(
             stake,
           },
         });
+        // await _wallet.init();
         setWallet(_wallet);
 
         const addresses = _wallet.getAddresses();
@@ -300,6 +303,7 @@ function Right(
             address: walletAddress,
           },
         });
+        // await _wallet.init();
         setWallet(_wallet);
 
         const addresses = _wallet.getAddresses();
