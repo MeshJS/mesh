@@ -286,6 +286,9 @@ export type Metadatum = Cardano.Metadatum;
 export type HexBlob = CardanoHexBlob;
 export const HexBlob = CardanoHexBlob;
 
+export type TxCBOR = Serialization.TxCBOR;
+export const TxCBOR = Serialization.TxCBOR;
+
 export type Ed25519PrivateKey = Crypto.Ed25519PrivateKey;
 export const Ed25519PrivateKey = Crypto.Ed25519PrivateKey;
 
