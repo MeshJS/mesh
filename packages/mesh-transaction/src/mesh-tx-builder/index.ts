@@ -1,17 +1,21 @@
 import {
   Action,
-  Asset, Budget, Certificate, CertificateType,
+  Asset,
+  Certificate,
   IEvaluator,
   IFetcher,
   IMeshTxSerializer,
   ISubmitter,
   MeshTxBuilderBody,
   MintItem,
+  Output,
   Protocol,
   ScriptSource,
   SimpleScriptSourceInfo,
   TxIn,
-  UTxO, Vote, Withdrawal,
+  UTxO,
+  Vote,
+  Withdrawal,
 } from "@meshsdk/common";
 
 import JSONBig from "json-bigint";
@@ -20,16 +24,18 @@ import {
   Address as CstAddress,
   AddressType as CstAddressType,
   CardanoSDKSerializer,
-  CredentialType as CstCredentialType,
-  Script as CstScript,
-  NativeScript as CstNativeScript,
   CardanoSDKUtil,
+  CredentialType as CstCredentialType,
+  NativeScript as CstNativeScript,
+  Script as CstScript,
   toDRep as coreToCstDRep,
 } from "@meshsdk/core-cst";
 
-import { MeshTxBuilderCore } from "./tx-builder-core";
+import {MeshTxBuilderCore} from "./tx-builder-core";
 
 import BigNumber from "bignumber.js";
+import {CoinSelectionInterface, CardanoSdkInputSelector} from "./coin-selection";
+import {TransactionCost, TransactionPrototype} from "./coin-selection/coin-selection-interface";
 
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
@@ -83,14 +89,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       });
   }
 
-  /**
-   * It builds the transaction and query the blockchain for missing information
-   * @param customizedTx The optional customized transaction body
-   * @returns The signed transaction in hex ready to submit / signed by client
-   */
-  complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
+  serializeMockTx = () => {
+    return this.serializer.serializeTxBodyWithMockSignatures(this.meshTxBuilderBody, this._protocolParams);
+  }
+
+  complete2 = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
     if (customizedTx) {
-      this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
+      this.meshTxBuilderBody = {...this.meshTxBuilderBody, ...customizedTx};
     } else {
       this.queueAllLastItem();
     }
@@ -101,10 +106,94 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       collateral.txIn.scriptSize = 0;
     }
 
-    // Checking if all inputs are complete
+    const utxosForSelection = await this.getUtxosForSelection();
+
+    const callbacks: CoinSelectionInterface.BuilderCallbacks = {
+      computeMinimumCost: async (selectionSkeleton: TransactionPrototype): Promise<TransactionCost> => {
+        const clonedBuilder = this.clone();
+        await clonedBuilder.updateByTxPrototype(selectionSkeleton);
+        clonedBuilder.queueAllLastItem();
+        clonedBuilder.removeDuplicateInputs();
+
+        try {
+          await clonedBuilder.evaluateRedeemers();
+        } catch (error) {
+          console.log("Error in evaluateRedeemers", error);
+        }
+
+        const fee = clonedBuilder.calculateFee();
+        const redeemers = clonedBuilder.getRedeemerCosts();
+        return {
+          fee,
+          redeemers,
+        }
+      },
+      tokenBundleSizeExceedsLimit: (tokenBundle) => {
+        const maxValueSize = this._protocolParams.maxValSize;
+        if (tokenBundle) {
+          const valueSize = this.serializer.serializeValue(tokenBundle).length / 2;
+          return valueSize > maxValueSize;
+        }
+        return false;
+      },
+      computeMinimumCoinQuantity: (output) => {
+        return this.calculateMinLovelaceForOutput(output);
+      },
+      maxSizeExceed: async (selectionSkeleton) => {
+        const clonedBuilder = this.clone();
+        await clonedBuilder.updateByTxPrototype(selectionSkeleton);
+        clonedBuilder.queueAllLastItem();
+        clonedBuilder.removeDuplicateInputs();
+        const maxTxSize = this._protocolParams.maxTxSize;
+        const txSize = clonedBuilder.getSerializedSize();
+        return txSize > maxTxSize;
+      },
+    }
+
+    try {
+      await this.evaluateRedeemers();
+    } catch (error) {
+      console.log("Error in evaluateRedeemers", error);
+    }
+
+  }
+
+  updateByTxPrototype = async (selectionSkeleton: CoinSelectionInterface.TransactionPrototype)=> {
+    for (let utxo of selectionSkeleton.newInputs) {
+      this.txIn(
+          utxo.input.txHash,
+          utxo.input.outputIndex,
+          utxo.output.amount,
+          utxo.output.address,
+          utxo.output.scriptRef ? utxo.output.scriptRef.length / 2 : 0,
+      );
+    }
+
+    for (let output of selectionSkeleton.newOutputs) {
+      this.txOut(output.address, output.amount);
+    }
+
+    for (let change of selectionSkeleton.change) {
+      this.txOut(change.address, change.amount);
+    }
+
+    const skeletonRedeemers = selectionSkeleton.redeemers ?? [];
+    this.updateRedeemer(this.meshTxBuilderBody, skeletonRedeemers);
+  }
+
+  getUtxosForSelection = async () => {
+    const utxos = this.meshTxBuilderBody.extraInputs;
+    const usedUtxos = new Set(this.meshTxBuilderBody.inputs
+        .map((input) => `${input.txIn.txHash}${input.txIn.txIndex}`));
+    return utxos.filter(
+        (utxo) => !usedUtxos.has(`${utxo.input.txHash}${utxo.input.outputIndex}`),
+    )
+  }
+
+  completeTxInputs = async () => {
     const { inputs, collaterals, mints } = this.meshTxBuilderBody;
     const incompleteTxIns = [...inputs, ...collaterals].filter(
-      (txIn) => !this.isInputComplete(txIn),
+        (txIn) => !this.isInputComplete(txIn),
     );
     const incompleteMints = mints.filter((mint) => !this.isMintComplete(mint));
     // Getting all missing utxo information
@@ -126,10 +215,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.meshTxBuilderBody.inputs.forEach((input) => {
       if (input.txIn.scriptSize && input.txIn.scriptSize > 0) {
         if (
-          this.meshTxBuilderBody.referenceInputs.find((refTxIn) => {
-            refTxIn.txHash === input.txIn.txHash &&
+            this.meshTxBuilderBody.referenceInputs.find((refTxIn) => {
+              refTxIn.txHash === input.txIn.txHash &&
               refTxIn.txIndex === input.txIn.txIndex;
-          }) === undefined
+            }) === undefined
         ) {
           this.meshTxBuilderBody.referenceInputs.push({
             txHash: input.txIn.txHash,
@@ -139,8 +228,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         }
       }
     });
-    this.addUtxosFromSelection();
+  }
 
+  sortTxParts = () => {
     // Sort inputs based on txHash and txIndex
     this.meshTxBuilderBody.inputs.sort((a, b) => {
       if (a.txIn.txHash < b.txIn.txHash) return -1;
@@ -158,29 +248,104 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (a.assetName > b.assetName) return 1;
       return 0;
     });
+  }
 
+  evaluateRedeemers = async () => {
     let txHex = this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-    );
-
-    // Evaluating the transaction
-    if (this.evaluator) {
-      const txEvaluation = await this.evaluator
-        .evaluateTx(
-          txHex,
-          Object.values(this.meshTxBuilderBody.inputsForEvaluation),
-          this.meshTxBuilderBody.chainedTxs,
-        )
-        .catch((error) => {
-          throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
-        });
-      this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
-      txHex = this.serializer.serializeTxBody(
         this.meshTxBuilderBody,
         this._protocolParams,
-      );
+    );
+
+    if (this.evaluator) {
+      const txEvaluation = await this.evaluator
+          .evaluateTx(
+              txHex,
+              Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+              this.meshTxBuilderBody.chainedTxs,
+          )
+          .catch((error) => {
+            throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
+          });
+      this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
     }
+  }
+
+  protected getRedeemerCosts = () => {
+    const meshTxBuilderBody = this.meshTxBuilderBody;
+    const redeemers: Omit<Action, "data">[] = [];
+    for (let i = 0; i < meshTxBuilderBody.inputs.length; i++) {
+      const input = meshTxBuilderBody.inputs[i]!;
+      if (input.type == "Script" && input.scriptTxIn.redeemer) {
+        redeemers.push({
+          tag: "SPEND",
+          index: i,
+          budget: input.scriptTxIn.redeemer.exUnits,
+        });
+      }
+    }
+    for (let i = 0; i < meshTxBuilderBody.mints.length; i++) {
+      const mint = meshTxBuilderBody.mints[i]!;
+      if (mint.type == "Plutus" && mint.redeemer) {
+        redeemers.push({
+          tag: "MINT",
+          index: i,
+          budget: mint.redeemer.exUnits,
+        });
+      }
+    }
+    for (let i = 0; i < meshTxBuilderBody.certificates.length; i++) {
+      const cert = meshTxBuilderBody.certificates[i]!;
+      if (cert.type === "ScriptCertificate" && cert.redeemer) {
+        redeemers.push({
+          tag: "CERT",
+          index: i,
+          budget: cert.redeemer.exUnits,
+        });
+      }
+    }
+    for (let i = 0; i < meshTxBuilderBody.withdrawals.length; i++) {
+      const withdrawal = meshTxBuilderBody.withdrawals[i]!;
+      if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
+        redeemers.push({
+          tag: "REWARD",
+          index: i,
+          budget: withdrawal.redeemer.exUnits,
+        });
+      }
+    }
+    return redeemers;
+  }
+
+  /**
+   * It builds the transaction and query the blockchain for missing information
+   * @param customizedTx The optional customized transaction body
+   * @returns The signed transaction in hex ready to submit / signed by client
+   */
+  complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
+    if (customizedTx) {
+      this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
+    } else {
+      this.queueAllLastItem();
+    }
+    this.removeDuplicateInputs();
+
+    // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
+    for (let collateral of this.meshTxBuilderBody.collaterals) {
+      collateral.txIn.scriptSize = 0;
+    }
+
+    // Checking if all inputs are complete
+    await this.completeTxInputs()
+    this.sortTxParts();
+
+    this.addUtxosFromSelection();
+
+    await this.evaluateRedeemers()
+
+    const txHex = this.serializer.serializeTxBody(
+        this.meshTxBuilderBody,
+        this._protocolParams,
+    );
 
     this.txHex = txHex;
     return txHex;
@@ -956,12 +1121,21 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
   }
 
-  calculateFee = (txSize: bigint): bigint => {
+  getSerializedSize = (): number => {
+    return this.serializeMockTx().length / 2;
+  }
+
+  calculateFee = (): bigint => {
+    const txSize = this.getSerializedSize();
+    return this.calculateFeeForSerializedTx(txSize);
+  }
+
+  calculateFeeForSerializedTx = (txSize: number): bigint => {
     const refScriptFee = this.calculateRefScriptFee();
     const redeemersFee = this.calculateRedeemersFee();
     const minFeeCoeff = BigInt(this._protocolParams.minFeeA);
     const minFeeConstant = BigInt(this._protocolParams.minFeeB);
-    const minFee = (minFeeCoeff * txSize) + minFeeConstant;
+    const minFee = (minFeeCoeff * BigInt(txSize)) + minFeeConstant;
     return minFee + refScriptFee + redeemersFee;
   }
 
@@ -978,6 +1152,26 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const stepFee = stepPrice.multipliedBy(BigNumber(stepUnits.toString()));
     const memFee = memPrice.multipliedBy(BigNumber(memUnits.toString()));
     return BigInt(stepFee.plus(memFee).integerValue(BigNumber.ROUND_CEIL).toString());
+  }
+
+  calculateMinLovelaceForOutput = (output: Output): bigint => {
+    let currentOutput = cloneOutput(output);
+    let lovelace = getLovelace(currentOutput);
+    let minAda = 0n;
+    for (let i = 0; i < 3; i++) {
+      const txOutSize = BigInt(this.serializer.serializeOutput(currentOutput).length / 2);
+      const txOutByteCost = BigInt(this._protocolParams.coinsPerUtxoSize);
+      const totalOutCost = 160n + (BigInt(txOutSize) * txOutByteCost);
+      minAda = totalOutCost;
+      if (lovelace < totalOutCost) {
+        lovelace = totalOutCost;
+      } else {
+        break;
+      }
+      currentOutput = setLoveLace(currentOutput, lovelace);
+    }
+
+    return minAda
   }
 
   protected clone(): MeshTxBuilder {
@@ -1053,6 +1247,39 @@ function tierRefScriptFee(
   }
 
   return BigInt(acc.integerValue(BigNumber.ROUND_FLOOR).toString());
+}
+
+const cloneOutput = (output: Output): Output => {
+  return JSONBig.parse(JSONBig.stringify(output));
+}
+
+const setLoveLace = (output: Output, lovelace: bigint): Output => {
+  let lovelaceSet = false;
+  for (let asset of output.amount) {
+    if (asset.unit === "lovelace") {
+      asset.quantity = lovelace.toString();
+      lovelaceSet = true;
+      break;
+    }
+  }
+
+  if (!lovelaceSet) {
+    output.amount.push({
+      unit: "lovelace",
+      quantity: lovelace.toString(),
+    });
+  }
+  return output;
+}
+
+const getLovelace = (output: Output): bigint => {
+    for (let asset of output.amount) {
+        if (asset.unit === "lovelace") {
+        return BigInt(asset.quantity);
+        }
+    }
+
+    return 0n;
 }
 
 export * from "./utils";

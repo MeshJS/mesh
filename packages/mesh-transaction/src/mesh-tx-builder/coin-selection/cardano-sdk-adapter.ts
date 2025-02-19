@@ -7,7 +7,7 @@ import {
     ImplicitValue,
     TransactionPrototype
 } from "./coin-selection-interface"
-import {Asset, Output, TxIn, TxOutput, UTxO} from "@meshsdk/common";
+import {Action, Asset, bool, Output, RedeemerTagType, TxIn, TxOutput, UTxO} from "@meshsdk/common";
 import {
     fromBuilderToPlutusData,
     Hash32ByteBase16,
@@ -37,25 +37,31 @@ export class BuilderCallbacksSdkBridge implements CardanoSelection.SelectionCons
     }
 
     async computeMinimumCost(selectionSkeleton: CardanoSelection.SelectionSkeleton): Promise<CardanoSelection.TxCosts> {
-        const minFee = await this.builderCallback.computeMinimumCost({
-            new_inputs: this.getNewInputs(selectionSkeleton),
-            new_outputs: new Set<TxOutput>(),
+        const costs = await this.builderCallback.computeMinimumCost({
+            newInputs: this.getNewInputs(selectionSkeleton),
+            newOutputs: new Set<TxOutput>(),
             change: selectionSkeleton.change.map(output => CSDKOutputToMeshOutput(output)),
-            fee: selectionSkeleton.fee
+            fee: selectionSkeleton.fee,
         });
 
         return {
-            fee: minFee
+            fee: costs.fee,
+            redeemers: costs.redeemers?.map(meshActionToCSDKRedeemer)
         }
     }
 
-    computeSelectionLimit(selectionSkeleton: CardanoSelection.SelectionSkeleton): Promise<number> {
-        return this.builderCallback.computeSelectionLimit({
-            new_inputs: this.getNewInputs(selectionSkeleton),
-            new_outputs: new Set<TxOutput>(),
+    async computeSelectionLimit(selectionSkeleton: CardanoSelection.SelectionSkeleton): Promise<number> {
+        const maxSizeExceed = await this.builderCallback.maxSizeExceed({
+            newInputs: this.getNewInputs(selectionSkeleton),
+            newOutputs: new Set<TxOutput>(),
             change: selectionSkeleton.change.map(output => CSDKOutputToMeshOutput(output)),
             fee: selectionSkeleton.fee
         });
+        if (maxSizeExceed) {
+            return selectionSkeleton.inputs.size - 1;
+        } else {
+            return selectionSkeleton.inputs.size + 1;
+        }
     }
 
     tokenBundleSizeExceedsLimit(tokenBundle: TokenMap | undefined): boolean {
@@ -126,10 +132,11 @@ export class CardanoSdkInputSelector implements IInputSelector {
         }
 
         return {
-            new_inputs: new_inputs,
-            new_outputs: new Set(),
+            newInputs: new_inputs,
+            newOutputs: new Set(),
             change: selectResult.selection.change.map(CSDKOutputToMeshOutput),
             fee: selectResult.selection.fee,
+            redeemers: selectResult.redeemers?.map(CSKDRedeemerToMeshAction),
         };
     }
 }
@@ -145,14 +152,14 @@ export class StaticChangeAddressResolver implements CardanoSelection.ChangeAddre
         return selection.change.map((txOut) => ({
             ...txOut,
             address: <CSDK.PaymentAddress>this.changeAddress
-            }));
+        }));
     }
 }
 
 const meshTxInToCSDKUtxo = (txIn: TxIn): CSDK.Utxo => {
     return [
         {
-            txId: <CSDK.TransactionId> txIn.txIn.txHash,
+            txId: <CSDK.TransactionId>txIn.txIn.txHash,
             index: txIn.txIn.txIndex,
             address: <CSDK.PaymentAddress>txIn.txIn.address,
         },
@@ -289,12 +296,12 @@ const CSDKTokenMapToMeshAssets = (tokenMap?: CSDK.TokenMap): Asset[] | undefined
 
 const meshOutputToCSDKOutput = (output: Output): CSDK.TxOut => {
     const {
-       dataHash,
-       datum,
-       scriptReference
+        dataHash,
+        datum,
+        scriptReference
     } = meshOutputToCSDKOutputsScriptData(output)
     return {
-        address: <CSDK.PaymentAddress> output.address,
+        address: <CSDK.PaymentAddress>output.address,
         value: meshAssetsToCSDKValue(output.amount),
         datumHash: dataHash,
         datum: datum,
@@ -304,27 +311,27 @@ const meshOutputToCSDKOutput = (output: Output): CSDK.TxOut => {
 
 const makeAggregatedCSDKOOutput = (outputs: Output[]): CSDK.TxOut => {
     let totalAssets = new Map<string, bigint>
-    for(const output of outputs) {
+    for (const output of outputs) {
         totalAssets = sumAssets(totalAssets, output.amount);
     }
 
     return {
-        address: <CSDK.PaymentAddress> signalAddress,
+        address: <CSDK.PaymentAddress>signalAddress,
         value: assetsMapToCSDKValue(totalAssets),
         datumHash: signalDataHash,
     }
 }
 
-const meshOutputToCSDKOutputsScriptData  = (output: Output): {
+const meshOutputToCSDKOutputsScriptData = (output: Output): {
     dataHash?: CSDK.DatumHash,
     datum?: CSDK.PlutusData,
     scriptReference?: CSDK.Script;
 } => {
-    let dataHash: CSDK.DatumHash | undefined  = undefined;
+    let dataHash: CSDK.DatumHash | undefined = undefined;
     let datum: CSDK.PlutusData | undefined = undefined;
-    let scriptReference: CSDK.Script| undefined;
+    let scriptReference: CSDK.Script | undefined;
     if (output.datum?.type === "Hash") {
-        dataHash =  meshDataHashToCSDKDataHash(
+        dataHash = meshDataHashToCSDKDataHash(
             HexBlob(
                 fromBuilderToPlutusData(output.datum.data).hash()
             )
@@ -355,7 +362,7 @@ const meshOutputToCSDKOutputsScriptData  = (output: Output): {
                 meshCoreScript =
                     Script.newPlutusV3Script(
                         PlutusV3Script.fromCbor(HexBlob(output.referenceScript.code)),
-                );
+                    );
                 break;
             }
         }
@@ -396,9 +403,7 @@ const assetsToCSDKImplicitValue = (assets?: Asset[]): CardanoSelection.ImplicitV
         return undefined;
     }
     const value = meshAssetsToCSDKValue(assets);
-    return {
-
-    }
+    return {}
 }
 
 const sumAssets = (a: Map<string, bigint>, b: Asset[]): Map<string, bigint> => {
@@ -411,20 +416,77 @@ const sumAssets = (a: Map<string, bigint>, b: Asset[]): Map<string, bigint> => {
 }
 
 const meshImplicitCoinToCSDKImplicitCoins = (implicitCoins?: ImplicitValue): CardanoSelection.ImplicitValue | undefined => {
-   if (implicitCoins == null) {
-       return undefined;
-   }
-   const mint = meshAssetsToCSDKAssets(implicitCoins.mint);
-   const totalInput = implicitCoins.deposit + implicitCoins.withdrawals;
-   const CSKDImplicitCoin = {
-       withdrawals: implicitCoins.withdrawals,
-       input: totalInput,
-       deposit: implicitCoins.deposit,
-       reclaimDeposit: implicitCoins.reclaimDeposit,
-   }
+    if (implicitCoins == null) {
+        return undefined;
+    }
+    const mint = meshAssetsToCSDKAssets(implicitCoins.mint);
+    const totalInput = implicitCoins.deposit + implicitCoins.withdrawals;
+    const CSKDImplicitCoin = {
+        withdrawals: implicitCoins.withdrawals,
+        input: totalInput,
+        deposit: implicitCoins.deposit,
+        reclaimDeposit: implicitCoins.reclaimDeposit,
+    }
 
-   return {
-       coin: CSKDImplicitCoin,
-       mint: mint,
-   }
+    return {
+        coin: CSKDImplicitCoin,
+        mint: mint,
+    }
+}
+
+const meshActionToCSDKRedeemer = (action: Omit<Action, "data">): CSDK.Redeemer => {
+    return {
+        purpose: mashRedeemerTagToCSDKRedeemerTag(action.tag),
+        index: action.index,
+        executionUnits: {
+            steps: action.budget.steps,
+            memory: action.budget.mem,
+        },
+        data: 0n
+    }
+}
+
+const CSKDRedeemerToMeshAction = (redeemer: CSDK.Redeemer): Omit<Action, "data"> => {
+    return {
+        tag: CSDKRedeemerTagToMeshRedeemerTag(redeemer.purpose),
+        index: redeemer.index,
+        budget: {
+            steps: redeemer.executionUnits.steps,
+            mem: redeemer.executionUnits.memory,
+        }
+    }
+}
+
+const mashRedeemerTagToCSDKRedeemerTag = (tag: RedeemerTagType): CSDK.RedeemerPurpose => {
+    switch (tag) {
+        case "SPEND":
+            return CSDK.RedeemerPurpose.spend;
+        case "MINT":
+            return CSDK.RedeemerPurpose.mint;
+        case "CERT":
+            return CSDK.RedeemerPurpose.certificate;
+        case "REWARD":
+            return CSDK.RedeemerPurpose.withdrawal;
+        case "PROPOSE":
+            return CSDK.RedeemerPurpose.propose;
+        case "VOTE":
+            return CSDK.RedeemerPurpose.vote;
+    }
+}
+
+const CSDKRedeemerTagToMeshRedeemerTag = (tag: CSDK.RedeemerPurpose): RedeemerTagType => {
+    switch (tag) {
+        case CSDK.RedeemerPurpose.spend:
+            return "SPEND";
+        case CSDK.RedeemerPurpose.mint:
+            return "MINT";
+        case CSDK.RedeemerPurpose.certificate:
+            return "CERT";
+        case CSDK.RedeemerPurpose.withdrawal:
+            return "REWARD";
+        case CSDK.RedeemerPurpose.propose:
+            return "PROPOSE";
+        case CSDK.RedeemerPurpose.vote:
+            return "VOTE";
+    }
 }

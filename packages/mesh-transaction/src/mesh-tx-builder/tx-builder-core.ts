@@ -38,6 +38,9 @@ import {
 } from "@meshsdk/common";
 
 import { metadataObjToMap } from "../utils";
+import {Address} from "@meshsdk/core-cst";
+import {HexBlob} from "@cardano-sdk/util";
+import {CredentialType} from "@cardano-sdk/core/dist/cjs/Cardano/Address/Address";
 
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;
@@ -1456,6 +1459,16 @@ export class MeshTxBuilderCore {
     threshold = "5000000",
     includeTxFees = true,
   ) => {
+    for (const input of this.meshTxBuilderBody.inputs) {
+      const address = input.txIn.address;
+      if (!address) {
+        throw Error("Address is missing from the input");
+      }
+      const decodedAddress = Address.fromBytes(<HexBlob>address);
+      if (decodedAddress.getProps().paymentPart?.type !== CredentialType.KeyHash) {
+        throw Error("Only KeyHash address is supported for utxo selection");
+      }
+    }
     this.meshTxBuilderBody.extraInputs = extraInputs;
     const newConfig = {
       threshold,

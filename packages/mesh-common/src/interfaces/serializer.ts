@@ -1,4 +1,5 @@
 import {
+  Asset,
   BuilderData,
   Data,
   DeserializedAddress,
@@ -32,6 +33,7 @@ export interface IMeshTxSerializer {
     network_id?: 0 | 1,
   ): string;
   serializeOutput(output: TxOutput): string;
+  serializeValue(value: Asset[]): string;
 }
 export interface IResolver {
   keys: {

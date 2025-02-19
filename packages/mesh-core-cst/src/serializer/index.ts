@@ -44,7 +44,7 @@ import {
   TxIn,
   TxMetadata,
   ValidityRange,
-  Withdrawal, TxOutput,
+  Withdrawal, Asset,
 } from "@meshsdk/common";
 
 import {CborSet, StricaPrivateKey, toScriptRef} from "../"
@@ -483,25 +483,60 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     return cardanoTx.toCbor();
   };
 
-  serializeOutput(output: TxOutput): string {
-    const txOut = new TransactionOutput(
-      toCardanoAddress(output.address),
-      toValue(output.amount),
-    );
-
-    if (output.scriptRef) {
-      txOut.setScriptRef(Script.fromCbor(HexBlob(output.scriptRef)));
-    }
-
-    if (output.plutusData) {
-      txOut.setDatum(Datum.newInlineData(PlutusData.fromCbor(HexBlob(output.plutusData))));
-    } else if (output.dataHash) {
-        txOut.setDatum(Datum.newDataHash(DatumHash.fromHexBlob(HexBlob(output.dataHash))));
-    }
-
-    return txOut.toCbor();
+  serializeValue(value: Asset[]): string {
+    return toValue(value).toCbor()
   }
 
+  serializeOutput(output: Output): string {
+    let cardanoOutput = new TransactionOutput(
+        toCardanoAddress(output.address),
+        toValue(output.amount),
+    );
+    if (output.datum?.type === "Hash") {
+      cardanoOutput.setDatum(
+          Datum.newDataHash(
+              DatumHash.fromHexBlob(
+                  HexBlob(fromBuilderToPlutusData(output.datum.data).hash()),
+              ),
+          ),
+      );
+    } else if (output.datum?.type === "Inline") {
+      cardanoOutput.setDatum(
+          Datum.newInlineData(fromBuilderToPlutusData(output.datum.data)),
+      );
+    } else if (output.datum?.type === "Embedded") {
+      throw new Error("Embedded datum not supported");
+    }
+    if (output.referenceScript) {
+      switch (output.referenceScript.version) {
+        case "V1": {
+          cardanoOutput.setScriptRef(
+              Script.newPlutusV1Script(
+                  PlutusV1Script.fromCbor(HexBlob(output.referenceScript.code)),
+              ),
+          );
+          break;
+        }
+        case "V2": {
+          cardanoOutput.setScriptRef(
+              Script.newPlutusV2Script(
+                  PlutusV2Script.fromCbor(HexBlob(output.referenceScript.code)),
+              ),
+          );
+          break;
+        }
+        case "V3": {
+          cardanoOutput.setScriptRef(
+              Script.newPlutusV3Script(
+                  PlutusV3Script.fromCbor(HexBlob(output.referenceScript.code)),
+              ),
+          );
+          break;
+        }
+      }
+    }
+    return cardanoOutput.toCbor();
+  }
 }
 
 class CardanoSDKSerializerCore {
@@ -554,7 +589,7 @@ class CardanoSDKSerializerCore {
     } = txBuilderBody;
 
     this.addAllInputs(inputs);
-    this.setFee(txBuilderBody.fee)
+    this.setFee(txBuilderBody.fee ?? "0")
     this.addAllOutputs(this.sanitizeOutputs(outputs));
     this.addAllMints(mints);
     this.addAllCerts(certificates);

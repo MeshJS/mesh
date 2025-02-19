@@ -1,10 +1,11 @@
-import {Asset, Output, TxIn, TxOutput, UTxO} from "@meshsdk/common";
+import {Action, Asset, Budget, Output, RedeemerTagType, TxIn, TxOutput, UTxO} from "@meshsdk/common";
 
 export interface TransactionPrototype {
-    new_inputs: Set<UTxO>;
-    new_outputs: Set<TxOutput>;
+    newInputs: Set<UTxO>;
+    newOutputs: Set<TxOutput>;
     change: Array<TxOutput>;
     fee: bigint;
+    redeemers?: Array<Omit<Action, "data">>;
 }
 
 export interface ImplicitValue {
@@ -14,16 +15,21 @@ export interface ImplicitValue {
     mint: Asset[]
 }
 
-export declare type EstimateTxCosts = (selectionSkeleton: TransactionPrototype) => Promise<bigint>;
+export interface TransactionCost {
+    fee: bigint
+    redeemers?: Array<Omit<Action, "data">>
+}
+
+export declare type EstimateTxCosts = (selectionSkeleton: TransactionPrototype) => Promise<TransactionCost>;
 export declare type TokenBundleSizeExceedsLimit = (tokenBundle?: Asset[]) => boolean;
 export declare type ComputeMinimumCoinQuantity = (output: TxOutput) => bigint;
-export declare type ComputeSelectionLimit = (selectionSkeleton: TransactionPrototype) => Promise<number>;
+export declare type MaxSizeExceed = (selectionSkeleton: TransactionPrototype) => Promise<boolean>;
 
 export interface BuilderCallbacks {
     computeMinimumCost: EstimateTxCosts;
     tokenBundleSizeExceedsLimit: TokenBundleSizeExceedsLimit;
     computeMinimumCoinQuantity: ComputeMinimumCoinQuantity;
-    computeSelectionLimit: ComputeSelectionLimit;
+    maxSizeExceed: MaxSizeExceed;
 }
 
 export interface IInputSelector {
