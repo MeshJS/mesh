@@ -3,7 +3,8 @@
 /* eslint-disable radix */
 import JSONbig from "json-bigint";
 
-import type {
+import {
+  Asset,
   BuilderData,
   Data,
   DeserializedAddress,
@@ -15,6 +16,7 @@ import type {
   NativeScript,
   PlutusScript,
   Protocol,
+  TxOutput,
 } from "@meshsdk/common";
 import {
   DEFAULT_PROTOCOL_PARAMETERS,
@@ -176,4 +178,16 @@ export class CSLSerializer implements IMeshTxSerializer {
       },
     },
   };
+
+  serializeOutput(output: TxOutput): string {
+    throw new Error("Method not implemented.");
+  }
+
+  serializeTxBodyWithMockSignatures(txBuilderBody: MeshTxBuilderBody, protocolParams: Protocol): string {
+    throw new Error("Method not implemented.");
+  }
+
+  serializeValue(value: Asset[]): string {
+    throw new Error("Method not implemented.");
+  }
 }
