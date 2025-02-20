@@ -38,9 +38,8 @@ import {
 } from "@meshsdk/common";
 
 import { metadataObjToMap } from "../utils";
-import {Address} from "@meshsdk/core-cst";
+import {Address, CredentialType} from "@meshsdk/core-cst";
 import {HexBlob} from "@cardano-sdk/util";
-import {CredentialType} from "@cardano-sdk/core/dist/cjs/Cardano/Address/Address";
 
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;

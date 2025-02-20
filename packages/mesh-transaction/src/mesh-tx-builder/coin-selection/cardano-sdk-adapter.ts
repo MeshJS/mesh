@@ -1,4 +1,4 @@
-import CardanoSelection from '@cardano-sdk/input-selection';
+import * as CardanoSelection from '@cardano-sdk/input-selection';
 import {Cardano as CSDK, Serialization} from "@cardano-sdk/core";
 import {HexBlob} from "@cardano-sdk/util"
 import {
@@ -7,7 +7,7 @@ import {
     ImplicitValue,
     TransactionPrototype
 } from "./coin-selection-interface"
-import {Action, Asset, bool, Output, RedeemerTagType, TxIn, TxOutput, UTxO} from "@meshsdk/common";
+import {Action, Asset, Output, RedeemerTagType, TxIn, TxOutput, UTxO} from "@meshsdk/common";
 import {
     fromBuilderToPlutusData,
     Hash32ByteBase16,
