@@ -93,7 +93,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return this.serializer.serializeTxBodyWithMockSignatures(this.meshTxBuilderBody, this._protocolParams);
   }
 
-  complete2 = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
+  /**
+   * It builds the transaction and query the blockchain for missing information
+   * @param customizedTx The optional customized transaction body
+   * @returns The signed transaction in hex ready to submit / signed by client
+   */
+  complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
     if (customizedTx) {
       this.meshTxBuilderBody = {...this.meshTxBuilderBody, ...customizedTx};
     } else {
@@ -106,7 +111,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       collateral.txIn.scriptSize = 0;
     }
 
-    const utxosForSelection = await this.getUtxosForSelection();
+    await this.completeTxInputs()
+    this.sortTxParts();
 
     const callbacks: CoinSelectionInterface.BuilderCallbacks = {
       computeMinimumCost: async (selectionSkeleton: TransactionPrototype): Promise<TransactionCost> => {
@@ -114,6 +120,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         await clonedBuilder.updateByTxPrototype(selectionSkeleton);
         clonedBuilder.queueAllLastItem();
         clonedBuilder.removeDuplicateInputs();
+
+        await clonedBuilder.completeTxInputs()
+        this.sortTxParts();
 
         try {
           await clonedBuilder.evaluateRedeemers();
@@ -150,12 +159,40 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       },
     }
 
-    try {
-      await this.evaluateRedeemers();
-    } catch (error) {
-      console.log("Error in evaluateRedeemers", error);
+    const currentInputs = this.meshTxBuilderBody.inputs;
+    const currentOutputs = this.meshTxBuilderBody.outputs;
+    const changeAddress = this.meshTxBuilderBody.changeAddress;
+    const utxosForSelection = await this.getUtxosForSelection();
+    const implicitValue = {
+        withdrawals: this.getTotalWithdrawal(),
+        deposit: this.getTotalDeposit(),
+        reclaimDeposit: this.getTotalRefund(),
+        mint: this.getTotalMint()
     }
 
+    const inputSelector = new CardanoSdkInputSelector(callbacks);
+    const selectionResult = await inputSelector.select(
+        currentInputs,
+        currentOutputs,
+        implicitValue,
+        utxosForSelection,
+        changeAddress,
+    );
+
+    await this.updateByTxPrototype(selectionResult);
+    this.queueAllLastItem();
+    this.removeDuplicateInputs();
+
+    await this.completeTxInputs()
+    this.sortTxParts();
+
+    const txHex = this.serializer.serializeTxBody(
+        this.meshTxBuilderBody,
+        this._protocolParams,
+    );
+
+    this.txHex = txHex;
+    return txHex;
   }
 
   updateByTxPrototype = async (selectionSkeleton: CoinSelectionInterface.TransactionPrototype)=> {
@@ -315,41 +352,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     return redeemers;
   }
-
-  /**
-   * It builds the transaction and query the blockchain for missing information
-   * @param customizedTx The optional customized transaction body
-   * @returns The signed transaction in hex ready to submit / signed by client
-   */
-  complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
-    if (customizedTx) {
-      this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
-    } else {
-      this.queueAllLastItem();
-    }
-    this.removeDuplicateInputs();
-
-    // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
-    for (let collateral of this.meshTxBuilderBody.collaterals) {
-      collateral.txIn.scriptSize = 0;
-    }
-
-    // Checking if all inputs are complete
-    await this.completeTxInputs()
-    this.sortTxParts();
-
-    this.addUtxosFromSelection();
-
-    await this.evaluateRedeemers()
-
-    const txHex = this.serializer.serializeTxBody(
-        this.meshTxBuilderBody,
-        this._protocolParams,
-    );
-
-    this.txHex = txHex;
-    return txHex;
-  };
 
   /**
    * It builds the transaction without dependencies
