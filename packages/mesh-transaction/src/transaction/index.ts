@@ -292,6 +292,7 @@ export class Transaction {
           value.input.outputIndex,
           value.output.amount,
           value.output.address,
+          value.output.scriptRef ? value.output.scriptRef.length / 2 : 0,
         )
         .txInScript(script.code)
         .txInRedeemerValue(red.data, "Mesh", red.budget);
