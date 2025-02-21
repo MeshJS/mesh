@@ -31,7 +31,7 @@ export const linksAiken: MenuItem[] = [
   metaAikenFirstScript,
   metaAikenTransactions,
   metaAikenContractsLib,
-  metaAikenCourse,
+  // metaAikenCourse,
 ];
 
 export const metaAiken: MenuItem = {
