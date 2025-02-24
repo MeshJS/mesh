@@ -3,7 +3,6 @@ import {
   MeshTxBuilderBody,
 } from "@meshsdk/common";
 import { CSLSerializer } from "@meshsdk/core-csl";
-import { csl } from "@meshsdk/core-csl";
 
 describe("Builder", () => {
   test("serializeTxBody - send lovelace", () => {
@@ -93,6 +92,8 @@ describe("Builder", () => {
       signingKey: [],
       network: "preprod",
       votes: [],
+      chainedTxs: [],
+      inputsForEvaluation: {},
     };
     const txHex = serializer.serializeTxBody(body, DEFAULT_PROTOCOL_PARAMETERS);
     expect(txHex).toEqual(

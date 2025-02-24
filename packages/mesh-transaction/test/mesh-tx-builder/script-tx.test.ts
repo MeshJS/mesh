@@ -1,5 +1,6 @@
 import {
   applyCborEncoding,
+  BlockfrostProvider,
   DRep,
   MeshTxBuilder,
   OfflineFetcher,
@@ -451,6 +452,70 @@ describe("MeshTxBuilder - Script Transactions", () => {
         ),
       )
       .certificateScript(alwaysSucceedCbor, "V3")
+      .certificateRedeemerValue("")
+      .txIn(txHash("tx1"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+
+    expect(
+      await offlineEvaluator.evaluateTx(
+        txHex,
+        Object.values(
+          txBuilder.meshTxBuilderBody.inputsForEvaluation,
+        ) as UTxO[],
+        txBuilder.meshTxBuilderBody.chainedTxs,
+      ),
+    ).toEqual([
+      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "CERT" },
+    ]);
+
+    expect(
+      await offlineEvaluator.evaluateTx(
+        txHex2,
+        Object.values(
+          txBuilder.meshTxBuilderBody.inputsForEvaluation,
+        ) as UTxO[],
+        txBuilder.meshTxBuilderBody.chainedTxs,
+      ),
+    ).toEqual([
+      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "CERT" },
+    ]);
+  });
+
+  it("should be able to register certificates with a plutus script with script ref", async () => {
+    const drep: DRep = {
+      alwaysAbstain: null,
+    };
+
+    const txHex = await txBuilder
+      .voteDelegationCertificate(
+        drep,
+        serializeRewardAddress(
+          resolveScriptHash(alwaysSucceedCbor, "V3"),
+          true,
+        ),
+      )
+      .certificateTxInReference(txHash("tx3"), 0, undefined, undefined, "V3")
+      .certificateRedeemerValue("")
+      .txIn(txHash("tx1"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+
+    const txHex2 = await txBuilder2
+      .voteDelegationCertificate(
+        drep,
+        serializeRewardAddress(
+          resolveScriptHash(alwaysSucceedCbor, "V3"),
+          true,
+        ),
+      )
+      .certificateTxInReference(txHash("tx3"), 0, undefined, undefined, "V3")
       .certificateRedeemerValue("")
       .txIn(txHash("tx1"), 0)
       .txInCollateral(txHash("tx1"), 0)
