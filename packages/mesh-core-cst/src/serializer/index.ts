@@ -61,7 +61,6 @@ import {
   Datum,
   DatumHash,
   Ed25519KeyHashHex,
-  Ed25519PrivateKey,
   Ed25519PublicKeyHex,
   Ed25519SignatureHex,
   ExUnits,
@@ -515,7 +514,8 @@ class CardanoSDKSerializerCore {
     } = txBuilderBody;
 
     this.addAllInputs(inputs);
-    this.addAllOutputs(this.sanitizeOutputs(outputs));
+    this.sanitizeOutputs(outputs);
+    this.addAllOutputs(outputs);
     this.addAllMints(mints);
     this.addAllCerts(certificates);
     this.addAllWithdrawals(withdrawals);
@@ -536,7 +536,7 @@ class CardanoSDKSerializerCore {
     ).toCbor();
   };
 
-  private sanitizeOutputs = (outputs: Output[]): Output[] => {
+  private sanitizeOutputs = (outputs: Output[]): void => {
     for (let i = 0; i < outputs.length; i++) {
       let currentOutput = outputs[i];
       let lovelaceFound = false;
@@ -559,23 +559,22 @@ class CardanoSDKSerializerCore {
             outputAmount.quantity = minUtxoValue.toString();
           }
         }
-        if (!lovelaceFound) {
-          let currentAmount = {
-            unit: "lovelace",
-            quantity: "10000000",
-          };
-          currentOutput!.amount.push(currentAmount);
-          let dummyCardanoOutput: TransactionOutput = this.toCardanoOutput(
-            currentOutput!,
-          );
-          let minUtxoValue =
-            (160 + dummyCardanoOutput.toCbor().length / 2 + 1) *
-            this.protocolParams.coinsPerUtxoSize;
-          currentAmount.quantity = minUtxoValue.toString();
-        }
+      }
+      if (!lovelaceFound) {
+        let currentAmount = {
+          unit: "lovelace",
+          quantity: "10000000",
+        };
+        currentOutput!.amount.push(currentAmount);
+        let dummyCardanoOutput: TransactionOutput = this.toCardanoOutput(
+          currentOutput!,
+        );
+        let minUtxoValue =
+          (160 + dummyCardanoOutput.toCbor().length / 2 + 1) *
+          this.protocolParams.coinsPerUtxoSize;
+        currentAmount.quantity = minUtxoValue.toString();
       }
     }
-    return outputs;
   };
 
   private addAllInputs = (inputs: TxIn[]) => {
@@ -1406,10 +1405,14 @@ class CardanoSDKSerializerCore {
       throw new Error(`Not enough funds to satisfy outputs`);
     }
 
-    currentOutputs.push(
-      new TransactionOutput(toCardanoAddress(changeAddress), remainingValue),
+    const dummyChangeOutput = new TransactionOutput(
+      toCardanoAddress(changeAddress),
+      remainingValue,
     );
-    this.txBody.setOutputs(currentOutputs);
+
+    let minUtxoValue =
+      (160 + dummyChangeOutput.toCbor().length / 2 + 1) *
+      this.protocolParams.coinsPerUtxoSize;
 
     // Create a dummy tx that we will use to calculate fees
     this.txBody.setFee(BigInt("10000000"));
@@ -1419,7 +1422,7 @@ class CardanoSDKSerializerCore {
     // The calculate fees util will first calculate fee based on
     // length of dummy tx, then calculate fees related to script
     // ref size
-    const fee = calculateFees(
+    let fee = calculateFees(
       this.protocolParams.minFeeA,
       this.protocolParams.minFeeB,
       this.protocolParams.minFeeRefScriptCostPerByte,
@@ -1429,25 +1432,27 @@ class CardanoSDKSerializerCore {
       this.refScriptSize,
     );
 
-    this.txBody.setFee(fee);
+    if (remainingValue.coin() >= fee + BigInt(minUtxoValue)) {
+      dummyChangeOutput
+        .amount()
+        .setCoin(dummyChangeOutput.amount().coin() - fee);
+      currentOutputs.push(dummyChangeOutput);
+      this.txBody.setOutputs(currentOutputs);
+      remainingValue = new Value(BigInt(0));
+    } else if (remainingValue.coin() >= fee) {
+      if (
+        remainingValue.multiasset() &&
+        remainingValue.multiasset()!.size > 0
+      ) {
+        throw new Error(
+          "Insufficient funds to create change output with tokens",
+        );
+      } else {
+        fee = remainingValue.coin();
+      }
+    }
 
-    // The change output should be the last element in outputs
-    // so we can simply take away the calculated fees from it
-    const changeOutput = currentOutputs.pop();
-    if (!changeOutput) {
-      throw new Error(
-        "Somehow the output length was 0 after attempting to calculate fees",
-      );
-    }
-    if (changeOutput.amount().coin() - fee > 0) {
-      changeOutput.amount().setCoin(changeOutput.amount().coin() - fee);
-      currentOutputs.push(changeOutput);
-    } else if (changeOutput.amount().coin() - fee < 0) {
-      throw new Error(
-        `There was enough inputs to cover outputs, but not enough to cover fees - fee: ${fee}`,
-      );
-    }
-    this.txBody.setOutputs(currentOutputs);
+    this.txBody.setFee(fee);
   };
 
   private createDummyTx = (numberOfRequiredWitnesses: number): Transaction => {
