@@ -412,6 +412,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   serializeTxBody = (
     txBuilderBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
+    balanced: Boolean = true,
   ): string => {
     if (this.verbose) {
       console.log(
@@ -427,7 +428,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     const serializerCore = new CardanoSDKSerializerCore(
       protocolParams ?? this.protocolParams,
     );
-    return serializerCore.coreSerializeTxBody(txBuilderBody);
+    return serializerCore.coreSerializeTxBody(txBuilderBody, balanced);
   };
 
   addSigningKeys = (txHex: string, signingKeys: string[]): string => {
@@ -498,7 +499,10 @@ class CardanoSDKSerializerCore {
     this.txAuxilliaryData = new AuxilliaryData();
   }
 
-  coreSerializeTxBody = (txBuilderBody: MeshTxBuilderBody): string => {
+  coreSerializeTxBody = (
+    txBuilderBody: MeshTxBuilderBody,
+    balanced: Boolean,
+  ): string => {
     const {
       inputs,
       outputs,
@@ -528,7 +532,9 @@ class CardanoSDKSerializerCore {
       this.addMetadata(metadata);
     }
     this.buildWitnessSet();
-    this.balanceTx(changeAddress);
+    if (balanced) {
+      this.balanceTx(changeAddress);
+    }
     return new Transaction(
       this.txBody,
       this.txWitnessSet,
