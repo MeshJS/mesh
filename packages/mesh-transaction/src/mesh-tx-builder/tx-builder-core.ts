@@ -1347,6 +1347,7 @@ export class MeshTxBuilderCore {
           txIndex,
           scriptHash,
           scriptSize,
+          version,
         },
         redeemer:
           currentCert.type === "ScriptCertificate"

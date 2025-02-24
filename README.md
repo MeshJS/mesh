@@ -47,7 +47,6 @@ graph TD
   package-sidan-csl[@sidan-lab/*]
   package-cardano-sdk[@cardano-sdk/*]
   package-harmoniclabs[@harmoniclabs/*]
-  package-stricahq[@stricahq/*]
   package-core --> package-core-csl
   package-core --> package-core-cst
   package-core --> package-provider
@@ -64,7 +63,6 @@ graph TD
   package-core-csl --> package-sidan-csl
   package-core-cst --> package-cardano-sdk
   package-core-cst --> package-harmoniclabs
-  package-core-cst --> package-stricahq
   end
   click package-core-csl "https://docs.meshjs.dev/core-csl" _parent
   click package-core-cst "https://docs.meshjs.dev/core-cst" _parent

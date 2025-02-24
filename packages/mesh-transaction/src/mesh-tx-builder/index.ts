@@ -47,17 +47,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     verbose = false,
   }: MeshTxBuilderOptions = {}) {
     super();
-    if (serializer) {
-      this.serializer = serializer;
-    } else {
-      this.serializer = new CardanoSDKSerializer();
-      // this.serializer = new CSLSerializer();
-    }
-    this.serializer.verbose = verbose;
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
     if (evaluator) this.evaluator = evaluator;
     if (params) this.protocolParams(params);
+    if (serializer) {
+      this.serializer = serializer;
+    } else {
+      this.serializer = new CardanoSDKSerializer(this._protocolParams);
+    }
+    this.serializer.verbose = verbose;
     if (isHydra)
       this.protocolParams({
         minFeeA: 0,
@@ -74,7 +73,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * @param customizedTx The optional customized transaction body
    * @returns The signed transaction in hex ready to submit / signed by client
    */
-  complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
+  complete = async (
+    customizedTx?: Partial<MeshTxBuilderBody>,
+    balanced: Boolean = true,
+  ) => {
     if (customizedTx) {
       this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
     } else {
@@ -242,6 +244,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     let txHex = this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
+      balanced,
     );
 
     // Evaluating the transaction
@@ -265,6 +268,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       txHex = this.serializer.serializeTxBody(
         this.meshTxBuilderBody,
         this._protocolParams,
+        balanced,
       );
     }
 
@@ -277,7 +281,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * @param customizedTx The optional customized transaction body
    * @returns The signed transaction in hex ready to submit / signed by client
    */
-  completeSync = (customizedTx?: MeshTxBuilderBody) => {
+  completeSync = (
+    customizedTx?: MeshTxBuilderBody,
+    balanced: Boolean = true,
+  ) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
     } else {
@@ -287,6 +294,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
+      balanced,
     );
   };
 

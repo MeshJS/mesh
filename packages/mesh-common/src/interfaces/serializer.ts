@@ -14,6 +14,7 @@ export interface IMeshTxSerializer {
   serializeTxBody(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
+    balanced: Boolean,
   ): string;
   addSigningKeys(txHex: string, signingKeys: string[]): string;
   resolver: IResolver;
