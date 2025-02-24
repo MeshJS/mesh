@@ -73,7 +73,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * @param customizedTx The optional customized transaction body
    * @returns The signed transaction in hex ready to submit / signed by client
    */
-  complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
+  complete = async (
+    customizedTx?: Partial<MeshTxBuilderBody>,
+    balanced: Boolean = true,
+  ) => {
     if (customizedTx) {
       this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
     } else {
@@ -241,6 +244,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     let txHex = this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
+      balanced,
     );
 
     // Evaluating the transaction
@@ -264,6 +268,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       txHex = this.serializer.serializeTxBody(
         this.meshTxBuilderBody,
         this._protocolParams,
+        balanced,
       );
     }
 
@@ -276,7 +281,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * @param customizedTx The optional customized transaction body
    * @returns The signed transaction in hex ready to submit / signed by client
    */
-  completeSync = (customizedTx?: MeshTxBuilderBody) => {
+  completeSync = (
+    customizedTx?: MeshTxBuilderBody,
+    balanced: Boolean = true,
+  ) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
     } else {
@@ -286,6 +294,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
+      balanced,
     );
   };
 
