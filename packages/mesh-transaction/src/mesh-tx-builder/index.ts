@@ -47,17 +47,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     verbose = false,
   }: MeshTxBuilderOptions = {}) {
     super();
-    if (serializer) {
-      this.serializer = serializer;
-    } else {
-      this.serializer = new CardanoSDKSerializer();
-      // this.serializer = new CSLSerializer();
-    }
-    this.serializer.verbose = verbose;
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
     if (evaluator) this.evaluator = evaluator;
     if (params) this.protocolParams(params);
+    if (serializer) {
+      this.serializer = serializer;
+    } else {
+      this.serializer = new CardanoSDKSerializer(this._protocolParams);
+    }
+    this.serializer.verbose = verbose;
     if (isHydra)
       this.protocolParams({
         minFeeA: 0,
