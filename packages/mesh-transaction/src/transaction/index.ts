@@ -646,13 +646,13 @@ export class Transaction {
     return this;
   }
 
-  async build(): Promise<string> {
+  async build(balanced: Boolean = true): Promise<string> {
     try {
       await this.addCollateralIfNeeded();
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
 
-      return this.txBuilder.complete();
+      return this.txBuilder.complete(undefined, balanced);
     } catch (error) {
       throw new Error(
         `[Transaction] An error occurred during build: ${error}.`,
