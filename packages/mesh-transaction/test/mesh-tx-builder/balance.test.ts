@@ -12,6 +12,18 @@ describe("MeshTxBuilder", () => {
     return blake2b(32).update(Buffer.from(tx, "utf-8")).digest("hex");
   };
 
+  const calculateOutputLovelaces = (tx: string) => {
+    const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
+    let lovelaces = BigInt(0);
+    cardanoTx
+      .body()
+      .outputs()
+      .forEach((output) => {
+        lovelaces += output.amount().coin();
+      });
+    return lovelaces;
+  };
+
   it("Should add remaining value as fees if insufficient for minUtxoValue", async () => {
     const tx = await txBuilder
       .txIn(
@@ -42,6 +54,7 @@ describe("MeshTxBuilder", () => {
 
     const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
     expect(cardanoTx.body().fee()).toEqual(BigInt(200000));
+    expect(calculateOutputLovelaces(tx)).toEqual(BigInt(1000000));
   });
 
   it("Transaction should be exactly balanced with change output", async () => {
@@ -72,9 +85,9 @@ describe("MeshTxBuilder", () => {
       )
       .complete();
     const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
-    expect(
-      cardanoTx.body().fee() +
-        cardanoTx.body().outputs().pop()!.amount().coin(),
-    ).toEqual(BigInt(2000000));
+    expect(calculateOutputLovelaces(tx) + cardanoTx.body().fee()).toEqual(
+      BigInt(3000000),
+    );
+    expect(cardanoTx.body().outputs().length).toEqual(2);
   });
 });
