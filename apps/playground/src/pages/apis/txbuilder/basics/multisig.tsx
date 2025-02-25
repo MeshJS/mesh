@@ -74,7 +74,7 @@ function Right() {
       },
     });
     const forgingScript = ForgeScript.withOneSignature(
-      mintingWallet.getChangeAddress(),
+      await mintingWallet.getChangeAddress(),
     );
     const assetName = "MeshToken";
     const policyId = resolveScriptHash(forgingScript);
@@ -111,7 +111,7 @@ function Right() {
   codeSnippet += `});\n`;
   codeSnippet += `\n`;
   codeSnippet += `const forgingScript = ForgeScript.withOneSignature(\n`;
-  codeSnippet += `  mintingWallet.getChangeAddress(),\n`;
+  codeSnippet += `  await mintingWallet.getChangeAddress(),\n`;
   codeSnippet += `);\n`;
   codeSnippet += `\n`;
   codeSnippet += `const assetName = "MeshToken";\n`;

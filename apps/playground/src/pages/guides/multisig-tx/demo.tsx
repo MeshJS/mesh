@@ -65,7 +65,7 @@ export default function Demo() {
         words: walletSystemMnemonic,
       },
     });
-    const systemWalletAddress = systemWallet.getChangeAddress();
+    const systemWalletAddress = await systemWallet.getChangeAddress();
 
     // get utxos to send the asset
     const utxos = await systemWallet.getUtxos();

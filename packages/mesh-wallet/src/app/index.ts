@@ -73,6 +73,16 @@ export class AppWallet implements ISigner, ISubmitter {
   }
 
   /**
+   * Initializes the wallet. This is a required call as fetching addresses from the wallet is an async operation.
+   * @returns void
+   */
+  async init() {
+    if (this._wallet) {
+      await this._wallet.init();
+    }
+  }
+
+  /**
    * Get a list of UTXOs to be used as collateral inputs for transactions with plutus script inputs.
    *
    * This is used in transaction building.

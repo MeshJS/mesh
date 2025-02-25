@@ -189,6 +189,20 @@ function Left(
         with the <code>address</code> type:
       </p>
       <Codeblock data={code5} />
+
+      <h3>Initialize wallet</h3>
+      <p>
+        After creating the wallet, we need to initialize it. This will
+        initialize the cryptography library.
+      </p>
+      <Codeblock data={`await wallet.init()`} />
+
+      <p>
+        With the <code>wallet</code> loaded, you can sign transactions, we will
+        see how to do this in the next section, for now lets get the wallet's
+        address:
+      </p>
+      <Codeblock data={code2} />
     </>
   );
 }
@@ -240,10 +254,11 @@ function Right(
               words: _mnemonic,
             },
           });
+          await _wallet.init();
           setWallet(_wallet);
 
-          const addresses = _wallet.getAddresses();
-          setResponseAddress(JSON.stringify(addresses, null, 2));
+          const changeAddress = await _wallet.getChangeAddress();
+          setResponseAddress(changeAddress);
         }
       } catch (error) {
         setResponseError(`${error}`);
@@ -260,10 +275,11 @@ function Right(
             bech32: privatekey,
           },
         });
+        await _wallet.init();
         setWallet(_wallet);
 
-        const addresses = _wallet.getAddresses();
-        setResponseAddress(JSON.stringify(addresses, null, 2));
+        const changeAddress = await _wallet.getChangeAddress();
+        setResponseAddress(changeAddress);
       } catch (error) {
         setResponseError(`${error}`);
       }
@@ -281,10 +297,11 @@ function Right(
             stake,
           },
         });
+        await _wallet.init();
         setWallet(_wallet);
 
-        const addresses = _wallet.getAddresses();
-        setResponseAddress(JSON.stringify(addresses, null, 2));
+        const changeAddress = await _wallet.getChangeAddress();
+        setResponseAddress(changeAddress);
       } catch (error) {
         setResponseError(`${error}`);
       }
@@ -300,10 +317,11 @@ function Right(
             address: walletAddress,
           },
         });
+        await _wallet.init();
         setWallet(_wallet);
 
-        const addresses = _wallet.getAddresses();
-        setResponseAddress(JSON.stringify(addresses, null, 2));
+        const changeAddress = await _wallet.getChangeAddress();
+        setResponseAddress(changeAddress);
       } catch (error) {
         setResponseError(`${error}`);
       }

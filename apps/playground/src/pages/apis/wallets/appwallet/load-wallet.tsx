@@ -175,7 +175,6 @@ function Right(
     setWallet({} as AppWallet);
 
     const blockchainProvider = getProvider();
-
     if (demoMethod == 0) {
       let _mnemonic = [];
       try {
@@ -195,6 +194,7 @@ function Right(
               words: _mnemonic,
             },
           });
+          await _wallet.init();
           setWallet(_wallet);
           setWalletNetwork(network);
           const address = _wallet.getPaymentAddress();
@@ -215,6 +215,7 @@ function Right(
             bech32: privatekey,
           },
         });
+        await _wallet.init();
         setWallet(_wallet);
         setWalletNetwork(network);
         const address = _wallet.getPaymentAddress();
@@ -236,6 +237,7 @@ function Right(
             stake,
           },
         });
+        await _wallet.init();
         setWallet(_wallet);
         setWalletNetwork(network);
         const address = _wallet.getPaymentAddress();

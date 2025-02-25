@@ -1,7 +1,9 @@
-import { Action } from "../types";
+import { Action, UTxO } from "../types";
 
 export interface IEvaluator {
   evaluateTx(
     tx: string,
+    additionalUtxos?: UTxO[],
+    additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]>;
 }

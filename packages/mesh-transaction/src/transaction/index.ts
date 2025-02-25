@@ -292,6 +292,7 @@ export class Transaction {
           value.input.outputIndex,
           value.output.amount,
           value.output.address,
+          value.output.scriptRef ? value.output.scriptRef.length / 2 : 0,
         )
         .txInScript(script.code)
         .txInRedeemerValue(red.data, "Mesh", red.budget);
@@ -618,7 +619,7 @@ export class Transaction {
   delegateStake(rewardAddress: string, poolId: string): Transaction {
     this.txBuilder.delegateStakeCertificate(
       rewardAddress,
-      this.txBuilder.serializer.resolver.keys.resolveEd25519KeyHash(poolId),
+      this.txBuilder.serializer.deserializer.cert.deserializePoolId(poolId),
     );
     return this;
   }
@@ -645,13 +646,13 @@ export class Transaction {
     return this;
   }
 
-  async build(): Promise<string> {
+  async build(balanced: Boolean = true): Promise<string> {
     try {
       await this.addCollateralIfNeeded();
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
 
-      return this.txBuilder.complete();
+      return this.txBuilder.complete(undefined, balanced);
     } catch (error) {
       throw new Error(
         `[Transaction] An error occurred during build: ${error}.`,

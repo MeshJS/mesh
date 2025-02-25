@@ -1,5 +1,6 @@
 import { CardanoWallet, useWalletList } from "@meshsdk/react";
 
+import { useDarkmode } from "~/hooks/useDarkmode";
 import { getProvider } from "../mesh-wallet";
 import { checkIfMetamaskInstalled } from "./metamask";
 
@@ -20,7 +21,7 @@ export default function ConnectBrowserWallet() {
 
 export function CommonCardanoWallet() {
   const provider = getProvider();
-
+  const isDark = useDarkmode((state) => state.isDark);
   return (
     <CardanoWallet
       label={"Connect a Wallet"}
@@ -49,7 +50,7 @@ export function CommonCardanoWallet() {
       //   url: "http://localhost:8080",
       // }}
       injectFn={async () => await checkIfMetamaskInstalled("preprod")}
-      isDark={true}
+      isDark={isDark}
       persist={true}
     />
   );
