@@ -1,6 +1,6 @@
 import type { NextPage } from "next";
 
-import { HydraProvider } from "@meshsdk/core";
+import { HydraProvider } from "@meshsdk/hydra";
 
 import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
@@ -28,12 +28,15 @@ const ReactPage: NextPage = () => {
     { label: "Get protocol parameters", to: "AA" },
   ];
 
-  let code1 = `import { HydraProvider } from "@meshsdk/core";\n\n`;
+  let code1 = `import { HydraProvider } from "@meshsdk/hydra";\n\n`;
   code1 += `const hydraProvider = new HydraProvider('<URL>');`;
   code1 += `\nawait hydraProvider.connect();`;
 
   const hydraUrl = useProviders((state) => state.hydraUrl);
-  const hydraProvider = new HydraProvider({ url: hydraUrl });
+
+  const hydraProvider = new HydraProvider({
+    url: hydraUrl,
+  });
 
   return (
     <>

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
-import { HydraProvider } from "@meshsdk/core";
+import { HydraProvider } from "@meshsdk/hydra";
 
 import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
