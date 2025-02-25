@@ -64,6 +64,7 @@ jobs:
           TRANSACTION_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
           WALLET_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
           CLI_PRE_MERGE_VERSION=$(node -p "require('./scripts/mesh-cli/package.json').version")
+          echo "hydra_pre_merge_version=$HYDRA_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "common_pre_merge_version=$COMMON_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "contract_pre_merge_version=$CONTRACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "core_pre_merge_version=$CORE_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
