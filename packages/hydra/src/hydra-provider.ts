@@ -51,7 +51,7 @@ import {
  *
  * Usage:
  * ```
- * import { HydraProvider } from "@meshsdk/core";
+ * import { HydraProvider } from "@meshsdk/hydra";
  *
  * const hydraProvider = new HydraProvider({url:'http://123.45.67.890:4001'});
  */

@@ -28,7 +28,7 @@ const ReactPage: NextPage = () => {
     { label: "Get protocol parameters", to: "AA" },
   ];
 
-  let code1 = `import { HydraProvider } from "@meshsdk/core";\n\n`;
+  let code1 = `import { HydraProvider } from "@meshsdk/hydra";\n\n`;
   code1 += `const hydraProvider = new HydraProvider('<URL>');`;
   code1 += `\nawait hydraProvider.connect();`;
 
