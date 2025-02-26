@@ -102,7 +102,7 @@ export const resolveNativeScriptAddress = (
  * Deprecated - use `serializeNativeScript` instead
  */
 export const resolveNativeScriptHex = (script: NativeScript) =>
-  core.toNativeScript(script).toCbor();
+  core.toNativeScript(script).toCbor().toString();
 
 /**
  * Deprecated - use `deserializeAddress` instead
