@@ -1,4 +1,4 @@
-import { Serialization } from "@cardano-sdk/core";
+import { Serialization, setInConwayEra } from "@cardano-sdk/core";
 import { HexBlob } from "@cardano-sdk/util";
 import {
   Cbor,
@@ -115,6 +115,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   protocolParams: Protocol;
 
   constructor(protocolParams?: Protocol, verbose = false) {
+    setInConwayEra(true);
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
     this.verbose = verbose;
   }
@@ -742,9 +743,7 @@ class CardanoSDKSerializerCore {
     if (output.datum?.type === "Hash") {
       cardanoOutput.setDatum(
         Datum.newDataHash(
-          DatumHash.fromHexBlob(
-            HexBlob(fromBuilderToPlutusData(output.datum.data).hash()),
-          ),
+          DatumHash(fromBuilderToPlutusData(output.datum.data).hash()),
         ),
       );
     } else if (output.datum?.type === "Inline") {
@@ -809,7 +808,7 @@ class CardanoSDKSerializerCore {
 
     referenceInputsList.push(
       new TransactionInput(
-        TransactionId.fromHexBlob(HexBlob(refInput.txHash)),
+        TransactionId(refInput.txHash),
         BigInt(refInput.txIndex),
       ),
     );
@@ -1416,9 +1415,7 @@ class CardanoSDKSerializerCore {
       remainingValue,
     );
 
-    let minUtxoValue =
-      (160 + dummyChangeOutput.toCbor().length / 2 + 1) *
-      this.protocolParams.coinsPerUtxoSize;
+    currentOutputs.push(dummyChangeOutput);
 
     // Create a dummy tx that we will use to calculate fees
     this.txBody.setFee(BigInt("10000000"));
@@ -1438,14 +1435,11 @@ class CardanoSDKSerializerCore {
       this.refScriptSize,
     );
 
-    if (remainingValue.coin() >= fee + BigInt(minUtxoValue)) {
-      dummyChangeOutput
-        .amount()
-        .setCoin(dummyChangeOutput.amount().coin() - fee);
-      currentOutputs.push(dummyChangeOutput);
-      this.txBody.setOutputs(currentOutputs);
-      remainingValue = new Value(BigInt(0));
-    } else if (remainingValue.coin() >= fee) {
+    let minUtxoValue =
+      (160 + dummyChangeOutput.toCbor().length / 2 + 1) *
+      this.protocolParams.coinsPerUtxoSize;
+
+    if (remainingValue.coin() <= fee + BigInt(minUtxoValue)) {
       if (
         remainingValue.multiasset() &&
         remainingValue.multiasset()!.size > 0
@@ -1455,6 +1449,13 @@ class CardanoSDKSerializerCore {
         );
       } else {
         fee = remainingValue.coin();
+        currentOutputs.pop();
+      }
+    } else {
+      const changeOutput = currentOutputs.pop();
+      if (changeOutput) {
+        changeOutput.amount().setCoin(changeOutput.amount().coin() - fee);
+        currentOutputs.push(changeOutput);
       }
     }
 

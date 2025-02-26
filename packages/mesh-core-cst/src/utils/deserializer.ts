@@ -5,12 +5,8 @@ import { HexBlob } from "@cardano-sdk/util";
 import { DeserializedAddress, LanguageVersion, toBytes } from "@meshsdk/common";
 
 import {
-  Address,
-  CredentialType,
-  DatumHash,
   Ed25519KeyHash,
   NativeScript,
-  PlutusData,
   PlutusV1Script,
   PlutusV2Script,
   PlutusV3Script,
@@ -62,4 +58,4 @@ export const deserializeTx = (tx: string): Transaction =>
   Transaction.fromCbor(Serialization.TxCBOR(tx));
 
 export const deserializeTxHash = (txHash: string): TransactionId =>
-  TransactionId.fromHexBlob(HexBlob(txHash));
+  TransactionId(txHash);
