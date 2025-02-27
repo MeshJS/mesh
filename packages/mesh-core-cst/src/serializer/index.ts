@@ -12,6 +12,7 @@ import base32 from "base32-encoding";
 import { bech32 } from "bech32";
 
 import {
+  BasicVote,
   BuilderData,
   Certificate,
   NativeScript as CommonNativeScript,
@@ -37,12 +38,15 @@ import {
   RequiredWith,
   ScriptSource,
   ScriptTxIn,
+  ScriptVote,
   SimpleScriptSourceInfo,
   SimpleScriptTxIn,
+  SimpleScriptVote,
   toBytes,
   TxIn,
   TxMetadata,
   ValidityRange,
+  Vote,
   Withdrawal,
 } from "@meshsdk/common";
 
@@ -101,6 +105,7 @@ import {
   fromBuilderToPlutusData,
   toAddress,
   toCardanoAddress,
+  toDRep,
   toNativeScript,
   toValue,
 } from "../utils";
@@ -109,6 +114,11 @@ import { calculateFees } from "../utils/fee";
 import { toCardanoMetadataMap } from "../utils/metadata";
 import { hashScriptData } from "../utils/script-data-hash";
 import { empty, mergeValue, negatives, subValue } from "../utils/value";
+import {
+  toCardanoGovernanceActionId,
+  toCardanoVoter,
+  toCardanoVotingProcedure,
+} from "../utils/vote";
 
 export class CardanoSDKSerializer implements IMeshTxSerializer {
   verbose: boolean;
@@ -516,6 +526,7 @@ class CardanoSDKSerializerCore {
       validityRange,
       certificates,
       withdrawals,
+      votes,
     } = txBuilderBody;
 
     this.addAllInputs(inputs);
@@ -524,6 +535,7 @@ class CardanoSDKSerializerCore {
     this.addAllMints(mints);
     this.addAllCerts(certificates);
     this.addAllWithdrawals(withdrawals);
+    this.addAllVotes(votes);
     this.addAllCollateralInputs(collaterals);
     this.addAllReferenceInputs(referenceInputs);
     this.removeInputRefInputOverlap();
@@ -1787,5 +1799,97 @@ class CardanoSDKSerializerCore {
         break;
       }
     }
+  };
+
+  private addAllVotes = (votes: Vote[]) => {
+    for (let i = 0; i < votes.length; i++) {
+      const vote = votes[i];
+      switch (vote!.type) {
+        case "BasicVote": {
+          this.addBasicVote(vote as BasicVote);
+          break;
+        }
+        case "ScriptVote": {
+          this.addScriptVote(vote as ScriptVote, i);
+          break;
+        }
+        case "SimpleScriptVote": {
+          this.addSimpleScriptVote(vote as SimpleScriptVote);
+          break;
+        }
+      }
+    }
+  };
+
+  private addBasicVote = (basicVote: BasicVote) => {
+    const votes: Serialization.VotingProcedures =
+      this.txBody.votingProcedures() ??
+      Serialization.VotingProcedures.fromCore([]);
+
+    votes.insert(
+      toCardanoVoter(basicVote.vote.voter),
+      toCardanoGovernanceActionId(basicVote.vote.govActionId),
+      toCardanoVotingProcedure(basicVote.vote.votingProcedure),
+    );
+    this.txBody.setVotingProcedures(votes);
+  };
+
+  private addScriptVote = (vote: ScriptVote, index: number) => {
+    if (!vote.scriptSource)
+      throw new Error("Script source not provided for plutus script vote");
+    const plutusScriptSource = vote.scriptSource as ScriptSource;
+    if (!plutusScriptSource) {
+      throw new Error(
+        "A script source for a plutus certificate was not plutus script somehow",
+      );
+    }
+    if (!vote.redeemer) {
+      throw new Error("A redeemer was not provided for a plutus vote");
+    }
+
+    // Add withdraw redeemer to witness set
+    let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
+    let redeemersList = [...redeemers.values()];
+    redeemersList.push(
+      new Redeemer(
+        RedeemerTag.Voting,
+        BigInt(index),
+        fromBuilderToPlutusData(vote.redeemer.data),
+        new ExUnits(
+          BigInt(vote.redeemer.exUnits.mem),
+          BigInt(vote.redeemer.exUnits.steps),
+        ),
+      ),
+    );
+    redeemers.setValues(redeemersList);
+    this.txWitnessSet.setRedeemers(redeemers);
+
+    if (plutusScriptSource.type === "Provided") {
+      this.addProvidedPlutusScript(plutusScriptSource.script);
+    } else if (plutusScriptSource.type === "Inline") {
+      this.addScriptRef(plutusScriptSource);
+    }
+    this.addBasicVote({ type: "BasicVote", vote: vote.vote });
+  };
+
+  private addSimpleScriptVote = (vote: SimpleScriptVote) => {
+    if (!vote.simpleScriptSource)
+      throw new Error("Script source not provided for native script vote");
+    const nativeScriptSource: SimpleScriptSourceInfo =
+      vote.simpleScriptSource as SimpleScriptSourceInfo;
+    if (!nativeScriptSource)
+      throw new Error(
+        "A script source for a native script was not a native script somehow",
+      );
+    if (nativeScriptSource.type === "Provided") {
+      this.scriptsProvided.add(
+        Script.newNativeScript(
+          NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
+        ).toCbor(),
+      );
+    } else if (nativeScriptSource.type === "Inline") {
+      this.addSimpleScriptRef(nativeScriptSource);
+    }
+    this.addBasicVote({ type: "BasicVote", vote: vote.vote });
   };
 }
