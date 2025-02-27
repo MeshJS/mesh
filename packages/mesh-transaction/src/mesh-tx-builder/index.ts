@@ -256,6 +256,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
             Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[]
           ).concat(
             this.meshTxBuilderBody.inputs.map((val) => txInToUtxo(val.txIn)),
+            this.meshTxBuilderBody.collaterals.map((val) =>
+              txInToUtxo(val.txIn),
+            ),
           ),
           this.meshTxBuilderBody.chainedTxs,
         )
