@@ -1520,9 +1520,6 @@ export class MeshTxBuilderCore {
     const currentUtxo = this.meshTxBuilderBody.inputsForEvaluation[utxoId];
 
     if (currentUtxo) {
-      const { address, amount, dataHash, plutusData, scriptRef, scriptHash } =
-        input.output;
-
       const {
         dataHash: currentDataHash,
         plutusData: currentPlutusData,
@@ -1530,17 +1527,12 @@ export class MeshTxBuilderCore {
         scriptHash: currentScriptHash,
       } = currentUtxo.output;
 
-      const updatedUtxo: UTxO = {
-        ...input,
-        output: {
-          address,
-          amount,
-          dataHash: dataHash ?? currentDataHash,
-          plutusData: plutusData ?? currentPlutusData,
-          scriptRef: scriptRef ?? currentScriptRef,
-          scriptHash: scriptHash ?? currentScriptHash,
-        },
-      };
+      const updatedUtxo: UTxO = { ...currentUtxo };
+      if (currentDataHash) updatedUtxo.output.dataHash = currentDataHash;
+      if (currentPlutusData) updatedUtxo.output.plutusData = currentPlutusData;
+      if (currentScriptRef) updatedUtxo.output.scriptRef = currentScriptRef;
+      if (currentScriptHash) updatedUtxo.output.scriptHash = currentScriptHash;
+
       this.meshTxBuilderBody.inputsForEvaluation[utxoId] = updatedUtxo;
     } else {
       this.meshTxBuilderBody.inputsForEvaluation[utxoId] = input;
