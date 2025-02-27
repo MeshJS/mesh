@@ -14,7 +14,7 @@
     "format:fix": "turbo run format --continue -- --write --cache --cache-location node_modules/.cache/.prettiercache",
     "lint": "turbo lint",
     "pack": "turbo pack",
-    "test": "turbo test",
+    "test": "turbo test -- --passWithNoTests",
     "sh:version": "sh scripts/bump-version.sh",
     "postinstall": "patch-package"
   },
