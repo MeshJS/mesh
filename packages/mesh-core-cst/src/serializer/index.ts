@@ -1506,12 +1506,16 @@ class CardanoSDKSerializerCore {
 
     let referenceInputsList = [...referenceInputs.values()];
 
-    referenceInputsList.push(
-      new TransactionInput(
-        TransactionId(scriptSource.txHash),
-        BigInt(scriptSource.txIndex),
-      ),
+    // Create new input
+    const newInput = new TransactionInput(
+      TransactionId(scriptSource.txHash),
+      BigInt(scriptSource.txIndex)
     );
+    if (referenceInputsList.some(input =>
+      input.transactionId() === newInput.transactionId() &&
+      input.index() === newInput.index()
+    )) return; // Do not insert duplicate inputs
+    referenceInputsList.push(newInput);
 
     referenceInputs.setValues(referenceInputsList);
 
