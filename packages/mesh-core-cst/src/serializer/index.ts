@@ -105,7 +105,6 @@ import {
   fromBuilderToPlutusData,
   toAddress,
   toCardanoAddress,
-  toDRep,
   toNativeScript,
   toValue,
 } from "../utils";
@@ -646,6 +645,11 @@ class CardanoSDKSerializerCore {
     );
     this.utxoContext.set(cardanoTxIn, cardanoTxOut);
     this.txBody.setInputs(inputs);
+
+    // Add script size if ref script in input
+    if (currentTxIn.txIn.scriptSize) {
+      this.refScriptSize += currentTxIn.txIn.scriptSize;
+    }
   };
 
   private addScriptTxIn = (
