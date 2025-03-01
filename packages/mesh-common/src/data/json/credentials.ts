@@ -20,6 +20,11 @@ export type PubKeyAddress = ConStr0<[ConStr0<[PubKeyHash]>, MaybeStakingHash]>;
 export type ScriptAddress = ConStr0<[ConStr1<[ScriptHash]>, MaybeStakingHash]>;
 
 /**
+ * The Plutus Data credential in JSON
+ */
+export type Credential = ConStr0<[PubKeyHash]> | ConStr1<[ScriptHash]>;
+
+/**
  * The utility function to create a Plutus Data staking hash in JSON
  * @param stakeCredential The staking credential in hex
  * @param isStakeScriptCredential The flag to indicate if the credential is a script credential
@@ -75,3 +80,17 @@ export const scriptAddress = (
     conStr1([scriptHash(bytes)]),
     maybeStakingHash(stakeCredential || "", isStakeScriptCredential),
   ]);
+
+/**
+ * The utility function to create a Plutus Data credential in JSON
+ * @param hash The pub key hash or script hash
+ * @param isScriptCredential Indicate if the credential is script hash (false for pub key hash)
+ * @returns Plutus Data credential object
+ */
+export const credential = (
+  hash: string,
+  isScriptCredential = false,
+): Credential =>
+  isScriptCredential
+    ? conStr1([scriptHash(hash)])
+    : conStr0([pubKeyHash(hash)]);
