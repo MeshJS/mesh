@@ -20,6 +20,11 @@ export type MPubKeyAddress = MConStr0<[MConStr0<[string]>, MMaybeStakingHash]>;
 export type MScriptAddress = MConStr0<[MConStr1<[string]>, MMaybeStakingHash]>;
 
 /**
+ * The Mesh Data credential
+ */
+export type MCredential = MConStr0<[string]> | MConStr1<[string]>;
+
+/**
  * The utility function to create a Mesh Data staking hash
  * @param stakeCredential The staking credential in hex
  * @param isStakeScriptCredential The flag to indicate if the credential is a script credential
@@ -75,3 +80,14 @@ export const mScriptAddress = (
     { alternative: 1, fields: [bytes] },
     mMaybeStakingHash(stakeCredential || "", isStakeScriptCredential),
   ]);
+
+/**
+ * The utility function to create a Mesh Data credential
+ * @param hash The pub key hash or script hash
+ * @param isScriptCredential Indicate if the credential is script hash (false for pub key hash)
+ * @returns Mesh Data credential object
+ */
+export const mCredential = (
+  hash: string,
+  isScriptCredential = false,
+): MCredential => (isScriptCredential ? mConStr1([hash]) : mConStr0([hash]));
