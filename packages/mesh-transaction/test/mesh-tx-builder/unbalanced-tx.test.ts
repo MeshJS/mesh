@@ -22,7 +22,8 @@ describe("Unbalanced tx with TxBuilder", () => {
           },
         ],
       )
-      .complete(undefined, false);
+      .completeUnbalanced(undefined);
+
     const cardanoTx = Transaction.fromCbor(TxCBOR(txHex));
     expect(cardanoTx.body().outputs()[0]!.amount().coin()).toEqual(
       BigInt(2000000),
