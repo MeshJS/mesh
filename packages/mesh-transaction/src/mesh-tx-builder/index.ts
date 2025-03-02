@@ -71,9 +71,254 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   /**
    * It builds the transaction and query the blockchain for missing information
    * @param customizedTx The optional customized transaction body
-   * @returns The signed transaction in hex ready to submit / signed by client
+   * @returns The transaction in hex ready to submit / signed by client
    */
-  complete = async (
+  complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
+    const txHex = await this.completeSerialization(customizedTx, true);
+    return txHex;
+  };
+
+  /**
+   * It builds the transaction query the blockchain for missing information
+   * @param customizedTx The optional customized transaction body
+   * @returns The transaction in hex, unbalanced
+   */
+  completeUnbalanced = async (
+    customizedTx?: Partial<MeshTxBuilderBody>,
+  ): Promise<string> => {
+    const txHex = await this.completeSerialization(customizedTx, false);
+    return txHex;
+  };
+
+  /**
+   * It builds the transaction without dependencies
+   * @param customizedTx The optional customized transaction body
+   * @returns The  transaction in hex ready to submit / signed by client
+   */
+  completeSync = (customizedTx?: MeshTxBuilderBody) => {
+    if (customizedTx) {
+      this.meshTxBuilderBody = customizedTx;
+    } else {
+      this.queueAllLastItem();
+    }
+    this.addUtxosFromSelection();
+    return this.serializer.serializeTxBody(
+      this.meshTxBuilderBody,
+      this._protocolParams,
+      true,
+    );
+  };
+
+  /**
+   * It builds the transaction without dependencies
+   * @param customizedTx The optional customized transaction body
+   * @returns The transaction in hex, unbalanced
+   */
+  completeUnbalancedSync = (customizedTx?: MeshTxBuilderBody) => {
+    if (customizedTx) {
+      this.meshTxBuilderBody = customizedTx;
+    } else {
+      this.queueAllLastItem();
+    }
+    this.addUtxosFromSelection();
+    return this.serializer.serializeTxBody(
+      this.meshTxBuilderBody,
+      this._protocolParams,
+      false,
+    );
+  };
+
+  /**
+   * Complete the signing process
+   * @returns The signed transaction in hex
+   */
+  completeSigning = () => {
+    const signedTxHex = this.serializer.addSigningKeys(
+      this.txHex,
+      this.meshTxBuilderBody.signingKey,
+    );
+    this.txHex = signedTxHex;
+    return signedTxHex;
+  };
+
+  /**
+   * Submit transactions to the blockchain using the fetcher instance
+   * @param txHex The signed transaction in hex
+   * @returns
+   */
+  submitTx = async (txHex: string): Promise<string | undefined> => {
+    const txHash = await this.submitter?.submitTx(txHex);
+    return txHash;
+  };
+
+  /**
+   * Get the UTxO information from the blockchain
+   * @param txHash The TxIn object that contains the txHash and txIndex, while missing amount and address information
+   */
+  protected getUTxOInfo = async (txHash: string): Promise<void> => {
+    let utxos: UTxO[] = [];
+    if (!this.queriedTxHashes.has(txHash)) {
+      this.queriedTxHashes.add(txHash);
+      utxos = (await this.fetcher?.fetchUTxOs(txHash)) || [];
+      this.queriedUTxOs[txHash] = utxos;
+    }
+  };
+
+  protected queryAllTxInfo = (
+    incompleteTxIns: TxIn[],
+    incompleteScriptSources: ScriptSource[],
+    incompleteSimpleScriptSources: SimpleScriptSourceInfo[],
+  ) => {
+    const queryUTxOPromises: Promise<void>[] = [];
+    if (
+      (incompleteTxIns.length > 0 ||
+        incompleteScriptSources.length > 0 ||
+        incompleteSimpleScriptSources.length) &&
+      !this.fetcher
+    )
+      throw Error(
+        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
+      );
+    for (let i = 0; i < incompleteTxIns.length; i++) {
+      const currentTxIn = incompleteTxIns[i]!;
+      if (!this.isInputInfoComplete(currentTxIn)) {
+        queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
+      }
+    }
+    for (let i = 0; i < incompleteScriptSources.length; i++) {
+      const scriptSource = incompleteScriptSources[i]!;
+      if (scriptSource.type === "Inline") {
+        queryUTxOPromises.push(this.getUTxOInfo(scriptSource.txHash));
+      }
+    }
+    return Promise.all(queryUTxOPromises);
+  };
+
+  protected completeTxInformation = (input: TxIn) => {
+    // Adding value and address information for inputs if missing
+    if (!this.isInputInfoComplete(input)) {
+      this.completeInputInfo(input);
+    }
+    // Adding spendingScriptHash for script inputs' scriptSource if missing
+    if (
+      input.type === "Script" &&
+      !this.isRefScriptInfoComplete(input.scriptTxIn.scriptSource!)
+    ) {
+      const scriptSource = input.scriptTxIn.scriptSource;
+      this.completeScriptInfo(scriptSource!);
+    }
+  };
+
+  protected completeInputInfo = (input: TxIn) => {
+    const utxos: UTxO[] = this.queriedUTxOs[input.txIn.txHash]!;
+    const utxo = utxos?.find(
+      (utxo) => utxo.input.outputIndex === input.txIn.txIndex,
+    );
+    const amount = utxo?.output.amount;
+    const address = utxo?.output.address;
+    if (!amount || amount.length === 0)
+      throw Error(
+        `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
+      );
+    input.txIn.amount = amount;
+
+    if (!address || address === "")
+      throw Error(
+        `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
+      );
+    input.txIn.address = address;
+
+    if (utxo?.output.scriptRef) {
+      input.txIn.scriptSize = utxo.output.scriptRef.length / 2;
+    } else {
+      input.txIn.scriptSize = 0;
+    }
+  };
+
+  protected completeScriptInfo = (scriptSource: ScriptSource) => {
+    if (scriptSource?.type != "Inline") return;
+    const refUtxos = this.queriedUTxOs[scriptSource.txHash]!;
+    const scriptRefUtxo = refUtxos.find(
+      (utxo) => utxo.input.outputIndex === scriptSource.txIndex,
+    );
+    if (!scriptRefUtxo)
+      throw Error(
+        `Couldn't find script reference utxo for ${scriptSource.txHash}#${scriptSource.txIndex}`,
+      );
+    scriptSource.scriptHash = scriptRefUtxo?.output.scriptHash!;
+    scriptSource.scriptSize = (
+      scriptRefUtxo?.output.scriptRef!.length / 2
+    ).toString();
+  };
+
+  protected completeSimpleScriptInfo = (
+    simpleScript: SimpleScriptSourceInfo,
+  ) => {
+    if (simpleScript.type !== "Inline") return;
+    const refUtxos = this.queriedUTxOs[simpleScript.txHash]!;
+    const scriptRefUtxo = refUtxos.find(
+      (utxo) => utxo.input.outputIndex === simpleScript.txIndex,
+    );
+    if (!scriptRefUtxo)
+      throw Error(
+        `Couldn't find script reference utxo for ${simpleScript.txHash}#${simpleScript.txIndex}`,
+      );
+    simpleScript.simpleScriptHash = scriptRefUtxo?.output.scriptHash!;
+  };
+
+  protected isInputComplete = (txIn: TxIn): boolean => {
+    if (txIn.type === "PubKey") return this.isInputInfoComplete(txIn);
+    if (txIn.type === "Script") {
+      const { scriptSource } = txIn.scriptTxIn;
+      return (
+        this.isInputInfoComplete(txIn) &&
+        this.isRefScriptInfoComplete(scriptSource!)
+      );
+    }
+    return true;
+  };
+
+  protected isInputInfoComplete = (txIn: TxIn): boolean => {
+    const { amount, address, scriptSize } = txIn.txIn;
+    if (!amount || !address || scriptSize === undefined) return false;
+    return true;
+  };
+
+  protected isMintComplete = (mint: MintItem): boolean => {
+    if (mint.type === "Plutus") {
+      const scriptSource = mint.scriptSource as ScriptSource;
+      return this.isRefScriptInfoComplete(scriptSource);
+    }
+    if (mint.type === "Native") {
+      const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
+      if (scriptSource.type === "Inline") {
+        if (!scriptSource?.simpleScriptHash) return false;
+      }
+    }
+    return true;
+  };
+
+  protected isRefScriptInfoComplete = (scriptSource: ScriptSource): boolean => {
+    if (scriptSource?.type === "Inline") {
+      if (!scriptSource?.scriptHash || !scriptSource?.scriptSize) return false;
+    }
+    return true;
+  };
+
+  protected isSimpleRefScriptInfoComplete = (
+    simpleScriptSource: SimpleScriptSourceInfo,
+  ): boolean => {
+    if (simpleScriptSource.type === "Inline") {
+      if (
+        !simpleScriptSource.simpleScriptHash ||
+        !simpleScriptSource.scriptSize
+      )
+        return false;
+    }
+    return true;
+  };
+
+  protected completeSerialization = async (
     customizedTx?: Partial<MeshTxBuilderBody>,
     balanced: Boolean = true,
   ) => {
@@ -277,218 +522,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     this.txHex = txHex;
     return txHex;
-  };
-
-  /**
-   * It builds the transaction without dependencies
-   * @param customizedTx The optional customized transaction body
-   * @returns The signed transaction in hex ready to submit / signed by client
-   */
-  completeSync = (
-    customizedTx?: MeshTxBuilderBody,
-    balanced: Boolean = true,
-  ) => {
-    if (customizedTx) {
-      this.meshTxBuilderBody = customizedTx;
-    } else {
-      this.queueAllLastItem();
-    }
-    this.addUtxosFromSelection();
-    return this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-      balanced,
-    );
-  };
-
-  /**
-   * Complete the signing process
-   * @returns The signed transaction in hex
-   */
-  completeSigning = () => {
-    const signedTxHex = this.serializer.addSigningKeys(
-      this.txHex,
-      this.meshTxBuilderBody.signingKey,
-    );
-    this.txHex = signedTxHex;
-    return signedTxHex;
-  };
-
-  /**
-   * Submit transactions to the blockchain using the fetcher instance
-   * @param txHex The signed transaction in hex
-   * @returns
-   */
-  submitTx = async (txHex: string): Promise<string | undefined> => {
-    const txHash = await this.submitter?.submitTx(txHex);
-    return txHash;
-  };
-
-  /**
-   * Get the UTxO information from the blockchain
-   * @param txHash The TxIn object that contains the txHash and txIndex, while missing amount and address information
-   */
-  protected getUTxOInfo = async (txHash: string): Promise<void> => {
-    let utxos: UTxO[] = [];
-    if (!this.queriedTxHashes.has(txHash)) {
-      this.queriedTxHashes.add(txHash);
-      utxos = (await this.fetcher?.fetchUTxOs(txHash)) || [];
-      this.queriedUTxOs[txHash] = utxos;
-    }
-  };
-
-  protected queryAllTxInfo = (
-    incompleteTxIns: TxIn[],
-    incompleteScriptSources: ScriptSource[],
-    incompleteSimpleScriptSources: SimpleScriptSourceInfo[],
-  ) => {
-    const queryUTxOPromises: Promise<void>[] = [];
-    if (
-      (incompleteTxIns.length > 0 ||
-        incompleteScriptSources.length > 0 ||
-        incompleteSimpleScriptSources.length) &&
-      !this.fetcher
-    )
-      throw Error(
-        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
-      );
-    for (let i = 0; i < incompleteTxIns.length; i++) {
-      const currentTxIn = incompleteTxIns[i]!;
-      if (!this.isInputInfoComplete(currentTxIn)) {
-        queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
-      }
-    }
-    for (let i = 0; i < incompleteScriptSources.length; i++) {
-      const scriptSource = incompleteScriptSources[i]!;
-      if (scriptSource.type === "Inline") {
-        queryUTxOPromises.push(this.getUTxOInfo(scriptSource.txHash));
-      }
-    }
-    return Promise.all(queryUTxOPromises);
-  };
-
-  protected completeTxInformation = (input: TxIn) => {
-    // Adding value and address information for inputs if missing
-    if (!this.isInputInfoComplete(input)) {
-      this.completeInputInfo(input);
-    }
-    // Adding spendingScriptHash for script inputs' scriptSource if missing
-    if (
-      input.type === "Script" &&
-      !this.isRefScriptInfoComplete(input.scriptTxIn.scriptSource!)
-    ) {
-      const scriptSource = input.scriptTxIn.scriptSource;
-      this.completeScriptInfo(scriptSource!);
-    }
-  };
-
-  protected completeInputInfo = (input: TxIn) => {
-    const utxos: UTxO[] = this.queriedUTxOs[input.txIn.txHash]!;
-    const utxo = utxos?.find(
-      (utxo) => utxo.input.outputIndex === input.txIn.txIndex,
-    );
-    const amount = utxo?.output.amount;
-    const address = utxo?.output.address;
-    if (!amount || amount.length === 0)
-      throw Error(
-        `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-      );
-    input.txIn.amount = amount;
-
-    if (!address || address === "")
-      throw Error(
-        `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-      );
-    input.txIn.address = address;
-
-    if (utxo?.output.scriptRef) {
-      input.txIn.scriptSize = utxo.output.scriptRef.length / 2;
-    } else {
-      input.txIn.scriptSize = 0;
-    }
-  };
-
-  protected completeScriptInfo = (scriptSource: ScriptSource) => {
-    if (scriptSource?.type != "Inline") return;
-    const refUtxos = this.queriedUTxOs[scriptSource.txHash]!;
-    const scriptRefUtxo = refUtxos.find(
-      (utxo) => utxo.input.outputIndex === scriptSource.txIndex,
-    );
-    if (!scriptRefUtxo)
-      throw Error(
-        `Couldn't find script reference utxo for ${scriptSource.txHash}#${scriptSource.txIndex}`,
-      );
-    scriptSource.scriptHash = scriptRefUtxo?.output.scriptHash!;
-    scriptSource.scriptSize = (
-      scriptRefUtxo?.output.scriptRef!.length / 2
-    ).toString();
-  };
-
-  protected completeSimpleScriptInfo = (
-    simpleScript: SimpleScriptSourceInfo,
-  ) => {
-    if (simpleScript.type !== "Inline") return;
-    const refUtxos = this.queriedUTxOs[simpleScript.txHash]!;
-    const scriptRefUtxo = refUtxos.find(
-      (utxo) => utxo.input.outputIndex === simpleScript.txIndex,
-    );
-    if (!scriptRefUtxo)
-      throw Error(
-        `Couldn't find script reference utxo for ${simpleScript.txHash}#${simpleScript.txIndex}`,
-      );
-    simpleScript.simpleScriptHash = scriptRefUtxo?.output.scriptHash!;
-  };
-
-  protected isInputComplete = (txIn: TxIn): boolean => {
-    if (txIn.type === "PubKey") return this.isInputInfoComplete(txIn);
-    if (txIn.type === "Script") {
-      const { scriptSource } = txIn.scriptTxIn;
-      return (
-        this.isInputInfoComplete(txIn) &&
-        this.isRefScriptInfoComplete(scriptSource!)
-      );
-    }
-    return true;
-  };
-
-  protected isInputInfoComplete = (txIn: TxIn): boolean => {
-    const { amount, address, scriptSize } = txIn.txIn;
-    if (!amount || !address || scriptSize === undefined) return false;
-    return true;
-  };
-
-  protected isMintComplete = (mint: MintItem): boolean => {
-    if (mint.type === "Plutus") {
-      const scriptSource = mint.scriptSource as ScriptSource;
-      return this.isRefScriptInfoComplete(scriptSource);
-    }
-    if (mint.type === "Native") {
-      const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
-      if (scriptSource.type === "Inline") {
-        if (!scriptSource?.simpleScriptHash) return false;
-      }
-    }
-    return true;
-  };
-
-  protected isRefScriptInfoComplete = (scriptSource: ScriptSource): boolean => {
-    if (scriptSource?.type === "Inline") {
-      if (!scriptSource?.scriptHash || !scriptSource?.scriptSize) return false;
-    }
-    return true;
-  };
-
-  protected isSimpleRefScriptInfoComplete = (
-    simpleScriptSource: SimpleScriptSourceInfo,
-  ): boolean => {
-    if (simpleScriptSource.type === "Inline") {
-      if (
-        !simpleScriptSource.simpleScriptHash ||
-        !simpleScriptSource.scriptSize
-      )
-        return false;
-    }
-    return true;
   };
 }
 

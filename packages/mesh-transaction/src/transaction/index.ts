@@ -651,8 +651,11 @@ export class Transaction {
       await this.addCollateralIfNeeded();
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
-
-      return this.txBuilder.complete(undefined, balanced);
+      if (balanced) {
+        return this.txBuilder.complete();
+      } else {
+        return this.txBuilder.completeUnbalanced();
+      }
     } catch (error) {
       throw new Error(
         `[Transaction] An error occurred during build: ${error}.`,
