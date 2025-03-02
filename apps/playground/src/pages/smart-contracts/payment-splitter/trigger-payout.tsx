@@ -1,5 +1,6 @@
 import { useWallet } from "@meshsdk/react";
 
+import { getProvider } from "~/components/cardano/mesh-wallet";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import { getContract } from "./common";
@@ -34,10 +35,16 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    const contract = getContract(wallet);
+    const contract = await getContract(wallet);
 
     const tx = await contract.triggerPayout();
     const signedTx = await wallet.signTx(tx, true);
+    console.log("signedTx", signedTx);
+
+    // const provider = getProvider();
+    // const evalRes = await provider.evaluateTx(signedTx);
+    // console.log("evalRes", evalRes);
+
     const txHash = await wallet.submitTx(signedTx);
     return txHash;
   }

@@ -42,7 +42,7 @@ function Right() {
   const [userInput, setUserInput] = useState<string>("15000000");
 
   async function runDemo() {
-    const contract = getContract(wallet);
+    const contract = await getContract(wallet);
 
     const tx = await contract.sendLovelaceToSplitter(parseInt(userInput));
     const signedTx = await wallet.signTx(tx);

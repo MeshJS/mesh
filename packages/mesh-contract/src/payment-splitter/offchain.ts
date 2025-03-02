@@ -1,10 +1,5 @@
 import { builtinByteString, list, PlutusScript } from "@meshsdk/common";
-import {
-  BrowserWallet,
-  deserializeAddress,
-  MeshWallet,
-  Transaction,
-} from "@meshsdk/core";
+import { deserializeAddress, Transaction } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-cst";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
@@ -12,8 +7,6 @@ import blueprintV1 from "./aiken-workspace-v1/plutus.json";
 import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
 export class MeshPaymentSplitterContract extends MeshTxInitiator {
-  scriptCbor: string;
-  scriptAddress: string;
   payees: string[] = [];
 
   wrapPayees = (payees: string[]) =>
@@ -36,9 +29,6 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
         "Wallet not provided. Therefore the payment address will not be added to the payees list which makes it impossible to trigger the payout.",
       );
     }
-
-    this.scriptCbor = this.getScriptCbor();
-    this.scriptAddress = this.getScriptAddress(this.scriptCbor);
   }
 
   getScriptCbor = () => {
@@ -74,7 +64,7 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
 
     const tx = new Transaction({ initiator: this.wallet }).sendLovelace(
       {
-        address: this.scriptAddress,
+        address: this.getScriptAddress(this.getScriptCbor()),
         datum: { value: datum },
       },
       lovelaceAmount.toString(),
@@ -92,12 +82,14 @@ export class MeshPaymentSplitterContract extends MeshTxInitiator {
     const { walletAddress, collateral } = await this.getWalletInfoForTx();
 
     const script: PlutusScript = {
-      code: this.scriptCbor,
+      code: this.getScriptCbor(),
       version: this.languageVersion,
     };
 
     const utxos =
-      (await this.fetcher?.fetchAddressUTxOs(this.scriptAddress)) || [];
+      (await this.fetcher?.fetchAddressUTxOs(
+        this.getScriptAddress(this.getScriptCbor()),
+      )) || [];
     const { pubKeyHash } = deserializeAddress(walletAddress);
     const datum = {
       alternative: 0,

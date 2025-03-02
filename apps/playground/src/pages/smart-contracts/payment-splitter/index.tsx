@@ -40,10 +40,11 @@ const ReactPage: NextPage = () => {
   example += `    networkId: 0,\n`;
   example += `  },\n`;
   example += `  [\n`;
-  example += `    'addr_test1vpg334d6skwu6xxq0r4lqrnsjd5293n8s3d80em60kf6guc7afx8k',\n`;
-  example += `    'addr_test1vp4l2kk0encl7t7972ngepgm0044fu8695prkgh5vjj5l6sxu0l3p',\n`;
-  example += `    'addr_test1vqqnfs2vt42nq4htq460wd6gjxaj05jg9vzg76ur6ws4sngs55pwr',\n`;
-  example += `    'addr_test1vqv2qhqddxmf87pzky2nkd9wm4y5599mhp62mu4atuss5dgdja5pw',\n`;
+  example += `    'addr_test1qr77kjlsarq8wy22g4flrcznjh5lkug5mvth7qhhkewgmezwvc8hnnjzy82j5twzf8dfy5gjk04yd09t488ys9605dvq4ymc4x',\n`;
+  example += `    'addr_test1qp96dhfygf2ejktf6tq9uv3ks67t4w5rkumww2v5rqja0xcx8ls6mu88ytwql66750at9at4apy4jdezhu22artnvlys7ec2gm',\n`;
+  example += `    'addr_test1qrnmrpa4jmnefdt9pg0ljmgzewmdtjkxty79nf3av62kuhe6l0r5at03w5jg59l906cvdg358rqrssry2am2hessu42slmqppm',\n`;
+  example += `    'addr_test1qqzgg5pcaeyea69uptl9da5g7fajm4m0yvxndx9f4lxpkehqgezy0s04rtdwlc0tlvxafpdrfxnsg7ww68ge3j7l0lnszsw2wt',\n`;
+  example += `    'addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9',\n`;
   example += `  ]\n`;
   example += `);\n`;
 
