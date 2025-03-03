@@ -1464,6 +1464,9 @@ class CardanoSDKSerializerCore {
           "Insufficient funds to create change output with tokens",
         );
       } else {
+        if (remainingValue.coin() < fee) {
+          throw new Error("Insufficient funds to pay fee");
+        }
         fee = remainingValue.coin();
         currentOutputs.pop();
       }

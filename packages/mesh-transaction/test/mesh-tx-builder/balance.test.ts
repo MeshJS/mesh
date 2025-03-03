@@ -90,4 +90,35 @@ describe("MeshTxBuilder", () => {
     );
     expect(cardanoTx.body().outputs().length).toEqual(2);
   });
+
+  it("Transaction without enough lovelaces for fees should throw error", async () => {
+    await expect(
+      txBuilder
+        .txIn(
+          txHash("tx0"),
+          0,
+          [
+            {
+              unit: "lovelace",
+              quantity: "1000000",
+            },
+          ],
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+          0,
+        )
+        .txOut(
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+          [
+            {
+              unit: "lovelace",
+              quantity: "900000",
+            },
+          ],
+        )
+        .changeAddress(
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+        )
+        .complete(),
+    ).rejects.toThrow("Insufficient funds to pay fee");
+  });
 });

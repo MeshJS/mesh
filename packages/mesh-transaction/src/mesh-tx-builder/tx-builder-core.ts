@@ -826,6 +826,7 @@ export class MeshTxBuilderCore {
         coin: coin,
       };
       this.withdrawalItem = withdrawal;
+      this.addingPlutusWithdrawal = false;
       return this;
     }
 
@@ -992,6 +993,7 @@ export class MeshTxBuilderCore {
         },
       };
       this.voteItem = vote;
+      this.addingPlutusVote = false;
     } else {
       const vote: Vote = {
         type: "BasicVote",
