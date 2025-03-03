@@ -5,6 +5,7 @@ import {
   MeshTxBuilder,
   OfflineFetcher,
   resolveScriptHash,
+  serializeNativeScript,
   serializePlutusScript,
   serializeRewardAddress,
   UTxO,
@@ -12,6 +13,7 @@ import {
 import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
 import {
   blake2b,
+  resolveNativeScriptHash,
   resolveScriptHashDRepId,
   resolveScriptRef,
 } from "@meshsdk/core-cst";
@@ -571,6 +573,154 @@ describe("MeshTxBuilder - Script Transactions", () => {
       ),
     ).toEqual([
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
+    ]);
+  });
+
+  it("should be able to vote with plutus script and native script", async () => {
+    const txHex = await txBuilder
+      .votePlutusScriptV3()
+      .vote(
+        { type: "DRep", drepId: resolveScriptHashDRepId(alwaysSucceedHash) },
+        { txHash: txHash("tx100"), txIndex: 0 },
+        { voteKind: "Yes" },
+      )
+      .voteTxInReference(txHash("tx3"), 0)
+      .voteRedeemerValue("")
+      .vote(
+        {
+          type: "DRep",
+          drepId: resolveScriptHashDRepId(
+            resolveNativeScriptHash({ type: "all", scripts: [] }),
+          ),
+        },
+        { txHash: txHash("tx100"), txIndex: 0 },
+        { voteKind: "Yes" },
+      )
+      .voteScript(
+        serializeNativeScript({ type: "all", scripts: [] }).scriptCbor!,
+      )
+      .txIn(txHash("tx1"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+    const txHex2 = await txBuilder2
+      .votePlutusScriptV3()
+      .vote(
+        { type: "DRep", drepId: resolveScriptHashDRepId(alwaysSucceedHash) },
+        { txHash: txHash("tx100"), txIndex: 0 },
+        { voteKind: "Yes" },
+      )
+      .voteTxInReference(txHash("tx3"), 0)
+      .voteRedeemerValue("")
+      .vote(
+        {
+          type: "DRep",
+          drepId: resolveScriptHashDRepId(
+            resolveNativeScriptHash({ type: "all", scripts: [] }),
+          ),
+        },
+        { txHash: txHash("tx100"), txIndex: 0 },
+        { voteKind: "Yes" },
+      )
+      .voteScript(
+        serializeNativeScript({ type: "all", scripts: [] }).scriptCbor!,
+      )
+      .txIn(txHash("tx1"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+    expect(
+      await offlineEvaluator.evaluateTx(
+        txHex,
+        Object.values(
+          txBuilder.meshTxBuilderBody.inputsForEvaluation,
+        ) as UTxO[],
+        txBuilder.meshTxBuilderBody.chainedTxs,
+      ),
+    ).toEqual([
+      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
+    ]);
+    expect(
+      await offlineEvaluator.evaluateTx(
+        txHex2,
+        Object.values(
+          txBuilder.meshTxBuilderBody.inputsForEvaluation,
+        ) as UTxO[],
+        txBuilder.meshTxBuilderBody.chainedTxs,
+      ),
+    ).toEqual([
+      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
+    ]);
+  });
+
+  it("should be able to withdraw with plutus script and native script", async () => {
+    const txHex = await txBuilder
+      .withdrawalPlutusScriptV3()
+      .withdrawal(serializeRewardAddress(alwaysSucceedHash, true), "0")
+      .withdrawalScript(alwaysSucceedCbor)
+      .withdrawalRedeemerValue("")
+      .withdrawal(
+        serializeRewardAddress(
+          resolveNativeScriptHash({ type: "all", scripts: [] }),
+          true,
+        ),
+        "0",
+      )
+      .withdrawalScript(
+        serializeNativeScript({ type: "all", scripts: [] }).scriptCbor!,
+      )
+      .txIn(txHash("tx1"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+    const txHex2 = await txBuilder2
+      .withdrawalPlutusScriptV3()
+      .withdrawal(serializeRewardAddress(alwaysSucceedHash, true), "0")
+      .withdrawalScript(alwaysSucceedCbor)
+      .withdrawalRedeemerValue("")
+      .withdrawal(
+        serializeRewardAddress(
+          resolveNativeScriptHash({ type: "all", scripts: [] }),
+          true,
+        ),
+        "0",
+      )
+      .withdrawalScript(
+        serializeNativeScript({ type: "all", scripts: [] }).scriptCbor!,
+      )
+      .txIn(txHash("tx1"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+    expect(
+      await offlineEvaluator.evaluateTx(
+        txHex,
+        Object.values(
+          txBuilder.meshTxBuilderBody.inputsForEvaluation,
+        ) as UTxO[],
+        txBuilder.meshTxBuilderBody.chainedTxs,
+      ),
+    ).toEqual([
+      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+    ]);
+    expect(
+      await offlineEvaluator.evaluateTx(
+        txHex2,
+        Object.values(
+          txBuilder.meshTxBuilderBody.inputsForEvaluation,
+        ) as UTxO[],
+        txBuilder.meshTxBuilderBody.chainedTxs,
+      ),
+    ).toEqual([
+      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
     ]);
   });
 });
