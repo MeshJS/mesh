@@ -32,7 +32,7 @@ const ReactPage: NextPage = () => {
     { label: "Fetch UTxOs", to: "fetchUtxos" },
     { label: "Fetch Proposal Info", to: "fetchProposalInfo" },
     { label: "Evaluate Tx", to: "evaluateTx" },
-    { label: "Submit Tx", to: "submitTx" },
+    { label: "Submit Transaction", to: "submitTx" },
     { label: "On Transaction Confirmed", to: "onTxConfirmed" },
   ];
 

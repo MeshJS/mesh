@@ -220,10 +220,14 @@ export class MeshWallet implements IWallet {
    *
    * @returns an address
    */
-  async getChangeAddress(): Promise<string> {
-    return this.addresses.baseAddressBech32
-      ? this.addresses.baseAddressBech32
-      : this.addresses.enterpriseAddressBech32!;
+  async getChangeAddress(addressType: GetAddressType = "payment",): Promise<string> {
+    if(this.addresses.baseAddressBech32 && addressType === "payment") {
+      return this.addresses.baseAddressBech32;
+    }
+    return this.addresses.enterpriseAddressBech32!;
+    // return this.addresses.baseAddressBech32
+    //   ? this.addresses.baseAddressBech32
+    //   : this.addresses.enterpriseAddressBech32!;
   }
 
   /**

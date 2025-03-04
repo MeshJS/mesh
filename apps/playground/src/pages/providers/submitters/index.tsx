@@ -6,6 +6,7 @@ import {
   U5CProvider,
   YaciProvider,
 } from "@meshsdk/core";
+import { HydraProvider } from "@meshsdk/hydra";
 
 import SubmitterSubmitTransaction from "./submit-transaction";
 
@@ -32,4 +33,5 @@ export type SupportedSubmitters =
   | MaestroProvider
   | KoiosProvider
   | OgmiosProvider
-  | U5CProvider;
+  | U5CProvider
+  | HydraProvider;

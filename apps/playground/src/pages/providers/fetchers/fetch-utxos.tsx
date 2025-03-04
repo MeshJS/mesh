@@ -1,11 +1,15 @@
 import { useState } from "react";
 
+import { HydraProvider } from "@meshsdk/hydra";
+
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { SupportedFetchers } from ".";
+import { SupportedFetchers as _SupportedFetchers } from ".";
+
+type SupportedFetchers = _SupportedFetchers | HydraProvider;
 
 export default function FetcherUtxos({
   provider,
