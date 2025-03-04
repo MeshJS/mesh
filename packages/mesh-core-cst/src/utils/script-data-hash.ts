@@ -1,32 +1,61 @@
 /* eslint-disable unicorn/number-literal-case */
-import { Cardano, Serialization } from "@cardano-sdk/core";
+import { Serialization } from "@cardano-sdk/core";
 import * as Crypto from "@cardano-sdk/crypto";
 import { Hash32ByteBase16 } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 
-const CBOR_EMPTY_LIST = new Uint8Array([0x80]);
 const CBOR_EMPTY_MAP = new Uint8Array([0xa0]);
 
 /**
- * Encodes an array of CBOR-encodable objects into a CBOR format.
+ * Encodes redeemers into CBOR format according to CDDL specification.
  *
- * Each object in the array is converted to its CBOR representation and then written into a
- * CBOR array.
+ * {+ [tag : redeemer_tag, index : uint .size 4] => [data : plutus_data, ex_units : ex_units]}
  *
- * @param items An array of objects that can be encoded into CBOR.
- * @returns A `Uint8Array` containing the CBOR-encoded objects.
+ * The list of redeemers is turned into a CBOR map, where each redeemer is represented as a
+ * map from [redeemer_tag, index] to [data, ex_units].
+ *
+ * @param redeemers
+ * @returns
  */
-const getCborEncodedArray = <T extends { toCbor: () => HexBlob }>(
-  items: T[],
+const getCborEncodedRedeemers = (
+  redeemers: Serialization.Redeemer[],
 ): Uint8Array => {
   const writer = new Serialization.CborWriter();
-
-  writer.writeStartArray(items.length);
-
-  for (const item of items) {
-    writer.writeEncodedValue(Buffer.from(item.toCbor(), "hex"));
+  writer.writeStartMap(redeemers.length);
+  for (const redeemer of redeemers) {
+    writer.writeStartArray(2);
+    writer.writeInt(BigInt(redeemer.tag()));
+    writer.writeInt(redeemer.index());
+    writer.writeStartArray(2);
+    writer.writeEncodedValue(Buffer.from(redeemer.data().toCbor(), "hex"));
+    writer.writeEncodedValue(Buffer.from(redeemer.exUnits().toCbor(), "hex"));
   }
+  return writer.encode();
+};
 
+/**
+ * Encodes datums into CBOR format according to CDDL specification.
+ *
+ * nonempty_set<plutus_data>
+ *
+ * nonempty_set<a0> = #6.258([+ a0])
+ *
+ * The list of datums is turned into a CBOR set, represented by the CBOR tag 258.
+ * The datums are serialised as an indefinite length array
+ *
+ * @param datums
+ * @returns
+ */
+const getCborEncodedDatums = (
+  datums: Serialization.PlutusData[],
+): Uint8Array => {
+  const writer = new Serialization.CborWriter();
+  writer.writeTag(258);
+  writer.writeStartArray();
+  for (const datum of datums) {
+    writer.writeEncodedValue(Buffer.from(datum.toCbor(), "hex"));
+  }
+  writer.writeEndArray();
   return writer.encode();
 };
 
@@ -49,16 +78,15 @@ export const hashScriptData = (
   datums?: Serialization.PlutusData[],
 ): Crypto.Hash32ByteBase16 | undefined => {
   const writer = new Serialization.CborWriter();
-
   if (datums && datums.length > 0 && (!redemeers || redemeers.length === 0)) {
     /*
      ; Note that in the case that a transaction includes datums but does not
      ; include any redeemers, the script data format becomes (in hex):
-     ; [ 80 | datums | A0 ]
+     ; [ A0 | datums | A0 ]
      ; corresponding to a CBOR empty list and an empty map).
     */
-    writer.writeEncodedValue(CBOR_EMPTY_LIST);
-    writer.writeEncodedValue(getCborEncodedArray(datums));
+    writer.writeEncodedValue(CBOR_EMPTY_MAP);
+    writer.writeEncodedValue(getCborEncodedDatums(datums));
     writer.writeEncodedValue(CBOR_EMPTY_MAP);
   } else {
     if (!redemeers || redemeers.length === 0) return undefined;
@@ -69,10 +97,11 @@ export const hashScriptData = (
      ; Similarly for the datums, if present. If no datums are provided, the middle
      ; field is an empty string.
     */
-    writer.writeEncodedValue(getCborEncodedArray(redemeers));
+    writer.writeEncodedValue(getCborEncodedRedeemers(redemeers));
 
-    if (datums && datums.length > 0)
-      writer.writeEncodedValue(getCborEncodedArray(datums));
+    if (datums && datums.length > 0) {
+      writer.writeEncodedValue(getCborEncodedDatums(datums));
+    }
 
     writer.writeEncodedValue(
       Buffer.from(costModels.languageViewsEncoding(), "hex"),
