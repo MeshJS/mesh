@@ -7,10 +7,12 @@ import {
   AssetMetadata,
   BlockInfo,
   castProtocol,
+  DEFAULT_FETCHER_OPTIONS,
   fromUTF8,
   GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
+  IFetcherOptions,
   IListener,
   ISubmitter,
   NativeScript,
@@ -173,34 +175,41 @@ export class BlockfrostProvider
   }
 
   /**
-   * Transactions for an address.
+   * Transactions for an address. The `TransactionInfo` would only return the `hash`, `inputs`, and `outputs`.
+   * @param address
+   * @returns - partial TransactionInfo
+   */
+  async fetchAddressTxs(
+    address: string,
+    option: IFetcherOptions = DEFAULT_FETCHER_OPTIONS,
+  ): Promise<TransactionInfo[]> {
+    const txs: TransactionInfo[] = [];
+    try {
+      const fetcherOptions = { ...DEFAULT_FETCHER_OPTIONS, ...option };
+
+      for (let i = 1; i <= fetcherOptions.maxPage!; i++) {
+        let { data, status } = await this._axiosInstance.get(
+          `/addresses/${address}/transactions?page=${i}&order=${fetcherOptions.order}`,
+        );
+        if (status !== 200) throw parseHttpError(data);
+        if (data.length === 0) break;
+        for (const tx of data) {
+          const txInfo = await this.fetchTxInfo(tx.tx_hash);
+          txs.push(txInfo);
+        }
+      }
+      return txs;
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+  /**
+   * Deprecated, use fetchAddressTxs instead
    * @param address
    * @returns - partial TransactionInfo
    */
   async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
-    try {
-      const { data, status } = await this._axiosInstance.get(
-        `/addresses/${address}/transactions`,
-      );
-      if (status === 200 || status == 202) {
-        return data.map((tx: any) => {
-          return <TransactionInfo>{
-            hash: tx.tx_hash,
-            index: tx.tx_index,
-            block: "",
-            slot: "",
-            fees: "",
-            size: 0,
-            deposit: "",
-            invalidBefore: "",
-            invalidAfter: "",
-          };
-        });
-      }
-      throw parseHttpError(data);
-    } catch (error) {
-      throw parseHttpError(error);
-    }
+    return await this.fetchAddressTxs(address);
   }
 
   /**
@@ -462,22 +471,30 @@ export class BlockfrostProvider
 
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
-      const { data, status } = await this._axiosInstance.get(`txs/${hash}`);
-
-      if (status === 200 || status == 202)
+      const { data: txData, status } = await this._axiosInstance.get(
+        `txs/${hash}`,
+      );
+      if (status === 200 || status == 202) {
+        const { data, status } = await this._axiosInstance.get(
+          `/txs/${txData.hash}/utxos`,
+        );
+        if (status !== 200) throw parseHttpError(data);
         return <TransactionInfo>{
-          block: data.block,
-          deposit: data.deposit,
-          fees: data.fees,
-          hash: data.hash,
-          index: data.index,
-          invalidAfter: data.invalid_hereafter ?? "",
-          invalidBefore: data.invalid_before ?? "",
-          slot: data.slot.toString(),
-          size: data.size,
+          block: txData.block,
+          deposit: txData.deposit,
+          fees: txData.fees,
+          hash: txData.hash,
+          index: txData.index,
+          invalidAfter: txData.invalid_hereafter ?? "",
+          invalidBefore: txData.invalid_before ?? "",
+          slot: txData.slot.toString(),
+          size: txData.size,
+          inputs: data.inputs,
+          outputs: data.outputs,
         };
+      }
 
-      throw parseHttpError(data);
+      throw parseHttpError(txData);
     } catch (error) {
       throw parseHttpError(error);
     }
