@@ -36,7 +36,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@cardano-sdk/core": "^0.45.2",
+    "@cardano-sdk/core": "^0.45.5",
     "@cardano-sdk/crypto": "^0.2.2",
     "@cardano-sdk/util": "^0.15.5",
     "@harmoniclabs/bytestring": "1.0.0",
