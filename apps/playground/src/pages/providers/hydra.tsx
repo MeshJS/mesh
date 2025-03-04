@@ -30,7 +30,7 @@ const ReactPage: NextPage = () => {
 
   let code1 = `import { HydraProvider } from "@meshsdk/hydra";\n\n`;
   code1 += `const hydraProvider = new HydraProvider('<URL>');`;
-  code1 += `\nawait hydraProvider.connect();`;
+  code1 += `\nawait provider.connect();`;
 
   const hydraUrl = useProviders((state) => state.hydraUrl);
 
@@ -60,7 +60,7 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/HydraProvider" />
 
-        <ProviderHydra hydraProvider={hydraProvider} provider="hydra" />
+        <ProviderHydra provider={hydraProvider} providerName="hydra" />
       </SidebarFullwidth>
     </>
   );

@@ -35,7 +35,7 @@ const ReactPage: NextPage = () => {
   ];
 
   let code1 = `import { U5CProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new U5CProvider({\n`;
+  code1 += `const provider = new U5CProvider({\n`;
   code1 += `  url: "http://localhost:50051",\n`;
   code1 += `  headers: {\n`;
   code1 += `    "dmtr-api-key": "<api-key>",\n`;
@@ -44,7 +44,7 @@ const ReactPage: NextPage = () => {
 
   const utxorpc = useProviders((state) => state.utxorpc);
 
-  const blockchainProvider = new U5CProvider({
+  const provider = new U5CProvider({
     url: utxorpc.url,
     headers: {
       "dmtr-api-key": utxorpc.key,
@@ -114,20 +114,20 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/U5CProvider" />
 
         <ProviderFetchers
-          blockchainProvider={blockchainProvider}
-          provider="utxorpc"
+          provider={provider}
+          providerName="utxorpc"
         />
         <ProviderEvaluators
-          blockchainProvider={blockchainProvider}
-          provider="utxorpc"
+          provider={provider}
+          providerName="utxorpc"
         />
         <ProviderSubmitters
-          blockchainProvider={blockchainProvider}
-          provider="utxorpc"
+          provider={provider}
+          providerName="utxorpc"
         />
         <ProviderListeners
-          blockchainProvider={blockchainProvider}
-          provider="utxorpc"
+          provider={provider}
+          providerName="utxorpc"
         />
       </SidebarFullwidth>
     </>

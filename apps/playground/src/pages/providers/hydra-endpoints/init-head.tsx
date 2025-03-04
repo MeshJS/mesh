@@ -7,18 +7,18 @@ import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
 export default function HydraInitializeHead({
-  hydraProvider,
   provider,
+  providerName,
 }: {
-  hydraProvider: HydraProvider;
-  provider: string;
+  provider: HydraProvider;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
       sidebarTo="initHead"
       title="Initializes a new Hydra Head"
       leftSection={Left()}
-      rightSection={Right(hydraProvider, provider)}
+      rightSection={Right(provider, providerName)}
     />
   );
 }
@@ -31,38 +31,38 @@ function Left() {
         open and the server will output an <code>CommandFailed</code> message
         should this happen.
       </p>
-      <Codeblock data={`await hydraProvider.initializesHead();`} />
+      <Codeblock data={`await provider.initializesHead();`} />
     </>
   );
 }
 
-function Right(hydraProvider: HydraProvider, provider: string) {
+function Right(provider: HydraProvider, providerName: string) {
   async function runDemo() {
-    hydraProvider.onMessage((message) => {
+    provider.onMessage((message) => {
       console.log("Hydra onMessage", message);
       if (message.tag === "Greetings") {
         console.log("Greetings", JSON.stringify(message));
       }
     });
-    hydraProvider.onStatusChange((status) => {
+    provider.onStatusChange((status) => {
       console.log("Hydra status", status);
     });
 
-    await hydraProvider.connect();
-    // await hydraProvider.init();
+    await provider.connect();
+    // await provider.init();
   }
 
   async function fetchutxo() {
-    const utxos = await hydraProvider.fetchUTxOs();
+    const utxos = await provider.fetchUTxOs();
     console.log("UTXOs: ", utxos);
-    const utxosAddress = await hydraProvider.fetchAddressUTxOs(
+    const utxosAddress = await provider.fetchAddressUTxOs(
       "addr_test1vpd5axpq4qsh8sxvzny49cp22gc5tqx0djf6wmjv5cx7q5qyrzuw8",
     );
     console.log("UTXOs Address: ", utxosAddress);
   }
 
   async function fetchpp() {
-    const pp = await hydraProvider.fetchProtocolParameters();
+    const pp = await provider.fetchProtocolParameters();
     console.log("pp: ", pp);
   }
 
@@ -79,19 +79,19 @@ function Right(hydraProvider: HydraProvider, provider: string) {
         type: "cli",
         payment: walletA.key,
       },
-      fetcher: hydraProvider,
-      submitter: hydraProvider,
+      fetcher: provider,
+      submitter: provider,
     });
 
-    const pp = await hydraProvider.fetchProtocolParameters();
-    // const utxos = await hydraProvider.fetchAddressUTxOs(walletA.addr);
+    const pp = await provider.fetchProtocolParameters();
+    // const utxos = await provider.fetchAddressUTxOs(walletA.addr);
     // console.log("utxos", utxos);
     const utxos = await wallet.getUtxos("enterprise");
     // console.log("utxos", utxos);
     const changeAddress = walletA.addr;
 
     const txBuilder = new MeshTxBuilder({
-      fetcher: hydraProvider,
+      fetcher: provider,
       params: pp,
       verbose: true,
     });
@@ -106,7 +106,7 @@ function Right(hydraProvider: HydraProvider, provider: string) {
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx);
-    // const txHash = await hydraProvider.submitTx(signedTx);
+    // const txHash = await provider.submitTx(signedTx);
     const txHash = await wallet.submitTx(signedTx);
     console.log("txHash", txHash);
   }
@@ -117,7 +117,7 @@ function Right(hydraProvider: HydraProvider, provider: string) {
       subtitle="Initializes a new Head."
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <Button onClick={fetchutxo}>fetchutxo</Button>
       <Button onClick={fetchpp}>fetchpp</Button>

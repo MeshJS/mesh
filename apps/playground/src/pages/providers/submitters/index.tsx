@@ -10,17 +10,17 @@ import {
 import SubmitterSubmitTransaction from "./submit-transaction";
 
 export default function ProviderSubmitters({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedSubmitters;
-  provider: string;
+  provider: SupportedSubmitters;
+  providerName: string;
 }) {
   return (
     <>
       <SubmitterSubmitTransaction
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
     </>
   );

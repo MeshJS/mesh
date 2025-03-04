@@ -8,11 +8,11 @@ import Codeblock from "~/components/text/codeblock";
 import { SupportedFetchers } from ".";
 
 export default function FetcherTransactionInfo({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(
     "f4ec9833a3bf95403d395f699bc564938f3419537e7fb5084425d3838a4b6159",
@@ -24,10 +24,10 @@ export default function FetcherTransactionInfo({
       title="Fetch Transaction Info"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -41,20 +41,20 @@ function Left(userInput: string) {
         retrieved.
       </p>
       <Codeblock
-        data={`await blockchainProvider.fetchTxInfo('${userInput}')`}
+        data={`await provider.fetchTxInfo('${userInput}')`}
       />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchTxInfo(userInput);
+    return await provider.fetchTxInfo(userInput);
   }
 
   return (
@@ -63,7 +63,7 @@ function Right(
       subtitle="Fetch information about a transaction"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

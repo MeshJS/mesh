@@ -8,10 +8,10 @@ import InputTable from "~/components/sections/input-table";
 import { useProviders } from "~/hooks/useProviders";
 import Select from "../form/select";
 
-export default function BlockchainProviderKey({
-  provider,
+export default function ProviderKey({
+  providerName,
 }: {
-  provider: string;
+  providerName: string;
 }) {
   const blockfrostKey = useProviders((state) => state.blockfrostKey);
   const setBlockfrostKey = useProviders((state) => state.setBlockfrostKey);
@@ -30,7 +30,7 @@ export default function BlockchainProviderKey({
   const hydraUrl = useProviders((state) => state.hydraUrl);
   const setHydraUrl = useProviders((state) => state.setHydraUrl);
 
-  if (provider == "maestro") {
+  if (providerName == "maestro") {
     return (
       <InputTable
         listInputs={[
@@ -66,7 +66,7 @@ export default function BlockchainProviderKey({
     );
   }
 
-  if (provider == "blockfrost") {
+  if (providerName == "blockfrost") {
     return (
       <InputTable
         listInputs={[
@@ -83,7 +83,7 @@ export default function BlockchainProviderKey({
     );
   }
 
-  if (provider == "koios") {
+  if (providerName == "koios") {
     return (
       <InputTable
         listInputs={[
@@ -120,7 +120,7 @@ export default function BlockchainProviderKey({
     );
   }
 
-  if (provider == "yaci") {
+  if (providerName == "yaci") {
     return (
       <InputTable
         listInputs={[
@@ -143,7 +143,7 @@ export default function BlockchainProviderKey({
     );
   }
 
-  if (provider == "ogmios") {
+  if (providerName == "ogmios") {
     return (
       <InputTable
         listInputs={[
@@ -160,7 +160,7 @@ export default function BlockchainProviderKey({
     );
   }
 
-  if (provider == "hydra") {
+  if (providerName == "hydra") {
     return (
       <InputTable
         listInputs={[
@@ -177,7 +177,7 @@ export default function BlockchainProviderKey({
     );
   }
 
-  if (provider == "utxorpc") {
+  if (providerName == "utxorpc") {
     return (
       <InputTable
         listInputs={[

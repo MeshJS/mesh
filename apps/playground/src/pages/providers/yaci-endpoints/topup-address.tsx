@@ -10,18 +10,18 @@ import Codeblock from "~/components/text/codeblock";
 import { demoAddresses } from "~/data/cardano";
 
 export default function YaciTopupAddress({
-  yaciProvider,
   provider,
+  providerName,
 }: {
-  yaciProvider: YaciProvider;
-  provider: string;
+  provider: YaciProvider;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
       sidebarTo="addressTopup"
       title="Admin Address Topup"
       leftSection={Left()}
-      rightSection={Right(yaciProvider, provider)}
+      rightSection={Right(provider, providerName)}
     />
   );
 }
@@ -34,23 +34,23 @@ function Left() {
         following command from devnet:
       </p>
       <Codeblock
-        data={`await yaciProvider.addressTopup(<address>, <amount>)`}
+        data={`await provider.addressTopup(<address>, <amount>)`}
       />
     </>
   );
 }
 
-function Right(yaciProvider: YaciProvider, provider: string) {
+function Right(provider: YaciProvider, providerName: string) {
   const [userInput, setUserInput] = useState<string>(
     demoAddresses.testnetPayment,
   );
   const [userInput2, setUserInput2] = useState<string>("20000000");
 
   async function runDemo() {
-    return await yaciProvider.addressTopup(userInput, userInput2);
+    return await provider.addressTopup(userInput, userInput2);
   }
 
-  let code = `await yaciProvider.addressTopup('${userInput}', '${userInput2}');`;
+  let code = `await provider.addressTopup('${userInput}', '${userInput2}');`;
 
   return (
     <LiveCodeDemo
@@ -58,7 +58,7 @@ function Right(yaciProvider: YaciProvider, provider: string) {
       subtitle="Admin function to topup address with ADA"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
       code={code}
     >
       <InputTable

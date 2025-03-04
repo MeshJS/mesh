@@ -52,8 +52,8 @@ export async function getAssetUtxo({
   asset: string;
   datum: any;
 }) {
-  const blockchainProvider = getProvider();
-  const utxos = await blockchainProvider.fetchAddressUTxOs(
+  const provider = getProvider();
+  const utxos = await provider.fetchAddressUTxOs(
     scriptAddress,
     asset,
   );

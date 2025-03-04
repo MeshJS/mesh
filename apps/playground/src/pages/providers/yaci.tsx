@@ -42,12 +42,12 @@ const ReactPage: NextPage = () => {
   ];
 
   let code1 = `import { YaciProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');`;
+  code1 += `const provider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');`;
 
   const yaciUrl = useProviders((state) => state.yaciUrl);
   const yaciAdminUrl = useProviders((state) => state.yaciAdminUrl);
 
-  const blockchainProvider = new YaciProvider(yaciUrl, yaciAdminUrl);
+  const provider = new YaciProvider(yaciUrl, yaciAdminUrl);
 
   return (
     <>
@@ -73,24 +73,24 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/YaciProvider" />
 
         <ProviderFetchers
-          blockchainProvider={blockchainProvider}
-          provider="yaci"
+          provider={provider}
+          providerName="yaci"
         />
         <ProviderEvaluators
-          blockchainProvider={blockchainProvider}
-          provider="yaci"
+          provider={provider}
+          providerName="yaci"
         />
         <ProviderSubmitters
-          blockchainProvider={blockchainProvider}
-          provider="yaci"
+          provider={provider}
+          providerName="yaci"
         />
         <ProviderListeners
-          blockchainProvider={blockchainProvider}
-          provider="yaci"
+          provider={provider}
+          providerName="yaci"
         />
         <ProviderYaciEndpoints
-          yaciProvider={blockchainProvider}
-          provider="yaci"
+          provider={provider}
+          providerName="yaci"
         />
       </SidebarFullwidth>
     </>

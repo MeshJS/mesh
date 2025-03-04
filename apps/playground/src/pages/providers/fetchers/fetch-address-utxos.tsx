@@ -1,19 +1,23 @@
 import { useState } from "react";
 
+import { HydraProvider } from "@meshsdk/hydra";
+
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 import { demoAddresses, demoAsset } from "~/data/cardano";
-import { SupportedFetchers } from ".";
+import { SupportedFetchers as _SupportedFetchers } from ".";
+
+type SupportedFetchers = _SupportedFetchers | HydraProvider;
 
 export default function FetcherAddressUtxos({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(
     demoAddresses.testnetPayment,
@@ -25,10 +29,10 @@ export default function FetcherAddressUtxos({
       title="Fetch Address UTxOs"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -39,7 +43,7 @@ function Left(userInput: string) {
     <>
       <p>Fetch UTxOs controlled by an address.</p>
       <Codeblock
-        data={`await blockchainProvider.fetchAddressUTxOs('${userInput}')`}
+        data={`await provider.fetchAddressUTxOs('${userInput}')`}
       />
       <p>
         Optionally, you can filter UTXOs containing a particular asset by
@@ -54,45 +58,45 @@ function Left(userInput: string) {
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   return (
     <>
       <FromAddress
-        blockchainProvider={blockchainProvider}
+        provider={provider}
         userInput={userInput}
         setUserInput={setUserInput}
-        provider={provider}
+        providerName={providerName}
       />
       <WithAsset
-        blockchainProvider={blockchainProvider}
+        provider={provider}
         userInput={userInput}
         setUserInput={setUserInput}
-        provider={provider}
+        providerName={providerName}
       />
     </>
   );
 }
 
 function FromAddress({
-  blockchainProvider,
+  provider,
   userInput,
   setUserInput,
-  provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
+  provider: SupportedFetchers;
   userInput: string;
   setUserInput: (value: string) => void;
-  provider: string;
+  providerName: string;
 }) {
   async function runDemo() {
-    return await blockchainProvider.fetchAddressUTxOs(userInput);
+    return await provider.fetchAddressUTxOs(userInput);
   }
 
-  let code = `await blockchainProvider.fetchAddressUTxOs(\n`;
+  let code = `await provider.fetchAddressUTxOs(\n`;
   code += `  '${userInput}'\n`;
   code += `);\n`;
 
@@ -102,7 +106,7 @@ function FromAddress({
       subtitle="Fetch UTxOs from address"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
       code={code}
     >
       <InputTable
@@ -121,23 +125,23 @@ function FromAddress({
 }
 
 function WithAsset({
-  blockchainProvider,
+  provider,
   userInput,
   setUserInput,
-  provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
+  provider: SupportedFetchers;
   userInput: string;
   setUserInput: (value: string) => void;
-  provider: string;
+  providerName: string;
 }) {
   const [userInput2, setUserInput2] = useState<string>(demoAsset);
 
   async function runDemo() {
-    return await blockchainProvider.fetchAddressUTxOs(userInput, userInput2);
+    return await provider.fetchAddressUTxOs(userInput, userInput2);
   }
 
-  let code = `await blockchainProvider.fetchAddressUTxOs(\n`;
+  let code = `await provider.fetchAddressUTxOs(\n`;
   code += `  '${userInput}',\n`;
   code += `  '${userInput2}'\n`;
   code += `);\n`;
@@ -148,7 +152,7 @@ function WithAsset({
       subtitle="Fetch UTxOs from address with asset"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
       code={code}
     >
       <InputTable

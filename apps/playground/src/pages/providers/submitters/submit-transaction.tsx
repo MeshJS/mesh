@@ -3,11 +3,11 @@ import Codeblock from "~/components/text/codeblock";
 import { SupportedSubmitters } from ".";
 
 export default function SubmitterSubmitTransaction({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedSubmitters;
-  provider: string;
+  provider: SupportedSubmitters;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
@@ -22,7 +22,7 @@ function Left() {
   return (
     <>
       <p>Submit a serialized transaction to the network.</p>
-      <Codeblock data={`await blockchainProvider.submitTx(signedTx);`} />
+      <Codeblock data={`await provider.submitTx(signedTx);`} />
     </>
   );
 }

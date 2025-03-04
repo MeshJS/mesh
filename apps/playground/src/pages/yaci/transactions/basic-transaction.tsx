@@ -22,12 +22,12 @@ export default function YaciBasicTransaction() {
 
 function Left() {
   let codeWallet = ``;
-  codeWallet += `const blockchainProvider = new YaciProvider();\n`;
+  codeWallet += `const provider = new YaciProvider();\n`;
   codeWallet += `\n`;
   codeWallet += `const wallet = new MeshWallet({\n`;
   codeWallet += `  networkId: 0,\n`;
-  codeWallet += `  fetcher: blockchainProvider,\n`;
-  codeWallet += `  submitter: blockchainProvider,\n`;
+  codeWallet += `  fetcher: provider,\n`;
+  codeWallet += `  submitter: provider,\n`;
   codeWallet += `  key: {\n`;
   codeWallet += `    type: "mnemonic",\n`;
   codeWallet += `    words: demoMnemonic,\n`;
@@ -72,12 +72,12 @@ function Right() {
   );
 
   async function runDemo() {
-    const blockchainProvider = new YaciProvider(userInput2);
+    const provider = new YaciProvider(userInput2);
 
     const wallet = new MeshWallet({
       networkId: 0,
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
+      fetcher: provider,
+      submitter: provider,
       key: {
         type: "mnemonic",
         words: yaci.mnemonic,
@@ -95,8 +95,8 @@ function Right() {
   }
 
   let code = `import { YaciProvider } from "@meshsdk/core";\n\n`;
-  code += `const blockchainProvider = new YaciProvider('${userInput2}');\n`;
-  code += `const utxos = await blockchainProvider.fetchAddressUTxOs('${userInput}');\n`;
+  code += `const provider = new YaciProvider('${userInput2}');\n`;
+  code += `const utxos = await provider.fetchAddressUTxOs('${userInput}');\n`;
 
   return (
     <LiveCodeDemo

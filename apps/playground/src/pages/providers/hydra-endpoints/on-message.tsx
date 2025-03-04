@@ -7,18 +7,18 @@ import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
 export default function HydraOnMessage({
-  hydraProvider,
   provider,
+  providerName,
 }: {
-  hydraProvider: HydraProvider;
-  provider: string;
+  provider: HydraProvider;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
       sidebarTo="onMessage"
       title="Listens for new messages from Hydra node"
       leftSection={Left()}
-      rightSection={Right(hydraProvider, provider)}
+      rightSection={Right(provider, providerName)}
     />
   );
 }

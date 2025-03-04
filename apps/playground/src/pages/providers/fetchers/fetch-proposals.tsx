@@ -8,11 +8,11 @@ import Codeblock from "~/components/text/codeblock";
 import { SupportedFetchers } from ".";
 
 export default function FetcherProposalInfo({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(
     "372d688faa77e146798b581b322c0f2981a9023764736ade5d12e0e4e796af8c",
@@ -25,12 +25,12 @@ export default function FetcherProposalInfo({
       title="Fetch Proposal Info"
       leftSection={Left(userInput, userInput2)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
         userInput2,
         setUserInput2,
-        provider,
+        providerName,
       )}
     />
   );
@@ -44,22 +44,22 @@ function Left(userInput: string, userInput2: string) {
         txHash and proposal index
       </p>
       <Codeblock
-        data={`await blockchainProvider.fetchGovernanceProposal('${userInput}', ${userInput2})`}
+        data={`await provider.fetchGovernanceProposal('${userInput}', ${userInput2})`}
       />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
   userInput2: string,
   setUserInput2: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchGovernanceProposal(
+    return await provider.fetchGovernanceProposal(
       userInput,
       Number(userInput2),
     );
@@ -71,7 +71,7 @@ function Right(
       subtitle="Fetch Proposals for a given TxHash and certIndex"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

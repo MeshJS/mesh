@@ -74,12 +74,12 @@ export type CreateMeshWalletOptions = {
  * ```javascript
  * import { MeshWallet, BlockfrostProvider } from '@meshsdk/core';
  *
- * const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
+ * const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
  *
  * const wallet = new MeshWallet({
  *   networkId: 0,
- *   fetcher: blockchainProvider,
- *   submitter: blockchainProvider,
+ *   fetcher: provider,
+ *   submitter: provider,
  *   key: {
  *     type: 'mnemonic',
  *     words: ["solution","solution","solution","solution","solution",","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution"],

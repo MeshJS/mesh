@@ -4,17 +4,17 @@ import { IWallet, MeshTxBuilder } from "@meshsdk/core";
 import { getProvider } from "../../../components/cardano/mesh-wallet";
 
 export function getContract(wallet: IWallet) {
-  const blockchainProvider = getProvider();
+  const provider = getProvider();
 
   const meshTxBuilder = new MeshTxBuilder({
-    fetcher: blockchainProvider,
-    submitter: blockchainProvider,
+    fetcher: provider,
+    submitter: provider,
   });
 
   const contract = new MeshPaymentSplitterContract(
     {
       mesh: meshTxBuilder,
-      fetcher: blockchainProvider,
+      fetcher: provider,
       wallet: wallet,
       networkId: 0,
     },

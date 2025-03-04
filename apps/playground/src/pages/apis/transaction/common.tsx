@@ -3,7 +3,7 @@ import Codeblock from "~/components/text/codeblock";
 export function Intro() {
   let example = ``;
   example += `import { Transaction } from '@meshsdk/core';\n\n`;
-  example += `const tx = new Transaction({ initiator: wallet, fetcher: blockchainProvider, verbose: true });\n`;
+  example += `const tx = new Transaction({ initiator: wallet, fetcher: provider, verbose: true });\n`;
   example += `tx.foo(...); // add transaction methods\n`;
   example += `tx.bar(...); // add transaction methods\n\n`;
   example += `const unsignedTx = await tx.build();\n`;

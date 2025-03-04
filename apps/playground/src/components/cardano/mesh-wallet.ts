@@ -1,19 +1,19 @@
 import { BlockfrostProvider, MeshWallet } from "@meshsdk/core";
 
 export function getProvider(network = "preprod") {
-  const blockchainProvider = new BlockfrostProvider(
+  const provider = new BlockfrostProvider(
     `/api/blockfrost/${network}/`,
   );
-  blockchainProvider.setSubmitTxToBytes(false);
-  return blockchainProvider;
+  provider.setSubmitTxToBytes(false);
+  return provider;
 }
 
 export function getMeshWallet() {
-  const blockchainProvider = getProvider();
+  const provider = getProvider();
   const wallet = new MeshWallet({
     networkId: 0,
-    fetcher: blockchainProvider,
-    submitter: blockchainProvider,
+    fetcher: provider,
+    submitter: provider,
     key: {
       type: "mnemonic",
       words: "solution,".repeat(24).split(",").slice(0, 24),

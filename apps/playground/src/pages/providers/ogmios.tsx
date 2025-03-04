@@ -20,11 +20,11 @@ const ReactPage: NextPage = () => {
   ];
 
   let code1 = `import { OgmiosProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new OgmiosProvider('<URL>');`;
+  code1 += `const provider = new OgmiosProvider('<URL>');`;
 
   const ogmiosUrl = useProviders((state) => state.ogmiosUrl);
 
-  const blockchainProvider = new OgmiosProvider(ogmiosUrl);
+  const provider = new OgmiosProvider(ogmiosUrl);
 
   return (
     <>
@@ -49,12 +49,12 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/OgmiosProvider" />
 
         <ProviderEvaluators
-          blockchainProvider={blockchainProvider}
-          provider="ogmios"
+          provider={provider}
+          providerName="ogmios"
         />
         <ProviderSubmitters
-          blockchainProvider={blockchainProvider}
-          provider="ogmios"
+          provider={provider}
+          providerName="ogmios"
         />
       </SidebarFullwidth>
     </>

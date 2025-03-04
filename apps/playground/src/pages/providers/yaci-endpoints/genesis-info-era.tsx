@@ -9,18 +9,18 @@ import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
 export default function YacigetGenesisByEra({
-  yaciProvider,
   provider,
+  providerName,
 }: {
-  yaciProvider: YaciProvider;
-  provider: string;
+  provider: YaciProvider;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
       sidebarTo="getGenesisByEra"
       title="Admin Get Genesis Info By Era"
       leftSection={Left()}
-      rightSection={Right(yaciProvider, provider)}
+      rightSection={Right(provider, providerName)}
     />
   );
 }
@@ -112,7 +112,7 @@ function Left() {
         You can topup ADA for any address. To topup ADA in your wallet, run the
         following command from devnet:
       </p>
-      <Codeblock data={`await yaciProvider.getGenesisByEra(<era>)`} />
+      <Codeblock data={`await provider.getGenesisByEra(<era>)`} />
 
       <p>Example response:</p>
       <Codeblock data={code} />
@@ -120,13 +120,13 @@ function Left() {
   );
 }
 
-function Right(yaciProvider: YaciProvider, provider: string) {
+function Right(provider: YaciProvider, providerName: string) {
   const [userInput, setUserInput] = useState<string>("shelley");
   async function runDemo() {
-    return await yaciProvider.getGenesisByEra(userInput);
+    return await provider.getGenesisByEra(userInput);
   }
 
-  let code = `await yaciProvider.getGenesisByEra('${userInput}');`;
+  let code = `await provider.getGenesisByEra('${userInput}');`;
 
   return (
     <LiveCodeDemo
@@ -134,7 +134,7 @@ function Right(yaciProvider: YaciProvider, provider: string) {
       subtitle="Admin function to get genesis info by era"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
       code={code}
     >
       <InputTable

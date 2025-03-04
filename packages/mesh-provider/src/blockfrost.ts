@@ -44,7 +44,7 @@ export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
  * ```
  * import { BlockfrostProvider } from "@meshsdk/core";
  *
- * const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');
+ * const provider = new BlockfrostProvider('<Your-API-Key>');
  */
 export class BlockfrostProvider
   implements IFetcher, IListener, ISubmitter, IEvaluator

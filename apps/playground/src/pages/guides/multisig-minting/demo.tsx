@@ -22,12 +22,12 @@ const walletAccountAddress = demoAddresses.testnetPayment;
 const mintingFee = "10000000";
 let originalMetadata = "";
 
-const blockchainProvider = getProvider();
+const provider = getProvider();
 
 const systemWallet = new MeshWallet({
   networkId: 0,
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
   key: {
     type: "mnemonic",
     words: walletSystemMnemonic,

@@ -9,11 +9,11 @@ export default function MintMeshToken() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    const blockchainProvider = getProvider();
+    const provider = getProvider();
     const mintingWallet = new MeshWallet({
       networkId: 0,
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
+      fetcher: provider,
+      submitter: provider,
       key: {
         type: "mnemonic",
         words: demoMnemonic,

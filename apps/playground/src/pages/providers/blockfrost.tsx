@@ -37,13 +37,13 @@ const ReactPage: NextPage = () => {
   ];
 
   let code1 = `import { BlockfrostProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n`;
+  code1 += `const provider = new BlockfrostProvider('<Your-API-Key>');\n`;
 
-  let code2 = `const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_URL>');\n`;
+  let code2 = `const provider = new BlockfrostProvider('<BLOCKFROST_URL>');\n`;
 
   const blockfrostKey = useProviders((state) => state.blockfrostKey);
 
-  const blockchainProvider = new BlockfrostProvider(blockfrostKey ?? "");
+  const provider = new BlockfrostProvider(blockfrostKey ?? "");
 
   return (
     <>
@@ -75,20 +75,20 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/BlockfrostProvider" />
 
         <ProviderFetchers
-          blockchainProvider={blockchainProvider}
-          provider="blockfrost"
+          provider={provider}
+          providerName="blockfrost"
         />
         <ProviderEvaluators
-          blockchainProvider={blockchainProvider}
-          provider="blockfrost"
+          provider={provider}
+          providerName="blockfrost"
         />
         <ProviderSubmitters
-          blockchainProvider={blockchainProvider}
-          provider="blockfrost"
+          provider={provider}
+          providerName="blockfrost"
         />
         <ProviderListeners
-          blockchainProvider={blockchainProvider}
-          provider="blockfrost"
+          provider={provider}
+          providerName="blockfrost"
         />
       </SidebarFullwidth>
     </>

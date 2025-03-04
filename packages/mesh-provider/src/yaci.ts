@@ -39,7 +39,7 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
  * Get started:
  * ```typescript
  * import { YaciProvider } from "@meshsdk/core";
- * const blockchainProvider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');
+ * const provider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');
  * ```
  */
 export class YaciProvider
