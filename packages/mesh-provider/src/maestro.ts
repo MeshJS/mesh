@@ -169,6 +169,7 @@ export class MaestroProvider
     address: string,
     option: IFetcherOptions = { maxPage: 100, order: "desc" },
   ): Promise<TransactionInfo[]> {
+    // open for contribution, see blockfrost.ts for reference
     throw new Error("Method not implemented.");
   }
 
