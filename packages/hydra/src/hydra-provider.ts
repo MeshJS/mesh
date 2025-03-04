@@ -7,8 +7,10 @@ import {
   AssetMetadata,
   BlockInfo,
   castProtocol,
+  DEFAULT_FETCHER_OPTIONS,
   GovernanceProposalInfo,
   IFetcher,
+  IFetcherOptions,
   ISubmitter,
   Protocol,
   TransactionInfo,
@@ -97,8 +99,15 @@ export class HydraProvider implements IFetcher, ISubmitter {
     return utxos.filter((utxo) => utxo.output.address === address);
   }
 
+  async fetchAddressTxs(
+    address: string,
+    options: IFetcherOptions = DEFAULT_FETCHER_OPTIONS
+  ): Promise<TransactionInfo[]> {
+    throw new Error("Method not implemented.");
+  }
+
   fetchAssetAddresses(
-    asset: string,
+    asset: string
   ): Promise<{ address: string; quantity: string }[]> {
     throw new Error("Method not implemented.");
   }
@@ -113,14 +122,14 @@ export class HydraProvider implements IFetcher, ISubmitter {
 
   fetchCollectionAssets(
     policyId: string,
-    cursor?: string | number | undefined,
+    cursor?: string | number | undefined
   ): Promise<{ assets: Asset[]; next: string | number | null }> {
     throw new Error("Method not implemented.");
   }
 
   async fetchGovernanceProposal(
     txHash: string,
-    certIndex: number,
+    certIndex: number
   ): Promise<GovernanceProposalInfo> {
     throw new Error("Method not implemented");
   }
@@ -128,7 +137,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        "protocol-parameters",
+        "protocol-parameters"
       );
 
       if (status === 200) {
@@ -282,7 +291,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
       | "Unwitnessed Tx ConwayEra"
       | "Witnessed Tx ConwayEra",
     description = "",
-    txId?: string,
+    txId?: string
   ) {
     const transaction: HydraTransaction = {
       type: type,
@@ -310,7 +319,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
       | "Tx ConwayEra"
       | "Unwitnessed Tx ConwayEra"
       | "Witnessed Tx ConwayEra",
-    description: string,
+    description: string
   ) {
     const payload = {
       tag: "Decommit",
@@ -356,15 +365,15 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Draft a commit transaction, which can be completed and later submitted to the L1 network.
    * https://hydra.family/head-protocol/api-reference/#operation-publish-/commit
    */
-  async commit(){
+  async commit() {
     await this.post("/commit", {
       // todo --data @alice-commit-utxo.json
     });
     // return alice-commit-tx.json
 
-// If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction as shown below (example for bob):
-// curl -X POST 127.0.0.1:4002/commit --data "{}" > bob-commit-tx.json
-// cardano-cli transaction submit --tx-file bob-commit-tx.json
+    // If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction as shown below (example for bob):
+    // curl -X POST 127.0.0.1:4002/commit --data "{}" > bob-commit-tx.json
+    // cardano-cli transaction submit --tx-file bob-commit-tx.json
   }
 
   /**
@@ -399,8 +408,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
         | DecommitInvalid
         | DecommitRequested
         | DecommitApproved
-        | DecommitFinalized,
-    ) => void,
+        | DecommitFinalized
+    ) => void
   ) {
     this._eventEmitter.on("onmessage", (message) => {
       switch (message.tag) {
