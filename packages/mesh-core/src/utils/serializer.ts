@@ -119,13 +119,10 @@ export const serializeData = (
   rawData: BuilderData["content"],
   type: Omit<PlutusDataType, "CBOR">,
 ): string => {
-  if (type === "Mesh") {
-    return core.toPlutusData(rawData as Data).to_hex();
-  }
-
-  let data = rawData;
-  if (typeof rawData === "object") {
-    data = JSONBig.stringify(data);
-  }
-  return core.csl.PlutusData.from_json(data as string, 1).to_hex();
+  const serializer = new core.CardanoSDKSerializer();
+  const builderData = {
+    type: type as PlutusDataType,
+    content: rawData,
+  };
+  return serializer.serializeData(builderData as BuilderData);
 };
