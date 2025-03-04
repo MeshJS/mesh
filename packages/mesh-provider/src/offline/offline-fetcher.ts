@@ -5,6 +5,7 @@ import {
   BlockInfo,
   fromUTF8,
   IFetcher,
+  IFetcherOptions,
   Protocol,
   SUPPORTED_HANDLES,
   TransactionInfo,
@@ -100,6 +101,18 @@ export class OfflineFetcher implements IFetcher {
           utxo.output.amount.some((a) => a.unit === asset),
         )
       : addressUtxos;
+  }
+
+  /**
+   * WIP - NOT IMPLEMENTED
+   * @param address
+   * @param options
+   */
+  fetchAddressTxs(
+    address: string,
+    options?: IFetcherOptions,
+  ): Promise<TransactionInfo[]> {
+    throw new Error("Method not implemented.");
   }
 
   /**
