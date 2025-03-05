@@ -1,7 +1,7 @@
+import { pbkdf2Sync } from "crypto";
 import { blake2b, ready } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 import hash from "hash.js";
-import { pbkdf2Sync } from "crypto";
 
 import { HARDENED_KEY_START } from "@meshsdk/common";
 
@@ -15,6 +15,7 @@ import {
   Ed25519KeyHash,
   Ed25519KeyHashHex,
   Ed25519PrivateKey,
+  Ed25519PrivateNormalKeyHex,
   Ed25519PublicKeyHex,
   EnterpriseAddress,
   Hash28ByteBase16,
@@ -131,8 +132,12 @@ export const buildKeys = (
 
     return { paymentKey, stakeKey, dRepKey };
   } else {
-    const paymentKey = buildEd25519PrivateKeyFromSecretKey(privateKeyHex[0]);
-    const stakeKey = buildEd25519PrivateKeyFromSecretKey(privateKeyHex[1]);
+    const paymentKey = Ed25519PrivateKey.fromNormalHex(
+      Ed25519PrivateNormalKeyHex(privateKeyHex[0]),
+    );
+    const stakeKey = Ed25519PrivateKey.fromNormalHex(
+      Ed25519PrivateNormalKeyHex(privateKeyHex[1]),
+    );
 
     return { paymentKey, stakeKey };
   }

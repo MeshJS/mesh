@@ -109,3 +109,25 @@ describe("MeshWallet", () => {
     );
   });
 });
+
+describe("MeshWallet cli key", () => {
+  const wallet = new MeshWallet({
+    networkId: 0,
+    key: {
+      type: "cli",
+      payment:
+        "58201aae63d93899640e91b51c5e8bd542262df3ecf3246c3854f39c40f4eb83557d",
+    },
+  });
+
+  beforeAll(async () => {
+    await wallet.init();
+  });
+
+  it("getChangeAddress", async () => {
+    const changeAddress = await wallet.getChangeAddress();
+    expect(changeAddress).toEqual(
+      "addr_test1qpsthwvxgfkkm2lm8ggy0c5345u6vrfctmug6tdyx4rf4m9g500utfac3r6wvsygpnvt57a5ht0edjs0n6ejlwvuytns23durk",
+    );
+  });
+});
