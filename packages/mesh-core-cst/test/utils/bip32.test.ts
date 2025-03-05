@@ -2,7 +2,11 @@ import { ready } from "@cardano-sdk/crypto";
 
 import { mnemonicToEntropy } from "@meshsdk/common";
 
-import { buildBip32PrivateKey, buildKeys } from "../../src";
+import {
+  buildBip32PrivateKey,
+  buildEd25519PrivateKeyFromSecretKey,
+  buildKeys,
+} from "../../src";
 
 describe("BIP32 Key Derivation", () => {
   beforeAll(() => ready());
@@ -37,7 +41,8 @@ describe("BIP32 Key Derivation", () => {
       "b810d6398db44f380a9ab279f63950c4b95432f44fafb5a6f026afe23bbe9241",
     ];
 
-    const { paymentKey, stakeKey } = buildKeys(privateKeyHex, 0, 0);
+    const paymentKey = buildEd25519PrivateKeyFromSecretKey(privateKeyHex[0]);
+    const stakeKey = buildEd25519PrivateKeyFromSecretKey(privateKeyHex[1]);
 
     expect(paymentKey.hex()).toEqual(
       "484e934a6c950a9df50b4a8c2163b7eff51704c6c28349d7b3331523a072234ba0b9dac005eeb945581ceab4de83fd83e4ead554ebdbceeade9a0b17e5f0c0c6",

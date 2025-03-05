@@ -126,7 +126,7 @@ describe("EmbeddedWallet signingKeys", () => {
   });
 
   it("correct addresses", async () => {
-    const account = await wallet.getAccount(0, 0);
+    const account = wallet.getAccount(0, 0);
     expect(account.baseAddressBech32).toEqual(
       "addr_test1qqdy60gf798xrl20wwvapvsxj3kr8yz8ac6zfmgwg6c5g9p3x07mt562mneg8jxgj03p2uvmhyfyvktjn259mws8e6wq3cdn8p",
     );
