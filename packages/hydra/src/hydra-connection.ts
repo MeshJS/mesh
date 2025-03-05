@@ -38,7 +38,6 @@ export class HydraConnection extends EventEmitter {
     this._status = HYDRA_STATUS.CONNECTING;
 
     this._websocket.onopen = () => {
-      console.log("Connected to Hydra");
       this._connected = true;
     };
     this._websocket.onerror = (error) => {

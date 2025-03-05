@@ -73,7 +73,7 @@ function Right(provider: HydraProvider, providerName: string) {
         console.log("Greetings", JSON.stringify(message));
       }
     });
-  }, []);
+  }, [provider]);
 
   return <></>;
 }

@@ -319,16 +319,13 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * @returns - Array of UTxOs
    */
   async subscribeSnapshotUtxo(): Promise<UTxO[]> {
-    const { data, status } = await this.get(`snapshot/utxo`);
-    if (status === 200) {
-      const utxos: UTxO[] = [];
-      for (const [key, value] of Object.entries(data)) {
-        const utxo = toUTxO(value as HydraUTxO, key);
-        utxos.push(utxo);
-      }
-      return utxos;
+    const data = await this.get(`snapshot/utxo`);
+    const utxos: UTxO[] = [];
+    for (const [key, value] of Object.entries(data)) {
+      const utxo = toUTxO(value as HydraUTxO, key);
+      utxos.push(utxo);
     }
-    throw parseHttpError(data);
+    return utxos;
   }
 
   /**
@@ -352,33 +349,29 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * @returns - Protocol parameters
    */
   async subscribeProtocolParameters(): Promise<Protocol> {
-    const { data, status } = await this.get("protocol-parameters");
+    const data = await this.get("protocol-parameters");
 
-    if (status === 200) {
-      const protocolParams = castProtocol({
-        coinsPerUtxoSize: data.utxoCostPerByte,
-        collateralPercent: data.collateralPercentage,
-        maxBlockExMem: data.maxBlockExecutionUnits.memory,
-        maxBlockExSteps: data.maxBlockExecutionUnits.steps,
-        maxBlockHeaderSize: data.maxBlockHeaderSize,
-        maxBlockSize: data.maxBlockBodySize,
-        maxCollateralInputs: data.maxCollateralInputs,
-        maxTxExMem: data.maxTxExecutionUnits.memory,
-        maxTxExSteps: data.maxTxExecutionUnits.steps,
-        maxTxSize: data.maxTxSize,
-        maxValSize: data.maxValueSize,
-        minFeeA: data.txFeePerByte,
-        minFeeB: data.txFeeFixed,
-        minPoolCost: data.minPoolCost,
-        poolDeposit: data.stakePoolDeposit,
-        priceMem: data.executionUnitPrices.priceMemory,
-        priceStep: data.executionUnitPrices.priceSteps,
-      });
+    const protocolParams = castProtocol({
+      coinsPerUtxoSize: data.utxoCostPerByte,
+      collateralPercent: data.collateralPercentage,
+      maxBlockExMem: data.maxBlockExecutionUnits.memory,
+      maxBlockExSteps: data.maxBlockExecutionUnits.steps,
+      maxBlockHeaderSize: data.maxBlockHeaderSize,
+      maxBlockSize: data.maxBlockBodySize,
+      maxCollateralInputs: data.maxCollateralInputs,
+      maxTxExMem: data.maxTxExecutionUnits.memory,
+      maxTxExSteps: data.maxTxExecutionUnits.steps,
+      maxTxSize: data.maxTxSize,
+      maxValSize: data.maxValueSize,
+      minFeeA: data.txFeePerByte,
+      minFeeB: data.txFeeFixed,
+      minPoolCost: data.minPoolCost,
+      poolDeposit: data.stakePoolDeposit,
+      priceMem: data.executionUnitPrices.priceMemory,
+      priceStep: data.executionUnitPrices.priceSteps,
+    });
 
-      return protocolParams;
-    }
-
-    throw parseHttpError(data);
+    return protocolParams;
   }
 
   /**
