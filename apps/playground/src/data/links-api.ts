@@ -1,5 +1,6 @@
 import { MenuItem } from "~/types/menu-item";
 import { metaAiken } from "./links-aiken";
+import { metaHydra } from "./links-hydra";
 import { metaProviders } from "./links-providers";
 import { metaReact } from "./links-react";
 import { metaSmartContract } from "./links-smart-contracts";
@@ -12,11 +13,12 @@ import { metaYaci } from "./links-yaci";
 export const linksApi: MenuItem[] = [
   metaWallets,
   metaTxbuilder,
-  metaReact,
-  metaSvelte,
   metaProviders,
   metaUtilities,
+  metaReact,
+  metaSvelte,
   metaSmartContract,
   metaAiken,
+  metaHydra,
   metaYaci,
 ];

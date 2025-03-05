@@ -20,18 +20,18 @@ export function getContract(
     ownershipRefToken: UTxO["input"];
   },
 ) {
-  const blockchainProvider = getProvider();
+  const provider = getProvider();
 
   const meshTxBuilder = new MeshTxBuilder({
-    fetcher: blockchainProvider,
-    submitter: blockchainProvider,
+    fetcher: provider,
+    submitter: provider,
     verbose: true,
   });
 
   const contract = new MeshContentOwnershipContract(
     {
       mesh: meshTxBuilder,
-      fetcher: blockchainProvider,
+      fetcher: provider,
       wallet: wallet,
       networkId: 0,
     },

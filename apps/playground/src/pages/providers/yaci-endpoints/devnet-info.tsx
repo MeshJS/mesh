@@ -5,18 +5,18 @@ import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
 export default function YaciDevnetInfo({
-  yaciProvider,
   provider,
+  providerName,
 }: {
-  yaciProvider: YaciProvider;
-  provider: string;
+  provider: YaciProvider;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
       sidebarTo="getDevnetInfo"
       title="Admin Get Devnet Info"
       leftSection={Left()}
-      rightSection={Right(yaciProvider, provider)}
+      rightSection={Right(provider, providerName)}
     />
   );
 }
@@ -50,19 +50,19 @@ function Left() {
   return (
     <>
       <p>Get information about the devnet.</p>
-      <Codeblock data={`await yaciProvider.getDevnetInfo()`} />
+      <Codeblock data={`await provider.getDevnetInfo()`} />
       <p>Example response:</p>
       <Codeblock data={code} />
     </>
   );
 }
 
-function Right(yaciProvider: YaciProvider, provider: string) {
+function Right(provider: YaciProvider, providerName: string) {
   async function runDemo() {
-    return await yaciProvider.getDevnetInfo();
+    return await provider.getDevnetInfo();
   }
 
-  let code = `await yaciProvider.getDevnetInfo();`;
+  let code = `await provider.getDevnetInfo();`;
 
   return (
     <LiveCodeDemo
@@ -70,7 +70,7 @@ function Right(yaciProvider: YaciProvider, provider: string) {
       subtitle="Admin function to get devnet info"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
       code={code}
     ></LiveCodeDemo>
   );

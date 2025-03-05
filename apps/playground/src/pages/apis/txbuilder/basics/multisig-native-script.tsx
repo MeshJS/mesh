@@ -49,7 +49,7 @@ function Left() {
 
   let codeTx = ``;
   codeTx += `// get utxo from script\n`;
-  codeTx += `const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);\n`;
+  codeTx += `const utxos = await provider.fetchAddressUTxOs(scriptAddress);\n`;
   codeTx += `const utxo = utxos[0];\n`;
   codeTx += `\n`;
   codeTx += `// create tx\n`;
@@ -119,12 +119,12 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function getMeshWallet() {
-    const blockchainProvider = getProvider();
+    const provider = getProvider();
 
     const wallet = new MeshWallet({
       networkId: 0,
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
+      fetcher: provider,
+      submitter: provider,
       key: {
         type: "mnemonic",
         words: "solution,".repeat(24).split(",").slice(0, 24),
@@ -177,8 +177,8 @@ function Right() {
     }
     const { scriptAddress, scriptCbor } = script;
 
-    const blockchainProvider = getProvider();
-    const utxos = await blockchainProvider.fetchAddressUTxOs(scriptAddress);
+    const provider = getProvider();
+    const utxos = await provider.fetchAddressUTxOs(scriptAddress);
 
     if (utxos.length === 0) {
       throw new Error(`No utxos, fund address ${scriptAddress}`);

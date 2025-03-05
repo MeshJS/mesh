@@ -25,7 +25,7 @@ export default function CardTitleDescImage({
       <Card className="h-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700">
         {icon ? (
           <div className="w-8 dark:text-white">
-            <Icon icon={icon} />
+            <Icon icon={icon} className="w-8 h-8 grayscale" />
           </div>
         ) : thumbnailNotioly ? (
           <div className="relative h-40 w-full bg-white">

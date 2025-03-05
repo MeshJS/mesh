@@ -20,17 +20,17 @@ import { useWallet } from '@meshsdk/react';
 
 const { connected, wallet } = useWallet();
 
-const blockchainProvider = new BlockfrostProvider(APIKEY);
+const provider = new BlockfrostProvider(APIKEY);
 
 const meshTxBuilder = new MeshTxBuilder({
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
 });
 
 const contract = new MeshPaymentSplitterContract(
   {
     mesh: meshTxBuilder,
-    fetcher: blockchainProvider,
+    fetcher: provider,
     wallet: wallet,
     networkId: 0,
   },

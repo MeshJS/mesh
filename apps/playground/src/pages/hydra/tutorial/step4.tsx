@@ -52,10 +52,10 @@ function Left(
 
   async function commitFunds() {
     // commit alice funds
-    await hydraInstance.commitFunds();
+    // await hydraInstance.commitFunds();
 
     // commit bob funds
-    await hydraInstance.commitFunds();
+    // await hydraInstance.commitFunds();
   }
 
   return (

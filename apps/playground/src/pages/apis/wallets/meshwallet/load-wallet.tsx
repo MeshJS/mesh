@@ -5,7 +5,7 @@ import { MeshWallet } from "@meshsdk/core";
 import ButtonGroup from "~/components/button/button-group";
 import RunDemoButton from "~/components/button/run-demo-button";
 import Card from "~/components/card/card";
-import BlockchainProviderCodeSnippet from "~/components/cardano/blockchain-providers-code-snippet";
+import ProviderCodeSnippet from "~/components/cardano/blockchain-providers-code-snippet";
 import { getProvider } from "~/components/cardano/mesh-wallet";
 import Input from "~/components/form/input";
 import Textarea from "~/components/form/textarea";
@@ -85,8 +85,8 @@ function Left(
   let code1 = codeCommon;
   code1 += `const wallet = new MeshWallet({\n`;
   code1 += `  networkId: ${network}, // 0: testnet, 1: mainnet\n`;
-  code1 += `  fetcher: blockchainProvider,\n`;
-  code1 += `  submitter: blockchainProvider,\n`;
+  code1 += `  fetcher: provider,\n`;
+  code1 += `  submitter: provider,\n`;
   code1 += `  key: {\n`;
   code1 += `    type: 'mnemonic',\n`;
   code1 += `    words: ${_mnemonic},\n`;
@@ -98,8 +98,8 @@ function Left(
   let code3 = codeCommon;
   code3 += `const wallet = new MeshWallet({\n`;
   code3 += `  networkId: ${network}, // 0: testnet, 1: mainnet\n`;
-  code3 += `  fetcher: blockchainProvider,\n`;
-  code3 += `  submitter: blockchainProvider,\n`;
+  code3 += `  fetcher: provider,\n`;
+  code3 += `  submitter: provider,\n`;
   code3 += `  key: {\n`;
   code3 += `    type: 'root',\n`;
   code3 += `    bech32: '${privatekey}',\n`;
@@ -109,8 +109,8 @@ function Left(
   let code4 = codeCommon;
   code4 += `const wallet = new MeshWallet({\n`;
   code4 += `  networkId: ${network}, // 0: testnet, 1: mainnet\n`;
-  code4 += `  fetcher: blockchainProvider,\n`;
-  code4 += `  submitter: blockchainProvider,\n`;
+  code4 += `  fetcher: provider,\n`;
+  code4 += `  submitter: provider,\n`;
   code4 += `  key: {\n`;
   code4 += `    type: 'cli',\n`;
   code4 += `    payment: '${paymentSkey}',\n`;
@@ -123,7 +123,7 @@ function Left(
   let code5 = codeCommon;
   code5 += `const wallet = new MeshWallet({\n`;
   code5 += `  networkId: ${network}, // 0: testnet, 1: mainnet\n`;
-  code5 += `  fetcher: blockchainProvider,\n`;
+  code5 += `  fetcher: provider,\n`;
   code5 += `  key: {\n`;
   code5 += `    type: 'address',\n`;
   code5 += `    address: '${walletAddress}',\n`;
@@ -142,10 +142,10 @@ function Left(
 
       <p>
         First, we initialize a Provider, which we will assign{" "}
-        <>blockchainProvider</> to the <code>fetcher</code> and{" "}
+        <>provider</> to the <code>fetcher</code> and{" "}
         <code>submitter</code>.
       </p>
-      <BlockchainProviderCodeSnippet />
+      <ProviderCodeSnippet />
 
       <h3>Mnemonic phrases</h3>
       <p>We can load wallet with mnemonic phrases:</p>
@@ -233,7 +233,7 @@ function Right(
     setResponseError(null);
     setResponseAddress(null);
 
-    const blockchainProvider = getProvider();
+    const provider = getProvider();
 
     if (demoMethod == 0) {
       let _mnemonic = [];
@@ -247,8 +247,8 @@ function Right(
         if (_mnemonic.length) {
           const _wallet = new MeshWallet({
             networkId: network as 0 | 1,
-            fetcher: blockchainProvider,
-            submitter: blockchainProvider,
+            fetcher: provider,
+            submitter: provider,
             key: {
               type: "mnemonic",
               words: _mnemonic,
@@ -268,8 +268,8 @@ function Right(
       try {
         const _wallet = new MeshWallet({
           networkId: network as 0 | 1,
-          fetcher: blockchainProvider,
-          submitter: blockchainProvider,
+          fetcher: provider,
+          submitter: provider,
           key: {
             type: "root",
             bech32: privatekey,
@@ -289,8 +289,8 @@ function Right(
         const stake = stakeSkey?.length > 0 ? stakeSkey : undefined;
         const _wallet = new MeshWallet({
           networkId: network as 0 | 1,
-          fetcher: blockchainProvider,
-          submitter: blockchainProvider,
+          fetcher: provider,
+          submitter: provider,
           key: {
             type: "cli",
             payment: paymentSkey,
@@ -310,8 +310,8 @@ function Right(
       try {
         const _wallet = new MeshWallet({
           networkId: network as 0 | 1,
-          fetcher: blockchainProvider,
-          submitter: blockchainProvider,
+          fetcher: provider,
+          submitter: provider,
           key: {
             type: "address",
             address: walletAddress,

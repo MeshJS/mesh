@@ -9,17 +9,17 @@ import {
 import ListenerOnTransactionConfirmed from "./on-transaction-confirmed";
 
 export default function ProviderListeners({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedListeners;
-  provider: string;
+  provider: SupportedListeners;
+  providerName: string;
 }) {
   return (
     <>
       <ListenerOnTransactionConfirmed
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
     </>
   );

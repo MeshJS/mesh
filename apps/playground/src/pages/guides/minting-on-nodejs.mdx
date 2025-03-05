@@ -166,7 +166,7 @@ In this guide, we are building a minting transaction, but it could be any transa
 Firstly, we need a blockchain provider, in this guide, we will import **BlockfrostProvider**, but you can use other providers as well:
 
 ```
-const blockchainProvider = new BlockfrostProvider(blockfrostKey);
+const provider = new BlockfrostProvider(blockfrostKey);
 ```
 
 Next, lets initialize the **MeshWallet** and its forging script. In this example, we initialize using CLI generated keys, but you can also load your wallet with private key and mnemonic phrases. [Learn more about MeshWallet](/apis/wallets/meshwallet).
@@ -174,8 +174,8 @@ Next, lets initialize the **MeshWallet** and its forging script. In this example
 ```
 const wallet = new MeshWallet({
   networkId: networkId,
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
   key: {
     type: 'cli',
     payment: demoCLIKey.paymentSkey,

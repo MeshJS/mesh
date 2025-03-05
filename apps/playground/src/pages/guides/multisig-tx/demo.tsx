@@ -54,12 +54,12 @@ export default function Demo() {
   }
 
   async function backendBuildTx(userUtxos: UTxO[], recipientAddress: string) {
-    const blockchainProvider = getProvider();
+    const provider = getProvider();
 
     const systemWallet = new MeshWallet({
       networkId: 0,
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
+      fetcher: provider,
+      submitter: provider,
       key: {
         type: "mnemonic",
         words: walletSystemMnemonic,
@@ -80,7 +80,7 @@ export default function Demo() {
     const outputUser = []; // todo
 
     // build tx
-    const txBuilder = new MeshTxBuilder({ fetcher: blockchainProvider });
+    const txBuilder = new MeshTxBuilder({ fetcher: provider });
     const txHex = await txBuilder
       .selectUtxosFrom([...userUtxos, ...systemUtxos])
 

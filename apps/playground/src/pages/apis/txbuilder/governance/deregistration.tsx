@@ -26,7 +26,7 @@ function Left() {
   codeTxInit += `const changeAddress = await wallet.getChangeAddress();\n`;
   codeTxInit += `const utxos = await wallet.getUtxos();\n`;
   codeTxInit += `\n`;
-  codeTxInit += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');`;
+  codeTxInit += `const provider = new BlockfrostProvider('<Your-API-Key>');`;
 
   let codeTx = txbuilderCode;
   codeTx += `txBuilder\n`;

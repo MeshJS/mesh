@@ -40,7 +40,7 @@ function Left(
   async function startNode() {}
 
   let codeOnMessage = ``;
-  codeOnMessage += `hydraProvider.onMessage((message) => {\n`;
+  codeOnMessage += `provider.onMessage((message) => {\n`;
   codeOnMessage += `  console.log(message);\n`;
   codeOnMessage += `});\n`;
 

@@ -18,6 +18,7 @@ import TxbuilderSetFee from "./set-fee";
 import TxbuilderSetNetwork from "./set-network";
 import TxbuilderSetRequiredSigners from "./set-required-signers";
 import TxbuilderSetTime from "./set-time";
+import TxbuilderCustomPP from "./custom-pp";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -32,6 +33,7 @@ const ReactPage: NextPage = () => {
     { label: "Set time", to: "setTime" },
     { label: "Set network", to: "setNetwork" },
     { label: "Set fee", to: "setFee" },
+    { label: "Custom protocol parameter", to: "customProtocolParameter" },
   ];
 
   return (
@@ -84,6 +86,7 @@ const ReactPage: NextPage = () => {
         <TxbuilderSetTime />
         <TxbuilderSetNetwork />
         <TxbuilderSetFee />
+        <TxbuilderCustomPP />
       </SidebarFullwidth>
     </>
   );

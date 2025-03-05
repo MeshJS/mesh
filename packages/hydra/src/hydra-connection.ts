@@ -15,17 +15,19 @@ export class HydraConnection extends EventEmitter {
     eventEmitter,
     history = false,
     address,
+    wsUrl,
   }: {
     url: string;
     eventEmitter: EventEmitter;
     history?: boolean;
     address?: string;
+    wsUrl?: string;
   }) {
     super();
-    const wsUrl = url.replace("http", "ws");
+    const _wsUrl = wsUrl ? wsUrl : url.replace("http", "ws");
     const _history = `history=${history ? "yes" : "no"}`;
     const _address = address ? `&address=${address}` : "";
-    this._websocketUrl = `${wsUrl}/?${_history}${_address}`;
+    this._websocketUrl = `${_wsUrl}/?${_history}${_address}`;
     this._eventEmitter = eventEmitter;
   }
 
@@ -38,7 +40,6 @@ export class HydraConnection extends EventEmitter {
     this._status = HYDRA_STATUS.CONNECTING;
 
     this._websocket.onopen = () => {
-      console.log("Connected to Hydra");
       this._connected = true;
     };
     this._websocket.onerror = (error) => {

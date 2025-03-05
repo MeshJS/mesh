@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MeshWallet } from "@meshsdk/core";
 import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
 
+import { getProvider } from "~/components/cardano/mesh-wallet";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
@@ -27,8 +28,12 @@ const ReactPage: NextPage = () => {
   const hydraProvider = new HydraProvider({
     url: "http://35.189.158.126:4001",
   });
+  const blockfrostProvider = getProvider();
+
   const hydraInstance = new HydraInstance({
     provider: hydraProvider,
+    fetcher: blockfrostProvider,
+    submitter: blockfrostProvider,
   });
 
   return (

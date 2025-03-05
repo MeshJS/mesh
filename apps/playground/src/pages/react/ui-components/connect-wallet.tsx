@@ -49,7 +49,7 @@ function Left() {
   let codeBurner = `<CardanoWallet\n`;
   codeBurner += `  burnerWallet={{\n`;
   codeBurner += `    networkId: 0,\n`;
-  codeBurner += `    provider: blockchainProvider,\n`;
+  codeBurner += `    provider: provider,\n`;
   codeBurner += `  }}\n`;
   codeBurner += `/>\n`;
 

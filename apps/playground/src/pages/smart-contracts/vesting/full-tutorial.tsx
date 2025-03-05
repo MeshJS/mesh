@@ -246,8 +246,8 @@ const { pubKeyHash: beneficiaryPubKeyHash } = deserializeAddress(beneficiary);
 
       <Codeblock
         data={`const txBuilder = new MeshTxBuilder({
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
 });
 
 await txBuilder
@@ -320,7 +320,7 @@ const txHash = await wallet.submitTx(signedTx);
       <Codeblock
         data={`const txHashFromDesposit =
   "ede9f8176fe41f0c84cfc9802b693dedb5500c0cbe4377b7bb0d57cf0435200b";
-const utxos = await blockchainProvider.fetchUTxOs(txHash);
+const utxos = await provider.fetchUTxOs(txHash);
 const vestingUtxo = utxos[0];
 `}
       />
@@ -377,8 +377,8 @@ const invalidBefore =
 
       <Codeblock
         data={`const txBuilder = new MeshTxBuilder({
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
 });
 
 await txBuilder

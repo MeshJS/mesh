@@ -45,14 +45,14 @@ export default async function handler(
     const utxos = req.body.utxos;
     const amount = req.body.amount;
 
-    const blockchainProvider = new BlockfrostProvider(
+    const provider = new BlockfrostProvider(
       process.env.BLOCKFROST_API_KEY_MAINNET!,
     );
 
     const wallet = new MeshWallet({
       networkId: 1,
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
+      fetcher: provider,
+      submitter: provider,
       key: {
         type: "root",
         bech32: process.env.DONATE_MESHTOKEN_WALLET!,
@@ -86,7 +86,7 @@ export default async function handler(
       },
     };
 
-    const txBuilder = new MeshTxBuilder({ fetcher: blockchainProvider });
+    const txBuilder = new MeshTxBuilder({ fetcher: provider });
 
     const donateAddress = process.env.DONATE_ADA_ADDRESS!;
 

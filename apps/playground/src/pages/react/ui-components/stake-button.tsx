@@ -82,14 +82,14 @@ function Right() {
   let example = `import { StakeButton } from "@meshsdk/react";\n\n`;
   example += `export default function Page() {\n`;
   example += `  // import one of the providers https://meshjs.dev/providers\n`;
-  example += `  const blockchainProvider = new Provider();\n\n`;
+  example += `  const provider = new Provider();\n\n`;
   example += `  function userHasStaked() {\n`;
   example += `    // do something after user has staked to the pool");\n`;
   example += `  }\n\n`;
   example += `  return (\n`;
   example += `    <StakeButton\n`;
   example += `      isDark={${isDark}}\n`;
-  example += `      onCheck={(address) => blockchainProvider.fetchAccountInfo(address)}\n`;
+  example += `      onCheck={(address) => provider.fetchAccountInfo(address)}\n`;
   example += `      poolId="${poolId}"\n`;
   example += `      onDelegated={userHasStaked}\n`;
   example += `      label={"Stake your ADA"}\n`;
@@ -101,7 +101,7 @@ function Right() {
     // do something after user has staked to the pool
   }
 
-  const blockchainProvider = getProvider();
+  const provider = getProvider();
 
   return (
     <LiveCodeDemo
@@ -124,7 +124,7 @@ function Right() {
       <StakeButton
         isDark={isDark}
         poolId={poolId}
-        onCheck={(address) => blockchainProvider.fetchAccountInfo(address)}
+        onCheck={(address) => provider.fetchAccountInfo(address)}
         onDelegated={userHasStaked}
         label={"Stake your ADA"}
       />

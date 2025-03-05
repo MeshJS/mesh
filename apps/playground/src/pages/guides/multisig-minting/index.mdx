@@ -90,14 +90,14 @@ In this guide, we won't be showing how to set up RESTful APIs and backend server
 First, we initialize a [blockchain provider](/providers) and [`Mesh Wallet`](/apis/wallets/meshwallet). In this example, we use mnemonic to restore our wallet, but you can initialize a wallet with mnemonic phrases, private keys, and Cardano CLI generated keys.
 
 ```
-const blockchainProvider = new BlockfrostProvider(
+const provider = new BlockfrostProvider(
   '<blockfrost key here>'
 );
 
 const meshWallet = new MeshWallet({
   networkId: 0,
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
   key: {
     type: 'mnemonic',
     words: yourMnemonic,
