@@ -274,16 +274,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Draft a commit transaction, which can be completed and later submitted to the L1 network.
    */
-  async publishCommit() {
-    // todo
-    // curl -X POST 127.0.0.1:4001/commit \
-    // --data @alice-commit-utxo.json \
-    // > alice-commit-tx.json
-    await this.post("/commit", {});
-
-    // If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction as shown below (example for bob):
-    // curl -X POST 127.0.0.1:4002/commit --data "{}" > bob-commit-tx.json
-    // cardano-cli transaction submit --tx-file bob-commit-tx.json
+  async buildCommit(payload: any) {
+    const txHex = await this.post("/commit", payload);
+    return txHex;
   }
 
   /**
@@ -297,7 +290,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Obtain a list of pending deposit transaction ID's.
    */
-  async publishCommits() {
+  async buildCommits() {
     // todo
     await this.post("/commits", {});
   }
@@ -310,7 +303,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Recover deposited UTxO by providing a TxId of a deposit transaction in the request path.
    */
-  async publishCommitsTxId() {
+  async commitsTxId() {
     // todo
     await this.post("/commits/tx-id", {});
   }

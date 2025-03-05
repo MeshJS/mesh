@@ -6,6 +6,7 @@ import FetcherUtxos from "../fetchers/fetch-utxos";
 import SubmitterSubmitTransaction from "../submitters/submit-transaction";
 import HydraAbort from "./abort";
 import HydraClose from "./close";
+import HydraCommit from "./commit";
 import HydraConnect from "./connect";
 import HydraContest from "./contest";
 import HydraDecommit from "./decommit";
@@ -25,6 +26,7 @@ export default function ProviderHydra({
     <>
       <HydraConnect provider={provider} providerName={providerName} />
       <HydraInitializeHead provider={provider} providerName={providerName} />
+      <HydraCommit provider={provider} providerName={providerName} />
       <HydraAbort provider={provider} providerName={providerName} />
       <HydraNewTx provider={provider} providerName={providerName} />
       <HydraDecommit provider={provider} providerName={providerName} />

@@ -1,30 +1,61 @@
+import { IFetcher, ISubmitter } from "@meshsdk/common";
+import { HexBlob, parseDatumCbor, Serialization } from "@meshsdk/core-cst";
 import { HydraProvider } from "./hydra-provider";
+import { toHydraAssets } from "./convertor";
 
 /**
  * todo: implement https://hydra.family/head-protocol/docs/tutorial/
  */
 export class HydraInstance {
   provider: HydraProvider;
+  fetcher: IFetcher;
+  submitter: ISubmitter;
 
-  constructor({ provider }: { provider: HydraProvider }) {
+  constructor({
+    provider,
+    fetcher,
+    submitter,
+  }: {
+    provider: HydraProvider;
+    fetcher: IFetcher;
+    submitter: ISubmitter;
+  }) {
     this.provider = provider;
+    this.fetcher = fetcher;
+    this.submitter = submitter;
   }
 
   /**
    * To commit funds to the head, choose which UTxO you would like to make available on layer 2.
    */
-  async commitFunds() {
-    // cardano-cli query utxo \
-    //   --address $(cat credentials/bob-funds.addr) \
-    //   --out-file bob-commit-utxo.json
-    // curl -X POST 127.0.0.1:4002/commit \
-    //   --data @bob-commit-utxo.json \
-    //   > bob-commit-tx.json
-    // cardano-cli transaction sign \
-    //   --tx-file bob-commit-tx.json \
-    //   --signing-key-file credentials/bob-funds.sk \
-    //   --out-file bob-commit-tx-signed.json
-    // cardano-cli transaction submit --tx-file bob-commit-tx-signed.json
+  async commitFunds(txHash: string, txIndex: number) {
+    const utxo = (await this.fetcher.fetchUTxOs(txHash, txIndex))[0];
+    if (!utxo) {
+      throw new Error("UTxO not found");
+    }
+    const hydraUtxo: any = {
+      address: utxo.output.address,
+      datum: null,
+      datumhash: null, // TODO: Handle datumHash case
+      referenceScript:
+        utxo.output.scriptRef === "" || !utxo.output.scriptRef
+          ? null
+          : utxo.output.scriptRef,
+      value: toHydraAssets(utxo.output.amount),
+    };
+    if (utxo.output.plutusData) {
+      hydraUtxo["inlineDatum"] = parseDatumCbor(utxo.output.plutusData);
+      hydraUtxo["inlineDatumRaw"] = utxo.output.plutusData;
+    } else {
+      hydraUtxo["inlineDatum"] = null;
+      hydraUtxo["inlineDatumRaw"] = null;
+    }
+    const txHex = await this.provider.buildCommit({
+      [txHash + txIndex]: hydraUtxo,
+    });
+    console.log(txHex);
+    // const commitTxHash = await this.submitter.submitTx(txHex);
+    // return commitTxHash;
   }
 
   /**
