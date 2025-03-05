@@ -79,7 +79,13 @@ export class HydraProvider implements IFetcher, ISubmitter {
       history: history,
       address: address,
     });
-    this._axiosInstance = axios.create({ baseURL: url });
+    this._axiosInstance = axios.create({
+      baseURL: url,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "CORS_ALLOWED_HEADERS",
+      },
+    });
   }
 
   /**
