@@ -31,6 +31,12 @@ Instant setup a new project with a single command using Mesh CLI and start build
 npx meshjs your-app-name
 ```
 
+Or install the core package:
+
+```bash
+npm install @meshsdk/core
+```
+
 ## What's inside?
 
 ### Packages
