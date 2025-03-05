@@ -82,6 +82,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
     this._axiosInstance = axios.create({ baseURL: url });
   }
 
+  /**
+   * Connects to the Hydra Head. This command is a no-op when a Head is already open.
+   */
   async connect() {
     if (this._status !== "DISCONNECTED") {
       return;
@@ -90,136 +93,38 @@ export class HydraProvider implements IFetcher, ISubmitter {
     this._connection.connect();
   }
 
-  fetchAccountInfo(address: string): Promise<AccountInfo> {
-    throw new Error("Method not implemented.");
-  }
+  /**
+   * FETCHERS and SUBMITTERS
+   */
 
+  /**
+   * UTXOs of the address.
+   * @param address - The address to fetch UTXO
+   * @param asset - UTXOs of a given asset​
+   * @returns - Array of UTxOs
+   */
   async fetchAddressUTxOs(address: string): Promise<UTxO[]> {
     const utxos = await this.fetchUTxOs();
     return utxos.filter((utxo) => utxo.output.address === address);
   }
 
-  async fetchAddressTxs(
-    address: string,
-    options: IFetcherOptions = DEFAULT_FETCHER_OPTIONS
-  ): Promise<TransactionInfo[]> {
-    throw new Error("Method not implemented.");
-  }
-
-  fetchAssetAddresses(
-    asset: string
-  ): Promise<{ address: string; quantity: string }[]> {
-    throw new Error("Method not implemented.");
-  }
-
-  fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
-    throw new Error("Method not implemented.");
-  }
-
-  fetchBlockInfo(hash: string): Promise<BlockInfo> {
-    throw new Error("Method not implemented.");
-  }
-
-  fetchCollectionAssets(
-    policyId: string,
-    cursor?: string | number | undefined
-  ): Promise<{ assets: Asset[]; next: string | number | null }> {
-    throw new Error("Method not implemented.");
-  }
-
-  async fetchGovernanceProposal(
-    txHash: string,
-    certIndex: number
-  ): Promise<GovernanceProposalInfo> {
-    throw new Error("Method not implemented");
-  }
-
+  /**
+   * Fetch the latest protocol parameters.
+   * @param epoch
+   * @returns - Protocol parameters
+   */
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
-    try {
-      const { data, status } = await this._axiosInstance.get(
-        "protocol-parameters"
-      );
-
-      if (status === 200) {
-        const protocolParams = castProtocol({
-          coinsPerUtxoSize: data.utxoCostPerByte,
-          collateralPercent: data.collateralPercentage,
-          maxBlockExMem: data.maxBlockExecutionUnits.memory,
-          maxBlockExSteps: data.maxBlockExecutionUnits.steps,
-          maxBlockHeaderSize: data.maxBlockHeaderSize,
-          maxBlockSize: data.maxBlockBodySize,
-          maxCollateralInputs: data.maxCollateralInputs,
-          maxTxExMem: data.maxTxExecutionUnits.memory,
-          maxTxExSteps: data.maxTxExecutionUnits.steps,
-          maxTxSize: data.maxTxSize,
-          maxValSize: data.maxValueSize,
-          minFeeA: data.txFeePerByte,
-          minFeeB: data.txFeeFixed,
-          minPoolCost: data.minPoolCost,
-          poolDeposit: data.stakePoolDeposit,
-          priceMem: data.executionUnitPrices.priceMemory,
-          priceStep: data.executionUnitPrices.priceSteps,
-        });
-
-        return protocolParams;
-      }
-
-      throw parseHttpError(data);
-    } catch (error) {
-      throw parseHttpError(error);
-    }
+    return await this.subscribeProtocolParameters();
   }
 
-  fetchTxInfo(hash: string): Promise<TransactionInfo> {
-    throw new Error("Method not implemented.");
-  }
-
+  /**
+   * Get UTxOs for a given hash.
+   * @param hash
+   * @param index
+   * @returns - Array of UTxOs
+   */
   async fetchUTxOs(): Promise<UTxO[]> {
-    const { data, status } = await this._axiosInstance.get(`snapshot/utxo`);
-    if (status === 200) {
-      const utxos: UTxO[] = [];
-      for (const [key, value] of Object.entries(data)) {
-        const utxo = toUTxO(value as HydraUTxO, key);
-        utxos.push(utxo);
-      }
-      return utxos;
-    }
-    throw parseHttpError(data);
-  }
-
-  /**
-   * A generic method to fetch data from a URL.
-   * @param url - The URL to fetch data from
-   * @returns - The data fetched from the URL
-   */
-  async get(url: string): Promise<any> {
-    try {
-      const { data, status } = await this._axiosInstance.get(url);
-      if (status === 200 || status == 202) {
-        return data;
-      }
-      throw parseHttpError(data);
-    } catch (error) {
-      throw parseHttpError(error);
-    }
-  }
-
-  /**
-   * A generic method to post data to a URL.
-   * @param url - The URL to post data to
-   * @param payload - The data to post
-   * @returns - The response from the URL
-   */
-  async post(url: string, payload: any): Promise<any> {
-    try {
-      const { data, status } = await this._axiosInstance.post(url, payload);
-      if (status === 200 || status == 202) {
-        return data;
-      }
-      throw parseHttpError(data);
-    } catch (error) {
-      throw parseHttpError(error);
-    }
+    return await this.subscribeSnapshotUtxo();
   }
 
   /**
@@ -251,7 +156,6 @@ export class HydraProvider implements IFetcher, ISubmitter {
 
   /**
    * Commands sent to the Hydra node.
-   * https://hydra.family/head-protocol/api-reference/#operation-publish-/
    *
    * Accepts one of the following commands:
    * - Init: init()
@@ -357,19 +261,19 @@ export class HydraProvider implements IFetcher, ISubmitter {
     this._connection.send(data);
   }
 
-  // todo: is this function https://hydra.family/head-protocol/api-reference/#operation-publish-/commit the same as the POST?
-  // curl -X POST 127.0.0.1:4001/commit \
-  // --data @alice-commit-utxo.json \
-  // > alice-commit-tx.json
+  /**
+   * OPERATIONS
+   */
+
   /**
    * Draft a commit transaction, which can be completed and later submitted to the L1 network.
-   * https://hydra.family/head-protocol/api-reference/#operation-publish-/commit
    */
-  async commit() {
-    await this.post("/commit", {
-      // todo --data @alice-commit-utxo.json
-    });
-    // return alice-commit-tx.json
+  async publishCommit() {
+    // todo
+    // curl -X POST 127.0.0.1:4001/commit \
+    // --data @alice-commit-utxo.json \
+    // > alice-commit-tx.json
+    await this.post("/commit", {});
 
     // If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction as shown below (example for bob):
     // curl -X POST 127.0.0.1:4002/commit --data "{}" > bob-commit-tx.json
@@ -377,9 +281,124 @@ export class HydraProvider implements IFetcher, ISubmitter {
   }
 
   /**
+   * Emitted by the server after drafting a commit transaction with the user provided utxos. Transaction returned to the user is in it's cbor representation encoded as Base16.
+   */
+  async subscribeCommit() {
+    // todo
+    await this.get("/commit");
+  }
+
+  /**
+   * Obtain a list of pending deposit transaction ID's.
+   */
+  async publishCommits() {
+    // todo
+    await this.post("/commits", {});
+  }
+
+  async subscribeCommits() {
+    // todo
+    await this.get("/commits");
+  }
+
+  /**
+   * Recover deposited UTxO by providing a TxId of a deposit transaction in the request path.
+   */
+  async publishCommitsTxId() {
+    // todo
+    await this.post("/commits/tx-id", {});
+  }
+
+  async subscribeCommitsTxId() {
+    // todo
+    await this.get("/commits/tx-id");
+  }
+
+  /**
+   * A set of unspent transaction outputs.
+   * @returns - Array of UTxOs
+   */
+  async subscribeSnapshotUtxo(): Promise<UTxO[]> {
+    const { data, status } = await this.get(`snapshot/utxo`);
+    if (status === 200) {
+      const utxos: UTxO[] = [];
+      for (const [key, value] of Object.entries(data)) {
+        const utxo = toUTxO(value as HydraUTxO, key);
+        utxos.push(utxo);
+      }
+      return utxos;
+    }
+    throw parseHttpError(data);
+  }
+
+  /**
+   * Provide decommit transaction that needs to be applicable to the Hydra's local ledger state. Specified transaction outputs will be available on layer 1 after decommit is successfully processed.
+   */
+  async publishDecommit() {
+    // todo
+    await this.post("/decommit", {});
+  }
+
+  /**
+   * Emitted by the server after drafting a decommit transaction.
+   */
+  async subscribeDecommit() {
+    // todo
+    await this.get("/decommit");
+  }
+
+  /**
+   * Get protocol parameters.
+   * @returns - Protocol parameters
+   */
+  async subscribeProtocolParameters(): Promise<Protocol> {
+    const { data, status } = await this.get("protocol-parameters");
+
+    if (status === 200) {
+      const protocolParams = castProtocol({
+        coinsPerUtxoSize: data.utxoCostPerByte,
+        collateralPercent: data.collateralPercentage,
+        maxBlockExMem: data.maxBlockExecutionUnits.memory,
+        maxBlockExSteps: data.maxBlockExecutionUnits.steps,
+        maxBlockHeaderSize: data.maxBlockHeaderSize,
+        maxBlockSize: data.maxBlockBodySize,
+        maxCollateralInputs: data.maxCollateralInputs,
+        maxTxExMem: data.maxTxExecutionUnits.memory,
+        maxTxExSteps: data.maxTxExecutionUnits.steps,
+        maxTxSize: data.maxTxSize,
+        maxValSize: data.maxValueSize,
+        minFeeA: data.txFeePerByte,
+        minFeeB: data.txFeeFixed,
+        minPoolCost: data.minPoolCost,
+        poolDeposit: data.stakePoolDeposit,
+        priceMem: data.executionUnitPrices.priceMemory,
+        priceStep: data.executionUnitPrices.priceSteps,
+      });
+
+      return protocolParams;
+    }
+
+    throw parseHttpError(data);
+  }
+
+  /**
+   * Cardano transaction to be submitted to the L1 network. Accepts transactions encoded as Base16 CBOR string, TextEnvelope type or JSON.
+   */
+  async publishCardanoTransaction() {
+    // todo
+    await this.post("/cardano-transaction", {});
+  }
+
+  /**
+   * Successfully submitted a cardano transaction to the L1 network.
+   */
+  async subscribeCardanoTransaction() {
+    // todo
+    await this.get("/cardano-transaction");
+  }
+
+  /**
    * Events emitted by the Hydra node.
-   * https://hydra.family/head-protocol/api-reference
-   *
    * @param callback - The callback function to be called when a message is received
    */
   onMessage(
@@ -493,5 +512,91 @@ export class HydraProvider implements IFetcher, ISubmitter {
 
   onStatusChange(callback: (status: HydraStatus) => void) {
     this._eventEmitter.on("onstatuschange", callback);
+  }
+
+  /**
+   * Useful utility functions.
+   */
+
+  /**
+   * A generic method to fetch data from a URL.
+   * @param url - The URL to fetch data from
+   * @returns - The data fetched from the URL
+   */
+  async get(url: string): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.get(url);
+      if (status === 200 || status == 202) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * A generic method to post data to a URL.
+   * @param url - The URL to post data to
+   * @param payload - The data to post
+   * @returns - The response from the URL
+   */
+  async post(url: string, payload: any): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.post(url, payload);
+      if (status === 200 || status == 202) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
+   * NOT IMPLEMENTED FETCHERS
+   */
+
+  fetchAccountInfo(address: string): Promise<AccountInfo> {
+    throw new Error("Method not implemented.");
+  }
+
+  async fetchAddressTxs(
+    address: string,
+    options: IFetcherOptions = DEFAULT_FETCHER_OPTIONS
+  ): Promise<TransactionInfo[]> {
+    throw new Error("Method not implemented.");
+  }
+
+  fetchAssetAddresses(
+    asset: string
+  ): Promise<{ address: string; quantity: string }[]> {
+    throw new Error("Method not implemented.");
+  }
+
+  fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
+    throw new Error("Method not implemented.");
+  }
+
+  fetchBlockInfo(hash: string): Promise<BlockInfo> {
+    throw new Error("Method not implemented.");
+  }
+
+  fetchCollectionAssets(
+    policyId: string,
+    cursor?: string | number | undefined
+  ): Promise<{ assets: Asset[]; next: string | number | null }> {
+    throw new Error("Method not implemented.");
+  }
+
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number
+  ): Promise<GovernanceProposalInfo> {
+    throw new Error("Method not implemented");
+  }
+
+  fetchTxInfo(hash: string): Promise<TransactionInfo> {
+    throw new Error("Method not implemented.");
   }
 }
