@@ -42,7 +42,7 @@ function Left() {
       <p>
         Listens for new messages from Hydra node. The callback function will be
         called with the message as the only argument. Check{" "}
-        <Link href="https://hydra.family/head-protocol/api-reference/#operation-subscribe-/">
+        <Link href="https://hydra.family/head-protocol/api-reference">
           all events emitted
         </Link>{" "}
         by the Hydra node.

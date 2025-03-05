@@ -27,8 +27,14 @@ Explore the features on [Mesh Playground](https://meshjs.dev/).
 
 Instant setup a new project with a single command using Mesh CLI and start building:
 
-```
+```bash
 npx meshjs your-app-name
+```
+
+Or install the core package:
+
+```bash
+npm install @meshsdk/core
 ```
 
 ## What's inside?

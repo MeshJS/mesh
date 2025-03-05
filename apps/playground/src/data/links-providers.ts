@@ -44,7 +44,7 @@ export const metaOgmios = {
   thumbnail: "/providers/ogmios.png",
 };
 
-export const metaHydra = {
+export const metaHydraProvider = {
   title: "Hydra Provider (beta)",
   link: "/providers/hydra",
   desc: "Layer 2 scaling solution for Cardano that increases transaction throughput and ensures cost efficiency while maintaining security.",
@@ -67,7 +67,7 @@ export const metaOfflineEvaluator = {
 
 export const linksProviders: MenuItem[] = [
   metaBlockfrost,
-  metaHydra,
+  metaHydraProvider,
   metaKoios,
   metaMaestro,
   metaOgmios,

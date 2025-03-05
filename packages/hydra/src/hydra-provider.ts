@@ -378,7 +378,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
 
   /**
    * Events emitted by the Hydra node.
-   * https://hydra.family/head-protocol/api-reference/#operation-subscribe-/
+   * https://hydra.family/head-protocol/api-reference
    *
    * @param callback - The callback function to be called when a message is received
    */

@@ -1,4 +1,6 @@
+import SvgHydra from "~/components/svgs/hydra";
 import { MenuItem } from "~/types/menu-item";
+import { metaHydraProvider } from "./links-providers";
 
 export const metaHydraGettingStarted = {
   title: "Getting Started",
@@ -12,8 +14,9 @@ export const metaHydraTutorial = {
 };
 
 export const linksHydra: MenuItem[] = [
-  metaHydraGettingStarted,
-  metaHydraTutorial,
+  // metaHydraGettingStarted,
+  metaHydraProvider,
+  // metaHydraTutorial,
 ];
 
 export const metaHydra: MenuItem = {
@@ -21,4 +24,5 @@ export const metaHydra: MenuItem = {
   desc: "Layer 2 scaling solution for Cardano",
   link: "/hydra",
   items: linksHydra,
+  icon: SvgHydra,
 };

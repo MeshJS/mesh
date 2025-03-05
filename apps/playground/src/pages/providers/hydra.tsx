@@ -8,7 +8,7 @@ import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
-import { metaHydra } from "~/data/links-providers";
+import { metaHydraProvider } from "~/data/links-providers";
 import { useProviders } from "~/hooks/useProviders";
 import ProviderHydra from "./hydra-endpoints";
 
@@ -42,11 +42,11 @@ const ReactPage: NextPage = () => {
 
   return (
     <>
-      <Metatags title={metaHydra.title} description={metaHydra.desc} />
+      <Metatags title={metaHydraProvider.title} description={metaHydraProvider.desc} />
       <SidebarFullwidth sidebarItems={sidebarItems}>
         <TitleIconDescriptionBody
-          title={metaHydra.title}
-          description={metaHydra.desc}
+          title={metaHydraProvider.title}
+          description={metaHydraProvider.desc}
         >
           <p>
             The{" "}
