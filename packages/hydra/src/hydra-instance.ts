@@ -50,12 +50,12 @@ export class HydraInstance {
       hydraUtxo["inlineDatum"] = null;
       hydraUtxo["inlineDatumRaw"] = null;
     }
-    const txHex = await this.provider.buildCommit({
-      [txHash + txIndex]: hydraUtxo,
+    const commit = await this.provider.buildCommit({
+      [txHash + "#" + txIndex]: hydraUtxo,
     });
-    console.log(txHex);
-    // const commitTxHash = await this.submitter.submitTx(txHex);
-    // return commitTxHash;
+    const commitTxHash = await this.submitter.submitTx(commit["cborHex"]);
+    console.log(commitTxHash);
+    return commitTxHash;
   }
 
   /**
