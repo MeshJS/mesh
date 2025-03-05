@@ -67,10 +67,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
     url,
     history = false,
     address,
+    wsUrl,
   }: {
     url: string;
     history?: boolean;
     address?: string;
+    wsUrl?: string;
   }) {
     this._eventEmitter = new EventEmitter();
     this._connection = new HydraConnection({
@@ -78,13 +80,10 @@ export class HydraProvider implements IFetcher, ISubmitter {
       eventEmitter: this._eventEmitter,
       history: history,
       address: address,
+      wsUrl: wsUrl,
     });
     this._axiosInstance = axios.create({
       baseURL: url,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "CORS_ALLOWED_HEADERS",
-      },
     });
   }
 
