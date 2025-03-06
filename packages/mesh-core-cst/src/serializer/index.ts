@@ -810,6 +810,15 @@ class CardanoSDKSerializerCore {
 
     let referenceInputsList = [...referenceInputs.values()];
 
+    if (
+      referenceInputsList.some(
+        (input) =>
+          input.transactionId().toString() === refInput.txHash &&
+          input.index().toString() === refInput.txIndex.toString(),
+      )
+    )
+      return;
+
     referenceInputsList.push(
       new TransactionInput(
         TransactionId(refInput.txHash),
@@ -1495,9 +1504,15 @@ class CardanoSDKSerializerCore {
     if (scriptSource.type !== "Inline") {
       return;
     }
+    if (!scriptSource.scriptSize) {
+      throw new Error(
+        "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
+      );
+    }
     this.addReferenceInput({
       txHash: scriptSource.txHash,
       txIndex: scriptSource.txIndex,
+      scriptSize: Number(scriptSource.scriptSize),
     });
     switch (scriptSource.version) {
       case "V1": {
@@ -1513,14 +1528,6 @@ class CardanoSDKSerializerCore {
         break;
       }
     }
-    // Keep track of total size of reference scripts
-    if (scriptSource.scriptSize) {
-      this.refScriptSize += Number(scriptSource.scriptSize);
-    } else {
-      throw new Error(
-        "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
-      );
-    }
   };
 
   private addSimpleScriptRef = (
@@ -1529,18 +1536,16 @@ class CardanoSDKSerializerCore {
     if (simpleScriptSource.type !== "Inline") {
       return;
     }
-    this.addReferenceInput({
-      txHash: simpleScriptSource.txHash,
-      txIndex: simpleScriptSource.txIndex,
-    });
-    // Keep track of total size of reference scripts
-    if (simpleScriptSource.scriptSize) {
-      this.refScriptSize += Number(simpleScriptSource.scriptSize);
-    } else {
+    if (!simpleScriptSource.scriptSize) {
       throw new Error(
         "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
       );
     }
+    this.addReferenceInput({
+      txHash: simpleScriptSource.txHash,
+      txIndex: simpleScriptSource.txIndex,
+      scriptSize: Number(simpleScriptSource.scriptSize),
+    });
   };
 
   private countNumberOfRequiredWitnesses(): number {
