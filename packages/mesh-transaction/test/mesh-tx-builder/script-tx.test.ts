@@ -87,6 +87,24 @@ describe("MeshTxBuilder - Script Transactions", () => {
         scriptRef: resolveScriptRef({ code: alwaysSucceedCbor, version: "V3" }),
       },
     },
+    {
+      input: {
+        txHash: txHash("tx4"),
+        outputIndex: 0,
+      },
+      output: {
+        address: serializePlutusScript({
+          code: alwaysSucceedCbor,
+          version: "V3",
+        }).address,
+        amount: [
+          {
+            unit: "lovelace",
+            quantity: "100000000",
+          },
+        ],
+      },
+    },
   ]);
 
   const txBuilder = new MeshTxBuilder({
@@ -721,6 +739,67 @@ describe("MeshTxBuilder - Script Transactions", () => {
       ),
     ).toEqual([
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+    ]);
+  });
+
+  it("should be able to spend multiple inputs from same script address", async () => {
+    const txHex = await txBuilder
+      .spendingPlutusScriptV3()
+      .txIn(txHash("tx2"), 0)
+      .txInInlineDatumPresent()
+      .txInRedeemerValue("")
+      .spendingTxInReference(txHash("tx3"), 0)
+      .spendingPlutusScriptV3()
+      .txIn(txHash("tx4"), 0)
+      .txInInlineDatumPresent()
+      .txInRedeemerValue("")
+      .spendingTxInReference(txHash("tx3"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+
+    const txHex2 = await txBuilder2
+      .spendingPlutusScriptV3()
+      .txIn(txHash("tx2"), 0)
+      .txInInlineDatumPresent()
+      .txInRedeemerValue("")
+      .spendingTxInReference(txHash("tx3"), 0)
+      .spendingPlutusScriptV3()
+      .txIn(txHash("tx4"), 0)
+      .txInInlineDatumPresent()
+      .txInRedeemerValue("")
+      .spendingTxInReference(txHash("tx3"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+
+    expect(
+      await offlineEvaluator.evaluateTx(
+        txHex,
+        Object.values(
+          txBuilder.meshTxBuilderBody.inputsForEvaluation,
+        ) as UTxO[],
+        txBuilder.meshTxBuilderBody.chainedTxs,
+      ),
+    ).toEqual([
+      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
+      { budget: { mem: 2001, steps: 380149 }, index: 1, tag: "SPEND" },
+    ]);
+    expect(
+      await offlineEvaluator.evaluateTx(
+        txHex2,
+        Object.values(
+          txBuilder.meshTxBuilderBody.inputsForEvaluation,
+        ) as UTxO[],
+        txBuilder.meshTxBuilderBody.chainedTxs,
+      ),
+    ).toEqual([
+      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
+      { budget: { mem: 2001, steps: 380149 }, index: 1, tag: "SPEND" },
     ]);
   });
 });
