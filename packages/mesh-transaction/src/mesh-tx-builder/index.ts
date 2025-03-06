@@ -328,6 +328,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.queueAllLastItem();
     }
     this.removeDuplicateInputs();
+    this.removeDuplicateRefInputs();
 
     // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
     for (let collateral of this.meshTxBuilderBody.collaterals) {

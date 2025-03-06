@@ -1861,6 +1861,25 @@ export class MeshTxBuilderCore {
     this.meshTxBuilderBody.inputs = addedInputs;
   };
 
+  removeDuplicateRefInputs = () => {
+    const { referenceInputs } = this.meshTxBuilderBody;
+    const getTxInId = (txIn: RefTxIn): string =>
+      `${txIn.txHash}#${txIn.txIndex}`;
+    const currentTxInIds: string[] = [];
+    const addedInputs: RefTxIn[] = [];
+    for (let i = 0; i < referenceInputs.length; i += 1) {
+      const currentInput = referenceInputs[i]!;
+      const currentTxInId = getTxInId(currentInput);
+      if (currentTxInIds.includes(currentTxInId)) {
+        referenceInputs.splice(i, 1);
+        i -= 1;
+      } else {
+        addedInputs.push(currentInput);
+      }
+    }
+    this.meshTxBuilderBody.referenceInputs = addedInputs;
+  };
+
   emptyTxBuilderBody = () => {
     this.meshTxBuilderBody = emptyTxBuilderBody();
     return emptyTxBuilderBody;
