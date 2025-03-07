@@ -4,14 +4,12 @@ import {
   MeshTxBuilder,
   OfflineFetcher,
   resolveScriptHash,
-  serializeNativeScript,
   serializePlutusScript,
   serializeRewardAddress,
 } from "@meshsdk/core";
-import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
+import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
   blake2b,
-  resolveNativeScriptHash,
   resolveScriptHashDRepId,
   resolveScriptRef,
   Serialization,
@@ -89,8 +87,7 @@ describe("MeshTxBuilder - Duplicate Ref Input", () => {
   ]);
 
   const txBuilder = new MeshTxBuilder({
-    serializer: new CSLSerializer(),
-    fetcher: offlineFetcher,
+    evaluator: offlineEvaluator,
   });
 
   const txBuilder2 = new MeshTxBuilder({
