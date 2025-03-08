@@ -681,22 +681,10 @@ class CardanoSDKSerializerCore {
         fromBuilderToPlutusData(currentTxIn.scriptTxIn.datumSource.data),
       );
     } else if (currentTxIn.scriptTxIn.datumSource.type === "Inline") {
-      let referenceInputs =
-        this.txBody.referenceInputs() ??
-        Serialization.CborSet.fromCore([], TransactionInput.fromCore);
-
-      let referenceInputsList = [...referenceInputs.values()];
-
-      referenceInputsList.push(
-        new TransactionInput(
-          TransactionId(currentTxIn.txIn.txHash),
-          BigInt(currentTxIn.txIn.txIndex),
-        ),
-      );
-
-      referenceInputs.setValues(referenceInputsList);
-
-      this.txBody.setReferenceInputs(referenceInputs);
+      this.addReferenceInput({
+        txHash: currentTxIn.txIn.txHash,
+        txIndex: currentTxIn.txIn.txIndex,
+      });
     }
     let exUnits = currentTxIn.scriptTxIn.redeemer.exUnits;
 
@@ -822,6 +810,15 @@ class CardanoSDKSerializerCore {
 
     let referenceInputsList = [...referenceInputs.values()];
 
+    if (
+      referenceInputsList.some(
+        (input) =>
+          input.transactionId().toString() === refInput.txHash &&
+          input.index().toString() === refInput.txIndex.toString(),
+      )
+    )
+      return;
+
     referenceInputsList.push(
       new TransactionInput(
         TransactionId(refInput.txHash),
@@ -829,6 +826,10 @@ class CardanoSDKSerializerCore {
       ),
     );
     referenceInputs.setValues(referenceInputsList);
+
+    if (refInput.scriptSize) {
+      this.refScriptSize += refInput.scriptSize;
+    }
 
     this.txBody.setReferenceInputs(referenceInputs);
   };
@@ -1503,22 +1504,16 @@ class CardanoSDKSerializerCore {
     if (scriptSource.type !== "Inline") {
       return;
     }
-    let referenceInputs =
-      this.txBody.referenceInputs() ??
-      Serialization.CborSet.fromCore([], TransactionInput.fromCore);
-
-    let referenceInputsList = [...referenceInputs.values()];
-
-    referenceInputsList.push(
-      new TransactionInput(
-        TransactionId(scriptSource.txHash),
-        BigInt(scriptSource.txIndex),
-      ),
-    );
-
-    referenceInputs.setValues(referenceInputsList);
-
-    this.txBody.setReferenceInputs(referenceInputs);
+    if (!scriptSource.scriptSize) {
+      throw new Error(
+        "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
+      );
+    }
+    this.addReferenceInput({
+      txHash: scriptSource.txHash,
+      txIndex: scriptSource.txIndex,
+      scriptSize: Number(scriptSource.scriptSize),
+    });
     switch (scriptSource.version) {
       case "V1": {
         this.usedLanguages[PlutusLanguageVersion.V1] = true;
@@ -1533,14 +1528,6 @@ class CardanoSDKSerializerCore {
         break;
       }
     }
-    // Keep track of total size of reference scripts
-    if (scriptSource.scriptSize) {
-      this.refScriptSize += Number(scriptSource.scriptSize);
-    } else {
-      throw new Error(
-        "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
-      );
-    }
   };
 
   private addSimpleScriptRef = (
@@ -1549,31 +1536,16 @@ class CardanoSDKSerializerCore {
     if (simpleScriptSource.type !== "Inline") {
       return;
     }
-    let referenceInputs =
-      this.txBody.referenceInputs() ??
-      Serialization.CborSet.fromCore([], TransactionInput.fromCore);
-
-    let referenceInputsList = [...referenceInputs.values()];
-
-    referenceInputsList.push(
-      new TransactionInput(
-        TransactionId(simpleScriptSource.txHash),
-        BigInt(simpleScriptSource.txIndex),
-      ),
-    );
-
-    // Keep track of total size of reference scripts
-    if (simpleScriptSource.scriptSize) {
-      this.refScriptSize += Number(simpleScriptSource.scriptSize);
-    } else {
+    if (!simpleScriptSource.scriptSize) {
       throw new Error(
         "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
       );
     }
-
-    referenceInputs.setValues(referenceInputsList);
-
-    this.txBody.setReferenceInputs(referenceInputs);
+    this.addReferenceInput({
+      txHash: simpleScriptSource.txHash,
+      txIndex: simpleScriptSource.txIndex,
+      scriptSize: Number(simpleScriptSource.scriptSize),
+    });
   };
 
   private countNumberOfRequiredWitnesses(): number {
