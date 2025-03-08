@@ -87,7 +87,7 @@ describe("MeshTxBuilder - Duplicate Ref Input", () => {
   ]);
 
   const txBuilder = new MeshTxBuilder({
-    evaluator: offlineEvaluator,
+    fetcher: offlineFetcher,
   });
 
   const txBuilder2 = new MeshTxBuilder({
@@ -297,7 +297,7 @@ describe("MeshTxBuilder - Duplicate Ref Input", () => {
       .votePlutusScriptV3()
       .vote(
         { type: "DRep", drepId: resolveScriptHashDRepId(alwaysSucceedHash) },
-        { txHash: txHash("tx100"), txIndex: 0 },
+        { txHash: txHash("tx101"), txIndex: 0 },
         { voteKind: "Yes" },
       )
       .voteTxInReference(txHash("tx3"), 0)
