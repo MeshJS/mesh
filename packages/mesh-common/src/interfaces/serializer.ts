@@ -1,4 +1,5 @@
 import {
+  Asset,
   BuilderData,
   Data,
   DeserializedAddress,
@@ -7,6 +8,7 @@ import {
   NativeScript,
   PlutusScript,
   Protocol,
+  TxOutput,
 } from "../types";
 
 export interface IMeshTxSerializer {
@@ -14,7 +16,12 @@ export interface IMeshTxSerializer {
   serializeTxBody(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
-    balanced: Boolean,
+    balanced: boolean,
+  ): string;
+  serializeTxBodyWithMockSignatures(
+      txBuilderBody: MeshTxBuilderBody,
+      protocolParams: Protocol,
+      balanced: boolean,
   ): string;
   addSigningKeys(txHex: string, signingKeys: string[]): string;
   resolver: IResolver;
@@ -27,6 +34,8 @@ export interface IMeshTxSerializer {
     isScriptHash?: boolean,
     network_id?: 0 | 1,
   ): string;
+  serializeOutput(output: TxOutput): string;
+  serializeValue(value: Asset[]): string;
 }
 export interface IResolver {
   keys: {

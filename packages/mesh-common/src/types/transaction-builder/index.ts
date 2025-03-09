@@ -7,6 +7,7 @@ import { Output } from "./output";
 import { PubKeyTxIn, RefTxIn, TxIn } from "./txin";
 import { Vote } from "./vote";
 import { Withdrawal } from "./withdrawal";
+import {Quantity} from "../asset";
 
 export * from "./data";
 export * from "./mint";
@@ -20,6 +21,7 @@ export * from "./vote";
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
   outputs: Output[];
+  fee: Quantity;
   collaterals: PubKeyTxIn[];
   requiredSignatures: string[];
   referenceInputs: RefTxIn[];
@@ -39,13 +41,15 @@ export type MeshTxBuilderBody = {
   };
   chainedTxs: string[];
   inputsForEvaluation: Record<string, UTxO>;
-  fee?: string;
   network: Network | number[][];
+  expectedNumberKeyWitnesses: number;
+  expectedByronAddressWitnesses: string[];
 };
 
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   inputs: [],
   outputs: [],
+  fee: "0",
   extraInputs: [],
   collaterals: [],
   requiredSignatures: [],
@@ -66,6 +70,8 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   chainedTxs: [],
   inputsForEvaluation: {},
   network: "mainnet",
+  expectedNumberKeyWitnesses: 0,
+  expectedByronAddressWitnesses: []
 });
 
 // Here

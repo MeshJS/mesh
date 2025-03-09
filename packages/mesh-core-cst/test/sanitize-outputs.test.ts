@@ -46,6 +46,9 @@ describe("Sanitize outputs", () => {
       },
       chainedTxs: [],
       inputsForEvaluation: {},
+      expectedNumberKeyWitnesses: 0,
+      expectedByronAddressWitnesses: [],
+      fee: "1000000",
       network: "mainnet",
     };
 

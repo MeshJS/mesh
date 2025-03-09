@@ -37,6 +37,8 @@ import {
 } from "@meshsdk/common";
 
 import { metadataObjToMap } from "../utils";
+import {Address, CredentialType} from "@meshsdk/core-cst";
+import {HexBlob} from "@cardano-sdk/util";
 
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;
@@ -1458,6 +1460,16 @@ export class MeshTxBuilderCore {
     threshold = "5000000",
     includeTxFees = true,
   ) => {
+    for (const input of this.meshTxBuilderBody.inputs) {
+      const address = input.txIn.address;
+      if (!address) {
+        throw Error("Address is missing from the input");
+      }
+      const decodedAddress = Address.fromBytes(<HexBlob>address);
+      if (decodedAddress.getProps().paymentPart?.type !== CredentialType.KeyHash) {
+        throw Error("Only KeyHash address is supported for utxo selection");
+      }
+    }
     this.meshTxBuilderBody.extraInputs = extraInputs;
     const newConfig = {
       threshold,
@@ -1904,4 +1916,75 @@ export class MeshTxBuilderCore {
     this.collateralQueueItem = undefined;
     this.refScriptTxInQueueItem = undefined;
   };
+
+  protected _cloneCore<T extends MeshTxBuilderCore>(createInstance: () => T): T {
+    this.queueAllLastItem();
+
+    const newBuilder = createInstance();
+
+    const tmpBody = JSONBig.parse(JSONBig.stringify(this.meshTxBuilderBody));
+    const newMetadataMap = new Map<
+        BigInt | number | string,
+        Metadatum | object
+    >();
+    if (tmpBody.metadata) {
+      for (const [k, v] of Object.entries(tmpBody.metadata) as [
+        string,
+            object | Metadatum,
+      ][]) {
+        const bigKey = (() => {
+          try {
+            return BigInt(k);
+          } catch {
+            return k;
+          }
+        })();
+        newMetadataMap.set(bigKey, v);
+      }
+    }
+    tmpBody.metadata = newMetadataMap;
+    newBuilder.meshTxBuilderBody = tmpBody;
+
+    newBuilder.txEvaluationMultiplier = this.txEvaluationMultiplier;
+    newBuilder.txOutput = this.txOutput
+        ? JSONBig.parse(JSONBig.stringify(this.txOutput))
+        : undefined;
+
+    newBuilder.addingPlutusScriptInput = this.addingPlutusScriptInput;
+    newBuilder.plutusSpendingScriptVersion = this.plutusSpendingScriptVersion;
+
+    newBuilder.addingPlutusMint = this.addingPlutusMint;
+    newBuilder.plutusMintingScriptVersion = this.plutusMintingScriptVersion;
+
+    newBuilder.addingPlutusWithdrawal = this.addingPlutusWithdrawal;
+    newBuilder.plutusWithdrawalScriptVersion = this.plutusWithdrawalScriptVersion;
+
+    newBuilder.addingPlutusVote = this.addingPlutusVote;
+    newBuilder.plutusVoteScriptVersion = this.plutusVoteScriptVersion;
+
+    newBuilder._protocolParams = JSONBig.parse(
+        JSONBig.stringify(this._protocolParams),
+    );
+
+    newBuilder.mintItem = this.mintItem
+        ? JSONBig.parse(JSONBig.stringify(this.mintItem))
+        : undefined;
+    newBuilder.txInQueueItem = this.txInQueueItem
+        ? JSONBig.parse(JSONBig.stringify(this.txInQueueItem))
+        : undefined;
+    newBuilder.withdrawalItem = this.withdrawalItem
+        ? JSONBig.parse(JSONBig.stringify(this.withdrawalItem))
+        : undefined;
+    newBuilder.voteItem = this.voteItem
+        ? JSONBig.parse(JSONBig.stringify(this.voteItem))
+        : undefined;
+    newBuilder.collateralQueueItem = this.collateralQueueItem
+        ? JSONBig.parse(JSONBig.stringify(this.collateralQueueItem))
+        : undefined;
+    newBuilder.refScriptTxInQueueItem = this.refScriptTxInQueueItem
+        ? JSONBig.parse(JSONBig.stringify(this.refScriptTxInQueueItem))
+        : undefined;
+
+    return newBuilder;
+  }
 }
