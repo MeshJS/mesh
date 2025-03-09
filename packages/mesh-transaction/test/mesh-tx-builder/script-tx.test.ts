@@ -1,9 +1,7 @@
 import {
-  applyCborEncoding,
   DRep,
   MeshTxBuilder,
   OfflineFetcher,
-  resolveScriptHash,
   serializeNativeScript,
   serializePlutusScript,
   serializeRewardAddress,
@@ -11,26 +9,16 @@ import {
 } from "@meshsdk/core";
 import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
 import {
-  blake2b,
   resolveNativeScriptHash,
   resolveScriptHashDRepId,
   resolveScriptRef,
-  Serialization,
 } from "@meshsdk/core-cst";
 
+import { alwaysSucceedCbor, alwaysSucceedHash, txHash } from "../test-util";
+
 describe("MeshTxBuilder - Script Transactions", () => {
-  const alwaysSucceedCbor = applyCborEncoding(
-    "58340101002332259800a518a4d153300249011856616c696461746f722072657475726e65642066616c736500136564004ae715cd01",
-  );
-
-  const alwaysSucceedHash = resolveScriptHash(alwaysSucceedCbor, "V3");
-
   const offlineFetcher = new OfflineFetcher();
   const offlineEvaluator = new OfflineEvaluator(offlineFetcher, "preprod");
-
-  const txHash = (tx: string) => {
-    return blake2b(32).update(Buffer.from(tx, "utf-8")).digest("hex");
-  };
 
   offlineFetcher.addUTxOs([
     {

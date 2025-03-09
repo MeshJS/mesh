@@ -1,33 +1,20 @@
 import {
-  applyCborEncoding,
   DRep,
   MeshTxBuilder,
   OfflineFetcher,
-  resolveScriptHash,
   serializePlutusScript,
   serializeRewardAddress,
 } from "@meshsdk/core";
-import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
-  blake2b,
   resolveScriptHashDRepId,
   resolveScriptRef,
   Serialization,
 } from "@meshsdk/core-cst";
 
+import { alwaysSucceedCbor, alwaysSucceedHash, txHash } from "../test-util";
+
 describe("MeshTxBuilder - Duplicate Ref Input", () => {
-  const alwaysSucceedCbor = applyCborEncoding(
-    "58340101002332259800a518a4d153300249011856616c696461746f722072657475726e65642066616c736500136564004ae715cd01",
-  );
-
-  const alwaysSucceedHash = resolveScriptHash(alwaysSucceedCbor, "V3");
-
   const offlineFetcher = new OfflineFetcher();
-  const offlineEvaluator = new OfflineEvaluator(offlineFetcher, "preprod");
-
-  const txHash = (tx: string) => {
-    return blake2b(32).update(Buffer.from(tx, "utf-8")).digest("hex");
-  };
 
   offlineFetcher.addUTxOs([
     {
@@ -50,6 +37,24 @@ describe("MeshTxBuilder - Duplicate Ref Input", () => {
       input: {
         txHash: txHash("tx2"),
         outputIndex: 0,
+      },
+      output: {
+        address: serializePlutusScript({
+          code: alwaysSucceedCbor,
+          version: "V3",
+        }).address,
+        amount: [
+          {
+            unit: "lovelace",
+            quantity: "100000000",
+          },
+        ],
+      },
+    },
+    {
+      input: {
+        txHash: txHash("tx2"),
+        outputIndex: 1,
       },
       output: {
         address: serializePlutusScript({
@@ -119,7 +124,7 @@ describe("MeshTxBuilder - Duplicate Ref Input", () => {
 
     const txHex2 = await txBuilder2
       .spendingPlutusScriptV3()
-      .txIn(txHash("tx2"), 0)
+      .txIn(txHash("tx1"), 0)
       .txInInlineDatumPresent()
       .txInRedeemerValue("")
       .spendingTxInReference(txHash("tx3"), 0)

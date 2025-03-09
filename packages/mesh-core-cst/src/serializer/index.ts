@@ -528,6 +528,10 @@ class CardanoSDKSerializerCore {
       votes,
     } = txBuilderBody;
 
+    const uniqueRefInputs = this.removeBodyInputRefInputOverlap(
+      inputs,
+      referenceInputs,
+    );
     this.addAllInputs(inputs);
     this.sanitizeOutputs(outputs);
     this.addAllOutputs(outputs);
@@ -536,7 +540,7 @@ class CardanoSDKSerializerCore {
     this.addAllWithdrawals(withdrawals);
     this.addAllVotes(votes);
     this.addAllCollateralInputs(collaterals);
-    this.addAllReferenceInputs(referenceInputs);
+    this.addAllReferenceInputs(uniqueRefInputs);
     this.removeInputRefInputOverlap();
     this.setValidityInterval(validityRange);
     this.addAllRequiredSignatures(requiredSignatures);
@@ -1281,6 +1285,26 @@ class CardanoSDKSerializerCore {
         ),
       );
     }
+  };
+
+  private removeBodyInputRefInputOverlap = (
+    inputs: TxIn[],
+    refInputs: RefTxIn[],
+  ) => {
+    let finalRefInputs = [];
+    for (let i = 0; i < refInputs.length; i++) {
+      let refInput = refInputs[i]!;
+      if (
+        !inputs.some(
+          (input) =>
+            input.txIn.txHash === refInput.txHash &&
+            input.txIn.txIndex === refInput.txIndex,
+        )
+      ) {
+        finalRefInputs.push(refInput);
+      }
+    }
+    return finalRefInputs;
   };
 
   private balanceTx = (changeAddress: string) => {
