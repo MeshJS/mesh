@@ -114,6 +114,24 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     await this.completeTxInputs()
     this.sortTxParts();
 
+
+    const txPrototype = await this.selectUtxos();
+    await this.updateByTxPrototype(txPrototype);
+    this.queueAllLastItem();
+    this.removeDuplicateInputs();
+
+    this.sortTxParts();
+
+    const txHex = this.serializer.serializeTxBody(
+        this.meshTxBuilderBody,
+        this._protocolParams,
+    );
+
+    this.txHex = txHex;
+    return txHex;
+  }
+
+  selectUtxos = async (): Promise<CoinSelectionInterface.TransactionPrototype> => {
     const callbacks: CoinSelectionInterface.BuilderCallbacks = {
       computeMinimumCost: async (selectionSkeleton: TransactionPrototype): Promise<TransactionCost> => {
         const clonedBuilder = this.clone();
@@ -164,35 +182,20 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const changeAddress = this.meshTxBuilderBody.changeAddress;
     const utxosForSelection = await this.getUtxosForSelection();
     const implicitValue = {
-        withdrawals: this.getTotalWithdrawal(),
-        deposit: this.getTotalDeposit(),
-        reclaimDeposit: this.getTotalRefund(),
-        mint: this.getTotalMint()
+      withdrawals: this.getTotalWithdrawal(),
+      deposit: this.getTotalDeposit(),
+      reclaimDeposit: this.getTotalRefund(),
+      mint: this.getTotalMint()
     }
 
     const inputSelector = new CardanoSdkInputSelector(callbacks);
-    const selectionResult = await inputSelector.select(
+    return await inputSelector.select(
         currentInputs,
         currentOutputs,
         implicitValue,
         utxosForSelection,
         changeAddress,
     );
-
-    await this.updateByTxPrototype(selectionResult);
-    this.queueAllLastItem();
-    this.removeDuplicateInputs();
-
-    await this.completeTxInputs()
-    this.sortTxParts();
-
-    const txHex = this.serializer.serializeTxBody(
-        this.meshTxBuilderBody,
-        this._protocolParams,
-    );
-
-    this.txHex = txHex;
-    return txHex;
   }
 
   updateByTxPrototype = async (selectionSkeleton: CoinSelectionInterface.TransactionPrototype)=> {
