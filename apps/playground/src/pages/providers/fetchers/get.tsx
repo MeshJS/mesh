@@ -9,11 +9,11 @@ import { demoAddresses } from "~/data/cardano";
 import { SupportedFetchers } from ".";
 
 export default function FetcherGet({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(
     `/addresses/${demoAddresses.testnetPayment}/transactions`,
@@ -25,10 +25,10 @@ export default function FetcherGet({
       title="Get data from URL"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -40,19 +40,19 @@ function Left(userInput: string) {
       <p>
         You can fetch any data from the blockchain by providing the URL path.
       </p>
-      <Codeblock data={`await blockchainProvider.get('${userInput}')`} />
+      <Codeblock data={`await provider.get('${userInput}')`} />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.get(userInput);
+    return await provider.get(userInput);
   }
 
   return (
@@ -61,7 +61,7 @@ function Right(
       subtitle="Fetch data from the blockchain"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

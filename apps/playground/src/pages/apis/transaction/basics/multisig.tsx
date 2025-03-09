@@ -66,18 +66,18 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    const blockchainProvider = getProvider();
+    const provider = getProvider();
     const mintingWallet = new MeshWallet({
       networkId: 0,
-      fetcher: blockchainProvider,
-      submitter: blockchainProvider,
+      fetcher: provider,
+      submitter: provider,
       key: {
         type: "mnemonic",
         words: demoMnemonic,
       },
     });
     const forgingScript = ForgeScript.withOneSignature(
-      mintingWallet.getChangeAddress(),
+      await mintingWallet.getChangeAddress(),
     );
 
     const usedAddress = await wallet.getUsedAddresses();
@@ -104,8 +104,8 @@ function Right() {
   let codeSnippet = `import { MeshWallet, ForgeScript, Mint, Transaction } from '@meshsdk/core';\n\n`;
   codeSnippet += `const mintingWallet = new MeshWallet({\n`;
   codeSnippet += `  networkId: 0,\n`;
-  codeSnippet += `  fetcher: blockchainProvider,\n`;
-  codeSnippet += `  submitter: blockchainProvider,\n`;
+  codeSnippet += `  fetcher: provider,\n`;
+  codeSnippet += `  submitter: provider,\n`;
   codeSnippet += `  key: {\n`;
   codeSnippet += `    type: "mnemonic",\n`;
   codeSnippet += `    words: demoMnemonic,\n`;

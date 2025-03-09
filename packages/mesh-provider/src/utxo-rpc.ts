@@ -14,6 +14,7 @@ import {
   hexToBytes,
   IEvaluator,
   IFetcher,
+  IFetcherOptions,
   IListener,
   ISubmitter,
   Protocol,
@@ -22,6 +23,7 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import { Address, CardanoSDKUtil } from "@meshsdk/core-cst";
+
 import { utxosToAssets } from "./common/utxos-to-assets";
 
 /**
@@ -237,6 +239,14 @@ export class U5CProvider
       .filter((utxo) => utxo !== undefined); // Filter out undefined results
   }
 
+  async fetchAddressTxs(
+    address: string,
+    option: IFetcherOptions = { maxPage: 100, order: "desc" },
+  ): Promise<TransactionInfo[]> {
+    // open for contribution, see blockfrost.ts for reference
+    throw new Error("Method not implemented.");
+  }
+
   /**
    * Fetches the asset addresses for a given asset.
    * @param asset - The asset to fetch addresses for
@@ -318,7 +328,10 @@ export class U5CProvider
     throw new Error("Method not implemented.");
   }
 
-  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
     throw new Error("Method not implemented");
   }
 

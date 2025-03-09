@@ -1,4 +1,4 @@
-import { Serialization } from "@cardano-sdk/core";
+import { Serialization, setInConwayEra } from "@cardano-sdk/core";
 import { HexBlob } from "@cardano-sdk/util";
 import {
   Cbor,
@@ -7,12 +7,12 @@ import {
   CborString,
   CborTag,
   CborUInt,
-  RawCborTag,
 } from "@harmoniclabs/cbor";
 import base32 from "base32-encoding";
 import { bech32 } from "bech32";
 
 import {
+  BasicVote,
   BuilderData,
   Certificate,
   NativeScript as CommonNativeScript,
@@ -38,13 +38,17 @@ import {
   RequiredWith,
   ScriptSource,
   ScriptTxIn,
+  ScriptVote,
   SimpleScriptSourceInfo,
   SimpleScriptTxIn,
+  SimpleScriptVote,
   toBytes,
   TxIn,
   TxMetadata,
   ValidityRange,
-  Withdrawal, Asset,
+  Vote,
+  Asset,
+  Withdrawal,
 } from "@meshsdk/common";
 
 import {CborSet, StricaPrivateKey, toScriptRef} from "../"
@@ -103,6 +107,7 @@ import {
   CborWriter,
 } from "../types";
 import {
+  buildEd25519PrivateKeyFromSecretKey,
   fromBuilderToPlutusData,
   toAddress,
   toCardanoAddress,
@@ -114,6 +119,11 @@ import { calculateFees } from "../utils/fee";
 import { toCardanoMetadataMap } from "../utils/metadata";
 import { hashScriptData } from "../utils/script-data-hash";
 import { empty, mergeValue, negatives, subValue } from "../utils/value";
+import {
+  toCardanoGovernanceActionId,
+  toCardanoVoter,
+  toCardanoVotingProcedure,
+} from "../utils/vote";
 import {Buffer} from "buffer";
 
 const VKEY_PUBKEY_SIZE_BYTES = 32;
@@ -125,6 +135,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   protocolParams: Protocol;
 
   constructor(protocolParams?: Protocol, verbose = false) {
+    setInConwayEra(true);
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
     this.verbose = verbose;
   }
@@ -422,6 +433,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   serializeTxBody = (
     txBuilderBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
+    balanced: Boolean = true,
   ): string => {
     if (this.verbose) {
       console.log(
@@ -437,7 +449,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     const serializerCore = new CardanoSDKSerializerCore(
       protocolParams ?? this.protocolParams,
     );
-    return serializerCore.coreSerializeTx(txBuilderBody);
+    return serializerCore.coreSerializeTxBody(txBuilderBody, balanced);
   };
 
   serializeTxBodyWithMockSignatures(txBuilderBody: MeshTxBuilderBody, protocolParams: Protocol): string {
@@ -457,18 +469,12 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         if (keyHex.length === 68 && keyHex.substring(0, 4) === "5820") {
           keyHex = keyHex.substring(4);
         }
-        const cardanoSigner = StricaPrivateKey.fromSecretKey(
-          Buffer.from(keyHex, "hex"),
-        );
-        const signature = cardanoSigner.sign(
-          Buffer.from(cardanoTx.getId(), "hex"),
-        );
+        const cardanoSigner = buildEd25519PrivateKeyFromSecretKey(keyHex);
+        const signature = cardanoSigner.sign(HexBlob(cardanoTx.getId()));
         currentWitnessSetVkeysValues.push(
           new VkeyWitness(
-            Ed25519PublicKeyHex(
-              cardanoSigner.toPublicKey().toBytes().toString("hex"),
-            ),
-            Ed25519SignatureHex(signature.toString("hex")),
+            Ed25519PublicKeyHex(cardanoSigner.toPublic().hex()),
+            Ed25519SignatureHex(signature.hex()),
           ),
         );
       }
@@ -574,7 +580,10 @@ class CardanoSDKSerializerCore {
     this.txAuxilliaryData = new AuxilliaryData();
   }
 
-  coreSerializeTxBody = (txBuilderBody: MeshTxBuilderBody): TransactionBody => {
+  coreSerializeTxBody = (
+    txBuilderBody: MeshTxBuilderBody,
+    balanced: Boolean,
+  ): string => {
     const {
       inputs,
       outputs,
@@ -586,16 +595,24 @@ class CardanoSDKSerializerCore {
       validityRange,
       certificates,
       withdrawals,
+      votes,
     } = txBuilderBody;
 
+    const uniqueRefInputs = this.removeBodyInputRefInputOverlap(
+      inputs,
+      referenceInputs,
+    );
     this.addAllInputs(inputs);
     this.setFee(txBuilderBody.fee ?? "0")
     this.addAllOutputs(this.sanitizeOutputs(outputs));
+    this.sanitizeOutputs(outputs);
+    this.addAllOutputs(outputs);
     this.addAllMints(mints);
     this.addAllCerts(certificates);
     this.addAllWithdrawals(withdrawals);
+    this.addAllVotes(votes);
     this.addAllCollateralInputs(collaterals);
-    this.addAllReferenceInputs(referenceInputs);
+    this.addAllReferenceInputs(uniqueRefInputs);
     this.removeInputRefInputOverlap();
     this.setValidityInterval(validityRange);
     this.addAllRequiredSignatures(requiredSignatures);
@@ -609,6 +626,9 @@ class CardanoSDKSerializerCore {
   coreSerializeTx(txBuilderBody: MeshTxBuilderBody): string {
     const bodyCore = this.coreSerializeTxBody(txBuilderBody);
     this.buildWitnessSet();
+    if (balanced) {
+      this.balanceTx(changeAddress);
+    }
     return new Transaction(
         bodyCore,
         this.txWitnessSet,
@@ -629,7 +649,7 @@ class CardanoSDKSerializerCore {
     ).toCbor();
   }
 
-  private sanitizeOutputs = (outputs: Output[]): Output[] => {
+  private sanitizeOutputs = (outputs: Output[]): void => {
     for (let i = 0; i < outputs.length; i++) {
       let currentOutput = outputs[i];
       let lovelaceFound = false;
@@ -652,6 +672,20 @@ class CardanoSDKSerializerCore {
             outputAmount.quantity = minUtxoValue.toString();
           }
         }
+      }
+      if (!lovelaceFound) {
+        let currentAmount = {
+          unit: "lovelace",
+          quantity: "10000000",
+        };
+        currentOutput!.amount.push(currentAmount);
+        let dummyCardanoOutput: TransactionOutput = this.toCardanoOutput(
+          currentOutput!,
+        );
+        let minUtxoValue =
+          (160 + dummyCardanoOutput.toCbor().length / 2 + 1) *
+          this.protocolParams.coinsPerUtxoSize;
+        currentAmount.quantity = minUtxoValue.toString();
         if (!lovelaceFound) {
           let currentAmount = {
             unit: "lovelace",
@@ -668,7 +702,6 @@ class CardanoSDKSerializerCore {
         }
       }
     }
-    return outputs;
   };
 
   private addAllInputs = (inputs: TxIn[]) => {
@@ -721,6 +754,11 @@ class CardanoSDKSerializerCore {
     );
     this.utxoContext.set(cardanoTxIn, cardanoTxOut);
     this.txBody.setInputs(inputs);
+
+    // Add script size if ref script in input
+    if (currentTxIn.txIn.scriptSize) {
+      this.refScriptSize += currentTxIn.txIn.scriptSize;
+    }
   };
 
   private addScriptTxIn = (
@@ -752,22 +790,10 @@ class CardanoSDKSerializerCore {
           fromBuilderToPlutusData(currentTxIn.scriptTxIn.datumSource.data),
       );
     } else if (currentTxIn.scriptTxIn.datumSource.type === "Inline") {
-      let referenceInputs =
-          this.txBody.referenceInputs() ??
-          Serialization.CborSet.fromCore([], TransactionInput.fromCore);
-
-      let referenceInputsList = [...referenceInputs.values()];
-
-      referenceInputsList.push(
-          new TransactionInput(
-              TransactionId(currentTxIn.txIn.txHash),
-              BigInt(currentTxIn.txIn.txIndex),
-          ),
-      );
-
-      referenceInputs.setValues(referenceInputsList);
-
-      this.txBody.setReferenceInputs(referenceInputs);
+      this.addReferenceInput({
+        txHash: currentTxIn.txIn.txHash,
+        txIndex: currentTxIn.txIn.txIndex,
+      });
     }
     let exUnits = currentTxIn.scriptTxIn.redeemer.exUnits;
 
@@ -829,11 +855,9 @@ class CardanoSDKSerializerCore {
     );
     if (output.datum?.type === "Hash") {
       cardanoOutput.setDatum(
-          Datum.newDataHash(
-              DatumHash.fromHexBlob(
-                  HexBlob(fromBuilderToPlutusData(output.datum.data).hash()),
-              ),
-          ),
+        Datum.newDataHash(
+          DatumHash(fromBuilderToPlutusData(output.datum.data).hash()),
+        ),
       );
     } else if (output.datum?.type === "Inline") {
       cardanoOutput.setDatum(
@@ -895,13 +919,26 @@ class CardanoSDKSerializerCore {
 
     let referenceInputsList = [...referenceInputs.values()];
 
+    if (
+      referenceInputsList.some(
+        (input) =>
+          input.transactionId().toString() === refInput.txHash &&
+          input.index().toString() === refInput.txIndex.toString(),
+      )
+    )
+      return;
+
     referenceInputsList.push(
-        new TransactionInput(
-            TransactionId.fromHexBlob(HexBlob(refInput.txHash)),
-            BigInt(refInput.txIndex),
-        ),
+      new TransactionInput(
+        TransactionId(refInput.txHash),
+        BigInt(refInput.txIndex),
+      ),
     );
     referenceInputs.setValues(referenceInputsList);
+
+    if (refInput.scriptSize) {
+      this.refScriptSize += refInput.scriptSize;
+    }
 
     this.txBody.setReferenceInputs(referenceInputs);
   };
@@ -1379,26 +1416,257 @@ class CardanoSDKSerializerCore {
     }
   };
 
+  private removeBodyInputRefInputOverlap = (
+    inputs: TxIn[],
+    refInputs: RefTxIn[],
+  ) => {
+    let finalRefInputs = [];
+    for (let i = 0; i < refInputs.length; i++) {
+      let refInput = refInputs[i]!;
+      if (
+        !inputs.some(
+          (input) =>
+            input.txIn.txHash === refInput.txHash &&
+            input.txIn.txIndex === refInput.txIndex,
+        )
+      ) {
+        finalRefInputs.push(refInput);
+      }
+    }
+    return finalRefInputs;
+  };
+
+  private balanceTx = (changeAddress: string) => {
+    if (changeAddress === "") {
+      throw new Error("Can't balance tx without a change address");
+    }
+
+    // First we add up all input values
+    const inputs = this.txBody.inputs().values();
+    let remainingValue = new Value(BigInt(0));
+    for (let i = 0; i < inputs.length; i++) {
+      let input = inputs[i];
+      if (!input) {
+        throw new Error("Invalid input found");
+      }
+      const output = this.utxoContext.get(input);
+      if (!output) {
+        throw new Error(`Unable to resolve input: ${input.toCbor()}`);
+      }
+      remainingValue = mergeValue(remainingValue, output.amount());
+    }
+
+    // Then we add all withdrawal values
+    const withdrawals = this.txBody.withdrawals();
+    if (withdrawals) {
+      withdrawals.forEach((coin) => {
+        remainingValue = mergeValue(remainingValue, new Value(coin));
+      });
+    }
+
+    // Then we add all mint values
+    remainingValue = mergeValue(
+      remainingValue,
+      new Value(BigInt(0), this.txBody.mint()),
+    );
+
+    // We then take away any current outputs
+    const currentOutputs = this.txBody.outputs();
+    for (let i = 0; i < currentOutputs.length; i++) {
+      let output = currentOutputs.at(i);
+      if (output) {
+        remainingValue = subValue(remainingValue, output.amount());
+      }
+    }
+
+    // We then handle any certificate deposits, adding deregistrations and taking away registrations
+    const certs = this.txBody.certs();
+    if (certs) {
+      certs.values().forEach((cert) => {
+        switch (cert.toCore().__typename) {
+          case CertificateType.StakeRegistration: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(BigInt(this.protocolParams.keyDeposit)),
+            );
+            break;
+          }
+          case CertificateType.StakeDeregistration: {
+            remainingValue = mergeValue(
+              remainingValue,
+              new Value(BigInt(this.protocolParams.keyDeposit)),
+            );
+            break;
+          }
+          case CertificateType.Registration: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(BigInt(cert.asRegistrationCert()?.deposit() ?? 0)),
+            );
+            break;
+          }
+          case CertificateType.Unregistration: {
+            remainingValue = mergeValue(
+              remainingValue,
+              new Value(BigInt(cert.asUnregistrationCert()?.deposit() ?? 0)),
+            );
+            break;
+          }
+          case CertificateType.PoolRegistration: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(BigInt(this.protocolParams.poolDeposit)),
+            );
+            break;
+          }
+          case CertificateType.PoolRetirement: {
+            remainingValue = mergeValue(
+              remainingValue,
+              new Value(BigInt(this.protocolParams.poolDeposit)),
+            );
+            break;
+          }
+          case CertificateType.RegisterDelegateRepresentative: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(
+                BigInt(
+                  cert.asRegisterDelegateRepresentativeCert()?.deposit() ?? 0,
+                ),
+              ),
+            );
+            break;
+          }
+          case CertificateType.UnregisterDelegateRepresentative: {
+            remainingValue = mergeValue(
+              remainingValue,
+              new Value(
+                BigInt(
+                  cert.asUnregisterDelegateRepresentativeCert()?.deposit() ?? 0,
+                ),
+              ),
+            );
+            break;
+          }
+          case CertificateType.StakeRegistrationDelegation: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(
+                BigInt(
+                  cert.asStakeRegistrationDelegationCert()?.deposit() ?? 0,
+                ),
+              ),
+            );
+            break;
+          }
+          case CertificateType.StakeVoteRegistrationDelegation: {
+            remainingValue = subValue(
+              remainingValue,
+              new Value(
+                BigInt(
+                  cert.asStakeVoteRegistrationDelegationCert()?.deposit() ?? 0,
+                ),
+              ),
+            );
+            break;
+          }
+        }
+      });
+    }
+
+    // Add an initial change output, this is needed to generate dummy tx
+    // If inputs - outputs is negative, then throw error
+    if (remainingValue.coin() < 0 || !empty(negatives(remainingValue))) {
+      throw new Error(`Not enough funds to satisfy outputs`);
+    }
+
+    const dummyChangeOutput = new TransactionOutput(
+      toCardanoAddress(changeAddress),
+      remainingValue,
+    );
+
+    currentOutputs.push(dummyChangeOutput);
+
+    // Create a dummy tx that we will use to calculate fees
+    this.txBody.setFee(BigInt("10000000"));
+    const numberOfRequiredWitnesses = this.countNumberOfRequiredWitnesses();
+    const dummyTx = this.createDummyTx(numberOfRequiredWitnesses);
+
+    // The calculate fees util will first calculate fee based on
+    // length of dummy tx, then calculate fees related to script
+    // ref size
+    let fee = calculateFees(
+      this.protocolParams.minFeeA,
+      this.protocolParams.minFeeB,
+      this.protocolParams.minFeeRefScriptCostPerByte,
+      this.protocolParams.priceMem,
+      this.protocolParams.priceStep,
+      dummyTx,
+      this.refScriptSize,
+    );
+
+    let minUtxoValue =
+      (160 + dummyChangeOutput.toCbor().length / 2 + 1) *
+      this.protocolParams.coinsPerUtxoSize;
+
+    if (remainingValue.coin() <= fee + BigInt(minUtxoValue)) {
+      if (
+        remainingValue.multiasset() &&
+        remainingValue.multiasset()!.size > 0
+      ) {
+        throw new Error(
+          "Insufficient funds to create change output with tokens",
+        );
+      } else {
+        if (remainingValue.coin() < fee) {
+          throw new Error("Insufficient funds to pay fee");
+        }
+        fee = remainingValue.coin();
+        currentOutputs.pop();
+      }
+    } else {
+      const changeOutput = currentOutputs.pop();
+      if (changeOutput) {
+        changeOutput.amount().setCoin(changeOutput.amount().coin() - fee);
+        currentOutputs.push(changeOutput);
+      }
+    }
+
+    this.txBody.setFee(fee);
+  };
+
+  private createDummyTx = (numberOfRequiredWitnesses: number): Transaction => {
+    let dummyWitnessSet = TransactionWitnessSet.fromCbor(
+      HexBlob(this.txWitnessSet.toCbor()),
+    );
+    const dummyVkeyWitnesses: [Ed25519PublicKeyHex, Ed25519SignatureHex][] = [];
+    for (let i = 0; i < numberOfRequiredWitnesses; i++) {
+      dummyVkeyWitnesses.push([
+        Ed25519PublicKeyHex(String(i).repeat(64)),
+        Ed25519SignatureHex(String(i).repeat(128)),
+      ]);
+    }
+    dummyWitnessSet.setVkeys(
+      Serialization.CborSet.fromCore(dummyVkeyWitnesses, VkeyWitness.fromCore),
+    );
+
+    return new Transaction(this.txBody, dummyWitnessSet, this.txAuxilliaryData);
+  };
+
   private addScriptRef = (scriptSource: ScriptSource): void => {
     if (scriptSource.type !== "Inline") {
       return;
     }
-    let referenceInputs =
-        this.txBody.referenceInputs() ??
-        Serialization.CborSet.fromCore([], TransactionInput.fromCore);
-
-    let referenceInputsList = [...referenceInputs.values()];
-
-    referenceInputsList.push(
-        new TransactionInput(
-            TransactionId(scriptSource.txHash),
-            BigInt(scriptSource.txIndex),
-        ),
-    );
-
-    referenceInputs.setValues(referenceInputsList);
-
-    this.txBody.setReferenceInputs(referenceInputs);
+    if (!scriptSource.scriptSize) {
+      throw new Error(
+        "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
+      );
+    }
+    this.addReferenceInput({
+      txHash: scriptSource.txHash,
+      txIndex: scriptSource.txIndex,
+      scriptSize: Number(scriptSource.scriptSize),
+    });
     switch (scriptSource.version) {
       case "V1": {
         this.usedLanguages[PlutusLanguageVersion.V1] = true;
@@ -1413,14 +1681,6 @@ class CardanoSDKSerializerCore {
         break;
       }
     }
-    // Keep track of total size of reference scripts
-    if (scriptSource.scriptSize) {
-      this.refScriptSize += Number(scriptSource.scriptSize);
-    } else {
-      throw new Error(
-          "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
-      );
-    }
   };
 
   private addSimpleScriptRef = (
@@ -1429,31 +1689,16 @@ class CardanoSDKSerializerCore {
     if (simpleScriptSource.type !== "Inline") {
       return;
     }
-    let referenceInputs =
-        this.txBody.referenceInputs() ??
-        Serialization.CborSet.fromCore([], TransactionInput.fromCore);
-
-    let referenceInputsList = [...referenceInputs.values()];
-
-    referenceInputsList.push(
-        new TransactionInput(
-            TransactionId(simpleScriptSource.txHash),
-            BigInt(simpleScriptSource.txIndex),
-        ),
-    );
-
-    // Keep track of total size of reference scripts
-    if (simpleScriptSource.scriptSize) {
-      this.refScriptSize += Number(simpleScriptSource.scriptSize);
-    } else {
+    if (!simpleScriptSource.scriptSize) {
       throw new Error(
           "A reference script was used without providing its size, this must be provided as fee calculations are based on it",
       );
     }
-
-    referenceInputs.setValues(referenceInputsList);
-
-    this.txBody.setReferenceInputs(referenceInputs);
+    this.addReferenceInput({
+      txHash: simpleScriptSource.txHash,
+      txIndex: simpleScriptSource.txIndex,
+      scriptSize: Number(simpleScriptSource.scriptSize),
+    });
   };
 
   private countNumberOfRequiredWitnesses(): number {
@@ -1686,6 +1931,98 @@ class CardanoSDKSerializerCore {
         break;
       }
     }
+  };
+
+  private addAllVotes = (votes: Vote[]) => {
+    for (let i = 0; i < votes.length; i++) {
+      const vote = votes[i];
+      switch (vote!.type) {
+        case "BasicVote": {
+          this.addBasicVote(vote as BasicVote);
+          break;
+        }
+        case "ScriptVote": {
+          this.addScriptVote(vote as ScriptVote, i);
+          break;
+        }
+        case "SimpleScriptVote": {
+          this.addSimpleScriptVote(vote as SimpleScriptVote);
+          break;
+        }
+      }
+    }
+  };
+
+  private addBasicVote = (basicVote: BasicVote) => {
+    const votes: Serialization.VotingProcedures =
+      this.txBody.votingProcedures() ??
+      Serialization.VotingProcedures.fromCore([]);
+
+    votes.insert(
+      toCardanoVoter(basicVote.vote.voter),
+      toCardanoGovernanceActionId(basicVote.vote.govActionId),
+      toCardanoVotingProcedure(basicVote.vote.votingProcedure),
+    );
+    this.txBody.setVotingProcedures(votes);
+  };
+
+  private addScriptVote = (vote: ScriptVote, index: number) => {
+    if (!vote.scriptSource)
+      throw new Error("Script source not provided for plutus script vote");
+    const plutusScriptSource = vote.scriptSource as ScriptSource;
+    if (!plutusScriptSource) {
+      throw new Error(
+        "A script source for a plutus certificate was not plutus script somehow",
+      );
+    }
+    if (!vote.redeemer) {
+      throw new Error("A redeemer was not provided for a plutus vote");
+    }
+
+    // Add withdraw redeemer to witness set
+    let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
+    let redeemersList = [...redeemers.values()];
+    redeemersList.push(
+      new Redeemer(
+        RedeemerTag.Voting,
+        BigInt(index),
+        fromBuilderToPlutusData(vote.redeemer.data),
+        new ExUnits(
+          BigInt(vote.redeemer.exUnits.mem),
+          BigInt(vote.redeemer.exUnits.steps),
+        ),
+      ),
+    );
+    redeemers.setValues(redeemersList);
+    this.txWitnessSet.setRedeemers(redeemers);
+
+    if (plutusScriptSource.type === "Provided") {
+      this.addProvidedPlutusScript(plutusScriptSource.script);
+    } else if (plutusScriptSource.type === "Inline") {
+      this.addScriptRef(plutusScriptSource);
+    }
+    this.addBasicVote({ type: "BasicVote", vote: vote.vote });
+  };
+
+  private addSimpleScriptVote = (vote: SimpleScriptVote) => {
+    if (!vote.simpleScriptSource)
+      throw new Error("Script source not provided for native script vote");
+    const nativeScriptSource: SimpleScriptSourceInfo =
+      vote.simpleScriptSource as SimpleScriptSourceInfo;
+    if (!nativeScriptSource)
+      throw new Error(
+        "A script source for a native script was not a native script somehow",
+      );
+    if (nativeScriptSource.type === "Provided") {
+      this.scriptsProvided.add(
+        Script.newNativeScript(
+          NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
+        ).toCbor(),
+      );
+    } else if (nativeScriptSource.type === "Inline") {
+      this.addSimpleScriptRef(nativeScriptSource);
+    }
+    this.addBasicVote({ type: "BasicVote", vote: vote.vote });
   };
 
   private mockVkeyWitnesses = (numberOfRequiredWitnesses: number): VkeyWitness[] => {

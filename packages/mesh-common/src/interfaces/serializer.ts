@@ -16,6 +16,7 @@ export interface IMeshTxSerializer {
   serializeTxBody(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
+    balanced: Boolean,
   ): string;
   serializeTxBodyWithMockSignatures(
       txBuilderBody: MeshTxBuilderBody,

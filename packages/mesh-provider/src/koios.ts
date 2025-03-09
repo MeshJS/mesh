@@ -9,6 +9,7 @@ import {
   fromUTF8,
   GovernanceProposalInfo,
   IFetcher,
+  IFetcherOptions,
   IListener,
   ISubmitter,
   PlutusScript,
@@ -21,7 +22,8 @@ import {
 } from "@meshsdk/common";
 import {
   deserializeNativeScript,
-  fromNativeScript, normalizePlutusScript,
+  fromNativeScript,
+  normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
 } from "@meshsdk/core-cst";
@@ -69,6 +71,14 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
 
       this._axiosInstance = axios.create(config);
     }
+  }
+
+  async fetchAddressTxs(
+    address: string,
+    option: IFetcherOptions = { maxPage: 100, order: "desc" },
+  ): Promise<TransactionInfo[]> {
+    // open for contribution, see blockfrost.ts for reference
+    throw new Error("Method not implemented.");
   }
 
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
@@ -367,7 +377,8 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     try {
       // get the assets too
       const { data, status } = await this._axiosInstance.post("tx_info", {
-        _tx_hashes: [hash], _assets: true,
+        _tx_hashes: [hash],
+        _assets: true,
       });
 
       if (status === 200) {
@@ -387,7 +398,10 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
     throw new Error("Method not implemented");
   }
 
@@ -507,12 +521,15 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   ): string | undefined => {
     if (kScriptRef) {
       let script;
-      if(kScriptRef.type.startsWith("plutus")) {
-        const normalized = normalizePlutusScript(kScriptRef.bytes, "DoubleCBOR");
+      if (kScriptRef.type.startsWith("plutus")) {
+        const normalized = normalizePlutusScript(
+          kScriptRef.bytes,
+          "DoubleCBOR",
+        );
         script = <PlutusScript>{
           code: normalized,
           version: kScriptRef.type.replace("plutus", ""),
-        }
+        };
       } else {
         script = fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
       }

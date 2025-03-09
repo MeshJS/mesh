@@ -16,6 +16,7 @@ export default function ScreenMain({
   cardanoPeerConnect,
   burnerWallet,
   webauthn,
+  showDownload,
 }: {
   injectFn?: () => Promise<void>;
   extensions: number[];
@@ -25,6 +26,7 @@ export default function ScreenMain({
   cardanoPeerConnect: boolean;
   burnerWallet: boolean;
   webauthn: boolean;
+  showDownload: boolean;
 }) {
   const wallets = useWalletList({ injectFn });
   const { connect } = useWallet();
@@ -72,16 +74,18 @@ export default function ScreenMain({
           />
         )}
 
-        <WalletIcon
-          iconReactNode={IconDownload()}
-          name={`Download`}
-          action={() => {
-            window.open(
-              "https://developers.cardano.org/showcase/?tags=wallet",
-              "_blank",
-            );
-          }}
-        />
+        {showDownload && (
+          <WalletIcon
+            iconReactNode={IconDownload()}
+            name={`Download`}
+            action={() => {
+              window.open(
+                "https://developers.cardano.org/showcase/?tags=wallet",
+                "_blank",
+              );
+            }}
+          />
+        )}
       </div>
     </TooltipProvider>
   );

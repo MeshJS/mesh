@@ -74,20 +74,23 @@ export type CreateMeshWalletOptions = {
  * ```javascript
  * import { MeshWallet, BlockfrostProvider } from '@meshsdk/core';
  *
- * const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
+ * const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
  *
  * const wallet = new MeshWallet({
  *   networkId: 0,
- *   fetcher: blockchainProvider,
- *   submitter: blockchainProvider,
+ *   fetcher: provider,
+ *   submitter: provider,
  *   key: {
  *     type: 'mnemonic',
  *     words: ["solution","solution","solution","solution","solution",","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution"],
  *   },
  * });
  * ```
+ *
+ * Please call `await wallet.init()` after creating the wallet to fetch the addresses from the wallet.
  */
 export class MeshWallet implements IWallet {
+  private readonly _keyType: string;
   private readonly _wallet: EmbeddedWallet | null;
   private readonly _accountIndex: number = 0;
   private readonly _keyIndex: number = 0;
@@ -108,6 +111,7 @@ export class MeshWallet implements IWallet {
 
   constructor(options: CreateMeshWalletOptions) {
     this._networkId = options.networkId;
+    this._keyType = options.key.type;
 
     if (options.fetcher) this._fetcher = options.fetcher;
     if (options.submitter) this._submitter = options.submitter;
@@ -123,7 +127,6 @@ export class MeshWallet implements IWallet {
             bech32: options.key.bech32,
           },
         });
-        this.getAddressesFromWallet(this._wallet);
         break;
       case "cli":
         this._wallet = new EmbeddedWallet({
@@ -134,7 +137,6 @@ export class MeshWallet implements IWallet {
             stake: options.key.stake,
           },
         });
-        this.getAddressesFromWallet(this._wallet);
         break;
       case "mnemonic":
         this._wallet = new EmbeddedWallet({
@@ -144,7 +146,6 @@ export class MeshWallet implements IWallet {
             words: options.key.words,
           },
         });
-        this.getAddressesFromWallet(this._wallet);
         break;
       case "bip32Bytes":
         this._wallet = new EmbeddedWallet({
@@ -154,12 +155,22 @@ export class MeshWallet implements IWallet {
             bip32Bytes: options.key.bip32Bytes,
           },
         });
-        this.getAddressesFromWallet(this._wallet);
         break;
       case "address":
         this._wallet = null;
         this.buildAddressFromBech32Address(options.key.address);
         break;
+    }
+  }
+
+  /**
+   * Initializes the wallet. This is a required call as fetching addresses from the wallet is an async operation.
+   * @returns void
+   */
+  async init() {
+    if (this._wallet) {
+      await this._wallet.init();
+      this.getAddressesFromWallet(this._wallet);
     }
   }
 
@@ -209,10 +220,14 @@ export class MeshWallet implements IWallet {
    *
    * @returns an address
    */
-  getChangeAddress(): string {
-    return this.addresses.baseAddressBech32
-      ? this.addresses.baseAddressBech32
-      : this.addresses.enterpriseAddressBech32!;
+  async getChangeAddress(addressType: GetAddressType = "payment",): Promise<string> {
+    if(this.addresses.baseAddressBech32 && addressType === "payment") {
+      return this.addresses.baseAddressBech32;
+    }
+    return this.addresses.enterpriseAddressBech32!;
+    // return this.addresses.baseAddressBech32
+    //   ? this.addresses.baseAddressBech32
+    //   : this.addresses.enterpriseAddressBech32!;
   }
 
   /**
@@ -318,7 +333,7 @@ export class MeshWallet implements IWallet {
    * @returns a list of unused addresses
    */
   async getUnusedAddresses(): Promise<string[]> {
-    return [this.getChangeAddress()];
+    return [await this.getChangeAddress()];
   }
 
   /**
@@ -327,7 +342,7 @@ export class MeshWallet implements IWallet {
    * @returns a list of used addresses
    */
   async getUsedAddresses(): Promise<string[]> {
-    return [this.getChangeAddress()];
+    return [await this.getChangeAddress()];
   }
 
   /**
@@ -369,7 +384,7 @@ export class MeshWallet implements IWallet {
       );
     }
     if (address === undefined) {
-      address = this.getChangeAddress()!;
+      address = await this.getChangeAddress()!;
     }
     return this._wallet.signData(
       address,
@@ -584,7 +599,7 @@ export class MeshWallet implements IWallet {
    */
   async createCollateral(): Promise<string> {
     const tx = new Transaction({ initiator: this });
-    tx.sendLovelace(this.getChangeAddress(), "5000000");
+    tx.sendLovelace(await this.getChangeAddress(), "5000000");
     const unsignedTx = await tx.build();
     const signedTx = await this.signTx(unsignedTx);
     const txHash = await this.submitTx(signedTx);

@@ -9,17 +9,17 @@ import {
 import EvaluatorEvaluateTransaction from "./evaluate-tx";
 
 export default function ProviderEvaluators({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider?: SupportedEvaluators;
-  provider: string;
+  provider?: SupportedEvaluators;
+  providerName: string;
 }) {
   return (
     <>
       <EvaluatorEvaluateTransaction
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
     </>
   );

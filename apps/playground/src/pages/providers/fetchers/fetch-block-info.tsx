@@ -8,11 +8,11 @@ import Codeblock from "~/components/text/codeblock";
 import { SupportedFetchers } from ".";
 
 export default function FetcherBlockInfo({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(
     "79f60880b097ec7dabb81f75f0b52fedf5e922d4f779a11c0c432dcf22c56089",
@@ -24,10 +24,10 @@ export default function FetcherBlockInfo({
       title="Fetch Block Info"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -41,20 +41,20 @@ function Left(userInput: string) {
         <code>fetchTxInfo()</code>.
       </p>
       <Codeblock
-        data={`await blockchainProvider.fetchBlockInfo('${userInput}')`}
+        data={`await provider.fetchBlockInfo('${userInput}')`}
       />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchBlockInfo(userInput);
+    return await provider.fetchBlockInfo(userInput);
   }
 
   return (
@@ -63,7 +63,7 @@ function Right(
       subtitle="Fetch information about a block"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

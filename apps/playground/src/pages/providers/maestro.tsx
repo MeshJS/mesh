@@ -37,7 +37,7 @@ const ReactPage: NextPage = () => {
   ];
 
   let code1 = `import { MaestroProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new MaestroProvider({\n`;
+  code1 += `const provider = new MaestroProvider({\n`;
   code1 += `  network: 'Preprod', // Mainnet / Preprod / Preview\n`;
   code1 += `  apiKey: '<Your-API-Key>', // Get key at https://docs.gomaestro.org/\n`;
   code1 += `  turboSubmit: false // Read about paid turbo transaction submission feature at https://docs.gomaestro.org\n`;
@@ -45,7 +45,7 @@ const ReactPage: NextPage = () => {
 
   const maestroKey = useProviders((state) => state.maestroKey);
 
-  const blockchainProvider = new MaestroProvider({
+  const provider = new MaestroProvider({
     network: maestroKey?.network || "Preprod",
     apiKey: maestroKey?.apiKey || "",
     turboSubmit: false,
@@ -83,20 +83,20 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/MaestroProvider" />
 
         <ProviderFetchers
-          blockchainProvider={blockchainProvider}
-          provider="maestro"
+          provider={provider}
+          providerName="maestro"
         />
         <ProviderEvaluators
-          blockchainProvider={blockchainProvider}
-          provider="maestro"
+          provider={provider}
+          providerName="maestro"
         />
         <ProviderSubmitters
-          blockchainProvider={blockchainProvider}
-          provider="maestro"
+          provider={provider}
+          providerName="maestro"
         />
         <ProviderListeners
-          blockchainProvider={blockchainProvider}
-          provider="maestro"
+          provider={provider}
+          providerName="maestro"
         />
       </SidebarFullwidth>
     </>

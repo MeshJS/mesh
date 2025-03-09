@@ -15,6 +15,7 @@
 - [ ] `@meshsdk/core`
 - [ ] `@meshsdk/core-csl`
 - [ ] `@meshsdk/core-cst`
+- [ ] `@meshsdk/hydra`
 - [ ] `@meshsdk/provider`
 - [ ] `@meshsdk/react`
 - [ ] `@meshsdk/svelte`

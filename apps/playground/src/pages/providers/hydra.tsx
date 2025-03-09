@@ -1,6 +1,6 @@
 import type { NextPage } from "next";
 
-import { HydraProvider } from "@meshsdk/core";
+import { HydraProvider } from "@meshsdk/hydra";
 
 import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
@@ -8,40 +8,48 @@ import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
-import { metaHydra } from "~/data/links-providers";
+import { metaHydraProvider } from "~/data/links-providers";
 import { useProviders } from "~/hooks/useProviders";
 import ProviderHydra from "./hydra-endpoints";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
+    { label: "Connects to Hydra Head", to: "connect" },
     { label: "Initializes Hydra Head", to: "initHead" },
+    { label: "Abort Hydra Head", to: "abort" },
+    { label: "New Transaction", to: "newTx" },
+    { label: "Decommit UTxO", to: "decommit" },
+    { label: "Close Hydra Head", to: "close" },
+    { label: "Contest latest snapshot", to: "contest" },
+    { label: "Fanout", to: "fanout" },
     { label: "On Message", to: "onMessage" },
-    { label: "Abort Hydra Head", to: "AA" },
-    { label: "Submit Transaction", to: "AA" },
-    { label: "Decommit UTxO", to: "AA" },
-    { label: "Close Hydra Head", to: "AA" },
-    { label: "Contest latest snapshot", to: "AA" },
-    { label: "Fanout", to: "AA" },
-    { label: "Get UTxO", to: "AA" },
-    { label: "Commit Transaction", to: "AA" },
-    { label: "Decommit Transaction", to: "AA" },
-    { label: "Get protocol parameters", to: "AA" },
+
+    { label: "Fetch Address Utxos", to: "fetchAddressUtxos" },
+    { label: "Fetch Protocol Parameters", to: "fetchProtocolParameters" },
+    { label: "Fetch UTxOs", to: "fetchUtxos" },
+    { label: "Submit Transaction", to: "submitTx" },
   ];
 
-  let code1 = `import { HydraProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const hydraProvider = new HydraProvider('<URL>');`;
-  code1 += `\nawait hydraProvider.connect();`;
+  let code1 = `import { HydraProvider } from "@meshsdk/hydra";\n\n`;
+  code1 += `const provider = new HydraProvider('<URL>');`;
+  code1 += `\nawait provider.connect();`;
 
   const hydraUrl = useProviders((state) => state.hydraUrl);
-  const hydraProvider = new HydraProvider({ url: hydraUrl });
+
+  const hydraProvider = new HydraProvider({
+    url: hydraUrl,
+  });
 
   return (
     <>
-      <Metatags title={metaHydra.title} description={metaHydra.desc} />
+      <Metatags
+        title={metaHydraProvider.title}
+        description={metaHydraProvider.desc}
+      />
       <SidebarFullwidth sidebarItems={sidebarItems}>
         <TitleIconDescriptionBody
-          title={metaHydra.title}
-          description={metaHydra.desc}
+          title={metaHydraProvider.title}
+          description={metaHydraProvider.desc}
         >
           <p>
             The{" "}
@@ -57,7 +65,7 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/HydraProvider" />
 
-        <ProviderHydra hydraProvider={hydraProvider} provider="hydra" />
+        <ProviderHydra provider={hydraProvider} providerName="hydra" />
       </SidebarFullwidth>
     </>
   );

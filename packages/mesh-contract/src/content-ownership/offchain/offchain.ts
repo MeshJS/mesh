@@ -43,15 +43,15 @@ import {
  * @example
  * ```typescript
  *  const meshTxBuilder = new MeshTxBuilder({
- *   fetcher: blockchainProvider, // one of the Providers
- *   submitter: blockchainProvider,
+ *   fetcher: provider, // one of the Providers
+ *   submitter: provider,
  *   verbose: true,
  * });
  *
  * const contract = new MeshContentOwnershipContract(
  *   {
  *     mesh: meshTxBuilder,
- *     fetcher: blockchainProvider,
+ *     fetcher: provider,
  *     wallet: wallet,
  *     networkId: 0,
  *   },

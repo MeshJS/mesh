@@ -9,11 +9,11 @@ import { demoAsset } from "~/data/cardano";
 import { SupportedFetchers } from ".";
 
 export default function FetcherAssetAddresses({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(demoAsset);
   return (
@@ -22,10 +22,10 @@ export default function FetcherAssetAddresses({
       title="Fetch Asset Addresses"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -39,20 +39,20 @@ function Left(userInput: string) {
         where it is the concatenation of policy ID and asset.
       </p>
       <Codeblock
-        data={`await blockchainProvider.fetchAssetAddresses('${userInput}')`}
+        data={`await provider.fetchAssetAddresses('${userInput}')`}
       />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchAssetAddresses(userInput);
+    return await provider.fetchAssetAddresses(userInput);
   }
 
   return (
@@ -61,7 +61,7 @@ function Right(
       subtitle="Fetch list of addresses containing a specific asset"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

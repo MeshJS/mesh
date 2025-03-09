@@ -44,6 +44,7 @@ interface ButtonProps {
     provider: IFetcher & ISubmitter;
     url: string;
   };
+  showDownload?: boolean;
 }
 
 export const CardanoWallet = ({
@@ -56,6 +57,7 @@ export const CardanoWallet = ({
   cardanoPeerConnect = undefined,
   burnerWallet = undefined,
   webauthn = undefined,
+  showDownload = true,
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState("main");
@@ -76,7 +78,9 @@ export const CardanoWallet = ({
       <div className={isDark ? "mesh-dark" : ""}>
         {!connected ? (
           <DialogTrigger asChild>
-            <Button variant="outline">{label}</Button>
+            <Button variant="outline" className={isDark ? "mesh-dark" : ""}>
+              {label}
+            </Button>
           </DialogTrigger>
         ) : (
           <ConnectedButton />
@@ -98,6 +102,7 @@ export const CardanoWallet = ({
             cardanoPeerConnect={cardanoPeerConnect != undefined}
             burnerWallet={burnerWallet != undefined}
             webauthn={webauthn != undefined}
+            showDownload={showDownload}
           />
         )}
         {screen == "p2p" && (

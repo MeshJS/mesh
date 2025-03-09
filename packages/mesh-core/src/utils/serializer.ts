@@ -1,6 +1,11 @@
+import JSONBig from "json-bigint";
+
 import {
+  BuilderData,
+  Data,
   DeserializedAddress,
   NativeScript,
+  PlutusDataType,
   PlutusScript,
   PubKeyAddress,
   ScriptAddress,
@@ -102,4 +107,22 @@ export const serializeRewardAddress = (
   return isScriptHash
     ? core.scriptHashToRewardAddress(hash, networkId)
     : core.keyHashToRewardAddress(hash, networkId);
+};
+
+/**
+ * Serialize the data from Mesh or JSON format into CBOR hex
+ * @param data The data in Mesh or JSON format
+ * @param type The data type
+ * @returns The CBOR hex string
+ */
+export const serializeData = (
+  rawData: BuilderData["content"],
+  type: Omit<PlutusDataType, "CBOR">,
+): string => {
+  const serializer = new core.CardanoSDKSerializer();
+  const builderData = {
+    type: type as PlutusDataType,
+    content: rawData,
+  };
+  return serializer.serializeData(builderData as BuilderData);
 };

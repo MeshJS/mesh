@@ -1,7 +1,7 @@
 import type { OpaqueString } from "@cardano-sdk/util";
 import { Cardano, Serialization } from "@cardano-sdk/core";
 import * as Crypto from "@cardano-sdk/crypto";
-import { typedHex } from "@cardano-sdk/util";
+import { HexBlob as CardanoHexBlob, typedHex } from "@cardano-sdk/util";
 
 export const Slot = Cardano.Slot;
 export type Slot = Cardano.Slot;
@@ -14,7 +14,9 @@ export type TokenMap = Cardano.TokenMap;
 export const Transaction = Serialization.Transaction;
 export type Transaction = Serialization.Transaction;
 
-export const TransactionId = Cardano.TransactionId;
+export const TransactionId = (value: string) => {
+  return Cardano.TransactionId(value);
+};
 export type TransactionId = Cardano.TransactionId;
 
 export const TransactionBody = Serialization.TransactionBody;
@@ -135,7 +137,9 @@ export type Ed25519KeyHashHex = Crypto.Ed25519KeyHashHex;
 export const Hash28ByteBase16 = Crypto.Hash28ByteBase16;
 export type Hash28ByteBase16 = Crypto.Hash28ByteBase16;
 
-export const Hash32ByteBase16 = Crypto.Hash32ByteBase16;
+export const Hash32ByteBase16 = (value: string) => {
+  return Crypto.Hash32ByteBase16(value);
+};
 export type Hash32ByteBase16 = Crypto.Hash32ByteBase16;
 
 export const CredentialType = Cardano.CredentialType;
@@ -175,6 +179,12 @@ export type Bip32PrivateKey = Crypto.Bip32PrivateKey;
 
 export const Bip32PrivateKeyHex = Crypto.Bip32PrivateKeyHex;
 export type Bip32PrivateKeyHex = Crypto.Bip32PrivateKeyHex;
+
+export const Bip32PublicKey = Crypto.Bip32PublicKey;
+export type Bip32PublicKey = Crypto.Bip32PublicKey;
+
+export const Bip32PublicKeyHex = Crypto.Bip32PublicKeyHex;
+export type Bip32PublicKeyHex = Crypto.Bip32PublicKeyHex;
 
 export const PlutusLanguageVersion = Cardano.PlutusLanguageVersion;
 export type PlutusLanguageVersion = Cardano.PlutusLanguageVersion;
@@ -221,7 +231,9 @@ export type RewardAccount = Cardano.RewardAccount;
 export const Hash = Serialization.Hash;
 export type Hash<T extends string> = Serialization.Hash<T>;
 
-export const DatumHash = Crypto.Hash32ByteBase16;
+export const DatumHash = (value: string) => {
+  return Crypto.Hash32ByteBase16(value);
+};
 export type DatumHash = Crypto.Hash32ByteBase16;
 
 export const Datum = Serialization.Datum;
@@ -276,6 +288,15 @@ export type StakeCredentialStatus = Cardano.StakeCredentialStatus;
 export const StakeCredentialStatus = Cardano.StakeCredentialStatus;
 
 export type Metadatum = Cardano.Metadatum;
+
+export type HexBlob = CardanoHexBlob;
+export const HexBlob = CardanoHexBlob;
+
+export type TxCBOR = Serialization.TxCBOR;
+export const TxCBOR = Serialization.TxCBOR;
+
+export type Ed25519PrivateKey = Crypto.Ed25519PrivateKey;
+export const Ed25519PrivateKey = Crypto.Ed25519PrivateKey;
 
 export const computeAuxiliaryDataHash = Cardano.computeAuxiliaryDataHash;
 export const blake2b = Crypto.blake2b;

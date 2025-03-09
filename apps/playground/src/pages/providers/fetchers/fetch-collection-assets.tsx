@@ -9,11 +9,11 @@ import { demoPolicyId } from "~/data/cardano";
 import { SupportedFetchers } from ".";
 
 export default function FetcherCollectionAssets({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(demoPolicyId);
   return (
@@ -22,10 +22,10 @@ export default function FetcherCollectionAssets({
       title="Fetch Collection Assets"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -51,7 +51,7 @@ function Left(userInput: string) {
       </p>
 
       <Codeblock
-        data={`await blockchainProvider.fetchCollectionAssets('${userInput}')`}
+        data={`await provider.fetchCollectionAssets('${userInput}')`}
       />
 
       <p>
@@ -76,13 +76,13 @@ function Left(userInput: string) {
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchCollectionAssets(userInput);
+    return await provider.fetchCollectionAssets(userInput);
   }
 
   return (
@@ -91,7 +91,7 @@ function Right(
       subtitle="Fetch list of assets belonging to a collection and its quantity"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

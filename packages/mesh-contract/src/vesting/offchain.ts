@@ -80,7 +80,7 @@ export class MeshVestingContract extends MeshTxInitiator {
 
     const invalidBefore =
       unixTimeToEnclosingSlot(
-        Math.min(datum.fields[0].int as number, Date.now() - 15000),
+        Math.min(Number(datum.fields[0].int), Date.now() - 15000),
         this.networkId === 0
           ? SLOT_CONFIG_NETWORK.preprod
           : SLOT_CONFIG_NETWORK.mainnet,

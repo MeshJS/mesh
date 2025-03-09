@@ -25,7 +25,7 @@ function Left() {
   code += `const contract = new MeshPlutusNFTContract(\n`;
   code += `  {\n`;
   code += `    mesh: meshTxBuilder,\n`;
-  code += `    fetcher: blockchainProvider,\n`;
+  code += `    fetcher: provider,\n`;
   code += `    wallet: wallet,\n`;
   code += `    networkId: 0,\n`;
   code += `  },\n`;
@@ -88,15 +88,15 @@ function Right() {
 
   let code = ``;
   code += `const meshTxBuilder = new MeshTxBuilder({\n`;
-  code += `  fetcher: blockchainProvider,\n`;
-  code += `  submitter: blockchainProvider,\n`;
+  code += `  fetcher: provider,\n`;
+  code += `  submitter: provider,\n`;
   code += `  verbose: true,\n`;
   code += `});\n`;
   code += `\n`;
   code += `const contract = new MeshPlutusNFTContract(\n`;
   code += `  {\n`;
   code += `    mesh: meshTxBuilder,\n`;
-  code += `    fetcher: blockchainProvider,\n`;
+  code += `    fetcher: provider,\n`;
   code += `    wallet: wallet,\n`;
   code += `    networkId: 0,\n`;
   code += `  },\n`;

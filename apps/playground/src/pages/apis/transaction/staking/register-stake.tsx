@@ -51,7 +51,7 @@ function Left() {
         New address must "register" before they can delegate to stakepools. To
         check if a reward address has been register, use{" "}
         <Link href="/providers/blockfrost#fetchAccountInfo">
-          blockchainProvider.fetchAccountInfo(rewardAddress)
+          provider.fetchAccountInfo(rewardAddress)
         </Link>
         . For example this account information, <code>active</code> shows the
         address is registered.

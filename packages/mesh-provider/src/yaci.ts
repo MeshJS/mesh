@@ -11,6 +11,7 @@ import {
   GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
+  IFetcherOptions,
   IListener,
   ISubmitter,
   NativeScript,
@@ -38,7 +39,7 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
  * Get started:
  * ```typescript
  * import { YaciProvider } from "@meshsdk/core";
- * const blockchainProvider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');
+ * const provider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');
  * ```
  */
 export class YaciProvider
@@ -182,6 +183,14 @@ export class YaciProvider
     } catch (error) {
       return [];
     }
+  }
+
+  async fetchAddressTxs(
+    address: string,
+    option: IFetcherOptions = { maxPage: 100, order: "desc" },
+  ): Promise<TransactionInfo[]> {
+    // open for contribution, see blockfrost.ts for reference
+    throw new Error("Method not implemented.");
   }
 
   async fetchAssetAddresses(

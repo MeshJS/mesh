@@ -27,7 +27,7 @@ function Left() {
         First, We import <code>YaciProvider</code>
       </p>
       <Codeblock
-        data={`import { YaciProvider } from "@meshsdk/core";\n\nconst blockchainProvider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');`}
+        data={`import { YaciProvider } from "@meshsdk/core";\n\nconst provider = new YaciProvider('<YACI_URL>', '<OPTIONAL_ADMIN_URL>');`}
       />
       <p>
         By default, the <code>YaciProvider</code> will use the default URL,{" "}
@@ -58,14 +58,14 @@ function Right() {
   );
 
   async function runDemo() {
-    const blockchainProvider = new YaciProvider(userInput2);
-    const utxos = await blockchainProvider.fetchAddressUTxOs(userInput);
+    const provider = new YaciProvider(userInput2);
+    const utxos = await provider.fetchAddressUTxOs(userInput);
     return utxos;
   }
 
   let code = `import { YaciProvider } from "@meshsdk/core";\n\n`;
-  code += `const blockchainProvider = new YaciProvider('${userInput2}');\n`;
-  code += `const utxos = await blockchainProvider.fetchAddressUTxOs('${userInput}');\n`;
+  code += `const provider = new YaciProvider('${userInput2}');\n`;
+  code += `const utxos = await provider.fetchAddressUTxOs('${userInput}');\n`;
 
   return (
     <LiveCodeDemo

@@ -1,7 +1,7 @@
 import { Address } from ".";
-import { StricaPrivateKey } from "../";
+import { Ed25519PrivateKey } from "./";
 
 export type Signer = {
   address: Address;
-  key: StricaPrivateKey;
+  key: Ed25519PrivateKey;
 };

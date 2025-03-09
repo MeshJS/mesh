@@ -6,21 +6,22 @@ import {
   U5CProvider,
   YaciProvider,
 } from "@meshsdk/core";
+import { HydraProvider } from "@meshsdk/hydra";
 
 import SubmitterSubmitTransaction from "./submit-transaction";
 
 export default function ProviderSubmitters({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedSubmitters;
-  provider: string;
+  provider: SupportedSubmitters;
+  providerName: string;
 }) {
   return (
     <>
       <SubmitterSubmitTransaction
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
     </>
   );
@@ -32,4 +33,5 @@ export type SupportedSubmitters =
   | MaestroProvider
   | KoiosProvider
   | OgmiosProvider
-  | U5CProvider;
+  | U5CProvider
+  | HydraProvider;

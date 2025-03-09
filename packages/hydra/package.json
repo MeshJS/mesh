@@ -1,0 +1,41 @@
+{
+  "name": "@meshsdk/hydra",
+  "version": "1.9.0-beta.17",
+  "description": "Mesh Hydra package",
+  "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@meshsdk/common": "1.9.0-beta.17",
+    "@meshsdk/core-cst": "1.9.0-beta.17",
+    "axios": "^1.7.2"
+  },
+  "devDependencies": {
+    "@meshsdk/configs": "*",
+    "@swc/core": "^1.10.7",
+    "eslint": "^8.57.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  }
+}

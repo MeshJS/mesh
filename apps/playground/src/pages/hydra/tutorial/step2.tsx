@@ -64,13 +64,13 @@ function Left(
     setLoading(true);
 
     setTimeout(async () => {
-      const blockchainProvider = getProvider();
+      const provider = getProvider();
 
       const mnemonicAliceNode = MeshWallet.brew() as string[];
       const walletAliceNode = new MeshWallet({
         networkId: 0,
-        fetcher: blockchainProvider,
-        submitter: blockchainProvider,
+        fetcher: provider,
+        submitter: provider,
         key: {
           type: "mnemonic",
           words: mnemonicAliceNode,
@@ -79,8 +79,8 @@ function Left(
       const mnemonicAliceFunds = MeshWallet.brew() as string[];
       const walletAliceFunds = new MeshWallet({
         networkId: 0,
-        fetcher: blockchainProvider,
-        submitter: blockchainProvider,
+        fetcher: provider,
+        submitter: provider,
         key: {
           type: "mnemonic",
           words: mnemonicAliceFunds,
@@ -90,8 +90,8 @@ function Left(
       const mnemonicBobNode = MeshWallet.brew() as string[];
       const walletBobNode = new MeshWallet({
         networkId: 0,
-        fetcher: blockchainProvider,
-        submitter: blockchainProvider,
+        fetcher: provider,
+        submitter: provider,
         key: {
           type: "mnemonic",
           words: mnemonicBobNode,
@@ -100,8 +100,8 @@ function Left(
       const mnemonicBobFunds = MeshWallet.brew() as string[];
       const walletBobFunds = new MeshWallet({
         networkId: 0,
-        fetcher: blockchainProvider,
-        submitter: blockchainProvider,
+        fetcher: provider,
+        submitter: provider,
         key: {
           type: "mnemonic",
           words: mnemonicBobFunds,

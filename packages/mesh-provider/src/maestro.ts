@@ -11,6 +11,7 @@ import {
   GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
+  IFetcherOptions,
   IListener,
   ISubmitter,
   NativeScript,
@@ -162,6 +163,14 @@ export class MaestroProvider
     } catch (error) {
       return [];
     }
+  }
+
+  async fetchAddressTxs(
+    address: string,
+    option: IFetcherOptions = { maxPage: 100, order: "desc" },
+  ): Promise<TransactionInfo[]> {
+    // open for contribution, see blockfrost.ts for reference
+    throw new Error("Method not implemented.");
   }
 
   async fetchAssetAddresses(
@@ -443,7 +452,10 @@ export class MaestroProvider
     }
   }
 
-  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
     throw new Error("Method not implemented by Maestro");
   }
 
@@ -526,7 +538,7 @@ export class MaestroProvider
         script = <NativeScript>utxo.reference_script.json;
       } else {
         const scriptBytes = utxo.reference_script.bytes;
-        if(scriptBytes) {
+        if (scriptBytes) {
           const normalized = normalizePlutusScript(scriptBytes, "DoubleCBOR");
           script = <PlutusScript>{
             code: normalized,

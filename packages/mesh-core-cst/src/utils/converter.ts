@@ -58,7 +58,7 @@ export const toCardanoAddress = (address: string): Address => {
     try {
       return Address.fromBase58(address);
     } catch {
-      throw new Error("Invalid address format");
+      throw new Error(`Invalid address format, ${address}`);
     }
   }
 };

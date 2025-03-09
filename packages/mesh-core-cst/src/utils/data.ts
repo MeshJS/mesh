@@ -258,7 +258,7 @@ export const parseInlineDatum = <T extends { inline_datum?: string }, X>(
 };
 
 export const deserializeDataHash = (dataHash: string): DatumHash =>
-  DatumHash.fromHexBlob(HexBlob(dataHash));
+  DatumHash(dataHash);
 
 export const deserializePlutusData = (plutusData: string): PlutusData =>
   PlutusData.fromCbor(HexBlob(plutusData));

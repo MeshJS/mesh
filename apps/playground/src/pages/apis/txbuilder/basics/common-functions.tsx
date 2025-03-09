@@ -14,10 +14,10 @@ export default function TxbuilderCommonFunctions() {
 function Left() {
   let code1 = `import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";\n\n`;
   code1 += `function getTxBuilder() {\n`;
-  code1 += `  const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n`;
+  code1 += `  const provider = new BlockfrostProvider('<Your-API-Key>');\n`;
   code1 += `  \n`;
   code1 += `  const txBuilder = new MeshTxBuilder({\n`;
-  code1 += `    fetcher: blockchainProvider,\n`;
+  code1 += `    fetcher: provider,\n`;
   code1 += `  });\n`;
   code1 += `  \n`;
   code1 += `  return txBuilder;\n`;

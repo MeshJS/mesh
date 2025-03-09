@@ -127,7 +127,9 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
       return CardanoCert.newStakeDelegation(
         new Serialization.StakeDelegation(
           rewardAddress.getPaymentCredential(),
-          Ed25519KeyHashHex(cert.poolId),
+          cert.poolId.startsWith("pool1")
+            ? Cardano.PoolId.toKeyHash(Cardano.PoolId(cert.poolId))
+            : Ed25519KeyHashHex(cert.poolId),
         ),
       );
     }
@@ -151,7 +153,9 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
     case "RetirePool": {
       return CardanoCert.newPoolRetirement(
         new Serialization.PoolRetirement(
-          Ed25519KeyHashHex(cert.poolId),
+          cert.poolId.startsWith("pool1")
+            ? Cardano.PoolId.toKeyHash(Cardano.PoolId(cert.poolId))
+            : Ed25519KeyHashHex(cert.poolId),
           Cardano.EpochNo(cert.epoch),
         ),
       );
@@ -399,7 +403,7 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
           ),
         );
       } else {
-        throw new Error("DRepId must be a Credential")
+        throw new Error("DRepId must be a Credential");
       }
     }
     case "DRepDeregistration": {
@@ -412,7 +416,7 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
           ),
         );
       } else {
-        throw new Error("DRepId must be a Credential")
+        throw new Error("DRepId must be a Credential");
       }
     }
     case "DRepUpdate": {
@@ -430,7 +434,7 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
           new Serialization.UpdateDelegateRepresentative(coreDRep, anchor),
         );
       } else {
-        throw new Error("DRepId must be a Credential")
+        throw new Error("DRepId must be a Credential");
       }
     }
   }

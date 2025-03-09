@@ -26,7 +26,6 @@ import {
   RefTxIn,
   TxIn,
   TxInParameter,
-  txInToUtxo,
   Unit,
   UTxO,
   UtxoSelection,
@@ -829,6 +828,7 @@ export class MeshTxBuilderCore {
         coin: coin,
       };
       this.withdrawalItem = withdrawal;
+      this.addingPlutusWithdrawal = false;
       return this;
     }
 
@@ -995,6 +995,7 @@ export class MeshTxBuilderCore {
         },
       };
       this.voteItem = vote;
+      this.addingPlutusVote = false;
     } else {
       const vote: Vote = {
         type: "BasicVote",
@@ -1350,6 +1351,7 @@ export class MeshTxBuilderCore {
           txIndex,
           scriptHash,
           scriptSize,
+          version,
         },
         redeemer:
           currentCert.type === "ScriptCertificate"
@@ -1532,9 +1534,6 @@ export class MeshTxBuilderCore {
     const currentUtxo = this.meshTxBuilderBody.inputsForEvaluation[utxoId];
 
     if (currentUtxo) {
-      const { address, amount, dataHash, plutusData, scriptRef, scriptHash } =
-        input.output;
-
       const {
         dataHash: currentDataHash,
         plutusData: currentPlutusData,
@@ -1542,17 +1541,12 @@ export class MeshTxBuilderCore {
         scriptHash: currentScriptHash,
       } = currentUtxo.output;
 
-      const updatedUtxo: UTxO = {
-        ...input,
-        output: {
-          address,
-          amount,
-          dataHash: dataHash ?? currentDataHash,
-          plutusData: plutusData ?? currentPlutusData,
-          scriptRef: scriptRef ?? currentScriptRef,
-          scriptHash: scriptHash ?? currentScriptHash,
-        },
-      };
+      const updatedUtxo: UTxO = { ...currentUtxo };
+      if (currentDataHash) updatedUtxo.output.dataHash = currentDataHash;
+      if (currentPlutusData) updatedUtxo.output.plutusData = currentPlutusData;
+      if (currentScriptRef) updatedUtxo.output.scriptRef = currentScriptRef;
+      if (currentScriptHash) updatedUtxo.output.scriptHash = currentScriptHash;
+
       this.meshTxBuilderBody.inputsForEvaluation[utxoId] = updatedUtxo;
     } else {
       this.meshTxBuilderBody.inputsForEvaluation[utxoId] = input;
@@ -1606,7 +1600,6 @@ export class MeshTxBuilderCore {
       }
     }
     this.meshTxBuilderBody.inputs.push(this.txInQueueItem);
-    this.inputForEvaluation(txInToUtxo(this.txInQueueItem.txIn));
     this.txInQueueItem = undefined;
   };
 
@@ -1878,6 +1871,25 @@ export class MeshTxBuilderCore {
       }
     }
     this.meshTxBuilderBody.inputs = addedInputs;
+  };
+
+  removeDuplicateRefInputs = () => {
+    const { referenceInputs } = this.meshTxBuilderBody;
+    const getTxInId = (txIn: RefTxIn): string =>
+      `${txIn.txHash}#${txIn.txIndex}`;
+    const currentTxInIds: string[] = [];
+    const addedInputs: RefTxIn[] = [];
+    for (let i = 0; i < referenceInputs.length; i += 1) {
+      const currentInput = referenceInputs[i]!;
+      const currentTxInId = getTxInId(currentInput);
+      if (currentTxInIds.includes(currentTxInId)) {
+        referenceInputs.splice(i, 1);
+        i -= 1;
+      } else {
+        addedInputs.push(currentInput);
+      }
+    }
+    this.meshTxBuilderBody.referenceInputs = addedInputs;
   };
 
   emptyTxBuilderBody = () => {

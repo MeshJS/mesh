@@ -5,20 +5,20 @@ import YacigetGenesisByEra from "./genesis-info-era";
 import YaciTopupAddress from "./topup-address";
 
 export default function ProviderYaciEndpoints({
-  yaciProvider,
   provider,
+  providerName,
 }: {
-  yaciProvider: YaciProvider;
-  provider: string;
+  provider: YaciProvider;
+  providerName: string;
 }) {
   return (
     <>
-      <YaciDevnetInfo yaciProvider={yaciProvider} provider={provider} />
+      <YaciDevnetInfo provider={provider} providerName={providerName} />
       <YacigetGenesisByEra
-        yaciProvider={yaciProvider}
         provider={provider}
+        providerName={providerName}
       />
-      <YaciTopupAddress yaciProvider={yaciProvider} provider={provider} />
+      <YaciTopupAddress provider={provider} providerName={providerName} />
     </>
   );
 }

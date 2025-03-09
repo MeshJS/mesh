@@ -23,67 +23,67 @@ import FetcherUtxos from "./fetch-utxos";
 import FetcherGet from "./get";
 
 export default function ProviderFetchers({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   return (
     <>
-      <FetcherGet blockchainProvider={blockchainProvider} provider={provider} />
+      <FetcherGet provider={provider} providerName={providerName} />
 
       <FetcherAccountInfo
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherAddressAssets
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherAddressUtxos
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherAssetAddresses
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherAssetMetadata
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherBlockInfo
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherCollectionAssets
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherHandleAddress
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherHandle
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherProtocolParameters
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherTransactionInfo
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherUtxos
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
       <FetcherProposalInfo
-        blockchainProvider={blockchainProvider}
         provider={provider}
+        providerName={providerName}
       />
     </>
   );
