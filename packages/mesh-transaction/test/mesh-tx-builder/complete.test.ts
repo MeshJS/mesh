@@ -1,11 +1,11 @@
 import {
-  AccountInfo,
+  AccountInfo, Action,
   emptyTxBuilderBody,
   IFetcher,
   MintItem,
   ScriptSource,
   TransactionInfo,
-  TxIn,
+  TxIn, TxOutput, UTxO,
 } from "@meshsdk/common";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
@@ -53,6 +53,17 @@ describe("MeshTxBuilder", () => {
     jest
       .spyOn(txBuilder as any, "isMintComplete")
       .mockImplementation((mint) => false);
+    jest
+        .spyOn(txBuilder as any, "selectUtxos")
+        .mockImplementation(() => {
+          return {
+            newInputs: new Set<UTxO>(),
+            newOutputs: new Set<TxOutput>(),
+            change: [],
+            fee: 100,
+            redeemers: null
+            };
+        });
     jest.spyOn(txBuilder as any, "queryAllTxInfo").mockResolvedValue(undefined);
     const completeTxInformationMock = jest
       .spyOn(txBuilder as any, "completeTxInformation")
