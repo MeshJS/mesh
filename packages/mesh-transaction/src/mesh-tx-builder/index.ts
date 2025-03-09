@@ -90,7 +90,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   }
 
   serializeMockTx = () => {
-    return this.serializer.serializeTxBodyWithMockSignatures(this.meshTxBuilderBody, this._protocolParams);
+    return this.serializer.serializeTxBodyWithMockSignatures(this.meshTxBuilderBody, this._protocolParams, false);
   }
 
   /**
@@ -126,20 +126,19 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    */
   complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
     if (customizedTx) {
-      this.meshTxBuilderBody = {...this.meshTxBuilderBody, ...customizedTx};
+      this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
     } else {
       this.queueAllLastItem();
     }
     this.removeDuplicateInputs();
+    this.removeDuplicateRefInputs();
 
     // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
     for (let collateral of this.meshTxBuilderBody.collaterals) {
       collateral.txIn.scriptSize = 0;
     }
 
-    await this.completeTxInputs()
-    this.sortTxParts();
-
+    await this.completeTxParts();
 
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype);
@@ -151,6 +150,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const txHex = this.serializer.serializeTxBody(
         this.meshTxBuilderBody,
         this._protocolParams,
+        false
     );
 
     this.txHex = txHex;
@@ -165,7 +165,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         clonedBuilder.queueAllLastItem();
         clonedBuilder.removeDuplicateInputs();
 
-        await clonedBuilder.completeTxInputs()
         this.sortTxParts();
 
         try {
@@ -256,46 +255,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     )
   }
 
-  completeTxInputs = async () => {
-    const { inputs, collaterals, mints } = this.meshTxBuilderBody;
-    const incompleteTxIns = [...inputs, ...collaterals].filter(
-        (txIn) => !this.isInputComplete(txIn),
-    );
-    const incompleteMints = mints.filter((mint) => !this.isMintComplete(mint));
-    // Getting all missing utxo information
-    await this.queryAllTxInfo(incompleteTxIns, incompleteMints);
-    // Completing all inputs
-    incompleteTxIns.forEach((txIn) => {
-      this.completeTxInformation(txIn);
-    });
-    incompleteMints.forEach((mint) => {
-      if (mint.type === "Plutus") {
-        const scriptSource = mint.scriptSource as ScriptSource;
-        this.completeScriptInfo(scriptSource);
-      }
-      if (mint.type === "Native") {
-        const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
-        this.completeSimpleScriptInfo(scriptSource);
-      }
-    });
-    this.meshTxBuilderBody.inputs.forEach((input) => {
-      if (input.txIn.scriptSize && input.txIn.scriptSize > 0) {
-        if (
-            this.meshTxBuilderBody.referenceInputs.find((refTxIn) => {
-              refTxIn.txHash === input.txIn.txHash &&
-              refTxIn.txIndex === input.txIn.txIndex;
-            }) === undefined
-        ) {
-          this.meshTxBuilderBody.referenceInputs.push({
-            txHash: input.txIn.txHash,
-            txIndex: input.txIn.txIndex,
-            scriptSize: input.txIn.scriptSize,
-          });
-        }
-      }
-    });
-  }
-
   sortTxParts = () => {
     // Sort inputs based on txHash and txIndex
     this.meshTxBuilderBody.inputs.sort((a, b) => {
@@ -320,6 +279,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     let txHex = this.serializer.serializeTxBody(
         this.meshTxBuilderBody,
         this._protocolParams,
+        false,
     );
 
     if (this.evaluator) {
@@ -593,7 +553,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   protected completeSerialization = async (
     customizedTx?: Partial<MeshTxBuilderBody>,
-    balanced: Boolean = true,
+    balanced: boolean = true,
   ) => {
     if (customizedTx) {
       this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
@@ -608,6 +568,47 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       collateral.txIn.scriptSize = 0;
     }
 
+    await this.completeTxParts();
+
+    let txHex = this.serializer.serializeTxBody(
+      this.meshTxBuilderBody,
+      this._protocolParams,
+      balanced,
+    );
+
+    // Evaluating the transaction
+    if (this.evaluator) {
+      const txEvaluation = await this.evaluator
+        .evaluateTx(
+          txHex,
+          (
+            Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[]
+          ).concat(
+            this.meshTxBuilderBody.inputs.map((val) => txInToUtxo(val.txIn)),
+            this.meshTxBuilderBody.collaterals.map((val) =>
+              txInToUtxo(val.txIn),
+            ),
+          ),
+          this.meshTxBuilderBody.chainedTxs,
+        )
+        .catch((error) => {
+          throw new Error(
+            `Tx evaluation failed: ${JSON.stringify(error)} \n For txHex: ${txHex}`,
+          );
+        });
+      this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
+      txHex = this.serializer.serializeTxBody(
+        this.meshTxBuilderBody,
+        this._protocolParams,
+        balanced,
+      );
+    }
+
+    this.txHex = txHex;
+    return txHex;
+  };
+
+  protected completeTxParts = async (): Promise<void> => {
     // Checking if all inputs are complete
     const { inputs, collaterals, mints, withdrawals, votes, certificates } =
       this.meshTxBuilderBody;
@@ -729,7 +730,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         if (
           this.meshTxBuilderBody.referenceInputs.find((refTxIn) => {
             refTxIn.txHash === input.txIn.txHash &&
-              refTxIn.txIndex === input.txIn.txIndex;
+            refTxIn.txIndex === input.txIn.txIndex;
           }) === undefined
         ) {
           this.meshTxBuilderBody.referenceInputs.push({
@@ -743,60 +744,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.addUtxosFromSelection();
 
     // Sort inputs based on txHash and txIndex
-    this.meshTxBuilderBody.inputs.sort((a, b) => {
-      if (a.txIn.txHash < b.txIn.txHash) return -1;
-      if (a.txIn.txHash > b.txIn.txHash) return 1;
-      if (a.txIn.txIndex < b.txIn.txIndex) return -1;
-      if (a.txIn.txIndex > b.txIn.txIndex) return 1;
-      return 0;
-    });
-
-    // Sort mints based on policy id and asset name
-    this.meshTxBuilderBody.mints.sort((a, b) => {
-      if (a.policyId < b.policyId) return -1;
-      if (a.policyId > b.policyId) return 1;
-      if (a.assetName < b.assetName) return -1;
-      if (a.assetName > b.assetName) return 1;
-      return 0;
-    });
-
-    let txHex = this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-      balanced,
-    );
-
-    // Evaluating the transaction
-    if (this.evaluator) {
-      const txEvaluation = await this.evaluator
-        .evaluateTx(
-          txHex,
-          (
-            Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[]
-          ).concat(
-            this.meshTxBuilderBody.inputs.map((val) => txInToUtxo(val.txIn)),
-            this.meshTxBuilderBody.collaterals.map((val) =>
-              txInToUtxo(val.txIn),
-            ),
-          ),
-          this.meshTxBuilderBody.chainedTxs,
-        )
-        .catch((error) => {
-          throw new Error(
-            `Tx evaluation failed: ${JSON.stringify(error)} \n For txHex: ${txHex}`,
-          );
-        });
-      this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
-      txHex = this.serializer.serializeTxBody(
-        this.meshTxBuilderBody,
-        this._protocolParams,
-        balanced,
-      );
-    }
-
-    this.txHex = txHex;
-    return txHex;
-  };
+    this.sortTxParts();
+  }
 
   protected collectAllRequiredSignatures = (): {
     keyHashes: Set<string>;

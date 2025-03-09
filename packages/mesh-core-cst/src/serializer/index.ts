@@ -51,7 +51,7 @@ import {
   Withdrawal,
 } from "@meshsdk/common";
 
-import {CborSet, StricaPrivateKey, toScriptRef} from "../"
+import {CborSet, toScriptRef} from "../"
 
 import {
   Address,
@@ -433,7 +433,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   serializeTxBody = (
     txBuilderBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
-    balanced: Boolean = true,
+    balanced: boolean = true,
   ): string => {
     if (this.verbose) {
       console.log(
@@ -449,12 +449,13 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     const serializerCore = new CardanoSDKSerializerCore(
       protocolParams ?? this.protocolParams,
     );
-    return serializerCore.coreSerializeTxBody(txBuilderBody, balanced);
+
+    return serializerCore.coreSerializeTx(txBuilderBody, balanced);
   };
 
-  serializeTxBodyWithMockSignatures(txBuilderBody: MeshTxBuilderBody, protocolParams: Protocol): string {
+  serializeTxBodyWithMockSignatures(txBuilderBody: MeshTxBuilderBody, protocolParams: Protocol, balanced: boolean): string {
     const serializerCore = new CardanoSDKSerializerCore(protocolParams);
-    return serializerCore.coreSerializeTxWithMockSignatures(txBuilderBody);
+    return serializerCore.coreSerializeTxWithMockSignatures(txBuilderBody, balanced);
   }
 
   addSigningKeys = (txHex: string, signingKeys: string[]): string => {
@@ -500,11 +501,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     );
     if (output.datum?.type === "Hash") {
       cardanoOutput.setDatum(
-          Datum.newDataHash(
-              DatumHash.fromHexBlob(
-                  HexBlob(fromBuilderToPlutusData(output.datum.data).hash()),
-              ),
-          ),
+          Datum.newDataHash((fromBuilderToPlutusData(output.datum.data).hash())),
       );
     } else if (output.datum?.type === "Inline") {
       cardanoOutput.setDatum(
@@ -583,7 +580,7 @@ class CardanoSDKSerializerCore {
   coreSerializeTxBody = (
     txBuilderBody: MeshTxBuilderBody,
     balanced: Boolean,
-  ): string => {
+  ): TransactionBody => {
     const {
       inputs,
       outputs,
@@ -604,8 +601,9 @@ class CardanoSDKSerializerCore {
     );
     this.addAllInputs(inputs);
     this.setFee(txBuilderBody.fee ?? "0")
-    this.addAllOutputs(this.sanitizeOutputs(outputs));
-    this.sanitizeOutputs(outputs);
+    if(balanced) {
+      this.sanitizeOutputs(outputs);
+    }
     this.addAllOutputs(outputs);
     this.addAllMints(mints);
     this.addAllCerts(certificates);
@@ -623,11 +621,11 @@ class CardanoSDKSerializerCore {
     return this.txBody
   };
 
-  coreSerializeTx(txBuilderBody: MeshTxBuilderBody): string {
-    const bodyCore = this.coreSerializeTxBody(txBuilderBody);
+  coreSerializeTx(txBuilderBody: MeshTxBuilderBody, balanced: boolean): string {
+    const bodyCore = this.coreSerializeTxBody(txBuilderBody, balanced);
     this.buildWitnessSet();
     if (balanced) {
-      this.balanceTx(changeAddress);
+      this.balanceTx(txBuilderBody.changeAddress);
     }
     return new Transaction(
         bodyCore,
@@ -636,8 +634,8 @@ class CardanoSDKSerializerCore {
     ).toCbor();
   }
 
-  coreSerializeTxWithMockSignatures(txBuilderBody: MeshTxBuilderBody): string {
-    const bodyCore = this.coreSerializeTxBody(txBuilderBody);
+  coreSerializeTxWithMockSignatures(txBuilderBody: MeshTxBuilderBody, balanced: boolean): string {
+    const bodyCore = this.coreSerializeTxBody(txBuilderBody, balanced);
     const mockWitSet = this.createMockedWitnessSet(
         txBuilderBody.expectedNumberKeyWitnesses,
         txBuilderBody.expectedByronAddressWitnesses,

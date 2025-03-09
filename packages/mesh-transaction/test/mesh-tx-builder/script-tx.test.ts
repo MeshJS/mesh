@@ -7,7 +7,7 @@ import {
   serializeRewardAddress,
   UTxO,
 } from "@meshsdk/core";
-import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
+import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
   resolveNativeScriptHash,
   resolveScriptHashDRepId,
@@ -15,6 +15,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import { alwaysSucceedCbor, alwaysSucceedHash, txHash } from "../test-util";
+import {CardanoSDKSerializer} from "@meshsdk/core-cst";
 
 describe("MeshTxBuilder - Script Transactions", () => {
   const offlineFetcher = new OfflineFetcher();
@@ -96,7 +97,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
   ]);
 
   const txBuilder = new MeshTxBuilder({
-    serializer: new CSLSerializer(),
+    serializer: new CardanoSDKSerializer(),
     fetcher: offlineFetcher,
   });
 

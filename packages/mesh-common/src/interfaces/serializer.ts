@@ -16,11 +16,12 @@ export interface IMeshTxSerializer {
   serializeTxBody(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
-    balanced: Boolean,
+    balanced: boolean,
   ): string;
   serializeTxBodyWithMockSignatures(
       txBuilderBody: MeshTxBuilderBody,
       protocolParams: Protocol,
+      balanced: boolean,
   ): string;
   addSigningKeys(txHex: string, signingKeys: string[]): string;
   resolver: IResolver;
