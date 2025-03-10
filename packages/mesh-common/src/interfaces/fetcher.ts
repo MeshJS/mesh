@@ -16,7 +16,7 @@ export type IFetcherOptions = {
 };
 
 export const DEFAULT_FETCHER_OPTIONS: IFetcherOptions = {
-  maxPage: 100,
+  maxPage: 20,
   order: "desc",
 };
 
