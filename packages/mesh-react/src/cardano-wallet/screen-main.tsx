@@ -1,3 +1,5 @@
+import { InitWeb3WalletOptions } from "@meshsdk/web3-sdk";
+
 import IconBookDashed from "../common/icons/icon-book-dashed";
 import IconDownload from "../common/icons/icon-download";
 import IconFingerprint from "../common/icons/icon-fingerprint";
@@ -6,6 +8,7 @@ import { TooltipProvider } from "../common/tooltip";
 import { useWallet, useWalletList } from "../hooks";
 import { screens } from "./data";
 import WalletIcon from "./wallet-icon";
+import Web3Services from "./web3-services";
 
 export default function ScreenMain({
   injectFn,
@@ -17,6 +20,7 @@ export default function ScreenMain({
   burnerWallet,
   webauthn,
   showDownload,
+  web3Services,
 }: {
   injectFn?: () => Promise<void>;
   extensions: number[];
@@ -27,6 +31,7 @@ export default function ScreenMain({
   burnerWallet: boolean;
   webauthn: boolean;
   showDownload: boolean;
+  web3Services?: InitWeb3WalletOptions;
 }) {
   const wallets = useWalletList({ injectFn });
   const { connect } = useWallet();
@@ -34,6 +39,10 @@ export default function ScreenMain({
   return (
     <TooltipProvider>
       <div className="mesh-grid mesh-gap-4 mesh-py-4 mesh-grid-cols-5 mesh-place-items-center mesh-gap-y-8">
+        {web3Services && (
+          <Web3Services options={web3Services} setOpen={setOpen} />
+        )}
+
         {wallets.map((wallet, index) => (
           <WalletIcon
             key={index}

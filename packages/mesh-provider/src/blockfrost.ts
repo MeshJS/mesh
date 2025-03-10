@@ -195,7 +195,14 @@ export class BlockfrostProvider
         if (data.length === 0) break;
         for (const tx of data) {
           const txInfo = await this.fetchTxInfo(tx.tx_hash);
-          txs.push(txInfo);
+
+          const _tx = {
+            ...txInfo,
+            blockHeight: tx.block_height,
+            blockTime: tx.block_time,
+          };
+
+          txs.push(_tx);
         }
       }
       return txs;
@@ -433,6 +440,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetch the latest protocol parameters.
+   * @param epoch
+   * @returns - Protocol parameters
+   */
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
@@ -500,6 +512,12 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Get UTxOs for a given hash.
+   * @param hash
+   * @param index
+   * @returns - Array of UTxOs
+   */
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
