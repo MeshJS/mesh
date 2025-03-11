@@ -235,10 +235,26 @@ const plutusDataToAddrBech32 = (
         );
       }
       // Credential
-      const delegationBytes = delegationDataInnerList.get(0).asBoundedBytes();
+      const delegationCredential = delegationDataInnerList
+        .get(0)
+        .asConstrPlutusData();
+      if (!delegationCredential) {
+        throw new Error(
+          "Error: serializeAddressObj: Delegation inner part must be a constructor",
+        );
+      }
+
+      const delegationBytesList = delegationCredential.getData();
+      if (delegationBytesList.getLength() !== 1) {
+        throw new Error(
+          "Error: serializeAddressObj: Delegation bytes part must contain 1 element",
+        );
+      }
+
+      const delegationBytes = delegationBytesList.get(0).asBoundedBytes();
       if (!delegationBytes) {
         throw new Error(
-          "Error: serializeAddressObj: Delegation inner part must be bytes",
+          "Error: serializeAddressObj: Delegation bytes part must be of type bytes",
         );
       }
 
