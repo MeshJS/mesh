@@ -1,5 +1,7 @@
-import { blake2b, Transaction, TxCBOR } from "@meshsdk/core-cst";
+import { Transaction, TxCBOR } from "@meshsdk/core-cst";
 import { MeshTxBuilder } from "@meshsdk/transaction";
+
+import { txHash } from "../test-util";
 
 describe("MeshTxBuilder", () => {
   let txBuilder: MeshTxBuilder;
@@ -7,10 +9,6 @@ describe("MeshTxBuilder", () => {
   beforeEach(() => {
     txBuilder = new MeshTxBuilder();
   });
-
-  const txHash = (tx: string) => {
-    return blake2b(32).update(Buffer.from(tx, "utf-8")).digest("hex");
-  };
 
   const calculateOutputLovelaces = (tx: string) => {
     const cardanoTx = Transaction.fromCbor(TxCBOR(tx));

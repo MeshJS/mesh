@@ -6,3 +6,4 @@ export * from "./data";
 export * from "./address";
 export * from "./encoding";
 export * from "./witness-set";
+export * from "./fee";
