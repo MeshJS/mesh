@@ -3,6 +3,7 @@ import {
   PlutusScript,
   PubKeyAddress,
   resolveFingerprint,
+  ScriptAddress,
 } from "@meshsdk/common";
 import {
   resolveDataHash,
@@ -177,6 +178,44 @@ describe("serializeAddressObj", () => {
     };
     expect(serializeAddressObj(addressObj)).toEqual(
       "addr_test1qpgnwnw0ffusjr86kmqrcfmtlruef7ldegkpakg2ppd7memm3c7l45wf0md3uqw8mlwh43gxuyakvk0dthhjg75a09pqeap7m2",
+    );
+  });
+
+  it("should return the correct address for script key", () => {
+    const addressObj: ScriptAddress = {
+      constructor: 0,
+      fields: [
+        {
+          constructor: 1,
+          fields: [
+            {
+              bytes: "51374dcf4a79090cfab6c03c276bf8f994fbedca2c1ed90a085bede7",
+            },
+          ],
+        },
+        {
+          constructor: 0,
+          fields: [
+            {
+              constructor: 0,
+              fields: [
+                {
+                  constructor: 1,
+                  fields: [
+                    {
+                      bytes:
+                        "7b8e3dfad1c97edb1e01c7dfdd7ac506e13b6659ed5def247a9d7942",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(serializeAddressObj(addressObj)).toEqual(
+      "addr_test1xpgnwnw0ffusjr86kmqrcfmtlruef7ldegkpakg2ppd7memm3c7l45wf0md3uqw8mlwh43gxuyakvk0dthhjg75a09pqgvr6sl",
     );
   });
 });

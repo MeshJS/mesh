@@ -189,7 +189,7 @@ const plutusDataToAddrBech32 = (
   }
   const cardanoPaymentCredential = {
     hash: Hash28ByteBase16(Buffer.from(paymentBytes).toString("hex")),
-    type: paymentConstrData.getAlternative() === BigInt(0) ? 0 : 1,
+    type: Number(paymentConstrData.getAlternative()),
   };
 
   const delegationData = plutusDataList.get(1);
@@ -260,8 +260,7 @@ const plutusDataToAddrBech32 = (
 
       const cardanoStakeCredential = {
         hash: Hash28ByteBase16(Buffer.from(delegationBytes).toString("hex")),
-        type:
-          delegationDataInnerConstrData.getAlternative() === BigInt(0) ? 0 : 1,
+        type: Number(delegationCredential.getAlternative()),
       };
 
       return BaseAddress.fromCredentials(
