@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { IFetcher, ISubmitter } from "@meshsdk/common";
-import { InitWeb3WalletOptions, Web3Wallet } from "@meshsdk/web3-sdk";
+import { InitWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import { Button } from "../common/button";
 import {
@@ -14,7 +14,6 @@ import {
   DialogTrigger,
 } from "../common/dialog";
 import IconChevronRight from "../common/icons/icon-chevron-right";
-import IconDiscord from "../common/icons/icon-discord";
 import { useWallet } from "../hooks";
 import ConnectedButton from "./connected-button";
 import { screens } from "./data";
@@ -22,7 +21,6 @@ import ScreenBurner from "./screen-burner";
 import ScreenMain from "./screen-main";
 import ScreenP2P from "./screen-p2p";
 import ScreenWebauthn from "./screen-webauthn";
-import Web3Services from "./web3-services";
 
 interface ButtonProps {
   label?: string;
