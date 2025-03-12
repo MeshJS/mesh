@@ -39,10 +39,6 @@ export default function ScreenMain({
   return (
     <TooltipProvider>
       <div className="mesh-grid mesh-gap-4 mesh-py-4 mesh-grid-cols-5 mesh-place-items-center mesh-gap-y-8">
-        {web3Services && (
-          <Web3Services options={web3Services} setOpen={setOpen} />
-        )}
-
         {wallets.map((wallet, index) => (
           <WalletIcon
             key={index}
@@ -54,6 +50,10 @@ export default function ScreenMain({
             }}
           />
         ))}
+
+        {web3Services && (
+          <Web3Services options={web3Services} setOpen={setOpen} />
+        )}
 
         {webauthn && (
           <WalletIcon
