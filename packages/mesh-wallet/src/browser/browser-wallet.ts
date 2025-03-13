@@ -43,7 +43,7 @@ declare global {
 /**
  * Browser Wallet provides a set of APIs to interact with the blockchain. This wallet is compatible with Mesh transaction builders.
  *
- * These wallets APIs are in accordance to CIP-30, which defines the API for dApps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building dApps.
+ * These wallets APIs are in accordance to CIP-30, which defines the API for dApps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building applications.
  * ```javascript
  * import { BrowserWallet } from '@meshsdk/core';
  *
