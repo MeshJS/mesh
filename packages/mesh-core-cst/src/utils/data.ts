@@ -169,7 +169,7 @@ export const fromBuilderToPlutusData = (data: BuilderData): PlutusData => {
 export const fromPlutusDataToJson = (data: PlutusData): object => {
   if (data.getKind() === PlutusDataKind.ConstrPlutusData) {
     const plutusData = data.asConstrPlutusData();
-    if (plutusData) {
+    if (plutusData !== undefined) {
       const fields = plutusData.getData();
       const list: object[] = [];
       for (let i = 0; i < fields.getLength(); i++) {
@@ -189,7 +189,7 @@ export const fromPlutusDataToJson = (data: PlutusData): object => {
       k: object;
       v: object;
     }[] = [];
-    if (plutusMap) {
+    if (plutusMap !== undefined) {
       const keys = plutusMap.getKeys();
       for (let i = 0; i < keys.getLength(); i++) {
         const key = keys.get(i);
@@ -209,7 +209,7 @@ export const fromPlutusDataToJson = (data: PlutusData): object => {
     }
   } else if (data.getKind() === PlutusDataKind.List) {
     const plutusList = data.asList();
-    if (plutusList) {
+    if (plutusList !== undefined) {
       const list: object[] = [];
       for (let i = 0; i < plutusList.getLength(); i++) {
         const element = plutusList.get(i);
@@ -221,16 +221,16 @@ export const fromPlutusDataToJson = (data: PlutusData): object => {
     }
   } else if (data.getKind() === PlutusDataKind.Integer) {
     const plutusInt = data.asInteger();
-    if (plutusInt) {
+    if (plutusInt !== undefined) {
       return {
-        int: BigInt(plutusInt.toString()),
+        int: plutusInt,
       };
     } else {
       throw new Error("Invalid integer data found");
     }
   } else if (data.getKind() === PlutusDataKind.Bytes) {
     const plutusBytes = data.asBoundedBytes();
-    if (plutusBytes) {
+    if (plutusBytes !== undefined) {
       return {
         bytes: Buffer.from(plutusBytes).toString("hex"),
       };
