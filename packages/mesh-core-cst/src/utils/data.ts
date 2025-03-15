@@ -223,7 +223,7 @@ export const fromPlutusDataToJson = (data: PlutusData): object => {
     const plutusInt = data.asInteger();
     if (plutusInt !== undefined) {
       return {
-        int: BigInt(plutusInt.toString()),
+        int: plutusInt,
       };
     } else {
       throw new Error("Invalid integer data found");
