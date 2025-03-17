@@ -52,6 +52,9 @@ describe("Unbalanced", () => {
       chainedTxs: [],
       inputsForEvaluation: {},
       network: "mainnet",
+      fee: "0",
+      expectedNumberKeyWitnesses: 0,
+      expectedByronAddressWitnesses: [],
     };
 
     const txHex = serializer.serializeTxBody(body, undefined, false);
