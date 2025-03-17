@@ -90,6 +90,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   }
 
   serializeMockTx = () => {
+    const builderBody = this.meshTxBuilderBody;
+    const { keyHashes, byronAddresses } = this.collectAllRequiredSignatures();
+    builderBody.expectedNumberKeyWitnesses = keyHashes.size;
+    builderBody.expectedByronAddressWitnesses = Array.from(byronAddresses);
     return this.serializer.serializeTxBodyWithMockSignatures(this.meshTxBuilderBody, this._protocolParams, false);
   }
 
@@ -242,6 +246,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.txOut(change.address, change.amount);
     }
 
+    this.meshTxBuilderBody.fee = selectionSkeleton.fee.toString();
     const skeletonRedeemers = selectionSkeleton.redeemers ?? [];
     this.updateRedeemer(this.meshTxBuilderBody, skeletonRedeemers);
   }
