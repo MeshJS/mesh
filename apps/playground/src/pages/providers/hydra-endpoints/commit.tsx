@@ -1,7 +1,11 @@
-import { BlockfrostProvider } from "@meshsdk/core";
+import { useState } from "react";
+
+import { BlockfrostProvider, MeshWallet } from "@meshsdk/core";
 import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
+import Input from "~/components/form/input";
+import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -14,42 +18,69 @@ export default function HydraCommit({
   provider: HydraProvider;
   providerName: string;
 }) {
+  const [commitUtxo, setCommitUtxo] = useState<string>("");
+  const [keyToSign, setKeyToSign] = useState<string>("");
+
   return (
     <TwoColumnsScroll
       sidebarTo="commit"
       title="Commit to Hydra Head"
-      leftSection={Left()}
-      rightSection={Right(provider, providerName)}
+      leftSection={Left(commitUtxo)}
+      rightSection={Right(
+        provider,
+        providerName,
+        commitUtxo,
+        setCommitUtxo,
+        keyToSign,
+        setKeyToSign,
+      )}
     />
   );
 }
 
-function Left() {
+function Left(commitUtxo: string) {
+  const [txHash, txIndex] = commitUtxo.split("#");
   return (
     <>
       <p>
         Commit a particular UTxO to the head. This will make the UTxO available
         on the layer 2.
       </p>
-      <Codeblock
-        data={`await instance.commit("713bea65d48061121e9badb030e327a07302064e8122d6807646b96f30aa3208", 0);`}
-      />
+      <Codeblock data={`await instance.commit("${txHash}", ${txIndex});`} />
     </>
   );
 }
 
-function Right(provider: HydraProvider, providerName: string) {
+function Right(
+  provider: HydraProvider,
+  providerName: string,
+  commitUtxo: string,
+  setCommitUtxo: (value: string) => void,
+  keyToSign: string,
+  setKeyToSign: (value: string) => void,
+) {
   const blockfrost = getProvider();
   const instance = new HydraInstance({
     provider,
     fetcher: blockfrost,
     submitter: blockfrost,
   });
+  const [txHash, txIndex] = commitUtxo.split("#");
   async function runDemo() {
-    await instance.commitFunds(
-      "713bea65d48061121e9badb030e327a07302064e8122d6807646b96f30aa3208",
-      0,
-    );
+    if (txHash === undefined) {
+      return;
+    }
+    const unsignedTx = await instance.commitFunds(txHash, Number(txIndex));
+    const wallet = new MeshWallet({
+      key: {
+        type: "cli",
+        payment: keyToSign,
+      },
+      networkId: 0,
+    });
+    const signedTx = await wallet.signTx(unsignedTx, true);
+    const commitTxHash = await blockfrost.submitTx(signedTx);
+    console.log("CommitTxHash", commitTxHash);
   }
 
   return (
@@ -59,6 +90,25 @@ function Right(provider: HydraProvider, providerName: string) {
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
-    ></LiveCodeDemo>
+    >
+      <InputTable
+        listInputs={[
+          <Input
+            value={commitUtxo}
+            onChange={(e) => setCommitUtxo(e.target.value)}
+            placeholder="TxHash#Index"
+            label="CommitUtxo"
+            key={0}
+          />,
+          <Input
+            value={keyToSign}
+            onChange={(e) => setKeyToSign(e.target.value)}
+            placeholder="Key to sign to spend utxo"
+            label="KeyToSign"
+            key={0}
+          />,
+        ]}
+      />
+    </LiveCodeDemo>
   );
 }
