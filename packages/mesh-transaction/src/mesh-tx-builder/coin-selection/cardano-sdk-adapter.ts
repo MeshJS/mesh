@@ -143,6 +143,10 @@ export class CardanoSdkInputSelector implements IInputSelector {
 
     // Aggregate outputs into a single output for selection
     const aggregatedTxOut = makeAggregatedCSDKOOutput(outputs);
+    const aggregatedOuts = new Set<CSDK.TxOut>();
+    if (aggregatedTxOut) {
+      aggregatedOuts.add(aggregatedTxOut);
+    }
 
     // Convert Mesh types to CSDK types
     const preselectedUtoxsCSDK = new Set(
@@ -172,7 +176,7 @@ export class CardanoSdkInputSelector implements IInputSelector {
     const selectResult = await selector.select({
       preSelectedUtxo: preselectedUtoxsCSDK,
       utxo: new Set(utxoxCSDK),
-      outputs: new Set([aggregatedTxOut]),
+      outputs: aggregatedOuts,
       constraints: builderCallbacksBridge,
       implicitValue: meshImplicitCoinToCSDKImplicitCoins(implicitValue),
     });
@@ -210,9 +214,9 @@ export class StaticChangeAddressResolver
     this.changeAddress = changeAddress;
   }
 
-  async resolve(
+  resolve = async (
     selection: CardanoSelection.Selection,
-  ): Promise<Array<CSDK.TxOut>> {
+  ): Promise<Array<CSDK.TxOut>> => {
     return selection.change.map((txOut) => ({
       ...txOut,
       address: <CSDK.PaymentAddress>this.changeAddress,
@@ -392,11 +396,15 @@ const meshOutputToCSDKOutput = (output: Output): CSDK.TxOut => {
   };
 };
 
-const makeAggregatedCSDKOOutput = (outputs: Output[]): CSDK.TxOut => {
+const makeAggregatedCSDKOOutput = (outputs: Output[]): CSDK.TxOut | undefined => {
   let totalAssets = new Map<string, bigint>();
 
   for (const output of outputs) {
     totalAssets = sumAssets(totalAssets, output.amount);
+  }
+
+  if (totalAssets.size === 0) {
+    return undefined;
   }
 
   return {
