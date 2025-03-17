@@ -291,7 +291,7 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
           txIn: {
             txHash: 'tx1',
             txIndex: 0,
-            amount: [{ unit: 'lovelace', quantity: '2000000' }],
+            amount: [{ unit: 'lovelace', quantity: '20000000' }],
             address: 'addr_test1234',
             scriptSize: 0,
           },
