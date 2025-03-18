@@ -78,6 +78,7 @@ fn get_swap_test_tx(test_case: SwapTestCase) {
 
   mocktail_tx()
     |> tx_in(
+        // The first order
         True,
         mock_tx_hash(1),
         1,
@@ -92,6 +93,7 @@ fn get_swap_test_tx(test_case: SwapTestCase) {
       )
     |> tx_in_inline_datum(True, swap_datum())
     |> tx_in(
+        // The second order
         !is_only_one_input_from_script,
         mock_tx_hash(1),
         1,
