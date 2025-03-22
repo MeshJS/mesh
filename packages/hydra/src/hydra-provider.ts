@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosInstance, RawAxiosRequestHeaders } from "axios";
 
 import {
   AccountInfo,
@@ -273,8 +273,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Draft a commit transaction, which can be completed and later submitted to the L1 network.
    */
-  async buildCommit(payload: any) {
-    const txHex = await this.post("/commit", payload);
+  async buildCommit(payload: any, headers: RawAxiosRequestHeaders = {}) {
+    const txHex = await this.post("/commit", payload, headers);
     return txHex;
   }
 
@@ -289,9 +289,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Obtain a list of pending deposit transaction ID's.
    */
-  async buildCommits() {
+  async buildCommits(headers: RawAxiosRequestHeaders = {}) {
     // todo
-    await this.post("/commits", {});
+    await this.post("/commits", {}, headers);
   }
 
   async subscribeCommits() {
@@ -302,9 +302,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Recover deposited UTxO by providing a TxId of a deposit transaction in the request path.
    */
-  async commitsTxId() {
+  async commitsTxId(headers: RawAxiosRequestHeaders = {}) {
     // todo
-    await this.post("/commits/tx-id", {});
+    await this.post("/commits/tx-id", {}, headers);
   }
 
   async subscribeCommitsTxId() {
@@ -329,9 +329,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Provide decommit transaction that needs to be applicable to the Hydra's local ledger state. Specified transaction outputs will be available on layer 1 after decommit is successfully processed.
    */
-  async publishDecommit() {
+  async publishDecommit(headers: RawAxiosRequestHeaders = {}) {
     // todo
-    await this.post("/decommit", {});
+    await this.post("/decommit", {}, headers);
   }
 
   /**
@@ -375,9 +375,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Cardano transaction to be submitted to the L1 network. Accepts transactions encoded as Base16 CBOR string, TextEnvelope type or JSON.
    */
-  async publishCardanoTransaction() {
+  async publishCardanoTransaction(headers: RawAxiosRequestHeaders = {}) {
     // todo
-    await this.post("/cardano-transaction", {});
+    await this.post("/cardano-transaction", {}, headers);
   }
 
   /**
@@ -532,9 +532,15 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * @param payload - The data to post
    * @returns - The response from the URL
    */
-  async post(url: string, payload: any): Promise<any> {
+  async post(
+    url: string,
+    payload: any,
+    headers: RawAxiosRequestHeaders
+  ): Promise<any> {
     try {
-      const { data, status } = await this._axiosInstance.post(url, payload);
+      const { data, status } = await this._axiosInstance.post(url, payload, {
+        headers,
+      });
       if (status === 200 || status == 202) {
         return data;
       }
