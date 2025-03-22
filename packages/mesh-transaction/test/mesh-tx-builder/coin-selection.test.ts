@@ -2,7 +2,12 @@ import { UTxO } from '@meshsdk/common';
 import { Transaction, TxCBOR } from '@meshsdk/core-cst';
 import { MeshTxBuilder } from '@meshsdk/transaction';
 
-import {baseAddress, calculateMinLovelaceForTransactionOutput, mockTokenUnit, txHash} from '../test-util';
+import {
+  baseAddress,
+  calculateMinLovelaceForTransactionOutput,
+  mockTokenUnit,
+  txHash,
+} from '../test-util';
 
 describe('MeshTxBuilder', () => {
   let txBuilder: MeshTxBuilder;
@@ -23,7 +28,7 @@ describe('MeshTxBuilder', () => {
           amount: [
             {
               unit: mockTokenUnit(1),
-              quantity: '1000000',
+              quantity: '7000000',
             },
             {
               unit: 'lovelace',
@@ -433,4 +438,141 @@ describe('MeshTxBuilder', () => {
     const multiAsset = changeOutput!.amount().multiasset();
     expect(multiAsset).toBeDefined();
   });
+
+  it('Should handle fragmented UTXOs', async () => {
+    const utxosForSelection: UTxO[] = [];
+    const tokensCount = 135;
+    for (let i = 0; i < 10000; i++) {
+      const tokens = []
+      for (let j = 0; j < 50; j++) {
+        tokens.push({
+          unit: mockTokenUnit((i + j) % tokensCount),
+          quantity: '1000',
+        });
+      }
+      utxosForSelection.push({
+        input: {
+          txHash: txHash(`tx${i}`),
+          outputIndex: 0,
+        },
+        output: {
+          address: baseAddress(0),
+          amount: [
+            {
+              unit: 'lovelace',
+              quantity: '2000000',
+            },
+            ...tokens,
+          ],
+        },
+      });
+    }
+    const tx = await txBuilder
+      .txOut(baseAddress(1), [
+        {
+          unit: 'lovelace',
+          quantity: '10000000',
+        },
+      ])
+      .selectUtxosFrom(utxosForSelection)
+      .changeAddress(baseAddress(0))
+      .complete();
+    const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
+
+    expect(cardanoTx.body().outputs().length).toBeGreaterThanOrEqual(2);
+  });
+
+
+  it('Should slit huge UTXO', async () => {
+    const utxosForSelection: UTxO[] = [];
+    const tokens = []
+    for (let j = 0; j < 400; j++) {
+      tokens.push({
+        unit: mockTokenUnit(j),
+        quantity: '1000',
+      });
+    }
+    utxosForSelection.push({
+      input: {
+        txHash: txHash(`tx1`),
+        outputIndex: 0,
+      },
+      output: {
+        address: baseAddress(0),
+        amount: [
+          {
+            unit: 'lovelace',
+            quantity: '1000000000000',
+          },
+          ...tokens,
+        ],
+      },
+    });
+    const tx = await txBuilder
+      .txOut(baseAddress(1), [
+        {
+          unit: 'lovelace',
+          quantity: '10000000',
+        },
+        {
+          unit: mockTokenUnit(1),
+          quantity: '1000',
+        }
+      ])
+      .selectUtxosFrom(utxosForSelection)
+      .changeAddress(baseAddress(0))
+      .complete();
+    const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
+
+    expect(cardanoTx.body().outputs().length).toEqual(5);
+    for (const output of cardanoTx.body().outputs()) {
+      expect(output.amount().coin()).toBeGreaterThanOrEqual(
+        calculateMinLovelaceForTransactionOutput(output, 4310n),
+      );
+      const multiAsset = output.amount().multiasset();
+      expect(multiAsset).toBeDefined();
+    }
+  });
+
+  it('Should trow error on tx size exceed size limit', async () => {
+    const utxosForSelection: UTxO[] = [];
+    const tokens = []
+    for (let j = 0; j < 1000; j++) {
+      tokens.push({
+        unit: mockTokenUnit(j),
+        quantity: '1000',
+      });
+    }
+    utxosForSelection.push({
+      input: {
+        txHash: txHash(`tx1`),
+        outputIndex: 0,
+      },
+      output: {
+        address: baseAddress(0),
+        amount: [
+          {
+            unit: 'lovelace',
+            quantity: '1000000000000',
+          },
+          ...tokens,
+        ],
+      },
+    });
+    await expect(txBuilder
+      .txOut(baseAddress(1), [
+        {
+          unit: 'lovelace',
+          quantity: '10000000',
+        },
+        {
+          unit: mockTokenUnit(1),
+          quantity: '1000',
+        }
+      ])
+      .selectUtxosFrom(utxosForSelection)
+      .changeAddress(baseAddress(0))
+      .complete())
+      .rejects.toThrow();
+  })
 });
