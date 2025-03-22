@@ -27,8 +27,12 @@ export class HydraInstance {
 
   /**
    * To commit funds to the head, choose which UTxO you would like to make available on layer 2.
+   * The function returns the transaction, ready to be signed by the user.
+   * @param txHash
+   * @param txIndex
+   * @returns commitTransactionHex
    */
-  async commitFunds(txHash: string, txIndex: number) {
+  async commitFunds(txHash: string, txIndex: number): Promise<string> {
     const utxo = (await this.fetcher.fetchUTxOs(txHash, txIndex))[0];
     if (!utxo) {
       throw new Error("UTxO not found");
@@ -50,12 +54,16 @@ export class HydraInstance {
       hydraUtxo["inlineDatum"] = null;
       hydraUtxo["inlineDatumRaw"] = null;
     }
-    const commit = await this.provider.buildCommit({
-      [txHash + "#" + txIndex]: hydraUtxo,
-    });
-    const commitTxHash = await this.submitter.submitTx(commit["cborHex"]);
-    console.log(commitTxHash);
-    return commitTxHash;
+    const commit = await this.provider.buildCommit(
+      {
+        [txHash + "#" + txIndex]: hydraUtxo,
+      },
+      {
+        "Content-Type": "text/plain",
+      }
+    );
+    console.log(commit);
+    return commit.cborHex;
   }
 
   /**

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { IFetcher, ISubmitter } from "@meshsdk/common";
+import { InitWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import { Button } from "../common/button";
 import {
@@ -45,6 +46,7 @@ interface ButtonProps {
     url: string;
   };
   showDownload?: boolean;
+  web3Services?: InitWeb3WalletOptions;
 }
 
 export const CardanoWallet = ({
@@ -58,6 +60,7 @@ export const CardanoWallet = ({
   burnerWallet = undefined,
   webauthn = undefined,
   showDownload = true,
+  web3Services = undefined,
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState("main");
@@ -92,6 +95,7 @@ export const CardanoWallet = ({
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <Header screen={screen} setScreen={setScreen} />
+
         {screen == "main" && (
           <ScreenMain
             injectFn={injectFn}
@@ -103,6 +107,7 @@ export const CardanoWallet = ({
             burnerWallet={burnerWallet != undefined}
             webauthn={webauthn != undefined}
             showDownload={showDownload}
+            web3Services={web3Services}
           />
         )}
         {screen == "p2p" && (

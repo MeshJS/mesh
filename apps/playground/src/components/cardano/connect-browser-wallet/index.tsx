@@ -52,6 +52,12 @@ export function CommonCardanoWallet() {
       injectFn={async () => await checkIfMetamaskInstalled("preprod")}
       isDark={isDark}
       persist={true}
+      web3Services={{
+        networkId: 0,
+        fetcher: provider,
+        submitter: provider,
+        // projectId: "2237ce83-ca27-4383-bd43-987cb1e64307",
+      }}
     />
   );
 }

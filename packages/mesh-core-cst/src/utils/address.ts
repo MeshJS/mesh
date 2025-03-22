@@ -189,7 +189,7 @@ const plutusDataToAddrBech32 = (
   }
   const cardanoPaymentCredential = {
     hash: Hash28ByteBase16(Buffer.from(paymentBytes).toString("hex")),
-    type: paymentConstrData.getAlternative() === BigInt(0) ? 0 : 1,
+    type: Number(paymentConstrData.getAlternative()),
   };
 
   const delegationData = plutusDataList.get(1);
@@ -235,17 +235,32 @@ const plutusDataToAddrBech32 = (
         );
       }
       // Credential
-      const delegationBytes = delegationDataInnerList.get(0).asBoundedBytes();
+      const delegationCredential = delegationDataInnerList
+        .get(0)
+        .asConstrPlutusData();
+      if (!delegationCredential) {
+        throw new Error(
+          "Error: serializeAddressObj: Delegation inner part must be a constructor",
+        );
+      }
+
+      const delegationBytesList = delegationCredential.getData();
+      if (delegationBytesList.getLength() !== 1) {
+        throw new Error(
+          "Error: serializeAddressObj: Delegation bytes part must contain 1 element",
+        );
+      }
+
+      const delegationBytes = delegationBytesList.get(0).asBoundedBytes();
       if (!delegationBytes) {
         throw new Error(
-          "Error: serializeAddressObj: Delegation inner part must be bytes",
+          "Error: serializeAddressObj: Delegation bytes part must be of type bytes",
         );
       }
 
       const cardanoStakeCredential = {
         hash: Hash28ByteBase16(Buffer.from(delegationBytes).toString("hex")),
-        type:
-          delegationDataInnerConstrData.getAlternative() === BigInt(0) ? 0 : 1,
+        type: Number(delegationCredential.getAlternative()),
       };
 
       return BaseAddress.fromCredentials(

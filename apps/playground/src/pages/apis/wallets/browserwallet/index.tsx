@@ -76,7 +76,7 @@ const ReactPage: NextPage = () => {
             <Link href="https://cips.cardano.org/cip/CIP-30">CIP-30</Link>,
             which defines the API for dApps to communicate with the user's
             wallet. Additional utility functions provided for developers that
-            are useful for building dApps.
+            are useful for building applications.
           </p>
 
           <p>Check out the full documentation on</p>

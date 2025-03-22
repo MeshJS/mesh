@@ -12,4 +12,6 @@ export type TransactionInfo = {
   invalidAfter: string;
   inputs: UTxO[];
   outputs: UTxO[];
+  blockHeight?: number;
+  blockTime?: number;
 };
