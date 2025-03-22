@@ -51,7 +51,7 @@ function Left() {
         <li>
           <p>Providing an array of UTxOs, and perform auto UTxO selection:</p>
           <Codeblock
-            data={`.selectUtxosFrom(extraInputs: UTxO[], strategy?: UtxoSelectionStrategy, threshold?: string, includeTxFees?: boolean)`}
+            data={`.selectUtxosFrom(extraInputs: UTxO[])`}
           />
         </li>
       </ul>

@@ -1457,8 +1457,6 @@ export class MeshTxBuilderCore {
   selectUtxosFrom = (
     extraInputs: UTxO[],
     strategy: UtxoSelectionStrategy = "experimental",
-    threshold = "5000000",
-    includeTxFees = true,
   ) => {
     for (const input of this.meshTxBuilderBody.inputs) {
       const address = input.txIn.address;
@@ -1472,9 +1470,7 @@ export class MeshTxBuilderCore {
     }
     this.meshTxBuilderBody.extraInputs = extraInputs;
     const newConfig = {
-      threshold,
       strategy,
-      includeTxFees,
     };
     this.meshTxBuilderBody.selectionConfig = {
       ...this.meshTxBuilderBody.selectionConfig,
