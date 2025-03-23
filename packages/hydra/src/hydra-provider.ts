@@ -232,7 +232,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   ) {
     const payload = {
       tag: "Decommit",
-      transaction: {
+      decommitTx: {
         type: type,
         description: description,
         cborHex: cborHex,
