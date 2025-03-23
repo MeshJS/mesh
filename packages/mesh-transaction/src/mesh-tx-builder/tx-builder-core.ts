@@ -1464,8 +1464,8 @@ export class MeshTxBuilderCore {
       if (!address) {
         throw Error("Address is missing from the input");
       }
-      const decodedAddress = Address.fromBytes(<HexBlob>address);
-      if (decodedAddress.getProps().paymentPart?.type !== CredentialType.KeyHash) {
+      const decodedAddress = Address.fromString(<HexBlob>address);
+      if (decodedAddress?.getProps().paymentPart?.type !== CredentialType.KeyHash) {
         throw Error("Only KeyHash address is supported for utxo selection");
       }
     }

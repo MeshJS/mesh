@@ -1,19 +1,46 @@
 import { UTxO } from '@meshsdk/common';
-import { Transaction, TxCBOR } from '@meshsdk/core-cst';
+import {resolveScriptRef, Transaction, TxCBOR} from '@meshsdk/core-cst';
 import { MeshTxBuilder } from '@meshsdk/transaction';
 
 import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
   baseAddress,
   calculateMinLovelaceForTransactionOutput,
   mockTokenUnit,
   txHash,
 } from '../test-util';
+import {OfflineFetcher} from "@meshsdk/provider";
+import {serializePlutusScript} from "@meshsdk/core";
 
 describe('MeshTxBuilder', () => {
   let txBuilder: MeshTxBuilder;
 
   beforeEach(() => {
-    txBuilder = new MeshTxBuilder();
+    const offlineFetcher = new OfflineFetcher();
+    offlineFetcher.addUTxOs([
+      {
+        input: {
+          txHash: txHash("tx3"),
+          outputIndex: 0,
+        },
+        output: {
+          address: serializePlutusScript({
+            code: alwaysSucceedCbor,
+            version: "V3",
+          }).address,
+          amount: [
+            {
+              unit: "lovelace",
+              quantity: "100000000",
+            },
+          ],
+          scriptHash: alwaysSucceedHash,
+          scriptRef: resolveScriptRef({ code: alwaysSucceedCbor, version: "V3" }),
+        },
+      },
+      ]);
+    txBuilder = new MeshTxBuilder({fetcher: offlineFetcher});
   });
 
   it('Transaction should select the correct utxos', async () => {
@@ -81,6 +108,201 @@ describe('MeshTxBuilder', () => {
       .complete();
     const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
     expect(cardanoTx.body().outputs().length).toEqual(2);
+  });
+
+  it('Transaction should balance tx', async () => {
+    const inputValue = 3000000n;
+    const utxosForSelection: UTxO[] = [
+    ];
+    const tx = await txBuilder
+      .txIn(
+        txHash('tx3'),
+        0,
+        [
+          {
+            unit: 'lovelace',
+            quantity: inputValue.toString(),
+          },
+        ],
+        baseAddress(0),
+        0,
+      )
+      .txOut(baseAddress(1), [
+        {
+          unit: "lovelace",
+          quantity: '1000000',
+        },
+      ])
+      .selectUtxosFrom(utxosForSelection)
+      .changeAddress(baseAddress(1))
+      .complete();
+    const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
+    expect(cardanoTx.body().outputs().length).toEqual(2);
+    const fee = cardanoTx.body().fee();
+    const outputs = cardanoTx.body().outputs();
+    const totalOutput = outputs.reduce((acc, output) => {
+      return acc + output.amount().coin();
+    }, 0n);
+    expect(totalOutput + fee).toEqual(inputValue);
+  });
+
+
+  it('Transaction should handle mint', async () => {
+    const mintAsset = alwaysSucceedHash;
+    const inputValue = 10000000n;
+    const utxosForSelection: UTxO[] = [
+      {
+        input: {
+          txHash: txHash('tx1'),
+          outputIndex: 0,
+        },
+        output: {
+          address: baseAddress(1),
+          amount: [
+            {
+              unit: 'lovelace',
+              quantity: inputValue.toString(),
+            },
+          ],
+        },
+      },
+    ];
+    const tx = await txBuilder
+      .txOut(baseAddress(1), [
+        {
+          unit: "lovelace",
+          quantity: '1000000',
+        },
+        {
+          unit: mintAsset,
+          quantity: '1000',
+        },
+      ])
+      .mintPlutusScriptV3()
+      .mint("1000", alwaysSucceedHash, "")
+      .mintRedeemerValue("")
+      .mintTxInReference(txHash("tx3"), 0)
+      .selectUtxosFrom(utxosForSelection)
+      .changeAddress(baseAddress(1))
+      .complete();
+    const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
+    expect(cardanoTx.body().outputs().length).toEqual(2);
+    const fee = cardanoTx.body().fee();
+    const outputs = cardanoTx.body().outputs();
+    const totalOutput = outputs.reduce((acc, output) => {
+      return acc + output.amount().coin();
+    }, 0n);
+    expect(totalOutput + fee).toEqual(inputValue);
+  });
+
+
+  it('Transaction should handle multiple outputs', async () => {
+    const mintAsset = alwaysSucceedHash;
+    const inputValue1 = 10000000n;
+    const inputValue2 = 100n;
+    const inputValue3 = 30000n;
+    const inputValue4 = 30000n;
+
+    const utxosForSelection: UTxO[] = [
+      {
+        input: {
+          txHash: txHash('tx10'),
+          outputIndex: 0,
+        },
+        output: {
+          address: baseAddress(1),
+          amount: [
+            {
+              unit: 'lovelace',
+              quantity: inputValue1.toString(),
+            },
+          ],
+        },
+      },
+      {
+        input: {
+          txHash: txHash('tx9'),
+          outputIndex: 0,
+        },
+        output: {
+          address: baseAddress(1),
+          amount: [
+            {
+              unit: 'lovelace',
+              quantity: inputValue2.toString(),
+            },
+            {
+              unit: mockTokenUnit(1),
+              quantity: "100",
+            }
+          ],
+        },
+      },
+    ];
+    const tx = await txBuilder
+      .txIn(
+        txHash('tx7'),
+        0,
+        [
+          {
+            unit: 'lovelace',
+            quantity: inputValue3.toString(),
+          },
+        ],
+        baseAddress(1),
+        0,
+      )
+      .txIn(
+        txHash('tx6'),
+        0,
+        [
+          {
+            unit: 'lovelace',
+            quantity: inputValue4.toString(),
+          },
+        ],
+        baseAddress(2),
+        0,
+      )
+      .txOut(baseAddress(0), [
+        {
+          unit: "lovelace",
+          quantity: '1000000',
+        },
+        {
+          unit: mintAsset,
+          quantity: '1000',
+        },
+      ])
+      .txOut(baseAddress(5), [
+        {
+          unit: "lovelace",
+          quantity: '1000000',
+        },
+        {
+          unit: mockTokenUnit(1),
+          quantity: '100',
+        },
+      ])
+      .mintPlutusScriptV3()
+      .mint("1000", alwaysSucceedHash, "")
+      .mintRedeemerValue("")
+      .mintTxInReference(txHash("tx3"), 0)
+      .selectUtxosFrom(utxosForSelection)
+      .changeAddress(baseAddress(1))
+      .complete();
+    const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
+
+
+    expect(cardanoTx.body().inputs().size()).toEqual(4);
+    expect(cardanoTx.body().outputs().length).toEqual(3);
+
+    const fee = cardanoTx.body().fee();
+    const outputs = cardanoTx.body().outputs();
+    const totalOutput = outputs.reduce((acc, output) => {
+      return acc + output.amount().coin();
+    }, 0n);
+    expect(totalOutput + fee).toEqual(inputValue1 + inputValue2 + inputValue3 + inputValue4);
   });
 
   it('Insufficient funds for token', async () => {
@@ -208,10 +430,8 @@ describe('MeshTxBuilder', () => {
       .complete();
     const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
 
-    // Should have at least 3 outputs: the specified output and change outputs for remaining tokens
     expect(cardanoTx.body().outputs().length).toBeGreaterThanOrEqual(2);
 
-    // Verify change amount is correct
     const outputs = cardanoTx.body().outputs();
     const changeOutput = outputs.find(
       (output) => output.address().toBech32() === baseAddress(2),
