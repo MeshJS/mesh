@@ -1468,13 +1468,12 @@ const setLoveLace = (output: Output, lovelace: bigint): Output => {
 }
 
 const getLovelace = (output: Output): bigint => {
-    for (let asset of output.amount) {
-        if (asset.unit === "lovelace") {
-        return BigInt(asset.quantity);
-        }
+  for (let asset of output.amount) {
+    if (asset.unit === 'lovelace') {
+      return BigInt(asset.quantity);
     }
-
-    return 0n;
-}
+  }
+  return 0n;
+};
 
 export * from "./utils";
