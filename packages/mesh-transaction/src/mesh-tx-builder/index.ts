@@ -1383,14 +1383,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     newBuilder.txHex = this.txHex;
 
-    newBuilder.queriedTxHashes = new Set<string>(this.queriedTxHashes);
+    newBuilder.queriedTxHashes = structuredClone(this.queriedTxHashes);
 
-    newBuilder.queriedUTxOs = JSONBig.parse(
-        JSONBig.stringify(this.queriedUTxOs),
-    );
-    newBuilder.utxosWithRefScripts = JSONBig.parse(
-        JSONBig.stringify(this.utxosWithRefScripts),
-    );
+    newBuilder.queriedUTxOs = structuredClone(this.queriedUTxOs);
+    newBuilder.utxosWithRefScripts = structuredClone(this.utxosWithRefScripts);
 
     return newBuilder;
   }

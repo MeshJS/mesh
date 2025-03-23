@@ -74,6 +74,13 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   expectedByronAddressWitnesses: []
 });
 
+export function cloneTxBuilderBody(body: MeshTxBuilderBody): MeshTxBuilderBody {
+  const { extraInputs, ...otherProps } = body;
+  const cloned = structuredClone(otherProps) as MeshTxBuilderBody;
+  cloned.extraInputs = extraInputs;
+  return cloned;
+}
+
 // Here
 
 export type ValidityRange = {

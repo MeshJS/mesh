@@ -1913,73 +1913,55 @@ export class MeshTxBuilderCore {
     this.refScriptTxInQueueItem = undefined;
   };
 
-  protected _cloneCore<T extends MeshTxBuilderCore>(createInstance: () => T): T {
+  protected _cloneCore<T extends MeshTxBuilderCore>(
+    createInstance: () => T,
+  ): T {
     this.queueAllLastItem();
 
     const newBuilder = createInstance();
 
-    const tmpBody = JSONBig.parse(JSONBig.stringify(this.meshTxBuilderBody));
-    const newMetadataMap = new Map<
-        BigInt | number | string,
-        Metadatum | object
-    >();
-    if (tmpBody.metadata) {
-      for (const [k, v] of Object.entries(tmpBody.metadata) as [
-        string,
-            object | Metadatum,
-      ][]) {
-        const bigKey = (() => {
-          try {
-            return BigInt(k);
-          } catch {
-            return k;
-          }
-        })();
-        newMetadataMap.set(bigKey, v);
-      }
-    }
-    tmpBody.metadata = newMetadataMap;
-    newBuilder.meshTxBuilderBody = tmpBody;
+    newBuilder.meshTxBuilderBody = cloneTxBuilderBody(
+      this.meshTxBuilderBody,
+    );
 
     newBuilder.txEvaluationMultiplier = this.txEvaluationMultiplier;
     newBuilder.txOutput = this.txOutput
-        ? JSONBig.parse(JSONBig.stringify(this.txOutput))
-        : undefined;
+      ? structuredClone(this.txOutput)
+      : undefined;
 
+    // Clone boolean flags
     newBuilder.addingPlutusScriptInput = this.addingPlutusScriptInput;
     newBuilder.plutusSpendingScriptVersion = this.plutusSpendingScriptVersion;
-
     newBuilder.addingPlutusMint = this.addingPlutusMint;
     newBuilder.plutusMintingScriptVersion = this.plutusMintingScriptVersion;
-
     newBuilder.addingPlutusWithdrawal = this.addingPlutusWithdrawal;
     newBuilder.plutusWithdrawalScriptVersion = this.plutusWithdrawalScriptVersion;
 
+    newBuilder.plutusWithdrawalScriptVersion =
+      this.plutusWithdrawalScriptVersion;
     newBuilder.addingPlutusVote = this.addingPlutusVote;
     newBuilder.plutusVoteScriptVersion = this.plutusVoteScriptVersion;
 
-    newBuilder._protocolParams = JSONBig.parse(
-        JSONBig.stringify(this._protocolParams),
-    );
+    newBuilder._protocolParams = structuredClone(this._protocolParams);
 
     newBuilder.mintItem = this.mintItem
-        ? JSONBig.parse(JSONBig.stringify(this.mintItem))
-        : undefined;
+      ? structuredClone(this.mintItem)
+      : undefined;
     newBuilder.txInQueueItem = this.txInQueueItem
-        ? JSONBig.parse(JSONBig.stringify(this.txInQueueItem))
-        : undefined;
+      ? structuredClone(this.txInQueueItem)
+      : undefined;
     newBuilder.withdrawalItem = this.withdrawalItem
-        ? JSONBig.parse(JSONBig.stringify(this.withdrawalItem))
-        : undefined;
+      ? structuredClone(this.withdrawalItem)
+      : undefined;
     newBuilder.voteItem = this.voteItem
-        ? JSONBig.parse(JSONBig.stringify(this.voteItem))
-        : undefined;
+      ? structuredClone(this.voteItem)
+      : undefined;
     newBuilder.collateralQueueItem = this.collateralQueueItem
-        ? JSONBig.parse(JSONBig.stringify(this.collateralQueueItem))
-        : undefined;
+      ? structuredClone(this.collateralQueueItem)
+      : undefined;
     newBuilder.refScriptTxInQueueItem = this.refScriptTxInQueueItem
-        ? JSONBig.parse(JSONBig.stringify(this.refScriptTxInQueueItem))
-        : undefined;
+      ? structuredClone(this.refScriptTxInQueueItem)
+      : undefined;
 
     return newBuilder;
   }
