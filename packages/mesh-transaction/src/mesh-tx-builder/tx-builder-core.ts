@@ -6,6 +6,7 @@ import {
   Asset,
   Budget,
   BuilderData,
+  cloneTxBuilderBody,
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
@@ -1935,8 +1936,6 @@ export class MeshTxBuilderCore {
     newBuilder.addingPlutusMint = this.addingPlutusMint;
     newBuilder.plutusMintingScriptVersion = this.plutusMintingScriptVersion;
     newBuilder.addingPlutusWithdrawal = this.addingPlutusWithdrawal;
-    newBuilder.plutusWithdrawalScriptVersion = this.plutusWithdrawalScriptVersion;
-
     newBuilder.plutusWithdrawalScriptVersion =
       this.plutusWithdrawalScriptVersion;
     newBuilder.addingPlutusVote = this.addingPlutusVote;
