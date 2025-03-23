@@ -30,7 +30,6 @@ import {
   Unit,
   UTxO,
   UtxoSelection,
-  UtxoSelectionStrategy,
   Vote,
   Voter,
   VotingProcedure,
@@ -1451,13 +1450,9 @@ export class MeshTxBuilderCore {
   /**
    * Selects utxos to fill output value and puts them into inputs
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
-   * @param strategy The strategy to be used in utxo selection
-   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output (default to 5000000)
-   * @param includeTxFees Whether to include transaction fees in the threshold (default to true)
    */
   selectUtxosFrom = (
-    extraInputs: UTxO[],
-    strategy: UtxoSelectionStrategy = "experimental",
+    extraInputs: UTxO[]
   ) => {
     for (const input of this.meshTxBuilderBody.inputs) {
       const address = input.txIn.address;
@@ -1470,12 +1465,8 @@ export class MeshTxBuilderCore {
       }
     }
     this.meshTxBuilderBody.extraInputs = extraInputs;
-    const newConfig = {
-      strategy,
-    };
     this.meshTxBuilderBody.selectionConfig = {
       ...this.meshTxBuilderBody.selectionConfig,
-      ...newConfig,
     };
     return this;
   };
