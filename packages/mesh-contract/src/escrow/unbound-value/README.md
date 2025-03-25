@@ -12,7 +12,7 @@ Unbound value is a vulnerability where the hackers can spam the application by p
 
 ## Way of exploit
 
-For the Dapp states transitioning without value length limit, hackers can always spam the utxos to make original contract initiator suffer permanent loss in locked value, in the [escrow example](./validators//escrow.ak), we didn't limit the script output value length in recipient deposit step leadingg to this vulnerability.
+For the Dapp states transitioning without value length limit, hackers can always spam the utxos to make original contract initiator suffer permanent loss in locked value, in the [escrow example](./validators/escrow.ak), we didn't limit the script output value length in recipient deposit step leadingg to this vulnerability.
 
 ```rs
 # No check in output value length
