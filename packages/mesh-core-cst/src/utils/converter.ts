@@ -326,12 +326,12 @@ export const toNativeScript = (script: NativeScript) => {
 export const toValue = (assets: Asset[]) => {
   const multiAsset: TokenMap = new Map();
   assets
-    .filter((asset) => asset.unit !== "lovelace")
+    .filter((asset) => asset.unit !== "lovelace" && asset.unit !== "")
     .forEach((asset) => {
       multiAsset.set(AssetId(asset.unit), BigInt(asset.quantity));
     });
 
-  const lovelace = assets.find((asset) => asset.unit === "lovelace");
+  const lovelace = assets.find((asset) => asset.unit === "lovelace" || asset.unit === "");
   const value = new Value(BigInt(lovelace ? lovelace.quantity : 0));
 
   if (assets.length > 1 || !lovelace) {

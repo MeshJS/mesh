@@ -341,6 +341,9 @@ describe("Build transaction with custom protocol params", () => {
         },
         chainedTxs: [],
         inputsForEvaluation: {},
+        fee: "0",
+        expectedNumberKeyWitnesses: 0,
+        expectedByronAddressWitnesses: [],
       }),
     ).toBeTruthy();
   });

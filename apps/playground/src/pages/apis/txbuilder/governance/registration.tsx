@@ -162,7 +162,7 @@ function Right() {
     txBuilder
       .drepRegistrationCertificate(dRepId, anchor)
       .changeAddress(changeAddress)
-      .selectUtxosFrom(utxos, "keepRelevant", "505000000");
+      .selectUtxosFrom(utxos);
 
     const unsignedTx = await txBuilder.complete();
     const signedTx = await wallet.signTx(unsignedTx);
@@ -187,7 +187,7 @@ function Right() {
   codeSnippet += `    anchorDataHash: anchorHash,\n`;
   codeSnippet += `  })\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;
-  codeSnippet += `  .selectUtxosFrom(utxos, "keepRelevant", "505000000");\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos);\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder.complete();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;

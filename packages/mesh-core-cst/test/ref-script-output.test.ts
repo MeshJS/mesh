@@ -81,6 +81,9 @@ describe("Ref Script output", () => {
         strategy: "experimental",
         includeTxFees: false,
       },
+      fee: "0",
+      expectedNumberKeyWitnesses: 0,
+      expectedByronAddressWitnesses: [],
     };
 
     const txHex = serializer.serializeTxBody(body);

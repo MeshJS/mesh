@@ -6,6 +6,7 @@ import {
   Asset,
   Budget,
   BuilderData,
+  cloneTxBuilderBody,
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
@@ -29,7 +30,6 @@ import {
   Unit,
   UTxO,
   UtxoSelection,
-  UtxoSelectionStrategy,
   Vote,
   Voter,
   VotingProcedure,
@@ -37,6 +37,8 @@ import {
 } from "@meshsdk/common";
 
 import { metadataObjToMap } from "../utils";
+import {Address, CredentialType} from "@meshsdk/core-cst";
+import {HexBlob} from "@cardano-sdk/util";
 
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;
@@ -1448,25 +1450,23 @@ export class MeshTxBuilderCore {
   /**
    * Selects utxos to fill output value and puts them into inputs
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
-   * @param strategy The strategy to be used in utxo selection
-   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output (default to 5000000)
-   * @param includeTxFees Whether to include transaction fees in the threshold (default to true)
    */
   selectUtxosFrom = (
-    extraInputs: UTxO[],
-    strategy: UtxoSelectionStrategy = "experimental",
-    threshold = "5000000",
-    includeTxFees = true,
+    extraInputs: UTxO[]
   ) => {
+    for (const input of this.meshTxBuilderBody.inputs) {
+      const address = input.txIn.address;
+      if (!address) {
+        throw Error("Address is missing from the input");
+      }
+      const decodedAddress = Address.fromString(<HexBlob>address);
+      if (decodedAddress?.getProps().paymentPart?.type !== CredentialType.KeyHash) {
+        throw Error("Only KeyHash address is supported for utxo selection");
+      }
+    }
     this.meshTxBuilderBody.extraInputs = extraInputs;
-    const newConfig = {
-      threshold,
-      strategy,
-      includeTxFees,
-    };
     this.meshTxBuilderBody.selectionConfig = {
       ...this.meshTxBuilderBody.selectionConfig,
-      ...newConfig,
     };
     return this;
   };
@@ -1904,4 +1904,55 @@ export class MeshTxBuilderCore {
     this.collateralQueueItem = undefined;
     this.refScriptTxInQueueItem = undefined;
   };
+
+  protected _cloneCore<T extends MeshTxBuilderCore>(
+    createInstance: () => T,
+  ): T {
+    this.queueAllLastItem();
+
+    const newBuilder = createInstance();
+
+    newBuilder.meshTxBuilderBody = cloneTxBuilderBody(
+      this.meshTxBuilderBody,
+    );
+
+    newBuilder.txEvaluationMultiplier = this.txEvaluationMultiplier;
+    newBuilder.txOutput = this.txOutput
+      ? structuredClone(this.txOutput)
+      : undefined;
+
+    // Clone boolean flags
+    newBuilder.addingPlutusScriptInput = this.addingPlutusScriptInput;
+    newBuilder.plutusSpendingScriptVersion = this.plutusSpendingScriptVersion;
+    newBuilder.addingPlutusMint = this.addingPlutusMint;
+    newBuilder.plutusMintingScriptVersion = this.plutusMintingScriptVersion;
+    newBuilder.addingPlutusWithdrawal = this.addingPlutusWithdrawal;
+    newBuilder.plutusWithdrawalScriptVersion =
+      this.plutusWithdrawalScriptVersion;
+    newBuilder.addingPlutusVote = this.addingPlutusVote;
+    newBuilder.plutusVoteScriptVersion = this.plutusVoteScriptVersion;
+
+    newBuilder._protocolParams = structuredClone(this._protocolParams);
+
+    newBuilder.mintItem = this.mintItem
+      ? structuredClone(this.mintItem)
+      : undefined;
+    newBuilder.txInQueueItem = this.txInQueueItem
+      ? structuredClone(this.txInQueueItem)
+      : undefined;
+    newBuilder.withdrawalItem = this.withdrawalItem
+      ? structuredClone(this.withdrawalItem)
+      : undefined;
+    newBuilder.voteItem = this.voteItem
+      ? structuredClone(this.voteItem)
+      : undefined;
+    newBuilder.collateralQueueItem = this.collateralQueueItem
+      ? structuredClone(this.collateralQueueItem)
+      : undefined;
+    newBuilder.refScriptTxInQueueItem = this.refScriptTxInQueueItem
+      ? structuredClone(this.refScriptTxInQueueItem)
+      : undefined;
+
+    return newBuilder;
+  }
 }
