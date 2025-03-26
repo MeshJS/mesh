@@ -289,9 +289,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Obtain a list of pending deposit transaction ID's.
    */
-  async buildCommits(headers: RawAxiosRequestHeaders = {}) {
-    // todo
-    await this.post("/commits", {}, headers);
+  async buildCommits() {
+    const commits = await this.get("/commits");
+    return commits;
   }
 
   async subscribeCommits() {
