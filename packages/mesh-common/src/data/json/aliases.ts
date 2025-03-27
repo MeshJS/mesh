@@ -126,7 +126,7 @@ export const scriptHash = (bytes: string): ScriptHash => hashByteString(bytes);
  * @param bytes The script hash in hex
  * @returns The Plutus Data script hash object
  */
-export const pubKeyHash = (bytes: string): ScriptHash => hashByteString(bytes);
+export const pubKeyHash = (bytes: string): PubKeyHash => hashByteString(bytes);
 
 /**
  * The utility function to create a Plutus Data policy id in JSON
