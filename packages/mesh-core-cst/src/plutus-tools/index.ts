@@ -1,3 +1,11 @@
+/*
+This file is part of meshjs.dev.
+
+This source code is licensed under the MIT license found in the
+LICENSE file in the root directory of this source tree. See the
+Apache-2.0 License for more details.
+*/
+
 /**
  * MIT License
  *

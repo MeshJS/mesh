@@ -1,3 +1,11 @@
+/*
+This file is part of meshjs.dev.
+
+This source code is licensed under the MIT license found in the
+LICENSE file in the root directory of this source tree. See the
+Apache-2.0 License for more details.
+*/
+
 import { Cardano } from "@cardano-sdk/core";
 import { blake2b } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
