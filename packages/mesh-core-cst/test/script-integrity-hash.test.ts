@@ -138,4 +138,38 @@ describe("ScriptIntegrityHash", () => {
       ),
     );
   });
+
+  it("should calculate the correct hash when there are datums 3", async () => {
+    setInConwayEra(false);
+    const a = Serialization.Transaction;
+    const testDatum = Serialization.PlutusData.fromCbor(HexBlob("d87980"));
+
+    const testRedeemers = Serialization.Redeemers.fromCore([
+      {
+        index: 0,
+        data: Serialization.PlutusData.newBytes(
+          Buffer.from("", "hex"),
+        ).toCore(),
+        purpose: RedeemerPurpose.spend,
+        executionUnits: {
+          memory: 2201,
+          steps: 418163,
+        },
+      },
+    ]);
+
+    const scriptDataHash = hashScriptData(
+      costModels,
+      testRedeemers,
+      Serialization.CborSet.fromCore(
+        [testDatum.toCore()],
+        Serialization.PlutusData.fromCore,
+      ),
+    );
+    expect(scriptDataHash).toEqual(
+      Hash32ByteBase16(
+        "92dc8e163d91890742728c6edb4b17997b6d63d6f8c13143c41779842140e9d3",
+      ),
+    );
+  });
 });
