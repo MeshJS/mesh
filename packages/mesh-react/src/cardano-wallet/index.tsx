@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { IFetcher, ISubmitter } from "@meshsdk/common";
+import { Extension, IFetcher, ISubmitter } from "@meshsdk/common";
 import { InitWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import { Button } from "../common/button";
@@ -27,7 +27,6 @@ interface ButtonProps {
   onConnected?: Function;
   isDark?: boolean;
   persist?: boolean;
-  extensions?: number[];
   injectFn?: () => Promise<void>;
   cardanoPeerConnect?: {
     dAppInfo: {
@@ -54,7 +53,6 @@ export const CardanoWallet = ({
   onConnected = undefined,
   isDark = false,
   persist = false,
-  extensions = [],
   injectFn = undefined,
   cardanoPeerConnect = undefined,
   burnerWallet = undefined,
@@ -99,7 +97,6 @@ export const CardanoWallet = ({
         {screen == "main" && (
           <ScreenMain
             injectFn={injectFn}
-            extensions={extensions}
             setOpen={setOpen}
             setScreen={setScreen}
             persist={persist}

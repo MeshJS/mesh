@@ -1,6 +1,6 @@
 import { createContext, useCallback, useEffect, useState } from "react";
 
-import { IWallet } from "@meshsdk/common";
+import { Extension, IWallet } from "@meshsdk/common";
 import { BrowserWallet } from "@meshsdk/wallet";
 
 interface WalletContext {
@@ -8,11 +8,7 @@ interface WalletContext {
   connectedWalletInstance: IWallet;
   connectedWalletName: string | undefined;
   connectingWallet: boolean;
-  connectWallet: (
-    walletName: string,
-    extensions?: number[],
-    persist?: boolean,
-  ) => Promise<void>;
+  connectWallet: (walletName: string, persist?: boolean) => Promise<void>;
   disconnect: () => void;
   setWallet: (walletInstance: IWallet, walletName: string) => void;
   setPersist: (persist: boolean) => void;
@@ -47,11 +43,12 @@ export const useWalletStore = () => {
   >(INITIAL_STATE.walletName);
 
   const connectWallet = useCallback(
-    async (walletName: string, extensions?: number[], persist?: boolean) => {
+    async (walletName: string, persist?: boolean) => {
       setConnectingWallet(true);
       setState(WalletState.CONNECTING);
 
       try {
+        const extensions = BrowserWallet.getSupportedExtensions(walletName);
         const walletInstance = await BrowserWallet.enable(
           walletName,
           extensions,
