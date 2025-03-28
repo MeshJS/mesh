@@ -42,10 +42,6 @@ function Left() {
   codePersist += `  persist={true}\n`;
   codePersist += `/>\n`;
 
-  let codeCip95 = `<CardanoWallet\n`;
-  codeCip95 += `  extensions={[95]}\n`;
-  codeCip95 += `/>\n`;
-
   let codeBurner = `<CardanoWallet\n`;
   codeBurner += `  burnerWallet={{\n`;
   codeBurner += `    networkId: 0,\n`;
@@ -113,15 +109,6 @@ function Left() {
         The above code will log "Hello, World!" to the console when the wallet
         is connected.
       </p>
-
-      <h3>CIP 95</h3>
-      <p>
-        You can also provide an <code>extensions</code> object to enable
-        specific CIPs. For example, to enable{" "}
-        <Link href="https://cips.cardano.org/cip/CIP-95">CIP-95</Link>, you
-        would pass:
-      </p>
-      <Codeblock data={codeCip95} />
 
       <h3>Decentralized WebRTC dApp-Wallet Communication (CIP 45)</h3>
       <p>

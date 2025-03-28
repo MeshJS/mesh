@@ -25,6 +25,7 @@ import {
   Ed25519PublicKeyHex,
   Hash28ByteBase16,
   HexBlob,
+  hexToBech32,
   resolveTxHash,
   Serialization,
   signData,
@@ -47,6 +48,7 @@ export type Account = {
   pubDRepKey?: string;
   dRepIDBech32?: DRepID;
   dRepIDHash?: Ed25519KeyHashHex;
+  dRepIDCip105?: string;
 };
 
 export type EmbeddedWalletKeyType =
@@ -148,6 +150,7 @@ export class WalletStaticMethods {
     pubDRepKey: string;
     dRepIDBech32: DRepID;
     dRepIDHash: Ed25519KeyHashHex;
+    dRepIDCip105: string;
   } {
     const pubDRepKey = dRepKey.toPublic().hex().toString();
 
@@ -158,10 +161,13 @@ export class WalletStaticMethods {
     const dRep = DRep.newKeyHash(dRepKey.toPublic().hash().hex());
     const dRepIDHash = dRep.toKeyHash()!;
 
+    const dRepIDCip105 = hexToBech32("drep", dRepIDHash);
+
     return {
       pubDRepKey,
       dRepIDBech32,
       dRepIDHash,
+      dRepIDCip105,
     };
   }
 
@@ -190,6 +196,7 @@ export class WalletStaticMethods {
 export class EmbeddedWallet extends WalletStaticMethods {
   private readonly _walletSecret?: string | [string, string];
   private readonly _networkId: number;
+  cryptoIsReady: boolean = false;
 
   constructor(options: CreateEmbeddedWalletOptions) {
     super();
@@ -223,6 +230,7 @@ export class EmbeddedWallet extends WalletStaticMethods {
 
   async init(): Promise<void> {
     await Crypto.ready();
+    this.cryptoIsReady = true;
   }
 
   getAccount(accountIndex = 0, keyIndex = 0): Account {
@@ -255,11 +263,12 @@ export class EmbeddedWallet extends WalletStaticMethods {
     };
 
     if (dRepKey) {
-      const { pubDRepKey, dRepIDBech32, dRepIDHash } =
+      const { pubDRepKey, dRepIDBech32, dRepIDHash, dRepIDCip105 } =
         WalletStaticMethods.getDRepKey(dRepKey, this._networkId);
       _account.pubDRepKey = pubDRepKey;
       _account.dRepIDBech32 = dRepIDBech32;
       _account.dRepIDHash = dRepIDHash;
+      _account.dRepIDCip105 = dRepIDCip105;
     }
 
     return _account;

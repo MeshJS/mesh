@@ -7,6 +7,7 @@ export * from "./block-info";
 export * from "./data";
 export * from "./data-signature";
 export * from "./era";
+export * from "./extension";
 export * from "./message";
 export * from "./mint";
 export * from "./native-script";

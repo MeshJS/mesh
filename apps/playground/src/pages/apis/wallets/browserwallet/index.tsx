@@ -51,7 +51,7 @@ const ReactPage: NextPage = () => {
 
     { label: "Get supported extensions", to: "getSupportedExtensions" },
     { label: "Get extensions", to: "getExtensions" },
-    { label: "Get DRep ID Key", to: "getDRep" },
+    { label: "Get DRep ID", to: "getDRep" },
     { label: "Get registered stakekeys", to: "getRegisteredpubstakekeys" },
     {
       label: "Get unregistered stakekeys",

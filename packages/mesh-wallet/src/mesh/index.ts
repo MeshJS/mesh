@@ -107,6 +107,7 @@ export class MeshWallet implements IWallet {
     pubDRepKey?: string;
     dRepIDBech32?: DRepID;
     dRepIDHash?: Ed25519KeyHashHex;
+    dRepIDCip105?: string;
   } = {};
 
   constructor(options: CreateMeshWalletOptions) {
@@ -168,7 +169,7 @@ export class MeshWallet implements IWallet {
    * @returns void
    */
   async init() {
-    if (this._wallet) {
+    if (this._wallet && !this._wallet.cryptoIsReady) {
       await this._wallet.init();
       this.getAddressesFromWallet(this._wallet);
     }
@@ -190,6 +191,8 @@ export class MeshWallet implements IWallet {
    * @returns a list of assets and their quantities
    */
   async getBalance(): Promise<Asset[]> {
+    await this.init();
+
     const utxos = await this.getUnspentOutputs();
 
     const assets = new Map<string, number>();
@@ -220,14 +223,15 @@ export class MeshWallet implements IWallet {
    *
    * @returns an address
    */
-  async getChangeAddress(addressType: GetAddressType = "payment",): Promise<string> {
-    if(this.addresses.baseAddressBech32 && addressType === "payment") {
+  async getChangeAddress(
+    addressType: GetAddressType = "payment",
+  ): Promise<string> {
+    await this.init();
+
+    if (this.addresses.baseAddressBech32 && addressType === "payment") {
       return this.addresses.baseAddressBech32;
     }
     return this.addresses.enterpriseAddressBech32!;
-    // return this.addresses.baseAddressBech32
-    //   ? this.addresses.baseAddressBech32
-    //   : this.addresses.enterpriseAddressBech32!;
   }
 
   /**
@@ -242,6 +246,8 @@ export class MeshWallet implements IWallet {
   async getCollateral(
     addressType: GetAddressType = "payment",
   ): Promise<UTxO[]> {
+    await this.init();
+
     const utxos = await this.getCollateralUnspentOutput(addressType);
     return utxos.map((utxo, i) => {
       return fromTxUnspentOutput(utxo);
@@ -268,6 +274,8 @@ export class MeshWallet implements IWallet {
   async getCollateralUnspentOutput(
     addressType: GetAddressType = "payment",
   ): Promise<TransactionUnspentOutput[]> {
+    await this.init();
+
     const utxos = await this.getUnspentOutputs(addressType);
 
     // find utxos that are pure ADA-only
@@ -296,7 +304,7 @@ export class MeshWallet implements IWallet {
    * The connected wallet account provides the account's public DRep Key, derivation as described in CIP-0105.
    * These are used by the client to identify the user's on-chain CIP-1694 interactions, i.e. if a user has registered to be a DRep.
    *
-   * @returns wallet account's public DRep Key
+   * @returns DRep object
    */
   async getDRep(): Promise<
     | {
@@ -306,7 +314,19 @@ export class MeshWallet implements IWallet {
       }
     | undefined
   > {
-    console.warn("Not implemented yet");
+    await this.init();
+
+    if (
+      this.addresses.pubDRepKey &&
+      this.addresses.dRepIDHash &&
+      this.addresses.dRepIDCip105
+    )
+      return {
+        publicKey: this.addresses.pubDRepKey,
+        publicKeyHash: this.addresses.dRepIDHash,
+        dRepIDCip105: this.addresses.dRepIDCip105,
+      };
+
     return undefined;
   }
   /**
@@ -378,6 +398,8 @@ export class MeshWallet implements IWallet {
    * @returns a signature
    */
   async signData(payload: string, address?: string): Promise<DataSignature> {
+    await this.init();
+
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -402,6 +424,8 @@ export class MeshWallet implements IWallet {
    * @returns a signed transaction in CBOR
    */
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
+    await this.init();
+
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -436,6 +460,8 @@ export class MeshWallet implements IWallet {
    * @returns array of signed transactions CborHex string
    */
   async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
+    await this.init();
+
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -610,11 +636,13 @@ export class MeshWallet implements IWallet {
     pubDRepKey: string | undefined;
     dRepIDBech32: string | undefined;
     dRepIDHash: string | undefined;
+    dRepIDCip105: string | undefined;
   } {
     return {
       pubDRepKey: this.addresses.pubDRepKey,
       dRepIDBech32: this.addresses.dRepIDBech32,
       dRepIDHash: this.addresses.dRepIDHash,
+      dRepIDCip105: this.addresses.dRepIDCip105,
     };
   }
 
@@ -648,6 +676,7 @@ export class MeshWallet implements IWallet {
       pubDRepKey: account.pubDRepKey,
       dRepIDBech32: account.dRepIDBech32,
       dRepIDHash: account.dRepIDHash,
+      dRepIDCip105: account.dRepIDCip105,
     };
   }
 

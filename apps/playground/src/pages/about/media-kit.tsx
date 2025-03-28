@@ -26,6 +26,8 @@ export default function Media() {
           <Image img="/logo-mesh/white/logo-mesh-white-256x256.png" />
           <Image img="/logo-mesh/white/logo-mesh-white-512x512.png" />
           <Image img="/logo-mesh/mesh.png" />
+          <Image img="/logo-mesh/meshlogo-with-title-white.svg" />
+          <Image img="/logo-mesh/meshlogo-with-title-black.svg" />
         </div>
       </div>
     </>
@@ -37,7 +39,7 @@ function Image({ img }: { img: string }) {
     <>
       <div className="grid max-w-sm content-around justify-around rounded-lg border border-neutral-200 bg-neutral-200 shadow dark:border-neutral-700 dark:bg-neutral-800">
         <Link href={img} target="blank">
-          <img className="h-36 rounded-t-lg" src={img} alt={img} />
+          <img className="h-36 rounded-t-lg object-cover" src={img} alt={img} />
         </Link>
       </div>
     </>
