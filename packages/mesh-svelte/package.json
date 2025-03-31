@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/svelte",
-  "version": "1.9.0-beta.23",
+  "version": "1.9.0-beta.24",
   "description": "Svelte component library - https://meshjs.dev/svelte",
   "type": "module",
   "exports": {
@@ -26,7 +26,7 @@
     "dev": "vite dev"
   },
   "dependencies": {
-    "@meshsdk/core": "1.9.0-beta.23",
+    "@meshsdk/core": "1.9.0-beta.24",
     "bits-ui": "1.0.0-next.65"
   },
   "devDependencies": {
