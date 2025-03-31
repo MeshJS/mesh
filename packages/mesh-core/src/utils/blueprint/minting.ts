@@ -1,4 +1,5 @@
 import {
+  Data,
   IMintingBlueprint,
   LanguageVersion,
   PlutusDataType,
@@ -40,7 +41,7 @@ export class MintingBlueprint implements IMintingBlueprint {
    */
   paramScript(
     compiledCode: string,
-    params: string[],
+    params: object[] | Data[],
     paramsType: PlutusDataType = "Mesh",
   ): this {
     const cbor = applyParamsToScript(compiledCode, params, paramsType);

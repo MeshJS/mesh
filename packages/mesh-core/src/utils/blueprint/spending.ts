@@ -1,4 +1,5 @@
 import {
+  Data,
   ISpendingBlueprint,
   LanguageVersion,
   PlutusDataType,
@@ -57,7 +58,7 @@ export class SpendingBlueprint implements ISpendingBlueprint {
    */
   paramScript(
     compiledCode: string,
-    params: string[],
+    params: object[] | Data[],
     paramsType: PlutusDataType = "Mesh",
   ): this {
     const cbor = applyParamsToScript(compiledCode, params, paramsType);
