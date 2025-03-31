@@ -8,7 +8,7 @@ import {
 } from "./aliases";
 import { ConStr } from "./constructors";
 import { MaybeStakingHash, PubKeyAddress, ScriptAddress } from "./credentials";
-import { AssocMap, Bool, ByteString, Integer, List } from "./primitives";
+import { AssocMap, Bool, ByteString, Integer, List, Pairs } from "./primitives";
 
 export type PlutusData =
   | ConStr
@@ -17,6 +17,7 @@ export type PlutusData =
   | Integer
   | List
   | AssocMap
+  | Pairs
   | MaybeStakingHash
   | PubKeyAddress
   | ScriptAddress
