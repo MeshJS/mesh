@@ -1,4 +1,5 @@
 import {
+  Data,
   IWithdrawalBlueprint,
   LanguageVersion,
   PlutusDataType,
@@ -21,25 +22,19 @@ import { resolveScriptHash } from "../resolver";
  * const scriptCbor = blueprint.cbor;
  * const rewardAddress = blueprint.address;
  */
-class WithdrawalBlueprint implements IWithdrawalBlueprint {
+export class WithdrawalBlueprint implements IWithdrawalBlueprint {
   version: LanguageVersion;
   networkId: number;
   cbor: string;
   hash: string;
   address: string;
-  isStakeScriptCredential: boolean;
 
-  constructor(
-    version: LanguageVersion,
-    networkId: number,
-    isStakeScriptCredential = false,
-  ) {
+  constructor(version: LanguageVersion, networkId: number) {
     this.version = version;
     this.networkId = networkId;
     this.cbor = "";
     this.hash = "";
     this.address = "";
-    this.isStakeScriptCredential = isStakeScriptCredential;
   }
 
   /**
@@ -51,16 +46,12 @@ class WithdrawalBlueprint implements IWithdrawalBlueprint {
    */
   paramScript(
     compiledCode: string,
-    params: string[],
+    params: object[] | Data[],
     paramsType: PlutusDataType = "Mesh",
   ): this {
     const cbor = applyParamsToScript(compiledCode, params, paramsType);
     const hash = resolveScriptHash(cbor, this.version);
-    this.address = serializeRewardAddress(
-      hash,
-      this.isStakeScriptCredential,
-      this.networkId as 0 | 1,
-    );
+    this.address = serializeRewardAddress(hash, true, this.networkId as 0 | 1);
     this.hash = hash;
     this.cbor = cbor;
     return this;

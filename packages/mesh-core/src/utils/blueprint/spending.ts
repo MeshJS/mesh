@@ -1,4 +1,5 @@
 import {
+  Data,
   ISpendingBlueprint,
   LanguageVersion,
   PlutusDataType,
@@ -24,7 +25,7 @@ import {
  * const scriptCbor = blueprint.cbor;
  * const scriptAddress = blueprint.address;
  */
-class SpendingBlueprint implements ISpendingBlueprint {
+export class SpendingBlueprint implements ISpendingBlueprint {
   version: LanguageVersion;
   networkId: number;
   cbor: string;
@@ -57,7 +58,7 @@ class SpendingBlueprint implements ISpendingBlueprint {
    */
   paramScript(
     compiledCode: string,
-    params: string[],
+    params: object[] | Data[],
     paramsType: PlutusDataType = "Mesh",
   ): this {
     const cbor = applyParamsToScript(compiledCode, params, paramsType);

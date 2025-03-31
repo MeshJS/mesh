@@ -33,9 +33,22 @@ export type List<T = any> = { list: T[] };
 export type AssocMapItem<K, V> = { k: K; v: V };
 
 /**
+ * PlutusTx alias
  * The Plutus Data association map in JSON
  */
 export type AssocMap<K = any, V = any> = { map: AssocMapItem<K, V>[] };
+
+/**
+ * Aiken alias
+ * The Plutus Data association map item in JSON
+ */
+export type Pair<K, V> = { k: K; v: V };
+
+/**
+ * Aiken alias
+ * The Plutus Data association map in JSON
+ */
+export type Pairs<K = any, V = any> = { map: Pair<K, V>[] };
 
 /**
  * The utility function to create a Plutus Data boolean in JSON
@@ -141,6 +154,28 @@ export const assocMap = <K, V>(
   mapItems: [K, V][],
   validation = true,
 ): AssocMap<K, V> => ({
+  map: mapItems.map(([k, v]) => {
+    if (validation) {
+      if (typeof k !== "object" || typeof v !== "object") {
+        throw new Error(
+          `Map item of JSON Cardano data type must be an object - ${k}, ${v}`,
+        );
+      }
+    }
+    return { k, v };
+  }),
+});
+
+/**
+ * The utility function to create a Plutus Data Pairs in JSON
+ * @param mapItems The items map in array
+ * @param validation Default true - If current data construction would perform validation (introducing this flag due to possible performance issue in loop validation)
+ * @returns The Plutus Data Pairs object
+ */
+export const pairs = <K, V>(
+  mapItems: [K, V][],
+  validation = true,
+): Pairs<K, V> => ({
   map: mapItems.map(([k, v]) => {
     if (validation) {
       if (typeof k !== "object" || typeof v !== "object") {
