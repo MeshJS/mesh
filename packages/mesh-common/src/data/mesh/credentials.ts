@@ -1,28 +1,52 @@
-import { Data } from "../../types";
 import { mConStr0, MConStr0, mConStr1, MConStr1 } from "./constructors";
+
+/**
+ * The Mesh Data verification key
+ */
+export type MVerificationKey = MConStr0<[string]>;
+
+/**
+ * The Mesh Data script key
+ */
+export type MScript = MConStr1<[string]>;
 
 /**
  * The Mesh Data staking credential
  */
 export type MMaybeStakingHash =
   | MConStr1<[]>
-  | MConStr0<[MConStr0<[MConStr0<[string]>]>]>
-  | MConStr0<[MConStr0<[MConStr1<[string]>]>]>;
+  | MConStr0<[MConStr0<[MVerificationKey]>]>
+  | MConStr0<[MConStr0<[MScript]>]>;
 
 /**
  * The Mesh Data public key address
  */
-export type MPubKeyAddress = MConStr0<[MConStr0<[string]>, MMaybeStakingHash]>;
+export type MPubKeyAddress = MConStr0<[MVerificationKey, MMaybeStakingHash]>;
 
 /**
  * The Mesh Data script address
  */
-export type MScriptAddress = MConStr0<[MConStr1<[string]>, MMaybeStakingHash]>;
+export type MScriptAddress = MConStr0<[MScript, MMaybeStakingHash]>;
 
 /**
  * The Mesh Data credential
  */
-export type MCredential = MConStr0<[string]> | MConStr1<[string]>;
+export type MCredential = MVerificationKey | MScript;
+
+/**
+ * The utility function to create a Mesh Data verification key
+ * @param bytes The public key hash in hex
+ * @returns The Mesh Data verification key object
+ */
+export const mVerificationKey = (bytes: string): MVerificationKey =>
+  mConStr0([bytes]);
+
+/**
+ * The utility function to create a Mesh Data script key
+ * @param bytes The script hash in hex
+ * @returns The Mesh Data script key object
+ */
+export const mScript = (bytes: string): MScript => mConStr1([bytes]);
 
 /**
  * The utility function to create a Mesh Data staking hash
@@ -38,12 +62,12 @@ export const mMaybeStakingHash = (
     return mConStr1<[]>([]);
   }
   if (isStakeScriptCredential) {
-    return mConStr0([mConStr0([mConStr1([stakeCredential])])]) as MConStr0<
-      [MConStr0<[MConStr1<[string]>]>]
+    return mConStr0([mConStr0([mScript(stakeCredential)])]) as MConStr0<
+      [MConStr0<[MScript]>]
     >;
   }
-  return mConStr0([mConStr0([mConStr0([stakeCredential])])]) as MConStr0<
-    [MConStr0<[MConStr0<[string]>]>]
+  return mConStr0([mConStr0([mVerificationKey(stakeCredential)])]) as MConStr0<
+    [MConStr0<[MVerificationKey]>]
   >;
 };
 
@@ -90,4 +114,4 @@ export const mScriptAddress = (
 export const mCredential = (
   hash: string,
   isScriptCredential = false,
-): MCredential => (isScriptCredential ? mConStr1([hash]) : mConStr0([hash]));
+): MCredential => (isScriptCredential ? mScript(hash) : mVerificationKey(hash));
