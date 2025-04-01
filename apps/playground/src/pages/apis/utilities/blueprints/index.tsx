@@ -2,43 +2,37 @@ import type { NextPage } from "next";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
-import Metatags from "~/components/site/metatags";
 
-// import { metaDeserializers } from "~/data/links-utilities";
+import { metaBluePrints } from "~/data/links-utilities";
 
-// import DeserializeAddress from "./deserialize-address";
-// import DeserializeDatum from "./deserialize-datum";
-// import DeserializePoolId from "./deserialize-poolid";
+
+import SpendingBluePrint from "./spending";
+import MintingBluePrint from "./minting";
+import WithdrawalBluePrint from "./withdrawal";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
-    // { label: "Deserialize Address", to: "deserializeAddress" },
-    // { label: "Deserialize Datum", to: "deserializeDatum" },
-    // { label: "Deserialize Pool Id", to: "deserializePoolId" },
+    {label: "Spending Script Blueprint", to: "SpendingScriptBlueprint" },
+    {label: "Minting Script Blueprint", to: "MintingScriptBlueprint" },
+    {label: "Withdrawal Script Blueprint", to: "WithdrawalScriptBlueprint" },
   ];
 
   return (
     <>
-      {/* <Metatags
-        title={metaDeserializers.title}
-        description={metaDeserializers.desc}
-      /> */}
       <SidebarFullwidth sidebarItems={sidebarItems}>
-        <></>
-        {/* <TitleIconDescriptionBody
-          title={metaDeserializers.title}
-          description={metaDeserializers.desc}
-          heroicon={metaDeserializers.icon}
+        <TitleIconDescriptionBody
+        title={metaBluePrints.title}
+        description={metaBluePrints.desc}
+        heroicon={metaBluePrints.icon}
         >
           <></>
-        </TitleIconDescriptionBody> */}
+        </TitleIconDescriptionBody> 
 
-        {/* <DeserializeAddress />
-        <DeserializeDatum />
-        <DeserializePoolId /> */}
+        <WithdrawalBluePrint />
+        <MintingBluePrint />
+        <SpendingBluePrint />
       </SidebarFullwidth>
     </>
   );
 };
-
 export default ReactPage;
