@@ -29,11 +29,20 @@ export const metaDeserializers = {
   icon: ArrowTurnRightUpIcon,
 };
 
+export const metaBluePrints = {
+  title: "Blueprints",
+  desc:  "Blueprints for script with either apply parameters or no parameters",
+  link: "/apis/utilities/blueprints",
+  icon: ArrowTurnRightDownIcon
+}
+
+
 export const linksUtilities: MenuItem[] = [
   metaSerializers,
   metaDeserializers,
   metaResolvers,
   metaData,
+  metaBluePrints,
 ];
 
 export const metaUtilities = {
