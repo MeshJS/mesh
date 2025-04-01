@@ -28,9 +28,10 @@ const ReactPage: NextPage = () => {
           <></>
         </TitleIconDescriptionBody> 
 
-        <WithdrawalBluePrint />
-        <MintingBluePrint />
+
         <SpendingBluePrint />
+        <MintingBluePrint />
+        <WithdrawalBluePrint />
       </SidebarFullwidth>
     </>
   );
