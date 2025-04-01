@@ -6,9 +6,9 @@ import TitleIconDescriptionBody from "~/components/sections/title-icon-descripti
 import { metaBluePrints } from "~/data/links-utilities";
 
 
-import SpendingBluePrint from "./spending";
-import MintingBluePrint from "./minting";
-import WithdrawalBluePrint from "./withdrawal";
+import SpendingBluePrint from "./spending-blueprint";
+import MintingBluePrint from "./minting-blueprint";
+import WithdrawalBluePrint from "./withdrawal-blueprint";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
