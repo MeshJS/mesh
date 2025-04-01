@@ -1,111 +1,121 @@
-
-
-import { mPubKeyAddress,resolveScriptHash, SpendingBlueprint } from "@meshsdk/core";
 import { MeshMarketplaceContract } from "@meshsdk/contract";
+import {
+  mPubKeyAddress,
+  resolveScriptHash,
+  SpendingBlueprint,
+} from "@meshsdk/core";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import { compiledCode } from "~/pages/aiken/common";
 import { demoPubKeyHash, demoStakeCredential } from "~/data/cardano";
+import { compiledCode } from "~/pages/aiken/common";
 
 const demoCompiledCode = MeshMarketplaceContract.getCompiledCode();
-const stakeHash = resolveScriptHash(demoCompiledCode,"V2");
+const stakeHash = resolveScriptHash(demoCompiledCode, "V2");
 
-
-export default function SpendingBluePrint(){
-    return(
-        <TwoColumnsScroll
-           sidebarTo="spendingbluePrint"
-           title="Spending Script Blueprint"
-           leftSection={left()}
-           rightSection={right()}
-           />
-    );
+export default function SpendingBluePrint() {
+  return (
+    <TwoColumnsScroll
+      sidebarTo="spendingbluePrint"
+      title="Spending Script Blueprint"
+      leftSection={left()}
+      rightSection={right()}
+    />
+  );
 }
 
-
-function left(){
-    return(
-        <>
-         <p> 
-         Spending Script Blueprint object returns Script Hash, Script Cbor and Script Address.          </p>
-        </>
-    );
+function left() {
+  return (
+    <>
+      <p>
+        <code>SpendingBlueprint</code> is a class for handling spending
+        blueprint particularly. You can provide <code>plutusVersion</code>,{" "}
+        <code>networkId</code> and the potential <code>stakeKeyHasha</code> for
+        the spending validator address to initialized the class. After that,
+        providing the <code>compiledCode</code> and parameters to finish the
+        setup. The class then provide easy access to common script information:
+      </p>
+      <ul>
+        <li>Script Hash</li>
+        <li>Script Cbor</li>
+        <li>Script Address</li>
+      </ul>
+    </>
+  );
 }
 
-function right(){
-    return (
-        <>
-        <BlueprintApplyParamDemo />
-        <BlueprintNoParamDemo />
-       </>
+function right() {
+  return (
+    <>
+      <BlueprintApplyParamDemo />
+      <BlueprintNoParamDemo />
+    </>
+  );
+}
+
+function BlueprintApplyParamDemo() {
+  async function runDemo() {
+    const bluePrint = new SpendingBlueprint("V2", 0, stakeHash);
+    bluePrint.paramScript(
+      compiledCode,
+      [mPubKeyAddress(demoPubKeyHash, demoStakeCredential), 100],
+      "Mesh",
     );
-};
+    const scriptHash = bluePrint.hash;
+    const scriptCbor = bluePrint.cbor;
+    const scriptAddress = bluePrint.address;
 
-function BlueprintApplyParamDemo(){
-    async function runDemo(){
+    return { scriptHash, scriptCbor, scriptAddress };
+  }
 
-        const bluePrint =  new SpendingBlueprint("V2", 0 , stakeHash);
-        bluePrint.paramScript(
-            compiledCode,
-            [mPubKeyAddress(demoPubKeyHash,demoStakeCredential), 100],
-            "Mesh",
-        )
-        const scriptHash = bluePrint.hash;
-        const scriptCbor = bluePrint.cbor;
-        const scriptAddress = bluePrint.address;
+  let codeSnippet = ``;
+  codeSnippet += `import { SpendingBlueprint } from "@meshsdk/core";\n`;
+  codeSnippet += `const stakeHash = resolveScriptHash( demoCompiledCode ,"V2");\n\n`;
+  codeSnippet += `const bluePrint =  new SpendingBlueprint("V2", 0 , stakeHash);\n`;
+  codeSnippet += `       bluePrint.paramScript('<compiled_script_here>',\n`;
+  codeSnippet += `       [pubKeyAddress(demoPubKeyHash ,demoStakeCredential)],\n`;
+  codeSnippet += `       "Mesh", //Mesh data type \n\n`;
+  codeSnippet += ` const scriptHash = bluePrint.hash;\n`;
+  codeSnippet += ` const scriptCbor = bluePrint.cbor;\n`;
+  codeSnippet += ` const scriptAddress = bluePrint.address;\n`;
+  codeSnippet += `);\n`;
 
-        return {scriptHash, scriptCbor, scriptAddress};
-    };
-  
-    let codeSnippet = ``;
-    codeSnippet += `import { SpendingBlueprint } from "@meshsdk/core";\n`;
-    codeSnippet += `const stakeHash = resolveScriptHash( demoCompiledCode ,"V2");\n\n`;
-    codeSnippet += `const bluePrint =  new SpendingBlueprint("V2", 0 , stakeHash);\n`;
-    codeSnippet += `       bluePrint.paramScript('<compiled_script_here>',\n`;
-    codeSnippet += `       [pubKeyAddress(demoPubKeyHash ,demoStakeCredential)],\n`;
-    codeSnippet += `       "Mesh", //Mesh data type \n\n`;
-    codeSnippet += ` const scriptHash = bluePrint.hash;\n`;
-    codeSnippet += ` const scriptCbor = bluePrint.cbor;\n`;
-    codeSnippet += ` const scriptAddress = bluePrint.address;\n`;
-    codeSnippet += `);\n`;
+  return (
+    <LiveCodeDemo
+      title="Spending Script Blueprint - Apply parameter to script "
+      subtitle="Creates a spending script blueprint with apply parameter to script."
+      code={codeSnippet}
+      runCodeFunction={runDemo}
+    ></LiveCodeDemo>
+  );
+}
 
-    return (
-        <LiveCodeDemo
-        title="Spending Script Blueprint - Apply parameter to script "
-        subtitle="Creates a spending script blueprint with apply parameter to script."
-        code={codeSnippet}
-        runCodeFunction={runDemo}
-        ></LiveCodeDemo>
-    );
-};
+function BlueprintNoParamDemo() {
+  async function runDemo() {
+    const bluePrint = new SpendingBlueprint("V2", 0, stakeHash);
+    bluePrint.noParamScript(demoCompiledCode);
 
-function BlueprintNoParamDemo(){
-    async function runDemo(){
-        const bluePrint = new SpendingBlueprint("V2", 0 , stakeHash);
-        bluePrint.noParamScript(demoCompiledCode);
-        
-       const scriptHash   =   bluePrint.hash;
-       const scriptCbor =   bluePrint.cbor;
-       const scriptAddress = bluePrint.address;
+    const scriptHash = bluePrint.hash;
+    const scriptCbor = bluePrint.cbor;
+    const scriptAddress = bluePrint.address;
 
-    return  {scriptHash,scriptCbor,scriptAddress};
-    };
+    return { scriptHash, scriptCbor, scriptAddress };
+  }
 
-    let codeSnippet = ``
-    codeSnippet += `const bluePrint = new SpendingBlueprint("V2", 0 , stakeHash);\n`
-    codeSnippet += `   bluePrint.noParamScript(demoCompiledCode);\n\n`;
-    codeSnippet += ` const scriptHash = bluePrint.hash;\n`;
-    codeSnippet += ` const scriptCbor = bluePrint.cbor;\n`;
-    codeSnippet += ` const scriptAddress = bluePrint.address;\n`;
-    codeSnippet += `);\n`;
+  let codeSnippet = ``;
+  codeSnippet += `const bluePrint = new SpendingBlueprint("V2", 0 , stakeHash);\n`;
+  codeSnippet += `   bluePrint.noParamScript(demoCompiledCode);\n\n`;
+  codeSnippet += ` const scriptHash = bluePrint.hash;\n`;
+  codeSnippet += ` const scriptCbor = bluePrint.cbor;\n`;
+  codeSnippet += ` const scriptAddress = bluePrint.address;\n`;
+  codeSnippet += `);\n`;
 
-    return (
-        <LiveCodeDemo
-        title="Spending Script blueprint - no parameter to script"
-        subtitle="Creates a spending script blueprint with no parameter to script."
-        runCodeFunction={runDemo}
-        code={codeSnippet}
-        ></LiveCodeDemo>
-    );
-;}
+  return (
+    <LiveCodeDemo
+      title="Spending Script blueprint - no parameter to script"
+      subtitle="Creates a spending script blueprint with no parameter to script."
+      runCodeFunction={runDemo}
+      code={codeSnippet}
+    ></LiveCodeDemo>
+  );
+}
