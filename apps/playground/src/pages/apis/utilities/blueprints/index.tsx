@@ -9,9 +9,9 @@ import WithdrawalBluePrint from "./withdrawal-blueprint";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
-    { label: "Spending Script Blueprint", to: "SpendingScriptBlueprint" },
-    { label: "Minting Script Blueprint", to: "MintingScriptBlueprint" },
-    { label: "Withdrawal Script Blueprint", to: "WithdrawalScriptBlueprint" },
+    { label: "Spending Script Blueprint", to: "spendingScriptbluePrint" },
+    { label: "Minting Script Blueprint", to: "mintingScriptBlueprint" },
+    { label: "Withdrawal Script Blueprint", to: "withdrawalScriptBlueprint" },
   ];
 
   return (
