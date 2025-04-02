@@ -13,7 +13,7 @@ const demoCompiledCode = MeshMarketplaceContract.getCompiledCode();
 export default function WithdrawalBluePrint(){
     return(
         <TwoColumnsScroll
-        sidebarTo="withdrawalScriptBlueprint"
+        sidebarTo="mintingScriptBlueprint"
         title="Withdrawal Script Blueprint"
         leftSection={left()}
         rightSection={right()}
