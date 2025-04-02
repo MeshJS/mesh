@@ -40,9 +40,22 @@ function left() {
         <li>Script Cbor</li>
         <li>Script Address</li>
       </ul>
+        <br />
+        <br />
+        <br />
+        <br />
+        <br />
+        <br />
+        <br />
+      <p>
+            A Spending validator with no parameter, allows to provides only the 
+            <code>compiledCode</code> instead.
+        </p>
+      </>
+    );
     </>
   );
-}
+};
 
 function right() {
   return (
@@ -66,19 +79,19 @@ function BlueprintApplyParamDemo() {
     const scriptAddress = bluePrint.address;
 
     return { scriptHash, scriptCbor, scriptAddress };
-  }
+   };
 
   let codeSnippet = ``;
   codeSnippet += `import { SpendingBlueprint } from "@meshsdk/core";\n`;
   codeSnippet += `const stakeHash = resolveScriptHash( demoCompiledCode ,"V2");\n\n`;
   codeSnippet += `const bluePrint =  new SpendingBlueprint("V2", 0 , stakeHash);\n`;
-  codeSnippet += `       bluePrint.paramScript('<compiled_script_here>',\n`;
+  codeSnippet += `bluePrint.paramScript('<compiled_script_here>',\n`;
   codeSnippet += `       [pubKeyAddress(demoPubKeyHash ,demoStakeCredential)],\n`;
-  codeSnippet += `       "Mesh", //Mesh data type \n\n`;
-  codeSnippet += ` const scriptHash = bluePrint.hash;\n`;
-  codeSnippet += ` const scriptCbor = bluePrint.cbor;\n`;
-  codeSnippet += ` const scriptAddress = bluePrint.address;\n`;
-  codeSnippet += `);\n`;
+  codeSnippet += `       "Mesh"), //Mesh data type \n\n`;
+  codeSnippet += `const scriptHash = bluePrint.hash;\n`;
+  codeSnippet += `const scriptCbor = bluePrint.cbor;\n`;
+  codeSnippet += `const scriptAddress = bluePrint.address;\n`;
+  codeSnippet += `\n`;
 
   return (
     <LiveCodeDemo
@@ -88,7 +101,7 @@ function BlueprintApplyParamDemo() {
       runCodeFunction={runDemo}
     ></LiveCodeDemo>
   );
-}
+};
 
 function BlueprintNoParamDemo() {
   async function runDemo() {
@@ -100,15 +113,15 @@ function BlueprintNoParamDemo() {
     const scriptAddress = bluePrint.address;
 
     return { scriptHash, scriptCbor, scriptAddress };
-  }
+  };
 
   let codeSnippet = ``;
   codeSnippet += `const bluePrint = new SpendingBlueprint("V2", 0 , stakeHash);\n`;
-  codeSnippet += `   bluePrint.noParamScript(demoCompiledCode);\n\n`;
-  codeSnippet += ` const scriptHash = bluePrint.hash;\n`;
-  codeSnippet += ` const scriptCbor = bluePrint.cbor;\n`;
-  codeSnippet += ` const scriptAddress = bluePrint.address;\n`;
-  codeSnippet += `);\n`;
+  codeSnippet += `bluePrint.noParamScript(demoCompiledCode);\n\n`;
+  codeSnippet += `const scriptHash = bluePrint.hash;\n`;
+  codeSnippet += `const scriptCbor = bluePrint.cbor;\n`;
+  codeSnippet += `const scriptAddress = bluePrint.address;\n`;
+  codeSnippet += `\n`;
 
   return (
     <LiveCodeDemo
@@ -118,4 +131,4 @@ function BlueprintNoParamDemo() {
       code={codeSnippet}
     ></LiveCodeDemo>
   );
-}
+};
