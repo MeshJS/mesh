@@ -74,7 +74,7 @@ function BlueprintApplyParamDemo(){
       codeSnippet += `const blueprint = new MintingBluePrint("V2");\n`;
       codeSnippet += `blueprint.paramScript('<compiled_script_here>',\n`;
       codeSnippet += `          [mPubKeyAddress('${demoPubKeyHash}' , '${demoStakeCredential}'), 100],\n`;
-      codeSnippet += `          "Mesh" )//Mesh data type \n\n`;
+      codeSnippet += `          "Mesh" );//Mesh data type \n\n`;
       codeSnippet += `const policyId = blueprint.hash;\n`
       codeSnippet += `const scriptCbor = blueprint.cbor\n`
 
