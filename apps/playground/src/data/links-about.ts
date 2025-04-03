@@ -1,4 +1,4 @@
-import { FilmIcon, HeartIcon } from "@heroicons/react/24/solid";
+import { FilmIcon, HeartIcon, PaintBrushIcon } from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
 import { metaCatalyst } from "./catalyst";
@@ -21,10 +21,16 @@ export const metaMediaKit = {
   desc: "Choose from these logo files. These resources exist to help you use Mesh's assets.",
   icon: FilmIcon,
 };
+export const metaBranding = {
+  link: `/about/branding`,
+  title: "Branding",
+  desc: "These resources exist to help you use Mesh's assets.",
+  icon: PaintBrushIcon,
+};
 
 export const linksAbout: MenuItem[] = [
   metaAboutUs,
   metaCatalyst,
   metaSupportUs,
-  metaMediaKit,
+  metaBranding,
 ];
