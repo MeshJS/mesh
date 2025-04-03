@@ -51,7 +51,11 @@ export default function ScreenMain({
         ))}
 
         {web3Services && (
-          <Web3Services options={web3Services} setOpen={setOpen} />
+          <Web3Services
+            options={web3Services}
+            setOpen={setOpen}
+            persist={persist}
+          />
         )}
 
         {webauthn && (

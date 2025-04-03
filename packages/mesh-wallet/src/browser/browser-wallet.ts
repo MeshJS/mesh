@@ -131,7 +131,6 @@ export class BrowserWallet implements IWallet {
     extensions: Extension[] = [],
   ): Promise<BrowserWallet> {
     try {
-      console.log(3, "extensions", extensions);
       const walletInstance = await BrowserWallet.resolveInstance(
         walletName,
         extensions,

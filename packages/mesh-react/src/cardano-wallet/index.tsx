@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { Extension, IFetcher, ISubmitter } from "@meshsdk/common";
+import { IFetcher, ISubmitter } from "@meshsdk/common";
 import { InitWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import { Button } from "../common/button";
@@ -62,11 +62,12 @@ export const CardanoWallet = ({
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState("main");
-  const { wallet, connected, setPersist } = useWallet();
+  const { wallet, connected, setPersist, setWeb3Services } = useWallet();
 
   useEffect(() => {
     setPersist(persist);
-  }, [persist]);
+    if (web3Services) setWeb3Services(web3Services);
+  }, []);
 
   useEffect(() => {
     if (connected) {

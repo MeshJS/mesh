@@ -19,7 +19,7 @@ export default function Link({
   return (
     <NextLink
       href={href}
-      className={`${className} ${typeof children == "string" && "text-black no-underline hover:underline"} `}
+      className={`${className} ${typeof children == "string" && "text-gray-900 no-underline hover:underline dark:text-gray-100"} `}
       target={target ? target : href.startsWith("http") ? "_blank" : "_self"}
       rel="noreferrer"
     >

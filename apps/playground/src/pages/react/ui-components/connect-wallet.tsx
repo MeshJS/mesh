@@ -53,6 +53,15 @@ function Left() {
   codeMetamask += `  injectFn={async () => await checkIfMetamaskInstalled("preprod")}\n`;
   codeMetamask += `/>\n`;
 
+  let codeWeb3Services = `const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');\n\n`;
+  codeWeb3Services += `<CardanoWallet\n`;
+  codeWeb3Services += `  web3Services={{\n`;
+  codeWeb3Services += `    networkId: 0,\n`;
+  codeWeb3Services += `    fetcher: provider,\n`;
+  codeWeb3Services += `    submitter: provider,\n`;
+  codeWeb3Services += `  }}\n`;
+  codeWeb3Services += `/>\n`;
+
   return (
     <>
       <p>
@@ -109,6 +118,20 @@ function Left() {
         The above code will log "Hello, World!" to the console when the wallet
         is connected.
       </p>
+
+      <h3>Mesh Web3 Services</h3>
+      <p>
+        <Link href="https://web3.meshjs.dev/">Mesh Web3 Services</Link>{" "}
+        streamline user onboarding and on-chain feature integration,
+        accelerating your app's time to market.
+      </p>
+      <p>
+        To integrate Mesh Web3 Services, use the <code>web3Services</code> prop.
+        The <code>networkId</code> is the network ID of the wallet you are
+        connecting to. You may use any <Link href="/providers">providers</Link>{" "}
+        for <code>fetcher</code> and <code>submitter</code>.
+      </p>
+      <Codeblock data={codeWeb3Services} />
 
       <h3>Decentralized WebRTC dApp-Wallet Communication (CIP 45)</h3>
       <p>
