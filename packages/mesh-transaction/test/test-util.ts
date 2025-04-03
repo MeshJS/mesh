@@ -10,3 +10,9 @@ export const alwaysSucceedCbor = applyCborEncoding(
 );
 
 export const alwaysSucceedHash = resolveScriptHash(alwaysSucceedCbor, "V3");
+
+export const alwaysFailCbor = applyCborEncoding(
+  "5001010023259800b452689b2b20025735",
+);
+
+export const alwaysFailHash = resolveScriptHash(alwaysFailCbor, "V3");
