@@ -22,7 +22,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <header>
             <Navbar />
           </header>
-          <main className="bg-white pt-16 dark:bg-neutral-900">
+          <main className="bg-white pt-16 dark:bg-neutral-900 font-sans">
             <Component {...pageProps} />
           </main>
           <Footer />
