@@ -8,7 +8,7 @@ import {
   resolveScriptHash,
   resolveScriptHashDRepId,
 } from "@meshsdk/core";
-import { resolvePlutusScriptAddress } from "@meshsdk/core-cst";
+import { resolvePlutusScriptAddress, Serialization } from "@meshsdk/core-cst";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
 describe("MeshTxBuilder transactions", () => {
@@ -51,7 +51,10 @@ describe("MeshTxBuilder transactions", () => {
       )
       .setFee("5000000")
       .completeSync();
-
+    const cardanoTx = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(txHex),
+    );
+    expect(cardanoTx.body().fee().toString()).toBe("5000000");
     expect(txHex !== "").toBeTruthy();
   });
 
