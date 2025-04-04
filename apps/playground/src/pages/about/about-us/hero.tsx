@@ -4,7 +4,7 @@ export default function AboutHero() {
       <div className="z-1 relative mx-auto max-w-screen-xl px-4 py-8 text-white lg:py-16">
         <div className="mb-6 max-w-screen-lg lg:mb-0">
           <h1 className="mb-4 text-4xl font-extrabold leading-none tracking-tight md:text-5xl lg:text-6xl">
-            We advance the Cardano's tech stack
+            We advance the Web3 tech stack
           </h1>
           <p className="mb-6 font-light text-neutral-400 md:text-lg lg:mb-8 lg:text-xl">
             Get started building blockchain applications with our
