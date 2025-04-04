@@ -669,4 +669,75 @@ describe("MeshTxBuilder transactions", () => {
 
     expect(txHex !== "").toBeTruthy();
   });
+
+  it("test", async () => {
+    let mesh = new MeshTxBuilder();
+    const txHex = await mesh.complete({
+      inputs: [
+        {
+          type: "PubKey",
+          txIn: {
+            txHash:
+              "99acc8beeed1d17c3823ed683eb1ae92372b6301b165c622ea5ee7c93a61654a",
+            txIndex: 0,
+            amount: [{ unit: "lovelace", quantity: "100000000" }],
+            address:
+              "addr_test1qpgzv6fytsl7fg4htxkvrlhq83ytmx6wryh0rzrmvs9asqrvawkzn6eqgpekwadfakznxj70tzepz54g0ppfqyuzefnq7lcxng",
+            scriptSize: 0,
+          },
+        },
+      ],
+      outputs: [
+        {
+          address:
+            "addr_test1wql6cyymfrmqe9cjeyfh5d4h945nfszy3yup8d74kkrhsks4dkk0y",
+          amount: [{ unit: "lovelace", quantity: "3000000" }],
+          datum: {
+            type: "Inline",
+            data: {
+              type: "JSON",
+              content: `{"constructor":0,"fields":[{"bytes":"547261646546756e644944313233"},{"constructor":0,"fields":[{"constructor":0,"fields":[{"bytes":"502669245c3fe4a2b759acc1fee03c48bd9b4e192ef1887b640bd800"}]},{"constructor":0,"fields":[{"constructor":0,"fields":[{"constructor":0,"fields":[{"bytes":"6cebac29eb2040736775a9ed85334bcf58b21152a87842901382ca66"}]}]}]}]},{"map":[{"k":{"bytes":""},"v":{"map":[{"k":{"bytes":""},"v":{"int":3000000}}]}}]}]}`,
+            },
+          },
+        },
+      ],
+      collaterals: [
+        {
+          type: "PubKey",
+          txIn: {
+            txHash:
+              "31fd8553fb1d1328e98ab267960974e9bd42be901e2b889182934ae396f7bd4e",
+            txIndex: 0,
+            amount: [{ unit: "lovelace", quantity: "5000000" }],
+            address:
+              "addr_test1qpgzv6fytsl7fg4htxkvrlhq83ytmx6wryh0rzrmvs9asqrvawkzn6eqgpekwadfakznxj70tzepz54g0ppfqyuzefnq7lcxng",
+            scriptSize: 0,
+          },
+        },
+      ],
+      requiredSignatures: [],
+      referenceInputs: [
+        {
+          txHash:
+            "96c998f4b5caa72b20e4f6be3b3996548bff0e9a7dc298a33c8f939014bc4567",
+          txIndex: 0,
+        },
+      ],
+      mints: [],
+      changeAddress:
+        "addr_test1qpgzv6fytsl7fg4htxkvrlhq83ytmx6wryh0rzrmvs9asqrvawkzn6eqgpekwadfakznxj70tzepz54g0ppfqyuzefnq7lcxng",
+      metadata: new Map(),
+      validityRange: {},
+      certificates: [],
+      withdrawals: [],
+      votes: [],
+      signingKey: [],
+      chainedTxs: [],
+      inputsForEvaluation: {},
+      network: "preprod",
+      fee: "300000",
+    });
+
+    console.log(txHex);
+  });
 });
