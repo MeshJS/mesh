@@ -28,7 +28,7 @@ const ReactPage: NextPage = () => {
         >
           <p>
             Mesh offers a full set of utility functions to help constructing the
-            JSON data you need for your Cardano DApp, with the naming philosophy
+            JSON data you need for your Web3 app, with the naming philosophy
             similar to Mesh <code>Data</code> type, with extra utilities
             mimicing the data type names in <b>PlutusTx</b> and <b>Aiken</b>.
             The code example showing below does not cover all utilities, please

@@ -18,7 +18,7 @@ function Left() {
     <>
       <p>
         All Cardano data has the JSON representation, which is suitable for
-        building DApp which needs frequent back and forth conversion between
+        building Web3 app which needs frequent back and forth conversion between
         on-chain and off-chain code. Mesh also supports building data in JSON
         format with strong input validation support.
       </p>

@@ -65,13 +65,13 @@ function Left() {
   return (
     <>
       <p>
-        In order for dApps to communicate with the user's wallet, we need a way
+        In order for pps to communicate with the user's wallet, we need a way
         to connect to their wallet.
       </p>
 
       <p>
         Add this CardanoWallet to allow the user to select a wallet to connect
-        to your dApp. After the wallet is connected, see{" "}
+        to your app. After the wallet is connected, see{" "}
         <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> for a
         list of CIP-30 APIs.
       </p>
@@ -133,10 +133,10 @@ function Left() {
       </p>
       <Codeblock data={codeWeb3Services} />
 
-      <h3>Decentralized WebRTC dApp-Wallet Communication (CIP 45)</h3>
+      <h3>Decentralized WebRTC Wallet Communication (CIP 45)</h3>
       <p>
         <Link href="https://cips.cardano.org/cip/CIP-45">CIP-45</Link> is a
-        communication method between dApps and wallets based on WebTorrent
+        communication method between pps and wallets based on WebTorrent
         trackers and WebRTC. Using WebTorrent trackers for the peer discovery to
         remove the need of this central component.
       </p>
@@ -199,7 +199,7 @@ function Right() {
   return (
     <LiveCodeDemo
       title="Connect Wallet Component"
-      subtitle="Connect to user's wallet to interact with dApp"
+      subtitle="Connect to user's wallet to interact with app"
       code={example}
       childrenAfterCodeFunctions={true}
     >

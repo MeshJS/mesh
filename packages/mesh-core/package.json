@@ -49,6 +49,8 @@
     "cardano",
     "web3",
     "blockchain",
-    "sdk"
+    "sdk",
+    "typescript",
+    "javascript"
   ]
 }

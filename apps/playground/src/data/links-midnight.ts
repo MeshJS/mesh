@@ -1,3 +1,4 @@
+import SvgMidnight from "~/components/svgs/midnight";
 import { MenuItem } from "~/types/menu-item";
 
 export const metaMidnightGettingStarted = {
@@ -11,7 +12,7 @@ export const linksMidnight: MenuItem[] = [metaMidnightGettingStarted];
 export const metaMidnight: MenuItem = {
   title: "Midnight",
   desc: "Leveraging zero-knowledge technology to enable data protection",
-  link: "/midnight",
+  link: "https://midnight.meshjs.dev/",
   items: linksMidnight,
+  icon: SvgMidnight,
 };
-

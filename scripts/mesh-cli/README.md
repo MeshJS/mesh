@@ -5,10 +5,10 @@ Mesh is an open-source library to make building applications accessible. Whether
 ```sh
 Usage: create-mesh-app [options] <name>
 
-A quick and easy way to bootstrap your dApps on Cardano using Mesh.
+A quick and easy way to bootstrap your Web3 app using Mesh.
 
 Arguments:
-  name                            Set a name for your dApp.
+  name                            Set a name for your app.
 
 Options:
   -V, --version                   output the version number

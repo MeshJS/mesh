@@ -48,7 +48,7 @@ declare global {
 /**
  * Browser Wallet provides a set of APIs to interact with the blockchain. This wallet is compatible with Mesh transaction builders.
  *
- * These wallets APIs are in accordance to CIP-30, which defines the API for dApps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building applications.
+ * These wallets APIs are in accordance to CIP-30, which defines the API for apps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building applications.
  * ```javascript
  * import { BrowserWallet } from '@meshsdk/core';
  *
@@ -118,7 +118,7 @@ export class BrowserWallet implements IWallet {
   }
 
   /**
-   * This is the entrypoint to start communication with the user's wallet. The wallet should request the user's permission to connect the web page to the user's wallet, and if permission has been granted, the wallet will be returned and exposing the full API for the dApp to use.
+   * This is the entrypoint to start communication with the user's wallet. The wallet should request the user's permission to connect the web page to the user's wallet, and if permission has been granted, the wallet will be returned and exposing the full API for the app to use.
    *
    * Query BrowserWallet.getInstalledWallets() to get a list of available wallets, then provide the wallet name for which wallet the user would like to connect with.
    *
@@ -351,7 +351,7 @@ export class BrowserWallet implements IWallet {
   /**
    * Submits the signed transaction to the blockchain network.
    *
-   * As wallets should already have this ability to submit transaction, we allow dApps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction ID for the dApp to track. The wallet can return error messages or failure if there was an error in sending it.
+   * As wallets should already have this ability to submit transaction, we allow apps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction ID for the app to track. The wallet can return error messages or failure if there was an error in sending it.
    *
    * @param tx
    * @returns a transaction hash

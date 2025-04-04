@@ -11,8 +11,8 @@ export default function HomePage() {
       <Metatags />
       <div className="flex flex-col gap-4">
         <HeroTwoSections
-          title="Web3 TypeScript SDK & off-chain Framework"
-          description="Mesh is a TypeScript open-source library providing numerous tools to easily build powerful dApps on the Cardano blockchain."
+          title="Web3 TypeScript SDK"
+          description="Mesh is a TypeScript open-source framework and library, providing numerous tools to build Web3 apps."
           // link={{ label: "Catalyst Proposals", href: "/about/catalyst" }}
           // image={<Video />}
           // children={
