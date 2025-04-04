@@ -9,9 +9,11 @@ import WalletIcon from "./wallet-icon";
 export default function Web3Services({
   options,
   setOpen,
+  persist,
 }: {
   options: InitWeb3WalletOptions;
   setOpen: Function;
+  persist: boolean;
 }) {
   const { setWallet } = useWallet();
   const [loading, setLoading] = useState(false);
@@ -27,7 +29,15 @@ export default function Web3Services({
     };
     const wallet = await Web3Wallet.enable(_options);
 
-    setWallet(wallet, "Mesh Web3 Services");
+    setWallet(
+      wallet,
+      "Mesh Web3 Services",
+      persist
+        ? {
+            walletAddress: await wallet.getChangeAddress(),
+          }
+        : undefined,
+    );
     setLoading(false);
     setOpen(false);
   }
@@ -37,6 +47,7 @@ export default function Web3Services({
       iconReactNode={IconDiscord()}
       name={`Discord`}
       action={() => loadWallet()}
+      loading={loading}
     />
   );
 }

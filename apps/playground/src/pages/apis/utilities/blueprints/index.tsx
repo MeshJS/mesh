@@ -2,43 +2,48 @@ import type { NextPage } from "next";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
-import Metatags from "~/components/site/metatags";
-
-// import { metaDeserializers } from "~/data/links-utilities";
-
-// import DeserializeAddress from "./deserialize-address";
-// import DeserializeDatum from "./deserialize-datum";
-// import DeserializePoolId from "./deserialize-poolid";
+import { metaBlueprints } from "~/data/links-utilities";
+import MintingBlueprint from "./minting-blueprint";
+import SpendingBlueprint from "./spending-blueprint";
+import WithdrawalBlueprint from "./withdrawal-blueprint";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
-    // { label: "Deserialize Address", to: "deserializeAddress" },
-    // { label: "Deserialize Datum", to: "deserializeDatum" },
-    // { label: "Deserialize Pool Id", to: "deserializePoolId" },
+    { label: "Spending Script Blueprint", to: "spendingScriptblueprint" },
+    { label: "Minting Script Blueprint", to: "mintingScriptBlueprint" },
+    { label: "Withdrawal Script Blueprint", to: "withdrawalScriptBlueprint" },
   ];
 
   return (
     <>
-      {/* <Metatags
-        title={metaDeserializers.title}
-        description={metaDeserializers.desc}
-      /> */}
       <SidebarFullwidth sidebarItems={sidebarItems}>
-        <></>
-        {/* <TitleIconDescriptionBody
-          title={metaDeserializers.title}
-          description={metaDeserializers.desc}
-          heroicon={metaDeserializers.icon}
+        <TitleIconDescriptionBody
+          title={metaBlueprints.title}
+          description={metaBlueprints.desc}
+          heroicon={metaBlueprints.icon}
         >
-          <></>
-        </TitleIconDescriptionBody> */}
+          <>
+            In Mesh, we have in built <code>Blueprint</code> utility classes to
+            help manipulating serialization and deserialization logic around
+            Cardano smart contracts / validators. Now it is supporting the basic
+            use case around 3 purposes - <code>Spending</code>,
+            <code>Minting</code> and <code>Withdrawal</code>. You can either
+            directly use the <code>Blueprint</code> utility classes imported
+            from Mesh, or use the {` `}
+            <a href="https://marketplace.visualstudio.com/items?itemName=sidan-lab.cardano-bar-vscode">
+              {`Cardano Bar`}
+            </a>{" "}
+            from <a href="https://x.com/sidan_lab">SIDAN Lab</a>, which perform
+            a comprehensive parsing of the CIP57 blueprint object into Mesh's
+            type.
+          </>
+        </TitleIconDescriptionBody>
 
-        {/* <DeserializeAddress />
-        <DeserializeDatum />
-        <DeserializePoolId /> */}
+        <SpendingBlueprint />
+        <MintingBlueprint />
+        <WithdrawalBlueprint />
       </SidebarFullwidth>
     </>
   );
 };
-
 export default ReactPage;
