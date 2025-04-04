@@ -19,9 +19,9 @@ function Left() {
     <>
       <p>
         As wallets should already have this ability to submit transaction, we
-        allow dApps to request that a transaction be sent through it. If the
+        allow apps to request that a transaction be sent through it. If the
         wallet accepts the transaction and tries to send it, it shall return the
-        transaction ID for the dApp to track. The wallet can return error
+        transaction ID for the app to track. The wallet can return error
         messages or failure if there was an error in sending it.
       </p>
     </>

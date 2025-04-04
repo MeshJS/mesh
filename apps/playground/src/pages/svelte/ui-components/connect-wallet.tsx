@@ -42,18 +42,21 @@ function Left() {
   return (
     <>
       <p>
-        In order for dApps to communicate with the user's wallet, we need a way
+        In order for apps to communicate with the user's wallet, we need a way
         to connect to their wallet.
       </p>
 
       <p>
-        Add this CardanoWallet to allow the user to select a wallet to connect
-        to your dApp. After the wallet is connected, see{" "}
+        Add <code>CardanoWallet</code> to allow the user to select a wallet to
+        connect to your app. After the wallet is connected, see{" "}
         <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> for a
         list of CIP-30 APIs.
       </p>
 
-      <p>The signature for the CardanoWallet component is as follows:</p>
+      <p>
+        The signature for the <code>CardanoWallet</code> component is as
+        follows:
+      </p>
 
       <Codeblock data={codeSignature} />
 
@@ -102,7 +105,7 @@ function Right() {
   return (
     <LiveCodeDemo
       title="Connect Wallet Component"
-      subtitle="Connect to user's wallet to interact with dApp"
+      subtitle="Connect to user's wallet to interact with app"
       code={example}
       childrenAfterCodeFunctions={true}
     ></LiveCodeDemo>

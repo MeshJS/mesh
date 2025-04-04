@@ -1259,8 +1259,8 @@ class CardanoSDKSerializerCore {
     const redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
     let scriptDataHash = hashScriptData(
       costModels,
-      redeemers.size() > 0 ? [...redeemers.values()] : undefined,
-      datums.size() > 0 ? [...datums.values()] : undefined,
+      redeemers,
+      datums.size() > 0 ? datums : undefined,
     );
     if (scriptDataHash) {
       this.txBody.setScriptDataHash(scriptDataHash);

@@ -27,7 +27,7 @@ const ReactPage: NextPage = () => {
           <p>
             Mesh provides a full set of utility functions to help constructing
             the Mesh <code>Data</code>
-            type you need for your Cardano DApp.
+            type you need for your Web3 app.
           </p>
           <h3>Types Support</h3>
           <p>

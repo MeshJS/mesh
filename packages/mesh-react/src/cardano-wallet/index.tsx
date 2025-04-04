@@ -27,7 +27,6 @@ interface ButtonProps {
   onConnected?: Function;
   isDark?: boolean;
   persist?: boolean;
-  extensions?: number[];
   injectFn?: () => Promise<void>;
   cardanoPeerConnect?: {
     dAppInfo: {
@@ -54,7 +53,6 @@ export const CardanoWallet = ({
   onConnected = undefined,
   isDark = false,
   persist = false,
-  extensions = [],
   injectFn = undefined,
   cardanoPeerConnect = undefined,
   burnerWallet = undefined,
@@ -64,11 +62,12 @@ export const CardanoWallet = ({
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState("main");
-  const { wallet, connected, setPersist } = useWallet();
+  const { wallet, connected, setPersist, setWeb3Services } = useWallet();
 
   useEffect(() => {
     setPersist(persist);
-  }, [persist]);
+    if (web3Services) setWeb3Services(web3Services);
+  }, []);
 
   useEffect(() => {
     if (connected) {
@@ -99,7 +98,6 @@ export const CardanoWallet = ({
         {screen == "main" && (
           <ScreenMain
             injectFn={injectFn}
-            extensions={extensions}
             setOpen={setOpen}
             setScreen={setScreen}
             persist={persist}

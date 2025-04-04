@@ -1,4 +1,9 @@
-import { FilmIcon, HeartIcon } from "@heroicons/react/24/solid";
+import {
+  FilmIcon,
+  HeartIcon,
+  PaintBrushIcon,
+  ScaleIcon,
+} from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
 import { metaCatalyst } from "./catalyst";
@@ -8,6 +13,12 @@ export const metaAboutUs = {
   title: "About Us",
   desc: "",
   icon: HeartIcon,
+};
+export const metaGovernance = {
+  link: `https://gov.meshjs.dev/`,
+  title: "Governance",
+  desc: "Mesh's participation in Cardano's governance ecosystem",
+  icon: ScaleIcon,
 };
 export const metaSupportUs = {
   link: `/about/support-us`,
@@ -21,10 +32,17 @@ export const metaMediaKit = {
   desc: "Choose from these logo files. These resources exist to help you use Mesh's assets.",
   icon: FilmIcon,
 };
+export const metaBranding = {
+  link: `/about/branding`,
+  title: "Branding",
+  desc: "These resources exist to help you use Mesh's assets.",
+  icon: PaintBrushIcon,
+};
 
 export const linksAbout: MenuItem[] = [
   metaAboutUs,
+  metaGovernance,
   metaCatalyst,
   metaSupportUs,
-  metaMediaKit,
+  metaBranding,
 ];

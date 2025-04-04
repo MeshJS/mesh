@@ -2,20 +2,24 @@ import { createContext, useCallback, useEffect, useState } from "react";
 
 import { IWallet } from "@meshsdk/common";
 import { BrowserWallet } from "@meshsdk/wallet";
+import { InitWeb3WalletOptions, Web3Wallet } from "@meshsdk/web3-sdk";
 
 interface WalletContext {
   hasConnectedWallet: boolean;
   connectedWalletInstance: IWallet;
   connectedWalletName: string | undefined;
   connectingWallet: boolean;
-  connectWallet: (
-    walletName: string,
-    extensions?: number[],
-    persist?: boolean,
-  ) => Promise<void>;
+  connectWallet: (walletName: string, persist?: boolean) => Promise<void>;
   disconnect: () => void;
-  setWallet: (walletInstance: IWallet, walletName: string) => void;
+  setWallet: (
+    walletInstance: IWallet,
+    walletName: string,
+    persist?: {
+      [key: string]: any;
+    },
+  ) => void;
   setPersist: (persist: boolean) => void;
+  setWeb3Services: (web3Services: InitWeb3WalletOptions | undefined) => void;
   error?: unknown;
   address: string;
   state: WalletState;
@@ -45,13 +49,17 @@ export const useWalletStore = () => {
   const [connectedWalletName, setConnectedWalletName] = useState<
     string | undefined
   >(INITIAL_STATE.walletName);
+  const [web3Services, setWeb3Services] = useState<
+    InitWeb3WalletOptions | undefined
+  >(undefined);
 
   const connectWallet = useCallback(
-    async (walletName: string, extensions?: number[], persist?: boolean) => {
+    async (walletName: string, persist?: boolean) => {
       setConnectingWallet(true);
       setState(WalletState.CONNECTING);
 
       try {
+        const extensions = BrowserWallet.getSupportedExtensions(walletName);
         const walletInstance = await BrowserWallet.enable(
           walletName,
           extensions,
@@ -88,10 +96,21 @@ export const useWalletStore = () => {
   }, []);
 
   const setWallet = useCallback(
-    async (walletInstance: IWallet, walletName: string) => {
+    async (
+      walletInstance: IWallet,
+      walletName: string,
+      persist?: { [key: string]: any },
+    ) => {
       setConnectedWalletInstance(walletInstance);
       setConnectedWalletName(walletName);
       setState(WalletState.CONNECTED);
+
+      if (persist) {
+        localStorage.setItem(
+          localstoragePersist,
+          JSON.stringify({ walletName, ...persist }),
+        );
+      }
     },
     [],
   );
@@ -123,7 +142,23 @@ export const useWalletStore = () => {
       const persist = JSON.parse(
         localStorage.getItem(localstoragePersist) || "",
       );
-      connectWallet(persist.walletName);
+
+      if (persist.walletName == "Mesh Web3 Services" && web3Services) {
+        Web3Wallet.initWallet({
+          networkId: web3Services.networkId,
+          address: persist.walletAddress,
+          fetcher: web3Services.fetcher,
+          submitter: web3Services.submitter,
+          projectId: web3Services.projectId,
+          appUrl: web3Services.appUrl,
+        }).then((wallet) => {
+          setConnectedWalletInstance(wallet);
+          setConnectedWalletName(persist.walletName);
+          setState(WalletState.CONNECTED);
+        });
+      } else {
+        connectWallet(persist.walletName);
+      }
     }
   }, [persistSession]);
 
@@ -136,6 +171,7 @@ export const useWalletStore = () => {
     disconnect,
     setWallet,
     setPersist,
+    setWeb3Services,
     error,
     address,
     state,
@@ -151,6 +187,7 @@ export const WalletContext = createContext<WalletContext>({
   disconnect: () => {},
   setWallet: async () => {},
   setPersist: () => {},
+  setWeb3Services: () => {},
   address: "",
   state: WalletState.NOT_CONNECTED,
 });
