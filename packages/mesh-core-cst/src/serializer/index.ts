@@ -555,6 +555,9 @@ class CardanoSDKSerializerCore {
     if (metadata.size > 0) {
       this.addMetadata(metadata);
     }
+    if (txBuilderBody.fee !== undefined) {
+      this.txBody.setFee(BigInt(txBuilderBody.fee));
+    }
     this.buildWitnessSet();
     if (balanced) {
       this.balanceTx(changeAddress);
@@ -1466,24 +1469,30 @@ class CardanoSDKSerializerCore {
 
     currentOutputs.push(dummyChangeOutput);
 
-    // Create a dummy tx that we will use to calculate fees
-    this.txBody.setFee(BigInt("10000000"));
-    const numberOfRequiredWitnesses = this.countNumberOfRequiredWitnesses();
-    const dummyTx = this.createDummyTx(numberOfRequiredWitnesses);
+    let fee = BigInt(0);
+    if (this.txBody.fee() !== BigInt(0)) {
+      fee = this.txBody.fee();
+    } else {
+      // Create a dummy tx that we will use to calculate fees
+      this.txBody.setFee(BigInt("10000000"));
+      const numberOfRequiredWitnesses = this.countNumberOfRequiredWitnesses();
+      const dummyTx = this.createDummyTx(numberOfRequiredWitnesses);
 
-    // The calculate fees util will first calculate fee based on
-    // length of dummy tx, then calculate fees related to script
-    // ref size
-    let fee = calculateFees(
-      this.protocolParams.minFeeA,
-      this.protocolParams.minFeeB,
-      this.protocolParams.minFeeRefScriptCostPerByte,
-      this.protocolParams.priceMem,
-      this.protocolParams.priceStep,
-      dummyTx,
-      this.refScriptSize,
-    );
+      // The calculate fees util will first calculate fee based on
+      // length of dummy tx, then calculate fees related to script
+      // ref size
+      fee = calculateFees(
+        this.protocolParams.minFeeA,
+        this.protocolParams.minFeeB,
+        this.protocolParams.minFeeRefScriptCostPerByte,
+        this.protocolParams.priceMem,
+        this.protocolParams.priceStep,
+        dummyTx,
+        this.refScriptSize,
+      );
+    }
 
+    // Handle change output
     let minUtxoValue =
       (160 + dummyChangeOutput.toCbor().length / 2 + 1) *
       this.protocolParams.coinsPerUtxoSize;
