@@ -498,19 +498,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const txEvaluation = await this.evaluator
         .evaluateTx(
           txHex,
-          (
-            Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[]
-          ).concat(
-            this.meshTxBuilderBody.inputs.map((val) => txInToUtxo(val.txIn)),
-            this.meshTxBuilderBody.collaterals.map((val) =>
-              txInToUtxo(val.txIn),
-            ),
-          ),
+          Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[],
           this.meshTxBuilderBody.chainedTxs,
         )
         .catch((error) => {
           throw new Error(
-            `Tx evaluation failed: ${JSON.stringify(error)} \n For txHex: ${txHex}`,
+            `Tx evaluation failed: ${error.message} \n For txHex: ${txHex}`,
           );
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
