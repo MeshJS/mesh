@@ -1469,9 +1469,11 @@ class CardanoSDKSerializerCore {
 
     currentOutputs.push(dummyChangeOutput);
 
-    let fee = BigInt(0);
+    let fee: bigint = BigInt(0);
+    let feeSet: boolean = false;
     if (this.txBody.fee() !== BigInt(0)) {
       fee = this.txBody.fee();
+      feeSet = true;
     } else {
       // Create a dummy tx that we will use to calculate fees
       this.txBody.setFee(BigInt("10000000"));
@@ -1497,7 +1499,11 @@ class CardanoSDKSerializerCore {
       (160 + dummyChangeOutput.toCbor().length / 2 + 1) *
       this.protocolParams.coinsPerUtxoSize;
 
-    if (remainingValue.coin() <= fee + BigInt(minUtxoValue)) {
+    if (remainingValue.coin() < fee) {
+      throw new Error("Insufficient funds to pay fee");
+    }
+
+    if (remainingValue.coin() - fee < BigInt(minUtxoValue)) {
       if (
         remainingValue.multiasset() &&
         remainingValue.multiasset()!.size > 0
@@ -1506,8 +1512,10 @@ class CardanoSDKSerializerCore {
           "Insufficient funds to create change output with tokens",
         );
       } else {
-        if (remainingValue.coin() < fee) {
-          throw new Error("Insufficient funds to pay fee");
+        if (feeSet) {
+          throw new Error(
+            "The fee was set, and there is not enough funds to create a change output",
+          );
         }
         fee = remainingValue.coin();
         currentOutputs.pop();
