@@ -1,6 +1,7 @@
 import type { NextPage } from "next";
 
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
+import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import { metaBlueprints } from "~/data/links-utilities";
 import MintingBlueprint from "./minting-blueprint";
@@ -30,12 +31,12 @@ const ReactPage: NextPage = () => {
             <code>Minting</code> and <code>Withdrawal</code>. You can either
             directly use the <code>Blueprint</code> utility classes imported
             from Mesh, or use the {` `}
-            <a href="https://marketplace.visualstudio.com/items?itemName=sidan-lab.cardano-bar-vscode">
+            <Link href="https://marketplace.visualstudio.com/items?itemName=sidan-lab.cardano-bar-vscode">
               {`Cardano Bar`}
-            </a>{" "}
-            from <a href="https://x.com/sidan_lab">SIDAN Lab</a>, which perform
-            a comprehensive parsing of the CIP57 blueprint object into Mesh's
-            type.
+            </Link>{" "}
+            from <Link href="https://x.com/sidan_lab">SIDAN Lab</Link>, which
+            perform a comprehensive parsing of the CIP57 blueprint object into
+            Mesh's type.
           </>
         </TitleIconDescriptionBody>
 
