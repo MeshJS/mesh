@@ -11,6 +11,7 @@ import MeshWalletGetAssets from "./get-assets";
 import MeshWalletGetBalance from "./get-balance";
 import MeshWalletGetChangeAddress from "./get-change-address";
 import MeshWalletGetCollateral from "./get-collateral";
+import MeshWalletGetDRep from "./get-drep";
 import MeshWalletGetLovelace from "./get-lovelace";
 import MeshWalletGetNetworkId from "./get-networkid";
 import MeshWalletGetPolicyIdAssets from "./get-policyid-assets";
@@ -44,6 +45,7 @@ const ReactPage: NextPage = () => {
     { label: "Get lovelace", to: "getLovelace" },
     { label: "Get policy IDs", to: "getPolicyIds" },
     { label: "Get collection of assets", to: "getPolicyIdAssets" },
+    { label: "Get DRep ID", to: "getDRep" },
   ];
 
   return (
@@ -84,6 +86,7 @@ const ReactPage: NextPage = () => {
         <MeshWalletGetLovelace />
         <MeshWalletGetPolicyIds />
         <MeshWalletGetPolicyIdAssets />
+        <MeshWalletGetDRep />
       </SidebarFullwidth>
     </>
   );
