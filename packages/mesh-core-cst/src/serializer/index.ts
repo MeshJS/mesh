@@ -39,6 +39,7 @@ import {
   MintItem,
   mnemonicToEntropy,
   Output,
+  PlutusDataType,
   PlutusScript,
   Protocol,
   PubKeyTxIn,
@@ -58,6 +59,7 @@ import {
   Withdrawal,
 } from "@meshsdk/common";
 
+import { resolveDataHash } from "..";
 import {
   Address,
   AddressType,
@@ -364,8 +366,11 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       },
     },
     data: {
-      resolveDataHash: function (data: Data): string {
-        return fromBuilderToPlutusData({ type: "Mesh", content: data }).hash();
+      resolveDataHash: function (
+        rawData: BuilderData["content"],
+        type: PlutusDataType = "Mesh",
+      ): string {
+        return resolveDataHash(rawData, type);
       },
     },
     script: {
