@@ -1,7 +1,9 @@
 import {
+  BuilderData,
   Data,
   LanguageVersion,
   NativeScript,
+  PlutusDataType,
   PlutusScript,
 } from "@meshsdk/common";
 
@@ -27,10 +29,14 @@ export const resolveTxHash = (txHex: string) => core.resolveTxHash(txHex);
 
 /**
  * Hash Cardano data
- * @param data Cardano data in Mesh Data type
+ * @param rawData Cardano data in Mesh, JSON or CBOR type
+ * @param type The data type, either Mesh, JSON or CBOR
  * @returns Cardano data hash
  */
-export const resolveDataHash = (data: Data) => core.resolveDataHash(data);
+export const resolveDataHash = (
+  rawData: BuilderData["content"],
+  type: PlutusDataType = "Mesh",
+) => core.resolveDataHash(rawData, type);
 
 /**
  * Hash Cardano native script

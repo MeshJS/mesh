@@ -4,7 +4,9 @@ import {
   PubKeyAddress,
   resolveFingerprint,
   ScriptAddress,
+  stringToHex,
 } from "@meshsdk/common";
+import { serializeData } from "@meshsdk/core";
 import {
   resolveDataHash,
   resolveNativeScriptAddress,
@@ -18,8 +20,21 @@ import {
 } from "@meshsdk/core-cst";
 
 describe("resolveDataHash", () => {
-  it("should return correct data", () => {
+  it("Mesh - should return correct data", () => {
     expect(resolveDataHash("supersecretdatum")).toEqual(
+      "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
+    );
+  });
+  it("JSON - should return correct data", () => {
+    expect(
+      resolveDataHash({ bytes: stringToHex("supersecretdatum") }, "JSON"),
+    ).toEqual(
+      "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
+    );
+  });
+  it("CBOR - should return correct data", () => {
+    const cbor = serializeData("supersecretdatum", "Mesh");
+    expect(resolveDataHash(cbor, "CBOR")).toEqual(
       "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
     );
   });

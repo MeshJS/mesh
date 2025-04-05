@@ -13,6 +13,7 @@ import type {
   IResolver,
   MeshTxBuilderBody,
   NativeScript,
+  PlutusDataType,
   PlutusScript,
   Protocol,
 } from "@meshsdk/common";
@@ -173,8 +174,11 @@ export class CSLSerializer implements IMeshTxSerializer {
       },
     },
     data: {
-      resolveDataHash: function (data: Data): string {
-        return resolveDataHash(data);
+      resolveDataHash: function (
+        rawData: BuilderData["content"],
+        type: PlutusDataType = "Mesh",
+      ): string {
+        return resolveDataHash(rawData, type);
       },
     },
     script: {

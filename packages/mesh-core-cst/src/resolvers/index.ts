@@ -13,10 +13,11 @@ import base32 from "base32-encoding";
 import { bech32 } from "bech32";
 
 import {
-  Data,
+  BuilderData,
   fromUTF8,
   mnemonicToEntropy,
   NativeScript,
+  PlutusDataType,
   PlutusScript,
   toBytes,
 } from "@meshsdk/common";
@@ -32,19 +33,25 @@ import {
 import {
   deserializePlutusScript,
   deserializeTx,
+  fromBuilderToPlutusData,
   toAddress,
   toBaseAddress,
   toEnterpriseAddress,
   toNativeScript,
-  toPlutusData,
   toRewardAddress,
   toScriptRef,
 } from "../utils";
 import { buildRewardAddress } from "../utils/builder";
 import { hexToBytes } from "../utils/encoding";
 
-export const resolveDataHash = (data: Data) => {
-  const plutusData = toPlutusData(data);
+export const resolveDataHash = (
+  rawData: BuilderData["content"],
+  type: PlutusDataType = "Mesh",
+) => {
+  const plutusData = fromBuilderToPlutusData({
+    content: rawData,
+    type,
+  } as BuilderData);
   return plutusData.hash().toString();
 };
 

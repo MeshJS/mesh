@@ -214,7 +214,7 @@ export const castDataToPlutusData = ({
     return csl.PlutusData.from_hex(content as string);
   }
   return csl.PlutusData.from_json(
-    content as string,
+    castRawDataToJsonString(content),
     csl.PlutusDatumSchema.DetailedSchema,
   );
 };
