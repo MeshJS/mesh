@@ -1,3 +1,4 @@
+import { HexBlob } from "@cardano-sdk/util";
 import JSONBig from "json-bigint";
 
 import {
@@ -35,10 +36,9 @@ import {
   VotingProcedure,
   Withdrawal,
 } from "@meshsdk/common";
+import { Address, CredentialType } from "@meshsdk/core-cst";
 
 import { metadataObjToMap } from "../utils";
-import {Address, CredentialType} from "@meshsdk/core-cst";
-import {HexBlob} from "@cardano-sdk/util";
 
 export class MeshTxBuilderCore {
   txEvaluationMultiplier = 1.1;
@@ -1451,16 +1451,16 @@ export class MeshTxBuilderCore {
    * Selects utxos to fill output value and puts them into inputs
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
    */
-  selectUtxosFrom = (
-    extraInputs: UTxO[]
-  ) => {
+  selectUtxosFrom = (extraInputs: UTxO[]) => {
     for (const input of this.meshTxBuilderBody.inputs) {
       const address = input.txIn.address;
       if (!address) {
         throw Error("Address is missing from the input");
       }
       const decodedAddress = Address.fromString(<HexBlob>address);
-      if (decodedAddress?.getProps().paymentPart?.type !== CredentialType.KeyHash) {
+      if (
+        decodedAddress?.getProps().paymentPart?.type !== CredentialType.KeyHash
+      ) {
         throw Error("Only KeyHash address is supported for utxo selection");
       }
     }
@@ -1914,9 +1914,7 @@ export class MeshTxBuilderCore {
 
     const newBuilder = createInstance();
 
-    newBuilder.meshTxBuilderBody = cloneTxBuilderBody(
-      this.meshTxBuilderBody,
-    );
+    newBuilder.meshTxBuilderBody = cloneTxBuilderBody(this.meshTxBuilderBody);
 
     newBuilder.txEvaluationMultiplier = this.txEvaluationMultiplier;
     newBuilder.txOutput = this.txOutput

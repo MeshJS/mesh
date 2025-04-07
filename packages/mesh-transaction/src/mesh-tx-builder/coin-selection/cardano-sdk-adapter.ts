@@ -1,6 +1,6 @@
-import { Cardano as CSDK, Serialization } from '@cardano-sdk/core';
-import * as CardanoSelection from '@cardano-sdk/input-selection';
-import { HexBlob } from '@cardano-sdk/util';
+import { Cardano as CSDK, Serialization } from "@cardano-sdk/core";
+import * as CardanoSelection from "@cardano-sdk/input-selection";
+import { HexBlob } from "@cardano-sdk/util";
 
 import {
   Action,
@@ -10,7 +10,7 @@ import {
   TxIn,
   TxOutput,
   UTxO,
-} from '@meshsdk/common';
+} from "@meshsdk/common";
 import {
   fromBuilderToPlutusData,
   PlutusV1Script,
@@ -18,18 +18,18 @@ import {
   PlutusV3Script,
   Script,
   TokenMap,
-} from '@meshsdk/core-cst';
+} from "@meshsdk/core-cst";
 
 import {
   BuilderCallbacks,
   IInputSelector,
   ImplicitValue,
   TransactionPrototype,
-} from './coin-selection-interface';
+} from "./coin-selection-interface";
 
 // Fake address used for temporary outputs during coin selection
 const FAKE_ADDRESS =
-  '01beffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeefbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeef';
+  "01beffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeefbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeffbeef";
 
 export class BuilderCallbacksSdkBridge
   implements CardanoSelection.SelectionConstraints
@@ -129,7 +129,7 @@ export class CardanoSdkInputSelector implements IInputSelector {
   }
 
   async select(
-    preselectedUtoxs: TxIn[],
+    preselectedUtxos: TxIn[],
     outputs: Output[],
     implicitValue: ImplicitValue,
     utxos: UTxO[],
@@ -150,7 +150,7 @@ export class CardanoSdkInputSelector implements IInputSelector {
 
     // Convert Mesh types to CSDK types
     const preselectedUtoxsCSDK = new Set(
-      preselectedUtoxs.map(meshTxInToCSDKUtxo),
+      preselectedUtxos.map(meshTxInToCSDKUtxo),
     );
     const utxoxCSDK = utxos.map(meshUtxoToCSDKUtxo);
 
@@ -161,7 +161,7 @@ export class CardanoSdkInputSelector implements IInputSelector {
 
     // Track used UTxOs
     const usedUtxos = new Set<string>();
-    for (const utxo of preselectedUtoxs) {
+    for (const utxo of preselectedUtxos) {
       usedUtxos.add(`${utxo.txIn.txHash}#${utxo.txIn.txIndex}`);
     }
 
@@ -221,7 +221,7 @@ export class StaticChangeAddressResolver
       ...txOut,
       address: <CSDK.PaymentAddress>this.changeAddress,
     }));
-  }
+  };
 }
 
 const meshTxInToCSDKUtxo = (txIn: TxIn): CSDK.Utxo => {
@@ -287,7 +287,7 @@ const meshDataHashToCSDKDataHash = (
 const meshAssetsToCSDKValue = (assets?: Asset[]): CSDK.Value => {
   if (!assets) {
     throw new Error(
-      'Missing required assets. Be sure that you resolve all required UTxOs',
+      "Missing required assets. Be sure that you resolve all required UTxOs",
     );
   }
 
@@ -295,7 +295,7 @@ const meshAssetsToCSDKValue = (assets?: Asset[]): CSDK.Value => {
   const sdkAssets = new Map<CSDK.AssetId, bigint>();
 
   for (const asset of assets) {
-    if (asset.unit === 'lovelace' || asset.unit === '') {
+    if (asset.unit === "lovelace" || asset.unit === "") {
       lovelace = BigInt(asset.quantity);
     } else {
       const assetId = <CSDK.AssetId>asset.unit;
@@ -323,8 +323,8 @@ const meshAssetsToCSDKAssets = (
   const sdkAssets = new Map<CSDK.AssetId, bigint>();
 
   for (const asset of assets) {
-    if (asset.unit === 'lovelace' || asset.unit === '') {
-      throw new Error('Unexpected lovelace asset in assets');
+    if (asset.unit === "lovelace" || asset.unit === "") {
+      throw new Error("Unexpected lovelace asset in assets");
     } else {
       const assetId = <CSDK.AssetId>asset.unit;
       sdkAssets.set(assetId, BigInt(asset.quantity));
@@ -347,7 +347,7 @@ const CSDKValueToMeshAssets = (value: CSDK.Value): Asset[] => {
 
   if (value.coins !== 0n) {
     assets.push({
-      unit: '',
+      unit: "",
       quantity: value.coins.toString(),
     });
   }
@@ -396,7 +396,9 @@ const meshOutputToCSDKOutput = (output: Output): CSDK.TxOut => {
   };
 };
 
-const makeAggregatedCSDKOOutput = (outputs: Output[]): CSDK.TxOut | undefined => {
+const makeAggregatedCSDKOOutput = (
+  outputs: Output[],
+): CSDK.TxOut | undefined => {
   let totalAssets = new Map<string, bigint>();
 
   for (const output of outputs) {
@@ -424,34 +426,34 @@ const meshOutputToCSDKOutputsScriptData = (
   let datum: CSDK.PlutusData | undefined = undefined;
   let scriptReference: CSDK.Script | undefined;
 
-  if (output.datum?.type === 'Hash') {
+  if (output.datum?.type === "Hash") {
     dataHash = meshDataHashToCSDKDataHash(
       HexBlob(fromBuilderToPlutusData(output.datum.data).hash()),
     );
-  } else if (output.datum?.type === 'Inline') {
+  } else if (output.datum?.type === "Inline") {
     datum = meshDatumToCSDKDatum(
       fromBuilderToPlutusData(output.datum.data).toCbor(),
     );
-  } else if (output.datum?.type === 'Embedded') {
-    throw new Error('Embedded datum is not supported');
+  } else if (output.datum?.type === "Embedded") {
+    throw new Error("Embedded datum is not supported");
   }
 
   let meshCoreScript = undefined;
   if (output.referenceScript) {
     switch (output.referenceScript.version) {
-      case 'V1': {
+      case "V1": {
         meshCoreScript = Script.newPlutusV1Script(
           PlutusV1Script.fromCbor(HexBlob(output.referenceScript.code)),
         );
         break;
       }
-      case 'V2': {
+      case "V2": {
         meshCoreScript = Script.newPlutusV2Script(
           PlutusV2Script.fromCbor(HexBlob(output.referenceScript.code)),
         );
         break;
       }
-      case 'V3': {
+      case "V3": {
         meshCoreScript = Script.newPlutusV3Script(
           PlutusV3Script.fromCbor(HexBlob(output.referenceScript.code)),
         );
@@ -476,7 +478,7 @@ const assetsMapToCSDKValue = (assets: Map<string, bigint>): CSDK.Value => {
   const sdkAssets = new Map<CSDK.AssetId, bigint>();
 
   for (const [unit, quantity] of assets) {
-    if (unit === 'lovelace' || unit === '') {
+    if (unit === "lovelace" || unit === "") {
       lovelace = BigInt(quantity);
     } else {
       const assetId = <CSDK.AssetId>unit;
@@ -526,7 +528,7 @@ const meshImplicitCoinToCSDKImplicitCoins = (
 };
 
 const meshActionToCSDKRedeemer = (
-  action: Omit<Action, 'data'>,
+  action: Omit<Action, "data">,
 ): CSDK.Redeemer => {
   return {
     purpose: mashRedeemerTagToCSDKRedeemerTag(action.tag),
@@ -541,7 +543,7 @@ const meshActionToCSDKRedeemer = (
 
 const CSKDRedeemerToMeshAction = (
   redeemer: CSDK.Redeemer,
-): Omit<Action, 'data'> => {
+): Omit<Action, "data"> => {
   return {
     tag: CSDKRedeemerTagToMeshRedeemerTag(redeemer.purpose),
     index: redeemer.index,
@@ -556,17 +558,17 @@ const mashRedeemerTagToCSDKRedeemerTag = (
   tag: RedeemerTagType,
 ): CSDK.RedeemerPurpose => {
   switch (tag) {
-    case 'SPEND':
+    case "SPEND":
       return CSDK.RedeemerPurpose.spend;
-    case 'MINT':
+    case "MINT":
       return CSDK.RedeemerPurpose.mint;
-    case 'CERT':
+    case "CERT":
       return CSDK.RedeemerPurpose.certificate;
-    case 'REWARD':
+    case "REWARD":
       return CSDK.RedeemerPurpose.withdrawal;
-    case 'PROPOSE':
+    case "PROPOSE":
       return CSDK.RedeemerPurpose.propose;
-    case 'VOTE':
+    case "VOTE":
       return CSDK.RedeemerPurpose.vote;
   }
 };
@@ -576,16 +578,16 @@ const CSDKRedeemerTagToMeshRedeemerTag = (
 ): RedeemerTagType => {
   switch (tag) {
     case CSDK.RedeemerPurpose.spend:
-      return 'SPEND';
+      return "SPEND";
     case CSDK.RedeemerPurpose.mint:
-      return 'MINT';
+      return "MINT";
     case CSDK.RedeemerPurpose.certificate:
-      return 'CERT';
+      return "CERT";
     case CSDK.RedeemerPurpose.withdrawal:
-      return 'REWARD';
+      return "REWARD";
     case CSDK.RedeemerPurpose.propose:
-      return 'PROPOSE';
+      return "PROPOSE";
     case CSDK.RedeemerPurpose.vote:
-      return 'VOTE';
+      return "VOTE";
   }
 };

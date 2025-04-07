@@ -6,9 +6,10 @@ import JSONbig from "json-bigint";
 import {
   Asset,
   BuilderData,
-  Data,
+  DEFAULT_PROTOCOL_PARAMETERS,
   DeserializedAddress,
   DeserializedScript,
+  emptyTxBuilderBody,
   IDeserializer,
   IMeshTxSerializer,
   IResolver,
@@ -18,10 +19,6 @@ import {
   PlutusScript,
   Protocol,
   TxOutput,
-} from "@meshsdk/common";
-import {
-  DEFAULT_PROTOCOL_PARAMETERS,
-  emptyTxBuilderBody,
 } from "@meshsdk/common";
 
 import {
@@ -194,7 +191,10 @@ export class CSLSerializer implements IMeshTxSerializer {
     throw new Error("Method not implemented.");
   }
 
-  serializeTxBodyWithMockSignatures(txBuilderBody: MeshTxBuilderBody, protocolParams: Protocol): string {
+  serializeTxBodyWithMockSignatures(
+    txBuilderBody: MeshTxBuilderBody,
+    protocolParams: Protocol,
+  ): string {
     throw new Error("Method not implemented.");
   }
 

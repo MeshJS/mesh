@@ -144,7 +144,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     this.removeDuplicateInputs();
     this.removeDuplicateRefInputs();
-
     // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
     for (let collateral of this.meshTxBuilderBody.collaterals) {
       collateral.txIn.scriptSize = 0;
@@ -185,9 +184,18 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
           try {
             await clonedBuilder.evaluateRedeemers();
           } catch (error) {
-            console.log("Error in evaluateRedeemers", error);
+            if (error instanceof Error) {
+              throw new Error(`Evaluate redeemers failed: ${error.message}`);
+            } else if (typeof error === "string") {
+              throw new Error(`Evaluate redeemers failed: ${error}`);
+            } else if (typeof error === "object") {
+              throw new Error(
+                `Evaluate redeemers failed: ${JSON.stringify(error)}`,
+              );
+            } else {
+              throw new Error(`Evaluate redeemers failed: ${String(error)}`);
+            }
           }
-
           const fee = clonedBuilder.calculateFee();
           const redeemers = clonedBuilder.getRedeemerCosts();
           return {
@@ -260,9 +268,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.txOut(change.address, change.amount);
     }
 
-    this.meshTxBuilderBody.fee = selectionSkeleton.fee.toString();
-    const skeletonRedeemers = selectionSkeleton.redeemers ?? [];
-    this.updateRedeemer(this.meshTxBuilderBody, skeletonRedeemers);
+    this.meshTxBuilderBody.fee =
+      this.meshTxBuilderBody.fee === "0"
+        ? selectionSkeleton.fee.toString()
+        : this.meshTxBuilderBody.fee;
+    this.updateRedeemer(this.meshTxBuilderBody, []);
   };
 
   getUtxosForSelection = async () => {
@@ -619,14 +629,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const txEvaluation = await this.evaluator
         .evaluateTx(
           txHex,
-          (
-            Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[]
-          ).concat(
-            this.meshTxBuilderBody.inputs.map((val) => txInToUtxo(val.txIn)),
-            this.meshTxBuilderBody.collaterals.map((val) =>
-              txInToUtxo(val.txIn),
-            ),
-          ),
+          Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[],
           this.meshTxBuilderBody.chainedTxs,
         )
         .catch((error) => {
