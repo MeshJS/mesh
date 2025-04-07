@@ -312,7 +312,23 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
           this.meshTxBuilderBody.chainedTxs,
         )
         .catch((error) => {
-          throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
+          if (error instanceof Error) {
+            throw new Error(
+              `Tx evaluation failed: ${error.message} \n For txHex: ${txHex}`,
+            );
+          } else if (typeof error === "string") {
+            throw new Error(
+              `Tx evaluation failed: ${error} \n For txHex: ${txHex}`,
+            );
+          } else if (typeof error === "object") {
+            throw new Error(
+              `Tx evaluation failed: ${JSON.stringify(error)} \n For txHex: ${txHex}`,
+            );
+          } else {
+            throw new Error(
+              `Tx evaluation failed: ${String(error)} \n For txHex: ${txHex}`,
+            );
+          }
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
     }
@@ -1012,6 +1028,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const assetId = `${mint.policyId}${mint.assetName}`;
       let amount = assets.get(assetId) ?? 0n;
       amount += BigInt(mint.amount);
+      assets.set(assetId, amount);
     }
 
     return Array.from(assets).map(([assetId, amount]) => ({
