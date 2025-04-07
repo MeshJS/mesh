@@ -4,7 +4,7 @@ export default function AboutHero() {
       <div className="z-1 relative mx-auto max-w-screen-xl px-4 py-8 text-white lg:py-16">
         <div className="mb-6 max-w-screen-lg lg:mb-0">
           <h1 className="mb-4 text-4xl font-extrabold leading-none tracking-tight md:text-5xl lg:text-6xl">
-            We advance the Web3 tech stack
+            We advance the Cardano's tech stack
           </h1>
           <p className="mb-6 font-light text-neutral-400 md:text-lg lg:mb-8 lg:text-xl">
             Get started building blockchain applications with our
@@ -13,7 +13,6 @@ export default function AboutHero() {
             wallet integrations to data service providers, building a Web3
             application has never been this easy.
           </p>
-
           {/* <a
             href="#"
             className="bg-primary-700 hover:bg-primary-800 focus:ring-primary-900 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800 inline-flex items-center rounded-lg px-5 py-3 text-center font-medium text-white focus:outline-none focus:ring-4"

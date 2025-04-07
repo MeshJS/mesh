@@ -26,6 +26,8 @@ const ReactPage: NextPage = () => {
   let code1 = `import { OfflineFetcher } from "@meshsdk/core";\n\n`;
   code1 += `// Create a new instance\n`;
   code1 += `const fetcher = new OfflineFetcher();\n`;
+  code1 += `// Create with specified network\n`;
+  code1 += `const fetcherWithNetwork = new OfflineFetcher("mainnet");\n`;
 
   let code2 = `// Add account information\n`;
   code2 += `fetcher.addAccount("addr1...", {\n`;
@@ -74,7 +76,9 @@ const ReactPage: NextPage = () => {
   code2 += `  poolDeposit: 500000000,\n`;
   code2 += `  minPoolCost: "340000000",\n`;
   code2 += `  // Other parameters...\n`;
-  code2 += `});\n`;
+  code2 += `});\n\n`;
+  code2 += `// Add serilized transaction\n`;
+  code2 += `fetcher.addSerializedTransaction("txHash");\n\n`;
 
   let code3 = `// Save state\n`;
   code3 += `const state = fetcher.toJSON();\n`;
