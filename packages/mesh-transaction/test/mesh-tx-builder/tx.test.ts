@@ -738,6 +738,9 @@ describe("MeshTxBuilder transactions", () => {
       fee: "300000",
     });
 
-    console.log(txHex);
+    const cardanoTx = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(txHex),
+    );
+    expect(cardanoTx.body().fee().toString()).toBe("300000");
   });
 });
