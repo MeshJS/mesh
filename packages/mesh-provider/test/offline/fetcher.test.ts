@@ -982,5 +982,31 @@ describe("OfflineFetcher", () => {
         );
       });
     });
+    describe("addSerializedTransaction", () => {
+      it("should add new utxos", async () => {
+        const emptySerializedTransaction = "84a800d9010281825820f5be282d696cc5ca269d18de02224c3717aabc01ab2b76002860a110e108016a00018182583900e3d28c78fa125198affefff50269125c81ba34e598890" +
+          "ed1d077f171f2cec0e27f0a3ebd5aa1eb982c3671edb7ce3a9ecfe06c9da3db9e021a20f996f4021a000c6eef05a1581df09395541e8601f6df1ac4034e25441d45442d94602b9344b547" +
+          "9998e800075820bdaa99eb158414dea0a91d6c727e2268574b23efe6e08ab3b841abe8059a030c0b5820656b9bd6e266ce5535ae6f9ed9d400e34656b2febdb7d699001814bec2ed40af0" +
+          "dd901028182582080fff8d27e8dffec05ac773f22140cf86d8e30a0243e7df6849b74633d79e007050ed9010281581ce3d28c78fa125198affefff50269125c81ba34e598890ed1d077f1" +
+          "71a205a182030082d87980821a006acfc01ab2d05e0007d901028158ff58fd01010033232323232322322533300432323232323232533300b3370e9002001099198011bac301030113011" +
+          "301130113011301130113011300e375400e014601e601a6ea800c54ccc02ccdc3a400c0042646464660086eb0c048c04cc04cc04cc04cc04cc04cc04cc04cc040dd500480618089809001" +
+          "1bad3010001300d37540062c44646600200200644a66602200229404c94ccc03ccdc79bae301300200414a2266006006002602600260146ea8004c030c034008c02c004c02c008c024004" +
+          "c018dd50008a4c26cac6eb80055cd2ab9d5573caae7d5d0aba24c011e581ce3d28c78fa125198affefff50269125c81ba34e598890ed1d077f1710001f5d90103a0";
+        const utxos: UTxO[] = [
+          { ...sampleUTxO,
+            input: {
+              txHash: "f5be282d696cc5ca269d18de02224c3717aabc01ab2b76002860a110e108016a",
+              outputIndex: 0,
+            }
+          }
+          ];
+        fetcher.addUTxOs(utxos);
+        fetcher.addSerializedTransaction(emptySerializedTransaction);
+        const fetchedUTxOs = await fetcher.fetchUTxOs(
+          "1b6d70a7a2baffab8c923137ce40dc060f6345c7c6874aa4a229bc99d2b54883",
+        );
+        expect(fetchedUTxOs.length).toEqual(1);
+      });
+    });
   });
 });
