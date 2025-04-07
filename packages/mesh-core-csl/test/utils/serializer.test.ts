@@ -1,4 +1,9 @@
-import { applyCborEncoding, NativeScript } from "@meshsdk/core";
+import {
+  applyCborEncoding,
+  NativeScript,
+  serializeData,
+  stringToHex,
+} from "@meshsdk/core";
 
 import { CSLSerializer } from "../../src/core/serializer";
 
@@ -46,12 +51,30 @@ describe("CSLSerializer", () => {
     });
   });
 
-  it("should hash datum correctly", () => {
-    const datum = ["abc"];
-    const result = serializer.resolver.data.resolveDataHash(datum);
-    expect(result).toEqual(
-      "b52368c053c76240d861f42024266d14939934a9a30799cfd315ac34f75072e4",
-    );
+  describe("resolveDataHash", () => {
+    it("Mesh - should return correct data", () => {
+      expect(
+        serializer.resolver.data.resolveDataHash("supersecretdatum"),
+      ).toEqual(
+        "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
+      );
+    });
+    it("JSON - should return correct data", () => {
+      expect(
+        serializer.resolver.data.resolveDataHash(
+          { bytes: stringToHex("supersecretdatum") },
+          "JSON",
+        ),
+      ).toEqual(
+        "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
+      );
+    });
+    it("CBOR - should return correct data", () => {
+      const cbor = serializeData("supersecretdatum", "Mesh");
+      expect(serializer.resolver.data.resolveDataHash(cbor, "CBOR")).toEqual(
+        "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
+      );
+    });
   });
 
   it("should return correct script reference v3", () => {

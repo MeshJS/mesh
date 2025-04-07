@@ -7,7 +7,6 @@ export interface IWithdrawalBlueprint {
   cbor: string;
   hash: string;
   address: string;
-  isStakeScriptCredential: boolean;
   paramScript(
     compiledCode: string,
     params: string[],

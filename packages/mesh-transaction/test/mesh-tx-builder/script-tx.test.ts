@@ -12,6 +12,7 @@ import {
   resolveNativeScriptHash,
   resolveScriptHashDRepId,
   resolveScriptRef,
+  Serialization,
 } from "@meshsdk/core-cst";
 
 import { alwaysSucceedCbor, alwaysSucceedHash, txHash } from "../test-util";
@@ -121,6 +122,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
       .changeAddress(
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
+      .setFee("5000000")
       .complete();
 
     const txHex2 = await txBuilder2
@@ -133,6 +135,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
       .changeAddress(
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
+      .setFee("5000000")
       .complete();
 
     expect(
@@ -158,6 +161,15 @@ describe("MeshTxBuilder - Script Transactions", () => {
     ).toEqual([
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
     ]);
+
+    const cardanoTx = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(txHex),
+    );
+    const cardanoTx2 = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(txHex2),
+    );
+    expect(cardanoTx.body().fee().toString()).toBe("5000000");
+    expect(cardanoTx2.body().fee().toString()).toBe("5000000");
   });
 
   it("should be able to spend from a script address with script ref", async () => {

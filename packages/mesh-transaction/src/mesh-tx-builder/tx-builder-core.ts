@@ -1680,6 +1680,7 @@ export class MeshTxBuilderCore {
     meshTxBuilderBody: MeshTxBuilderBody,
     txEvaluation: Omit<Action, "data">[],
   ) => {
+    let mintIndex = 0;
     txEvaluation.forEach((redeemerEvaluation) => {
       switch (redeemerEvaluation.tag) {
         case "SPEND": {
@@ -1695,7 +1696,7 @@ export class MeshTxBuilderCore {
           break;
         }
         case "MINT": {
-          const mint = meshTxBuilderBody.mints[redeemerEvaluation.index]!;
+          const mint = meshTxBuilderBody.mints[mintIndex]!;
           if (mint.type == "Plutus" && mint.redeemer) {
             let newExUnits: Budget = {
               mem: Math.floor(
@@ -1714,6 +1715,7 @@ export class MeshTxBuilderCore {
             ) {
               if (meshTxBuilderBody.mints[i]!.policyId === mint.policyId) {
                 meshTxBuilderBody.mints[i]!.redeemer!.exUnits = newExUnits;
+                mintIndex++;
               }
             }
           }

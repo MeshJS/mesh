@@ -2,27 +2,52 @@ import { pubKeyHash, PubKeyHash, scriptHash, ScriptHash } from "./aliases";
 import { conStr0, ConStr0, conStr1, ConStr1 } from "./constructors";
 
 /**
+ * The Plutus Data verification key in JSON
+ */
+export type VerificationKey = ConStr0<[PubKeyHash]>;
+
+/**
+ * The Plutus Data Script key in JSON
+ */
+export type Script = ConStr1<[ScriptHash]>;
+
+/**
  * The Plutus Data staking credential in JSON
  */
 export type MaybeStakingHash =
   | ConStr1<[]>
-  | ConStr0<[ConStr0<[ConStr0<[PubKeyHash]>]>]>
-  | ConStr0<[ConStr0<[ConStr1<[ScriptHash]>]>]>;
+  | ConStr0<[ConStr0<[VerificationKey]>]>
+  | ConStr0<[ConStr0<[Script]>]>;
 
 /**
  * The Plutus Data public key address in JSON
  */
-export type PubKeyAddress = ConStr0<[ConStr0<[PubKeyHash]>, MaybeStakingHash]>;
+export type PubKeyAddress = ConStr0<[VerificationKey, MaybeStakingHash]>;
 
 /**
  * The Plutus Data script address in JSON
  */
-export type ScriptAddress = ConStr0<[ConStr1<[ScriptHash]>, MaybeStakingHash]>;
+export type ScriptAddress = ConStr0<[Script, MaybeStakingHash]>;
 
 /**
  * The Plutus Data credential in JSON
  */
-export type Credential = ConStr0<[PubKeyHash]> | ConStr1<[ScriptHash]>;
+export type Credential = VerificationKey | Script;
+
+/**
+ * The utility function to create a Plutus Data verification key in JSON
+ * @param bytes The public key hash in hex
+ * @returns The Plutus Data verification key object
+ */
+export const verificationKey = (bytes: string): VerificationKey =>
+  conStr0([pubKeyHash(bytes)]);
+
+/**
+ * The utility function to create a Plutus Data script key in JSON
+ * @param bytes The script hash in hex
+ * @returns The Plutus Data script key object
+ * */
+export const script = (bytes: string): Script => conStr1([scriptHash(bytes)]);
 
 /**
  * The utility function to create a Plutus Data staking hash in JSON
@@ -38,13 +63,13 @@ export const maybeStakingHash = (
     return conStr1<[]>([]);
   }
   if (isStakeScriptCredential) {
-    return conStr0([
-      conStr0([conStr1([scriptHash(stakeCredential)])]),
-    ]) as ConStr0<[ConStr0<[ConStr1<[ScriptHash]>]>]>;
+    return conStr0([conStr0([script(stakeCredential)])]) as ConStr0<
+      [ConStr0<[Script]>]
+    >;
   }
-  return conStr0([
-    conStr0([conStr0([pubKeyHash(stakeCredential)])]),
-  ]) as ConStr0<[ConStr0<[ConStr0<[PubKeyHash]>]>]>;
+  return conStr0([conStr0([verificationKey(stakeCredential)])]) as ConStr0<
+    [ConStr0<[VerificationKey]>]
+  >;
 };
 
 /**
@@ -77,7 +102,7 @@ export const scriptAddress = (
   isStakeScriptCredential = false,
 ): ScriptAddress =>
   conStr0([
-    conStr1([scriptHash(bytes)]),
+    script(bytes),
     maybeStakingHash(stakeCredential || "", isStakeScriptCredential),
   ]);
 
@@ -90,7 +115,4 @@ export const scriptAddress = (
 export const credential = (
   hash: string,
   isScriptCredential = false,
-): Credential =>
-  isScriptCredential
-    ? conStr1([scriptHash(hash)])
-    : conStr0([pubKeyHash(hash)]);
+): Credential => (isScriptCredential ? script(hash) : verificationKey(hash));

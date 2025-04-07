@@ -15,8 +15,8 @@ export default function ProviderCodeSnippet() {
   let codeMaestro = `import { MaestroProvider } from '@meshsdk/core';\n\n`;
   codeMaestro += `const provider = new MaestroProvider({\n`;
   codeMaestro += `  network: 'Preprod',\n`;
-  codeMaestro += `  apiKey: '<Your-API-Key>', // Get yours by visiting https://docs.gomaestro.org/docs/Getting-started/Sign-up-login.\n`;
-  codeMaestro += `  turboSubmit: false // Read about paid turbo transaction submission feature at https://docs.gomaestro.org/docs/Dapp%20Platform/Turbo%20Transaction.\n`;
+  codeMaestro += `  apiKey: '<Your-API-Key>', // Get yours by visiting https://docs.gomaestro.org/.\n`;
+  codeMaestro += `  turboSubmit: false\n`;
   codeMaestro += `});\n`;
 
   let codeU5c = `import { U5CProvider } from "@meshsdk/core";\n\n`;

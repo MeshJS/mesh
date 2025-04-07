@@ -1,3 +1,4 @@
+import { PlutusDataType } from "../data";
 import {
   Asset,
   BuilderData,
@@ -48,7 +49,10 @@ export interface IResolver {
     resolveTxHash(txHex: string): string;
   };
   data: {
-    resolveDataHash(data: Data): string;
+    resolveDataHash(
+      rawData: BuilderData["content"],
+      type?: PlutusDataType,
+    ): string;
   };
   script: {
     resolveScriptRef(script: NativeScript | PlutusScript): string;

@@ -109,7 +109,9 @@ export type None = ConStr1<[]>;
  */
 export const hashByteString = (bytes: string): ByteString => {
   if (bytes.length !== 56) {
-    throw new Error(`Invalid hash for [${bytes}] - should be 56 bytes long`);
+    throw new Error(
+      `Invalid hash for [${bytes}] - should be 28 bytes (56 hex length) long`,
+    );
   }
   return byteString(bytes);
 };
@@ -126,7 +128,7 @@ export const scriptHash = (bytes: string): ScriptHash => hashByteString(bytes);
  * @param bytes The script hash in hex
  * @returns The Plutus Data script hash object
  */
-export const pubKeyHash = (bytes: string): ScriptHash => hashByteString(bytes);
+export const pubKeyHash = (bytes: string): PubKeyHash => hashByteString(bytes);
 
 /**
  * The utility function to create a Plutus Data policy id in JSON
@@ -136,7 +138,7 @@ export const pubKeyHash = (bytes: string): ScriptHash => hashByteString(bytes);
 export const policyId = (bytes: string): PolicyId => {
   if (bytes.length !== POLICY_ID_LENGTH && bytes !== "") {
     throw new Error(
-      `Invalid policy id for [${bytes}] - should be ${POLICY_ID_LENGTH} bytes long or empty string for lovelace`,
+      `Invalid policy id for [${bytes}] - should be ${POLICY_ID_LENGTH / 2} bytes (${POLICY_ID_LENGTH} hex length) long or empty string for lovelace`,
     );
   }
   return byteString(bytes);

@@ -1,5 +1,5 @@
-import BigNumber from 'bignumber.js';
-import JSONBig from 'json-bigint';
+import BigNumber from "bignumber.js";
+import JSONBig from "json-bigint";
 
 import {
   Action,
@@ -20,7 +20,7 @@ import {
   UTxO,
   Vote,
   Withdrawal,
-} from '@meshsdk/common';
+} from "@meshsdk/common";
 import {
   CardanoSDKSerializer,
   CardanoSDKUtil,
@@ -30,17 +30,17 @@ import {
   CredentialType as CstCredentialType,
   NativeScript as CstNativeScript,
   Script as CstScript,
-} from '@meshsdk/core-cst';
+} from "@meshsdk/core-cst";
 
 import {
   CardanoSdkInputSelector,
   CoinSelectionInterface,
-} from './coin-selection';
+} from "./coin-selection";
 import {
   TransactionCost,
   TransactionPrototype,
-} from './coin-selection/coin-selection-interface';
-import { MeshTxBuilderCore } from './tx-builder-core';
+} from "./coin-selection/coin-selection-interface";
+import { MeshTxBuilderCore } from "./tx-builder-core";
 
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
@@ -98,8 +98,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const { keyHashes, byronAddresses } = this.collectAllRequiredSignatures();
     builderBody.expectedNumberKeyWitnesses = keyHashes.size;
     builderBody.expectedByronAddressWitnesses = Array.from(byronAddresses);
-    return this.serializer.serializeTxBodyWithMockSignatures(this.meshTxBuilderBody, this._protocolParams, false);
-  }
+    return this.serializer.serializeTxBodyWithMockSignatures(
+      this.meshTxBuilderBody,
+      this._protocolParams,
+      false,
+    );
+  };
 
   /**
    * It builds the transaction query the blockchain for missing information
@@ -156,89 +160,95 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.sortTxParts();
 
     const txHex = this.serializer.serializeTxBody(
-        this.meshTxBuilderBody,
-        this._protocolParams,
-        false
+      this.meshTxBuilderBody,
+      this._protocolParams,
+      false,
     );
 
     this.txHex = txHex;
     return txHex;
-  }
+  };
 
-  selectUtxos = async (): Promise<CoinSelectionInterface.TransactionPrototype> => {
-    const callbacks: CoinSelectionInterface.BuilderCallbacks = {
-      computeMinimumCost: async (selectionSkeleton: TransactionPrototype): Promise<TransactionCost> => {
-        const clonedBuilder = this.clone();
-        await clonedBuilder.updateByTxPrototype(selectionSkeleton);
-        clonedBuilder.queueAllLastItem();
-        clonedBuilder.removeDuplicateInputs();
+  selectUtxos =
+    async (): Promise<CoinSelectionInterface.TransactionPrototype> => {
+      const callbacks: CoinSelectionInterface.BuilderCallbacks = {
+        computeMinimumCost: async (
+          selectionSkeleton: TransactionPrototype,
+        ): Promise<TransactionCost> => {
+          const clonedBuilder = this.clone();
+          await clonedBuilder.updateByTxPrototype(selectionSkeleton);
+          clonedBuilder.queueAllLastItem();
+          clonedBuilder.removeDuplicateInputs();
 
-        this.sortTxParts();
+          this.sortTxParts();
 
-        try {
-          await clonedBuilder.evaluateRedeemers();
-        } catch (error) {
-          console.log("Error in evaluateRedeemers", error);
-        }
+          try {
+            await clonedBuilder.evaluateRedeemers();
+          } catch (error) {
+            console.log("Error in evaluateRedeemers", error);
+          }
 
-        const fee = clonedBuilder.calculateFee();
-        const redeemers = clonedBuilder.getRedeemerCosts();
-        return {
-          fee,
-          redeemers,
-        }
-      },
-      tokenBundleSizeExceedsLimit: (tokenBundle) => {
-        const maxValueSize = this._protocolParams.maxValSize;
-        if (tokenBundle) {
-          const valueSize = this.serializer.serializeValue(tokenBundle).length / 2;
-          return valueSize > maxValueSize;
-        }
-        return false;
-      },
-      computeMinimumCoinQuantity: (output) => {
-        return this.calculateMinLovelaceForOutput(output);
-      },
-      maxSizeExceed: async (selectionSkeleton) => {
-        const clonedBuilder = this.clone();
-        await clonedBuilder.updateByTxPrototype(selectionSkeleton);
-        clonedBuilder.queueAllLastItem();
-        clonedBuilder.removeDuplicateInputs();
-        const maxTxSize = this._protocolParams.maxTxSize;
-        const txSize = clonedBuilder.getSerializedSize();
-        return txSize > maxTxSize;
-      },
-    }
+          const fee = clonedBuilder.calculateFee();
+          const redeemers = clonedBuilder.getRedeemerCosts();
+          return {
+            fee,
+            redeemers,
+          };
+        },
+        tokenBundleSizeExceedsLimit: (tokenBundle) => {
+          const maxValueSize = this._protocolParams.maxValSize;
+          if (tokenBundle) {
+            const valueSize =
+              this.serializer.serializeValue(tokenBundle).length / 2;
+            return valueSize > maxValueSize;
+          }
+          return false;
+        },
+        computeMinimumCoinQuantity: (output) => {
+          return this.calculateMinLovelaceForOutput(output);
+        },
+        maxSizeExceed: async (selectionSkeleton) => {
+          const clonedBuilder = this.clone();
+          await clonedBuilder.updateByTxPrototype(selectionSkeleton);
+          clonedBuilder.queueAllLastItem();
+          clonedBuilder.removeDuplicateInputs();
+          const maxTxSize = this._protocolParams.maxTxSize;
+          const txSize = clonedBuilder.getSerializedSize();
+          return txSize > maxTxSize;
+        },
+      };
 
-    const currentInputs = this.meshTxBuilderBody.inputs;
-    const currentOutputs = this.meshTxBuilderBody.outputs;
-    const changeAddress = this.meshTxBuilderBody.changeAddress;
-    const utxosForSelection = await this.getUtxosForSelection();
-    const implicitValue = {
-      withdrawals: this.getTotalWithdrawal(),
-      deposit: this.getTotalDeposit(),
-      reclaimDeposit: this.getTotalRefund(),
-      mint: this.getTotalMint()
-    }
+      const currentInputs = this.meshTxBuilderBody.inputs;
+      const currentOutputs = this.meshTxBuilderBody.outputs;
+      const changeAddress = this.meshTxBuilderBody.changeAddress;
+      const utxosForSelection = await this.getUtxosForSelection();
+      const implicitValue = {
+        withdrawals: this.getTotalWithdrawal(),
+        deposit: this.getTotalDeposit(),
+        reclaimDeposit: this.getTotalRefund(),
+        mint: this.getTotalMint(),
+      };
 
-    const inputSelector = new CardanoSdkInputSelector(callbacks);
-    return await inputSelector.select(
+      const inputSelector = new CardanoSdkInputSelector(callbacks);
+      return await inputSelector.select(
         currentInputs,
         currentOutputs,
         implicitValue,
         utxosForSelection,
         changeAddress,
-    );
-  }
+      );
+    };
 
-  updateByTxPrototype = async (selectionSkeleton: CoinSelectionInterface.TransactionPrototype)=> {
+  updateByTxPrototype = async (
+    selectionSkeleton: CoinSelectionInterface.TransactionPrototype,
+  ) => {
     for (let utxo of selectionSkeleton.newInputs) {
       this.txIn(
-          utxo.input.txHash,
-          utxo.input.outputIndex,
-          utxo.output.amount,
-          utxo.output.address,
-          utxo.output.scriptRef ? utxo.output.scriptRef.length / 2 : 0,
+        utxo.input.txHash,
+        utxo.input.outputIndex,
+        utxo.output.amount,
+        utxo.output.address,
+        utxo.output.scriptRef ? utxo.output.scriptRef.length / 2 : 0,
       );
     }
 
@@ -253,16 +263,19 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.meshTxBuilderBody.fee = selectionSkeleton.fee.toString();
     const skeletonRedeemers = selectionSkeleton.redeemers ?? [];
     this.updateRedeemer(this.meshTxBuilderBody, skeletonRedeemers);
-  }
+  };
 
   getUtxosForSelection = async () => {
     const utxos = this.meshTxBuilderBody.extraInputs;
-    const usedUtxos = new Set(this.meshTxBuilderBody.inputs
-        .map((input) => `${input.txIn.txHash}${input.txIn.txIndex}`));
+    const usedUtxos = new Set(
+      this.meshTxBuilderBody.inputs.map(
+        (input) => `${input.txIn.txHash}${input.txIn.txIndex}`,
+      ),
+    );
     return utxos.filter(
-        (utxo) => !usedUtxos.has(`${utxo.input.txHash}${utxo.input.outputIndex}`),
-    )
-  }
+      (utxo) => !usedUtxos.has(`${utxo.input.txHash}${utxo.input.outputIndex}`),
+    );
+  };
 
   sortTxParts = () => {
     // Sort inputs based on txHash and txIndex
@@ -282,28 +295,28 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (a.assetName > b.assetName) return 1;
       return 0;
     });
-  }
+  };
 
   evaluateRedeemers = async () => {
     let txHex = this.serializer.serializeTxBody(
-        this.meshTxBuilderBody,
-        this._protocolParams,
-        false,
+      this.meshTxBuilderBody,
+      this._protocolParams,
+      false,
     );
 
     if (this.evaluator) {
       const txEvaluation = await this.evaluator
-          .evaluateTx(
-              txHex,
-              Object.values(this.meshTxBuilderBody.inputsForEvaluation),
-              this.meshTxBuilderBody.chainedTxs,
-          )
-          .catch((error) => {
-            throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
-          });
+        .evaluateTx(
+          txHex,
+          Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+          this.meshTxBuilderBody.chainedTxs,
+        )
+        .catch((error) => {
+          throw Error(`Tx evaluation failed: ${error} \n For txHex: ${txHex}`);
+        });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
     }
-  }
+  };
 
   protected getRedeemerCosts = () => {
     const meshTxBuilderBody = this.meshTxBuilderBody;
@@ -349,7 +362,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
     }
     return redeemers;
-  }
+  };
 
   /**
    * It builds the transaction without dependencies
@@ -739,7 +752,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         if (
           this.meshTxBuilderBody.referenceInputs.find((refTxIn) => {
             refTxIn.txHash === input.txIn.txHash &&
-            refTxIn.txIndex === input.txIn.txIndex;
+              refTxIn.txIndex === input.txIn.txIndex;
           }) === undefined
         ) {
           this.meshTxBuilderBody.referenceInputs.push({
@@ -754,7 +767,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     // Sort inputs based on txHash and txIndex
     this.sortTxParts();
-  }
+  };
 
   protected collectAllRequiredSignatures = (): {
     keyHashes: Set<string>;
@@ -773,7 +786,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       ...requiredSignatures,
     ]);
     return { keyHashes: allCreds, byronAddresses };
-  }
+  };
 
   protected getInputsRequiredSignatures(): {
     paymentCreds: Set<string>;
@@ -801,9 +814,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         const nativeScript = this.getInputNativeScript(input);
         if (nativeScript) {
           let pubKeys = this.getNativeScriptPubKeys(nativeScript);
-            for (let pubKey of pubKeys) {
-              paymentCreds.add(pubKey);
-            }
+          for (let pubKey of pubKeys) {
+            paymentCreds.add(pubKey);
+          }
         }
       }
     }
@@ -837,8 +850,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   protected getCertificatesRequiredSignatures(): Set<string> {
     const certCreds = new Set<string>();
     for (let cert of this.meshTxBuilderBody.certificates) {
-
-      if (cert.type !== "BasicCertificate" && cert.type !== "SimpleScriptCertificate") {
+      if (
+        cert.type !== "BasicCertificate" &&
+        cert.type !== "SimpleScriptCertificate"
+      ) {
         continue;
       }
 
@@ -854,23 +869,25 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       } else if (certType.type === "RetirePool") {
         certCreds.add(certType.poolId);
       } else if (certType.type === "DRepRegistration") {
-        if(cert.type === "BasicCertificate") {
-            const cstDrep = coreToCstDRep(certType.drepId);
-            const keyHash = cstDrep.toKeyHash();
-            if (keyHash) {
-              certCreds.add(keyHash);
-            }
+        if (cert.type === "BasicCertificate") {
+          const cstDrep = coreToCstDRep(certType.drepId);
+          const keyHash = cstDrep.toKeyHash();
+          if (keyHash) {
+            certCreds.add(keyHash);
+          }
         } else if (certNativeScript) {
           let pubKeys = this.getNativeScriptPubKeys(certNativeScript);
           for (let pubKey of pubKeys) {
             certCreds.add(pubKey);
           }
         }
-      } else if (certType.type === "StakeRegistrationAndDelegation" ||
-                 certType.type === "VoteRegistrationAndDelegation" ||
-                 certType.type === "StakeVoteRegistrationAndDelegation" ||
-                 certType.type === "DeregisterStake") {
-        if(cert.type === "BasicCertificate") {
+      } else if (
+        certType.type === "StakeRegistrationAndDelegation" ||
+        certType.type === "VoteRegistrationAndDelegation" ||
+        certType.type === "StakeVoteRegistrationAndDelegation" ||
+        certType.type === "DeregisterStake"
+      ) {
+        if (cert.type === "BasicCertificate") {
           const address = CstAddress.fromString(certType.stakeKeyAddress);
           if (address) {
             const addressDetails = address.getProps();
@@ -885,22 +902,27 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
             certCreds.add(pubKey);
           }
         }
-      } else if (certType.type === "CommitteeHotAuth" || certType.type === "CommitteeColdResign") {
-          if (cert.type === "BasicCertificate") {
-            const address = CstAddress.fromString(certType.committeeColdKeyAddress);
-            if (address) {
-              const addressDetails = address.getProps();
-              const paymentCred = addressDetails.paymentPart;
-              if (paymentCred?.type === CstCredentialType.KeyHash) {
-                certCreds.add(paymentCred.hash);
-              }
-            }
-          } else if (certNativeScript) {
-            let pubKeys = this.getNativeScriptPubKeys(certNativeScript);
-            for (let pubKey of pubKeys) {
-              certCreds.add(pubKey);
+      } else if (
+        certType.type === "CommitteeHotAuth" ||
+        certType.type === "CommitteeColdResign"
+      ) {
+        if (cert.type === "BasicCertificate") {
+          const address = CstAddress.fromString(
+            certType.committeeColdKeyAddress,
+          );
+          if (address) {
+            const addressDetails = address.getProps();
+            const paymentCred = addressDetails.paymentPart;
+            if (paymentCred?.type === CstCredentialType.KeyHash) {
+              certCreds.add(paymentCred.hash);
             }
           }
+        } else if (certNativeScript) {
+          let pubKeys = this.getNativeScriptPubKeys(certNativeScript);
+          for (let pubKey of pubKeys) {
+            certCreds.add(pubKey);
+          }
+        }
       }
     }
     return certCreds;
@@ -943,8 +965,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (let withdrawal of this.meshTxBuilderBody.withdrawals) {
       accum += BigInt(withdrawal.coin);
     }
-    return accum
-  }
+    return accum;
+  };
 
   protected getTotalDeposit = () => {
     let accum = 0n;
@@ -967,22 +989,22 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
     }
     return accum;
-  }
+  };
 
   protected getTotalRefund = (): bigint => {
     let accum = 0n;
     for (let cert of this.meshTxBuilderBody.certificates) {
       const certType = cert.certType;
-        if (certType.type === "DeregisterStake") {
-          if (cert.certType) {
-            accum += BigInt(this._protocolParams.keyDeposit);
-          }
-        } else if (certType.type === "DRepDeregistration") {
-          accum += BigInt(certType.coin);
+      if (certType.type === "DeregisterStake") {
+        if (cert.certType) {
+          accum += BigInt(this._protocolParams.keyDeposit);
         }
+      } else if (certType.type === "DRepDeregistration") {
+        accum += BigInt(certType.coin);
+      }
     }
-    return accum
-  }
+    return accum;
+  };
 
   protected getTotalMint = (): Asset[] => {
     const assets = new Map<string, bigint>();
@@ -992,17 +1014,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       amount += BigInt(mint.amount);
     }
 
-    return Array.from(assets).map(([assetId, amount]) => (
-        {
-          unit: assetId,
-          quantity: amount.toString()
-        }
-    ));
-  }
+    return Array.from(assets).map(([assetId, amount]) => ({
+      unit: assetId,
+      quantity: amount.toString(),
+    }));
+  };
 
-  protected getNativeScriptPubKeys = (nativeScript: CstNativeScript): Set<string> => {
+  protected getNativeScriptPubKeys = (
+    nativeScript: CstNativeScript,
+  ): Set<string> => {
     const pubKeys = new Set<string>();
-    const nativeScriptStack = []
+    const nativeScriptStack = [];
     nativeScriptStack.push(nativeScript);
     while (nativeScriptStack.length > 0) {
       const script = nativeScriptStack.pop();
@@ -1033,7 +1055,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
     }
     return pubKeys;
-  }
+  };
 
   protected getVoteNativeScript = (cert: Vote): CstNativeScript | undefined => {
     if (cert.type !== "SimpleScriptVote") {
@@ -1041,80 +1063,108 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
 
     const scriptSource = cert.simpleScriptSource;
-    if(scriptSource === undefined) {
+    if (scriptSource === undefined) {
       return undefined;
     }
 
     if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(scriptSource.txHash, scriptSource.txIndex);
+      return this.getInlinedNativeScript(
+        scriptSource.txHash,
+        scriptSource.txIndex,
+      );
     }
     if (scriptSource.type === "Provided") {
-      return CstNativeScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptSource.scriptCode);
+      return CstNativeScript.fromCbor(
+        <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
+      );
     }
-  }
+  };
 
-  protected getCertificateNativeScript = (cert: Certificate): CstNativeScript | undefined => {
+  protected getCertificateNativeScript = (
+    cert: Certificate,
+  ): CstNativeScript | undefined => {
     if (cert.type !== "SimpleScriptCertificate") {
       return undefined;
     }
 
     const scriptSource = cert.simpleScriptSource;
-    if(scriptSource === undefined) {
+    if (scriptSource === undefined) {
       return undefined;
     }
 
     if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(scriptSource.txHash, scriptSource.txIndex);
+      return this.getInlinedNativeScript(
+        scriptSource.txHash,
+        scriptSource.txIndex,
+      );
     }
     if (scriptSource.type === "Provided") {
-      return CstNativeScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptSource.scriptCode);
+      return CstNativeScript.fromCbor(
+        <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
+      );
     }
-  }
+  };
 
-  protected getMintNativeScript = (mint: MintItem): CstNativeScript | undefined => {
+  protected getMintNativeScript = (
+    mint: MintItem,
+  ): CstNativeScript | undefined => {
     if (mint.type !== "Native") {
       return undefined;
     }
 
     const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
     const scriptSourceAlternative = mint.scriptSource as ScriptSource;
-    if(scriptSource === undefined) {
+    if (scriptSource === undefined) {
       return undefined;
     }
 
     if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(scriptSource.txHash, scriptSource.txIndex);
+      return this.getInlinedNativeScript(
+        scriptSource.txHash,
+        scriptSource.txIndex,
+      );
     }
     if (scriptSource.type === "Provided") {
-      if(scriptSource.scriptCode != undefined) {
-        return CstNativeScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptSource.scriptCode);
+      if (scriptSource.scriptCode != undefined) {
+        return CstNativeScript.fromCbor(
+          <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
+        );
       }
     }
 
     if (scriptSourceAlternative.type === "Provided") {
-      if(scriptSourceAlternative.script != undefined) {
-        return CstNativeScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptSourceAlternative.script.code);
+      if (scriptSourceAlternative.script != undefined) {
+        return CstNativeScript.fromCbor(
+          <CardanoSDKUtil.HexBlob>scriptSourceAlternative.script.code,
+        );
       }
     }
-  }
+  };
 
-  protected getWithdrawalNativeScript = (withdrawal: Withdrawal): CstNativeScript | undefined => {
+  protected getWithdrawalNativeScript = (
+    withdrawal: Withdrawal,
+  ): CstNativeScript | undefined => {
     if (withdrawal.type !== "SimpleScriptWithdrawal") {
       return undefined;
     }
 
     const scriptSource = withdrawal.scriptSource;
-    if(scriptSource === undefined) {
+    if (scriptSource === undefined) {
       return undefined;
     }
 
     if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(scriptSource.txHash, scriptSource.txIndex);
+      return this.getInlinedNativeScript(
+        scriptSource.txHash,
+        scriptSource.txIndex,
+      );
     }
     if (scriptSource.type === "Provided") {
-      return CstNativeScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptSource.scriptCode);
+      return CstNativeScript.fromCbor(
+        <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
+      );
     }
-  }
+  };
 
   protected getInputNativeScript(txIn: TxIn): CstNativeScript | undefined {
     if (txIn.type !== "SimpleScript") {
@@ -1122,19 +1172,27 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
 
     const scriptSource = txIn.simpleScriptTxIn.scriptSource;
-    if(scriptSource === undefined) {
-        return undefined;
+    if (scriptSource === undefined) {
+      return undefined;
     }
 
     if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(scriptSource.txHash, scriptSource.txIndex);
+      return this.getInlinedNativeScript(
+        scriptSource.txHash,
+        scriptSource.txIndex,
+      );
     }
     if (scriptSource.type === "Provided") {
-        return CstNativeScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptSource.scriptCode);
+      return CstNativeScript.fromCbor(
+        <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
+      );
     }
   }
 
-  protected getInlinedNativeScript = (txHash: string, index: number): CstNativeScript | undefined => {
+  protected getInlinedNativeScript = (
+    txHash: string,
+    index: number,
+  ): CstNativeScript | undefined => {
     const utxos = this.queriedUTxOs[txHash];
     if (!utxos) {
       return undefined;
@@ -1142,15 +1200,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     const utxo = utxos.find((utxo) => utxo.input.outputIndex === index);
     if (utxo?.output.scriptRef) {
-      const script = CstScript.fromCbor(<CardanoSDKUtil.HexBlob>utxo.output.scriptRef)
+      const script = CstScript.fromCbor(
+        <CardanoSDKUtil.HexBlob>utxo.output.scriptRef,
+      );
       return script.asNative();
     }
-    return undefined
-  }
+    return undefined;
+  };
 
   protected makeTxId = (txHash: string, index: number): string => {
     return `${txHash}-${index}`;
-  }
+  };
 
   protected getTotalReferenceInputsSize = (): bigint => {
     let accum = 0n;
@@ -1159,7 +1219,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       accum += scriptSize;
     }
     return accum;
-  }
+  };
 
   protected getAllReferenceInputsSizes = (): Map<string, bigint> => {
     const referenceInputs = new Map<string, bigint>();
@@ -1175,7 +1235,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (const [txId, scriptSize] of mintsReferenceInputs) {
       referenceInputs.set(txId, scriptSize);
     }
-    const withdrawalsReferenceInputs = this.getWithdrawalsReferenceInputsSizes();
+    const withdrawalsReferenceInputs =
+      this.getWithdrawalsReferenceInputsSizes();
     for (const [txId, scriptSize] of withdrawalsReferenceInputs) {
       referenceInputs.set(txId, scriptSize);
     }
@@ -1183,20 +1244,24 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (const [txId, scriptSize] of votesReferenceInputs) {
       referenceInputs.set(txId, scriptSize);
     }
-    const certificatesReferenceInputs = this.getCertificatesReferenceInputsSizes();
+    const certificatesReferenceInputs =
+      this.getCertificatesReferenceInputsSizes();
     for (const [txId, scriptSize] of certificatesReferenceInputs) {
       referenceInputs.set(txId, scriptSize);
     }
     return referenceInputs;
-  }
+  };
 
   protected getBodyReferenceInputsSizes = (): [string, bigint][] => {
     const referenceInputs: [string, bigint][] = [];
     for (const refTxIn of this.meshTxBuilderBody.referenceInputs) {
-      referenceInputs.push([this.makeTxId(refTxIn.txHash, refTxIn.txIndex), BigInt(refTxIn.scriptSize ?? 0)]);
+      referenceInputs.push([
+        this.makeTxId(refTxIn.txHash, refTxIn.txIndex),
+        BigInt(refTxIn.scriptSize ?? 0),
+      ]);
     }
     return referenceInputs;
-  }
+  };
 
   protected getInputsReferenceInputsSizes = (): [string, bigint][] => {
     const referenceInputs: [string, bigint][] = [];
@@ -1204,17 +1269,23 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (input.type === "Script") {
         const scriptSource = input.scriptTxIn.scriptSource;
         if (scriptSource?.type === "Inline") {
-          referenceInputs.push([this.makeTxId(scriptSource.txHash, scriptSource.txIndex), BigInt(scriptSource.scriptSize ?? 0)]);
+          referenceInputs.push([
+            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
+            BigInt(scriptSource.scriptSize ?? 0),
+          ]);
         }
       } else if (input.type === "SimpleScript") {
         const scriptSource = input.simpleScriptTxIn.scriptSource;
         if (scriptSource?.type === "Inline") {
-          referenceInputs.push([this.makeTxId(scriptSource.txHash, scriptSource.txIndex), BigInt(scriptSource.scriptSize ?? 0)]);
+          referenceInputs.push([
+            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
+            BigInt(scriptSource.scriptSize ?? 0),
+          ]);
         }
       }
     }
     return referenceInputs;
-  }
+  };
 
   protected getMintsReferenceInputsSizes = (): [string, bigint][] => {
     const referenceInputs: [string, bigint][] = [];
@@ -1222,25 +1293,34 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (mint.type === "Plutus" || mint.type === "Native") {
         const scriptSource = mint.scriptSource;
         if (scriptSource?.type == "Inline") {
-          referenceInputs.push([this.makeTxId(scriptSource.txHash, scriptSource.txIndex), BigInt(scriptSource.scriptSize ?? 0)]);
+          referenceInputs.push([
+            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
+            BigInt(scriptSource.scriptSize ?? 0),
+          ]);
         }
       }
     }
     return referenceInputs;
-  }
+  };
 
   protected getWithdrawalsReferenceInputsSizes = (): [string, bigint][] => {
     const referenceInputs: [string, bigint][] = [];
     for (const withdrawal of this.meshTxBuilderBody.withdrawals) {
-      if (withdrawal.type === "SimpleScriptWithdrawal" || withdrawal.type === "ScriptWithdrawal") {
+      if (
+        withdrawal.type === "SimpleScriptWithdrawal" ||
+        withdrawal.type === "ScriptWithdrawal"
+      ) {
         const scriptSource = withdrawal.scriptSource;
         if (scriptSource?.type === "Inline") {
-          referenceInputs.push([this.makeTxId(scriptSource.txHash, scriptSource.txIndex), BigInt(scriptSource.scriptSize ?? 0)]);
+          referenceInputs.push([
+            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
+            BigInt(scriptSource.scriptSize ?? 0),
+          ]);
         }
       }
     }
     return referenceInputs;
-  }
+  };
 
   protected getVotesReferenceInputsSizes = (): [string, bigint][] => {
     const referenceInputs: [string, bigint][] = [];
@@ -1248,17 +1328,23 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (vote.type === "SimpleScriptVote") {
         const scriptSource = vote.simpleScriptSource;
         if (scriptSource?.type === "Inline") {
-          referenceInputs.push([this.makeTxId(scriptSource.txHash, scriptSource.txIndex), BigInt(scriptSource.scriptSize ?? 0)]);
+          referenceInputs.push([
+            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
+            BigInt(scriptSource.scriptSize ?? 0),
+          ]);
         }
       } else if (vote.type === "ScriptVote") {
         const scriptSource = vote.scriptSource;
         if (scriptSource?.type === "Inline") {
-          referenceInputs.push([this.makeTxId(scriptSource.txHash, scriptSource.txIndex), BigInt(scriptSource.scriptSize ?? 0)]);
+          referenceInputs.push([
+            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
+            BigInt(scriptSource.scriptSize ?? 0),
+          ]);
         }
       }
     }
     return referenceInputs;
-  }
+  };
 
   protected getCertificatesReferenceInputsSizes = (): [string, bigint][] => {
     const referenceInputs: [string, bigint][] = [];
@@ -1266,17 +1352,23 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (cert.type === "SimpleScriptCertificate") {
         const scriptSource = cert.simpleScriptSource;
         if (scriptSource?.type === "Inline") {
-          referenceInputs.push([this.makeTxId(scriptSource.txHash, scriptSource.txIndex), BigInt(scriptSource.scriptSize ?? 0)]);
+          referenceInputs.push([
+            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
+            BigInt(scriptSource.scriptSize ?? 0),
+          ]);
         }
       } else if (cert.type === "ScriptCertificate") {
         const scriptSource = cert.scriptSource;
         if (scriptSource?.type === "Inline") {
-          referenceInputs.push([this.makeTxId(scriptSource.txHash, scriptSource.txIndex), BigInt(scriptSource.scriptSize ?? 0)]);
+          referenceInputs.push([
+            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
+            BigInt(scriptSource.scriptSize ?? 0),
+          ]);
         }
       }
     }
     return referenceInputs;
-  }
+  };
 
   getTotalExecutionUnits = (): {
     memUnits: bigint;
@@ -1317,50 +1409,54 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return {
       memUnits,
       stepUnits,
-    }
-  }
+    };
+  };
 
   getSerializedSize = (): number => {
     return this.serializeMockTx().length / 2;
-  }
+  };
 
   calculateFee = (): bigint => {
     const txSize = this.getSerializedSize();
     return this.calculateFeeForSerializedTx(txSize);
-  }
+  };
 
   calculateFeeForSerializedTx = (txSize: number): bigint => {
     const refScriptFee = this.calculateRefScriptFee();
     const redeemersFee = this.calculateRedeemersFee();
     const minFeeCoeff = BigInt(this._protocolParams.minFeeA);
     const minFeeConstant = BigInt(this._protocolParams.minFeeB);
-    const minFee = (minFeeCoeff * BigInt(txSize)) + minFeeConstant;
+    const minFee = minFeeCoeff * BigInt(txSize) + minFeeConstant;
     return minFee + refScriptFee + redeemersFee;
-  }
+  };
 
   calculateRefScriptFee = (): bigint => {
     const refSize = this.getTotalReferenceInputsSize();
     const refScriptFee = this._protocolParams.minFeeRefScriptCostPerByte;
     return minRefScriptFee(refSize, refScriptFee);
-  }
+  };
 
   calculateRedeemersFee = (): bigint => {
-    const {memUnits, stepUnits} = this.getTotalExecutionUnits();
+    const { memUnits, stepUnits } = this.getTotalExecutionUnits();
     const stepPrice = BigNumber(this._protocolParams.priceStep);
     const memPrice = BigNumber(this._protocolParams.priceMem);
     const stepFee = stepPrice.multipliedBy(BigNumber(stepUnits.toString()));
     const memFee = memPrice.multipliedBy(BigNumber(memUnits.toString()));
-    return BigInt(stepFee.plus(memFee).integerValue(BigNumber.ROUND_CEIL).toString());
-  }
+    return BigInt(
+      stepFee.plus(memFee).integerValue(BigNumber.ROUND_CEIL).toString(),
+    );
+  };
 
   calculateMinLovelaceForOutput = (output: Output): bigint => {
     let currentOutput = cloneOutput(output);
     let lovelace = getLovelace(currentOutput);
     let minAda = 0n;
     for (let i = 0; i < 3; i++) {
-      const txOutSize = BigInt(this.serializer.serializeOutput(currentOutput).length / 2);
+      const txOutSize = BigInt(
+        this.serializer.serializeOutput(currentOutput).length / 2,
+      );
       const txOutByteCost = BigInt(this._protocolParams.coinsPerUtxoSize);
-      const totalOutCost = 160n + (BigInt(txOutSize) * txOutByteCost);
+      const totalOutCost = 160n + BigInt(txOutSize) * txOutByteCost;
       minAda = totalOutCost;
       if (lovelace < totalOutCost) {
         lovelace = totalOutCost;
@@ -1370,8 +1466,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       currentOutput = setLoveLace(currentOutput, lovelace);
     }
 
-    return minAda
-  }
+    return minAda;
+  };
 
   protected clone(): MeshTxBuilder {
     const newBuilder = super._cloneCore<MeshTxBuilder>(() => {
@@ -1397,8 +1493,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 }
 
 function minRefScriptFee(
-    totalRefScriptsSize: bigint,
-    refScriptCoinsPerByte: number
+  totalRefScriptsSize: bigint,
+  refScriptCoinsPerByte: number,
 ): bigint {
   const multiplier = new BigNumber(12).dividedBy(new BigNumber(10)); // 1.2
   const sizeIncrement = new BigNumber(25600);
@@ -1410,10 +1506,10 @@ function minRefScriptFee(
 }
 
 function tierRefScriptFee(
-    multiplier: BigNumber,
-    sizeIncrement: BigNumber,
-    baseFee: BigNumber,
-    totalSize: BigNumber
+  multiplier: BigNumber,
+  sizeIncrement: BigNumber,
+  baseFee: BigNumber,
+  totalSize: BigNumber,
 ): bigint {
   if (multiplier.lte(0) || sizeIncrement.eq(0)) {
     throw new Error("Size increment and multiplier must be positive");
@@ -1430,7 +1526,8 @@ function tierRefScriptFee(
     const multiplierPow = multiplier.pow(fullTiers.toNumber());
     const progressionEnumerator = one.minus(multiplierPow);
     const progressionDenom = one.minus(multiplier);
-    const tierProgressionSum = progressionEnumerator.dividedBy(progressionDenom);
+    const tierProgressionSum =
+      progressionEnumerator.dividedBy(progressionDenom);
     acc = acc.plus(tierPrice.multipliedBy(tierProgressionSum));
   }
 
@@ -1446,7 +1543,7 @@ function tierRefScriptFee(
 
 const cloneOutput = (output: Output): Output => {
   return JSONBig.parse(JSONBig.stringify(output));
-}
+};
 
 const setLoveLace = (output: Output, lovelace: bigint): Output => {
   let lovelaceSet = false;
@@ -1465,11 +1562,11 @@ const setLoveLace = (output: Output, lovelace: bigint): Output => {
     });
   }
   return output;
-}
+};
 
 const getLovelace = (output: Output): bigint => {
   for (let asset of output.amount) {
-    if (asset.unit === 'lovelace') {
+    if (asset.unit === "lovelace") {
       return BigInt(asset.quantity);
     }
   }

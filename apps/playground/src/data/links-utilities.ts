@@ -2,6 +2,7 @@ import {
   ArrowRightIcon,
   ArrowTurnRightDownIcon,
   ArrowTurnRightUpIcon,
+  DocumentTextIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/solid";
 
@@ -29,11 +30,19 @@ export const metaDeserializers = {
   icon: ArrowTurnRightUpIcon,
 };
 
+export const metaBlueprints = {
+  title: "Blueprints",
+  desc: "Blueprints for script with either apply parameters or no parameters",
+  link: "/apis/utilities/blueprints",
+  icon: DocumentTextIcon,
+};
+
 export const linksUtilities: MenuItem[] = [
   metaSerializers,
   metaDeserializers,
   metaResolvers,
   metaData,
+  metaBlueprints,
 ];
 
 export const metaUtilities = {

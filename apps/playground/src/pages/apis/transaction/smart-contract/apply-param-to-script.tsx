@@ -67,11 +67,6 @@ function Left() {
         owner will receive. The script will be created based on these parameters
         which will return a unique script CBOR and script address.
       </p>
-      <p>
-        Note, currently only <code>core-csl</code> supports applying parameters
-        to a script. As such, you must install the package to use this feature.
-      </p>
-      <Codeblock data={`npm install @meshsdk/core-cst`} />
 
       <p>
         <code>applyParamsToScript</code> has the following signature:

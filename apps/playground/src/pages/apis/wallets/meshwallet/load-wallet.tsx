@@ -257,8 +257,8 @@ function Right(
           await _wallet.init();
           setWallet(_wallet);
 
-          const changeAddress = await _wallet.getChangeAddress();
-          setResponseAddress(changeAddress);
+          const addresses = await _wallet.getAddresses();
+          setResponseAddress(addresses);
         }
       } catch (error) {
         setResponseError(`${error}`);

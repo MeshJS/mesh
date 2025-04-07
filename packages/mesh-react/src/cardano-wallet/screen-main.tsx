@@ -1,3 +1,4 @@
+import { Extension } from "@meshsdk/common";
 import { InitWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import IconBookDashed from "../common/icons/icon-book-dashed";
@@ -12,7 +13,6 @@ import Web3Services from "./web3-services";
 
 export default function ScreenMain({
   injectFn,
-  extensions,
   setOpen,
   setScreen,
   persist,
@@ -23,7 +23,6 @@ export default function ScreenMain({
   web3Services,
 }: {
   injectFn?: () => Promise<void>;
-  extensions: number[];
   setOpen: Function;
   setScreen: Function;
   persist: boolean;
@@ -45,14 +44,18 @@ export default function ScreenMain({
             icon={wallet.icon}
             name={wallet.name}
             action={() => {
-              connect(wallet.id, extensions, persist);
+              connect(wallet.id, persist);
               setOpen(false);
             }}
           />
         ))}
 
         {web3Services && (
-          <Web3Services options={web3Services} setOpen={setOpen} />
+          <Web3Services
+            options={web3Services}
+            setOpen={setOpen}
+            persist={persist}
+          />
         )}
 
         {webauthn && (
