@@ -272,7 +272,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.meshTxBuilderBody.fee === "0"
         ? selectionSkeleton.fee.toString()
         : this.meshTxBuilderBody.fee;
-    this.updateRedeemer(this.meshTxBuilderBody, []);
+    this.updateRedeemer(
+      this.meshTxBuilderBody,
+      selectionSkeleton.redeemers ?? [],
+    );
   };
 
   getUtxosForSelection = async () => {
@@ -301,8 +304,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.meshTxBuilderBody.mints.sort((a, b) => {
       if (a.policyId < b.policyId) return -1;
       if (a.policyId > b.policyId) return 1;
-      if (a.assetName < b.assetName) return -1;
-      if (a.assetName > b.assetName) return 1;
       return 0;
     });
   };
@@ -1028,12 +1029,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   protected getTotalMint = (): Asset[] => {
     const assets = new Map<string, bigint>();
     for (let mint of this.meshTxBuilderBody.mints) {
-      const assetId = `${mint.policyId}${mint.assetName}`;
-      let amount = assets.get(assetId) ?? 0n;
-      amount += BigInt(mint.amount);
-      assets.set(assetId, amount);
+      for (let assetValue of mint.mintValue) {
+        const assetId = `${mint.policyId}${assetValue.assetName}`;
+        let amount = assets.get(assetId) ?? 0n;
+        amount += BigInt(assetValue.amount);
+        assets.set(assetId, amount);
+      }
     }
-
     return Array.from(assets).map(([assetId, amount]) => ({
       unit: assetId,
       quantity: amount.toString(),

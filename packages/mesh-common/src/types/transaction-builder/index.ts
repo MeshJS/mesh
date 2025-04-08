@@ -1,13 +1,13 @@
 import { UtxoSelectionStrategy } from "../../utxo-selection";
+import { Quantity } from "../asset";
 import { Network } from "../network";
 import { UTxO } from "../utxo";
 import { Certificate } from "./certificate";
-import { MintItem } from "./mint";
+import { MintParam } from "./mint";
 import { Output } from "./output";
 import { PubKeyTxIn, RefTxIn, TxIn } from "./txin";
 import { Vote } from "./vote";
 import { Withdrawal } from "./withdrawal";
-import {Quantity} from "../asset";
 
 export * from "./data";
 export * from "./mint";
@@ -25,7 +25,7 @@ export type MeshTxBuilderBody = {
   collaterals: PubKeyTxIn[];
   requiredSignatures: string[];
   referenceInputs: RefTxIn[];
-  mints: MintItem[];
+  mints: MintParam[];
   changeAddress: string;
   metadata: TxMetadata;
   validityRange: ValidityRange;
@@ -71,7 +71,7 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   inputsForEvaluation: {},
   network: "mainnet",
   expectedNumberKeyWitnesses: 0,
-  expectedByronAddressWitnesses: []
+  expectedByronAddressWitnesses: [],
 });
 
 export function cloneTxBuilderBody(body: MeshTxBuilderBody): MeshTxBuilderBody {

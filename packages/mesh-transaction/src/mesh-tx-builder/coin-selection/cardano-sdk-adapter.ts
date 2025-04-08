@@ -200,7 +200,7 @@ export class CardanoSdkInputSelector implements IInputSelector {
       newOutputs: new Set(),
       change: selectResult.selection.change.map(CSDKOutputToMeshOutput),
       fee: selectResult.selection.fee,
-      redeemers: selectResult.redeemers?.map(CSKDRedeemerToMeshAction),
+      redeemers: selectResult.redeemers?.map(CSDKRedeemerToMeshAction),
     };
   }
 }
@@ -531,7 +531,7 @@ const meshActionToCSDKRedeemer = (
   action: Omit<Action, "data">,
 ): CSDK.Redeemer => {
   return {
-    purpose: mashRedeemerTagToCSDKRedeemerTag(action.tag),
+    purpose: meshRedeemerTagToCSDKRedeemerTag(action.tag),
     index: action.index,
     executionUnits: {
       steps: action.budget.steps,
@@ -541,7 +541,7 @@ const meshActionToCSDKRedeemer = (
   };
 };
 
-const CSKDRedeemerToMeshAction = (
+const CSDKRedeemerToMeshAction = (
   redeemer: CSDK.Redeemer,
 ): Omit<Action, "data"> => {
   return {
@@ -554,7 +554,7 @@ const CSKDRedeemerToMeshAction = (
   };
 };
 
-const mashRedeemerTagToCSDKRedeemerTag = (
+const meshRedeemerTagToCSDKRedeemerTag = (
   tag: RedeemerTagType,
 ): CSDK.RedeemerPurpose => {
   switch (tag) {

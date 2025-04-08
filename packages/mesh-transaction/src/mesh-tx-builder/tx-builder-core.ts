@@ -18,6 +18,7 @@ import {
   MeshTxBuilderBody,
   Metadatum,
   MintItem,
+  MintParam,
   Network,
   Output,
   PoolParams,
@@ -1595,7 +1596,46 @@ export class MeshTxBuilderCore {
     if (!this.mintItem) throw Error("queueMint: Undefined mint");
     if (!this.mintItem.scriptSource)
       throw Error("queueMint: Missing mint script information");
-    this.meshTxBuilderBody.mints.push(this.mintItem);
+    const currentMint: MintItem = this.mintItem;
+    const samePolicyIdMints: MintParam | undefined =
+      this.meshTxBuilderBody.mints.find((mint) => {
+        return mint.policyId === currentMint.policyId;
+      });
+    if (samePolicyIdMints !== undefined) {
+      if (
+        JSONBig.stringify(currentMint.redeemer) !==
+        JSONBig.stringify(samePolicyIdMints.redeemer)
+      ) {
+        throw Error(
+          "queueMint: Redeemer for the same policy id must be the same",
+        );
+      }
+      if (
+        JSONBig.stringify(currentMint.scriptSource) !==
+        JSONBig.stringify(samePolicyIdMints.scriptSource)
+      ) {
+        throw Error(
+          "queueMint: Script source for the same policy id must be the same",
+        );
+      }
+      samePolicyIdMints.mintValue.push({
+        assetName: currentMint.assetName,
+        amount: currentMint.amount,
+      });
+    } else {
+      this.meshTxBuilderBody.mints.push({
+        type: currentMint.type,
+        policyId: currentMint.policyId,
+        scriptSource: currentMint.scriptSource,
+        redeemer: currentMint.redeemer,
+        mintValue: [
+          {
+            assetName: currentMint.assetName,
+            amount: currentMint.amount,
+          },
+        ],
+      });
+    }
     this.mintItem = undefined;
   };
 
@@ -1680,7 +1720,6 @@ export class MeshTxBuilderCore {
     meshTxBuilderBody: MeshTxBuilderBody,
     txEvaluation: Omit<Action, "data">[],
   ) => {
-    let mintIndex = 0;
     txEvaluation.forEach((redeemerEvaluation) => {
       switch (redeemerEvaluation.tag) {
         case "SPEND": {
@@ -1696,7 +1735,7 @@ export class MeshTxBuilderCore {
           break;
         }
         case "MINT": {
-          const mint = meshTxBuilderBody.mints[mintIndex]!;
+          const mint = meshTxBuilderBody.mints[redeemerEvaluation.index]!;
           if (mint.type == "Plutus" && mint.redeemer) {
             let newExUnits: Budget = {
               mem: Math.floor(
@@ -1715,7 +1754,6 @@ export class MeshTxBuilderCore {
             ) {
               if (meshTxBuilderBody.mints[i]!.policyId === mint.policyId) {
                 meshTxBuilderBody.mints[i]!.redeemer!.exUnits = newExUnits;
-                mintIndex++;
               }
             }
           }
@@ -1772,15 +1810,17 @@ export class MeshTxBuilderCore {
       return map;
     }, requiredAssets);
     this.meshTxBuilderBody.mints.reduce((map, mint) => {
-      const mintAmount: Asset = {
-        unit: mint.policyId + mint.assetName,
-        quantity: String(mint.amount),
-      };
-      const existingQuantity = Number(map.get(mintAmount.unit)) || 0;
-      map.set(
-        mintAmount.unit,
-        String(existingQuantity - Number(mintAmount.quantity)),
-      );
+      for (const assetValue of mint.mintValue) {
+        const mintAmount: Asset = {
+          unit: mint.policyId + assetValue.assetName,
+          quantity: String(assetValue.amount),
+        };
+        const existingQuantity = Number(map.get(mintAmount.unit)) || 0;
+        map.set(
+          mintAmount.unit,
+          String(existingQuantity - Number(mintAmount.quantity)),
+        );
+      }
       return map;
     }, requiredAssets);
 

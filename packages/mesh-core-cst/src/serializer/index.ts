@@ -26,7 +26,6 @@ import {
   BuilderData,
   Certificate,
   NativeScript as CommonNativeScript,
-  Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
@@ -38,7 +37,7 @@ import {
   IMeshTxSerializer,
   IResolver,
   MeshTxBuilderBody,
-  MintItem,
+  MintParam,
   mnemonicToEntropy,
   Output,
   PlutusDataType,
@@ -966,7 +965,7 @@ class CardanoSDKSerializerCore {
     this.txBody.setReferenceInputs(referenceInputs);
   };
 
-  private addAllMints = (mints: MintItem[]) => {
+  private addAllMints = (mints: MintParam[]) => {
     for (let i = 0; i < mints.length; i++) {
       this.addMint(mints[i]!);
     }
@@ -987,21 +986,26 @@ class CardanoSDKSerializerCore {
     this.txWitnessSet.setRedeemers(redeemers);
   };
 
-  private addMint = (mint: MintItem) => {
+  private addMint = (mint: MintParam) => {
     const currentMint: TokenMap = this.txBody.mint() ?? new Map();
 
-    const mintAssetId = mint.policyId + mint.assetName;
+    for (const assetValue of mint.mintValue) {
+      const mintAssetId = `${mint.policyId}${assetValue.assetName}`;
 
-    for (const asset of currentMint.keys()) {
-      if (asset.toString() == mintAssetId) {
-        throw new Error("The same asset is already in the mint field");
+      for (const asset of currentMint.keys()) {
+        if (asset.toString() == mintAssetId) {
+          throw new Error("The same asset is already in the mint field");
+        }
       }
-    }
 
-    currentMint.set(
-      AssetId.fromParts(PolicyId(mint.policyId), AssetName(mint.assetName)),
-      BigInt(mint.amount),
-    );
+      currentMint.set(
+        AssetId.fromParts(
+          PolicyId(mint.policyId),
+          AssetName(assetValue.assetName),
+        ),
+        BigInt(assetValue.amount),
+      );
+    }
     this.txBody.setMint(currentMint);
 
     if (mint.type === "Native") {
