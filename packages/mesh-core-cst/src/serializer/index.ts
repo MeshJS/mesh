@@ -73,7 +73,6 @@ import {
   ByronAttributes,
   CborSet,
   CborWriter,
-  CertificateType,
   computeAuxiliaryDataHash,
   CredentialCore,
   CredentialType,
@@ -95,12 +94,6 @@ import {
   Redeemer,
   Redeemers,
   RedeemerTag,
-  RequireAllOf,
-  RequireAnyOf,
-  RequireNOf,
-  RequireSignature,
-  RequireTimeAfter,
-  RequireTimeBefore,
   RewardAccount,
   RewardAddress,
   Script,
@@ -112,7 +105,6 @@ import {
   TransactionInput,
   TransactionOutput,
   TransactionWitnessSet,
-  Value,
   VkeyWitness,
 } from "../types";
 import {
@@ -124,10 +116,8 @@ import {
   toValue,
 } from "../utils";
 import { toCardanoCert } from "../utils/certificate";
-import { calculateFees } from "../utils/fee";
 import { toCardanoMetadataMap } from "../utils/metadata";
 import { hashScriptData } from "../utils/script-data-hash";
-import { empty, mergeValue, negatives, subValue } from "../utils/value";
 import {
   toCardanoGovernanceActionId,
   toCardanoVoter,
@@ -444,7 +434,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   serializeTxBody = (
     txBuilderBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
-    balanced: boolean = true,
   ): string => {
     if (this.verbose) {
       console.log(
@@ -461,19 +450,15 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
       protocolParams ?? this.protocolParams,
     );
 
-    return serializerCore.coreSerializeTx(txBuilderBody, balanced);
+    return serializerCore.coreSerializeTx(txBuilderBody);
   };
 
   serializeTxBodyWithMockSignatures(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
-    balanced: boolean,
   ): string {
     const serializerCore = new CardanoSDKSerializerCore(protocolParams);
-    return serializerCore.coreSerializeTxWithMockSignatures(
-      txBuilderBody,
-      balanced,
-    );
+    return serializerCore.coreSerializeTxWithMockSignatures(txBuilderBody);
   }
 
   addSigningKeys = (txHex: string, signingKeys: string[]): string => {
@@ -595,10 +580,7 @@ class CardanoSDKSerializerCore {
     this.txAuxilliaryData = new AuxilliaryData();
   }
 
-  coreSerializeTxBody = (
-    txBuilderBody: MeshTxBuilderBody,
-    balanced: Boolean,
-  ): TransactionBody => {
+  coreSerializeTxBody = (txBuilderBody: MeshTxBuilderBody): TransactionBody => {
     const {
       inputs,
       outputs,
@@ -619,9 +601,7 @@ class CardanoSDKSerializerCore {
     );
     this.addAllInputs(inputs);
     this.setFee(txBuilderBody.fee ?? "0");
-    if (balanced) {
-      this.sanitizeOutputs(outputs);
-    }
+    this.sanitizeOutputs(outputs);
     this.addAllOutputs(outputs);
     this.addAllMints(mints);
     this.addAllCerts(certificates);
@@ -639,15 +619,12 @@ class CardanoSDKSerializerCore {
     return this.txBody;
   };
 
-  coreSerializeTx(txBuilderBody: MeshTxBuilderBody, balanced: boolean): string {
-    const bodyCore = this.coreSerializeTxBody(txBuilderBody, balanced);
+  coreSerializeTx(txBuilderBody: MeshTxBuilderBody): string {
+    const bodyCore = this.coreSerializeTxBody(txBuilderBody);
     if (txBuilderBody.fee !== undefined) {
       this.txBody.setFee(BigInt(txBuilderBody.fee));
     }
     this.buildWitnessSet();
-    if (balanced) {
-      this.balanceTx(txBuilderBody.changeAddress);
-    }
     return new Transaction(
       bodyCore,
       this.txWitnessSet,
@@ -655,11 +632,8 @@ class CardanoSDKSerializerCore {
     ).toCbor();
   }
 
-  coreSerializeTxWithMockSignatures(
-    txBuilderBody: MeshTxBuilderBody,
-    balanced: boolean,
-  ): string {
-    const bodyCore = this.coreSerializeTxBody(txBuilderBody, balanced);
+  coreSerializeTxWithMockSignatures(txBuilderBody: MeshTxBuilderBody): string {
+    const bodyCore = this.coreSerializeTxBody(txBuilderBody);
     const mockWitSet = this.createMockedWitnessSet(
       txBuilderBody.expectedNumberKeyWitnesses,
       txBuilderBody.expectedByronAddressWitnesses,
@@ -1467,237 +1441,6 @@ class CardanoSDKSerializerCore {
     return finalRefInputs;
   };
 
-  private balanceTx = (changeAddress: string) => {
-    if (changeAddress === "") {
-      throw new Error("Can't balance tx without a change address");
-    }
-
-    // First we add up all input values
-    const inputs = this.txBody.inputs().values();
-    let remainingValue = new Value(BigInt(0));
-    for (let i = 0; i < inputs.length; i++) {
-      let input = inputs[i];
-      if (!input) {
-        throw new Error("Invalid input found");
-      }
-      const output = this.utxoContext.get(input);
-      if (!output) {
-        throw new Error(`Unable to resolve input: ${input.toCbor()}`);
-      }
-      remainingValue = mergeValue(remainingValue, output.amount());
-    }
-
-    // Then we add all withdrawal values
-    const withdrawals = this.txBody.withdrawals();
-    if (withdrawals) {
-      withdrawals.forEach((coin) => {
-        remainingValue = mergeValue(remainingValue, new Value(coin));
-      });
-    }
-
-    // Then we add all mint values
-    remainingValue = mergeValue(
-      remainingValue,
-      new Value(BigInt(0), this.txBody.mint()),
-    );
-
-    // We then take away any current outputs
-    const currentOutputs = this.txBody.outputs();
-    for (let i = 0; i < currentOutputs.length; i++) {
-      let output = currentOutputs.at(i);
-      if (output) {
-        remainingValue = subValue(remainingValue, output.amount());
-      }
-    }
-
-    // We then handle any certificate deposits, adding deregistrations and taking away registrations
-    const certs = this.txBody.certs();
-    if (certs) {
-      certs.values().forEach((cert) => {
-        switch (cert.toCore().__typename) {
-          case CertificateType.StakeRegistration: {
-            remainingValue = subValue(
-              remainingValue,
-              new Value(BigInt(this.protocolParams.keyDeposit)),
-            );
-            break;
-          }
-          case CertificateType.StakeDeregistration: {
-            remainingValue = mergeValue(
-              remainingValue,
-              new Value(BigInt(this.protocolParams.keyDeposit)),
-            );
-            break;
-          }
-          case CertificateType.Registration: {
-            remainingValue = subValue(
-              remainingValue,
-              new Value(BigInt(cert.asRegistrationCert()?.deposit() ?? 0)),
-            );
-            break;
-          }
-          case CertificateType.Unregistration: {
-            remainingValue = mergeValue(
-              remainingValue,
-              new Value(BigInt(cert.asUnregistrationCert()?.deposit() ?? 0)),
-            );
-            break;
-          }
-          case CertificateType.PoolRegistration: {
-            remainingValue = subValue(
-              remainingValue,
-              new Value(BigInt(this.protocolParams.poolDeposit)),
-            );
-            break;
-          }
-          case CertificateType.PoolRetirement: {
-            remainingValue = mergeValue(
-              remainingValue,
-              new Value(BigInt(this.protocolParams.poolDeposit)),
-            );
-            break;
-          }
-          case CertificateType.RegisterDelegateRepresentative: {
-            remainingValue = subValue(
-              remainingValue,
-              new Value(
-                BigInt(
-                  cert.asRegisterDelegateRepresentativeCert()?.deposit() ?? 0,
-                ),
-              ),
-            );
-            break;
-          }
-          case CertificateType.UnregisterDelegateRepresentative: {
-            remainingValue = mergeValue(
-              remainingValue,
-              new Value(
-                BigInt(
-                  cert.asUnregisterDelegateRepresentativeCert()?.deposit() ?? 0,
-                ),
-              ),
-            );
-            break;
-          }
-          case CertificateType.StakeRegistrationDelegation: {
-            remainingValue = subValue(
-              remainingValue,
-              new Value(
-                BigInt(
-                  cert.asStakeRegistrationDelegationCert()?.deposit() ?? 0,
-                ),
-              ),
-            );
-            break;
-          }
-          case CertificateType.StakeVoteRegistrationDelegation: {
-            remainingValue = subValue(
-              remainingValue,
-              new Value(
-                BigInt(
-                  cert.asStakeVoteRegistrationDelegationCert()?.deposit() ?? 0,
-                ),
-              ),
-            );
-            break;
-          }
-        }
-      });
-    }
-
-    // Add an initial change output, this is needed to generate dummy tx
-    // If inputs - outputs is negative, then throw error
-    if (remainingValue.coin() < 0 || !empty(negatives(remainingValue))) {
-      throw new Error(`Not enough funds to satisfy outputs`);
-    }
-
-    const dummyChangeOutput = new TransactionOutput(
-      toCardanoAddress(changeAddress),
-      remainingValue,
-    );
-
-    currentOutputs.push(dummyChangeOutput);
-
-    let fee: bigint = BigInt(0);
-    let feeSet: boolean = false;
-    if (this.txBody.fee() !== BigInt(0)) {
-      fee = this.txBody.fee();
-      feeSet = true;
-    } else {
-      // Create a dummy tx that we will use to calculate fees
-      this.txBody.setFee(BigInt("10000000"));
-      const numberOfRequiredWitnesses = this.countNumberOfRequiredWitnesses();
-      const dummyTx = this.createDummyTx(numberOfRequiredWitnesses);
-
-      // The calculate fees util will first calculate fee based on
-      // length of dummy tx, then calculate fees related to script
-      // ref size
-      fee = calculateFees(
-        this.protocolParams.minFeeA,
-        this.protocolParams.minFeeB,
-        this.protocolParams.minFeeRefScriptCostPerByte,
-        this.protocolParams.priceMem,
-        this.protocolParams.priceStep,
-        dummyTx,
-        this.refScriptSize,
-      );
-    }
-
-    // Handle change output
-    let minUtxoValue =
-      (160 + dummyChangeOutput.toCbor().length / 2 + 1) *
-      this.protocolParams.coinsPerUtxoSize;
-
-    if (remainingValue.coin() < fee) {
-      throw new Error("Insufficient funds to pay fee");
-    }
-
-    if (remainingValue.coin() - fee < BigInt(minUtxoValue)) {
-      if (
-        remainingValue.multiasset() &&
-        remainingValue.multiasset()!.size > 0
-      ) {
-        throw new Error(
-          "Insufficient funds to create change output with tokens",
-        );
-      } else {
-        if (feeSet) {
-          throw new Error(
-            "The fee was set, and there is not enough funds to create a change output",
-          );
-        }
-        fee = remainingValue.coin();
-        currentOutputs.pop();
-      }
-    } else {
-      const changeOutput = currentOutputs.pop();
-      if (changeOutput) {
-        changeOutput.amount().setCoin(changeOutput.amount().coin() - fee);
-        currentOutputs.push(changeOutput);
-      }
-    }
-
-    this.txBody.setFee(fee);
-  };
-
-  private createDummyTx = (numberOfRequiredWitnesses: number): Transaction => {
-    let dummyWitnessSet = TransactionWitnessSet.fromCbor(
-      HexBlob(this.txWitnessSet.toCbor()),
-    );
-    const dummyVkeyWitnesses: [Ed25519PublicKeyHex, Ed25519SignatureHex][] = [];
-    for (let i = 0; i < numberOfRequiredWitnesses; i++) {
-      dummyVkeyWitnesses.push([
-        Ed25519PublicKeyHex(String(i).repeat(64)),
-        Ed25519SignatureHex(String(i).repeat(128)),
-      ]);
-    }
-    dummyWitnessSet.setVkeys(
-      Serialization.CborSet.fromCore(dummyVkeyWitnesses, VkeyWitness.fromCore),
-    );
-
-    return new Transaction(this.txBody, dummyWitnessSet, this.txAuxilliaryData);
-  };
-
   private addScriptRef = (scriptSource: ScriptSource): void => {
     if (scriptSource.type !== "Inline") {
       return;
@@ -1745,206 +1488,6 @@ class CardanoSDKSerializerCore {
       scriptSize: Number(simpleScriptSource.scriptSize),
     });
   };
-
-  private countNumberOfRequiredWitnesses(): number {
-    // TODO: handle all fields that requires vkey witnesses:
-    // Missing: [Votes, Proposals]
-    // TODO: handle reference  native script case
-
-    // Use a set of payment key hashes to count, since there
-    // could be multiple inputs with the same payment keys
-    let requiredWitnesses: Set<string> = new Set();
-
-    // Handle vkey witnesses from inputs
-    const inputs = this.txBody.inputs().values();
-    for (let i = 0; i < inputs.length; i++) {
-      const input = inputs[i];
-      // KeyHash credential type is enum 0
-      const addressPaymentPart = this.utxoContext
-        .get(input!)
-        ?.address()
-        .getProps().paymentPart;
-      if (addressPaymentPart?.type === 0) {
-        requiredWitnesses.add(addressPaymentPart.hash);
-      }
-    }
-
-    // Handle vkey witnesses from collateral inputs
-    const collateralInputs = this.txBody.collateral()?.values();
-    if (collateralInputs) {
-      for (let i = 0; i < collateralInputs?.length; i++) {
-        const collateralInput = collateralInputs[i];
-        const addressPaymentPart = this.utxoContext
-          .get(collateralInput!)
-          ?.address()
-          .getProps().paymentPart;
-        if (addressPaymentPart?.type === 0) {
-          requiredWitnesses.add(addressPaymentPart.hash);
-        }
-      }
-    }
-
-    // Handle vkey witnesses from withdrawals
-    const withdrawalKeys = this.txBody.withdrawals()?.keys();
-    if (withdrawalKeys) {
-      for (let withdrawalKey of withdrawalKeys) {
-        requiredWitnesses.add(RewardAccount.toHash(withdrawalKey));
-      }
-    }
-
-    // Handle vkey witnesses from certs
-    const certs = this.txBody.certs()?.values();
-    if (certs) {
-      for (let cert of certs) {
-        const coreCert = cert.toCore();
-        switch (coreCert.__typename) {
-          case CertificateType.StakeRegistration: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.StakeDeregistration: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.PoolRegistration: {
-            for (let owner of coreCert.poolParameters.owners) {
-              requiredWitnesses.add(RewardAccount.toHash(owner));
-            }
-            requiredWitnesses.add(PoolId.toKeyHash(coreCert.poolParameters.id));
-            break;
-          }
-          case CertificateType.PoolRetirement: {
-            requiredWitnesses.add(PoolId.toKeyHash(coreCert.poolId));
-            break;
-          }
-          case CertificateType.StakeDelegation: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.MIR:
-            // MIR certs don't contain witnesses
-            break;
-          case CertificateType.GenesisKeyDelegation: {
-            requiredWitnesses.add(coreCert.genesisDelegateHash);
-            break;
-          }
-          case CertificateType.Registration: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.Unregistration: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.VoteDelegation: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.StakeVoteDelegation: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.StakeRegistrationDelegation: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.VoteRegistrationDelegation: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.StakeVoteRegistrationDelegation: {
-            requiredWitnesses.add(coreCert.stakeCredential.hash);
-            break;
-          }
-          case CertificateType.AuthorizeCommitteeHot: {
-            requiredWitnesses.add(coreCert.hotCredential.hash);
-            break;
-          }
-          case CertificateType.ResignCommitteeCold: {
-            requiredWitnesses.add(coreCert.coldCredential.hash);
-            break;
-          }
-          case CertificateType.RegisterDelegateRepresentative: {
-            requiredWitnesses.add(coreCert.dRepCredential.hash);
-            break;
-          }
-          case CertificateType.UnregisterDelegateRepresentative: {
-            requiredWitnesses.add(coreCert.dRepCredential.hash);
-            break;
-          }
-          case CertificateType.UpdateDelegateRepresentative: {
-            requiredWitnesses.add(coreCert.dRepCredential.hash);
-            break;
-          }
-        }
-      }
-    }
-
-    // Handle native scripts in provided scripts
-    for (const scriptHex of this.scriptsProvided) {
-      const script = Script.fromCbor(HexBlob(scriptHex));
-      let nativeScript = script.asNative();
-      if (nativeScript) {
-        this.addKeyHashesFromNativeScript(nativeScript, requiredWitnesses);
-      }
-    }
-
-    // Handle required signers
-    const requiredSigners = this.txBody.requiredSigners()?.values();
-    if (requiredSigners) {
-      for (let i = 0; i < requiredSigners.length; i++) {
-        requiredWitnesses.add(requiredSigners[i]!.toCbor());
-      }
-    }
-    return requiredWitnesses.size;
-  }
-
-  private addKeyHashesFromNativeScript(
-    script: NativeScript,
-    keyHashes: Set<String>,
-  ) {
-    const scriptCore = script.toCore();
-    switch (scriptCore.kind) {
-      case RequireSignature: {
-        keyHashes.add(scriptCore.keyHash);
-        break;
-      }
-      case RequireTimeAfter: {
-        break;
-      }
-      case RequireTimeBefore: {
-        break;
-      }
-      case RequireAllOf: {
-        for (const innerScript of scriptCore.scripts) {
-          this.addKeyHashesFromNativeScript(
-            NativeScript.fromCore(innerScript),
-            keyHashes,
-          );
-        }
-        break;
-      }
-      case RequireAnyOf: {
-        for (const innerScript of scriptCore.scripts) {
-          this.addKeyHashesFromNativeScript(
-            NativeScript.fromCore(innerScript),
-            keyHashes,
-          );
-        }
-        break;
-      }
-      case RequireNOf: {
-        for (const innerScript of scriptCore.scripts) {
-          this.addKeyHashesFromNativeScript(
-            NativeScript.fromCore(innerScript),
-            keyHashes,
-          );
-        }
-        break;
-      }
-    }
-    return keyHashes;
-  }
 
   private addProvidedPlutusScript = (script: PlutusScript) => {
     switch (script.version) {

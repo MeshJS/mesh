@@ -2,7 +2,6 @@ import { PlutusDataType } from "../data";
 import {
   Asset,
   BuilderData,
-  Data,
   DeserializedAddress,
   DeserializedScript,
   MeshTxBuilderBody,
@@ -17,12 +16,10 @@ export interface IMeshTxSerializer {
   serializeTxBody(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
-    balanced: boolean,
   ): string;
   serializeTxBodyWithMockSignatures(
       txBuilderBody: MeshTxBuilderBody,
       protocolParams: Protocol,
-      balanced: boolean,
   ): string;
   addSigningKeys(txHex: string, signingKeys: string[]): string;
   resolver: IResolver;

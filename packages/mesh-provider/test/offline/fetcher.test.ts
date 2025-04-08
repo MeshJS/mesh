@@ -18,6 +18,8 @@ describe("OfflineFetcher", () => {
 
   const validBech32Address =
     "addr_test1qrhsnfvaqnd8r7dm9f9c5fscyfqmqzptyrn63dzrgvfw6p7vxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qkdr4hz";
+  const validBech32Address2 =
+    "addr_test1qql3kkt57ncf7zt5hej4un8ff79z6zra7dut08hnj9kzdv437u94wweqf3nftw8kd6mw03uv2hk7jscqyn47cm74lpwsju87pd";
   const validBase58Address =
     "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo";
   const validPoolId =
@@ -118,8 +120,26 @@ describe("OfflineFetcher", () => {
     invalidBefore: "",
     invalidAfter: "",
     slot: "50000000",
-    inputs: [],
-    outputs: [],
+    inputs: [
+      {
+        ...sampleUTxO,
+        output: {
+          address: validBech32Address2,
+          amount: [{ unit: "lovelace", quantity: "1000000" }],
+          dataHash: undefined,
+        },
+      },
+    ],
+    outputs: [
+      {
+        ...sampleUTxO,
+        output: {
+          address: validBech32Address2,
+          amount: [{ unit: "lovelace", quantity: "1000000" }],
+          dataHash: undefined,
+        },
+      },
+    ],
   };
 
   const sampleAssetAddress = {

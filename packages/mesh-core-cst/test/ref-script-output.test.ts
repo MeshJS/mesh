@@ -1,9 +1,9 @@
 import { MeshTxBuilderBody } from "@meshsdk/common";
+import { MeshTxBuilder } from "@meshsdk/core";
 import { CardanoSDKSerializer, Transaction, TxCBOR } from "@meshsdk/core-cst";
 
 describe("Ref Script output", () => {
-  it("serializer should build a tx with ref script output", () => {
-    const serializer = new CardanoSDKSerializer();
+  it("serializer should build a tx with ref script output", async () => {
     const body: MeshTxBuilderBody = {
       inputs: [
         {
@@ -15,6 +15,7 @@ describe("Ref Script output", () => {
             amount: [{ unit: "lovelace", quantity: "307063809" }],
             address:
               "addr_test1qprgjf3u3tkl0qk9738jlyspg25dukxuzrz2lugmp7uypqzw6yxtdssjk4pxv9j489vv8ekkh03wvet9v2y2tsdl6cjs6dsvxs",
+            scriptSize: 0,
           },
         },
       ],
@@ -86,7 +87,7 @@ describe("Ref Script output", () => {
       expectedByronAddressWitnesses: [],
     };
 
-    const txHex = serializer.serializeTxBody(body);
+    const txHex = await new MeshTxBuilder().complete(body);
     const cardanoTx = Transaction.fromCbor(TxCBOR(txHex));
     expect(cardanoTx.body().fee()).toBeGreaterThanOrEqual(BigInt("510329"));
   });

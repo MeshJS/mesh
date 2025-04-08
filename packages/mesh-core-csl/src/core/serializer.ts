@@ -61,14 +61,7 @@ export class CSLSerializer implements IMeshTxSerializer {
   serializeTxBody(
     txBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
-    balanced: Boolean = true,
   ): string {
-    // TODO: Implement unbalanced tx for CSL serializer
-    if (!balanced) {
-      throw new Error(
-        "Unbalanced transactions are not supported with CSL serializer",
-      );
-    }
     const txBodyJson = JSONbig.stringify(meshTxBuilderBodyToObj(txBody));
 
     const params = JSONbig.stringify(protocolParams || this.protocolParams);
