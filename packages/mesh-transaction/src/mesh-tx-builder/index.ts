@@ -16,7 +16,6 @@ import {
   ScriptSource,
   SimpleScriptSourceInfo,
   TxIn,
-  txInToUtxo,
   UTxO,
   Vote,
   Withdrawal,

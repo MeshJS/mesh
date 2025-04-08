@@ -1,4 +1,4 @@
-import { js_get_tx_outs_utxo } from "@sidan-lab/sidan-csl-rs-nodejs";
+import { js_get_tx_outs_utxo } from "@sidan-lab/whisky-js-nodejs";
 
 import {
   Action,
