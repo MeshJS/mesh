@@ -31,13 +31,7 @@ const ReactPage: NextPage = () => {
           description={metaSerializers.desc}
           heroicon={metaSerializers.icon}
         >
-          <>
-            <p>
-              In smart contract manipulations, serialization is a crucial process that encode
-              data structures or objects into a format that can be easily stored or transmitted and later reconstructed. 
-              Below are utilities to help serialize various Cardano smart contracts components.
-            </p>
-          </>
+          <></>
         </TitleIconDescriptionBody>
 
         <SerializeNativeScript />
