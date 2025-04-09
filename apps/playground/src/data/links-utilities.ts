@@ -29,6 +29,20 @@ export const metaDeserializers = {
   icon: ArrowTurnRightUpIcon,
 };
 
+<<<<<<< Updated upstream
+=======
+
+
+
+export const metaBluePrints = {
+  title: "Blueprints",
+  desc:  "Blueprints for script with either apply parameters or no parameters",
+  link: "/apis/utilities/blueprints",
+  icon: ArrowTurnRightDownIcon
+}
+
+
+>>>>>>> Stashed changes
 export const linksUtilities: MenuItem[] = [
   metaSerializers,
   metaDeserializers,
@@ -38,7 +52,7 @@ export const linksUtilities: MenuItem[] = [
 
 export const metaUtilities = {
   title: "Utilities",
-  desc: "Serializers, resolvers and data types for converting between different formats.",
+  desc: "Serializers, resolvers, blueprints data types for converting between different formats.",
   link: "/apis/utilities",
   icon: WrenchScrewdriverIcon,
   items: linksUtilities,
