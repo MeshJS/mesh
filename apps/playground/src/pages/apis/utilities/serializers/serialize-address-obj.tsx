@@ -19,7 +19,19 @@ export default function SerializeAddressObj() {
 function Left() {
   return (
     <>
-      <p>Serialize address in Cardano data JSON format into bech32 address.</p>
+      <p>
+      The function <code>SerializeAddressObj</code> allows you to provide the plutus data Scipt address object{" "}
+      in Cardano data JSON format and option of <code>networkId</code>.
+      returns:
+      </p>
+      <ul>
+        <li>
+          Bech32 address 
+        </li>
+      </ul>
+      This example demonstrates how to derive a plutus data Scipt address with {" "}
+      function <code>scriptAddress</code> then serialize with <code>SerializeAddressObj</code>{" "}
+      to a bech32 address.
     </>
   );
 }
@@ -35,6 +47,7 @@ function Right() {
   }
 
   let codeSnippet = ``;
+  codeSnippet += `import { scriptAddress, serializeAddressObj } from "@meshsdk/core";\n\n`;
   codeSnippet += `const address = scriptAddress(\n`;
   codeSnippet += `  '${demoPubKeyHash}',\n`;
   codeSnippet += `  '${demoStakeCredential}'\n`;
