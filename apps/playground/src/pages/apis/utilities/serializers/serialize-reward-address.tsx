@@ -26,12 +26,12 @@ function Left() {
       <p>Serialize a script hash or key hash into bech32 reward address.</p>
       <p>
          The function <code>serializeRewardAddress</code> allows you to provide either the <code>scriptHash</code>{" "}
-         or <code>pubKeyHash</code>, specifying <code>isScriptHash</code> as true if a <code>scriptHash</code> was provided and false {" "}
-         if a <code>pubKeyHash</code> was provided. Additionally, you can specify the <code>networkId</code> {" "}
-         (0 for testnet or 1 for mainnet). The function returns:
+         or <code>pubKeyHash</code>, specifying <code>isScriptHash</code> as true if a <code>scriptHash</code> {" "}
+         was provided and false {" "} if a <code>pubKeyHash</code> was provided. Additionally, you can specify the <code>networkId</code> {" "}
+         The function returns:
          <ul>
           <li>
-        A Bech32 reward address, which is a human-readable format for Cardano addresses.
+          Bech32 reward address
           </li>
          </ul>
          This example demonstrates how to serialize a <code>pubKeyHash</code> or <code>scriptHash</code> into a Bech32 reward address.
