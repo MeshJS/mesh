@@ -1894,9 +1894,9 @@ export class MeshTxBuilderCore {
       const currentInput = inputs[i]!;
       const currentTxInId = getTxInId(currentInput.txIn);
       if (currentTxInIds.includes(currentTxInId)) {
-        inputs.splice(i, 1);
-        i -= 1;
+        continue;
       } else {
+        currentTxInIds.push(currentTxInId);
         addedInputs.push(currentInput);
       }
     }
@@ -1913,9 +1913,9 @@ export class MeshTxBuilderCore {
       const currentInput = referenceInputs[i]!;
       const currentTxInId = getTxInId(currentInput);
       if (currentTxInIds.includes(currentTxInId)) {
-        referenceInputs.splice(i, 1);
-        i -= 1;
+        continue;
       } else {
+        currentTxInIds.push(currentTxInId);
         addedInputs.push(currentInput);
       }
     }

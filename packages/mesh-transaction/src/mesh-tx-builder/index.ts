@@ -114,7 +114,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     } else {
       this.queueAllLastItem();
     }
-    this.addUtxosFromSelection();
+    this.removeDuplicateInputs();
+    this.removeDuplicateRefInputs();
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
@@ -127,6 +128,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     } else {
       this.queueAllLastItem();
     }
+    this.removeDuplicateInputs();
+    this.removeDuplicateRefInputs();
     this.addUtxosFromSelection();
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
@@ -179,7 +182,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
           const clonedBuilder = this.clone();
           await clonedBuilder.updateByTxPrototype(selectionSkeleton);
           clonedBuilder.queueAllLastItem();
-          clonedBuilder.removeDuplicateInputs();
 
           this.sortTxParts();
 
@@ -403,7 +405,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     } else {
       this.queueAllLastItem();
     }
-    this.addUtxosFromSelection();
+    this.removeDuplicateInputs();
+    this.removeDuplicateRefInputs();
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
