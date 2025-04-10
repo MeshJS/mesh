@@ -214,6 +214,27 @@ export class MeshValue {
   };
 
   /**
+   * Check if the value is equal to another value
+   * @param other - The value to compare against
+   * @returns boolean
+   */
+  eq = (other: MeshValue): boolean => {
+    return Object.keys(this.value).every((key) => this.eqUnit(key, other));
+  };
+
+  /**
+   * Check if the specific unit of value is equal to that unit of another value
+   * @param unit - The unit to compare
+   * @param other - The value to compare against
+   * @returns boolean
+   */
+  eqUnit = (unit: string, other: MeshValue): boolean => {
+    if (this.value[unit] === undefined || other.value[unit] === undefined) {
+      return false;
+    }
+    return BigInt(this.value[unit]) === BigInt(other.value[unit]);
+  };
+  /**
    * Check if the value is empty
    * @returns boolean
    */

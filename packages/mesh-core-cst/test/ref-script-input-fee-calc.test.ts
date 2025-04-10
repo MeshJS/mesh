@@ -1,9 +1,9 @@
 import { MeshTxBuilderBody } from "@meshsdk/common";
+import { MeshTxBuilder } from "@meshsdk/core";
 import { CardanoSDKSerializer, Transaction, TxCBOR } from "@meshsdk/core-cst";
 
 describe("Ref script inputs", () => {
-  it("Basic ref script inputs should be included in fees", () => {
-    const serializer = new CardanoSDKSerializer();
+  it("Basic ref script inputs should be included in fees", async () => {
     const body: MeshTxBuilderBody = {
       inputs: [
         {
@@ -124,9 +124,12 @@ describe("Ref script inputs", () => {
         strategy: "experimental",
         includeTxFees: false,
       },
+      fee: "0",
+      expectedNumberKeyWitnesses: 0,
+      expectedByronAddressWitnesses: [],
     };
 
-    const txHex = serializer.serializeTxBody(body);
+    const txHex = await new MeshTxBuilder().complete(body);
     const cardanoTx = Transaction.fromCbor(TxCBOR(txHex));
     expect(cardanoTx.body().fee()).toBeGreaterThanOrEqual(BigInt("628587"));
   });

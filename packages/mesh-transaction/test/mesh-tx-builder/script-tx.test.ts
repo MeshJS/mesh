@@ -555,6 +555,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .complete();
+
     const txHex2 = await txBuilder2
       .votePlutusScriptV3()
       .vote(
@@ -570,6 +571,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .complete();
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
@@ -581,6 +583,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
     ).toEqual([
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
     ]);
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex2,
@@ -623,6 +626,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .complete();
+
     const txHex2 = await txBuilder2
       .votePlutusScriptV3()
       .vote(
@@ -651,6 +655,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .complete();
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
@@ -662,6 +667,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
     ).toEqual([
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
     ]);
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex2,
@@ -697,6 +703,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .complete();
+
     const txHex2 = await txBuilder2
       .withdrawalPlutusScriptV3()
       .withdrawal(serializeRewardAddress(alwaysSucceedHash, true), "0")
@@ -718,6 +725,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .complete();
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
@@ -729,6 +737,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
     ).toEqual([
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
     ]);
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex2,
@@ -776,6 +785,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .complete();
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
@@ -788,6 +798,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
       { budget: { mem: 2001, steps: 380149 }, index: 1, tag: "SPEND" },
     ]);
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex2,
@@ -846,6 +857,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
     ).toEqual([
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "MINT" },
     ]);
+
     expect(
       await offlineEvaluator.evaluateTx(
         txHex2,

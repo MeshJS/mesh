@@ -1,1 +1,1 @@
-export * as csl from "@sidan-lab/sidan-csl-rs-nodejs";
+export * as csl from "@sidan-lab/whisky-js-nodejs";

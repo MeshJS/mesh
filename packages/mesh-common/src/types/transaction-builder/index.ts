@@ -1,8 +1,9 @@
 import { UtxoSelectionStrategy } from "../../utxo-selection";
+import { Quantity } from "../asset";
 import { Network } from "../network";
 import { UTxO } from "../utxo";
 import { Certificate } from "./certificate";
-import { MintItem } from "./mint";
+import { MintParam } from "./mint";
 import { Output } from "./output";
 import { PubKeyTxIn, RefTxIn, TxIn } from "./txin";
 import { Vote } from "./vote";
@@ -20,10 +21,11 @@ export * from "./vote";
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
   outputs: Output[];
+  fee: Quantity;
   collaterals: PubKeyTxIn[];
   requiredSignatures: string[];
   referenceInputs: RefTxIn[];
-  mints: MintItem[];
+  mints: MintParam[];
   changeAddress: string;
   metadata: TxMetadata;
   validityRange: ValidityRange;
@@ -39,13 +41,15 @@ export type MeshTxBuilderBody = {
   };
   chainedTxs: string[];
   inputsForEvaluation: Record<string, UTxO>;
-  fee?: string;
   network: Network | number[][];
+  expectedNumberKeyWitnesses: number;
+  expectedByronAddressWitnesses: string[];
 };
 
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   inputs: [],
   outputs: [],
+  fee: "0",
   extraInputs: [],
   collaterals: [],
   requiredSignatures: [],
@@ -66,7 +70,16 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   chainedTxs: [],
   inputsForEvaluation: {},
   network: "mainnet",
+  expectedNumberKeyWitnesses: 0,
+  expectedByronAddressWitnesses: [],
 });
+
+export function cloneTxBuilderBody(body: MeshTxBuilderBody): MeshTxBuilderBody {
+  const { extraInputs, ...otherProps } = body;
+  const cloned = structuredClone(otherProps) as MeshTxBuilderBody;
+  cloned.extraInputs = extraInputs;
+  return cloned;
+}
 
 // Here
 

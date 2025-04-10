@@ -1,3 +1,4 @@
+import { HexBlob } from "@cardano-sdk/util";
 import JSONBig from "json-bigint";
 
 import {
@@ -6,6 +7,7 @@ import {
   Asset,
   Budget,
   BuilderData,
+  cloneTxBuilderBody,
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
@@ -16,6 +18,7 @@ import {
   MeshTxBuilderBody,
   Metadatum,
   MintItem,
+  MintParam,
   Network,
   Output,
   PoolParams,
@@ -29,12 +32,12 @@ import {
   Unit,
   UTxO,
   UtxoSelection,
-  UtxoSelectionStrategy,
   Vote,
   Voter,
   VotingProcedure,
   Withdrawal,
 } from "@meshsdk/common";
+import { Address, CredentialType } from "@meshsdk/core-cst";
 
 import { metadataObjToMap } from "../utils";
 
@@ -1448,25 +1451,23 @@ export class MeshTxBuilderCore {
   /**
    * Selects utxos to fill output value and puts them into inputs
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
-   * @param strategy The strategy to be used in utxo selection
-   * @param threshold Extra value needed to be selected for, usually for paying fees and min UTxO value of change output (default to 5000000)
-   * @param includeTxFees Whether to include transaction fees in the threshold (default to true)
    */
-  selectUtxosFrom = (
-    extraInputs: UTxO[],
-    strategy: UtxoSelectionStrategy = "experimental",
-    threshold = "5000000",
-    includeTxFees = true,
-  ) => {
+  selectUtxosFrom = (extraInputs: UTxO[]) => {
+    for (const input of this.meshTxBuilderBody.inputs) {
+      const address = input.txIn.address;
+      if (!address) {
+        throw Error("Address is missing from the input");
+      }
+      const decodedAddress = Address.fromString(<HexBlob>address);
+      if (
+        decodedAddress?.getProps().paymentPart?.type !== CredentialType.KeyHash
+      ) {
+        throw Error("Only KeyHash address is supported for utxo selection");
+      }
+    }
     this.meshTxBuilderBody.extraInputs = extraInputs;
-    const newConfig = {
-      threshold,
-      strategy,
-      includeTxFees,
-    };
     this.meshTxBuilderBody.selectionConfig = {
       ...this.meshTxBuilderBody.selectionConfig,
-      ...newConfig,
     };
     return this;
   };
@@ -1595,7 +1596,46 @@ export class MeshTxBuilderCore {
     if (!this.mintItem) throw Error("queueMint: Undefined mint");
     if (!this.mintItem.scriptSource)
       throw Error("queueMint: Missing mint script information");
-    this.meshTxBuilderBody.mints.push(this.mintItem);
+    const currentMint: MintItem = this.mintItem;
+    const samePolicyIdMints: MintParam | undefined =
+      this.meshTxBuilderBody.mints.find((mint) => {
+        return mint.policyId === currentMint.policyId;
+      });
+    if (samePolicyIdMints !== undefined) {
+      if (
+        JSONBig.stringify(currentMint.redeemer) !==
+        JSONBig.stringify(samePolicyIdMints.redeemer)
+      ) {
+        throw Error(
+          "queueMint: Redeemer for the same policy id must be the same",
+        );
+      }
+      if (
+        JSONBig.stringify(currentMint.scriptSource) !==
+        JSONBig.stringify(samePolicyIdMints.scriptSource)
+      ) {
+        throw Error(
+          "queueMint: Script source for the same policy id must be the same",
+        );
+      }
+      samePolicyIdMints.mintValue.push({
+        assetName: currentMint.assetName,
+        amount: currentMint.amount,
+      });
+    } else {
+      this.meshTxBuilderBody.mints.push({
+        type: currentMint.type,
+        policyId: currentMint.policyId,
+        scriptSource: currentMint.scriptSource,
+        redeemer: currentMint.redeemer,
+        mintValue: [
+          {
+            assetName: currentMint.assetName,
+            amount: currentMint.amount,
+          },
+        ],
+      });
+    }
     this.mintItem = undefined;
   };
 
@@ -1680,7 +1720,6 @@ export class MeshTxBuilderCore {
     meshTxBuilderBody: MeshTxBuilderBody,
     txEvaluation: Omit<Action, "data">[],
   ) => {
-    let mintIndex = 0;
     txEvaluation.forEach((redeemerEvaluation) => {
       switch (redeemerEvaluation.tag) {
         case "SPEND": {
@@ -1696,7 +1735,7 @@ export class MeshTxBuilderCore {
           break;
         }
         case "MINT": {
-          const mint = meshTxBuilderBody.mints[mintIndex]!;
+          const mint = meshTxBuilderBody.mints[redeemerEvaluation.index]!;
           if (mint.type == "Plutus" && mint.redeemer) {
             let newExUnits: Budget = {
               mem: Math.floor(
@@ -1715,7 +1754,6 @@ export class MeshTxBuilderCore {
             ) {
               if (meshTxBuilderBody.mints[i]!.policyId === mint.policyId) {
                 meshTxBuilderBody.mints[i]!.redeemer!.exUnits = newExUnits;
-                mintIndex++;
               }
             }
           }
@@ -1772,15 +1810,17 @@ export class MeshTxBuilderCore {
       return map;
     }, requiredAssets);
     this.meshTxBuilderBody.mints.reduce((map, mint) => {
-      const mintAmount: Asset = {
-        unit: mint.policyId + mint.assetName,
-        quantity: String(mint.amount),
-      };
-      const existingQuantity = Number(map.get(mintAmount.unit)) || 0;
-      map.set(
-        mintAmount.unit,
-        String(existingQuantity - Number(mintAmount.quantity)),
-      );
+      for (const assetValue of mint.mintValue) {
+        const mintAmount: Asset = {
+          unit: mint.policyId + assetValue.assetName,
+          quantity: String(assetValue.amount),
+        };
+        const existingQuantity = Number(map.get(mintAmount.unit)) || 0;
+        map.set(
+          mintAmount.unit,
+          String(existingQuantity - Number(mintAmount.quantity)),
+        );
+      }
       return map;
     }, requiredAssets);
 
@@ -1854,9 +1894,9 @@ export class MeshTxBuilderCore {
       const currentInput = inputs[i]!;
       const currentTxInId = getTxInId(currentInput.txIn);
       if (currentTxInIds.includes(currentTxInId)) {
-        inputs.splice(i, 1);
-        i -= 1;
+        continue;
       } else {
+        currentTxInIds.push(currentTxInId);
         addedInputs.push(currentInput);
       }
     }
@@ -1873,9 +1913,9 @@ export class MeshTxBuilderCore {
       const currentInput = referenceInputs[i]!;
       const currentTxInId = getTxInId(currentInput);
       if (currentTxInIds.includes(currentTxInId)) {
-        referenceInputs.splice(i, 1);
-        i -= 1;
+        continue;
       } else {
+        currentTxInIds.push(currentTxInId);
         addedInputs.push(currentInput);
       }
     }
@@ -1906,4 +1946,53 @@ export class MeshTxBuilderCore {
     this.collateralQueueItem = undefined;
     this.refScriptTxInQueueItem = undefined;
   };
+
+  protected _cloneCore<T extends MeshTxBuilderCore>(
+    createInstance: () => T,
+  ): T {
+    this.queueAllLastItem();
+
+    const newBuilder = createInstance();
+
+    newBuilder.meshTxBuilderBody = cloneTxBuilderBody(this.meshTxBuilderBody);
+
+    newBuilder.txEvaluationMultiplier = this.txEvaluationMultiplier;
+    newBuilder.txOutput = this.txOutput
+      ? structuredClone(this.txOutput)
+      : undefined;
+
+    // Clone boolean flags
+    newBuilder.addingPlutusScriptInput = this.addingPlutusScriptInput;
+    newBuilder.plutusSpendingScriptVersion = this.plutusSpendingScriptVersion;
+    newBuilder.addingPlutusMint = this.addingPlutusMint;
+    newBuilder.plutusMintingScriptVersion = this.plutusMintingScriptVersion;
+    newBuilder.addingPlutusWithdrawal = this.addingPlutusWithdrawal;
+    newBuilder.plutusWithdrawalScriptVersion =
+      this.plutusWithdrawalScriptVersion;
+    newBuilder.addingPlutusVote = this.addingPlutusVote;
+    newBuilder.plutusVoteScriptVersion = this.plutusVoteScriptVersion;
+
+    newBuilder._protocolParams = structuredClone(this._protocolParams);
+
+    newBuilder.mintItem = this.mintItem
+      ? structuredClone(this.mintItem)
+      : undefined;
+    newBuilder.txInQueueItem = this.txInQueueItem
+      ? structuredClone(this.txInQueueItem)
+      : undefined;
+    newBuilder.withdrawalItem = this.withdrawalItem
+      ? structuredClone(this.withdrawalItem)
+      : undefined;
+    newBuilder.voteItem = this.voteItem
+      ? structuredClone(this.voteItem)
+      : undefined;
+    newBuilder.collateralQueueItem = this.collateralQueueItem
+      ? structuredClone(this.collateralQueueItem)
+      : undefined;
+    newBuilder.refScriptTxInQueueItem = this.refScriptTxInQueueItem
+      ? structuredClone(this.refScriptTxInQueueItem)
+      : undefined;
+
+    return newBuilder;
+  }
 }

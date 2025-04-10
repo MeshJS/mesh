@@ -3,6 +3,8 @@ import { useState } from "react";
 import { InitWeb3WalletOptions, Web3Wallet } from "@meshsdk/web3-sdk";
 
 import IconDiscord from "../common/icons/icon-discord";
+import IconGoogle from "../common/icons/icon-google";
+import IconTwitter from "../common/icons/icon-twitter";
 import { useWallet } from "../hooks";
 import WalletIcon from "./wallet-icon";
 
@@ -43,11 +45,25 @@ export default function Web3Services({
   }
 
   return (
-    <WalletIcon
-      iconReactNode={IconDiscord()}
-      name={`Discord`}
-      action={() => loadWallet()}
-      loading={loading}
-    />
+    <>
+      <WalletIcon
+        iconReactNode={IconGoogle()}
+        name={`Google`}
+        action={() => loadWallet()}
+        loading={loading}
+      />
+      <WalletIcon
+        iconReactNode={IconDiscord()}
+        name={`Discord`}
+        action={() => loadWallet()}
+        loading={loading}
+      />
+      <WalletIcon
+        iconReactNode={IconTwitter()}
+        name={`Twitter`}
+        action={() => loadWallet()}
+        loading={loading}
+      />
+    </>
   );
 }

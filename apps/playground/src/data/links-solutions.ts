@@ -1,9 +1,19 @@
-import { FireIcon, UserGroupIcon } from "@heroicons/react/24/solid";
+import {
+  FireIcon,
+  GlobeAltIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/solid";
 
 import { MenuItem } from "~/types/menu-item";
 import { metaSmartContract } from "./links-smart-contracts";
 
 export const linksSolutions: MenuItem[] = [
+  {
+    link: `https://web3.meshjs.dev/`,
+    title: "Web3 Services",
+    desc: "Streamline user onboarding and Web3 integration, accelerating your app's time to market",
+    icon: GlobeAltIcon,
+  },
   metaSmartContract,
   {
     link: `https://multisig.meshjs.dev/`,
