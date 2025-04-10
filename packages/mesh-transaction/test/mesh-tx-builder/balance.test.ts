@@ -1,7 +1,7 @@
 import { Transaction, TxCBOR } from "@meshsdk/core-cst";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
-import { txHash } from "../test-util";
+import { calculateOutputLovelaces, txHash } from "../test-util";
 
 describe("MeshTxBuilder", () => {
   let txBuilder: MeshTxBuilder;
@@ -9,18 +9,6 @@ describe("MeshTxBuilder", () => {
   beforeEach(() => {
     txBuilder = new MeshTxBuilder();
   });
-
-  const calculateOutputLovelaces = (tx: string) => {
-    const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
-    let lovelaces = BigInt(0);
-    cardanoTx
-      .body()
-      .outputs()
-      .forEach((output) => {
-        lovelaces += output.amount().coin();
-      });
-    return lovelaces;
-  };
 
   // it("Should add remaining value as fees if insufficient for minUtxoValue", async () => {
   //   const tx = await txBuilder
