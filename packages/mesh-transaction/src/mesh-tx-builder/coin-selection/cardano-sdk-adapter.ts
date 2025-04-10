@@ -147,7 +147,6 @@ export class CardanoSdkInputSelector implements IInputSelector {
     if (aggregatedTxOut) {
       aggregatedOuts.add(aggregatedTxOut);
     }
-
     // Convert Mesh types to CSDK types
     const preselectedUtoxsCSDK = new Set(
       preselectedUtxos.map(meshTxInToCSDKUtxo),
@@ -164,7 +163,6 @@ export class CardanoSdkInputSelector implements IInputSelector {
     for (const utxo of preselectedUtxos) {
       usedUtxos.add(`${utxo.txIn.txHash}#${utxo.txIn.txIndex}`);
     }
-
     // Create bridge for callbacks
     const builderCallbacksBridge = new BuilderCallbacksSdkBridge(
       this.constraints,
@@ -180,7 +178,6 @@ export class CardanoSdkInputSelector implements IInputSelector {
       constraints: builderCallbacksBridge,
       implicitValue: meshImplicitCoinToCSDKImplicitCoins(implicitValue),
     });
-
     // Extract newly selected inputs
     const newInputs = new Set<UTxO>();
     for (const input of selectResult.selection.inputs) {
@@ -347,7 +344,7 @@ const CSDKValueToMeshAssets = (value: CSDK.Value): Asset[] => {
 
   if (value.coins !== 0n) {
     assets.push({
-      unit: "",
+      unit: "lovelace",
       quantity: value.coins.toString(),
     });
   }
@@ -510,10 +507,8 @@ const meshImplicitCoinToCSDKImplicitCoins = (
   if (!implicitCoins) {
     return undefined;
   }
-
   const mint = meshAssetsToCSDKAssets(implicitCoins.mint);
   const totalInput = implicitCoins.deposit + implicitCoins.withdrawals;
-
   const CSKDImplicitCoin = {
     withdrawals: implicitCoins.withdrawals,
     input: totalInput,

@@ -154,14 +154,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (let collateral of this.meshTxBuilderBody.collaterals) {
       collateral.txIn.scriptSize = 0;
     }
-
     await this.completeTxParts();
-
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype);
     this.queueAllLastItem();
     this.removeDuplicateInputs();
-
     this.sortTxParts();
 
     const txHex = this.serializer.serializeTxBody(
@@ -317,7 +314,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.meshTxBuilderBody,
       this._protocolParams,
     );
-
     if (this.evaluator) {
       const txEvaluation = await this.evaluator
         .evaluateTx(
