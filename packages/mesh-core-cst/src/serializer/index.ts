@@ -129,13 +129,11 @@ const VKEY_SIGNATURE_SIZE_BYTES = 64;
 const CHAIN_CODE_SIZE_BYTES = 32;
 
 export class CardanoSDKSerializer implements IMeshTxSerializer {
-  verbose: boolean;
   protocolParams: Protocol;
 
-  constructor(protocolParams?: Protocol, verbose = false) {
+  constructor(protocolParams?: Protocol) {
     setInConwayEra(true);
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
-    this.verbose = verbose;
   }
 
   serializeRewardAddress(
@@ -435,17 +433,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     txBuilderBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
   ): string => {
-    if (this.verbose) {
-      console.log(
-        "txBodyJson",
-        JSON.stringify(txBuilderBody, (key, val) => {
-          if (key === "extraInputs") return undefined;
-          if (key === "selectionConfig") return undefined;
-          return val;
-        }),
-      );
-    }
-
     const serializerCore = new CardanoSDKSerializerCore(
       protocolParams ?? this.protocolParams,
     );

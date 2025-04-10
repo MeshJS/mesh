@@ -57,6 +57,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
   txHex: string = "";
+  verbose: boolean;
   protected queriedTxHashes: Set<string> = new Set();
   protected queriedUTxOs: { [x: string]: UTxO[] } = {};
   protected utxosWithRefScripts: UTxO[] = [];
@@ -80,7 +81,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     } else {
       this.serializer = new CardanoSDKSerializer(this._protocolParams);
     }
-    this.serializer.verbose = verbose;
+    this.verbose = verbose;
     if (isHydra)
       this.protocolParams({
         minFeeA: 0,
@@ -147,6 +148,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
     } else {
       this.queueAllLastItem();
+    }
+    if (this.verbose) {
+      console.log(
+        "txBodyJson",
+        JSON.stringify(this.meshTxBuilderBody, (key, val) => {
+          if (key === "extraInputs") return undefined;
+          if (key === "selectionConfig") return undefined;
+          return val;
+        }),
+      );
     }
     this.removeDuplicateInputs();
     this.removeDuplicateRefInputs();
@@ -1494,7 +1505,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         fetcher: this.fetcher,
         submitter: this.submitter,
         evaluator: this.evaluator,
-        verbose: this.serializer.verbose,
+        verbose: this.verbose,
         params: { ...this._protocolParams },
       });
     });
