@@ -250,8 +250,7 @@ describe("Build transaction with custom protocol params", () => {
             type: "Plutus",
             policyId:
               "3ef107f3846191c353d00a7a6c7320771d11703593d7506d5bad85fc",
-            assetName: "",
-            amount: "4",
+            mintValue: [{ assetName: "", amount: "4" }],
             redeemer: {
               data: { type: "Mesh", content: { alternative: 0, fields: [] } },
               exUnits: { mem: 7000000, steps: 3000000000 },
@@ -341,6 +340,9 @@ describe("Build transaction with custom protocol params", () => {
         },
         chainedTxs: [],
         inputsForEvaluation: {},
+        fee: "0",
+        expectedNumberKeyWitnesses: 0,
+        expectedByronAddressWitnesses: [],
       }),
     ).toBeTruthy();
   });

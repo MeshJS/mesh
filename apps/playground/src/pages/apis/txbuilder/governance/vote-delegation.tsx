@@ -34,7 +34,7 @@ function Left() {
   codeTx += `    rewardAddress,\n`;
   codeTx += `  )\n`;
   codeTx += `  .changeAddress(changeAddress)\n`;
-  codeTx += `  .selectUtxosFrom(utxos, "keepRelevant", "10000000")`;
+  codeTx += `  .selectUtxosFrom(utxos)`;
 
   let codeBuildSign = `const unsignedTx = await txBuilder.complete();\n`;
   codeBuildSign += `const signedTx = await wallet.signTx(unsignedTx);\n`;
@@ -107,7 +107,7 @@ function Right() {
         rewardAddress,
       )
       .changeAddress(changeAddress)
-      .selectUtxosFrom(utxos, "keepRelevant", "10000000");
+      .selectUtxosFrom(utxos);
 
     const unsignedTx = await txBuilder.complete();
     const signedTx = await wallet.signTx(unsignedTx);
@@ -131,7 +131,7 @@ function Right() {
   codeSnippet += `    rewardAddress,\n`;
   codeSnippet += `  )\n`;
   codeSnippet += `  .changeAddress(changeAddress)\n`;
-  codeSnippet += `  .selectUtxosFrom(utxos, "keepRelevant", "10000000")\n`;
+  codeSnippet += `  .selectUtxosFrom(utxos)\n`;
   codeSnippet += `\n`;
   codeSnippet += `const unsignedTx = await txBuilder.complete();\n`;
   codeSnippet += `const signedTx = await wallet.signTx(unsignedTx);\n`;

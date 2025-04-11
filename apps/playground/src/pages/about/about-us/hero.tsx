@@ -13,7 +13,6 @@ export default function AboutHero() {
             wallet integrations to data service providers, building a Web3
             application has never been this easy.
           </p>
-
           {/* <a
             href="#"
             className="bg-primary-700 hover:bg-primary-800 focus:ring-primary-900 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800 inline-flex items-center rounded-lg px-5 py-3 text-center font-medium text-white focus:outline-none focus:ring-4"

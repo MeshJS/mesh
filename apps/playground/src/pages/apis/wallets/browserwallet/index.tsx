@@ -51,7 +51,7 @@ const ReactPage: NextPage = () => {
 
     { label: "Get supported extensions", to: "getSupportedExtensions" },
     { label: "Get extensions", to: "getExtensions" },
-    { label: "Get DRep ID Key", to: "getDRep" },
+    { label: "Get DRep ID", to: "getDRep" },
     { label: "Get registered stakekeys", to: "getRegisteredpubstakekeys" },
     {
       label: "Get unregistered stakekeys",
@@ -74,7 +74,7 @@ const ReactPage: NextPage = () => {
           <p>
             These wallets APIs are in accordance to{" "}
             <Link href="https://cips.cardano.org/cip/CIP-30">CIP-30</Link>,
-            which defines the API for dApps to communicate with the user's
+            which defines the API for apps to communicate with the user's
             wallet. Additional utility functions provided for developers that
             are useful for building applications.
           </p>
@@ -82,7 +82,7 @@ const ReactPage: NextPage = () => {
           <p>Check out the full documentation on</p>
 
           <p>
-            In this section, you can connect wallet and try APIs for dApps to
+            In this section, you can connect wallet and try APIs for apps to
             communicate with your wallet.
           </p>
         </TitleIconDescriptionBody>

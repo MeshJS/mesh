@@ -3,6 +3,7 @@
 import JSONbig from "json-bigint";
 
 import type {
+  Asset,
   BuilderData,
   Data,
   NativeScript,
@@ -214,7 +215,7 @@ export const castDataToPlutusData = ({
     return csl.PlutusData.from_hex(content as string);
   }
   return csl.PlutusData.from_json(
-    content as string,
+    castRawDataToJsonString(content),
     csl.PlutusDatumSchema.DetailedSchema,
   );
 };
@@ -256,4 +257,28 @@ export const toNativeScript = (script: NativeScript) => {
         csl.ScriptPubkey.new(deserializeEd25519KeyHash(script.keyHash)),
       );
   }
+};
+
+export const toCslValue = (assets: Asset[]): csl.Value => {
+  let cslValue: csl.Value | undefined = undefined;
+  let multiAsset: csl.MultiAsset = csl.MultiAsset.new();
+  for (const asset of assets) {
+    if (asset.unit === "lovelace" || asset.unit === "") {
+      cslValue = csl.Value.new(csl.BigNum.from_str(asset.quantity));
+    } else {
+      const policyId = csl.ScriptHash.from_hex(asset.unit.slice(0, 56));
+      const assetName = csl.AssetName.new(
+        Buffer.from(asset.unit.slice(56), "hex"),
+      );
+      const quantity = csl.BigNum.from_str(asset.quantity);
+      multiAsset.set_asset(policyId, assetName, quantity);
+    }
+  }
+  if (cslValue !== undefined) {
+    cslValue.set_multiasset(multiAsset);
+  } else {
+    cslValue = csl.Value.new(csl.BigNum.from_str("0"));
+    cslValue.set_multiasset(multiAsset);
+  }
+  return cslValue;
 };

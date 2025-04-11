@@ -116,7 +116,7 @@ jobs:
           if [[ "${{ steps.pre-merge-version.outputs.hydra_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.hydra_post_merge_version }}" ]]; then
               echo "hydra-version-updated=true" >> "$GITHUB_OUTPUT"
           else
-              echo "common-version-updated=false" >> "$GITHUB_OUTPUT"
+              echo "hydra-version-updated=false" >> "$GITHUB_OUTPUT"
           fi
           if [[ "${{ steps.pre-merge-version.outputs.common_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.common_post_merge_version }}" ]]; then
               echo "common-version-updated=true" >> "$GITHUB_OUTPUT"

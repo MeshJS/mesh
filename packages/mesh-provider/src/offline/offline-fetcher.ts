@@ -7,12 +7,18 @@ import {
   IFetcher,
   IFetcherOptions,
   Protocol,
+  resolveEpochNo,
+  resolveSlotNo,
   SUPPORTED_HANDLES,
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
 
-import { parseHttpError } from "../utils";
+import {randomBytes} from 'crypto';
+
+import {parseHttpError} from "../utils";
+import {Serialization, TransactionOutput, Value} from "@meshsdk/core-cst";
+import {Network, SLOT_CONFIG_NETWORK} from "@meshsdk/common";
 
 type AssetAddress = {
   address: string;
@@ -38,10 +44,12 @@ type AssetAddress = {
  *
  * // Create a new instance
  * const fetcher = new OfflineFetcher();
+ * //or const fetcher = new OfflineFetcher("mainnet");
  *
  * // Add some blockchain data
  * fetcher.addAccount(address, accountInfo);
  * fetcher.addUTxOs(utxos);
+ * fetcher.addSerializedTransaction("txHash");
  *
  * // Use the fetcher with MeshWallet
  * const wallet = new MeshWallet({
@@ -63,6 +71,10 @@ export class OfflineFetcher implements IFetcher {
   private collections: Record<string, Asset[]> = {};
   private protocolParameters: Record<number, Protocol> = {};
   private transactions: Record<string, TransactionInfo> = {};
+
+  constructor(
+    private network?: Network,
+  ) {}
 
   private paginate<T>(
     items: T[],
@@ -839,6 +851,7 @@ export class OfflineFetcher implements IFetcher {
       );
     }
     this.transactions[txInfo.hash] = txInfo;
+    this.addUTxOs(txInfo.outputs);
   }
 
   /**
@@ -894,5 +907,132 @@ export class OfflineFetcher implements IFetcher {
       );
     }
     this.blocks[blockInfo.hash] = blockInfo;
+  }
+
+  /**
+   * Adds a serialized transaction to the fetcher, it's generates pseudo block in addition to transaction.
+   * Removes spent UTxOs from the fetcher and adds new UTxOs from the transaction.
+   * @param txHex - Hexadecimal string of the transaction
+   * @throws Error if transaction hex invalid
+   */
+  addSerializedTransaction(txHex: string) {
+    const tx = Serialization.Transaction.fromCbor(Serialization.TxCBOR(txHex));
+    const time = Date.now();
+    const slot = resolveSlotNo(this.network ?? "mainnet", time);
+    const epoch = resolveEpochNo(this.network ?? "mainnet", time);
+    const epochSlot = this.slotToEpochSlot(BigInt(slot));
+    const randomBlockHash = randomBytes(32).toString('hex');
+    const randomPrevBlockHash = randomBytes(32).toString('hex');
+    const randomOCert = randomBytes(32).toString('hex');
+    const fee = tx.body().fee().toString();
+    const totalOutput = tx.body().outputs().reduce((acc, output) => {
+      const amount = output.amount().coin();
+      return acc + amount;
+    }, 0n);
+    const ttl = tx.body().ttl();
+    const validityStartInterval = tx.body().validityStartInterval();
+    const txHash = tx.body().hash();
+
+    const blockInfo: BlockInfo = {
+      confirmations: 40,
+      nextBlock: "undefined its a random block",
+      hash: randomBlockHash,
+      time,
+      slot,
+      epoch,
+      epochSlot: epochSlot.toString(),
+      fees: fee,
+      slotLeader: "pool1qv3x5x5x5x5x5x5x5x5x5x5x5x5x5x5",
+      size: txHex.length / 2,
+      txCount: 1,
+      output: totalOutput.toString(),
+      operationalCertificate: randomOCert,
+      previousBlock: randomPrevBlockHash,
+      VRFKey: "vrf_vk1qv3x5x5x5x5x5x5x5x5x5x5x5x5x5",
+    };
+
+    const txInputs = tx.body().inputs();
+    const fetchedUTxOs = txInputs.values().map((input) => {
+      const txHash = input.transactionId();
+      const outputIndex = Number(input.index());
+      const utxo = Object.values(this.utxos).flat().find(utxo => {
+        return utxo.input.txHash === txHash && utxo.input.outputIndex === outputIndex;
+      })
+      if (!utxo) {
+        throw new Error(`UTxO not found for transaction hash and output index: ${txHash} ${outputIndex}`);
+      }
+      return utxo;
+    });
+
+    for(const addressUtxos of Object.values(this.utxos)) {
+      for (const utxo of fetchedUTxOs) {
+        const index = addressUtxos.indexOf(utxo);
+        if (index !== -1) {
+          addressUtxos.splice(index, 1);
+        }
+      }
+    }
+
+    const newUtxOs = tx.body().outputs().map((output, index) => {
+      return this.mapOutputToUTxO(output, txHash, index);
+    });
+
+    const transactionInfo: TransactionInfo = {
+      inputs: fetchedUTxOs,
+      hash: txHash,
+      index: 0,
+      block: randomBlockHash,
+      slot: slot.toString(),
+      fees: fee,
+      size: txHex.length / 2,
+      deposit: "0",
+      invalidBefore: validityStartInterval ? validityStartInterval.toString() : "",
+      invalidAfter: ttl ? ttl.toString() : "",
+      outputs: newUtxOs
+    }
+
+    this.addBlock(blockInfo);
+    this.addTransaction(transactionInfo);
+  }
+
+  private slotToEpochSlot(slot: bigint): bigint {
+    const slotConfig = SLOT_CONFIG_NETWORK[this.network ?? "mainnet"];
+    const epochLength = BigInt(slotConfig.epochLength);
+    return slot % epochLength;
+  }
+
+  private mapOutputToUTxO(output: TransactionOutput, txHash: string, index: number): UTxO {
+    return {
+      input: {
+        txHash,
+        outputIndex: index,
+      },
+      output: {
+        address: output.address().toBech32(),
+        amount: this.mapValueToAsset(output.amount()),
+        dataHash: output.datum()?.asDataHash(),
+        plutusData: output.datum()?.asInlineData()?.toCbor(),
+        scriptRef: output.scriptRef()?.toCbor(),
+        scriptHash: output.scriptRef()?.hash(),
+      },
+    };
+  }
+
+  private mapValueToAsset(value: Value): Asset[] {
+    const assets: Asset[] = [];
+    const multiAsset = value.multiasset();
+    if (multiAsset) {
+      for (const [assetId, quantity] of multiAsset) {
+        const asset = {
+          unit: assetId,
+          quantity: quantity.toString(),
+        };
+        assets.push(asset);
+      }
+    } else {
+      const lovelace = value.coin().toString();
+      assets.push({ unit: "lovelace", quantity: lovelace });
+    }
+    return assets;
   }
 }

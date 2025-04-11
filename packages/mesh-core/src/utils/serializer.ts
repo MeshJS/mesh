@@ -117,7 +117,7 @@ export const serializeRewardAddress = (
  */
 export const serializeData = (
   rawData: BuilderData["content"],
-  type: Omit<PlutusDataType, "CBOR">,
+  type: Omit<PlutusDataType, "CBOR"> = "Mesh",
 ): string => {
   const serializer = new core.CardanoSDKSerializer();
   const builderData = {

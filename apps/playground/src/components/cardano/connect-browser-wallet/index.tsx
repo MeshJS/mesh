@@ -1,20 +1,13 @@
-import { CardanoWallet, useWalletList } from "@meshsdk/react";
+import { CardanoWallet } from "@meshsdk/react";
 
 import { useDarkmode } from "~/hooks/useDarkmode";
 import { getProvider } from "../mesh-wallet";
 import { checkIfMetamaskInstalled } from "./metamask";
 
 export default function ConnectBrowserWallet() {
-  const wallets = useWalletList();
-  const hasAvailableWallets = wallets.length > 0;
-
   return (
     <>
-      {hasAvailableWallets ? (
-        <CommonCardanoWallet />
-      ) : (
-        <>No wallets installed</>
-      )}
+      <CommonCardanoWallet />
     </>
   );
 }
@@ -25,7 +18,6 @@ export function CommonCardanoWallet() {
   return (
     <CardanoWallet
       label={"Connect a Wallet"}
-      extensions={[95]}
       cardanoPeerConnect={{
         dAppInfo: {
           name: "Mesh SDK",
@@ -44,11 +36,6 @@ export function CommonCardanoWallet() {
         networkId: 0,
         provider: provider,
       }}
-      // webauthn={{
-      //   networkId: 0,
-      //   provider: provider,
-      //   url: "http://localhost:8080",
-      // }}
       injectFn={async () => await checkIfMetamaskInstalled("preprod")}
       isDark={isDark}
       persist={true}
@@ -56,7 +43,6 @@ export function CommonCardanoWallet() {
         networkId: 0,
         fetcher: provider,
         submitter: provider,
-        // projectId: "2237ce83-ca27-4383-bd43-987cb1e64307",
       }}
     />
   );

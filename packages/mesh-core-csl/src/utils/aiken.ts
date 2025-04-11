@@ -16,11 +16,11 @@ export const applyParamsToScript = (
   type: PlutusDataType = "Mesh",
 ): string => {
   const cslParams = csl.JsVecString.new();
-  let paramType = csl.BuilderDataType.CBOR;
+  let paramType = "cbor";
 
   switch (type) {
     case "JSON":
-      paramType = csl.BuilderDataType.JSON;
+      paramType = "json";
       params.forEach((param) => {
         if (typeof param === "object") {
           cslParams.add(JSON.stringify(param));
@@ -57,6 +57,6 @@ export const applyCborEncoding = (rawScript: string): string => {
   return csl.js_apply_params_to_script(
     rawScript,
     csl.JsVecString.new(),
-    csl.BuilderDataType.CBOR,
+    "cbor",
   );
 };

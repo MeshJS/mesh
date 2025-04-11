@@ -1,18 +1,19 @@
 import {
-  Data,
+  BuilderData,
   mnemonicToEntropy,
   NativeScript,
+  PlutusDataType,
   PlutusScript,
 } from "@meshsdk/common";
 
 import {
+  castDataToPlutusData,
   deserializePlutusScript,
   fromUTF8,
   toAddress,
   toBaseAddress,
   toBytes,
   toNativeScript,
-  toPlutusData,
   toRewardAddress,
   toScriptRef,
 } from ".";
@@ -118,8 +119,14 @@ export const resolveRewardAddress = (bech32: string) => {
   }
 };
 
-export const resolveDataHash = (data: Data) => {
-  const plutusData = toPlutusData(data);
+export const resolveDataHash = (
+  rawData: BuilderData["content"],
+  type: PlutusDataType = "Mesh",
+) => {
+  const plutusData = castDataToPlutusData({
+    content: rawData,
+    type,
+  } as BuilderData);
   const dataHash = csl.hash_plutus_data(plutusData);
   return dataHash.to_hex();
 };

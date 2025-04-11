@@ -3,25 +3,26 @@
 /* eslint-disable radix */
 import JSONbig from "json-bigint";
 
-import type {
+import {
+  Asset,
   BuilderData,
-  Data,
+  DEFAULT_PROTOCOL_PARAMETERS,
   DeserializedAddress,
   DeserializedScript,
+  emptyTxBuilderBody,
   IDeserializer,
   IMeshTxSerializer,
   IResolver,
   MeshTxBuilderBody,
   NativeScript,
+  Output,
+  PlutusDataType,
   PlutusScript,
   Protocol,
 } from "@meshsdk/common";
-import {
-  DEFAULT_PROTOCOL_PARAMETERS,
-  emptyTxBuilderBody,
-} from "@meshsdk/common";
 
 import {
+  castDataToPlutusData,
   csl,
   deserializePlutusScript,
   resolveDataHash,
@@ -30,6 +31,7 @@ import {
   resolveRewardAddress,
   resolveScriptRef,
   serializePoolId,
+  toCslValue,
   toNativeScript,
 } from "../deser";
 import {
@@ -44,38 +46,29 @@ import {
 import { meshTxBuilderBodyToObj } from "./adaptor";
 import { builderDataToCbor } from "./adaptor/data";
 
+const VKEY_PUBKEY_SIZE_BYTES = 32;
+const VKEY_SIGNATURE_SIZE_BYTES = 64;
+const CHAIN_CODE_SIZE_BYTES = 32;
+
 export class CSLSerializer implements IMeshTxSerializer {
   /**
    * Set to true to enable verbose logging for the txBodyJson prior going into build
    */
-  verbose: boolean;
   protocolParams: Protocol;
 
   meshTxBuilderBody: MeshTxBuilderBody = emptyTxBuilderBody();
 
-  constructor(protocolParams?: Protocol, verbose = false) {
+  constructor(protocolParams?: Protocol) {
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
-    this.verbose = verbose;
   }
 
   serializeTxBody(
     txBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
-    balanced: Boolean = true,
   ): string {
-    // TODO: Implement unbalanced tx for CSL serializer
-    if (!balanced) {
-      throw new Error(
-        "Unbalanced transactions are not supported with CSL serializer",
-      );
-    }
     const txBodyJson = JSONbig.stringify(meshTxBuilderBodyToObj(txBody));
-
     const params = JSONbig.stringify(protocolParams || this.protocolParams);
 
-    if (this.verbose) {
-      console.log("txBodyJson", txBodyJson);
-    }
     const txBuildResult = csl.js_serialize_tx_body(txBodyJson, params);
     if (txBuildResult.get_status() !== "success") {
       throw new Error(`txBuildResult error: ${txBuildResult.get_error()}`);
@@ -173,8 +166,11 @@ export class CSLSerializer implements IMeshTxSerializer {
       },
     },
     data: {
-      resolveDataHash: function (data: Data): string {
-        return resolveDataHash(data);
+      resolveDataHash: function (
+        rawData: BuilderData["content"],
+        type: PlutusDataType = "Mesh",
+      ): string {
+        return resolveDataHash(rawData, type);
       },
     },
     script: {
@@ -182,5 +178,147 @@ export class CSLSerializer implements IMeshTxSerializer {
         return resolveScriptRef(script);
       },
     },
+  };
+
+  serializeOutput(output: Output): string {
+    let cslOutputBuilder = csl.TransactionOutputBuilder.new().with_address(
+      csl.Address.from_bech32(output.address),
+    );
+    if (output.datum?.type === "Hash") {
+      cslOutputBuilder.with_data_hash(
+        csl.hash_plutus_data(castDataToPlutusData(output.datum.data)),
+      );
+    } else if (output.datum?.type === "Inline") {
+      cslOutputBuilder.with_plutus_data(
+        castDataToPlutusData(output.datum.data),
+      );
+    } else if (output.datum?.type === "Embedded") {
+      throw new Error("Embedded datum not supported");
+    }
+    if (output.referenceScript) {
+      switch (output.referenceScript.version) {
+        case "V1": {
+          cslOutputBuilder.with_script_ref(
+            csl.ScriptRef.new_plutus_script(
+              csl.PlutusScript.from_hex_with_version(
+                output.referenceScript.code,
+                csl.Language.new_plutus_v1(),
+              ),
+            ),
+          );
+          break;
+        }
+        case "V2": {
+          cslOutputBuilder.with_script_ref(
+            csl.ScriptRef.new_plutus_script(
+              csl.PlutusScript.from_hex_with_version(
+                output.referenceScript.code,
+                csl.Language.new_plutus_v2(),
+              ),
+            ),
+          );
+          break;
+        }
+        case "V3": {
+          cslOutputBuilder.with_script_ref(
+            csl.ScriptRef.new_plutus_script(
+              csl.PlutusScript.from_hex_with_version(
+                output.referenceScript.code,
+                csl.Language.new_plutus_v3(),
+              ),
+            ),
+          );
+          break;
+        }
+        default: {
+          cslOutputBuilder.with_script_ref(
+            csl.ScriptRef.new_native_script(
+              csl.NativeScript.from_hex(output.referenceScript.code),
+            ),
+          );
+          break;
+        }
+      }
+    }
+
+    return cslOutputBuilder
+      .next()
+      .with_value(toCslValue(output.amount))
+      .build()
+      .to_hex();
+  }
+
+  serializeTxBodyWithMockSignatures(
+    txBuilderBody: MeshTxBuilderBody,
+    protocolParams: Protocol,
+  ): string {
+    const txHex = this.serializeTxBody(txBuilderBody, protocolParams);
+    const cslTx = csl.Transaction.from_hex(txHex);
+    const mockWitnessSet = cslTx.witness_set();
+    const mockVkeyWitnesses = mockWitnessSet.vkeys() ?? csl.Vkeywitnesses.new();
+    const mockBootstrapWitnesses =
+      mockWitnessSet.bootstraps() ?? csl.BootstrapWitnesses.new();
+    for (let i = 0; i < txBuilderBody.expectedNumberKeyWitnesses; i++) {
+      const numberInHex = this.numberToIntegerHex(i);
+      const mockVkey = csl.Vkey.new(
+        csl.PublicKey.from_hex(this.mockPubkey(numberInHex)),
+      );
+
+      const mockSignature = csl.Ed25519Signature.from_hex(
+        this.mockSignature(numberInHex),
+      );
+      mockVkeyWitnesses.add(csl.Vkeywitness.new(mockVkey, mockSignature));
+    }
+    this.meshTxBuilderBody.expectedByronAddressWitnesses.forEach(
+      (bootstrapWitness, i) => {
+        const address = csl.ByronAddress.from_base58(bootstrapWitness);
+        const numberInHex = this.numberToIntegerHex(i);
+        const pubKeyHex = this.mockPubkey(numberInHex);
+        const mockVkey = csl.Vkey.new(csl.PublicKey.from_hex(pubKeyHex));
+        const signature = this.mockSignature(numberInHex);
+        const chainCode = this.mockChainCode(numberInHex);
+        mockBootstrapWitnesses.add(
+          csl.BootstrapWitness.new(
+            mockVkey,
+            csl.Ed25519Signature.from_hex(signature),
+            Buffer.from(chainCode, "hex"),
+            address.attributes(),
+          ),
+        );
+      },
+    );
+    mockWitnessSet.set_vkeys(mockVkeyWitnesses);
+    mockWitnessSet.set_bootstraps(mockBootstrapWitnesses);
+    return csl.Transaction.new(
+      cslTx.body(),
+      mockWitnessSet,
+      cslTx.auxiliary_data(),
+    ).to_hex();
+  }
+
+  serializeValue(value: Asset[]): string {
+    return toCslValue(value).to_hex();
+  }
+
+  private mockPubkey(numberInHex: string): string {
+    return "0"
+      .repeat(VKEY_PUBKEY_SIZE_BYTES * 2 - numberInHex.length)
+      .concat(numberInHex);
+  }
+
+  private mockSignature(numberInHex: string): string {
+    return "0"
+      .repeat(VKEY_SIGNATURE_SIZE_BYTES * 2 - numberInHex.length)
+      .concat(numberInHex);
+  }
+
+  private mockChainCode = (numberInHex: string): string => {
+    return "0"
+      .repeat(CHAIN_CODE_SIZE_BYTES * 2 - numberInHex.length)
+      .concat(numberInHex);
+  };
+
+  private numberToIntegerHex = (number: number): string => {
+    return BigInt(number).toString(16);
   };
 }

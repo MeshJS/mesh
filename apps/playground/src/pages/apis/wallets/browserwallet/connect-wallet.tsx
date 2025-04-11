@@ -24,7 +24,7 @@ function Left() {
         wallet. The wallet should request the user&apos;s permission to connect
         the web page to the user&apos;s wallet, and if permission has been
         granted, the wallet will be returned and exposing the full API for the
-        dApp to use.
+        app to use.
       </p>
       <p>
         Query <code>BrowserWallet.getAvailableWallets()</code> to get a list of
