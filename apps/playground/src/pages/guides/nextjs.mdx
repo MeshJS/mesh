@@ -75,37 +75,13 @@ Visit [http://localhost:3000](http://localhost:3000/) to view your application. 
 
 Mesh is a JavaScript library that provides a simple way to interact with the Cardano blockchain. It provides a set of APIs that allow you to interact with the Cardano blockchain without having to deal with the complexities of the Cardano blockchain.
 
-### 1. Install MeshJS package
-
 Install the latest version of Mesh with npm:
 
 ```
 npm install @meshsdk/core @meshsdk/react
 ```
 
-### 2. Add webpack in next config
-
-Open **next.config.ts** and append **webpack** configurations. Your **next.config.ts** should look like this:
-
-```
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  webpack: function (config, options) {
-    config.experiments = {
-      asyncWebAssembly: true,
-      layers: true,
-    };
-    return config;
-  },
-};
-
-export default nextConfig;
-```
-
-### 3. Congratulations
-
-You just saved a few weeks of learning and a number days trying to get started. Your Next.js application is ready to connect wallet, browse assets and make some transactions.
+Your Next.js application is ready to connect wallet, browse assets and make some transactions.
 
 ## Connect wallet and view assets
 
