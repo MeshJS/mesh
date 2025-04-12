@@ -37,6 +37,9 @@
   "dependencies": {
     "@meshsdk/common": "1.9.0-beta.33",
     "@meshsdk/core-cst": "1.9.0-beta.33",
+    "@cardano-sdk/core": "^0.45.5",
+    "@cardano-sdk/util": "^0.15.5",
+    "@cardano-sdk/input-selection": "^0.13.33",
     "json-bigint": "^1.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",

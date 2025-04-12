@@ -50,7 +50,8 @@
     "concurrently": "^8.0.1",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
-    "typescript": "latest"
+    "typescript": "latest",
+    "tsup": "^8.0.2"
   },
   "peerDependencies": {
     "react": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc",
