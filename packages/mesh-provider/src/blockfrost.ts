@@ -94,7 +94,7 @@ export class BlockfrostProvider
    * Evaluates the resources required to execute the transaction
    * @param tx - The transaction to evaluate
    */
-  async evaluateTx(cbor: string): Promise<any> {
+  async evaluateTx(cbor: string): Promise<Omit<Action, "data">[]> {
     try {
       const headers = { "Content-Type": "application/cbor" };
       const { status, data } = await this._axiosInstance.post(
@@ -176,7 +176,7 @@ export class BlockfrostProvider
 
   /**
    * Transactions for an address. The `TransactionInfo` would only return the `hash`, `inputs`, and `outputs`.
-   * @param address
+   * @param address - The address to fetch transactions for
    * @returns - partial TransactionInfo
    */
   async fetchAddressTxs(
@@ -350,6 +350,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the block information for a given block hash.
+   * @param hash The block hash to fetch from
+   * @returns The block information
+   */
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
       const { data, status } = await this._axiosInstance.get(`blocks/${hash}`);
@@ -379,6 +384,12 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the list of assets for a given policy ID.
+   * @param policyId The policy ID to fetch assets for
+   * @param cursor The cursor for pagination
+   * @returns The list of assets and the next cursor
+   */
   async fetchCollectionAssets(
     policyId: string,
     cursor = 1,
@@ -442,7 +453,7 @@ export class BlockfrostProvider
 
   /**
    * Fetch the latest protocol parameters.
-   * @param epoch
+   * @param epoch Optional - The epoch to fetch protocol parameters for
    * @returns - Protocol parameters
    */
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
@@ -481,6 +492,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the transaction information for a given transaction hash.
+   * @param hash The transaction hash to fetch
+   * @returns The transaction information
+   */
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
       const { data: txData, status } = await this._axiosInstance.get(
@@ -514,8 +530,8 @@ export class BlockfrostProvider
 
   /**
    * Get UTxOs for a given hash.
-   * @param hash
-   * @param index
+   * @param hash The transaction hash
+   * @param index Optional - The output index for filtering post fetching
    * @returns - Array of UTxOs
    */
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
@@ -543,6 +559,12 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the governance proposal information.
+   * @param txHash The transaction hash of the proposal
+   * @param certIndex The certificate index of the proposal
+   * @returns The governance proposal information
+   */
   async fetchGovernanceProposal(
     txHash: string,
     certIndex: number,
