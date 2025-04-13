@@ -112,7 +112,7 @@ export const serializeRewardAddress = (
 /**
  * Serialize the data from Mesh or JSON format into CBOR hex
  * @param data The data in Mesh or JSON format
- * @param type The data type
+ * @param type The data type. Default to be Mesh data type
  * @returns The CBOR hex string
  */
 export const serializeData = (

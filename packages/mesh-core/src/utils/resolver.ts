@@ -1,6 +1,5 @@
 import {
   BuilderData,
-  Data,
   LanguageVersion,
   NativeScript,
   PlutusDataType,

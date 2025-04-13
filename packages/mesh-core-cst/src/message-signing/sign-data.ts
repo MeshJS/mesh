@@ -12,6 +12,12 @@ import { DataSignature } from "@meshsdk/common";
 import { HexBlob, Signer } from "../types";
 import { CoseSign1, getCoseKeyFromPublicKey } from "./cose-sign1";
 
+/**
+ * Sign the data string using the provided signer
+ * @param data The data string to sign
+ * @param signer The signer object containing the key and address
+ * @returns DataSignature for verification
+ */
 export const signData = (data: string, signer: Signer): DataSignature => {
   const payload = Buffer.from(data, "hex");
   const publicKey = Buffer.from(signer.key.toPublic().bytes());
