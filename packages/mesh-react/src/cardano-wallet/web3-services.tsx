@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import {
-  InitWeb3WalletOptions,
+  EnableWeb3WalletOptions,
   UserControlledWalletDirectTo,
   Web3Wallet,
 } from "@meshsdk/web3-sdk";
@@ -17,16 +17,16 @@ export default function Web3Services({
   setOpen,
   persist,
 }: {
-  options: InitWeb3WalletOptions;
+  options: EnableWeb3WalletOptions;
   setOpen: Function;
   persist: boolean;
 }) {
-  const { setWallet } = useWallet();
+  const { setWallet, setWeb3UserData } = useWallet();
   const [loading, setLoading] = useState(false);
 
   async function loadWallet(directTo: UserControlledWalletDirectTo) {
     setLoading(true);
-    const _options: InitWeb3WalletOptions = {
+    const _options: EnableWeb3WalletOptions = {
       networkId: 0,
       fetcher: options.fetcher,
       submitter: options.submitter,
@@ -35,13 +35,16 @@ export default function Web3Services({
       directTo: directTo,
     };
     const wallet = await Web3Wallet.enable(_options);
+    const user = wallet.getUser();
 
+    setWeb3UserData(user);
     setWallet(
       wallet,
       "Mesh Web3 Services",
       persist
         ? {
             walletAddress: await wallet.getChangeAddress(),
+            user: user,
           }
         : undefined,
     );

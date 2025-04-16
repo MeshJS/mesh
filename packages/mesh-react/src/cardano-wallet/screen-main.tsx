@@ -1,5 +1,5 @@
 import { Extension } from "@meshsdk/common";
-import { InitWeb3WalletOptions } from "@meshsdk/web3-sdk";
+import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import IconBookDashed from "../common/icons/icon-book-dashed";
 import IconDownload from "../common/icons/icon-download";
@@ -30,7 +30,7 @@ export default function ScreenMain({
   burnerWallet: boolean;
   webauthn: boolean;
   showDownload: boolean;
-  web3Services?: InitWeb3WalletOptions;
+  web3Services?: EnableWeb3WalletOptions;
 }) {
   const wallets = useWalletList({ injectFn });
   const { connect } = useWallet();
