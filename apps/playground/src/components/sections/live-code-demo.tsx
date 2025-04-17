@@ -5,7 +5,7 @@ import { useWallet } from "@meshsdk/react";
 
 import RunDemoButton from "../button/run-demo-button";
 import Card from "../card/card";
-import BlockchainProviderKey from "../cardano/blockchain-providers-key";
+import ProviderKey from "../cardano/blockchain-providers-key";
 import ConnectBrowserWallet from "../cardano/connect-browser-wallet";
 import Codeblock from "../text/codeblock";
 import DemoResult from "./demo-result";
@@ -78,7 +78,7 @@ export default function LiveCodeDemo({
       {code && <Codeblock data={code} />}
 
       {runDemoShowProviderInit && runDemoProvider && (
-        <BlockchainProviderKey provider={runDemoProvider} />
+        <ProviderKey providerName={runDemoProvider} />
       )}
 
       {runCodeFunction && (connected || !hideDemoButtonIfnotConnected) && (

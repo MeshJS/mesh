@@ -8,17 +8,17 @@ export const asset = demoAsset;
 export const price = 10000000;
 
 export function getContract(wallet: IWallet) {
-  const blockchainProvider = getProvider();
+  const provider = getProvider();
 
   const meshTxBuilder = new MeshTxBuilder({
-    fetcher: blockchainProvider,
-    submitter: blockchainProvider,
+    fetcher: provider,
+    submitter: provider,
   });
 
   const contract = new MeshMarketplaceContract(
     {
       mesh: meshTxBuilder,
-      fetcher: blockchainProvider,
+      fetcher: provider,
       wallet: wallet,
       networkId: 0,
     },

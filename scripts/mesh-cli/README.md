@@ -1,14 +1,14 @@
 ![Mesh Logo](https://meshjs.dev/logo-mesh/mesh.png)
 
-Mesh is an open-source library to make building dApps accessible. Whether you're a beginner developer, startup, web3 market leader, or a large enterprise, Mesh makes web3 development easy with reliable, scalable, and well-engineered APIs & developer tools.
+Mesh is an open-source library to make building applications accessible. Whether you're a beginner developer, startup, web3 market leader, or a large enterprise, Mesh makes web3 development easy with reliable, scalable, and well-engineered APIs & developer tools.
 
 ```sh
 Usage: create-mesh-app [options] <name>
 
-A quick and easy way to bootstrap your dApps on Cardano using Mesh.
+A quick and easy way to bootstrap your Web3 app using Mesh.
 
 Arguments:
-  name                            Set a name for your dApp.
+  name                            Set a name for your app.
 
 Options:
   -V, --version                   output the version number

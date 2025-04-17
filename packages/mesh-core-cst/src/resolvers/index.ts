@@ -1,3 +1,11 @@
+/*
+This file is part of meshjs.dev.
+
+This source code is licensed under the MIT license found in the
+LICENSE file in the root directory of this source tree. See the
+Apache-2.0 License for more details.
+*/
+
 import { Cardano } from "@cardano-sdk/core";
 import { blake2b } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
@@ -5,10 +13,11 @@ import base32 from "base32-encoding";
 import { bech32 } from "bech32";
 
 import {
-  Data,
+  BuilderData,
   fromUTF8,
   mnemonicToEntropy,
   NativeScript,
+  PlutusDataType,
   PlutusScript,
   toBytes,
 } from "@meshsdk/common";
@@ -24,19 +33,25 @@ import {
 import {
   deserializePlutusScript,
   deserializeTx,
+  fromBuilderToPlutusData,
   toAddress,
   toBaseAddress,
   toEnterpriseAddress,
   toNativeScript,
-  toPlutusData,
   toRewardAddress,
   toScriptRef,
 } from "../utils";
 import { buildRewardAddress } from "../utils/builder";
 import { hexToBytes } from "../utils/encoding";
 
-export const resolveDataHash = (data: Data) => {
-  const plutusData = toPlutusData(data);
+export const resolveDataHash = (
+  rawData: BuilderData["content"],
+  type: PlutusDataType = "Mesh",
+) => {
+  const plutusData = fromBuilderToPlutusData({
+    content: rawData,
+    type,
+  } as BuilderData);
   return plutusData.hash().toString();
 };
 

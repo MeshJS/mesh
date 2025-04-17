@@ -9,11 +9,11 @@ import Codeblock from "~/components/text/codeblock";
 import { SupportedFetchers } from ".";
 
 export default function FetcherHandle({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>("meshsdk");
 
@@ -23,10 +23,10 @@ export default function FetcherHandle({
       title="Fetch Handle"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -49,20 +49,20 @@ function Left(userInput: string) {
         metadata of the handle.
       </p>
       <Codeblock
-        data={`await blockchainProvider.fetchHandle('${userInput}')`}
+        data={`await provider.fetchHandle('${userInput}')`}
       />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchHandle(userInput);
+    return await provider.fetchHandle(userInput);
   }
 
   return (
@@ -71,7 +71,7 @@ function Right(
       subtitle="Fetch handle metadata"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

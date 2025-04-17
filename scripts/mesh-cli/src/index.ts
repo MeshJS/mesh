@@ -28,13 +28,13 @@ const main = async () => {
   program
     .name("meshjs")
     .description(
-      "A quick and easy way to bootstrap your dApps on Cardano using Mesh."
+      "A quick and easy way to bootstrap your Web3 app using Mesh."
     )
     .version("1.0.0");
 
   program
     .addArgument(
-      createArgument("name", "Set a name for your dApp.")
+      createArgument("name", "Set a name for your app.")
         .argParser((name) => {
           if (/^([A-Za-z\-\\_\d])+$/.test(name)) return name;
 
@@ -72,7 +72,7 @@ const main = async () => {
 main()
   .then(() => {
     logSuccess("✨✨ Welcome to Web 3.0! ✨✨");
-    logInfo('Run "cd <project-name>" and "npm run dev" to start your dApp.');
+    logInfo('Run "cd <project-name>" and "npm run dev" to start your app.');
     process.exit(0);
   })
   .catch((error) => {

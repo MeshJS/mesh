@@ -43,15 +43,15 @@ import {
  * @example
  * ```typescript
  *  const meshTxBuilder = new MeshTxBuilder({
- *   fetcher: blockchainProvider, // one of the Providers
- *   submitter: blockchainProvider,
+ *   fetcher: provider, // one of the Providers
+ *   submitter: provider,
  *   verbose: true,
  * });
  *
  * const contract = new MeshContentOwnershipContract(
  *   {
  *     mesh: meshTxBuilder,
- *     fetcher: blockchainProvider,
+ *     fetcher: provider,
  *     wallet: wallet,
  *     networkId: 0,
  *   },
@@ -289,7 +289,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       .txOut(scriptAddress, [])
       .txOutReferenceScript(getScriptCbor(this.paramUtxo, scriptIndex))
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos, "experimental", "20000000")
+      .selectUtxosFrom(utxos)
       .complete();
     return txHex;
   };
@@ -369,7 +369,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos, "largestFirstMultiAsset")
+      .selectUtxosFrom(utxos)
       .complete();
 
     return txHex;
@@ -449,7 +449,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
         collateral.output.address,
       )
       .changeAddress(walletAddress)
-      .selectUtxosFrom(utxos, "largestFirstMultiAsset")
+      .selectUtxosFrom(utxos)
       .complete();
 
     return txHex;

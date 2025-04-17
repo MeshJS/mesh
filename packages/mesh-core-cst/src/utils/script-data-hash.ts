@@ -4,31 +4,9 @@ import * as Crypto from "@cardano-sdk/crypto";
 import { Hash32ByteBase16 } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 
-const CBOR_EMPTY_LIST = new Uint8Array([0x80]);
+import { PlutusData } from "../types";
+
 const CBOR_EMPTY_MAP = new Uint8Array([0xa0]);
-
-/**
- * Encodes an array of CBOR-encodable objects into a CBOR format.
- *
- * Each object in the array is converted to its CBOR representation and then written into a
- * CBOR array.
- *
- * @param items An array of objects that can be encoded into CBOR.
- * @returns A `Uint8Array` containing the CBOR-encoded objects.
- */
-const getCborEncodedArray = <T extends { toCbor: () => HexBlob }>(
-  items: T[],
-): Uint8Array => {
-  const writer = new Serialization.CborWriter();
-
-  writer.writeStartArray(items.length);
-
-  for (const item of items) {
-    writer.writeEncodedValue(Buffer.from(item.toCbor(), "hex"));
-  }
-
-  return writer.encode();
-};
 
 /**
  * Computes the hash of script data in a transaction, including redeemers, datums, and cost models.
@@ -45,23 +23,22 @@ const getCborEncodedArray = <T extends { toCbor: () => HexBlob }>(
  */
 export const hashScriptData = (
   costModels: Serialization.Costmdls,
-  redemeers?: Serialization.Redeemer[],
-  datums?: Serialization.PlutusData[],
+  redemeers?: Serialization.Redeemers,
+  datums?: Serialization.CborSet<Cardano.PlutusData, PlutusData>,
 ): Crypto.Hash32ByteBase16 | undefined => {
   const writer = new Serialization.CborWriter();
-
-  if (datums && datums.length > 0 && (!redemeers || redemeers.length === 0)) {
+  if (datums && datums.size() > 0 && (!redemeers || redemeers.size() === 0)) {
     /*
      ; Note that in the case that a transaction includes datums but does not
      ; include any redeemers, the script data format becomes (in hex):
-     ; [ 80 | datums | A0 ]
+     ; [ A0 | datums | A0 ]
      ; corresponding to a CBOR empty list and an empty map).
     */
-    writer.writeEncodedValue(CBOR_EMPTY_LIST);
-    writer.writeEncodedValue(getCborEncodedArray(datums));
+    writer.writeEncodedValue(CBOR_EMPTY_MAP);
+    writer.writeEncodedValue(Buffer.from(datums.toCbor(), "hex"));
     writer.writeEncodedValue(CBOR_EMPTY_MAP);
   } else {
-    if (!redemeers || redemeers.length === 0) return undefined;
+    if (!redemeers || redemeers.size() === 0) return undefined;
     /*
      ; script data format:
      ; [ redeemers | datums | language views ]
@@ -69,11 +46,10 @@ export const hashScriptData = (
      ; Similarly for the datums, if present. If no datums are provided, the middle
      ; field is an empty string.
     */
-    writer.writeEncodedValue(getCborEncodedArray(redemeers));
-
-    if (datums && datums.length > 0)
-      writer.writeEncodedValue(getCborEncodedArray(datums));
-
+    writer.writeEncodedValue(Buffer.from(redemeers.toCbor(), "hex"));
+    if (datums && datums.size() > 0) {
+      writer.writeEncodedValue(Buffer.from(datums.toCbor(), "hex"));
+    }
     writer.writeEncodedValue(
       Buffer.from(costModels.languageViewsEncoding(), "hex"),
     );

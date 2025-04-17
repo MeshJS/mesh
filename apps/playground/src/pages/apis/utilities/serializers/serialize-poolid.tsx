@@ -22,7 +22,18 @@ export default function SerializePoolId() {
 function Left() {
   return (
     <>
-      <p>Resolve the pool ID from hash.</p>
+      <p>
+        The function <code>serializePoolId</code> allows you to provide the <code>pubKeyHash</code>{" "}
+        i.e (pool Hash), {" "}
+        returns:
+        <ul>
+          <li>
+            Pool Id
+          </li>
+        </ul>
+        You can use this function to convert a pool hash into a pool ID, which is useful for interacting with {" "} 
+        staking and delegation mechanisms.
+      </p>
     </>
   );
 }

@@ -74,20 +74,23 @@ export type CreateMeshWalletOptions = {
  * ```javascript
  * import { MeshWallet, BlockfrostProvider } from '@meshsdk/core';
  *
- * const blockchainProvider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
+ * const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
  *
  * const wallet = new MeshWallet({
  *   networkId: 0,
- *   fetcher: blockchainProvider,
- *   submitter: blockchainProvider,
+ *   fetcher: provider,
+ *   submitter: provider,
  *   key: {
  *     type: 'mnemonic',
  *     words: ["solution","solution","solution","solution","solution",","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution"],
  *   },
  * });
  * ```
+ *
+ * Please call `await wallet.init()` after creating the wallet to fetch the addresses from the wallet.
  */
 export class MeshWallet implements IWallet {
+  private readonly _keyType: string;
   private readonly _wallet: EmbeddedWallet | null;
   private readonly _accountIndex: number = 0;
   private readonly _keyIndex: number = 0;
@@ -104,10 +107,12 @@ export class MeshWallet implements IWallet {
     pubDRepKey?: string;
     dRepIDBech32?: DRepID;
     dRepIDHash?: Ed25519KeyHashHex;
+    dRepIDCip105?: string;
   } = {};
 
   constructor(options: CreateMeshWalletOptions) {
     this._networkId = options.networkId;
+    this._keyType = options.key.type;
 
     if (options.fetcher) this._fetcher = options.fetcher;
     if (options.submitter) this._submitter = options.submitter;
@@ -123,7 +128,6 @@ export class MeshWallet implements IWallet {
             bech32: options.key.bech32,
           },
         });
-        this.getAddressesFromWallet(this._wallet);
         break;
       case "cli":
         this._wallet = new EmbeddedWallet({
@@ -134,7 +138,6 @@ export class MeshWallet implements IWallet {
             stake: options.key.stake,
           },
         });
-        this.getAddressesFromWallet(this._wallet);
         break;
       case "mnemonic":
         this._wallet = new EmbeddedWallet({
@@ -144,7 +147,6 @@ export class MeshWallet implements IWallet {
             words: options.key.words,
           },
         });
-        this.getAddressesFromWallet(this._wallet);
         break;
       case "bip32Bytes":
         this._wallet = new EmbeddedWallet({
@@ -154,12 +156,22 @@ export class MeshWallet implements IWallet {
             bip32Bytes: options.key.bip32Bytes,
           },
         });
-        this.getAddressesFromWallet(this._wallet);
         break;
       case "address":
         this._wallet = null;
         this.buildAddressFromBech32Address(options.key.address);
         break;
+    }
+  }
+
+  /**
+   * Initializes the wallet. This is a required call as fetching addresses from the wallet is an async operation.
+   * @returns void
+   */
+  async init() {
+    if (this._wallet && !this._wallet.cryptoIsReady) {
+      await this._wallet.init();
+      this.getAddressesFromWallet(this._wallet);
     }
   }
 
@@ -179,6 +191,8 @@ export class MeshWallet implements IWallet {
    * @returns a list of assets and their quantities
    */
   async getBalance(): Promise<Asset[]> {
+    await this.init();
+
     const utxos = await this.getUnspentOutputs();
 
     const assets = new Map<string, number>();
@@ -209,10 +223,15 @@ export class MeshWallet implements IWallet {
    *
    * @returns an address
    */
-  getChangeAddress(): string {
-    return this.addresses.baseAddressBech32
-      ? this.addresses.baseAddressBech32
-      : this.addresses.enterpriseAddressBech32!;
+  async getChangeAddress(
+    addressType: GetAddressType = "payment",
+  ): Promise<string> {
+    await this.init();
+
+    if (this.addresses.baseAddressBech32 && addressType === "payment") {
+      return this.addresses.baseAddressBech32;
+    }
+    return this.addresses.enterpriseAddressBech32!;
   }
 
   /**
@@ -227,6 +246,8 @@ export class MeshWallet implements IWallet {
   async getCollateral(
     addressType: GetAddressType = "payment",
   ): Promise<UTxO[]> {
+    await this.init();
+
     const utxos = await this.getCollateralUnspentOutput(addressType);
     return utxos.map((utxo, i) => {
       return fromTxUnspentOutput(utxo);
@@ -253,6 +274,8 @@ export class MeshWallet implements IWallet {
   async getCollateralUnspentOutput(
     addressType: GetAddressType = "payment",
   ): Promise<TransactionUnspentOutput[]> {
+    await this.init();
+
     const utxos = await this.getUnspentOutputs(addressType);
 
     // find utxos that are pure ADA-only
@@ -281,7 +304,7 @@ export class MeshWallet implements IWallet {
    * The connected wallet account provides the account's public DRep Key, derivation as described in CIP-0105.
    * These are used by the client to identify the user's on-chain CIP-1694 interactions, i.e. if a user has registered to be a DRep.
    *
-   * @returns wallet account's public DRep Key
+   * @returns DRep object
    */
   async getDRep(): Promise<
     | {
@@ -291,7 +314,19 @@ export class MeshWallet implements IWallet {
       }
     | undefined
   > {
-    console.warn("Not implemented yet");
+    await this.init();
+
+    if (
+      this.addresses.pubDRepKey &&
+      this.addresses.dRepIDHash &&
+      this.addresses.dRepIDCip105
+    )
+      return {
+        publicKey: this.addresses.pubDRepKey,
+        publicKeyHash: this.addresses.dRepIDHash,
+        dRepIDCip105: this.addresses.dRepIDCip105,
+      };
+
     return undefined;
   }
   /**
@@ -318,7 +353,7 @@ export class MeshWallet implements IWallet {
    * @returns a list of unused addresses
    */
   async getUnusedAddresses(): Promise<string[]> {
-    return [this.getChangeAddress()];
+    return [await this.getChangeAddress()];
   }
 
   /**
@@ -327,7 +362,7 @@ export class MeshWallet implements IWallet {
    * @returns a list of used addresses
    */
   async getUsedAddresses(): Promise<string[]> {
-    return [this.getChangeAddress()];
+    return [await this.getChangeAddress()];
   }
 
   /**
@@ -363,13 +398,15 @@ export class MeshWallet implements IWallet {
    * @returns a signature
    */
   async signData(payload: string, address?: string): Promise<DataSignature> {
+    await this.init();
+
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
       );
     }
     if (address === undefined) {
-      address = this.getChangeAddress()!;
+      address = await this.getChangeAddress()!;
     }
     return this._wallet.signData(
       address,
@@ -387,6 +424,8 @@ export class MeshWallet implements IWallet {
    * @returns a signed transaction in CBOR
    */
   async signTx(unsignedTx: string, partialSign = false): Promise<string> {
+    await this.init();
+
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -421,6 +460,8 @@ export class MeshWallet implements IWallet {
    * @returns array of signed transactions CborHex string
    */
   async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
+    await this.init();
+
     if (!this._wallet) {
       throw new Error(
         "[MeshWallet] Read only wallet does not support signing data.",
@@ -440,7 +481,7 @@ export class MeshWallet implements IWallet {
   /**
    * Submits the signed transaction to the blockchain network.
    *
-   * As wallets should already have this ability to submit transaction, we allow dApps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction ID for the dApp to track. The wallet can return error messages or failure if there was an error in sending it.
+   * As wallets should already have this ability to submit transaction, we allow apps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction ID for the app to track. The wallet can return error messages or failure if there was an error in sending it.
    *
    * @param tx - a signed transaction in CBOR
    * @returns a transaction hash
@@ -584,7 +625,7 @@ export class MeshWallet implements IWallet {
    */
   async createCollateral(): Promise<string> {
     const tx = new Transaction({ initiator: this });
-    tx.sendLovelace(this.getChangeAddress(), "5000000");
+    tx.sendLovelace(await this.getChangeAddress(), "5000000");
     const unsignedTx = await tx.build();
     const signedTx = await this.signTx(unsignedTx);
     const txHash = await this.submitTx(signedTx);
@@ -595,11 +636,13 @@ export class MeshWallet implements IWallet {
     pubDRepKey: string | undefined;
     dRepIDBech32: string | undefined;
     dRepIDHash: string | undefined;
+    dRepIDCip105: string | undefined;
   } {
     return {
       pubDRepKey: this.addresses.pubDRepKey,
       dRepIDBech32: this.addresses.dRepIDBech32,
       dRepIDHash: this.addresses.dRepIDHash,
+      dRepIDCip105: this.addresses.dRepIDCip105,
     };
   }
 
@@ -633,6 +676,7 @@ export class MeshWallet implements IWallet {
       pubDRepKey: account.pubDRepKey,
       dRepIDBech32: account.dRepIDBech32,
       dRepIDHash: account.dRepIDHash,
+      dRepIDCip105: account.dRepIDCip105,
     };
   }
 

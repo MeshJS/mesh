@@ -1,18 +1,22 @@
 import { useState } from "react";
 
+import { HydraProvider } from "@meshsdk/hydra";
+
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { SupportedFetchers } from ".";
+import { SupportedFetchers as _SupportedFetchers } from ".";
+
+type SupportedFetchers = _SupportedFetchers | HydraProvider;
 
 export default function FetcherProtocolParameters({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>("");
 
@@ -22,10 +26,10 @@ export default function FetcherProtocolParameters({
       title="Fetch Protocol Parameters"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -36,7 +40,7 @@ function Left(userInput: string) {
     <>
       <p>Fetch the latest protocol parameters.</p>
       <Codeblock
-        data={`await blockchainProvider.fetchProtocolParameters(${userInput ? parseInt(userInput) : ""})`}
+        data={`await provider.fetchProtocolParameters(${userInput ? parseInt(userInput) : ""})`}
       />
       <p>
         Optionally, you can provide an epoch number to fetch the protocol
@@ -47,13 +51,13 @@ function Left(userInput: string) {
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchProtocolParameters(
+    return await provider.fetchProtocolParameters(
       userInput ? parseInt(userInput) : undefined,
     );
   }
@@ -64,7 +68,7 @@ function Right(
       subtitle="Fetch protocol parameters of the blockchain by epoch"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

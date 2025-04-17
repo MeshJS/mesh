@@ -4,7 +4,6 @@ export * from "./types";
 export * from "./message-signing";
 export * from "./resolvers";
 export * from "./serializer";
-export * from "./stricahq";
 export * from "./utils";
 export * from "./plutus-tools";
 

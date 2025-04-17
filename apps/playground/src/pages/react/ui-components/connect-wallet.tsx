@@ -42,14 +42,10 @@ function Left() {
   codePersist += `  persist={true}\n`;
   codePersist += `/>\n`;
 
-  let codeCip95 = `<CardanoWallet\n`;
-  codeCip95 += `  extensions={[95]}\n`;
-  codeCip95 += `/>\n`;
-
   let codeBurner = `<CardanoWallet\n`;
   codeBurner += `  burnerWallet={{\n`;
   codeBurner += `    networkId: 0,\n`;
-  codeBurner += `    provider: blockchainProvider,\n`;
+  codeBurner += `    provider: provider,\n`;
   codeBurner += `  }}\n`;
   codeBurner += `/>\n`;
 
@@ -57,16 +53,25 @@ function Left() {
   codeMetamask += `  injectFn={async () => await checkIfMetamaskInstalled("preprod")}\n`;
   codeMetamask += `/>\n`;
 
+  let codeWeb3Services = `const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');\n\n`;
+  codeWeb3Services += `<CardanoWallet\n`;
+  codeWeb3Services += `  web3Services={{\n`;
+  codeWeb3Services += `    networkId: 0,\n`;
+  codeWeb3Services += `    fetcher: provider,\n`;
+  codeWeb3Services += `    submitter: provider,\n`;
+  codeWeb3Services += `  }}\n`;
+  codeWeb3Services += `/>\n`;
+
   return (
     <>
       <p>
-        In order for dApps to communicate with the user's wallet, we need a way
+        In order for pps to communicate with the user's wallet, we need a way
         to connect to their wallet.
       </p>
 
       <p>
         Add this CardanoWallet to allow the user to select a wallet to connect
-        to your dApp. After the wallet is connected, see{" "}
+        to your app. After the wallet is connected, see{" "}
         <Link href="/apis/wallets/browserwallet">Browser Wallet</Link> for a
         list of CIP-30 APIs.
       </p>
@@ -114,19 +119,24 @@ function Left() {
         is connected.
       </p>
 
-      <h3>CIP 95</h3>
+      <h3>Mesh Web3 Services</h3>
       <p>
-        You can also provide an <code>extensions</code> object to enable
-        specific CIPs. For example, to enable{" "}
-        <Link href="https://cips.cardano.org/cip/CIP-95">CIP-95</Link>, you
-        would pass:
+        <Link href="https://web3.meshjs.dev/">Mesh Web3 Services</Link>{" "}
+        streamline user onboarding and on-chain feature integration,
+        accelerating your app's time to market.
       </p>
-      <Codeblock data={codeCip95} />
+      <p>
+        To integrate Mesh Web3 Services, use the <code>web3Services</code> prop.
+        The <code>networkId</code> is the network ID of the wallet you are
+        connecting to. You may use any <Link href="/providers">providers</Link>{" "}
+        for <code>fetcher</code> and <code>submitter</code>.
+      </p>
+      <Codeblock data={codeWeb3Services} />
 
-      <h3>Decentralized WebRTC dApp-Wallet Communication (CIP 45)</h3>
+      <h3>Decentralized WebRTC Wallet Communication (CIP 45)</h3>
       <p>
         <Link href="https://cips.cardano.org/cip/CIP-45">CIP-45</Link> is a
-        communication method between dApps and wallets based on WebTorrent
+        communication method between pps and wallets based on WebTorrent
         trackers and WebRTC. Using WebTorrent trackers for the peer discovery to
         remove the need of this central component.
       </p>
@@ -189,7 +199,7 @@ function Right() {
   return (
     <LiveCodeDemo
       title="Connect Wallet Component"
-      subtitle="Connect to user's wallet to interact with dApp"
+      subtitle="Connect to user's wallet to interact with app"
       code={example}
       childrenAfterCodeFunctions={true}
     >

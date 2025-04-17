@@ -5,11 +5,11 @@ import { getProvider } from "~/components/cardano/mesh-wallet";
 import Link from "~/components/link";
 
 export function getTxBuilder() {
-  const blockchainProvider = getProvider();
+  const provider = getProvider();
   const txBuilder = new MeshTxBuilder({
-    fetcher: blockchainProvider,
-    submitter: blockchainProvider,
-    evaluator: blockchainProvider,
+    fetcher: provider,
+    submitter: provider,
+    evaluator: provider,
     serializer: new CardanoSDKSerializer(),
     verbose: true,
   });
@@ -37,6 +37,6 @@ export function Intro() {
 
 export let txbuilderCode = ``;
 txbuilderCode += `const txBuilder = new MeshTxBuilder({\n`;
-txbuilderCode += `  fetcher: blockchainProvider, // get a provider https://meshjs.dev/providers\n`;
+txbuilderCode += `  fetcher: provider, // get a provider https://meshjs.dev/providers\n`;
 txbuilderCode += `  verbose: true,\n`;
 txbuilderCode += `});\n\n`;

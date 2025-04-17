@@ -1,11 +1,15 @@
 import {
   AccountInfo,
+  Action,
   emptyTxBuilderBody,
   IFetcher,
   MintItem,
+  MintParam,
   ScriptSource,
   TransactionInfo,
   TxIn,
+  TxOutput,
+  UTxO,
 } from "@meshsdk/common";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
@@ -53,6 +57,15 @@ describe("MeshTxBuilder", () => {
     jest
       .spyOn(txBuilder as any, "isMintComplete")
       .mockImplementation((mint) => false);
+    jest.spyOn(txBuilder as any, "selectUtxos").mockImplementation(() => {
+      return {
+        newInputs: new Set<UTxO>(),
+        newOutputs: new Set<TxOutput>(),
+        change: [],
+        fee: 100,
+        redeemers: null,
+      };
+    });
     jest.spyOn(txBuilder as any, "queryAllTxInfo").mockResolvedValue(undefined);
     const completeTxInformationMock = jest
       .spyOn(txBuilder as any, "completeTxInformation")
@@ -66,12 +79,16 @@ describe("MeshTxBuilder", () => {
       { type: "PubKey", txIn: { txHash: "txHash1", txIndex: 0 } },
       { type: "PubKey", txIn: { txHash: "txHash2", txIndex: 1 } },
     ];
-    const incompleteMints: MintItem[] = [
+    const incompleteMints: MintParam[] = [
       {
         type: "Plutus",
         policyId: "policyId1",
-        assetName: "assetName1",
-        amount: "100",
+        mintValue: [
+          {
+            assetName: "assetName1",
+            amount: "100",
+          },
+        ],
         scriptSource: {
           type: "Inline",
           txHash: "txHash3",

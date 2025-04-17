@@ -34,8 +34,8 @@ function Left() {
   codeUtxo += `  asset: string;\n`;
   codeUtxo += `  datum: any;\n`;
   codeUtxo += `}) {\n`;
-  codeUtxo += `  const blockchainProvider = getProvider();\n`;
-  codeUtxo += `  const utxos = await blockchainProvider.fetchAddressUTxOs(\n`;
+  codeUtxo += `  const provider = getProvider();\n`;
+  codeUtxo += `  const utxos = await provider.fetchAddressUTxOs(\n`;
   codeUtxo += `    scriptAddress,\n`;
   codeUtxo += `    asset,\n`;
   codeUtxo += `  );\n`;

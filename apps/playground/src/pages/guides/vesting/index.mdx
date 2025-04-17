@@ -165,8 +165,8 @@ Next, we construct the transaction to deposit the funds into the vesting contrac
 
 ```ts
 const txBuilder = new MeshTxBuilder({
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
 });
 
 await txBuilder
@@ -211,7 +211,7 @@ First, let's look for the UTxOs containing the funds locked in the vesting contr
 ```ts
 const txHashFromDesposit =
   "ede9f8176fe41f0c84cfc9802b693dedb5500c0cbe4377b7bb0d57cf0435200b";
-const utxos = await blockchainProvider.fetchUTxOs(txHash);
+const utxos = await provider.fetchUTxOs(txHash);
 const vestingUtxo = utxos[0];
 ```
 
@@ -245,8 +245,8 @@ Next, we construct the transaction to withdraw the funds from the vesting contra
 
 ```ts
 const txBuilder = new MeshTxBuilder({
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
 });
 
 await txBuilder

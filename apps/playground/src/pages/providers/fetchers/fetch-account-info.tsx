@@ -9,11 +9,11 @@ import { demoAddresses } from "~/data/cardano";
 import { SupportedFetchers } from ".";
 
 export default function FetcherAccountInfo({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(
     demoAddresses.testnetStake,
@@ -24,10 +24,10 @@ export default function FetcherAccountInfo({
       title="Fetch Account Info"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -38,20 +38,20 @@ function Left(userInput: string) {
     <>
       <p>Obtain information about a specific stake account.</p>
       <Codeblock
-        data={`await blockchainProvider.fetchAccountInfo('${userInput}')`}
+        data={`await provider.fetchAccountInfo('${userInput}')`}
       />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchAccountInfo(userInput);
+    return await provider.fetchAccountInfo(userInput);
   }
 
   return (
@@ -60,7 +60,7 @@ function Right(
       subtitle="Fetch account info using stake address"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

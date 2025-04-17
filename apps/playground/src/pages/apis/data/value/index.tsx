@@ -94,7 +94,7 @@ const ReactPage: NextPage = () => {
           <h4>Operators</h4>
           <p>
             Operator functions provide utilities into performing value
-            manipulation. They are useful in DApps which check against value
+            manipulation. They are useful in apps which check against value
             payment involving calculation in value.
           </p>
 

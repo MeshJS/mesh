@@ -65,7 +65,7 @@ const createDirectory = (name) => {
     process.exit(1);
   }
 
-  logInfo('🏗️ - Creating a new mesh dApp in current directory...');
+  logInfo('🏗️ - Creating a new app in current directory...');
   process.chdir(path);
 };
 

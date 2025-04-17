@@ -3,6 +3,7 @@ import {
   AssetExtended,
   DataSignature,
   DEFAULT_PROTOCOL_PARAMETERS,
+  Extension,
   fromUTF8,
   IWallet,
   POLICY_ID_LENGTH,
@@ -13,12 +14,15 @@ import {
 import {
   Address,
   addressToBech32,
+  AddressType,
   blake2b,
+  buildDRepID,
   CardanoSDKUtil,
   deserializeAddress,
   deserializeTx,
   deserializeTxUnspentOutput,
   deserializeValue,
+  DRep,
   Ed25519KeyHashHex,
   Ed25519PublicKey,
   Ed25519PublicKeyHex,
@@ -32,6 +36,7 @@ import {
   VkeyWitness,
 } from "@meshsdk/core-cst";
 
+import { WalletStaticMethods } from "../embedded";
 import { Cardano, WalletInstance } from "../types";
 
 declare global {
@@ -43,7 +48,7 @@ declare global {
 /**
  * Browser Wallet provides a set of APIs to interact with the blockchain. This wallet is compatible with Mesh transaction builders.
  *
- * These wallets APIs are in accordance to CIP-30, which defines the API for dApps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building dApps.
+ * These wallets APIs are in accordance to CIP-30, which defines the API for apps to communicate with the user's wallet. Additional utility functions provided for developers that are useful for building applications.
  * ```javascript
  * import { BrowserWallet } from '@meshsdk/core';
  *
@@ -113,7 +118,7 @@ export class BrowserWallet implements IWallet {
   }
 
   /**
-   * This is the entrypoint to start communication with the user's wallet. The wallet should request the user's permission to connect the web page to the user's wallet, and if permission has been granted, the wallet will be returned and exposing the full API for the dApp to use.
+   * This is the entrypoint to start communication with the user's wallet. The wallet should request the user's permission to connect the web page to the user's wallet, and if permission has been granted, the wallet will be returned and exposing the full API for the app to use.
    *
    * Query BrowserWallet.getInstalledWallets() to get a list of available wallets, then provide the wallet name for which wallet the user would like to connect with.
    *
@@ -123,7 +128,7 @@ export class BrowserWallet implements IWallet {
    */
   static async enable(
     walletName: string,
-    extensions: number[] = [],
+    extensions: Extension[] = [],
   ): Promise<BrowserWallet> {
     try {
       const walletInstance = await BrowserWallet.resolveInstance(
@@ -346,7 +351,7 @@ export class BrowserWallet implements IWallet {
   /**
    * Submits the signed transaction to the blockchain network.
    *
-   * As wallets should already have this ability to submit transaction, we allow dApps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction ID for the dApp to track. The wallet can return error messages or failure if there was an error in sending it.
+   * As wallets should already have this ability to submit transaction, we allow apps to request that a transaction be sent through it. If the wallet accepts the transaction and tries to send it, it shall return the transaction ID for the app to track. The wallet can return error messages or failure if there was an error in sending it.
    *
    * @param tx
    * @returns a transaction hash
@@ -467,7 +472,7 @@ export class BrowserWallet implements IWallet {
    * The connected wallet account provides the account's public DRep Key, derivation as described in CIP-0105.
    * These are used by the client to identify the user's on-chain CIP-1694 interactions, i.e. if a user has registered to be a DRep.
    *
-   * @returns wallet account's public DRep Key
+   * @returns DRep object
    */
   async getDRep(): Promise<
     | {
@@ -477,21 +482,21 @@ export class BrowserWallet implements IWallet {
       }
     | undefined
   > {
+    const pubDRepKey = await this.getPubDRepKey();
     try {
-      if (this._walletInstance.cip95 === undefined) return undefined;
+      if (pubDRepKey === undefined) return undefined;
 
-      const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
-      const { dRepIDHash } = await BrowserWallet.dRepKeyToDRepID(dRepKey);
+      const { dRepIDHash } = await BrowserWallet.dRepKeyToDRepID(pubDRepKey);
 
-      const csldRepIdKeyHash = blake2b(28)
-        .update(Buffer.from(dRepKey, "hex"))
-        .digest("hex");
-      const dRepId = hexToBech32("drep", csldRepIdKeyHash);
+      const dRepIDCip105 = hexToBech32("drep", dRepIDHash);
+
+      // const dRepIDBech32 = buildDRepID(dRepKey, await this.getNetworkId());
+      // console.log(66, "dRepIDBech32", dRepIDBech32, dRepIDCip105 === dRepIDBech32);
 
       return {
-        publicKey: dRepKey,
+        publicKey: pubDRepKey,
         publicKeyHash: dRepIDHash,
-        dRepIDCip105: dRepId,
+        dRepIDCip105: dRepIDCip105,
       };
     } catch (e) {
       console.error(e);
@@ -505,30 +510,12 @@ export class BrowserWallet implements IWallet {
    *
    * @returns wallet account's public DRep Key
    */
-  async getPubDRepKey(): Promise<
-    | {
-        pubDRepKey: string;
-        dRepIDHash: string;
-        dRepIDBech32: string;
-      }
-    | undefined
-  > {
+  async getPubDRepKey(): Promise<string | undefined> {
     try {
       if (this._walletInstance.cip95 === undefined) return undefined;
 
-      const dRepKey = await this._walletInstance.cip95.getPubDRepKey();
-      const { dRepIDHash } = await BrowserWallet.dRepKeyToDRepID(dRepKey);
-
-      const csldRepIdKeyHash = blake2b(28)
-        .update(Buffer.from(dRepKey, "hex"))
-        .digest("hex");
-      const dRepId = hexToBech32("drep", csldRepIdKeyHash);
-
-      return {
-        pubDRepKey: dRepKey,
-        dRepIDHash: dRepIDHash,
-        dRepIDBech32: dRepId,
-      };
+      const pubDRepKey = await this._walletInstance.cip95.getPubDRepKey();
+      return pubDRepKey;
     } catch (e) {
       console.error(e);
       return undefined;
@@ -614,7 +601,7 @@ export class BrowserWallet implements IWallet {
 
   private static resolveInstance(
     walletName: string,
-    extensions: number[] = [],
+    extensions: Extension[] = [],
   ) {
     if (window.cardano === undefined) return undefined;
     if (window.cardano[walletName] === undefined) return undefined;
@@ -622,8 +609,7 @@ export class BrowserWallet implements IWallet {
     const wallet = window.cardano[walletName];
 
     if (extensions.length > 0) {
-      const _extensions = extensions.map((e) => ({ cip: e }));
-      return wallet.enable({ extensions: _extensions });
+      return wallet.enable({ extensions: extensions });
     } else {
       return wallet?.enable();
     }

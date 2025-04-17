@@ -86,13 +86,13 @@ Next, create a new `index.ts` file in the root of your project and add the follo
 import { BlockfrostProvider, MeshWallet, Transaction } from "@meshsdk/core";
 
 // Set up the blockchain provider with your key
-const blockchainProvider = new BlockfrostProvider("YOUR_KEY_HERE");
+const provider = new BlockfrostProvider("YOUR_KEY_HERE");
 
 // Initialize the wallet with a mnemonic key
 const wallet = new MeshWallet({
   networkId: 0,
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
   key: {
     type: "mnemonic",
     words: [

@@ -21,14 +21,20 @@
 
 <hr />
 
-Mesh is an open-source library designed to make building dApps accessible. Whether you're a beginner developer, startup, web3 market leader, or a large enterprise, Mesh makes web3 development easy with reliable, scalable, and well-engineered APIs & developer tools.
+Mesh is an open-source library designed to make building applications accessible. Whether you're a beginner developer, startup, web3 market leader, or a large enterprise, Mesh makes web3 development easy with reliable, scalable, and well-engineered APIs & developer tools.
 
 Explore the features on [Mesh Playground](https://meshjs.dev/).
 
 Instant setup a new project with a single command using Mesh CLI and start building:
 
-```
+```bash
 npx meshjs your-app-name
+```
+
+Or install the core package:
+
+```bash
+npm install @meshsdk/core
 ```
 
 ## What's inside?
@@ -47,7 +53,6 @@ graph TD
   package-sidan-csl[@sidan-lab/*]
   package-cardano-sdk[@cardano-sdk/*]
   package-harmoniclabs[@harmoniclabs/*]
-  package-stricahq[@stricahq/*]
   package-core --> package-core-csl
   package-core --> package-core-cst
   package-core --> package-provider
@@ -64,7 +69,6 @@ graph TD
   package-core-csl --> package-sidan-csl
   package-core-cst --> package-cardano-sdk
   package-core-cst --> package-harmoniclabs
-  package-core-cst --> package-stricahq
   end
   click package-core-csl "https://docs.meshjs.dev/core-csl" _parent
   click package-core-cst "https://docs.meshjs.dev/core-cst" _parent

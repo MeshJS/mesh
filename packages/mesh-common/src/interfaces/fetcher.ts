@@ -9,12 +9,27 @@ import type {
 } from "../types";
 import { GovernanceProposalInfo } from "../types/governance";
 
+export type IFetcherOptions = {
+  maxPage?: number;
+  order?: "asc" | "desc";
+  [key: string]: any;
+};
+
+export const DEFAULT_FETCHER_OPTIONS: IFetcherOptions = {
+  maxPage: 20,
+  order: "desc",
+};
+
 /**
  * Fetcher interface defines end points to query blockchain data.
  */
 export interface IFetcher {
   fetchAccountInfo(address: string): Promise<AccountInfo>;
   fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]>;
+  fetchAddressTxs(
+    address: string,
+    options?: IFetcherOptions,
+  ): Promise<TransactionInfo[]>;
   fetchAssetAddresses(
     asset: string,
   ): Promise<{ address: string; quantity: string }[]>;

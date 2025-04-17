@@ -40,7 +40,7 @@ export default function Reasons() {
               Simple to use
             </h3>
             <p className="mb-4 text-neutral-500 dark:text-neutral-400">
-              Getting started with dApp development has never been this easy.
+              Getting started with Web3 app development has never been this easy.
               Mesh is conceived in a way that facilitates and speeds up
               development of decentralised applications.
             </p>

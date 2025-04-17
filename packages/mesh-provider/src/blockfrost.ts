@@ -7,10 +7,12 @@ import {
   AssetMetadata,
   BlockInfo,
   castProtocol,
+  DEFAULT_FETCHER_OPTIONS,
   fromUTF8,
   GovernanceProposalInfo,
   IEvaluator,
   IFetcher,
+  IFetcherOptions,
   IListener,
   ISubmitter,
   NativeScript,
@@ -42,7 +44,7 @@ export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
  * ```
  * import { BlockfrostProvider } from "@meshsdk/core";
  *
- * const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');
+ * const provider = new BlockfrostProvider('<Your-API-Key>');
  */
 export class BlockfrostProvider
   implements IFetcher, IListener, ISubmitter, IEvaluator
@@ -92,7 +94,7 @@ export class BlockfrostProvider
    * Evaluates the resources required to execute the transaction
    * @param tx - The transaction to evaluate
    */
-  async evaluateTx(cbor: string): Promise<any> {
+  async evaluateTx(cbor: string): Promise<Omit<Action, "data">[]> {
     try {
       const headers = { "Content-Type": "application/cbor" };
       const { status, data } = await this._axiosInstance.post(
@@ -173,34 +175,48 @@ export class BlockfrostProvider
   }
 
   /**
-   * Transactions for an address.
+   * Transactions for an address. The `TransactionInfo` would only return the `hash`, `inputs`, and `outputs`.
+   * @param address - The address to fetch transactions for
+   * @returns - partial TransactionInfo
+   */
+  async fetchAddressTxs(
+    address: string,
+    option: IFetcherOptions = DEFAULT_FETCHER_OPTIONS,
+  ): Promise<TransactionInfo[]> {
+    const txs: TransactionInfo[] = [];
+    try {
+      const fetcherOptions = { ...DEFAULT_FETCHER_OPTIONS, ...option };
+
+      for (let i = 1; i <= fetcherOptions.maxPage!; i++) {
+        let { data, status } = await this._axiosInstance.get(
+          `/addresses/${address}/transactions?page=${i}&order=${fetcherOptions.order}`,
+        );
+        if (status !== 200) throw parseHttpError(data);
+        if (data.length === 0) break;
+        for (const tx of data) {
+          const txInfo = await this.fetchTxInfo(tx.tx_hash);
+
+          const _tx = {
+            ...txInfo,
+            blockHeight: tx.block_height,
+            blockTime: tx.block_time,
+          };
+
+          txs.push(_tx);
+        }
+      }
+      return txs;
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+  /**
+   * Deprecated, use fetchAddressTxs instead
    * @param address
    * @returns - partial TransactionInfo
    */
   async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
-    try {
-      const { data, status } = await this._axiosInstance.get(
-        `/addresses/${address}/transactions`,
-      );
-      if (status === 200 || status == 202) {
-        return data.map((tx: any) => {
-          return <TransactionInfo>{
-            hash: tx.tx_hash,
-            index: tx.tx_index,
-            block: "",
-            slot: "",
-            fees: "",
-            size: 0,
-            deposit: "",
-            invalidBefore: "",
-            invalidAfter: "",
-          };
-        });
-      }
-      throw parseHttpError(data);
-    } catch (error) {
-      throw parseHttpError(error);
-    }
+    return await this.fetchAddressTxs(address);
   }
 
   /**
@@ -334,6 +350,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the block information for a given block hash.
+   * @param hash The block hash to fetch from
+   * @returns The block information
+   */
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
       const { data, status } = await this._axiosInstance.get(`blocks/${hash}`);
@@ -363,6 +384,12 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the list of assets for a given policy ID.
+   * @param policyId The policy ID to fetch assets for
+   * @param cursor The cursor for pagination
+   * @returns The list of assets and the next cursor
+   */
   async fetchCollectionAssets(
     policyId: string,
     cursor = 1,
@@ -424,6 +451,11 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetch the latest protocol parameters.
+   * @param epoch Optional - The epoch to fetch protocol parameters for
+   * @returns - Protocol parameters
+   */
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     try {
       const { data, status } = await this._axiosInstance.get(
@@ -460,29 +492,48 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the transaction information for a given transaction hash.
+   * @param hash The transaction hash to fetch
+   * @returns The transaction information
+   */
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
-      const { data, status } = await this._axiosInstance.get(`txs/${hash}`);
-
-      if (status === 200 || status == 202)
+      const { data: txData, status } = await this._axiosInstance.get(
+        `txs/${hash}`,
+      );
+      if (status === 200 || status == 202) {
+        const { data, status } = await this._axiosInstance.get(
+          `/txs/${txData.hash}/utxos`,
+        );
+        if (status !== 200) throw parseHttpError(data);
         return <TransactionInfo>{
-          block: data.block,
-          deposit: data.deposit,
-          fees: data.fees,
-          hash: data.hash,
-          index: data.index,
-          invalidAfter: data.invalid_hereafter ?? "",
-          invalidBefore: data.invalid_before ?? "",
-          slot: data.slot.toString(),
-          size: data.size,
+          block: txData.block,
+          deposit: txData.deposit,
+          fees: txData.fees,
+          hash: txData.hash,
+          index: txData.index,
+          invalidAfter: txData.invalid_hereafter ?? "",
+          invalidBefore: txData.invalid_before ?? "",
+          slot: txData.slot.toString(),
+          size: txData.size,
+          inputs: data.inputs,
+          outputs: data.outputs,
         };
+      }
 
-      throw parseHttpError(data);
+      throw parseHttpError(txData);
     } catch (error) {
       throw parseHttpError(error);
     }
   }
 
+  /**
+   * Get UTxOs for a given hash.
+   * @param hash The transaction hash
+   * @param index Optional - The output index for filtering post fetching
+   * @returns - Array of UTxOs
+   */
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
@@ -508,6 +559,12 @@ export class BlockfrostProvider
     }
   }
 
+  /**
+   * Fetches the governance proposal information.
+   * @param txHash The transaction hash of the proposal
+   * @param certIndex The certificate index of the proposal
+   * @returns The governance proposal information
+   */
   async fetchGovernanceProposal(
     txHash: string,
     certIndex: number,

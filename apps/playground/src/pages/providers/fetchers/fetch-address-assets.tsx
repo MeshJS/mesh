@@ -9,11 +9,11 @@ import { demoAddresses } from "~/data/cardano";
 import { SupportedFetchers } from ".";
 
 export default function FetcherAddressAssets({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(
     demoAddresses.testnetPayment,
@@ -25,10 +25,10 @@ export default function FetcherAddressAssets({
       title="Fetch Address Assets"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -39,52 +39,52 @@ function Left(userInput: string) {
     <>
       <p>Fetch assets from an address.</p>
       <Codeblock
-        data={`await blockchainProvider.fetchAddressAssets('${userInput}')`}
+        data={`await provider.fetchAddressAssets('${userInput}')`}
       />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   return (
     <>
       <FromAddress
-        blockchainProvider={blockchainProvider}
+        provider={provider}
         userInput={userInput}
         setUserInput={setUserInput}
-        provider={provider}
+        providerName={providerName}
       />
       <WithAsset
-        blockchainProvider={blockchainProvider}
+        provider={provider}
         userInput={userInput}
         setUserInput={setUserInput}
-        provider={provider}
+        providerName={providerName}
       />
     </>
   );
 }
 
 function FromAddress({
-  blockchainProvider,
+  provider,
   userInput,
   setUserInput,
-  provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
+  provider: SupportedFetchers;
   userInput: string;
   setUserInput: (value: string) => void;
-  provider: string;
+  providerName: string;
 }) {
   async function runDemo() {
-    return await blockchainProvider.fetchAddressAssets(userInput);
+    return await provider.fetchAddressAssets(userInput);
   }
 
-  let code = `await blockchainProvider.fetchAddressAssets(\n`;
+  let code = `await provider.fetchAddressAssets(\n`;
   code += `  '${userInput}'\n`;
   code += `);\n`;
 
@@ -94,7 +94,7 @@ function FromAddress({
       subtitle="Fetch UTxOs from address"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
       code={code}
     >
       <InputTable
@@ -113,21 +113,21 @@ function FromAddress({
 }
 
 function WithAsset({
-  blockchainProvider,
+  provider,
   userInput,
   setUserInput,
-  provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
+  provider: SupportedFetchers;
   userInput: string;
   setUserInput: (value: string) => void;
-  provider: string;
+  providerName: string;
 }) {
   async function runDemo() {
-    return await blockchainProvider.fetchAddressAssets(userInput);
+    return await provider.fetchAddressAssets(userInput);
   }
 
-  let code = `await blockchainProvider.fetchAddressAssets(\n`;
+  let code = `await provider.fetchAddressAssets(\n`;
   code += `  '${userInput}',\n`;
   code += `);\n`;
 
@@ -137,7 +137,7 @@ function WithAsset({
       subtitle="Fetch assets given an address"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
       code={code}
     >
       <InputTable

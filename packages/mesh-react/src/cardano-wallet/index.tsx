@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { IFetcher, ISubmitter } from "@meshsdk/common";
+import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import { Button } from "../common/button";
 import {
@@ -26,7 +27,6 @@ interface ButtonProps {
   onConnected?: Function;
   isDark?: boolean;
   persist?: boolean;
-  extensions?: number[];
   injectFn?: () => Promise<void>;
   cardanoPeerConnect?: {
     dAppInfo: {
@@ -44,6 +44,8 @@ interface ButtonProps {
     provider: IFetcher & ISubmitter;
     url: string;
   };
+  showDownload?: boolean;
+  web3Services?: EnableWeb3WalletOptions;
 }
 
 export const CardanoWallet = ({
@@ -51,19 +53,21 @@ export const CardanoWallet = ({
   onConnected = undefined,
   isDark = false,
   persist = false,
-  extensions = [],
   injectFn = undefined,
   cardanoPeerConnect = undefined,
   burnerWallet = undefined,
   webauthn = undefined,
+  showDownload = true,
+  web3Services = undefined,
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState("main");
-  const { wallet, connected, setPersist } = useWallet();
+  const { wallet, connected, setPersist, setWeb3Services } = useWallet();
 
   useEffect(() => {
     setPersist(persist);
-  }, [persist]);
+    if (web3Services) setWeb3Services(web3Services);
+  }, []);
 
   useEffect(() => {
     if (connected) {
@@ -76,7 +80,9 @@ export const CardanoWallet = ({
       <div className={isDark ? "mesh-dark" : ""}>
         {!connected ? (
           <DialogTrigger asChild>
-            <Button variant="outline">{label}</Button>
+            <Button variant="outline" className={isDark ? "mesh-dark" : ""}>
+              {label}
+            </Button>
           </DialogTrigger>
         ) : (
           <ConnectedButton />
@@ -88,16 +94,18 @@ export const CardanoWallet = ({
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <Header screen={screen} setScreen={setScreen} />
+
         {screen == "main" && (
           <ScreenMain
             injectFn={injectFn}
-            extensions={extensions}
             setOpen={setOpen}
             setScreen={setScreen}
             persist={persist}
             cardanoPeerConnect={cardanoPeerConnect != undefined}
             burnerWallet={burnerWallet != undefined}
             webauthn={webauthn != undefined}
+            showDownload={showDownload}
+            web3Services={web3Services}
           />
         )}
         {screen == "p2p" && (

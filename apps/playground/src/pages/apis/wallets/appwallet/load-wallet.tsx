@@ -5,7 +5,7 @@ import { AppWallet, BlockfrostProvider } from "@meshsdk/core";
 import ButtonGroup from "~/components/button/button-group";
 import RunDemoButton from "~/components/button/run-demo-button";
 import Card from "~/components/card/card";
-import BlockchainProviderCodeSnippet from "~/components/cardano/blockchain-providers-code-snippet";
+import ProviderCodeSnippet from "~/components/cardano/blockchain-providers-code-snippet";
 import { getProvider } from "~/components/cardano/mesh-wallet";
 import Input from "~/components/form/input";
 import Textarea from "~/components/form/textarea";
@@ -67,8 +67,8 @@ function Left(
   let code1 = codeCommon;
   code1 += `const wallet = new AppWallet({\n`;
   code1 += `  networkId: ${network},\n`;
-  code1 += `  fetcher: blockchainProvider,\n`;
-  code1 += `  submitter: blockchainProvider,\n`;
+  code1 += `  fetcher: provider,\n`;
+  code1 += `  submitter: provider,\n`;
   code1 += `  key: {\n`;
   code1 += `    type: 'mnemonic',\n`;
   code1 += `    words: ${_mnemonic},\n`;
@@ -80,8 +80,8 @@ function Left(
   let code3 = codeCommon;
   code3 += `const wallet = new AppWallet({\n`;
   code3 += `  networkId: ${network},\n`;
-  code3 += `  fetcher: blockchainProvider,\n`;
-  code3 += `  submitter: blockchainProvider,\n`;
+  code3 += `  fetcher: provider,\n`;
+  code3 += `  submitter: provider,\n`;
   code3 += `  key: {\n`;
   code3 += `    type: 'root',\n`;
   code3 += `    bech32: '${privatekey}',\n`;
@@ -91,8 +91,8 @@ function Left(
   let code4 = codeCommon;
   code4 += `const wallet = new AppWallet({\n`;
   code4 += `  networkId: ${network},\n`;
-  code4 += `  fetcher: blockchainProvider,\n`;
-  code4 += `  submitter: blockchainProvider,\n`;
+  code4 += `  fetcher: provider,\n`;
+  code4 += `  submitter: provider,\n`;
   code4 += `  key: {\n`;
   code4 += `    type: 'cli',\n`;
   code4 += `    payment: '${paymentSkey}',\n`;
@@ -112,7 +112,7 @@ function Left(
       </ul>
       <p>Lets import a blockchain provider:</p>
 
-      <BlockchainProviderCodeSnippet />
+      <ProviderCodeSnippet />
 
       <h3>Mnemonic phrases</h3>
       <p>We can load wallet with mnemonic phrases:</p>
@@ -174,8 +174,7 @@ function Right(
     setResponseAddress(null);
     setWallet({} as AppWallet);
 
-    const blockchainProvider = getProvider();
-
+    const provider = getProvider();
     if (demoMethod == 0) {
       let _mnemonic = [];
       try {
@@ -188,13 +187,14 @@ function Right(
         if (_mnemonic.length) {
           const _wallet = new AppWallet({
             networkId: network,
-            fetcher: blockchainProvider,
-            submitter: blockchainProvider,
+            fetcher: provider,
+            submitter: provider,
             key: {
               type: "mnemonic",
               words: _mnemonic,
             },
           });
+          await _wallet.init();
           setWallet(_wallet);
           setWalletNetwork(network);
           const address = _wallet.getPaymentAddress();
@@ -208,13 +208,14 @@ function Right(
       try {
         const _wallet = new AppWallet({
           networkId: network,
-          fetcher: blockchainProvider,
-          submitter: blockchainProvider,
+          fetcher: provider,
+          submitter: provider,
           key: {
             type: "root",
             bech32: privatekey,
           },
         });
+        await _wallet.init();
         setWallet(_wallet);
         setWalletNetwork(network);
         const address = _wallet.getPaymentAddress();
@@ -228,14 +229,15 @@ function Right(
         const stake = stakeSkey?.length > 0 ? stakeSkey : undefined;
         const _wallet = new AppWallet({
           networkId: network,
-          fetcher: blockchainProvider,
-          submitter: blockchainProvider,
+          fetcher: provider,
+          submitter: provider,
           key: {
             type: "cli",
             payment: paymentSkey,
             stake,
           },
         });
+        await _wallet.init();
         setWallet(_wallet);
         setWalletNetwork(network);
         const address = _wallet.getPaymentAddress();

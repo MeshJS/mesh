@@ -19,6 +19,10 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
       : (args[0] as string);
   }
 
+  /**
+   * Evaluates the resources required to execute the transaction
+   * @param tx - The transaction to evaluate
+   */
   async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
     const client = await this.open();
 
@@ -86,6 +90,11 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
     return () => client.close();
   }
 
+  /**
+   * Submit a serialized transaction to the network.
+   * @param tx - The serialized transaction in hex to submit
+   * @returns The transaction hash of the submitted transaction
+   */
   async submitTx(tx: string): Promise<string> {
     const client = await this.open();
 

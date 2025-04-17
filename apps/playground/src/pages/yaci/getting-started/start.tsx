@@ -16,8 +16,8 @@ function Left() {
   let code = "";
   code += `import { YaciProvider } from "@meshsdk/core";\n`;
   code += `\n`;
-  code += `const blockchainProvider = new YaciProvider('http://localhost:8080/api/v1/');\n`;
-  code += `const params = await blockchainProvider.fetchProtocolParameters();\n`;
+  code += `const provider = new YaciProvider('http://localhost:8080/api/v1/');\n`;
+  code += `const params = await provider.fetchProtocolParameters();\n`;
   code += `console.log(params);\n`;
 
   return (

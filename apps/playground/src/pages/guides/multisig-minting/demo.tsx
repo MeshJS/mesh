@@ -22,12 +22,12 @@ const walletAccountAddress = demoAddresses.testnetPayment;
 const mintingFee = "10000000";
 let originalMetadata = "";
 
-const blockchainProvider = getProvider();
+const provider = getProvider();
 
 const systemWallet = new MeshWallet({
   networkId: 0,
-  fetcher: blockchainProvider,
-  submitter: blockchainProvider,
+  fetcher: provider,
+  submitter: provider,
   key: {
     type: "mnemonic",
     words: walletSystemMnemonic,
@@ -73,7 +73,7 @@ export default function Demo() {
   }
 
   async function backendBuildTx(userUtxos: UTxO[], recipientAddress: string) {
-    const systemWalletAddress = systemWallet.getChangeAddress();
+    const systemWalletAddress = await systemWallet.getChangeAddress();
     const forgingScript = ForgeScript.withOneSignature(systemWalletAddress);
     const assetName = "MeshToken";
 

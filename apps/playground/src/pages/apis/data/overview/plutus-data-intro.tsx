@@ -6,7 +6,7 @@ export default function PlutusDataIntro() {
   return (
     <TwoColumnsScroll
       sidebarTo="PlutusDataIntro"
-      title="Use of Data in Cardano DApp"
+      title="Use of Data in Cardano"
       leftSection={Left()}
       rightSection={Right()}
     />
@@ -26,7 +26,7 @@ function Left() {
         rids of unnecessary wrappers.
       </p>
       <p>
-        Mesh supports building data for your DApp in all 3 different formats.{" "}
+        Mesh supports building data for your app in all 3 different formats.{" "}
       </p>
       <div>
         <li>

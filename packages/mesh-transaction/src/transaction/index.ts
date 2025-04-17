@@ -40,6 +40,9 @@ export interface TransactionOptions extends MeshTxBuilderOptions {
   initiator: IInitiator;
 }
 
+/**
+ * Deprecated - Use `MeshTxBuilder` instead
+ */
 export class Transaction {
   txBuilder: MeshTxBuilder;
   initiator: IInitiator;
@@ -119,7 +122,8 @@ export class Transaction {
   }
 
   /**
-   * Adds an output to the transaction.
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
    *
    * @param recipient The recipient of the output.
    * @param assets The assets to send. Provide string for lovelace and Asset[] for tokens and/or lovelace.
@@ -153,7 +157,9 @@ export class Transaction {
   }
 
   /**
-   * Suggest deprecated - Adds a transaction output to the transaction.
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
    * Use sendAssets instead:
    * ```ts
    * this.sendAssets(recipient, lovelace);
@@ -171,7 +177,9 @@ export class Transaction {
   }
 
   /**
-   * Suggest deprecated - Adds stable coins transaction output to the transaction.
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
    * Please use sendAssets with helper function to obtain token unit instead:
    * ```ts
    * const assets = [{ unit: SUPPORTED_TOKENS.GIMBAL, quantity: "100" }]
@@ -192,8 +200,8 @@ export class Transaction {
   }
 
   /**
-   * Adds an output to the transaction.
-   * Suggest deprecated - use sendAssets instead:
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
    *
    * ```ts
    * const assets = value.output.amount;
@@ -211,7 +219,8 @@ export class Transaction {
   }
 
   /**
-   * Sets the inputs for the transaction.
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
    *
    * @param {UTxO[]} inputs The inputs to set.
    * @returns {Transaction} The transaction.
@@ -231,7 +240,8 @@ export class Transaction {
   }
 
   /**
-   * Sets the reference inputs for the transaction.
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
    *
    * @param {UTxO[]} inputs The reference inputs to set.
    * @returns {Transaction} The transaction.
@@ -248,6 +258,9 @@ export class Transaction {
   }
 
   /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
    * Sets the native script for the transaction.
    * @param {NativeScript} script The native script to spend from.
    * @param {UTxO} utxo The UTxO attached to the script.
@@ -270,6 +283,10 @@ export class Transaction {
     return this;
   }
 
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   // TODO: nuke this probably as the input type is too confusing
   redeemValue(options: {
     value: UTxO;
@@ -292,6 +309,7 @@ export class Transaction {
           value.input.outputIndex,
           value.output.amount,
           value.output.address,
+          value.output.scriptRef ? value.output.scriptRef.length / 2 : 0,
         )
         .txInScript(script.code)
         .txInRedeemerValue(red.data, "Mesh", red.budget);
@@ -342,7 +360,10 @@ export class Transaction {
     return this;
   }
 
-  // TODO: nuke this probably as the input type is too confusing
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   mintAsset(
     forgeScript: string | PlutusScript | UTxO,
     mint: Mint,
@@ -496,8 +517,10 @@ export class Transaction {
     return this;
   }
 
-  // TODO: nuke this probably as the input type is too confusing
-  // TO be deprecated as it doesnt support reference script minting native assets
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   burnAsset(
     forgeScript: string | PlutusScript | UTxO,
     asset: Asset,
@@ -518,6 +541,9 @@ export class Transaction {
   }
 
   /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
    * Sets the change address for the transaction.
    *
    * @param {string} changeAddress The change address.
@@ -529,6 +555,9 @@ export class Transaction {
   }
 
   /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
    * Sets the collateral for the transaction.
    *
    * @param {UTxO[]} collateral - Set the UTxO for collateral.
@@ -548,6 +577,9 @@ export class Transaction {
   }
 
   /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
    * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
    * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
    * @returns The Transaction object.
@@ -558,6 +590,9 @@ export class Transaction {
   };
 
   /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
    * Sets the required signers for the transaction.
    *
    * @param {string[]} addresses The addresses of the required signers.
@@ -574,7 +609,10 @@ export class Transaction {
   }
 
   /**
-   * Set the time to live for the transaction.
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
+   *  Set the time to live for the transaction.
    *
    * @param {string} slot The slot number to expire the transaction at.
    * @returns {Transaction} The Transaction object.
@@ -586,7 +624,10 @@ export class Transaction {
   }
 
   /**
-   * Sets the start slot for the transaction.
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
+   *  Sets the start slot for the transaction.
    *
    * @param {string} slot The start slot for the transaction.
    * @returns {Transaction} The Transaction object.
@@ -598,7 +639,10 @@ export class Transaction {
   }
 
   /**
-   * Add a JSON metadata entry to the transaction.
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   *
+   *  Add a JSON metadata entry to the transaction.
    *
    * @param {number} label The label to use for the metadata entry.
    * @param {unknown} metadata The value to use for the metadata entry.
@@ -610,48 +654,73 @@ export class Transaction {
     return this;
   }
 
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   withdrawRewards(rewardAddress: string, lovelace: string): Transaction {
     this.txBuilder.withdrawal(rewardAddress, lovelace);
     return this;
   }
 
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   delegateStake(rewardAddress: string, poolId: string): Transaction {
     this.txBuilder.delegateStakeCertificate(
       rewardAddress,
-      this.txBuilder.serializer.resolver.keys.resolveEd25519KeyHash(poolId),
+      this.txBuilder.serializer.deserializer.cert.deserializePoolId(poolId),
     );
     return this;
   }
 
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   deregisterStake(rewardAddress: string): Transaction {
     this.txBuilder.deregisterStakeCertificate(rewardAddress);
     return this;
   }
 
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   registerStake(rewardAddress: string): Transaction {
     this.txBuilder.registerStakeCertificate(rewardAddress);
     return this;
   }
 
-  // TODO: test
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   registerPool(params: PoolParams): Transaction {
     this.txBuilder.registerPoolCertificate(params);
     return this;
   }
 
-  // TODO: test
+  /**
+   * [Deprecated] - `Transaction` class is on planning for V2.
+   * Use `MeshTxBuilder` instead for tx-building for now.
+   */
   retirePool(poolId: string, epochNo: number): Transaction {
     this.txBuilder.retirePoolCertificate(poolId, epochNo);
     return this;
   }
 
-  async build(): Promise<string> {
+  async build(balanced: Boolean = true): Promise<string> {
     try {
       await this.addCollateralIfNeeded();
       await this.addTxInputsAsNeeded();
       await this.addChangeAddress();
-
-      return this.txBuilder.complete();
+      if (balanced) {
+        return this.txBuilder.complete();
+      } else {
+        return this.txBuilder.completeUnbalanced();
+      }
     } catch (error) {
       throw new Error(
         `[Transaction] An error occurred during build: ${error}.`,

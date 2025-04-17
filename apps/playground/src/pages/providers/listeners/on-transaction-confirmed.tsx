@@ -3,11 +3,11 @@ import Codeblock from "~/components/text/codeblock";
 import { SupportedListeners } from ".";
 
 export default function ListenerOnTransactionConfirmed({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedListeners;
-  provider: string;
+  provider: SupportedListeners;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
@@ -27,7 +27,7 @@ function Left() {
   code += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   code += `const txHash = await wallet.submitTx(signedTx);\n`;
   code += `\n`;
-  code += `blockchainProvider.onTxConfirmed(txHash, () => {\n`;
+  code += `provider.onTxConfirmed(txHash, () => {\n`;
   code += `  // Transaction confirmed\n`;
   code += `});\n`;
 

@@ -1,8 +1,12 @@
 import {
   NativeScript,
   PlutusScript,
+  PubKeyAddress,
   resolveFingerprint,
+  ScriptAddress,
+  stringToHex,
 } from "@meshsdk/common";
+import { serializeData } from "@meshsdk/core";
 import {
   resolveDataHash,
   resolveNativeScriptAddress,
@@ -12,11 +16,25 @@ import {
   resolvePlutusScriptHash,
   resolveRewardAddress,
   resolveStakeKeyHash,
+  serializeAddressObj,
 } from "@meshsdk/core-cst";
 
 describe("resolveDataHash", () => {
-  it("should return correct data", () => {
+  it("Mesh - should return correct data", () => {
     expect(resolveDataHash("supersecretdatum")).toEqual(
+      "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
+    );
+  });
+  it("JSON - should return correct data", () => {
+    expect(
+      resolveDataHash({ bytes: stringToHex("supersecretdatum") }, "JSON"),
+    ).toEqual(
+      "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
+    );
+  });
+  it("CBOR - should return correct data", () => {
+    const cbor = serializeData("supersecretdatum", "Mesh");
+    expect(resolveDataHash(cbor, "CBOR")).toEqual(
       "d786b11f300b0a7b4e0fe7931eb7871fb7ed762c0a060cd1f922dfa631cafb8c",
     );
   });
@@ -136,5 +154,83 @@ describe("resolveStakeKeyHash", () => {
         "stake1u93r8fsv43jyuw84yv4xwzfmka5sms5u5karqjysw2jszaq2kapyl",
       ),
     ).toEqual("6233a60cac644e38f5232a67093bb7690dc29ca5ba30489072a50174");
+  });
+});
+
+describe("serializeAddressObj", () => {
+  it("should return the correct address", () => {
+    const addressObj: PubKeyAddress = {
+      constructor: 0,
+      fields: [
+        {
+          constructor: 0,
+          fields: [
+            {
+              bytes: "51374dcf4a79090cfab6c03c276bf8f994fbedca2c1ed90a085bede7",
+            },
+          ],
+        },
+        {
+          constructor: 0,
+          fields: [
+            {
+              constructor: 0,
+              fields: [
+                {
+                  constructor: 0,
+                  fields: [
+                    {
+                      bytes:
+                        "7b8e3dfad1c97edb1e01c7dfdd7ac506e13b6659ed5def247a9d7942",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(serializeAddressObj(addressObj)).toEqual(
+      "addr_test1qpgnwnw0ffusjr86kmqrcfmtlruef7ldegkpakg2ppd7memm3c7l45wf0md3uqw8mlwh43gxuyakvk0dthhjg75a09pqeap7m2",
+    );
+  });
+
+  it("should return the correct address for script key", () => {
+    const addressObj: ScriptAddress = {
+      constructor: 0,
+      fields: [
+        {
+          constructor: 1,
+          fields: [
+            {
+              bytes: "51374dcf4a79090cfab6c03c276bf8f994fbedca2c1ed90a085bede7",
+            },
+          ],
+        },
+        {
+          constructor: 0,
+          fields: [
+            {
+              constructor: 0,
+              fields: [
+                {
+                  constructor: 1,
+                  fields: [
+                    {
+                      bytes:
+                        "7b8e3dfad1c97edb1e01c7dfdd7ac506e13b6659ed5def247a9d7942",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(serializeAddressObj(addressObj)).toEqual(
+      "addr_test1xpgnwnw0ffusjr86kmqrcfmtlruef7ldegkpakg2ppd7memm3c7l45wf0md3uqw8mlwh43gxuyakvk0dthhjg75a09pqgvr6sl",
+    );
   });
 });

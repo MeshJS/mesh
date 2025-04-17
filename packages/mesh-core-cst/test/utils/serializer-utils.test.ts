@@ -215,6 +215,58 @@ describe("Serialization utils", () => {
     expect(
       JSONBig.stringify(
         parseDatumCbor(
+          "d8799f00021a009896801a01312d00d8799fd8799f581c58b958963e49ba1815585497a7ca4683d1f8bb660915655dee9b50acffd8799fd8799fd8799f581c2c8559c6fdddc9044b50a494bd54c8de6eef4eaef046b851423c8cdfffffffff1a004c4b40ff",
+        ),
+      ),
+    ).toEqual(
+      JSONBig.stringify({
+        constructor: 0,
+        fields: [
+          { int: 0 },
+          { int: 2 },
+          { int: 10000000 },
+          { int: 20000000 },
+          {
+            constructor: 0,
+            fields: [
+              {
+                constructor: 0,
+                fields: [
+                  {
+                    bytes:
+                      "58b958963e49ba1815585497a7ca4683d1f8bb660915655dee9b50ac",
+                  },
+                ],
+              },
+              {
+                constructor: 0,
+                fields: [
+                  {
+                    constructor: 0,
+                    fields: [
+                      {
+                        constructor: 0,
+                        fields: [
+                          {
+                            bytes:
+                              "2c8559c6fdddc9044b50a494bd54c8de6eef4eaef046b851423c8cdf",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          { int: 5000000 },
+        ],
+      }),
+    );
+
+    expect(
+      JSONBig.stringify(
+        parseDatumCbor(
           "d8799f9f4040ff9f581c5066154a102ee037390c5236f78db23239b49c5748d3d349f3ccf04b4455534458ffd87a801a3c3360801a02faf0800a581c4ba6dd244255995969d2c05e323686bcbaba83b736e729941825d79bff",
         ),
       ),
@@ -366,5 +418,15 @@ describe("Serialization utils", () => {
     };
     const result = serializer.resolver.script.resolveScriptRef(nativeScript);
     expect(result).toEqual("d81846820082041864");
+  });
+
+  it("should deserialize pool id correctly", () => {
+    const result = serializer.deserializer.cert.deserializePoolId(
+      "pool1kgzq2g7glzcu76ygcl2llhamjjutcts5vhe2mzglmn5jxt2cnfs",
+    );
+
+    expect(result).toEqual(
+      "b2040523c8f8b1cf6888c7d5ffdfbb94b8bc2e1465f2ad891fdce923",
+    );
   });
 });

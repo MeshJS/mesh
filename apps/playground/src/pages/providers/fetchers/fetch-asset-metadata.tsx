@@ -9,11 +9,11 @@ import { demoAsset } from "~/data/cardano";
 import { SupportedFetchers } from ".";
 
 export default function FetcherAssetMetadata({
-  blockchainProvider,
   provider,
+  providerName,
 }: {
-  blockchainProvider: SupportedFetchers;
-  provider: string;
+  provider: SupportedFetchers;
+  providerName: string;
 }) {
   const [userInput, setUserInput] = useState<string>(demoAsset);
   return (
@@ -22,10 +22,10 @@ export default function FetcherAssetMetadata({
       title="Fetch Asset Metadata"
       leftSection={Left(userInput)}
       rightSection={Right(
-        blockchainProvider,
+        provider,
         userInput,
         setUserInput,
-        provider,
+        providerName,
       )}
     />
   );
@@ -39,20 +39,20 @@ function Left(userInput: string) {
         is the concatenation of policy ID and asset name in hex.
       </p>
       <Codeblock
-        data={`await blockchainProvider.fetchAssetMetadata('${userInput}')`}
+        data={`await provider.fetchAssetMetadata('${userInput}')`}
       />
     </>
   );
 }
 
 function Right(
-  blockchainProvider: SupportedFetchers,
+  provider: SupportedFetchers,
   userInput: string,
   setUserInput: (value: string) => void,
-  provider: string,
+  providerName: string,
 ) {
   async function runDemo() {
-    return await blockchainProvider.fetchAssetMetadata(userInput);
+    return await provider.fetchAssetMetadata(userInput);
   }
 
   return (
@@ -61,7 +61,7 @@ function Right(
       subtitle="Fetch metadata from asset ID"
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
-      runDemoProvider={provider}
+      runDemoProvider={providerName}
     >
       <InputTable
         listInputs={[

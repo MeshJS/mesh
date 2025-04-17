@@ -110,7 +110,7 @@ const ReactPage: NextPage = () => {
 
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/OfflineEvaluator" />
 
-        <ProviderEvaluators provider="offline" />
+        <ProviderEvaluators providerName="offline" />
       </SidebarFullwidth>
     </>
   );

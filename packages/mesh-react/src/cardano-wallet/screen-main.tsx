@@ -1,3 +1,6 @@
+import { Extension } from "@meshsdk/common";
+import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
+
 import IconBookDashed from "../common/icons/icon-book-dashed";
 import IconDownload from "../common/icons/icon-download";
 import IconFingerprint from "../common/icons/icon-fingerprint";
@@ -6,25 +9,28 @@ import { TooltipProvider } from "../common/tooltip";
 import { useWallet, useWalletList } from "../hooks";
 import { screens } from "./data";
 import WalletIcon from "./wallet-icon";
+import Web3Services from "./web3-services";
 
 export default function ScreenMain({
   injectFn,
-  extensions,
   setOpen,
   setScreen,
   persist,
   cardanoPeerConnect,
   burnerWallet,
   webauthn,
+  showDownload,
+  web3Services,
 }: {
   injectFn?: () => Promise<void>;
-  extensions: number[];
   setOpen: Function;
   setScreen: Function;
   persist: boolean;
   cardanoPeerConnect: boolean;
   burnerWallet: boolean;
   webauthn: boolean;
+  showDownload: boolean;
+  web3Services?: EnableWeb3WalletOptions;
 }) {
   const wallets = useWalletList({ injectFn });
   const { connect } = useWallet();
@@ -38,11 +44,19 @@ export default function ScreenMain({
             icon={wallet.icon}
             name={wallet.name}
             action={() => {
-              connect(wallet.id, extensions, persist);
+              connect(wallet.id, persist);
               setOpen(false);
             }}
           />
         ))}
+
+        {web3Services && (
+          <Web3Services
+            options={web3Services}
+            setOpen={setOpen}
+            persist={persist}
+          />
+        )}
 
         {webauthn && (
           <WalletIcon
@@ -72,16 +86,18 @@ export default function ScreenMain({
           />
         )}
 
-        <WalletIcon
-          iconReactNode={IconDownload()}
-          name={`Download`}
-          action={() => {
-            window.open(
-              "https://developers.cardano.org/showcase/?tags=wallet",
-              "_blank",
-            );
-          }}
-        />
+        {showDownload && (
+          <WalletIcon
+            iconReactNode={IconDownload()}
+            name={`Download`}
+            action={() => {
+              window.open(
+                "https://developers.cardano.org/showcase/?tags=wallet",
+                "_blank",
+              );
+            }}
+          />
+        )}
       </div>
     </TooltipProvider>
   );

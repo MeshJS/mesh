@@ -26,6 +26,10 @@ pub type EscrowRedeemer {
   CompleteTrade
 }
 
+// Tx1: Intiator initiate the escrow
+// Tx2: Recipient deposit the asset <- Unbounded value vulnerability could come from here
+// Tx3: Complete the trade / Either one cancel the trade
+
 validator escrow {
   spend(
     _datum: Option<EscrowDatum>,
@@ -59,6 +63,11 @@ validator escrow {
             input.output.value
               |> merge(recipient_assets |> from_asset_list()),
           )
+
+        // We assume each participant could only provide at max ADA + 4 diff kinds of assets
+        // let is_output_value_clean = value_length(output.value) <= 9
+        // ADA + 4 (recipient) + 4 (initiator)
+        // && is_output_value_clean
         is_datum_updated && is_value_deposited
       }
       CancelTrade -> {

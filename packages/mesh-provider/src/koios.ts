@@ -6,9 +6,11 @@ import {
   AssetMetadata,
   BlockInfo,
   castProtocol,
+  DEFAULT_FETCHER_OPTIONS,
   fromUTF8,
   GovernanceProposalInfo,
   IFetcher,
+  IFetcherOptions,
   IListener,
   ISubmitter,
   PlutusScript,
@@ -21,7 +23,8 @@ import {
 } from "@meshsdk/common";
 import {
   deserializeNativeScript,
-  fromNativeScript, normalizePlutusScript,
+  fromNativeScript,
+  normalizePlutusScript,
   resolveRewardAddress,
   toScriptRef,
 } from "@meshsdk/core-cst";
@@ -71,6 +74,10 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Obtain information about a specific stake account.
+   * @param address - Wallet address to fetch account information
+   */
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
     try {
       const rewardAddress = address.startsWith("addr")
@@ -96,6 +103,11 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Fetches the assets for a given address.
+   * @param address - The address to fetch assets for
+   * @returns A map of asset unit to quantity
+   */
   async fetchAddressAssets(
     address: string,
   ): Promise<{ [key: string]: string }> {
@@ -104,11 +116,13 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   }
 
   /**
-   * Transactions for an address.
+   * Unimplemented - open for contribution, see blockfrost.ts for reference
    * @param address
-   * @returns - partial TransactionInfo
    */
-  async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
+  async fetchAddressTxs(
+    address: string,
+    option: IFetcherOptions = DEFAULT_FETCHER_OPTIONS,
+  ): Promise<TransactionInfo[]> {
     try {
       const { data, status } = await this._axiosInstance.post(`/address_txs`, {
         _addresses: [address],
@@ -134,6 +148,12 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * UTXOs of the address.
+   * @param address - The address to fetch UTXO
+   * @param asset - UTXOs of a given asset​
+   * @returns - Array of UTxOs
+   */
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     try {
       const { data, status } = await this._axiosInstance.post("address_info", {
@@ -161,6 +181,10 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Fetches the asset addresses for a given asset.
+   * @param asset - The asset to fetch addresses for
+   */
   async fetchAssetAddresses(
     asset: string,
   ): Promise<{ address: string; quantity: string }[]> {
@@ -188,6 +212,11 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Fetches the metadata for a given asset.
+   * @param asset - The asset to fetch metadata for
+   * @returns The metadata for the asset
+   */
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
@@ -209,6 +238,11 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Fetches the block information for a given block hash.
+   * @param hash The block hash to fetch from
+   * @returns The block information
+   */
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
       const { data, status } = await this._axiosInstance.post("block_info", {
@@ -240,6 +274,12 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Fetches the list of assets for a given policy ID.
+   * @param policyId The policy ID to fetch assets for
+   * @param cursor The cursor for pagination
+   * @returns The list of assets and the next cursor
+   */
   async fetchCollectionAssets(policyId: string): Promise<{ assets: Asset[] }> {
     try {
       const { data, status } = await this._axiosInstance.get(
@@ -297,6 +337,11 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Fetch the latest protocol parameters.
+   * @param epoch
+   * @returns - Protocol parameters
+   */
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     try {
       if (isNaN(epoch)) {
@@ -338,6 +383,11 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Fetches the transaction information for a given transaction hash.
+   * @param hash The transaction hash to fetch
+   * @returns The transaction information
+   */
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
       const { data, status } = await this._axiosInstance.post("tx_info", {
@@ -363,11 +413,18 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Get UTxOs for a given hash.
+   * @param hash The transaction hash
+   * @param index Optional - The output index for filtering post fetching
+   * @returns - Array of UTxOs
+   */
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       // get the assets too
       const { data, status } = await this._axiosInstance.post("tx_info", {
-        _tx_hashes: [hash], _assets: true,
+        _tx_hashes: [hash],
+        _assets: true,
       });
 
       if (status === 200) {
@@ -387,7 +444,10 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
-  async fetchGovernanceProposal(txHash: string, certIndex: number): Promise<GovernanceProposalInfo> {
+  async fetchGovernanceProposal(
+    txHash: string,
+    certIndex: number,
+  ): Promise<GovernanceProposalInfo> {
     throw new Error("Method not implemented");
   }
 
@@ -433,6 +493,12 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }
   }
 
+  /**
+   * Allow you to listen to a transaction confirmation. Upon confirmation, the callback will be called.
+   * @param txHash - The transaction hash to listen for confirmation
+   * @param callback - The callback function to call when the transaction is confirmed
+   * @param limit - The number of blocks to wait for confirmation
+   */
   onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
@@ -458,6 +524,20 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
     }, 5_000);
   }
 
+  /**
+   * Deprecated, use fetchAddressTxs instead
+   * @param address
+   * @returns - partial TransactionInfo
+   */
+  async fetchAddressTransactions(address: string): Promise<TransactionInfo[]> {
+    return await this.fetchAddressTxs(address);
+  }
+
+  /**
+   * Submit a serialized transaction to the network.
+   * @param tx - The serialized transaction in hex to submit
+   * @returns The transaction hash of the submitted transaction
+   */
   async submitTx(tx: string): Promise<string> {
     try {
       const headers = { "Content-Type": "application/cbor" };
@@ -507,12 +587,15 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
   ): string | undefined => {
     if (kScriptRef) {
       let script;
-      if(kScriptRef.type.startsWith("plutus")) {
-        const normalized = normalizePlutusScript(kScriptRef.bytes, "DoubleCBOR");
+      if (kScriptRef.type.startsWith("plutus")) {
+        const normalized = normalizePlutusScript(
+          kScriptRef.bytes,
+          "DoubleCBOR",
+        );
         script = <PlutusScript>{
           code: normalized,
           version: kScriptRef.type.replace("plutus", ""),
-        }
+        };
       } else {
         script = fromNativeScript(deserializeNativeScript(kScriptRef.bytes));
       }

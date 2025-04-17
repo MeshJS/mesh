@@ -23,8 +23,8 @@ export default function TransactionHandle() {
 
 function Left() {
   let example = ``;
-  example += `const blockchainprovider = new BlockfrostProvider('API_KEY_HERE');\n`;
-  example += `const address = await blockchainprovider.fetchHandleAddress('mesh');\n\n`;
+  example += `const provider = new BlockfrostProvider('API_KEY_HERE');\n`;
+  example += `const address = await provider.fetchHandleAddress('mesh');\n\n`;
   example += `const tx = new Transaction({ initiator: wallet });\n`;
   example += `tx.sendLovelace(address, '1000000');\n`;
 
@@ -47,8 +47,8 @@ function Right() {
   const [amount, setAmount] = useState<string>("1000000");
 
   async function runDemo() {
-    const blockchainprovider = getProvider("mainnet");
-    const address = await blockchainprovider.fetchHandleAddress(handle);
+    const provider = getProvider("mainnet");
+    const address = await provider.fetchHandleAddress(handle);
 
     const tx = new Transaction({ initiator: wallet }).setNetwork("preprod");
     tx.sendLovelace(address, amount);
@@ -62,8 +62,8 @@ function Right() {
 
   let codeSnippet = `import { BlockfrostProvider, Transaction } from '@meshsdk/core';\n\n`;
 
-  codeSnippet += `const blockchainprovider = new BlockfrostProvider('API_KEY_HERE');\n`;
-  codeSnippet += `const address = await blockchainprovider.fetchHandleAddress('${handle}');\n\n`;
+  codeSnippet += `const provider = new BlockfrostProvider('API_KEY_HERE');\n`;
+  codeSnippet += `const address = await provider.fetchHandleAddress('${handle}');\n\n`;
 
   codeSnippet += `const tx = new Transaction({ initiator: wallet });\n`;
   codeSnippet += `tx.sendLovelace(address, '${amount}');\n\n`;

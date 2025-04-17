@@ -1,4 +1,5 @@
 import {
+  Data,
   IMintingBlueprint,
   LanguageVersion,
   PlutusDataType,
@@ -20,7 +21,7 @@ import { resolveScriptHash } from "../resolver";
  * const policyId = blueprint.hash;
  * const scriptCbor = blueprint.cbor;
  */
-class MintingBlueprint implements IMintingBlueprint {
+export class MintingBlueprint implements IMintingBlueprint {
   version: LanguageVersion;
   cbor: string;
   hash: string;
@@ -40,7 +41,7 @@ class MintingBlueprint implements IMintingBlueprint {
    */
   paramScript(
     compiledCode: string,
-    params: string[],
+    params: object[] | Data[],
     paramsType: PlutusDataType = "Mesh",
   ): this {
     const cbor = applyParamsToScript(compiledCode, params, paramsType);

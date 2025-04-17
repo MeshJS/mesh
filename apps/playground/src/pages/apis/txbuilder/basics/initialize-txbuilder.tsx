@@ -16,9 +16,9 @@ function Left() {
   let example = ``;
   example += `import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";\n`;
   example += `\n`;
-  example += `const blockchainProvider = new BlockfrostProvider('<Your-API-Key>');\n\n`;
+  example += `const provider = new BlockfrostProvider('<Your-API-Key>');\n\n`;
   example += `const txBuilder = new MeshTxBuilder({\n`;
-  example += `  fetcher: blockchainProvider,\n`;
+  example += `  fetcher: provider,\n`;
   example += `  verbose: true,\n`;
   example += `});\n`;
 

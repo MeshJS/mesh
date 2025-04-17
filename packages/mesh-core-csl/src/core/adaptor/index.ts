@@ -1,10 +1,15 @@
-import { MeshTxBuilderBody, validityRangeToObj } from "@meshsdk/common";
+import {
+  MeshTxBuilderBody,
+  MintItem,
+  MintParam,
+  validityRangeToObj,
+} from "@meshsdk/common";
 
 import { certificateToObj } from "./certificate";
+import { txMetadataToObj } from "./metadata";
 import { mintItemToObj } from "./mint";
 import { networkToObj } from "./network";
 import { outputToObj } from "./output";
-import { txMetadataToObj } from "./metadata";
 import { collateralTxInToObj, txInToObj } from "./txIn";
 import { voteToObj } from "./vote";
 import { withdrawalToObj } from "./withdrawal";
@@ -26,13 +31,28 @@ export const meshTxBuilderBodyToObj = ({
   fee,
   network,
 }: MeshTxBuilderBody) => {
+  let mintsObj: object[] = [];
+  mints.forEach((mint: MintParam) => {
+    mint.mintValue.forEach((mintValue) => {
+      mintsObj.push(
+        mintItemToObj({
+          type: mint.type,
+          policyId: mint.policyId,
+          assetName: mintValue.assetName,
+          amount: mintValue.amount,
+          scriptSource: mint.scriptSource,
+          redeemer: mint.redeemer,
+        }),
+      );
+    });
+  });
   return {
     inputs: inputs.map(txInToObj),
     outputs: outputs.map(outputToObj),
     collaterals: collaterals.map(collateralTxInToObj),
     requiredSignatures,
     referenceInputs: referenceInputs,
-    mints: mints.map((mint) => mintItemToObj(mint)),
+    mints: mintsObj,
     changeAddress,
     metadata: txMetadataToObj(metadata),
     validityRange: validityRangeToObj(validityRange),

@@ -1,3 +1,5 @@
+import { UTxO } from "./utxo";
+
 export type TransactionInfo = {
   index: number;
   block: string;
@@ -8,4 +10,8 @@ export type TransactionInfo = {
   deposit: string;
   invalidBefore: string;
   invalidAfter: string;
+  inputs: UTxO[];
+  outputs: UTxO[];
+  blockHeight?: number;
+  blockTime?: number;
 };

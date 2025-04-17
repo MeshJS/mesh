@@ -1,17 +1,22 @@
+import { PlutusDataType } from "../data";
 import {
+  Asset,
   BuilderData,
-  Data,
   DeserializedAddress,
   DeserializedScript,
   MeshTxBuilderBody,
   NativeScript,
+  Output,
   PlutusScript,
   Protocol,
 } from "../types";
 
 export interface IMeshTxSerializer {
-  verbose: boolean;
   serializeTxBody(
+    txBuilderBody: MeshTxBuilderBody,
+    protocolParams: Protocol,
+  ): string;
+  serializeTxBodyWithMockSignatures(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
   ): string;
@@ -26,6 +31,8 @@ export interface IMeshTxSerializer {
     isScriptHash?: boolean,
     network_id?: 0 | 1,
   ): string;
+  serializeOutput(output: Output): string;
+  serializeValue(value: Asset[]): string;
 }
 export interface IResolver {
   keys: {
@@ -38,7 +45,10 @@ export interface IResolver {
     resolveTxHash(txHex: string): string;
   };
   data: {
-    resolveDataHash(data: Data): string;
+    resolveDataHash(
+      rawData: BuilderData["content"],
+      type?: PlutusDataType,
+    ): string;
   };
   script: {
     resolveScriptRef(script: NativeScript | PlutusScript): string;

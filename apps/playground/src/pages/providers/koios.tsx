@@ -35,14 +35,14 @@ const ReactPage: NextPage = () => {
   ];
 
   let code1 = `import { KoiosProvider } from "@meshsdk/core";\n\n`;
-  code1 += `const blockchainProvider = new KoiosProvider(\n`;
+  code1 += `const provider = new KoiosProvider(\n`;
   code1 += `  'preprod', // "api" | "preview" | "preprod" | "guild"\n`;
   code1 += `  '<Your-API-Key>',\n`; // https://koios.rest/Profile.html;
   code1 += `);\n`;
 
   const koiosKey = useProviders((state) => state.koiosKey);
 
-  const blockchainProvider = new KoiosProvider(
+  const provider = new KoiosProvider(
     koiosKey?.network || "preprod",
     koiosKey?.apiKey || "",
   );
@@ -83,16 +83,16 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/KoiosProvider" />
 
         <ProviderFetchers
-          blockchainProvider={blockchainProvider}
-          provider="koios"
+          provider={provider}
+          providerName="koios"
         />
         <ProviderSubmitters
-          blockchainProvider={blockchainProvider}
-          provider="koios"
+          provider={provider}
+          providerName="koios"
         />
         <ProviderListeners
-          blockchainProvider={blockchainProvider}
-          provider="koios"
+          provider={provider}
+          providerName="koios"
         />
       </SidebarFullwidth>
     </>

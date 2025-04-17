@@ -10,6 +10,7 @@ VERSION=$1
 
 # List of package.json files to update
 FILES=(
+  "packages/hydra/package.json"
   "packages/mesh-common/package.json"
   "packages/mesh-contract/package.json"
   "packages/mesh-core/package.json"
@@ -29,6 +30,7 @@ for FILE in "${FILES[@]}"; do
     sed -i '' -e "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" "$FILE"
 
     # Update @meshsdk dependencies to the latest version
+    sed -i '' -e "s/\"@meshsdk\/hydra\": \".*\"/\"@meshsdk\/hydra\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/common\": \".*\"/\"@meshsdk\/common\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/contract\": \".*\"/\"@meshsdk\/contract\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/core\": \".*\"/\"@meshsdk\/core\": \"$VERSION\"/" "$FILE"
