@@ -43,6 +43,14 @@ const ReactPage: NextPage = () => {
               applications. In the Cardano ecosystem, minting and burning are
               achieved through Native Scripts and Plutus Scripts.
             </p>
+            <p>
+              To view a video demonstration of this feature of the MeshSDK,
+              navigate to the video guide{" "}
+              <a href="/guides/nft-collection" target="_blank">
+                Mint an NFT Collection
+              </a>
+              .
+            </p>
             <Intro />
             <p>
               In this page, you will find the APIs to create transactions for
