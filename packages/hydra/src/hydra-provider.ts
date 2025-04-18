@@ -18,9 +18,8 @@ import {
 } from "@meshsdk/common";
 
 import { parseHttpError } from "./utils";
-import { toUTxO } from "./convertor";
 import { HydraConnection } from "./hydra-connection";
-import { HydraStatus, HydraTransaction, HydraUTxO } from "./types";
+import { HydraStatus, HydraTransaction, hUTxO } from "./types";
 import {
   CommandFailed,
   Committed,
@@ -320,7 +319,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     const data = await this.get(`snapshot/utxo`);
     const utxos: UTxO[] = [];
     for (const [key, value] of Object.entries(data)) {
-      const utxo = toUTxO(value as HydraUTxO, key);
+      const utxo = hUTxO.toUTxO(value as hUTxO, key);
       utxos.push(utxo);
     }
     return utxos;

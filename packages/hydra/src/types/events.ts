@@ -2,8 +2,8 @@ import {
   HydraParty,
   HydraSnapshot,
   HydraTransaction,
-  HydraUTxOs,
 } from "../types";
+import { hUTxOs } from "./hUTxOs";
 import { PostChainTx } from "./hydra-post-chain-tx";
 
 export type Greetings = {
@@ -19,7 +19,7 @@ export type Greetings = {
     | "FanoutPossible"
     | "Final";
   hydraHeadId: string;
-  snapshotUtxo: HydraUTxOs;
+  snapshotUtxo: hUTxOs;
   timestamp: string;
   hydraNodeVersion: string;
 };
@@ -66,7 +66,7 @@ export type HeadIsInitializing = {
 export type Committed = {
   tag: "Committed";
   parties: HydraParty[];
-  utxo: HydraUTxOs;
+  utxo: hUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -74,7 +74,7 @@ export type Committed = {
 export type HeadIsOpen = {
   tag: "HeadIsOpen";
   headId: string;
-  utxo: HydraUTxOs;
+  utxo: hUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -107,7 +107,7 @@ export type ReadyToFanout = {
 export type HeadIsAborted = {
   tag: "HeadIsAborted";
   headId: string;
-  utxo: HydraUTxOs;
+  utxo: hUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -115,7 +115,7 @@ export type HeadIsAborted = {
 export type HeadIsFinalized = {
   tag: "HeadIsFinalized";
   headId: string;
-  utxo: HydraUTxOs;
+  utxo: hUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -131,7 +131,7 @@ export type TxValid = {
 export type TxInvalid = {
   tag: "TxInvalid";
   headId: string;
-  utxo: HydraUTxOs;
+  utxo: hUTxOs;
   transaction: HydraTransaction;
   validationError: { reason: string };
   seq: number;
@@ -149,7 +149,7 @@ export type SnapshotConfirmed = {
 export type GetUTxOResponse = {
   tag: "GetUTxOResponse";
   headId: string;
-  utxo: HydraUTxOs;
+  utxo: hUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -203,7 +203,7 @@ export type DecommitInvalid = {
   decommitInvalidReason:
     | {
         tag: "DecommitTxInvalid";
-        localUtxo: HydraUTxOs;
+        localUtxo: hUTxOs;
         validationError: { reason: string };
       }
     | { tag: "DecommitAlreadyInFlight"; otherDecommitTxId: string };
@@ -213,7 +213,7 @@ export type DecommitRequested = {
   tag: "DecommitRequested";
   headId: string;
   decommitTx: HydraTransaction;
-  utxoToDecommit: HydraUTxOs;
+  utxoToDecommit: hUTxOs;
   seq: number;
   timestmap: string;
 };
@@ -222,7 +222,7 @@ export type DecommitApproved = {
   tag: "DecommitApproved";
   headId: string;
   decommitTxId: string;
-  utxoToDecommit: HydraUTxOs;
+  utxoToDecommit: hUTxOs;
   seq: number;
   timestamp: string;
 };

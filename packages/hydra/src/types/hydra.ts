@@ -1,14 +1,5 @@
 import { HYDRA_STATUS } from "../constants";
-
-export type HydraAssets = {
-  lovelace: number;
-} & {
-  [x: string]:
-    | {
-        [y: string]: number;
-      }
-    | undefined;
-};
+import { hUTxOs } from "./hUTxOs";
 
 export type HydraCommitTransaction = {
   cborHex: string;
@@ -26,27 +17,14 @@ export type HydraParty = {
   vkey: string;
 };
 
-export type HydraReferenceScript = {
-  scriptLanguage: string;
-  script: {
-    cborHex: string;
-    description: string;
-    type:
-      | "SimpleScript"
-      | "PlutusScriptV1"
-      | "PlutusScriptV2"
-      | "PlutusScriptV3";
-  };
-};
-
 export type HydraStatus = (typeof HYDRA_STATUS)[keyof typeof HYDRA_STATUS];
 
 export type HydraSnapshot = {
   headId: string;
   snapshotNumber: string;
-  utxo: HydraUTxOs;
+  utxo: hUTxOs;
   confirmedTransactions: string[];
-  utxoToDecommit: HydraUTxOs;
+  utxoToDecommit: hUTxOs;
   version: number;
 };
 
@@ -55,18 +33,4 @@ export type HydraTransaction = {
   description: string;
   cborHex: string;
   txId?: string;
-};
-
-export type HydraUTxOs = {
-  [txRef: string]: HydraUTxO;
-};
-
-export type HydraUTxO = {
-  address: string;
-  value: HydraAssets;
-  referenceScript?: HydraReferenceScript;
-  datumhash?: string;
-  inlineDatum?: object;
-  inlineDatumhash?: string;
-  datum?: string;
 };
