@@ -40,7 +40,7 @@ import {
   TransactionPrototype,
 } from "./coin-selection/coin-selection-interface";
 import { MeshTxBuilderCore } from "./tx-builder-core";
-import {MintParam} from "@meshsdk/common/src";
+import {MintParam} from "@meshsdk/common";
 
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
