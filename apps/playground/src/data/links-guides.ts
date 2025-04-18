@@ -76,7 +76,7 @@ export const guideMintNftCollection = {
   title: "Mint an NFT Collection",
   desc: "Learn to mint an NFT Collection with JavaScript & the MeshSDK.",
   link: "/guides/nft-collection",
-  thumbnail: "/guides/mint-nft-collection-thumbnail.png",
+  thumbnail: "/guides/mint-nft-collection.png",
   image: "/guides/laptop-3196481_640.jpg",
 };
 
