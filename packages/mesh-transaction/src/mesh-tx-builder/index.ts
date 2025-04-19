@@ -151,7 +151,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     if (this.verbose) {
       console.log(
-        "txBodyJson",
+        "txBodyJson - before coin selection",
         JSON.stringify(this.meshTxBuilderBody, (key, val) => {
           if (key === "extraInputs") return undefined;
           if (key === "selectionConfig") return undefined;
@@ -166,12 +166,21 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       collateral.txIn.scriptSize = 0;
     }
     await this.completeTxParts();
+    this.sortTxParts();
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype);
     this.queueAllLastItem();
     this.removeDuplicateInputs();
-    this.sortTxParts();
-
+    if (this.verbose) {
+      console.log(
+        "txBodyJson - after coin selection",
+        JSON.stringify(this.meshTxBuilderBody, (key, val) => {
+          if (key === "extraInputs") return undefined;
+          if (key === "selectionConfig") return undefined;
+          return val;
+        }),
+      );
+    }
     const txHex = this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
@@ -190,8 +199,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
           const clonedBuilder = this.clone();
           await clonedBuilder.updateByTxPrototype(selectionSkeleton);
           clonedBuilder.queueAllLastItem();
-
-          this.sortTxParts();
 
           try {
             await clonedBuilder.evaluateRedeemers();
@@ -1435,6 +1442,18 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         stepUnits += BigInt(vote.redeemer.exUnits.steps);
       }
     }
+    memUnits = BigInt(
+      new BigNumber(memUnits)
+        .multipliedBy(this.txEvaluationMultiplier)
+        .integerValue(BigNumber.ROUND_CEIL)
+        .toString(),
+    );
+    stepUnits = BigInt(
+      new BigNumber(stepUnits)
+        .multipliedBy(this.txEvaluationMultiplier)
+        .integerValue(BigNumber.ROUND_CEIL)
+        .toString(),
+    );
     return {
       memUnits,
       stepUnits,
