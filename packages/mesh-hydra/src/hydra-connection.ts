@@ -1,11 +1,9 @@
 import { EventEmitter } from "events";
-
-import { HYDRA_STATUS } from "./constants";
-import { HydraStatus } from "./types";
+import { hStatus } from "./types/hStatus";
 
 export class HydraConnection extends EventEmitter {
   _websocket: WebSocket | undefined;
-  _status: HydraStatus = HYDRA_STATUS.IDLE;
+  _status: hStatus = "IDLE";
   _websocketUrl: string;
   private readonly _eventEmitter: EventEmitter;
   private _connected: boolean = false;
@@ -32,12 +30,12 @@ export class HydraConnection extends EventEmitter {
   }
 
   async connect() {
-    if (this._status !== HYDRA_STATUS.IDLE) {
+    if (this._status !== "IDLE") {
       return;
     }
 
     this._websocket = new WebSocket(this._websocketUrl);
-    this._status = HYDRA_STATUS.CONNECTING;
+    this._status = "CONNECTING";
 
     this._websocket.onopen = () => {
       this._connected = true;
@@ -56,7 +54,7 @@ export class HydraConnection extends EventEmitter {
   }
 
   async disconnect() {
-    if (this._status === HYDRA_STATUS.IDLE) {
+    if (this._status === "IDLE") {
       return;
     }
 
@@ -64,7 +62,7 @@ export class HydraConnection extends EventEmitter {
       this._websocket.close(1007);
     }
 
-    this._status = HYDRA_STATUS.IDLE;
+    this._status = "IDLE";
   }
 
   send(data: any): void {
@@ -74,29 +72,29 @@ export class HydraConnection extends EventEmitter {
   }
 
   async processStatus(message: {}) {
-    function getStatus(data: any): HydraStatus | null {
+    function getStatus(data: any): hStatus | null {
       switch (data.headStatus) {
         case "Open":
-          return HYDRA_STATUS.OPEN;
+          return "OPEN";
       }
 
       switch (data.tag) {
         case "HeadIsInitializing":
-          return HYDRA_STATUS.INITIALIZING;
+          return "INITIALIZING";
         case "HeadIsOpen":
-          return HYDRA_STATUS.OPEN;
+          return "OPEN";
         case "HeadIsClosed":
-          return HYDRA_STATUS.CLOSED;
+          return "CLOSED";
         case "ReadyToFanout":
-          return HYDRA_STATUS.FANOUT_POSSIBLE;
+          return "FANOUT_POSSIBLE";
         case "HeadIsFinalized":
-          return HYDRA_STATUS.FINAL;
+          return "FINAL";
         default:
           return null;
       }
     }
 
-    let status: HydraStatus | null = null;
+    let status: hStatus | null = null;
     if ((status = getStatus(message)) && status !== null) {
       this._status = status;
       this._eventEmitter.emit("onstatuschange", status);

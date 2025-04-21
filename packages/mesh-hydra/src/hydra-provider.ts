@@ -19,7 +19,7 @@ import {
 
 import { parseHttpError } from "./utils";
 import { HydraConnection } from "./hydra-connection";
-import { HydraStatus, HydraTransaction, hUTxO } from "./types";
+import { hStatus, HydraTransaction, hUTxO } from "./types";
 import {
   CommandFailed,
   Committed,
@@ -58,7 +58,7 @@ import {
  */
 export class HydraProvider implements IFetcher, ISubmitter {
   private _connection: HydraConnection;
-  private _status: HydraStatus = "DISCONNECTED";
+  private _status: hStatus = "DISCONNECTED";
   private readonly _eventEmitter: EventEmitter;
   private readonly _axiosInstance: AxiosInstance;
 
@@ -500,7 +500,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     });
   }
 
-  onStatusChange(callback: (status: HydraStatus) => void) {
+  onStatusChange(callback: (status: hStatus) => void) {
     this._eventEmitter.on("onstatuschange", callback);
   }
 

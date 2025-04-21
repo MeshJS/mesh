@@ -1,4 +1,3 @@
-import { HYDRA_STATUS } from "../constants";
 import { hUTxOs } from "./hUTxOs";
 
 export type HydraCommitTransaction = {
@@ -16,8 +15,6 @@ export interface HydraHeadParameters {
 export type HydraParty = {
   vkey: string;
 };
-
-export type HydraStatus = (typeof HYDRA_STATUS)[keyof typeof HYDRA_STATUS];
 
 export type HydraSnapshot = {
   headId: string;
