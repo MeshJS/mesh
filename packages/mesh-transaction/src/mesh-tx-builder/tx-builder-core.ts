@@ -42,7 +42,7 @@ import { Address, CredentialType } from "@meshsdk/core-cst";
 import { metadataObjToMap } from "../utils";
 
 export class MeshTxBuilderCore {
-  txEvaluationMultiplier = 1.1;
+  txEvaluationMultiplier = 1;
   private txOutput?: Output;
   private addingPlutusScriptInput = false;
   private plutusSpendingScriptVersion: LanguageVersion | undefined;
@@ -1719,17 +1719,19 @@ export class MeshTxBuilderCore {
   protected updateRedeemer = (
     meshTxBuilderBody: MeshTxBuilderBody,
     txEvaluation: Omit<Action, "data">[],
+    doNotUseMultiplier: boolean = false,
   ) => {
+    const txEvaluationMultiplier = doNotUseMultiplier ? 1 : this.txEvaluationMultiplier;
     txEvaluation.forEach((redeemerEvaluation) => {
       switch (redeemerEvaluation.tag) {
         case "SPEND": {
           const input = meshTxBuilderBody.inputs[redeemerEvaluation.index]!;
           if (input.type == "Script" && input.scriptTxIn.redeemer) {
             input.scriptTxIn.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
             );
             input.scriptTxIn.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
             );
           }
           break;
@@ -1739,10 +1741,10 @@ export class MeshTxBuilderCore {
           if (mint.type == "Plutus" && mint.redeemer) {
             let newExUnits: Budget = {
               mem: Math.floor(
-                redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+                redeemerEvaluation.budget.mem * txEvaluationMultiplier,
               ),
               steps: Math.floor(
-                redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+                redeemerEvaluation.budget.steps * txEvaluationMultiplier,
               ),
             };
             // It's possible to have multiple mints with the same policy id but different
@@ -1764,10 +1766,10 @@ export class MeshTxBuilderCore {
             meshTxBuilderBody.certificates[redeemerEvaluation.index]!;
           if (cert.type === "ScriptCertificate" && cert.redeemer) {
             cert.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
             );
             cert.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
             );
           }
           break;
@@ -1776,10 +1778,21 @@ export class MeshTxBuilderCore {
             meshTxBuilderBody.withdrawals[redeemerEvaluation.index]!;
           if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
             withdrawal.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * this.txEvaluationMultiplier,
+              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
             );
             withdrawal.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * this.txEvaluationMultiplier,
+              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
+            );
+          }
+          break;
+        case "VOTE":
+          const vote = meshTxBuilderBody.votes[redeemerEvaluation.index]!;
+          if (vote.type === "ScriptVote" && vote.redeemer) {
+            vote.redeemer.exUnits.mem = Math.floor(
+              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
+            );
+            vote.redeemer.exUnits.steps = Math.floor(
+              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
             );
           }
           break;
@@ -1929,7 +1942,7 @@ export class MeshTxBuilderCore {
 
   reset = () => {
     this.meshTxBuilderBody = emptyTxBuilderBody();
-    this.txEvaluationMultiplier = 1.1;
+    this.txEvaluationMultiplier = 1;
     this.txOutput = undefined;
     this.addingPlutusScriptInput = false;
     this.plutusSpendingScriptVersion = undefined;

@@ -168,7 +168,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     await this.completeTxParts();
     this.sortTxParts();
     const txPrototype = await this.selectUtxos();
-    await this.updateByTxPrototype(txPrototype);
+    await this.updateByTxPrototype(txPrototype, true);
     this.queueAllLastItem();
     this.removeDuplicateInputs();
     if (this.verbose) {
@@ -268,6 +268,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   updateByTxPrototype = async (
     selectionSkeleton: CoinSelectionInterface.TransactionPrototype,
+    final = false,
   ) => {
     for (let utxo of selectionSkeleton.newInputs) {
       this.txIn(
@@ -294,6 +295,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.updateRedeemer(
       this.meshTxBuilderBody,
       selectionSkeleton.redeemers ?? [],
+      final,
     );
   };
 
@@ -371,7 +373,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         redeemers.push({
           tag: "SPEND",
           index: i,
-          budget: input.scriptTxIn.redeemer.exUnits,
+          budget: structuredClone(input.scriptTxIn.redeemer.exUnits),
         });
       }
     }
@@ -381,7 +383,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         redeemers.push({
           tag: "MINT",
           index: i,
-          budget: mint.redeemer.exUnits,
+          budget: structuredClone(mint.redeemer.exUnits),
         });
       }
     }
@@ -391,7 +393,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         redeemers.push({
           tag: "CERT",
           index: i,
-          budget: cert.redeemer.exUnits,
+          budget: structuredClone(cert.redeemer.exUnits),
         });
       }
     }
@@ -401,7 +403,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         redeemers.push({
           tag: "REWARD",
           index: i,
-          budget: withdrawal.redeemer.exUnits,
+          budget: structuredClone(withdrawal.redeemer.exUnits),
         });
       }
     }
@@ -1444,13 +1446,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     memUnits = BigInt(
       new BigNumber(memUnits)
-        .multipliedBy(this.txEvaluationMultiplier)
         .integerValue(BigNumber.ROUND_CEIL)
         .toString(),
     );
     stepUnits = BigInt(
       new BigNumber(stepUnits)
-        .multipliedBy(this.txEvaluationMultiplier)
         .integerValue(BigNumber.ROUND_CEIL)
         .toString(),
     );
