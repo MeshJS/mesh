@@ -64,6 +64,10 @@ export class MaestroProvider
     this._network = network;
   }
 
+  /**
+   * Evaluates the resources required to execute the transaction
+   * @param tx - The transaction to evaluate
+   */
   async evaluateTx(cbor: string): Promise<Omit<Action, "data">[]> {
     try {
       const { data, status } = await this._axiosInstance.post(
@@ -92,6 +96,10 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Obtain information about a specific stake account.
+   * @param address - Wallet address to fetch account information
+   */
   async fetchAccountInfo(address: string): Promise<AccountInfo> {
     const rewardAddress = address.startsWith("addr")
       ? resolveRewardAddress(address)
@@ -119,6 +127,11 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Fetches the assets for a given address.
+   * @param address - The address to fetch assets for
+   * @returns A map of asset unit to quantity
+   */
   async fetchAddressAssets(
     address: string,
   ): Promise<{ [key: string]: string }> {
@@ -126,6 +139,12 @@ export class MaestroProvider
     return utxosToAssets(utxos);
   }
 
+  /**
+   * UTXOs of the address.
+   * @param address - The address to fetch UTXO
+   * @param asset - UTXOs of a given asset​
+   * @returns - Array of UTxOs
+   */
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
     const queryPredicate = (() => {
       if (
@@ -165,6 +184,13 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Unimplemented - open for contribution
+   *
+   * Transactions for an address. The `TransactionInfo` would only return the `hash`, `inputs`, and `outputs`.
+   * @param address
+   * @returns - partial TransactionInfo
+   */
   async fetchAddressTxs(
     address: string,
     option: IFetcherOptions = { maxPage: 100, order: "desc" },
@@ -173,6 +199,10 @@ export class MaestroProvider
     throw new Error("Method not implemented.");
   }
 
+  /**
+   * Fetches the asset addresses for a given asset.
+   * @param asset - The asset to fetch addresses for
+   */
   async fetchAssetAddresses(
     asset: string,
   ): Promise<{ address: string; quantity: string }[]> {
@@ -214,6 +244,11 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Fetches the metadata for a given asset.
+   * @param asset - The asset to fetch metadata for
+   * @returns The metadata for the asset
+   */
   async fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     try {
       const { policyId, assetName } = parseAssetUnit(asset);
@@ -238,6 +273,11 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Fetches the block information for a given block hash.
+   * @param hash The block hash to fetch from
+   * @returns The block information
+   */
   async fetchBlockInfo(hash: string): Promise<BlockInfo> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
@@ -272,6 +312,12 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Fetches the list of assets for a given policy ID.
+   * @param policyId The policy ID to fetch assets for
+   * @param cursor The cursor for pagination
+   * @returns The list of assets and the next cursor
+   */
   async fetchCollectionAssets(
     policyId: string,
     cursor?: string,
@@ -342,6 +388,11 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Fetch the latest protocol parameters.
+   * @param epoch
+   * @returns - Protocol parameters
+   */
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     if (!isNaN(epoch))
       throw new Error(
@@ -404,6 +455,11 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Fetches the transaction information for a given transaction hash.
+   * @param hash The transaction hash to fetch
+   * @returns The transaction information
+   */
   async fetchTxInfo(hash: string): Promise<TransactionInfo> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
@@ -430,6 +486,12 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Get UTxOs for a given hash.
+   * @param hash The transaction hash
+   * @param index Optional - The output index for filtering post fetching
+   * @returns - Array of UTxOs
+   */
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     try {
       const { data: timestampedData, status } = await this._axiosInstance.get(
@@ -452,6 +514,14 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Unimplemented - open for contribution
+   *
+   * Fetches the governance proposal information.
+   * @param txHash The transaction hash of the proposal
+   * @param certIndex The certificate index of the proposal
+   * @returns The governance proposal information
+   */
   async fetchGovernanceProposal(
     txHash: string,
     certIndex: number,
@@ -471,6 +541,12 @@ export class MaestroProvider
     }
   }
 
+  /**
+   * Allow you to listen to a transaction confirmation. Upon confirmation, the callback will be called.
+   * @param txHash - The transaction hash to listen for confirmation
+   * @param callback - The callback function to call when the transaction is confirmed
+   * @param limit - The number of blocks to wait for confirmation
+   */
   onTxConfirmed(txHash: string, callback: () => void, limit = 100): void {
     let attempts = 0;
 
@@ -496,6 +572,11 @@ export class MaestroProvider
     }, 5_000);
   }
 
+  /**
+   * Submit a serialized transaction to the network.
+   * @param tx - The serialized transaction in hex to submit
+   * @returns The transaction hash of the submitted transaction
+   */
   async submitTx(tx: string): Promise<string> {
     try {
       const headers = { "Content-Type": "application/cbor" };

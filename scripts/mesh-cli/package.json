@@ -3,7 +3,7 @@
   "description": "A quick and easy way to bootstrap your Web3 app using Mesh.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
-  "version": "1.9.0-beta.32",
+  "version": "1.9.0-beta.37",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -44,7 +44,8 @@
     "@types/figlet": "1.5.8",
     "@types/got": "^9.6.12",
     "@types/prompts": "2.4.9",
-    "@types/tar": "6.1.13"
+    "@types/tar": "6.1.13",
+    "tsup": "^8.0.2"
   },
   "files": [
     "dist/**"

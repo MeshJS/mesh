@@ -3,14 +3,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  // DropdownMenuLabel,
-  // DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../common/dropdown-menu";
 import { useWallet } from "../hooks";
 
 export default function ConnectedButton() {
-  const { wallet, connected, disconnect, address } = useWallet();
+  const { name, disconnect, address } = useWallet();
 
   return (
     <DropdownMenu>
@@ -20,8 +20,7 @@ export default function ConnectedButton() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        {/* <DropdownMenuLabel>Wallet</DropdownMenuLabel>
-        <DropdownMenuSeparator /> */}
+        <DropdownMenuLabel>Wallet</DropdownMenuLabel>
         <DropdownMenuItem
           onClick={() => {
             navigator.clipboard.writeText(address);
@@ -29,6 +28,16 @@ export default function ConnectedButton() {
         >
           Copy Address
         </DropdownMenuItem>
+        {name == "Mesh Web3 Services" && (
+          <DropdownMenuItem
+            onClick={() => {
+              window.open("https://web3.meshjs.dev/dashboard", "_blank");
+            }}
+          >
+            Open Web3 Wallet
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {
             disconnect();

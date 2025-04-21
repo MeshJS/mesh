@@ -2,7 +2,11 @@ import { createContext, useCallback, useEffect, useState } from "react";
 
 import { IWallet } from "@meshsdk/common";
 import { BrowserWallet } from "@meshsdk/wallet";
-import { InitWeb3WalletOptions, Web3Wallet } from "@meshsdk/web3-sdk";
+import {
+  EnableWeb3WalletOptions,
+  UserSocialData,
+  Web3Wallet,
+} from "@meshsdk/web3-sdk";
 
 interface WalletContext {
   hasConnectedWallet: boolean;
@@ -19,7 +23,9 @@ interface WalletContext {
     },
   ) => void;
   setPersist: (persist: boolean) => void;
-  setWeb3Services: (web3Services: InitWeb3WalletOptions | undefined) => void;
+  setWeb3Services: (web3Services: EnableWeb3WalletOptions | undefined) => void;
+  web3UserData: UserSocialData | undefined;
+  setWeb3UserData: (web3UserData: UserSocialData | undefined) => void;
   error?: unknown;
   address: string;
   state: WalletState;
@@ -50,8 +56,11 @@ export const useWalletStore = () => {
     string | undefined
   >(INITIAL_STATE.walletName);
   const [web3Services, setWeb3Services] = useState<
-    InitWeb3WalletOptions | undefined
+    EnableWeb3WalletOptions | undefined
   >(undefined);
+  const [web3UserData, setWeb3UserData] = useState<UserSocialData | undefined>(
+    undefined,
+  );
 
   const connectWallet = useCallback(
     async (walletName: string, persist?: boolean) => {
@@ -156,6 +165,8 @@ export const useWalletStore = () => {
           setConnectedWalletName(persist.walletName);
           setState(WalletState.CONNECTED);
         });
+
+        setWeb3UserData(persist.user);
       } else {
         connectWallet(persist.walletName);
       }
@@ -172,6 +183,8 @@ export const useWalletStore = () => {
     setWallet,
     setPersist,
     setWeb3Services,
+    web3UserData,
+    setWeb3UserData,
     error,
     address,
     state,
@@ -188,6 +201,8 @@ export const WalletContext = createContext<WalletContext>({
   setWallet: async () => {},
   setPersist: () => {},
   setWeb3Services: () => {},
+  web3UserData: undefined,
+  setWeb3UserData: () => {},
   address: "",
   state: WalletState.NOT_CONNECTED,
 });

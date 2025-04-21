@@ -40,6 +40,7 @@ import {
   TransactionPrototype,
 } from "./coin-selection/coin-selection-interface";
 import { MeshTxBuilderCore } from "./tx-builder-core";
+import {MintParam} from "@meshsdk/common";
 
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
@@ -813,6 +814,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const withdrawalCreds = this.getWithdrawalRequiredSignatures();
     const certCreds = this.getCertificatesRequiredSignatures();
     const voteCreds = this.getVoteRequiredSignatures();
+    const mintCreds = this.getMintRequiredSignatures();
     const requiredSignatures = this.meshTxBuilderBody.requiredSignatures;
     const allCreds = new Set([
       ...paymentCreds,
@@ -820,6 +822,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       ...certCreds,
       ...voteCreds,
       ...requiredSignatures,
+      ...mintCreds,
     ]);
     return { keyHashes: allCreds, byronAddresses };
   };
@@ -996,6 +999,22 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return voteCreds;
   }
 
+  protected getMintRequiredSignatures = (): Set<string> => {
+    const mintCreds = new Set<string>();
+    for (let mint of this.meshTxBuilderBody.mints) {
+      if (mint.type === "Native") {
+        const nativeScript = this.getMintNativeScript(mint);
+        if (nativeScript) {
+          let pubKeys = this.getNativeScriptPubKeys(nativeScript);
+          for (let pubKey of pubKeys) {
+            mintCreds.add(pubKey);
+          }
+        }
+      }
+    }
+    return mintCreds;
+  }
+
   protected getTotalWithdrawal = (): bigint => {
     let accum = 0n;
     for (let withdrawal of this.meshTxBuilderBody.withdrawals) {
@@ -1144,7 +1163,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   protected getMintNativeScript = (
-    mint: MintItem,
+    mint: MintParam,
   ): CstNativeScript | undefined => {
     if (mint.type !== "Native") {
       return undefined;
