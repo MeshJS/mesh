@@ -261,7 +261,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     this.send({ tag: "Fanout" });
   }
 
-  send(data: any): void {
+  send(data: unknown): void {
     this._connection.send(data);
   }
 
@@ -272,7 +272,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Draft a commit transaction, which can be completed and later submitted to the L1 network.
    */
-  async buildCommit(payload: any, headers: RawAxiosRequestHeaders = {}) {
+  async buildCommit(payload: unknown, headers: RawAxiosRequestHeaders = {}) {
     const txHex = await this.post("/commit", payload, headers);
     return txHex;
   }
@@ -533,7 +533,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
    */
   async post(
     url: string,
-    payload: any,
+    payload: unknown,
     headers: RawAxiosRequestHeaders
   ): Promise<any> {
     try {

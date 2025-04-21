@@ -165,7 +165,7 @@ export type InvalidInput = {
 export type PostTxOnChainFailed = {
   tag: "PostTxOnChainFailed";
   postChainTx: PostChainTx;
-  postTxError: any;
+  postTxError: unknown;
   seq: number;
   timestamp: string;
 };

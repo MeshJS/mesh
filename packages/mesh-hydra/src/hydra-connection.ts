@@ -2,12 +2,6 @@ import { EventEmitter } from "events";
 import { hStatus } from "./types/hStatus";
 
 export class HydraConnection extends EventEmitter {
-  _websocket: WebSocket | undefined;
-  _status: hStatus = "IDLE";
-  _websocketUrl: string;
-  private readonly _eventEmitter: EventEmitter;
-  private _connected: boolean = false;
-
   constructor({
     url,
     eventEmitter,
@@ -65,14 +59,14 @@ export class HydraConnection extends EventEmitter {
     this._status = "IDLE";
   }
 
-  send(data: any): void {
+  send(data: unknown): void {
     if (this._connected) {
       this._websocket?.send(JSON.stringify(data));
     }
   }
 
   async processStatus(message: {}) {
-    function getStatus(data: any): hStatus | null {
+    function getStatus(data: { headStatus?: string; tag?: string; }): hStatus | null {
       switch (data.headStatus) {
         case "Open":
           return "OPEN";
@@ -100,4 +94,10 @@ export class HydraConnection extends EventEmitter {
       this._eventEmitter.emit("onstatuschange", status);
     }
   }
+
+  _websocket: WebSocket | undefined;
+  _status: hStatus = "IDLE";
+  _websocketUrl: string;
+  private readonly _eventEmitter: EventEmitter;
+  private _connected: boolean = false;
 }

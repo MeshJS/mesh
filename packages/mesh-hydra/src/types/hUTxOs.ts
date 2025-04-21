@@ -15,21 +15,22 @@ export function hUTxOs(utxos: UTxO[]): hUTxOs {
 export type hUTxO = {
   address: string;
   value: hAssets;
-  referenceScript?: hReferenceScript;
-  datum?: string;
-  datumhash?: string;
-  inlineDatum?: object;
-  inlineDatumhash?: string;
+  referenceScript: hReferenceScript | null;
+  datum: string | null;
+  datumhash: string | null;
+  inlineDatum: object | null;
+  inlineDatumhash: string | null;
 };
 
 export function hUTxO(utxo: UTxO): hUTxO {
   return {
     address: utxo.output.address,
     value: hAssets(utxo.output.amount),
-    inlineDatum: utxo.output.plutusData ? JSON.parse(utxo.output.plutusData) : undefined,
-    inlineDatumhash: utxo.output.dataHash,
-    datum: utxo.output.plutusData,
-    datumhash: utxo.output.dataHash,
+    referenceScript: null,
+    inlineDatum: utxo.output.plutusData ? JSON.parse(utxo.output.plutusData) : null,
+    inlineDatumhash: utxo.output.dataHash ?? null,
+    datum: utxo.output.plutusData ?? null,
+    datumhash: utxo.output.dataHash ?? null,
   };
 }
 
@@ -46,7 +47,7 @@ hUTxO.toUTxO = (hUTxO: hUTxO, txId: string): UTxO => {
     output: {
       address: hUTxO.address,
       amount: hAssets.toAssets(hUTxO.value),
-      dataHash: hUTxO.datumhash,
+      dataHash: hUTxO.datumhash ?? undefined,
       plutusData: hUTxO.inlineDatum?.toString(),
       scriptHash: hUTxO.referenceScript?.toString(),
     },
