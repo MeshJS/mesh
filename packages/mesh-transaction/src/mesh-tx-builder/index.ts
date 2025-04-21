@@ -407,6 +407,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         });
       }
     }
+    for (let i = 0; i < meshTxBuilderBody.votes.length; i++) {
+      const vote = meshTxBuilderBody.votes[i]!;
+      if (vote.type === "ScriptVote" && vote.redeemer) {
+        redeemers.push({
+          tag: "VOTE",
+          index: i,
+          budget: structuredClone(vote.redeemer.exUnits),
+        });
+      }
+    }
     return redeemers;
   };
 
