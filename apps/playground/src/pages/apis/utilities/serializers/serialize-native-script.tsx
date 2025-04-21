@@ -22,10 +22,24 @@ export default function SerializeNativeScript() {
 function Left() {
   return (
     <>
-      <p>Serialize Native script into bech32 address.</p>
+      <p>The function <code>serializeNativeScript</code> allows you to provide the <code>nativeScript</code>{" "}
+         with an option of <code>networkId</code> and <code>stakeCredentialHash</code> , {" "}
+         returns:
+          <ul>
+            <li>
+              Bech32 address 
+            </li>
+            <li>
+              Script Cbor
+            </li>
+          </ul>
+         This example demonstrates how to derive the native script from the <code>pubKeyHash</code> with the <code>deserializeAddress</code>{" "}
+         then serialize the native script to a bech32 address and script Cbor. {" "}
+         To read more on <a href="https://meshjs.dev/apis/utilities/deserializers#deserializeAddress">deserializeAddress</a>.
+      </p>
     </>
   );
-}
+};
 
 function Right() {
   async function runDemo() {
@@ -53,6 +67,11 @@ function Right() {
   }
 
   let codeSnippet = ``;
+  codeSnippet += `import { \n`;
+  codeSnippet += `  serializeNativeScript,\n`;
+  codeSnippet += `  NativeScript,\n`;
+  codeSnippet += `  deserializeAddress\n`;
+  codeSnippet += `} from "@meshsdk/core";\n\n`;
   codeSnippet += `const { pubKeyHash: keyHash } = deserializeAddress(\n`;
   codeSnippet += `  '${demoAddresses.testnetPayment}',\n`;
   codeSnippet += `);\n\n`;

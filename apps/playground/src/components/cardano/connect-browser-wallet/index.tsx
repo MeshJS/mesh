@@ -1,20 +1,13 @@
-import { CardanoWallet, useWalletList } from "@meshsdk/react";
+import { CardanoWallet } from "@meshsdk/react";
 
 import { useDarkmode } from "~/hooks/useDarkmode";
 import { getProvider } from "../mesh-wallet";
 import { checkIfMetamaskInstalled } from "./metamask";
 
 export default function ConnectBrowserWallet() {
-  const wallets = useWalletList();
-  const hasAvailableWallets = wallets.length > 0;
-
   return (
     <>
-      {hasAvailableWallets ? (
-        <CommonCardanoWallet />
-      ) : (
-        <>No wallets installed</>
-      )}
+      <CommonCardanoWallet />
     </>
   );
 }

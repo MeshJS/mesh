@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { IFetcher, ISubmitter } from "@meshsdk/common";
-import { InitWeb3WalletOptions } from "@meshsdk/web3-sdk";
+import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import { Button } from "../common/button";
 import {
@@ -45,7 +45,7 @@ interface ButtonProps {
     url: string;
   };
   showDownload?: boolean;
-  web3Services?: InitWeb3WalletOptions;
+  web3Services?: EnableWeb3WalletOptions;
 }
 
 export const CardanoWallet = ({

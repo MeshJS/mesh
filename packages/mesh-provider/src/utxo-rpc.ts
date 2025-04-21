@@ -239,6 +239,13 @@ export class U5CProvider
       .filter((utxo) => utxo !== undefined); // Filter out undefined results
   }
 
+  /**
+   * Unimplemented - open for contribution
+   *
+   * Transactions for an address. The `TransactionInfo` would only return the `hash`, `inputs`, and `outputs`.
+   * @param address - The address to fetch transactions for
+   * @returns - partial TransactionInfo
+   */
   async fetchAddressTxs(
     address: string,
     option: IFetcherOptions = { maxPage: 100, order: "desc" },
@@ -248,6 +255,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Fetches the asset addresses for a given asset.
    * @param asset - The asset to fetch addresses for
    */
@@ -258,6 +267,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Fetches the metadata for a given asset.
    * @param asset - The asset to fetch metadata for
    */
@@ -266,6 +277,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Fetches the block information for a given block hash.
    * @param hash - The block hash to fetch block information for
    */
@@ -274,6 +287,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Fetches the collection assets for a given policy ID.
    * @param policyId - The policy ID to fetch collection assets for
    * @param cursor - The cursor to fetch the next set of assets (optional)
@@ -286,6 +301,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Fetches the information (AssetMetadata) for a given handle.
    * @param handle - The handle to fetch information for
    */
@@ -294,6 +311,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Resolve the handle's address from the handle.
    * @param handle - The handle to resolve
    */
@@ -302,6 +321,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Fetches protocol parameters
    */
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
@@ -313,6 +334,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Fetches transaction info for a given hash.
    * @param hash - The transaction hash
    */
@@ -321,6 +344,8 @@ export class U5CProvider
   }
 
   /**
+   * Unimplemented - open for contribution
+   *
    * Fetches output UTxOs of a given transaction hash.
    * @param hash - The transaction hash
    */
@@ -328,6 +353,14 @@ export class U5CProvider
     throw new Error("Method not implemented.");
   }
 
+  /**
+   * Unimplemented - open for contribution
+   *
+   * Fetches the governance proposal information.
+   * @param txHash The transaction hash of the proposal
+   * @param certIndex The certificate index of the proposal
+   * @returns The governance proposal information
+   */
   async fetchGovernanceProposal(
     txHash: string,
     certIndex: number,
@@ -335,6 +368,11 @@ export class U5CProvider
     throw new Error("Method not implemented");
   }
 
+  /**
+   * Unimplemented - open for contribution
+   *
+   * @param url
+   */
   get(url: string): Promise<any> {
     throw new Error("Method not implemented.");
   }

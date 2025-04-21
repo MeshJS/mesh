@@ -1,6 +1,10 @@
 import { useState } from "react";
 
-import { InitWeb3WalletOptions, Web3Wallet } from "@meshsdk/web3-sdk";
+import {
+  EnableWeb3WalletOptions,
+  UserControlledWalletDirectTo,
+  Web3Wallet,
+} from "@meshsdk/web3-sdk";
 
 import IconDiscord from "../common/icons/icon-discord";
 import IconGoogle from "../common/icons/icon-google";
@@ -13,30 +17,34 @@ export default function Web3Services({
   setOpen,
   persist,
 }: {
-  options: InitWeb3WalletOptions;
+  options: EnableWeb3WalletOptions;
   setOpen: Function;
   persist: boolean;
 }) {
-  const { setWallet } = useWallet();
+  const { setWallet, setWeb3UserData } = useWallet();
   const [loading, setLoading] = useState(false);
 
-  async function loadWallet() {
+  async function loadWallet(directTo: UserControlledWalletDirectTo) {
     setLoading(true);
-    const _options: InitWeb3WalletOptions = {
+    const _options: EnableWeb3WalletOptions = {
       networkId: 0,
       fetcher: options.fetcher,
       submitter: options.submitter,
       appUrl: options.appUrl,
       projectId: options.projectId,
+      directTo: directTo,
     };
     const wallet = await Web3Wallet.enable(_options);
+    const user = wallet.getUser();
 
+    setWeb3UserData(user);
     setWallet(
       wallet,
       "Mesh Web3 Services",
       persist
         ? {
             walletAddress: await wallet.getChangeAddress(),
+            user: user,
           }
         : undefined,
     );
@@ -49,19 +57,19 @@ export default function Web3Services({
       <WalletIcon
         iconReactNode={IconGoogle()}
         name={`Google`}
-        action={() => loadWallet()}
+        action={() => loadWallet("google")}
         loading={loading}
       />
       <WalletIcon
         iconReactNode={IconDiscord()}
         name={`Discord`}
-        action={() => loadWallet()}
+        action={() => loadWallet("discord")}
         loading={loading}
       />
       <WalletIcon
         iconReactNode={IconTwitter()}
         name={`Twitter`}
-        action={() => loadWallet()}
+        action={() => loadWallet("twitter")}
         loading={loading}
       />
     </>

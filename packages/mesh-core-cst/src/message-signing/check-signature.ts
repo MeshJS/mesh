@@ -14,12 +14,18 @@ import {
 } from "../types";
 import { CoseSign1, getPublicKeyFromCoseKey } from "./cose-sign1";
 
-/** @param address - Optional Bech32 string of a stake, stake_test1, addr, or addr_test1 address. If provided, this function will validate the signer's address against this value. */
+/**
+ * Check the signature of a given data string
+ * @param data The data string to verify the signature against
+ * @param {key, signature} The signature obtained by `signData`
+ * @param address Optional Bech32 string of a stake, stake_test1, addr, or addr_test1 address. If provided, this function will validate the signer's address against this value.
+ * @returns boolean
+ */
 export const checkSignature = async (
   data: string,
   { key, signature }: DataSignature,
   address?: string,
-) => {
+): Promise<boolean> => {
   await ready();
   const builder = CoseSign1.fromCbor(signature);
   const publicKeyBuffer = getPublicKeyFromCoseKey(key);

@@ -72,6 +72,13 @@ export const guideNodeSpecificImports = {
   thumbnail: "/guides/node-specific-imports.png",
   image: "/guides/electrician-3087536_640.jpg",
 };
+export const guideMintNftCollection = {
+  title: "Mint an NFT Collection",
+  desc: "Learn to mint an NFT Collection with JavaScript & the MeshSDK.",
+  link: "/guides/nft-collection",
+  thumbnail: "/guides/mint-nft-collection.png",
+  image: "/guides/laptop-3196481_640.jpg",
+};
 
 export const linksGuides: MenuItem[] = [
   guidenextjs,
@@ -84,6 +91,7 @@ export const linksGuides: MenuItem[] = [
   guidestandalone,
   guideVesting,
   guideNodeSpecificImports,
+  guideMintNftCollection,
 ];
 
 export const metaGuides: MenuItem = {
