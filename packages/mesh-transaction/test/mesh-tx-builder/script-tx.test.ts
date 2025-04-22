@@ -375,7 +375,6 @@ describe("MeshTxBuilder - Script Transactions", () => {
     const txHex = await txBuilder
       .withdrawalPlutusScriptV3()
       .withdrawal(serializeRewardAddress(alwaysSucceedHash, true), "0")
-      .withdrawalScript(alwaysSucceedCbor)
       .withdrawalRedeemerValue("")
       .withdrawalTxInReference(txHash("tx3"), 0)
       .txIn(txHash("tx1"), 0)
@@ -388,7 +387,6 @@ describe("MeshTxBuilder - Script Transactions", () => {
     const txHex2 = await txBuilder2
       .withdrawalPlutusScriptV3()
       .withdrawal(serializeRewardAddress(alwaysSucceedHash, true), "0")
-      .withdrawalScript(alwaysSucceedCbor)
       .withdrawalRedeemerValue("")
       .withdrawalTxInReference(txHash("tx3"), 0)
       .txIn(txHash("tx1"), 0)
