@@ -1,9 +1,7 @@
 import {
   AccountInfo,
-  Action,
   emptyTxBuilderBody,
   IFetcher,
-  MintItem,
   MintParam,
   ScriptSource,
   TransactionInfo,
@@ -12,6 +10,7 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import { MeshTxBuilder } from "@meshsdk/transaction";
+import {txHash} from "../test-util";
 
 class MockTxBuilder extends MeshTxBuilder {
   constructor() {
@@ -49,6 +48,9 @@ describe("MeshTxBuilder", () => {
       .spyOn(txBuilder.serializer as any, "serializeTxBody")
       .mockImplementation(() => "");
     jest
+      .spyOn(txBuilder.serializer as any, "serializeTxBodyWithMockSignatures")
+      .mockImplementation(() => "");
+    jest
       .spyOn(txBuilder as any, "addUtxosFromSelection")
       .mockImplementation(() => {});
     jest
@@ -62,7 +64,7 @@ describe("MeshTxBuilder", () => {
         newInputs: new Set<UTxO>(),
         newOutputs: new Set<TxOutput>(),
         change: [],
-        fee: 100,
+        fee: 155381,
         redeemers: null,
       };
     });
@@ -76,8 +78,8 @@ describe("MeshTxBuilder", () => {
 
     // Define incomplete inputs and mints
     const incompleteTxIns: TxIn[] = [
-      { type: "PubKey", txIn: { txHash: "txHash1", txIndex: 0 } },
-      { type: "PubKey", txIn: { txHash: "txHash2", txIndex: 1 } },
+      { type: "PubKey", txIn: { txHash: txHash("tx1"), txIndex: 0 } },
+      { type: "PubKey", txIn: { txHash: txHash("tx2"), txIndex: 1 } },
     ];
     const incompleteMints: MintParam[] = [
       {
@@ -91,7 +93,7 @@ describe("MeshTxBuilder", () => {
         ],
         scriptSource: {
           type: "Inline",
-          txHash: "txHash3",
+          txHash: txHash("tx3"),
           txIndex: 2,
         } as ScriptSource,
       },

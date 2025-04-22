@@ -147,6 +147,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
     if (customizedTx) {
       this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
+      if(customizedTx.fee) {
+        this.setFee(customizedTx.fee);
+      }
     } else {
       this.queueAllLastItem();
     }
@@ -182,6 +185,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         }),
       );
     }
+
+    const actualFee = BigInt(this.meshTxBuilderBody.fee);
+    const estimatedFee = this.calculateFee();
+    if (actualFee < estimatedFee) {
+      throw new Error(`Manual fee (${actualFee}) is less than estimated minimal fee (${estimatedFee})`);
+    }
+
     const txHex = this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
@@ -216,7 +226,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
               throw new Error(`Evaluate redeemers failed: ${String(error)}`);
             }
           }
-          const fee = clonedBuilder.calculateFee();
+          const fee = clonedBuilder.getActualFee();
           const redeemers = clonedBuilder.getRedeemerCosts();
           return {
             fee,
@@ -289,10 +299,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.txOut(change.address, change.amount);
     }
 
-    this.meshTxBuilderBody.fee =
-      this.meshTxBuilderBody.fee === "0"
-        ? selectionSkeleton.fee.toString()
-        : this.meshTxBuilderBody.fee;
+    this.meshTxBuilderBody.fee = selectionSkeleton.fee.toString();
     this.updateRedeemer(
       this.meshTxBuilderBody,
       selectionSkeleton.redeemers ?? [],
@@ -429,6 +436,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   completeUnbalancedSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
+      if(customizedTx.fee) {
+        this.setFee(customizedTx.fee);
+      }
     } else {
       this.queueAllLastItem();
     }
@@ -917,7 +927,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         }
       } else if (certType.type === "RetirePool") {
         certCreds.add(certType.poolId);
-      } else if (certType.type === "DRepRegistration") {
+      } else if (certType.type === "DRepRegistration"
+        || certType.type === "DRepDeregistration"
+        || certType.type === "DRepUpdate") {
         if (cert.type === "BasicCertificate") {
           const cstDrep = coreToCstDRep(certType.drepId);
           const keyHash = cstDrep.toKeyHash();
@@ -934,6 +946,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         certType.type === "StakeRegistrationAndDelegation" ||
         certType.type === "VoteRegistrationAndDelegation" ||
         certType.type === "StakeVoteRegistrationAndDelegation" ||
+        certType.type === "VoteDelegation" ||
+        certType.type === "RegisterStake" ||
+        certType.type === "StakeAndVoteDelegation" ||
+        certType.type === "DelegateStake" ||
         certType.type === "DeregisterStake"
       ) {
         if (cert.type === "BasicCertificate") {
@@ -1493,6 +1509,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return this.serializeMockTx().length / 2;
   };
 
+  getActualFee = (): bigint => {
+    if(this.manualFee) {
+      return BigInt(this.manualFee);
+    } else {
+      return this.calculateFee();
+    }
+  }
+
   calculateFee = (): bigint => {
     const txSize = this.getSerializedSize();
     return this.calculateFeeForSerializedTx(txSize);
@@ -1518,7 +1542,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const stepPrice = BigNumber(this._protocolParams.priceStep);
     const memPrice = BigNumber(this._protocolParams.priceMem);
     const stepFee = stepPrice.multipliedBy(BigNumber(stepUnits.toString()));
-    const memFee = memPrice.multipliedBy(BigNumber(memUnits.toString()));
+    const memFee = memPrice.multipliedBy(BigNumber(memUnits.toString()))
     return BigInt(
       stepFee.plus(memFee).integerValue(BigNumber.ROUND_CEIL).toString(),
     );

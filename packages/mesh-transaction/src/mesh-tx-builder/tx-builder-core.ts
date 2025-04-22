@@ -53,6 +53,8 @@ export class MeshTxBuilderCore {
   private addingPlutusVote = false;
   private plutusVoteScriptVersion: LanguageVersion | undefined;
 
+  protected manualFee: string | undefined;
+
   protected _protocolParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
 
   protected mintItem?: MintItem;
@@ -731,7 +733,7 @@ export class MeshTxBuilderCore {
   ) => {
     this.mintReferenceTxInRedeemerValue(redeemer, type, exUnits);
     return this;
-  };
+  }
 
   /**
    * Set the required signer of the transaction
@@ -1489,6 +1491,7 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   setFee = (fee: string) => {
+    this.manualFee = fee;
     this.meshTxBuilderBody.fee = fee;
     return this;
   };
@@ -2005,6 +2008,7 @@ export class MeshTxBuilderCore {
     newBuilder.refScriptTxInQueueItem = this.refScriptTxInQueueItem
       ? structuredClone(this.refScriptTxInQueueItem)
       : undefined;
+    newBuilder.manualFee = this.manualFee;
 
     return newBuilder;
   }
