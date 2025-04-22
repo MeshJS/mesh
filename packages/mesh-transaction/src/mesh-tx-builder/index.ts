@@ -1542,7 +1542,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const stepPrice = BigNumber(this._protocolParams.priceStep);
     const memPrice = BigNumber(this._protocolParams.priceMem);
     const stepFee = stepPrice.multipliedBy(BigNumber(stepUnits.toString()));
-    const memFee = memPrice.multipliedBy(BigNumber(memUnits.toString()))
+    const memFee = memPrice.multipliedBy(BigNumber(memUnits.toString()));
     return BigInt(
       stepFee.plus(memFee).integerValue(BigNumber.ROUND_CEIL).toString(),
     );
