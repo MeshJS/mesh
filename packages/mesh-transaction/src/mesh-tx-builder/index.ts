@@ -152,7 +152,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     if (this.verbose) {
       console.log(
-        "txBodyJson",
+        "txBodyJson - before coin selection",
         JSON.stringify(this.meshTxBuilderBody, (key, val) => {
           if (key === "extraInputs") return undefined;
           if (key === "selectionConfig") return undefined;
@@ -167,12 +167,21 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       collateral.txIn.scriptSize = 0;
     }
     await this.completeTxParts();
+    this.sortTxParts();
     const txPrototype = await this.selectUtxos();
-    await this.updateByTxPrototype(txPrototype);
+    await this.updateByTxPrototype(txPrototype, true);
     this.queueAllLastItem();
     this.removeDuplicateInputs();
-    this.sortTxParts();
-
+    if (this.verbose) {
+      console.log(
+        "txBodyJson - after coin selection",
+        JSON.stringify(this.meshTxBuilderBody, (key, val) => {
+          if (key === "extraInputs") return undefined;
+          if (key === "selectionConfig") return undefined;
+          return val;
+        }),
+      );
+    }
     const txHex = this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
@@ -191,8 +200,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
           const clonedBuilder = this.clone();
           await clonedBuilder.updateByTxPrototype(selectionSkeleton);
           clonedBuilder.queueAllLastItem();
-
-          this.sortTxParts();
 
           try {
             await clonedBuilder.evaluateRedeemers();
@@ -262,6 +269,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   updateByTxPrototype = async (
     selectionSkeleton: CoinSelectionInterface.TransactionPrototype,
+    final = false,
   ) => {
     for (let utxo of selectionSkeleton.newInputs) {
       this.txIn(
@@ -288,6 +296,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.updateRedeemer(
       this.meshTxBuilderBody,
       selectionSkeleton.redeemers ?? [],
+      final,
     );
   };
 
@@ -365,7 +374,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         redeemers.push({
           tag: "SPEND",
           index: i,
-          budget: input.scriptTxIn.redeemer.exUnits,
+          budget: structuredClone(input.scriptTxIn.redeemer.exUnits),
         });
       }
     }
@@ -375,7 +384,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         redeemers.push({
           tag: "MINT",
           index: i,
-          budget: mint.redeemer.exUnits,
+          budget: structuredClone(mint.redeemer.exUnits),
         });
       }
     }
@@ -385,7 +394,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         redeemers.push({
           tag: "CERT",
           index: i,
-          budget: cert.redeemer.exUnits,
+          budget: structuredClone(cert.redeemer.exUnits),
         });
       }
     }
@@ -395,7 +404,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         redeemers.push({
           tag: "REWARD",
           index: i,
-          budget: withdrawal.redeemer.exUnits,
+          budget: structuredClone(withdrawal.redeemer.exUnits),
+        });
+      }
+    }
+    for (let i = 0; i < meshTxBuilderBody.votes.length; i++) {
+      const vote = meshTxBuilderBody.votes[i]!;
+      if (vote.type === "ScriptVote" && vote.redeemer) {
+        redeemers.push({
+          tag: "VOTE",
+          index: i,
+          budget: structuredClone(vote.redeemer.exUnits),
         });
       }
     }
@@ -1454,6 +1473,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         stepUnits += BigInt(vote.redeemer.exUnits.steps);
       }
     }
+    memUnits = BigInt(
+      new BigNumber(memUnits)
+        .integerValue(BigNumber.ROUND_CEIL)
+        .toString(),
+    );
+    stepUnits = BigInt(
+      new BigNumber(stepUnits)
+        .integerValue(BigNumber.ROUND_CEIL)
+        .toString(),
+    );
     return {
       memUnits,
       stepUnits,
