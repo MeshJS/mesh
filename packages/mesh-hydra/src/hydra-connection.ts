@@ -66,30 +66,8 @@ export class HydraConnection extends EventEmitter {
   }
 
   async processStatus(message: {}) {
-    function getStatus(data: { headStatus?: string; tag?: string; }): hStatus | null {
-      switch (data.headStatus) {
-        case "Open":
-          return "OPEN";
-      }
-
-      switch (data.tag) {
-        case "HeadIsInitializing":
-          return "INITIALIZING";
-        case "HeadIsOpen":
-          return "OPEN";
-        case "HeadIsClosed":
-          return "CLOSED";
-        case "ReadyToFanout":
-          return "FANOUT_POSSIBLE";
-        case "HeadIsFinalized":
-          return "FINAL";
-        default:
-          return null;
-      }
-    }
-
     let status: hStatus | null = null;
-    if ((status = getStatus(message)) && status !== null) {
+    if ((status = hStatus(message)) && status !== null) {
       this._status = status;
       this._eventEmitter.emit("onstatuschange", status);
     }
