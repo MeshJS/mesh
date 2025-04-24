@@ -11,6 +11,7 @@ import {
   ISubmitter,
   MeshTxBuilderBody,
   MintItem,
+  MintParam,
   Output,
   Protocol,
   ScriptSource,
@@ -18,6 +19,7 @@ import {
   TxIn,
   UTxO,
   Vote,
+  Voter,
   Withdrawal,
 } from "@meshsdk/common";
 import {
@@ -40,7 +42,6 @@ import {
   TransactionPrototype,
 } from "./coin-selection/coin-selection-interface";
 import { MeshTxBuilderCore } from "./tx-builder-core";
-import {MintParam} from "@meshsdk/common";
 
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
@@ -147,7 +148,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
     if (customizedTx) {
       this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
-      if(customizedTx.fee) {
+      if (customizedTx.fee) {
         this.setFee(customizedTx.fee);
       }
     } else {
@@ -170,11 +171,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       collateral.txIn.scriptSize = 0;
     }
     await this.completeTxParts();
-    this.sortTxParts();
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype, true);
     this.queueAllLastItem();
     this.removeDuplicateInputs();
+    this.sortTxParts();
     if (this.verbose) {
       console.log(
         "txBodyJson - after coin selection",
@@ -314,6 +315,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   sortTxParts = () => {
+    this.sortInputs();
+    this.sortMints();
+    this.sortWithdrawals();
+    this.sortVotes();
+  };
+
+  sortInputs = () => {
     // Sort inputs based on txHash and txIndex
     this.meshTxBuilderBody.inputs.sort((a, b) => {
       if (a.txIn.txHash < b.txIn.txHash) return -1;
@@ -322,11 +330,88 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (a.txIn.txIndex > b.txIn.txIndex) return 1;
       return 0;
     });
+  };
 
-    // Sort mints based on policy id and asset name
+  sortMints = () => {
+    // Sort mints based on policy id
     this.meshTxBuilderBody.mints.sort((a, b) => {
       if (a.policyId < b.policyId) return -1;
       if (a.policyId > b.policyId) return 1;
+      return 0;
+    });
+  };
+
+  sortWithdrawals = () => {
+    // Sort withdrawals based on stake key
+    this.meshTxBuilderBody.withdrawals.sort((a, b) => {
+      const addressAHex = CstAddress.fromString(a.address)?.toBytes();
+      const addressBHex = CstAddress.fromString(b.address)?.toBytes();
+      if (addressAHex && addressBHex) {
+        if (addressAHex < addressBHex) return -1;
+        if (addressAHex > addressBHex) return 1;
+      }
+      return 0;
+    });
+  };
+
+  sortVotes = () => {
+    const variantOrder: Record<Voter["type"], number> = {
+      ConstitutionalCommittee: 0,
+      DRep: 1,
+      StakingPool: 2,
+    };
+    const credOrder: Record<"KeyHash" | "ScriptHash", number> = {
+      KeyHash: 0,
+      ScriptHash: 1,
+    };
+    this.meshTxBuilderBody.votes.sort((a, b) => {
+      const voterA = a.vote.voter;
+      const voterB = b.vote.voter;
+      const orderA = variantOrder[voterA.type];
+      const orderB = variantOrder[voterB.type];
+      if (orderA !== orderB) return orderA - orderB;
+
+      // Same variant, compare inner values
+      if (
+        voterA.type === "ConstitutionalCommittee" &&
+        voterB.type === "ConstitutionalCommittee"
+      ) {
+        const credA = voterA.hotCred;
+        const credB = voterB.hotCred;
+        const orderCredA = credOrder[credA.type];
+        const orderCredB = credOrder[credB.type];
+        if (orderCredA !== orderCredB) return orderCredA - orderCredB;
+        const hashA =
+          credA.type === "KeyHash" ? credA.keyHash : credA.scriptHash;
+        const hashB =
+          credB.type === "KeyHash" ? credB.keyHash : credB.scriptHash;
+        if (hashA < hashB) return -1;
+        if (hashA > hashB) return 1;
+        return 0;
+      }
+      if (voterA.type === "DRep" && voterB.type === "DRep") {
+        const drepA = coreToCstDRep(voterA.drepId);
+        const drepB = coreToCstDRep(voterB.drepId);
+        const keyHashA = drepA.toKeyHash();
+        const keyHashB = drepB.toKeyHash();
+        if (keyHashA != null && keyHashB != null) {
+          if (keyHashA < keyHashB) return -1;
+          if (keyHashA > keyHashB) return 1;
+          return 0;
+        }
+        if (keyHashA != null) return -1;
+        if (keyHashB != null) return 1;
+        const scriptHashA = drepA.toScriptHash()!;
+        const scriptHashB = drepB.toScriptHash()!;
+        if (scriptHashA < scriptHashB) return -1;
+        if (scriptHashA > scriptHashB) return 1;
+        return 0;
+      }
+      if (voterA.type === "StakingPool" && voterB.type === "StakingPool") {
+        if (voterA.keyHash < voterB.keyHash) return -1;
+        if (voterA.keyHash > voterB.keyHash) return 1;
+        return 0;
+      }
       return 0;
     });
   };
@@ -430,7 +515,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   completeUnbalancedSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
-      if(customizedTx.fee) {
+      if (customizedTx.fee) {
         this.setFee(customizedTx.fee);
       }
     } else {
@@ -921,9 +1006,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         }
       } else if (certType.type === "RetirePool") {
         certCreds.add(certType.poolId);
-      } else if (certType.type === "DRepRegistration"
-        || certType.type === "DRepDeregistration"
-        || certType.type === "DRepUpdate") {
+      } else if (
+        certType.type === "DRepRegistration" ||
+        certType.type === "DRepDeregistration" ||
+        certType.type === "DRepUpdate"
+      ) {
         if (cert.type === "BasicCertificate") {
           const cstDrep = coreToCstDRep(certType.drepId);
           const keyHash = cstDrep.toKeyHash();
@@ -1033,7 +1120,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
     }
     return mintCreds;
-  }
+  };
 
   protected getTotalWithdrawal = (): bigint => {
     let accum = 0n;
@@ -1484,14 +1571,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
     }
     memUnits = BigInt(
-      new BigNumber(memUnits)
-        .integerValue(BigNumber.ROUND_CEIL)
-        .toString(),
+      new BigNumber(memUnits).integerValue(BigNumber.ROUND_CEIL).toString(),
     );
     stepUnits = BigInt(
-      new BigNumber(stepUnits)
-        .integerValue(BigNumber.ROUND_CEIL)
-        .toString(),
+      new BigNumber(stepUnits).integerValue(BigNumber.ROUND_CEIL).toString(),
     );
     return {
       memUnits,
@@ -1504,12 +1587,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   getActualFee = (): bigint => {
-    if(this.manualFee) {
+    if (this.manualFee) {
       return BigInt(this.manualFee);
     } else {
       return this.calculateFee();
     }
-  }
+  };
 
   calculateFee = (): bigint => {
     const txSize = this.getSerializedSize();
