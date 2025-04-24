@@ -186,12 +186,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       );
     }
 
-    const actualFee = BigInt(this.meshTxBuilderBody.fee);
-    const estimatedFee = this.calculateFee();
-    if (actualFee < estimatedFee) {
-      throw new Error(`Manual fee (${actualFee}) is less than estimated minimal fee (${estimatedFee})`);
-    }
-
     const txHex = this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
