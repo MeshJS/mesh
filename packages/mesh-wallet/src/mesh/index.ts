@@ -376,6 +376,7 @@ export class MeshWallet implements IWallet {
   async getUsedUTxOs(
     addressType: GetAddressType = "payment",
   ): Promise<TransactionUnspentOutput[]> {
+    await this.init();
     return await this.getUnspentOutputs(addressType);
   }
 
