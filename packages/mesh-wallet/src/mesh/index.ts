@@ -29,7 +29,7 @@ import {
 } from "@meshsdk/core-cst";
 import { Transaction } from "@meshsdk/transaction";
 
-import { EmbeddedWallet } from "../embedded";
+import { AccountType, EmbeddedWallet } from "../embedded";
 import { GetAddressType } from "../types";
 
 export type CreateMeshWalletOptions = {
@@ -60,6 +60,7 @@ export type CreateMeshWalletOptions = {
       };
   accountIndex?: number;
   keyIndex?: number;
+  accountType?: AccountType;
 };
 
 /**
@@ -91,6 +92,7 @@ export type CreateMeshWalletOptions = {
  */
 export class MeshWallet implements IWallet {
   private readonly _keyType: string;
+  private readonly _accountType: AccountType = "payment";
   private readonly _wallet: EmbeddedWallet | null;
   private readonly _accountIndex: number = 0;
   private readonly _keyIndex: number = 0;
@@ -118,6 +120,7 @@ export class MeshWallet implements IWallet {
     if (options.submitter) this._submitter = options.submitter;
     if (options.accountIndex) this._accountIndex = options.accountIndex;
     if (options.keyIndex) this._keyIndex = options.keyIndex;
+    if (options.accountType) this._accountType = options.accountType;
 
     switch (options.key.type) {
       case "root":
@@ -447,6 +450,7 @@ export class MeshWallet implements IWallet {
       unsignedTx,
       this._accountIndex,
       this._keyIndex,
+      this._accountType,
     );
 
     let signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
