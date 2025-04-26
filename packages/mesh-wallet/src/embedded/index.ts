@@ -33,6 +33,8 @@ import {
   VkeyWitness,
 } from "@meshsdk/core-cst";
 
+export type AccountType = "payment" | "stake" | "drep";
+
 export type Account = {
   baseAddress: Address;
   enterpriseAddress: Address;
@@ -45,6 +47,7 @@ export type Account = {
   paymentKeyHex: string;
   stakeKeyHex: string;
 
+  drepKey?: Ed25519PrivateKey;
   pubDRepKey?: string;
   dRepIDBech32?: DRepID;
   dRepIDHash?: Ed25519KeyHashHex;
@@ -257,7 +260,6 @@ export class EmbeddedWallet extends WalletStaticMethods {
 
       paymentKey: paymentKey,
       stakeKey: stakeKey,
-
       paymentKeyHex: paymentKey.hex(),
       stakeKeyHex: stakeKey.hex(),
     };
@@ -265,6 +267,7 @@ export class EmbeddedWallet extends WalletStaticMethods {
     if (dRepKey) {
       const { pubDRepKey, dRepIDBech32, dRepIDHash, dRepIDCip105 } =
         WalletStaticMethods.getDRepKey(dRepKey, this._networkId);
+      _account.drepKey = dRepKey;
       _account.pubDRepKey = pubDRepKey;
       _account.dRepIDBech32 = dRepIDBech32;
       _account.dRepIDHash = dRepIDHash;
@@ -328,16 +331,34 @@ export class EmbeddedWallet extends WalletStaticMethods {
    * @param unsignedTx - a transaction in CBOR
    * @param accountIndex account index (default: 0)
    * @param keyIndex key index (default: 0)
+   * @param accountType - type of the account (default: payment)
    * @returns VkeyWitness
    */
-  signTx(unsignedTx: string, accountIndex = 0, keyIndex = 0): VkeyWitness {
+  signTx(
+    unsignedTx: string,
+    accountIndex = 0,
+    keyIndex = 0,
+    accountType: AccountType = "payment",
+  ): VkeyWitness {
     try {
       const txHash = deserializeTxHash(resolveTxHash(unsignedTx));
 
-      const { paymentKey } = this.getAccount(accountIndex, keyIndex);
+      const { paymentKey, stakeKey, drepKey } = this.getAccount(
+        accountIndex,
+        keyIndex,
+      );
+
+      let key = paymentKey;
+      if (accountType === "stake") {
+        key = stakeKey;
+      } else if (accountType === "drep") {
+        if (!drepKey) throw new Error("DRep key not found");
+        key = drepKey;
+      }
+
       const vKeyWitness = new VkeyWitness(
-        paymentKey.toPublic().hex(),
-        paymentKey.sign(HexBlob(txHash)).hex(),
+        key.toPublic().hex(),
+        key.sign(HexBlob(txHash)).hex(),
       );
 
       return vKeyWitness;
