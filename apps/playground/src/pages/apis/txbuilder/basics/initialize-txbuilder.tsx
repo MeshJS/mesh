@@ -1,6 +1,14 @@
-import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
+
+export let CodeTxBuilderInit = "";
+CodeTxBuilderInit += `import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";\n`;
+CodeTxBuilderInit += `\n`;
+CodeTxBuilderInit += `const provider = new BlockfrostProvider('<Your-API-Key>');\n\n`;
+CodeTxBuilderInit += `const txBuilder = new MeshTxBuilder({\n`;
+CodeTxBuilderInit += `  fetcher: provider,\n`;
+CodeTxBuilderInit += `  verbose: true,\n`;
+CodeTxBuilderInit += `});\n`;
 
 export default function TxbuilderInitializeTxbuilder() {
   return (
@@ -13,15 +21,6 @@ export default function TxbuilderInitializeTxbuilder() {
 }
 
 function Left() {
-  let example = ``;
-  example += `import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";\n`;
-  example += `\n`;
-  example += `const provider = new BlockfrostProvider('<Your-API-Key>');\n\n`;
-  example += `const txBuilder = new MeshTxBuilder({\n`;
-  example += `  fetcher: provider,\n`;
-  example += `  verbose: true,\n`;
-  example += `});\n`;
-
   let signature = ``;
   signature += `{\n`;
   signature += `  fetcher?: IFetcher;\n`;
@@ -40,7 +39,7 @@ function Left() {
         initialize <code>MeshTxBuilder</code>:
       </p>
 
-      <Codeblock data={example} />
+      <Codeblock data={CodeTxBuilderInit} />
 
       <p>
         The <code>MeshTxBuilder</code> instance has the following signature:

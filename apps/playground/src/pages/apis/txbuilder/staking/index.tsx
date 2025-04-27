@@ -5,6 +5,7 @@ import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
 import { metaTxbuilderStaking } from "~/data/links-txbuilders";
+import { Intro } from "../common";
 import StakingDelegate from "./delegate-stake";
 import StakingDeregister from "./deregister-stake";
 import StakingRegister from "./register-stake";
@@ -32,7 +33,9 @@ const ReactPage: NextPage = () => {
           description={metaTxbuilderStaking.desc}
           heroicon={metaTxbuilderStaking.icon}
         >
-          <></>
+          <>
+            <Intro />
+          </>
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/MeshTxBuilder" />
 

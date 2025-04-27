@@ -6,6 +6,7 @@ import TitleIconDescriptionBody from "~/components/sections/title-icon-descripti
 import Metatags from "~/components/site/metatags";
 import Codeblock from "~/components/text/codeblock";
 import { metaTxbuilderSmartContract } from "~/data/links-txbuilders";
+import { Intro } from "../common";
 import TxbuilderContractPlutusMinting from "../minting/minting-plutus-script";
 import TxbuilderContractLockAssets from "./lock-assets";
 import TxbuilderContractSendReferenceScript from "./send-reference-script";
@@ -44,6 +45,7 @@ const ReactPage: NextPage = () => {
               In this guide, you will understand all logics you need to know for
               interacting with smart contracts with <code>MeshTxBuilder</code>.
             </p>
+            <Intro />
             <p>
               In Cardano, whenever you need the nodes' computing power to
               execute a smart contract, you need to provide collateral to
