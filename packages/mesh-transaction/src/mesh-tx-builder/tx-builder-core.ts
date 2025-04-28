@@ -733,7 +733,7 @@ export class MeshTxBuilderCore {
   ) => {
     this.mintReferenceTxInRedeemerValue(redeemer, type, exUnits);
     return this;
-  }
+  };
 
   /**
    * Set the required signer of the transaction
@@ -1724,7 +1724,9 @@ export class MeshTxBuilderCore {
     txEvaluation: Omit<Action, "data">[],
     doNotUseMultiplier: boolean = false,
   ) => {
-    const txEvaluationMultiplier = doNotUseMultiplier ? 1 : this.txEvaluationMultiplier;
+    const txEvaluationMultiplier = doNotUseMultiplier
+      ? 1
+      : this.txEvaluationMultiplier;
     txEvaluation.forEach((redeemerEvaluation) => {
       switch (redeemerEvaluation.tag) {
         case "SPEND": {
@@ -1839,7 +1841,6 @@ export class MeshTxBuilderCore {
       }
       return map;
     }, requiredAssets);
-
     const selectionConfig = this.meshTxBuilderBody.selectionConfig;
 
     const utxoSelection = new UtxoSelection(
