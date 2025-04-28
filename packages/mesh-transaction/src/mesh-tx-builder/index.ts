@@ -171,6 +171,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       collateral.txIn.scriptSize = 0;
     }
     await this.completeTxParts();
+    await this.sanitizeOutputs();
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype, true);
     this.queueAllLastItem();
@@ -905,6 +906,24 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.sortTxParts();
   };
 
+  protected sanitizeOutputs = async () => {
+    this.meshTxBuilderBody.outputs.forEach((output) => {
+      let lovelaceFound = false;
+      output.amount.forEach((asset) => {
+        if (asset.unit === "lovelace" || asset.unit === "") {
+          lovelaceFound = true;
+        }
+      });
+      if (!lovelaceFound) {
+        const minAda = this.calculateMinLovelaceForOutput(output);
+        output.amount.push({
+          unit: "lovelace",
+          quantity: minAda.toString(),
+        });
+      }
+    });
+  };
+
   protected collectAllRequiredSignatures = (): {
     keyHashes: Set<string>;
     byronAddresses: Set<string>;
@@ -1634,7 +1653,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         this.serializer.serializeOutput(currentOutput).length / 2,
       );
       const txOutByteCost = BigInt(this._protocolParams.coinsPerUtxoSize);
-      const totalOutCost = 160n + BigInt(txOutSize) * txOutByteCost;
+      const totalOutCost = (160n + BigInt(txOutSize)) * txOutByteCost;
       minAda = totalOutCost;
       if (lovelace < totalOutCost) {
         lovelace = totalOutCost;
@@ -1744,7 +1763,7 @@ const setLoveLace = (output: Output, lovelace: bigint): Output => {
 
 const getLovelace = (output: Output): bigint => {
   for (let asset of output.amount) {
-    if (asset.unit === "lovelace") {
+    if (asset.unit === "lovelace" || asset.unit === "") {
       return BigInt(asset.quantity);
     }
   }
