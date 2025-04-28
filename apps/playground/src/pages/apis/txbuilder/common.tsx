@@ -3,6 +3,7 @@ import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
 import Link from "~/components/link";
+import Codeblock from "~/components/text/codeblock";
 
 export function getTxBuilder() {
   const provider = getProvider();
@@ -31,6 +32,7 @@ export function Intro() {
         </Link>
         .
       </p>
+      <Codeblock data={txbuilderCode} />
     </>
   );
 }
