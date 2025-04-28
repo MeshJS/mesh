@@ -24,10 +24,3 @@ export type HydraSnapshot = {
   utxoToDecommit: hUTxOs;
   version: number;
 };
-
-export type HydraTransaction = {
-  type: "Tx ConwayEra" | "Unwitnessed Tx ConwayEra" | "Witnessed Tx ConwayEra";
-  description: string;
-  cborHex: string;
-  txId?: string;
-};

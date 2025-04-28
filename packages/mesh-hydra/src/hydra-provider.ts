@@ -19,7 +19,7 @@ import {
 
 import { parseHttpError } from "./utils";
 import { HydraConnection } from "./hydra-connection";
-import { hStatus, HydraTransaction, hUTxO } from "./types";
+import { hStatus, hTransaction, hUTxO } from "./types";
 import {
   CommandFailed,
   Committed,
@@ -201,7 +201,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     description = "",
     txId?: string
   ) {
-    const transaction: HydraTransaction = {
+    const transaction: hTransaction = {
       type: type,
       description: description,
       cborHex: cborHex,
