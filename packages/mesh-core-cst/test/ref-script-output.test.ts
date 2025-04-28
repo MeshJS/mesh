@@ -4,21 +4,8 @@ import { CardanoSDKSerializer, Transaction, TxCBOR } from "@meshsdk/core-cst";
 
 describe("Ref Script output", () => {
   it("serializer should build a tx with ref script output", async () => {
-    const body: MeshTxBuilderBody = {
-      inputs: [
-        {
-          type: "PubKey",
-          txIn: {
-            txHash:
-              "c15875aef7d14602040affbb80219681d318dfd035c03f9581cca5c625270e6a",
-            txIndex: 1,
-            amount: [{ unit: "lovelace", quantity: "307063809" }],
-            address:
-              "addr_test1qprgjf3u3tkl0qk9738jlyspg25dukxuzrz2lugmp7uypqzw6yxtdssjk4pxv9j489vv8ekkh03wvet9v2y2tsdl6cjs6dsvxs",
-            scriptSize: 0,
-          },
-        },
-      ],
+    const body: Partial<MeshTxBuilderBody> = {
+      inputs: [],
       outputs: [
         {
           address:
@@ -76,13 +63,25 @@ describe("Ref Script output", () => {
         },
       },
       network: "preprod",
-      extraInputs: [],
+      extraInputs: [
+        {
+          input: {
+            txHash:
+              "c15875aef7d14602040affbb80219681d318dfd035c03f9581cca5c625270e6a",
+            outputIndex: 1,
+          },
+          output: {
+            amount: [{ unit: "lovelace", quantity: "307063809" }],
+            address:
+              "addr_test1qprgjf3u3tkl0qk9738jlyspg25dukxuzrz2lugmp7uypqzw6yxtdssjk4pxv9j489vv8ekkh03wvet9v2y2tsdl6cjs6dsvxs",
+          },
+        },
+      ],
       selectionConfig: {
         threshold: "",
         strategy: "experimental",
         includeTxFees: false,
       },
-      fee: "0",
       expectedNumberKeyWitnesses: 0,
       expectedByronAddressWitnesses: [],
     };

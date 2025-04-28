@@ -4,7 +4,7 @@ import { CardanoSDKSerializer, Transaction, TxCBOR } from "@meshsdk/core-cst";
 
 describe("Ref script inputs", () => {
   it("Basic ref script inputs should be included in fees", async () => {
-    const body: MeshTxBuilderBody = {
+    const body: Partial<MeshTxBuilderBody> = {
       inputs: [
         {
           type: "PubKey",
@@ -124,7 +124,6 @@ describe("Ref script inputs", () => {
         strategy: "experimental",
         includeTxFees: false,
       },
-      fee: "0",
       expectedNumberKeyWitnesses: 0,
       expectedByronAddressWitnesses: [],
     };

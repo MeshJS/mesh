@@ -474,7 +474,7 @@ describe("MeshTxBuilder - coin selection", () => {
           amount: [
             {
               unit: "lovelace",
-              quantity: "1000000",
+              quantity: "2000000",
             },
           ],
         },
@@ -702,7 +702,7 @@ describe("MeshTxBuilder - coin selection", () => {
           amount: [
             {
               unit: "lovelace",
-              quantity: "2000000",
+              quantity: "3000000",
             },
             ...tokens,
           ],
