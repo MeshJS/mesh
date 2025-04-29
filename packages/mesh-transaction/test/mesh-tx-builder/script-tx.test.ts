@@ -135,6 +135,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .setFee("5000000")
+      .setTotalCollateral("5000000")
       .complete();
 
     expect(
@@ -169,6 +170,13 @@ describe("MeshTxBuilder - Script Transactions", () => {
     );
     expect(cardanoTx.body().fee().toString()).toBe("5000000");
     expect(cardanoTx2.body().fee().toString()).toBe("5000000");
+    expect(cardanoTx2.body().totalCollateral()).toBe(5000000n);
+    expect(cardanoTx2.body().collateralReturn()?.address().toBech32()).toBe(
+      "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+    );
+    expect(cardanoTx2.body().collateralReturn()?.amount().coin()).toBe(
+      95000000n,
+    );
   });
 
   it("should be able to spend from a script address with script ref", async () => {
