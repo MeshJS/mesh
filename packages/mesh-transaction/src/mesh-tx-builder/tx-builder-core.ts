@@ -1497,6 +1497,27 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Sets a total collateral for the transaction to use, a collateral return
+   * will be generated to either the change address or the specified collateral return address
+   * @param collateral The specified collateral
+   * @returns The MeshTxBuilder instance
+   */
+  setTotalCollateral = (collateral: string) => {
+    this.meshTxBuilderBody.totalCollateral = collateral;
+    return this;
+  };
+
+  /**
+   * Sets the collateral return address, if none is set, the change address will be used
+   * @param address The address to use for collateral return
+   * @returns The MeshTxBuilder instance
+   */
+  setCollateralReturnAddress = (address: string) => {
+    this.meshTxBuilderBody.collateralReturnAddress = address;
+    return this;
+  };
+
+  /**
    * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
    * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
    * @returns The MeshTxBuilder instance

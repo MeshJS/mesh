@@ -105,11 +105,13 @@ import {
   TransactionInput,
   TransactionOutput,
   TransactionWitnessSet,
+  Value,
   VkeyWitness,
 } from "../types";
 import {
   buildEd25519PrivateKeyFromSecretKey,
   fromBuilderToPlutusData,
+  mergeValue,
   toAddress,
   toCardanoAddress,
   toNativeScript,
@@ -588,6 +590,9 @@ class CardanoSDKSerializerCore {
       certificates,
       withdrawals,
       votes,
+      totalCollateral,
+      collateralReturnAddress,
+      changeAddress,
     } = txBuilderBody;
 
     const uniqueRefInputs = this.removeBodyInputRefInputOverlap(
@@ -603,6 +608,14 @@ class CardanoSDKSerializerCore {
     this.addAllWithdrawals(withdrawals);
     this.addAllVotes(votes);
     this.addAllCollateralInputs(collaterals);
+    if (totalCollateral) {
+      this.txBody.setTotalCollateral(BigInt(totalCollateral));
+      this.addCollateralReturn(
+        totalCollateral,
+        collaterals,
+        collateralReturnAddress ?? changeAddress,
+      );
+    }
     this.addAllReferenceInputs(uniqueRefInputs);
     this.removeInputRefInputOverlap();
     this.setValidityInterval(validityRange);
@@ -1232,6 +1245,27 @@ class CardanoSDKSerializerCore {
     );
     this.utxoContext.set(cardanoTxIn, cardanoTxOut);
     this.txBody.setCollateral(collateralInputs);
+  };
+
+  private addCollateralReturn = (
+    totalCollateral: string,
+    collaterals: PubKeyTxIn[],
+    collateralReturnAddress: string,
+  ) => {
+    let collateralReturnValue = Value.fromCore({
+      coins: -BigInt(totalCollateral),
+    });
+    for (const collateral of collaterals) {
+      collateralReturnValue = mergeValue(
+        collateralReturnValue,
+        toValue(collateral.txIn.amount!),
+      );
+    }
+    const collateralReturn = new TransactionOutput(
+      toCardanoAddress(collateralReturnAddress),
+      collateralReturnValue,
+    );
+    this.txBody.setCollateralReturn(collateralReturn);
   };
 
   private setValidityInterval = (validity: ValidityRange) => {
