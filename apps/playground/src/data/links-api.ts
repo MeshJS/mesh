@@ -1,3 +1,4 @@
+import SvgMesh from "~/components/svgs/mesh";
 import SvgPolkadot from "~/components/svgs/polkadot";
 import { MenuItem } from "~/types/menu-item";
 import { metaAiken } from "./links-aiken";
@@ -19,6 +20,13 @@ export const metaPolkadot: MenuItem = {
   icon: SvgPolkadot,
 };
 
+export const metaWeb3Wallet: MenuItem = {
+  title: "Wallet as a Service",
+  desc: "Access self-custodial wallet using social logins",
+  link: "https://web3.meshjs.dev/products/wallets",
+  icon: SvgMesh,
+};
+
 export const linksApi: MenuItem[] = [
   metaWallets,
   metaTxbuilder,
@@ -32,4 +40,5 @@ export const linksApi: MenuItem[] = [
   metaYaci,
   metaMidnight,
   metaPolkadot,
+  metaWeb3Wallet,
 ];
