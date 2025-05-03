@@ -28,6 +28,7 @@ import {
   toDRep as coreToCstDRep,
   Address as CstAddress,
   AddressType as CstAddressType,
+  CredentialCore as CstCredential,
   CredentialType as CstCredentialType,
   NativeScript as CstNativeScript,
   Script as CstScript,
@@ -342,14 +343,42 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     });
   };
 
+  protected compareCredentials = (
+    credentialA: CstCredential,
+    credentialB: CstCredential,
+  ): number => {
+    // Script credentials come before Key credentials
+    if (
+      credentialA.type === CstCredentialType.ScriptHash &&
+      credentialB.type === CstCredentialType.KeyHash
+    ) {
+      return -1;
+    }
+    if (
+      credentialA.type === CstCredentialType.KeyHash &&
+      credentialB.type === CstCredentialType.ScriptHash
+    ) {
+      return 1;
+    }
+    // If same type, compare the hashes
+    if (credentialA.type === credentialB.type) {
+      if (credentialA.hash < credentialB.hash) return -1;
+      if (credentialA.hash > credentialB.hash) return 1;
+      return 0;
+    }
+    return 0;
+  };
+
   sortWithdrawals = () => {
-    // Sort withdrawals based on stake key
     this.meshTxBuilderBody.withdrawals.sort((a, b) => {
-      const addressAHex = CstAddress.fromString(a.address)?.toBytes();
-      const addressBHex = CstAddress.fromString(b.address)?.toBytes();
-      if (addressAHex && addressBHex) {
-        if (addressAHex < addressBHex) return -1;
-        if (addressAHex > addressBHex) return 1;
+      const credentialA = CstAddress.fromString(a.address)
+        ?.asReward()
+        ?.getPaymentCredential();
+      const credentialB = CstAddress.fromString(b.address)
+        ?.asReward()
+        ?.getPaymentCredential();
+      if (credentialA && credentialB) {
+        return this.compareCredentials(credentialA, credentialB);
       }
       return 0;
     });
@@ -360,10 +389,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       ConstitutionalCommittee: 0,
       DRep: 1,
       StakingPool: 2,
-    };
-    const credOrder: Record<"KeyHash" | "ScriptHash", number> = {
-      KeyHash: 0,
-      ScriptHash: 1,
     };
     this.meshTxBuilderBody.votes.sort((a, b) => {
       const voterA = a.vote.voter;
@@ -379,33 +404,47 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       ) {
         const credA = voterA.hotCred;
         const credB = voterB.hotCred;
-        const orderCredA = credOrder[credA.type];
-        const orderCredB = credOrder[credB.type];
-        if (orderCredA !== orderCredB) return orderCredA - orderCredB;
-        const hashA =
-          credA.type === "KeyHash" ? credA.keyHash : credA.scriptHash;
-        const hashB =
-          credB.type === "KeyHash" ? credB.keyHash : credB.scriptHash;
-        if (hashA < hashB) return -1;
-        if (hashA > hashB) return 1;
+        // Script credentials come before Key credentials
+        if (credA.type === "ScriptHash" && credB.type === "KeyHash") {
+          return -1;
+        }
+        if (credA.type === "KeyHash" && credB.type === "ScriptHash") {
+          return 1;
+        }
+        // If same type, compare the hashes
+        if (credA.type === credB.type) {
+          const hashA =
+            credA.type === "KeyHash" ? credA.keyHash : credA.scriptHash;
+          const hashB =
+            credB.type === "KeyHash" ? credB.keyHash : credB.scriptHash;
+          if (hashA < hashB) return -1;
+          if (hashA > hashB) return 1;
+          return 0;
+        }
         return 0;
       }
       if (voterA.type === "DRep" && voterB.type === "DRep") {
         const drepA = coreToCstDRep(voterA.drepId);
         const drepB = coreToCstDRep(voterB.drepId);
+        const scriptHashA = drepA.toScriptHash();
+        const scriptHashB = drepB.toScriptHash();
         const keyHashA = drepA.toKeyHash();
         const keyHashB = drepB.toKeyHash();
+
+        // Script hashes come before key hashes
+        if (scriptHashA != null && scriptHashB != null) {
+          if (scriptHashA < scriptHashB) return -1;
+          if (scriptHashA > scriptHashB) return 1;
+          return 0;
+        }
+        if (scriptHashA != null) return -1;
+        if (scriptHashB != null) return 1;
+        // If both are key hashes, compare them
         if (keyHashA != null && keyHashB != null) {
           if (keyHashA < keyHashB) return -1;
           if (keyHashA > keyHashB) return 1;
           return 0;
         }
-        if (keyHashA != null) return -1;
-        if (keyHashB != null) return 1;
-        const scriptHashA = drepA.toScriptHash()!;
-        const scriptHashB = drepB.toScriptHash()!;
-        if (scriptHashA < scriptHashB) return -1;
-        if (scriptHashA > scriptHashB) return 1;
         return 0;
       }
       if (voterA.type === "StakingPool" && voterB.type === "StakingPool") {
