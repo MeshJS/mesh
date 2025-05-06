@@ -28,7 +28,7 @@ export default function MenuItemDropdown({
         <ChevronDownIcon className="ml-1 h-5 w-5 lg:h-4 lg:w-4" />
       </button>
       <div
-        className={`absolute z-10 w-56 divide-y divide-neutral-100 rounded bg-white shadow dark:bg-neutral-700 ${
+        className={`absolute z-10 w-56 divide-y divide-neutral-100 rounded bg-white shadow-lg dark:bg-neutral-700 ${
           !showMenu && "hidden"
         }`}
       >
