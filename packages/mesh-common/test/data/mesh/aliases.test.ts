@@ -1,9 +1,13 @@
 import {
   assetClass,
+  byteString,
+  integer,
   mAssetClass,
   mOutputReference,
+  mTuple,
   mTxOutRef,
   outputReference,
+  tuple,
   txOutRef,
 } from "@meshsdk/common";
 
@@ -39,6 +43,15 @@ describe("Plutus data type", () => {
       const [meshCbor, jsonCbor] = serializeData(
         mTxOutRef(testTxHash, 1),
         txOutRef(testTxHash, 1),
+      );
+      expect(meshCbor).toBe(jsonCbor);
+    });
+  });
+  describe("tuple", () => {
+    test("tuple", () => {
+      const [meshCbor, jsonCbor] = serializeData(
+        mTuple(testTxHash, 1, 3),
+        tuple(byteString(testTxHash), integer(1), integer(3)),
       );
       expect(meshCbor).toBe(jsonCbor);
     });

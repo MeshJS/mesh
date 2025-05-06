@@ -82,7 +82,7 @@ export type Dict<V> = { map: DictItem<V>[] };
  * Aiken alias
  * The Plutus Data tuple in JSON
  */
-export type Tuple<K, V> = { list: [K, V] };
+export type Tuple<T extends any[]> = { list: T };
 
 /**
  * Aiken alias
@@ -234,14 +234,12 @@ export const dict = <V>(itemsMap: [ByteString, V][]): Dict<V> => ({
 
 /**
  * The utility function to create a Plutus Data tuple in JSON
- * @param key The key of the tuple
- * @param value The value of the tuple
+ * @param args The arguments of the tuple
  * @returns The Plutus Data tuple object
  */
-export const tuple = <K = PlutusData, V = PlutusData>(
-  key: K,
-  value: V,
-): Tuple<K, V> => ({ list: [key, value] });
+export const tuple = <T extends PlutusData[]>(...args: T): Tuple<T> => ({
+  list: args,
+});
 
 /**
  * The utility function to create a Plutus Data Option in JSON
