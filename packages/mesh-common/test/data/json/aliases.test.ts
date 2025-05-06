@@ -82,9 +82,7 @@ describe("Plutus data type", () => {
     test("outputReference", () => {
       const result = outputReference(testTxHash, 1);
       expect(JSON.stringify(result)).toBe(
-        JSON.stringify(
-          conStr0([byteString(testTxHash), integer(1)]),
-        ),
+        JSON.stringify(conStr0([byteString(testTxHash), integer(1)])),
       );
     });
     test("outputReference - invalid length", () => {
@@ -130,6 +128,14 @@ describe("Plutus data type", () => {
       const result = tuple({ bytes: "1234" }, { bytes: "abcd" });
       expect(JSON.stringify(result)).toBe(
         JSON.stringify({ list: [{ bytes: "1234" }, { bytes: "abcd" }] }),
+      );
+    });
+    test("tuple of 3", () => {
+      const result = tuple({ bytes: "1234" }, { bytes: "abcd" }, { int: 1234 });
+      expect(JSON.stringify(result)).toBe(
+        JSON.stringify({
+          list: [{ bytes: "1234" }, { bytes: "abcd" }, { int: 1234 }],
+        }),
       );
     });
   });

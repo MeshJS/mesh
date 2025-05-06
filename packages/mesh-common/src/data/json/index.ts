@@ -26,7 +26,7 @@ export type PlutusData =
   | PubKeyHash
   | POSIXTime
   | Dict<any>
-  | Tuple<any, any>;
+  | Tuple<any>;
 
 export * from "./aliases";
 export * from "./constructors";

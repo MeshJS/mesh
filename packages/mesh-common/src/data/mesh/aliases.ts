@@ -24,7 +24,7 @@ export type MTxOutRef = MConStr0<[MConStr0<[string]>, number]>;
  * Aiken alias
  * The Mesh Data tuple
  */
-export type MTuple<K, V> = [K, V];
+export type MTuple<T extends any> = T[];
 
 /**
  * Aiken alias
@@ -100,11 +100,10 @@ export const mTxOutRef = (txHash: string, index: number): MTxOutRef => {
 
 /**
  * The utility function to create a Mesh Data tuple in Mesh Data type
- * @param key The key of the tuple
- * @param value The value of the tuple
+ * @param args The arguments of the tuple
  * @returns The Mesh Data tuple object
  */
-export const mTuple = <K, V>(key: K, value: V): MTuple<K, V> => [key, value];
+export const mTuple = <T extends any[]>(...args: T): MTuple<T> => args;
 
 /**
  * The utility function to create a Mesh Data Option type in Mesh Data type
