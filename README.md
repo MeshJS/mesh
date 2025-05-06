@@ -43,39 +43,42 @@ npm install @meshsdk/core
 
 ```mermaid
 graph TD
-  package-core[@meshsdk/core]
-  package-core-csl[@meshsdk/core-csl]
-  package-core-cst[@meshsdk/core-cst]
-  package-provider[@meshsdk/provider]
-  package-react[@meshsdk/react]
-  package-transaction[@meshsdk/transaction]
-  package-wallet[@meshsdk/wallet]
-  package-sidan-csl[@sidan-lab/*]
-  package-cardano-sdk[@cardano-sdk/*]
-  package-harmoniclabs[@harmoniclabs/*]
-  package-core --> package-core-csl
-  package-core --> package-core-cst
-  package-core --> package-provider
-  package-core --> package-react
-  package-core --> package-transaction
-  package-core --> package-wallet
-  package-provider --> package-core-cst
+  core["@meshsdk/core"]
+  core_csl["@meshsdk/core-csl"]
+  core_cst["@meshsdk/core-cst"]
+  provider["@meshsdk/provider"]
+  react["@meshsdk/react"]
+  transaction["@meshsdk/transaction"]
+  wallet["@meshsdk/wallet"]
+  sidan_csl["@sidan-lab/*"]
+  cardano_sdk["@cardano-sdk/*"]
+  harmoniclabs["@harmoniclabs/*"]
   
-  package-react --> package-transaction
-  package-react --> package-wallet
-  package-transaction --> package-core-csl
-  package-transaction --> package-core-cst
+  core --> core_csl
+  core --> core_cst
+  core --> provider
+  core --> react
+  core --> transaction
+  core --> wallet
+  provider --> core_cst
+  
+  react --> transaction
+  react --> wallet
+  transaction --> core_csl
+  transaction --> core_cst
+  
   subgraph serializer
-  package-core-csl --> package-sidan-csl
-  package-core-cst --> package-cardano-sdk
-  package-core-cst --> package-harmoniclabs
+    core_csl --> sidan_csl
+    core_cst --> cardano_sdk
+    core_cst --> harmoniclabs
   end
-  click package-core-csl "https://docs.meshjs.dev/core-csl" _parent
-  click package-core-cst "https://docs.meshjs.dev/core-cst" _parent
-  click package-provider "https://docs.meshjs.dev/providers" _parent
-  click package-react "https://meshjs.dev/react" _parent
-  click package-transaction "https://docs.meshjs.dev/transactions" _parent
-  click package-wallet "https://docs.meshjs.dev/wallets" _parent
+  
+  click core_csl "https://docs.meshjs.dev/core-csl" _parent
+  click core_cst "https://docs.meshjs.dev/core-cst" _parent
+  click provider "https://docs.meshjs.dev/providers" _parent
+  click react "https://meshjs.dev/react" _parent
+  click transaction "https://docs.meshjs.dev/transactions" _parent
+  click wallet "https://docs.meshjs.dev/wallets" _parent
 ```
 
 ### Packages
