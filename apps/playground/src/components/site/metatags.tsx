@@ -22,7 +22,7 @@ export default function Metatags({
   }
 
   if (title === undefined) {
-    title = "Cardano Web3 TypeScript SDK & Off-Chain Framework";
+    title = "Cardano TypeScript SDK & Off-Chain Framework";
   }
 
   return (

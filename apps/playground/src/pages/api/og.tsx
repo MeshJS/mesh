@@ -13,7 +13,7 @@ export default function handler(request: NextRequest) {
     const hasTitle = searchParams.has("title");
     const title = hasTitle
       ? searchParams.get("title")?.slice(0, 100)
-      : "Mesh JS - Cardano Web3 TypeScript SDK & Off-Chain Framework";
+      : "Mesh JS - Cardano TypeScript SDK & Off-Chain Framework";
 
     return new ImageResponse(
       (

@@ -38,7 +38,7 @@ export default function SubmenuItemDropdown({
       </Link>
 
       <div
-        className={`absolute z-10 w-56 divide-y divide-neutral-100 rounded bg-white shadow dark:bg-neutral-700 ${
+        className={`absolute z-10 w-56 divide-y divide-neutral-100 rounded bg-white shadow-lg dark:bg-neutral-700 ${
           !showMenu && "hidden"
         }`}
         style={{ transform: "translate3d(210px, -40px, 0px)" }}
