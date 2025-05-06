@@ -158,7 +158,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (this.verbose) {
       console.log(
         "txBodyJson - before coin selection",
-        JSON.stringify(this.meshTxBuilderBody, (key, val) => {
+        JSONBig.stringify(this.meshTxBuilderBody, (key, val) => {
           if (key === "extraInputs") return undefined;
           if (key === "selectionConfig") return undefined;
           return val;
@@ -181,7 +181,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (this.verbose) {
       console.log(
         "txBodyJson - after coin selection",
-        JSON.stringify(this.meshTxBuilderBody, (key, val) => {
+        JSONBig.stringify(this.meshTxBuilderBody, (key, val) => {
           if (key === "extraInputs") return undefined;
           if (key === "selectionConfig") return undefined;
           return val;
