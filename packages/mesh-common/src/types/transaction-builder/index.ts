@@ -44,6 +44,8 @@ export type MeshTxBuilderBody = {
   network: Network | number[][];
   expectedNumberKeyWitnesses: number;
   expectedByronAddressWitnesses: string[];
+  totalCollateral?: Quantity;
+  collateralReturnAddress?: string;
 };
 
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({

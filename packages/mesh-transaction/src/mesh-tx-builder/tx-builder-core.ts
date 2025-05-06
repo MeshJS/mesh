@@ -53,6 +53,8 @@ export class MeshTxBuilderCore {
   private addingPlutusVote = false;
   private plutusVoteScriptVersion: LanguageVersion | undefined;
 
+  protected manualFee: string | undefined;
+
   protected _protocolParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
 
   protected mintItem?: MintItem;
@@ -1489,7 +1491,29 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   setFee = (fee: string) => {
+    this.manualFee = fee;
     this.meshTxBuilderBody.fee = fee;
+    return this;
+  };
+
+  /**
+   * Sets a total collateral for the transaction to use, a collateral return
+   * will be generated to either the change address or the specified collateral return address
+   * @param collateral The specified collateral
+   * @returns The MeshTxBuilder instance
+   */
+  setTotalCollateral = (collateral: string) => {
+    this.meshTxBuilderBody.totalCollateral = collateral;
+    return this;
+  };
+
+  /**
+   * Sets the collateral return address, if none is set, the change address will be used
+   * @param address The address to use for collateral return
+   * @returns The MeshTxBuilder instance
+   */
+  setCollateralReturnAddress = (address: string) => {
+    this.meshTxBuilderBody.collateralReturnAddress = address;
     return this;
   };
 
@@ -1721,7 +1745,9 @@ export class MeshTxBuilderCore {
     txEvaluation: Omit<Action, "data">[],
     doNotUseMultiplier: boolean = false,
   ) => {
-    const txEvaluationMultiplier = doNotUseMultiplier ? 1 : this.txEvaluationMultiplier;
+    const txEvaluationMultiplier = doNotUseMultiplier
+      ? 1
+      : this.txEvaluationMultiplier;
     txEvaluation.forEach((redeemerEvaluation) => {
       switch (redeemerEvaluation.tag) {
         case "SPEND": {
@@ -1836,7 +1862,6 @@ export class MeshTxBuilderCore {
       }
       return map;
     }, requiredAssets);
-
     const selectionConfig = this.meshTxBuilderBody.selectionConfig;
 
     const utxoSelection = new UtxoSelection(
@@ -2005,6 +2030,7 @@ export class MeshTxBuilderCore {
     newBuilder.refScriptTxInQueueItem = this.refScriptTxInQueueItem
       ? structuredClone(this.refScriptTxInQueueItem)
       : undefined;
+    newBuilder.manualFee = this.manualFee;
 
     return newBuilder;
   }
