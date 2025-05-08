@@ -508,7 +508,7 @@ const meshImplicitCoinToCSDKImplicitCoins = (
     return undefined;
   }
   const mint = meshAssetsToCSDKAssets(implicitCoins.mint);
-  const totalInput = implicitCoins.deposit + implicitCoins.withdrawals;
+  const totalInput = implicitCoins.reclaimDeposit + implicitCoins.withdrawals;
   const CSKDImplicitCoin = {
     withdrawals: implicitCoins.withdrawals,
     input: totalInput,
