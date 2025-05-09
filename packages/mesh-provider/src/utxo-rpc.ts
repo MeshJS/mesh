@@ -193,7 +193,7 @@ export class U5CProvider
 
     const result: Omit<Action, "data">[] = [];
 
-    evalResult.map((action: any) => {
+    evalResult.map((action: spec.cardano.Redeemer) => {
       result.push({
         tag: tagMap[action.purpose!]!,
         index: action.index,
