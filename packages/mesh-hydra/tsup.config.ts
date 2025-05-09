@@ -7,13 +7,6 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  external: [
-    "bip32",
-    "ecpair",
-    "@bitcoin-js/tiny-secp256k1-asmjs",
-    "bitcoinjs-lib",
-  ],
-  noExternal: ["@meshsdk/bitcoin"],
   esbuildOptions(options) {
     options.define = {
       global: "globalThis",

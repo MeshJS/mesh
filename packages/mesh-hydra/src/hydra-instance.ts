@@ -1,7 +1,7 @@
 import { IFetcher, ISubmitter } from "@meshsdk/common";
-import { HexBlob, parseDatumCbor, Serialization } from "@meshsdk/core-cst";
+import { parseDatumCbor } from "@meshsdk/core-cst";
 import { HydraProvider } from "./hydra-provider";
-import { toHydraAssets } from "./convertor";
+import { hAssets } from "./types/hAssets";
 
 /**
  * todo: implement https://hydra.family/head-protocol/docs/tutorial/
@@ -37,7 +37,7 @@ export class HydraInstance {
     if (!utxo) {
       throw new Error("UTxO not found");
     }
-    const hydraUtxo: any = {
+    const hydraUtxo = {
       address: utxo.output.address,
       datum: null,
       datumhash: null, // TODO: Handle datumHash case
@@ -45,15 +45,10 @@ export class HydraInstance {
         utxo.output.scriptRef === "" || !utxo.output.scriptRef
           ? null
           : utxo.output.scriptRef,
-      value: toHydraAssets(utxo.output.amount),
+      value: hAssets(utxo.output.amount),
+      inlineDatum: utxo.output.plutusData ? parseDatumCbor(utxo.output.plutusData) : null,
+      inlineDatumRaw: utxo.output.plutusData ?? null,
     };
-    if (utxo.output.plutusData) {
-      hydraUtxo["inlineDatum"] = parseDatumCbor(utxo.output.plutusData);
-      hydraUtxo["inlineDatumRaw"] = utxo.output.plutusData;
-    } else {
-      hydraUtxo["inlineDatum"] = null;
-      hydraUtxo["inlineDatumRaw"] = null;
-    }
     const commit = await this.provider.buildCommit(
       {
         [txHash + "#" + txIndex]: hydraUtxo,
