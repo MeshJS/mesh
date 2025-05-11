@@ -18,9 +18,8 @@ import {
 } from "@meshsdk/common";
 
 import { parseHttpError } from "./utils";
-import { toUTxO } from "./convertor";
 import { HydraConnection } from "./hydra-connection";
-import { HydraStatus, HydraTransaction, HydraUTxO } from "./types";
+import { hStatus, hTransaction, hUTxO } from "./types";
 import {
   CommandFailed,
   Committed,
@@ -59,7 +58,7 @@ import {
  */
 export class HydraProvider implements IFetcher, ISubmitter {
   private _connection: HydraConnection;
-  private _status: HydraStatus = "DISCONNECTED";
+  private _status: hStatus = "DISCONNECTED";
   private readonly _eventEmitter: EventEmitter;
   private readonly _axiosInstance: AxiosInstance;
 
@@ -202,7 +201,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     description = "",
     txId?: string
   ) {
-    const transaction: HydraTransaction = {
+    const transaction: hTransaction = {
       type: type,
       description: description,
       cborHex: cborHex,
@@ -262,7 +261,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     this.send({ tag: "Fanout" });
   }
 
-  send(data: any): void {
+  send(data: unknown): void {
     this._connection.send(data);
   }
 
@@ -273,7 +272,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Draft a commit transaction, which can be completed and later submitted to the L1 network.
    */
-  async buildCommit(payload: any, headers: RawAxiosRequestHeaders = {}) {
+  async buildCommit(payload: unknown, headers: RawAxiosRequestHeaders = {}) {
     const txHex = await this.post("/commit", payload, headers);
     return txHex;
   }
@@ -320,7 +319,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     const data = await this.get(`snapshot/utxo`);
     const utxos: UTxO[] = [];
     for (const [key, value] of Object.entries(data)) {
-      const utxo = toUTxO(value as HydraUTxO, key);
+      const utxo = hUTxO.toUTxO(value as hUTxO, key);
       utxos.push(utxo);
     }
     return utxos;
@@ -501,7 +500,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     });
   }
 
-  onStatusChange(callback: (status: HydraStatus) => void) {
+  onStatusChange(callback: (status: hStatus) => void) {
     this._eventEmitter.on("onstatuschange", callback);
   }
 
@@ -534,7 +533,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
    */
   async post(
     url: string,
-    payload: any,
+    payload: unknown,
     headers: RawAxiosRequestHeaders
   ): Promise<any> {
     try {
