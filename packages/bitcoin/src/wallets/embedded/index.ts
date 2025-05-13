@@ -1,6 +1,5 @@
-import { bitcoin, ECPair, bip32, bip39 } from "../../";
+import { bitcoin, bip32, bip39 } from "../../";
 import { BIP32Interface } from "bip32";
-import axios from "axios";
 import { UTxO } from "../../types/utxo";
 import { Address } from "../../types/address";
 import { IBitcoinProvider } from "../../interfaces/provider";
@@ -17,9 +16,9 @@ export type CreateBitcoinEmbeddedWalletOptions = {
 /**
  * 0': Indicates the Bitcoin mainnet.
  * 1': Indicates the Bitcoin testnet.
- * 
+ *
  * EmbeddedWallet is a class that provides a simple interface to interact with Bitcoin wallets.
- * 
+ *
  * @params options - The options to create an EmbeddedWallet.
  * networkId - The network ID of the wallet.
  * key - The key to create the wallet.
@@ -27,7 +26,7 @@ export type CreateBitcoinEmbeddedWalletOptions = {
  */
 export class EmbeddedWallet {
   private readonly _networkId: 0 | 1;
-  private readonly _bIP32Interface: BIP32Interface;
+  private readonly _BIP32Interface: BIP32Interface;
   private readonly _p2wpkh: bitcoin.payments.Payment;
   private readonly _provider?: IBitcoinProvider;
 
@@ -38,10 +37,10 @@ export class EmbeddedWallet {
       options.key.words.join(" "),
       options.networkId
     );
-    this._bIP32Interface = bIP32Interface;
+    this._BIP32Interface = bIP32Interface;
 
     this._p2wpkh = bitcoin.payments.p2wpkh({
-      pubkey: this._bIP32Interface.publicKey,
+      pubkey: this._BIP32Interface.publicKey,
       network:
         this._networkId === 0
           ? bitcoin.networks.bitcoin
@@ -68,11 +67,15 @@ export class EmbeddedWallet {
   getPaymentAddress(): Address {
     const address: Address = {
       address: this._p2wpkh.address!,
-      publicKey: this._bIP32Interface.publicKey.toString("hex"),
+      publicKey: this._BIP32Interface.publicKey.toString("hex"),
       purpose: "payment",
       addressType: "p2wpkh",
     };
     return address;
+  }
+
+  getPublicKey(): string {
+    return this._BIP32Interface.publicKey.toString("hex");
   }
 
   /**
@@ -87,6 +90,16 @@ export class EmbeddedWallet {
     }
 
     return await this._provider?.fetchAddressUTxOs(address.address);
+  }
+
+  /**
+   * Signs a given message using the wallet's private key.
+   *
+   * @param message - The message to be signed.
+   * @returns The signature of the message as a string.
+   */
+  signData(message: string): string {
+    return "";
   }
 
   /**
@@ -115,7 +128,7 @@ class WalletStaticMethods {
     mnemonic: string,
     networkId: 0 | 1,
     accountIndex: number = 0,
-    change: 0 | 1 = 0,
+    change: 0 | 1 = 0, // 0 = external, 1 = internal, todo, do we need to handle internal address?
     addressIndex: number = 0
   ): BIP32Interface {
     const seed = bip39.mnemonicToSeedSync(mnemonic);
@@ -133,6 +146,7 @@ class WalletStaticMethods {
     return child;
   }
 
+  // todo: this is the confusing part in our sdk, since cardano 0 is testnet. we need to use enums or string instead for clearer
   static getNetwork(network: 0 | 1) {
     return network === 0 ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
   }
