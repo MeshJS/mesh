@@ -27,11 +27,13 @@ const ReactPage: NextPage = () => {
     });
 
     const address = wallet.getPaymentAddress();
-    console.log("address", address, expectAddress === address.address);
+    console.log("address", address);
+    console.log("expectAddress", expectAddress === address.address);
     console.log("network", wallet.getNetworkId());
-    console.log("utxos", await wallet.getUtxos());
+    console.log("publicKey", wallet.getPublicKey());
+    // console.log("utxos", await wallet.getUtxos());
 
-    console.log("brew", EmbeddedWallet.brew());
+    // console.log("brew", EmbeddedWallet.brew());
   }
 
   async function loadBrowserWallet() {
@@ -50,9 +52,9 @@ const ReactPage: NextPage = () => {
     // const utxos = await provider.fetchAddressUTxOs(address);
     // console.log("utxos", utxos);
 
-    const fetchAddressTransactions = await provider.fetchAddressTransactions(address);
+    const fetchAddressTransactions =
+      await provider.fetchAddressTransactions(address);
     console.log("fetchAddressTransactions", fetchAddressTransactions);
-
   }
 
   return (
