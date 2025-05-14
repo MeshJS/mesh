@@ -599,29 +599,88 @@ class CardanoSDKSerializerCore {
       inputs,
       referenceInputs,
     );
-    this.addAllInputs(inputs);
-    this.setFee(txBuilderBody.fee ?? "0");
-    this.sanitizeOutputs(outputs);
-    this.addAllOutputs(outputs);
-    this.addAllMints(mints);
-    this.addAllCerts(certificates);
-    this.addAllWithdrawals(withdrawals);
-    this.addAllVotes(votes);
-    this.addAllCollateralInputs(collaterals);
-    if (totalCollateral) {
-      this.txBody.setTotalCollateral(BigInt(totalCollateral));
-      this.addCollateralReturn(
-        totalCollateral,
-        collaterals,
-        collateralReturnAddress ?? changeAddress,
-      );
+    try {
+      this.addAllInputs(inputs);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing inputs", e);
     }
-    this.addAllReferenceInputs(uniqueRefInputs);
+    try {
+      this.setFee(txBuilderBody.fee ?? "0");
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing fee", e);
+    }
+    try {
+      this.sanitizeOutputs(outputs);
+    } catch (e) {
+      throwErrorWithOrigin("Error calculating min utxo values for outputs", e);
+    }
+    try {
+      this.addAllOutputs(outputs);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing outputs", e);
+    }
+    try {
+      this.addAllMints(mints);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing mints", e);
+    }
+    try {
+      this.addAllCerts(certificates);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing certificates", e);
+    }
+    try {
+      this.addAllWithdrawals(withdrawals);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing withdrawals", e);
+    }
+    try {
+      this.addAllVotes(votes);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing votes", e);
+    }
+    try {
+      this.addAllCollateralInputs(collaterals);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing collateral inputs", e);
+    }
+    if (totalCollateral) {
+      try {
+        this.txBody.setTotalCollateral(BigInt(totalCollateral));
+        this.addCollateralReturn(
+          totalCollateral,
+          collaterals,
+          collateralReturnAddress ?? changeAddress,
+        );
+      } catch (e) {
+        throwErrorWithOrigin(
+          "Error serializing total collateral and collateral return",
+          e,
+        );
+      }
+    }
+    try {
+      this.addAllReferenceInputs(uniqueRefInputs);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing reference inputs", e);
+    }
     this.removeInputRefInputOverlap();
-    this.setValidityInterval(validityRange);
-    this.addAllRequiredSignatures(requiredSignatures);
+    try {
+      this.setValidityInterval(validityRange);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing validity interval", e);
+    }
+    try {
+      this.addAllRequiredSignatures(requiredSignatures);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing required signatures", e);
+    }
     if (metadata.size > 0) {
-      this.addMetadata(metadata);
+      try {
+        this.addMetadata(metadata);
+      } catch (e) {
+        throwErrorWithOrigin("Error serializing metadata", e);
+      }
     }
 
     return this.txBody;
@@ -1736,3 +1795,15 @@ class CardanoSDKSerializerCore {
     return writer.encodeAsHex();
   };
 }
+
+const throwErrorWithOrigin = (origin: string, error: any) => {
+  if (error instanceof Error) {
+    throw new Error(`${origin}: ${error.message}`);
+  } else if (typeof error === "string") {
+    throw new Error(`${origin}: ${error}`);
+  } else if (typeof error === "object") {
+    throw new Error(`${origin}: ${JSON.stringify(error)}`);
+  } else {
+    throw new Error(`${origin}: ${String(error)}`);
+  }
+};
