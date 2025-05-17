@@ -152,9 +152,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (customizedTx.fee) {
         this.setFee(customizedTx.fee);
       }
-    } else {
-      this.queueAllLastItem();
     }
+
+    this.queueAllLastItem();
+
     if (this.verbose) {
       console.log(
         "txBodyJson - before coin selection",
