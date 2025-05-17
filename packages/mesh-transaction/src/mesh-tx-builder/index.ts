@@ -152,9 +152,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (customizedTx.fee) {
         this.setFee(customizedTx.fee);
       }
-    } else {
-      this.queueAllLastItem();
     }
+
+    this.queueAllLastItem();
+
     if (this.verbose) {
       console.log(
         "txBodyJson - before coin selection",
@@ -173,11 +174,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     await this.completeTxParts();
     await this.sanitizeOutputs();
+
+    this.sortTxParts();
+
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype, true);
-    this.queueAllLastItem();
-    this.removeDuplicateInputs();
-    this.sortTxParts();
     if (this.verbose) {
       console.log(
         "txBodyJson - after coin selection",
@@ -206,7 +207,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         ): Promise<TransactionCost> => {
           const clonedBuilder = this.clone();
           await clonedBuilder.updateByTxPrototype(selectionSkeleton);
-          clonedBuilder.queueAllLastItem();
 
           try {
             await clonedBuilder.evaluateRedeemers();
@@ -245,8 +245,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         maxSizeExceed: async (selectionSkeleton) => {
           const clonedBuilder = this.clone();
           await clonedBuilder.updateByTxPrototype(selectionSkeleton);
-          clonedBuilder.queueAllLastItem();
-          clonedBuilder.removeDuplicateInputs();
           const maxTxSize = this._protocolParams.maxTxSize;
           const txSize = clonedBuilder.getSerializedSize();
           return txSize > maxTxSize;
@@ -302,6 +300,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       selectionSkeleton.redeemers ?? [],
       final,
     );
+
+    this.queueAllLastItem();
+    this.removeDuplicateInputs();
+    this.sortTxParts();
   };
 
   getUtxosForSelection = async () => {
