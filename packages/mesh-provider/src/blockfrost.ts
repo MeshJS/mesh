@@ -86,10 +86,6 @@ export class BlockfrostProvider
     }
   }
 
-  setSubmitTxToBytes(value: boolean): void {
-    this.submitTxToBytes = value;
-  }
-
   /**
    * Evaluates the resources required to execute the transaction
    * @param tx - The transaction to evaluate
@@ -669,6 +665,10 @@ export class BlockfrostProvider
           attempts += 1;
         });
     }, 5_000);
+  }
+
+  setSubmitTxToBytes(value: boolean): void {
+    this.submitTxToBytes = value;
   }
 
   /**
