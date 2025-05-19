@@ -18,7 +18,7 @@ const ReactPage: NextPage = () => {
     const expectAddress = "tb1q3x7c8nuew6ayzmy3fnfx6ydnr8a4kf2267za7y";
 
     const wallet = new EmbeddedWallet({
-      networkId: 1,
+      testnet: false,
       key: {
         type: "mnemonic",
         words: mnemonic.split(" "),
@@ -26,10 +26,9 @@ const ReactPage: NextPage = () => {
       provider: provider,
     });
 
-    const address = wallet.getPaymentAddress();
+    const address = wallet.getAddress();
     console.log("address", address);
     console.log("expectAddress", expectAddress === address.address);
-    console.log("network", wallet.getNetworkId());
     console.log("publicKey", wallet.getPublicKey());
     // console.log("utxos", await wallet.getUtxos());
 

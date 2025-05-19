@@ -1,90 +1,83 @@
-import { bitcoin, bip32, bip39 } from "../../";
+import { bitcoin, bip32, bip39 } from "../../core";
 import { BIP32Interface } from "bip32";
 import { UTxO } from "../../types/utxo";
 import { Address } from "../../types/address";
 import { IBitcoinProvider } from "../../interfaces/provider";
+import type { Network } from "bitcoinjs-lib";
+import { mnemonicToSeedSync, validateMnemonic } from "bip39";
 
-export type CreateBitcoinEmbeddedWalletOptions = {
-  networkId: 0 | 1;
+export type CreateWalletOptions = {
+  testnet: boolean;
   key: {
     type: "mnemonic";
     words: string[];
   };
+  path?: string;
   provider?: IBitcoinProvider;
 };
 
 /**
- * 0': Indicates the Bitcoin mainnet.
- * 1': Indicates the Bitcoin testnet.
- *
  * EmbeddedWallet is a class that provides a simple interface to interact with Bitcoin wallets.
- *
- * @params options - The options to create an EmbeddedWallet.
- * networkId - The network ID of the wallet.
- * key - The key to create the wallet.
- * provider - The Bitcoin provider to interact with the Bitcoin network.
  */
 export class EmbeddedWallet {
-  private readonly _networkId: 0 | 1;
-  private readonly _BIP32Interface: BIP32Interface;
-  private readonly _p2wpkh: bitcoin.payments.Payment;
+  private readonly _network: Network;
+  private readonly _wallet: BIP32Interface;
   private readonly _provider?: IBitcoinProvider;
 
-  constructor(options: CreateBitcoinEmbeddedWalletOptions) {
-    this._networkId = options.networkId;
+  constructor(options: CreateWalletOptions) {
+    this._network = options.testnet
+      ? bitcoin.networks.testnet
+      : bitcoin.networks.bitcoin;
 
-    const bIP32Interface = WalletStaticMethods.fromMnemonic(
-      options.key.words.join(" "),
-      options.networkId
+    this._wallet = _derive(
+      options.key.words,
+      options.path ?? "m/84'/0'/0'/0/0",
+      this._network
     );
-    this._BIP32Interface = bIP32Interface;
-
-    this._p2wpkh = bitcoin.payments.p2wpkh({
-      pubkey: this._BIP32Interface.publicKey,
-      network:
-        this._networkId === 0
-          ? bitcoin.networks.bitcoin
-          : bitcoin.networks.testnet,
-    });
 
     this._provider = options.provider;
   }
 
   /**
-   * Get wallet network ID.
+   * Returns the wallet's SegWit (P2WPKH) address and associated public key.
    *
-   * @returns network ID
+   * @returns {Address} The wallet address object including address, public key, and metadata.
+   * @throws {Error} If internal address or public key is not properly initialized.
    */
-  getNetworkId(): 0 | 1 {
-    return this._networkId;
-  }
+  getAddress(): Address {
+    const p2wpkh = bitcoin.payments.p2wpkh({
+      pubkey: this._wallet.publicKey,
+      network: this._network
+    });
 
-  /*
-   * Get wallet address.
-   *
-   * @returns wallet address
-   */
-  getPaymentAddress(): Address {
-    const address: Address = {
-      address: this._p2wpkh.address!,
-      publicKey: this._BIP32Interface.publicKey.toString("hex"),
+    if (!p2wpkh?.address) {
+      throw new Error("Address is not initialized.");
+    }
+
+    return {
+      address: p2wpkh.address,
+      publicKey: this._wallet.publicKey.toString("hex"),
       purpose: "payment",
       addressType: "p2wpkh",
     };
-    return address;
   }
 
+  /**
+   * Returns the hex-encoded public key of the wallet.
+   *
+   * @returns {string} The public key in hexadecimal format.
+   */
   getPublicKey(): string {
-    return this._BIP32Interface.publicKey.toString("hex");
+    return this._wallet.publicKey.toString("hex");
   }
 
   /**
    * Get UTXOs for the wallet address.
    * @returns An array of UTXOs.
    */
-  async getUtxos(): Promise<UTxO[]> {
+  async getUTxOs(): Promise<UTxO[]> {
     console.log("getUtxos");
-    const address = this.getPaymentAddress();
+    const address = this.getAddress();
     if (this._provider === undefined) {
       throw new Error("`provider` is not defined. Provide a BitcoinProvider.");
     }
@@ -112,42 +105,32 @@ export class EmbeddedWallet {
   }
 
   /**
-   * Generate mnemonic or private key
+   * Generates a mnemonic phrase and returns it as an array of words.
    *
-   * @param privateKey return private key if true
-   * @returns a transaction hash
+   * @param {number} [strength=128] - The strength of the mnemonic in bits (must be a multiple of 32 between 128 and 256).
+   * @returns {string[]} An array of words representing the generated mnemonic.
+   * @throws {Error} If the strength is not valid.
    */
-  static brew(strength = 128): string[] {
+  static brew(strength: number = 128): string[] {
+    if (![128, 160, 192, 224, 256].includes(strength)) {
+      throw new Error("Invalid strength. Must be one of: 128, 160, 192, 224, 256.");
+    }
+
     const mnemonic = bip39.generateMnemonic(strength);
     return mnemonic.split(" ");
   }
 }
 
-class WalletStaticMethods {
-  static fromMnemonic(
-    mnemonic: string,
-    networkId: 0 | 1,
-    accountIndex: number = 0,
-    change: 0 | 1 = 0, // 0 = external, 1 = internal, todo, do we need to handle internal address?
-    addressIndex: number = 0
-  ): BIP32Interface {
-    const seed = bip39.mnemonicToSeedSync(mnemonic);
-    const root = bip32.fromSeed(
-      seed,
-      WalletStaticMethods.getNetwork(networkId)
-    );
+function _derive(words: string[], path: string = "m/84'/0'/0'/0/0", network?: Network): BIP32Interface {
+  const mnemonic = words.join(" ");
 
-    // path
-    const purpose = 84; // BIP84 - Indicates that the addresses are P2WPKH (native SegWit) addresses
-    const coinType = networkId;
-    const path = `m/${purpose}'/${coinType}'/${accountIndex}'/${change}/${addressIndex}`;
-    const child = root.derivePath(path);
-
-    return child;
+  if (!validateMnemonic(mnemonic)) {
+    throw new Error("Invalid mnemonic provided.");
   }
 
-  // todo: this is the confusing part in our sdk, since cardano 0 is testnet. we need to use enums or string instead for clearer
-  static getNetwork(network: 0 | 1) {
-    return network === 0 ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
-  }
+  const seed = mnemonicToSeedSync(mnemonic);
+  const root = bip32.fromSeed(seed, network);
+  const child = root.derivePath(path);
+
+  return child;
 }
