@@ -29,6 +29,7 @@ const ReactPage: NextPage = () => {
     const address = wallet.getAddress();
     console.log("address", address);
     console.log("expectAddress", expectAddress === address.address);
+    console.log("network", wallet.getNetworkId());
     console.log("publicKey", wallet.getPublicKey());
     // console.log("utxos", await wallet.getUtxos());
 

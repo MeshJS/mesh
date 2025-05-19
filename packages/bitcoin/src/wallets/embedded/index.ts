@@ -72,6 +72,17 @@ export class EmbeddedWallet {
   }
 
   /**
+   * Returns the network identifier of the wallet.
+   * 0': Indicates the Bitcoin mainnet.
+   * 1': Indicates the Bitcoin testnet.
+   *
+   * @returns {0 | 1} The Bitcoin network ID.
+   */
+  getNetworkId(): 0 | 1 {
+    return this._network === bitcoin.networks.testnet ? 1 : 0;
+  }
+
+  /**
    * Get UTXOs for the wallet address.
    * @returns An array of UTXOs.
    */
