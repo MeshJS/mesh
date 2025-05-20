@@ -4,7 +4,6 @@ import {
   DataSignature,
   DEFAULT_PROTOCOL_PARAMETERS,
   Extension,
-  fromUTF8,
   IWallet,
   POLICY_ID_LENGTH,
   resolveFingerprint,
@@ -266,11 +265,11 @@ export class BrowserWallet implements IWallet {
     }
 
     if (address.startsWith("drep1")) {
-      return this._walletInstance.cip95!.signData(address, fromUTF8(payload));
+      return this._walletInstance.cip95!.signData(address, payload);
     }
 
     const signerAddress = toAddress(address).toBytes().toString();
-    return this._walletInstance.signData(signerAddress, fromUTF8(payload));
+    return this._walletInstance.signData(signerAddress, payload);
   }
 
   /**
