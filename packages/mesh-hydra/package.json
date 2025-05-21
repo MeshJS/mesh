@@ -29,7 +29,9 @@
   "dependencies": {
     "@meshsdk/common": "1.9.0-beta.43",
     "@meshsdk/core-cst": "1.9.0-beta.43",
-    "axios": "^1.7.2"
+    "axios": "^1.7.2",
+    "isomorphic-ws": "^4.0.1",
+    "ws": "^8.18.2"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
