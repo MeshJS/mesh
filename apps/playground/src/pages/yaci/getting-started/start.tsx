@@ -20,6 +20,16 @@ function Left() {
   code += `const params = await provider.fetchProtocolParameters();\n`;
   code += `console.log(params);\n`;
 
+  let postgresNonDocker = "";
+  postgresNonDocker += `yaci.store.db.url=jdbc:postgresql://<dbhost>:<dbport>/<dbname>?currentSchema=<schema_name>\n`;
+  postgresNonDocker += `yaci.store.db.username=user\n`;
+  postgresNonDocker += `yaci.store.db.password=password\n`;
+
+  let postgresDocker = "";
+  postgresDocker += `yaci_store_db_url=jdbc:postgresql://<dbhost>:<dbport>/<dbname>?currentSchema=<schema_name>\n`;
+  postgresDocker += `yaci_store_db_username=user\n`;
+  postgresDocker += `yaci_store_db_password=password\n`;
+
   return (
     <>
       <p>
@@ -67,6 +77,24 @@ function Left() {
         (http://localhost:8080/api/v1), to interact with the Yaci Devnet.
       </p>
       <Codeblock data={code} />
+
+      <h3>Support external PostgreSQL database for indexer</h3>
+
+      <p>
+        By default, Yaci DevKit's indexer uses an embedded H2 database. With
+        this update, you can also configure an external PostgreSQL database.
+      </p>
+
+      <p>
+        For Non-Docker distribution, edit config/application.properties and
+        uncomment the following properties to set PostgreSQL database details:
+      </p>
+      <Codeblock data={postgresNonDocker} />
+      <p>
+        For Docker distribution, edit config/env and uncomment the following
+        properties:
+      </p>
+      <Codeblock data={postgresDocker} />
     </>
   );
 }
