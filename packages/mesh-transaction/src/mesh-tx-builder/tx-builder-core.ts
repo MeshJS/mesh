@@ -1751,7 +1751,12 @@ export class MeshTxBuilderCore {
     txEvaluation.forEach((redeemerEvaluation) => {
       switch (redeemerEvaluation.tag) {
         case "SPEND": {
-          const input = meshTxBuilderBody.inputs[redeemerEvaluation.index]!;
+          const input = meshTxBuilderBody.inputs[redeemerEvaluation.index];
+          if (!input) {
+            throw Error(
+              `updateRedeemer: Input not found for index ${redeemerEvaluation.index}`,
+            );
+          }
           if (input.type == "Script" && input.scriptTxIn.redeemer) {
             input.scriptTxIn.redeemer.exUnits.mem = Math.floor(
               redeemerEvaluation.budget.mem * txEvaluationMultiplier,
@@ -1763,7 +1768,12 @@ export class MeshTxBuilderCore {
           break;
         }
         case "MINT": {
-          const mint = meshTxBuilderBody.mints[redeemerEvaluation.index]!;
+          const mint = meshTxBuilderBody.mints[redeemerEvaluation.index];
+          if (!mint) {
+            throw Error(
+              `updateRedeemer: Mint not found for index ${redeemerEvaluation.index}`,
+            );
+          }
           if (mint.type == "Plutus" && mint.redeemer) {
             let newExUnits: Budget = {
               mem: Math.floor(
@@ -1788,8 +1798,12 @@ export class MeshTxBuilderCore {
           break;
         }
         case "CERT":
-          const cert =
-            meshTxBuilderBody.certificates[redeemerEvaluation.index]!;
+          const cert = meshTxBuilderBody.certificates[redeemerEvaluation.index];
+          if (!cert) {
+            throw Error(
+              `updateRedeemer: Cert not found for index ${redeemerEvaluation.index}`,
+            );
+          }
           if (cert.type === "ScriptCertificate" && cert.redeemer) {
             cert.redeemer.exUnits.mem = Math.floor(
               redeemerEvaluation.budget.mem * txEvaluationMultiplier,
@@ -1801,7 +1815,12 @@ export class MeshTxBuilderCore {
           break;
         case "REWARD":
           const withdrawal =
-            meshTxBuilderBody.withdrawals[redeemerEvaluation.index]!;
+            meshTxBuilderBody.withdrawals[redeemerEvaluation.index];
+          if (!withdrawal) {
+            throw Error(
+              `updateRedeemer: Withdrawal not found for index ${redeemerEvaluation.index}`,
+            );
+          }
           if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
             withdrawal.redeemer.exUnits.mem = Math.floor(
               redeemerEvaluation.budget.mem * txEvaluationMultiplier,
@@ -1812,7 +1831,12 @@ export class MeshTxBuilderCore {
           }
           break;
         case "VOTE":
-          const vote = meshTxBuilderBody.votes[redeemerEvaluation.index]!;
+          const vote = meshTxBuilderBody.votes[redeemerEvaluation.index];
+          if (!vote) {
+            throw Error(
+              `updateRedeemer: Vote not found for index ${redeemerEvaluation.index}`,
+            );
+          }
           if (vote.type === "ScriptVote" && vote.redeemer) {
             vote.redeemer.exUnits.mem = Math.floor(
               redeemerEvaluation.budget.mem * txEvaluationMultiplier,

@@ -295,15 +295,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
 
     this.meshTxBuilderBody.fee = selectionSkeleton.fee.toString();
+    this.queueAllLastItem();
+    this.removeDuplicateInputs();
+    this.sortTxParts();
     this.updateRedeemer(
       this.meshTxBuilderBody,
       selectionSkeleton.redeemers ?? [],
       final,
     );
-
-    this.queueAllLastItem();
-    this.removeDuplicateInputs();
-    this.sortTxParts();
   };
 
   getUtxosForSelection = async () => {
