@@ -1,7 +1,7 @@
 {
-  "name": "@meshsdk/hydra",
+  "name": "@meshsdk/bitcoin",
   "version": "1.9.0-beta.51",
-  "description": "Mesh Hydra package",
+  "description": "Mesh Bitcoin package",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
   "module": "./dist/index.js",
@@ -21,15 +21,15 @@
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
-    "format": "prettier --check . --ignore-path ../../.gitignore",
-    "lint": "eslint",
-    "pack": "npm pack --pack-destination=./dist",
     "test": "jest"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.0-beta.51",
-    "@meshsdk/core-cst": "1.9.0-beta.51",
-    "axios": "^1.7.2"
+    "@bitcoin-js/tiny-secp256k1-asmjs": "^2.2.3",
+    "bip174": "^3.0.0-rc.1",
+    "bip32": "^4.0.0",
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^6.1.7",
+    "ecpair": "^2.0.0"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
