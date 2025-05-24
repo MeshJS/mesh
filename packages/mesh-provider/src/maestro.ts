@@ -53,6 +53,7 @@ export class MaestroProvider
     },
   };
   private readonly _network: MaestroSupportedNetworks;
+  private submitTxToBytes = true;
   submitUrl: string;
 
   constructor({ network, apiKey, turboSubmit = false }: MaestroConfig) {
@@ -572,6 +573,10 @@ export class MaestroProvider
     }, 5_000);
   }
 
+  setSubmitTxToBytes(value: boolean): void {
+    this.submitTxToBytes = value;
+  }
+
   /**
    * Submit a serialized transaction to the network.
    * @param tx - The serialized transaction in hex to submit
@@ -582,7 +587,7 @@ export class MaestroProvider
       const headers = { "Content-Type": "application/cbor" };
       const { data, status } = await this._axiosInstance.post(
         this.submitUrl,
-        toBytes(tx),
+        this.submitTxToBytes ? toBytes(tx) : tx,
         { headers },
       );
 

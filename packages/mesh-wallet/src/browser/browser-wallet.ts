@@ -257,7 +257,11 @@ export class BrowserWallet implements IWallet {
    * @param address - optional, if not provided, the first staking address will be used
    * @returns a signature
    */
-  async signData(payload: string, address?: string): Promise<DataSignature> {
+  async signData(
+    payload: string,
+    address?: string | undefined,
+    convertFromUTF8 = true,
+  ): Promise<DataSignature> {
     if (address === undefined) {
       address = (await this.getUsedAddresses())[0]!;
       if (address === undefined) {
@@ -265,12 +269,14 @@ export class BrowserWallet implements IWallet {
       }
     }
 
+    const _payload = convertFromUTF8 ? fromUTF8(payload) : payload;
+
     if (address.startsWith("drep1")) {
-      return this._walletInstance.cip95!.signData(address, fromUTF8(payload));
+      return this._walletInstance.cip95!.signData(address, _payload);
     }
 
     const signerAddress = toAddress(address).toBytes().toString();
-    return this._walletInstance.signData(signerAddress, fromUTF8(payload));
+    return this._walletInstance.signData(signerAddress, _payload);
   }
 
   /**

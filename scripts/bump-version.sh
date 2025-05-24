@@ -10,7 +10,7 @@ VERSION=$1
 
 # List of package.json files to update
 FILES=(
-  "packages/hydra/package.json"
+  "packages/mesh-hydra/package.json"
   "packages/mesh-common/package.json"
   "packages/mesh-contract/package.json"
   "packages/mesh-core/package.json"

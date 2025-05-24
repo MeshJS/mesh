@@ -141,9 +141,8 @@ function Left(
       </ul>
 
       <p>
-        First, we initialize a Provider, which we will assign{" "}
-        <>provider</> to the <code>fetcher</code> and{" "}
-        <code>submitter</code>.
+        First, we initialize a Provider, which we will assign <>provider</> to
+        the <code>fetcher</code> and <code>submitter</code>.
       </p>
       <ProviderCodeSnippet />
 
@@ -257,8 +256,8 @@ function Right(
           await _wallet.init();
           setWallet(_wallet);
 
-          const addresses = await _wallet.getAddresses();
-          setResponseAddress(addresses);
+          const changeAddress = await _wallet.getChangeAddress();
+          setResponseAddress(changeAddress);
         }
       } catch (error) {
         setResponseError(`${error}`);

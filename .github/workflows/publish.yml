@@ -52,7 +52,7 @@ jobs:
       - name: Get package version from main branch before merge
         id: pre-merge-version
         run: |
-          HYDRA_PRE_MERGE_VERSION=$(node -p "require('./packages/hydra/package.json').version")
+          HYDRA_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-hydra/package.json').version")
           COMMON_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-common/package.json').version")
           CONTRACT_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-contract/package.json').version")
           CORE_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core/package.json').version")
@@ -85,7 +85,7 @@ jobs:
       - name: Get package version from main branch after merge
         id: post-merge-version
         run: |
-          HYDRA_POST_MERGE_VERSION=$(node -p "require('./packages/hydra/package.json').version")
+          HYDRA_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-hydra/package.json').version")
           COMMON_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-common/package.json').version")
           CONTRACT_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-contract/package.json').version")
           CORE_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core/package.json').version")
@@ -185,7 +185,7 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: npm install && npm run build
-      - run: cd packages/hydra && npm publish --access public
+      - run: cd packages/mesh-hydra && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
   
