@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
     outputs:
+      bitcoin-version-updated: ${{ steps.compare-versions.outputs.bitcoin-version-updated }}
       hydra-version-updated: ${{ steps.compare-versions.outputs.hydra-version-updated }}
       common-version-updated: ${{ steps.compare-versions.outputs.common-version-updated }}
       contract-version-updated: ${{ steps.compare-versions.outputs.contract-version-updated }}
@@ -52,6 +53,7 @@ jobs:
       - name: Get package version from main branch before merge
         id: pre-merge-version
         run: |
+          BITCOIN_PRE_MERGE_VERSION=$(node -p "require('./packages/bitcoin/package.json').version")
           HYDRA_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-hydra/package.json').version")
           COMMON_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-common/package.json').version")
           CONTRACT_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-contract/package.json').version")
@@ -64,6 +66,8 @@ jobs:
           TRANSACTION_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
           WALLET_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
           CLI_PRE_MERGE_VERSION=$(node -p "require('./scripts/mesh-cli/package.json').version")
+          
+          echo "bitcoin_pre_merge_version=$BITCOIN_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "hydra_pre_merge_version=$HYDRA_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "common_pre_merge_version=$COMMON_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "contract_pre_merge_version=$CONTRACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
@@ -85,6 +89,7 @@ jobs:
       - name: Get package version from main branch after merge
         id: post-merge-version
         run: |
+          BITCOIN_POST_MERGE_VERSION=$(node -p "require('./packages/bitcoin/package.json').version")
           HYDRA_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-hydra/package.json').version")
           COMMON_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-common/package.json').version")
           CONTRACT_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-contract/package.json').version")
@@ -97,6 +102,8 @@ jobs:
           TRANSACTION_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
           WALLET_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
           CLI_POST_MERGE_VERSION=$(node -p "require('./scripts/mesh-cli/package.json').version")
+          
+          echo "bitcoin_post_merge_version=$BITCOIN_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "hydra_post_merge_version=$HYDRA_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "common_post_merge_version=$COMMON_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
           echo "contract_post_merge_version=$CONTRACT_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
@@ -113,6 +120,11 @@ jobs:
       - name: Compare versions
         id: compare-versions
         run: |
+          if [[ "${{ steps.pre-merge-version.outputs.bitcoin_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.bitcoin_post_merge_version }}" ]]; then
+              echo "bitcoin-version-updated=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "bitcoin-version-updated=false" >> "$GITHUB_OUTPUT"
+          fi
           if [[ "${{ steps.pre-merge-version.outputs.hydra_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.hydra_post_merge_version }}" ]]; then
               echo "hydra-version-updated=true" >> "$GITHUB_OUTPUT"
           else
@@ -173,6 +185,21 @@ jobs:
           else
               echo "cli-version-updated=false" >> "$GITHUB_OUTPUT"
           fi
+
+  publish-meshsdk-bitcoin:
+    needs: [build, check-version]
+    if: needs.check-version.outputs.bitcoin-version-updated == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm install && npm run build
+      - run: cd packages/bitcoin && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
 
   publish-meshsdk-hydra:
     needs: [build, check-version]
