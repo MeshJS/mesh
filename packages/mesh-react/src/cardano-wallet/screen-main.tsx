@@ -1,5 +1,4 @@
 import { BrowserWallet } from "@meshsdk/bitcoin";
-import { Extension } from "@meshsdk/common";
 import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
 import IconBitcoin from "../common/icons/icon-bitcoin";

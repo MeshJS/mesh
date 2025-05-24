@@ -18,8 +18,9 @@
     "dist/**"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "test": "jest"
   },
   "dependencies": {
