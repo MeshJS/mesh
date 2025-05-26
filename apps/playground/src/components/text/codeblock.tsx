@@ -17,7 +17,12 @@ export default function Codeblock({
   const [isMounted, setIsMounted] = useState(false);
 
   const { onCopy } = useClipboard(
-    isJson ? JSON.stringify(data, null, 2) : data,
+    isJson 
+      ? JSON.stringify(data, null, 2) 
+      : data
+        .split('\n')
+        .map(line => line.replace(/^\$\s*/, ''))
+        .join('\n')
   );
 
   function copy() {
