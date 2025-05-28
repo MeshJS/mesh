@@ -77,23 +77,35 @@ export class HydraInstance {
 
     const blueprintTx = {
       blueprintTx: {
-        cborHex: " ",
-        description: " ",
-        type: "Tx ConwayEra",
+      cborHex: " ",
+      description: " ",
+      type: "Tx ConwayEra",
       },
       utxo: {
-        [`${txHash}#${txIndex}`]: {
-          address: utxo.output.address,
-          datum: null,
-          datumHash: null,
-          inlineDatum: null,
-          referenceScript: null,
-          value: {
-            lovelace: utxo.output.amount[0]?.quantity,
-          },
+      [`${txHash}#${txIndex}`]: {
+        address: utxo.output.address,
+        value: {
+        lovelace: utxo.output.amount[0]?.quantity,
         },
+        referenceScript:  
+          utxo.output.scriptRef === " " || !utxo.output.scriptRef
+          ? null
+          : {
+            scriptLanguage: utxo.output,
+            script: {
+              cborHex: utxo.output.scriptRef,
+              description: " ",
+              type: "SimpleScript",
+            },
+          },
+        datumHash: utxo.output.dataHash === " " || !utxo.output.dataHash
+        ? null: utxo.output.dataHash,
+        datum: null,
+        inlineDatum: utxo.output.plutusData ? parseDatumCbor(utxo.output.plutusData) : null,
+        inlineDatumRaw: utxo.output.plutusData ?? null,
       },
-    };
+    },
+  };
 
     const commit = await this.provider.buildCommit(
       {
@@ -114,10 +126,15 @@ export class HydraInstance {
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
    * @returns
    */
-  async incrementalCommit(txHash: string, txIndex: number) {
+  async incrementalCommit(txHash: string, txIndex: number, headId: string) {
+   const utxo = (await this.fetcher.fetchUTxOs(txHash , txIndex))[0];
+   if(!utxo){
+    throw new Error("UTxO not found");
+   }
+
     const incrementData = {
       tag: "CommitApproved",
-      headId: " ",
+      headId: headId,
       utxoToCommit: {
         "": {
           address: "",
