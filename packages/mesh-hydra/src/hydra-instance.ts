@@ -1,8 +1,7 @@
-import { IFetcher, ISubmitter, txInToUtxo, UTxO } from "@meshsdk/common";
-import { DatumHash, parseDatumCbor } from "@meshsdk/core-cst";
+import { IFetcher, ISubmitter, PlutusScript} from "@meshsdk/common";
+import { DatumHash, fromScriptRef, parseDatumCbor} from "@meshsdk/core-cst";
 import { HydraProvider } from "./hydra-provider";
 import { hAssets } from "./types/hAssets";
-import { hTransaction, hUTxO, hUTxOs } from "./types";
 
 /**
  * todo: implement https://hydra.family/head-protocol/docs/tutorial/
@@ -69,39 +68,55 @@ export class HydraInstance {
    * @param txHash
    * @param txIndex
    */
-  async commitBlueprintTx(txHash: string, txIndex: number): Promise<string> {
-    const utxo = (await this.fetcher.fetchUTxOs(txHash, txIndex))[0];
+  async commitBlueprint(
+    UTxO: {
+      txHash: string, 
+      txIndex: number},
+    txBlueprint: {
+      cborHex: string, 
+      type: 
+      | "Tx ConwayEra"
+      | "Unwitnessed Tx ConwayEra"
+      | "Witnessed Tx ConwayEra"
+      description?: string
+    } 
+  ): Promise<string> {
+    const utxo = (await this.fetcher.fetchUTxOs(UTxO.txHash, UTxO.txIndex))[0];
     if (!utxo) {
       throw new Error("UTxO not found");
     }
-
     const blueprintTx = {
       blueprintTx: {
-      cborHex: " ",
-      description: " ",
-      type: "Tx ConwayEra",
+      cborHex: txBlueprint.cborHex,
+      description: txBlueprint.description === undefined
+        ? txBlueprint.description = "": txBlueprint.description,
+      type: txBlueprint.type,
       },
       utxo: {
-      [`${txHash}#${txIndex}`]: {
+      [`${UTxO.txHash}#${UTxO.txIndex}`]: {
         address: utxo.output.address,
         value: {
         lovelace: utxo.output.amount[0]?.quantity,
         },
-        referenceScript:  
-          utxo.output.scriptRef === " " || !utxo.output.scriptRef
+        referenceScript:
+        utxo.output.scriptRef === "" || !utxo.output.scriptRef
           ? null
-          : {
-            scriptLanguage: utxo.output,
+          :{
+            scriptLanguage: " ",
             script: {
-              cborHex: utxo.output.scriptRef,
-              description: " ",
-              type: "SimpleScript",
+            cborHex: utxo.output.scriptRef,
+            description: txBlueprint.description,
+            type: "PlutusScript" + (fromScriptRef(utxo.output.scriptRef) as PlutusScript).version ,
             },
           },
-        datumHash: utxo.output.dataHash === " " || !utxo.output.dataHash
-        ? null: utxo.output.dataHash,
+        datumHash:
+        utxo.output.dataHash === " " || !utxo.output.dataHash
+          ? null
+          : utxo.output.dataHash,
         datum: null,
-        inlineDatum: utxo.output.plutusData ? parseDatumCbor(utxo.output.plutusData) : null,
+        inlineDatum: utxo.output.plutusData
+        ? parseDatumCbor(utxo.output.plutusData)
+        : null,
         inlineDatumRaw: utxo.output.plutusData ?? null,
       },
     },
@@ -109,7 +124,7 @@ export class HydraInstance {
 
     const commit = await this.provider.buildCommit(
       {
-        [`${txHash}#${txIndex}`]: blueprintTx,
+        [`${UTxO.txHash}#${UTxO.txIndex}`]: blueprintTx,
       },
       {
         "Content-Type": "application/json",
@@ -131,15 +146,14 @@ export class HydraInstance {
    if(!utxo){
     throw new Error("UTxO not found");
    }
-
     const incrementData = {
       tag: "CommitApproved",
       headId: headId,
       utxoToCommit: {
         "": {
-          address: "",
+          address: utxo.output.address,
           value: {
-            lovelace: 1000000,
+            lovelace: utxo.output.amount,
           },
           referenceScript: null,
           datumhash: null,
