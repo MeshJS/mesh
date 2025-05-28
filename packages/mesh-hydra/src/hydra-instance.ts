@@ -1,7 +1,8 @@
-import { IFetcher, ISubmitter } from "@meshsdk/common";
-import { parseDatumCbor } from "@meshsdk/core-cst";
+import { IFetcher, ISubmitter, txInToUtxo, UTxO } from "@meshsdk/common";
+import { DatumHash, parseDatumCbor } from "@meshsdk/core-cst";
 import { HydraProvider } from "./hydra-provider";
 import { hAssets } from "./types/hAssets";
+import { hTransaction, hUTxO, hUTxOs } from "./types";
 
 /**
  * todo: implement https://hydra.family/head-protocol/docs/tutorial/
@@ -62,13 +63,47 @@ export class HydraInstance {
   }
 
   /**
-   * https://hydra.family/head-protocol/docs/how-to/commit-blueprint/
-   *
-   * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
-   * @returns
+   * https://hydra.family/head-protocol/docs/how-to/commit-blueprint/.
+   * A Cardano transaction in the text envelope format. 
+   * That is, a JSON object wrapper with some 'type' around a 'cborHex' encoded transaction.
+   * @param txHash
+   * @param txIndex
    */
-  async commitBlueprint() {
-    return "txHash";
+  async commitBlueprintTx(txHash: string, txIndex: number) {
+    const utxo = (await this.fetcher.fetchUTxOs(txHash , txIndex))[0];
+    if (!utxo) {
+      throw new Error("UTxO not found");
+    }
+
+    const blueprintTx = {
+      blueprintTx: {
+        cborHex: " ",
+        description: " ",
+        type: "",
+      },
+      utxo: {
+        [txHash + '#' + txIndex]: {
+          address: utxo.output.address,
+          datum: null,
+          datumHash: null,
+          inlineDatum: null,
+          referenceScript: null,
+          value: {
+            lovelace: utxo.output.amount[0]?.quantity,
+          },
+        },
+      },
+    };
+    const commit = await this.provider.buildCommit(
+      {
+        [txHash + "#" + txIndex]: blueprintTx,
+      },
+      {
+        "Content-Type": "application/json",
+      }
+    )
+    console.log(commit);
+    return commit.cborHex;
   }
 
   /**
@@ -78,6 +113,7 @@ export class HydraInstance {
    * @returns
    */
   async incrementalCommit() {
+    
     return "txHash";
   }
 
