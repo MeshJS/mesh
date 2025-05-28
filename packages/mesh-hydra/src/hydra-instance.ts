@@ -69,8 +69,8 @@ export class HydraInstance {
    * @param txHash
    * @param txIndex
    */
-  async commitBlueprintTx(txHash: string, txIndex: number) {
-    const utxo = (await this.fetcher.fetchUTxOs(txHash , txIndex))[0];
+  async commitBlueprintTx(txHash: string, txIndex: number): Promise<string> {
+    const utxo = (await this.fetcher.fetchUTxOs(txHash, txIndex))[0];
     if (!utxo) {
       throw new Error("UTxO not found");
     }
@@ -79,10 +79,10 @@ export class HydraInstance {
       blueprintTx: {
         cborHex: " ",
         description: " ",
-        type: "",
+        type: "Tx ConwayEra",
       },
       utxo: {
-        [txHash + '#' + txIndex]: {
+        [`${txHash}#${txIndex}`]: {
           address: utxo.output.address,
           datum: null,
           datumHash: null,
@@ -94,14 +94,16 @@ export class HydraInstance {
         },
       },
     };
+
     const commit = await this.provider.buildCommit(
       {
-        [txHash + "#" + txIndex]: blueprintTx,
+        [`${txHash}#${txIndex}`]: blueprintTx,
       },
       {
         "Content-Type": "application/json",
       }
-    )
+    );
+
     console.log(commit);
     return commit.cborHex;
   }
@@ -112,8 +114,26 @@ export class HydraInstance {
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
    * @returns
    */
-  async incrementalCommit() {
-    
+  async incrementalCommit(txHash: string, txIndex: number) {
+    const incrementData = {
+      tag: "CommitApproved",
+      headId: " ",
+      utxoToCommit: {
+        "": {
+          address: "",
+          value: {
+            lovelace: 1000000,
+          },
+          referenceScript: null,
+          datumhash: null,
+          inlineDatum: null,
+          inlineDatumhash: null,
+          inlineDatumRaw: null,
+        },
+      },
+      seq: 1,
+      timestamp: new Date().toISOString(),
+    };
     return "txHash";
   }
 
