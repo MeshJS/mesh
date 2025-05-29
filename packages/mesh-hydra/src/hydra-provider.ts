@@ -175,14 +175,14 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Initializes a new Head. This command is a no-op when a Head is already open and the server will output an CommandFailed message should this happen.
    */
   async init() {
-    this.send({ tag: "Init" });
+    this._connection.send({ tag: "Init" });
   }
 
   /**
    * Aborts a head before it is opened. This can only be done before all participants have committed. Once opened, the head can't be aborted anymore but it can be closed using: `Close`.
    */
   async abort() {
-    this.send({ tag: "Abort" });
+    this._connection.send({ tag: "Abort" });
   }
 
   /**
@@ -211,7 +211,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
       tag: "NewTx",
       transaction: transaction,
     };
-    this.send(payload);
+    this._connection.send(payload);
   }
 
   /**
@@ -237,32 +237,28 @@ export class HydraProvider implements IFetcher, ISubmitter {
         cborHex: cborHex,
       },
     };
-    this.send(payload);
+    this._connection.send(payload);
   }
 
   /**
    * Terminate a head with the latest known snapshot. This effectively moves the head from the Open state to the Close state where the contestation phase begin. As a result of closing a head, no more transactions can be submitted via NewTx.
    */
   async close() {
-    if (this._status === "CONNECTED") this.send({ tag: "Close" });
+    if (this._status === "CONNECTED") this._connection.send({ tag: "Close" });
   }
 
   /**
    * Challenge the latest snapshot announced as a result of a head closure from another participant. Note that this necessarily contest with the latest snapshot known of your local Hydra node. Participants can only contest once.
    */
   async contest() {
-    this.send({ tag: "Contest" });
+    this._connection.send({ tag: "Contest" });
   }
 
   /**
    * Finalize a head after the contestation period passed. This will distribute the final (as closed and maybe contested) head state back on the layer 1.
    */
   async fanout() {
-    if (this._status === "FANOUT_POSSIBLE") this.send({ tag: "Fanout" });
-  }
-
-  send(data: unknown): void {
-    this._connection.send(data);
+    if (this._status === "FANOUT_POSSIBLE") this._connection.send({ tag: "Fanout" });
   }
 
   /**
