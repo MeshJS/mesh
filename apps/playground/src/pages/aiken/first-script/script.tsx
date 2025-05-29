@@ -51,7 +51,7 @@ function Left() {
       </p>
       <p>First, we create a new Aiken project within this project folder:</p>
       <Codeblock
-        data={`$ aiken meshjs/hello_world\n$ cd hello_world\n$ aiken check`}
+        data={`$ aiken new meshjs/hello_world\n$ cd hello_world\n$ aiken check`}
       />
       <p>
         Remember to check your Aiken project by running <code>aiken check</code>{" "}
