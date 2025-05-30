@@ -1,3 +1,4 @@
+// this is what blockstreams returns
 export type UTxO = {
   status: {
     block_hash: string;
@@ -10,9 +11,9 @@ export type UTxO = {
   vout: number;
 };
 
+// this is what maestro returns
 export type UTxO2 = {
   readonly txId: string;
-  readonly index: number;
   readonly satoshis: bigint;
   readonly address: string;
   readonly vout: number;
