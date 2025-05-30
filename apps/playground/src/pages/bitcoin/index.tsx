@@ -4,18 +4,22 @@ import {
   BlockstreamProvider,
   BrowserWallet,
   EmbeddedWallet,
+  MaestroProvider,
+  Network,
 } from "@meshsdk/bitcoin";
 
 import Button from "~/components/button/button";
 import Metatags from "~/components/site/metatags";
 
+// https://mempool.space/testnet4/address/tb1q3x7c8nuew6ayzmy3fnfx6ydnr8a4kf2267za7y
+const testingAddress = "tb1q3x7c8nuew6ayzmy3fnfx6ydnr8a4kf2267za7y";
+
 const ReactPage: NextPage = () => {
   async function loadEmbeddedWallet() {
-    const provider = new BlockstreamProvider("testnet");
+    const provider = new BlockstreamProvider(Network.Testnet);
 
     const mnemonic =
       "birth cannon between under split jewel slow love sugar camera dignity excess";
-    const expectAddress = "tb1q3x7c8nuew6ayzmy3fnfx6ydnr8a4kf2267za7y";
 
     const wallet = new EmbeddedWallet({
       testnet: false,
@@ -28,7 +32,7 @@ const ReactPage: NextPage = () => {
 
     const address = wallet.getAddress();
     console.log("address", address);
-    console.log("expectAddress", expectAddress === address.address);
+    console.log("expectAddress", testingAddress === address.address);
     console.log("network", wallet.getNetworkId());
     console.log("publicKey", wallet.getPublicKey());
     // console.log("utxos", await wallet.getUtxos());
@@ -44,17 +48,29 @@ const ReactPage: NextPage = () => {
     console.log("request getBalance", await wallet.request("getBalance"));
   }
 
-  async function provider() {
-    const provider = new BlockstreamProvider("testnet");
+  async function blockstream() {
+    console.log("blockstream");
 
-    const address = "tb1q3x7c8nuew6ayzmy3fnfx6ydnr8a4kf2267za7y";
+    const provider = new BlockstreamProvider(Network.Testnet);
 
-    // const utxos = await provider.fetchAddressUTxOs(address);
-    // console.log("utxos", utxos);
+    const utxos = await provider.fetchAddressUTxOs(testingAddress);
+    console.log("utxos", utxos);
 
     const fetchAddressTransactions =
-      await provider.fetchAddressTransactions(address);
+      await provider.fetchAddressTransactions(testingAddress);
     console.log("fetchAddressTransactions", fetchAddressTransactions);
+  }
+
+  async function maestro() {
+    const provider = new MaestroProvider(
+      Network.Testnet,
+      process.env.NEXT_PUBLIC_MAESTRO_API_KEY_MAINNET_BITCOIN_TESTNET!,
+    );
+
+    console.log("maestro", provider);
+
+    const utxos = await provider.fetchAddressUTxOs(testingAddress);
+    console.log("utxos", utxos);
   }
 
   return (
@@ -63,7 +79,8 @@ const ReactPage: NextPage = () => {
       <Button onClick={() => loadEmbeddedWallet()}>loadEmbeddedWallet</Button>
       <Button onClick={() => loadBrowserWallet()}>loadBrowserWallet</Button>
 
-      <Button onClick={() => provider()}>provider</Button>
+      <Button onClick={() => blockstream()}>blockstream</Button>
+      <Button onClick={() => maestro()}>maestro</Button>
     </>
   );
 };

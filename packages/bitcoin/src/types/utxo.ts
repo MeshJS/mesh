@@ -9,3 +9,12 @@ export type UTxO = {
   value: number;
   vout: number;
 };
+
+export type UTxO2 = {
+  readonly txId: string;
+  readonly index: number;
+  readonly satoshis: bigint;
+  readonly address: string;
+  readonly vout: number;
+  readonly block_height: number;
+};

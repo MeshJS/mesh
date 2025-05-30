@@ -1,27 +1,24 @@
 import axios, { AxiosInstance } from "axios";
 import { Network } from "../common";
 import { IBitcoinProvider } from "../interfaces/provider";
-import { UTxO } from "../types";
 import { parseHttpError } from "./common";
 import { AddressInfo } from "../types/address-info";
 import { ScriptInfo } from "../types/script-info";
 import { TransactionsInfo } from "../types/transactions-info";
 import { TransactionsStatus } from "../types/transactions-status";
+import { UTxO, UTxO2 } from "../types";
 
-/**
- * https://github.com/Blockstream/esplora/blob/master/API.md
- */
-export class BlockstreamProvider implements IBitcoinProvider {
+export class MaestroProvider {
   private readonly _axiosInstance: AxiosInstance;
 
-  constructor(network: Network = Network.Mainnet) {
-    const baseURL =
-      network === Network.Testnet
-        ? "https://blockstream.info/testnet/api"
-        : "https://blockstream.info/api";
-
+  constructor(network: Network = Network.Mainnet, apiKey: string) {
     this._axiosInstance = axios.create({
-      baseURL,
+      baseURL: `https://xbt-${network}.gomaestro-api.org/v0`,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+      },
     });
   }
 
@@ -32,12 +29,7 @@ export class BlockstreamProvider implements IBitcoinProvider {
    */
   async fetchAddress(address: string): Promise<AddressInfo> {
     try {
-      const { data, status } = await this._axiosInstance.get(
-        `/address/${address}`
-      );
-
-      if (status === 200) return data as AddressInfo;
-      throw parseHttpError(data);
+      throw new Error("Method not implemented.");
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -55,13 +47,7 @@ export class BlockstreamProvider implements IBitcoinProvider {
     last_seen_txid?: string
   ): Promise<TransactionsInfo[]> {
     try {
-      const url = last_seen_txid
-        ? `/address/${address}/txs/chain/${last_seen_txid}`
-        : `/address/${address}/txs`;
-      const { data, status } = await this._axiosInstance.get(url);
-
-      if (status === 200) return data as TransactionsInfo[];
-      throw parseHttpError(data);
+      throw new Error("Method not implemented.");
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -72,13 +58,24 @@ export class BlockstreamProvider implements IBitcoinProvider {
    * @param address - The address.
    * @returns UTxO[]
    */
-  async fetchAddressUTxOs(address: string): Promise<UTxO[]> {
+  async fetchAddressUTxOs(address: string): Promise<UTxO2[]> {
     try {
       const { data, status } = await this._axiosInstance.get(
-        `/address/${address}/utxo`
+        `/addresses/${address}/utxos`
       );
 
-      if (status === 200) return data as UTxO[];
+      if (status === 200) {
+        const utxos = data.data || [];
+
+        return utxos.map((utxo: any) => ({
+          txId: utxo.txid,
+          satoshis: BigInt(utxo.satoshis),
+          address: utxo.address,
+          vout: Number.parseInt(utxo.vout, 10),
+          block_height: utxo.height,
+        })) as UTxO2[];
+      }
+
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
@@ -92,12 +89,7 @@ export class BlockstreamProvider implements IBitcoinProvider {
    */
   async fetchScript(hash: string): Promise<ScriptInfo> {
     try {
-      const { data, status } = await this._axiosInstance.get(
-        `/scripthash/${hash}`
-      );
-
-      if (status === 200) return data as ScriptInfo;
-      throw parseHttpError(data);
+      throw new Error("Method not implemented.");
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -115,13 +107,7 @@ export class BlockstreamProvider implements IBitcoinProvider {
     last_seen_txid?: string
   ): Promise<TransactionsInfo[]> {
     try {
-      const url = last_seen_txid
-        ? `/scripthash/${hash}/txs/chain/${last_seen_txid}`
-        : `/scripthash/${hash}/txs`;
-      const { data, status } = await this._axiosInstance.get(url);
-
-      if (status === 200) return data as TransactionsInfo[];
-      throw parseHttpError(data);
+      throw new Error("Method not implemented.");
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -134,12 +120,7 @@ export class BlockstreamProvider implements IBitcoinProvider {
    */
   async fetchScriptUTxOs(hash: string): Promise<UTxO[]> {
     try {
-      const { data, status } = await this._axiosInstance.get(
-        `/scripthash/${hash}/utxo`
-      );
-
-      if (status === 200) return data as UTxO[];
-      throw parseHttpError(data);
+      throw new Error("Method not implemented.");
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -152,12 +133,7 @@ export class BlockstreamProvider implements IBitcoinProvider {
    */
   async fetchTransactionStatus(txid: string): Promise<TransactionsStatus> {
     try {
-      const { data, status } = await this._axiosInstance.get(
-        `/tx/${txid}/status`
-      );
-
-      if (status === 200) return data as TransactionsStatus;
-      throw parseHttpError(data);
+      throw new Error("Method not implemented.");
     } catch (error) {
       throw parseHttpError(error);
     }
@@ -171,11 +147,12 @@ export class BlockstreamProvider implements IBitcoinProvider {
    */
   async submitTx(tx: string): Promise<string> {
     try {
-      const { data, status } = await this._axiosInstance.post("/tx", tx, {
-        headers: { "Content-Type": "text/plain" },
-      });
+      const { data, status } = await this._axiosInstance.post(
+        "/rpc/transaction/submit",
+        JSON.stringify(tx)
+      );
 
-      if (status === 200) return data as string;
+      if (status === 201 && data) return data as string;
       throw parseHttpError(data);
     } catch (error) {
       throw parseHttpError(error);
