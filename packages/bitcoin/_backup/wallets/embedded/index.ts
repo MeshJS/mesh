@@ -1,7 +1,8 @@
 import { bitcoin, bip32, bip39 } from "../../core";
 import { BIP32Interface } from "bip32";
-import { Address, UTxO } from "../../types";
-import { IBitcoinProvider } from "../../interfaces";
+import { UTxO } from "../../types/utxo";
+import { Address } from "../../types/address";
+import { IBitcoinProvider } from "../../interfaces/provider";
 import type { Network } from "bitcoinjs-lib";
 import { mnemonicToSeedSync, validateMnemonic } from "bip39";
 
@@ -46,7 +47,7 @@ export class EmbeddedWallet {
   getAddress(): Address {
     const p2wpkh = bitcoin.payments.p2wpkh({
       pubkey: this._wallet.publicKey,
-      network: this._network,
+      network: this._network
     });
 
     if (!p2wpkh?.address) {
@@ -92,7 +93,7 @@ export class EmbeddedWallet {
       throw new Error("`provider` is not defined. Provide a BitcoinProvider.");
     }
 
-    return await this._provider.getUTxOs(address.address);
+    return await this._provider?.fetchAddressUTxOs(address.address);
   }
 
   /**
@@ -123,9 +124,7 @@ export class EmbeddedWallet {
    */
   static brew(strength: number = 128): string[] {
     if (![128, 160, 192, 224, 256].includes(strength)) {
-      throw new Error(
-        "Invalid strength. Must be one of: 128, 160, 192, 224, 256."
-      );
+      throw new Error("Invalid strength. Must be one of: 128, 160, 192, 224, 256.");
     }
 
     const mnemonic = bip39.generateMnemonic(strength);
@@ -133,11 +132,7 @@ export class EmbeddedWallet {
   }
 }
 
-function _derive(
-  words: string[],
-  path: string = "m/84'/0'/0'/0/0",
-  network?: Network
-): BIP32Interface {
+function _derive(words: string[], path: string = "m/84'/0'/0'/0/0", network?: Network): BIP32Interface {
   const mnemonic = words.join(" ");
 
   if (!validateMnemonic(mnemonic)) {

@@ -1,2 +1,2 @@
 export * from "./browser";
-export * from "./embedded";
+// export * from "./embedded";

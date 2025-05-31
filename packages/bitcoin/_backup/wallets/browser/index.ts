@@ -1,9 +1,7 @@
-// https://docs.xverse.app/sats-connect/wallet-methods/request-methods
 // https://developer.bitcoin.org/reference/rpc/index.html#wallet-rpcs
 
-import { IBitcoinWallet } from "../../interfaces";
-import { Network } from "../../common";
-import { Address, Balance, UTxO } from "../../types";
+import { Address } from "../../types/address";
+import { IBitcoinWallet } from "../../interfaces/wallet";
 
 declare const window: {
   BitcoinProvider?: any;
@@ -49,15 +47,6 @@ export class BrowserWallet implements IBitcoinWallet {
     }
   }
 
-  async getBalance(): Promise<Balance> {
-    const response = await this.request("getBalance");
-
-    if (response.status === "success") {
-      return response.result;
-    }
-    throw new Error("Failed to get balance");
-  }
-
   async getChangeAddress() {
     const addresses = await this.getAddresses();
     const address = addresses?.find((address) => address.purpose === "payment");
@@ -65,16 +54,13 @@ export class BrowserWallet implements IBitcoinWallet {
     throw new Error("No change address found");
   }
 
-  async getNetwork(): Promise<Network> {
-    throw new Error("not implemented");
+  async getCollateral() {
+    console.log("Method getCollateral not implemented.");
+    return [];
   }
 
-  /**
-   * Get all unspent transaction outputs (UTXOs) for the wallet's addresses
-   * @returns Promise<UTxO[]> Array of unspent transaction outputs
-   */
-  async getUTXOs(): Promise<UTxO[]> {
-    throw new Error("not implemented");
+  async getNetworkId(): Promise<0 | 1> {
+    return 1;
   }
 
   async request(method: string, params?: any) {
@@ -118,40 +104,9 @@ export class BrowserWallet implements IBitcoinWallet {
     }
   }
 
-  /**
-   * Signs a PSBT (Partially Signed Bitcoin Transaction)
-   * @param unsignedTx - Base64 encoded PSBT to sign
-   * @returns Promise<string> - The signed transaction
-   */
-  async signTx(unsignedTx: string): Promise<string> {
-    try {
-      // Get the payment address to sign with
-      const addresses = await this.getAddresses();
-      const paymentAddress = addresses?.find(
-        (addr) => addr.purpose === "payment"
-      );
-
-      if (!paymentAddress) {
-        throw new Error("No payment address found to sign transaction");
-      }
-
-      const response = await this.request("signPsbt", {
-        psbt: unsignedTx,
-        signInputs: {
-          [paymentAddress.address]: [0], // Sign the first input with the payment address
-        },
-        broadcast: false, // Don't broadcast, just return signed PSBT
-      });
-
-      if (response.status === "success") {
-        return response.result.psbt;
-      }
-
-      throw new Error(response.error?.message || "Failed to sign transaction");
-    } catch (err) {
-      console.error("signTx error:", err);
-      throw err;
-    }
+  async signTx(signedTx: string): Promise<string> {
+    console.log("Method signTx not implemented.");
+    return "";
   }
 
   async submitTx(signedTx: string): Promise<string> {

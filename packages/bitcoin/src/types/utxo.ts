@@ -1,21 +1,14 @@
-// this is what blockstreams returns
+/**
+ * Represents an unspent transaction output (UTxO) in the Bitcoin blockchain.
+ *
+ * @property {string} txId - The unique identifier (transaction hash) of the transaction that created this output.
+ * @property {number} index - The output index within the transaction.
+ * @property {bigint} satoshis - The value of this output in satoshis.
+ * @property {string} address - The common associated with this UTxO. This is the recipient of the funds in this output.
+ */
 export type UTxO = {
-  status: {
-    block_hash: string;
-    block_height: number;
-    block_time: number;
-    confirmed: boolean;
-  };
-  txid: string;
-  value: number;
-  vout: number;
-};
-
-// this is what maestro returns
-export type UTxO2 = {
   readonly txId: string;
+  readonly index: number;
   readonly satoshis: bigint;
   readonly address: string;
-  readonly vout: number;
-  readonly block_height: number;
 };
