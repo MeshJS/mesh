@@ -136,35 +136,13 @@ export class HydraInstance {
   }
 
   /**
+   * TO DO
    * https://hydra.family/head-protocol/unstable/docs/how-to/incremental-commit
    *
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
    * @returns
    */
   async incrementalCommit(txHash: string, txIndex: number, headId: string) {
-   const utxo = (await this.fetcher.fetchUTxOs(txHash , txIndex))[0];
-   if(!utxo){
-    throw new Error("UTxO not found");
-   }
-    const incrementData = {
-      tag: "CommitApproved",
-      headId: headId,
-      utxoToCommit: {
-        "": {
-          address: utxo.output.address,
-          value: {
-            lovelace: utxo.output.amount,
-          },
-          referenceScript: null,
-          datumhash: null,
-          inlineDatum: null,
-          inlineDatumhash: null,
-          inlineDatumRaw: null,
-        },
-      },
-      seq: 1,
-      timestamp: new Date().toISOString(),
-    };
     return "txHash";
   }
 
