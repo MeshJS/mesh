@@ -1455,10 +1455,10 @@ export class MeshTxBuilderCore {
    * @param extraInputs The inputs already placed into the object will remain, these extra inputs will be used to fill the remaining  value needed
    */
   selectUtxosFrom = (extraInputs: UTxO[]) => {
-    for (const input of this.meshTxBuilderBody.inputs) {
-      const address = input.txIn.address;
+    for (const input of extraInputs) {
+      const address = input.output.address;
       if (!address) {
-        throw Error("Address is missing from the input");
+        throw Error("Address is missing from the extra input");
       }
       const decodedAddress = Address.fromString(<HexBlob>address);
       if (
