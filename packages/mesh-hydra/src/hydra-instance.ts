@@ -1,5 +1,5 @@
-import { IFetcher, ISubmitter, PlutusScript} from "@meshsdk/common";
-import { fromScriptRef, parseDatumCbor} from "@meshsdk/core-cst";
+import { IFetcher, ISubmitter} from "@meshsdk/common";
+import { parseDatumCbor} from "@meshsdk/core-cst";
 import { HydraProvider } from "./hydra-provider";
 import { hAssets } from "./types/hAssets";
 
@@ -68,71 +68,8 @@ export class HydraInstance {
    * @param txHash
    * @param txIndex
    */
-  async commitBlueprint(
-    UTxO: {
-      txHash: string, 
-      txIndex: number},
-    txBlueprint: {
-      cborHex: string, 
-      type: 
-      | "Tx ConwayEra"
-      | "Unwitnessed Tx ConwayEra"
-      | "Witnessed Tx ConwayEra"
-      description?: string
-    } 
-  ): Promise<string> {
-    const utxo = (await this.fetcher.fetchUTxOs(UTxO.txHash, UTxO.txIndex))[0];
-    if (!utxo) {
-      throw new Error("UTxO not found");
-    }
-    const blueprintTx = {
-      blueprintTx: {
-      cborHex: txBlueprint.cborHex,
-      description: txBlueprint.description === undefined
-        ? txBlueprint.description = "": txBlueprint.description,
-      type: txBlueprint.type,
-      },
-      utxo: {
-      [`${UTxO.txHash}#${UTxO.txIndex}`]: {
-        address: utxo.output.address,
-        value: {
-        lovelace: utxo.output.amount[0]?.quantity,
-        },
-        referenceScript:
-        utxo.output.scriptRef === "" || !utxo.output.scriptRef
-          ? null
-          :{
-            scriptLanguage: " ",
-            script: {
-            cborHex: utxo.output.scriptRef,
-            description: txBlueprint.description,
-            type: "PlutusScript" + (fromScriptRef(utxo.output.scriptRef) as PlutusScript).version ,
-            },
-          },
-        datumHash:
-        utxo.output.dataHash === " " || !utxo.output.dataHash
-          ? null
-          : utxo.output.dataHash,
-        datum: null,
-        inlineDatum: utxo.output.plutusData
-        ? parseDatumCbor(utxo.output.plutusData)
-        : null,
-        inlineDatumRaw: utxo.output.plutusData ?? null,
-      },
-    },
-  };
-
-    const commit = await this.provider.buildCommit(
-      {
-        [`${UTxO.txHash}#${UTxO.txIndex}`]: blueprintTx,
-      },
-      {
-        "Content-Type": "application/json",
-      }
-    );
-
-    console.log(commit);
-    return commit.cborHex;
+  async commitBlueprint() {
+    return "txhash";
   }
 
   /**
