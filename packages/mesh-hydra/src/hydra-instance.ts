@@ -1,5 +1,5 @@
 import { IFetcher, ISubmitter, PlutusScript} from "@meshsdk/common";
-import { DatumHash, fromScriptRef, parseDatumCbor} from "@meshsdk/core-cst";
+import { fromScriptRef, parseDatumCbor} from "@meshsdk/core-cst";
 import { HydraProvider } from "./hydra-provider";
 import { hAssets } from "./types/hAssets";
 
@@ -142,7 +142,7 @@ export class HydraInstance {
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
    * @returns
    */
-  async incrementalCommit(txHash: string, txIndex: number, headId: string) {
+  async incrementalCommit() {
     return "txHash";
   }
 
