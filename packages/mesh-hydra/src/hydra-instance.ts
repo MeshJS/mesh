@@ -1,5 +1,5 @@
-import { IFetcher, ISubmitter } from "@meshsdk/common";
-import { parseDatumCbor } from "@meshsdk/core-cst";
+import { IFetcher, ISubmitter} from "@meshsdk/common";
+import { parseDatumCbor} from "@meshsdk/core-cst";
 import { HydraProvider } from "./hydra-provider";
 import { hAssets } from "./types/hAssets";
 
@@ -62,16 +62,18 @@ export class HydraInstance {
   }
 
   /**
-   * https://hydra.family/head-protocol/docs/how-to/commit-blueprint/
-   *
-   * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
-   * @returns
+   * https://hydra.family/head-protocol/docs/how-to/commit-blueprint/.
+   * A Cardano transaction in the text envelope format. 
+   * That is, a JSON object wrapper with some 'type' around a 'cborHex' encoded transaction.
+   * @param txHash
+   * @param txIndex
    */
   async commitBlueprint() {
-    return "txHash";
+    return "txhash";
   }
 
   /**
+   * TO DO
    * https://hydra.family/head-protocol/unstable/docs/how-to/incremental-commit
    *
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:

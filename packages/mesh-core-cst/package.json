@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core-cst",
-  "version": "1.9.0-beta.53",
+  "version": "1.9.0-beta.54",
   "description": "Types and utilities functions between Mesh and cardano-js-sdk",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -44,7 +44,7 @@
     "@harmoniclabs/plutus-data": "1.2.4",
     "@harmoniclabs/uplc": "1.2.4",
     "@harmoniclabs/pair": "^1.0.0",
-    "@meshsdk/common": "1.9.0-beta.53",
+    "@meshsdk/common": "1.9.0-beta.54",
     "@types/base32-encoding": "^1.0.2",
     "base32-encoding": "^1.0.0",
     "bech32": "^2.0.0",
