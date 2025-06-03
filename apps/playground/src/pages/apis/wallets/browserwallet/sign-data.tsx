@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { checkSignature } from "@meshsdk/core";
 import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
@@ -49,10 +50,8 @@ function Left() {
       <Codeblock data={example} />
       <p>
         Continue reading this{" "}
-        <Link href="/guides/prove-wallet-ownership">
-          guide
-        </Link>{" "}
-        to learn how to verify the signature.
+        <Link href="/guides/prove-wallet-ownership">guide</Link> to learn how to
+        verify the signature.
       </p>
     </>
   );
@@ -64,7 +63,14 @@ function Right() {
   const { wallet, connected } = useWallet();
 
   async function runDemo() {
-    return await wallet.signData(payload);
+    const address = await wallet.getChangeAddress();
+    const signature = await wallet.signData(payload, address);
+
+    const result = await checkSignature(payload, signature, address);
+    return {
+      ...signature,
+      valid: result,
+    };
   }
 
   let code = ``;
