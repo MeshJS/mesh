@@ -39,9 +39,15 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@meshsdk/common": "1.9.0-beta.55",
     "@sidan-lab/whisky-js-browser": "^1.0.1",
     "@sidan-lab/whisky-js-nodejs": "^1.0.1",
+=======
+    "@meshsdk/common": "1.9.0-beta.54",
+    "@sidan-lab/whisky-js-browser": "^1.0.5",
+    "@sidan-lab/whisky-js-nodejs": "^1.0.5",
+>>>>>>> db82cb8b (wip)
     "@types/base32-encoding": "^1.0.2",
     "base32-encoding": "^1.0.0",
     "bech32": "^2.0.0",
