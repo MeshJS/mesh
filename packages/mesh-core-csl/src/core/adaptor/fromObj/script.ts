@@ -1,47 +1,69 @@
-import { ScriptSource, SimpleScriptSource } from "@meshsdk/common";
+import {
+  PlutusScript,
+  ScriptSource,
+  SimpleScriptSourceInfo,
+} from "@meshsdk/common";
 
+/**
+ * Convert an object representation back to a ScriptSource
+ * @param obj The object representation of a ScriptSource
+ * @returns The ScriptSource instance
+ */
 export const scriptSourceFromObj = (obj: any): ScriptSource => {
-  if ("script" in obj) {
+  if ("providedScriptSource" in obj) {
     return {
-      type: "Script",
-      script: obj.script,
+      type: "Provided",
+      script: {
+        code: obj.providedScriptSource.scriptCbor,
+        version: obj.providedScriptSource.languageVersion.toUpperCase() as
+          | "V1"
+          | "V2",
+      } as PlutusScript,
     };
-  } else if ("scriptCbor" in obj) {
+  }
+
+  if ("inlineScriptSource" in obj) {
     return {
-      type: "ScriptCbor",
-      scriptCbor: obj.scriptCbor,
-    };
-  } else if ("scriptHash" in obj) {
-    return {
-      type: "ScriptHash",
-      scriptHash: obj.scriptHash,
+      type: "Inline",
+      txHash: obj.inlineScriptSource.refTxIn.txHash,
+      txIndex: obj.inlineScriptSource.refTxIn.txIndex,
+      scriptHash: obj.inlineScriptSource.scriptHash || undefined,
+      version: obj.inlineScriptSource.languageVersion.toUpperCase() as
+        | "V1"
+        | "V2",
+      scriptSize: obj.inlineScriptSource.scriptSize.toString(),
     };
   }
 
   throw new Error(
-    `scriptSourceFromObj: Unknown script source type in object: ${JSON.stringify(obj)}`,
+    `scriptSourceFromObj: Unknown script source format: ${JSON.stringify(obj)}`,
   );
 };
 
-export const simpleScriptSourceFromObj = (obj: any): SimpleScriptSource => {
-  if ("script" in obj) {
+/**
+ * Convert an object representation back to a SimpleScriptSourceInfo
+ * @param obj The object representation of a SimpleScriptSourceInfo
+ * @returns The SimpleScriptSourceInfo instance
+ */
+export const simpleScriptSourceFromObj = (obj: any): SimpleScriptSourceInfo => {
+  if ("providedSimpleScriptSource" in obj) {
     return {
-      type: "Script",
-      script: obj.script,
+      type: "Provided",
+      scriptCode: obj.providedSimpleScriptSource.scriptCbor,
     };
-  } else if ("scriptCbor" in obj) {
+  }
+
+  if ("inlineSimpleScriptSource" in obj) {
     return {
-      type: "ScriptCbor",
-      scriptCbor: obj.scriptCbor,
-    };
-  } else if ("scriptHash" in obj) {
-    return {
-      type: "ScriptHash",
-      scriptHash: obj.scriptHash,
+      type: "Inline",
+      txHash: obj.inlineSimpleScriptSource.refTxIn.txHash,
+      txIndex: obj.inlineSimpleScriptSource.refTxIn.txIndex,
+      simpleScriptHash:
+        obj.inlineSimpleScriptSource.simpleScriptHash || undefined,
     };
   }
 
   throw new Error(
-    `simpleScriptSourceFromObj: Unknown simple script source type in object: ${JSON.stringify(obj)}`,
+    `simpleScriptSourceFromObj: Unknown simple script source format: ${JSON.stringify(obj)}`,
   );
 };

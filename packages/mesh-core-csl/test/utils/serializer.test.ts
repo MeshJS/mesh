@@ -4,8 +4,7 @@ import {
   serializeData,
   stringToHex,
 } from "@meshsdk/core";
-
-import { CSLSerializer } from "../../src/core/serializer";
+import { CSLSerializer } from "@meshsdk/core-csl";
 
 describe("CSLSerializer", () => {
   let serializer: CSLSerializer;
