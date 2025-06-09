@@ -6,3 +6,4 @@ export * from "./staking";
 export * from "./transaction";
 export * from "./aiken";
 export * from "./drep";
+export * from "./transaction-parser";
