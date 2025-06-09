@@ -1,24 +1,17 @@
+import JSONBig from "json-bigint";
+
 import {
   BuilderData,
+  byteString,
   conStr0,
-  mConStr,
   mConStr0,
   Redeemer,
   stringToHex,
 } from "@meshsdk/common";
 import { serializeData } from "@meshsdk/core";
-import {
-  builderDataToCbor,
-  csl,
-  redeemerToObj,
-  toPlutusData,
-} from "@meshsdk/core-csl";
+import { builderDataToCbor, redeemerToObj } from "@meshsdk/core-csl";
 
 describe("Data Adaptor - toObj", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
   describe("builderDataToCbor", () => {
     test("should convert Mesh type BuilderData to CBOR hex", () => {
       const builderData: BuilderData = {
@@ -39,15 +32,16 @@ describe("Data Adaptor - toObj", () => {
       };
 
       const result = builderDataToCbor(builderData);
-      expect(result).toBe("deadbeef");
+      expect(result).toBe(cbor);
     });
 
     test("should handle JSON type BuilderData", () => {
+      const json = conStr0([byteString(stringToHex("Neil is legend"))]);
       const builderData: BuilderData = {
         type: "JSON",
-        content: conStr0([stringToHex("Neil is legend")]),
+        content: JSONBig.stringify(json),
       };
-      const cbor = serializeData(builderData.content, "JSON");
+      const cbor = serializeData(json, "JSON");
 
       const result = builderDataToCbor(builderData);
       expect(result).toBe(cbor);
@@ -106,10 +100,11 @@ describe("Data Adaptor - toObj", () => {
     });
 
     test("should handle JSON data in Redeemer", () => {
+      const json = conStr0([byteString(stringToHex("Neil is legend"))]);
       const redeemer: Redeemer = {
         data: {
           type: "JSON",
-          content: conStr0([stringToHex("Neil is legend")]),
+          content: JSONBig.stringify(json),
         },
         exUnits: {
           mem: 1000000,
@@ -118,7 +113,7 @@ describe("Data Adaptor - toObj", () => {
       };
 
       // Execute
-      const cbor = serializeData(redeemer.data.content, "JSON");
+      const cbor = serializeData(json, "JSON");
       const result = redeemerToObj(redeemer);
 
       // Verify

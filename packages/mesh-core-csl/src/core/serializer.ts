@@ -44,7 +44,7 @@ import {
   signTransaction,
 } from "../utils";
 import { meshTxBuilderBodyToObj } from "./adaptor";
-import { builderDataToCbor } from "./adaptor/data";
+import { builderDataToCbor } from "./adaptor/toObj/data";
 
 const VKEY_PUBKEY_SIZE_BYTES = 32;
 const VKEY_SIGNATURE_SIZE_BYTES = 64;
