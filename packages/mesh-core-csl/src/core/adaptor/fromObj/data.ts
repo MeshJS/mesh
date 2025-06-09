@@ -1,6 +1,37 @@
-import { Data, Redeemer } from "@meshsdk/common";
+import { BuilderData, Redeemer } from "@meshsdk/common";
 
-export const dataFromObj = (obj: any): Data => {
+import { csl } from "../../../deser";
+
+/**
+ * Convert CBOR hex string back to BuilderData
+ * @param cborHex The CBOR hex string to convert
+ * @returns BuilderData object
+ */
+export const cborToBuilderData = (cborHex: string): BuilderData => {
+  return {
+    type: "CBOR",
+    content: cborHex,
+  };
+};
+
+/**
+ * Convert an object representation back to a Redeemer
+ * @param obj The object representation of a Redeemer
+ * @returns The Redeemer instance
+ */
+export const redeemerFromObj = (obj: any): Redeemer => {
+  return {
+    data: cborToBuilderData(obj.data),
+    exUnits: obj.exUnits,
+  };
+};
+
+/**
+ * Convert an object representation back to Data
+ * @param obj The object representation of Data
+ * @returns The Data instance
+ */
+export const dataFromObj = (obj: any): any => {
   if (obj === null) {
     return null;
   }
@@ -30,15 +61,4 @@ export const dataFromObj = (obj: any): Data => {
   }
 
   return obj;
-};
-
-export const redeemerFromObj = (obj: any): Redeemer => {
-  return {
-    tag: obj.tag,
-    data: dataFromObj(obj.data),
-    exUnits: {
-      mem: obj.exUnits.mem.toString(),
-      steps: obj.exUnits.steps.toString(),
-    },
-  };
 };
