@@ -969,6 +969,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     byronAddresses: Set<string>;
   } => {
     const { paymentCreds, byronAddresses } = this.getInputsRequiredSignatures();
+    const { collateralPaymentCreds, collateralByronAddresses } =
+      this.getCollateralRequiredSignatures();
     const withdrawalCreds = this.getWithdrawalRequiredSignatures();
     const certCreds = this.getCertificatesRequiredSignatures();
     const voteCreds = this.getVoteRequiredSignatures();
@@ -977,6 +979,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const allCreds = new Set([
       ...paymentCreds,
       ...withdrawalCreds,
+      ...collateralPaymentCreds,
+      ...collateralByronAddresses,
       ...certCreds,
       ...voteCreds,
       ...requiredSignatures,
@@ -1018,6 +1022,33 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
     }
     return { paymentCreds, byronAddresses };
+  }
+
+  protected getCollateralRequiredSignatures(): {
+    collateralPaymentCreds: Set<string>;
+    collateralByronAddresses: Set<string>;
+  } {
+    const collateralByronAddresses = new Set<string>();
+    const collateralPaymentCreds = new Set<string>();
+    for (let collateral of this.meshTxBuilderBody.collaterals) {
+      if (collateral.type === "PubKey") {
+        if (collateral.txIn.address) {
+          const address = CstAddress.fromString(collateral.txIn.address);
+          if (!address) {
+            continue;
+          }
+          const addressDetails = address.getProps();
+          const paymentCred = addressDetails.paymentPart;
+          if (paymentCred?.type === CstCredentialType.KeyHash) {
+            collateralPaymentCreds.add(paymentCred.hash);
+          }
+          if (addressDetails.type === CstAddressType.Byron) {
+            collateralByronAddresses.add(collateral.txIn.address);
+          }
+        }
+      }
+    }
+    return { collateralPaymentCreds, collateralByronAddresses };
   }
 
   protected getWithdrawalRequiredSignatures(): Set<string> {
@@ -1642,6 +1673,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   getSerializedSize = (): number => {
+    console.log("mockTx", this.serializeMockTx());
     return this.serializeMockTx().length / 2;
   };
 
