@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/transaction",
-  "version": "1.9.0-beta.54",
+  "version": "1.9.0-beta.55",
   "description": "Transactions - https://meshjs.dev/apis/transaction",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -35,8 +35,8 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.0-beta.54",
-    "@meshsdk/core-cst": "1.9.0-beta.54",
+    "@meshsdk/common": "1.9.0-beta.55",
+    "@meshsdk/core-cst": "1.9.0-beta.55",
     "@cardano-sdk/core": "^0.45.5",
     "@cardano-sdk/util": "^0.15.5",
     "@cardano-sdk/input-selection": "^0.13.33",
