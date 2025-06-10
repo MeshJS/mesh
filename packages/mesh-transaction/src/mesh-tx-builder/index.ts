@@ -1673,7 +1673,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   getSerializedSize = (): number => {
-    console.log("mockTx", this.serializeMockTx());
     return this.serializeMockTx().length / 2;
   };
 
