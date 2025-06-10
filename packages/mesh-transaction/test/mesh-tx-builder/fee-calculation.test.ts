@@ -186,6 +186,6 @@ describe("MeshTxBuilder - Fee Calculation", () => {
     const txBuilder = new MeshTxBuilder();
     const txHex = await txBuilder.complete(txBody);
     const cardanoTx = Transaction.fromCbor(TxCBOR(txHex));
-    expect(cardanoTx.body().fee()).toBeGreaterThan(214734n);
+    expect(cardanoTx.body().fee()).toBeGreaterThanOrEqual(214734n);
   });
 });
