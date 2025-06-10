@@ -980,13 +980,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       ...paymentCreds,
       ...withdrawalCreds,
       ...collateralPaymentCreds,
-      ...collateralByronAddresses,
       ...certCreds,
       ...voteCreds,
       ...requiredSignatures,
       ...mintCreds,
     ]);
-    return { keyHashes: allCreds, byronAddresses };
+    const allByronAddresses = new Set([
+      ...byronAddresses,
+      ...collateralByronAddresses,
+    ]);
+    return { keyHashes: allCreds, byronAddresses: allByronAddresses };
   };
 
   protected getInputsRequiredSignatures(): {
