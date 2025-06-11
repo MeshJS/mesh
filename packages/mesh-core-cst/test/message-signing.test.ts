@@ -7,6 +7,8 @@ const config = {
     "addr_test1qqmrzjhtanauj20wg37uk58adyrqfm82a9qr52vdnv0e54r42v0mu8ngky0f5yxmh3wl3z0da2fryk59kavth0u8xhvsufgmc8",
   nonce:
     "5369676e20746f2076657269667920746865206164647265737320666f723a207374616b655f74657374317570363478386137726535747a3835367a72646d6368306333386b373479336a74327a6d776b396d6837726e746b6773367a786a70315a424e474e79506d3975565677514a53385837724663476551424843657433",
+  nonceInUtf8:
+    "Sign to verify the address for: stake_test1up64x8a7re5tz856zrdmch0c38k74y3jt2zmwk9mh7rntkgs6zxjp1ZBNGNyPm9uVVwQJS8X7rFcGeQBHCet3",
   rewardAddress:
     "stake_test1up64x8a7re5tz856zrdmch0c38k74y3jt2zmwk9mh7rntkgs6zxjp",
   invalidAddress:
@@ -23,7 +25,10 @@ describe("MessageSigning", () => {
     const result = await checkSignature(config.nonce, config.signature);
     expect(result).toBe(true);
   });
-
+  it("checkSignature with non hex string", async () => {
+    const result = await checkSignature(config.nonceInUtf8, config.signature);
+    expect(result).toBe(true);
+  });
   it("checkSignature validates signature's address against provided rewardAddress", async () => {
     const result = await checkSignature(
       config.nonce,

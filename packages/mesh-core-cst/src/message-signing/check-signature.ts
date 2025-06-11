@@ -1,6 +1,6 @@
 import { ready } from "@cardano-sdk/crypto";
 
-import { DataSignature } from "@meshsdk/common";
+import { DataSignature, isHexString, stringToHex } from "@meshsdk/common";
 
 import {
   Address,
@@ -106,8 +106,8 @@ export const checkSignature = async (
   if (builder.getPayload() === null) {
     return false;
   }
-
-  if (Buffer.from(data, "hex").compare(builder.getPayload()!) !== 0) {
+  const hexData = isHexString(data) ? data : stringToHex(data);
+  if (Buffer.from(hexData, "hex").compare(builder.getPayload()!) !== 0) {
     return false;
   }
 

@@ -24,6 +24,13 @@ export const stringToHex = (str: string) =>
   Buffer.from(str, "utf8").toString("hex");
 
 /**
+ * Checking if the string is a hex string
+ * @param hex The string to be checked
+ * @returns True if the string is a hex string, false otherwise
+ */
+export const isHexString = (hex: string) => /^[0-9A-F]*$/i.test(hex);
+
+/**
  * Converting hex string to utf8 string
  * @param hex The hex string to be converted
  * @returns The utf8 string
