@@ -48,22 +48,45 @@ export class HydraConnection extends EventEmitter {
     };
   }
 
+  async send(data: unknown) {
+    if (!this._websocket || this._websocket.readyState !== WebSocket.OPEN) {
+      if (this._status === "CONNECTING") {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const checkConnection = setInterval(() => {
+              if (this._websocket?.readyState === WebSocket.OPEN) {
+                clearInterval(checkConnection);
+                resolve();
+              } else if (this._websocket?.readyState === WebSocket.CLOSED || this._websocket?.readyState === WebSocket.CLOSING) {
+                clearInterval(checkConnection);
+                reject(new Error("WebSocket is closed or closing"));
+              }
+            }, 100); 
+          });
+        } catch (error) {
+          console.error("Error waiting for WebSocket to open:", error);
+        }
+      }; 
+    }
+    if(!this._websocket){
+      throw new Error("Websocket undefined");
+    }
+    try {
+      this._websocket.send(JSON.stringify(data));
+    } catch (error) {
+      console.error("Error sending data:", error);
+      throw error;
+    }
+  }
+
   async disconnect() {
     if (this._status === "IDLE") {
       return;
     }
-
     if (this._websocket && this._websocket.readyState === WebSocket.OPEN) {
       this._websocket.close(1007);
     }
-
     this._status = "IDLE";
-  }
-
-  send(data: unknown): void {
-    if (this._connected) {
-      this._websocket?.send(JSON.stringify(data));
-    }
   }
 
   async processStatus(message: {}) {
