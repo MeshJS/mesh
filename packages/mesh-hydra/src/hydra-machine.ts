@@ -1,4 +1,4 @@
-import { AnyEventObject, assertEvent, assign, EventObject, fromCallback, sendTo, setup } from "xstate";
+import { AnyEventObject, assertEvent, assign, fromCallback, sendTo, setup } from "xstate";
 
 export const hydra = setup({
   actions: {
@@ -46,6 +46,9 @@ export const hydra = setup({
   guards: {
     isInitializing: ({ event }) => {
       assertEvent(event, "Message")
+      if (event.data.tag === "Greetings") {
+        return event.data.headStatus === "Initializing";
+      }
       return event.data.tag === "HeadIsInitializing";
     },
     isAborted: ({ event }) => {
@@ -54,10 +57,16 @@ export const hydra = setup({
     },
     isOpen: ({ event }) => {
       assertEvent(event, "Message")
+      if (event.data.tag === "Greetings") {
+        return event.data.headStatus === "Open";
+      }
       return event.data.tag === "HeadIsOpen";
     },
     isClosed: ({ event }) => {
       assertEvent(event, "Message")
+      if (event.data.tag === "Greetings") {
+        return event.data.headStatus === "Closed";
+      }
       return event.data.tag === "HeadIsClosed";
     },
     isContested: ({ event }) => {
@@ -66,6 +75,9 @@ export const hydra = setup({
     },
     isReadyToFanout: ({ event }) => {
       assertEvent(event, "Message")
+      if (event.data.tag === "Greetings") {
+        return event.data.headStatus === "FanoutPossible";
+      }
       return event.data.tag === "ReadyToFanout";
     },
     isFinalized: ({ event }) => {
@@ -110,20 +122,18 @@ export const hydra = setup({
       | { type: "Connect", baseURL: string, address?: string, snapshot?: boolean, history?: boolean }
       | { type: "Ready", connection: WebSocket }
       | { type: "Send", data: unknown }
-      | { type: "Message", data: { tag: string } }
+      | { type: "Message", data: { [x: string]: unknown, tag: string } }
       | { type: "Error", data: unknown }
       | { type: "Disconnect", code: number }
       | { type: "Init" }
       | { type: "Abort" }
       | { type: "Close" }
       | { type: "Contest" }
-      | { type: "Commit" }
-      | { type: "Greetings" }
       | { type: "Fanout" }
       | { type: "Close" }
   },
 }).createMachine({
-  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUgguHIY2arKyhhzyru7ysi6mFghqrbaqRi6yHBxazvK+-hhpGaGi5PRgAE4rpCu4fAA2hQBmGwC2uKlBLAsUOfGkBUXcpUgg5cKLVYhaSi64KtIcKoYqcbyeQTNQ9Syjb7AsaGFxqFyGNpKaYgU7pc60RbokKY8hQeiYMD5CBmB78QQvMSPapuOq2DhKeRKKyeDxacEITpKXCwhwTaRKbQtdwotHzWgMQgkDE0MlPCmVamIVm4KxeaQqCaCtr2DmNL7MrzyNSC+H9KZ+VGzM44ugQegAUTWGzlz0VoGqmq+jSa2lkOi08hcKg5H1kuDUgcjvxcnTU0lF1uxmUguAAkhBtmB6GnyMJXQrXkqEJ9DLhpLzGSpZI15JoOdIQbgOGp5AZ-ibOvZE4Fk6FUxms-QCxUix7EG4tOG2nJGS4K7JXKHPrgXEpES06uvgQnLWKZQO8yJ8tsCAAvWL47AAIw2su4ZULVPHNRb3P0JrcgpU1ZM5kQ64qKqrS1DoP52FYPZzAeEDpkeBAnuel7Dg+jxumOkgTu4Wi4F4Hz9AirgBhytQcN6kbqNoLYCpBe5JuKdpwS8iEXniw4uDwaFPuQbwli05bWIGhgTM0CjyCRYzkR4JofjRyJ0b2DGpgA8nwYBLIw2yCGAI6Ujxxa1CaPJtn8dadD+sgkV0NhMnU8axqogJaFBNoprBqnqShnHkqOz6YTU85fDGjSeJoQZMiRXIRuMsItMJLQgi5fYSrBmnafawR0LA97efKvn6S+hnToC871I4fwhv+NRmqq+hKC2DLwqFSVKalWmwAwunuv5bjwhG+iGAoHA1iMwkkR4QE1v0-q-EGTgtTB6TtZ1HGPvlvF2EBDLVjWXhkboYJVe4P6qg4w06CBTgWjMimLQAYvk5CkAArjQAAKghCNeQ4PU9r1dRh1RKLo5Y6Oq-y6IG0gkZ40i2E1m21Joa4Lbaqa-S972fQQ33ZgDfnVL8ZbVguiLBj+DiRVY0UTAidQTK0zkKdBaOwXdsQnjmR74wV-mluWlZ1jWCj1kd1m4fVgqqG4uiGPJN0s25uDs+QnM87xvw2HIdTNJqw3WN0VWMmWwaxq4jLDfUviWk9EBwOIpxrXpvFMtyarOJqcuMnoh29KBPJwg4jLwmRnjXVavZSmQrNO91nrqKqsL1SarSxeyVVtu+1ZwkK8Ygj+qOZBh6EE4gsLhsyALm055kkQC3yB44YHnYNhcXOQyUiHiseA2X+jKLr1dArIlW9MaBqDcGTTGuMkZt5iFD4FEPelzUVhBYGdRyx4tmj4gM+2NnYdNFdDjz3aK+89UWjuM2qhNK2woHXqsJQoi+j2BqYPnwOmZgJfGs2jwx-B7Lo6hxihgFMZREcg6yNiZGoH+sFczMVPKxKAACDLznDPtKubR+jbw5IyHC65YxyxUKbG+8sI6K37O5NSvMS5XywuuCM6h17NEChWEi7gvg-kZDWXQI9PCyCQUtdKmDCprkUDoT4sZ4zSFbJZI6etbBWDIlORcn4VBiIxq9D6sAvpZkkf5CYOFNQTABCCAUU4941E1DYDwCgdC8KnK2XRHNtgmMJsaVUowWjqE3HoHhN9viaE4QYFx1gxGZTgBfLi60sG-B5HLJkGp6ojxHiRRs4ZRjNCDJk7a4d9ys1wAAFQkLmOIiEIDeIAnCXCzg7BuE6G4RcHJgSv2cFRChMZqElKVgAZVVnwWAAALUgNBgh7AICsQ4kA6klgaeqZpsYugjGhhnRo5ibFkQZL1P4Yjhn5FGRMmggyCB2wADKkGJAshJztiyfBsk0m+ay2mbN6D8Js3TgYalcPgsR6BqCkEOIcYQhIACOz04n3J8o8l8zzGl6Dea0jZHS7AcB5AKRwFZJ6iOZq5Oh+AQVguENgPgfB1hxDhXlBFfNlmvJaes9pGdBplm6Y4NcwY3y7gVkSlKJKyBkpoFUmpiykUrNRSyz5+8Kw2B+NYAECUGSIiBaS8FNAVYsVpUw3ikqmXvPRVVJyQFFUmmBjWS2MTQWasJGQFYdtakPLjvUl5KLmUfI5BQuW2LrCCWNE4HwhLO6pmYCKilVLSA0udfC11Sz3WrLRayr5wJFDmuZBoMx-T6KLXDZq7VaDdXcX1Yyj1RqU3Kk1HDTlFZ1AVkBSG1q6IRX2ujasYtiTEVlqTTK71+hwyKtnJqBxTN+WhtSra4QXcMEut7gm5FvavUmuBnwgUwNPCGnUNbbwQA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUgguHIY2arKyhhzyru7ysi6mFghqrbaqRi6yHBxazvK+-hhpGaGi5PRgAE4rpCu4fAA2hQBmGwC2uKlBLAsUOfGkBUXcpUgg5cKLVYhaSi64KtIcKoYqcbyeQTNQ9Syjb7AsaGFxqFyGNpKaYgU7pc60RbokKY8hQeiYMD5CBmB78QQvMSPapuOq2DhKeRKKyeDxacEITpKXCwhwTaRKbQtdwotHzWgMACycFg+RgZKeFMq1MQI0MWlwTIZsk0LlUTNkHMZhlwch1OkBeuZLlFszOOLoEHo0tgsvlLh4j2eytANOaKk1sn0zMcHi8Kg5bg8uFk0kR0nhKj1HltgWxmSlMrlYDYsk95IqrxVNSsJq08gMelqAOskZU5e+jlqmmB+htflRdvToUzruzbHk+cVhapvsQaiUHGUBh1zlcWlq0kj0nkNlagMcDJ+rXbMzT4sd9EIJAxNAV3qLY4QrJjxusdQZsJ1HJ+JtGnxXLaUK7U0lTc1PBgAFE1g2c8lUvSRVUBWQY1+Jx6l-etDXMRB-i+OxDFjINK2kH4tH-e0MwgXAAEkIG2MB6FI8hhHAkdyDeBBdA1VlGjaXQXHUbpUOYpllFULjw30etkQ7MVAJI8jKPoejKUY4s3ARXAOCaJpV3kNxPhQ3oPgDVS-k3bR7BUQjuwlKTaJEfJtgIAAvWJ8WwAAjDYz24MoINHKCag4OEY36BN1PLcMjWcFT5CTBMVwURld07fdJLIqyCBs+zHNkjyvS8hSrzcBQVKiloNBaAVIzGAMmSChNEX6KZxK7A9IGSl40ocvFZI9TyGKYoYoQ4CcKpbEFyr+TVv0aGrV1aMympIgB5PgwCWRhtkEHMsoLeSmNqfykMMRkBU8djIy6bkulGIMRgXfQ-waxKHWaxblsyocL28mkRm5SK2W3VSdXkSNgS+YE40FLctAUO69wAx6SNW9anWCOhYHct6cp2sZuQO+EEVhOoNAjXi4T1FTYW-QE5G0SLZqShHYAYOSfR82lzoG6mONaA7Iw8aQVO0AmJjqBF4okuH0jWhmnTYLrsp64tIanYZ7Dw98yuJ3n+f0eohdhdVafFgAxfJyFIABXGgAAVBCEZyZON02LaZyDqkZAMkwUJF-gtOtAW+EMNIOy6DeI3AHfNq2bYIO2qOdj73jsFSqeZVTEREoHNM1NoDsnVRIbaEOexIw3Yhs6irLj3KfJYqF7ChzjuNO0mugRX8vHqQuLLD0vtle7rtoVyHNXsIVtNbsFeMEnk5BUQFPknOF6o7U2IDgcRTn75nqiZc6736FolCfInelqDVeQnIWXATBloYStJjzIOHN5dtD1Bjcn2a5hF2V4ituQ8LoF96grg8KZe6sNMiQXelXaoT5lD+lcKoIEz5iYAm+HCCc-pYpxk7lkcyIg8TP3jggdUU5mQAkQYCcsKDeiri+IfLoKh1L9HsARcBRELjkHwFEIhMDVRWC+HoCsThtCeEnMfRA01bBMKEp0ZotU1C4MgLwpiahOjThnnOdwi4OSOADLGP4Oo6iqGZLIJRUkKJgBUQrNB8jPC6BXCCHiulPiml+LPFwwJ+gTjEjDDhXcaKtVsu1KA1i8pfVsJDQUugDF1CNF4U0TR6x4T8oKLo5jcDPSrtAnaXENQIn+u4VkVhAbEyKXBREFC2zlkUew-BzV6bKLlgPcJftOgVjUVhAETDSkn3rIodQB9GiLz8rUvx9Ti4mwjtbV00dKJhJ8vYRQSlEQ-ARDEpQdYPjfE-E4-4kU1BsPGXNbu5AbILOqBMehI9Z4AgRNTSM5TYxpzGKApkRy77+MdNiFGjoLmqhGHzMMq51CQx1LWYmzJFCTl+CuPGzQ7AZIACoSBonENKEB-k1EwbgdwDgnF2BYTpCEeEAoKFngZCcAoMkAGUzl8FgAAC1IDQYIewCArEOE0raW9VSRT5n8Vo-QDCMnsByJopLZCNClUmFOBhaX0qZSymlBBV4ABlSDEm5cOFpLMRiKBqlfA0C53HiuBCaX8XE-LwRuhk9A1BSCHEOMIQkABHM2cA-nNN5din4mp3CuFnKDTwZqEmWs0nqVwQqxmfImfgB1TrhDYD4HwdYcRtU5MUg4L4IrPCriDL+Vo4qNyalxmI-Czg7UJudTQNFGKsWeMcDGbRzzPDoV6ZYc1uBw1aSjauGNYtQ72rIImmgJcznBIzRjRSkUAzdIOcCD2Hhi0DVLW4ctehK11JOcwUdhIyArFXpi71L8agjBsL8NROExhX3+OKi66D1QKC4hOdQYDjl00dTW5NqbSDpuPTy09japxCyYXUEpwD70jEfYGg6s8gwZN3TW8dbUp3y3CVYXF+c7BSsbZoe9kr2IUtGFS3xsad1fpdQ69NKw0O6ppHycamlOhX0cL+H+vQmjQaTM4NUqgmEfMHUXdEo6CGhJPcQtwE5lCHM+JDBwDJOgrpsHQgagJhZ4t8L4IAA */
   id: "HYDRA",
   initial: "Disconnected",
   context: {
@@ -163,6 +173,19 @@ export const hydra = setup({
     },
     Connected: {
       on: {
+        Message: [{
+          target: ".Initializing",
+          guard: "isInitializing",
+        }, {
+          target: ".Open",
+          guard: "isOpen",
+        }, {
+          target: ".Closed",
+          guard: "isClosed",
+        }, {
+          target: ".FanoutPossible",
+          guard: "isReadyToFanout",
+        }],
         Disconnect: {
           target: "Disconnected",
           actions: "closeConnection"
@@ -173,10 +196,7 @@ export const hydra = setup({
       states: {
         Idle: {
           on: {
-            Init: {
-              actions: "initHead",
-              reenter: true
-            }
+            Init: { actions: "initHead" }
           },
           always: {
             target: "Initializing",
@@ -185,10 +205,7 @@ export const hydra = setup({
         },
         Initializing: {
           on: {
-            Abort: {
-              actions: "abortHead",
-              reenter: true
-            },
+            Abort: { actions: "abortHead" }
           },
           always: [{
             target: "Open",
@@ -196,15 +213,11 @@ export const hydra = setup({
           }, {
             target: "Final",
             guard: "isAborted",
-            reenter: true
           }]
         },
         Open: {
           on: {
-            Close: {
-              actions: "closeHead",
-              reenter: true,
-            },
+            Close: { actions: "closeHead" }
           },
           always: {
             target: "Closed",
@@ -213,10 +226,7 @@ export const hydra = setup({
         },
         Closed: {
           on: {
-            Contest: {
-              actions: "contestHead",
-              reenter: true
-            }
+            Contest: { actions: "contestHead" }
           },
           always: [{
             target: "Contested",
@@ -228,10 +238,7 @@ export const hydra = setup({
         },
         FanoutPossible: {
           on: {
-            Fanout: {
-              actions: "fanoutHead",
-              reenter: true
-            }
+            Fanout: { actions: "fanoutHead" }
           },
           always: {
             target: "Final",
@@ -240,16 +247,14 @@ export const hydra = setup({
         },
         Final: {
           on: {
-            Init: {
-              actions: "initHead",
-              reenter: true
-            }
+            Init: { actions: "initHead" }
           },
           always: {
             target: "Initializing",
             guard: "isInitializing"
           }
         },
+
         Contested: {},
         TxInvalid: {},
         SnapshotConfirmed: {},
