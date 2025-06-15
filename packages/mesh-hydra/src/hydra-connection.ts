@@ -24,7 +24,7 @@ export class HydraConnection extends EventEmitter {
     this._eventEmitter = eventEmitter;
   }
 
-  async connect() {
+  connect() {
     if (this._status !== "IDLE") {
       return;
     }
@@ -48,7 +48,7 @@ export class HydraConnection extends EventEmitter {
     };
   }
 
-  async disconnect() {
+  disconnect() {
     if (this._status === "IDLE") {
       return;
     }

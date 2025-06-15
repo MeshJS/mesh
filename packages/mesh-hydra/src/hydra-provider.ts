@@ -89,11 +89,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Connects to the Hydra Head. This command is a no-op when a Head is already open.
    */
-  async connect() {
-    if (this._status !== "DISCONNECTED") {
-      return;
-    }
-    this._status = "CONNECTING";
+  connect() {
     this._connection.connect();
   }
 
