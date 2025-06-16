@@ -1441,6 +1441,23 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Add metadata script to the transaction
+   * @param scriptCbor The script in CBOR format
+   * @param scriptType The type of the script, either "Native", "PlutusV1", "PlutusV2" or "PlutusV3"
+   * @returns The MeshTxBuilder instance
+   */
+  metadataScript = (
+    scriptCbor: string,
+    scriptType: "Native" | "PlutusV1" | "PlutusV2" | "PlutusV3",
+  ) => {
+    this.meshTxBuilderBody.scriptMetadata.push({
+      scriptCbor,
+      scriptType,
+    });
+    return this;
+  };
+
+  /**
    * Sign the transaction with the private key
    * @param skeyHex The private key in cborHex (with or without 5820 prefix, i.e. the format when generated from cardano-cli)
    * @returns
