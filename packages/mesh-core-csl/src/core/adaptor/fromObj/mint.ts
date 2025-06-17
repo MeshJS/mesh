@@ -1,34 +1,67 @@
-// import { Mint } from "@meshsdk/common";
+import { MintItem } from "@meshsdk/common";
 
-// import { redeemerFromObj } from "./data";
-// import { scriptSourceFromObj } from "./script";
+import { redeemerFromObj } from "./data";
+import { scriptSourceFromObj, simpleScriptSourceFromObj } from "./script";
 
-// export const mintFromObj = (obj: any): Mint => {
-//   if ("plutusScriptMint" in obj) {
-//     const { policyId, assetName, amount, scriptSource, redeemer } =
-//       obj.plutusScriptMint;
+/**
+ * Convert an object representation back to a MintItem
+ * @param obj The object representation of a MintItem
+ * @returns The MintItem instance
+ */
+export const mintItemFromObj = (obj: any): MintItem => {
+  if ("scriptMint" in obj) {
+    return plutusMintItemFromObj(obj.scriptMint);
+  }
 
-//     return {
-//       type: "PlutusScriptMint",
-//       policyId,
-//       assetName,
-//       amount: amount.toString(),
-//       scriptSource: scriptSourceFromObj(scriptSource),
-//       redeemer: redeemerFromObj(redeemer),
-//     };
-//   } else if ("simpleScriptMint" in obj) {
-//     const { policyId, assetName, amount, scriptSource } = obj.simpleScriptMint;
+  if ("simpleScriptMint" in obj) {
+    return nativeMintItemFromObj(obj.simpleScriptMint);
+  }
 
-//     return {
-//       type: "SimpleScriptMint",
-//       policyId,
-//       assetName,
-//       amount: amount.toString(),
-//       scriptSource: scriptSourceFromObj(scriptSource),
-//     };
-//   }
+  throw new Error(
+    `mintItemFromObj: Unknown mint item format: ${JSON.stringify(obj)}`,
+  );
+};
 
-//   throw new Error(
-//     `mintFromObj: Unknown mint type in object: ${JSON.stringify(obj)}`,
-//   );
-// };
+/**
+ * Convert a Plutus mint item object representation back to a MintItem
+ * @param obj The object representation of a Plutus mint item
+ * @returns The MintItem instance with Plutus script
+ */
+export const plutusMintItemFromObj = (obj: any): MintItem => {
+  const mintParams = mintParametersFromObj(obj.mint);
+  return {
+    ...mintParams,
+    type: "Plutus",
+    scriptSource: scriptSourceFromObj(obj.scriptSource),
+    redeemer: obj.redeemer ? redeemerFromObj(obj.redeemer) : undefined,
+  };
+};
+
+/**
+ * Convert a Native mint item object representation back to a MintItem
+ * @param obj The object representation of a Native mint item
+ * @returns The MintItem instance with Native script
+ */
+export const nativeMintItemFromObj = (obj: any): MintItem => {
+  const mintParams = mintParametersFromObj(obj.mint);
+  return {
+    ...mintParams,
+    type: "Native",
+    scriptSource: simpleScriptSourceFromObj(obj.scriptSource),
+  };
+};
+
+/**
+ * Convert mint parameters object representation back to MintItem parameters
+ * @param obj The object representation of mint parameters
+ * @returns The mint parameters
+ */
+export const mintParametersFromObj = (
+  obj: any,
+): Omit<MintItem, "type" | "scriptSource" | "redeemer"> => {
+  return {
+    policyId: obj.policyId,
+    assetName: obj.assetName,
+    amount: obj.amount.toString(),
+  };
+};
