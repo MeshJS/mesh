@@ -72,5 +72,6 @@ export * from "./mint";
 export * from "./output";
 export * from "./script";
 export * from "./txIn";
+export * from "./vote";
 export * from "./utxo";
 export * from "./withdrawal";
