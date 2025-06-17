@@ -1,55 +1,46 @@
-// import { Asset, Datum, Output } from "@meshsdk/common";
+import { Output, PlutusScript } from "@meshsdk/common";
 
-// import { dataFromObj } from "./data";
+import { cborToBuilderData } from "./data";
 
-// export const outputFromObj = (obj: any): Output => {
-//   const output: Output = {
-//     address: obj.address,
-//     amount: assetVecFromObj(obj.amount),
-//   };
+/**
+ * Convert an object representation back to an Output
+ * @param obj The object representation of an Output
+ * @returns The Output instance
+ */
+export const outputFromObj = (obj: any): Output => {
+  const output: Output = {
+    address: obj.address,
+    amount: obj.amount,
+  };
 
-//   if (obj.datum) {
-//     output.datum = datumFromObj(obj.datum);
-//   }
+  // Handle datum if present
+  if (obj.datum) {
+    if ("inline" in obj.datum) {
+      output.datum = {
+        type: "Inline",
+        data: cborToBuilderData(obj.datum.inline),
+      };
+    } else if ("hash" in obj.datum) {
+      output.datum = {
+        type: "Hash",
+        data: cborToBuilderData(obj.datum.hash),
+      };
+    } else if ("embedded" in obj.datum) {
+      output.datum = {
+        type: "Embedded",
+        data: cborToBuilderData(obj.datum.embedded),
+      };
+    }
+  }
 
-//   if (obj.referenceScript) {
-//     output.referenceScript = obj.referenceScript;
-//   }
+  // Handle reference script if present
+  if (obj.referenceScript) {
+    const scriptSource = obj.referenceScript.providedScriptSource;
+    output.referenceScript = {
+      code: scriptSource.scriptCbor,
+      version: scriptSource.languageVersion.toUpperCase(),
+    } as PlutusScript;
+  }
 
-//   return output;
-// };
-
-// export const assetVecFromObj = (obj: any[]): Asset[] => {
-//   return obj.map((asset) => ({
-//     unit: asset.unit,
-//     quantity: asset.quantity.toString(),
-//   }));
-// };
-
-// export const datumFromObj = (obj: any): Datum => {
-//   if ("hash" in obj) {
-//     return {
-//       type: "Hash",
-//       hash: obj.hash,
-//     };
-//   } else if ("inline" in obj) {
-//     return {
-//       type: "Inline",
-//       value: obj.inline,
-//     };
-//   } else if ("cbor" in obj) {
-//     return {
-//       type: "CBOR",
-//       value: obj.cbor,
-//     };
-//   } else if ("json" in obj) {
-//     return {
-//       type: "JSON",
-//       value: dataFromObj(obj.json),
-//     };
-//   }
-
-//   throw new Error(
-//     `datumFromObj: Unknown datum type in object: ${JSON.stringify(obj)}`,
-//   );
-// };
+  return output;
+};
