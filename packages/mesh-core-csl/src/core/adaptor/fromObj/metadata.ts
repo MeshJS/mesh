@@ -1,28 +1,55 @@
-import { Metadata } from "@meshsdk/common";
+import JSONbig from "json-bigint";
 
-export const metadataFromObj = (obj: any): Metadata => {
-  // Recursively convert all values, especially handling BigInt conversions
-  const processValue = (value: any): any => {
-    if (value === null || value === undefined) {
-      return value;
+import { Metadata, Metadatum, TxMetadata } from "@meshsdk/common";
+
+// Configure JSONbig to properly handle BigInts while preserving regular strings
+const JSONBigParser = JSONbig({
+  storeAsString: false,
+  useNativeBigInt: true,
+  alwaysParseAsBig: false,
+});
+
+export const metadataFromObj = (metadataArray: Metadata[]): TxMetadata => {
+  const result: TxMetadata = new Map<bigint, Metadatum>();
+
+  metadataArray.forEach((metadata) => {
+    const key = BigInt(metadata.tag);
+    const value = objToMetadatum(JSONBigParser.parse(metadata.metadata));
+    result.set(key, value);
+  });
+
+  return result;
+};
+
+const objToMetadatum = (obj: any): Metadatum => {
+  if (typeof obj === "number") {
+    return obj;
+  } else if (typeof obj === "string") {
+    // Check if it's a BigInt string (valid digits only), then convert to BigInt
+    if (/^\d+$/.test(obj)) {
+      return BigInt(obj);
     }
-
-    if (typeof value === "object") {
-      if (Array.isArray(value)) {
-        return value.map(processValue);
-      } else if ("bigint" in value) {
-        return BigInt(value.bigint);
-      } else {
-        const result: Record<string, any> = {};
-        Object.entries(value).forEach(([k, v]) => {
-          result[k] = processValue(v);
-        });
-        return result;
-      }
+    // Check if its a negative BigInt string
+    if (/^-?\d+$/.test(obj)) {
+      return BigInt(obj);
     }
-
-    return value;
-  };
-
-  return processValue(obj);
+    return obj;
+  } else if (typeof obj === "bigint") {
+    return obj;
+  } else if (typeof obj === "object" && obj !== null) {
+    if (Array.isArray(obj)) {
+      return obj.map(objToMetadatum);
+    } else {
+      // Convert object to Map
+      const result = new Map<Metadatum, Metadatum>();
+      Object.entries(obj).forEach(([key, value]) => {
+        // Convert key back to original type
+        let convertedKey: Metadatum = objToMetadatum(key);
+        result.set(convertedKey, objToMetadatum(value));
+      });
+      return result;
+    }
+  } else {
+    throw new Error("objToMetadatum: Unsupported object type");
+  }
 };

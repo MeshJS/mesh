@@ -1,6 +1,5 @@
 import {
   MeshTxBuilderBody,
-  MintItem,
   MintParam,
   validityRangeToObj,
 } from "@meshsdk/common";
@@ -66,6 +65,7 @@ export const meshTxBuilderBodyToObj = ({
 };
 
 export * from "./certificate";
+export * from "./metadata";
 export * from "./data";
 export * from "./mint";
 export * from "./output";
