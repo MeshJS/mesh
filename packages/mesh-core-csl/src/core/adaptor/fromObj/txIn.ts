@@ -97,3 +97,10 @@ export const simpleScriptTxInParameterFromObj = (
 
   return result;
 };
+
+export const collateralTxInFromObj = (obj: any): TxIn => {
+  return {
+    type: "PubKey",
+    txIn: txInParameterFromObj(obj.txIn),
+  };
+};

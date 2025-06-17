@@ -1,6 +1,7 @@
 import { mConStr0, TxIn } from "@meshsdk/common";
 import { serializeData } from "@meshsdk/core";
 import {
+  collateralTxInFromObj,
   txInFromObj,
   txInParameterFromObj,
   txInParameterToObj,
@@ -274,6 +275,32 @@ describe("txIn.ts Round Trip Tests", () => {
       const deserialized = txInFromObj(serialized);
 
       expect(deserialized).toEqual(largeScriptInput);
+    });
+  });
+
+  describe("Collateral TxIn Round Trip", () => {
+    it("should maintain collateral input data integrity", () => {
+      const originalCollateralInput: TxIn = {
+        type: "PubKey",
+        txIn: {
+          txHash:
+            "80fff8d27e8dffec05ac773f22140cf86d8e30a0243e7df6849b74633d79e007",
+          txIndex: 5,
+          amount: [{ unit: "lovelace", quantity: "5000000" }],
+          address: "addr_test1234",
+          scriptSize: 0,
+        },
+      };
+
+      // Convert TxIn to collateral object
+      const collateralObj = {
+        txIn: txInParameterToObj(originalCollateralInput.txIn),
+      };
+
+      // Convert back to TxIn
+      const reconstructedTxIn = collateralTxInFromObj(collateralObj);
+
+      expect(reconstructedTxIn).toEqual(originalCollateralInput);
     });
   });
 });
