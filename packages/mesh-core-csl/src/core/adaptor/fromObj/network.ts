@@ -1,12 +1,11 @@
 import { Network } from "@meshsdk/common";
 
-export const networkFromObj = (obj: any): Network => {
-  if (obj === 0 || obj.network === 0 || obj === "mainnet") {
-    return "mainnet";
-  } else if (obj === 1 || obj.network === 1 || obj === "testnet") {
-    return "testnet";
-  } else if (typeof obj === "string") {
+export const networkFromObj = (obj: any): Network | number[][] => {
+  // Handle numeric and object network IDs
+  if (typeof obj === "string") {
     return obj as Network;
+  } else if (obj && typeof obj === "object" && "custom" in obj) {
+    return obj.custom as number[][];
   }
 
   throw new Error(
