@@ -1,4 +1,4 @@
-import { Metadatum, TxMetadata } from "@meshsdk/common";
+import { Metadatum } from "@meshsdk/common";
 import { metadataFromObj, txMetadataToObj } from "@meshsdk/core-csl";
 
 describe("Metadata Round Trip Tests", () => {

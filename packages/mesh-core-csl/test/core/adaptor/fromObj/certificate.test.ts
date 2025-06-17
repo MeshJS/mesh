@@ -1,9 +1,4 @@
-import {
-  Anchor,
-  Certificate,
-  CertificateType,
-  NativeScript,
-} from "@meshsdk/common";
+import { Certificate, NativeScript } from "@meshsdk/common";
 import { certificateFromObj, certificateToObj } from "@meshsdk/core-csl";
 import { ForgeScript } from "@meshsdk/transaction";
 

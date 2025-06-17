@@ -67,6 +67,7 @@ export const meshTxBuilderBodyToObj = ({
 export * from "./certificate";
 export * from "./metadata";
 export * from "./data";
+export * from "./network";
 export * from "./mint";
 export * from "./output";
 export * from "./script";

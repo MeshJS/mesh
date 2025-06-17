@@ -1,20 +1,17 @@
 import {
-  Asset,
   mConStr0,
   ScriptSource,
   ScriptTxInParameter,
-  SimpleScriptSourceInfo,
   TxIn,
 } from "@meshsdk/common";
 import { serializeData } from "@meshsdk/core";
-
 import {
   collateralTxInToObj,
   scriptTxInParameterToObj,
   simpleScriptTxInParameterToObj,
   txInParameterToObj,
   txInToObj,
-} from "../../../../src/core/adaptor/toObj/txIn";
+} from "@meshsdk/core-csl";
 
 describe("txIn.ts", () => {
   const basicTxInParameter = {

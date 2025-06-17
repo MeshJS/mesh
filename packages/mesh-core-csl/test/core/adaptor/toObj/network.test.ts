@@ -1,6 +1,5 @@
 import { Network } from "@meshsdk/common";
-
-import { networkToObj } from "../../../../src/core/adaptor/toObj/network";
+import { networkToObj } from "@meshsdk/core-csl";
 
 describe("network.ts", () => {
   describe("networkToObj", () => {
