@@ -18,8 +18,9 @@ import { withdrawalFromObj } from "./withdrawal";
  * @param obj The object representation of the transaction body
  * @returns The MeshTxBuilderBody instance
  */
-export const txBuilderBodyFromObj = (obj: any): MeshTxBuilderBody => {
+export const txBuilderBodyFromObj = (objJson: any): MeshTxBuilderBody => {
   const txBuilderBody: MeshTxBuilderBody = emptyTxBuilderBody();
+  const obj = JSON.parse(objJson);
 
   // Convert inputs
   if (obj.inputs && Array.isArray(obj.inputs)) {
@@ -32,7 +33,7 @@ export const txBuilderBodyFromObj = (obj: any): MeshTxBuilderBody => {
   }
 
   // Convert fee
-  if (obj.fee !== undefined) {
+  if (obj.fee) {
     txBuilderBody.fee = obj.fee.toString();
   }
 
@@ -92,7 +93,7 @@ export const txBuilderBodyFromObj = (obj: any): MeshTxBuilderBody => {
   }
 
   // Convert network
-  if (obj.network !== undefined) {
+  if (obj.network) {
     txBuilderBody.network = networkFromObj(obj.network);
   }
 

@@ -1,4 +1,5 @@
 import { PlutusDataType } from "../data";
+import { TxTester } from "../tx-tester";
 import {
   Asset,
   BuilderData,
@@ -9,6 +10,8 @@ import {
   Output,
   PlutusScript,
   Protocol,
+  TxInput,
+  UTxO,
 } from "../types";
 
 export interface IMeshTxSerializer {
@@ -21,8 +24,6 @@ export interface IMeshTxSerializer {
     protocolParams: Protocol,
   ): string;
   addSigningKeys(txHex: string, signingKeys: string[]): string;
-  resolver: IResolver;
-  deserializer: IDeserializer;
   serializeData(data: BuilderData): string;
   serializeAddress(address: DeserializedAddress, networkId?: 0 | 1): string;
   serializePoolId(hash: string): string;
@@ -33,7 +34,19 @@ export interface IMeshTxSerializer {
   ): string;
   serializeOutput(output: Output): string;
   serializeValue(value: Asset[]): string;
+  resolver: IResolver;
+  deserializer: IDeserializer;
+  parser: ITxParser;
 }
+
+export interface ITxParser {
+  getRequiredInputs(txHex: string): TxInput[];
+  parse(txHex: string, resolvedUtxos?: UTxO[]): void;
+  toTester(): TxTester;
+  getBuilderBody(): MeshTxBuilderBody;
+  getBuilderBodyWithoutChange(): MeshTxBuilderBody;
+}
+
 export interface IResolver {
   keys: {
     resolvePrivateKey(words: string[]): string;

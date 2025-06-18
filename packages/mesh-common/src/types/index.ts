@@ -25,4 +25,3 @@ export * from "./transaction-builder";
 export * from "./deserialized";
 export * from "./blueprint";
 export * from "./governance";
-export * from "./tx-output";
