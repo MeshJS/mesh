@@ -4,30 +4,42 @@ import {
   emptyTxBuilderBody,
   IFetcher,
   MeshTxBuilderBody,
+  TxTester,
   UTxO,
 } from "@meshsdk/common";
 
+import { txBuilderBodyFromObj } from "../core";
+import { calculateTxHash } from "../utils";
+
 export class CSLParser {
   resolvedUtxos: UTxO[];
+  txBuilderBody: MeshTxBuilderBody = emptyTxBuilderBody();
+  txHex: string = "";
+  txHash: string = "";
 
-  constructor(
-    public fetcher: IFetcher,
-    resolvedUtxos: UTxO[] = [],
-  ) {
+  constructor(txHex: string, resolvedUtxos: UTxO[] = []) {
+    this.txHex = txHex;
+    this.txHash = calculateTxHash(txHex);
     this.resolvedUtxos = resolvedUtxos;
-  }
-
-  parse = (txHex: string, resolvedUtxos: UTxO[] = []): MeshTxBuilderBody => {
     const wasmResult = js_parse_tx_body(txHex, resolvedUtxos as any);
     if (wasmResult.get_status() !== "success") {
       throw new Error(`CSLParser parse error: ${wasmResult.get_error()}`);
     }
-    return wasmResult.get_data() as any;
+    const txBodyJson = wasmResult.get_data();
+    this.txBuilderBody = txBuilderBodyFromObj(txBodyJson);
+  }
+
+  toTester = () => {
+    return new TxTester(this.txBuilderBody);
   };
 
-  toTester = () => {};
+  getBuilderBody = () => {
+    return this.txBuilderBody;
+  };
 
-  getBuilderBody = () => {};
-
-  getBuilderBodyWithoutChange = () => {};
+  getBuilderBodyWithoutChange = () => {
+    const txBuilderBody = { ...this.txBuilderBody };
+    txBuilderBody.inputs = txBuilderBody.inputs.slice(0, -1);
+    return txBuilderBody;
+  };
 }
