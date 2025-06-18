@@ -1,6 +1,8 @@
 import {
   emptyTxBuilderBody,
   MeshTxBuilderBody,
+  MintItem,
+  MintParam,
   validityRangeFromObj,
 } from "@meshsdk/common";
 
@@ -39,7 +41,33 @@ export const txBuilderBodyFromObj = (objJson: any): MeshTxBuilderBody => {
 
   // Convert mint tokens
   if (obj.mints && Array.isArray(obj.mints)) {
-    txBuilderBody.mints = obj.mints.map(mintItemFromObj);
+    const mintItems: MintItem[] = obj.mints.map(mintItemFromObj);
+
+    const visitedPolicyId = new Set<string>();
+    const mintParams: Record<string, MintParam> = {};
+
+    mintItems.forEach((mintItem) => {
+      const mintValueItem = {
+        assetName: mintItem.assetName,
+        amount: mintItem.amount,
+      };
+      if (!visitedPolicyId.has(mintItem.policyId)) {
+        const mintParam: MintParam = {
+          type: mintItem.type,
+          policyId: mintItem.policyId,
+          mintValue: [],
+          redeemer: mintItem.redeemer,
+          scriptSource: mintItem.scriptSource,
+        };
+        mintParams[mintItem.policyId] = mintParam;
+      }
+      const mintParam = mintParams[mintItem.policyId]!;
+      mintParam.mintValue.push(mintValueItem);
+
+      visitedPolicyId.add(mintItem.policyId);
+    });
+
+    txBuilderBody.mints = Object.values(mintParams);
   }
 
   // Convert withdrawals

@@ -541,7 +541,6 @@ export class TxTester {
   outputsInlineDatumExist = (datumCbor: string): this => {
     const outputsWithInlineDatum = this.outputsEvaluating.filter((output) => {
       if (output.datum && output.datum.type === "Inline") {
-        // to check
         return output.datum.data.content === datumCbor;
       }
       return false;
