@@ -25,6 +25,12 @@ export const utxoToTxIn = (utxo: UTxO): [string, number, Asset[], string] => {
   ];
 };
 
+/**
+ * Calculate minimum lovelace required for a UTxO output
+ * @param utxo Output of utxo
+ * @param coinsPerUtxoSize From protocol parameters
+ * @returns Minimum lovelace required for the UTxO
+ */
 export const getUtxoMinLovelace = (
   utxo: TxOutput,
   coinsPerUtxoSize = DEFAULT_PROTOCOL_PARAMETERS.coinsPerUtxoSize,
