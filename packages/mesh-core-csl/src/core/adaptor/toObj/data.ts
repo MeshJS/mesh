@@ -1,6 +1,6 @@
 import { BuilderData, Redeemer } from "@meshsdk/common";
 
-import { csl, toPlutusData } from "../../deser";
+import { csl, toPlutusData } from "../../../deser";
 
 export const builderDataToCbor = ({ type, content }: BuilderData): string => {
   if (type === "Mesh") {

@@ -162,6 +162,26 @@ export class MeshValue {
   };
 
   /**
+   * Get all assets that belong to a specific policy ID
+   * @param policyId The policy ID to filter by
+   * @returns Array of assets that match the policy ID
+   */
+  getPolicyAssets = (policyId: string): Asset[] => {
+    const assets: Asset[] = [];
+
+    Object.entries(this.value).forEach(([unit, quantity]) => {
+      if (unit.startsWith(policyId)) {
+        assets.push({
+          unit,
+          quantity: quantity.toString(),
+        });
+      }
+    });
+
+    return assets;
+  };
+
+  /**
    * Get all asset units
    * @returns The asset units
    */
