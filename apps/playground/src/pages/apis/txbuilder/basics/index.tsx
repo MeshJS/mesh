@@ -19,6 +19,7 @@ import TxbuilderSetNetwork from "./set-network";
 import TxbuilderSetRequiredSigners from "./set-required-signers";
 import TxbuilderSetTime from "./set-time";
 import TxbuilderCustomPP from "./custom-pp";
+import TxbuilderScriptMetadata from "./script-metadata";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -29,6 +30,7 @@ const ReactPage: NextPage = () => {
     { label: "Build with object", to: "buildWithObject" },
     { label: "Coin selection", to: "coinSelection" },
     { label: "Set metadata", to: "cip20" },
+    { label: "Set script metadata ", to: "scriptMetadata" },
     { label: "Set required signers", to: "requiredSigners" },
     { label: "Set time", to: "setTime" },
     { label: "Set network", to: "setNetwork" },
@@ -81,6 +83,7 @@ const ReactPage: NextPage = () => {
         {/* <TxbuilderSetMetadata /> */}
         <TxbuilderCoinSelection />
         <TxbuilderCip20 />
+        <TxbuilderScriptMetadata />
         {/* <TxbuilderSetCollateral /> */}
         <TxbuilderSetRequiredSigners />
         <TxbuilderSetTime />
