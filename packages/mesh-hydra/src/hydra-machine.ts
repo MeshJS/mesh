@@ -1,4 +1,6 @@
+import axios, { AxiosInstance, type RawAxiosRequestHeaders } from "axios";
 import { AnyEventObject, assertEvent, assign, fromCallback, sendTo, setup } from "xstate";
+import { parseHttpError } from "./utils";
 
 export const hydra = setup({
   actions: {
@@ -17,10 +19,6 @@ export const hydra = setup({
     fanoutHead: () => {
       sendTo("server", { type: "Send", data: { "tag": "Fanout" } })
     },
-    setConnection: assign(({ event }) => {
-      assertEvent(event, "Ready")
-      return { connection: event.connection }
-    }),
     closeConnection: ({ context }) => {
       if (context.connection?.readyState === WebSocket.OPEN) {
         context.connection.close(1000, "Client disconnected");
@@ -38,6 +36,17 @@ export const hydra = setup({
         headURL: `${url}/?${history}&${snapshot}${address}`,
       }
     }),
+    setConnection: assign(({ event }) => {
+      assertEvent(event, "Ready")
+      return { connection: event.connection }
+    }),
+    createClient: assign(({ context }) => {
+      return { client: new Client(context.baseURL) }
+    }),
+    setRequest: assign(({ event }) => {
+      assertEvent(event, ["Commit"])
+      return { request: event.data }
+    }),
     setError: assign(({ event }) => {
       assertEvent(event, "Error")
       return { error: event.data }
@@ -54,6 +63,10 @@ export const hydra = setup({
     isAborted: ({ event }) => {
       assertEvent(event, "Message")
       return event.data.tag === "HeadIsAborted";
+    },
+    isCommitted: ({ event }) => {
+      assertEvent(event, "Message")
+      return event.data.tag === "Committed";
     },
     isOpen: ({ event }) => {
       assertEvent(event, "Message")
@@ -114,9 +127,11 @@ export const hydra = setup({
   types: {
     context: {} as {
       baseURL: string,
-      headURL: string,
+      client?: Client,
       connection?: WebSocket,
       error?: unknown,
+      headURL: string,
+      request?: unknown,
     },
     events: {} as
       | { type: "Connect", baseURL: string, address?: string, snapshot?: boolean, history?: boolean }
@@ -126,6 +141,7 @@ export const hydra = setup({
       | { type: "Error", data: unknown }
       | { type: "Disconnect", code: number }
       | { type: "Init" }
+      | { type: "Commit", data: unknown }
       | { type: "Abort" }
       | { type: "Close" }
       | { type: "Contest" }
@@ -133,7 +149,7 @@ export const hydra = setup({
       | { type: "Close" }
   },
 }).createMachine({
-  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUgguHIY2arKyhhzyru7ysi6mFghqrbaqRi6yHBxazvK+-hhpGaGi5PRgAE4rpCu4fAA2hQBmGwC2uKlBLAsUOfGkBUXcpUgg5cKLVYhaSi64KtIcKoYqcbyeQTNQ9Syjb7AsaGFxqFyGNpKaYgU7pc60RbokKY8hQeiYMD5CBmB78QQvMSPapuOq2DhKeRKKyeDxacEITpKXCwhwTaRKbQtdwotHzWgMACycFg+RgZKeFMq1MQI0MWlwTIZsk0LlUTNkHMZhlwch1OkBeuZLlFszOOLoEHo0tgsvlLh4j2eytANOaKk1sn0zMcHi8Kg5bg8uFk0kR0nhKj1HltgWxmSlMrlYDYsk95IqrxVNSsJq08gMelqAOskZU5e+jlqmmB+htflRdvToUzruzbHk+cVhapvsQaiUHGUBh1zlcWlq0kj0nkNlagMcDJ+rXbMzT4sd9EIJAxNAV3qLY4QrJjxusdQZsJ1HJ+JtGnxXLaUK7U0lTc1PBgAFE1g2c8lUvSRVUBWQY1+Jx6l-etDXMRB-i+OxDFjINK2kH4tH-e0MwgXAAEkIG2MB6FI8hhHAkdyDeBBdA1VlGjaXQXHUbpUOYpllFULjw30etkQ7MVAJI8jKPoejKUY4s3ARXAOCaJpV3kNxPhQ3oPgDVS-k3bR7BUQjuwlKTaJEfJtgIAAvWJ8WwAAjDYz24MoINHKCag4OEY36BN1PLcMjWcFT5CTBMVwURld07fdJLIqyCBs+zHNkjyvS8hSrzcBQVKiloNBaAVIzGAMmSChNEX6KZxK7A9IGSl40ocvFZI9TyGKYoYoQ4CcKpbEFyr+TVv0aGrV1aMympIgB5PgwCWRhtkEHMsoLeSmNqfykMMRkBU8djIy6bkulGIMRgXfQ-waxKHWaxblsyocL28mkRm5SK2W3VSdXkSNgS+YE40FLctAUO69wAx6SNW9anWCOhYHct6cp2sZuQO+EEVhOoNAjXi4T1FTYW-QE5G0SLZqShHYAYOSfR82lzoG6mONaA7Iw8aQVO0AmJjqBF4okuH0jWhmnTYLrsp64tIanYZ7Dw98yuJ3n+f0eohdhdVafFgAxfJyFIABXGgAAVBCEZyZON02LaZyDqkZAMkwUJF-gtOtAW+EMNIOy6DeI3AHfNq2bYIO2qOdj73jsFSqeZVTEREoHNM1NoDsnVRIbaEOexIw3Yhs6irLj3KfJYqF7ChzjuNO0mugRX8vHqQuLLD0vtle7rtoVyHNXsIVtNbsFeMEnk5BUQFPknOF6o7U2IDgcRTn75nqiZc6736FolCfInelqDVeQnIWXATBloYStJjzIOHN5dtD1Bjcn2a5hF2V4ituQ8LoF96grg8KZe6sNMiQXelXaoT5lD+lcKoIEz5iYAm+HCCc-pYpxk7lkcyIg8TP3jggdUU5mQAkQYCcsKDeiri+IfLoKh1L9HsARcBRELjkHwFEIhMDVRWC+HoCsThtCeEnMfRA01bBMKEp0ZotU1C4MgLwpiahOjThnnOdwi4OSOADLGP4Oo6iqGZLIJRUkKJgBUQrNB8jPC6BXCCHiulPiml+LPFwwJ+gTjEjDDhXcaKtVsu1KA1i8pfVsJDQUugDF1CNF4U0TR6x4T8oKLo5jcDPSrtAnaXENQIn+u4VkVhAbEyKXBREFC2zlkUew-BzV6bKLlgPcJftOgVjUVhAETDSkn3rIodQB9GiLz8rUvx9Ti4mwjtbV00dKJhJ8vYRQSlEQ-ARDEpQdYPjfE-E4-4kU1BsPGXNbu5AbILOqBMehI9Z4AgRNTSM5TYxpzGKApkRy77+MdNiFGjoLmqhGHzMMq51CQx1LWYmzJFCTl+CuPGzQ7AZIACoSBonENKEB-k1EwbgdwDgnF2BYTpCEeEAoKFngZCcAoMkAGUzl8FgAAC1IDQYIewCArEOE0raW9VSRT5n8Vo-QDCMnsByJopLZCNClUmFOBhaX0qZSymlBBV4ABlSDEm5cOFpLMRiKBqlfA0C53HiuBCaX8XE-LwRuhk9A1BSCHEOMIQkABHM2cA-nNN5din4mp3CuFnKDTwZqEmWs0nqVwQqxmfImfgB1TrhDYD4HwdYcRtU5MUg4L4IrPCriDL+Vo4qNyalxmI-Czg7UJudTQNFGKsWeMcDGbRzzPDoV6ZYc1uBw1aSjauGNYtQ72rIImmgJcznBIzRjRSkUAzdIOcCD2Hhi0DVLW4ctehK11JOcwUdhIyArFXpi71L8agjBsL8NROExhX3+OKi66D1QKC4hOdQYDjl00dTW5NqbSDpuPTy09japxCyYXUEpwD70jEfYGg6s8gwZN3TW8dbUp3y3CVYXF+c7BSsbZoe9kr2IUtGFS3xsad1fpdQ69NKw0O6ppHycamlOhX0cL+H+vQmjQaTM4NUqgmEfMHUXdEo6CGhJPcQtwE5lCHM+JDBwDJOgrpsHQgagJhZ4t8L4IAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUghuLrK48gaGjhyqhi7yWqYWCJocuNKtLkpKsoYcKnbSar7+GGkZoaLk9GAATmuka7h8ADaFAGZbALa4qUEsSxQ58aQFRdylSCDlwstVMnUDE0qGsrpaeQuNRKbqWFzSWyDaTOVTTNSyRGzEDndKXWjLNEhDHkKD0TBgfIQMxPfiCN5iZ7VNwcQy2VryUaqTqTMEIeRWXDtBxaWHacbuZGoxa0BgAWTgsHyMFJL3JlSpiDqHBcA30zmkTImdjZehUyk0jkMSk6amk8hmfhR8wu2LoEHoEtgUplLh4z1eCtA1JcTm+gNpk0BclkbLcvIazUM9nUWhN0yFNqxmXFkulYDYsndZIq70VNV9NhVLg4HDGMJUENB5iVkyUuDNal5ahchukk0TgWToVTzvTbHk2blucp3sQmi0uGG7ZGo15skrYfN9QX7VGKn+JYhnYW6Pt9EIJD3ss9ebHvU6uCsXmstNa7QXbJUMKvQ3NmkZ5rNO9tKYdAFENi2E95TPSQZERWxrCBcsxkRJ8X1kN95A-JQv2kH9u1FCBcAASQgXYwHoXDyGEECR3ID4EAcfpZBjCYOXvORdUrZQ5A4M17EMZ8NEwkV7TwgiiPIilKPzdwVH1QEPCcLQSwcaw2TjOkOkGSsEQ4LQ6NkPi90gPDSJEfJdgIAAvWI8WwAAjLYaBEr1wIQRE1EUDgLUad9ERNNkTUUBRHF9DkXInXS7X0ki3mMsyLPoeywOpMt6w3JCIUrAUXDDUs6TUCY3BhVpn3sUK-wMyKTPM3FYrdMpQNHRzpnqJQSyUTT2kK+xMtpBtcohcY4SKq1hT0nCIqM8qLNwAkiTMAAVUhmGOY5hCYUhFrI7gaooqjgTjBsXMBX5zWcVkawQX4bCBdtaSOzUnGKnsRsMggooqqA0TWmgREquK6uqJD5EUZ8mt9QZajqNluPrYtZARJwWsk+7sNwAB5PgwBWRhdkEDMNo9WqxPPP5+maBESxjKwETDRFFA5bQJMrDpPERgTUfR2LcZzUTtrcxQ5DsblQbNMMAcndR1E1Lwo3NZn9Mx7GHWCOhYDsjnhy5-M2oaewUJ0FqRnNMMET8gqPE-eMZZwuXYAYH6CccrdFBBdUy0mZx-jDewVzLON9A435-gt9Iseth02GqvGtvzBFJxLQwvDo5UkOrHp3ARV86O0UsQTjnTBqTfj9IAMXychSAAVxoAAFQQhCswj6GL0uK9tqijoGP4m2fX19GkMNJJsI06jNDoIQcQPG-Lqua4IOvhNV09fsQYfcHUIFWl+P44-kYXLzFs0TScRxpbzrsC5wwvYmM4jDJb-M41VJqdByjxoWTpVqYaCnn1cSTzS0cfL67HZkOBedtqhNkhO2fQXcVDcQcNvU61gkpaS7vIc0ExNK+CtKXCAcBxDnE2urc8jJ9SqBhu2RoDhZDyUypObkGgERXTgvITCh4yBhQgIQhy1R+5XjXH7Ny7RoxskaPWDw1CnbND-gjE+u47RgVAVRB8ygxhd1UJpDkKgwzcRXsCDQf9fQjDjszTE-ELJcPiogaM-RRjcVcOowEj5ToWgfn8Vs1Nn5NhMRQfAUQLGLxqFYVUehGhw1NvDEROVbAblbADRETgLSWjmKfYa-iwHjg5AachngOKkw4myI0DQ0KaViXoTSudklyJKvhQiaSqJ9CyWaHJVCaGnR9soYpQJ7Clg5BU60KSOGlTGtFXEdTxKwNVP8LSLlWg+20CxOhCgJggkGGWYxsjfwPSGc9cauJJqEmJHNBaS0aBjPPMCLwV49Aw1EXMroiCUIryWTCXyCIrCB1GjskZb1jnCC+lAM5jkkIqH6CyQYLi0IbjUD5JsV46iwLgvDFCHynovQmugPxEciH2xhDYEF1N-hWDSjC-U0YYZuTcGlXkgdWZ20UeJDiqozQTENB0JsbgwzuDpF4Rwt5piqUDlbSAgKErqG+LTJocdph912o2J+Mz-hJP6VUrZE8K7V2dDPWpWLuFLxBCvNxcls6DCFqdVs5oGzjG9pMTwvo+lDUGRfcgxkRVL2cFeSYBhhhuCEQglOXLIyOBymg7idR7X52GliJW9pXU1B5rgMsFomqeGoU1P1SomRcgUHYFxG5Bi518EAA */
   id: "HYDRA",
   initial: "Disconnected",
   context: {
@@ -155,7 +171,10 @@ export const hydra = setup({
         input: ({ context }) => ({
           url: context.headURL,
         }),
-        onDone: "Connected",
+        onDone: {
+          target: "Connected",
+          actions: "createClient"
+        },
         onError: "Disconnected"
       },
       initial: "Connecting",
@@ -213,7 +232,27 @@ export const hydra = setup({
           }, {
             target: "Final",
             guard: "isAborted",
-          }]
+          }],
+          initial: "ReadyToCommit",
+          states: {
+            ReadyToCommit: {
+              on: {
+                Commit: {
+                  target: "Committing",
+                  actions: "setRequest"
+                }
+              }
+            },
+            Committing: {
+              always: {
+                target: "Done",
+                guard: "isCommitted"
+              }
+            },
+            Done: {
+              type: "final"
+            }
+          },
         },
         Open: {
           on: {
@@ -254,21 +293,51 @@ export const hydra = setup({
             guard: "isInitializing"
           }
         },
-
         Contested: {},
-        TxInvalid: {},
-        SnapshotConfirmed: {},
-        SnapshotSideLoaded: {},
-        DecommitRequested: {},
-        DecommitApproved: {},
-        DecommitInvalid: {},
-        DecommitFinalized: {},
-        CommitRecorded: {},
-        CommitApproved: {},
-        CommitFinalized: {},
-        CommitRecovered: {},
-        Committing: {}
+        // TxInvalid: {},
+        // SnapshotConfirmed: {},
+        // SnapshotSideLoaded: {},
+        // DecommitRequested: {},
+        // DecommitApproved: {},
+        // DecommitInvalid: {},
+        // DecommitFinalized: {},
+        // CommitRecorded: {},
+        // CommitApproved: {},
+        // CommitFinalized: {},
+        // CommitRecovered: {},
       }
     },
   }
 });
+
+class Client {
+  constructor(private baseURL: string) {
+    this._instance = axios.create({
+      baseURL: this.baseURL,
+    });
+  }
+
+  async get(endpoint: string) {
+    try {
+      const { data, status } = await this._instance.get(endpoint);
+      if (status === 200 || status == 202) return data;
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  async post(endpoint: string, payload: unknown, headers?: RawAxiosRequestHeaders) {
+    try {
+      const { data, status } = await this._instance.post(endpoint, payload, {
+        headers: headers ?? { "Content-Type": "application/json" }
+      });
+      if (status === 200 || status == 202) return data;
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  private readonly _instance: AxiosInstance;
+}
