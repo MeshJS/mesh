@@ -16,7 +16,7 @@ The validator that handles the crowdfunding campaign
 
 1. First layer
 
-   - `auth_token` - no param
+   - `auth_token` - `utxo_ref`
 
 2. Second layer
 
