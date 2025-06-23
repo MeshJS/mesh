@@ -1,4 +1,4 @@
-import { bitcoin, bip32, bip39 } from "../../core";
+import { bitcoin, bip32, bip39, ECPair } from "../../core";
 import { BIP32Interface } from "bip32";
 import { UTxO } from "../../types/utxo";
 import { Address } from "../../types/address";
@@ -47,7 +47,7 @@ export class EmbeddedWallet {
   getAddress(): Address {
     const p2wpkh = bitcoin.payments.p2wpkh({
       pubkey: this._wallet.publicKey,
-      network: this._network
+      network: this._network,
     });
 
     if (!p2wpkh?.address) {
@@ -103,7 +103,27 @@ export class EmbeddedWallet {
    * @returns The signature of the message as a string.
    */
   signData(message: string): string {
-    return "";
+    // Get the private key buffer from the BIP32 wallet
+    const privateKey = this._wallet.privateKey;
+    if (!privateKey) {
+      throw new Error("Private key is not available for signing.");
+    }
+
+    // Create ECPair from private key
+    const keyPair = ECPair.fromPrivateKey(privateKey, { compressed: true });
+    // Prepare message buffer
+    const messageBuffer = Buffer.from(message, "utf8");
+    // Prepare the buffer to sign (see bitcoinjs-message implementation)
+    
+    const bufferToHash = Buffer.concat([
+      varIntBuffer(messageBuffer.length),
+      messageBuffer,
+    ]);
+    const hash = bitcoin.crypto.hash256(bufferToHash);
+    // Sign the hash
+    const signature = keyPair.sign(hash);
+    // DER encode and return as base64
+    return signature.toString("base64");
   }
 
   /**
@@ -124,7 +144,9 @@ export class EmbeddedWallet {
    */
   static brew(strength: number = 128): string[] {
     if (![128, 160, 192, 224, 256].includes(strength)) {
-      throw new Error("Invalid strength. Must be one of: 128, 160, 192, 224, 256.");
+      throw new Error(
+        "Invalid strength. Must be one of: 128, 160, 192, 224, 256."
+      );
     }
 
     const mnemonic = bip39.generateMnemonic(strength);
@@ -132,7 +154,11 @@ export class EmbeddedWallet {
   }
 }
 
-function _derive(words: string[], path: string = "m/84'/0'/0'/0/0", network?: Network): BIP32Interface {
+function _derive(
+  words: string[],
+  path: string = "m/84'/0'/0'/0/0",
+  network?: Network
+): BIP32Interface {
   const mnemonic = words.join(" ");
 
   if (!validateMnemonic(mnemonic)) {
@@ -144,4 +170,46 @@ function _derive(words: string[], path: string = "m/84'/0'/0'/0/0", network?: Ne
   const child = root.derivePath(path);
 
   return child;
+}
+
+function varIntBuffer(n: number): Buffer {
+  if (n < 0xfd) return Buffer.from([n]);
+  if (n <= 0xffff) return Buffer.from([0xfd, n & 0xff, n >> 8]);
+  if (n <= 0xffffffff)
+    return Buffer.from([
+      0xfe,
+      n & 0xff,
+      (n >> 8) & 0xff,
+      (n >> 16) & 0xff,
+      (n >> 24) & 0xff,
+    ]);
+  throw new Error("Message too long");
+}
+
+/**
+ * Verifies if a signature is valid for a given message and public key.
+ * @param message - The original message that was signed.
+ * @param signatureBase64 - The base64-encoded signature to verify.
+ * @param publicKeyHex - The hex-encoded public key to verify against.
+ * @returns {boolean} True if the signature is valid and matches the public key.
+ */
+export function verifySignature(
+  message: string,
+  signatureBase64: string,
+  publicKeyHex: string
+): boolean {
+  try {
+    const messageBuffer = Buffer.from(message, "utf8");
+    const bufferToHash = Buffer.concat([
+      varIntBuffer(messageBuffer.length),
+      messageBuffer,
+    ]);
+    const hash = bitcoin.crypto.hash256(bufferToHash);
+    const signature = Buffer.from(signatureBase64, "base64");
+    const publicKey = Buffer.from(publicKeyHex, "hex");
+    
+    return ECPair.fromPublicKey(publicKey).verify(hash, signature);
+  } catch (e) {
+    return false;
+  }
 }
