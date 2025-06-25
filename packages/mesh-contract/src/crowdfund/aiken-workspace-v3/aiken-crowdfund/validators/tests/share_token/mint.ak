@@ -10,7 +10,7 @@ use tests/utils.{
 }
 use types.{ContributeFund, RBurn, RMint}
 
-test s1_mint_success_mint() {
+test s2_mint_success_mint() {
   let redeemer = RMint
   let auth_input =
     from_lovelace(20000000) |> add(mock_auth_token, mock_completion_script, 1)
@@ -39,7 +39,7 @@ test s1_mint_success_mint() {
   share_token_mint.share_token.mint(mock_auth_token, redeemer, policy_id, tx)
 }
 
-test s1_mint_fail_mint_no_auth_token_input() fail {
+test s2_mint_fail_mint_no_auth_token_input() fail {
   let redeemer = RMint
   let policy_id = mock_share_token
 
@@ -50,7 +50,7 @@ test s1_mint_fail_mint_no_auth_token_input() fail {
   share_token_mint.share_token.mint(mock_auth_token, redeemer, policy_id, tx)
 }
 
-test s1_mint_fail_mint_no_auth_token_redeemer() fail {
+test s2_mint_fail_mint_no_auth_token_redeemer() fail {
   let redeemer = RMint
   let auth_input =
     from_lovelace(20000000) |> add(mock_auth_token, mock_completion_script, 1)
@@ -64,7 +64,7 @@ test s1_mint_fail_mint_no_auth_token_redeemer() fail {
   share_token_mint.share_token.mint(mock_auth_token, redeemer, policy_id, tx)
 }
 
-test s1_mint_success_burn() {
+test s2_mint_success_burn() {
   let redeemer = RBurn
   let policy_id = mock_share_token
 
@@ -72,7 +72,7 @@ test s1_mint_success_burn() {
   share_token_mint.share_token.mint(mock_auth_token, redeemer, policy_id, tx)
 }
 
-test s1_mint_success_burn_with_other_minting() {
+test s2_mint_success_burn_with_other_minting() {
   let redeemer = RBurn
   let policy_id = mock_share_token
 
@@ -84,7 +84,7 @@ test s1_mint_success_burn_with_other_minting() {
   share_token_mint.share_token.mint(mock_auth_token, redeemer, policy_id, tx)
 }
 
-test s1_mint_fail_burn_with_mint() {
+test s2_mint_fail_burn_with_mint() {
   let redeemer = RBurn
   let policy_id = mock_share_token
 

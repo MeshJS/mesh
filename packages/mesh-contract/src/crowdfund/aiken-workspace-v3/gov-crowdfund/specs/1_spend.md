@@ -44,6 +44,7 @@ pub type Datum {
    - Delegate to current own DRep + stake pool `delegate_pool_id`
    - Propose gov action
    - Vote on same proposal? -> if cant, create one more separate state
+   - todo: check 100k lock before retification correctly
 
 2. DeregisterCerts
 

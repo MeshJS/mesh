@@ -107,7 +107,7 @@ fn mock_contribute_fund_tx(
     |> complete()
 }
 
-test s2_spend_success_contribute_fund_with_not_allow_over_subscription() {
+test s3_spend_success_contribute_fund_with_not_allow_over_subscription() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -132,7 +132,7 @@ test s2_spend_success_contribute_fund_with_not_allow_over_subscription() {
   )
 }
 
-test s2_spend_success_contribute_fund_with_allow_over_subscription() {
+test s3_spend_success_contribute_fund_with_allow_over_subscription() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -157,7 +157,7 @@ test s2_spend_success_contribute_fund_with_allow_over_subscription() {
   )
 }
 
-test s2_spend_success_contribute_fund_with_allow_over_subscription_and_over_fundraised() {
+test s3_spend_success_contribute_fund_with_allow_over_subscription_and_over_fundraised() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -182,7 +182,7 @@ test s2_spend_success_contribute_fund_with_allow_over_subscription_and_over_fund
   )
 }
 
-test s2_spend_fail_contribute_fund_with_not_allow_over_subscription_but_over_fundraised() {
+test s3_spend_fail_contribute_fund_with_not_allow_over_subscription_but_over_fundraised() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -207,7 +207,7 @@ test s2_spend_fail_contribute_fund_with_not_allow_over_subscription_but_over_fun
   )
 }
 
-test s2_spend_fail_contribute_fund_with_over_current_fundraised() {
+test s3_spend_fail_contribute_fund_with_over_current_fundraised() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -232,7 +232,7 @@ test s2_spend_fail_contribute_fund_with_over_current_fundraised() {
   )
 }
 
-test s2_spend_fail_contribute_fund_with_more_than_one_auth_inputed() fail {
+test s3_spend_fail_contribute_fund_with_more_than_one_auth_inputed() fail {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -257,7 +257,7 @@ test s2_spend_fail_contribute_fund_with_more_than_one_auth_inputed() fail {
   )
 }
 
-test s2_spend_fail_contribute_fund_with_more_than_one_auth_outputed() fail {
+test s3_spend_fail_contribute_fund_with_more_than_one_auth_outputed() fail {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -282,7 +282,7 @@ test s2_spend_fail_contribute_fund_with_more_than_one_auth_outputed() fail {
   )
 }
 
-test s2_spend_fail_contribute_fund_with_incorrect_auth_output_datum() {
+test s3_spend_fail_contribute_fund_with_incorrect_auth_output_datum() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -307,7 +307,7 @@ test s2_spend_fail_contribute_fund_with_incorrect_auth_output_datum() {
   )
 }
 
-test s2_spend_fail_contribute_fund_with_auth_output_not_clean() {
+test s3_spend_fail_contribute_fund_with_auth_output_not_clean() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -332,7 +332,7 @@ test s2_spend_fail_contribute_fund_with_auth_output_not_clean() {
   )
 }
 
-test s2_spend_fail_contribute_fund_with_deadline_passed() {
+test s3_spend_fail_contribute_fund_with_deadline_passed() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -357,7 +357,7 @@ test s2_spend_fail_contribute_fund_with_deadline_passed() {
   )
 }
 
-test s2_spend_fail_contribute_fund_with_wrong_shares_minted() {
+test s3_spend_fail_contribute_fund_with_wrong_shares_minted() {
   let tx =
     mock_contribute_fund_tx(
       ContributeFundTestCase {
@@ -441,7 +441,7 @@ fn mock_complete_crowdfund_tx(
     |> complete()
 }
 
-test s2_spend_success_complete_crowdfund_with_amount_equal_to_target() {
+test s3_spend_success_complete_crowdfund_with_amount_equal_to_target() {
   let tx =
     mock_complete_crowdfund_tx(
       CompleteCrowdfundTestCase {
@@ -463,7 +463,7 @@ test s2_spend_success_complete_crowdfund_with_amount_equal_to_target() {
   )
 }
 
-test s2_spend_success_complete_crowdfund_with_amount_larger_than_target() {
+test s3_spend_success_complete_crowdfund_with_amount_larger_than_target() {
   let tx =
     mock_complete_crowdfund_tx(
       CompleteCrowdfundTestCase {
@@ -485,7 +485,7 @@ test s2_spend_success_complete_crowdfund_with_amount_larger_than_target() {
   )
 }
 
-test s2_spend_fail_complete_crowdfund_with_amount_less_than_target() {
+test s3_spend_fail_complete_crowdfund_with_amount_less_than_target() {
   let tx =
     mock_complete_crowdfund_tx(
       CompleteCrowdfundTestCase {
@@ -507,7 +507,7 @@ test s2_spend_fail_complete_crowdfund_with_amount_less_than_target() {
   )
 }
 
-test s2_spend_fail_complete_crowdfund_with_more_than_one_auth_inputed() fail {
+test s3_spend_fail_complete_crowdfund_with_more_than_one_auth_inputed() fail {
   let tx =
     mock_complete_crowdfund_tx(
       CompleteCrowdfundTestCase {
@@ -529,7 +529,7 @@ test s2_spend_fail_complete_crowdfund_with_more_than_one_auth_inputed() fail {
   )
 }
 
-test s2_spend_fail_complete_crowdfund_with_incorrect_fee_output() fail {
+test s3_spend_fail_complete_crowdfund_with_incorrect_fee_output() fail {
   let tx =
     mock_complete_crowdfund_tx(
       CompleteCrowdfundTestCase {
@@ -551,7 +551,7 @@ test s2_spend_fail_complete_crowdfund_with_incorrect_fee_output() fail {
   )
 }
 
-test s2_spend_fail_complete_crowdfund_with_no_auth_burnt() {
+test s3_spend_fail_complete_crowdfund_with_no_auth_burnt() {
   let tx =
     mock_complete_crowdfund_tx(
       CompleteCrowdfundTestCase {
@@ -573,7 +573,7 @@ test s2_spend_fail_complete_crowdfund_with_no_auth_burnt() {
   )
 }
 
-test s2_spend_fail_complete_crowdfund_with_no_completion_script_executed() {
+test s3_spend_fail_complete_crowdfund_with_no_completion_script_executed() {
   let tx =
     mock_complete_crowdfund_tx(
       CompleteCrowdfundTestCase {
@@ -692,7 +692,7 @@ fn mock_contributor_withdrawal_tx(
     |> complete()
 }
 
-test s2_spend_success_contributor_withdraw_with_deadline_passed_but_fundraised_reach_target() {
+test s3_spend_success_contributor_withdraw_with_deadline_passed_but_fundraised_reach_target() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -718,7 +718,7 @@ test s2_spend_success_contributor_withdraw_with_deadline_passed_but_fundraised_r
   )
 }
 
-test s2_spend_success_contributor_withdraw_with_deadline_passed_and_fundraised_less_than_target() {
+test s3_spend_success_contributor_withdraw_with_deadline_passed_and_fundraised_less_than_target() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -744,7 +744,7 @@ test s2_spend_success_contributor_withdraw_with_deadline_passed_and_fundraised_l
   )
 }
 
-test s2_spend_success_contributor_withdraw_with_deadline_not_passed_but_fundraised_less_than_target() {
+test s3_spend_success_contributor_withdraw_with_deadline_not_passed_but_fundraised_less_than_target() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -770,7 +770,7 @@ test s2_spend_success_contributor_withdraw_with_deadline_not_passed_but_fundrais
   )
 }
 
-test s2_spend_fail_contributor_withdraw_with_deadline_not_passed_and_fundraised_reached_target() {
+test s3_spend_fail_contributor_withdraw_with_deadline_not_passed_and_fundraised_reached_target() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -796,7 +796,7 @@ test s2_spend_fail_contributor_withdraw_with_deadline_not_passed_and_fundraised_
   )
 }
 
-test s2_spend_fail_contributor_withdraw_with_more_thanone_auth_inputed() fail {
+test s3_spend_fail_contributor_withdraw_with_more_thanone_auth_inputed() fail {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -822,7 +822,7 @@ test s2_spend_fail_contributor_withdraw_with_more_thanone_auth_inputed() fail {
   )
 }
 
-test s2_spend_fail_contributor_withdraw_with_more_thanone_auth_outputed() fail {
+test s3_spend_fail_contributor_withdraw_with_more_thanone_auth_outputed() fail {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -848,7 +848,7 @@ test s2_spend_fail_contributor_withdraw_with_more_thanone_auth_outputed() fail {
   )
 }
 
-test s2_spend_fail_contributor_withdraw_with_incorrect_output_datum() {
+test s3_spend_fail_contributor_withdraw_with_incorrect_output_datum() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -874,7 +874,7 @@ test s2_spend_fail_contributor_withdraw_with_incorrect_output_datum() {
   )
 }
 
-test s2_spend_fail_contributor_withdraw_with_auth_output_value_not_clean() {
+test s3_spend_fail_contributor_withdraw_with_auth_output_value_not_clean() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -900,7 +900,7 @@ test s2_spend_fail_contributor_withdraw_with_auth_output_value_not_clean() {
   )
 }
 
-test s2_spend_fail_contributor_withdraw_with_incorrect_auth_unlock_value() {
+test s3_spend_fail_contributor_withdraw_with_incorrect_auth_unlock_value() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -926,7 +926,7 @@ test s2_spend_fail_contributor_withdraw_with_incorrect_auth_unlock_value() {
   )
 }
 
-test s2_spend_fail_contributor_withdraw_with_incorrect_shares_burnt() {
+test s3_spend_fail_contributor_withdraw_with_incorrect_shares_burnt() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1006,7 +1006,7 @@ fn mock_remove_empty_instance_tx(
     |> complete()
 }
 
-test s2_spend_success_remove_empty_instance_wih_zero_fund() {
+test s3_spend_success_remove_empty_instance_wih_zero_fund() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -1028,7 +1028,7 @@ test s2_spend_success_remove_empty_instance_wih_zero_fund() {
   )
 }
 
-test s2_spend_success_remove_empty_instance_wih_some_fund() {
+test s3_spend_success_remove_empty_instance_wih_some_fund() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -1050,7 +1050,7 @@ test s2_spend_success_remove_empty_instance_wih_some_fund() {
   )
 }
 
-test s2_spend_fail_remove_empty_instance_wih_more_than_one_auth_inputed() fail {
+test s3_spend_fail_remove_empty_instance_wih_more_than_one_auth_inputed() fail {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -1072,7 +1072,7 @@ test s2_spend_fail_remove_empty_instance_wih_more_than_one_auth_inputed() fail {
   )
 }
 
-test s2_spend_fail_remove_empty_instance_wih_deadline_not_passed() {
+test s3_spend_fail_remove_empty_instance_wih_deadline_not_passed() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -1094,7 +1094,7 @@ test s2_spend_fail_remove_empty_instance_wih_deadline_not_passed() {
   )
 }
 
-test s2_spend_fail_remove_empty_instance_wih_share_not_burnt() {
+test s3_spend_fail_remove_empty_instance_wih_share_not_burnt() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -1116,7 +1116,7 @@ test s2_spend_fail_remove_empty_instance_wih_share_not_burnt() {
   )
 }
 
-test s2_spend_fail_remove_empty_instance_wih_authe_not_burnt() {
+test s3_spend_fail_remove_empty_instance_wih_authe_not_burnt() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
