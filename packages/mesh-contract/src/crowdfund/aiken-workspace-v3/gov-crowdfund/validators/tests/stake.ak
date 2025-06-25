@@ -8,7 +8,7 @@ use mocktail.{
 }
 use stake
 use tests/utils.{
-  mock_auth_token, mock_completion_script, mock_crowdfund_address,
+  mock_auth_token, mock_completion_script, mock_crowdfund_gov_address,
   mock_spend_script_hash,
 }
 use types.{Deregister, DeregisterCerts, Register, RegisterCerts}
@@ -25,13 +25,13 @@ fn mock_stake_tx(
   let only_input =
     from_lovelace(20000000) |> add(mock_auth_token, mock_completion_script, 1)
   mocktail_tx()
-    |> tx_in(True, mock_tx_hash(0), 0, only_input, mock_crowdfund_address)
+    |> tx_in(True, mock_tx_hash(0), 0, only_input, mock_crowdfund_gov_address)
     |> tx_in(
         !is_only_one_auth_inputed,
         mock_tx_hash(0),
         1,
         only_input,
-        mock_crowdfund_address,
+        mock_crowdfund_gov_address,
       )
     |> complete()
     |> add_redeemer(
