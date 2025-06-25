@@ -32,7 +32,7 @@
 
    - Any value in the current utxos - (`current_fundraised_amount` + `min_charge`) goes to `fee_address`
    - `current_fundraised_amount` >= `fundraise_target`
-   - `completion_script` withdrawal script is exeuted
+   - `completion_script` withdrawal script is executed
    - `auth_token` from current input is burnt
 
 3. ContributorWithdrawal
