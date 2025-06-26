@@ -1,6 +1,6 @@
 use aiken/collection/list
 use aiken/collection/pairs
-use cardano/address.{Credential}
+use cardano/address.{Credential, from_script}
 use cardano/assets.{Lovelace, lovelace_of}
 use cardano/certificate.{
   Certificate, DelegateBlockProduction, DelegateBoth, DelegateCredential,
@@ -9,6 +9,8 @@ use cardano/certificate.{
   UnregisterDelegateRepresentative,
 }
 use cardano/transaction.{Input, Output, Redeemer, ScriptPurpose, Spend}
+use cocktail.{inputs_at}
+use types.{CrowdfundRedeemer}
 
 pub fn redeemer_with_input(
   redeemers: Pairs<ScriptPurpose, Redeemer>,
@@ -108,4 +110,20 @@ pub fn check_lovelace_diff(input: Input, output: Output, diff: Lovelace) {
   let lovelace_from_output = output.value |> lovelace_of()
 
   lovelace_from_output - lovelace_from_input_output == diff
+}
+
+pub fn check_spend_script_input_redeemer(
+  spend: ByteArray,
+  inputs: List<Input>,
+  redeemers: Pairs<ScriptPurpose, Redeemer>,
+  redeemer: CrowdfundRedeemer,
+) {
+  let spend_address = from_script(spend)
+  expect [only_input] = inputs_at(inputs, spend_address)
+  expect Some(only_inpuy_redeemer_data) =
+    redeemer_with_input(redeemers, only_input)
+
+  expect only_input_redeemer: CrowdfundRedeemer = only_inpuy_redeemer_data
+
+  only_input_redeemer == redeemer
 }
