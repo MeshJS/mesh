@@ -1,8 +1,10 @@
 use cardano/address.{Address}
+use cardano/governance.{GovernanceActionId}
 
 pub type CrowdfundRedeemer {
   RegisterCerts
   DeregisterCerts
+  VoteOnGovAction
   ContributorWithdrawal
   RemoveEmptyInstance
 }
@@ -22,26 +24,38 @@ pub type CrowdfundDatum {
 
 pub type CrowdfundGovDatum {
   Init {
-    completion_script: ByteArray,
+    start_hash: ByteArray,
     share_token: ByteArray,
     funds_controlled: Int,
     deadline: Int,
   }
   Proposed {
-    completion_script: ByteArray,
+    start_hash: ByteArray,
     share_token: ByteArray,
     funds_controlled: Int,
     deadline: Int,
   }
+  Voted {
+    start_hash: ByteArray,
+    share_token: ByteArray,
+    funds_controlled: Int,
+    gov_tx_id: GovernanceActionId,
+    deadline: Int,
+  }
   Refundable {
-    completion_script: ByteArray,
+    start_hash: ByteArray,
     share_token: ByteArray,
     funds_controlled: Int,
     deadline: Int,
   }
 }
 
-pub type StakeRedeemer {
+pub type MintPolarity {
+  RMint
+  RBurn
+}
+
+pub type PublishRedeemer {
   Register
   Deregister
 }

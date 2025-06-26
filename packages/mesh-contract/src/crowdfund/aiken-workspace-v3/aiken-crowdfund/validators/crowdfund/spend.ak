@@ -111,7 +111,7 @@ validator crowdfund(auth_token: PolicyId) {
         let withdrawal_script_check =
           withdrawals
             |> has_key(completion_script_withdrawal_credential)
-        fundraise_check? && withdrawal_script_check? && only_minted_token(
+        fundraise_check? && withdrawal_script_check? && policy_only_minted_token(
           mint,
           auth_token,
           completion_script,
