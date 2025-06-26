@@ -1,4 +1,4 @@
-use cardano/assets.{add, from_lovelace}
+use cardano/assets.{from_lovelace}
 use cardano/certificate.{RegisterCredential}
 use cardano/script_context.{Publishing, ScriptContext}
 use cardano/transaction.{OutputReference, Spend, Transaction}
@@ -8,8 +8,7 @@ use mocktail.{
 }
 use stake
 use tests/utils.{
-  mock_auth_token, mock_completion_script, mock_crowdfund_gov_address,
-  mock_spend_script_hash,
+  mock_crowdfund_gov_address, mock_fundraise_target, mock_spend_script_hash,
 }
 use types.{Deregister, DeregisterCerts, Register, RegisterCerts}
 
@@ -22,8 +21,7 @@ fn mock_stake_tx(
   only_input_redeemer: Data,
 ) -> Transaction {
   let StakeTestCase { is_only_one_auth_inputed } = test_case
-  let only_input =
-    from_lovelace(20000000) |> add(mock_auth_token, mock_completion_script, 1)
+  let only_input = from_lovelace(mock_fundraise_target)
   mocktail_tx()
     |> tx_in(True, mock_tx_hash(0), 0, only_input, mock_crowdfund_gov_address)
     |> tx_in(

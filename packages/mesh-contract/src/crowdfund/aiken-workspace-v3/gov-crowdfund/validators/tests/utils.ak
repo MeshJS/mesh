@@ -1,5 +1,11 @@
+use aiken/collection/list
 use cardano/address.{Address, Inline, Script, from_script}
-use mocktail.{mock_policy_id, mock_script_hash, mock_script_stake_key_hash}
+use cardano/governance.{NoConfidence, ProposalProcedure}
+use cardano/transaction.{Transaction}
+use mocktail.{
+  mock_policy_id, mock_pub_key_hash, mock_script_hash,
+  mock_script_stake_key_hash,
+}
 use types.{CrowdfundDatum}
 
 pub const mock_auth_token = mock_policy_id(0)
@@ -19,6 +25,8 @@ pub const mock_fee_address = from_script("fee_address")
 pub const mock_fundraise_target = 100000000000
 
 pub const mock_current_fundraised_amount = mock_fundraise_target + 1000000
+
+pub const mock_contribute_min_fundraised_amount = 2000000
 
 pub const mock_deadline = 1750735607
 
@@ -57,3 +65,32 @@ pub const mock_gov_address =
   }
 
 pub const mock_gov_action_period = 3600
+
+pub const mock_delegate_pool_id = mock_script_hash(3)
+
+pub const mock_gov_action = NoConfidence { ancestor: None }
+
+pub const mock_proposer_key_hash = mock_pub_key_hash(0)
+
+pub const mock_stake_register_deposit = 2000000
+
+pub const mock_drep_register_deposit = 500000000
+
+pub const mock_funds_controlled =
+  mock_fundraise_target + mock_stake_register_deposit + mock_drep_register_deposit
+
+pub fn add_proposal_procedure(
+  tx: Transaction,
+  condition: Bool,
+  proposal_procedure: ProposalProcedure,
+) -> Transaction {
+  if !condition {
+    tx
+  } else {
+    Transaction {
+      ..tx,
+      proposal_procedures: tx.proposal_procedures
+        |> list.concat([proposal_procedure]),
+    }
+  }
+}
