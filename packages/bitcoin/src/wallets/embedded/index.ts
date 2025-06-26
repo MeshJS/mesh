@@ -16,6 +16,18 @@ export type CreateWalletOptions = {
   provider?: IBitcoinProvider;
 };
 
+export type TransactionPayload = {
+  inputs: {
+    txid: string;
+    vout: number;
+    value: number;
+  }[];
+  outputs: {
+    address: string;
+    value: number;
+  }[];
+};
+
 /**
  * EmbeddedWallet is a class that provides a simple interface to interact with Bitcoin wallets.
  */
@@ -87,13 +99,12 @@ export class EmbeddedWallet {
    * @returns An array of UTXOs.
    */
   async getUTxOs(): Promise<UTxO[]> {
-    console.log("getUtxos");
     const address = this.getAddress();
     if (this._provider === undefined) {
       throw new Error("`provider` is not defined. Provide a BitcoinProvider.");
     }
 
-    return await this._provider?.fetchAddressUTxOs(address.address);
+    return await this._provider.fetchAddressUTxOs(address.address);
   }
 
   /**
@@ -103,14 +114,12 @@ export class EmbeddedWallet {
    * @returns The signature of the message as a string.
    */
   signData(message: string): string {
-    // Get the private key buffer from the BIP32 wallet
-    const privateKey = this._wallet.privateKey;
-    if (!privateKey) {
+    if (!this._wallet.privateKey) {
       throw new Error("Private key is not available for signing.");
     }
 
     // Create ECPair from private key
-    const keyPair = ECPair.fromPrivateKey(privateKey, { compressed: true });
+    const keyPair = ECPair.fromPrivateKey(this._wallet.privateKey, { compressed: true });
     // Prepare message buffer
     const messageBuffer = Buffer.from(message, "utf8");
     // Prepare the buffer to sign (see bitcoinjs-message implementation)
@@ -131,8 +140,47 @@ export class EmbeddedWallet {
    * @param payload - The transaction payload to sign.
    * @returns The signed transaction in hex format.
    */
-  signTx(payload: bitcoin.Transaction): string {
-    return "";
+  signTx(payload: TransactionPayload): string {
+    if (!this._wallet.privateKey) {
+      throw new Error("Private key is not available for signing.");
+    }
+
+    const psbt = new bitcoin.Psbt({ network: this._network });
+    const p2wpkh = bitcoin.payments.p2wpkh({
+      pubkey: this._wallet.publicKey,
+      network: this._network
+    });
+    const ecPair = ECPair.fromPrivateKey(this._wallet.privateKey, {
+      network: this._network,
+    });
+    
+    for (const input of payload.inputs) {
+      psbt.addInput({
+        hash: input.txid,
+        index: input.vout,
+        witnessUtxo: {
+          script: p2wpkh.output!,
+          value: input.value,
+        },
+      });
+    }
+
+    for (const output of payload.outputs) {
+      psbt.addOutput({
+        address: output.address,
+        value: output.value,
+      });
+    }
+
+    for (let i = 0; i < payload.inputs.length; i++) {
+      psbt.signInput(i, this._wallet);
+      psbt.validateSignaturesOfInput(i, (pubkey, hash, signature) => {
+        return ecPair.publicKey.equals(pubkey) && ecPair.verify(hash, signature);
+      });
+    }
+
+    psbt.finalizeAllInputs();
+    return psbt.extractTransaction().toHex();
   }
 
   /**
