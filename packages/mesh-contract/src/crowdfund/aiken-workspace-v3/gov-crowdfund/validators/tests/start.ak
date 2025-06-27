@@ -80,7 +80,7 @@ fn mock_withdraw_tx(test_case: WithdrawTestCase) -> Transaction {
     |> complete()
 }
 
-test s3_withdraw_success() {
+test s2_withdraw_success() {
   let tx =
     mock_withdraw_tx(
       WithdrawTestCase {
@@ -102,7 +102,7 @@ test s3_withdraw_success() {
   )
 }
 
-test s3_withdraw_fail_with_more_than_one_auth_inputed() fail {
+test s2_withdraw_fail_with_more_than_one_auth_inputed() fail {
   let tx =
     mock_withdraw_tx(
       WithdrawTestCase {
@@ -124,7 +124,7 @@ test s3_withdraw_fail_with_more_than_one_auth_inputed() fail {
   )
 }
 
-test s3_withdraw_fail_with_fundraise_target_not_sent() fail {
+test s2_withdraw_fail_with_fundraise_target_not_sent() fail {
   let tx =
     mock_withdraw_tx(
       WithdrawTestCase {
@@ -146,7 +146,7 @@ test s3_withdraw_fail_with_fundraise_target_not_sent() fail {
   )
 }
 
-test s3_withdraw_fail_with_incorrect_fundraise_target_output_amount() {
+test s2_withdraw_fail_with_incorrect_fundraise_target_output_amount() {
   let tx =
     mock_withdraw_tx(
       WithdrawTestCase {
@@ -168,7 +168,7 @@ test s3_withdraw_fail_with_incorrect_fundraise_target_output_amount() {
   )
 }
 
-test s3_withdraw_fail_with_incorrect_fundraise_target_output_datum() {
+test s2_withdraw_fail_with_incorrect_fundraise_target_output_datum() {
   let tx =
     mock_withdraw_tx(
       WithdrawTestCase {
@@ -190,7 +190,7 @@ test s3_withdraw_fail_with_incorrect_fundraise_target_output_datum() {
   )
 }
 
-test s3_withdraw_fail_with_token_not_minted() {
+test s2_withdraw_fail_with_token_not_minted() {
   let tx =
     mock_withdraw_tx(
       WithdrawTestCase {
@@ -212,7 +212,7 @@ test s3_withdraw_fail_with_token_not_minted() {
   )
 }
 
-test s3_withdraw_fail_with_different_start_hash() {
+test s2_withdraw_fail_with_different_start_hash() {
   let tx =
     mock_withdraw_tx(
       WithdrawTestCase {
