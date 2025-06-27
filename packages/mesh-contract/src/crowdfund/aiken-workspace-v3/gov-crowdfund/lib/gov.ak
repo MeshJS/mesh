@@ -1,5 +1,4 @@
 use aiken/crypto.{ScriptHash}
-use aiken/math/rational.{Rational}
 use cardano/address.{Credential}
 use cardano/assets.{Lovelace}
 use cardano/governance.{
@@ -11,6 +10,11 @@ type ProtocolParametersIndex =
 
 pub type VProtocolParametersUpdate {
   inner: Pairs<ProtocolParametersIndex, Data>,
+}
+
+pub type VRational {
+  numerator: Int,
+  denominator: Int,
 }
 
 pub type VGovernanceAction {
@@ -64,7 +68,7 @@ pub type VGovernanceAction {
     /// The new quorum value, as a ratio of a numerator and a denominator. The
     /// quorum specifies the threshold of 'Yes' votes necessary for the
     /// constitutional committee to accept a proposal procedure.
-    quorum: Rational,
+    quorum: VRational,
   }
   NewConstitution {
     /// The last governance action of type `Constitution` or
