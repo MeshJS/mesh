@@ -1,10 +1,11 @@
 use aiken/collection/list
 use cardano/address.{Address, Inline, Script, from_script}
-use cardano/governance.{NoConfidence, ProposalProcedure}
+use cardano/governance.{GovernanceActionId, ProposalProcedure, Vote, Voter}
 use cardano/transaction.{Transaction}
+use gov.{NoConfidence}
 use mocktail.{
   mock_policy_id, mock_pub_key_hash, mock_script_hash,
-  mock_script_stake_key_hash,
+  mock_script_stake_key_hash, mock_tx_hash,
 }
 use types.{CrowdfundDatum}
 
@@ -77,7 +78,10 @@ pub const mock_stake_register_deposit = 2000000
 pub const mock_drep_register_deposit = 500000000
 
 pub const mock_funds_controlled =
-  mock_fundraise_target + mock_stake_register_deposit + mock_drep_register_deposit
+  mock_fundraise_target + mock_stake_register_deposit + mock_drep_register_deposit + 1000000
+
+pub const mock_gov_action_id =
+  GovernanceActionId { transaction: mock_tx_hash(0), proposal_procedure: 0 }
 
 pub fn add_proposal_procedure(
   tx: Transaction,
@@ -91,6 +95,22 @@ pub fn add_proposal_procedure(
       ..tx,
       proposal_procedures: tx.proposal_procedures
         |> list.concat([proposal_procedure]),
+    }
+  }
+}
+
+pub fn add_vote(
+  tx: Transaction,
+  condition: Bool,
+  vote: Pair<Voter, Pairs<GovernanceActionId, Vote>>,
+) -> Transaction {
+  if !condition {
+    tx
+  } else {
+    Transaction {
+      ..tx,
+      votes: tx.votes
+        |> list.concat([vote]),
     }
   }
 }
