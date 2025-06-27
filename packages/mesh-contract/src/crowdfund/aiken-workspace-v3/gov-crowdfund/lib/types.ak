@@ -3,8 +3,8 @@ use cardano/governance.{GovernanceActionId}
 
 pub type CrowdfundRedeemer {
   RegisterCerts
-  DeregisterCerts
   VoteOnGovAction
+  DeregisterCerts
   ContributorWithdrawal
   RemoveEmptyInstance
 }
@@ -46,7 +46,6 @@ pub type CrowdfundGovDatum {
     start_hash: ByteArray,
     share_token: ByteArray,
     funds_controlled: Int,
-    deadline: Int,
   }
 }
 
