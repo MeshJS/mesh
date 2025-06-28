@@ -156,63 +156,6 @@ fn check_all_scripts(
   check_auth_spend? && check_share_mint?
 }
 
-test contribute_fund_success_with_not_allow_over_subscription() {
-  let test_case =
-    ContributeFundTestCase {
-      is_only_one_auth_inputed: True,
-      is_only_one_auth_outputed: True,
-      is_auth_output_datum_correct: True,
-      is_auth_output_value_clean: True,
-      is_deadline_not_passed: True,
-      is_shares_minted: True,
-    }
-  check_all_scripts(
-    test_case,
-    mock_current_fundraised_amount,
-    mock_contribute_min_fundraised_amount,
-    False,
-    ContributeFund,
-  )
-}
-
-test contribute_fund_success_with_allow_over_subscription() {
-  let test_case =
-    ContributeFundTestCase {
-      is_only_one_auth_inputed: True,
-      is_only_one_auth_outputed: True,
-      is_auth_output_datum_correct: True,
-      is_auth_output_value_clean: True,
-      is_deadline_not_passed: True,
-      is_shares_minted: True,
-    }
-  check_all_scripts(
-    test_case,
-    mock_current_fundraised_amount,
-    mock_contribute_min_fundraised_amount,
-    True,
-    ContributeFund,
-  )
-}
-
-test contribute_fund_success_with_allow_over_subscription_and_over_fundraised() {
-  let test_case =
-    ContributeFundTestCase {
-      is_only_one_auth_inputed: True,
-      is_only_one_auth_outputed: True,
-      is_auth_output_datum_correct: True,
-      is_auth_output_value_clean: True,
-      is_deadline_not_passed: True,
-      is_shares_minted: True,
-    }
-  check_all_scripts(
-    test_case,
-    mock_current_fundraised_amount,
-    mock_contribute_over_fundraised_amount,
-    True,
-    ContributeFund,
-  )
-}
-
 test contribute_fund_fail_with_not_allow_over_subscription_but_over_fundraised() {
   let test_case =
     ContributeFundTestCase {

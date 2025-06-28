@@ -25,15 +25,21 @@ pub const mock_fee_address = from_script("fee_address")
 
 pub const mock_fundraise_target = 100000000000
 
-pub const mock_current_fundraised_amount = mock_fundraise_target + 1000000
+pub const mock_extra_fundraised_amount = 4000000
+
+pub const mock_min_charge = 0
+
+pub const mock_current_fundraised_amount =
+  mock_fundraise_target + mock_extra_fundraised_amount + mock_min_charge
 
 pub const mock_contribute_min_fundraised_amount = 2000000
+
+pub const mock_contribute_over_fundraised_amount =
+  mock_fundraise_target + mock_contribute_min_fundraised_amount
 
 pub const mock_deadline = 1750735607
 
 pub const mock_expiry_buffer = 3600 * 24
-
-pub const mock_min_charge = 0
 
 pub fn mock_crowdfund_datum(
   current_fundraised_amount: Int,
