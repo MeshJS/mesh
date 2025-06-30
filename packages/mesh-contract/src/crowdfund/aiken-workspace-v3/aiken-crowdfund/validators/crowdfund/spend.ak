@@ -1,12 +1,9 @@
-use aiken/collection/list.{delete}
 use aiken/collection/pairs.{has_key}
 use cardano/address.{Credential, Script}
-use cardano/assets.{
-  PolicyId, from_lovelace, lovelace_of, merge, policies, restricted_to,
-}
+use cardano/assets.{PolicyId, lovelace_of}
 use cardano/transaction.{OutputReference, Transaction, find_input}
 use cocktail.{
-  inputs_at_with_policy, only_minted_token, output_inline_datum,
+  inputs_at_with_policy, key_signed, only_minted_token, output_inline_datum,
   outputs_at_with_policy, policy_only_minted_token, valid_after, valid_before,
   value_length,
 }
@@ -14,17 +11,24 @@ use types.{
   CompleteCrowdfund, ContributeFund, ContributorWithdrawal, CrowdfundDatum,
   CrowdfundRedeemer, RemoveEmptyInstance,
 }
-use utils.{check_fundraise_target, output_at_with_value}
+use utils.{check_fundraise_target, outputs_at_with_lovelace}
 
-validator crowdfund(auth_token: PolicyId) {
+validator crowdfund(auth_token: PolicyId, proposer_key_hash: ByteArray) {
   spend(
     datum_opt: Option<CrowdfundDatum>,
     redeemer: CrowdfundRedeemer,
     input: OutputReference,
     self: Transaction,
   ) {
-    let Transaction { inputs, validity_range, mint, outputs, withdrawals, .. } =
-      self
+    let Transaction {
+      inputs,
+      validity_range,
+      mint,
+      outputs,
+      withdrawals,
+      extra_signatories,
+      ..
+    } = self
 
     expect Some(own_input) = find_input(inputs, input)
     expect Some(auth_input_datum) = datum_opt
@@ -87,23 +91,10 @@ validator crowdfund(auth_token: PolicyId) {
       }
 
       CompleteCrowdfund -> {
-        let fee_value =
-          from_lovelace(
-            lovelace_of(auth_input.output.value) - current_fundraised_amount - min_charge,
-          )
+        let input_lovelace_check =
+          lovelace_of(auth_input.output.value) >= min_charge + current_fundraised_amount
 
-        let other_policy =
-          policies(auth_input.output.value)
-            |> delete(auth_token)
-            |> delete("")
-        let other_value = restricted_to(auth_input.output.value, other_policy)
-
-        expect [_] =
-          output_at_with_value(
-            outputs,
-            fee_address,
-            merge(other_value, fee_value),
-          )
+        expect [_] = outputs_at_with_lovelace(outputs, fee_address, min_charge)
 
         let fundraise_check = current_fundraised_amount >= fundraise_target
         let completion_script_withdrawal_credential: Credential =
@@ -111,7 +102,7 @@ validator crowdfund(auth_token: PolicyId) {
         let withdrawal_script_check =
           withdrawals
             |> has_key(completion_script_withdrawal_credential)
-        fundraise_check? && withdrawal_script_check? && policy_only_minted_token(
+        fundraise_check? && withdrawal_script_check? && input_lovelace_check? && policy_only_minted_token(
           mint,
           auth_token,
           completion_script,
@@ -171,7 +162,9 @@ validator crowdfund(auth_token: PolicyId) {
           } else {
             only_minted_token(mint, auth_token, completion_script, -1)?
           }
-        validity_check? && token_burnt_check?
+        let proposer_key_signed_check =
+          key_signed(extra_signatories, proposer_key_hash)
+        validity_check? && token_burnt_check? && proposer_key_signed_check?
       }
     }
   }

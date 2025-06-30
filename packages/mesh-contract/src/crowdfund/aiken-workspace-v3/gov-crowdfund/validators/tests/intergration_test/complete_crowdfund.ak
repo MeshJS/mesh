@@ -14,8 +14,9 @@ use tests/utils.{
   mock_auth_token, mock_completion_script, mock_crowdfund_address,
   mock_crowdfund_datum, mock_current_fundraised_amount, mock_deadline,
   mock_extra_fundraised_amount, mock_fee_address, mock_fundraise_target,
-  mock_gov_action_period, mock_gov_address, mock_min_charge, mock_share_token,
-  mock_spend_script_hash, mock_start_hash,
+  mock_gov_action_period, mock_gov_address, mock_min_charge,
+  mock_proposer_key_hash, mock_share_token, mock_spend_script_hash,
+  mock_start_hash,
 }
 use types.{Init, RMint}
 
@@ -71,15 +72,10 @@ fn mock_complete_crowdfund_tx(
       }
     }
   let input_value =
-    from_lovelace(
-      current_fundraised_amount + mock_min_charge + mock_extra_fundraised_amount,
-    )
+    from_lovelace(current_fundraised_amount + mock_min_charge)
       |> add(mock_auth_token, mock_completion_script, 1)
-      |> add(mock_policy_id(999), mock_completion_script, 10)
 
-  let output_value =
-    from_lovelace(mock_extra_fundraised_amount)
-      |> add(mock_policy_id(999), mock_completion_script, 10)
+  let output_value = from_lovelace(mock_min_charge)
 
   mocktail_tx()
     |> tx_in(True, mock_tx_hash(0), 0, input_value, mock_crowdfund_address)
@@ -138,6 +134,7 @@ fn check_all_scripts(
   let check_auth_spend =
     crowdfund.crowdfund.spend(
       mock_auth_token,
+      mock_proposer_key_hash,
       Some(mock_crowdfund_datum(mock_current_fundraised_amount, False)),
       auth_token_redeemer,
       mock_utxo_ref(0, 0),
