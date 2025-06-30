@@ -165,7 +165,7 @@ fn mock_register_cert_tx(test_case: RegisterCertsTestCase) -> Transaction {
       )
 }
 
-test s3_spend_success_reg_cert() {
+test s1_spend_success_reg_cert() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -203,7 +203,7 @@ test s3_spend_success_reg_cert() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_not_init_state() {
+test s1_spend_fail_reg_cert_with_not_init_state() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -241,7 +241,7 @@ test s3_spend_fail_reg_cert_with_not_init_state() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_more_than_one_input() fail {
+test s1_spend_fail_reg_cert_with_more_than_one_input() fail {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -279,7 +279,7 @@ test s3_spend_fail_reg_cert_with_more_than_one_input() fail {
   )
 }
 
-test s3_spend_fail_reg_cert_with_more_than_one_output() fail {
+test s1_spend_fail_reg_cert_with_more_than_one_output() fail {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -317,7 +317,7 @@ test s3_spend_fail_reg_cert_with_more_than_one_output() fail {
   )
 }
 
-test s3_spend_fail_reg_cert_with_incorrect_output_datum() {
+test s1_spend_fail_reg_cert_with_incorrect_output_datum() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -355,7 +355,7 @@ test s3_spend_fail_reg_cert_with_incorrect_output_datum() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_output_value_not_clean() {
+test s1_spend_fail_reg_cert_with_output_value_not_clean() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -393,7 +393,7 @@ test s3_spend_fail_reg_cert_with_output_value_not_clean() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_incorrect_output_value() {
+test s1_spend_fail_reg_cert_with_incorrect_output_value() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -431,7 +431,7 @@ test s3_spend_fail_reg_cert_with_incorrect_output_value() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_stake_cert_not_reg() {
+test s1_spend_fail_reg_cert_with_stake_cert_not_reg() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -469,7 +469,7 @@ test s3_spend_fail_reg_cert_with_stake_cert_not_reg() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_drep_cert_not_reg() {
+test s1_spend_fail_reg_cert_with_drep_cert_not_reg() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -507,7 +507,7 @@ test s3_spend_fail_reg_cert_with_drep_cert_not_reg() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_drep_deposit_incorrect() {
+test s1_spend_fail_reg_cert_with_drep_deposit_incorrect() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -545,7 +545,7 @@ test s3_spend_fail_reg_cert_with_drep_deposit_incorrect() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_stake_not_delegated() {
+test s1_spend_fail_reg_cert_with_stake_not_delegated() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -583,7 +583,7 @@ test s3_spend_fail_reg_cert_with_stake_not_delegated() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_vote_not_delegated() {
+test s1_spend_fail_reg_cert_with_vote_not_delegated() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -621,7 +621,7 @@ test s3_spend_fail_reg_cert_with_vote_not_delegated() {
   )
 }
 
-test s3_spend_fail_reg_cert_with_gov_not_proposed() {
+test s1_spend_fail_reg_cert_with_gov_not_proposed() {
   let tx =
     mock_register_cert_tx(
       RegisterCertsTestCase {
@@ -752,7 +752,7 @@ fn mock_vote_on_gov_action_tx(test_case: VoteOnGovActionTestCase) -> Transaction
       )
 }
 
-test s3_spend_success_vote_on_gov_action() {
+test s1_spend_success_vote_on_gov_action() {
   let tx =
     mock_vote_on_gov_action_tx(
       VoteOnGovActionTestCase {
@@ -785,7 +785,7 @@ test s3_spend_success_vote_on_gov_action() {
   )
 }
 
-test s3_spend_fail_vote_on_gov_action_with_more_than_one_inputed() fail {
+test s1_spend_fail_vote_on_gov_action_with_more_than_one_inputed() fail {
   let tx =
     mock_vote_on_gov_action_tx(
       VoteOnGovActionTestCase {
@@ -818,7 +818,7 @@ test s3_spend_fail_vote_on_gov_action_with_more_than_one_inputed() fail {
   )
 }
 
-test s3_spend_fail_vote_on_gov_action_with_more_than_one_outputed() fail {
+test s1_spend_fail_vote_on_gov_action_with_more_than_one_outputed() fail {
   let tx =
     mock_vote_on_gov_action_tx(
       VoteOnGovActionTestCase {
@@ -851,7 +851,7 @@ test s3_spend_fail_vote_on_gov_action_with_more_than_one_outputed() fail {
   )
 }
 
-test s3_spend_fail_vote_on_gov_action_with_output_datum_wrong() {
+test s1_spend_fail_vote_on_gov_action_with_output_datum_wrong() {
   let tx =
     mock_vote_on_gov_action_tx(
       VoteOnGovActionTestCase {
@@ -884,7 +884,7 @@ test s3_spend_fail_vote_on_gov_action_with_output_datum_wrong() {
   )
 }
 
-test s3_spend_fail_vote_on_gov_action_with_output_value_not_clean() {
+test s1_spend_fail_vote_on_gov_action_with_output_value_not_clean() {
   let tx =
     mock_vote_on_gov_action_tx(
       VoteOnGovActionTestCase {
@@ -917,7 +917,7 @@ test s3_spend_fail_vote_on_gov_action_with_output_value_not_clean() {
   )
 }
 
-test s3_spend_fail_vote_on_gov_action_with_incorrect_output_value() {
+test s1_spend_fail_vote_on_gov_action_with_incorrect_output_value() {
   let tx =
     mock_vote_on_gov_action_tx(
       VoteOnGovActionTestCase {
@@ -950,7 +950,7 @@ test s3_spend_fail_vote_on_gov_action_with_incorrect_output_value() {
   )
 }
 
-test s3_spend_fail_vote_on_gov_action_with_no_vote() fail {
+test s1_spend_fail_vote_on_gov_action_with_no_vote() fail {
   let tx =
     mock_vote_on_gov_action_tx(
       VoteOnGovActionTestCase {
@@ -1088,7 +1088,7 @@ fn mock_deregister_cert_tx(test_case: DeregisterCertsTestCase) -> Transaction {
       )
 }
 
-test s3_spend_success_unregister_certs() {
+test s1_spend_success_unregister_certs() {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1124,7 +1124,7 @@ test s3_spend_success_unregister_certs() {
   )
 }
 
-test s3_spend_fail_unregister_certs_with_more_than_one_inputed() fail {
+test s1_spend_fail_unregister_certs_with_more_than_one_inputed() fail {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1160,7 +1160,7 @@ test s3_spend_fail_unregister_certs_with_more_than_one_inputed() fail {
   )
 }
 
-test s3_spend_fail_unregister_certs_with_more_than_one_outputed() fail {
+test s1_spend_fail_unregister_certs_with_more_than_one_outputed() fail {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1196,7 +1196,7 @@ test s3_spend_fail_unregister_certs_with_more_than_one_outputed() fail {
   )
 }
 
-test s3_spend_fail_unregister_certs_with_output_datum_incorrect() {
+test s1_spend_fail_unregister_certs_with_output_datum_incorrect() {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1232,7 +1232,7 @@ test s3_spend_fail_unregister_certs_with_output_datum_incorrect() {
   )
 }
 
-test s3_spend_fail_unregister_certs_with_output_value_not_clean() {
+test s1_spend_fail_unregister_certs_with_output_value_not_clean() {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1268,7 +1268,7 @@ test s3_spend_fail_unregister_certs_with_output_value_not_clean() {
   )
 }
 
-test s3_spend_fail_unregister_certs_with_output_value_incorrect() {
+test s1_spend_fail_unregister_certs_with_output_value_incorrect() {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1304,7 +1304,7 @@ test s3_spend_fail_unregister_certs_with_output_value_incorrect() {
   )
 }
 
-test s3_spend_fail_unregister_certs_with_stake_not_unregister() {
+test s1_spend_fail_unregister_certs_with_stake_not_unregister() {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1340,7 +1340,7 @@ test s3_spend_fail_unregister_certs_with_stake_not_unregister() {
   )
 }
 
-test s3_spend_fail_unregister_certs_with_drep_not_unregister() {
+test s1_spend_fail_unregister_certs_with_drep_not_unregister() {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1376,7 +1376,7 @@ test s3_spend_fail_unregister_certs_with_drep_not_unregister() {
   )
 }
 
-test s3_spend_fail_unregister_certs_with_deadline_not_passed() {
+test s1_spend_fail_unregister_certs_with_deadline_not_passed() {
   let tx =
     mock_deregister_cert_tx(
       DeregisterCertsTestCase {
@@ -1506,7 +1506,7 @@ fn mock_contributor_withdrawal_tx(
     |> complete()
 }
 
-test s3_spend_success_contributor_withdraw() {
+test s1_spend_success_contributor_withdraw() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1541,7 +1541,7 @@ test s3_spend_success_contributor_withdraw() {
   )
 }
 
-test s3_spend_fail_contributor_withdraw_with_state_not_refundable() {
+test s1_spend_fail_contributor_withdraw_with_state_not_refundable() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1577,7 +1577,7 @@ test s3_spend_fail_contributor_withdraw_with_state_not_refundable() {
   )
 }
 
-test s3_spend_fail_contributor_withdraw_with_more_than_one_auth_inputed() fail {
+test s1_spend_fail_contributor_withdraw_with_more_than_one_auth_inputed() fail {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1612,7 +1612,7 @@ test s3_spend_fail_contributor_withdraw_with_more_than_one_auth_inputed() fail {
   )
 }
 
-test s3_spend_fail_contributor_withdraw_with_more_than_one_auth_outputed() fail {
+test s1_spend_fail_contributor_withdraw_with_more_than_one_auth_outputed() fail {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1647,7 +1647,7 @@ test s3_spend_fail_contributor_withdraw_with_more_than_one_auth_outputed() fail 
   )
 }
 
-test s3_spend_fail_contributor_withdraw_with_incorrect_output_datum() {
+test s1_spend_fail_contributor_withdraw_with_incorrect_output_datum() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1682,7 +1682,7 @@ test s3_spend_fail_contributor_withdraw_with_incorrect_output_datum() {
   )
 }
 
-test s3_spend_fail_contributor_withdraw_with_auth_output_value_not_clean() {
+test s1_spend_fail_contributor_withdraw_with_auth_output_value_not_clean() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1717,7 +1717,7 @@ test s3_spend_fail_contributor_withdraw_with_auth_output_value_not_clean() {
   )
 }
 
-test s3_spend_fail_contributor_withdraw_with_incorrect_auth_unlock_value() {
+test s1_spend_fail_contributor_withdraw_with_incorrect_auth_unlock_value() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1752,7 +1752,7 @@ test s3_spend_fail_contributor_withdraw_with_incorrect_auth_unlock_value() {
   )
 }
 
-// test s3_spend_fail_contributor_withdraw_with_deadline_not_passed() {
+// test s1_spend_fail_contributor_withdraw_with_deadline_not_passed() {
 //   let tx =
 //     mock_contributor_withdrawal_tx(
 //       ContributorWithdrawalTestCase {
@@ -1787,7 +1787,7 @@ test s3_spend_fail_contributor_withdraw_with_incorrect_auth_unlock_value() {
 //   )
 // }
 
-test s3_spend_fail_contributor_withdraw_with_incorrect_shares_burnt() {
+test s1_spend_fail_contributor_withdraw_with_incorrect_shares_burnt() {
   let tx =
     mock_contributor_withdrawal_tx(
       ContributorWithdrawalTestCase {
@@ -1891,7 +1891,7 @@ fn mock_remove_empty_instance_tx(
     |> add_extra_signatory(is_proposer_signed, mock_proposer_key_hash)
 }
 
-test s3_spend_success_remove_empty_instance_wih_zero_fund() {
+test s1_spend_success_remove_empty_instance_wih_zero_fund() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -1923,7 +1923,7 @@ test s3_spend_success_remove_empty_instance_wih_zero_fund() {
   )
 }
 
-test s3_spend_success_remove_empty_instance_wih_some_fund() {
+test s1_spend_success_remove_empty_instance_wih_some_fund() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -1955,7 +1955,7 @@ test s3_spend_success_remove_empty_instance_wih_some_fund() {
   )
 }
 
-test s3_spend_fail_remove_empty_instance_wih_state_not_refundable() {
+test s1_spend_fail_remove_empty_instance_wih_state_not_refundable() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -1988,7 +1988,7 @@ test s3_spend_fail_remove_empty_instance_wih_state_not_refundable() {
   )
 }
 
-test s3_spend_fail_remove_empty_instance_wih_more_than_one_auth_inputed() fail {
+test s1_spend_fail_remove_empty_instance_wih_more_than_one_auth_inputed() fail {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -2020,7 +2020,7 @@ test s3_spend_fail_remove_empty_instance_wih_more_than_one_auth_inputed() fail {
   )
 }
 
-// test s3_spend_fail_remove_empty_instance_wih_deadline_not_passed() {
+// test s1_spend_fail_remove_empty_instance_wih_deadline_not_passed() {
 //   let tx =
 //     mock_remove_empty_instance_tx(
 //       RemoveEmptyInstanceTestCase {
@@ -2052,7 +2052,7 @@ test s3_spend_fail_remove_empty_instance_wih_more_than_one_auth_inputed() fail {
 //   )
 // }
 
-test s3_spend_fail_remove_empty_instance_wih_share_not_burnt() {
+test s1_spend_fail_remove_empty_instance_wih_share_not_burnt() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -2084,7 +2084,7 @@ test s3_spend_fail_remove_empty_instance_wih_share_not_burnt() {
   )
 }
 
-test s3_spend_fail_remove_empty_instance_wih_token_not_burnt() {
+test s1_spend_fail_remove_empty_instance_wih_token_not_burnt() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
@@ -2116,7 +2116,7 @@ test s3_spend_fail_remove_empty_instance_wih_token_not_burnt() {
   )
 }
 
-test s3_spend_fail_remove_empty_instance_wih_proposer_not_signed() {
+test s1_spend_fail_remove_empty_instance_wih_proposer_not_signed() {
   let tx =
     mock_remove_empty_instance_tx(
       RemoveEmptyInstanceTestCase {
