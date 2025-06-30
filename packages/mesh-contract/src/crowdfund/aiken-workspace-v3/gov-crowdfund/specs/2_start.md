@@ -11,6 +11,7 @@
 1. Validate completion of crowdfunding
 
    - Only one input with `auth_token`, with inline datum + `completion_script` same as current crendential hash
+   - Exactly 1 token with `auth_token` policy + `completion_script` asset name is burnt
    - Exactly 1 token with `current_script_hash` policy is minted
    - All `fundraise_target` amount of ADA + currently minted token is sent to address composed of `spend` and `current_script_hash` (both script hash)
    - With datum:

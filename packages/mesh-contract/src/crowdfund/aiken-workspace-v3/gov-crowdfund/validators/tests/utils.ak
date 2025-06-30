@@ -27,7 +27,7 @@ pub const mock_fundraise_target = 100000000000
 
 pub const mock_extra_fundraised_amount = 4000000
 
-pub const mock_min_charge = 0
+pub const mock_min_charge = 10
 
 pub const mock_current_fundraised_amount =
   mock_fundraise_target + mock_extra_fundraised_amount + mock_min_charge

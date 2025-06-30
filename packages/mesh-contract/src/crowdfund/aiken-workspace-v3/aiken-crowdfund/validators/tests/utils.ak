@@ -1,5 +1,8 @@
 use cardano/address.{from_script}
-use mocktail.{mock_policy_id, mock_script_hash, mock_script_stake_key_hash}
+use mocktail.{
+  mock_policy_id, mock_pub_key_hash, mock_script_hash,
+  mock_script_stake_key_hash,
+}
 use types.{CrowdfundDatum}
 
 pub const mock_auth_token = mock_policy_id(0)
@@ -22,7 +25,7 @@ pub const mock_deadline = 1750735607
 
 pub const mock_expiry_buffer = 3600 * 24
 
-pub const mock_min_charge = 0
+pub const mock_min_charge = 10
 
 pub fn mock_crowdfund_datum(
   current_fundraised_amount: Int,
@@ -57,3 +60,5 @@ pub const auth_allow_over_subscription =
 
 pub const auth_not_allow_over_subscription =
   mock_crowdfund_datum(mock_current_fundraised_amount, False)
+
+pub const mock_proposer_key_hash = mock_pub_key_hash(0)
