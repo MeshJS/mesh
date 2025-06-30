@@ -3,6 +3,7 @@
 ## Parameter
 
 - `auth_token`: The policy id of `AuthToken`
+- `proposer_key_hash`: ByteArray
 
 ## Datum
 
@@ -30,7 +31,8 @@
 
 2. CompleteCrowdfund
 
-   - Any value in the current utxos - (`current_fundraised_amount` + `min_charge`) goes to `fee_address`
+   - `min_charge` goes to `fee_address`
+   - utxo value >= `min_charge` + `current_fundraised_amount`
    - `current_fundraised_amount` >= `fundraise_target`
    - `completion_script` withdrawal script is executed
    - `auth_token` from current input is burnt
@@ -48,3 +50,4 @@
    - `deadline` is passed
    - share token with token name `completion_script` burning in current tx == `current_fundraised_amount`
    - `auth_token` from current input is burnt
+   - signed by `proposer_key_hash`

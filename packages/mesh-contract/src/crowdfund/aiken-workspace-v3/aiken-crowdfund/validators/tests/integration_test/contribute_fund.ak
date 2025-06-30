@@ -11,7 +11,7 @@ use tests/utils.{
   mock_auth_token, mock_completion_script, mock_contribute_min_fundraised_amount,
   mock_contribute_over_fundraised_amount, mock_crowdfund_address,
   mock_crowdfund_datum, mock_current_fundraised_amount, mock_deadline,
-  mock_share_token,
+  mock_proposer_key_hash, mock_share_token,
 }
 use types.{CompleteCrowdfund, ContributeFund, CrowdfundRedeemer, RMint}
 
@@ -135,6 +135,7 @@ fn check_all_scripts(
   let check_auth_spend =
     crowdfund_spend.crowdfund.spend(
       mock_auth_token,
+      mock_proposer_key_hash,
       Some(
         mock_crowdfund_datum(
           mock_current_fundraised_amount,

@@ -6,6 +6,7 @@ use cocktail.{
   input_inline_datum, inputs_at, inputs_with_policy, output_inline_datum,
   outputs_at_with, policy_only_minted_token,
 }
+use crowdfund.{CompleteCrowdfund, CrowdfundRedeemer as ACrowdfundRedeemer}
 use types.{
   CrowdfundDatum, CrowdfundGovDatum, CrowdfundRedeemer, Deregister,
   DeregisterCerts, Init, MintPolarity, PublishRedeemer, RBurn, RMint, Register,
@@ -19,7 +20,7 @@ validator start(
   gov_action_period: Int,
 ) {
   withdraw(_r, account: Credential, self: Transaction) {
-    let Transaction { inputs, outputs, mint, .. } = self
+    let Transaction { inputs, outputs, mint, redeemers, .. } = self
     expect [auth_token_input] = inputs_with_policy(inputs, auth_token)
     expect auth_input_datum: CrowdfundDatum =
       input_inline_datum(auth_token_input)
@@ -54,12 +55,20 @@ validator start(
         funds_controlled: current_fundraised_amount,
         deadline: deadline + gov_action_period,
       }
+
+    expect Some(auth_token_input_redeemer_data) =
+      redeemer_with_input(redeemers, auth_token_input)
+
+    expect auth_token_input_redeemer: ACrowdfundRedeemer =
+      auth_token_input_redeemer_data
+
+    let auth_redeemer_check = auth_token_input_redeemer == CompleteCrowdfund
     completion_script_check? && fundraise_output_lovelace_check? && fundraise_output_datum_check? && policy_only_minted_token(
       mint,
       completion_script,
       "",
       1,
-    )?
+    )? && auth_redeemer_check?
   }
 
   mint(redeemer: MintPolarity, policy_id: PolicyId, self: Transaction) {

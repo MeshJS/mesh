@@ -1,7 +1,7 @@
 use aiken/collection/list
 use aiken/collection/pairs
 use cardano/address.{Address}
-use cardano/assets.{Value}
+use cardano/assets.{Lovelace, from_lovelace}
 use cardano/transaction.{Input, Output, Redeemer, ScriptPurpose, Spend}
 
 pub fn redeemer_with_input(
@@ -24,16 +24,16 @@ pub fn check_fundraise_target(
   }
 }
 
-pub fn output_at_with_value(
+pub fn outputs_at_with_lovelace(
   outputs: List<Output>,
   address: Address,
-  value: Value,
+  lovelace: Lovelace,
 ) -> List<Output> {
   list.filter(
     outputs,
     fn(output) {
-      let are_values_equal = output.value == value
-      are_values_equal && output.address == address
+      let is_lovelace_match = output.value == from_lovelace(lovelace)
+      is_lovelace_match && output.address == address
     },
   )
 }

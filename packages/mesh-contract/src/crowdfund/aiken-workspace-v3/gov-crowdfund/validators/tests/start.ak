@@ -1,6 +1,7 @@
 use cardano/address.{Script}
 use cardano/assets.{add, from_lovelace}
 use cardano/transaction.{OutputReference, Spend, Transaction}
+use crowdfund.{CompleteCrowdfund}
 use mocktail.{
   add_redeemer, complete, mint, mock_script_hash, mock_tx_hash, mocktail_tx,
   script_withdrawal, tx_in, tx_in_inline_datum, tx_out, tx_out_inline_datum,
@@ -23,6 +24,7 @@ type WithdrawTestCase {
   is_fundraise_target_amount_correct: Bool,
   is_fundraise_output_datum_correct: Bool,
   is_token_minted: Bool,
+  is_redeemer_correct: Bool,
 }
 
 fn mock_withdraw_tx(test_case: WithdrawTestCase) -> Transaction {
@@ -32,7 +34,10 @@ fn mock_withdraw_tx(test_case: WithdrawTestCase) -> Transaction {
     is_fundraise_target_amount_correct,
     is_fundraise_output_datum_correct,
     is_token_minted,
+    is_redeemer_correct,
   } = test_case
+
+  let auth_input_redeemer: Data = CompleteCrowdfund
   let auth_input =
     from_lovelace(20000000) |> add(mock_auth_token, mock_start_hash, 1)
 
@@ -78,6 +83,15 @@ fn mock_withdraw_tx(test_case: WithdrawTestCase) -> Transaction {
     |> tx_out_inline_datum(is_fundraise_target_sent, fundraise_output_datum)
     |> mint(is_token_minted, 1, mock_start_hash, "")
     |> complete()
+    |> add_redeemer(
+        is_redeemer_correct,
+        Pair(
+          Spend(
+            OutputReference { transaction_id: mock_tx_hash(0), output_index: 0 },
+          ),
+          auth_input_redeemer,
+        ),
+      )
 }
 
 test s2_withdraw_success() {
@@ -89,6 +103,7 @@ test s2_withdraw_success() {
         is_fundraise_target_amount_correct: True,
         is_fundraise_output_datum_correct: True,
         is_token_minted: True,
+        is_redeemer_correct: True,
       },
     )
 
@@ -111,6 +126,7 @@ test s2_withdraw_fail_with_more_than_one_auth_inputed() fail {
         is_fundraise_target_amount_correct: True,
         is_fundraise_output_datum_correct: True,
         is_token_minted: True,
+        is_redeemer_correct: True,
       },
     )
 
@@ -133,6 +149,7 @@ test s2_withdraw_fail_with_fundraise_target_not_sent() fail {
         is_fundraise_target_amount_correct: True,
         is_fundraise_output_datum_correct: True,
         is_token_minted: True,
+        is_redeemer_correct: True,
       },
     )
 
@@ -155,6 +172,7 @@ test s2_withdraw_fail_with_incorrect_fundraise_target_output_amount() {
         is_fundraise_target_amount_correct: False,
         is_fundraise_output_datum_correct: True,
         is_token_minted: True,
+        is_redeemer_correct: True,
       },
     )
 
@@ -177,6 +195,7 @@ test s2_withdraw_fail_with_incorrect_fundraise_target_output_datum() {
         is_fundraise_target_amount_correct: True,
         is_fundraise_output_datum_correct: False,
         is_token_minted: True,
+        is_redeemer_correct: True,
       },
     )
 
@@ -199,10 +218,34 @@ test s2_withdraw_fail_with_token_not_minted() {
         is_fundraise_target_amount_correct: True,
         is_fundraise_output_datum_correct: True,
         is_token_minted: False,
+        is_redeemer_correct: True,
       },
     )
 
   !start.start.withdraw(
+    mock_auth_token,
+    mock_spend_script_hash,
+    mock_gov_action_period,
+    None,
+    Script(mock_start_hash),
+    tx,
+  )
+}
+
+test s2_withdraw_fail_with_redeemer_wrong() fail {
+  let tx =
+    mock_withdraw_tx(
+      WithdrawTestCase {
+        is_only_one_spend_inputed: True,
+        is_fundraise_target_sent: True,
+        is_fundraise_target_amount_correct: True,
+        is_fundraise_output_datum_correct: True,
+        is_token_minted: True,
+        is_redeemer_correct: False,
+      },
+    )
+
+  start.start.withdraw(
     mock_auth_token,
     mock_spend_script_hash,
     mock_gov_action_period,
@@ -221,6 +264,7 @@ test s2_withdraw_fail_with_different_start_hash() {
         is_fundraise_target_amount_correct: True,
         is_fundraise_output_datum_correct: True,
         is_token_minted: True,
+        is_redeemer_correct: True,
       },
     )
 
