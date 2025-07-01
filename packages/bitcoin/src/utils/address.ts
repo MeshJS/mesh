@@ -2,7 +2,7 @@ import { bitcoin } from "../core";
 import { Address } from "../types";
 
 export function resolveAddress(
-  publicKey: string | Buffer<ArrayBufferLike>,
+  publicKey: string | Buffer,
   network: "mainnet" | "testnet" | bitcoin.networks.Network
 ): Address {
   const p2wpkh = bitcoin.payments.p2wpkh({
@@ -20,9 +20,13 @@ export function resolveAddress(
     throw new Error("Address is not initialized.");
   }
 
+  const pubKeyHex = Buffer.isBuffer(publicKey)
+    ? publicKey.toString("hex")
+    : publicKey;
+
   return {
     address: p2wpkh.address,
-    publicKey: publicKey.toString("hex"),
+    publicKey: pubKeyHex,
     purpose: "payment",
     addressType: "p2wpkh",
   };
