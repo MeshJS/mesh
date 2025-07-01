@@ -5,6 +5,7 @@ import { Address } from "../../types/address";
 import { IBitcoinProvider } from "../../interfaces/provider";
 import type { Network } from "bitcoinjs-lib";
 import { mnemonicToSeedSync, validateMnemonic } from "bip39";
+import { resolveAddress } from "../../utils";
 
 export type CreateWalletOptions = {
   testnet: boolean;
@@ -57,21 +58,26 @@ export class EmbeddedWallet {
    * @throws {Error} If internal address or public key is not properly initialized.
    */
   getAddress(): Address {
-    const p2wpkh = bitcoin.payments.p2wpkh({
-      pubkey: this._wallet.publicKey,
-      network: this._network,
-    });
+    return resolveAddress(
+      this._wallet.publicKey,
+      this._network
+    );
 
-    if (!p2wpkh?.address) {
-      throw new Error("Address is not initialized.");
-    }
+    // const p2wpkh = bitcoin.payments.p2wpkh({
+    //   pubkey: this._wallet.publicKey,
+    //   network: this._network,
+    // });
 
-    return {
-      address: p2wpkh.address,
-      publicKey: this._wallet.publicKey.toString("hex"),
-      purpose: "payment",
-      addressType: "p2wpkh",
-    };
+    // if (!p2wpkh?.address) {
+    //   throw new Error("Address is not initialized.");
+    // }
+
+    // return {
+    //   address: p2wpkh.address,
+    //   publicKey: this._wallet.publicKey.toString("hex"),
+    //   purpose: "payment",
+    //   addressType: "p2wpkh",
+    // };
   }
 
   /**
@@ -119,11 +125,13 @@ export class EmbeddedWallet {
     }
 
     // Create ECPair from private key
-    const keyPair = ECPair.fromPrivateKey(this._wallet.privateKey, { compressed: true });
+    const keyPair = ECPair.fromPrivateKey(this._wallet.privateKey, {
+      compressed: true,
+    });
     // Prepare message buffer
     const messageBuffer = Buffer.from(message, "utf8");
     // Prepare the buffer to sign (see bitcoinjs-message implementation)
-    
+
     const bufferToHash = Buffer.concat([
       varIntBuffer(messageBuffer.length),
       messageBuffer,
@@ -148,12 +156,12 @@ export class EmbeddedWallet {
     const psbt = new bitcoin.Psbt({ network: this._network });
     const p2wpkh = bitcoin.payments.p2wpkh({
       pubkey: this._wallet.publicKey,
-      network: this._network
+      network: this._network,
     });
     const ecPair = ECPair.fromPrivateKey(this._wallet.privateKey, {
       network: this._network,
     });
-    
+
     for (const input of payload.inputs) {
       psbt.addInput({
         hash: input.txid,
@@ -175,7 +183,9 @@ export class EmbeddedWallet {
     for (let i = 0; i < payload.inputs.length; i++) {
       psbt.signInput(i, this._wallet);
       psbt.validateSignaturesOfInput(i, (pubkey, hash, signature) => {
-        return ecPair.publicKey.equals(pubkey) && ecPair.verify(hash, signature);
+        return (
+          ecPair.publicKey.equals(pubkey) && ecPair.verify(hash, signature)
+        );
       });
     }
 
@@ -255,7 +265,7 @@ export function verifySignature(
     const hash = bitcoin.crypto.hash256(bufferToHash);
     const signature = Buffer.from(signatureBase64, "base64");
     const publicKey = Buffer.from(publicKeyHex, "hex");
-    
+
     return ECPair.fromPublicKey(publicKey).verify(hash, signature);
   } catch (e) {
     return false;
