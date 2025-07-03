@@ -41,7 +41,7 @@ import { Cardano, WalletInstance } from "../types";
 
 declare global {
   interface Window {
-    cardano: Cardano;
+    cardano?: Cardano;
   }
 }
 
