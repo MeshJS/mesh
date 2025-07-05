@@ -1,21 +1,17 @@
 import { useState } from "react";
 
-import { MeshTxBuilder, MeshWallet } from "@meshsdk/core";
-import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { MeshWallet } from "@meshsdk/core";
 
 import Button from "~/components/button/button";
-import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
 export default function HydraTutorialStep5({
-  hydraInstance,
   aliceNode,
   aliceFunds,
   bobNode,
   bobFunds,
 }: {
-  hydraInstance: HydraInstance;
   aliceNode: MeshWallet | undefined;
   aliceFunds: MeshWallet | undefined;
   bobNode: MeshWallet | undefined;
@@ -24,20 +20,13 @@ export default function HydraTutorialStep5({
   return (
     <TwoColumnsScroll
       sidebarTo="step5"
-      title="Step 5. Use the Hydra head"
-      leftSection={Left(
-        hydraInstance,
-        aliceNode,
-        aliceFunds,
-        bobNode,
-        bobFunds,
-      )}
+      title="Step 5. Closing the Hydra head"
+      leftSection={Left(aliceNode, aliceFunds, bobNode, bobFunds)}
     />
   );
 }
 
 function Left(
-  hydraInstance: HydraInstance,
   aliceNode: MeshWallet | undefined,
   aliceFunds: MeshWallet | undefined,
   bobNode: MeshWallet | undefined,
@@ -47,140 +36,70 @@ function Left(
   const [addresses, setAddresses] = useState<string>("");
   const [balance, setBalance] = useState<string>("");
 
-  async function fetchUTxOs() {
-    const utxos = await hydraInstance.provider.fetchUTxOs();
-    console.log("UTXOs: ", utxos);
-  }
-
-  async function fetchAddressUTxOs() {
-    const utxosAddress = await hydraInstance.provider.fetchAddressUTxOs(
-      "addr_test1vpd5axpq4qsh8sxvzny49cp22gc5tqx0djf6wmjv5cx7q5qyrzuw8",
-    );
-    console.log("UTXOs Address: ", utxosAddress);
-  }
-
-  async function makeTx() {
-    // wallet
-    const walletA = {
-      addr: "addr_test1vpsthwvxgfkkm2lm8ggy0c5345u6vrfctmug6tdyx4rf4mqn2xcyw",
-      key: "58201aae63d93899640e91b51c5e8bd542262df3ecf3246c3854f39c40f4eb83557d",
-    };
-
-    const wallet = new MeshWallet({
-      networkId: 0,
-      key: {
-        type: "cli",
-        payment: walletA.key,
-      },
-      fetcher: hydraInstance.provider,
-      submitter: hydraInstance.provider,
-    });
-
-    const pp = await hydraInstance.provider.fetchProtocolParameters();
-    const utxos = await wallet.getUtxos("enterprise");
-    const changeAddress = walletA.addr;
-
-    const txBuilder = new MeshTxBuilder({
-      fetcher: hydraInstance.provider,
-      params: pp,
-      verbose: true,
-    });
-
-    const unsignedTx = await txBuilder
-      .txOut(
-        "addr_test1vpd5axpq4qsh8sxvzny49cp22gc5tqx0djf6wmjv5cx7q5qyrzuw8",
-        [{ unit: "lovelace", quantity: "3000000" }],
-      )
-      .changeAddress(changeAddress)
-      .selectUtxosFrom(utxos)
-      .complete();
-
-    const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await hydraInstance.provider.submitTx(signedTx);
-    console.log("txHash", txHash);
-  }
+  async function queryFunds() {}
 
   return (
     <>
       <p>
-        In this step, we'll demonstrate a basic transaction between alice and
-        bob using the Hydra head. Hydra Head operates as an isomorphic protocol,
-        meaning that functionalities available on the Cardano layer 1 network
-        are also available on the layer 2 network. This compatibility allows us
-        to use Mesh for transaction creation within the head.
+        Any participant can initiate closing the Hydra head. Use the WebSocket
+        API to submit the closing command:
       </p>
-      <p>
-        In this example, we will transfer 10 ada from Alice to Bob. Adjust the
-        transaction amount based on the balances previously committed to the
-        head.
-      </p>
-      <p>
-        First, we need to select a UTxO to spend. We can find a UTxO by
-        referring to the utxo field in the most recent <code>HeadIsOpen</code>{" "}
-        or <code>SnapshotConfirmed</code> messages. Alternatively, we can query
-        the current UTxO set directly from the API:
-      </p>
-      <Codeblock
-        data={`const utxos = await hydraInstance.provider.fetchUTxOs();`}
-      />
-      <Button
-        onClick={() => fetchUTxOs()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Fetch UTxOs
-      </Button>
-      <p>
-        From the response, we would need to select a UTxO that is owned by alice
-        to spend:
-      </p>
-      <Codeblock
-        data={`const utxosAddress = await hydraInstance.provider.fetchAddressUTxOs(
-  "addr_test1vpd5axpq4qsh8sxvzny49cp22gc5tqx0djf6wmjv5cx7q5qyrzuw8",
-);`}
-      />
-      <Button
-        onClick={() => fetchAddressUTxOs()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Fetch Address UTxOs
-      </Button>
-      <p>
-        Next, similar to the Cardano layer 1, build a transaction using Mesh
-        that spends this UTxO and sends it to an address. If you haven't done so
-        already, obtain the address of your partner to send the funds to.
-      </p>
-      <Codeblock data={`code here`} />
-      <p>
-        Before submission, we need to sign the transaction to authorize spending
-        alice's funds:
-      </p>
-      <Codeblock data={`const signedTx = await wallet.signTx(unsignedTx)`} />
-      <p>
-        Submit the transaction through the already open WebSocket connection.
-        Generate the NewTx command for WebSocket submission:
-      </p>
-      <Codeblock
-        data={`const txHash = await hydraInstance.provider.submitTx(signedTx);`}
-      />
-      <Button
-        onClick={() => makeTx()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Build Transaction
-      </Button>
+
+      <Codeblock data={`const txHash = await hydraInstance.provider.close()`} />
 
       <p>
-        The transation will be validated by both hydra-nodes and either result
-        in a TxInvalid message with a reason, or a TxValid message and a
-        SnapshotConfirmed with the new UTxO available in the head shortly after.
+        The hydra-node will then submit a protocol transaction with the last
+        known snapshot to the Cardano network. A smart contract on layer 1 will
+        check the snapshot signatures and confirm the head is closed. The
+        WebSocket API sends a HeadIsClosed message when this' Close' transaction
+        is observed. Note that this can also happen if any other hydra-node
+        closes the head.
       </p>
+
       <p>
-        🎉 Congratulations, you just processed your first Cardano transaction
-        off-chain in a Hydra head!
+        The message will include a <code>contestationDeadline</code>, set using
+        the configurable <code>--contestation-period</code>. Until this
+        deadline, the closing snapshot can be contested with a more recent,
+        multi-signed snapshot. Your hydra-node would contest automatically for
+        you if the closed snapshot is not the last known one.
       </p>
+
+      <p>
+        We need to wait now until the deadline has passed, which will be
+        notified by the hydra-node through the WebSocket API with a
+        <code>ReadyToFanout</code> message.
+      </p>
+
+      <p>
+        At this point, any head member can issue distribution of funds on layer
+        1. You can do this through the WebSocket API one last time:
+      </p>
+
+      <Codeblock
+        data={`const txHash = await hydraInstance.provider.fanout()`}
+      />
+
+      <p>
+        This will submit a transaction to layer 1. Once successful, it will be
+        indicated by a <code>HeadIsFinalized</code> message that includes the
+        distributed utxo.
+      </p>
+
+      <p>
+        To confirm, you can query the funds of both alice and bob on layer 1:
+      </p>
+
+      <Codeblock data={`code here`} />
+
+      <Button
+        onClick={() => queryFunds()}
+        style={loading ? "warning" : "light"}
+        disabled={loading}
+      >
+        Query Funds
+      </Button>
+
+      <p>That's it. That's the full life cycle of a Hydra head.</p>
     </>
   );
 }
