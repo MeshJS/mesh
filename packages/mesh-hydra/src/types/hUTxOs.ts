@@ -1,6 +1,7 @@
 import { UTxO } from "@meshsdk/common";
 import { hAssets } from "./hAssets";
 import { hReferenceScript } from "./hReferenceScript";
+import { resolveScriptHash } from "@meshsdk/core";
 
 export type hUTxOs = {
   [txRef: string]: hUTxO;
@@ -39,6 +40,7 @@ hUTxO.toUTxO = (hUTxO: hUTxO, txId: string): UTxO => {
   if (!txHash || !txIndex) {
     throw new Error("Invalid txId format");
   }
+  const scriptRef = hUTxO.referenceScript?.script?.cborHex;
   return {
     input: {
       outputIndex: Number(txIndex),
@@ -49,7 +51,8 @@ hUTxO.toUTxO = (hUTxO: hUTxO, txId: string): UTxO => {
       amount: hAssets.toAssets(hUTxO.value),
       dataHash: hUTxO.datumhash ?? undefined,
       plutusData: hUTxO.inlineDatum?.toString(),
-      scriptHash: hUTxO.referenceScript?.toString(),
+      scriptHash: scriptRef ? resolveScriptHash(scriptRef, "V3") : undefined,
+      scriptRef: scriptRef,
     },
   };
 }
