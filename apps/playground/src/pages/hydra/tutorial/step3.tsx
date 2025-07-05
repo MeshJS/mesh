@@ -1,18 +1,20 @@
 import { useState } from "react";
 
 import { MeshWallet } from "@meshsdk/core";
+import { HydraInstance } from "@meshsdk/hydra";
 
 import Button from "~/components/button/button";
-import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
 export default function HydraTutorialStep3({
+  hydraInstance,
   aliceNode,
   aliceFunds,
   bobNode,
   bobFunds,
 }: {
+  hydraInstance: HydraInstance;
   aliceNode: MeshWallet | undefined;
   aliceFunds: MeshWallet | undefined;
   bobNode: MeshWallet | undefined;
@@ -21,13 +23,20 @@ export default function HydraTutorialStep3({
   return (
     <TwoColumnsScroll
       sidebarTo="step3"
-      title="Step 3. Start the Hydra node"
-      leftSection={Left(aliceNode, aliceFunds, bobNode, bobFunds)}
+      title="Step 3. Open a Hydra head"
+      leftSection={Left(
+        hydraInstance,
+        aliceNode,
+        aliceFunds,
+        bobNode,
+        bobFunds,
+      )}
     />
   );
 }
 
 function Left(
+  hydraInstance: HydraInstance,
   aliceNode: MeshWallet | undefined,
   aliceFunds: MeshWallet | undefined,
   bobNode: MeshWallet | undefined,
@@ -37,69 +46,101 @@ function Left(
   const [addresses, setAddresses] = useState<string>("");
   const [balance, setBalance] = useState<string>("");
 
-  async function startNode() {}
+  async function openHead() {
+    await hydraInstance.provider.init();
+  }
 
-  let codeOnMessage = ``;
-  codeOnMessage += `provider.onMessage((message) => {\n`;
-  codeOnMessage += `  console.log(message);\n`;
-  codeOnMessage += `});\n`;
+  async function commitFunds() {
+    // commit alice funds
+    // await hydraInstance.commitFunds();
 
-  let codeGreetingsMessage = `{\n`;
-  codeGreetingsMessage += `  "peer": "bob-node",\n`;
-  codeGreetingsMessage += `  "seq": 0,\n`;
-  codeGreetingsMessage += `  "tag": "PeerConnected",\n`;
-  codeGreetingsMessage += `  "timestamp": "2023-08-17T18:25:02.903974459Z"\n`;
-  codeGreetingsMessage += `}\n`;
-  codeGreetingsMessage += `{\n`;
-  codeGreetingsMessage += `  "headStatus": "Idle",\n`;
-  codeGreetingsMessage += `  "hydraNodeVersion": "0.12.0-54db2265c257c755df98773c64754c9854d879e8",\n`;
-  codeGreetingsMessage += `  "me": {\n`;
-  codeGreetingsMessage += `    "vkey": "ab159b29b87b498fa060f6045cccf84ecd20cf623f7820ed130ffc849633a120"\n`;
-  codeGreetingsMessage += `  },\n`;
-  codeGreetingsMessage += `  "seq": 1,\n`;
-  codeGreetingsMessage += `  "tag": "Greetings",\n`;
-  codeGreetingsMessage += `  "timestamp": "2023-08-17T18:32:29.092329511Z"\n`;
-  codeGreetingsMessage += `};\n`;
+    // commit bob funds
+    // await hydraInstance.commitFunds();
+  }
 
   return (
     <>
       <p>
-        Scripts are pre-published for all{" "}
-        <Link href="https://github.com/cardano-scaling/hydra/releases">
-          released
-        </Link>{" "}
-        HYDRA_VERSIONs of the hydra-node and common Cardano networks. Consult
-        the{" "}
-        <Link href="https://hydra.family/head-protocol/docs/configuration#reference-scripts">
-          user manual
-        </Link>{" "}
-        for guidance on publishing your own scripts.
+        We can now communicate with the hydra-node through its WebSocket API on
+        the terminal. This is a duplex connection and we can just insert
+        commands directly.
+      </p>
+      <p>
+        Send this command to initialize a head through the WebSocket connection:
       </p>
 
-      <p>Start the hydra-node using these parameters:</p>
-
-      <Codeblock data={`code about starting node`} />
+      <Codeblock data={`await hydraInstance.provider.init();`} />
       <Button
-        onClick={() => startNode()}
+        onClick={() => openHead()}
         style={loading ? "warning" : "light"}
         disabled={loading}
       >
-        Start Node
+        Open Head
       </Button>
 
       <p>
-        Verify that the node is operational by establishing a WebSocket
-        connection to the API port:
+        The initiation process might take some time as it includes submitting a
+        transaction on-chain. Upon successful initiation, both Hydra nodes and
+        their clients will display a <code>HeadIsInitializing</code> message,
+        listing the parties required to commit.
       </p>
-
-      <Codeblock data={codeOnMessage} />
 
       <p>
-        This opens a duplex connection and you should see messages indicating
-        successful connections like:
+        To commit funds to the head, choose which UTxO you would like to make
+        available on layer 2. Use the HTTP API of hydra-node to commit all funds
+        given to <code>{"{alice,bob}-funds.vk"}</code> beforehand:
       </p>
 
-      <Codeblock data={codeGreetingsMessage} />
+      {/* todo, for alice and bob */}
+      {/* https://hydra.family/head-protocol/docs/tutorial/#step-4-open-a-hydra-head */}
+
+      {/* cardano-cli query utxo \
+  --address $(cat credentials/alice-funds.addr) \
+  --out-file alice-commit-utxo.json
+
+curl -X POST 127.0.0.1:4001/commit \
+  --data @alice-commit-utxo.json \
+  > alice-commit-tx.json
+
+cardano-cli transaction sign \
+  --tx-file alice-commit-tx.json \
+  --signing-key-file credentials/alice-funds.sk \
+  --out-file alice-commit-tx-signed.json
+
+cardano-cli transaction submit --tx-file alice-commit-tx-signed.json */}
+
+      <Codeblock data={`code about starting node`} />
+      <Button
+        onClick={() => commitFunds()}
+        style={loading ? "warning" : "light"}
+        disabled={loading}
+      >
+        Commit Funds
+      </Button>
+
+      <p>
+        After you've prepared your transactions, the hydra-node will find all
+        UTxOs associated with the funds key and create a draft of the commit
+        transaction. You'll then sign this transaction using the funds key and
+        submit it to the Cardano layer 1 network.
+      </p>
+
+      <p>
+        Once the hydra-node sees this transaction, you should see a Committed
+        status displayed on your WebSocket connection.
+      </p>
+
+      <p>
+        When both parties, alice and bob, have committed, the Hydra head will
+        open automatically. You'll see a HeadIsOpen message appear in the
+        WebSocket session, confirming the activation of the head. This message
+        will include details such as the starting balance and UTxO entries.
+        Notably, these entries will match exactly those committed to the head,
+        including transaction hashes and indices, ensuring transparency and
+        consistency.
+      </p>
+
+      <p>The head is now operational and ready for further activities.</p>
     </>
   );
 }
