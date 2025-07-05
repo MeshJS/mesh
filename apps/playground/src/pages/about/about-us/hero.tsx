@@ -4,14 +4,13 @@ export default function AboutHero() {
       <div className="z-1 relative mx-auto max-w-screen-xl px-4 py-8 text-white lg:py-16">
         <div className="mb-6 max-w-screen-lg lg:mb-0">
           <h1 className="mb-4 text-4xl font-extrabold leading-none tracking-tight md:text-5xl lg:text-6xl">
-            We advance the Cardano's tech stack
+            Feature complete Web3 SDK
           </h1>
           <p className="mb-6 font-light text-neutral-400 md:text-lg lg:mb-8 lg:text-xl">
-            Get started building blockchain applications with our
-            enterprise-ready, well engineered, and professionally designed SDK,
-            Mesh. From easy to use Transaction builder to low level APIs, from
-            wallet integrations to data service providers, building a Web3
-            application has never been this easy.
+            Our enterprise-ready SDK is professionally designed, robust, and
+            developer-friendly. With simple transaction builders, seamless
+            wallet integrations, and reliable data services, building Web3
+            applications has never been this effortless.
           </p>
           {/* <a
             href="#"

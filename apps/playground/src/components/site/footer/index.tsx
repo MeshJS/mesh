@@ -31,8 +31,7 @@ export default function Footer() {
             Mesh
           </div>
           <p className="my-4 font-light text-neutral-500 dark:text-neutral-400">
-            Mesh is an open-source library to advance Web3 development on
-            Cardano.
+            Mesh is an open-source library to build Web3 applications.
           </p>
           <ul className="mt-5 flex space-x-6">
             {socials.map((social, i) => {
