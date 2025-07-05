@@ -1,9 +1,10 @@
 import { useState } from "react";
 
-import { MeshWallet } from "@meshsdk/core";
-import { HydraInstance } from "@meshsdk/hydra";
+import { MeshTxBuilder, MeshWallet } from "@meshsdk/core";
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
 
 import Button from "~/components/button/button";
+import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
@@ -23,7 +24,7 @@ export default function HydraTutorialStep4({
   return (
     <TwoColumnsScroll
       sidebarTo="step4"
-      title="Step 4. Open a Hydra head"
+      title="Step 4. Use the Hydra head"
       leftSection={Left(
         hydraInstance,
         aliceNode,
@@ -46,101 +47,144 @@ function Left(
   const [addresses, setAddresses] = useState<string>("");
   const [balance, setBalance] = useState<string>("");
 
-  async function openHead() {
-    await hydraInstance.provider.init();
+  async function fetchUTxOs() {
+    const utxos = await hydraInstance.provider.fetchUTxOs();
+    console.log("UTXOs: ", utxos);
   }
 
-  async function commitFunds() {
-    // commit alice funds
-    // await hydraInstance.commitFunds();
+  async function fetchAddressUTxOs() {
+    const utxosAddress = await hydraInstance.provider.fetchAddressUTxOs(
+      "addr_test1vpd5axpq4qsh8sxvzny49cp22gc5tqx0djf6wmjv5cx7q5qyrzuw8",
+    );
+    console.log("UTXOs Address: ", utxosAddress);
+  }
 
-    // commit bob funds
-    // await hydraInstance.commitFunds();
+  async function makeTx() {
+    // wallet
+    const walletA = {
+      addr: "addr_test1vpsthwvxgfkkm2lm8ggy0c5345u6vrfctmug6tdyx4rf4mqn2xcyw",
+      key: "58201aae63d93899640e91b51c5e8bd542262df3ecf3246c3854f39c40f4eb83557d",
+    };
+
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "cli",
+        payment: walletA.key,
+      },
+      fetcher: hydraInstance.provider,
+      submitter: hydraInstance.provider,
+    });
+
+    const pp = await hydraInstance.provider.fetchProtocolParameters();
+    const utxos = await wallet.getUtxos("enterprise");
+    const changeAddress = walletA.addr;
+
+    const txBuilder = new MeshTxBuilder({
+      fetcher: hydraInstance.provider,
+      params: pp,
+      verbose: true,
+    });
+
+    const unsignedTx = await txBuilder
+      .txOut(
+        "addr_test1vpd5axpq4qsh8sxvzny49cp22gc5tqx0djf6wmjv5cx7q5qyrzuw8",
+        [{ unit: "lovelace", quantity: "3000000" }],
+      )
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await hydraInstance.provider.submitTx(signedTx);
+    console.log("txHash", txHash);
   }
 
   return (
     <>
       <p>
-        We can now communicate with the hydra-node through its WebSocket API on
-        the terminal. This is a duplex connection and we can just insert
-        commands directly.
+        In this step, we'll demonstrate a basic transaction between alice and
+        bob using the Hydra head. Hydra Head operates as an isomorphic protocol,
+        meaning that functionalities available on the Cardano layer 1 network
+        are also available on the layer 2 network. This compatibility allows us
+        to use Mesh for transaction creation within the head.
       </p>
       <p>
-        Send this command to initialize a head through the WebSocket connection:
+        In this example, we will transfer 10 ada from Alice to Bob. Adjust the
+        transaction amount based on the balances previously committed to the
+        head.
       </p>
-
-      <Codeblock data={`await hydraInstance.provider.init();`} />
+      <p>
+        First, we need to select a UTxO to spend. We can find a UTxO by
+        referring to the utxo field in the most recent <code>HeadIsOpen</code>{" "}
+        or <code>SnapshotConfirmed</code> messages. Alternatively, we can query
+        the current UTxO set directly from the API:
+      </p>
+      <Codeblock
+        data={`const utxos = await hydraInstance.provider.fetchUTxOs();`}
+      />
       <Button
-        onClick={() => openHead()}
+        onClick={() => fetchUTxOs()}
         style={loading ? "warning" : "light"}
         disabled={loading}
       >
-        Open Head
+        Fetch UTxOs
       </Button>
-
       <p>
-        The initiation process might take some time as it includes submitting a
-        transaction on-chain. Upon successful initiation, both Hydra nodes and
-        their clients will display a <code>HeadIsInitializing</code> message,
-        listing the parties required to commit.
+        From the response, we would need to select a UTxO that is owned by alice
+        to spend:
       </p>
-
-      <p>
-        To commit funds to the head, choose which UTxO you would like to make
-        available on layer 2. Use the HTTP API of hydra-node to commit all funds
-        given to <code>{"{alice,bob}-funds.vk"}</code> beforehand:
-      </p>
-
-      {/* todo, for alice and bob */}
-      {/* https://hydra.family/head-protocol/docs/tutorial/#step-4-open-a-hydra-head */}
-
-      {/* cardano-cli query utxo \
-  --address $(cat credentials/alice-funds.addr) \
-  --out-file alice-commit-utxo.json
-
-curl -X POST 127.0.0.1:4001/commit \
-  --data @alice-commit-utxo.json \
-  > alice-commit-tx.json
-
-cardano-cli transaction sign \
-  --tx-file alice-commit-tx.json \
-  --signing-key-file credentials/alice-funds.sk \
-  --out-file alice-commit-tx-signed.json
-
-cardano-cli transaction submit --tx-file alice-commit-tx-signed.json */}
-
-      <Codeblock data={`code about starting node`} />
+      <Codeblock
+        data={`const utxosAddress = await hydraInstance.provider.fetchAddressUTxOs(
+  "addr_test1vpd5axpq4qsh8sxvzny49cp22gc5tqx0djf6wmjv5cx7q5qyrzuw8",
+);`}
+      />
       <Button
-        onClick={() => commitFunds()}
+        onClick={() => fetchAddressUTxOs()}
         style={loading ? "warning" : "light"}
         disabled={loading}
       >
-        Commit Funds
+        Fetch Address UTxOs
+      </Button>
+      <p>
+        Next, similar to the Cardano layer 1, build a transaction using Mesh
+        that spends this UTxO and sends it to an address. If you haven't done so
+        already, obtain the address of your partner to send the funds to.
+      </p>
+      <Codeblock data={`const bobAddress = " ";
+      const unsignedtx = new MeshTxBuilder({
+         
+      })
+        `} />
+      <p>
+        Before submission, we need to sign the transaction to authorize spending
+        alice's funds:
+      </p>
+      <Codeblock data={`const signedTx = await wallet.signTx(unsignedTx)`} />
+      <p>
+        Submit the transaction through the already open WebSocket connection.
+        Generate the NewTx command for WebSocket submission:
+      </p>
+      <Codeblock
+        data={`const txHash = await hydraInstance.provider.submitTx(signedTx);`}
+      />
+      <Button
+        onClick={() => makeTx()}
+        style={loading ? "warning" : "light"}
+        disabled={loading}
+      >
+        Build Transaction
       </Button>
 
       <p>
-        After you've prepared your transactions, the hydra-node will find all
-        UTxOs associated with the funds key and create a draft of the commit
-        transaction. You'll then sign this transaction using the funds key and
-        submit it to the Cardano layer 1 network.
+        The transation will be validated by both hydra-nodes and either result
+        in a TxInvalid message with a reason, or a TxValid message and a
+        SnapshotConfirmed with the new UTxO available in the head shortly after.
       </p>
-
       <p>
-        Once the hydra-node sees this transaction, you should see a Committed
-        status displayed on your WebSocket connection.
+        🎉 Congratulations, you just processed your first Cardano transaction
+        off-chain in a Hydra head!
       </p>
-
-      <p>
-        When both parties, alice and bob, have committed, the Hydra head will
-        open automatically. You'll see a HeadIsOpen message appear in the
-        WebSocket session, confirming the activation of the head. This message
-        will include details such as the starting balance and UTxO entries.
-        Notably, these entries will match exactly those committed to the head,
-        including transaction hashes and indices, ensuring transparency and
-        consistency.
-      </p>
-
-      <p>The head is now operational and ready for further activities.</p>
     </>
   );
 }
