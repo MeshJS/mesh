@@ -12,6 +12,7 @@ import Metatags from "~/components/site/metatags";
 import { metaHydraTutorial } from "~/data/links-hydra";
 import { getPageLinks } from "../common";
 import HydraTutorialPrerequisites from "./prerequisites";
+import HydraTutorialStep1 from "./step1";
 import HydraTutorialStep2 from "./step2";
 import HydraTutorialStep3 from "./step3";
 import HydraTutorialStep4 from "./step4";
@@ -49,22 +50,23 @@ const ReactPage: NextPage = () => {
         >
           <>
             <p>
-              This tutorial demonstrates how to use hydra-node on Cardano's
-              preprod testing environment to open a layer 2 state channel
-              between two participants using the Hydra Head protocol.
+              This tutorial provides a comprehensive guide on utilizing <code>hydra-node</code> on 
+              <code>testnet</code>. It takes you through the process of establishing a layer 2 state channel 
+              between two participants using the Hydra Head protocol. learn how to set up and 
+              configure the necessary components with <code>mesh-hydra</code> package, the step-by-step 
+              procedure to initiate and manage a state channel.
             </p>
             <p>
               This tutorial is adapted from{" "}
-              <Link href="https://hydra.family/head-protocol/docs/tutorial/">
+              <Link href="https://hydra.family/head-protocol/docs/tutorial">
                 the Hydra documentation
-              </Link>
-              .
+              </Link>  
             </p>
           </>
         </TitleIconDescriptionBody>
 
         <HydraTutorialPrerequisites />
-        <HydraTutorialStep2
+        <HydraTutorialStep1
           aliceNode={aliceNode}
           aliceFunds={aliceFunds}
           bobNode={bobNode}
@@ -74,7 +76,14 @@ const ReactPage: NextPage = () => {
           setBobNode={setBobNode}
           setBobFunds={setBobFunds}
         />
+        <HydraTutorialStep2
+          aliceNode={aliceNode}
+          aliceFunds={aliceFunds}
+          bobNode={bobNode}
+          bobFunds={bobFunds}
+        />
         <HydraTutorialStep3
+          hydraInstance={hydraInstance}
           aliceNode={aliceNode}
           aliceFunds={aliceFunds}
           bobNode={bobNode}
@@ -88,11 +97,10 @@ const ReactPage: NextPage = () => {
           bobFunds={bobFunds}
         />
         <HydraTutorialStep5
-          hydraInstance={hydraInstance}
-          aliceNode={aliceNode}
-          aliceFunds={aliceFunds}
-          bobNode={bobNode}
-          bobFunds={bobFunds}
+        aliceNode={aliceNode}
+        aliceFunds={aliceFunds}
+        bobNode={bobNode}
+        bobFunds={bobFunds}
         />
       </SidebarFullwidth>
     </>
