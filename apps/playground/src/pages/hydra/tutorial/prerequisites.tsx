@@ -28,10 +28,10 @@ function Left() {
           </Link>
           .
       </ul>
-      You could also access a pre-built docker image for a devnet <code>cardano-node</code> and {" "}
-      <code>Hydra-node</code> on  for quick follow of this tutorial. check the {" "}
+        You could also access a pre-built Docker image for a devnet <code>cardano-node</code> and <code>Hydra-node</code> 
+        for quickly following this tutorial. Check the setup {" "}
       <Link href="https://hydra.family/head-protocol/docs/getting-started">
-        setup
+        here
       </Link>
     </>
   );

@@ -48,20 +48,25 @@ const ReactPage: NextPage = () => {
           title={metaHydraTutorial.title}
           description={metaHydraTutorial.desc}
         >
-          <>
-            <p>
-              This tutorial provides a comprehensive guide on utilizing <code>hydra-node</code> on 
-              <code>testnet</code>. It takes you through the process of establishing a layer 2 state channel 
-              between two participants using the Hydra Head protocol. learn how to set up and 
-              configure the necessary components with <code>mesh-hydra</code> package, the step-by-step 
-              procedure to initiate and manage a state channel.
-            </p>
-            <p>
-              This tutorial is adapted from{" "}
-              <Link href="https://hydra.family/head-protocol/docs/tutorial">
-                the Hydra documentation
-              </Link>  
-            </p>
+        <>
+          <p>
+            This tutorial provides a comprehensive guide on utilizing <code>hydra-node</code> on 
+            <code>testnet</code>. It takes you through the process of establishing a layer 2 state channel 
+            between two participants using the Hydra Head protocol. learn how to set up and 
+            configure the necessary components with <code>mesh-hydra</code> package, the step-by-step 
+            procedure to initiate and manage a state channel.
+          </p>
+          <p>
+            This tutorial is adapted from the{" "}
+            <Link href="https://hydra.family/head-protocol/docs/tutorial">
+            Hydra documentation
+            </Link>  
+          </p>
+          <p>
+            Hydra relies on several essential components to function properly.
+            such as the CLI commands. To ensure Hydra operates as expected, 
+            it is crucial to include these components and meet all prerequisites.           
+          </p>
           </>
         </TitleIconDescriptionBody>
 
