@@ -172,48 +172,51 @@ function Left(
         First, generate Cardano key pairs and addresses for both participants to
         identify the hydra-node and manage funds on layer 1 if you already have
         your CLI keys generated, you can skip the key generation step and move
-        to step ....
+        to <Link href="">Step 2</Link>
       </p>
-      If you don't have your CLI keys generated, you can Use the following{" "}
-      <code>cardano-cli</code> commands to generate the keys and addresses for Alice :
+      If you don't have your CLI keys generated, you can use the following{" "}
+      <code>cardano-cli</code> commands to generate the keys and addresses for
+      <p>
+        Alice :
+        <Codeblock
+          data={`mkdir -p credentials \\
+
+      cardano-cli address key-gen \\
+        --verification-key-file credentials/alice-node.vk \\
+        --signing-key-file credentials/alice-node.sk \\
+      
+      cardano-cli address build \\
+        --verification-key-file credentials/alice-node.vk \\
+        --out-file credentials/alice-node.addr \\
+      
+      cardano-cli address key-gen \\
+        --verification-key-file credentials/alice-funds.vk \\
+        --signing-key-file credentials/alice-funds.sk
+      
+      cardano-cli address build \\
+        --verification-key-file credentials/alice-funds.vk \\
+        --out-file credentials/alice-funds.addr`}
+        />
+      </p>
+      Bob:
       <Codeblock
         data={`mkdir -p credentials \\
 
       cardano-cli address key-gen \\
-        --verification-key-file credentials/alice-node.vk \\
-        --signing-key-file credentials/alice-node.sk \\
+        --verification-key-file credentials/bob-node.vk \\
+        --signing-key-file credentials/bob-node.sk \\
       
       cardano-cli address build \\
-        --verification-key-file credentials/alice-node.vk \\
-        --out-file credentials/alice-node.addr \\
+        --verification-key-file credentials/bob-node.vk \\
+        --out-file credentials/bob-node.addr \\
       
       cardano-cli address key-gen \\
-        --verification-key-file credentials/alice-funds.vk \\
-        --signing-key-file credentials/alice-funds.sk
+        --verification-key-file credentials/bob-funds.vk \\
+        --signing-key-file credentials/bob-funds.sk
       
       cardano-cli address build \\
-        --verification-key-file credentials/alice-funds.vk \\
-        --out-file credentials/alice-funds.addr`}
-      />
-      Bob:
-       <Codeblock
-        data={`mkdir -p credentials \\
-
-      cardano-cli address key-gen \\
-        --verification-key-file credentials/alice-node.vk \\
-        --signing-key-file credentials/alice-node.sk \\
-      
-      cardano-cli address build \\
-        --verification-key-file credentials/alice-node.vk \\
-        --out-file credentials/alice-node.addr \\
-      
-      cardano-cli address key-gen \\
-        --verification-key-file credentials/alice-funds.vk \\
-        --signing-key-file credentials/alice-funds.sk
-      
-      cardano-cli address build \\
-        --verification-key-file credentials/alice-funds.vk \\
-        --out-file credentials/alice-funds.addr`}
+        --verification-key-file credentials/bob-funds.vk \\
+        --out-file credentials/bob-funds.addr`}
       />
       <Button
         onClick={() => generateKeys()}
@@ -233,18 +236,20 @@ function Left(
         distribute as needed.
       </Alert>
       <p>
-        We won't be using <code>cardano-cli</code> to get balances as done in the original tutorial, 
-        because Mesh can handle this.
-        You can check the balance of generated addresses via the Mesh SDK directly:
+        you can use blockfrost or any other mesh supported providers to get
+        address UTxOs like this
       </p>
-        
-      <Codeblock data={`import { BlockfrostProvider } from "@meshsdk/core";
+      <Codeblock
+        data={`import { BlockfrostProvider } from "@meshsdk/core";
       
 const provider = new BlockfrostProvider(<API_KEY>);
-const utxos = await provider.fetchAddressUtxos();
+const aliceNodeUtxos = await provider.fetchAddressUtxos(${aliceNode?.getAddresses().baseAddressBech32 ?? "address"});
+const aliceFundsUtxos = await provider.fetchAddressUtxos(${aliceFunds?.getAddresses().baseAddressBech32 ?? "address"});
 
-
-     `} />
+const bobNodeUtxos = await provider.fetchAddressUtxos(${bobNode?.getAddresses().baseAddressBech32 ?? "address"});
+const bobFundUtxos = await provider.fetchAddressUtxos(${bobFunds?.getAddresses().baseAddressBech32 ?? "address"});
+     `}
+      />
       <Button
         onClick={() => getBalance()}
         style={loading ? "warning" : "light"}
@@ -254,14 +259,15 @@ const utxos = await provider.fetchAddressUtxos();
       </Button>
       {balance && <Codeblock data={balance} />}
       <p>
-        Next, generate Hydra key pairs for use on layer 2. Use the following hydra-tools commands 
-        to generate the keys for Alice and Bob respectively:
+        Next, generate Hydra key pairs for use on layer 2. Use the following
+        hydra-tools commands to generate the keys for Alice and Bob
+        respectively:
       </p>
-      Alice: 
+      Alice:
       <Codeblock
         data={`hydra-node gen-hydra-key --output-file credentials/alice-hydra`}
       />
-      Bob: 
+      Bob:
       <Codeblock
         data={`hydra-node gen-hydra-key --output-file credentials/bob-hydra`}
       />
@@ -287,22 +293,25 @@ const utxos = await provider.fetchAddressUtxos();
       </p>
       <ul>
         <li>
-          Alice's node: <code>127.0.0.1:5001</code>
+          Alice's node: <code>127.0.0.1:4001</code>
         </li>
         <li>
-          Bob's node: <code>127.0.0.1:5001</code>
+          Bob's node: <code>127.0.0.1:4001</code>
         </li>
       </ul>
       <p>
         The next step involves configuring the protocol parameters for the
-        ledger within our Hydra head. For the purposes of this tutorial, we'll
-        modify the default Cardano layer 1 parameters to eliminate transaction
-        fees, simplifying test interactions:
+        ledger within our Hydra head.
       </p>
-      <Codeblock data={`code about PP`} />
       <p>
-        This command adjusts the fees and pricing mechanisms to zero, ensuring
-        that transactions within the Hydra head incur no costs.
+        The <code>Mesh-hydra</code> provider already includes the required
+        protocol parameters. This means that the necessary configuration for the
+        protocol is predefined within the provider. In step 2, you will find a
+        more detailed explanation of how protocol parameters are declared and
+        utilized with Mesh.
+        <Codeblock
+          data={`const protocolParams = await provider.fetchProtocolParameters`}
+        />
       </p>
       <p>In summary, the Hydra head participants exchanged and agreed on:</p>
       <ul>
