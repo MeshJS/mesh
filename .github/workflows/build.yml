@@ -25,4 +25,4 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Build
-        run: npm run build:mesh && npm run build:docs && npm run build:apps && npm run build:scripts
+        run: npm run build:mesh && npm run build:docs && turbo run build:docs:markdown && npm run build:apps && npm run build:scripts

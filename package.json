@@ -2,12 +2,13 @@
   "name": "@meshsdk/root",
   "private": true,
   "scripts": {
-    "build": "turbo run build:mesh && turbo run build:docs && turbo run build:apps && turbo run build:scripts",
+    "build": "turbo run build:mesh && turbo run build:docs && turbo run build:docs:markdown && turbo run build:apps && turbo run build:scripts",
     "build2": "turbo build --concurrency 15 && npm run build:scripts",
     "build:apps": "turbo run build:apps",
     "build:docs": "turbo run build:docs",
     "build:mesh": "turbo run build:mesh",
     "build:scripts": "turbo run build:scripts",
+    "build:docs:markdown": "turbo run build:docs:markdown",
     "clean": "turbo run clean && rm -rf .turbo && rm -rf dist && rm -rf node_modules && rm package-lock.json",
     "dev": "turbo dev --concurrency 15",
     "format": "turbo run format --continue -- --cache --cache-location node_modules/.cache/.prettiercache",
@@ -26,7 +27,9 @@
     "patch-package": "^8.0.0",
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
-    "turbo": "latest"
+    "turbo": "latest",
+    "typedoc": "^0.28.7",
+    "typedoc-plugin-markdown": "^4.7.0"
   },
   "engines": {
     "node": ">=18"

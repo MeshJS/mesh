@@ -19,6 +19,7 @@
   ],
   "scripts": {
     "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-wallets.json",
+    "build:docs:markdown": "typedoc src/index.ts --plugin typedoc-plugin-markdown --out ../../docs/markdown/mesh-wallets --excludePrivate --excludeExternals --hideGenerator",
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
@@ -31,7 +32,6 @@
     "@meshsdk/configs": "*",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
-    "typedoc": "^0.26.3",
     "typescript": "^5.3.3"
   },
   "dependencies": {
