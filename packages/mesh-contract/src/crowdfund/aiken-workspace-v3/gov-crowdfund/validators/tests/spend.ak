@@ -21,8 +21,8 @@ use tests/utils.{
   mock_current_fundraised_amount, mock_deadline, mock_delegate_pool_id,
   mock_drep_register_deposit, mock_fundraise_target, mock_funds_controlled,
   mock_gov_action, mock_gov_action_id, mock_gov_action_period, mock_gov_address,
-  mock_proposer_key_hash, mock_share_token, mock_spend_script_hash,
-  mock_stake_register_deposit, mock_start_hash,
+  mock_proposer_key_hash, mock_share_token, mock_stake_register_deposit,
+  mock_start_hash,
 }
 use types.{
   ContributorWithdrawal, DeregisterCerts, Init, Proposed, Refundable,
@@ -159,7 +159,7 @@ fn mock_register_cert_tx(test_case: RegisterCertsTestCase) -> Transaction {
         is_gov_proposed,
         ProposalProcedure {
           deposit: mock_fundraise_target,
-          return_address: Script(mock_spend_script_hash),
+          return_address: Script(mock_start_hash),
           governance_action: NoConfidence { ancestor: None },
         },
       )
@@ -189,6 +189,7 @@ test s1_spend_success_reg_cert() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -227,6 +228,7 @@ test s1_spend_fail_reg_cert_with_not_init_state() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -265,6 +267,7 @@ test s1_spend_fail_reg_cert_with_more_than_one_input() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -303,6 +306,7 @@ test s1_spend_fail_reg_cert_with_more_than_one_output() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -341,6 +345,7 @@ test s1_spend_fail_reg_cert_with_incorrect_output_datum() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -379,6 +384,7 @@ test s1_spend_fail_reg_cert_with_output_value_not_clean() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -417,6 +423,7 @@ test s1_spend_fail_reg_cert_with_incorrect_output_value() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -455,6 +462,7 @@ test s1_spend_fail_reg_cert_with_stake_cert_not_reg() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -493,6 +501,7 @@ test s1_spend_fail_reg_cert_with_drep_cert_not_reg() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -531,6 +540,7 @@ test s1_spend_fail_reg_cert_with_drep_deposit_incorrect() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -569,6 +579,7 @@ test s1_spend_fail_reg_cert_with_stake_not_delegated() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -607,6 +618,7 @@ test s1_spend_fail_reg_cert_with_vote_not_delegated() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -645,6 +657,7 @@ test s1_spend_fail_reg_cert_with_gov_not_proposed() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -771,6 +784,7 @@ test s1_spend_success_vote_on_gov_action() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -804,6 +818,7 @@ test s1_spend_fail_vote_on_gov_action_with_more_than_one_inputed() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -837,6 +852,7 @@ test s1_spend_fail_vote_on_gov_action_with_more_than_one_outputed() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -870,6 +886,7 @@ test s1_spend_fail_vote_on_gov_action_with_output_datum_wrong() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -903,6 +920,7 @@ test s1_spend_fail_vote_on_gov_action_with_output_value_not_clean() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -936,6 +954,7 @@ test s1_spend_fail_vote_on_gov_action_with_incorrect_output_value() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -969,6 +988,7 @@ test s1_spend_fail_vote_on_gov_action_with_no_vote() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -1020,12 +1040,12 @@ fn mock_deregister_cert_tx(test_case: DeregisterCertsTestCase) -> Transaction {
   let output_value =
     if is_output_value_correct {
       from_lovelace(
-        mock_funds_controlled + mock_stake_register_deposit + mock_drep_register_deposit,
+        mock_funds_controlled + mock_stake_register_deposit + mock_drep_register_deposit + mock_fundraise_target,
       )
         |> add(mock_start_hash, "", 1)
     } else {
       from_lovelace(
-        mock_funds_controlled + mock_stake_register_deposit + mock_drep_register_deposit - 10,
+        mock_funds_controlled + mock_stake_register_deposit + mock_drep_register_deposit + mock_fundraise_target - 10,
       )
         |> add(mock_start_hash, "", 1)
     }
@@ -1109,6 +1129,7 @@ test s1_spend_success_unregister_certs() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1145,6 +1166,7 @@ test s1_spend_fail_unregister_certs_with_more_than_one_inputed() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1181,6 +1203,7 @@ test s1_spend_fail_unregister_certs_with_more_than_one_outputed() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1217,6 +1240,7 @@ test s1_spend_fail_unregister_certs_with_output_datum_incorrect() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1253,6 +1277,7 @@ test s1_spend_fail_unregister_certs_with_output_value_not_clean() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1289,6 +1314,7 @@ test s1_spend_fail_unregister_certs_with_output_value_incorrect() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1325,6 +1351,7 @@ test s1_spend_fail_unregister_certs_with_stake_not_unregister() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1361,6 +1388,7 @@ test s1_spend_fail_unregister_certs_with_drep_not_unregister() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1397,6 +1425,7 @@ test s1_spend_fail_unregister_certs_with_deadline_not_passed() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Voted {
         start_hash: mock_start_hash,
@@ -1528,6 +1557,7 @@ test s1_spend_success_contributor_withdraw() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1563,6 +1593,7 @@ test s1_spend_fail_contributor_withdraw_with_state_not_refundable() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Proposed {
         start_hash: mock_start_hash,
@@ -1599,6 +1630,7 @@ test s1_spend_fail_contributor_withdraw_with_more_than_one_auth_inputed() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1634,6 +1666,7 @@ test s1_spend_fail_contributor_withdraw_with_more_than_one_auth_outputed() fail 
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1669,6 +1702,7 @@ test s1_spend_fail_contributor_withdraw_with_incorrect_output_datum() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1704,6 +1738,7 @@ test s1_spend_fail_contributor_withdraw_with_auth_output_value_not_clean() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1739,6 +1774,7 @@ test s1_spend_fail_contributor_withdraw_with_incorrect_auth_unlock_value() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1809,6 +1845,7 @@ test s1_spend_fail_contributor_withdraw_with_incorrect_shares_burnt() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1910,6 +1947,7 @@ test s1_spend_success_remove_empty_instance_wih_zero_fund() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1942,6 +1980,7 @@ test s1_spend_success_remove_empty_instance_wih_some_fund() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -1974,6 +2013,7 @@ test s1_spend_fail_remove_empty_instance_wih_state_not_refundable() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Init {
         start_hash: mock_start_hash,
@@ -2007,6 +2047,7 @@ test s1_spend_fail_remove_empty_instance_wih_more_than_one_auth_inputed() fail {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -2071,6 +2112,7 @@ test s1_spend_fail_remove_empty_instance_wih_share_not_burnt() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -2103,6 +2145,7 @@ test s1_spend_fail_remove_empty_instance_wih_token_not_burnt() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,
@@ -2135,6 +2178,7 @@ test s1_spend_fail_remove_empty_instance_wih_proposer_not_signed() {
     mock_proposer_key_hash,
     mock_stake_register_deposit,
     mock_drep_register_deposit,
+    mock_fundraise_target,
     Some(
       Refundable {
         start_hash: mock_start_hash,

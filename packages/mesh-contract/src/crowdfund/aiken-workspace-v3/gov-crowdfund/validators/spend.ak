@@ -27,6 +27,7 @@ validator spend(
   proposer_key_hash: ByteArray,
   stake_register_deposit: Lovelace,
   drep_register_deposit: Lovelace,
+  gov_deposit: Lovelace,
 ) {
   spend(
     datum_opt: Option<CrowdfundGovDatum>,
@@ -70,7 +71,7 @@ validator spend(
               check_lovelace_diff(
                 only_input,
                 only_output,
-                -(stake_register_deposit + drep_register_deposit + 100000000000),
+                -(stake_register_deposit + drep_register_deposit + gov_deposit),
               )
             expect only_output_datum: CrowdfundGovDatum =
               output_inline_datum(only_output)
@@ -114,8 +115,8 @@ validator spend(
             let proposal_check =
               check_proposal_procedure(
                 proposal_procedures,
-                100000000000,
-                current_address.payment_credential,
+                gov_deposit,
+                Script(start_hash),
                 gov_action,
               )
             lovelace_check? && output_datum_check? && is_only_output_value_clean? && reg_stake_cert_check? && reg_drep_cert_check? && delegate_check? && proposal_check?
@@ -176,7 +177,7 @@ validator spend(
               check_lovelace_diff(
                 only_input,
                 only_output,
-                stake_register_deposit + drep_register_deposit,
+                stake_register_deposit + drep_register_deposit + gov_deposit,
               )
 
             expect only_output_datum: CrowdfundGovDatum =
