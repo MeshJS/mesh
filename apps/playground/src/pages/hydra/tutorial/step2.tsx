@@ -37,7 +37,26 @@ function Left(
   const [addresses, setAddresses] = useState<string>("");
   const [balance, setBalance] = useState<string>("");
 
-  async function startNode() {}
+  async function startNode() {
+
+  }
+  let codeHydraStartNode = ``;
+  codeHydraStartNode += `hydra_version= 0.22.0\n`;
+  codeHydraStartNode += `hydra-node \\\n`;
+  codeHydraStartNode += `  --node-id alice-node \\\n`;
+  codeHydraStartNode += `  --persistence-dir persistence-alice \\\n`;
+  codeHydraStartNode += `  --cardano-signing-key credentials/alice-node.sk \\\n`;
+  codeHydraStartNode += `  --hydra-signing-key credentials/alice-hydra.sk \\\n`;
+  codeHydraStartNode += '  --hydra-scripts-tx-id $(curl https://raw.githubusercontent.com/cardano-scaling/hydra/master/hydra-node/networks.json | jq -r ".preprod.\\"${hydra_version}\\"") \n';
+  codeHydraStartNode += `  --ledger-protocol-parameters protocol-parameters.json \\\n`;
+  codeHydraStartNode += `  --testnet-magic 1 \\\n`;
+  codeHydraStartNode += `  --node-socket node.socket \\\n`;
+  codeHydraStartNode += `  --api-port 4001 \\\n`;
+  codeHydraStartNode += `  --listen 0.0.0.0:5001 \\\n`;
+  codeHydraStartNode += `  --api-host 0.0.0.0 \\\n`;
+  codeHydraStartNode += `  --peer 127.0.0.1:5002 \\\n`;
+  codeHydraStartNode += `  --hydra-verification-key credentials/bob-hydra.vk \\\n`;
+  codeHydraStartNode += `  --cardano-verification-key credentials/bob-node.vk\n`;
 
   let codeOnMessage = ``;
   codeOnMessage += `provider.onMessage((message) => {\n`;
@@ -78,7 +97,7 @@ function Left(
 
       <p>Start the hydra-node using these parameters:</p>
 
-      <Codeblock data={`code about starting node`} />
+      <Codeblock data={codeHydraStartNode} />
       <Button
         onClick={() => startNode()}
         style={loading ? "warning" : "light"}

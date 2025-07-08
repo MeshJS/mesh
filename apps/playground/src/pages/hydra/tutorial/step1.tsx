@@ -60,7 +60,7 @@ function Left(
   const [addresses, setAddresses] = useState<string>("");
   const [balance, setBalance] = useState<string>("");
 
-  async function generateKeys() {
+  async function generateAddress() {
     setLoading(true);
 
     setTimeout(async () => {
@@ -158,13 +158,39 @@ function Left(
     }
   }
 
-  async function generateHydraKeys() {
-    setLoading(true);
+  let codeAliceCliCommand = ``;
+  codeAliceCliCommand += `mkdir -p credentials\\\n`;
+  codeAliceCliCommand += `  cardano-cli address key-gen \\\n`;
+  codeAliceCliCommand += `    --verification-key-file credentials/alice-node.vk \\\n`;
+  codeAliceCliCommand += `    --signing-key-file credentials/alice-node.sk \\\n\n`;
+  codeAliceCliCommand += `  cardano-cli address build \\\n`;
+  codeAliceCliCommand += `    --verification-key-file credentials/alice-node.vk \\\n`;
+  codeAliceCliCommand += `    --out-file credentials/alice-node.addr \\\n\n`;
+  codeAliceCliCommand += `  cardano-cli address key-gen \\\n`;
+  codeAliceCliCommand += `    --verification-key-file credentials/alice-funds.vk \\\n`;
+  codeAliceCliCommand += `    --signing-key-file credentials/alice-funds.sk \\\n\n`;
+  codeAliceCliCommand += `  cardano-cli address build \\\n`;
+  codeAliceCliCommand += `    --verification-key-file credentials/alice-funds.vk \\\n`;
+  codeAliceCliCommand += `    --out-file credentials/alice-funds.addr`;
+  codeAliceCliCommand += `\n\n`;
 
-    setTimeout(async () => {
-      setLoading(false);
-    }, 500);
-  }
+  let codeBobCliCommand = ``;
+  codeBobCliCommand += `mkdir -p credentials\\\n`;
+  codeBobCliCommand += `  cardano-cli address key-gen \\\n`;
+  codeBobCliCommand += `    --verification-key-file credentials/bob-node.vk \\\n`;
+  codeBobCliCommand += `    --signing-key-file credentials/bob-node.sk \\\n\n`;
+  codeBobCliCommand += `  cardano-cli address build \\\n`;
+  codeBobCliCommand += `    --verification-key-file credentials/bob-node.vk \\\n`;
+  codeBobCliCommand += `    --out-file credentials/bob-node.addr \\\n\n`;
+  codeBobCliCommand += `  cardano-cli address key-gen \\\n`;
+  codeBobCliCommand += `    --verification-key-file credentials/bob-funds.vk \\\n`;
+  codeBobCliCommand += `    --signing-key-file credentials/bob-funds.sk \\\n\n`;
+  codeBobCliCommand += `  cardano-cli address build \\\n`;
+  codeBobCliCommand += `    --verification-key-file credentials/bob-funds.vk \\\n`;
+  codeBobCliCommand += `    --out-file credentials/bob-funds.addr`;
+  codeBobCliCommand += `\n\n`;
+
+  let code
 
   return (
     <>
@@ -179,51 +205,19 @@ function Left(
       <p>
         Alice :
         <Codeblock
-          data={`mkdir -p credentials \\
-
-      cardano-cli address key-gen \\
-        --verification-key-file credentials/alice-node.vk \\
-        --signing-key-file credentials/alice-node.sk \\
-      
-      cardano-cli address build \\
-        --verification-key-file credentials/alice-node.vk \\
-        --out-file credentials/alice-node.addr \\
-      
-      cardano-cli address key-gen \\
-        --verification-key-file credentials/alice-funds.vk \\
-        --signing-key-file credentials/alice-funds.sk
-      
-      cardano-cli address build \\
-        --verification-key-file credentials/alice-funds.vk \\
-        --out-file credentials/alice-funds.addr`}
+          data={codeAliceCliCommand}
         />
       </p>
       Bob:
       <Codeblock
-        data={`mkdir -p credentials \\
-
-      cardano-cli address key-gen \\
-        --verification-key-file credentials/bob-node.vk \\
-        --signing-key-file credentials/bob-node.sk \\
-      
-      cardano-cli address build \\
-        --verification-key-file credentials/bob-node.vk \\
-        --out-file credentials/bob-node.addr \\
-      
-      cardano-cli address key-gen \\
-        --verification-key-file credentials/bob-funds.vk \\
-        --signing-key-file credentials/bob-funds.sk
-      
-      cardano-cli address build \\
-        --verification-key-file credentials/bob-funds.vk \\
-        --out-file credentials/bob-funds.addr`}
+        data={codeBobCliCommand}
       />
       <Button
-        onClick={() => generateKeys()}
+        onClick={() => generateAddress ()}
         style={loading ? "warning" : "light"}
         disabled={loading}
       >
-        Generate Keys
+        Generate Addresses
       </Button>
       {addresses && <Codeblock data={addresses} />}
       <Alert>
@@ -240,14 +234,13 @@ function Left(
         address UTxOs like this
       </p>
       <Codeblock
-        data={`import { BlockfrostProvider } from "@meshsdk/core";
-      
-const provider = new BlockfrostProvider(<API_KEY>);
-const aliceNodeUtxos = await provider.fetchAddressUtxos(${aliceNode?.getAddresses().baseAddressBech32 ?? "address"});
-const aliceFundsUtxos = await provider.fetchAddressUtxos(${aliceFunds?.getAddresses().baseAddressBech32 ?? "address"});
-
-const bobNodeUtxos = await provider.fetchAddressUtxos(${bobNode?.getAddresses().baseAddressBech32 ?? "address"});
-const bobFundUtxos = await provider.fetchAddressUtxos(${bobFunds?.getAddresses().baseAddressBech32 ?? "address"});
+        data={
+      `import { BlockfrostProvider } from "@meshsdk/core";\n
+      const provider = new BlockfrostProvider(<API_KEY>);
+      const aliceNodeUtxos = await provider.fetchAddressUtxos(${aliceNode?.getAddresses().baseAddressBech32 ?? "address"});
+      const aliceFundsUtxos = await provider.fetchAddressUtxos(${aliceFunds?.getAddresses().baseAddressBech32 ?? "address"});\n
+      const bobNodeUtxos = await provider.fetchAddressUtxos(${bobNode?.getAddresses().baseAddressBech32 ?? "address"});
+      const bobFundUtxos = await provider.fetchAddressUtxos(${bobFunds?.getAddresses().baseAddressBech32 ?? "address"});
      `}
       />
       <Button
@@ -271,13 +264,6 @@ const bobFundUtxos = await provider.fetchAddressUtxos(${bobFunds?.getAddresses()
       <Codeblock
         data={`hydra-node gen-hydra-key --output-file credentials/bob-hydra`}
       />
-      <Button
-        onClick={() => generateHydraKeys()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Generate Hydra Keys
-      </Button>
       <p>
         If you are collaborating with another individual, exchange the
         verification (public) keys: <code>{"{alice,bob}-node.vk"}</code> and{" "}
