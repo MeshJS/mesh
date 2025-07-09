@@ -1,6 +1,7 @@
 /* eslint-disable default-case */
 /* eslint-disable class-methods-use-this */
 /* eslint-disable radix */
+import { js_parse_tx_body } from "@sidan-lab/whisky-js-nodejs";
 import JSONbig from "json-bigint";
 
 import {
@@ -13,12 +14,16 @@ import {
   IDeserializer,
   IMeshTxSerializer,
   IResolver,
+  ITxParser,
   MeshTxBuilderBody,
   NativeScript,
   Output,
   PlutusDataType,
   PlutusScript,
   Protocol,
+  TxInput,
+  TxTester,
+  UTxO,
 } from "@meshsdk/common";
 
 import {
@@ -34,17 +39,19 @@ import {
   toCslValue,
   toNativeScript,
 } from "../deser";
+import { CSLParser } from "../parser";
 import {
   calculateTxHash,
   deserializeBech32Address,
+  getRequiredInputs,
   keyHashToRewardAddress,
   rewardAddressToKeyHash,
   scriptHashToRewardAddress,
   serialzeAddress,
   signTransaction,
 } from "../utils";
-import { meshTxBuilderBodyToObj } from "./adaptor";
-import { builderDataToCbor } from "./adaptor/data";
+import { meshTxBuilderBodyToObj, txBuilderBodyFromObj } from "./adaptor";
+import { builderDataToCbor } from "./adaptor/toObj/data";
 
 const VKEY_PUBKEY_SIZE_BYTES = 32;
 const VKEY_SIGNATURE_SIZE_BYTES = 64;
@@ -57,6 +64,8 @@ export class CSLSerializer implements IMeshTxSerializer {
   protocolParams: Protocol;
 
   meshTxBuilderBody: MeshTxBuilderBody = emptyTxBuilderBody();
+
+  parserTxBody: MeshTxBuilderBody = emptyTxBuilderBody();
 
   constructor(protocolParams?: Protocol) {
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
@@ -299,6 +308,27 @@ export class CSLSerializer implements IMeshTxSerializer {
   serializeValue(value: Asset[]): string {
     return toCslValue(value).to_hex();
   }
+
+  parser: ITxParser = {
+    getRequiredInputs: function (txHex: string): TxInput[] {
+      return getRequiredInputs(txHex);
+    },
+    parse: (txHex: string, resolvedUtxos: UTxO[] = []) => {
+      const parser = new CSLParser(txHex, resolvedUtxos);
+      this.parserTxBody = parser.txBuilderBody;
+    },
+    toTester: () => {
+      return new TxTester(this.parserTxBody);
+    },
+    getBuilderBody: () => {
+      return this.parserTxBody;
+    },
+    getBuilderBodyWithoutChange: () => {
+      const txBuilderBody = { ...this.parserTxBody };
+      txBuilderBody.inputs = txBuilderBody.inputs.slice(0, -1);
+      return txBuilderBody;
+    },
+  };
 
   private mockPubkey(numberInHex: string): string {
     return "0"
