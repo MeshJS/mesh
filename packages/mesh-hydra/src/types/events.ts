@@ -121,11 +121,11 @@ export type HeadIsFinalized = {
 };
 
 export type TxValid = {
-  tag: "TxValid";
   headId: string;
-  transaction: hTransaction;
+  tag: "TxValid";
   seq: number;
   timestamp: string;
+  transaction: hTransaction;
 };
 
 export type TxInvalid = {
