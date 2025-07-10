@@ -24,9 +24,9 @@ export class HydraConnection extends EventEmitter {
     this._eventEmitter = eventEmitter;
   }
 
-  async connect() {
+  async connect(): Promise<void>{
     if (this._status !== "IDLE") {
-      console.warn("Connection attempt ignored: Status is not IDLE");
+      console.warn("Connection attempt ignored: Hydra head is not IDLE");
       return;
     }
   
@@ -50,17 +50,14 @@ export class HydraConnection extends EventEmitter {
       this._connected = false;
     };
 
-    this._websocket.onmessage = (data) => {
-      if (typeof data.data === "string") {
-        const message = JSON.parse(data.data);
+    this._websocket.onmessage = (data: MessageEvent) => {
+        const message = JSON.parse(data.data as string);
         console.log("Received message from server:", message);
         this._eventEmitter.emit("onmessage", message);
         this.processStatus(message);
-      } else {
-        console.error("Received non-string message from server:", data.data);
-      }
     }
   }
+  
   send(data: unknown): void {
     const sendData = () => {
       if (this._websocket?.readyState === WebSocket.OPEN) {
