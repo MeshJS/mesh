@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import { hStatus } from "./types/hStatus";
-import WebSocket from "isomorphic-ws"
+import WebSocket, { MessageEvent } from "isomorphic-ws"
 
 export class HydraConnection extends EventEmitter {
   constructor({
@@ -26,57 +26,62 @@ export class HydraConnection extends EventEmitter {
 
   async connect() {
     if (this._status !== "IDLE") {
+      console.warn("Connection attempt ignored: Status is not IDLE");
       return;
     }
-
+  
     this._websocket = new WebSocket(this._websocketUrl);
     this._status = "CONNECTING";
-
-    this._websocket.onopen = () => {
+    
+     this._websocket.onopen = () => {
       this._connected = true;
+      this._status = "CONNECTED";
+      console.log("WebSocket connected successfully");
     };
+  
     this._websocket.onerror = (error) => {
-      console.error(`Hydra error: ${error}`);
+      console.error("Hydra error:", error);
+      this._connected = false;
     };
+  
     this._websocket.onclose = (code) => {
-      console.error("Hydra websocket closed", code);
+      console.error("Hydra websocket closed", code.code, code.reason);
+      this._status = "CLOSED";
+      this._connected = false;
     };
-    this._websocket.onmessage = (data) => {
-      const message = JSON.parse(data.data as string);
-      this._eventEmitter.emit("onmessage", message);
-      this.processStatus(message);
-    };
-  }
 
-  async send(data: unknown) {
-    if (!this._websocket || this._websocket.readyState !== WebSocket.OPEN) {
-      if (this._status === "CONNECTING") {
-        try {
-          await new Promise<void>((resolve, reject) => {
-            const checkConnection = setInterval(() => {
-              if (this._websocket?.readyState === WebSocket.OPEN) {
-                clearInterval(checkConnection);
-                resolve();
-              } else if (this._websocket?.readyState === WebSocket.CLOSED || this._websocket?.readyState === WebSocket.CLOSING) {
-                clearInterval(checkConnection);
-                reject(new Error("WebSocket is closed or closing"));
-              }
-            }, 100); 
-          });
-        } catch (error) {
-          console.error("Error waiting for WebSocket to open:", error);
-        }
-      }; 
+    this._websocket.onmessage = (data) => {
+      if (typeof data.data === "string") {
+        const message = JSON.parse(data.data);
+        console.log("Received message from server:", message);
+        this._eventEmitter.emit("onmessage", message);
+        this.processStatus(message);
+      } else {
+        console.error("Received non-string message from server:", data.data);
+      }
     }
-    if(!this._websocket){
-      throw new Error("Websocket undefined");
-    }
-    try {
-      this._websocket.send(JSON.stringify(data));
-    } catch (error) {
-      console.error("Error sending data:", error);
-      throw error;
-    }
+  }
+  send(data: unknown): void {
+    const sendData = () => {
+      if (this._websocket?.readyState === WebSocket.OPEN) {
+        this._websocket.send(JSON.stringify(data));
+        return true;
+      }
+      return false;
+    };
+  
+    const interval = setInterval(() => {
+      if (sendData()) {
+        clearInterval(interval);
+      }
+    }, 1000);
+  
+    setTimeout(() => {
+      if (!sendData()) {
+        console.error("Failed to send data: WebSocket connection timeout.");
+        clearInterval(interval);
+      }
+    }, 5000);
   }
 
   async disconnect() {
