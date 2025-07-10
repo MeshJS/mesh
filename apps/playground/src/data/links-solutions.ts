@@ -1,6 +1,7 @@
 import {
   FireIcon,
   GlobeAltIcon,
+  MagnifyingGlassIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/solid";
 
@@ -20,6 +21,12 @@ export const linksSolutions: MenuItem[] = [
     title: "Multisig platform",
     desc: "Secure your treasury and participant in Cardano governance as a team with multi-signature",
     icon: UserGroupIcon,
+  },
+  {
+    link: `https://cloud.meshjs.dev/cquisitor`,
+    title: "Cquisitor",
+    desc: "Debug, validate and inspect any CBOR and Cardano objects",
+    icon: MagnifyingGlassIcon,
   },
 ];
 

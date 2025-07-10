@@ -9,6 +9,7 @@ import { metaReact } from "./links-react";
 import { metaSmartContract } from "./links-smart-contracts";
 import { metaSvelte } from "./links-svelte";
 import { metaTxbuilder } from "./links-txbuilders";
+import { metaTxParser } from "./links-txparser";
 import { metaUtilities } from "./links-utilities";
 import { metaWallets } from "./links-wallets";
 import { metaYaci } from "./links-yaci";
@@ -23,13 +24,14 @@ export const metaPolkadot: MenuItem = {
 export const metaWeb3Wallet: MenuItem = {
   title: "Wallet as a Service",
   desc: "Access self-custodial wallet using social logins",
-  link: "https://web3.meshjs.dev/products/wallets",
+  link: "https://web3.meshjs.dev/",
   icon: SvgMesh,
 };
 
 export const linksApi: MenuItem[] = [
   metaWallets,
   metaTxbuilder,
+  metaTxParser,
   metaProviders,
   metaUtilities,
   metaReact,

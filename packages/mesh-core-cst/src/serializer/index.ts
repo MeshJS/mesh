@@ -36,6 +36,7 @@ import {
   IDeserializer,
   IMeshTxSerializer,
   IResolver,
+  ITxParser,
   MeshTxBuilderBody,
   MintParam,
   mnemonicToEntropy,
@@ -54,7 +55,9 @@ import {
   SimpleScriptVote,
   toBytes,
   TxIn,
+  TxInput,
   TxMetadata,
+  UTxO,
   ValidityRange,
   Vote,
   Withdrawal,
@@ -137,7 +140,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     setInConwayEra(true);
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
   }
-
   serializeRewardAddress(
     stakeKeyHash: string,
     isScriptHash?: boolean,
@@ -540,6 +542,24 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     }
     return cardanoOutput.toCbor();
   }
+
+  parser: ITxParser = {
+    getRequiredInputs: function (txHex: string): TxInput[] {
+      throw new Error("Function not implemented.");
+    },
+    parse: function (txHex: string, resolvedUtxos?: UTxO[]): void {
+      throw new Error("Method not implemented.");
+    },
+    toTester: function (): any {
+      throw new Error("Method not implemented.");
+    },
+    getBuilderBody: function (): MeshTxBuilderBody {
+      throw new Error("Method not implemented.");
+    },
+    getBuilderBodyWithoutChange: function (): MeshTxBuilderBody {
+      throw new Error("Method not implemented.");
+    },
+  };
 }
 
 class CardanoSDKSerializerCore {

@@ -5,6 +5,7 @@ import {
   Action,
   Asset,
   Certificate,
+  DEFAULT_PROTOCOL_PARAMETERS,
   IEvaluator,
   IFetcher,
   IMeshTxSerializer,
@@ -17,6 +18,7 @@ import {
   ScriptSource,
   SimpleScriptSourceInfo,
   TxIn,
+  TxOutput,
   UTxO,
   Vote,
   Voter,
@@ -969,6 +971,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     byronAddresses: Set<string>;
   } => {
     const { paymentCreds, byronAddresses } = this.getInputsRequiredSignatures();
+    const { collateralPaymentCreds, collateralByronAddresses } =
+      this.getCollateralRequiredSignatures();
     const withdrawalCreds = this.getWithdrawalRequiredSignatures();
     const certCreds = this.getCertificatesRequiredSignatures();
     const voteCreds = this.getVoteRequiredSignatures();
@@ -977,12 +981,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const allCreds = new Set([
       ...paymentCreds,
       ...withdrawalCreds,
+      ...collateralPaymentCreds,
       ...certCreds,
       ...voteCreds,
       ...requiredSignatures,
       ...mintCreds,
     ]);
-    return { keyHashes: allCreds, byronAddresses };
+    const allByronAddresses = new Set([
+      ...byronAddresses,
+      ...collateralByronAddresses,
+    ]);
+    return { keyHashes: allCreds, byronAddresses: allByronAddresses };
   };
 
   protected getInputsRequiredSignatures(): {
@@ -1018,6 +1027,33 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
     }
     return { paymentCreds, byronAddresses };
+  }
+
+  protected getCollateralRequiredSignatures(): {
+    collateralPaymentCreds: Set<string>;
+    collateralByronAddresses: Set<string>;
+  } {
+    const collateralByronAddresses = new Set<string>();
+    const collateralPaymentCreds = new Set<string>();
+    for (let collateral of this.meshTxBuilderBody.collaterals) {
+      if (collateral.type === "PubKey") {
+        if (collateral.txIn.address) {
+          const address = CstAddress.fromString(collateral.txIn.address);
+          if (!address) {
+            continue;
+          }
+          const addressDetails = address.getProps();
+          const paymentCred = addressDetails.paymentPart;
+          if (paymentCred?.type === CstCredentialType.KeyHash) {
+            collateralPaymentCreds.add(paymentCred.hash);
+          }
+          if (addressDetails.type === CstAddressType.Byron) {
+            collateralByronAddresses.add(collateral.txIn.address);
+          }
+        }
+      }
+    }
+    return { collateralPaymentCreds, collateralByronAddresses };
   }
 
   protected getWithdrawalRequiredSignatures(): Set<string> {
@@ -1685,25 +1721,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   calculateMinLovelaceForOutput = (output: Output): bigint => {
-    let currentOutput = cloneOutput(output);
-    let lovelace = getLovelace(currentOutput);
-    let minAda = 0n;
-    for (let i = 0; i < 3; i++) {
-      const txOutSize = BigInt(
-        this.serializer.serializeOutput(currentOutput).length / 2,
-      );
-      const txOutByteCost = BigInt(this._protocolParams.coinsPerUtxoSize);
-      const totalOutCost = (160n + BigInt(txOutSize)) * txOutByteCost;
-      minAda = totalOutCost;
-      if (lovelace < totalOutCost) {
-        lovelace = totalOutCost;
-      } else {
-        break;
-      }
-      currentOutput = setLoveLace(currentOutput, lovelace);
-    }
-
-    return minAda;
+    return getOutputMinLovelace(output, this._protocolParams.coinsPerUtxoSize);
   };
 
   protected clone(): MeshTxBuilder {
@@ -1778,11 +1796,11 @@ function tierRefScriptFee(
   return BigInt(acc.integerValue(BigNumber.ROUND_FLOOR).toString());
 }
 
-const cloneOutput = (output: Output): Output => {
+export const cloneOutput = (output: Output): Output => {
   return JSONBig.parse(JSONBig.stringify(output));
 };
 
-const setLoveLace = (output: Output, lovelace: bigint): Output => {
+export const setLoveLace = (output: Output, lovelace: bigint): Output => {
   let lovelaceSet = false;
   for (let asset of output.amount) {
     if (asset.unit === "lovelace") {
@@ -1801,13 +1819,39 @@ const setLoveLace = (output: Output, lovelace: bigint): Output => {
   return output;
 };
 
-const getLovelace = (output: Output): bigint => {
+export const getLovelace = (output: Output): bigint => {
   for (let asset of output.amount) {
     if (asset.unit === "lovelace" || asset.unit === "") {
       return BigInt(asset.quantity);
     }
   }
   return 0n;
+};
+
+export const getOutputMinLovelace = (
+  output: Output,
+  coinsPerUtxoSize = DEFAULT_PROTOCOL_PARAMETERS.coinsPerUtxoSize,
+): bigint => {
+  const serializer = new CardanoSDKSerializer();
+  let currentOutput = cloneOutput(output);
+  let lovelace = getLovelace(currentOutput);
+  let minLovelace = 0n;
+  for (let i = 0; i < 3; i++) {
+    const txOutSize = BigInt(
+      serializer.serializeOutput(currentOutput).length / 2,
+    );
+    const txOutByteCost = BigInt(coinsPerUtxoSize);
+    const totalOutCost = (160n + BigInt(txOutSize)) * txOutByteCost;
+    minLovelace = totalOutCost;
+    if (lovelace < totalOutCost) {
+      lovelace = totalOutCost;
+    } else {
+      break;
+    }
+    currentOutput = setLoveLace(currentOutput, lovelace);
+  }
+
+  return minLovelace;
 };
 
 export * from "./utils";
