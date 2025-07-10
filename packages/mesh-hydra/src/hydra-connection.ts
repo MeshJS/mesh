@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import { hStatus } from "./types/hStatus";
-import WebSocket, { MessageEvent } from "isomorphic-ws"
+import WebSocket, { MessageEvent } from "isomorphic-ws";
 
 export class HydraConnection extends EventEmitter {
   constructor({
@@ -24,26 +24,26 @@ export class HydraConnection extends EventEmitter {
     this._eventEmitter = eventEmitter;
   }
 
-  async connect(): Promise<void>{
+  async connect(): Promise<void> {
     if (this._status !== "IDLE") {
       console.warn("Connection attempt ignored: Hydra head is not IDLE");
       return;
     }
-  
+
     this._websocket = new WebSocket(this._websocketUrl);
     this._status = "CONNECTING";
-    
-     this._websocket.onopen = () => {
+
+    this._websocket.onopen = () => {
       this._connected = true;
       this._status = "CONNECTED";
       console.log("WebSocket connected successfully");
     };
-  
+
     this._websocket.onerror = (error) => {
       console.error("Hydra error:", error);
       this._connected = false;
     };
-  
+
     this._websocket.onclose = (code) => {
       console.error("Hydra websocket closed", code.code, code.reason);
       this._status = "CLOSED";
@@ -51,13 +51,13 @@ export class HydraConnection extends EventEmitter {
     };
 
     this._websocket.onmessage = (data: MessageEvent) => {
-        const message = JSON.parse(data.data as string);
-        console.log("Received message from server:", message);
-        this._eventEmitter.emit("onmessage", message);
-        this.processStatus(message);
-    }
+      const message = JSON.parse(data.data as string);
+      console.log("Received message from server:", message);
+      this._eventEmitter.emit("onmessage", message);
+      this.processStatus(message);
+    };
   }
-  
+
   send(data: unknown): void {
     const sendData = () => {
       if (this._websocket?.readyState === WebSocket.OPEN) {
@@ -66,13 +66,13 @@ export class HydraConnection extends EventEmitter {
       }
       return false;
     };
-  
+
     const interval = setInterval(() => {
       if (sendData()) {
         clearInterval(interval);
       }
     }, 1000);
-  
+
     setTimeout(() => {
       if (!sendData()) {
         console.error("Failed to send data: WebSocket connection timeout.");
