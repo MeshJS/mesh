@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, type RawAxiosRequestHeaders } from "axios";
-import { AnyEventObject, assertEvent, assign, fromCallback, sendTo, setup } from "xstate";
+import { AnyEventObject, assertEvent, assign, fromCallback, fromPromise, sendTo, setup } from "xstate";
 import { parseHttpError } from "./utils";
 
 export const hydra = setup({
@@ -43,13 +43,16 @@ export const hydra = setup({
     createClient: assign(({ context }) => {
       return { client: new Client(context.baseURL) }
     }),
+    setError: assign(({ event }) => {
+      assertEvent(event, "Error")
+      return { error: event.data }
+    }),
     setRequest: assign(({ event }) => {
       assertEvent(event, ["Commit"])
       return { request: event.data }
     }),
-    setError: assign(({ event }) => {
-      assertEvent(event, "Error")
-      return { error: event.data }
+    clearRequest: assign(() => {
+      return { request: undefined }
     }),
   },
   guards: {
@@ -122,6 +125,16 @@ export const hydra = setup({
       });
 
       return () => ws.close();
+    }),
+    commit: fromPromise<unknown, { client?: Client, request: unknown }>(async ({ input, signal }) => {
+      if (!input.client) {
+        throw new Error("Client is not initialized");
+      }
+      if (!input.request) {
+        throw new Error("Request is not provided");
+      }
+      const { client, request } = input;
+      return await client.post("/commit", request, undefined, signal);
     })
   },
   types: {
@@ -149,7 +162,7 @@ export const hydra = setup({
       | { type: "Close" }
   },
 }).createMachine({
-  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUghuLrK48gaGjhyqhi7yWqYWCJocuNKtLkpKsoYcKnbSar7+GGkZoaLk9GAATmuka7h8ADaFAGZbALa4qUEsSxQ58aQFRdylSCDlwstVMnUDE0qGsrpaeQuNRKbqWFzSWyDaTOVTTNSyRGzEDndKXWjLNEhDHkKD0TBgfIQMxPfiCN5iZ7VNwcQy2VryUaqTqTMEIeRWXDtBxaWHacbuZGoxa0BgAWTgsHyMFJL3JlSpiDqHBcA30zmkTImdjZehUyk0jkMSk6amk8hmfhR8wu2LoEHoEtgUplLh4z1eCtA1JcTm+gNpk0BclkbLcvIazUM9nUWhN0yFNqxmXFkulYDYsndZIq70VNV9NhVLg4HDGMJUENB5iVkyUuDNal5ahchukk0TgWToVTzvTbHk2blucp3sQmi0uGG7ZGo15skrYfN9QX7VGKn+JYhnYW6Pt9EIJD3ss9ebHvU6uCsXmstNa7QXbJUMKvQ3NmkZ5rNO9tKYdAFENi2E95TPSQZERWxrCBcsxkRJ8X1kN95A-JQv2kH9u1FCBcAASQgXYwHoXDyGEECR3ID4EAcfpZBjCYOXvORdUrZQ5A4M17EMZ8NEwkV7TwgiiPIilKPzdwVH1QEPCcLQSwcaw2TjOkOkGSsEQ4LQ6NkPi90gPDSJEfJdgIAAvWI8WwAAjLYaBEr1wIQRE1EUDgLUad9ERNNkTUUBRHF9DkXInXS7X0ki3mMsyLPoeywOpMt6w3JCIUrAUXDDUs6TUCY3BhVpn3sUK-wMyKTPM3FYrdMpQNHRzpnqJQSyUTT2kK+xMtpBtcohcY4SKq1hT0nCIqM8qLNwAkiTMAAVUhmGOY5hCYUhFrI7gaooqjgTjBsXMBX5zWcVkawQX4bCBdtaSOzUnGKnsRsMggooqqA0TWmgREquK6uqJD5EUZ8mt9QZajqNluPrYtZARJwWsk+7sNwAB5PgwBWRhdkEDMNo9WqxPPP5+maBESxjKwETDRFFA5bQJMrDpPERgTUfR2LcZzUTtrcxQ5DsblQbNMMAcndR1E1Lwo3NZn9Mx7GHWCOhYDsjnhy5-M2oaewUJ0FqRnNMMET8gqPE-eMZZwuXYAYH6CccrdFBBdUy0mZx-jDewVzLON9A435-gt9Iseth02GqvGtvzBFJxLQwvDo5UkOrHp3ARV86O0UsQTjnTBqTfj9IAMXychSAAVxoAAFQQhCswj6GL0uK9tqijoGP4m2fX19GkMNJJsI06jNDoIQcQPG-Lqua4IOvhNV09fsQYfcHUIFWl+P44-kYXLzFs0TScRxpbzrsC5wwvYmM4jDJb-M41VJqdByjxoWTpVqYaCnn1cSTzS0cfL67HZkOBedtqhNkhO2fQXcVDcQcNvU61gkpaS7vIc0ExNK+CtKXCAcBxDnE2urc8jJ9SqBhu2RoDhZDyUypObkGgERXTgvITCh4yBhQgIQhy1R+5XjXH7Ny7RoxskaPWDw1CnbND-gjE+u47RgVAVRB8ygxhd1UJpDkKgwzcRXsCDQf9fQjDjszTE-ELJcPiogaM-RRjcVcOowEj5ToWgfn8Vs1Nn5NhMRQfAUQLGLxqFYVUehGhw1NvDEROVbAblbADRETgLSWjmKfYa-iwHjg5AachngOKkw4myI0DQ0KaViXoTSudklyJKvhQiaSqJ9CyWaHJVCaGnR9soYpQJ7Clg5BU60KSOGlTGtFXEdTxKwNVP8LSLlWg+20CxOhCgJggkGGWYxsjfwPSGc9cauJJqEmJHNBaS0aBjPPMCLwV49Aw1EXMroiCUIryWTCXyCIrCB1GjskZb1jnCC+lAM5jkkIqH6CyQYLi0IbjUD5JsV46iwLgvDFCHynovQmugPxEciH2xhDYEF1N-hWDSjC-U0YYZuTcGlXkgdWZ20UeJDiqozQTENB0JsbgwzuDpF4Rwt5piqUDlbSAgKErqG+LTJocdph912o2J+Mz-hJP6VUrZE8K7V2dDPWpWLuFLxBCvNxcls6DCFqdVs5oGzjG9pMTwvo+lDUGRfcgxkRVL2cFeSYBhhhuCEQglOXLIyOBymg7idR7X52GliJW9pXU1B5rgMsFomqeGoU1P1SomRcgUHYFxG5Bi518EAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUghuLrK48gaGjhyqhi7yWqYWCJocuNKtLkpKsoYcKnbSar7+GGkZoaLk9GAATmuka7h8ADaFAGZbALa4qUEsSxQ58aQFRdylSCDlwstVMnUDE0qGsrpaeQuNRKbqWFzSWyDaTOVTTNSyRGzEDndKXWjLNEhDHkKD0TBgfIQMxPfiCN5iZ7VNwcQy2VryUaqTqTMEIeRWXDtBxaWHacbuZGoxa0BgAWTgsHyMFJL3JlSpiDqHBcA30zmkTImdjZehUyk0jkMSk6amk8hmfhR8wu2LoEHoEtgUplLh4z1eCtA1JcTm+gNpk0BclkbLcvIazUM9nUWhN0yFNqxmXFkulYDYsndZIq70VNV9NhVLg4HDGMJUENB5iVkyUuDNal5ahchukk0TgWToVTzvTbHk2blucp3sQmi0uGG7ZGo15skrYfN9QX7VGKn+JYhnYW6Pt9EIJD3ss9ebHvU6uCsXmstNa7QXbJUMKvQ3NmkZ5rNO9tKYdAFENi2E95TPSQZERWxrCBcsxkRJ8X1kN95A-JQv2kH9u1FCBcAASQgXYwHoXDyGEECR3ID4EAcfpZBjCYOXvORdUrZQ5A4M17EMZ8NEwkV7TwgiiPIilKPzdwVH1QEPCcLQSwcaw2TjOkOkGDkjFUBw+L3SA8NIkR8l2AgAC9YjxbAACMthoESvXAhBES+KxBkRZ89UMeQ2W0SE3EkjoQS8CEVG0u1dJIt5DJMsz6FssDqTLesNyQoLfWLMNSzpNQJjcGFWmfewQr-PSIqM0zcRit0ylA0d7OmeolBLJQOF5Vs9HsdLaQbbKIXGOECqtYUdJw8KDNKszcAJIkzAAFVIZhjmOYQmFIBayO4KqKKoiFZFVQYOj+aYnAUNQvJ0KdW0kySONLLSBqTfiwv0ghIrKqA0VWmgRHK9ZNm2PZDhOM57qG4rRqi3F3sWz6zJuPJCmWYpYpq6kEUUOQm3nE15A5asei3SFnLkxoPJUFVCp7Yanpe8b5qhr68SRsTz19CEDQ4jQkMBTp0tYlVKxBTQYRQ8nsNwAB5PgwBWRhdkEDN1o9aqmfsv5+maBESxjKwETDRFFBxuSPErDpPBFgSJalmKFZzUSto4bGBjolqzRVM0w2xyd1HUTUvCjc0zd0mW5YdYI6FgGzreHW383afVTRQnQmpGc0w1R19VA8T94wDnCg9gBhGbtjoG20O8F15ORpDDewVzLON9A435-hz9JZfzh02EqxXNvzBFJxLDy-jkpCkNxpUa9fOjS8bjzZBbgAxfJyFIABXGgAAVBCECzCPoRfl7Xwv83NOkYVkJtn19fQq5rGpJJsI06jNDoIVuuYuwenD99Xjet4IHfhKR1PMjRAz9cDqCBK0X4fwPKeVvh0S8XszQmicI4f2d0P4g3nrEQyxF9JH3PHGVUDUdBZQ8NCMeNQ9YNG1m5C65otALxwbsK2Q5gHK2qE2SE7Z9CXxUNxBwcCejWESloBcrh5DmgmM1XwVpl4QDgOIc4G1o7nkZPqVQ592yNAcDtDi6VJzcg0PGRE9hrCYUPGQUKEAVF2WqPfK8a5G723aNGNkjR6weB2iCZsDDJJmzAuwqiD5lBjEvqoZqHIVBhm4uA4EagLTaDon4gJFAsL01sXFRA0Z+ijG4q4CJgJHy3wtMQv4rY9ZkKbKk8g+AoiZJAVQhqapibGkzk1aJJSsq2A3K2bGiInAWktO-Xc1iGkcPHByA0WjPDsz0SdW+RoGhoQmPzaMC5hnWkwdYwShFxlUT6NMs0szdHySUtoZQKygT2FLByOeGDRlFRGs9MauJ9niUmPrDyZidB1EkpQ3QdI5L3xauoWELdnnUwhpNYks1abCHeczFsqovCmm8n8zQXlxi4FpFuVo9cTRKAhVTV5b14XQzed3VR9lUo2DsG5f4ECqxYv6HeY0pYeLNEYQ838FNQYvPBm9dA9SqV2MsCqOklZSxbisMpBZeNaQ2HUZ0MYzgAwYR5ek3SFtlZBPEhxVULt-ktgtHJFwYZ3B0i8I4W80xVItzzpARFNKJg2DUlYJoHlphhjrA2aYpCEllgTJqz+uBv5r03s6f+ezRVZOoiCcB5S5IgmcBxG+eNnyKBaHXSYnhfT3JGby0W2DyCGWdZw5wV5JgGGGG4VxQilSWsjI4LKkjuJ1ALVsx5fLQ5wHtOWpU9tFBlkSX0naDUG01CZFyBQdhSkbhcrI7wQA */
   id: "HYDRA",
   initial: "Disconnected",
   context: {
@@ -244,8 +257,20 @@ export const hydra = setup({
               }
             },
             Committing: {
+              invoke: {
+                src: "commit",
+                input: ({ context }) => ({
+                  client: context.client,
+                  request: context.request
+                }),
+                onError: {
+                  target: "ReadyToCommit",
+                  actions: "setError"
+                }
+              },
               always: {
                 target: "Done",
+                actions: "clearRequest",
                 guard: "isCommitted"
               }
             },
@@ -317,9 +342,9 @@ class Client {
     });
   }
 
-  async get(endpoint: string) {
+  async get(endpoint: string, signal?: AbortSignal) {
     try {
-      const { data, status } = await this._instance.get(endpoint);
+      const { data, status } = await this._instance.get(endpoint, { signal });
       if (status === 200 || status == 202) return data;
       throw parseHttpError(data);
     } catch (error) {
@@ -327,10 +352,10 @@ class Client {
     }
   }
 
-  async post(endpoint: string, payload: unknown, headers?: RawAxiosRequestHeaders) {
+  async post(endpoint: string, payload: unknown, headers?: RawAxiosRequestHeaders, signal?: AbortSignal) {
     try {
       const { data, status } = await this._instance.post(endpoint, payload, {
-        headers: headers ?? { "Content-Type": "application/json" }
+        headers: headers ?? { "Content-Type": "application/json" }, signal,
       });
       if (status === 200 || status == 202) return data;
       throw parseHttpError(data);
