@@ -4,20 +4,32 @@ import { parseHttpError } from "./utils";
 
 export const hydra = setup({
   actions: {
+    newTx: ({ event }) => {
+      assertEvent(event, "NewTx")
+      sendTo("server", { type: "Send", data: { tag: event.type, transaction: event.tx } })
+    },
+    recoverUTxO: ({ event }) => {
+      assertEvent(event, "Recover")
+      sendTo("server", { type: "Send", data: { tag: event.type, recoverTxId: event.txHash } })
+    },
+    decommitUTxO: ({ event }) => {
+      assertEvent(event, "Decommit")
+      sendTo("server", { type: "Send", data: { tag: event.type, decommitTxId: event.tx } })
+    },
     initHead: () => {
-      sendTo("server", { type: "Send", data: { "tag": "Init" } })
+      sendTo("server", { type: "Send", data: { tag: "Init" } })
     },
     abortHead: () => {
-      sendTo("server", { type: "Send", data: { "tag": "Abort" } })
+      sendTo("server", { type: "Send", data: { tag: "Abort" } })
     },
     closeHead: () => {
-      sendTo("server", { type: "Send", data: { "tag": "Close" } })
+      sendTo("server", { type: "Send", data: { tag: "Close" } })
     },
     contestHead: () => {
-      sendTo("server", { type: "Send", data: { "tag": "Contest" } })
+      sendTo("server", { type: "Send", data: { tag: "Contest" } })
     },
     fanoutHead: () => {
-      sendTo("server", { type: "Send", data: { "tag": "Fanout" } })
+      sendTo("server", { type: "Send", data: { tag: "Fanout" } })
     },
     closeConnection: ({ context }) => {
       if (context.connection?.readyState === WebSocket.OPEN) {
@@ -155,14 +167,16 @@ export const hydra = setup({
       | { type: "Disconnect", code: number }
       | { type: "Init" }
       | { type: "Commit", data: unknown }
+      | { type: "NewTx", tx: unknown }
+      | { type: "Recover", txHash: unknown }
+      | { type: "Decommit", tx: unknown }
       | { type: "Abort" }
-      | { type: "Close" }
       | { type: "Contest" }
       | { type: "Fanout" }
       | { type: "Close" }
   },
 }).createMachine({
-  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUghuLrK48gaGjhyqhi7yWqYWCJocuNKtLkpKsoYcKnbSar7+GGkZoaLk9GAATmuka7h8ADaFAGZbALa4qUEsSxQ58aQFRdylSCDlwstVMnUDE0qGsrpaeQuNRKbqWFzSWyDaTOVTTNSyRGzEDndKXWjLNEhDHkKD0TBgfIQMxPfiCN5iZ7VNwcQy2VryUaqTqTMEIeRWXDtBxaWHacbuZGoxa0BgAWTgsHyMFJL3JlSpiDqHBcA30zmkTImdjZehUyk0jkMSk6amk8hmfhR8wu2LoEHoEtgUplLh4z1eCtA1JcTm+gNpk0BclkbLcvIazUM9nUWhN0yFNqxmXFkulYDYsndZIq70VNV9NhVLg4HDGMJUENB5iVkyUuDNal5ahchukk0TgWToVTzvTbHk2blucp3sQmi0uGG7ZGo15skrYfN9QX7VGKn+JYhnYW6Pt9EIJD3ss9ebHvU6uCsXmstNa7QXbJUMKvQ3NmkZ5rNO9tKYdAFENi2E95TPSQZERWxrCBcsxkRJ8X1kN95A-JQv2kH9u1FCBcAASQgXYwHoXDyGEECR3ID4EAcfpZBjCYOXvORdUrZQ5A4M17EMZ8NEwkV7TwgiiPIilKPzdwVH1QEPCcLQSwcaw2TjOkOkGDkjFUBw+L3SA8NIkR8l2AgAC9YjxbAACMthoESvXAhBES+KxBkRZ89UMeQ2W0SE3EkjoQS8CEVG0u1dJIt5DJMsz6FssDqTLesNyQoLfWLMNSzpNQJjcGFWmfewQr-PSIqM0zcRit0ylA0d7OmeolBLJQOF5Vs9HsdLaQbbKIXGOECqtYUdJw8KDNKszcAJIkzAAFVIZhjmOYQmFIBayO4KqKKoiFZFVQYOj+aYnAUNQvJ0KdW0kySONLLSBqTfiwv0ghIrKqA0VWmgRHK9ZNm2PZDhOM57qG4rRqi3F3sWz6zJuPJCmWYpYpq6kEUUOQm3nE15A5asei3SFnLkxoPJUFVCp7Yanpe8b5qhr68SRsTz19CEDQ4jQkMBTp0tYlVKxBTQYRQ8nsNwAB5PgwBWRhdkEDN1o9aqmfsv5+maBESxjKwETDRFFBxuSPErDpPBFgSJalmKFZzUSto4bGBjolqzRVM0w2xyd1HUTUvCjc0zd0mW5YdYI6FgGzreHW383afVTRQnQmpGc0w1R19VA8T94wDnCg9gBhGbtjoG20O8F15ORpDDewVzLON9A435-hz9JZfzh02EqxXNvzBFJxLDy-jkpCkNxpUa9fOjS8bjzZBbgAxfJyFIABXGgAAVBCECzCPoRfl7Xwv83NOkYVkJtn19fQq5rGpJJsI06jNDoIVuuYuwenD99Xjet4IHfhKR1PMjRAz9cDqCBK0X4fwPKeVvh0S8XszQmicI4f2d0P4g3nrEQyxF9JH3PHGVUDUdBZQ8NCMeNQ9YNG1m5C65otALxwbsK2Q5gHK2qE2SE7Z9CXxUNxBwcCejWESloBcrh5DmgmM1XwVpl4QDgOIc4G1o7nkZPqVQ592yNAcDtDi6VJzcg0PGRE9hrCYUPGQUKEAVF2WqPfK8a5G723aNGNkjR6weB2iCZsDDJJmzAuwqiD5lBjEvqoZqHIVBhm4uA4EagLTaDon4gJFAsL01sXFRA0Z+ijG4q4CJgJHy3wtMQv4rY9ZkKbKk8g+AoiZJAVQhqapibGkzk1aJJSsq2A3K2bGiInAWktO-Xc1iGkcPHByA0WjPDsz0SdW+RoGhoQmPzaMC5hnWkwdYwShFxlUT6NMs0szdHySUtoZQKygT2FLByOeGDRlFRGs9MauJ9niUmPrDyZidB1EkpQ3QdI5L3xauoWELdnnUwhpNYks1abCHeczFsqovCmm8n8zQXlxi4FpFuVo9cTRKAhVTV5b14XQzed3VR9lUo2DsG5f4ECqxYv6HeY0pYeLNEYQ838FNQYvPBm9dA9SqV2MsCqOklZSxbisMpBZeNaQ2HUZ0MYzgAwYR5ek3SFtlZBPEhxVULt-ktgtHJFwYZ3B0i8I4W80xVItzzpARFNKJg2DUlYJoHlphhjrA2aYpCEllgTJqz+uBv5r03s6f+ezRVZOoiCcB5S5IgmcBxG+eNnyKBaHXSYnhfT3JGby0W2DyCGWdZw5wV5JgGGGG4VxQilSWsjI4LKkjuJ1ALVsx5fLQ5wHtOWpU9tFBlkSX0naDUG01CZFyBQdhSkbhcrI7wQA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUghuLrK48gaGjhyqhi7yWqYWCJocuNKtLkpKsoYcKnbSar7+GGkZoaLk9GAATmuka7h8ADaFAGZbALa4qUEsSxQ58aQFRdylSCDlwstVMnUDE0qGsrpaeQuNRKbqWFzSWyDaTOVTTNSyRGzEDndKXWjLNEhDHkKD0TBgfIQMxPfiCN5iZ7VWr9DiGdSuZqyYYqMEIeRWXAQvSGLTMhQ-ZGoxa0BgAWTgsHyMFJL3JlSpiDqHHqw1cSk6OhU7RcbL0WgGzg52g4dOaLiF8wu2LoEHoEtgUplLh4z1eCtA1Nkpq5HO19PhmmkbJcBhUAxUzL5hg1k3plsCWMy4sl0rAbFkrrJFXeipqLmauE8claSmG2kRIZUg1wCJUka8dScWgTC3RtvtqZl8izcpzlM9iE0Bq0HS09LsgK02hD0nk4YLMNq7QR89b1uTdsIJHbsvducHvU6uCsXmsdNa7VkrPMQ5hJ6Gc808iUc7U0nXSdCDAAohstnu8oHpIMiIrY1hAmMRiVrevT3t6ZZPhqr7yO+n4irauAAJIQLsYD0Fh5DCIB-bkB8CAOP047uKG7gcPOEJ6p4yjetI2gNr8rjoe2kDYbh+EkRSZF5u46i4BwfKDBoaimvRbLUeJ1h6C42qRjoFp+CiVpfqKEDYURIj5LsBAAF6xHi2AAEZbDQgkeiBCCIl8rgcqeEJ0jePTaIY4mAipCjPl43E2rxhFvEZpnmfQdnAdSKpKMomiIhyILqBoIYcG4RYIqoUxWDGGlzImGGhQZBARWZuLRS6ZRAQODnTIoCiDHU0yRm4GVZeoViTDo+VlsFm76eFxmVVAuAEkSZgACqkMwxzHMITCkAtxHcLVpHkRC14NJ4ZZAplTgqmy1g+ZGfxeKOVgQkog3fnpYWGaN5loqtNAiFV6ybNseyHCcZzaSVD1lRVL3zYt73mTceSFMsxQxfV1IIganRlnUkyvqOnmIM0PlSTGvzMiyhVacVPHAyNkW4q9EMfXiCPCYeBaaLgvIeI0L56J1-TXi+SimvzbF3bpuAAPJ8GAKyMLsgjputbp1YzDlOYo9HSJM9bTn8IaIv0-O-BqEzvp4KjC5h4uS9F8vZkJW30QuOXOCodL6O4IbyC+Rb0Y0rgeJlIxm7x0uy3awR0LAtnW32tt5u04ZLg4sh8t7wwhgiNjAoyQIIrIIIzJpwrk+kMuwAwDN2yp4l1GM+jsdtIb2A7Kkqbo9H+YHenB6XdpsDVCubXmyO1qhjiqGoKn2PIDcaFy48qC3gxAtWHe4AAYvk5CkAArjQAAKghCJZeH0Ovm87+XebqzzapSS0c9VtWtbVtY9a6I4H4F4DRen9ve8HwQR8BJR33IjRA74XDKBhEvOcKE2Lu09s7D2BhRL+1up-MmIU9Kr1iEZAiBkL6HmnPUa8Yw1AeG0DnNQOtc4nl0P8DwbFfjjxXtg8guCCEOTIQlbaucxgjF+DGE6+gixuG9JleQ6s+SyF8JpTeEA4DiHOBtGOh4Xw2CTq+fmKltT2AcBlA03JBjTgEcCHw6C0jbjIJg5R9lqj1nUe0fmIJ6LtF5GyRoCUPDMhBOOd8nR6xm2AiApW1R2iKGznYDy7RBjYxqIYRQOhW4STjPzAwgSKA6TpjY2KONRwNGBJE+k0SJjuPHrPNSFDtBaI-kVNsNpMToCiNk0BNQrDEO1FYTiYxhhT1gvOHy4w1JO0iaMDuzSQlDg9ieacbFMr1l5A4KhsFXYNFQvqewMDeQrxwnhcZ5FNAQI0bM7RCy9HLJGMoNZ+h572JfNskGz1cR7JEr1cSnQmjiKBG7WCugIHOxBKGVu1Z-j3MpmNCahJiSzXBsIZ5TM55vP0DCT5bguiwRGPUf5-MkUeF5CTQumDhpPSpuNGFkMnn9xUQ5Asx5kVSMTqjWQJ0QSsw4ACxcOgGGguJeCxpVA4XUrnP0XkIw+oSO9DoDKYwBjennvRCY14JgrwtkrYJW1Jg2EQpdIxZYQQhghD5NQL4-g8nrCC8xG57rFxDgKuKkwuRjGHICEYBY0U9Bbv0OsztzpxnsCwjev996OgAbsyltiwEsscZ0dW3SZJMtgi3GwRrXyJysFfGppM6lDVYUZW1YDnBQkRACcenQJH6tcLtSYS49oewzQSoaYc4C2jzTUb2RZtRsTkL7XOoIE2G0gQoP4-xvIQmVRLcguAqAAHcAAEEdChgBnS4FtwIOjKAhNqiSure3uqTgaeiIxHE0qcGY3wQA */
   id: "HYDRA",
   initial: "Disconnected",
   context: {
@@ -265,7 +279,6 @@ export const hydra = setup({
                 }),
                 onError: {
                   target: "ReadyToCommit",
-                  actions: "setError"
                 }
               },
               always: {
@@ -286,7 +299,11 @@ export const hydra = setup({
           always: {
             target: "Closed",
             guard: "isClosed"
-          }
+          },
+          initial: "new state 1",
+          states: {
+            "new state 1": {}
+          },
         },
         Closed: {
           on: {
