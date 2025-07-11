@@ -14,6 +14,10 @@
       "dependsOn": ["^build:mesh", "^build:docs"],
       "outputs": ["dist/**"]
     },
+    "build:docs:markdown": {
+      "dependsOn": ["^build:mesh"],
+      "outputs": ["../../docs/markdown/**"]
+    },
     "build:mesh": {
       "dependsOn": ["^build:mesh"],
       "outputs": ["dist/**"]

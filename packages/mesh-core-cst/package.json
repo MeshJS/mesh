@@ -19,6 +19,7 @@
   ],
   "scripts": {
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
+    "build:docs:markdown": "typedoc src/index.ts --plugin typedoc-plugin-markdown --out ../../docs/markdown/mesh-core-cst --excludePrivate --excludeExternals --hideGenerator",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "format": "prettier --check . --ignore-path ../../.gitignore",
@@ -32,7 +33,6 @@
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
     "tsup": "^8.0.2",
-    "typedoc": "^0.26.3",
     "typescript": "^5.3.3"
   },
   "dependencies": {

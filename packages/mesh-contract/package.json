@@ -19,6 +19,7 @@
   ],
   "scripts": {
     "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-contracts.json",
+    "build:docs:markdown": "typedoc src/index.ts --plugin typedoc-plugin-markdown --out ../../docs/markdown/mesh-contracts --excludePrivate --excludeExternals --hideGenerator",
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
