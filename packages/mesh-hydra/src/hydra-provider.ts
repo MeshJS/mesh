@@ -127,8 +127,22 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * @param index
    * @returns - Array of UTxOs
    */
-  async fetchUTxOs(): Promise<UTxO[]> {
-    return await this.subscribeSnapshotUtxo();
+  async fetchUTxOs(hash?: string, index?: number): Promise<UTxO[]> {
+    const snapshotUTxOs = await this.subscribeSnapshotUtxo();
+
+    const outputsPromises: Promise<UTxO>[] = [];
+    snapshotUTxOs.forEach((utxo) => {
+      if (hash === undefined || utxo.input.txHash === hash) {
+        outputsPromises.push(Promise.resolve(utxo));
+      }
+    });
+    const outputs = await Promise.all(outputsPromises);
+
+    if (index !== undefined) {
+      return outputs.filter((utxo) => utxo.input.outputIndex === index);
+    }
+
+    return outputs;
   }
 
   /**
