@@ -1,7 +1,7 @@
 import { AnyEventObject, assertEvent, assign, fromCallback, fromPromise, sendTo, setup } from "xstate";
 import { HTTPClient } from "./utils";
 
-export const hydra = setup({
+export const machine = setup({
   actions: {
     newTx: ({ event }) => {
       assertEvent(event, "NewTx")
@@ -336,17 +336,6 @@ export const hydra = setup({
           }
         },
         Contested: {},
-        // TxInvalid: {},
-        // SnapshotConfirmed: {},
-        // SnapshotSideLoaded: {},
-        // DecommitRequested: {},
-        // DecommitApproved: {},
-        // DecommitInvalid: {},
-        // DecommitFinalized: {},
-        // CommitRecorded: {},
-        // CommitApproved: {},
-        // CommitFinalized: {},
-        // CommitRecovered: {},
       }
     },
   }
