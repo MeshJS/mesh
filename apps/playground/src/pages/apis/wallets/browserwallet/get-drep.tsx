@@ -26,10 +26,15 @@ function Left() {
   return (
     <>
       <p>
-        Get the key, hash, and bech32 encoding of the DRep ID. The DRep ID is a
-        unique identifier for the user&apos;s wallet.
+        This API retrieves the key, hash, and bech32 encoding of the DRep ID
+        associated with the wallet. The DRep ID is a unique identifier used for
+        delegation representation in the Cardano blockchain.
       </p>
-      <p>Example:</p>
+      <p>
+        Applications can use this information to interact with delegation-related
+        features or display the DRep ID details to the user.
+      </p>
+      <p>Example response:</p>
       <Codeblock data={codeSample} />
     </>
   );
