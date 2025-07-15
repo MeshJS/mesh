@@ -16,17 +16,26 @@ export default function MeshWalletGetUnusedAddresses() {
 
 function Left() {
   let example = ``;
-  example += `[\n`;
-  example += `  "addr_test1qzk9x08mtre4jp8f7j8zu8802...r8c3grjmys7fl22c",\n`;
-  example += `  "addr_test1qrmf35xyw2petfr0e0p4at0r7...8sc3grjmysm73dk8",\n`;
-  example += `  "addr_test1qq6ts58hdaasd2q78fdjj0arm...i8c3grjmys85k8mf",\n`;
-  example += `]\n`;
+  example += `[
+`;
+  example += `  "addr_test1qzk9x08mtre4jp8f7j8zu8802...r8c3grjmys7fl22c",
+`;
+  example += `  "addr_test1qrmf35xyw2petfr0e0p4at0r7...8sc3grjmysm73dk8",
+`;
+  example += `  "addr_test1qq6ts58hdaasd2q78fdjj0arm...i8c3grjmys85k8mf",
+`;
+  example += `]
+`;
+
   return (
     <>
       <p>
-        Returns a list of unused addresses controlled by the wallet. For
-        example:
+        This API retrieves a list of unused addresses controlled by the wallet. Unused addresses are wallet-controlled addresses that have not been involved in any transactions.
       </p>
+      <p>
+        Unused addresses are important for maintaining privacy and security in transactions. They can be used for new transactions without revealing previous activity.
+      </p>
+      <p>Example response:</p>
       <Codeblock data={example} />
     </>
   );
