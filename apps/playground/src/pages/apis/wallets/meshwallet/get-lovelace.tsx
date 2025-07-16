@@ -16,7 +16,12 @@ export default function MeshWalletGetLovelace() {
 function Left() {
   return (
     <>
-      <p>Return the lovelace balance in wallet. 1 ADA = 1000000 lovelace.</p>
+      <p>
+        This API retrieves the lovelace balance in the wallet. Lovelace is the smallest unit of ADA, where 1 ADA equals 1,000,000 lovelace.
+      </p>
+      <p>
+        Knowing the lovelace balance is essential for managing wallet funds and performing transactions.
+      </p>
     </>
   );
 }
