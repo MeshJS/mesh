@@ -1,41 +1,37 @@
 import { useState } from "react";
-
 import { MeshWallet } from "@meshsdk/core";
+import { HydraProvider } from "@meshsdk/hydra";
 
 import Button from "~/components/button/button";
 import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
+import LiveCodeDemo from "~/components/sections/live-code-demo";
 
 export default function HydraTutorialStep2({
-  aliceNode,
-  aliceFunds,
-  bobNode,
-  bobFunds,
+  provider,
+  providerName
 }: {
   aliceNode: MeshWallet | undefined;
   aliceFunds: MeshWallet | undefined;
   bobNode: MeshWallet | undefined;
   bobFunds: MeshWallet | undefined;
+  provider: HydraProvider;
+  providerName: string
 }) {
   return (
     <TwoColumnsScroll
       sidebarTo="step2"
       title="Step 2. Start the Hydra node"
-      leftSection={Left(aliceNode, aliceFunds, bobNode, bobFunds)}
+      leftSection={Left()}
+      rightSection={Right(provider, providerName)}
     />
   );
 }
 
 function Left(
-  aliceNode: MeshWallet | undefined,
-  aliceFunds: MeshWallet | undefined,
-  bobNode: MeshWallet | undefined,
-  bobFunds: MeshWallet | undefined,
 ) {
   const [loading, setLoading] = useState<boolean>(false);
-  const [addresses, setAddresses] = useState<string>("");
-  const [balance, setBalance] = useState<string>("");
 
   async function startNode() {
 
@@ -58,27 +54,26 @@ function Left(
   codeHydraStartNode += `  --hydra-verification-key credentials/bob-hydra.vk \\\n`;
   codeHydraStartNode += `  --cardano-verification-key credentials/bob-node.vk\n`;
 
-  let codeOnMessage = ``;
-  codeOnMessage += `provider.onMessage((message) => {\n`;
-  codeOnMessage += `  console.log(message);\n`;
-  codeOnMessage += `});\n`;
+  let codeOnMessage = `provider.onMessage((message) => {
+  console.log(message);
+});`;
 
-  let codeGreetingsMessage = `{\n`;
-  codeGreetingsMessage += `  "peer": "bob-node",\n`;
-  codeGreetingsMessage += `  "seq": 0,\n`;
-  codeGreetingsMessage += `  "tag": "PeerConnected",\n`;
-  codeGreetingsMessage += `  "timestamp": "2023-08-17T18:25:02.903974459Z"\n`;
-  codeGreetingsMessage += `}\n`;
-  codeGreetingsMessage += `{\n`;
-  codeGreetingsMessage += `  "headStatus": "Idle",\n`;
-  codeGreetingsMessage += `  "hydraNodeVersion": "0.12.0-54db2265c257c755df98773c64754c9854d879e8",\n`;
-  codeGreetingsMessage += `  "me": {\n`;
-  codeGreetingsMessage += `    "vkey": "ab159b29b87b498fa060f6045cccf84ecd20cf623f7820ed130ffc849633a120"\n`;
-  codeGreetingsMessage += `  },\n`;
-  codeGreetingsMessage += `  "seq": 1,\n`;
-  codeGreetingsMessage += `  "tag": "Greetings",\n`;
-  codeGreetingsMessage += `  "timestamp": "2023-08-17T18:32:29.092329511Z"\n`;
-  codeGreetingsMessage += `};\n`;
+  let codeGreetingsMessage = `{
+  "peer": "bob-node",
+  "seq": 0,
+  "tag": "PeerConnected",
+  "timestamp": "2023-08-17T18:25:02.903Z"
+}
+{
+  "headStatus": "Idle",
+  "hydraNodeVersion": "0.12.0-54db...",
+  "me": {
+    "vkey": "ab159b29b87b498fa060f6045cccf84ecd20cf623f7820ed130ffc849633a120"
+  },
+  "seq": 1,
+  "tag": "Greetings",
+  "timestamp": "2023-08-17T18:32:29.092Z"
+}`;
 
   return (
     <>
@@ -120,5 +115,31 @@ function Left(
 
       <Codeblock data={codeGreetingsMessage} />
     </>
+  );
+}
+
+function Right(provider: HydraProvider, providerName: string) {
+  return (
+    <>
+      <Connect provider={provider}
+      providerName={providerName}
+     />
+    </>
+  );
+}
+
+function Connect({ provider , providerName}: { provider: HydraProvider, providerName: string}) {
+  async function runDemo() {
+    await provider.connect();
+  }
+
+  return (
+    <LiveCodeDemo
+      title="Connect Hydra Head"
+      subtitle="Connect a new Head."
+      runCodeFunction={runDemo}
+      runDemoShowProviderInit={true}
+      runDemoProvider= {providerName}
+    />
   );
 }
