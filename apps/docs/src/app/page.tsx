@@ -25,7 +25,7 @@ export default function Home() {
           logic of their applications. Collaborating closely with the community,
           Mesh takes an inclusive approach by running workshops and creating
           guides, fostering a supportive environment that helps developers
-          seamlessly integrate into the Cardano ecosystem.
+          seamlessly integrate into the ecosystem.
         </p>
         <h2 className="scroll-mt-24" id="getting-started">
           Getting started

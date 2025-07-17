@@ -93,8 +93,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
     if (this._status !== "DISCONNECTED") {
       return;
     }
-    this._status = "CONNECTING";
     this._connection.connect();
+    this._status = "CONNECTED";
   }
 
   /**
@@ -258,7 +258,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Terminate a head with the latest known snapshot. This effectively moves the head from the Open state to the Close state where the contestation phase begin. As a result of closing a head, no more transactions can be submitted via NewTx.
    */
   async close() {
-    if (this._status === "CONNECTED") this._connection.send({ tag: "Close" });
+    this.onStatusChange((status) => {
+      console.log("close status", status);
+      if (status === "OPEN") {
+        this._connection.send({ tag: "Close" });
+      }
+    });
   }
 
   /**
@@ -272,7 +277,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Finalize a head after the contestation period passed. This will distribute the final (as closed and maybe contested) head state back on the layer 1.
    */
   async fanout() {
-    if (this._status === "FANOUT_POSSIBLE") this._connection.send({ tag: "Fanout" });
+    this.onStatusChange((status) => {
+      console.log("status last", status);
+      if (status === "FANOUT_POSSIBLE") {
+        this._connection.send({ tag: "Fanout" });
+      }
+    });
   }
 
   /**

@@ -23,7 +23,13 @@ function Left() {
   example += `]\n`;
   return (
     <>
-      <p>Return a list of assets' policy ID. An example response would be:</p>
+      <p>
+        This API retrieves a list of policy IDs from all assets in the wallet. A policy ID is a unique identifier that groups assets under a common policy.
+      </p>
+      <p>
+        Policy IDs are useful for querying assets associated with specific policies. For example, you can use a policy ID to retrieve all assets belonging to that policy.
+      </p>
+      <p>Example response:</p>
       <Codeblock data={example} />
     </>
   );

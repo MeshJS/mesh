@@ -22,9 +22,14 @@ function Left() {
   return (
     <>
       <p>
-        Returns a list of assets from a policy ID. If no assets in wallet
-        belongs to the policy ID, an empty list is returned. Query for a list of
-        assets&apos; policy ID with <code>wallet.getPolicyIds()</code>.
+        This API retrieves a list of assets associated with a specific policy ID.
+        A policy ID is a unique identifier that groups assets under a common
+        policy.
+      </p>
+      <p>
+        If no assets in the wallet belong to the specified policy ID, an empty
+        list is returned. To query for available policy IDs, use{" "}
+        <code>wallet.getPolicyIds()</code>.
       </p>
     </>
   );
