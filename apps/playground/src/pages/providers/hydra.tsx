@@ -37,8 +37,7 @@ const ReactPage: NextPage = () => {
   const hydraUrl = useProviders((state) => state.hydraUrl);
 
   const hydraProvider = new HydraProvider({
-    url: `http://localhost:3000/api/hydra/${hydraUrl}`,
-    wsUrl: `ws://${hydraUrl}`,
+    url: hydraUrl,
   });
 
   return (
