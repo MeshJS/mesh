@@ -1,24 +1,29 @@
 import { useState } from "react";
 
 import { MeshWallet } from "@meshsdk/core";
-import { HydraInstance } from "@meshsdk/hydra";
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
 
 import Button from "~/components/button/button";
+import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
+import { useWallet } from "@meshsdk/react";
+import { getTxBuilder } from "~/pages/apis/txbuilder/common";
+import InputTable from "~/components/sections/input-table";
+import Input from "~/components/form/input";
 
 export default function HydraTutorialStep3({
   hydraInstance,
-  aliceNode,
-  aliceFunds,
-  bobNode,
-  bobFunds,
+  provider,
+  providerName,
 }: {
   hydraInstance: HydraInstance;
   aliceNode: MeshWallet | undefined;
   aliceFunds: MeshWallet | undefined;
   bobNode: MeshWallet | undefined;
   bobFunds: MeshWallet | undefined;
+  provider: HydraProvider;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
@@ -26,26 +31,17 @@ export default function HydraTutorialStep3({
       title="Step 3. Open a Hydra head"
       leftSection={Left(
         hydraInstance,
-        aliceNode,
-        aliceFunds,
-        bobNode,
-        bobFunds,
       )}
+      rightSection={Right(provider, providerName)}
     />
   );
 }
 
 function Left(
   hydraInstance: HydraInstance,
-  aliceNode: MeshWallet | undefined,
-  aliceFunds: MeshWallet | undefined,
-  bobNode: MeshWallet | undefined,
-  bobFunds: MeshWallet | undefined,
 ) {
   const [loading, setLoading] = useState<boolean>(false);
-  const [addresses, setAddresses] = useState<string>("");
-  const [balance, setBalance] = useState<string>("");
-
+ 
   async function openHead() {
     await hydraInstance.provider.init();
   }
@@ -53,7 +49,6 @@ function Left(
   async function commitFunds() {
     // commit alice funds
     // await hydraInstance.commitFunds();
-
     // commit bob funds
     // await hydraInstance.commitFunds();
   }
@@ -70,13 +65,6 @@ function Left(
       </p>
 
       <Codeblock data={`await hydraInstance.provider.init();`} />
-      <Button
-        onClick={() => openHead()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Open Head
-      </Button>
 
       <p>
         The initiation process might take some time as it includes submitting a
@@ -110,13 +98,6 @@ cardano-cli transaction sign \
 cardano-cli transaction submit --tx-file alice-commit-tx-signed.json */}
 
       <Codeblock data={`code about starting node`} />
-      <Button
-        onClick={() => commitFunds()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Commit Funds
-      </Button>
 
       <p>
         After you've prepared your transactions, the hydra-node will find all
@@ -142,5 +123,84 @@ cardano-cli transaction submit --tx-file alice-commit-tx-signed.json */}
 
       <p>The head is now operational and ready for further activities.</p>
     </>
+  );
+}
+
+function Right(provider: HydraProvider, providerName: string) {
+  return (
+    <>
+      <InitHead provider={provider} providerName={providerName} />
+      <CommitHead provider={provider} providerName={providerName} />
+    </>
+  );
+}
+
+function InitHead({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  async function runDemo() {
+    await provider.init();
+  }
+
+  return (
+    <LiveCodeDemo
+      title="Init Head"
+      subtitle="Initialize the Head with participants."
+      runCodeFunction={runDemo}
+      runDemoShowProviderInit={false}
+      runDemoProvider={providerName}
+    />
+  );
+}
+
+function CommitHead({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+
+  const { wallet , connected } = useWallet();
+
+  const [amount, setAmount] = useState<string>("10000000")
+
+  async function runDemo() {
+    const utxos = await wallet.getUtxos();
+    const changeAddress = await wallet.getChangeAddress();
+    const txBuilder = getTxBuilder();
+
+    const unsignedTx = await txBuilder
+    
+    provider;
+  }
+
+  return (
+    <LiveCodeDemo
+      title="Commit Head"
+      subtitle="Commit UTXOs into the Head using the blueprint transaction."
+      runCodeFunction={runDemo}
+      runDemoShowProviderInit={false}
+      runDemoProvider={providerName}
+      disabled={!connected}
+      runDemoButtonTooltip={
+        !connected ? "connect wallet to run this demo" : undefined
+      }
+      runDemoShowBrowseWalletConnect = {true}
+    >
+    <InputTable
+       listInputs={[
+        <Input
+        value={amount}
+        placeholder="Enter lovelace to commit"
+        onChange={(e) => setAmount(e.target.value)}
+        />
+       ]}
+    />
+    </LiveCodeDemo>
   );
 }
