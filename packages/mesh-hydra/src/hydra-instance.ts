@@ -1,8 +1,12 @@
-import { IFetcher, ISubmitter} from "@meshsdk/common";
-import { parseDatumCbor} from "@meshsdk/core-cst";
+import { parseDatumCbor } from "@meshsdk/core-cst";
+import {
+  IFetcher,
+  ISubmitter,
+} from "@meshsdk/common";
 import { HydraProvider } from "./hydra-provider";
-import { hAssets } from "./types/hAssets";
-
+import { hTransaction , hAssets} from "./types";
+import JSONBigInt from "json-bigint";
+import { getReferenceScriptInfo } from "./utils/hScriptRef";
 /**
  * todo: implement https://hydra.family/head-protocol/docs/tutorial/
  */
@@ -46,7 +50,9 @@ export class HydraInstance {
           ? null
           : utxo.output.scriptRef,
       value: hAssets(utxo.output.amount),
-      inlineDatum: utxo.output.plutusData ? parseDatumCbor(utxo.output.plutusData) : null,
+      inlineDatum: utxo.output.plutusData
+        ? parseDatumCbor(utxo.output.plutusData)
+        : null,
       inlineDatumRaw: utxo.output.plutusData ?? null,
     };
     const commit = await this.provider.buildCommit(
@@ -61,15 +67,88 @@ export class HydraInstance {
     return commit.cborHex;
   }
 
-  /**
-   * https://hydra.family/head-protocol/docs/how-to/commit-blueprint/.
-   * A Cardano transaction in the text envelope format. 
-   * That is, a JSON object wrapper with some 'type' around a 'cborHex' encoded transaction.
-   * @param txHash
-   * @param txIndex
-   */
-  async commitBlueprint() {
-    return "txhash";
+/**
+ * Commits a blueprint transaction for a given UTxO and Hydra transaction.
+ * Fetches the specified UTxO, constructs a blueprint transaction object, and
+ * submits it to hydra Head.
+ * @param txHash - The transaction hash of the UTxO to commit.
+ * @param outputIndex - The output index of the UTxO to commit.
+ * @param transaction - The Hydra transaction object containing:
+ *   - `type`: The transaction type ("Tx ConwayEra", "Unwitnessed Tx ConwayEra", or "Witnessed Tx ConwayEra").
+ *   - `description`: Optional description of the transaction (defaults to empty string if undefined).
+ *   - `cborHex`: CBOR hex string of the transaction.
+ *   - `txId`: Optional transaction ID (not used in the function).
+ * @returns A promise that resolves to the CBOR hex string of the commit transaction.
+ */
+  async commitBlueprint(
+    txHash: string,
+    outputIndex: number,
+    transaction: hTransaction
+  ): Promise<string> {
+    const utxo = (await this.fetcher.fetchUTxOs(txHash, outputIndex))[0];
+    if (!utxo) {
+      throw new Error(`UTxO not found: ${txHash}#${outputIndex}`);
+    }
+
+    const { scriptInstance, scriptLanguage, scriptType } =
+      getReferenceScriptInfo(utxo.output.scriptRef);
+
+    const blueprintTx = {
+      blueprintTx: {
+        cborHex: transaction.cborHex,
+        description:
+          transaction.description === undefined
+            ? (transaction.description = "")
+            : transaction.description,
+        type: transaction.type,
+      },
+      utxo: {
+        [`${utxo.input.txHash}#${utxo.input.outputIndex}`]: {
+          address: utxo.output.address,
+          value: {
+            lovelace: utxo.output.amount.find(
+              (Asset) => Asset.unit === "lovelace"
+            )?.quantity,
+          },
+          ...Object.fromEntries(
+            utxo.output.amount
+              .filter((asset) => asset.unit !== "lovelace")
+              .map((asset) => [asset.unit, asset.quantity])
+          ),
+          referenceScript:
+            utxo.output.scriptRef && scriptInstance
+              ? {
+                  scriptLanguage,
+                  script: {
+                    cborHex: utxo.output.scriptRef,
+                    description: transaction.description ?? " ",
+                    type: scriptType,
+                  },
+                }
+              : null,
+          datumHash:
+            utxo.output.dataHash === "" || !utxo.output.dataHash
+              ? null
+              : utxo.output.dataHash,
+          datum: null,
+          inlineDatum: utxo.output.plutusData
+            ? parseDatumCbor(utxo.output.plutusData)
+            : null,
+          inlineDatumRaw: utxo.output.plutusData ?? null,
+        },
+      },
+    };
+    const commit = await this.provider.buildCommit(
+      {
+        [`${utxo.input.txHash}#${utxo.input.outputIndex}`]: blueprintTx,
+      },
+      {
+        "Content-Type": "application/json",
+      }
+    );
+    const jsonFormat = JSONBigInt.stringify(blueprintTx);
+    console.log("Json format visualizer", jsonFormat);
+    return commit;
   }
 
   /**
@@ -79,9 +158,37 @@ export class HydraInstance {
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
    * @returns
    */
-  async incrementalCommit() {
-    return "txHash";
-  }
+  // async incrementalCommit(UTxO: UTxO, headId: string) {
+  //   const depositObject = {
+  //     headId: headId,
+  //     deposited: {
+  //       [`${UTxO.input.txHash}#${UTxO.input.outputIndex}`]: {
+  //         address: UTxO.output.address,
+  //         value: {
+  //           lovelace:
+  //             UTxO.output.amount.find((asset) => asset.unit === "lovelace")
+  //               ?.quantity ?? "0",
+  //           ...Object.fromEntries(
+  //             UTxO.output.amount
+  //               .filter((asset) => asset.unit !== "lovelace")
+  //               .map((asset) => [asset.unit, asset.quantity])
+  //           ),
+  //         },
+  //         datumHash: null,
+  //         inlineDatum: null,
+  //         inlineDatumRaw: null,
+  //         referenceScript: null,
+  //       },
+  //     },
+  //     created: new Date().toISOString(),
+  //     deadline: new Date(Date.now() + 3600 * 1000).toISOString(), // Example: 1 hour from now
+  //     status: {
+  //       tag: "Unknown",
+  //     },
+  //   };
+  //   console.log(depositObject);
+  //   return "txHash";
+  // }
 
   /**
    * https://hydra.family/head-protocol/docs/how-to/incremental-decommit
@@ -89,6 +196,7 @@ export class HydraInstance {
    * @returns
    */
   async incrementalDecommit() {
+    
     return "txHash";
   }
 }
