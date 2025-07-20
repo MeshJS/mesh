@@ -325,7 +325,7 @@ export class CSLSerializer implements IMeshTxSerializer {
     },
     getBuilderBodyWithoutChange: () => {
       const txBuilderBody = { ...this.parserTxBody };
-      txBuilderBody.inputs = txBuilderBody.inputs.slice(0, -1);
+      txBuilderBody.outputs = txBuilderBody.outputs.slice(0, -1);
       return txBuilderBody;
     },
   };
