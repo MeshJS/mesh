@@ -92,6 +92,7 @@ A collection of packages that provide different functionalities to interact with
 | [@meshsdk/core](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core) | Exports all the functionalities including wallets, transactions, and providers |  | [:shipit:](https://meshjs.dev/) |
 | [@meshsdk/core-csl](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core-csl) | Types and utilities functions between Mesh and cardano-serialization-lib | [:page_facing_up:](https://docs.meshjs.dev/core-csl) |  |
 | [@meshsdk/core-cst](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core-cst) | Types and utilities functions between Mesh and cardano-js-sdk | [:page_facing_up:](https://docs.meshjs.dev/core-cst) |  |
+| [@meshsdk/hydra](https://github.com/MeshJS/mesh/tree/main/packages/mesh-hydra) | Hydra tools |  | [:shipit:](https://meshjs.dev/hydra) |
 | [@meshsdk/provider](https://github.com/MeshJS/mesh/tree/main/packages/mesh-provider) | Blockchain data providers | [:page_facing_up:](https://docs.meshjs.dev/providers) | [:shipit:](https://meshjs.dev/providers) |
 | [@meshsdk/react](https://github.com/MeshJS/mesh/tree/main/packages/mesh-react) | React component library |  | [:shipit:](https://meshjs.dev/react) |
 | [@meshsdk/transaction](https://github.com/MeshJS/mesh/tree/main/packages/mesh-transaction) | Transactions to send assets, mint tokens, and interact with smart contracts | [:page_facing_up:](https://docs.meshjs.dev/transactions) | [:shipit:](https://meshjs.dev/apis/transaction) |
