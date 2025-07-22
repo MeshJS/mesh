@@ -1,268 +1,134 @@
-import { useState } from "react";
-
-import { MeshWallet } from "@meshsdk/core";
-
-import Button from "~/components/button/button";
-import { getProvider } from "~/components/cardano/mesh-wallet";
 import Link from "~/components/link";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import Alert from "~/components/text/alert";
 import Codeblock from "~/components/text/codeblock";
 
-export default function HydraTutorialStep2({
-  aliceNode,
-  aliceFunds,
-  bobNode,
-  bobFunds,
-  setAliceNode,
-  setAliceFunds,
-  setBobNode,
-  setBobFunds,
-}: {
-  aliceNode: MeshWallet | undefined;
-  aliceFunds: MeshWallet | undefined;
-  bobNode: MeshWallet | undefined;
-  bobFunds: MeshWallet | undefined;
-  setAliceNode: (wallet: MeshWallet) => void;
-  setAliceFunds: (wallet: MeshWallet) => void;
-  setBobNode: (wallet: MeshWallet) => void;
-  setBobFunds: (wallet: MeshWallet) => void;
-}) {
+export default function HydraTutorialStep2() {
   return (
     <TwoColumnsScroll
       sidebarTo="step2"
-      title="Step 2. Prepare keys and funding"
-      leftSection={Left(
-        aliceNode,
-        aliceFunds,
-        bobNode,
-        bobFunds,
-        setAliceNode,
-        setAliceFunds,
-        setBobNode,
-        setBobFunds,
-      )}
+      title="Step 2. Configure Hydra nodes"
+      leftSection={Left()}
     />
   );
 }
 
-function Left(
-  aliceNode: MeshWallet | undefined,
-  aliceFunds: MeshWallet | undefined,
-  bobNode: MeshWallet | undefined,
-  bobFunds: MeshWallet | undefined,
-  setAliceNode: (wallet: MeshWallet) => void,
-  setAliceFunds: (wallet: MeshWallet) => void,
-  setBobNode: (wallet: MeshWallet) => void,
-  setBobFunds: (wallet: MeshWallet) => void,
-) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [addresses, setAddresses] = useState<string>("");
-  const [balance, setBalance] = useState<string>("");
+function Left() {
+  let aliceHydraConfig = `hydra-node \\\n`;
+  aliceHydraConfig += `  --node-id alice-node \\\n`;
+  aliceHydraConfig += `  --api-host 0.0.0.0 \\\n`;
+  aliceHydraConfig += `  --api-port 4001 \\\n`;
+  aliceHydraConfig += `  --listen 172.16.239.10:5001 \\\n`;
+  aliceHydraConfig += `  --monitoring-port 6001 \\\n`;
+  aliceHydraConfig += `  --peer 172.16.239.20:5001 \\\n`;
+  aliceHydraConfig += `  --hydra-scripts-tx-id c9c4d820d5575173cfa81ba2d2d1096fc40f84d16d8c17284da410a4fb5e64eb,ae4443b46f550289337fc5c2c52b24f1288dab36d1a229167a6e04f056a966fe,48bd29e43dd01d12ab464f75fe40eed80e4051c8d3409e1cb20b8c01120b425e \\\n`;
+  aliceHydraConfig += `  --cardano-signing-key /credentials/alice-node.sk \\\n`;
+  aliceHydraConfig += `  --cardano-verification-key /credentials/bob-node.vk \\\n`;
+  aliceHydraConfig += `  --hydra-signing-key /keys/alice-hydra.sk \\\n`;
+  aliceHydraConfig += `  --hydra-verification-key /keys/bob-hydra.vk \\\n`;
+  aliceHydraConfig += `  --ledger-protocol-parameters ./testnet/protocol-parameters.json \\\n`;
+  aliceHydraConfig += `  --testnet-magic 1 \\\n`;
+  aliceHydraConfig += `  --node-socket /cardano-node/db/node.socket \\\n`;
+  aliceHydraConfig += `  --contestation-period 5s\n`;
 
-  async function generateKeys() {
-    setLoading(true);
-
-    setTimeout(async () => {
-      const provider = getProvider();
-
-      const mnemonicAliceNode = MeshWallet.brew() as string[];
-      const walletAliceNode = new MeshWallet({
-        networkId: 0,
-        fetcher: provider,
-        submitter: provider,
-        key: {
-          type: "mnemonic",
-          words: mnemonicAliceNode,
-        },
-      });
-      const mnemonicAliceFunds = MeshWallet.brew() as string[];
-      const walletAliceFunds = new MeshWallet({
-        networkId: 0,
-        fetcher: provider,
-        submitter: provider,
-        key: {
-          type: "mnemonic",
-          words: mnemonicAliceFunds,
-        },
-      });
-
-      const mnemonicBobNode = MeshWallet.brew() as string[];
-      const walletBobNode = new MeshWallet({
-        networkId: 0,
-        fetcher: provider,
-        submitter: provider,
-        key: {
-          type: "mnemonic",
-          words: mnemonicBobNode,
-        },
-      });
-      const mnemonicBobFunds = MeshWallet.brew() as string[];
-      const walletBobFunds = new MeshWallet({
-        networkId: 0,
-        fetcher: provider,
-        submitter: provider,
-        key: {
-          type: "mnemonic",
-          words: mnemonicBobFunds,
-        },
-      });
-
-      setAliceNode(walletAliceNode);
-      setAliceFunds(walletAliceFunds);
-      setBobNode(walletBobNode);
-      setBobFunds(walletBobFunds);
-
-      let _addresses = "";
-      _addresses += `"Send at least 30 tADA to alice-node:"\n`;
-      _addresses += `${await walletAliceNode.getChangeAddress()}\n\n`;
-      _addresses += `"Send any amount of tADA or assets to alice-funds:"\n`;
-      _addresses += `${await walletAliceFunds.getChangeAddress()}\n\n`;
-      _addresses += `"Send at least 30 tADA to bob-node:"\n`;
-      _addresses += `${await walletBobNode.getChangeAddress()}\n\n`;
-      _addresses += `"Send any amount of tADA or assets to bob-funds:"\n`;
-      _addresses += `${await walletBobFunds.getChangeAddress()}\n\n`;
-      setAddresses(_addresses);
-
-      setLoading(false);
-    }, 500);
-  }
-
-  async function getBalance() {
-    if (aliceNode && aliceFunds && bobNode && bobFunds) {
-      setLoading(true);
-
-      setTimeout(async () => {
-        let _balance = "";
-
-        const aliceNodeUtxos = await aliceNode.getUtxos();
-        _balance += `Alice Node UTXOs:\n`;
-        _balance += `${JSON.stringify(aliceNodeUtxos, null, 2)}\n\n`;
-
-        const aliceFundsUtxos = await aliceFunds.getUtxos();
-        _balance += `Alice Funds UTXOs:\n`;
-        _balance += `${JSON.stringify(aliceFundsUtxos, null, 2)}\n\n`;
-
-        const bobNodeUtxos = await bobNode.getUtxos();
-        _balance += `Bob Node UTXOs:\n`;
-        _balance += `${JSON.stringify(bobNodeUtxos, null, 2)}\n\n`;
-
-        const bobFundsUtxos = await bobFunds.getUtxos();
-        _balance += `Bob Funds UTXOs:\n`;
-        _balance += `${JSON.stringify(bobFundsUtxos, null, 2)}\n\n`;
-
-        setBalance(_balance);
-
-        setLoading(false);
-      }, 500);
-    }
-  }
-
-  async function generateHydraKeys() {
-    setLoading(true);
-
-    setTimeout(async () => {
-      setLoading(false);
-    }, 500);
-  }
+  let bobHydraConfig = `hydra-node \\\n`;
+  bobHydraConfig += `  --node-id bob-node \\\n`;
+  bobHydraConfig += `  --api-host 0.0.0.0 \\\n`;
+  bobHydraConfig += `  --api-port 4001 \\\n`;
+  bobHydraConfig += `  --listen 172.16.239.20:5001 \\\n`;
+  bobHydraConfig += `  --monitoring-port 6001 \\\n`;
+  bobHydraConfig += `  --peer 172.16.239.10:5001 \\\n`;
+  bobHydraConfig += `  --hydra-scripts-tx-id c9c4d820d5575173cfa81ba2d2d1096fc40f84d16d8c17284da410a4fb5e64eb,ae4443b46f550289337fc5c2c52b24f1288dab36d1a229167a6e04f056a966fe,48bd29e43dd01d12ab464f75fe40eed80e4051c8d3409e1cb20b8c01120b425e \\\n`;
+  bobHydraConfig += `  --cardano-signing-key /credentials/bob-node.sk \\\n`;
+  bobHydraConfig += `  --cardano-verification-key /credentials/alice-node.vk \\\n`;
+  bobHydraConfig += `  --hydra-signing-key /keys/bob-hydra.sk \\\n`;
+  bobHydraConfig += `  --hydra-verification-key /keys/alice-hydra.vk \\\n`;
+  bobHydraConfig += `  --ledger-protocol-parameters ./testnet/protocol-parameters.json \\\n`;
+  bobHydraConfig += `  --testnet-magic 1 \\\n`;
+  bobHydraConfig += `  --node-socket /cardano-node/db/node.socket \\\n`;
+  bobHydraConfig += `  --contestation-period 5s\n`;
 
   return (
     <>
       <p>
-        First, generate Cardano key pairs and addresses for both participants to
-        identify the hydra-node and manage funds on layer 1:
+        Configure your Hydra nodes with the generated keys and network settings.
+        Each participant needs to set up their hydra-node with the correct
+        configuration.
       </p>
-
-      <Codeblock data={`code about generating keys`} />
-      <Button
-        onClick={() => generateKeys()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Generate Keys
-      </Button>
-      {addresses && <Codeblock data={addresses} />}
-
-      <Alert>
-        In case you don't have test ada on preprod, you can use the{" "}
-        <Link href="https://docs.cardano.org/cardano-testnets/tools/faucet/">
-          testnet faucet
-        </Link>{" "}
-        to fund your wallet or the addresses above. Note that due to rate
-        limiting, it's better to request large sums for efficiency and
-        distribute as needed.
-      </Alert>
-
-      <p>You can check the balance of your addresses via:</p>
-      <Codeblock data={`code about checking balance`} />
-      <Button
-        onClick={() => getBalance()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Get Balance
-      </Button>
-      {balance && <Codeblock data={balance} />}
-
-      <p>
-        Next, generate Hydra key pairs for use on layer 2. Use the ??
-        hydra-tools to generate the keys for alice and/or bob respectively:
-      </p>
-      <Codeblock data={`code about generate keys`} />
-      <Button
-        onClick={() => generateHydraKeys()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Generate Hydra Keys
-      </Button>
-
-      <p>
-        If you are collaborating with another individual, exchange the
-        verification (public) keys: <code>{"{alice,bob}-node.vk"}</code> and{" "}
-        <code>{"{alice,bob}-hydra.vk"}</code> to ensure secure communication.
-      </p>
-
-      <p>
-        Before launching the hydra-node, it's crucial to establish and
-        communicate each participant's network connectivity details. This
-        includes the IP addresses and ports where Alice and Bob's nodes will be
-        reachable for layer 2 network interactions. For this tutorial, we're
-        using placeholder IP addresses and ports which should be replaced with
-        your actual network details:
-      </p>
-
+      <p>Alice:</p>
+      <Codeblock data={aliceHydraConfig} />
+      <p>Bob:</p>
+      <Codeblock data={bobHydraConfig} />
+      <p>Fields in the Hydra node configuration:</p>
       <ul>
         <li>
-          Alice's node: <code>127.0.0.1:5001</code>
+          <code>node-id</code>: Unique identifier for each Hydra node. This
+          distinguishes Alice's node from Bob's node.
         </li>
         <li>
-          Bob's node: <code>127.0.0.1:5001</code>
+          <code>api-host</code>: as the API is not authenticated by default, the
+          node is only binding to <code>0.0.0.0</code>.
+        </li>
+        <li>
+          <code>api-port</code>: The port on which the API will listen.
+        </li>
+        <li>
+          <code>listen</code>: The IP address and port on which the Hydra node
+          will listen for incoming connections.
+        </li>
+        <li>
+          <code>peer</code>: The IP address of another Hydra node to connect to.
+          This is how nodes discover and communicate with each other.
+        </li>
+        <li>
+          <code>monitoring-port</code>: The port on which the monitoring API
+          will listen. This is used to monitor the Hydra node's performance.
+        </li>
+        <li>
+          <code>cardano-signing-key</code>: These keys authenticate on-chain
+          transactions and ensure that only authorized participants can control
+          the head's lifecycle used to hold ada for paying fees
+        </li>
+        <li>
+          <code>hydra-signing-key</code>: Used for multi-signing snapshots
+          within a head. Although these keys may eventually support an
+          aggregated multi-signature scheme, they currently use the Ed25519
+          format.
+        </li>
+        <li>
+          <code>hydra-scripts-tx-id</code>: The hydra-node uses reference
+          scripts to reduce transaction sizes driving the head's lifecycle. For
+          public (test) networks, you can use the{" "}
+          <Link href="https://github.com/cardano-scaling/hydra/blob/master/hydra-node/networks.json">
+            pre-published Hydra scripts
+          </Link>{" "}
+          with each new release, listing transaction IDs in the release notes
+          and networks.json.
+        </li>
+        <li>
+          <code>ledger-protocol-parameters</code>: This defines the updatable
+          protocol parameters such as fees or transaction sizes. These
+          parameters follow the same format as the{" "}
+          <code>cardano-cli query protocol-parameters</code> output.
+        </li>
+        <li>
+          <code>contestation-period</code>:This is an important protocol
+          parameter, defined in seconds The contestation period is used to set
+          the contestation deadline. That is, after <code>Close</code>, all
+          participants have at minimum <code>CP</code> to submit a{" "}
+          <code>Contest</code> transaction
         </li>
       </ul>
-
+      More on hydra{" "}
+      <Link href="https://hydra.family/head-protocol/docs/configuration">
+        configuration
+      </Link>
+      .
       <p>
-        The next step involves configuring the protocol parameters for the
-        ledger within our Hydra head. For the purposes of this tutorial, we'll
-        modify the default Cardano layer 1 parameters to eliminate transaction
-        fees, simplifying test interactions:
+        Ensure both nodes can communicate with each other and change to your
+        correct file paths in the above configuration. This configuration sets
+        up Alice's node to listen on port 4001 and connect to Bob's node on port
+        4001.
       </p>
-
-      <Codeblock data={`code about PP`} />
-
-      <p>
-        This command adjusts the fees and pricing mechanisms to zero, ensuring
-        that transactions within the Hydra head incur no costs.
-      </p>
-
-      <p>In summary, the Hydra head participants exchanged and agreed on:</p>
-
-      <ul>
-        <li>IP addresses and the port on which their hydra-node will run</li>
-        <li>A Hydra verification key to identify them in the head</li>
-        <li>A Cardano verification key to identify them on the blockchain</li>
-        <li>Protocol parameters to use in the Hydra head.</li>
-      </ul>
     </>
   );
 }
