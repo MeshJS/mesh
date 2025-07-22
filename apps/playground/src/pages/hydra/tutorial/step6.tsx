@@ -1,16 +1,15 @@
 import { useState } from "react";
 
 import { MeshWallet } from "@meshsdk/core";
+import { HydraInstance } from "@meshsdk/hydra";
 
 import Button from "~/components/button/button";
+import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
+import Alert from "~/components/text/alert";
 import Codeblock from "~/components/text/codeblock";
 
 export default function HydraTutorialStep6({
-  aliceNode,
-  aliceFunds,
-  bobNode,
-  bobFunds,
 }: {
   aliceNode: MeshWallet | undefined;
   aliceFunds: MeshWallet | undefined;
@@ -20,86 +19,170 @@ export default function HydraTutorialStep6({
   return (
     <TwoColumnsScroll
       sidebarTo="step6"
-      title="Step 6. Closing the Hydra head"
-      leftSection={Left(aliceNode, aliceFunds, bobNode, bobFunds)}
+      title="Step 6. Close the Hydra head"
+      leftSection={Left()}
+      rightSection={Right()}
     />
   );
 }
 
-function Left(
-  aliceNode: MeshWallet | undefined,
-  aliceFunds: MeshWallet | undefined,
-  bobNode: MeshWallet | undefined,
-  bobFunds: MeshWallet | undefined,
-) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [addresses, setAddresses] = useState<string>("");
-  const [balance, setBalance] = useState<string>("");
+function Left() {
+  const closeHeadCode = `// Close the Hydra head
+await hydraInstance.provider.close();
 
-  async function queryFunds() {}
+// Monitor the closing process
+hydraInstance.provider.onStatusChange((status) => {
+  console.log("Head status:", status);
+  
+  switch (status) {
+    case "CLOSED":
+      console.log("Head is closed, contestation period begins");
+      break;
+    case "FANOUT_POSSIBLE":
+      console.log("Ready to fanout - contestation period ended");
+      break;
+    case "FINAL":
+      console.log("Head is finalized on layer 1");
+      break;
+  }
+});`;
+
+  const fanoutCode = `// Fanout the head to distribute funds on layer 1
+await hydraInstance.provider.fanout();
+
+// Monitor the fanout process
+hydraInstance.provider.onMessage((message) => {
+  if (message.tag === "HeadIsFinalized") {
+    console.log("Head finalized with distributed UTxOs:", message.utxo);
+  }
+});`;
+
+  const checkFundsCode = `// Check final balances on layer 1
+const aliceBalance = await aliceFunds.getBalance();
+const bobBalance = await bobFunds.getBalance();
+
+console.log("Alice's final balance:", aliceBalance);
+console.log("Bob's final balance:", bobBalance);`;
 
   return (
     <>
       <p>
-        Any participant can initiate closing the Hydra head. Use the WebSocket
-        API to submit the closing command:
+        When you're done with the Hydra head, you can close it to return all
+        funds to layer 1. This process involves closing the head, waiting for
+        the contestation period, and then fanning out the final state.
       </p>
 
-      <Codeblock data={`const txHash = await hydraInstance.provider.close()`} />
+      <h3>Close the Head</h3>
+      <p>
+        Any participant can initiate closing the Hydra head:
+      </p>
+      <Codeblock data={closeHeadCode} />
+
+      <Alert>
+        <strong>Important:</strong> Once closed, no more transactions can be
+        submitted to the head. The head enters a contestation period where
+        participants can challenge the closing snapshot.
+      </Alert>
+
+      <h3>Contestation Period</h3>
+      <p>
+        After closing, there's a contestation period (configurable with{" "}
+        <code>--contestation-period</code>). During this time:
+      </p>
+      <ul>
+        <li>Participants can contest the closing snapshot</li>
+        <li>If contested, a more recent snapshot can be used</li>
+        <li>After the deadline, fanout becomes possible</li>
+      </ul>
+
+      <h3>Fanout the Head</h3>
+      <p>
+        Once the contestation period ends, you can fanout to distribute the
+        final state back to layer 1:
+      </p>
+      <Codeblock data={fanoutCode} />
+
+      <h3>Check Final Balances</h3>
+      <p>
+        After fanout, check the final balances on layer 1:
+      </p>
+      <Codeblock data={checkFundsCode} />
+
+      <h3>Head Lifecycle</h3>
+      <p>The complete head lifecycle:</p>
+      <ul>
+        <li><code>IDLE</code> - Initial state</li>
+        <li><code>INITIALIZING</code> - Head being initialized</li>
+        <li><code>OPEN</code> - Head open for transactions</li>
+        <li><code>CLOSED</code> - Head closed, contestation period</li>
+        <li><code>FANOUT_POSSIBLE</code> - Ready to fanout</li>
+        <li><code>FINAL</code> - Head finalized on layer 1</li>
+      </ul>
 
       <p>
-        The hydra-node will then submit a protocol transaction with the last
-        known snapshot to the Cardano network. A smart contract on layer 1 will
-        check the snapshot signatures and confirm the head is closed. The
-        WebSocket API sends a HeadIsClosed message when this' Close' transaction
-        is observed. Note that this can also happen if any other hydra-node
-        closes the head.
+        Congratulations! You've completed the full lifecycle of a Hydra head
+        from initialization to finalization.
       </p>
-
-      <p>
-        The message will include a <code>contestationDeadline</code>, set using
-        the configurable <code>--contestation-period</code>. Until this
-        deadline, the closing snapshot can be contested with a more recent,
-        multi-signed snapshot. Your hydra-node would contest automatically for
-        you if the closed snapshot is not the last known one.
-      </p>
-
-      <p>
-        We need to wait now until the deadline has passed, which will be
-        notified by the hydra-node through the WebSocket API with a
-        <code>ReadyToFanout</code> message.
-      </p>
-
-      <p>
-        At this point, any head member can issue distribution of funds on layer
-        1. You can do this through the WebSocket API one last time:
-      </p>
-
-      <Codeblock
-        data={`const txHash = await hydraInstance.provider.fanout()`}
-      />
-
-      <p>
-        This will submit a transaction to layer 1. Once successful, it will be
-        indicated by a <code>HeadIsFinalized</code> message that includes the
-        distributed utxo.
-      </p>
-
-      <p>
-        To confirm, you can query the funds of both alice and bob on layer 1:
-      </p>
-
-      <Codeblock data={`code here`} />
-
-      <Button
-        onClick={() => queryFunds()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Query Funds
-      </Button>
-
-      <p>That's it. That's the full life cycle of a Hydra head.</p>
     </>
+  );
+}
+
+function Right() {
+  return (
+    <>
+      <CloseHeadDemo />
+      <ContestationDemo />
+      <FanoutDemo />
+    </>
+  );
+}
+
+function CloseHeadDemo() {
+  const [closeStatus, setCloseStatus] = useState("");
+
+  const runDemo = async () => {
+    
+  };
+
+  return (
+    <LiveCodeDemo
+      title="Close Head"
+      subtitle="Simulates closing the Hydra head."
+      runCodeFunction={runDemo}
+      code={closeStatus}
+    />
+  );
+}
+
+function ContestationDemo() {
+  const [contestationStatus, setContestationStatus] = useState("");
+
+  const runDemo = async () => {
+  };
+
+  return (
+    <LiveCodeDemo
+      title="Contestation Period"
+      subtitle="Simulates the contestation period after closing."
+      runCodeFunction={runDemo}
+      code={contestationStatus}
+    />
+  );
+}
+
+function FanoutDemo() {
+  const [fanoutStatus, setFanoutStatus] = useState("");
+
+  const runDemo = async () => {
+    
+  };
+
+  return (
+    <LiveCodeDemo
+      title="Fanout Head"
+      subtitle="Simulates fanning out the Hydra head to layer 1."
+      runCodeFunction={runDemo}
+      code={fanoutStatus}
+    />
   );
 }
