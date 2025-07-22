@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MeshWallet } from "@meshsdk/core";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
+import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -94,8 +95,8 @@ function Left() {
         In a Hydra head, each participant is authenticated using two sets of
         keys. The first set identifies a participant on the Cardano layer 1 and
         is used to hold ada for paying fees. Each hydra-node requires a{" "}
-        <code>--cardano-signing-key</code>, and you must provide the{" "}
-        <code>--cardano-verification-key</code> for each participant. First,
+        <code>cardano-signing-key</code>, and you must provide the{" "}
+        <code>cardano-verification-key</code> for each participant. First,
         generate Cardano key pairs and addresses for both participants with{" "}
         <code>cardano-cli</code> to identify the hydra-node and manage funds on
         layer 1.
@@ -104,9 +105,26 @@ function Left() {
       <Codeblock data={cliSnippetAlice} />
       <p>Bob's keys:</p>
       <Codeblock data={cliSnippetBob} />
-
       <p>
-        Next, generate Hydra key pairs for use on layer 2. Use this Hydra-CLI
+        After generating the addresses, make sure to fund both Alice's and Bob's
+        addresses with test ADA. if you don't have testAda, you can use{" "}
+        <Link href="https://docs.cardano.org/cardano-testnet/tools/faucet/">
+          cardano-faucet
+        </Link>{" "}
+        to fund the generated addresses
+      </p>
+      <ul>
+        <li>
+          Send at least <code>30 tADA</code> to <code>alice-node.addr</code> and{" "}
+          <code>bob-node.addr</code> addresses.
+        </li>
+        <li>
+          Send any amount of <code>tADA</code> to <code>alice-funds.addr</code>{" "}
+          and <code>bob-funds.addr</code> addresses.
+        </li>
+      </ul>{" "}
+      <p>
+        Next, generate Hydra key pairs for use on layer 2. Use this Hydra-node
         command to generate the keys for alice and/or bob respectively:
       </p>
       <Codeblock
@@ -122,7 +140,7 @@ function Left() {
         fees,
       </p>
       <Codeblock
-        data={`cardano-cli query protocol-parameters --testnet-magic 1 --socket-path /socketPath --out-file protocol-parameters.json`}
+        data={`cardano-cli query protocol-parameters --testnet-magic 1 --socket-path /\"\${socketPath}\" --out-file protocol-parameters.json  `}
       />
       <p>
         Simplifying Hydra fees and environments, change the following
