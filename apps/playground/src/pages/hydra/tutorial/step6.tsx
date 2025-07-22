@@ -9,8 +9,7 @@ import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Alert from "~/components/text/alert";
 import Codeblock from "~/components/text/codeblock";
 
-export default function HydraTutorialStep6({
-}: {
+export default function HydraTutorialStep6({}: {
   aliceNode: MeshWallet | undefined;
   aliceFunds: MeshWallet | undefined;
   bobNode: MeshWallet | undefined;
@@ -73,9 +72,7 @@ console.log("Bob's final balance:", bobBalance);`;
       </p>
 
       <h3>Close the Head</h3>
-      <p>
-        Any participant can initiate closing the Hydra head:
-      </p>
+      <p>Any participant can initiate closing the Hydra head:</p>
       <Codeblock data={closeHeadCode} />
 
       <Alert>
@@ -103,20 +100,30 @@ console.log("Bob's final balance:", bobBalance);`;
       <Codeblock data={fanoutCode} />
 
       <h3>Check Final Balances</h3>
-      <p>
-        After fanout, check the final balances on layer 1:
-      </p>
+      <p>After fanout, check the final balances on layer 1:</p>
       <Codeblock data={checkFundsCode} />
 
       <h3>Head Lifecycle</h3>
       <p>The complete head lifecycle:</p>
       <ul>
-        <li><code>IDLE</code> - Initial state</li>
-        <li><code>INITIALIZING</code> - Head being initialized</li>
-        <li><code>OPEN</code> - Head open for transactions</li>
-        <li><code>CLOSED</code> - Head closed, contestation period</li>
-        <li><code>FANOUT_POSSIBLE</code> - Ready to fanout</li>
-        <li><code>FINAL</code> - Head finalized on layer 1</li>
+        <li>
+          <code>IDLE</code> - Initial state
+        </li>
+        <li>
+          <code>INITIALIZING</code> - Head being initialized
+        </li>
+        <li>
+          <code>OPEN</code> - Head open for transactions
+        </li>
+        <li>
+          <code>CLOSED</code> - Head closed, contestation period
+        </li>
+        <li>
+          <code>FANOUT_POSSIBLE</code> - Ready to fanout
+        </li>
+        <li>
+          <code>FINAL</code> - Head finalized on layer 1
+        </li>
       </ul>
 
       <p>
@@ -140,9 +147,7 @@ function Right() {
 function CloseHeadDemo() {
   const [closeStatus, setCloseStatus] = useState("");
 
-  const runDemo = async () => {
-    
-  };
+  const runDemo = async () => {};
 
   return (
     <LiveCodeDemo
@@ -157,8 +162,7 @@ function CloseHeadDemo() {
 function ContestationDemo() {
   const [contestationStatus, setContestationStatus] = useState("");
 
-  const runDemo = async () => {
-  };
+  const runDemo = async () => {};
 
   return (
     <LiveCodeDemo
@@ -173,9 +177,7 @@ function ContestationDemo() {
 function FanoutDemo() {
   const [fanoutStatus, setFanoutStatus] = useState("");
 
-  const runDemo = async () => {
-    
-  };
+  const runDemo = async () => {};
 
   return (
     <LiveCodeDemo

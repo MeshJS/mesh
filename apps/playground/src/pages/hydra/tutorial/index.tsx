@@ -9,13 +9,17 @@ import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import Metatags from "~/components/site/metatags";
+import Codeblock from "~/components/text/codeblock";
 import { metaHydraTutorial } from "~/data/links-hydra";
+import { useProviders } from "~/hooks/useProviders";
 import { getPageLinks } from "../common";
 import HydraTutorialPrerequisites from "./prerequisites";
+import HydraTutorialStep1 from "./step1";
 import HydraTutorialStep2 from "./step2";
 import HydraTutorialStep3 from "./step3";
 import HydraTutorialStep4 from "./step4";
 import HydraTutorialStep5 from "./step5";
+import HydraTutorialStep6 from "./step6";
 
 const ReactPage: NextPage = () => {
   const [aliceNode, setAliceNode] = useState<MeshWallet | undefined>(undefined);
@@ -25,9 +29,13 @@ const ReactPage: NextPage = () => {
   const [bobNode, setBobNode] = useState<MeshWallet | undefined>(undefined);
   const [bobFunds, setBobFunds] = useState<MeshWallet | undefined>(undefined);
 
+  const hydraUrl = useProviders((state) => state.hydraUrl);
+
   const hydraProvider = new HydraProvider({
-    url: "http://35.189.158.126:4001",
+    url: hydraUrl,
+    wsUrl: hydraUrl,
   });
+
   const blockfrostProvider = getProvider();
 
   const hydraInstance = new HydraInstance({
@@ -35,6 +43,19 @@ const ReactPage: NextPage = () => {
     fetcher: blockfrostProvider,
     submitter: blockfrostProvider,
   });
+
+  let codeSnippet = ``;
+  codeSnippet += `import { HydraInstance, HydraProvider } from "@meshsdk/hydra";\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const hydraProvider = new HydraProvider({\n`;
+  codeSnippet += `  url: "http://your-hydra-node:4001",\n`;
+  codeSnippet += `});\n`;
+  codeSnippet += `\n`;
+  codeSnippet += `const hydraInstance = new HydraInstance({\n`;
+  codeSnippet += `  provider: hydraProvider,\n`;
+  codeSnippet += `  fetcher: blockfrostProvider,\n`;
+  codeSnippet += `  submitter: blockfrostProvider,\n`;
+  codeSnippet += `});\n`;
 
   return (
     <>
@@ -49,22 +70,35 @@ const ReactPage: NextPage = () => {
         >
           <>
             <p>
-              This tutorial demonstrates how to use hydra-node on Cardano's
-              preprod testing environment to open a layer 2 state channel
-              between two participants using the Hydra Head protocol.
+              This tutorial demonstrates how to use Hydra Head protocol on
+              Cardano's preprod testing environment to open a layer 2 state
+              channel between two participants using Mesh SDK.
+            </p>
+            <p>
+              Hydra Head is a layer 2 scaling solution for Cardano that enables
+              fast, low-cost transactions between participants. This tutorial
+              shows you how to set up and use Hydra with Mesh SDK.
             </p>
             <p>
               This tutorial is adapted from{" "}
-              <Link href="https://hydra.family/head-protocol/docs/tutorial/">
+              <Link href="https://hydra.family/head-protocol/docs/tutorial">
                 the Hydra documentation
               </Link>
               .
             </p>
+
+            <h3>Initialize Hydra with Mesh</h3>
+            <p>
+              To initialize Hydra with Mesh SDK, you need to set up a{" "}
+              <Link href="/providers">provider</Link>,{" "}
+              <code>HydraProvider</code> and <code>HydraInstance</code>.
+            </p>
+            <Codeblock data={codeSnippet} />
           </>
         </TitleIconDescriptionBody>
 
         <HydraTutorialPrerequisites />
-        <HydraTutorialStep2
+        <HydraTutorialStep1
           aliceNode={aliceNode}
           aliceFunds={aliceFunds}
           bobNode={bobNode}
@@ -74,21 +108,22 @@ const ReactPage: NextPage = () => {
           setBobNode={setBobNode}
           setBobFunds={setBobFunds}
         />
+        <HydraTutorialStep2 />
         <HydraTutorialStep3
           aliceNode={aliceNode}
           aliceFunds={aliceFunds}
           bobNode={bobNode}
           bobFunds={bobFunds}
         />
-        <HydraTutorialStep4
+        <HydraTutorialStep4 provider={hydraProvider} providerName="hydra" />
+        <HydraTutorialStep5
           hydraInstance={hydraInstance}
           aliceNode={aliceNode}
           aliceFunds={aliceFunds}
           bobNode={bobNode}
           bobFunds={bobFunds}
         />
-        <HydraTutorialStep5
-          hydraInstance={hydraInstance}
+        <HydraTutorialStep6
           aliceNode={aliceNode}
           aliceFunds={aliceFunds}
           bobNode={bobNode}

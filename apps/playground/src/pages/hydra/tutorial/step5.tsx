@@ -105,9 +105,7 @@ hydraInstance.provider.onMessage((message) => {
       </p>
 
       <h4>Fetch UTxOs</h4>
-      <p>
-        First, let's see what UTxOs are available in the Hydra head:
-      </p>
+      <p>First, let's see what UTxOs are available in the Hydra head:</p>
       <Codeblock data={fetchUtxosCode} />
 
       <Alert>
@@ -116,15 +114,11 @@ hydraInstance.provider.onMessage((message) => {
       </Alert>
 
       <h3>Build a Transaction</h3>
-      <p>
-        Using Mesh SDK, you can build transactions just like on layer 1:
-      </p>
+      <p>Using Mesh SDK, you can build transactions just like on layer 1:</p>
       <Codeblock data={buildTransactionCode} />
 
       <h3>Submit the Transaction</h3>
-      <p>
-        Sign and submit the transaction to the Hydra head:
-      </p>
+      <p>Sign and submit the transaction to the Hydra head:</p>
       <Codeblock data={submitTransactionCode} />
 
       <p>
@@ -137,9 +131,15 @@ hydraInstance.provider.onMessage((message) => {
       <h3>Transaction Flow</h3>
       <p>The transaction goes through these steps:</p>
       <ul>
-        <li><code>NewTx</code> - Transaction submitted to head</li>
-        <li><code>TxValid</code> - Transaction validated by all nodes</li>
-        <li><code>SnapshotConfirmed</code> - New state confirmed</li>
+        <li>
+          <code>NewTx</code> - Transaction submitted to head
+        </li>
+        <li>
+          <code>TxValid</code> - Transaction validated by all nodes
+        </li>
+        <li>
+          <code>SnapshotConfirmed</code> - New state confirmed
+        </li>
       </ul>
 
       <p>
@@ -150,9 +150,7 @@ hydraInstance.provider.onMessage((message) => {
   );
 }
 
-function Right({
-
-}) {
+function Right({}) {
   return (
     <>
       <FetchUtxosDemo />
@@ -165,8 +163,7 @@ function Right({
 function FetchUtxosDemo() {
   const [utxos, setUtxos] = useState("");
 
-  const runDemo = async () => {
-      };
+  const runDemo = async () => {};
 
   return (
     <LiveCodeDemo
@@ -181,8 +178,7 @@ function FetchUtxosDemo() {
 function BuildTransactionDemo() {
   const [transaction, setTransaction] = useState("");
 
-  const runDemo = async () => {
-      };
+  const runDemo = async () => {};
 
   return (
     <LiveCodeDemo
@@ -197,9 +193,7 @@ function BuildTransactionDemo() {
 function SubmitTransactionDemo() {
   const [txStatus, setTxStatus] = useState("");
 
-  const runDemo = async () => {
-
-  };
+  const runDemo = async () => {};
 
   return (
     <LiveCodeDemo
