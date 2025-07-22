@@ -23,7 +23,7 @@ function Left() {
           A <code>Hydra-node</code>
         </li>
         <li>Another participant following this tutorial (recommended), or</li>
-        <li>Access to two such machines, or</li>
+        <li>Access to two such machines</li>
         <li>
           100 test ada per participant in a wallet on the <code>preprod</code>{" "}
           network
@@ -36,10 +36,10 @@ function Left() {
         </Link>
         .
       </ul>
-      You could also access a pre-built Docker image for a devnet{" "}
-      <code>cardano-node</code> and <code>Hydra-node</code>
-      for quickly following this tutorial. Check the setup{" "}
-      <Link href="https://hydra.family/head-protocol/docs/getting-started">
+      You could also set-up a Docker container for a <code>cardano-node</code>{" "}
+      and <code>Hydra-node</code>
+      to quickly follow this tutorial. Check the setup example/demo for a devnet{" "}
+      <Link href="https://github.com/cardano-scaling/hydra/tree/master/demo">
         here
       </Link>
     </>
