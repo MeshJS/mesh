@@ -29,6 +29,9 @@ export class HydraConnection extends EventEmitter {
     if (!this._websocket) {
       throw new Error("invalid url, websocket failed to connect");
     }
+    if(this._status !== "IDLE"){
+      throw new Error("Hydra Head already connected");
+    }
     this._status = "CONNECTING";
 
     this._websocket.onopen = () => {
