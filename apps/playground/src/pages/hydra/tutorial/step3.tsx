@@ -1,105 +1,320 @@
 import { useState } from "react";
 
-import { MeshWallet } from "@meshsdk/core";
+import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { useWallet } from "@meshsdk/react";
 
-import Button from "~/components/button/button";
-import Link from "~/components/link";
+import Input from "~/components/form/input";
+import InputTable from "~/components/sections/input-table";
+import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
+import { getTxBuilder } from "~/pages/apis/txbuilder/common";
 
-export default function HydraTutorialStep3({
-  aliceNode,
-  aliceFunds,
-  bobNode,
-  bobFunds,
+export default function HydraTutorialStep4({
+  provider,
+  providerName,
+  hInstance,
 }: {
-  aliceNode: MeshWallet | undefined;
-  aliceFunds: MeshWallet | undefined;
-  bobNode: MeshWallet | undefined;
-  bobFunds: MeshWallet | undefined;
+  provider: HydraProvider;
+  providerName: string;
+  hInstance: HydraInstance;
 }) {
   return (
     <TwoColumnsScroll
-      sidebarTo="step3"
-      title="Step 3. Start the Hydra node"
-      leftSection={Left(aliceNode, aliceFunds, bobNode, bobFunds)}
+      sidebarTo="step4"
+      title="Step 3. Open a Hydra head"
+      leftSection={Left()}
+      rightSection={Right(provider, hInstance, providerName)}
     />
   );
 }
 
-function Left(
-  aliceNode: MeshWallet | undefined,
-  aliceFunds: MeshWallet | undefined,
-  bobNode: MeshWallet | undefined,
-  bobFunds: MeshWallet | undefined,
-) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [addresses, setAddresses] = useState<string>("");
-  const [balance, setBalance] = useState<string>("");
+function Left() {
+  let commitFundsCode = ``;
+  commitFundsCode += `import { HydraInstance , HydraProvider} from "@meshsdk/hydra";\n`;
+  commitFundsCode += `import { MeshTxBuilder } from "@meshsdk/core";\n`;
+  commitFundsCode += `\n`;
+  commitFundsCode += `const provider = new HydraProvider({\n`;
+  commitFundsCode += `  url: "<URL>",\n`;
+  commitFundsCode += `});\n`;
+  commitFundsCode += `const hInstance = new HydraInstance({\n`;
+  commitFundsCode += `  provider,\n`;
+  commitFundsCode += `  fetcher: provider,\n`;
+  commitFundsCode += `  submitter: provider,\n`;
+  commitFundsCode += `});\n`;
+  commitFundsCode += `\n`;
+  commitFundsCode += `const wallet = new MeshWallet({\n`;
+  commitFundsCode += `  networkId: 0, // 0: testnet\n`;
+  commitFundsCode += `  fetcher: provider,\n`;
+  commitFundsCode += `  submitter: provider,\n`;
+  commitFundsCode += `  key: {\n`;
+  commitFundsCode += `    type: 'mnemonic',\n`;
+  commitFundsCode += `    words: "<seedphrase>",\n`;
+  commitFundsCode += `  },\n`;
+  commitFundsCode += `});\n\n`;
+  commitFundsCode += `const utxos = await wallet.getUtxos();\n`;
+  commitFundsCode += `const changeAddress = await wallet.getChangeAddress();\n`;
+  commitFundsCode += `const txBuilder = getTxBuilder();\n\n`;
 
-  async function startNode() {}
+  commitFundsCode += `const unsignedTx = await txBuilder\n`;
+  commitFundsCode += `  .txOut(changeAddress, [{ unit: "lovelace", quantity: "amount" }])\n`;
+  commitFundsCode += `  .changeAddress(changeAddress)\n`;
+  commitFundsCode += `  .selectUtxosFrom(utxos)\n`;
+  commitFundsCode += `  .setNetwork("preprod")\n`;
+  commitFundsCode += `  .complete();\n\n`;
 
-  let codeOnMessage = ``;
-  codeOnMessage += `provider.onMessage((message) => {\n`;
-  codeOnMessage += `  console.log(message);\n`;
-  codeOnMessage += `});\n`;
-
-  let codeGreetingsMessage = `{\n`;
-  codeGreetingsMessage += `  "peer": "bob-node",\n`;
-  codeGreetingsMessage += `  "seq": 0,\n`;
-  codeGreetingsMessage += `  "tag": "PeerConnected",\n`;
-  codeGreetingsMessage += `  "timestamp": "2023-08-17T18:25:02.903974459Z"\n`;
-  codeGreetingsMessage += `}\n`;
-  codeGreetingsMessage += `{\n`;
-  codeGreetingsMessage += `  "headStatus": "Idle",\n`;
-  codeGreetingsMessage += `  "hydraNodeVersion": "0.12.0-54db2265c257c755df98773c64754c9854d879e8",\n`;
-  codeGreetingsMessage += `  "me": {\n`;
-  codeGreetingsMessage += `    "vkey": "ab159b29b87b498fa060f6045cccf84ecd20cf623f7820ed130ffc849633a120"\n`;
-  codeGreetingsMessage += `  },\n`;
-  codeGreetingsMessage += `  "seq": 1,\n`;
-  codeGreetingsMessage += `  "tag": "Greetings",\n`;
-  codeGreetingsMessage += `  "timestamp": "2023-08-17T18:32:29.092329511Z"\n`;
-  codeGreetingsMessage += `};\n`;
+  commitFundsCode += `const outputIndex = 0;\n`;
+  commitFundsCode += `const txHash = "00000000000000000000000000000000000000000000000000000000000000000";\n\n`;
+  commitFundsCode += `// Commit the signed transaction to the Hydra head as a blueprint\n`;
+  commitFundsCode += `const blueprintTx = await hInstance.commitBlueprint("txHash", "outputIndex", {\n`;
+  commitFundsCode += `  type: "Tx ConwayEra",\n`;
+  commitFundsCode += `  cborHex: unsignedTx,\n`;
+  commitFundsCode += `  description: "A new blueprint tx",\n`;
+  commitFundsCode += `});\n\n`;
+  commitFundsCode += `const commitTxHash = await wallet.signTx(blueprintTx);\n`;
+  commitFundsCode += `console.log("Commit txHash:", commitTxHash);\n`;
 
   return (
     <>
+      <h4>Connect to the Hydra head</h4>
       <p>
-        Scripts are pre-published for all{" "}
-        <Link href="https://github.com/cardano-scaling/hydra/releases">
-          released
-        </Link>{" "}
-        HYDRA_VERSIONs of the hydra-node and common Cardano networks. Consult
-        the{" "}
-        <Link href="https://hydra.family/head-protocol/docs/configuration#reference-scripts">
-          user manual
-        </Link>{" "}
-        for guidance on publishing your own scripts.
+        Now that both Hydra nodes are running and connected, we can start using
+        the head API url and port together with Mesh <code>HydraProvider</code>{" "}
+        in connecting to the Hydra head.
       </p>
+      <Codeblock data={"await provider.connect();"} />
 
-      <p>Start the hydra-node using these parameters:</p>
+      <h4>Initialize the Head</h4>
+      <p>Send the initialization command to start the Hydra head:</p>
+      <Codeblock data={"await provider.init();"} />
 
-      <Codeblock data={`code about starting node`} />
-      <Button
-        onClick={() => startNode()}
-        style={loading ? "warning" : "light"}
-        disabled={loading}
-      >
-        Start Node
-      </Button>
-
+      <h4>Commit Funds</h4>
       <p>
-        Verify that the node is operational by establishing a WebSocket
-        connection to the API port:
+        After initialization, both participants need to commit funds to the
+        head. any wallet can be used to commit funds into an{" "}
+        <code>initializing</code> Hydra head. In this tutorial we use the{" "}
+        <code>commitBlueprint</code> function on <code>HydraInstance</code> by
+        seleting specific UTxOs and make them available for layer 2
+        transactions:
       </p>
-
-      <Codeblock data={codeOnMessage} />
+      <Codeblock data={commitFundsCode} />
 
       <p>
-        This opens a duplex connection and you should see messages indicating
-        successful connections like:
+        The hydra-node will create a draft commit transaction for you to sign.
+        Once signed and submitted to the Cardano network, you'll see a{" "}
+        <code>Committed</code> message in your WebSocket connection.
       </p>
 
-      <Codeblock data={codeGreetingsMessage} />
+      <p>
+        When both parties have committed their funds, the Hydra head will open
+        automatically. You'll see a <code>HeadIsOpen</code> message confirming
+        the head is operational and ready for transactions.
+      </p>
+
+      <h4>Hydra Head Status Flow</h4>
+      <p>The head goes through these status changes:</p>
+      <ul>
+        <li>
+          <code>HeadIsInitializing</code> - Head is being initialized
+        </li>
+        <li>
+          <code>Committed</code> - Funds are committed to the head
+        </li>
+        <li>
+          <code>HeadIsOpen</code> - Head is open and ready for transactions
+        </li>
+      </ul>
     </>
+  );
+}
+
+function Right(
+  provider: HydraProvider,
+  hInstance: HydraInstance,
+  providerName: string,
+) {
+  return (
+    <>
+      <ConnectDemo provider={provider} providerName={providerName} />
+      <InitializeHeadDemo provider={provider} providerName={providerName} />
+      <CommitFundsDemo
+        provider={provider}
+        hInstance={hInstance}
+        providerName={providerName}
+      />
+      <MonitorHeadStatusDemo provider={provider} providerName={providerName} />
+    </>
+  );
+}
+function ConnectDemo({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  const [connectStatus, setConnectStatus] = useState("");
+  const runDemo = async () => {
+    setConnectStatus(JSON.stringify(await provider.connect(), null, 2));
+  };
+
+  return (
+    <LiveCodeDemo
+      title="Connect to Hydra Node"
+      subtitle={`Connect your to the Hydra node.`}
+      code={connectStatus}
+      runCodeFunction={runDemo}
+      runDemoShowProviderInit={true}
+      runDemoProvider={providerName}
+    />
+  );
+}
+
+function InitializeHeadDemo({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  const [initStatus, setInitStatus] = useState("");
+
+  const runDemo = async () => {
+    await provider.connect();
+    await provider.init();
+    setInitStatus(JSON.stringify(await provider.init(), null, 2));
+  };
+
+  return (
+    <LiveCodeDemo
+      title="Initialize Head"
+      subtitle="initializing the Hydra head."
+      code={initStatus}
+      runCodeFunction={runDemo}
+      runDemoShowProviderInit={true}
+      runDemoProvider={providerName}
+    />
+  );
+}
+
+function CommitFundsDemo({
+  provider,
+  hInstance,
+  providerName,
+}: {
+  provider: HydraProvider;
+  hInstance: HydraInstance;
+  providerName: string;
+}) {
+  const [commitStatus, setCommitStatus] = useState("");
+  const [amount, setAmount] = useState<string>("10000000");
+  const [txHash, setTxHash] = useState<string>("");
+  const [outputIndex, setOutputIndex] = useState<number | null>(null);
+
+  const { wallet, connected } = useWallet();
+
+  const runDemo = async () => {
+    await provider.connect();
+
+    if (!connected) {
+      setCommitStatus("Wallet not connected");
+      return;
+    }
+
+    if (txHash === "" || outputIndex === null) {
+      setCommitStatus("Enter a valid txHash and output index");
+      return;
+    }
+
+    const utxos = await wallet.getUtxos();
+    const changeAddress = await wallet.getChangeAddress();
+    const txBuilder = getTxBuilder();
+
+    const unsignedTx = await txBuilder
+      .txIn(txHash, outputIndex)
+      .txOut(changeAddress, [{ unit: "lovelace", quantity: amount }])
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .setNetwork("preprod")
+      .complete();
+
+    const result = await hInstance.commitBlueprint(txHash, outputIndex, {
+      type: "Tx ConwayEra",
+      cborHex: unsignedTx,
+      description: "A new blueprint tx",
+    });
+    const commitTxHash = await wallet.signTx(result);
+    setCommitStatus(JSON.stringify(commitTxHash, null, 2));
+  };
+  return (
+    <LiveCodeDemo
+      title="Commit Funds"
+      subtitle="commits funds using blueprintTx from wallet."
+      runCodeFunction={runDemo}
+      runDemoShowBrowseWalletConnect={true}
+      code={commitStatus}
+      runDemoShowProviderInit={true}
+      runDemoProvider={providerName}
+    >
+      <InputTable
+        listInputs={[
+          <Input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="lovelace"
+            label="Amount"
+          />,
+          <Input
+            value={txHash}
+            onChange={(e) => setTxHash(e.target.value)}
+            placeholder="txHash"
+            label="Tx Hash"
+          />,
+          <Input
+            value={outputIndex ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              setOutputIndex(val === "" ? null : Number(val));
+            }}
+            placeholder="outputIndex"
+            label="Output Index"
+          />,
+        ]}
+      />
+    </LiveCodeDemo>
+  );
+}
+
+function MonitorHeadStatusDemo({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  const [headStatus, setHeadStatus] = useState("");
+
+  const runDemo = async () => {
+    await provider.connect();
+    setHeadStatus(
+      JSON.stringify(
+        await provider.onStatusChange((status) => {
+          console.log(status);
+        }),
+        null,
+        2,
+      ),
+    );
+  };
+
+  return (
+    <LiveCodeDemo
+      title="Monitor Head Status"
+      subtitle="Monitoring the Hydra head status changes."
+      code={headStatus}
+      runCodeFunction={runDemo}
+      runDemoShowProviderInit={true}
+      runDemoProvider={providerName}
+    />
   );
 }
