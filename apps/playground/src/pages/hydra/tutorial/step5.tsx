@@ -1,60 +1,53 @@
 import { useState } from "react";
 
-import { MeshWallet } from "@meshsdk/core";
-import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { HydraProvider } from "@meshsdk/hydra";
 
-import Button from "~/components/button/button";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
-import Alert from "~/components/text/alert";
 import Codeblock from "~/components/text/codeblock";
 
-export default function HydraTutorialStep6({provider, providerName}:{
-  provider: HydraProvider, 
-  providerName: string
+export default function HydraTutorialStep6({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
 }) {
   return (
     <TwoColumnsScroll
       sidebarTo="step6"
       title="Step 5. Close the Hydra head"
       leftSection={Left()}
-      rightSection={Right(provider,providerName)}
+      rightSection={Right(provider, providerName)}
     />
   );
 }
 
 function Left() {
-
-  const fanoutCode = `// Fanout the head to distribute funds on layer 1
-await hydraInstance.provider.fanout();
-
-provider.onMessage((message) => {
-  if (message.tag === "HeadIsFinalized") {
-    console.log("Head finalized with distributed UTxOs:", message.utxo);
-  }
-});`;
-
-  const checkFundsCode = `// Check final balances on layer 1
-const aliceBalance = await aliceFunds.getBalance();
-const bobBalance = await bobFunds.getBalance();
-
-console.log("Alice's final balance:", aliceBalance);
-console.log("Bob's final balance:", bobBalance);`;
+  let codeSnippet = `// Check final balances on layer 1\n`;
+  codeSnippet += `const aliceFundsBalance = await provider.fetchAddressUTxOs("alice-funds-address");\n`;
+  codeSnippet += `const aliceNodeBalance = await provider.fetchAddressUTxOs("alice-node-address");\n\n`;
+  codeSnippet += `const bobFundsBalance = await provider.fetchAddressUTxOs("bob-funds-address");\n`;
+  codeSnippet += `const bobNodeBalance = await provider.fetchAddressUTxOs("bob-node-address");\n`;
 
   return (
     <>
       <p>
-        When you're done with the Hydra head, you can close it to return all
-        funds to layer 1. This process involves closing the head, waiting for
-        the contestation period, and then fanning out the final state.
+        You can close the head to return head utxos to layer 1. This process
+        involves closing the head, waiting for the contestation period, and then
+        fan out the final state.
       </p>
 
       <h4>Close the Head</h4>
-      <p>Any participant can initiate closing the Hydra head, Once closed, no more transactions can be
-        submitted to the head. The head enters a contestation period where
-        participants can challenge the closing snapshot.</p>
+      <p>
+        Any participant can initiate closing the Hydra head. Once closed, no
+        more transactions can be submitted to the head. The head enters a
+        contestation period where participants can challenge the closing
+        snapshot. After the contestation period, the head participants can use
+        the <code>fanout</code> to fully close the <code>hydra-head</code> and
+        return the head utxos to layer 1.
+      </p>
       <Codeblock data={"await provider.close()"} />
-
 
       <h4>Contestation Period</h4>
       <p>
@@ -67,37 +60,40 @@ console.log("Bob's final balance:", bobBalance);`;
         <li>After the deadline, fanout becomes possible</li>
       </ul>
 
-      <h3>Fanout the Head</h3>
+      <h4>Fanout the Head</h4>
       <p>
         Once the contestation period ends, you can fanout to distribute the
         final state back to layer 1:
       </p>
       <Codeblock data={"await provider.fanout()"} />
 
-      <h3>Check Final Balances</h3>
+      <h4>Check Final Balances</h4>
       <p>After fanout, check the final balances on layer 1:</p>
-      <Codeblock data={checkFundsCode} />
+      <Codeblock data={codeSnippet} />
 
-      <h3>Head Lifecycle</h3>
+      <h4>Head Lifecycle</h4>
       <p>The complete head lifecycle:</p>
       <ul>
         <li>
-          <code>IDLE</code> - Initial state
+          <code>INITIALIZE</code> - Initial state
         </li>
         <li>
-          <code>INITIALIZING</code> - Head being initialized
+          <code>COMMIT</code> - Committing to Hydra head
         </li>
         <li>
           <code>OPEN</code> - Head open for transactions
         </li>
         <li>
-          <code>CLOSED</code> - Head closed, contestation period
+          <code>NEW TX</code> - New transaction submitted in Hydra head
         </li>
         <li>
-          <code>FANOUT_POSSIBLE</code> - Ready to fanout
+          <code>CLOSE</code> - Ready to fanout
         </li>
         <li>
-          <code>FINAL</code> - Head finalized on layer 1
+          <code>CONTEST</code> - Head closed, contestation period
+        </li>
+        <li>
+          <code>FANOUT</code> - Head finalized on layer 1
         </li>
       </ul>
 
@@ -112,45 +108,55 @@ console.log("Bob's final balance:", bobBalance);`;
 function Right(provider: HydraProvider, providerName: string) {
   return (
     <>
-      <CloseHeadDemo provider={provider} 
-      providerName={providerName} />
-      <FanoutDemo provider={provider}
-      providerName={providerName} />
+      <CloseHeadDemo provider={provider} providerName={providerName} />
+      <FanoutDemo provider={provider} providerName={providerName} />
     </>
   );
 }
 
-function CloseHeadDemo({provider, providerName}: {provider: HydraProvider, providerName: string}) {
-  const [closeStatus, setCloseStatus] = useState<string | void>("");
+function CloseHeadDemo({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  const [closeStatus, setCloseStatus] = useState<string>("");
 
   const runDemo = async () => {
-    await provider.close();
-    setCloseStatus(await provider.onStatusChange((status) => console.log(status)));
+    await provider.connect();
+    setCloseStatus(JSON.stringify(await provider.close(), null, 2));
   };
 
   return (
     <LiveCodeDemo
       title="Close Head"
-      subtitle="Simulates closing the Hydra head."
+      subtitle="closing the Hydra head."
       runCodeFunction={runDemo}
-      //code={closeStatus}
+      code={closeStatus}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
     />
   );
 }
 
-function FanoutDemo({provider, providerName}: {provider: HydraProvider, providerName: string}) {
-  const [fanoutStatus, setFanoutStatus] = useState("");
-
+function FanoutDemo({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  const [fanoutStatus, setFanoutStatus] = useState<string>("");
   const runDemo = async () => {
-    await provider.fanout();
+    await provider.connect();
+    setFanoutStatus(JSON.stringify(await provider.fanout(), null, 2));
   };
 
   return (
     <LiveCodeDemo
       title="Fanout Head"
-      subtitle="Simulates fanning out the Hydra head to layer 1."
+      subtitle="fan out the Hydra head to layer 1."
       runCodeFunction={runDemo}
       code={fanoutStatus}
       runDemoShowProviderInit={true}
