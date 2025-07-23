@@ -102,8 +102,9 @@ function Left() {
             pre-published Hydra scripts
           </Link>{" "}
           with each new release, listing transaction IDs in the release notes
-          and networks.json.
-          Note: The value of above <code>--hydra-scripts-tx-id</code> comes from the hydra-node release 0.22.2.
+          and networks.json. Note: The value of above{" "}
+          <code>--hydra-scripts-tx-id</code> comes from the hydra-node release
+          0.22.2.
         </li>
         <li>
           <code>ledger-protocol-parameters</code>: This defines the updatable
