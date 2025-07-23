@@ -8,9 +8,9 @@ import { ScriptInfo } from "../types";
  * @param scriptRef - The script reference (e.g., CBOR hex string) from a UTxO.
  * @returns An object containing the script instance, type, and language.
  */
-export function getReferenceScriptInfo(
+export async function getReferenceScriptInfo(
   scriptRef: string | undefined
-): ScriptInfo {
+): Promise<ScriptInfo> {
   let scriptInstance: PlutusScript | NativeScript | undefined = undefined;
   let scriptType: ScriptInfo["scriptType"] = "Unknown";
   let scriptLanguage: ScriptInfo["scriptLanguage"] = null;
