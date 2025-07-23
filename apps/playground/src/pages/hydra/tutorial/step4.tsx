@@ -1,14 +1,13 @@
 import { useState } from "react";
 
-import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
+import { MeshTxBuilder, MeshWallet } from "@meshsdk/core";
+import { HydraProvider } from "@meshsdk/hydra";
 
-import Input from "~/components/form/input";
-import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
-export default function HydraTutorialStep4({
+export default function HydraTutorialStep5({
   provider,
   providerName,
 }: {
@@ -17,158 +16,184 @@ export default function HydraTutorialStep4({
 }) {
   return (
     <TwoColumnsScroll
-      sidebarTo="step4"
-      title="Step 4. Open a Hydra head"
+      sidebarTo="step5"
+      title="Step 4. Use the Hydra head"
       leftSection={Left()}
-      rightSection={Right(provider, providerName)}
+      rightSection={Right({
+        provider,
+        providerName,
+      })}
     />
   );
 }
 
 function Left() {
-  const commitFundsCode = `// Commit funds to the head
-const txHash = "your-utxo-tx-hash";
-const txIndex = 0;
+  let buildTransactionCode = ``;
+  buildTransactionCode += `const wallet = new MeshWallet({\n`;
+  buildTransactionCode += `  networkId: 0,\n`;
+  buildTransactionCode += `  key: {\n`;
+  buildTransactionCode += `    type: "cli",\n`;
+  buildTransactionCode += `    payment: "cli-signing-key",\n`;
+  buildTransactionCode += `  },\n`;
+  buildTransactionCode += `  fetcher: "<blockchainprovider>",\n`;
+  buildTransactionCode += `  submitter: "<blockchainprovider>",\n`;
+  buildTransactionCode += `});\n\n`;
 
-const commitTx = await hydraInstance.commitFunds(txHash, txIndex);
-console.log("Commit transaction:", commitTx);
+  buildTransactionCode += `const pp = await provider.fetchProtocolParameters();\n`;
+  buildTransactionCode += `const utxos = await wallet.getUtxos("enterprise");\n`;
+  buildTransactionCode += `const changeAddress = await wallet.getChangeAddress();\n\n`;
 
-// Sign and submit the transaction
-// This would be done with your wallet or CLI tools`;
+  buildTransactionCode += `const txBuilder = new MeshTxBuilder({\n`;
+  buildTransactionCode += `  fetcher: "provider",\n`;
+  buildTransactionCode += `  submitter: "provider",\n`;
+  buildTransactionCode += `  params: pp,\n`;
+  buildTransactionCode += `  verbose: true,\n`;
+  buildTransactionCode += `});\n\n`;
+
+  buildTransactionCode += `const unsignedTx = await txBuilder\n`;
+  buildTransactionCode += `  .txOut(\n`;
+  buildTransactionCode += `    "recipient-address",\n`;
+  buildTransactionCode += `    [{ unit: "lovelace", quantity: "3000000" }]\n`;
+  buildTransactionCode += `  )\n`;
+  buildTransactionCode += `  .changeAddress(changeAddress)\n`;
+  buildTransactionCode += `  .selectUtxosFrom(utxos)\n`;
+  buildTransactionCode += `  .setNetwork("preprod")\n`;
+  buildTransactionCode += `  .complete();\n`;
 
   return (
     <>
       <p>
-        Now that both Hydra nodes are running and connected, we can initialize a
-        Hydra head. This creates a layer 2 state channel between the
-        participants.
+        Now that the Hydra head is open, you can perform transactions within the
+        layer 2 state channel. Hydra Head operates as an isomorphic protocol,
+        meaning that functionalities available on Cardano layer 1 are also
+        available on layer 2. This allows us to use Mesh SDK for transaction
+        creation within the head.
       </p>
 
-      <h4>Initialize the Head</h4>
-      <p>Send the initialization command to start the Hydra head:</p>
-      <Codeblock data={"await provider.init();"} />
+      <h4>Fetch UTxOs</h4>
+      <p>First, let's see what UTxOs are available in the Hydra head:</p>
+      <Codeblock data={"const utxos = await provider.fetchUTxOs();"} />
 
-      <h4>Commit Funds</h4>
-      <p>
-        After initialization, both participants need to commit funds to the
-        head. In this tutorial we use the <code>commitBlueprint</code> function
-        on <code>HydraInstance</code> by seleting specific UTxOs and make them
-        available for layer 2 transactions:
-      </p>
-      <Codeblock data={commitFundsCode} />
+      <h4>Build and Submit Transaction</h4>
+      <p>you can build transactions just like on layer 1:</p>
+      <Codeblock data={buildTransactionCode} />
 
       <p>
-        The hydra-node will create a draft commit transaction for you to sign.
-        Once signed and submitted to the Cardano network, you'll see a{" "}
-        <code>Committed</code> message in your WebSocket connection.
+        The transaction will be validated by both hydra-nodes and either result
+        in a <code>TxValid</code> message or a <code>TxInvalid</code> message If
+        valid, you'll see a <code>SnapshotConfirmed</code>
+        message shortly after with the new UTxO set.
       </p>
 
-      <p>
-        When both parties have committed their funds, the Hydra head will open
-        automatically. You'll see a <code>HeadIsOpen</code> message confirming
-        the head is operational and ready for transactions.
-      </p>
-
-      <h4>Head Status Flow</h4>
-      <p>The head goes through these status changes:</p>
+      <h3>Transaction Flow</h3>
+      <p>The transaction goes through these steps:</p>
       <ul>
         <li>
-          <code>IDLE</code> - Initial state
+          <code>NewTx</code> - Transaction submitted to head
         </li>
         <li>
-          <code>INITIALIZING</code> - Head is being initialized
+          <code>TxValid</code> - Transaction validated by all nodes
         </li>
         <li>
-          <code>OPEN</code> - Head is open and ready for transactions
+          <code>SnapshotConfirmed</code> - New state confirmed
         </li>
       </ul>
+
+      <p>
+        Congratulations! You just processed your first Cardano transaction
+        off-chain in a Hydra head!
+      </p>
     </>
   );
 }
 
-function Right(provider: HydraProvider, providerName: string) {
-  return (
-    <>
-      <InitializeHeadDemo provider={provider} providerName={providerName} />
-      <CommitFundsDemo />
-      <MonitorHeadStatusDemo provider={provider} providerName={providerName} />
-    </>
-  );
-}
-
-function InitializeHeadDemo({
+function Right({
   provider,
   providerName,
 }: {
   provider: HydraProvider;
   providerName: string;
 }) {
-  const [initStatus, setInitStatus] = useState("");
+  return (
+    <>
+      <FetchUtxosDemo provider={provider} providerName={providerName} />
+      <BuildTransactionDemo provider={provider} providerName={providerName} />
+    </>
+  );
+}
+
+function FetchUtxosDemo({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  const [utxos, setUtxos] = useState("");
 
   const runDemo = async () => {
-    await provider.init();
+    const utxos = await provider.fetchUTxOs();
+    setUtxos(JSON.stringify(utxos, null, 2));
   };
 
   return (
     <LiveCodeDemo
-      title="Initialize Head"
-      subtitle="initializing the Hydra head."
-      code={initStatus}
+      title="Fetch UTxOs"
+      subtitle="Fetching UTxOs from the Hydra head."
       runCodeFunction={runDemo}
+      code={utxos}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
     />
   );
 }
 
-function CommitFundsDemo() {
-  const [commitStatus, setCommitStatus] = useState("");
-  const [amount, setAmount] = useState<string>("10000000");
-  const runDemo = async () => {};
-
-  return (
-    <LiveCodeDemo
-      title="Commit Funds"
-      subtitle="commits funds using blueprintTx from wallet."
-      runCodeFunction={runDemo}
-      runDemoShowBrowseWalletConnect={true}
-      code={commitStatus}
-    >
-      <InputTable
-        listInputs={[
-          <Input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="lovelace"
-            label="Amount"
-          />,
-        ]}
-      />
-    </LiveCodeDemo>
-  );
-}
-
-function MonitorHeadStatusDemo({
+function BuildTransactionDemo({
   provider,
   providerName,
 }: {
   provider: HydraProvider;
   providerName: string;
 }) {
-  const [headStatus, setHeadStatus] = useState("");
+  const [transaction, setTransaction] = useState("");
 
   const runDemo = async () => {
-    await provider.onStatusChange((status) => {
-      console.log(status);
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "cli",
+        payment: "your-payment-key",
+      },
+      fetcher: provider,
+      submitter: provider,
     });
+
+    const pp = await provider.fetchProtocolParameters();
+    const utxos = await wallet.getUtxos("enterprise");
+    const changeAddress = "your-change-address";
+
+    const txBuilder = new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      params: pp,
+      verbose: true,
+    });
+
+    const unsignedTx = await txBuilder
+      .txOut("recipient-address", [{ unit: "lovelace", quantity: "3000000" }])
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .complete();
+
+    setTransaction(unsignedTx);
   };
 
   return (
     <LiveCodeDemo
-      title="Monitor Head Status"
-      subtitle="Simulates monitoring the Hydra head status changes."
-      code={headStatus}
+      title="Build and submit Transaction"
+      subtitle="Building and submitting a transaction in the Hydra head."
       runCodeFunction={runDemo}
+      code={transaction}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
     />
