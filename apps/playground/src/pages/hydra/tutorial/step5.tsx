@@ -1,206 +1,160 @@
 import { useState } from "react";
 
-import { MeshTxBuilder, MeshWallet } from "@meshsdk/core";
+import { MeshWallet } from "@meshsdk/core";
 import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
 
 import Button from "~/components/button/button";
-import Link from "~/components/link";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Alert from "~/components/text/alert";
 import Codeblock from "~/components/text/codeblock";
 
-export default function HydraTutorialStep5({
-  hydraInstance,
-  aliceNode,
-  aliceFunds,
-  bobNode,
-  bobFunds,
-}: {
-  hydraInstance: HydraInstance;
-  aliceNode: MeshWallet | undefined;
-  aliceFunds: MeshWallet | undefined;
-  bobNode: MeshWallet | undefined;
-  bobFunds: MeshWallet | undefined;
+export default function HydraTutorialStep6({provider, providerName}:{
+  provider: HydraProvider, 
+  providerName: string
 }) {
   return (
     <TwoColumnsScroll
-      sidebarTo="step5"
-      title="Step 5. Use the Hydra head"
+      sidebarTo="step6"
+      title="Step 5. Close the Hydra head"
       leftSection={Left()}
-      rightSection={Right({
-        hydraInstance,
-        aliceNode,
-        aliceFunds,
-        bobNode,
-        bobFunds,
-      })}
+      rightSection={Right(provider,providerName)}
     />
   );
 }
 
 function Left() {
-  const fetchUtxosCode = `// Fetch all UTxOs in the Hydra head
-const utxos = await hydraInstance.provider.fetchUTxOs();
-console.log("Available UTxOs:", utxos);
 
-// Fetch UTxOs for a specific address
-const addressUtxos = await hydraInstance.provider.fetchAddressUTxOs(
-  "addr_test1vpd5axpq4qsh8sxvzny49cp22gc5tqx0djf6wmjv5cx7q5qyrzuw8"
-);
-console.log("Address UTxOs:", addressUtxos);`;
+  const fanoutCode = `// Fanout the head to distribute funds on layer 1
+await hydraInstance.provider.fanout();
 
-  const buildTransactionCode = `// Build a transaction in the Hydra head
-const wallet = new MeshWallet({
-  networkId: 0,
-  key: {
-    type: "cli",
-    payment: "your-payment-key",
-  },
-  fetcher: hydraInstance.provider,
-  submitter: hydraInstance.provider,
-});
-
-const pp = await hydraInstance.provider.fetchProtocolParameters();
-const utxos = await wallet.getUtxos("enterprise");
-const changeAddress = "your-change-address";
-
-const txBuilder = new MeshTxBuilder({
-  fetcher: hydraInstance.provider,
-  params: pp,
-  verbose: true,
-});
-
-const unsignedTx = await txBuilder
-  .txOut(
-    "recipient-address",
-    [{ unit: "lovelace", quantity: "3000000" }]
-  )
-  .changeAddress(changeAddress)
-  .selectUtxosFrom(utxos)
-  .complete();`;
-
-  const submitTransactionCode = `// Sign and submit the transaction
-const signedTx = await wallet.signTx(unsignedTx);
-const txHash = await hydraInstance.provider.submitTx(signedTx);
-console.log("Transaction submitted:", txHash);
-
-// Monitor transaction status
-hydraInstance.provider.onMessage((message) => {
-  if (message.tag === "TxValid") {
-    console.log("Transaction validated!");
-  } else if (message.tag === "TxInvalid") {
-    console.log("Transaction invalid:", message.validationError);
+provider.onMessage((message) => {
+  if (message.tag === "HeadIsFinalized") {
+    console.log("Head finalized with distributed UTxOs:", message.utxo);
   }
 });`;
+
+  const checkFundsCode = `// Check final balances on layer 1
+const aliceBalance = await aliceFunds.getBalance();
+const bobBalance = await bobFunds.getBalance();
+
+console.log("Alice's final balance:", aliceBalance);
+console.log("Bob's final balance:", bobBalance);`;
 
   return (
     <>
       <p>
-        Now that the Hydra head is open, you can perform transactions within the
-        layer 2 state channel. Hydra Head operates as an isomorphic protocol,
-        meaning that functionalities available on Cardano layer 1 are also
-        available on layer 2. This allows us to use Mesh SDK for transaction
-        creation within the head.
+        When you're done with the Hydra head, you can close it to return all
+        funds to layer 1. This process involves closing the head, waiting for
+        the contestation period, and then fanning out the final state.
       </p>
 
-      <h4>Fetch UTxOs</h4>
-      <p>First, let's see what UTxOs are available in the Hydra head:</p>
-      <Codeblock data={fetchUtxosCode} />
+      <h4>Close the Head</h4>
+      <p>Any participant can initiate closing the Hydra head, Once closed, no more transactions can be
+        submitted to the head. The head enters a contestation period where
+        participants can challenge the closing snapshot.</p>
+      <Codeblock data={"await provider.close()"} />
 
-      <Alert>
-        <strong>Note:</strong> The UTxOs in the Hydra head are the ones that
-        were committed by both participants during the initialization phase.
-      </Alert>
 
-      <h3>Build a Transaction</h3>
-      <p>Using Mesh SDK, you can build transactions just like on layer 1:</p>
-      <Codeblock data={buildTransactionCode} />
-
-      <h3>Submit the Transaction</h3>
-      <p>Sign and submit the transaction to the Hydra head:</p>
-      <Codeblock data={submitTransactionCode} />
-
+      <h4>Contestation Period</h4>
       <p>
-        The transaction will be validated by both hydra-nodes and either result
-        in a <code>TxValid</code> message or a <code>TxInvalid</code> message
-        with a reason. If valid, you'll see a <code>SnapshotConfirmed</code>
-        message shortly after with the new UTxO set.
+        After closing, there's a contestation period (configurable with{" "}
+        <code>--contestation-period</code>). During this time:
       </p>
+      <ul>
+        <li>Participants can contest the closing snapshot</li>
+        <li>If contested, a more recent snapshot can be used</li>
+        <li>After the deadline, fanout becomes possible</li>
+      </ul>
 
-      <h3>Transaction Flow</h3>
-      <p>The transaction goes through these steps:</p>
+      <h3>Fanout the Head</h3>
+      <p>
+        Once the contestation period ends, you can fanout to distribute the
+        final state back to layer 1:
+      </p>
+      <Codeblock data={"await provider.fanout()"} />
+
+      <h3>Check Final Balances</h3>
+      <p>After fanout, check the final balances on layer 1:</p>
+      <Codeblock data={checkFundsCode} />
+
+      <h3>Head Lifecycle</h3>
+      <p>The complete head lifecycle:</p>
       <ul>
         <li>
-          <code>NewTx</code> - Transaction submitted to head
+          <code>IDLE</code> - Initial state
         </li>
         <li>
-          <code>TxValid</code> - Transaction validated by all nodes
+          <code>INITIALIZING</code> - Head being initialized
         </li>
         <li>
-          <code>SnapshotConfirmed</code> - New state confirmed
+          <code>OPEN</code> - Head open for transactions
+        </li>
+        <li>
+          <code>CLOSED</code> - Head closed, contestation period
+        </li>
+        <li>
+          <code>FANOUT_POSSIBLE</code> - Ready to fanout
+        </li>
+        <li>
+          <code>FINAL</code> - Head finalized on layer 1
         </li>
       </ul>
 
       <p>
-        Congratulations! You just processed your first Cardano transaction
-        off-chain in a Hydra head!
+        Congratulations! You've completed the full lifecycle of a Hydra head
+        from initialization to finalization.
       </p>
     </>
   );
 }
 
-function Right({}) {
+function Right(provider: HydraProvider, providerName: string) {
   return (
     <>
-      <FetchUtxosDemo />
-      <BuildTransactionDemo />
-      <SubmitTransactionDemo />
+      <CloseHeadDemo provider={provider} 
+      providerName={providerName} />
+      <FanoutDemo provider={provider}
+      providerName={providerName} />
     </>
   );
 }
 
-function FetchUtxosDemo() {
-  const [utxos, setUtxos] = useState("");
+function CloseHeadDemo({provider, providerName}: {provider: HydraProvider, providerName: string}) {
+  const [closeStatus, setCloseStatus] = useState<string | void>("");
 
-  const runDemo = async () => {};
+  const runDemo = async () => {
+    await provider.close();
+    setCloseStatus(await provider.onStatusChange((status) => console.log(status)));
+  };
 
   return (
     <LiveCodeDemo
-      title="Fetch UTxOs"
-      subtitle="Simulates fetching UTxOs from the Hydra head."
+      title="Close Head"
+      subtitle="Simulates closing the Hydra head."
       runCodeFunction={runDemo}
-      code={utxos}
+      //code={closeStatus}
+      runDemoShowProviderInit={true}
+      runDemoProvider={providerName}
     />
   );
 }
 
-function BuildTransactionDemo() {
-  const [transaction, setTransaction] = useState("");
+function FanoutDemo({provider, providerName}: {provider: HydraProvider, providerName: string}) {
+  const [fanoutStatus, setFanoutStatus] = useState("");
 
-  const runDemo = async () => {};
-
-  return (
-    <LiveCodeDemo
-      title="Build Transaction"
-      subtitle="Simulates building a transaction in the Hydra head."
-      runCodeFunction={runDemo}
-      code={transaction}
-    />
-  );
-}
-
-function SubmitTransactionDemo() {
-  const [txStatus, setTxStatus] = useState("");
-
-  const runDemo = async () => {};
+  const runDemo = async () => {
+    await provider.fanout();
+  };
 
   return (
     <LiveCodeDemo
-      title="Submit Transaction"
-      subtitle="Simulates submitting and monitoring a transaction in the Hydra head."
+      title="Fanout Head"
+      subtitle="Simulates fanning out the Hydra head to layer 1."
       runCodeFunction={runDemo}
-      code={txStatus}
+      code={fanoutStatus}
+      runDemoShowProviderInit={true}
+      runDemoProvider={providerName}
     />
   );
 }
