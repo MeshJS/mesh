@@ -299,10 +299,16 @@ export class EmbeddedWallet extends WalletStaticMethods {
     payload: string,
     accountIndex = 0,
     keyIndex = 0,
+    signWithStakeKey = false,
   ): DataSignature {
     try {
-      const { baseAddress, enterpriseAddress, rewardAddress, paymentKey } =
-        this.getAccount(accountIndex, keyIndex);
+      const {
+        baseAddress,
+        enterpriseAddress,
+        rewardAddress,
+        paymentKey,
+        stakeKey,
+      } = this.getAccount(accountIndex, keyIndex);
 
       const foundAddress = [baseAddress, enterpriseAddress, rewardAddress].find(
         (a) => a.toBech32() === address,
@@ -316,7 +322,7 @@ export class EmbeddedWallet extends WalletStaticMethods {
       // todo tw
       return signData(payload, {
         address: Address.fromBech32(address),
-        key: paymentKey,
+        key: signWithStakeKey ? stakeKey : paymentKey,
       });
     } catch (error) {
       throw new Error(
