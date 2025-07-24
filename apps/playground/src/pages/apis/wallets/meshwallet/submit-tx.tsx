@@ -18,11 +18,19 @@ function Left() {
   return (
     <>
       <p>
-        As wallets should already have this ability to submit transaction, we
-        allow apps to request that a transaction be sent through it. If the
-        wallet accepts the transaction and tries to send it, it shall return the
-        transaction ID for the app to track. The wallet can return error
-        messages or failure if there was an error in sending it.
+        This API allows applications to request the submission of a signed
+        transaction through the connected wallet. The wallet will attempt to send
+        the transaction to the blockchain network.
+      </p>
+      <p>
+        If the transaction is successfully submitted, the wallet returns the
+        transaction ID, which can be used by the application to track its status
+        on the blockchain. In case of an error during submission, the wallet
+        provides error messages or failure details.
+      </p>
+      <p>
+        This functionality is essential for applications that rely on wallet
+        integration to handle transaction submission securely and efficiently.
       </p>
     </>
   );

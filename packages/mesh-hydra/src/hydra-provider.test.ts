@@ -8,6 +8,7 @@ describe("Hydra Provider", () => {
       wsUrl: 'ws://localhost:4001'
     });
     await provider.connect();
+    await provider.init();
 
     const aliceWallet = {
       addr: 'addr_test1vp5cxztpc6hep9ds7fjgmle3l225tk8ske3rmwr9adu0m6qchmx5z',

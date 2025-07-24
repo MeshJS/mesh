@@ -92,33 +92,45 @@ function Left() {
   return (
     <>
       <p>
-        Mesh allows you to freely design the datum structure to suit the plutus
-        smart contract requirements. You can import the <code>Data</code> type
-        to help you design the datum.
+        In Plutus smart contracts, a datum is a piece of data that is attached to a transaction output. It plays a crucial role in enabling smart contracts to validate and execute transactions based on specific conditions. Mesh SDK provides the flexibility to design datum structures tailored to your contract requirements.
+      </p>
+      <p>
+        The <code>Data</code> type in Mesh SDK allows you to create various datum structures, including strings, numbers, arrays, maps, and constructors. Additionally, the <code>resolveDataHash</code> function helps verify the integrity of the datum by generating its hash.
       </p>
       <Codeblock
         data={`import { resolveDataHash } from '@meshsdk/core';\nimport type { Data } from '@meshsdk/core';`}
         isJson={false}
       />
 
+      <h3>Best Practices</h3>
+      <ul>
+        <li>Ensure the datum structure aligns with the requirements of your Plutus smart contract.</li>
+        <li>Use <code>resolveDataHash</code> to validate datum integrity before attaching it to a transaction.</li>
+        <li>Optimize datum design for performance and compatibility.</li>
+      </ul>
+
       <h3>A string</h3>
       <p>A datum as simple as just a string, preferably a hex string.</p>
       <Codeblock data={codeSnippetdatumString} />
+
       <h3>A number</h3>
       <p>It can also be a number.</p>
       <Codeblock data={codeSnippetdatumNumber} />
+
       <h3>An array</h3>
       <p>
         Or an array, where each item can be either a string, number, a list, or
         a map.
       </p>
       <Codeblock data={codeSnippetdatumList} />
+
       <h3>A Map</h3>
       <p>
         It can also be a map, where both the keys and its values can be a
         string, number, a list, or a map.
       </p>
       <Codeblock data={codeSnippetdatumMap} />
+
       <h3>With constructor</h3>
       <p>
         Or a datum with a constructor, where <code>alternative</code> is a

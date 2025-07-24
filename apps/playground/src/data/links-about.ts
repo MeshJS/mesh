@@ -17,7 +17,7 @@ export const metaAboutUs = {
 export const metaGovernance = {
   link: `https://gov.meshjs.dev/`,
   title: "Governance",
-  desc: "Mesh's participation in Cardano's governance ecosystem",
+  desc: "Mesh's participation in governance",
   icon: ScaleIcon,
 };
 export const metaSupportUs = {

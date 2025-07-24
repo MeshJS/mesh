@@ -18,11 +18,11 @@ export default function Metatags({
 
   if (keywords === undefined) {
     keywords =
-      "developer, tools, cardano, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis, aiken";
+      "developer, tools, cardano, bitcoin, hydra, blockchain, sdk, plutus, crypto, web3, metaverse, gaming, ecommerce, nfts, apis, aiken";
   }
 
   if (title === undefined) {
-    title = "Cardano TypeScript SDK & Off-Chain Framework";
+    title = "Web3 TypeScript SDK & Off-Chain Framework";
   }
 
   return (

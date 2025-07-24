@@ -31,9 +31,15 @@ import {
 } from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
+import { OfflineFetcher } from "./offline/offline-fetcher";
 import { BlockfrostAsset, BlockfrostUTxO } from "./types";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
+
+export type BlockfrostCachingOptions = {
+  enableCaching?: boolean;
+  offlineFetcher?: OfflineFetcher;
+};
 
 export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
 
@@ -45,6 +51,10 @@ export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
  * import { BlockfrostProvider } from "@meshsdk/core";
  *
  * const provider = new BlockfrostProvider('<Your-API-Key>');
+ * 
+ * // With caching enabled
+ * const providerWithCache = new BlockfrostProvider('<Your-API-Key>', 0, { enableCaching: true });
+ * ```
  */
 export class BlockfrostProvider
   implements IFetcher, IListener, ISubmitter, IEvaluator
@@ -52,27 +62,34 @@ export class BlockfrostProvider
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: BlockfrostSupportedNetworks;
   private submitTxToBytes = true;
+  private _offlineFetcher?: OfflineFetcher;
+  private _enableCaching = false;
 
   /**
    * If you are using a privately hosted Blockfrost instance, you can set the URL in the parameter.
    * @param baseUrl The base URL of the instance.
+   * @param cachingOptions Optional caching configuration
    */
-  constructor(baseUrl: string);
+  constructor(baseUrl: string, cachingOptions?: BlockfrostCachingOptions);
 
   /**
    * If you are using [Blockfrost](https://blockfrost.io/) hosted instance, you can set the project ID in the parameter.
    * @param projectId The project ID of the instance.
    * @param version The version of the API. Default is 0.
+   * @param cachingOptions Optional caching configuration
    */
-  constructor(projectId: string, version?: number);
+  constructor(projectId: string, version?: number, cachingOptions?: BlockfrostCachingOptions);
 
   constructor(...args: unknown[]) {
+    let cachingOptions: BlockfrostCachingOptions | undefined;
+    
     if (
       typeof args[0] === "string" &&
       (args[0].startsWith("http") || args[0].startsWith("/"))
     ) {
       this._axiosInstance = axios.create({ baseURL: args[0] });
       this._network = "mainnet";
+      cachingOptions = args[1] as BlockfrostCachingOptions | undefined;
     } else {
       const projectId = args[0] as string;
       const network = projectId.slice(0, 7);
@@ -83,6 +100,13 @@ export class BlockfrostProvider
         headers: { project_id: projectId },
       });
       this._network = network as BlockfrostSupportedNetworks;
+      cachingOptions = args[2] as BlockfrostCachingOptions | undefined;
+    }
+
+    // Initialize caching if enabled
+    if (cachingOptions?.enableCaching) {
+      this._enableCaching = true;
+      this._offlineFetcher = cachingOptions.offlineFetcher || new OfflineFetcher(this._network);
     }
   }
 
@@ -222,6 +246,18 @@ export class BlockfrostProvider
    * @returns - Array of UTxOs
    */
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
+    // Check cache first if caching is enabled
+    if (this._enableCaching && this._offlineFetcher) {
+      try {
+        const cachedUtxos = await this._offlineFetcher.fetchAddressUTxOs(address, asset);
+        if (cachedUtxos.length > 0) {
+          return cachedUtxos;
+        }
+      } catch (error) {
+        // Cache miss or error, continue to fetch from network
+      }
+    }
+
     const filter = asset !== undefined ? `/${asset}` : "";
     const url = `addresses/${address}/utxos` + filter;
 
@@ -249,7 +285,19 @@ export class BlockfrostProvider
     };
 
     try {
-      return await paginateUTxOs();
+      const fetchedUtxos = await paginateUTxOs();
+      
+      // Cache the fetched UTXOs if caching is enabled
+      if (this._enableCaching && this._offlineFetcher && fetchedUtxos.length > 0) {
+        try {
+          this._offlineFetcher.addUTxOs(fetchedUtxos);
+        } catch (error) {
+          // Log error but don't fail the request
+          console.warn("Failed to cache UTXOs:", error);
+        }
+      }
+      
+      return fetchedUtxos;
     } catch (error) {
       return [];
     }
@@ -685,7 +733,19 @@ export class BlockfrostProvider
         { headers },
       );
 
-      if (status === 200 || status == 202) return data;
+      if (status === 200 || status == 202) {
+        // Cache the submitted transaction if caching is enabled
+        if (this._enableCaching && this._offlineFetcher) {
+          try {
+            this._offlineFetcher.addSerializedTransaction(tx);
+          } catch (error) {
+            // Log error but don't fail the request
+            console.warn("Failed to cache submitted transaction:", error);
+          }
+        }
+        
+        return data;
+      }
 
       throw parseHttpError(data);
     } catch (error) {
@@ -763,5 +823,68 @@ export class BlockfrostProvider
     if (status === 200 || status == 202) return data.json;
 
     throw parseHttpError(data);
+  }
+
+  /**
+   * Enable or disable caching functionality.
+   * @param enable - Whether to enable caching
+   * @param offlineFetcher - Optional custom OfflineFetcher instance to use
+   */
+  setCaching(enable: boolean, offlineFetcher?: OfflineFetcher): void {
+    this._enableCaching = enable;
+    if (enable) {
+      this._offlineFetcher = offlineFetcher || new OfflineFetcher(this._network);
+    } else {
+      this._offlineFetcher = undefined;
+    }
+  }
+
+  /**
+   * Get the current OfflineFetcher instance if caching is enabled.
+   * @returns The OfflineFetcher instance or undefined if caching is disabled
+   */
+  getOfflineFetcher(): OfflineFetcher | undefined {
+    return this._offlineFetcher;
+  }
+
+  /**
+   * Check if caching is currently enabled.
+   * @returns True if caching is enabled, false otherwise
+   */
+  isCachingEnabled(): boolean {
+    return this._enableCaching;
+  }
+
+  /**
+   * Export the cached data as JSON string.
+   * @returns JSON string of cached data or null if caching is disabled
+   */
+  exportCache(): string | null {
+    return this._offlineFetcher ? this._offlineFetcher.toJSON() : null;
+  }
+
+  /**
+   * Import cached data from JSON string.
+   * @param jsonData - JSON string containing cached data
+   * @param enableCaching - Whether to enable caching if not already enabled
+   */
+  importCache(jsonData: string, enableCaching = true): void {
+    if (enableCaching && !this._enableCaching) {
+      this.setCaching(true);
+    }
+    
+    if (this._offlineFetcher) {
+      const importedFetcher = OfflineFetcher.fromJSON(jsonData);
+      this._offlineFetcher = importedFetcher;
+    }
+  }
+
+  /**
+   * Clear all cached data.
+   */
+  clearCache(): void {
+    if (this._offlineFetcher) {
+      this._offlineFetcher = new OfflineFetcher(this._network);
+    }
   }
 }

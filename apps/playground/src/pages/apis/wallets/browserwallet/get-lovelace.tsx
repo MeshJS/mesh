@@ -17,7 +17,12 @@ export default function BrowserWalletGetLovelace() {
 function Left() {
   return (
     <>
-      <p>Return the lovelace balance in wallet. 1 ADA = 1000000 lovelace.</p>
+      <p>
+        This API retrieves the Lovelace balance in the connected wallet. Lovelace is the smallest denomination of ADA, where 1 ADA equals 1,000,000 Lovelace.
+      </p>
+      <p>
+        Applications can use this information to display the wallet's balance or perform operations involving ADA.
+      </p>
     </>
   );
 }

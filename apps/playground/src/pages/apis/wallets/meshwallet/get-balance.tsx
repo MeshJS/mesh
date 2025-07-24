@@ -15,38 +15,45 @@ export default function MeshWalletGetBalance() {
 }
 
 function Left() {
-  let codeSample = `[\n`;
-  codeSample += `  {\n`;
-  codeSample += `    "unit": "lovelace",\n`;
-  codeSample += `    "quantity": "796105407"\n`;
-  codeSample += `  },\n`;
-  codeSample += `  {\n`;
-  codeSample += `    "unit": "0f5560dbc05282e05507aedb02d823d9d9f0e583cce579b81f9d1cd8",\n`;
-  codeSample += `    "quantity": "1"\n`;
-  codeSample += `  },\n`;
-  codeSample += `  {\n`;
-  codeSample += `    "unit": "9c8e9da7f81e3ca90485f32ebefc98137c8ac260a072a00c4aaf142d4d657368546f6b656e",\n`;
-  codeSample += `    "quantity": "2"\n`;
-  codeSample += `  },\n`;
-  codeSample += `]\n`;
+  let codeSample = `[
+`;
+  codeSample += `  {
+`;
+  codeSample += `    "unit": "lovelace",
+`;
+  codeSample += `    "quantity": "796105407"
+`;
+  codeSample += `  },
+`;
+  codeSample += `  {
+`;
+  codeSample += `    "unit": "0f5560dbc05282e05507aedb02d823d9d9f0e583cce579b81f9d1cd8",
+`;
+  codeSample += `    "quantity": "1"
+`;
+  codeSample += `  },
+`;
+  codeSample += `  {
+`;
+  codeSample += `    "unit": "9c8e9da7f81e3ca90485f32ebefc98137c8ac260a072a00c4aaf142d4d657368546f6b656e",
+`;
+  codeSample += `    "quantity": "2"
+`;
+  codeSample += `  },
+`;
+  codeSample += `]
+`;
 
   return (
     <>
       <p>
-        Returns a list of assets in the wallet. This API will return every
-        assets in the wallet. Each asset is an object with the following
-        properties:
+        This API returns a comprehensive list of all assets in the wallet, including lovelace. Each asset is represented as an object with the following properties:
       </p>
       <ul>
-        <li>
-          A unit is provided to display asset's name on the user interface.
-        </li>
-        <li>
-          A quantity is provided to display asset's quantity on the user
-          interface.
-        </li>
+        <li><code>unit</code>: A unique identifier for the asset, often used for display purposes.</li>
+        <li><code>quantity</code>: The amount of the asset held in the wallet.</li>
       </ul>
-      <p>Example:</p>
+      <p>Example response:</p>
       <Codeblock data={codeSample} />
     </>
   );

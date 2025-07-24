@@ -18,9 +18,14 @@ function Left() {
   return (
     <>
       <p>
-        Returns an address owned by the wallet that should be used as a change
-        address to return leftover assets during transaction creation back to
-        the connected wallet.
+        This API returns an address owned by the wallet that should be used as a
+        change address. A change address is where leftover assets from a
+        transaction are returned during its creation. This ensures that any
+        unspent assets are sent back to the connected wallet.
+      </p>
+      <p>
+        Applications can use this API to manage transaction outputs effectively,
+        ensuring proper handling of change during transactions.
       </p>
     </>
   );

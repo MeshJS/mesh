@@ -18,11 +18,20 @@ function Left() {
   return (
     <>
       <p>
-        Requests user to sign the provided transaction (<code>tx</code>). The
-        wallet should ask the user for permission, and if given, try to sign the
-        supplied body and return a signed transaction. <code>partialSign</code>{" "}
-        should be <code>true</code> if the transaction provided requires
-        multiple signatures.
+        This API enables applications to request the signing of a transaction
+        using the private keys managed by the connected wallet. Signing a
+        transaction is a critical step in ensuring its authenticity and
+        authorization.
+      </p>
+      <p>
+        The wallet ensures that the transaction is signed securely, preventing
+        unauthorized access to private keys. Once signed, the transaction can be
+        submitted to the blockchain network for processing.
+      </p>
+      <p>
+        This functionality is vital for applications that need to interact with
+        the blockchain securely, as it delegates sensitive operations to the
+        wallet.
       </p>
     </>
   );

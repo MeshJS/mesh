@@ -24,18 +24,19 @@ function Left() {
         <Link href="https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki">
           Bitcoin BIP39
         </Link>
-        . These mnemonic phrases allow you to recover your wallet.
+        . These mnemonic phrases are essential for recovering your wallet and
+        ensuring secure access to your funds.
       </p>
       <Codeblock data={`const mnemonic = MeshWallet.brew();`} />
       <p>
-        Once you have your mnemonic phrase, you can use it to generate your
-        deterministic keys. It will typically generate a series of private keys
-        and corresponding public keys, which you can use to manage your
-        cryptocurrencies.
+        Once you have your mnemonic phrase, you can use it to generate
+        deterministic keys. These keys include a series of private and public
+        keys, which are crucial for managing your cryptocurrencies securely.
       </p>
       <p>
-        You can also generate private keys directly by adding true in the brew
-        function.
+        Alternatively, you can generate private keys directly by passing `true` to
+        the `brew` function. This approach is useful for scenarios where you need
+        immediate access to private keys without mnemonic phrases.
       </p>
       <Codeblock data={`const privatekey = MeshWallet.brew(true);`} />
     </>

@@ -9,7 +9,7 @@ import {
 import { MenuItem } from "~/types/menu-item";
 
 export const metaOverview = {
-  title: "Cardano Data Overview",
+  title: "Data Overview",
   desc: "Learn about the basics, and how Mesh handles Cardano data",
   link: "/apis/data/overview",
   icon: CircleStackIcon,
@@ -17,25 +17,25 @@ export const metaOverview = {
 
 export const metaDataMesh = {
   title: "Mesh Data",
-  desc: "Parse and manipulate Cardano data with Mesh Data type",
+  desc: "Parse and manipulate data with Mesh Data type",
   link: "/apis/data/mesh",
   icon: Bars2Icon,
 };
 export const metaDataJson = {
   title: "JSON Data",
-  desc: "Parse and manipulate Cardano data with JSON",
+  desc: "Parse and manipulate data with JSON",
   link: "/apis/data/json",
   icon: Bars3Icon,
 };
 export const metaDataValue = {
   title: "Value",
-  desc: "Manipulate Cardano Value Easily",
+  desc: "Manipulate Value Easily",
   link: "/apis/data/value",
   icon: Bars3Icon,
 };
 export const metaDataCbor = {
   title: "CBOR Data",
-  desc: "Parse and manipulate Cardano data with CBOR",
+  desc: "Parse and manipulate data with CBOR",
   link: "/apis/data/cbor",
   icon: Bars4Icon,
 };

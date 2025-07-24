@@ -72,18 +72,20 @@ const ReactPage: NextPage = () => {
           heroicon={metaBrowserwallet.icon}
         >
           <p>
-            These wallets APIs are in accordance to{" "}
-            <Link href="https://cips.cardano.org/cip/CIP-30">CIP-30</Link>,
-            which defines the API for apps to communicate with the user's
-            wallet. Additional utility functions provided for developers that
-            are useful for building applications.
+            <code>BrowserWallet</code> provides APIs for interacting with
+            browser-based wallets in accordance with{" "}
+            <Link href="https://cips.cardano.org/cip/CIP-30">CIP-30</Link>. This
+            standard defines the communication protocol between applications and
+            user wallets, ensuring compatibility and security.
           </p>
-
-          <p>Check out the full documentation on</p>
-
           <p>
-            In this section, you can connect wallet and try APIs for apps to
-            communicate with your wallet.
+            In addition to the CIP-30 APIs, <code>BrowserWallet</code> includes
+            utility functions that simplify common tasks such as retrieving wallet
+            balances, signing transactions, and managing UTXOs.
+          </p>
+          <p>
+            This section allows you to explore and test the available APIs for
+            browser wallets, enabling seamless integration into your applications.
           </p>
         </TitleIconDescriptionBody>
 

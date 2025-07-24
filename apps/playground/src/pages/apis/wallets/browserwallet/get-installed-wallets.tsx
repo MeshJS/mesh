@@ -28,22 +28,23 @@ function Left() {
   return (
     <>
       <p>
-        Returns a list of wallets installed on user's device. Each wallet is an
-        object with the following properties:
+        This API retrieves a list of wallets installed on the user's device. Each wallet is represented as an object containing the following properties:
       </p>
       <ul>
         <li>
-          A name is provided to display wallet's name on the user interface.
+          <strong>Name:</strong> The name of the wallet, useful for identifying it in the user interface.
         </li>
         <li>
-          A version is provided to display wallet's version on the user
-          interface.
+          <strong>Version:</strong> The version of the wallet, which can be used to ensure compatibility.
         </li>
         <li>
-          An icon is provided to display wallet's icon on the user interface.
+          <strong>Icon:</strong> A base64-encoded image representing the wallet's icon, useful for visual representation.
         </li>
       </ul>
-      <p>Example:</p>
+      <p>
+        Applications can use this information to display available wallets and allow users to select one for interaction.
+      </p>
+      <p>Example response:</p>
       <Codeblock data={example} />
     </>
   );

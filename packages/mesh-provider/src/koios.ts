@@ -2,6 +2,7 @@ import axios, { AxiosInstance, CreateAxiosDefaults } from "axios";
 
 import {
   AccountInfo,
+  Action,
   Asset,
   AssetMetadata,
   BlockInfo,
@@ -9,6 +10,7 @@ import {
   DEFAULT_FETCHER_OPTIONS,
   fromUTF8,
   GovernanceProposalInfo,
+  IEvaluator,
   IFetcher,
   IFetcherOptions,
   IListener,
@@ -36,7 +38,7 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
 
 export type KoiosSupportedNetworks = "api" | "preview" | "preprod" | "guild";
 
-export class KoiosProvider implements IFetcher, IListener, ISubmitter {
+export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluator {
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: KoiosSupportedNetworks;
 
@@ -425,6 +427,8 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
       const { data, status } = await this._axiosInstance.post("tx_info", {
         _tx_hashes: [hash],
         _assets: true,
+        _scripts: true,
+        _bytecode: true,
       });
 
       if (status === 200) {
@@ -605,4 +609,55 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter {
 
     return undefined;
   };
+
+  async evaluateTx(tx: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      };
+
+      const body = {
+        jsonrpc: "2.0",
+        method: "evaluateTransaction",
+        params: {
+          transaction: {
+            cbor: tx
+          },
+        }
+      }
+
+      const { data, status } = await this._axiosInstance.post(
+        "ogmios",
+        body,
+        { headers },
+      );
+
+      if (status === 200 || status === 202) {
+        if (!data.result || !data.result.length) {
+          return [];
+        }
+
+        return data.result.map((val: any) => {
+          if (!val.validator || !val.budget) {
+            throw new Error("Invalid response format");
+          }
+          return <Omit<Action, "data">>{
+            index: val.validator.index,
+            tag: val.validator.purpose.toUpperCase(),
+            budget: {
+              mem: val.budget.memory,
+              steps: val.budget.cpu,
+            },
+          };
+        })
+      }
+
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+
 }

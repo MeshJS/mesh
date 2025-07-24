@@ -28,16 +28,19 @@ function Left() {
   return (
     <>
       <p>
-        This endpoint utilizes the{" "}
-        <Link href="https://cips.cardano.org/cip/CIP-8">
-          CIP-8 - Message Signing
-        </Link>{" "}
-        to sign arbitrary data, to verify the data was signed by the owner of
-        the private key.
+        This API allows applications to request the signing of arbitrary data
+        using the private keys managed by the connected wallet. This is useful
+        for verifying the authenticity of data or creating cryptographic proofs.
       </p>
       <p>
-        <code>signData</code> takes two arguments, the first one is the payload
-        to sign and the second one is the address (optional).
+        The wallet ensures that the signing process is secure and that private
+        keys are not exposed during the operation. The signed data can be used
+        for various purposes, such as authentication, data integrity checks, or
+        blockchain interactions.
+      </p>
+      <p>
+        This functionality is essential for applications that require secure and
+        verifiable data signing capabilities.
       </p>
       <p>Example of a response from the endpoint:</p>
       <Codeblock data={example} />
