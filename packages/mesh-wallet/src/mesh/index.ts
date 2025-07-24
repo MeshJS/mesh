@@ -401,11 +401,7 @@ export class MeshWallet implements IWallet {
    * @param address - the address to use for signing (optional)
    * @returns a signature
    */
-  async signData(
-    payload: string,
-    address?: string,
-    signWithStakeKey = false,
-  ): Promise<DataSignature> {
+  async signData(payload: string, address?: string): Promise<DataSignature> {
     await this.init();
 
     if (!this._wallet) {
@@ -421,7 +417,6 @@ export class MeshWallet implements IWallet {
       payload,
       this._accountIndex,
       this._keyIndex,
-      signWithStakeKey,
     );
   }
 
