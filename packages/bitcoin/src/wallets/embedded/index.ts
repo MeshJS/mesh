@@ -12,6 +12,9 @@ export type CreateWalletOptions = {
   key: {
     type: "mnemonic";
     words: string[];
+  } | {
+    type: "address";
+    address: string;
   };
   path?: string;
   provider?: IBitcoinProvider;
@@ -34,19 +37,28 @@ export type TransactionPayload = {
  */
 export class EmbeddedWallet {
   private readonly _network: Network;
-  private readonly _wallet: BIP32Interface;
+  private readonly _wallet?: BIP32Interface;
   private readonly _provider?: IBitcoinProvider;
+  private readonly _isReadOnly: boolean;
+  private readonly _address?: string;
 
   constructor(options: CreateWalletOptions) {
     this._network = options.testnet
       ? bitcoin.networks.testnet
       : bitcoin.networks.bitcoin;
-
-    this._wallet = _derive(
-      options.key.words,
-      options.path ?? "m/84'/0'/0'/0/0",
-      this._network
-    );
+    
+    if (options.key.type === "mnemonic") {
+      this._wallet = _derive(
+        options.key.words,
+        options.path ?? "m/84'/0'/0'/0/0",
+        this._network
+      );
+      this._isReadOnly = false;
+    } else {
+      // Read-only wallet initialized with just an address
+      this._address = options.key.address;
+      this._isReadOnly = true;
+    }
 
     this._provider = options.provider;
   }
@@ -58,6 +70,18 @@ export class EmbeddedWallet {
    * @throws {Error} If internal address or public key is not properly initialized.
    */
   getAddress(): Address {
+    if (this._isReadOnly && this._address) {
+      return {
+        address: this._address,
+        purpose: "payment",
+        addressType: "p2wpkh"
+      };
+    }
+    
+    if (!this._wallet) {
+      throw new Error("Wallet not initialized properly.");
+    }
+    
     return resolveAddress(
       this._wallet.publicKey,
       this._network
@@ -84,8 +108,17 @@ export class EmbeddedWallet {
    * Returns the hex-encoded public key of the wallet.
    *
    * @returns {string} The public key in hexadecimal format.
+   * @throws {Error} If the wallet is read-only and public key is not available.
    */
   getPublicKey(): string {
+    if (this._isReadOnly) {
+      throw new Error("Public key is not available for read-only wallets.");
+    }
+    
+    if (!this._wallet) {
+      throw new Error("Wallet not initialized properly.");
+    }
+    
     return this._wallet.publicKey.toString("hex");
   }
 
@@ -118,9 +151,14 @@ export class EmbeddedWallet {
    *
    * @param message - The message to be signed.
    * @returns The signature of the message as a string.
+   * @throws {Error} If the wallet is read-only or private key is not available.
    */
   signData(message: string): string {
-    if (!this._wallet.privateKey) {
+    if (this._isReadOnly) {
+      throw new Error("Cannot sign data with a read-only wallet.");
+    }
+    
+    if (!this._wallet || !this._wallet.privateKey) {
       throw new Error("Private key is not available for signing.");
     }
 
@@ -147,9 +185,14 @@ export class EmbeddedWallet {
    * Sign a transaction payload.
    * @param payload - The transaction payload to sign.
    * @returns The signed transaction in hex format.
+   * @throws {Error} If the wallet is read-only or private key is not available.
    */
   signTx(payload: TransactionPayload): string {
-    if (!this._wallet.privateKey) {
+    if (this._isReadOnly) {
+      throw new Error("Cannot sign transactions with a read-only wallet.");
+    }
+    
+    if (!this._wallet || !this._wallet.privateKey) {
       throw new Error("Private key is not available for signing.");
     }
 
