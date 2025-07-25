@@ -38,7 +38,7 @@ const ReactPage: NextPage = () => {
     const message = "test message";
     const signature = wallet.signData(message);
     console.log("signature", signature);
-    const isValid = verifySignature(message, signature, address.publicKey);
+    const isValid = verifySignature(message, signature, address.publicKey!);
     console.log("isValid", isValid);
   }
 
