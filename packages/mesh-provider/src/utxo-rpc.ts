@@ -521,7 +521,7 @@ export class U5CProvider
         } else {
           V = "V3";
         }
-        scriptHash = deserializePlutusScript(scriptRef, V).hash()
+        scriptHash = deserializePlutusScript(scriptRef!, V).hash()
       }
     }
 
