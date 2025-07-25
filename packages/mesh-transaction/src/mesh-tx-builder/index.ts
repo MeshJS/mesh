@@ -41,6 +41,7 @@ import {
   CoinSelectionInterface,
 } from "./coin-selection";
 import {
+  IInputSelector,
   TransactionCost,
   TransactionPrototype,
 } from "./coin-selection/coin-selection-interface";
@@ -51,6 +52,7 @@ export interface MeshTxBuilderOptions {
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
   serializer?: IMeshTxSerializer;
+  selector?: IInputSelector;
   isHydra?: boolean;
   params?: Partial<Protocol>;
   verbose?: boolean;
@@ -58,6 +60,7 @@ export interface MeshTxBuilderOptions {
 
 export class MeshTxBuilder extends MeshTxBuilderCore {
   serializer: IMeshTxSerializer;
+  selector: IInputSelector;
   fetcher?: IFetcher;
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
@@ -69,6 +72,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   constructor({
     serializer,
+    selector,
     fetcher,
     submitter,
     evaluator,
@@ -85,6 +89,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.serializer = serializer;
     } else {
       this.serializer = new CardanoSDKSerializer(this._protocolParams);
+    }
+    if (selector) {
+      this.selector = selector;
+    } else {
+      this.selector = new CardanoSdkInputSelector();
     }
     this.verbose = verbose;
     if (isHydra)
@@ -203,7 +212,18 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   selectUtxos =
     async (): Promise<CoinSelectionInterface.TransactionPrototype> => {
-      const callbacks: CoinSelectionInterface.BuilderCallbacks = {
+      const currentInputs = this.meshTxBuilderBody.inputs;
+      const currentOutputs = this.meshTxBuilderBody.outputs;
+      const changeAddress = this.meshTxBuilderBody.changeAddress;
+      const utxosForSelection = await this.getUtxosForSelection();
+      const implicitValue = {
+        withdrawals: this.getTotalWithdrawal(),
+        deposit: this.getTotalDeposit(),
+        reclaimDeposit: this.getTotalRefund(),
+        mint: this.getTotalMint(),
+      };
+
+      const selectionCallbacks: CoinSelectionInterface.BuilderCallbacks = {
         computeMinimumCost: async (
           selectionSkeleton: TransactionPrototype,
         ): Promise<TransactionCost> => {
@@ -253,24 +273,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         },
       };
 
-      const currentInputs = this.meshTxBuilderBody.inputs;
-      const currentOutputs = this.meshTxBuilderBody.outputs;
-      const changeAddress = this.meshTxBuilderBody.changeAddress;
-      const utxosForSelection = await this.getUtxosForSelection();
-      const implicitValue = {
-        withdrawals: this.getTotalWithdrawal(),
-        deposit: this.getTotalDeposit(),
-        reclaimDeposit: this.getTotalRefund(),
-        mint: this.getTotalMint(),
-      };
-
-      const inputSelector = new CardanoSdkInputSelector(callbacks);
-      return await inputSelector.select(
+      return await this.selector.select(
         currentInputs,
         currentOutputs,
         implicitValue,
         utxosForSelection,
         changeAddress,
+        selectionCallbacks,
       );
     };
 
