@@ -36,7 +36,7 @@ const ReactPage: NextPage = () => {
     // console.log("brew", EmbeddedWallet.brew());
 
     const message = "test message";
-    const signature = wallet.signData(message);
+    const signature = await wallet.signData(message);
     console.log("signature", signature);
     const isValid = verifySignature(message, signature, address.publicKey!);
     console.log("isValid", isValid);
