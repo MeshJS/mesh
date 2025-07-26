@@ -9,13 +9,15 @@ import { resolveAddress } from "../../utils";
 
 export type CreateWalletOptions = {
   testnet: boolean;
-  key: {
-    type: "mnemonic";
-    words: string[];
-  } | {
-    type: "address";
-    address: string;
-  };
+  key:
+    | {
+        type: "mnemonic";
+        words: string[];
+      }
+    | {
+        type: "address";
+        address: string;
+      };
   path?: string;
   provider?: IBitcoinProvider;
 };
@@ -46,7 +48,7 @@ export class EmbeddedWallet {
     this._network = options.testnet
       ? bitcoin.networks.testnet
       : bitcoin.networks.bitcoin;
-    
+
     if (options.key.type === "mnemonic") {
       this._wallet = _derive(
         options.key.words,
@@ -74,18 +76,15 @@ export class EmbeddedWallet {
       return {
         address: this._address,
         purpose: "payment",
-        addressType: "p2wpkh"
+        addressType: "p2wpkh",
       };
     }
-    
+
     if (!this._wallet) {
       throw new Error("Wallet not initialized properly.");
     }
-    
-    return resolveAddress(
-      this._wallet.publicKey,
-      this._network
-    );
+
+    return resolveAddress(this._wallet.publicKey, this._network);
 
     // const p2wpkh = bitcoin.payments.p2wpkh({
     //   pubkey: this._wallet.publicKey,
@@ -114,11 +113,11 @@ export class EmbeddedWallet {
     if (this._isReadOnly) {
       throw new Error("Public key is not available for read-only wallets.");
     }
-    
+
     if (!this._wallet) {
       throw new Error("Wallet not initialized properly.");
     }
-    
+
     return this._wallet.publicKey.toString("hex");
   }
 
@@ -153,11 +152,11 @@ export class EmbeddedWallet {
    * @returns The signature of the message as a string.
    * @throws {Error} If the wallet is read-only or private key is not available.
    */
-  signData(message: string): string {
+  async signData(message: string): Promise<string> {
     if (this._isReadOnly) {
       throw new Error("Cannot sign data with a read-only wallet.");
     }
-    
+
     if (!this._wallet || !this._wallet.privateKey) {
       throw new Error("Private key is not available for signing.");
     }
@@ -187,11 +186,11 @@ export class EmbeddedWallet {
    * @returns The signed transaction in hex format.
    * @throws {Error} If the wallet is read-only or private key is not available.
    */
-  signTx(payload: TransactionPayload): string {
+  async signTx(payload: TransactionPayload): Promise<string> {
     if (this._isReadOnly) {
       throw new Error("Cannot sign transactions with a read-only wallet.");
     }
-    
+
     if (!this._wallet || !this._wallet.privateKey) {
       throw new Error("Private key is not available for signing.");
     }
