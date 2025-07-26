@@ -1,0 +1,45 @@
+{
+  "name": "@meshsdk/bitcoin2",
+  "version": "1.9.0-beta.65",
+  "description": "Mesh Bitcoin package",
+  "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.1.0",
+    "@scure/bip32": "^1.3.2",
+    "bitcoinjs-lib": "^6.1.5",
+    "bn.js": "^5.2.2",
+    "js-sha256": "^0.10.1",
+    "lodash": "^4.17.21",
+    "pbkdf2": "^3.1.2",
+    "ts-log": "^2.2.5"
+  },
+  "devDependencies": {
+    "@meshsdk/configs": "*",
+    "@swc/core": "^1.13.2",
+    "@types/bn.js": "^5.2.0",
+    "@types/lodash": "^4.14.200",
+    "@types/pbkdf2": "^3.1.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.2.2"
+  }
+}
