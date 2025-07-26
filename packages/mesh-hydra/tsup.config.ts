@@ -16,6 +16,6 @@ export default defineConfig({
         },
       }),
     };
-    options.platform = "browser";
+    options.platform = "node";
   },
 });
