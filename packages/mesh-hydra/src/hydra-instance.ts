@@ -1,11 +1,7 @@
 import { parseDatumCbor } from "@meshsdk/core-cst";
-import {
-  IFetcher,
-  ISubmitter,
-} from "@meshsdk/common";
+import { IFetcher, ISubmitter } from "@meshsdk/common";
 import { HydraProvider } from "./hydra-provider";
-import { hTransaction , hAssets} from "./types";
-import JSONBigInt from "json-bigint";
+import { hTransaction} from "./types";
 import { getReferenceScriptInfo } from "./utils/hScriptRef";
 /**
  * todo: implement https://hydra.family/head-protocol/docs/tutorial/
@@ -29,6 +25,13 @@ export class HydraInstance {
     this.submitter = submitter;
   }
 
+  private async _commitToHydra(payload: any): Promise<string> {
+    const commit = await this.provider.buildCommit(payload, {
+      "Content-Type": "application/json",
+    });
+    return commit.cborHex;
+  }
+
   /**
    * To commit funds to the head, choose which UTxO you would like to make available on layer 2.
    * The function returns the transaction, ready to be signed by the user.
@@ -36,6 +39,7 @@ export class HydraInstance {
    * @param txIndex
    * @returns commitTransactionHex
    */
+
   async commitFunds(txHash: string, txIndex: number): Promise<string> {
     const utxo = (await this.fetcher.fetchUTxOs(txHash, txIndex))[0];
     if (!utxo) {
@@ -49,37 +53,38 @@ export class HydraInstance {
         utxo.output.scriptRef === "" || !utxo.output.scriptRef
           ? null
           : utxo.output.scriptRef,
-      value: hAssets(utxo.output.amount),
+      value: {
+        lovelace: Number(
+          utxo.output.amount.find((Asset) => Asset.unit === "lovelace")
+            ?.quantity
+        ),
+      },
+      ...Object.fromEntries(
+        utxo.output.amount
+          .filter((asset) => asset.unit !== "lovelace")
+          .map((asset) => [asset.unit, Number(asset.quantity)])
+      ),
       inlineDatum: utxo.output.plutusData
         ? parseDatumCbor(utxo.output.plutusData)
         : null,
       inlineDatumRaw: utxo.output.plutusData ?? null,
     };
-    const commit = await this.provider.buildCommit(
-      {
-        [txHash + "#" + txIndex]: hydraUtxo,
-      },
-      {
-        "Content-Type": "text/plain",
-      }
-    );
-    console.log(commit);
-    return commit.cborHex;
+    return this._commitToHydra({ [txHash + "#" + txIndex]: hydraUtxo });
   }
 
-/**
- * Commits a blueprint transaction for a given UTxO and Hydra transaction.
- * Fetches the specified UTxO, constructs a blueprint transaction object, and
- * submits it to hydra Head.
- * @param txHash - The transaction hash of the UTxO to commit.
- * @param outputIndex - The output index of the UTxO to commit.
- * @param transaction - The Hydra transaction object containing:
- *   - `type`: The transaction type ("Tx ConwayEra", "Unwitnessed Tx ConwayEra", or "Witnessed Tx ConwayEra").
- *   - `description`: Optional description of the transaction (defaults to empty string if undefined).
- *   - `cborHex`: CBOR hex string of the transaction.
- *   - `txId`: Optional transaction ID (not used in the function).
- * @returns A promise that resolves to the CBOR hex string of the commit transaction.
- */
+  /**
+   * Commits a blueprint transaction for a given UTxO and Hydra transaction.
+   * Fetches the specified UTxO, constructs a blueprint transaction object, and
+   * submits it to hydra Head.
+   * @param txHash - The transaction hash of the UTxO to commit.
+   * @param outputIndex - The output index of the UTxO to commit.
+   * @param transaction - The Hydra transaction object containing:
+   *   - `type`: The transaction type ("Tx ConwayEra", "Unwitnessed Tx ConwayEra", or "Witnessed Tx ConwayEra").
+   *   - `description`: Optional description of the transaction (defaults to empty string if undefined).
+   *   - `cborHex`: CBOR hex string of the transaction.
+   *   - `txId`: Optional transaction ID (not used in the function).
+   * @returns A promise that resolves to the CBOR hex string of the commit transaction.
+   */
   async commitBlueprint(
     txHash: string,
     outputIndex: number,
@@ -91,7 +96,7 @@ export class HydraInstance {
     }
 
     const { scriptInstance, scriptLanguage, scriptType } =
-      getReferenceScriptInfo(utxo.output.scriptRef);
+      await getReferenceScriptInfo(utxo.output.scriptRef);
 
     const blueprintTx = {
       blueprintTx: {
@@ -103,18 +108,17 @@ export class HydraInstance {
         type: transaction.type,
       },
       utxo: {
-        [`${utxo.input.txHash}#${utxo.input.outputIndex}`]: {
+        [`${txHash}#${outputIndex}`]: {
           address: utxo.output.address,
-          value: {
-            lovelace: utxo.output.amount.find(
-              (Asset) => Asset.unit === "lovelace"
-            )?.quantity,
-          },
-          ...Object.fromEntries(
-            utxo.output.amount
-              .filter((asset) => asset.unit !== "lovelace")
-              .map((asset) => [asset.unit, asset.quantity])
-          ),
+          datum: null,
+          datumHash:
+            utxo.output.dataHash === "" || !utxo.output.dataHash
+              ? null
+              : utxo.output.dataHash,
+          inlineDatum: utxo.output.plutusData
+            ? parseDatumCbor(utxo.output.plutusData)
+            : null,
+          inlineDatumRaw: utxo.output.plutusData ?? null,
           referenceScript:
             utxo.output.scriptRef && scriptInstance
               ? {
@@ -126,29 +130,21 @@ export class HydraInstance {
                   },
                 }
               : null,
-          datumHash:
-            utxo.output.dataHash === "" || !utxo.output.dataHash
-              ? null
-              : utxo.output.dataHash,
-          datum: null,
-          inlineDatum: utxo.output.plutusData
-            ? parseDatumCbor(utxo.output.plutusData)
-            : null,
-          inlineDatumRaw: utxo.output.plutusData ?? null,
+          value: {
+            lovelace: Number(
+              utxo.output.amount.find((Asset) => Asset.unit === "lovelace")
+                ?.quantity
+            ),
+          },
+          ...Object.fromEntries(
+            utxo.output.amount
+              .filter((asset) => asset.unit !== "lovelace")
+              .map((asset) => [asset.unit, Number(asset.quantity)])
+          ),
         },
       },
     };
-    const commit = await this.provider.buildCommit(
-      {
-        [`${utxo.input.txHash}#${utxo.input.outputIndex}`]: blueprintTx,
-      },
-      {
-        "Content-Type": "application/json",
-      }
-    );
-    const jsonFormat = JSONBigInt.stringify(blueprintTx);
-    console.log("Json format visualizer", jsonFormat);
-    return commit;
+    return this._commitToHydra({ blueprintTx });
   }
 
   /**
@@ -158,37 +154,67 @@ export class HydraInstance {
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
    * @returns
    */
-  // async incrementalCommit(UTxO: UTxO, headId: string) {
-  //   const depositObject = {
-  //     headId: headId,
-  //     deposited: {
-  //       [`${UTxO.input.txHash}#${UTxO.input.outputIndex}`]: {
-  //         address: UTxO.output.address,
-  //         value: {
-  //           lovelace:
-  //             UTxO.output.amount.find((asset) => asset.unit === "lovelace")
-  //               ?.quantity ?? "0",
-  //           ...Object.fromEntries(
-  //             UTxO.output.amount
-  //               .filter((asset) => asset.unit !== "lovelace")
-  //               .map((asset) => [asset.unit, asset.quantity])
-  //           ),
-  //         },
-  //         datumHash: null,
-  //         inlineDatum: null,
-  //         inlineDatumRaw: null,
-  //         referenceScript: null,
-  //       },
-  //     },
-  //     created: new Date().toISOString(),
-  //     deadline: new Date(Date.now() + 3600 * 1000).toISOString(), // Example: 1 hour from now
-  //     status: {
-  //       tag: "Unknown",
-  //     },
-  //   };
-  //   console.log(depositObject);
-  //   return "txHash";
-  // }
+  async incrementalCommit(
+    txHash: string,
+    outputIndex: number,
+    transaction: hTransaction
+  ): Promise<string> {
+    const utxo = (await this.fetcher.fetchUTxOs(txHash, outputIndex))[0];
+    if (!utxo) {
+      throw new Error(`UTxO not found: ${txHash}#${outputIndex}`);
+    }
+
+    const { scriptInstance, scriptLanguage, scriptType } =
+      await getReferenceScriptInfo(utxo.output.scriptRef);
+
+    const blueprintTx = {
+      blueprintTx: {
+        cborHex: transaction.cborHex,
+        description:
+          transaction.description === undefined
+            ? (transaction.description = "")
+            : transaction.description,
+        type: transaction.type,
+      },
+      utxo: {
+        [`${txHash}#${outputIndex}`]: {
+          address: utxo.output.address,
+          datum: null,
+          datumHash:
+            utxo.output.dataHash === "" || !utxo.output.dataHash
+              ? null
+              : utxo.output.dataHash,
+          inlineDatum: utxo.output.plutusData
+            ? parseDatumCbor(utxo.output.plutusData)
+            : null,
+          inlineDatumRaw: utxo.output.plutusData ?? null,
+          referenceScript:
+            utxo.output.scriptRef && scriptInstance
+              ? {
+                  scriptLanguage,
+                  script: {
+                    cborHex: utxo.output.scriptRef,
+                    description: transaction.description ?? " ",
+                    type: scriptType,
+                  },
+                }
+              : null,
+          value: {
+            lovelace: Number(
+              utxo.output.amount.find((Asset: any) => Asset.unit === "lovelace")
+                ?.quantity
+            ),
+          },
+          ...Object.fromEntries(
+            utxo.output.amount
+              .filter((asset: any) => asset.unit !== "lovelace")
+              .map((asset: any) => [asset.unit, Number(asset.quantity)])
+          ),
+        },
+      },
+    };
+    return this._commitToHydra({ blueprintTx });
+  }
 
   /**
    * https://hydra.family/head-protocol/docs/how-to/incremental-decommit
@@ -196,7 +222,6 @@ export class HydraInstance {
    * @returns
    */
   async incrementalDecommit() {
-    
     return "txHash";
   }
 }
