@@ -245,9 +245,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
    */
   async close() {
     this.onStatusChange((status) => {
-      console.log("close status", status);
       if (status === "OPEN") {
         this._connection.send({ tag: "Close" });
+      } else {
+        throw new Error(
+          `Head is not open cannot close , head status: ${status}`
+        );
       }
     });
   }
@@ -264,9 +267,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
    */
   async fanout() {
     this.onStatusChange((status) => {
-      console.log("status last", status);
       if (status === "FANOUT_POSSIBLE") {
         this._connection.send({ tag: "Fanout" });
+      } else {
+        throw new Error(
+          `Head is not closed cannnot fanout , head status: ${status}`
+        );
       }
     });
   }
