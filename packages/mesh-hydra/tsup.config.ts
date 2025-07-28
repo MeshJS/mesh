@@ -7,6 +7,7 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
+  external: ["isomorphic-ws"],
   esbuildOptions(options) {
     options.define = {
       global: "globalThis",
@@ -16,6 +17,5 @@ export default defineConfig({
         },
       }),
     };
-    options.platform = "browser";
   },
 });
