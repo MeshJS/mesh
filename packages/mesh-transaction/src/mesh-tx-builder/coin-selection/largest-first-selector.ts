@@ -142,7 +142,7 @@ const computeNetImplicitSelectionValues = (
  * It selects UTxOs based on the needed value, starting with the largest UTxOs for
  * each needed token type, and then filling in with smaller UTxOs as needed.
  */
-export class LargestFirstSelection implements IInputSelector {
+export class LargestFirstInputSelector implements IInputSelector {
   // Change outputs will be computed
   // dummy output field is used to indicate that these outputs are not real
   // and so we will not check whether there is enough value to cover min utxo value
@@ -198,13 +198,31 @@ export class LargestFirstSelection implements IInputSelector {
           lovelaceAvailable -= minUtxo;
         }
       }
+      // Handle final token bundle
+      if (currentBundle.length > 0) {
+        const minUtxo = constraints.computeMinimumCoinQuantity({
+          address: changeAddress,
+          amount: currentBundle,
+        });
+        currentBundle[0]!.quantity = minUtxo.toString();
+        changeOutputs.push({
+          address: changeAddress,
+          amount: currentBundle,
+        });
+        lovelaceAvailable -= minUtxo;
+      }
 
       // If there is lovelace remaining, just put it in the last output
       if (lovelaceAvailable > 0n) {
-        changeOutputs[changeOutputs.length - 1]!.amount[0]!.quantity = String(
-          lovelaceAvailable +
-            BigInt(currentBundle[currentBundle.length - 1]!.quantity),
+        const finalOutput = changeOutputs[changeOutputs.length - 1]!;
+        const finalOutputLovelaces = finalOutput.amount.find(
+          (asset) => asset.unit === "lovelace",
         );
+        if (finalOutputLovelaces) {
+          finalOutputLovelaces.quantity = String(
+            BigInt(lovelaceAvailable) + BigInt(finalOutputLovelaces.quantity),
+          );
+        }
       } else {
         // If there's no lovelace remaining, then we return the change outputs
         // each with min utxo value, and we set valueFulfilled to false to indicate this
@@ -215,6 +233,10 @@ export class LargestFirstSelection implements IInputSelector {
         address: changeAddress,
         amount: valueAssets,
       });
+      if (lovelaceAvailable < 0n) {
+        // If there's not enough lovelace to cover the min UTxO value, we set valueFulfilled to false
+        valueFulfilled = false;
+      }
     }
 
     return { changeOutputs, valueFulfilled };
@@ -273,7 +295,12 @@ export class LargestFirstSelection implements IInputSelector {
     // We will recompute the costs based on the selected UTxOs
     let computedCost = 0n;
     let computedChangeOutputs: TxOutput[] = [];
-    for (let i = 0; i < 3; i++) {
+    // We need to decide on a number of iterations to calculate change and fees
+    // since they are dependent on each other. They should eventually converge
+    // to a stable value, but it's possible that they don't, in which case, we
+    // will just limit the number of iterations
+    let numberOfIterations = 3;
+    for (let i = 0; i < numberOfIterations; i++) {
       const remainingValueWithCost = subValue(
         remainingValue,
         new Map([["lovelace", computedCost]]),
@@ -283,14 +310,6 @@ export class LargestFirstSelection implements IInputSelector {
         changeAddress,
         constraints,
       );
-      computedCost = (
-        await constraints.computeMinimumCost({
-          newInputs: selectedUtxos,
-          newOutputs: new Set(),
-          change: changeOutputs,
-          fee: MAX_U64,
-        })
-      ).fee;
       computedChangeOutputs = changeOutputs;
       if (!valueFulfilled) {
         if (remainingUtxos.length === 0) {
@@ -301,8 +320,20 @@ export class LargestFirstSelection implements IInputSelector {
             selectedUtxos.add(selectedUtxo);
             const utxoValue = assetsToValue(selectedUtxo.output.amount);
             remainingValue = mergeValue(remainingValue, utxoValue);
+            numberOfIterations++; // Increase iterations since we added a new UTxO
           }
         }
+      }
+      if (i < numberOfIterations - 1) {
+        // If we are not on the last iteration, we will recompute the cost
+        computedCost = (
+          await constraints.computeMinimumCost({
+            newInputs: selectedUtxos,
+            newOutputs: new Set(),
+            change: changeOutputs,
+            fee: MAX_U64,
+          })
+        ).fee;
       }
     }
 
@@ -335,7 +366,7 @@ export class LargestFirstSelection implements IInputSelector {
 
     // Do a sanity check that we have enough UTxOs to cover the required value
     const remainingValue = subValue(utxosValue, requiredValue);
-    if (Array.from(remainingValue.values()).every((v) => v >= 0n)) {
+    if (!Array.from(remainingValue.values()).every((v) => v >= 0n)) {
       throw new Error("Not enough UTxOs to cover the required value.");
     }
 
@@ -346,7 +377,16 @@ export class LargestFirstSelection implements IInputSelector {
         changeAddress,
         constraints,
       );
-
+    if (
+      await constraints.maxSizeExceed({
+        newInputs: finalSelectedUtxos,
+        newOutputs: new Set(),
+        change: changeOutputs,
+        fee: fee,
+      })
+    ) {
+      throw new Error("Transaction size exceeds the maximum allowed size.");
+    }
     return {
       newInputs: finalSelectedUtxos,
       newOutputs: new Set(),

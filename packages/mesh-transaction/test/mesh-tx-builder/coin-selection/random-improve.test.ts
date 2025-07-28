@@ -13,9 +13,9 @@ import {
   calculateOutputMeshValue,
   mockTokenUnit,
   txHash,
-} from "../test-util";
+} from "../../test-util";
 
-describe("MeshTxBuilder - coin selection", () => {
+describe("MeshTxBuilder - coin selection - Random improve", () => {
   let txBuilder: MeshTxBuilder;
 
   beforeEach(() => {
