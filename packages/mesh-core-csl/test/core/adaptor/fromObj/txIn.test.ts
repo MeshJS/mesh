@@ -288,7 +288,6 @@ describe("txIn.ts Round Trip Tests", () => {
           txIndex: 5,
           amount: [{ unit: "lovelace", quantity: "5000000" }],
           address: "addr_test1234",
-          scriptSize: 0,
         },
       };
 
