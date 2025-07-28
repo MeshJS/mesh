@@ -143,9 +143,10 @@ const computeNetImplicitSelectionValues = (
  * each needed token type, and then filling in with smaller UTxOs as needed.
  */
 export class LargestFirstInputSelector implements IInputSelector {
-  // Change outputs will be computed
-  // dummy output field is used to indicate that these outputs are not real
-  // and so we will not check whether there is enough value to cover min utxo value
+  // Change outputs will be computed, and an indicator will be
+  // returned to indicate whether the value is fully fulfilled or not.
+  // If the value is not fully fulfilled, it means that inputs were not enough
+  // to cover the required value
   private computeChangeOutputs = (
     remainingValue: Value,
     changeAddress: string,
@@ -155,7 +156,7 @@ export class LargestFirstInputSelector implements IInputSelector {
     let valueFulfilled = true;
     const valueAssets = remainingValue
       .entries()
-      .filter(([unit, quantity]) => quantity > 0n)
+      .filter(([_, quantity]) => quantity > 0n)
       .map(([unit, quantity]) => ({
         unit,
         quantity: String(quantity),
@@ -234,7 +235,8 @@ export class LargestFirstInputSelector implements IInputSelector {
         amount: valueAssets,
       });
       if (lovelaceAvailable < 0n) {
-        // If there's not enough lovelace to cover the min UTxO value, we set valueFulfilled to false
+        // lovelaceAvailable being negative means that we didn't have enough
+        // lovelaces to cover fees, we set valueFulfilled to false
         valueFulfilled = false;
       }
     }
