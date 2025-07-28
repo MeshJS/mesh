@@ -583,8 +583,6 @@ describe("MeshTxBuilder - coin selection - Largest first", () => {
       quantity: cardanoTx.body().fee().toString(),
     });
     const inputValue = await calculateInputMeshValue(tx, fetcher);
-    console.log(inputValue.value);
-    console.log(outputValue.value);
     expect(inputValue.eq(outputValue)).toBe(true);
   });
 
