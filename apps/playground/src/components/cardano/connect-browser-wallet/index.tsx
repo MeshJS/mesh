@@ -43,6 +43,7 @@ export function CommonCardanoWallet() {
         networkId: 0,
         fetcher: provider,
         submitter: provider,
+        projectId: "31c8857a-43a7-4b85-b8be-5486e53caab3",
       }}
     />
   );

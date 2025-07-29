@@ -28,10 +28,10 @@ export default function ConnectedButton() {
         >
           Copy Address
         </DropdownMenuItem>
-        {name == "Mesh Web3 Services" && (
+        {name == "utxos" && (
           <DropdownMenuItem
             onClick={() => {
-              window.open("https://web3.meshjs.dev/dashboard", "_blank");
+              window.open("https://utxos.dev/wallet", "_blank");
             }}
           >
             Open Web3 Wallet
