@@ -28,6 +28,31 @@ function left() {
         </Link>{" "}
         to ensure consistent and reliable code generation.
       </p>
+      <h4 className="mb-3 mt-8 text-xl font-bold text-gray-900 dark:text-white">
+        Features
+      </h4>
+      <ul className="mb-4 list-inside list-disc space-y-2 text-gray-500 dark:text-gray-400">
+        <li>
+          <strong>Type Safety:</strong> Generates TypeScript interfaces and
+          types based on your blueprint schema
+        </li>
+        <li>
+          <strong>Blueprint Classes:</strong> Automatically creates Mesh
+          blueprint classes for spending, minting, and withdrawal validators
+        </li>
+        <li>
+          <strong>Import Management:</strong> Handles all necessary imports from
+          the Mesh SDK
+        </li>
+        <li>
+          <strong>CIP-57 Compliant:</strong> Supports the full CIP-57 blueprint
+          specification
+        </li>
+        <li>
+          <strong>Easy Integration:</strong> Generated code integrates
+          seamlessly with existing Mesh projects
+        </li>
+      </ul>
     </>
   );
 }
@@ -197,32 +222,6 @@ export type RBurn = ConStr1<[]>;`;
         classes:
       </p>
       <Codeblock data={generatedOutputCode} isJson={false} />
-
-      <h3 className="mb-3 mt-8 text-2xl font-bold text-gray-900 dark:text-white">
-        Features
-      </h3>
-      <ul className="mb-4 list-inside list-disc space-y-2 text-gray-500 dark:text-gray-400">
-        <li>
-          <strong>Type Safety:</strong> Generates TypeScript interfaces and
-          types based on your blueprint schema
-        </li>
-        <li>
-          <strong>Blueprint Classes:</strong> Automatically creates Mesh
-          blueprint classes for spending, minting, and withdrawal validators
-        </li>
-        <li>
-          <strong>Import Management:</strong> Handles all necessary imports from
-          the Mesh SDK
-        </li>
-        <li>
-          <strong>CIP-57 Compliant:</strong> Supports the full CIP-57 blueprint
-          specification
-        </li>
-        <li>
-          <strong>Easy Integration:</strong> Generated code integrates
-          seamlessly with existing Mesh projects
-        </li>
-      </ul>
     </>
   );
 }
