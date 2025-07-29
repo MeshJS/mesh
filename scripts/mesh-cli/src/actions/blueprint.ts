@@ -9,20 +9,16 @@ export const blueprint = async (blueprintPath: string, outputPath: string) => {
   const resolvedOutputPath = resolve(outputPath);
 
   try {
-    // Validate files
     validateFiles(resolvedBlueprintPath, resolvedOutputPath);
 
-    // Parse blueprint
     const blueprintData = parseBlueprintFile(resolvedBlueprintPath);
 
-    // Parse blueprint using cardano-bar
     logInfo("🔍 Parsing Cardano blueprint...");
     const generatedCode = parseCardanoBlueprint(
       blueprintData,
       resolvedBlueprintPath
     );
 
-    // Ensure output directory exists (following create.ts pattern)
     const outputDir = dirname(resolvedOutputPath);
     if (!existsSync(outputDir)) {
       if (mkdirSync(outputDir, { recursive: true }) === undefined) {
@@ -35,9 +31,6 @@ export const blueprint = async (blueprintPath: string, outputPath: string) => {
     writeFileSync(resolvedOutputPath, generatedCode);
 
     logSuccess(`✨ Generated TypeScript file: ${resolvedOutputPath}`);
-    logInfo(`📝 Generated code contains:`);
-
-    // Show summary of what was generated
   } catch (error) {
     logError(error);
     process.exit(1);
@@ -45,19 +38,16 @@ export const blueprint = async (blueprintPath: string, outputPath: string) => {
 };
 
 const validateFiles = (blueprintPath: string, outputPath: string): void => {
-  // Validate blueprint file exists
   if (!existsSync(blueprintPath)) {
     logError(`❗ Blueprint file not found: ${blueprintPath}`);
     process.exit(1);
   }
 
-  // Validate blueprint file extension
   if (extname(blueprintPath) !== ".json") {
     logError("❗ Blueprint file must be a JSON file");
     process.exit(1);
   }
 
-  // Validate output file extension - only TypeScript supported
   if (extname(outputPath) !== ".ts") {
     logError("❗ Output file must have .ts extension");
     process.exit(1);
@@ -79,7 +69,6 @@ const parseBlueprintFile = (blueprintPath: string): any => {
 const parseCardanoBlueprint = (script: any, blueprintPath: string): string => {
   logInfo("⚡ Generating TypeScript code...");
 
-  // Create blueprint parser following the json.ts pattern
   const blueprint = new BlueprintParser(
     script,
     jsonImportCodeMap,
@@ -87,14 +76,12 @@ const parseCardanoBlueprint = (script: any, blueprintPath: string): string => {
     new TSCodeBuilder()
   );
 
-  // Generate the code using the same method chain as in json.ts
   blueprint
     .analyzeDefinitions()
     .generateBlueprints()
     .generateImports(blueprintPath)
     .generateTypes();
 
-  // Get the full snippet
   const fullSnippet: string[] = blueprint.getFullSnippet();
 
   return fullSnippet.join("\n\n");
