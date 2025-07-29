@@ -34,9 +34,7 @@ export default function Web3Services({
       projectId: options.projectId,
       directTo: directTo,
     };
-    console.log(222, _options)
     const wallet = await Web3Wallet.enable(_options);
-    console.log(333, "wallet", wallet);
     const user = wallet.getUser();
 
     setWeb3UserData(user);
