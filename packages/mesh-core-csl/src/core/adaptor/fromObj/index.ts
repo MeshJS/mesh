@@ -22,7 +22,7 @@ import { withdrawalFromObj } from "./withdrawal";
  */
 export const txBuilderBodyFromObj = (objJson: any): MeshTxBuilderBody => {
   const txBuilderBody: MeshTxBuilderBody = emptyTxBuilderBody();
-  const obj = JSON.parse(objJson);
+  const obj = typeof objJson === "string" ? JSON.parse(objJson) : objJson;
 
   // Convert inputs
   if (obj.inputs && Array.isArray(obj.inputs)) {

@@ -122,18 +122,13 @@ export class BuilderCallbacksSdkBridge
 }
 
 export class CardanoSdkInputSelector implements IInputSelector {
-  private readonly constraints: BuilderCallbacks;
-
-  constructor(constraints: BuilderCallbacks) {
-    this.constraints = constraints;
-  }
-
   async select(
     preselectedUtxos: TxIn[],
     outputs: Output[],
     implicitValue: ImplicitValue,
     utxos: UTxO[],
     changeAddress: string,
+    constraints: BuilderCallbacks,
   ): Promise<TransactionPrototype> {
     // Create a map of UTxOs for quick lookup
     const utxoMap = new Map<string, UTxO>();
@@ -165,7 +160,7 @@ export class CardanoSdkInputSelector implements IInputSelector {
     }
     // Create bridge for callbacks
     const builderCallbacksBridge = new BuilderCallbacksSdkBridge(
-      this.constraints,
+      constraints,
       utxoMap,
       usedUtxos,
     );
