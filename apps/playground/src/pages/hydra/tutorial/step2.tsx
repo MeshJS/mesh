@@ -28,12 +28,12 @@ function Left() {
   aliceHydraConfig += `  --ledger-protocol-parameters ./testnet/protocol-parameters.json \\\n`;
   aliceHydraConfig += `  --testnet-magic 1 \\\n`;
   aliceHydraConfig += `  --node-socket /cardano-node/db/node.socket \\\n`;
-  aliceHydraConfig += `  --contestation-period 5s\n`;
+  aliceHydraConfig += `  --contestation-period 300s\n`;
 
   let bobHydraConfig = `hydra-node \\\n`;
   bobHydraConfig += `  --node-id bob-node \\\n`;
   bobHydraConfig += `  --api-host 0.0.0.0 \\\n`;
-  bobHydraConfig += `  --api-port 4001 \\\n`;
+  bobHydraConfig += `  --api-port 4002 \\\n`;
   bobHydraConfig += `  --listen 172.16.239.20:5001 \\\n`;
   bobHydraConfig += `  --monitoring-port 6001 \\\n`;
   bobHydraConfig += `  --peer 172.16.239.10:5001 \\\n`;
@@ -45,7 +45,7 @@ function Left() {
   bobHydraConfig += `  --ledger-protocol-parameters ./testnet/protocol-parameters.json \\\n`;
   bobHydraConfig += `  --testnet-magic 1 \\\n`;
   bobHydraConfig += `  --node-socket /cardano-node/db/node.socket \\\n`;
-  bobHydraConfig += `  --contestation-period 5s\n`;
+  bobHydraConfig += `  --contestation-period 300s\n`;
 
   return (
     <>
@@ -108,8 +108,8 @@ function Left() {
         </li>
         <li>
           <code>ledger-protocol-parameters</code>: This defines the updatable
-          protocol parameters such as fees or transaction sizes. These
-          parameters follow the same format as the{" "}
+          protocol parameters to be used on L2 such as fees or transaction
+          sizes. These parameters follow the same format as the{" "}
           <code>cardano-cli query protocol-parameters</code> output.
         </li>
         <li>
@@ -128,8 +128,8 @@ function Left() {
       <p>
         Ensure both nodes can communicate with each other and change to your
         correct file paths in the above configuration. This configuration sets
-        up Alice's node to listen on port 4001 and connect to Bob's node on port
-        4001.
+        up Alice's node to listen to API connection on port 4001 Bob's node on
+        port 4002.
       </p>
     </>
   );
