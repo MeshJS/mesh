@@ -15,7 +15,7 @@ export default function HydraTutorialStep6({
 }) {
   return (
     <TwoColumnsScroll
-      sidebarTo="step6"
+      sidebarTo="step5"
       title="Step 5. Close the Hydra head"
       leftSection={Left()}
       rightSection={Right(provider, providerName)}
@@ -24,11 +24,9 @@ export default function HydraTutorialStep6({
 }
 
 function Left() {
-  let codeSnippet = `// Check final balances on layer 1\n`;
-  codeSnippet += `const aliceFundsBalance = await provider.fetchAddressUTxOs("alice-funds-address");\n`;
-  codeSnippet += `const aliceNodeBalance = await provider.fetchAddressUTxOs("alice-node-address");\n\n`;
-  codeSnippet += `const bobFundsBalance = await provider.fetchAddressUTxOs("bob-funds-address");\n`;
-  codeSnippet += `const bobNodeBalance = await provider.fetchAddressUTxOs("bob-node-address");\n`;
+  let codeSnippet = ``;
+  codeSnippet += `const aliceFundsBalance = await blockchainProvider.fetchAddressUTxOs("alice-funds.addr");\n`;
+  codeSnippet += `const bobFundsBalance = await blockchainProvider.fetchAddressUTxOs("bob-funds.addr");\n`;
 
   return (
     <>
@@ -43,9 +41,7 @@ function Left() {
         Any participant can initiate closing the Hydra head. Once closed, no
         more transactions can be submitted to the head. The head enters a
         contestation period where participants can challenge the closing
-        snapshot. After the contestation period, the head participants can use
-        the <code>fanout</code> to fully close the <code>hydra-head</code> and
-        return the head utxos to layer 1.
+        snapshot.
       </p>
       <Codeblock data={"await provider.close()"} />
 
@@ -62,13 +58,14 @@ function Left() {
 
       <h4>Fanout the Head</h4>
       <p>
-        Once the contestation period ends, you can fanout to distribute the
-        final state back to layer 1:
+        After the contestation period, the head participants can use the{" "}
+        <code>fanout</code> to fully close the <code>hydra-head</code> and
+        return the head utxos to layer one.
       </p>
       <Codeblock data={"await provider.fanout()"} />
 
       <h4>Check Final Balances</h4>
-      <p>After fanout, check the final balances on layer 1:</p>
+      <p>After fanout, check the final balances on layer one:</p>
       <Codeblock data={codeSnippet} />
 
       <h4>Head Lifecycle</h4>
@@ -93,7 +90,7 @@ function Left() {
           <code>CONTEST</code> - Head closed, contestation period
         </li>
         <li>
-          <code>FANOUT</code> - Head finalized on layer 1
+          <code>FANOUT</code> - Head finalized on layer one
         </li>
       </ul>
 
@@ -121,11 +118,9 @@ function CloseHeadDemo({
   provider: HydraProvider;
   providerName: string;
 }) {
-  const [closeStatus, setCloseStatus] = useState<string>("");
-
   const runDemo = async () => {
     await provider.connect();
-    setCloseStatus(JSON.stringify(await provider.close(), null, 2));
+    await provider.close();
   };
 
   return (
@@ -133,7 +128,6 @@ function CloseHeadDemo({
       title="Close Head"
       subtitle="closing the Hydra head."
       runCodeFunction={runDemo}
-      code={closeStatus}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
     />
@@ -147,10 +141,9 @@ function FanoutDemo({
   provider: HydraProvider;
   providerName: string;
 }) {
-  const [fanoutStatus, setFanoutStatus] = useState<string>("");
   const runDemo = async () => {
     await provider.connect();
-    setFanoutStatus(JSON.stringify(await provider.fanout(), null, 2));
+    await provider.fanout();
   };
 
   return (
@@ -158,7 +151,6 @@ function FanoutDemo({
       title="Fanout Head"
       subtitle="fan out the Hydra head to layer 1."
       runCodeFunction={runDemo}
-      code={fanoutStatus}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
     />
