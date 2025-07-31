@@ -31,8 +31,8 @@ const ReactPage: NextPage = () => {
   const hydraUrl = useProviders((state) => state.hydraUrl);
   const hydraProvider = new HydraProvider({
     url: hydraUrl,
-    //wsUrl: hydraUrl,
   });
+  
   const providerName = "hydra";
   const blockfrostProvider = getProvider();
 
@@ -51,8 +51,8 @@ const ReactPage: NextPage = () => {
   codeSnippet += `\n`;
   codeSnippet += `const hydraInstance = new HydraInstance({\n`;
   codeSnippet += `  provider:  provider,\n`;
-  codeSnippet += `  fetcher:   provider,\n`;
-  codeSnippet += `  submitter: provider,\n`;
+  codeSnippet += `  fetcher:   "<blockchainProvider>",\n`;
+  codeSnippet += `  submitter: "<blockchainProvider>",\n`;
   codeSnippet += `});\n`;
 
   return (
@@ -70,12 +70,11 @@ const ReactPage: NextPage = () => {
             <p>
               This tutorial demonstrates how to use Hydra Head protocol on
               Cardano's preprod testing environment to open a layer 2 state
-              channel between two participants using Mesh SDK.
+              channel between two participants using Mesh.
             </p>
             <p>
               Hydra Head is a layer 2 scaling solution for Cardano that enables
-              fast, low-cost transactions between participants. This tutorial
-              shows you how to set up and use Hydra with Mesh SDK.
+              fast, low-cost transactions between participants.
             </p>
             <p>
               This tutorial is adapted from{" "}
@@ -87,9 +86,11 @@ const ReactPage: NextPage = () => {
 
             <h3>Initialize Hydra with Mesh</h3>
             <p>
-              To initialize Hydra with Mesh SDK, you need to set up a{" "}
-              <Link href="/providers">provider</Link>,{" "}
-              <code>HydraProvider</code> and <code>HydraInstance</code>.
+              To initialize Hydra with Mesh, you need to set  the <code>HydraProvider</code>
+              with the Hydra API URL and then use it to initialize the <code>HydraInstance</code>.
+              You can use one of the cardano <Link href="/providers">providers</Link>,{" "} example:{" "}
+              <code>blockfrostProvider</code>, or{" "}
+              <code>maestroProvider</code>,{" "} to initialize the <code>HydraInstance</code>.
             </p>
             <Codeblock data={codeSnippet} />
           </>
