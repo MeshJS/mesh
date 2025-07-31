@@ -3,6 +3,8 @@ import { useState } from "react";
 import { MeshTxBuilder, MeshWallet } from "@meshsdk/core";
 import { HydraProvider } from "@meshsdk/hydra";
 
+import Input from "~/components/form/input";
+import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
@@ -16,7 +18,7 @@ export default function HydraTutorialStep5({
 }) {
   return (
     <TwoColumnsScroll
-      sidebarTo="step5"
+      sidebarTo="step4"
       title="Step 4. Use the Hydra head"
       leftSection={Left()}
       rightSection={Right({
@@ -29,36 +31,30 @@ export default function HydraTutorialStep5({
 
 function Left() {
   let buildTransactionCode = ``;
-  buildTransactionCode += `const wallet = new MeshWallet({\n`;
-  buildTransactionCode += `  networkId: 0,\n`;
-  buildTransactionCode += `  key: {\n`;
-  buildTransactionCode += `    type: "cli",\n`;
-  buildTransactionCode += `    payment: "cli-signing-key",\n`;
-  buildTransactionCode += `  },\n`;
-  buildTransactionCode += `  fetcher: "<blockchainprovider>",\n`;
-  buildTransactionCode += `  submitter: "<blockchainprovider>",\n`;
-  buildTransactionCode += `});\n\n`;
 
   buildTransactionCode += `const pp = await provider.fetchProtocolParameters();\n`;
-  buildTransactionCode += `const utxos = await wallet.getUtxos("enterprise");\n`;
+  buildTransactionCode += `const utxos = await provider.fetchAddressUTxOs("address");\n`;
   buildTransactionCode += `const changeAddress = await wallet.getChangeAddress();\n\n`;
 
   buildTransactionCode += `const txBuilder = new MeshTxBuilder({\n`;
-  buildTransactionCode += `  fetcher: "provider",\n`;
-  buildTransactionCode += `  submitter: "provider",\n`;
+  buildTransactionCode += `  fetcher: provider,\n`;
+  buildTransactionCode += `  submitter: provider,\n`;
+  buildTransactionCode += `  isHydra: true,\n`;
   buildTransactionCode += `  params: pp,\n`;
-  buildTransactionCode += `  verbose: true,\n`;
   buildTransactionCode += `});\n\n`;
 
   buildTransactionCode += `const unsignedTx = await txBuilder\n`;
   buildTransactionCode += `  .txOut(\n`;
-  buildTransactionCode += `    "recipient-address",\n`;
+  buildTransactionCode += `    "bob-funds.addr",\n`;
   buildTransactionCode += `    [{ unit: "lovelace", quantity: "3000000" }]\n`;
   buildTransactionCode += `  )\n`;
   buildTransactionCode += `  .changeAddress(changeAddress)\n`;
   buildTransactionCode += `  .selectUtxosFrom(utxos)\n`;
   buildTransactionCode += `  .setNetwork("preprod")\n`;
-  buildTransactionCode += `  .complete();\n`;
+  buildTransactionCode += `  .complete();\n\n`;
+
+  buildTransactionCode += `const signedTx = await wallet.signTx(unsignedTx);\n`;
+  buildTransactionCode += `const txHash = await provider.submitTx(signedTx);\n`;
 
   return (
     <>
@@ -74,8 +70,18 @@ function Left() {
       <p>First, let's see what UTxOs are available in the Hydra head:</p>
       <Codeblock data={"const utxos = await provider.fetchUTxOs();"} />
 
+      <h4>Fetch Address UTxOs</h4>
+      <p>
+        Alternatively, you can fetch Head UTxOs for a specific address:
+        <Codeblock
+          data={`const utxos = await provider.fetchAddressUTxOs("address")`}
+        />
+      </p>
       <h4>Build and Submit Transaction</h4>
-      <p>you can build transactions just like on layer 1:</p>
+      <p>
+        you can build transactions just like on layer 1 assuming you are sending
+        from alice to bob:
+      </p>
       <Codeblock data={buildTransactionCode} />
 
       <p>
@@ -98,11 +104,6 @@ function Left() {
           <code>SnapshotConfirmed</code> - New state confirmed
         </li>
       </ul>
-
-      <p>
-        Congratulations! You just processed your first Cardano transaction
-        off-chain in a Hydra head!
-      </p>
     </>
   );
 }
@@ -117,6 +118,7 @@ function Right({
   return (
     <>
       <FetchUtxosDemo provider={provider} providerName={providerName} />
+      <FetchAddressUtxosDemo provider={provider} providerName={providerName} />
       <BuildTransactionDemo provider={provider} providerName={providerName} />
     </>
   );
@@ -148,6 +150,45 @@ function FetchUtxosDemo({
   );
 }
 
+function FetchAddressUtxosDemo({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  const [utxos, setUtxos] = useState("");
+  const [address, setAddress] = useState("");
+
+  const runDemo = async () => {
+    await provider.connect();
+    const utxos = await provider.fetchAddressUTxOs(address);
+    setUtxos(JSON.stringify(utxos, null, 2));
+  };
+
+  return (
+    <LiveCodeDemo
+      title="Fetch Address UTxOs"
+      subtitle="Fetching UTxOs for a specific address."
+      runCodeFunction={runDemo}
+      code={utxos}
+      runDemoShowProviderInit={true}
+      runDemoProvider={providerName}
+    >
+      <InputTable
+        listInputs={[
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Address"
+            label="Address"
+          />,
+        ]}
+      />
+    </LiveCodeDemo>
+  );
+}
+
 function BuildTransactionDemo({
   provider,
   providerName,
@@ -156,21 +197,25 @@ function BuildTransactionDemo({
   providerName: string;
 }) {
   const [transaction, setTransaction] = useState("");
+  const [key, setKey] = useState("");
+  const [amount, setAmount] = useState(30000000);
+  const [address, setAddress] = useState("");
 
   const runDemo = async () => {
+    await provider.connect();
     const wallet = new MeshWallet({
       networkId: 0,
       key: {
         type: "cli",
-        payment: "your-payment-key",
+        payment: key,
       },
       fetcher: provider,
       submitter: provider,
     });
 
+    const changeAddress = await wallet.getChangeAddress();
     const pp = await provider.fetchProtocolParameters();
-    const utxos = await wallet.getUtxos("enterprise");
-    const changeAddress = "your-change-address";
+    const utxos = await provider.fetchAddressUTxOs(changeAddress);
 
     const txBuilder = new MeshTxBuilder({
       fetcher: provider,
@@ -180,12 +225,15 @@ function BuildTransactionDemo({
     });
 
     const unsignedTx = await txBuilder
-      .txOut("recipient-address", [{ unit: "lovelace", quantity: "3000000" }])
+      .txOut(address, [{ unit: "lovelace", quantity: amount.toString() }])
       .changeAddress(changeAddress)
       .selectUtxosFrom(utxos)
       .complete();
 
-    setTransaction(unsignedTx);
+    const signedTx = await wallet.signTx(unsignedTx);
+    const txHash = await provider.submitTx(signedTx);
+
+    setTransaction(txHash);
   };
 
   return (
@@ -196,6 +244,29 @@ function BuildTransactionDemo({
       code={transaction}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
-    />
+    >
+      <InputTable
+        listInputs={[
+          <Input
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder="funds.sk"
+            label="funds signing key"
+          />,
+          <Input
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
+            placeholder="amount"
+            label="amount (lovelace)"
+          />,
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="bob-funds.addr"
+            label="head participant address"
+          />,
+        ]}
+      />
+    </LiveCodeDemo>
   );
 }
