@@ -199,7 +199,6 @@ function Right({
         bobFunds={bobFunds}
       />
       <GenerateHydraKeys />
-      <GenerateProtocolParameters />
     </>
   );
 }
@@ -389,25 +388,6 @@ function GenerateHydraKeys() {
       subtitle="Generate Hydra key pairs for demo (not for testing or production)."
       runCodeFunction={runDemo}
       code={keys}
-    />
-  );
-}
-
-function GenerateProtocolParameters() {
-  const [protocolParameters, setProtocolParameters] = useState("");
-
-  const runDemo = async () => {
-    const provider = getProvider();
-    const protocolParameters = await provider.fetchProtocolParameters();
-    setProtocolParameters(JSON.stringify(protocolParameters, null, 2));
-  };
-
-  return (
-    <LiveCodeDemo
-      title="Generate Protocol Parameters"
-      subtitle="Generate protocol parameters for the ledger."
-      runCodeFunction={runDemo}
-      code={protocolParameters}
     />
   );
 }
