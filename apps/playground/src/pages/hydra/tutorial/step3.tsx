@@ -1,14 +1,14 @@
 import { useState } from "react";
 
+import { MeshWallet } from "@meshsdk/core";
 import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
-import { useWallet } from "@meshsdk/react";
 
+import { getProvider } from "~/components/cardano/mesh-wallet";
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { getTxBuilder } from "~/pages/apis/txbuilder/common";
 
 export default function HydraTutorialStep4({
   provider,
@@ -21,7 +21,7 @@ export default function HydraTutorialStep4({
 }) {
   return (
     <TwoColumnsScroll
-      sidebarTo="step4"
+      sidebarTo="step3"
       title="Step 3. Open a Hydra head"
       leftSection={Left()}
       rightSection={Right(provider, hInstance, providerName)}
@@ -32,47 +32,31 @@ export default function HydraTutorialStep4({
 function Left() {
   let commitFundsCode = ``;
   commitFundsCode += `import { HydraInstance , HydraProvider} from "@meshsdk/hydra";\n`;
-  commitFundsCode += `import { MeshTxBuilder } from "@meshsdk/core";\n`;
   commitFundsCode += `\n`;
   commitFundsCode += `const provider = new HydraProvider({\n`;
   commitFundsCode += `  url: "<URL>",\n`;
   commitFundsCode += `});\n`;
   commitFundsCode += `const hInstance = new HydraInstance({\n`;
   commitFundsCode += `  provider,\n`;
-  commitFundsCode += `  fetcher: provider,\n`;
-  commitFundsCode += `  submitter: provider,\n`;
+  commitFundsCode += `  fetcher: "<blockchainProvider>",\n`;
+  commitFundsCode += `  submitter: "<blockchainProvider>",\n`;
   commitFundsCode += `});\n`;
   commitFundsCode += `\n`;
   commitFundsCode += `const wallet = new MeshWallet({\n`;
   commitFundsCode += `  networkId: 0, // 0: testnet\n`;
-  commitFundsCode += `  fetcher: provider,\n`;
-  commitFundsCode += `  submitter: provider,\n`;
+  commitFundsCode += `  fetcher: "<blockchainProvider>",\n`;
+  commitFundsCode += `  submitter: "<blockchainProvider>",\n`;
   commitFundsCode += `  key: {\n`;
-  commitFundsCode += `    type: 'mnemonic',\n`;
-  commitFundsCode += `    words: "<seedphrase>",\n`;
+  commitFundsCode += `    type: 'cli',\n`;
+  commitFundsCode += `    payment: 'alice-funds.sk',\n`;
   commitFundsCode += `  },\n`;
   commitFundsCode += `});\n\n`;
-  commitFundsCode += `const utxos = await wallet.getUtxos();\n`;
-  commitFundsCode += `const changeAddress = await wallet.getChangeAddress();\n`;
-  commitFundsCode += `const txBuilder = getTxBuilder();\n\n`;
-
-  commitFundsCode += `const unsignedTx = await txBuilder\n`;
-  commitFundsCode += `  .txOut(changeAddress, [{ unit: "lovelace", quantity: "amount" }])\n`;
-  commitFundsCode += `  .changeAddress(changeAddress)\n`;
-  commitFundsCode += `  .selectUtxosFrom(utxos)\n`;
-  commitFundsCode += `  .setNetwork("preprod")\n`;
-  commitFundsCode += `  .complete();\n\n`;
 
   commitFundsCode += `const outputIndex = 0;\n`;
   commitFundsCode += `const txHash = "00000000000000000000000000000000000000000000000000000000000000000";\n\n`;
-  commitFundsCode += `// Commit the signed transaction to the Hydra head as a blueprint\n`;
-  commitFundsCode += `const blueprintTx = await hInstance.commitBlueprint("txHash", "outputIndex", {\n`;
-  commitFundsCode += `  type: "Tx ConwayEra",\n`;
-  commitFundsCode += `  cborHex: unsignedTx,\n`;
-  commitFundsCode += `  description: "A new blueprint tx",\n`;
-  commitFundsCode += `});\n\n`;
-  commitFundsCode += `const commitTxHash = await wallet.signTx(blueprintTx);\n`;
-  commitFundsCode += `console.log("Commit txHash:", commitTxHash);\n`;
+  commitFundsCode += `const commitTx = await hInstance.commitFunds(txHash, outputIndex);\n`;
+  commitFundsCode += `const signedTx = await wallet.signTx(commitTx, true);\n`;
+  commitFundsCode += `const commitTxHash = await wallet.submitTx(signedTx);\n`;
 
   return (
     <>
@@ -91,11 +75,9 @@ function Left() {
       <h4>Commit Funds</h4>
       <p>
         After initialization, both participants need to commit funds to the
-        head. any wallet can be used to commit funds into an{" "}
-        <code>initializing</code> Hydra head. In this tutorial we use the{" "}
-        <code>commitBlueprint</code> function on <code>HydraInstance</code> by
-        seleting specific UTxOs and make them available for layer 2
-        transactions:
+        head. In this tutorial we use the <code>commitFunds</code> function on{" "}
+        <code>HydraInstance</code> by selecting specific UTxOs and make them
+        available for layer 2 transactions:
       </p>
       <Codeblock data={commitFundsCode} />
 
@@ -146,6 +128,7 @@ function Right(
     </>
   );
 }
+
 function ConnectDemo({
   provider,
   providerName,
@@ -207,51 +190,40 @@ function CommitFundsDemo({
   providerName: string;
 }) {
   const [commitStatus, setCommitStatus] = useState("");
-  const [amount, setAmount] = useState<string>("10000000");
   const [txHash, setTxHash] = useState<string>("");
   const [outputIndex, setOutputIndex] = useState<number | null>(null);
-
-  const { wallet, connected } = useWallet();
+  const [key, setKey] = useState<string>("");
 
   const runDemo = async () => {
     await provider.connect();
+    const blockchainProvider = getProvider();
 
-    if (!connected) {
-      setCommitStatus("Wallet not connected");
-      return;
-    }
+    const wallet = new MeshWallet({
+      fetcher: blockchainProvider,
+      submitter: blockchainProvider,
+      networkId: 0,
+      key: {
+        type: "cli",
+        payment: key,
+      },
+    });
 
     if (txHash === "" || outputIndex === null) {
-      setCommitStatus("Enter a valid txHash and output index");
+      setCommitStatus("Enter a valid txHash or output index");
       return;
     }
 
-    const utxos = await wallet.getUtxos();
-    const changeAddress = await wallet.getChangeAddress();
-    const txBuilder = getTxBuilder();
-
-    const unsignedTx = await txBuilder
-      .txIn(txHash, outputIndex)
-      .txOut(changeAddress, [{ unit: "lovelace", quantity: amount }])
-      .changeAddress(changeAddress)
-      .selectUtxosFrom(utxos)
-      .setNetwork("preprod")
-      .complete();
-
-    const result = await hInstance.commitBlueprint(txHash, outputIndex, {
-      type: "Tx ConwayEra",
-      cborHex: unsignedTx,
-      description: "A new blueprint tx",
-    });
-    const commitTxHash = await wallet.signTx(result);
-    setCommitStatus(JSON.stringify(commitTxHash, null, 2));
+    const commitTx = await hInstance.commitFunds(txHash, outputIndex);
+    const signedTx = await wallet.signTx(commitTx, true);
+    const commitTxHash = await wallet.submitTx(signedTx);
+    setCommitStatus(`commit txHash: ${commitTxHash}`);
   };
+
   return (
     <LiveCodeDemo
       title="Commit Funds"
-      subtitle="commits funds using blueprintTx from wallet."
+      subtitle="commits funds to Hydra head."
       runCodeFunction={runDemo}
-      runDemoShowBrowseWalletConnect={true}
       code={commitStatus}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
@@ -259,10 +231,10 @@ function CommitFundsDemo({
       <InputTable
         listInputs={[
           <Input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="lovelace"
-            label="Amount"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder="Funds.sk"
+            label="funds signing key"
           />,
           <Input
             value={txHash}
