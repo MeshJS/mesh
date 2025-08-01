@@ -21,4 +21,10 @@ export class Emitter<T extends Record<string, (...args: any) => void>> {
   emit<K extends keyof T>(event: K, ...args: Parameters<T[K]>) {
     this.listeners[event]?.forEach((cb) => cb(...args));
   }
+
+  clear<K extends keyof T>() {
+    Object.keys(this.listeners).forEach((event) => {
+      this.listeners[event as K]?.clear();
+    });
+  }
 }

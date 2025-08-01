@@ -13,7 +13,6 @@ controller.on("Connected.Idle", () => {
 });
 
 // Connect to the Hydra node
-controller.start();
 controller.connect({
   baseURL: "http://localhost:4001",
   address: "addr_test1vp5cxztpc6hep9ds7fjgmle3l225tk8ske3rmwr9adu0m6qchmx5z",

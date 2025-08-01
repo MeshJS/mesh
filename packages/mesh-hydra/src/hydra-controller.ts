@@ -9,7 +9,7 @@ type ConnectOptions = {
   history?: boolean;
 };
 
-export type HydraStateName = "*"
+type HydraStateName = "*"
   | "Disconnected"
   | "Connecting"
   | "Connected.Idle"
@@ -18,8 +18,7 @@ export type HydraStateName = "*"
   | "Connected.Closed"
   | "Connected.Final"
 
-type ActorRef = ActorRefFrom<typeof machine>;
-type Snapshot = ReturnType<ActorRef['getSnapshot']>;
+type Snapshot = ReturnType<ActorRefFrom<typeof machine>['getSnapshot']>;
 
 type Events = {
   '*': (snapshot: Snapshot) => void; } & {
@@ -36,6 +35,7 @@ export class HydraController {
       next: (snapshot) => this.handleState(snapshot),
       error: (err) => console.error("Hydra error:", err),
     });
+    this.actor.start();
   }
 
   /** Connect to the Hydra head */
@@ -91,9 +91,11 @@ export class HydraController {
     });
   }
 
-  start() { this.actor.start() }
-
-  stop() { this.actor.stop() }
+  stop() {
+    this.actor.stop();
+    this.emitter.clear();
+    this._currentSnapshot = undefined;
+  }
 
   get state() {
     return this._currentSnapshot?.value;
