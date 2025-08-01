@@ -16,9 +16,9 @@ import { getPageLinks } from "../common";
 import HydraTutorialPrerequisites from "./prerequisites";
 import HydraTutorialStep1 from "./step1";
 import HydraTutorialStep2 from "./step2";
-import HydraTutorialStep4 from "./step3";
-import HydraTutorialStep5 from "./step4";
-import HydraTutorialStep6 from "./step5";
+import HydraTutorialStep3 from "./step3";
+import HydraTutorialStep4 from "./step4";
+import HydraTutorialStep5 from "./step5";
 
 const ReactPage: NextPage = () => {
   const [aliceNode, setAliceNode] = useState<MeshWallet | undefined>(undefined);
@@ -108,16 +108,16 @@ const ReactPage: NextPage = () => {
           setBobFunds={setBobFunds}
         />
         <HydraTutorialStep2 />
-        <HydraTutorialStep4
+        <HydraTutorialStep3
           provider={hydraProvider}
           providerName={providerName}
           hInstance={hydraInstance}
         />
-        <HydraTutorialStep5
+        <HydraTutorialStep4
           provider={hydraProvider}
           providerName={providerName}
         />
-        <HydraTutorialStep6
+        <HydraTutorialStep5
           provider={hydraProvider}
           providerName={providerName}
         />

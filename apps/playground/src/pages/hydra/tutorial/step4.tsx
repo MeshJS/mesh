@@ -9,7 +9,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
-export default function HydraTutorialStep5({
+export default function HydraTutorialStep4({
   provider,
   providerName,
 }: {
@@ -255,13 +255,13 @@ function BuildTransactionDemo({
             value={key}
             onChange={(e) => setKey(e.target.value)}
             placeholder="alice-funds.sk"
-            label="signing key"
+            label="sender signing key"
           />,
           <Input
             value={aliceAddress}
             onChange={(e) => setAliceAddress(e.target.value)}
             placeholder="alice-funds.addr"
-            label="Address"
+            label="sender address"
           />,
           <Input
             value={amount}
@@ -273,7 +273,7 @@ function BuildTransactionDemo({
             value={bobAddress}
             onChange={(e) => setBobAddress(e.target.value)}
             placeholder="bob-funds.addr"
-            label="bob-funds address"
+            label="recipient address"
           />,
         ]}
       />

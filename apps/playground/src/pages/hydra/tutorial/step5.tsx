@@ -4,7 +4,7 @@ import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
 
-export default function HydraTutorialStep6({
+export default function HydraTutorialStep5({
   provider,
   providerName,
 }: {
