@@ -57,7 +57,7 @@ function Left() {
   commitFundsCode += `const commitTx = await hInstance.commitFunds(txHash, outputIndex);\n`;
   commitFundsCode += `const signedTx = await wallet.signTx(commitTx, true);\n`;
   commitFundsCode += `const commitTxHash = await wallet.submitTx(signedTx);\n`;
-  commitFundsCode += `console.log(commitTxHash);\n`
+  commitFundsCode += `console.log(commitTxHash);\n`;
 
   return (
     <>
