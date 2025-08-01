@@ -1,5 +1,5 @@
-import { parseDatumCbor } from "@meshsdk/core-cst";
 import { IFetcher, ISubmitter } from "@meshsdk/common";
+import { parseDatumCbor } from "@meshsdk/core-cst";
 import { HydraProvider } from "./hydra-provider";
 
 /**
@@ -47,7 +47,7 @@ export class HydraInstance {
     const hydraUtxo = {
       address: utxo.output.address,
       datum: null,
-      datumhash: null, // TODO: Handle datumHash case
+      datumhash: null,
       referenceScript:
         utxo.output.scriptRef === "" || !utxo.output.scriptRef
           ? null
@@ -72,17 +72,11 @@ export class HydraInstance {
   }
 
   /**
-   * Commits a blueprint transaction for a given UTxO and Hydra transaction.
-   * Fetches the specified UTxO, constructs a blueprint transaction object, and
-   * submits it to hydra Head.
-   * @param txHash - The transaction hash of the UTxO to commit.
-   * @param outputIndex - The output index of the UTxO to commit.
-   * @param transaction - The Hydra transaction object containing:
-   *   - `type`: The transaction type ("Tx ConwayEra", "Unwitnessed Tx ConwayEra", or "Witnessed Tx ConwayEra").
-   *   - `description`: Optional description of the transaction (defaults to empty string if undefined).
-   *   - `cborHex`: CBOR hex string of the transaction.
-   *   - `txId`: Optional transaction ID (not used in the function).
-   * @returns A promise that resolves to the CBOR hex string of the commit transaction.
+   * https://hydra.family/head-protocol/docs/how-to/commit-blueprint/.
+   * A Cardano transaction in the text envelope format. 
+   * That is, a JSON object wrapper with some 'type' around a 'cborHex' encoded transaction.
+   * @param txHash
+   * @param txIndex
    */
   async commitBlueprint(){
 

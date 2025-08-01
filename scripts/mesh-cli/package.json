@@ -3,7 +3,7 @@
   "description": "A quick and easy way to bootstrap your Web3 app using Mesh.",
   "homepage": "https://meshjs.dev",
   "author": "MeshJS",
-  "version": "1.9.0-beta.62",
+  "version": "1.9.0-beta.69",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -32,6 +32,7 @@
     "start": "preconstruct watch"
   },
   "dependencies": {
+    "@sidan-lab/cardano-bar": "^0.0.7",
     "chalk": "5.3.0",
     "commander": "12.1.0",
     "figlet": "1.7.0",

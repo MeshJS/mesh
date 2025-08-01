@@ -16,19 +16,36 @@ export default function MeshWalletGetDRep() {
 
 function Left() {
   let codeSample = ``;
-  codeSample += `{\n`;
-  codeSample += `  "publicKey": "6984e406dd81...39e43d798fe1a89ab",\n`;
-  codeSample += `  "publicKeyHash": "9f7f4b78...df83bd227e943e9808450",\n`;
-  codeSample += `  "dRepIDCip105": "drep1vz0h7jmc...0axqgg5q4dls5u"\n`;
-  codeSample += `}\n`;
+  codeSample += `{
+`;
+  codeSample += `  "publicKey": "6984e406dd81...39e43d798fe1a89ab",
+`;
+  codeSample += `  "publicKeyHash": "9f7f4b78...df83bd227e943e9808450",
+`;
+  codeSample += `  "dRepIDCip105": "drep1vz0h7jmc...0axqgg5q4dls5u"
+`;
+  codeSample += `}
+`;
 
   return (
     <>
       <p>
-        Get the key, hash, and bech32 encoding of the DRep ID. The DRep ID is a
-        unique identifier for the user&apos;s wallet.
+        The DRep ID is a unique identifier for the user&apos;s wallet. It
+        consists of three components:
       </p>
-      <p>Example:</p>
+      <ul>
+        <li>
+          <code>publicKey</code>: The public key associated with the wallet.
+        </li>
+        <li>
+          <code>publicKeyHash</code>: A hash of the public key for verification
+          purposes.
+        </li>
+        <li>
+          <code>dRepIDCip105</code>: The bech32 encoding of the DRep ID.
+        </li>
+      </ul>
+      <p>Example response:</p>
       <Codeblock data={codeSample} />
     </>
   );

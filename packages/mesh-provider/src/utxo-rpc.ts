@@ -1,6 +1,7 @@
 import type * as spec from "@utxorpc/spec";
 import { CardanoQueryClient, CardanoSubmitClient } from "@utxorpc/sdk";
 import { submit } from "@utxorpc/spec";
+import cbor from "cbor";
 
 import {
   AccountInfo,
@@ -23,7 +24,7 @@ import {
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
-import { Address, CardanoSDKUtil } from "@meshsdk/core-cst";
+import { Address, CardanoSDKUtil, deserializePlutusScript } from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 
@@ -375,16 +376,36 @@ export class U5CProvider
    * @param hash - The transaction hash
    */
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
-    const utxoSearchResult = await this.queryClient.readUtxosByOutputRef(
-      [{
-        txHash: hexToBytes(hash),
-        outputIndex: index || 0,    // TODO: handle case when index is not provided. Note: readUtxos might not support this, try when readTx is implemented
-      }]
-    );
-    return utxoSearchResult.map((item) => {
-      return this._rpcUtxoToMeshUtxo(item.txoRef, item.parsedValued!);
-    });
+    const txHash = hexToBytes(hash);
+
+    // Fetch specific UTxO if index is given
+    if (index !== undefined) {
+      const [utxo] = await this.queryClient.readUtxosByOutputRef([{ txHash: txHash, outputIndex: index }]);
+      return utxo ? [this._rpcUtxoToMeshUtxo(utxo.txoRef, utxo.parsedValued!)] : [];
+    }
+
+    // Otherwise, fetch all UTxOs in batches
+    const batchSize = 100;
+    let outputIndex = 0;
+    const allUtxos: UTxO[] = [];
+
+    while (true) {
+      const batch = Array.from({ length: batchSize }, (_, i) => ({
+        txHash: txHash,
+        outputIndex: outputIndex + i,
+      }));
+
+      const utxos = await this.queryClient.readUtxosByOutputRef(batch);
+      const meshUtxos = utxos.map(u => this._rpcUtxoToMeshUtxo(u.txoRef, u.parsedValued!));
+      allUtxos.push(...meshUtxos);
+
+      if (utxos.length < batchSize) break;
+      outputIndex += batchSize;
+    }
+
+    return allUtxos;
   }
+
 
   /**
    * Unimplemented - open for contribution
@@ -487,8 +508,21 @@ export class U5CProvider
     let scriptHash: string | undefined = undefined;
 
     if (rpcTxOutput.script !== undefined) {
-      // TODO: Implement scriptRef
-      // TODO: Implement scriptHash
+      if (rpcTxOutput.script.script.case !== "native" && rpcTxOutput.script.script.value) {
+        scriptRef = bytesToHex(rpcTxOutput.script.script.value)
+        scriptRef = cbor
+          .encode(Buffer.from(scriptRef, "hex"))
+          .toString("hex");
+        let V: "V1" | "V2" | "V3"
+        if (rpcTxOutput.script.script.case === "plutusV1") {
+          V = "V1";
+        } else if (rpcTxOutput.script.script.case === "plutusV2") {
+          V = "V2";
+        } else {
+          V = "V3";
+        }
+        scriptHash = deserializePlutusScript(scriptRef!, V).hash()
+      }
     }
 
     return {

@@ -18,15 +18,16 @@ function Left() {
   return (
     <>
       <p>
-        Collateral is used to guarantee that nodes are compensated for their
-        work in case phase-2 validation fails. Thus, collateral is the monetary
-        guarantee a user gives to assure that the contract has been carefully
-        designed and thoroughly tested. The collateral amount is specified at
-        the time of constructing the transaction. Not directly, but by adding
-        collateral inputs to the transaction. The total balance in the UTXOs
-        corresponding to these specially marked inputs is the transaction’s
-        collateral amount. If the user fulfills the conditions of the guarantee,
-        and a contract gets executed, the collateral is safe.
+        Collateral is a monetary guarantee provided by the user to ensure the
+        integrity of smart contracts and compensate nodes in case phase-2
+        validation fails. It is specified during transaction construction by
+        adding collateral inputs to the transaction.
+      </p>
+      <p>
+        The total balance in the UTXOs corresponding to these inputs represents
+        the transaction's collateral amount. If the contract executes successfully,
+        the collateral remains safe. This mechanism ensures that contracts are
+        carefully designed and thoroughly tested.
       </p>
       <p>Example:</p>
       <Codeblock data={codeSample} />
