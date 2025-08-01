@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { HydraProvider } from "@meshsdk/hydra";
 
 import LiveCodeDemo from "~/components/sections/live-code-demo";
