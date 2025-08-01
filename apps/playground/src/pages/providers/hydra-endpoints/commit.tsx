@@ -45,7 +45,7 @@ function Left(commitUtxo: string) {
         Commit a particular UTxO to the head. This will make the UTxO available
         on the layer 2.
       </p>
-      <Codeblock data={`await instance.commit("${txHash}", ${txIndex});`} />
+      <Codeblock data={`await instance.commitFunds("${txHash}", ${txIndex});`} />
     </>
   );
 }
