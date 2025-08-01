@@ -89,8 +89,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Connects to the Hydra Head. This command is a no-op when a Head is already open.
    */
-  connect() {
+  async connect() {
+    if (this._status !== "DISCONNECTED") {
+      return;
+    }
     this._connection.connect();
+    this._status = "CONNECTED";
   }
 
   /**
@@ -123,8 +127,22 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * @param index
    * @returns - Array of UTxOs
    */
-  async fetchUTxOs(): Promise<UTxO[]> {
-    return await this.subscribeSnapshotUtxo();
+  async fetchUTxOs(hash?: string, index?: number): Promise<UTxO[]> {
+    const snapshotUTxOs = await this.subscribeSnapshotUtxo();
+
+    const outputsPromises: Promise<UTxO>[] = [];
+    snapshotUTxOs.forEach((utxo) => {
+      if (hash === undefined || utxo.input.txHash === hash) {
+        outputsPromises.push(Promise.resolve(utxo));
+      }
+    });
+    const outputs = await Promise.all(outputsPromises);
+
+    if (index !== undefined) {
+      return outputs.filter((utxo) => utxo.input.outputIndex === index);
+    }
+
+    return outputs;
   }
 
   /**
@@ -240,7 +258,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Terminate a head with the latest known snapshot. This effectively moves the head from the Open state to the Close state where the contestation phase begin. As a result of closing a head, no more transactions can be submitted via NewTx.
    */
   async close() {
-    if (this._status === "CONNECTED") this._connection.send({ tag: "Close" });
+    this._connection.send({ tag: "Close" });
   }
 
   /**
@@ -254,7 +272,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Finalize a head after the contestation period passed. This will distribute the final (as closed and maybe contested) head state back on the layer 1.
    */
   async fanout() {
-    if (this._status === "FANOUT_POSSIBLE") this._connection.send({ tag: "Fanout" });
+    this._connection.send({ tag: "Fanout" });
   }
 
   /**

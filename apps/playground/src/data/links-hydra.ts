@@ -16,7 +16,7 @@ export const metaHydraTutorial = {
 export const linksHydra: MenuItem[] = [
   // metaHydraGettingStarted,
   metaHydraProvider,
-  // metaHydraTutorial,
+  metaHydraTutorial,
 ];
 
 export const metaHydra: MenuItem = {

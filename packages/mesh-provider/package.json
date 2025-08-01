@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/provider",
-  "version": "1.9.0-beta.62",
+  "version": "1.9.0-beta.69",
   "description": "Blockchain data providers - https://meshjs.dev/providers",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -35,11 +35,12 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.0-beta.62",
-    "@meshsdk/core-cst": "1.9.0-beta.62",
+    "@meshsdk/common": "1.9.0-beta.69",
+    "@meshsdk/core-cst": "1.9.0-beta.69",
     "@utxorpc/sdk": "^0.6.7",
     "@utxorpc/spec": "^0.16.0",
-    "axios": "^1.7.2"
+    "axios": "^1.7.2",
+    "cbor": "^10.0.9"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

@@ -23,10 +23,12 @@ function Left() {
   return (
     <>
       <p>
-        Returns a list of reward addresses owned by the wallet. A reward address
-        is a stake address that is used to receive rewards from staking,
-        generally starts from `stake` prefix. Example:
+        This API retrieves a list of reward addresses owned by the wallet. Reward addresses are stake addresses used to receive rewards from staking activities.
       </p>
+      <p>
+        Reward addresses typically start with the `stake` prefix, making them easily identifiable. These addresses are essential for tracking staking rewards and managing staking operations.
+      </p>
+      <p>Example response:</p>
       <Codeblock data={example} />
     </>
   );

@@ -18,11 +18,26 @@ function Left() {
   return (
     <>
       <p>
-        Returns the network ID of the currently connected account.{" "}
-        <code>0</code> is testnet and <code>1</code> is mainnet but other
-        networks can possibly be returned by wallets. Those other network ID
-        values are not governed by CIP-30. This result will stay the same unless
-        the connected account has changed.
+        This API retrieves the network ID of the currently connected account. The
+        network ID indicates the blockchain network the wallet is connected to. For
+        example:
+      </p>
+      <ul>
+        <li>
+          <code>0</code>: Testnet
+        </li>
+        <li>
+          <code>1</code>: Mainnet
+        </li>
+      </ul>
+      <p>
+        Other network IDs may be returned by wallets, but these are not governed
+        by CIP-30. The network ID remains consistent unless the connected account
+        changes.
+      </p>
+      <p>
+        Applications can use this information to ensure compatibility with the
+        connected network.
       </p>
     </>
   );
