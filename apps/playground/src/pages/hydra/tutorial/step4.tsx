@@ -34,7 +34,6 @@ function Left() {
 
   buildTransactionCode += `const pp = await provider.fetchProtocolParameters();\n`;
   buildTransactionCode += `const utxos = await provider.fetchAddressUTxOs("address");\n`;
-  buildTransactionCode += `const changeAddress = await wallet.getChangeAddress();\n\n`;
 
   buildTransactionCode += `const txBuilder = new MeshTxBuilder({\n`;
   buildTransactionCode += `  fetcher: provider,\n`;
@@ -48,13 +47,14 @@ function Left() {
   buildTransactionCode += `    "bob-funds.addr",\n`;
   buildTransactionCode += `    [{ unit: "lovelace", quantity: "3000000" }]\n`;
   buildTransactionCode += `  )\n`;
-  buildTransactionCode += `  .changeAddress(changeAddress)\n`;
+  buildTransactionCode += `  .changeAddress("alice-funds.addr")\n`;
   buildTransactionCode += `  .selectUtxosFrom(utxos)\n`;
   buildTransactionCode += `  .setNetwork("preprod")\n`;
   buildTransactionCode += `  .complete();\n\n`;
 
   buildTransactionCode += `const signedTx = await wallet.signTx(unsignedTx);\n`;
   buildTransactionCode += `const txHash = await provider.submitTx(signedTx);\n`;
+  buildTransactionCode += `console.log(txHash);\n`;
 
   return (
     <>
@@ -74,7 +74,7 @@ function Left() {
       <p>
         Alternatively, you can fetch Head UTxOs for a specific address:
         <Codeblock
-          data={`const utxos = await provider.fetchAddressUTxOs("address")`}
+          data={`const utxos = await provider.fetchAddressUTxOs("alice-funds.addr")`}
         />
       </p>
       <h4>Build and Submit Transaction</h4>
@@ -140,7 +140,7 @@ function FetchUtxosDemo({
 
   return (
     <LiveCodeDemo
-      title="Fetch UTxOs"
+      title="Fetch Hydra head UTxOs"
       subtitle="Fetching UTxOs from the Hydra head."
       runCodeFunction={runDemo}
       code={utxos}
@@ -168,7 +168,7 @@ function FetchAddressUtxosDemo({
 
   return (
     <LiveCodeDemo
-      title="Fetch Address UTxOs"
+      title="Fetch hydra participant Address UTxOs"
       subtitle="Fetching UTxOs for a specific address."
       runCodeFunction={runDemo}
       code={utxos}
@@ -180,7 +180,7 @@ function FetchAddressUtxosDemo({
           <Input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="Address"
+            placeholder="alice-funds.addr"
             label="Address"
           />,
         ]}
@@ -199,7 +199,8 @@ function BuildTransactionDemo({
   const [transaction, setTransaction] = useState("");
   const [key, setKey] = useState("");
   const [amount, setAmount] = useState(30000000);
-  const [address, setAddress] = useState("");
+  const [bobAddress, setBobAddress] = useState("");
+  const [aliceAddress, setAliceAddress] = useState("");
 
   const runDemo = async () => {
     await provider.connect();
@@ -213,9 +214,12 @@ function BuildTransactionDemo({
       submitter: provider,
     });
 
-    const changeAddress = await wallet.getChangeAddress();
     const pp = await provider.fetchProtocolParameters();
-    const utxos = await provider.fetchAddressUTxOs(changeAddress);
+    const utxos = await provider.fetchAddressUTxOs(aliceAddress);
+
+    if (utxos === undefined) {
+      return;
+    }
 
     const txBuilder = new MeshTxBuilder({
       fetcher: provider,
@@ -225,8 +229,8 @@ function BuildTransactionDemo({
     });
 
     const unsignedTx = await txBuilder
-      .txOut(address, [{ unit: "lovelace", quantity: amount.toString() }])
-      .changeAddress(changeAddress)
+      .txOut(bobAddress, [{ unit: "lovelace", quantity: amount.toString() }])
+      .changeAddress(aliceAddress)
       .selectUtxosFrom(utxos)
       .complete();
 
@@ -238,8 +242,8 @@ function BuildTransactionDemo({
 
   return (
     <LiveCodeDemo
-      title="Build and submit Transaction"
-      subtitle="Building and submitting a transaction in the Hydra head."
+      title="Build and submit Transaction in Hydra head"
+      subtitle="Build and submit a transaction in the Hydra head."
       runCodeFunction={runDemo}
       code={transaction}
       runDemoShowProviderInit={true}
@@ -250,8 +254,14 @@ function BuildTransactionDemo({
           <Input
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder="funds.sk"
-            label="funds signing key"
+            placeholder="alice-funds.sk"
+            label="signing key"
+          />,
+          <Input
+            value={aliceAddress}
+            onChange={(e) => setAliceAddress(e.target.value)}
+            placeholder="alice-funds.addr"
+            label="Address"
           />,
           <Input
             value={amount}
@@ -260,10 +270,10 @@ function BuildTransactionDemo({
             label="amount (lovelace)"
           />,
           <Input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
+            value={bobAddress}
+            onChange={(e) => setBobAddress(e.target.value)}
             placeholder="bob-funds.addr"
-            label="head participant address"
+            label="bob-funds address"
           />,
         ]}
       />
