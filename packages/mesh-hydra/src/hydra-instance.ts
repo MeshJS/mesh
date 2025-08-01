@@ -78,9 +78,12 @@ export class HydraInstance {
    * @param txHash
    * @param txIndex
    */
-  async commitBlueprint() {
-    return "txhash";
+  async commitBlueprint(){
+
+  return this._commitToHydra({ });
   }
+  
+  
 
   /**
    * TO DO
@@ -89,8 +92,9 @@ export class HydraInstance {
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
    * @returns
    */
-  async incrementalCommit() {
-    return "txHash";
+  async incrementalCommit(){
+  
+    return this._commitToHydra({ });
   }
 
   /**

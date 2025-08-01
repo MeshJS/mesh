@@ -29,6 +29,7 @@ export class HydraConnection extends EventEmitter {
     if (!this._websocket) {
       throw new Error("invalid url, websocket failed to connect");
     }
+    
     this._status = "CONNECTING";
 
     this._websocket.onopen = () => {
