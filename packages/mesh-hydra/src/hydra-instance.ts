@@ -1,8 +1,7 @@
 import { parseDatumCbor } from "@meshsdk/core-cst";
 import { IFetcher, ISubmitter } from "@meshsdk/common";
 import { HydraProvider } from "./hydra-provider";
-import { hTransaction} from "./types";
-import { getReferenceScriptInfo } from "./utils/hScriptRef";
+
 /**
  * todo: implement https://hydra.family/head-protocol/docs/tutorial/
  */
@@ -85,67 +84,12 @@ export class HydraInstance {
    *   - `txId`: Optional transaction ID (not used in the function).
    * @returns A promise that resolves to the CBOR hex string of the commit transaction.
    */
-  async commitBlueprint(
-    txHash: string,
-    outputIndex: number,
-    transaction: hTransaction
-  ): Promise<string> {
-    const utxo = (await this.fetcher.fetchUTxOs(txHash, outputIndex))[0];
-    if (!utxo) {
-      throw new Error(`UTxO not found: ${txHash}#${outputIndex}`);
-    }
+  async commitBlueprint(){
 
-    const { scriptInstance, scriptLanguage, scriptType } =
-      await getReferenceScriptInfo(utxo.output.scriptRef);
-
-    const blueprintTx = {
-      blueprintTx: {
-        cborHex: transaction.cborHex,
-        description:
-          transaction.description === undefined
-            ? (transaction.description = "")
-            : transaction.description,
-        type: transaction.type,
-      },
-      utxo: {
-        [`${txHash}#${outputIndex}`]: {
-          address: utxo.output.address,
-          datum: null,
-          datumHash:
-            utxo.output.dataHash === "" || !utxo.output.dataHash
-              ? null
-              : utxo.output.dataHash,
-          inlineDatum: utxo.output.plutusData
-            ? parseDatumCbor(utxo.output.plutusData)
-            : null,
-          inlineDatumRaw: utxo.output.plutusData ?? null,
-          referenceScript:
-            utxo.output.scriptRef && scriptInstance
-              ? {
-                  scriptLanguage,
-                  script: {
-                    cborHex: utxo.output.scriptRef,
-                    description: transaction.description ?? " ",
-                    type: scriptType,
-                  },
-                }
-              : null,
-          value: {
-            lovelace: Number(
-              utxo.output.amount.find((Asset) => Asset.unit === "lovelace")
-                ?.quantity
-            ),
-          },
-          ...Object.fromEntries(
-            utxo.output.amount
-              .filter((asset) => asset.unit !== "lovelace")
-              .map((asset) => [asset.unit, Number(asset.quantity)])
-          ),
-        },
-      },
-    };
-    return this._commitToHydra({ blueprintTx });
+  return this._commitToHydra({ });
   }
+  
+  
 
   /**
    * TO DO
@@ -154,66 +98,9 @@ export class HydraInstance {
    * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
    * @returns
    */
-  async incrementalCommit(
-    txHash: string,
-    outputIndex: number,
-    transaction: hTransaction
-  ): Promise<string> {
-    const utxo = (await this.fetcher.fetchUTxOs(txHash, outputIndex))[0];
-    if (!utxo) {
-      throw new Error(`UTxO not found: ${txHash}#${outputIndex}`);
-    }
-
-    const { scriptInstance, scriptLanguage, scriptType } =
-      await getReferenceScriptInfo(utxo.output.scriptRef);
-
-    const blueprintTx = {
-      blueprintTx: {
-        cborHex: transaction.cborHex,
-        description:
-          transaction.description === undefined
-            ? (transaction.description = "")
-            : transaction.description,
-        type: transaction.type,
-      },
-      utxo: {
-        [`${txHash}#${outputIndex}`]: {
-          address: utxo.output.address,
-          datum: null,
-          datumHash:
-            utxo.output.dataHash === "" || !utxo.output.dataHash
-              ? null
-              : utxo.output.dataHash,
-          inlineDatum: utxo.output.plutusData
-            ? parseDatumCbor(utxo.output.plutusData)
-            : null,
-          inlineDatumRaw: utxo.output.plutusData ?? null,
-          referenceScript:
-            utxo.output.scriptRef && scriptInstance
-              ? {
-                  scriptLanguage,
-                  script: {
-                    cborHex: utxo.output.scriptRef,
-                    description: transaction.description ?? " ",
-                    type: scriptType,
-                  },
-                }
-              : null,
-          value: {
-            lovelace: Number(
-              utxo.output.amount.find((Asset: any) => Asset.unit === "lovelace")
-                ?.quantity
-            ),
-          },
-          ...Object.fromEntries(
-            utxo.output.amount
-              .filter((asset: any) => asset.unit !== "lovelace")
-              .map((asset: any) => [asset.unit, Number(asset.quantity)])
-          ),
-        },
-      },
-    };
-    return this._commitToHydra({ blueprintTx });
+  async incrementalCommit(){
+  
+    return this._commitToHydra({ });
   }
 
   /**
