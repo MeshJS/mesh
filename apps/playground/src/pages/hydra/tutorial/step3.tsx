@@ -37,7 +37,7 @@ function Left() {
   commitFundsCode += `  url: "<URL>",\n`;
   commitFundsCode += `});\n`;
   commitFundsCode += `const hInstance = new HydraInstance({\n`;
-  commitFundsCode += `  provider,\n`;
+  commitFundsCode += `  provider: provider,\n`;
   commitFundsCode += `  fetcher: "<blockchainProvider>",\n`;
   commitFundsCode += `  submitter: "<blockchainProvider>",\n`;
   commitFundsCode += `});\n`;
@@ -57,6 +57,7 @@ function Left() {
   commitFundsCode += `const commitTx = await hInstance.commitFunds(txHash, outputIndex);\n`;
   commitFundsCode += `const signedTx = await wallet.signTx(commitTx, true);\n`;
   commitFundsCode += `const commitTxHash = await wallet.submitTx(signedTx);\n`;
+  commitFundsCode += `console.log(commitTxHash);\n`
 
   return (
     <>
@@ -281,8 +282,8 @@ function MonitorHeadStatusDemo({
 
   return (
     <LiveCodeDemo
-      title="Monitor Head Status"
-      subtitle="Monitoring the Hydra head status changes."
+      title="Head Status"
+      subtitle="Monitor the Hydra head status changes."
       code={headStatus}
       runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
