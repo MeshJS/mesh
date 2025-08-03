@@ -30,7 +30,7 @@
     "@meshsdk/common": "1.9.0-beta.69",
     "@meshsdk/core-cst": "1.9.0-beta.69",
     "axios": "^1.7.2",
-    "xstate": "^5.19.4"
+    "xstate": "^5.20.1"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
