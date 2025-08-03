@@ -6,7 +6,7 @@ import {
   createOption,
   InvalidArgumentError,
 } from "commander";
-import { create } from "./actions";
+import { create, blueprint } from "./actions";
 import { logError, logSuccess, logInfo } from "./utils";
 
 const main = async () => {
@@ -27,9 +27,7 @@ const main = async () => {
 
   program
     .name("meshjs")
-    .description(
-      "A quick and easy way to bootstrap your Web3 app using Mesh."
-    )
+    .description("A quick and easy way to bootstrap your Web3 app using Mesh.")
     .version("1.0.0");
 
   program
@@ -66,13 +64,32 @@ const main = async () => {
     )
     .action(create);
 
+  program
+    .command("blueprint")
+    .description("Generate TypeScript code from Cardano blueprint")
+    .addArgument(
+      createArgument(
+        "blueprint-path",
+        "Path to the blueprint JSON file"
+      ).argRequired()
+    )
+    .addArgument(
+      createArgument(
+        "output-path",
+        "Path to the output TypeScript file"
+      ).argRequired()
+    )
+    .action(blueprint);
+
   await program.parseAsync(process.argv);
 };
 
 main()
   .then(() => {
-    logSuccess("✨✨ Welcome to Web 3.0! ✨✨");
-    logInfo('Run "cd <project-name>" and "npm run dev" to start your app.');
+    if (process.argv.includes("create")) {
+      logSuccess("✨✨ Welcome to Web 3.0! ✨✨");
+      logInfo('Run "cd <project-name>" and "npm run dev" to start your app.');
+    }
     process.exit(0);
   })
   .catch((error) => {

@@ -56,6 +56,7 @@ function Left() {
   let codeWeb3Services = `const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');\n\n`;
   codeWeb3Services += `<CardanoWallet\n`;
   codeWeb3Services += `  web3Services={{\n`;
+  codeWeb3Services += `    projectId: 'your-utxos-projectid',\n`;
   codeWeb3Services += `    networkId: 0,\n`;
   codeWeb3Services += `    fetcher: provider,\n`;
   codeWeb3Services += `    submitter: provider,\n`;
@@ -119,14 +120,13 @@ function Left() {
         is connected.
       </p>
 
-      <h3>Mesh Web3 Services</h3>
+      <h3>UTXOS - Web3 Services</h3>
       <p>
-        <Link href="https://web3.meshjs.dev/">Mesh Web3 Services</Link>{" "}
-        streamline user onboarding and on-chain feature integration,
-        accelerating your app's time to market.
+        <Link href="https://utxos.dev/">UTXOS</Link>{" "}
+        streamline user onboarding and Web3 integration, accelerating your app's time to market and provide seamless user experiences.
       </p>
       <p>
-        To integrate Mesh Web3 Services, use the <code>web3Services</code> prop.
+        To integrate UTXOS, use the <code>web3Services</code> prop.
         The <code>networkId</code> is the network ID of the wallet you are
         connecting to. You may use any <Link href="/providers">providers</Link>{" "}
         for <code>fetcher</code> and <code>submitter</code>.

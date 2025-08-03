@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { BlockfrostProvider, MeshWallet } from "@meshsdk/core";
+import { MeshWallet } from "@meshsdk/core";
 import { HydraInstance, HydraProvider } from "@meshsdk/hydra";
 
 import { getProvider } from "~/components/cardano/mesh-wallet";
@@ -9,7 +9,6 @@ import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
-import { useProviders } from "~/hooks/useProviders";
 
 export default function HydraCommit({
   provider,
@@ -46,7 +45,7 @@ function Left(commitUtxo: string) {
         Commit a particular UTxO to the head. This will make the UTxO available
         on the layer 2.
       </p>
-      <Codeblock data={`await instance.commit("${txHash}", ${txIndex});`} />
+      <Codeblock data={`await instance.commitFunds("${txHash}", ${txIndex});`} />
     </>
   );
 }

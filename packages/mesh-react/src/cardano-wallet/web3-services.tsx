@@ -39,8 +39,8 @@ export default function Web3Services({
 
     setWeb3UserData(user);
     setWallet(
-      wallet,
-      "Mesh Web3 Services",
+      wallet.cardano!,
+      "utxos",
       persist
         ? {
             walletAddress: await wallet.getChangeAddress(),

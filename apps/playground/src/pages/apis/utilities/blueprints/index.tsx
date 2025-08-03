@@ -4,12 +4,14 @@ import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
 import TitleIconDescriptionBody from "~/components/sections/title-icon-description-body";
 import { metaBlueprints } from "~/data/links-utilities";
+import CLIBlueprint from "./cli-blueprint";
 import MintingBlueprint from "./minting-blueprint";
 import SpendingBlueprint from "./spending-blueprint";
 import WithdrawalBlueprint from "./withdrawal-blueprint";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
+    { label: "CLI Blueprint Generator", to: "cliBlueprint" },
     { label: "Spending Script Blueprint", to: "spendingScriptblueprint" },
     { label: "Minting Script Blueprint", to: "mintingScriptBlueprint" },
     { label: "Withdrawal Script Blueprint", to: "withdrawalScriptBlueprint" },
@@ -40,6 +42,7 @@ const ReactPage: NextPage = () => {
           </>
         </TitleIconDescriptionBody>
 
+        <CLIBlueprint />
         <SpendingBlueprint />
         <MintingBlueprint />
         <WithdrawalBlueprint />
