@@ -9,8 +9,7 @@ import { HydraInstance } from "./hydra-instance";
 describe("Hydra Provider", () => {
   it("should make and submit a valid tx", async () => {
     const provider = new HydraProvider({
-      url: "http://localhost:4002",
-      history: true,
+      httpUrl: "http://localhost:4002",
     });
 
     const blockchainProvider = new BlockfrostProvider(

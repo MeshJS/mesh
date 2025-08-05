@@ -30,7 +30,7 @@ const ReactPage: NextPage = () => {
 
   const hydraUrl = useProviders((state) => state.hydraUrl);
   const hydraProvider = new HydraProvider({
-    url: hydraUrl,
+    httpUrl: hydraUrl,
   });
   
   const providerName = "hydra";
@@ -46,7 +46,7 @@ const ReactPage: NextPage = () => {
   codeSnippet += `import { HydraInstance, HydraProvider } from "@meshsdk/hydra";\n`;
   codeSnippet += `\n`;
   codeSnippet += `const provider = new HydraProvider({\n`;
-  codeSnippet += `  url: "<URL>",\n`;
+  codeSnippet += `  httpUrl: "<URL>",\n`;
   codeSnippet += `});\n`;
   codeSnippet += `\n`;
   codeSnippet += `const hydraInstance = new HydraInstance({\n`;

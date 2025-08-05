@@ -63,26 +63,26 @@ export class HydraProvider implements IFetcher, ISubmitter {
   private readonly _axiosInstance: AxiosInstance;
 
   constructor({
-    url,
+    httpUrl,
     history = false,
     address,
     wsUrl,
   }: {
-    url: string;
+    httpUrl: string;
     history?: boolean;
     address?: string;
     wsUrl?: string;
   }) {
     this._eventEmitter = new EventEmitter();
     this._connection = new HydraConnection({
-      url: url,
+      httpUrl: httpUrl,
       eventEmitter: this._eventEmitter,
       history: history,
       address: address,
       wsUrl: wsUrl,
     });
     this._axiosInstance = axios.create({
-      baseURL: url,
+      baseURL: httpUrl,
     });
   }
 
