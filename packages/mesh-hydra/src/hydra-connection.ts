@@ -4,20 +4,20 @@ import WebSocket, { MessageEvent } from "isomorphic-ws";
 
 export class HydraConnection extends EventEmitter {
   constructor({
-    url,
+    httpUrl,
     eventEmitter,
     history = false,
     address,
     wsUrl,
   }: {
-    url: string;
+    httpUrl: string;
     eventEmitter: EventEmitter;
     history?: boolean;
     address?: string;
     wsUrl?: string;
   }) {
     super();
-    const _wsUrl = wsUrl ? wsUrl : url.replace("http", "ws");
+    const _wsUrl = wsUrl ? wsUrl : httpUrl.replace("http", "ws");
     const _history = `history=${history ? "yes" : "no"}`;
     const _address = address ? `&address=${address}` : "";
     this._websocketUrl = `${_wsUrl}/?${_history}${_address}`;
@@ -26,10 +26,7 @@ export class HydraConnection extends EventEmitter {
 
   async connect(): Promise<void> {
     this._websocket = new WebSocket(this._websocketUrl);
-    if (!this._websocket) {
-      throw new Error("invalid url, websocket failed to connect");
-    }
-    
+
     this._status = "CONNECTING";
 
     this._websocket.onopen = () => {
@@ -45,7 +42,7 @@ export class HydraConnection extends EventEmitter {
 
     this._websocket.onclose = (code) => {
       console.error("Hydra websocket closed", code.code, code.reason);
-      this._status = "CLOSED";
+      this._status = "DISCONNECTED";
       this._connected = false;
     };
 
@@ -58,23 +55,27 @@ export class HydraConnection extends EventEmitter {
   }
 
   send(data: unknown): void {
+    let send = false;
+
     const sendData = () => {
       if (this._websocket?.readyState === WebSocket.OPEN) {
         this._websocket.send(JSON.stringify(data));
+        send = true;
         return true;
       }
       return false;
     };
 
     const interval = setInterval(() => {
-      if (sendData()) {
+      if (!send && sendData()) {
         clearInterval(interval);
+        clearTimeout(timeout);
       }
     }, 1000);
 
-    setTimeout(() => {
-      if (!sendData()) {
-        console.error("Failed to send data: WebSocket connection timeout.");
+    const timeout = setTimeout(() => {
+      if (!send) {
+        console.log(`websocket failed to send ${data}`);
         clearInterval(interval);
       }
     }, 5000);
@@ -88,6 +89,7 @@ export class HydraConnection extends EventEmitter {
       this._websocket.close(1007);
     }
     this._status = "IDLE";
+    this._connected = false;
   }
 
   async processStatus(message: {}) {
