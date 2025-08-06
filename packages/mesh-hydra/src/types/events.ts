@@ -1,9 +1,9 @@
 import {
   HydraParty,
   HydraSnapshot,
-  hTransaction,
+  hydraTransaction,
 } from "../types";
-import { hUTxOs } from "./hUTxOs";
+import { hydraUTxOs } from "./hydraUTxOs";
 import { PostChainTx } from "./hydra-post-chain-tx";
 
 export type Greetings = {
@@ -19,7 +19,7 @@ export type Greetings = {
     | "FanoutPossible"
     | "Final";
   hydraHeadId: string;
-  snapshotUtxo: hUTxOs;
+  snapshotUtxo: hydraUTxOs;
   timestamp: string;
   hydraNodeVersion: string;
 };
@@ -66,7 +66,7 @@ export type HeadIsInitializing = {
 export type Committed = {
   tag: "Committed";
   parties: HydraParty[];
-  utxo: hUTxOs;
+  utxo: hydraUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -74,7 +74,7 @@ export type Committed = {
 export type HeadIsOpen = {
   tag: "HeadIsOpen";
   headId: string;
-  utxo: hUTxOs;
+  utxo: hydraUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -107,7 +107,7 @@ export type ReadyToFanout = {
 export type HeadIsAborted = {
   tag: "HeadIsAborted";
   headId: string;
-  utxo: hUTxOs;
+  utxo: hydraUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -115,7 +115,7 @@ export type HeadIsAborted = {
 export type HeadIsFinalized = {
   tag: "HeadIsFinalized";
   headId: string;
-  utxo: hUTxOs;
+  utxo: hydraUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -125,14 +125,14 @@ export type TxValid = {
   tag: "TxValid";
   seq: number;
   timestamp: string;
-  transaction: hTransaction;
+  transaction: hydraTransaction;
 };
 
 export type TxInvalid = {
   tag: "TxInvalid";
   headId: string;
-  utxo: hUTxOs;
-  transaction: hTransaction;
+  utxo: hydraUTxOs;
+  transaction: hydraTransaction;
   validationError: { reason: string };
   seq: number;
   timestamp: string;
@@ -149,7 +149,7 @@ export type SnapshotConfirmed = {
 export type GetUTxOResponse = {
   tag: "GetUTxOResponse";
   headId: string;
-  utxo: hUTxOs;
+  utxo: hydraUTxOs;
   seq: number;
   timestamp: string;
 };
@@ -176,9 +176,9 @@ export type CommandFailed = {
     | {
         tag: "Abort";
       }
-    | { tag: "NewTx"; transaction: hTransaction }
+    | { tag: "NewTx"; transaction: hydraTransaction }
     | { tag: "GetUTxO" }
-    | { tag: "Decommit"; decommitTx: hTransaction }
+    | { tag: "Decommit"; decommitTx: hydraTransaction }
     | { tag: "Close" }
     | { tag: "Contest" }
     | { tag: "Fanout" };
@@ -199,11 +199,11 @@ export type IgnoredHeadInitializing = {
 export type DecommitInvalid = {
   tag: "DecommitInvalid";
   headId: string;
-  decommitTx: hTransaction;
+  decommitTx: hydraTransaction;
   decommitInvalidReason:
     | {
         tag: "DecommitTxInvalid";
-        localUtxo: hUTxOs;
+        localUtxo: hydraUTxOs;
         validationError: { reason: string };
       }
     | { tag: "DecommitAlreadyInFlight"; otherDecommitTxId: string };
@@ -212,8 +212,8 @@ export type DecommitInvalid = {
 export type DecommitRequested = {
   tag: "DecommitRequested";
   headId: string;
-  decommitTx: hTransaction;
-  utxoToDecommit: hUTxOs;
+  decommitTx: hydraTransaction;
+  utxoToDecommit: hydraUTxOs;
   seq: number;
   timestmap: string;
 };
@@ -222,7 +222,7 @@ export type DecommitApproved = {
   tag: "DecommitApproved";
   headId: string;
   decommitTxId: string;
-  utxoToDecommit: hUTxOs;
+  utxoToDecommit: hydraUTxOs;
   seq: number;
   timestamp: string;
 };

@@ -217,7 +217,7 @@ function CommitFundsDemo({
     const commitTx = await hInstance.commitFunds(txHash, outputIndex);
     const signedTx = await wallet.signTx(commitTx, true);
     const commitTxHash = await wallet.submitTx(signedTx);
-    setCommitStatus(`commit txHash: ${commitTxHash}`);
+    return `commit txHash: ${commitTxHash}`;
   };
 
   return (

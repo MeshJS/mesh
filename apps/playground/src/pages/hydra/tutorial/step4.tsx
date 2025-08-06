@@ -53,8 +53,7 @@ function Left() {
   buildTransactionCode += `  .complete();\n\n`;
 
   buildTransactionCode += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  buildTransactionCode += `const txHash = await provider.submitTx(signedTx);\n`;
-  buildTransactionCode += `console.log(txHash);\n`;
+  buildTransactionCode += `await provider.submitTx(signedTx);\n\n`;
 
   return (
     <>
@@ -87,7 +86,8 @@ function Left() {
       <p>
         The transaction will be validated by both hydra-nodes and either result
         in a <code>TxValid</code> message or a <code>TxInvalid</code> message If
-        valid, you'll see a <code>SnapshotConfirmed</code>
+        valid, transactions in hydra head does not return a hash instead you'll
+        see a <code>SnapshotConfirmed</code>
         message shortly after with the new UTxO set.
       </p>
 
@@ -235,9 +235,7 @@ function BuildTransactionDemo({
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await provider.submitTx(signedTx);
-
-    setTransaction(txHash);
+    await provider.submitTx(signedTx);
   };
 
   return (
