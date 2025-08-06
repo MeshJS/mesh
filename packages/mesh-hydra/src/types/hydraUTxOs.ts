@@ -1,8 +1,7 @@
 import { UTxO } from "@meshsdk/common";
 import { hydraAssets } from "./hydraAssets";
-import { hydraReferenceScript} from "./hydraReferenceScript";
+import { hydraReferenceScript } from "./hydraReferenceScript";
 import { parseDatumCbor } from "@meshsdk/core-cst";
-import { resolveScriptHash } from "@meshsdk/core";
 
 export type hydraUTxOs = {
   [txRef: string]: hydraUTxO;
@@ -61,23 +60,7 @@ hydraUTxO.toUTxO = (hydraUTxO: hydraUTxO, txId: string): UTxO => {
       amount: hydraAssets.toAssets(hydraUTxO.value),
       dataHash: hydraUTxO.inlineDatumhash ?? undefined,
       plutusData: hydraUTxO.inlineDatumRaw?.toString(),
-      scriptHash: (() => {
-        const scriptLanguage = hydraUTxO.referenceScript?.scriptLanguage;
-        const version = scriptLanguage?.endsWith("V1")
-          ? "V1"
-          : scriptLanguage?.endsWith("V2")
-            ? "V2"
-            : scriptLanguage?.endsWith("V3")
-              ? "V3"
-              : undefined;
-        return (
-          hydraUTxO.referenceScript?.script.cborHex ??
-          resolveScriptHash(
-            hydraUTxO.referenceScript?.script.cborHex!,
-            version as "V1" | "V2" | "V3" | undefined
-          ).toString()
-        );
-      })(),
+      scriptHash: hydraUTxO.referenceScript?.script.cborHex ?? undefined, //To do
       scriptRef:
         hydraUTxO.referenceScript?.script.cborHex ??
         hydraUTxO.referenceScript?.script.cborHex.toString(),
