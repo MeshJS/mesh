@@ -1,6 +1,6 @@
 import { IFetcher, ISubmitter } from "@meshsdk/common";
 import { HydraProvider } from "./hydra-provider";
-import { hydraTransaction, hydraUTxO, hydraUTxOs } from "./types";
+import { hydraTransaction, hydraUTxO } from "./types";
 
 /**
  * todo: implement https://hydra.family/head-protocol/docs/tutorial/
@@ -52,6 +52,7 @@ export class HydraInstance {
       throw new Error("UTxO not found");
     }
     const hydraUtxo = await hydraUTxO(utxo);
+    console.log("utxo: ", hydraUtxo);
     return this._commitToHydra({ [txHash + "#" + outputIndex]: hydraUtxo });
   }
 
@@ -143,7 +144,7 @@ export class HydraInstance {
    *
    * @returns
    */
-  async incrementalDecommit() {
-    return "txHash";
+  async incrementalDecommit(transaction: hydraTransaction) {
+    return this.decommit(transaction);
   }
 }
