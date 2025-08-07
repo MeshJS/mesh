@@ -1,22 +1,22 @@
 import { Asset } from "@meshsdk/common";
 
 export type hydraAssets = {
-  lovelace: bigint;
+  lovelace: number;
 } & {
-  [assets: string]: bigint;
+  [assets: string]: number;
 };
 
 export function hydraAssets(assets: Asset[]): hydraAssets {
   return assets.reduce(
     (p, asset) => {
       if (asset.unit === "" || asset.unit === "lovelace") {
-        p.lovelace += BigInt(asset.quantity);
+        p.lovelace += Number(asset.quantity);
       } else {
-        p[asset.unit] = (p[asset.unit] ?? 0n) + BigInt(asset.quantity);
+        p[asset.unit] = (p[asset.unit] ?? 0) + Number(asset.quantity);
       }
       return p;
     },
-    { lovelace: BigInt(0n) } as hydraAssets
+    { lovelace: Number(0) } as hydraAssets
   );
 }
 
