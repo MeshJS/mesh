@@ -128,7 +128,7 @@ export class KupoProvider implements IFetcher {
     let meshValue: Asset[] = [];
     meshValue.push({
       unit: "lovelace",
-      quantity: value.coins,
+      quantity: String(value.coins),
     });
     for (const [assetClass, quantity] of Object.entries(value.assets)) {
       let [policyId, assetName] = assetClass.split(".");
