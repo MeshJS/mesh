@@ -45,7 +45,7 @@ function Left() {
   buildTransactionCode += `const unsignedTx = await txBuilder\n`;
   buildTransactionCode += `  .txOut(\n`;
   buildTransactionCode += `    "bob-funds.addr",\n`;
-  buildTransactionCode += `    [{ unit: "lovelace", quantity: "3000000" }]\n`;
+  buildTransactionCode += `    [{ unit: "lovelace", quantity: "30000000" }]\n`;
   buildTransactionCode += `  )\n`;
   buildTransactionCode += `  .changeAddress("alice-funds.addr")\n`;
   buildTransactionCode += `  .selectUtxosFrom(utxos)\n`;
