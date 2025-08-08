@@ -49,7 +49,7 @@ const ReactPage: NextPage = () => {
   codeSnippet += `  httpUrl: "<URL>",\n`;
   codeSnippet += `});\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const hydraInstance = new HydraInstance({\n`;
+  codeSnippet += `const instance = new HydraInstance({\n`;
   codeSnippet += `  provider:  provider,\n`;
   codeSnippet += `  fetcher:   "<blockchainProvider>",\n`;
   codeSnippet += `  submitter: "<blockchainProvider>",\n`;
