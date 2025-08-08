@@ -229,6 +229,32 @@ export class HydraProvider implements IFetcher, ISubmitter {
   }
 
   /**
+   * Request to decommit a UTxO from a Head by providing a decommit tx. Upon reaching consensus, this will eventually result in corresponding transaction outputs becoming available on the layer 1.
+   *
+   * @param cborHex The base16-encoding of the CBOR encoding of some binary data
+   * @param type Allowed values: "Tx ConwayEra""Unwitnessed Tx ConwayEra""Witnessed Tx ConwayEra"
+   * @param description
+   */
+  async decommit(
+    cborHex: string,
+    type:
+      | "Tx ConwayEra"
+      | "Unwitnessed Tx ConwayEra"
+      | "Witnessed Tx ConwayEra",
+    description: string
+  ) {
+    const payload = {
+      tag: "Decommit",
+      decommitTx: {
+        type: type,
+        description: description,
+        cborHex: cborHex,
+      },
+    };
+    this._connection.send(payload);
+  }
+
+  /**
    * Terminate a head with the latest known snapshot. This effectively moves the head from the Open state to the Close state where the contestation phase begin. As a result of closing a head, no more transactions can be submitted via NewTx.
    */
   async close() {
