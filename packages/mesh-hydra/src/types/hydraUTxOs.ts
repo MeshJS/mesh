@@ -52,8 +52,8 @@ hydraUTxO.toUTxO = (hydraUTxO: hydraUTxO, txId: string): UTxO => {
   }
   return {
     input: {
-      outputIndex: Number(txIndex),
       txHash: txHash,
+      outputIndex: Number(txIndex),
     },
     output: {
       address: hydraUTxO.address,
