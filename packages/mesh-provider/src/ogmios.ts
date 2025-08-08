@@ -134,6 +134,33 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
     });
   }
 
+  async fetchProtocolParameters(): Promise<any> {
+    const client = await this.open();
+
+    this.send(client, "queryLedgerState/protocolParameters", {});
+    return new Promise((resolve, reject) => {
+      client.addEventListener(
+        "message",
+        (response: MessageEvent<string>) => {
+          try {
+            const { result } = JSON.parse(response.data);
+
+            if (!result) {
+              reject(JSON.parse(response.data).error);
+            }
+
+            resolve(result);
+
+            client.close();
+          } catch (error) {
+            reject(error);
+          }
+        },
+        { once: true },
+      );
+    });
+  }
+
   private async open(): Promise<WebSocket> {
     const client = new WebSocket(this._baseUrl);
 
