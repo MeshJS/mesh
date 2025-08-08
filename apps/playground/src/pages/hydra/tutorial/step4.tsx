@@ -61,7 +61,7 @@ function Left() {
         Now that the Hydra head is open, you can perform transactions within the
         layer 2 state channel. Hydra Head operates as an isomorphic protocol,
         meaning that functionalities available on Cardano layer 1 are also
-        available on layer 2. This allows us to use Mesh SDK for transaction
+        available on layer 2. This allows us to use Mesh for transaction
         creation within the head.
       </p>
 
