@@ -15,6 +15,7 @@ describe("Hydra Provider", () => {
     });
 
     blockchainProvider = new BlockfrostProvider("");
+    const seedPhrase = [""];
 
     hInstance = new HydraInstance({
       provider: provider,
@@ -28,7 +29,7 @@ describe("Hydra Provider", () => {
       submitter: blockchainProvider,
       key: {
         type: "mnemonic",
-        words: [],
+        words: seedPhrase,
       },
     });
   });
@@ -38,7 +39,7 @@ describe("Hydra Provider", () => {
     //await provider.init();
 
     const pp = await provider.fetchProtocolParameters();
-    const utxos = await wallet.getUtxos();
+    const utxos = await provider.fetchUTxOs();
 
     txBuilder = new MeshTxBuilder({
       fetcher: blockchainProvider,
@@ -58,6 +59,7 @@ describe("Hydra Provider", () => {
         },
       ])
       .selectUtxosFrom(utxos)
+      .setFee("0")
       .changeAddress("")
       .setNetwork("preprod")
       .complete();
@@ -65,8 +67,8 @@ describe("Hydra Provider", () => {
     console.log(unsignedTx);
 
     const tx = await hInstance.commitBlueprint(
-      "cd8d9b66df467df82cf6df10a0dbd24847a27ac280e1033e509a8bc0de8d2579",
-      2,
+      "ad16a3a415763e8662469c868038a659f5076a174633323894666f4c9d2e60d1",
+      1,
       {
         cborHex: unsignedTx,
         description: "a new blueprint tx",
