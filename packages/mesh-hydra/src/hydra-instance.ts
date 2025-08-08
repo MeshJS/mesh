@@ -40,7 +40,7 @@ export class HydraInstance {
 
   /**
    * To commit funds to the head, choose which UTxO you would like to make available on layer 2.
-   * The function returns the transaction CBOR hex partially signed in hydra head.
+   * The function returns the transaction CBOR hex ready to be partially signed.
    * @param txHash
    * @param txIndex
    * @returns commitTransactionHex
@@ -52,7 +52,6 @@ export class HydraInstance {
       throw new Error("UTxO not found");
     }
     const hydraUtxo = await hydraUTxO(utxo);
-    console.log("utxo: ", hydraUtxo);
     return this._commitToHydra({ [txHash + "#" + outputIndex]: hydraUtxo });
   }
 
@@ -69,11 +68,11 @@ export class HydraInstance {
    *
    * @param txHash - The transaction hash of the UTxO to be committed as a blueprint.
    * @param outputIndex - The output index of the UTxO to be committed.
-   * @param hTransaction - The Cardano transaction in text envelope format, containing:
+   * @param hydraTransaction - The Cardano transaction in text envelope format, containing:
    *   - type: The type of the transaction (e.g., "Unwitnessed Tx ConwayEra").
    *   - description: (Optional) A human-readable description of the transaction.
    *   - cborHex: The CBOR-encoded unsigned transaction.
-   * @returns A promise that resolves to the CBOR hex ready to be signed.
+   * @returns A promise that resolves to the CBOR hex ready to be partially signed.
    */
   async commitBlueprint(
     txHash: string,
@@ -87,7 +86,7 @@ export class HydraInstance {
     const hydraUtxo = await hydraUTxO(utxo);
     return this._commitToHydra({
       blueprintTx: {
-        hTransaction: transaction,
+        ...transaction,
       },
       utxo: {
         [txHash + "#" + outputIndex]: hydraUtxo,
@@ -95,16 +94,36 @@ export class HydraInstance {
     });
   }
 
+  /**
+   * Increment commit funds to the head, choose which UTxO you would like to make available on layer 2.
+   * The function returns the transaction CBOR hhex ready to be partially signed.
+   * @param txHash
+   * @param txIndex
+   * @returns commitTransactionHex
+   */
+
   async incrementalCommitFunds(txHash: string, outputIndex: number) {
     return this.commitFunds(txHash, outputIndex);
   }
 
   /**
-   * TO DO
-   * https://hydra.family/head-protocol/unstable/docs/how-to/incremental-commit
+   * Increament a Cardano transaction blueprint to the Hydra head.
    *
-   * If you don't want to commit any funds and only want to receive on layer two, you can request an empty commit transaction.:
-   * @returns
+   * This method allows you to increase a commit in the Cardano text envelope format
+   * (i.e., a JSON object containing a 'type' and a 'cborHex' field) as a blueprint UTxO
+   * to the Hydra head. This is useful for advanced use cases such as reference scripts,
+   * inline datums, or other on-chain features that require a transaction context.
+   *
+   *
+   * https://hydra.family/head-protocol/docs/how-to/commit-blueprint
+   *
+   * @param txHash - The transaction hash of the UTxO to be committed as a blueprint.
+   * @param outputIndex - The output index of the UTxO to be committed.
+   * @param hydraTransaction - The Cardano transaction in text envelope format, containing:
+   *   - type: The type of the transaction (e.g., "Unwitnessed Tx ConwayEra").
+   *   - description: (Optional) A human-readable description of the transaction.
+   *   - cborHex: The CBOR-encoded unsigned transaction.
+   * @returns A promise that resolves to the CBOR hex ready to be partially signed.
    */
   async incrementalBlueprintCommit(
     txHash: string,
@@ -121,27 +140,15 @@ export class HydraInstance {
 
   /**
    * Request to decommit a UTxO from a Head by providing a decommit tx. Upon reaching consensus, this will eventually result in corresponding transaction outputs becoming available on the layer 1.
-   *
-   * @param cborHex The base16-encoding of the CBOR encoding of some binary data
-   * @param type Allowed values: "Tx ConwayEra""Unwitnessed Tx ConwayEra""Witnessed Tx ConwayEra"
-   * @param description
+   * Method not implemented
    */
   async decommit(transaction: hydraTransaction) {
-    const payload = {
-      tag: "Decommit",
-      decommitTx: {
-        type: transaction.type,
-        description: transaction.description,
-        cborHex: transaction.cborHex,
-        txId: transaction.txId,
-      },
-    };
-    this._decommitFromHydra(payload);
+    this._decommitFromHydra(transaction);
   }
 
   /**
    * https://hydra.family/head-protocol/docs/how-to/incremental-decommit
-   *
+   * Method not implemented
    * @returns
    */
   async incrementalDecommit(transaction: hydraTransaction) {
