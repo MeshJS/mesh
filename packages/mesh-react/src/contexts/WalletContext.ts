@@ -1,4 +1,3 @@
-
 import { createContext, useCallback, useEffect, useState } from "react";
 
 import { IBitcoinWallet } from "@meshsdk/bitcoin";
