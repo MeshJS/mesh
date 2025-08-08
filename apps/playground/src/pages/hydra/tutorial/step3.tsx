@@ -36,7 +36,7 @@ function Left() {
   commitFundsCode += `import { HydraInstance , HydraProvider} from "@meshsdk/hydra";\n`;
   commitFundsCode += `\n`;
   commitFundsCode += `const provider = new HydraProvider({\n`;
-  commitFundsCode += `  url: "<URL>",\n`;
+  commitFundsCode += `  httpUrl: "<URL>",\n`;
   commitFundsCode += `});\n`;
   commitFundsCode += `const instance = new HydraInstance({\n`;
   commitFundsCode += `  provider: provider,\n`;
@@ -59,14 +59,14 @@ function Left() {
   commitFundsCode += `const commitTx = await instance.commitFunds(txHash, outputIndex);\n`;
   commitFundsCode += `const signedTx = await wallet.signTx(commitTx, true);\n`;
   commitFundsCode += `const commitTxHash = await wallet.submitTx(signedTx);\n`;
-  commitFundsCode += `console.log(commitTxHash);\n`;
+  commitFundsCode += `console.log('txHash: ',commitTxHash);\n`;
 
   let commitBlueprintCode = ``;
   commitBlueprintCode += `import { HydraInstance, HydraProvider } from "@meshsdk/hydra";\n`;
   commitBlueprintCode += `import { MeshWallet } from "@meshsdk/core";\n`;
   commitBlueprintCode += `\n`;
   commitBlueprintCode += `const provider = new HydraProvider({\n`;
-  commitBlueprintCode += `  url: "<URL>",\n`;
+  commitBlueprintCode += `  httpUrl: "<URL>",\n`;
   commitBlueprintCode += `});\n`;
   commitBlueprintCode += `\n`;
   commitBlueprintCode += `const instance = new HydraInstance({\n`;
@@ -93,6 +93,7 @@ function Left() {
   commitBlueprintCode += `const unsignedTx = await txBuilder\n`;
   commitBlueprintCode += `  .txIn(txHash, outputIndex)\n`;
   commitBlueprintCode += `  .txOut(address, [{ unit: "lovelace", quantity: amount }])\n`;
+  commitBlueprintCode += `  .setFee("0")\n`;
   commitBlueprintCode += `  .changeAddress(address)\n`;
   commitBlueprintCode += `  .selectUtxosFrom(UTxOs)\n`;
   commitBlueprintCode += `  .complete();\n`;
@@ -104,9 +105,9 @@ function Left() {
   commitBlueprintCode += `});\n`;
   commitBlueprintCode += `\n`;
   commitBlueprintCode += `const signedTx = await wallet.signTx(commitTx, true);\n`;
-  commitBlueprintCode += `const commitBlueprintTx = await wallet.submitTx(signedTx);\n`;
+  commitBlueprintCode += `const commitBlueprintTxHash = await wallet.submitTx(signedTx);\n`;
   commitBlueprintCode += `\n`;
-  commitBlueprintCode += `console.log(commitBlueprintTx);\n`;
+  commitBlueprintCode += `console.log('txHash:',commitBlueprintTxHash);\n`;
 
   return (
     <>
@@ -139,24 +140,22 @@ function Left() {
         <code>hydraTransaction</code> in Mesh That is, a JSON object wrapper
         with some 'type' around a 'cborHex' encoded transaction. The hydra-node
         uses this format as follows:
-        <ul>
-          <li>
-            <code>type</code>: This can either be <code>Tx ConwayEra</code>,{" "}
-            <code>Unwitnessed Tx ConwayEra</code> or{" "}
-            <code>Witnessed Tx ConwayEra</code>
-          </li>
-          <li>
-            <code>cborhex:</code> The base16-encoding of the CBOR encoding of
-            some binary data, this can be passed from a built unsigned
-            transaction
-          </li>
-          <li>
-            <code>description: </code> An optional description for the
-            transaction
-          </li>
-        </ul>
-        <Codeblock data={commitBlueprintCode} />
       </p>
+      <ul>
+        <li>
+          <code>type</code>: This can either be <code>Tx ConwayEra</code>,{" "}
+          <code>Unwitnessed Tx ConwayEra</code> or{" "}
+          <code>Witnessed Tx ConwayEra</code>
+        </li>
+        <li>
+          <code>cborhex:</code> The base16-encoding of the CBOR encoding of some
+          binary data, this can be passed from a built unsigned transaction
+        </li>
+        <li>
+          <code>description: </code> An optional description for the transaction
+        </li>
+      </ul>
+      <Codeblock data={commitBlueprintCode} />
       <p>
         The hydra-node will create a draft commit transaction for you to sign.
         Once signed and submitted to the Cardano network, you'll see a{" "}
@@ -167,6 +166,12 @@ function Left() {
         When both parties have committed their funds, the Hydra head will open
         automatically. You'll see a <code>HeadIsOpen</code> message confirming
         the head is operational and ready for transactions.
+      </p>
+      <h4>Hydra head status</h4>
+      <p>
+        <Codeblock
+          data={`await provider.onStatusChange((status) => { console.log(status); });`}
+        />
       </p>
 
       <h4>Hydra Head Status Flow</h4>
@@ -254,9 +259,9 @@ function InitializeHeadDemo({
       title="Initialize Head"
       subtitle="initializing the Hydra head."
       code={initStatus}
-      runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
+      runCodeFunction={runDemo}
     />
   );
 }
@@ -302,9 +307,9 @@ function CommitFundsDemo({
     <LiveCodeDemo
       title="Commit Funds"
       subtitle="commits funds to Hydra head."
-      runCodeFunction={runDemo}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
+      runCodeFunction={runDemo}
     >
       <InputTable
         listInputs={[
@@ -366,6 +371,7 @@ function CommitBlueprintDemo({
     const unsignedTx = await txBuilder
       .txIn(txHash, outputIndex)
       .txOut(address, [{ unit: "lovelace", quantity: amount }])
+      .setFee("0")
       .changeAddress(address)
       .selectUtxosFrom(UTxOs)
       .complete();
@@ -379,18 +385,18 @@ function CommitBlueprintDemo({
     const signedTx = await wallet.signTx(commitTx);
     const commitTxHash = await wallet.submitTx(signedTx);
     console.log(commitTxHash);
-    setCommitBlueprintStatus(`commit txHash: ${commitTxHash}`);
+    return commitTxHash;
   };
 
   return (
     <LiveCodeDemo
       title="Commit UTxO Blueprint"
       subtitle="commits a blueprint to Hydra head."
-      runCodeFunction={runDemo}
       code={commitBlueprintStatus}
       runDemoShowBrowseWalletConnect={true}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
+      runCodeFunction={runDemo}
     >
       <InputTable
         listInputs={[
