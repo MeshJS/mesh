@@ -1,5 +1,5 @@
 import { ActorRefFrom, createActor, StateValue } from "xstate";
-import { machine } from "./hydra-machine";
+import { machine } from "./state-management/hydra-machine";
 import { Emitter } from "./utils/emitter";
 
 type ConnectOptions = {

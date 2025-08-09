@@ -1,6 +1,10 @@
 import { AnyEventObject, assertEvent, assign, fromCallback, fromPromise, sendTo, setup } from "xstate";
-import { HTTPClient } from "./utils";
+import { HTTPClient } from "../utils";
 
+// a reimplementation of the hydra protocol using xstate
+// https://hydra.family/head-protocol/docs
+// https://hydra.family/head-protocol/docs/dev
+// https://hydra.family/head-protocol/api-reference
 export const machine = setup({
   actions: {
     newTx: ({ event }) => {

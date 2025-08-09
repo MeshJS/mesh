@@ -10,39 +10,45 @@ export class MockWebSocket {
   public sentMessages: unknown[] = [];
   public eventLog: { type: WebSocketEventType; data?: unknown }[] = [];
 
+  // Mocked methods
+  send = jest.fn();
+  close = jest.fn();
+
   constructor(public url: string) {
-    setTimeout(() => {
+    this.send.mockImplementation((data: unknown) => {
+      if (this.readyState !== WebSocket.OPEN) {
+        throw new Error('WebSocket is not open');
+      }
+      this.logEvent('message', data);
+      this.sentMessages.push(data);
+    });
+
+    this.close.mockImplementation((code = 1000, reason = 'Normal closure') => {
+      if (this.readyState === WebSocket.CLOSED) return;
+      this.readyState = WebSocket.CLOSED;
+      const event = new CloseEvent('close', { wasClean: true, code, reason });
+      this.logEvent('close', { code, reason });
+      this.onclose?.(event);
+    });
+
+    // Defer opening to allow event listeners to be attached
+    process.nextTick(() => {
       this.readyState = WebSocket.OPEN;
       this.logEvent('open');
       this.onopen?.(new Event('open'));
-    }, 0);
-  }
-
-  send(data: unknown) {
-    if (this.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket is not open');
-    }
-    this.logEvent('message', data);
-    this.sentMessages.push(data);
-  }
-
-  close(code = 1000, reason = 'Normal closure') {
-    this.readyState = WebSocket.CLOSED;
-    const event = new CloseEvent('close', { wasClean: true, code, reason });
-    this.logEvent('close', { code, reason });
-    this.onclose?.(event);
+    });
   }
 
   // Test hooks
-  mockReceive(data: string | ArrayBuffer | Blob, delay = 0) {
-    setTimeout(() => {
+  mockReceive(data: string | ArrayBuffer | Blob | Uint8Array) {
+    process.nextTick(() => {
       this.logEvent('message', data);
       this.onmessage?.(new MessageEvent('message', { data }));
-    }, delay);
+    });
   }
 
-  mockBinaryReceive(binary: ArrayBuffer | Uint8Array | Blob, delay = 0) {
-    this.mockReceive(binary, delay);
+  mockBinaryReceive(binary: ArrayBuffer | Uint8Array | Blob) {
+    this.mockReceive(binary);
   }
 
   mockError(errorData?: unknown) {
@@ -52,6 +58,7 @@ export class MockWebSocket {
   }
 
   mockClose(code = 1006, reason = 'Unexpected closure') {
+    if (this.readyState === WebSocket.CLOSED) return;
     this.readyState = WebSocket.CLOSED;
     this.logEvent('close', { code, reason });
     this.onclose?.(new CloseEvent('close', { wasClean: false, code, reason }));

@@ -1,4 +1,4 @@
-import { HydraController } from "./hydra-controller";
+import { HydraController } from "../hydra-controller";
 
 const controller = new HydraController();
 
