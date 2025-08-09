@@ -45,7 +45,7 @@ function Left() {
   buildTransactionCode += `const unsignedTx = await txBuilder\n`;
   buildTransactionCode += `  .txOut(\n`;
   buildTransactionCode += `    "bob-funds.addr",\n`;
-  buildTransactionCode += `    [{ unit: "lovelace", quantity: "3000000" }]\n`;
+  buildTransactionCode += `    [{ unit: "lovelace", quantity: "30000000" }]\n`;
   buildTransactionCode += `  )\n`;
   buildTransactionCode += `  .changeAddress("alice-funds.addr")\n`;
   buildTransactionCode += `  .selectUtxosFrom(utxos)\n`;
@@ -53,8 +53,7 @@ function Left() {
   buildTransactionCode += `  .complete();\n\n`;
 
   buildTransactionCode += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  buildTransactionCode += `const txHash = await provider.submitTx(signedTx);\n`;
-  buildTransactionCode += `console.log(txHash);\n`;
+  buildTransactionCode += `await provider.submitTx(signedTx);\n\n`;
 
   return (
     <>
@@ -62,7 +61,7 @@ function Left() {
         Now that the Hydra head is open, you can perform transactions within the
         layer 2 state channel. Hydra Head operates as an isomorphic protocol,
         meaning that functionalities available on Cardano layer 1 are also
-        available on layer 2. This allows us to use Mesh SDK for transaction
+        available on layer 2. This allows us to use Mesh for transaction
         creation within the head.
       </p>
 
@@ -87,7 +86,8 @@ function Left() {
       <p>
         The transaction will be validated by both hydra-nodes and either result
         in a <code>TxValid</code> message or a <code>TxInvalid</code> message If
-        valid, you'll see a <code>SnapshotConfirmed</code>
+        valid, transactions in hydra head does not return a hash instead you'll
+        see a <code>SnapshotConfirmed</code>
         message shortly after with the new UTxO set.
       </p>
 
@@ -235,9 +235,7 @@ function BuildTransactionDemo({
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await provider.submitTx(signedTx);
-
-    setTransaction(txHash);
+    await provider.submitTx(signedTx);
   };
 
   return (
