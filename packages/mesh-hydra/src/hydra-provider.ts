@@ -54,7 +54,7 @@ import {
  * ```
  * import { HydraProvider } from "@meshsdk/hydra";
  *
- * const hydraProvider = new HydraProvider({url:'http://123.45.67.890:4001'});
+ * const hydraProvider = new HydraProvider({httpUrl:'http://123.45.67.890:4001'});
  */
 export class HydraProvider implements IFetcher, ISubmitter {
   private _connection: HydraConnection;

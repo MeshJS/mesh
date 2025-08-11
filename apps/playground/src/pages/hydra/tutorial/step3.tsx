@@ -385,7 +385,7 @@ function CommitBlueprintDemo({
     const signedTx = await wallet.signTx(commitTx);
     const commitTxHash = await wallet.submitTx(signedTx);
     console.log(commitTxHash);
-    return commitTxHash;
+    return `commitTxHash: ${commitTxHash}`;
   };
 
   return (
