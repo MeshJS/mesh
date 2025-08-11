@@ -3,7 +3,12 @@ import { HydraProvider } from "./hydra-provider";
 import { hydraTransaction, hydraUTxO } from "./types";
 
 /**
- * todo: implement https://hydra.family/head-protocol/docs/tutorial/
+ * Represents an instance of the Hydra protocol, providing methods to interact with a Hydra head.
+ *
+ * @constructor
+ * @param provider - The Hydra provider instance for interacting with the Hydra head.
+ * @param fetcher - The fetcher instance for fetching UTxOs and other data.
+ * @param submitter - The submitter instance for submitting transactions.
  */
 export class HydraInstance {
   provider: HydraProvider;
@@ -72,7 +77,7 @@ export class HydraInstance {
    *   - type: The type of the transaction (e.g., "Unwitnessed Tx ConwayEra").
    *   - description: (Optional) A human-readable description of the transaction.
    *   - cborHex: The CBOR-encoded unsigned transaction.
-   * @returns A promise that resolves to the CBOR hex ready to be partially signed.
+   * @returns The function returns the transaction CBOR hex ready to be partially signed.
    */
   async commitBlueprint(
     txHash: string,
@@ -96,7 +101,7 @@ export class HydraInstance {
 
   /**
    * Increment commit funds to the head, choose which UTxO you would like to make available on layer 2.
-   * The function returns the transaction CBOR hhex ready to be partially signed.
+   * The function returns the transaction CBOR hex ready to be partially signed.
    * @param txHash
    * @param txIndex
    * @returns commitTransactionHex
@@ -107,7 +112,7 @@ export class HydraInstance {
   }
 
   /**
-   * Increament a Cardano transaction blueprint to the Hydra head.
+   * Increment a Cardano transaction blueprint to the Hydra head.
    *
    * This method allows you to increase a commit in the Cardano text envelope format
    * (i.e., a JSON object containing a 'type' and a 'cborHex' field) as a blueprint UTxO
@@ -132,8 +137,8 @@ export class HydraInstance {
   ) {
     return this.commitBlueprint(txHash, outputIndex, {
       type: transaction.type,
-      description: transaction.description,
       cborHex: transaction.cborHex,
+      description: transaction.description,
       txId: transaction.txId,
     });
   }
@@ -143,7 +148,7 @@ export class HydraInstance {
    * Method not implemented
    */
   async decommit(transaction: hydraTransaction) {
-    this._decommitFromHydra(transaction);
+    return this._decommitFromHydra(transaction);
   }
 
   /**

@@ -317,7 +317,7 @@ function BuildBlueprintTransactionDemo({
 
   return (
     <LiveCodeDemo
-      title="Hydra Head connect Wallet Transaction"
+      title="Hydra head Wallet blueprint Transaction"
       subtitle="Build and submit a transaction within the Hydra head using a wallet."
       runDemoShowProviderInit={true}
       runDemoShowBrowseWalletConnect={true}
