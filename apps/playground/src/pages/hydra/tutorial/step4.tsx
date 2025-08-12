@@ -2,12 +2,14 @@ import { useState } from "react";
 
 import { MeshTxBuilder, MeshWallet } from "@meshsdk/core";
 import { HydraProvider } from "@meshsdk/hydra";
+import { useWallet } from "@meshsdk/react";
 
 import Input from "~/components/form/input";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 import Codeblock from "~/components/text/codeblock";
+import { getTxBuilder } from "~/pages/apis/txbuilder/common";
 
 export default function HydraTutorialStep4({
   provider,
@@ -45,7 +47,7 @@ function Left() {
   buildTransactionCode += `const unsignedTx = await txBuilder\n`;
   buildTransactionCode += `  .txOut(\n`;
   buildTransactionCode += `    "bob-funds.addr",\n`;
-  buildTransactionCode += `    [{ unit: "lovelace", quantity: "3000000" }]\n`;
+  buildTransactionCode += `    [{ unit: "lovelace", quantity: "30000000" }]\n`;
   buildTransactionCode += `  )\n`;
   buildTransactionCode += `  .changeAddress("alice-funds.addr")\n`;
   buildTransactionCode += `  .selectUtxosFrom(utxos)\n`;
@@ -53,8 +55,7 @@ function Left() {
   buildTransactionCode += `  .complete();\n\n`;
 
   buildTransactionCode += `const signedTx = await wallet.signTx(unsignedTx);\n`;
-  buildTransactionCode += `const txHash = await provider.submitTx(signedTx);\n`;
-  buildTransactionCode += `console.log(txHash);\n`;
+  buildTransactionCode += `await provider.submitTx(signedTx);\n\n`;
 
   return (
     <>
@@ -62,7 +63,7 @@ function Left() {
         Now that the Hydra head is open, you can perform transactions within the
         layer 2 state channel. Hydra Head operates as an isomorphic protocol,
         meaning that functionalities available on Cardano layer 1 are also
-        available on layer 2. This allows us to use Mesh SDK for transaction
+        available on layer 2. This allows us to use Mesh for transaction
         creation within the head.
       </p>
 
@@ -87,7 +88,8 @@ function Left() {
       <p>
         The transaction will be validated by both hydra-nodes and either result
         in a <code>TxValid</code> message or a <code>TxInvalid</code> message If
-        valid, you'll see a <code>SnapshotConfirmed</code>
+        valid, transactions in hydra head does not return a hash instead you'll
+        see a <code>SnapshotConfirmed</code>
         message shortly after with the new UTxO set.
       </p>
 
@@ -120,6 +122,10 @@ function Right({
       <FetchUtxosDemo provider={provider} providerName={providerName} />
       <FetchAddressUtxosDemo provider={provider} providerName={providerName} />
       <BuildTransactionDemo provider={provider} providerName={providerName} />
+      <BuildBlueprintTransactionDemo
+        provider={provider}
+        providerName={providerName}
+      />
     </>
   );
 }
@@ -142,10 +148,10 @@ function FetchUtxosDemo({
     <LiveCodeDemo
       title="Fetch Hydra head UTxOs"
       subtitle="Fetching UTxOs from the Hydra head."
-      runCodeFunction={runDemo}
       code={utxos}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
+      runCodeFunction={runDemo}
     />
   );
 }
@@ -170,10 +176,10 @@ function FetchAddressUtxosDemo({
     <LiveCodeDemo
       title="Fetch hydra participant Address UTxOs"
       subtitle="Fetching UTxOs for a specific address."
-      runCodeFunction={runDemo}
       code={utxos}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
+      runCodeFunction={runDemo}
     >
       <InputTable
         listInputs={[
@@ -196,7 +202,6 @@ function BuildTransactionDemo({
   provider: HydraProvider;
   providerName: string;
 }) {
-  const [transaction, setTransaction] = useState("");
   const [key, setKey] = useState("");
   const [amount, setAmount] = useState(30000000);
   const [bobAddress, setBobAddress] = useState("");
@@ -235,17 +240,14 @@ function BuildTransactionDemo({
       .complete();
 
     const signedTx = await wallet.signTx(unsignedTx);
-    const txHash = await provider.submitTx(signedTx);
-
-    setTransaction(txHash);
+    await provider.submitTx(signedTx);
   };
 
   return (
     <LiveCodeDemo
-      title="Build and submit Transaction in Hydra head"
+      title="Hydra Head cli keys Transaction"
       subtitle="Build and submit a transaction in the Hydra head."
       runCodeFunction={runDemo}
-      code={transaction}
       runDemoShowProviderInit={true}
       runDemoProvider={providerName}
     >
@@ -274,6 +276,67 @@ function BuildTransactionDemo({
             onChange={(e) => setBobAddress(e.target.value)}
             placeholder="bob-funds.addr"
             label="recipient address"
+          />,
+        ]}
+      />
+    </LiveCodeDemo>
+  );
+}
+
+function BuildBlueprintTransactionDemo({
+  provider,
+  providerName,
+}: {
+  provider: HydraProvider;
+  providerName: string;
+}) {
+  const [amount, setAmount] = useState(Number);
+  const [address, setAddress] = useState("");
+  const { wallet } = useWallet();
+
+  const runDemo = async () => {
+    const changeAddress = await wallet.getChangeAddress();
+    const utxos = await provider.fetchAddressUTxOs(changeAddress);
+
+    const txBuilder = getTxBuilder();
+    const unsignedTx = await txBuilder
+      .txOut(address, [
+        {
+          unit: "lovelace",
+          quantity: amount.toString(),
+        },
+      ])
+      .changeAddress(changeAddress)
+      .selectUtxosFrom(utxos)
+      .setNetwork("preprod")
+      .complete();
+
+    const signedTx = await wallet.signTx(unsignedTx);
+    await provider.submitTx(signedTx);
+  };
+
+  return (
+    <LiveCodeDemo
+      title="Hydra head Wallet blueprint Transaction"
+      subtitle="Build and submit a transaction within the Hydra head using a wallet."
+      runDemoShowProviderInit={true}
+      runDemoShowBrowseWalletConnect={true}
+      runDemoProvider={providerName}
+      runCodeFunction={runDemo}
+    >
+      <InputTable
+        listInputs={[
+          <Input
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
+            placeholder="Enter amount in lovelace"
+            label="Transaction Amount"
+          />,
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Enter recipient address"
+            label="Recipient Address"
           />,
         ]}
       />

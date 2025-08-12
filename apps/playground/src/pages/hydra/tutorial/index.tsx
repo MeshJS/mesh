@@ -29,15 +29,17 @@ const ReactPage: NextPage = () => {
   const [bobFunds, setBobFunds] = useState<MeshWallet | undefined>(undefined);
 
   const hydraUrl = useProviders((state) => state.hydraUrl);
-  const hydraProvider = new HydraProvider({
-    url: hydraUrl,
+  const httpUrl = hydraUrl.replace(/^https?:\/\//, "");
+  const provider = new HydraProvider({
+    httpUrl: `/api/hydra/${httpUrl}`,
+    wsUrl: hydraUrl,
   });
-  
+
   const providerName = "hydra";
   const blockfrostProvider = getProvider();
 
-  const hydraInstance = new HydraInstance({
-    provider: hydraProvider,
+  const instance = new HydraInstance({
+    provider: provider,
     fetcher: blockfrostProvider,
     submitter: blockfrostProvider,
   });
@@ -46,10 +48,10 @@ const ReactPage: NextPage = () => {
   codeSnippet += `import { HydraInstance, HydraProvider } from "@meshsdk/hydra";\n`;
   codeSnippet += `\n`;
   codeSnippet += `const provider = new HydraProvider({\n`;
-  codeSnippet += `  url: "<URL>",\n`;
+  codeSnippet += `  httpUrl: "<URL>",\n`;
   codeSnippet += `});\n`;
   codeSnippet += `\n`;
-  codeSnippet += `const hydraInstance = new HydraInstance({\n`;
+  codeSnippet += `const instance = new HydraInstance({\n`;
   codeSnippet += `  provider:  provider,\n`;
   codeSnippet += `  fetcher:   "<blockchainProvider>",\n`;
   codeSnippet += `  submitter: "<blockchainProvider>",\n`;
@@ -86,11 +88,13 @@ const ReactPage: NextPage = () => {
 
             <h3>Initialize Hydra with Mesh</h3>
             <p>
-              To initialize Hydra with Mesh, you need to set  the <code>HydraProvider</code>
-              with the Hydra API URL and then use it to initialize the <code>HydraInstance</code>.
-              You can use one of the cardano <Link href="/providers">providers</Link>,{" "} example:{" "}
-              <code>blockfrostProvider</code>, or{" "}
-              <code>maestroProvider</code>,{" "} to initialize the <code>HydraInstance</code>.
+              To initialize Hydra with Mesh, you need to set the{" "}
+              <code>HydraProvider</code>
+              with the Hydra API URL and then use it to initialize the{" "}
+              <code>HydraInstance</code>. You can use one of the cardano{" "}
+              <Link href="/providers">providers</Link>, example:{" "}
+              <code>blockfrostProvider</code>, or <code>maestroProvider</code>,{" "}
+              to initialize the <code>HydraInstance</code>.
             </p>
             <Codeblock data={codeSnippet} />
           </>
@@ -109,18 +113,12 @@ const ReactPage: NextPage = () => {
         />
         <HydraTutorialStep2 />
         <HydraTutorialStep3
-          provider={hydraProvider}
-          providerName={providerName}
-          hInstance={hydraInstance}
-        />
-        <HydraTutorialStep4
-          provider={hydraProvider}
+          provider={provider}
+          instance={instance}
           providerName={providerName}
         />
-        <HydraTutorialStep5
-          provider={hydraProvider}
-          providerName={providerName}
-        />
+        <HydraTutorialStep4 provider={provider} providerName={providerName} />
+        <HydraTutorialStep5 provider={provider} providerName={providerName} />
       </SidebarFullwidth>
     </>
   );
