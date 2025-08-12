@@ -1,6 +1,7 @@
 import { ActorRefFrom, createActor, StateValue } from "xstate";
 import { machine } from "./state-management/hydra-machine";
 import { Emitter } from "./utils/emitter";
+import { HTTPClient } from "./utils";
 
 type ConnectOptions = {
   baseURL: string;
@@ -9,19 +10,21 @@ type ConnectOptions = {
   history?: boolean;
 };
 
-type HydraStateName = "*"
+type HydraStateName =
+  | "*"
   | "Disconnected"
   | "Connecting"
   | "Connected.Idle"
   | "Connected.Initializing.ReadyToCommit"
   | "Connected.Open"
   | "Connected.Closed"
-  | "Connected.Final"
+  | "Connected.Final";
 
-type Snapshot = ReturnType<ActorRefFrom<typeof machine>['getSnapshot']>;
+type Snapshot = ReturnType<ActorRefFrom<typeof machine>["getSnapshot"]>;
 
 type Events = {
-  '*': (snapshot: Snapshot) => void; } & {
+  "*": (snapshot: Snapshot) => void;
+} & {
   [K in HydraStateName]: (snapshot: Snapshot) => void;
 };
 
@@ -29,6 +32,7 @@ export class HydraController {
   private actor = createActor(machine);
   private emitter = new Emitter<Events>();
   private _currentSnapshot?: Snapshot;
+  private httpClient?: HTTPClient;
 
   constructor() {
     this.actor.subscribe({
@@ -41,20 +45,100 @@ export class HydraController {
   /** Connect to the Hydra head */
   connect(options: ConnectOptions) {
     this.actor.send({ type: "Connect", ...options });
+    this.httpClient = new HTTPClient(options.baseURL);
   }
 
   /** Protocol commands */
-  init() { this.actor.send({ type: "Init" }); }
-  commit(data: unknown = {}) { this.actor.send({ type: "Commit", data }); }
-  newTx(tx: unknown) { this.actor.send({ type: "NewTx", tx }); }
-  recover(txHash: unknown) { this.actor.send({ type: "Recover", txHash }); }
-  decommit(tx: unknown) { this.actor.send({ type: "Decommit", tx }); }
-  close() { this.actor.send({ type: "Close" }); }
-  contest() { this.actor.send({ type: "Contest" }); }
-  fanout() { this.actor.send({ type: "Fanout" }); }
+  init() {
+    this.actor.send({ type: "Init" });
+  }
+  commit(data: unknown = {}) {
+    this.actor.send({ type: "Commit", data });
+  }
+  newTx(tx: string) {
+    this.actor.send({ type: "NewTx", tx });
+  }
+  recover(txHash: string) {
+    this.actor.send({ type: "Recover", txHash });
+  }
+  decommit(tx: string) {
+    this.actor.send({ type: "Decommit", tx });
+  }
+  close() {
+    this.actor.send({ type: "Close" });
+  }
+  contest() {
+    this.actor.send({ type: "Contest" });
+  }
+  fanout() {
+    this.actor.send({ type: "Fanout" });
+  }
+  sideLoadSnapshot(snapshot: unknown) {
+    this.actor.send({ type: "SideLoadSnapshot", snapshot });
+  }
+
+  /** HTTP API methods */
+  async getHeadState() {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.get("/head");
+  }
+
+  async getPendingDeposits() {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.get("/commits");
+  }
+
+  async recoverDeposit(txId: string) {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.delete(`/commits/${txId}`);
+  }
+
+  async getLastSeenSnapshot() {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.get("/snapshot/last-seen");
+  }
+
+  async getConfirmedUTxO() {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.get("/snapshot/utxo");
+  }
+
+  async getConfirmedSnapshot() {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.get("/snapshot");
+  }
+
+  async postSideLoadSnapshot(snapshot: unknown) {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.post("/snapshot", snapshot);
+  }
+
+  async postDecommit(tx: unknown) {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.post("/decommit", tx);
+  }
+
+  async getProtocolParameters() {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.get("/protocol-parameters");
+  }
+
+  async submitCardanoTransaction(tx: unknown) {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.post("/cardano-transaction", tx);
+  }
+
+  async submitL2Transaction(tx: unknown) {
+    if (!this.httpClient) throw new Error("Not connected");
+    return await this.httpClient.post("/transaction", tx);
+  }
 
   private handleState(snapshot: Snapshot) {
-    if (JSON.stringify(snapshot.value) === JSON.stringify(this._currentSnapshot?.value)) return;
+    if (
+      JSON.stringify(snapshot.value) ===
+      JSON.stringify(this._currentSnapshot?.value)
+    )
+      return;
     this._currentSnapshot = snapshot;
     this.emitter.emit("*", snapshot);
     this.emitter.emit(_flattenState(snapshot.value), snapshot);
@@ -95,6 +179,7 @@ export class HydraController {
     this.actor.stop();
     this.emitter.clear();
     this._currentSnapshot = undefined;
+    this.httpClient = undefined;
   }
 
   get state() {
@@ -109,6 +194,6 @@ export class HydraController {
 function _flattenState(value: StateValue): HydraStateName {
   if (typeof value === "string") return value as HydraStateName;
   return Object.entries(value)
-    .map(([k, v]) => v ? `${k}.${_flattenState(v)}` : k)
+    .map(([k, v]) => (v ? `${k}.${_flattenState(v)}` : k))
     .join(".") as HydraStateName;
 }

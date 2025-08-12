@@ -1,346 +1,986 @@
-import { AnyEventObject, assertEvent, assign, fromCallback, fromPromise, sendTo, setup } from "xstate";
+import {
+  AnyEventObject,
+  assertEvent,
+  assign,
+  fromCallback,
+  fromPromise,
+  sendTo,
+  setup,
+} from "xstate";
 import { HTTPClient } from "../utils";
 
-// a reimplementation of the hydra protocol using xstate
-// https://hydra.family/head-protocol/docs
-// https://hydra.family/head-protocol/docs/dev
-// https://hydra.family/head-protocol/api-reference
+/** ===== Strict types for Cardano transactions accepted by hydra-node ===== */
+
+/** Hex-encoded CBOR string (hydra-node accepts this form). */
+export type CborHex = string;
+
+/** TextEnvelope wrapper ({"type", "description", "cborHex"}) */
+export type TxTextEnvelope = {
+  type: string;
+  description: string;
+  cborHex: CborHex;
+};
+
+/** JSON format of Cardano transaction */
+export type TxJSON = Record<string, unknown>;
+
+/** Transaction payload accepted by hydra-node via WS/HTTP. */
+export type Transaction = TxTextEnvelope | CborHex | TxJSON;
+
+/** ===== Minimal shapes for server outputs we care about (tags per AsyncAPI) ===== */
+
+type TimedMeta = {
+  seq?: number;
+  timestamp?: string;
+};
+
+type HeadStatus =
+  | "Idle"
+  | "Initializing"
+  | "Open"
+  | "Closed"
+  | "FanoutPossible"
+  | "Final";
+
+type MsgGreetings = {
+  tag: "Greetings";
+  headStatus: HeadStatus;
+};
+
+type MsgHeadState =
+  | { tag: "HeadIsInitializing" }
+  | { tag: "HeadIsOpen" }
+  | { tag: "HeadIsClosed" }
+  | { tag: "HeadIsContested" }
+  | { tag: "ReadyToFanout" }
+  | { tag: "HeadIsAborted" }
+  | { tag: "HeadIsFinalized" };
+
+type MsgCommitted = { tag: "Committed" };
+
+type MsgCommitRecorded = { tag: "CommitRecorded" };
+type MsgCommitApproved = { tag: "CommitApproved" };
+type MsgCommitFinalized = { tag: "CommitFinalized" };
+type MsgCommitRecovered = { tag: "CommitRecovered" };
+
+// Network events
+type MsgNetworkConnected = { tag: "NetworkConnected" };
+type MsgNetworkDisconnected = { tag: "NetworkDisconnected" };
+type MsgPeerConnected = { tag: "PeerConnected"; peer: string };
+type MsgPeerDisconnected = { tag: "PeerDisconnected"; peer: string };
+type MsgNetworkVersionMismatch = { tag: "NetworkVersionMismatch" };
+type MsgNetworkClusterIDMismatch = { tag: "NetworkClusterIDMismatch" };
+
+// Transaction events
+type MsgTxValid = { tag: "TxValid"; transaction: Transaction };
+type MsgSnapshotConfirmed = { tag: "SnapshotConfirmed" };
+
+// Decommit events
+type MsgDecommitInvalid = { tag: "DecommitInvalid" };
+type MsgDecommitRequested = { tag: "DecommitRequested" };
+type MsgDecommitApproved = { tag: "DecommitApproved" };
+type MsgDecommitFinalized = { tag: "DecommitFinalized" };
+
+// Deposit events
+type MsgDepositRecorded = {
+  tag: "DepositRecorded";
+  depositTxId: string;
+  deposited: unknown; // UTxO
+  deadline: string;
+};
+type MsgDepositActivated = {
+  tag: "DepositActivated";
+  depositTxId: string;
+  deadline: string;
+};
+type MsgDepositExpired = {
+  tag: "DepositExpired";
+  depositTxId: string;
+  deadline: string;
+};
+
+// Other events
+type MsgIgnoredHeadInitializing = { tag: "IgnoredHeadInitializing" };
+type MsgSnapshotSideLoaded = { tag: "SnapshotSideLoaded" };
+type MsgEventLogRotated = { tag: "EventLogRotated" };
+
+type MsgInvalidInput = { tag: "InvalidInput"; reason: string; input: string };
+type MsgCommandFailed = { tag: "CommandFailed"; clientInput: unknown };
+type MsgTxInvalid = {
+  tag: "TxInvalid";
+  validationError?: { reason?: string } | string;
+};
+type MsgPostTxOnChainFailed = {
+  tag: "PostTxOnChainFailed";
+  postTxError: unknown;
+};
+
+type HydraServerOutput = TimedMeta &
+  (
+    | MsgGreetings
+    | MsgHeadState
+    | MsgCommitted
+    | MsgCommitRecorded
+    | MsgCommitApproved
+    | MsgCommitFinalized
+    | MsgCommitRecovered
+    | MsgNetworkConnected
+    | MsgNetworkDisconnected
+    | MsgPeerConnected
+    | MsgPeerDisconnected
+    | MsgNetworkVersionMismatch
+    | MsgNetworkClusterIDMismatch
+    | MsgTxValid
+    | MsgTxInvalid
+    | MsgSnapshotConfirmed
+    | MsgDecommitInvalid
+    | MsgDecommitRequested
+    | MsgDecommitApproved
+    | MsgDecommitFinalized
+    | MsgDepositRecorded
+    | MsgDepositActivated
+    | MsgDepositExpired
+    | MsgIgnoredHeadInitializing
+    | MsgSnapshotSideLoaded
+    | MsgEventLogRotated
+    | MsgInvalidInput
+    | MsgCommandFailed
+    | MsgPostTxOnChainFailed
+    | { tag: string; [k: string]: unknown }
+  );
+
+type PostTxErrorDetail =
+  | { tag: "ScriptFailedInWallet"; redeemerPtr: string; failureReason: string }
+  | { tag: "InternalWalletError"; reason: string }
+  | { tag: "NotEnoughFuel" }
+  | { tag: "NoFuelUTXOFound" }
+  | { tag: "CannotFindOwnInitial" }
+  | { tag: "UnsupportedLegacyOutput" }
+  | { tag: "NoSeedInput" }
+  | { tag: "InvalidStateToPost"; reason: string }
+  | { tag: "FailedToPostTx"; reason: string }
+  | { tag: "CommittedTooMuchADAForMainnet"; committed: number; maximum: number }
+  | { tag: "FailedToDraftTxNotInitializing" }
+  | { tag: "InvalidSeed" }
+  | { tag: "InvalidHeadId" }
+  | { tag: "FailedToConstructAbortTx" }
+  | { tag: "FailedToConstructCloseTx" }
+  | { tag: "FailedToConstructContestTx" }
+  | { tag: "FailedToConstructCollectTx" }
+  | { tag: "FailedToConstructDepositTx" }
+  | { tag: "FailedToConstructRecoverTx" }
+  | { tag: "FailedToConstructIncrementTx" }
+  | { tag: "FailedToConstructDecrementTx" }
+  | { tag: "FailedToConstructFanoutTx" }
+  | { tag: "DepositTooLow"; deposit: number; minDeposit: number }
+  | { tag: "AmountTooLow"; lovelace: number };
+
+type DecommitInvalidReason =
+  | { tag: "DecommitTxInvalid"; validationError: { reason?: string } }
+  | { tag: "DecommitAlreadyInFlight" };
+
+type HydraError =
+  | { kind: "InvalidInput"; message: string; source: MsgInvalidInput }
+  | { kind: "CommandFailed"; message: string; source: MsgCommandFailed }
+  | { kind: "TxInvalid"; message?: string; source: MsgTxInvalid }
+  | {
+      kind: "PostTxOnChainFailed";
+      message?: string;
+      source: MsgPostTxOnChainFailed;
+      detail?: PostTxErrorDetail;
+    }
+  | {
+      kind: "DecommitInvalid";
+      message?: string;
+      reason?: DecommitInvalidReason;
+    };
+
 export const machine = setup({
   actions: {
-    newTx: ({ event }) => {
-      assertEvent(event, "NewTx")
-      sendTo("server", { type: "Send", data: { tag: event.type, transaction: event.tx } })
-    },
-    recoverUTxO: ({ event }) => {
-      assertEvent(event, "Recover")
-      sendTo("server", { type: "Send", data: { tag: event.type, recoverTxId: event.txHash } })
-    },
-    decommitUTxO: ({ event }) => {
-      assertEvent(event, "Decommit")
-      sendTo("server", { type: "Send", data: { tag: event.type, decommitTxId: event.tx } })
-    },
-    initHead: () => {
-      sendTo("server", { type: "Send", data: { tag: "Init" } })
-    },
-    abortHead: () => {
-      sendTo("server", { type: "Send", data: { tag: "Abort" } })
-    },
-    closeHead: () => {
-      sendTo("server", { type: "Send", data: { tag: "Close" } })
-    },
-    contestHead: () => {
-      sendTo("server", { type: "Send", data: { tag: "Contest" } })
-    },
-    fanoutHead: () => {
-      sendTo("server", { type: "Send", data: { tag: "Fanout" } })
-    },
-    closeConnection: ({ context }) => {
+    /** === WebSocket commands === */
+    newTx: sendTo("server", ({ event }) => {
+      assertEvent(event, "NewTx");
+      return { type: "Send", data: { tag: "NewTx", transaction: event.tx } };
+    }),
+    recoverUTxO: sendTo("server", ({ event }) => {
+      assertEvent(event, "Recover");
+      return {
+        type: "Send",
+        data: { tag: "Recover", recoverTxId: event.txHash },
+      };
+    }),
+    decommitUTxO: sendTo("server", ({ event }) => {
+      assertEvent(event, "Decommit");
+      return { type: "Send", data: { tag: "Decommit", decommitTx: event.tx } };
+    }),
+    initHead: sendTo("server", { type: "Send", data: { tag: "Init" } }),
+    abortHead: sendTo("server", { type: "Send", data: { tag: "Abort" } }),
+    closeHead: sendTo("server", { type: "Send", data: { tag: "Close" } }),
+    contestHead: sendTo("server", { type: "Send", data: { tag: "Contest" } }),
+    fanoutHead: sendTo("server", { type: "Send", data: { tag: "Fanout" } }),
+    sideLoadSnapshot: sendTo("server", ({ event }) => {
+      assertEvent(event, "SideLoadSnapshot");
+      return {
+        type: "Send",
+        data: { tag: "SideLoadSnapshot", snapshot: event.snapshot },
+      };
+    }),
+
+    /** === Connection / context === */
+    closeConnection: assign(({ context }) => {
       if (context.connection?.readyState === WebSocket.OPEN) {
         context.connection.close(1000, "Client disconnected");
       }
-      return { baseURL: "", headURL: "", connection: undefined, error: undefined };
-    },
+      return {
+        baseURL: "",
+        headURL: "",
+        connection: undefined,
+        client: undefined,
+        error: undefined,
+        request: undefined,
+        draftTx: undefined,
+        signedDepositTx: undefined,
+      };
+    }),
     setURL: assign(({ event }) => {
-      assertEvent(event, "Connect")
-      const url = event.baseURL.replace("http", "ws");
+      assertEvent(event, "Connect");
+      const url = event.baseURL.replace(/^http/, "ws"); // http->ws, https->wss
       const history = `history=${event.history ? "yes" : "no"}`;
-      const snapshot = `snapshot-utxo=${event.snapshot ? "yes" : "no"}`
-      const address = event.address ? `&address=${event.address}` : "";
+      const snapshot = `snapshot-utxo=${event.snapshot ? "yes" : "no"}`;
+      const address = event.address
+        ? `&address=${encodeURIComponent(event.address)}`
+        : "";
       return {
         baseURL: event.baseURL,
         headURL: `${url}/?${history}&${snapshot}${address}`,
-      }
+      };
     }),
     setConnection: assign(({ event }) => {
-      assertEvent(event, "Ready")
-      return { connection: event.connection }
+      assertEvent(event, "Ready");
+      return { connection: event.connection };
     }),
-    createClient: assign(({ context }) => {
-      return { client: new HTTPClient(context.baseURL) }
-    }),
+    createClient: assign(({ context }) => ({
+      client: new HTTPClient(context.baseURL),
+    })),
     setError: assign(({ event }) => {
-      assertEvent(event, "Error")
-      return { error: event.data }
+      const anyEvent = event as any;
+      const data = "data" in anyEvent ? anyEvent.data : anyEvent.error;
+      return { error: data ?? anyEvent };
     }),
+    clearError: assign(() => ({ error: undefined })),
     setRequest: assign(({ event }) => {
-      assertEvent(event, ["Commit"])
-      return { request: event.data }
+      assertEvent(event, "Commit");
+      return { request: event.data };
     }),
-    clearRequest: assign(() => {
-      return { request: undefined }
+    clearRequest: assign(() => ({ request: undefined })),
+    clearDraftTx: assign(() => ({
+      draftTx: undefined,
+      signedDepositTx: undefined,
+    })),
+
+    /** === Error capture from server messages === */
+    captureServerError: assign(({ event }) => {
+      assertEvent(event, "Message");
+      const msg = event.data as HydraServerOutput;
+      if (msg.tag === "InvalidInput") {
+        const typedMsg = msg as MsgInvalidInput;
+        const err: HydraError = {
+          kind: "InvalidInput",
+          message: typedMsg.reason,
+          source: typedMsg,
+        };
+        return { error: err };
+      }
+      if (msg.tag === "CommandFailed") {
+        const typedMsg = msg as MsgCommandFailed;
+        const err: HydraError = {
+          kind: "CommandFailed",
+          message: "Command failed",
+          source: typedMsg,
+        };
+        return { error: err };
+      }
+      if (msg.tag === "TxInvalid") {
+        const typedMsg = msg as MsgTxInvalid;
+        const reason =
+          typeof typedMsg.validationError === "string"
+            ? typedMsg.validationError
+            : typedMsg.validationError?.reason;
+        const err: HydraError = {
+          kind: "TxInvalid",
+          message: reason,
+          source: typedMsg,
+        };
+        return { error: err };
+      }
+      if (msg.tag === "PostTxOnChainFailed") {
+        const typedMsg = msg as MsgPostTxOnChainFailed;
+        const err: HydraError = {
+          kind: "PostTxOnChainFailed",
+          message: "PostTx failed",
+          source: typedMsg,
+          detail: typedMsg.postTxError as PostTxErrorDetail,
+        };
+        return { error: err };
+      }
+      if (msg.tag === "DecommitInvalid") {
+        const typedMsg = msg as MsgDecommitInvalid;
+        const err: HydraError = {
+          kind: "DecommitInvalid",
+          message: "Decommit invalid",
+          reason: (typedMsg as any)
+            .decommitInvalidReason as DecommitInvalidReason,
+        };
+        return { error: err };
+      }
+      return {};
     }),
   },
+
   guards: {
+    /** Head status guards */
+    isGreetings: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "Greetings";
+    },
+    isIdle: ({ event }) => {
+      assertEvent(event, "Message");
+      const d = event.data as HydraServerOutput;
+      return d.tag === "Greetings" && (d as MsgGreetings).headStatus === "Idle";
+    },
     isInitializing: ({ event }) => {
-      assertEvent(event, "Message")
-      if (event.data.tag === "Greetings") {
-        return event.data.headStatus === "Initializing";
-      }
-      return event.data.tag === "HeadIsInitializing";
+      assertEvent(event, "Message");
+      const d = event.data as HydraServerOutput;
+      return (
+        (d.tag === "Greetings" &&
+          (d as MsgGreetings).headStatus === "Initializing") ||
+        d.tag === "HeadIsInitializing"
+      );
     },
     isAborted: ({ event }) => {
-      assertEvent(event, "Message")
-      return event.data.tag === "HeadIsAborted";
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "HeadIsAborted";
     },
     isCommitted: ({ event }) => {
-      assertEvent(event, "Message")
-      return event.data.tag === "Committed";
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "Committed";
+    },
+    isCommitRecorded: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "CommitRecorded";
+    },
+    isCommitFinalized: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "CommitFinalized";
+    },
+    isCommitRecovered: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "CommitRecovered";
+    },
+    isCommitApproved: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "CommitApproved";
     },
     isOpen: ({ event }) => {
-      assertEvent(event, "Message")
-      if (event.data.tag === "Greetings") {
-        return event.data.headStatus === "Open";
-      }
-      return event.data.tag === "HeadIsOpen";
+      assertEvent(event, "Message");
+      const d = event.data as HydraServerOutput;
+      return (
+        (d.tag === "Greetings" && (d as MsgGreetings).headStatus === "Open") ||
+        d.tag === "HeadIsOpen"
+      );
     },
     isClosed: ({ event }) => {
-      assertEvent(event, "Message")
-      if (event.data.tag === "Greetings") {
-        return event.data.headStatus === "Closed";
-      }
-      return event.data.tag === "HeadIsClosed";
+      assertEvent(event, "Message");
+      const d = event.data as HydraServerOutput;
+      return (
+        (d.tag === "Greetings" &&
+          (d as MsgGreetings).headStatus === "Closed") ||
+        d.tag === "HeadIsClosed"
+      );
     },
     isContested: ({ event }) => {
-      assertEvent(event, "Message")
-      return event.data.tag === "HeadIsContested";
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "HeadIsContested";
     },
     isReadyToFanout: ({ event }) => {
-      assertEvent(event, "Message")
-      if (event.data.tag === "Greetings") {
-        return event.data.headStatus === "FanoutPossible";
-      }
-      return event.data.tag === "ReadyToFanout";
+      assertEvent(event, "Message");
+      const d = event.data as HydraServerOutput;
+      return (
+        (d.tag === "Greetings" &&
+          (d as MsgGreetings).headStatus === "FanoutPossible") ||
+        d.tag === "ReadyToFanout"
+      );
     },
     isFinalized: ({ event }) => {
-      assertEvent(event, "Message")
-      return event.data.tag === "HeadIsFinalized";
-    }
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "HeadIsFinalized";
+    },
+    isFinalStatus: ({ event }) => {
+      assertEvent(event, "Message");
+      const d = event.data as HydraServerOutput;
+      return (
+        d.tag === "Greetings" && (d as MsgGreetings).headStatus === "Final"
+      );
+    },
+
+    /** Error guards */
+    isInvalidInput: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "InvalidInput";
+    },
+    isCommandFailed: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "CommandFailed";
+    },
+    isTxInvalid: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "TxInvalid";
+    },
+    isPostTxFailed: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "PostTxOnChainFailed";
+    },
+    isDecommitInvalid: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "DecommitInvalid";
+    },
+
+    /** Commit confirmation guards */
+    isLegacyCommitEvent: ({ event }) => {
+      assertEvent(event, "Message");
+      const t = (event.data as HydraServerOutput).tag;
+      return t === "Committed";
+    },
+    isIncrementalCommitEvent: ({ event }) => {
+      assertEvent(event, "Message");
+      const t = (event.data as HydraServerOutput).tag;
+      return (
+        t === "CommitRecorded" ||
+        t === "CommitApproved" ||
+        t === "CommitFinalized" ||
+        t === "CommitRecovered"
+      );
+    },
+
+    /** Deposit guards */
+    isDepositRecorded: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "DepositRecorded";
+    },
+    isDepositActivated: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "DepositActivated";
+    },
+    isDepositExpired: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "DepositExpired";
+    },
+
+    /** Decommit guards */
+    isDecommitRequested: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "DecommitRequested";
+    },
+    isDecommitApproved: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "DecommitApproved";
+    },
+    isDecommitFinalized: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "DecommitFinalized";
+    },
+
+    /** Transaction guards */
+    isTxValid: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "TxValid";
+    },
+    isSnapshotConfirmed: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "SnapshotConfirmed";
+    },
+
+    /** Network guards */
+    isNetworkConnected: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "NetworkConnected";
+    },
+    isNetworkDisconnected: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "NetworkDisconnected";
+    },
+    isPeerConnected: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "PeerConnected";
+    },
+    isPeerDisconnected: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "PeerDisconnected";
+    },
+
+    /** Other guards */
+    isIgnoredHeadInitializing: ({ event }) => {
+      assertEvent(event, "Message");
+      return (
+        (event.data as HydraServerOutput).tag === "IgnoredHeadInitializing"
+      );
+    },
+    isSnapshotSideLoaded: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "SnapshotSideLoaded";
+    },
+    isEventLogRotated: ({ event }) => {
+      assertEvent(event, "Message");
+      return (event.data as HydraServerOutput).tag === "EventLogRotated";
+    },
   },
+
   actors: {
-    server: fromCallback<AnyEventObject, { url: string }>(({ sendBack, receive, input }) => {
-      const ws = new WebSocket(input.url);
+    /** Long-lived WS actor */
+    server: fromCallback<AnyEventObject, { url: string }>(
+      ({ sendBack, receive, input }) => {
+        const ws = new WebSocket(input.url);
 
-      ws.onopen = () => {
-        sendBack({ type: "Ready", connection: ws })
-      };
-      ws.onerror = (error) => {
-        sendBack({ type: "Error", data: error });
-      };
-      ws.onmessage = (event) => {
-        sendBack({ type: "Message", data: JSON.parse(event.data) });
-      };
-      ws.onclose = (event) => {
-        sendBack({ type: "Disconnect", code: event.code });
-      };
+        ws.onopen = () => sendBack({ type: "Ready", connection: ws });
+        ws.onerror = (error) => sendBack({ type: "Error", data: error });
+        ws.onmessage = (event) => {
+          try {
+            sendBack({ type: "Message", data: JSON.parse(event.data) });
+          } catch (e) {
+            sendBack({ type: "Error", data: e });
+          }
+        };
+        ws.onclose = (event) =>
+          sendBack({ type: "Disconnect", code: event.code });
 
-      receive((event) => {
-        assertEvent(event, "Send");
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event.data));
-        else sendBack({ type: "Error", data: new Error("Connection is not open") });
-      });
+        receive((event) => {
+          assertEvent(event, "Send");
+          if (ws.readyState === WebSocket.OPEN)
+            ws.send(JSON.stringify(event.data));
+          else
+            sendBack({
+              type: "Error",
+              data: new Error("Connection is not open"),
+            });
+        });
 
-      return () => ws.close();
-    }),
-    commit: fromPromise<unknown, { client?: HTTPClient, request: unknown }>(async ({ input, signal }) => {
-      if (!input.client) {
-        throw new Error("Client is not initialized");
-      }
-      if (!input.request) {
-        throw new Error("Request is not provided");
-      }
+        return () => {
+          try {
+            ws.close();
+          } catch {
+            /* noop */
+          }
+        };
+      },
+    ),
+
+    requestDepositDraft: fromPromise<
+      Transaction,
+      { client?: HTTPClient; request: unknown }
+    >(async ({ input, signal }) => {
+      if (!input.client) throw new Error("Client is not initialized");
+      if (!input.request) throw new Error("Request is not provided");
       const { client, request } = input;
-      return await client.post("/commit", request, undefined, signal);
-    })
+      const draft = (await client.post(
+        "/commit",
+        request,
+        undefined,
+        signal,
+      )) as Transaction;
+      return draft;
+    }),
+
+    submitCardanoTx: fromPromise<
+      unknown,
+      { client?: HTTPClient; tx: Transaction; path?: string }
+    >(async ({ input, signal }) => {
+      if (!input.client) throw new Error("Client is not initialized");
+      if (!input.tx) throw new Error("Signed transaction is not provided");
+      const { client, tx, path } = input;
+      return await client.post(
+        path ?? "/cardano-transaction",
+        tx,
+        undefined,
+        signal,
+      );
+    }),
   },
+
   types: {
     context: {} as {
-      baseURL: string,
-      client?: HTTPClient,
-      connection?: WebSocket,
-      error?: unknown,
-      headURL: string,
-      request?: unknown,
+      baseURL: string;
+      client?: HTTPClient;
+      connection?: WebSocket;
+      error?: HydraError | unknown;
+      headURL: string;
+      request?: unknown;
+      draftTx?: Transaction;
+      signedDepositTx?: Transaction;
+      submitPath?: string;
     },
     events: {} as
-      | { type: "Connect", baseURL: string, address?: string, snapshot?: boolean, history?: boolean }
-      | { type: "Ready", connection: WebSocket }
-      | { type: "Send", data: unknown }
-      | { type: "Message", data: { [x: string]: unknown, tag: string } }
-      | { type: "Error", data: unknown }
-      | { type: "Disconnect", code: number }
+      | {
+          type: "Connect";
+          baseURL: string;
+          address?: string;
+          snapshot?: boolean;
+          history?: boolean;
+        }
+      | { type: "Ready"; connection: WebSocket }
+      | { type: "Send"; data: unknown }
+      | { type: "Message"; data: HydraServerOutput }
+      | { type: "Error"; data: unknown }
+      | { type: "Disconnect"; code: number }
       | { type: "Init" }
-      | { type: "Commit", data: unknown }
-      | { type: "NewTx", tx: unknown }
-      | { type: "Recover", txHash: unknown }
-      | { type: "Decommit", tx: unknown }
+      | { type: "Commit"; data: unknown }
+      | { type: "NewTx"; tx: Transaction }
+      | { type: "Recover"; txHash: string }
+      | { type: "Decommit"; tx: Transaction }
       | { type: "Abort" }
       | { type: "Contest" }
       | { type: "Fanout" }
       | { type: "Close" }
+      | { type: "SubmitSignedDeposit"; tx: Transaction }
+      | { type: "DepositSubmittedExternally" }
+      | { type: "SideLoadSnapshot"; snapshot: unknown },
   },
 }).createMachine({
-  /** @xstate-layout N4IgpgJg5mDOIC5QAkCaARASgQQHToEtYBjAewDtyxiAXSAYgGEKraBtABgF1FQAHUrAI0CFXiAAeiAOwAmAMy4AHABYArCqUA2adK0c5ATgA0IAJ6JZStbi1a1aw4ekBGF1pXzDAX2+m0WHjMlNQiFPQQFGC4BOQAbqQA1tEBOLjBrGHkCLEJxACGWZxcxeICQlniUghuLrK48gaGjhyqhi7yWqYWCJocuNKtLkpKsoYcKnbSar7+GGkZoaLk9GAATmuka7h8ADaFAGZbALa4qUEsSxQ58aQFRdylSCDlwstVMnUDE0qGsrpaeQuNRKbqWFzSWyDaTOVTTNSyRGzEDndKXWjLNEhDHkKD0TBgfIQMxPfiCN5iZ7VWr9DiGdSuZqyYYqMEIeRWXAQvSGLTMhQ-ZGoxa0BgAWTgsHyMFJL3JlSpiDqHHqw1cSk6OhU7RcbL0WgGzg52g4dOaLiF8wu2LoEHoEtgUplLh4z1eCtA1Nkpq5HO19PhmmkbJcBhUAxUzL5hg1k3plsCWMy4sl0rAbFkrrJFXeipqLmauE8claSmG2kRIZUg1wCJUka8dScWgTC3RtvtqZl8izcpzlM9iE0Bq0HS09LsgK02hD0nk4YLMNq7QR89b1uTdsIJHbsvducHvU6uCsXmsdNa7VkrPMQ5hJ6Gc808iUc7U0nXSdCDAAohstnu8oHpIMiIrY1hAmMRiVrevT3t6ZZPhqr7yO+n4irauAAJIQLsYD0Fh5DCIB-bkB8CAOP047uKG7gcPOEJ6p4yjetI2gNr8rjoe2kDYbh+EkRSZF5u46i4BwfKDBoaimvRbLUeJ1h6C42qRjoFp+CiVpfqKEDYURIj5LsBAAF6xHi2AAEZbDQgkeiBCCIl8rgcqeEJ0jePTaIY4mAipCjPl43E2rxhFvEZpnmfQdnAdSKpKMomiIhyILqBoIYcG4RYIqoUxWDGGlzImGGhQZBARWZuLRS6ZRAQODnTIoCiDHU0yRm4GVZeoViTDo+VlsFm76eFxmVVAuAEkSZgACqkMwxzHMITCkAtxHcLVpHkRC14NJ4ZZAplTgqmy1g+ZGfxeKOVgQkog3fnpYWGaN5loqtNAiFV6ybNseyHCcZzaSVD1lRVL3zYt73mTceSFMsxQxfV1IIganRlnUkyvqOnmIM0PlSTGvzMiyhVacVPHAyNkW4q9EMfXiCPCYeBaaLgvIeI0L56J1-TXi+SimvzbF3bpuAAPJ8GAKyMLsgjputbp1YzDlOYo9HSJM9bTn8IaIv0-O-BqEzvp4KjC5h4uS-QAByYAAO7TRIDNbaurMgq03q8h08jBrBHR6LWfMOPSxb-GbvEWysTsifRC45c4Kh0vo7ghvIL5FvRjSuB4mUjGHenS7LdrBHQsC2fL2ZCeR7ThkuDiyHyGfDCGCI2MCjJAgisggjMmnCuT6Qy7ADBR0zmXhpliK8q0HjbSG9ixypKm6PR-l5wPhfVb2+6I4gyMB0HqhqCp9jyHPGhckfKhL4MQLVmvABi+TkKQACuNAAAqCEIll4fQj-P2-EeDUE4njVFJFol8qzVlrNWaw9ZdCOA-L3QG-d-6vw-l-AgP8BLlz7JXPM74XDKBhLfOcKE2IpzTgnVOBhRI51usgsmIU9L31iEZAiBkgHVGnPUa8Yw1AeG0J3NQOsu4nl0P8DwbFfhHwfmw3Y0VcHbyVtUARCVtpdzGCMX4MYTr6CLG4b0mVvaTCRMiZ+EA4DiHOBtfBh4Xw2Hrq+fmKltT2AcBlA03J9BJS7kfV8n5txkGYbY+y1R6yOPaPzN2jZeRskaAlDwzIQTjnfJ0esZtgLKKrh0BowI7AeXaIMbGNRDCKB0HoaskwVRpSQUVNsNpMQYXMqE2KONRx5IEfoekRSJjxKPhfNSQjtAuLqaTBpmRMToCiK0neNQrC8O1FYTiYxhin1gvOHy4w1LxwKaMPOsyVFDlTieacbEx5uIcCI2CScGioWmGxFKmo144Twoc8imgiFOPOa43kVz5IjGUPcnxri1AvheSDZ6uJ3kiV6uJToTRjFAmTrBXQRCE7vnHKncYXFGETPusNJ6VNxqTWJLNcGwgYVM0vvC-QMIkVuC6LBEY9QMX8zpR4T2ELKZjRpsIOmVKHIFmPPSvkfiFA8JOiCVmHAQRuGcDoKR3KiW8umVQQV1I5z9F5CMPq3tvQ6AymMAY3or70QmNeCYa8I4aqVJMGwiFLqDGnMCUEvsboB0Jn8MpXd2jWoluQXA01RboFFramoR9FCOt5M6ssIIdZ2HhSMKJwqnA+DxRuAlBch4QHDaGSYXIxjDkBCMAsTKehL36HWBO504z2Afk-dBn9HRYLeQrTaBDpVRM6OrVZMlZBVmmJ6+EiJXwJzGX3ZhuBWHkCMuGxBUJEQAkjYCH2FaIREPnJMJce1U4TpQVO4ucBbR5ozkWbUbE5BZy7m6ithtiEKD+P8byEJfC+CAA */
   id: "HYDRA",
   initial: "Disconnected",
   context: {
     baseURL: "",
     headURL: "",
+    submitPath: "/cardano-transaction",
   },
+
   states: {
     Disconnected: {
       on: {
-        Connect: {
-          target: "Connection",
-          actions: "setURL"
-        }
-      }
-    },
-    Connection: {
-      invoke: {
-        src: "server",
-        input: ({ context }) => ({
-          url: context.headURL,
-        }),
-        onDone: {
-          target: "Connected",
-          actions: "createClient"
-        },
-        onError: "Disconnected"
+        Connect: { target: "Connected", actions: "setURL" },
       },
-      initial: "Connecting",
+    },
+
+    Connected: {
+      invoke: {
+        id: "server",
+        src: "server",
+        input: ({ context }) => ({ url: context.headURL }),
+      },
+
+      on: {
+        Message: [
+          // Error handling
+          { guard: "isInvalidInput", actions: "captureServerError" },
+          { guard: "isCommandFailed", actions: "captureServerError" },
+          { guard: "isTxInvalid", actions: "captureServerError" },
+          { guard: "isPostTxFailed", actions: "captureServerError" },
+          { guard: "isDecommitInvalid", actions: "captureServerError" },
+
+          // Network events (can happen in any state)
+          { guard: "isNetworkConnected", actions: [] },
+          { guard: "isNetworkDisconnected", actions: [] },
+          { guard: "isPeerConnected", actions: [] },
+          { guard: "isPeerDisconnected", actions: [] },
+
+          // Other events that can happen anytime
+          { guard: "isIgnoredHeadInitializing", actions: [] },
+          { guard: "isEventLogRotated", actions: [] },
+
+          // Head state transitions
+          { guard: "isIdle", target: ".NoHead" },
+          { guard: "isInitializing", target: ".Initializing" },
+          { guard: "isOpen", target: ".Open" },
+          { guard: "isClosed", target: ".Closed" },
+          { guard: "isReadyToFanout", target: ".FanoutPossible" },
+          // Contest updates the Closed state, doesn't create new state
+          { guard: "isAborted", target: ".Final" },
+          { guard: "isFinalized", target: ".Final" },
+          { guard: "isFinalStatus", target: ".Final" },
+        ],
+        Disconnect: { target: "Disconnected", actions: "closeConnection" },
+        Error: { actions: "setError" },
+      },
+
+      initial: "Handshake",
       states: {
-        Connecting: {
+        Handshake: {
           on: {
             Ready: {
-              target: "Done",
-              actions: "setConnection"
-            }
-          }
-        },
-        Done: { type: "final" }
-      }
-    },
-    Connected: {
-      on: {
-        Message: [{
-          target: ".Initializing",
-          guard: "isInitializing",
-        }, {
-          target: ".Open",
-          guard: "isOpen",
-        }, {
-          target: ".Closed",
-          guard: "isClosed",
-        }, {
-          target: ".FanoutPossible",
-          guard: "isReadyToFanout",
-        }],
-        Disconnect: {
-          target: "Disconnected",
-          actions: "closeConnection"
-        },
-        Error: { actions: "setError" }
-      },
-      initial: "Idle",
-      states: {
-        Idle: {
-          on: {
-            Init: { actions: "initHead" }
+              // Stay in handshake, just save connection
+              actions: ["setConnection", "createClient"],
+            },
+            Message: [
+              // Wait for Greetings to determine initial state
+              { guard: "isIdle", target: "NoHead" },
+              { guard: "isInitializing", target: "Initializing" },
+              { guard: "isOpen", target: "Open" },
+              { guard: "isClosed", target: "Closed" },
+              { guard: "isReadyToFanout", target: "FanoutPossible" },
+              { guard: "isFinalStatus", target: "Final" },
+            ],
           },
-          always: {
-            target: "Initializing",
-            guard: "isInitializing"
-          }
         },
+
+        NoHead: {
+          on: {
+            Init: { actions: ["clearError", "initHead"] },
+          },
+        },
+
         Initializing: {
           on: {
-            Abort: { actions: "abortHead" }
+            Abort: { actions: ["clearError", "abortHead"] },
+            // Recover and Decommit are only available in Open state
+            Message: [
+              // Handle when other parties commit
+              { guard: "isCommitted", actions: [] },
+            ],
           },
-          always: [{
-            target: "Open",
-            guard: "isOpen"
-          }, {
-            target: "Final",
-            guard: "isAborted",
-          }],
-          initial: "ReadyToCommit",
+          initial: "Waiting",
           states: {
-            ReadyToCommit: {
+            Waiting: {
+              // Waiting for user to commit or for head to open
               on: {
                 Commit: {
-                  target: "Committing",
-                  actions: "setRequest"
-                }
-              }
-            },
-            Committing: {
-              invoke: {
-                src: "commit",
-                input: ({ context }) => ({
-                  client: context.client,
-                  request: context.request
-                }),
-                onError: {
-                  target: "ReadyToCommit",
-                }
+                  target:
+                    "#HYDRA.Connected.Initializing.Depositing.RequestDraft",
+                  actions: ["clearError", "setRequest"],
+                },
               },
-              always: {
-                target: "Done",
-                actions: "clearRequest",
-                guard: "isCommitted"
-              }
             },
-            Done: {
-              type: "final"
-            }
+            Depositing: {
+              initial: "ReadyToCommit" as const,
+              on: {
+                SubmitSignedDeposit: { target: ".SubmittingDeposit" },
+                DepositSubmittedExternally: {
+                  target: ".AwaitingCommitConfirmation",
+                },
+              },
+              states: {
+                ReadyToCommit: {
+                  on: {
+                    Commit: {
+                      target: "RequestDraft",
+                      actions: ["clearError", "setRequest"],
+                    },
+                  },
+                },
+
+                RequestDraft: {
+                  invoke: {
+                    src: "requestDepositDraft",
+                    input: ({ context }: any) => ({
+                      client: context.client,
+                      request: context.request,
+                    }),
+                    onDone: {
+                      target: "AwaitSignature",
+                      actions: assign(({ event }: any) => ({
+                        draftTx: event.output as Transaction,
+                      })),
+                    },
+                    onError: { target: "ReadyToCommit", actions: "setError" },
+                  },
+                },
+
+                AwaitSignature: {
+                  on: {
+                    SubmitSignedDeposit: {
+                      target: "SubmittingDeposit",
+                      actions: assign(({ event }: any) => {
+                        assertEvent(event, "SubmitSignedDeposit");
+                        return { signedDepositTx: event.tx as Transaction };
+                      }),
+                    },
+                    DepositSubmittedExternally: {
+                      target: "AwaitingCommitConfirmation",
+                    },
+                  },
+                },
+
+                SubmittingDeposit: {
+                  invoke: {
+                    src: "submitCardanoTx",
+                    input: ({ context }: any) => ({
+                      client: context.client,
+                      tx: context.signedDepositTx as Transaction,
+                      path: context.submitPath,
+                    }),
+                    onDone: { target: "AwaitingCommitConfirmation" },
+                    onError: {
+                      target: "AwaitSignature",
+                      actions: "setError",
+                    },
+                  },
+                },
+
+                AwaitingCommitConfirmation: {
+                  on: {
+                    Message: {
+                      guard: "isLegacyCommitEvent",
+                      target: "Done",
+                      actions: ["clearRequest", "clearDraftTx"],
+                    },
+                  },
+                },
+
+                Done: { type: "final" as const },
+              },
+              onDone: {
+                // Return to Waiting after successful commit
+                target: "Waiting",
+              },
+            },
           },
         },
+
         Open: {
           on: {
-            Close: { actions: "closeHead" },
-            NewTx: { actions: "newTx" }
+            Close: { actions: ["clearError", "closeHead"] },
+            NewTx: { actions: ["clearError", "newTx"] },
+            Decommit: { actions: ["clearError", "decommitUTxO"] },
+            Recover: { actions: ["clearError", "recoverUTxO"] },
+            SideLoadSnapshot: { actions: ["clearError", "sideLoadSnapshot"] },
+            Message: [
+              // Handle deposit/commit events
+              { guard: "isCommitRecorded", actions: [] }, // Track pending deposits if needed for UI
+              { guard: "isCommitApproved", actions: [] }, // Server approved the commit
+              { guard: "isCommitFinalized", actions: [] }, // Deposit confirmed and UTxO updated
+              { guard: "isCommitRecovered", actions: [] }, // Deposit was recovered
+              { guard: "isDepositActivated", actions: [] },
+              { guard: "isDepositExpired", actions: [] },
+              // Handle decommit events
+              { guard: "isDecommitRequested", actions: [] },
+              { guard: "isDecommitApproved", actions: [] },
+              { guard: "isDecommitFinalized", actions: [] },
+              // Handle transaction events
+              { guard: "isTxValid", actions: [] },
+              { guard: "isSnapshotConfirmed", actions: [] },
+              // Handle snapshot side-loading
+              { guard: "isSnapshotSideLoaded", actions: [] },
+            ],
           },
-          always: {
-            target: "Closed",
-            guard: "isClosed"
-          },
-          initial: "TODO",
+          initial: "Active",
           states: {
-            TODO: {}
+            Active: {
+              on: {
+                Commit: {
+                  target: "#HYDRA.Connected.Open.Depositing.RequestDraft",
+                  actions: ["clearError", "setRequest"],
+                },
+              },
+            },
+            Depositing: {
+              initial: "ReadyToCommit" as const,
+              on: {
+                SubmitSignedDeposit: { target: ".SubmittingDeposit" },
+                DepositSubmittedExternally: {
+                  target: ".AwaitingCommitConfirmation",
+                },
+              },
+              states: {
+                ReadyToCommit: {
+                  on: {
+                    Commit: {
+                      target: "RequestDraft",
+                      actions: ["clearError", "setRequest"],
+                    },
+                  },
+                },
+
+                RequestDraft: {
+                  invoke: {
+                    src: "requestDepositDraft",
+                    input: ({ context }: any) => ({
+                      client: context.client,
+                      request: context.request,
+                    }),
+                    onDone: {
+                      target: "AwaitSignature",
+                      actions: assign(({ event }: any) => ({
+                        draftTx: event.output as Transaction,
+                      })),
+                    },
+                    onError: { target: "ReadyToCommit", actions: "setError" },
+                  },
+                },
+
+                AwaitSignature: {
+                  on: {
+                    SubmitSignedDeposit: {
+                      target: "SubmittingDeposit",
+                      actions: assign(({ event }: any) => {
+                        assertEvent(event, "SubmitSignedDeposit");
+                        return { signedDepositTx: event.tx as Transaction };
+                      }),
+                    },
+                    DepositSubmittedExternally: {
+                      target: "AwaitingCommitConfirmation",
+                    },
+                  },
+                },
+
+                SubmittingDeposit: {
+                  invoke: {
+                    src: "submitCardanoTx",
+                    input: ({ context }: any) => ({
+                      client: context.client,
+                      tx: context.signedDepositTx as Transaction,
+                      path: context.submitPath,
+                    }),
+                    onDone: { target: "AwaitingCommitConfirmation" },
+                    onError: {
+                      target: "AwaitSignature",
+                      actions: "setError",
+                    },
+                  },
+                },
+
+                AwaitingCommitConfirmation: {
+                  on: {
+                    Message: {
+                      guard: "isIncrementalCommitEvent",
+                      target: "Done",
+                      actions: ["clearRequest", "clearDraftTx"],
+                    },
+                  },
+                },
+
+                Done: { type: "final" as const },
+              },
+              onDone: {
+                // Return to Active after successful incremental commit
+                target: "Active",
+              },
+            },
           },
         },
+
         Closed: {
           on: {
-            Contest: { actions: "contestHead" }
+            Contest: { actions: ["clearError", "contestHead"] },
+            Message: [
+              {
+                guard: "isContested",
+                // Stay in Closed state, just update internal state
+                actions: [],
+              },
+            ],
           },
-          always: [{
-            target: "Contested",
-            guard: "isContested"
-          }, {
-            target: "FanoutPossible",
-            guard: "isReadyToFanout"
-          }]
         },
+
         FanoutPossible: {
           on: {
-            Fanout: { actions: "fanoutHead" }
+            Fanout: { actions: ["clearError", "fanoutHead"] },
           },
-          always: {
-            target: "Final",
-            guard: "isFinalized"
-          }
         },
+
         Final: {
           on: {
-            Init: { actions: "initHead" }
+            Init: { actions: ["clearError", "initHead"] },
           },
-          always: {
-            target: "Initializing",
-            guard: "isInitializing"
-          }
         },
-        Contested: {},
-      }
+      },
     },
-  }
+  },
 });
