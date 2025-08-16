@@ -7,48 +7,34 @@ export class MockWebSocket {
   public onclose: ((event: CloseEvent) => void) | null = null;
   public onerror: ((event: Event) => void) | null = null;
 
-  public sentMessages: unknown[] = [];
+  public sentMessages: string[] = [];
   public eventLog: { type: WebSocketEventType; data?: unknown }[] = [];
 
-  // Mocked methods
-  send = jest.fn();
-  close = jest.fn();
 
   constructor(public url: string) {
-    this.send.mockImplementation((data: unknown) => {
-      if (this.readyState !== WebSocket.OPEN) {
-        throw new Error('WebSocket is not open');
-      }
-      this.logEvent('message', data);
-      this.sentMessages.push(data);
-    });
-
-    this.close.mockImplementation((code = 1000, reason = 'Normal closure') => {
-      if (this.readyState === WebSocket.CLOSED) return;
-      this.readyState = WebSocket.CLOSED;
-      const event = new CloseEvent('close', { wasClean: true, code, reason });
-      this.logEvent('close', { code, reason });
-      this.onclose?.(event);
-    });
-
-    // Defer opening to allow event listeners to be attached
-    process.nextTick(() => {
+    // Simulate async open
+    setImmediate(() => {
       this.readyState = WebSocket.OPEN;
-      this.logEvent('open');
       this.onopen?.(new Event('open'));
     });
   }
 
-  // Test hooks
-  mockReceive(data: string | ArrayBuffer | Blob | Uint8Array) {
-    process.nextTick(() => {
-      this.logEvent('message', data);
-      this.onmessage?.(new MessageEvent('message', { data }));
-    });
+  send(data: string) {
+    if (this.readyState !== WebSocket.OPEN) {
+      throw new Error("WebSocket is not open");
+    }
+    this.sentMessages.push(data);
   }
 
-  mockBinaryReceive(binary: ArrayBuffer | Uint8Array | Blob) {
-    this.mockReceive(binary);
+  close(code = 1000, reason = "") {
+    this.readyState = WebSocket.CLOSED;
+    this.onclose?.(new CloseEvent('close', { wasClean: false, code, reason }));
+  }
+
+  // Test helper to simulate an incoming JSON message
+  mockReceive(obj: unknown) {
+    const data = typeof obj === "string" ? obj : JSON.stringify(obj);
+    this.onmessage?.(new MessageEvent('message', { data }));
   }
 
   mockError(errorData?: unknown) {

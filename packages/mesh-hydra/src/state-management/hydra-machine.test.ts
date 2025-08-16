@@ -1,96 +1,26 @@
 import { createActor } from "xstate";
+import {
+  createHydraMachine,
+  HTTPClientFactory,
+  WebSocketFactory,
+} from "./hydra-machine";
+import { HTTPClient } from "../utils";
+import { MockHttpClient } from "../mocks/MockHTTPClient";
+import { MockWebSocket } from "../mocks/MockWebSocket";
 
-// Lightweight HTTP client stub injected via module mock
-class HTTPClientStub {
-  public static instances: HTTPClientStub[] = [];
-  public static nextPostErrors: Error[] = [];
-  public static postCalls: Array<{ endpoint: string; payload: unknown }> = [];
-  public static nextPostResponses: unknown[] = [];
-
-  constructor(public baseURL: string) {
-    HTTPClientStub.instances.push(this);
-  }
-
-  async post(endpoint: string, payload: unknown) {
-    HTTPClientStub.postCalls.push({ endpoint, payload });
-    if (HTTPClientStub.nextPostErrors.length > 0) {
-      throw HTTPClientStub.nextPostErrors.shift();
-    }
-    if (HTTPClientStub.nextPostResponses.length > 0) {
-      return HTTPClientStub.nextPostResponses.shift();
-    }
-    // Default response for /commit endpoint - return a draft transaction
-    if (endpoint === "/commit") {
-      return {
-        type: "TxBabbage",
-        description: "Draft commit tx",
-        cborHex: "84a4...",
-      };
-    }
-    return { status: 200, data: "ok" };
-  }
-
-  async get(endpoint: string) {
-    return { status: 200, data: {} };
-  }
-
-  async delete(endpoint: string) {
-    return { status: 200, data: "ok" };
+// Create a mock HTTPClientFactory
+class MockHTTPClientFactory implements HTTPClientFactory {
+  create(baseURL: string): HTTPClient {
+    return new MockHttpClient(baseURL) as HTTPClient;
   }
 }
 
-// Mock the utils module to use our HTTPClient stub
-jest.mock("./utils", () => ({
-  HTTPClient: HTTPClientStub,
-}));
-
-// Import after mocks are set up
-import { machine } from "./hydra-machine";
-
-// Minimal WebSocket stub compatible with the machine's server actor
-class TestWebSocket {
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSING = 2;
-  static CLOSED = 3;
-
-  public readyState = TestWebSocket.CONNECTING;
-  public onopen: ((ev: any) => void) | null = null;
-  public onmessage: ((ev: { data: any }) => void) | null = null;
-  public onclose: ((ev: { code: number; reason?: string }) => void) | null =
-    null;
-  public onerror: ((ev: any) => void) | null = null;
-  public sentMessages: string[] = [];
-
-  constructor(public url: string) {
-    // Simulate async open
-    setImmediate(() => {
-      this.readyState = TestWebSocket.OPEN;
-      this.onopen?.({});
-    });
-  }
-
-  send(data: string) {
-    if (this.readyState !== TestWebSocket.OPEN) {
-      throw new Error("WebSocket is not open");
-    }
-    this.sentMessages.push(data);
-  }
-
-  close(code = 1000, reason = "") {
-    this.readyState = TestWebSocket.CLOSED;
-    this.onclose?.({ code, reason });
-  }
-
-  // Test helper to simulate an incoming JSON message
-  mockReceive(obj: unknown) {
-    const data = typeof obj === "string" ? obj : JSON.stringify(obj);
-    this.onmessage?.({ data });
+// Create a mock WebSocketFactory
+class MockWebSocketFactory implements WebSocketFactory {
+  create(url: string): WebSocket {
+    return new MockWebSocket(url) as unknown as WebSocket;
   }
 }
-
-// Attach stub to globalThis before tests run
-(globalThis as any).WebSocket = TestWebSocket as any;
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -106,13 +36,14 @@ function stateToString(value: any): string {
 
 describe("hydra-machine state transitions", () => {
   let actor: any;
-  let ws: TestWebSocket;
+  let ws: MockWebSocket;
 
   beforeEach(() => {
-    HTTPClientStub.instances = [];
-    HTTPClientStub.nextPostErrors = [];
-    HTTPClientStub.postCalls = [];
-    HTTPClientStub.nextPostResponses = [];
+    MockHttpClient.reset();
+    const machine = createHydraMachine({
+      httpClientFactory: new MockHTTPClientFactory(),
+      webSocketFactory: new MockWebSocketFactory(),
+    });
     actor = createActor(machine);
     actor.start();
   });
@@ -140,7 +71,7 @@ describe("hydra-machine state transitions", () => {
       );
 
       // Get WebSocket instance
-      ws = actor.getSnapshot().context.connection as unknown as TestWebSocket;
+      ws = actor.getSnapshot().context.connection as unknown as MockWebSocket;
 
       // Send Greetings with Idle status
       ws.mockReceive({ tag: "Greetings", headStatus: "Idle" });
@@ -166,6 +97,10 @@ describe("hydra-machine state transitions", () => {
       ];
 
       for (const { headStatus, expectedState } of testCases) {
+        const machine = createHydraMachine({
+          httpClientFactory: new MockHTTPClientFactory(),
+          webSocketFactory: new MockWebSocketFactory(),
+        });
         const testActor = createActor(machine);
         testActor.start();
 
@@ -173,7 +108,7 @@ describe("hydra-machine state transitions", () => {
         await flush();
 
         const testWs = testActor.getSnapshot().context
-          .connection as unknown as TestWebSocket;
+          .connection as unknown as MockWebSocket;
         testWs.mockReceive({ tag: "Greetings", headStatus });
 
         expect(stateToString(testActor.getSnapshot().value)).toBe(
@@ -188,7 +123,7 @@ describe("hydra-machine state transitions", () => {
     beforeEach(async () => {
       actor.send({ type: "Connect", baseURL: "http://localhost:4001" });
       await flush();
-      ws = actor.getSnapshot().context.connection as unknown as TestWebSocket;
+      ws = actor.getSnapshot().context.connection as unknown as MockWebSocket;
       ws.mockReceive({ tag: "Greetings", headStatus: "Idle" });
     });
 
@@ -215,7 +150,7 @@ describe("hydra-machine state transitions", () => {
       await flush();
 
       // HTTP was called
-      expect(HTTPClientStub.postCalls[0]).toEqual({
+      expect(MockHttpClient.postCalls[0]).toEqual({
         endpoint: "/commit",
         payload: request,
       });
@@ -276,7 +211,7 @@ describe("hydra-machine state transitions", () => {
       ws.mockReceive({ tag: "HeadIsInitializing" });
 
       // First commit attempt will fail - set up error before sending
-      HTTPClientStub.nextPostErrors.push(new Error("Network error"));
+      MockHttpClient.nextPostErrors.push(new Error("Network error"));
       actor.send({ type: "Commit", data: { attempt: 1 } });
 
       // Should be in RequestDraft state briefly
@@ -314,7 +249,7 @@ describe("hydra-machine state transitions", () => {
     beforeEach(async () => {
       actor.send({ type: "Connect", baseURL: "http://localhost:4001" });
       await flush();
-      ws = actor.getSnapshot().context.connection as unknown as TestWebSocket;
+      ws = actor.getSnapshot().context.connection as unknown as MockWebSocket;
       ws.mockReceive({ tag: "Greetings", headStatus: "Open" });
     });
 
@@ -407,7 +342,7 @@ describe("hydra-machine state transitions", () => {
     beforeEach(async () => {
       actor.send({ type: "Connect", baseURL: "http://localhost:4001" });
       await flush();
-      ws = actor.getSnapshot().context.connection as unknown as TestWebSocket;
+      ws = actor.getSnapshot().context.connection as unknown as MockWebSocket;
       ws.mockReceive({ tag: "Greetings", headStatus: "Open" });
     });
 
@@ -451,7 +386,7 @@ describe("hydra-machine state transitions", () => {
       // Connect
       actor.send({ type: "Connect", baseURL: "http://localhost:4001" });
       await flush();
-      ws = actor.getSnapshot().context.connection as unknown as TestWebSocket;
+      ws = actor.getSnapshot().context.connection as unknown as MockWebSocket;
 
       // Start from idle
       ws.mockReceive({ tag: "Greetings", headStatus: "Idle" });
