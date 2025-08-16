@@ -29,6 +29,16 @@ export class HTTPClient {
     }
   }
 
+  async delete(endpoint: string, headers?: RawAxiosRequestHeaders, signal?: AbortSignal) {
+    try {
+      const { data, status } = await this._instance.delete(endpoint, { headers, signal });
+      if (status === 200 || status == 202) return data;
+      throw _parseError(data);
+    } catch (error) {
+      throw _parseError(error);
+    }
+  }
+
   private readonly _instance: AxiosInstance;
 }
 
