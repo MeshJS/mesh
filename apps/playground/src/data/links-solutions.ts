@@ -10,7 +10,7 @@ import { metaSmartContract } from "./links-smart-contracts";
 
 export const linksSolutions: MenuItem[] = [
   {
-    link: `https://web3.meshjs.dev/`,
+    link: `https://utxos.dev/`,
     title: "Web3 Services",
     desc: "Streamline user onboarding and Web3 integration, accelerating your app's time to market",
     icon: GlobeAltIcon,

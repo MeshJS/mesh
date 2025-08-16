@@ -29,8 +29,10 @@ const ReactPage: NextPage = () => {
   const [bobFunds, setBobFunds] = useState<MeshWallet | undefined>(undefined);
 
   const hydraUrl = useProviders((state) => state.hydraUrl);
+  const httpUrl = hydraUrl.replace(/^https?:\/\//, "");
   const provider = new HydraProvider({
-    httpUrl: hydraUrl,
+    httpUrl: `/api/hydra/${httpUrl}`,
+    wsUrl: hydraUrl,
   });
 
   const providerName = "hydra";

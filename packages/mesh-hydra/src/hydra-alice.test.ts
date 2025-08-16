@@ -10,9 +10,9 @@ describe("Hydra Provider", () => {
   let txBuilder: MeshTxBuilder;
 
   beforeEach(() => {
-    provider = new HydraProvider({
-      httpUrl: "http://localhost:4001",
-    });
+      provider = new HydraProvider({
+        httpUrl: "http://localhost:4001",
+      });
 
     blockchainProvider = new BlockfrostProvider("");
     const seedPhrase = [""];

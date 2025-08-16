@@ -24,7 +24,7 @@ export const metaPolkadot: MenuItem = {
 export const metaWeb3Wallet: MenuItem = {
   title: "Wallet as a Service",
   desc: "Access self-custodial wallet using social logins",
-  link: "https://web3.meshjs.dev/",
+  link: "https://utxos.dev/",
   icon: SvgMesh,
 };
 
@@ -41,6 +41,6 @@ export const linksApi: MenuItem[] = [
   metaHydra,
   metaYaci,
   metaMidnight,
-  metaPolkadot,
+  // metaPolkadot,
   metaWeb3Wallet,
 ];
