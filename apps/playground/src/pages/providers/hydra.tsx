@@ -30,15 +30,23 @@ const ReactPage: NextPage = () => {
     { label: "Submit Transaction", to: "submitTx" },
   ];
 
-  let code1 = `import { HydraProvider } from "@meshsdk/hydra";\n\n`;
-  code1 += `const provider = new HydraProvider('<URL>');`;
-  code1 += `\nawait provider.connect();`;
+  let code1 = ``;
+  code1 += `import { HydraProvider } from "@meshsdk/hydra";\n`;
+  code1 += `\n`;
+  code1 += `const provider = new HydraProvider({\n`;
+  code1 += `  httpUrl: "<URL>",\n`;
+  code1 += `});\n`;
+  code1 += `\n`;
+  code1 += `const instance = new HydraInstance({\n`;
+  code1 += `  provider: provider,\n`;
+  code1 += `  fetcher: "<blockchainProvider>",\n`;
+  code1 += `  submitter: "<blockchainProvider>",\n`;
+  code1 += `});\n`;
 
   const hydraUrl = useProviders((state) => state.hydraUrl);
 
   const hydraProvider = new HydraProvider({
-    url: `http://localhost:3000/api/hydra/${hydraUrl}`,
-    wsUrl: `ws://${hydraUrl}`,
+    httpUrl: hydraUrl,
   });
 
   return (
