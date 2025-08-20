@@ -1,4 +1,4 @@
-import { hUTxO } from "./hUTxOs";
+import { hydraUTxO } from "./hydraUTxOs";
 import { HydraHeadParameters, HydraSnapshot } from "./hydra";
 
 export type PostChainTx =
@@ -18,20 +18,20 @@ export type InitTx = {
 
 export type AbortTx = {
   tag: "AbortTx";
-  utxo: { [txRef: string]: hUTxO };
+  utxo: { [txRef: string]: hydraUTxO };
   headSeed: string;
 };
 
 export type CollectComTx = {
   tag: "CollectComTx";
-  utxo: { [txRef: string]: hUTxO };
+  utxo: { [txRef: string]: hydraUTxO };
   headId: string;
   headParameters: HydraHeadParameters;
 };
 
 export type InitialSnapshot = {
   headId: string;
-  initialUtxo: { [txRef: string]: hUTxO };
+  initialUtxo: { [txRef: string]: hydraUTxO };
   tag: "InitialSnapshot";
 };
 
@@ -67,8 +67,8 @@ export type ContestTx = {
 
 export type FanoutTx = {
   tag: "FanoutTx";
-  utxo: { [txRef: string]: hUTxO };
-  utxoToDecommit: { [txRef: string]: hUTxO };
+  utxo: { [txRef: string]: hydraUTxO };
+  utxoToDecommit: { [txRef: string]: hydraUTxO };
   headSeed: string;
   contestationDeadline: string;
 };

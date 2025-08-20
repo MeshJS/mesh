@@ -1,6 +1,6 @@
-export type hStatus = typeof status[number];
+export type hydraStatus = typeof status[number];
 
-export function hStatus(value: { headStatus?: string; tag?: string; }): hStatus | null {
+export function hydraStatus(value: { headStatus?: string; tag?: string; }): hydraStatus | null {
   if (value.headStatus === "Open") return "OPEN";
   
   switch (value.tag) {

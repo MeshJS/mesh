@@ -23,8 +23,8 @@ export default function HydraTutorialStep5({
 
 function Left() {
   let codeSnippet = ``;
-  codeSnippet += `const aliceFundsBalance = await blockchainProvider.fetchAddressUTxOs("alice-funds.addr");\n`;
-  codeSnippet += `const bobFundsBalance = await blockchainProvider.fetchAddressUTxOs("bob-funds.addr");\n`;
+  codeSnippet += `const aliceFundsBalance = await "<blockchainProvider>".fetchAddressUTxOs("alice-funds.addr");\n`;
+  codeSnippet += `const bobFundsBalance = await "<blockchainProvider>".fetchAddressUTxOs("bob-funds.addr");\n`;
 
   return (
     <>

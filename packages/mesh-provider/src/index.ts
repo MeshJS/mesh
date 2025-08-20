@@ -6,3 +6,4 @@ export * from "./ogmios";
 export * from "./utxo-rpc";
 export * from "./yaci";
 export * from "./offline";
+export * from "./kupo";

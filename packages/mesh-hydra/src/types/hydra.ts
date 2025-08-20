@@ -1,4 +1,4 @@
-import { hUTxOs } from "./hUTxOs";
+import { hydraUTxOs } from "./hydraUTxOs";
 
 export type HydraCommitTransaction = {
   cborHex: string;
@@ -19,8 +19,8 @@ export type HydraParty = {
 export type HydraSnapshot = {
   headId: string;
   snapshotNumber: string;
-  utxo: hUTxOs;
+  utxo: hydraUTxOs;
   confirmedTransactions: string[];
-  utxoToDecommit: hUTxOs;
+  utxoToDecommit: hydraUTxOs;
   version: number;
 };

@@ -19,7 +19,7 @@ import {
 
 import { parseHttpError } from "./utils";
 import { HydraConnection } from "./hydra-connection";
-import { hStatus, hTransaction, hUTxO } from "./types";
+import { hydraStatus, hydraTransaction, hydraUTxO } from "./types";
 import {
   CommandFailed,
   Committed,
@@ -54,35 +54,35 @@ import {
  * ```
  * import { HydraProvider } from "@meshsdk/hydra";
  *
- * const hydraProvider = new HydraProvider({url:'http://123.45.67.890:4001'});
+ * const hydraProvider = new HydraProvider({httpUrl:'http://123.45.67.890:4001'});
  */
 export class HydraProvider implements IFetcher, ISubmitter {
   private _connection: HydraConnection;
-  private _status: hStatus = "DISCONNECTED";
+  private _status: hydraStatus = "DISCONNECTED";
   private readonly _eventEmitter: EventEmitter;
   private readonly _axiosInstance: AxiosInstance;
 
   constructor({
-    url,
+    httpUrl,
     history = false,
     address,
     wsUrl,
   }: {
-    url: string;
+    httpUrl: string;
     history?: boolean;
     address?: string;
     wsUrl?: string;
   }) {
     this._eventEmitter = new EventEmitter();
     this._connection = new HydraConnection({
-      url: url,
+      httpUrl: httpUrl,
       eventEmitter: this._eventEmitter,
       history: history,
       address: address,
       wsUrl: wsUrl,
     });
     this._axiosInstance = axios.create({
-      baseURL: url,
+      baseURL: httpUrl,
     });
   }
 
@@ -215,7 +215,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     description = "",
     txId?: string
   ) {
-    const transaction: hTransaction = {
+    const transaction: hydraTransaction = {
       type: type,
       description: description,
       cborHex: cborHex,
@@ -329,7 +329,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     const data = await this.get(`snapshot/utxo`);
     const utxos: UTxO[] = [];
     for (const [key, value] of Object.entries(data)) {
-      const utxo = hUTxO.toUTxO(value as hUTxO, key);
+      const utxo = hydraUTxO.toUTxO(value as hydraUTxO, key);
       utxos.push(utxo);
     }
     return utxos;
@@ -338,9 +338,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Provide decommit transaction that needs to be applicable to the Hydra's local ledger state. Specified transaction outputs will be available on layer 1 after decommit is successfully processed.
    */
-  async publishDecommit(headers: RawAxiosRequestHeaders = {}) {
-    // todo
-    await this.post("/decommit", {}, headers);
+  async publishDecommit(
+    payload: unknown,
+    headers: RawAxiosRequestHeaders = {}
+  ) {
+    const txHex = await this.post("/decommit", payload, headers);
+    return txHex;
   }
 
   /**
@@ -510,7 +513,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     });
   }
 
-  onStatusChange(callback: (status: hStatus) => void) {
+  onStatusChange(callback: (status: hydraStatus) => void) {
     this._eventEmitter.on("onstatuschange", callback);
   }
 

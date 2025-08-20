@@ -1,95 +1,100 @@
-import {
-  BlockfrostProvider,
-  MeshTxBuilder,
-  MeshWallet,
-} from "@meshsdk/core";
+import { BlockfrostProvider, MeshTxBuilder, MeshWallet } from "@meshsdk/core";
 import { HydraProvider } from "./hydra-provider";
 import { HydraInstance } from "./hydra-instance";
 
 describe("Hydra Provider", () => {
-  it("should make and submit a valid tx", async () => {
-    const provider = new HydraProvider({
-      url: "http://localhost:4001",
-      history: true,
-    });
+  let provider: HydraProvider;
+  let blockchainProvider: BlockfrostProvider;
+  let hInstance: HydraInstance;
+  let wallet: MeshWallet;
+  let txBuilder: MeshTxBuilder;
 
-    const blockchainProvider = new BlockfrostProvider(
-      ""
-    );
+  beforeEach(() => {
+      provider = new HydraProvider({
+        httpUrl: "http://localhost:4001",
+      });
 
-    const hInstance = new HydraInstance({
+    blockchainProvider = new BlockfrostProvider("");
+    const seedPhrase = [""];
+
+    hInstance = new HydraInstance({
       provider: provider,
       fetcher: blockchainProvider,
       submitter: blockchainProvider,
     });
 
-    const wallet = new MeshWallet({
-      networkId: 0, // 0: testnet, 1: mainnet
+    wallet = new MeshWallet({
+      networkId: 0,
       fetcher: blockchainProvider,
       submitter: blockchainProvider,
       key: {
-        type: "cli",
-        payment:
-        "",
+        type: "mnemonic",
+        words: seedPhrase,
       },
     });
+  });
 
-    const connectandcommit = async () => {
-      
-      await provider.connect();
-      await provider.fanout();
+  it("should make and submit a valid tx", async () => {
+    await provider.connect();
+    //await provider.init();
 
-      const tx = await hInstance.commitFunds(
-        "31d851c3bb0aeba9507b3b9775be68a00991669fbe3591190294befe9e3a9b79",
-        0
-      );
-      const signedTx = await wallet.signTx(tx, true);
-      const txHash = await wallet.submitTx(signedTx);
-      console.log("commited hash", txHash);
-    };
+    const pp = await provider.fetchProtocolParameters();
+    const utxos = await provider.fetchUTxOs();
 
-    const headNewTx = async () => {
-      await provider.connect();
-      const utxo = provider.fetchUTxOs();
-      if (!utxo) {
-        console.log("unable to get latest head snapshot utxo");
+    txBuilder = new MeshTxBuilder({
+      fetcher: blockchainProvider,
+      submitter: blockchainProvider,
+      params: pp,
+      isHydra: true,
+    });
+    const unsignedTx = await txBuilder
+      .txIn(
+        "cd8d9b66df467df82cf6df10a0dbd24847a27ac280e1033e509a8bc0de8d2579",
+        2
+      )
+      .txOut("", [
+        {
+          unit: "lovelace",
+          quantity: "30000000",
+        },
+      ])
+      .selectUtxosFrom(utxos)
+      .setFee("0")
+      .changeAddress("")
+      .setNetwork("preprod")
+      .complete();
+
+    console.log(unsignedTx);
+
+    const tx = await hInstance.commitBlueprint(
+      "ad16a3a415763e8662469c868038a659f5076a174633323894666f4c9d2e60d1",
+      1,
+      {
+        cborHex: unsignedTx,
+        description: "a new blueprint tx",
+        type: "Tx ConwayEra",
       }
-      console.log(utxo);
+    );
+    console.log("tx", tx);
+    const signedTx = await wallet.signTx(tx, true);
+    const txHash = await wallet.submitTx(signedTx);
+    console.log("commit txhash:", txHash);
+    expect(typeof txHash).toBe("string");
+  });
 
-      const aliceheadUtxo = await provider.fetchAddressUTxOs(
-        "addr_test1vr5r6y3wy09kd5tnr97azvq0klccc47uthve4s4phw7auvs0jyw3c"
-      );
-      console.log(aliceheadUtxo);
+  it("should fail to fetch UTXOs for an invalid address", async () => {
+    await provider.connect();
+    await expect(
+      provider.fetchAddressUTxOs("invalid_address")
+    ).rejects.toThrow();
+  });
 
-      const txbuilder = new MeshTxBuilder({
-        fetcher: provider,
-        submitter: provider,
-        isHydra: true,
-      });
-
-      const unsignedTx = await txbuilder
-        .txOut(
-          "addr_test1vrlkv8dryg2lcmxjd8adpyd20vmnvwm8cjxv7fh6rpyve9qnmsq0l",
-          [
-            {
-              unit: "lovelace",
-              quantity: "50000000",
-            },
-          ]
-        )
-        .changeAddress(
-          "addr_test1vr5r6y3wy09kd5tnr97azvq0klccc47uthve4s4phw7auvs0jyw3c"
-        )
-        .setNetwork("preprod")
-        .selectUtxosFrom(aliceheadUtxo)
-        .complete();
-
-      const signedTx = await wallet.signTx(unsignedTx);
-      const txHash = await provider.submitTx(signedTx);
-      console.log(txHash);
-    };
-
-    await connectandcommit();
-    await headNewTx();
+  it("should throw error when submitting an invalid transaction", async () => {
+    await provider.connect();
+    await expect(provider.submitTx("invalid_tx")).rejects.toThrow();
+  });
+  it("should close head appropriately", async () => {
+    await provider.connect();
+    await provider.close();
   });
 });

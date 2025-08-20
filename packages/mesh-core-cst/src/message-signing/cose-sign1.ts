@@ -233,9 +233,13 @@ const getPublicKeyFromCoseKey = (cbor: string): Buffer => {
 
 const getCoseKeyFromPublicKey = (cbor: string): Buffer => {
   const coseKeyMap: CborMapEntry[] = [];
+  // kty (1) = OKP (1)
   coseKeyMap.push({ k: new CborUInt(1), v: new CborUInt(1) });
+  // alg (3) = EdDSA (-8)
   coseKeyMap.push({ k: new CborUInt(3), v: new CborNegInt(-8) });
-  coseKeyMap.push({ k: new CborUInt(6), v: new CborNegInt(-2) });
+  // crv (-1) = Ed25519 (6)
+  coseKeyMap.push({ k: new CborNegInt(-1), v: new CborUInt(6) });
+  // x (-2) = Public Key
   coseKeyMap.push({
     k: new CborNegInt(-2),
     v: new CborBytes(Buffer.from(cbor, "hex")),
