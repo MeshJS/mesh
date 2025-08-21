@@ -103,6 +103,8 @@ describe("MeshTxBuilder", () => {
       inputs: incompleteTxIns,
       collaterals: [],
       mints: incompleteMints,
+      changeAddress:
+        "addr_test1qpsjnpqljma4vdg67vtf8k4xv7umncum5lvrnlupfyyvmtawhmy5tqhkqm4lrwwm6wkykzsa2aafy25vevxhrc3fws0qszw7wl",
     };
 
     // Call the complete method
