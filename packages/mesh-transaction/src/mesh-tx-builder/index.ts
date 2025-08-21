@@ -186,7 +186,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     await this.sanitizeOutputs();
 
     this.sortTxParts();
-
+    if (
+      !this.meshTxBuilderBody.changeAddress ||
+      this.meshTxBuilderBody.changeAddress === ""
+    ) {
+      throw new Error(
+        "Change address is not set, utxo selection cannot be done without this",
+      );
+    }
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype, true);
     if (this.verbose) {
