@@ -951,8 +951,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         }
       }
     });
-    this.addUtxosFromSelection();
-
     // Sort inputs based on txHash and txIndex
     this.sortTxParts();
   };
