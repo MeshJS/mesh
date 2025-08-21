@@ -132,11 +132,6 @@ describe("Round-trip conversion tests", () => {
       expectedNumberKeyWitnesses: 2,
       expectedByronAddressWitnesses: [],
       extraInputs: [],
-      selectionConfig: {
-        threshold: "5000000",
-        strategy: "largestFirst",
-        includeTxFees: true,
-      },
     };
 
     // Convert to object representation

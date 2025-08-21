@@ -77,11 +77,6 @@ describe("Ref Script output", () => {
           },
         },
       ],
-      selectionConfig: {
-        threshold: "",
-        strategy: "experimental",
-        includeTxFees: false,
-      },
       expectedNumberKeyWitnesses: 0,
       expectedByronAddressWitnesses: [],
     };

@@ -145,7 +145,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     this.removeDuplicateInputs();
     this.removeDuplicateRefInputs();
-    this.addUtxosFromSelection();
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,

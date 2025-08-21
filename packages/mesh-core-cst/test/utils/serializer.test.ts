@@ -333,11 +333,6 @@ describe("Build transaction with custom protocol params", () => {
           ],
         ],
         extraInputs: [],
-        selectionConfig: {
-          threshold: "",
-          strategy: "largestFirst",
-          includeTxFees: false,
-        },
         chainedTxs: [],
         inputsForEvaluation: {},
         fee: "0",
