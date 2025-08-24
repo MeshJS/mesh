@@ -268,7 +268,8 @@ export function createHydraMachine(config: HydraMachineConfig = {}) {
 
       /** === Connection / context === */
       closeConnection: assign(({ context }) => {
-        if (context.connection?.readyState === WebSocket.OPEN) {
+        if (context.connection?.readyState === 1) {
+          // WebSocket.OPEN
           context.connection.close(1000, "Client disconnected");
         }
         return {
@@ -481,9 +482,7 @@ export function createHydraMachine(config: HydraMachineConfig = {}) {
       },
       isPostTxFailed: ({ event }) => {
         assertEvent(event, "Message");
-        return (
-          (event.data as HydraServerOutput).tag === "PostTxOnChainFailed"
-        );
+        return (event.data as HydraServerOutput).tag === "PostTxOnChainFailed";
       },
       isDecommitInvalid: ({ event }) => {
         assertEvent(event, "Message");
@@ -600,7 +599,8 @@ export function createHydraMachine(config: HydraMachineConfig = {}) {
 
           receive((event) => {
             assertEvent(event, "Send");
-            if (ws.readyState === WebSocket.OPEN)
+            if (ws.readyState === 1)
+              // WebSocket.OPEN
               ws.send(JSON.stringify(event.data));
             else
               sendBack({
