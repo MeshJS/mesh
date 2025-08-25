@@ -1468,9 +1468,6 @@ export class MeshTxBuilderCore {
       }
     }
     this.meshTxBuilderBody.extraInputs = extraInputs;
-    this.meshTxBuilderBody.selectionConfig = {
-      ...this.meshTxBuilderBody.selectionConfig,
-    };
     return this;
   };
 
@@ -1847,102 +1844,6 @@ export class MeshTxBuilderCore {
           }
           break;
       }
-    });
-  };
-
-  addUtxosFromSelection = () => {
-    const requiredAssets = this.meshTxBuilderBody.outputs.reduce(
-      (map, output) => {
-        const outputAmount = output.amount;
-        outputAmount.forEach((asset) => {
-          const { unit, quantity } = asset;
-          const existingQuantity = Number(map.get(unit)) || 0;
-          map.set(unit, String(existingQuantity + Number(quantity)));
-        });
-        return map;
-      },
-      new Map<Unit, Quantity>(),
-    );
-    this.meshTxBuilderBody.inputs.reduce((map, input) => {
-      const inputAmount = input.txIn.amount;
-      inputAmount?.forEach((asset) => {
-        const { unit, quantity } = asset;
-        const existingQuantity = Number(map.get(unit)) || 0;
-        map.set(unit, String(existingQuantity - Number(quantity)));
-      });
-      return map;
-    }, requiredAssets);
-    this.meshTxBuilderBody.mints.reduce((map, mint) => {
-      for (const assetValue of mint.mintValue) {
-        const mintAmount: Asset = {
-          unit: mint.policyId + assetValue.assetName,
-          quantity: String(assetValue.amount),
-        };
-        const existingQuantity = Number(map.get(mintAmount.unit)) || 0;
-        map.set(
-          mintAmount.unit,
-          String(existingQuantity - Number(mintAmount.quantity)),
-        );
-      }
-      return map;
-    }, requiredAssets);
-    const selectionConfig = this.meshTxBuilderBody.selectionConfig;
-
-    const utxoSelection = new UtxoSelection(
-      selectionConfig.threshold,
-      selectionConfig.includeTxFees,
-    );
-
-    let selectedInputs: UTxO[] = [];
-    switch (selectionConfig.strategy) {
-      case "keepRelevant":
-        selectedInputs = utxoSelection.keepRelevant(
-          requiredAssets,
-          this.meshTxBuilderBody.extraInputs,
-        );
-      case "largestFirst":
-        selectedInputs = utxoSelection.largestFirst(
-          requiredAssets,
-          this.meshTxBuilderBody.extraInputs,
-        );
-        break;
-
-      case "largestFirstMultiAsset":
-        selectedInputs = utxoSelection.largestFirstMultiAsset(
-          requiredAssets,
-          this.meshTxBuilderBody.extraInputs,
-        );
-        break;
-
-      default:
-        selectedInputs = utxoSelection.experimental(
-          requiredAssets,
-          this.meshTxBuilderBody.extraInputs,
-        );
-        break;
-    }
-
-    selectedInputs.forEach((input) => {
-      const pubKeyTxIn: PubKeyTxIn = {
-        type: "PubKey",
-        txIn: {
-          txHash: input.input.txHash,
-          txIndex: input.input.outputIndex,
-          amount: input.output.amount,
-          address: input.output.address,
-        },
-      };
-      this.meshTxBuilderBody.inputs.push(pubKeyTxIn);
-      // If an input selected has script ref, then we must
-      // provide the script size to the tx builder also
-      if (input.output.scriptRef) {
-        this.meshTxBuilderBody.referenceInputs.push({
-          txHash: input.input.txHash,
-          txIndex: input.input.outputIndex,
-          scriptSize: input.output.scriptRef!.length / 2,
-        });
-      }
-      this.inputForEvaluation(input);
     });
   };
 

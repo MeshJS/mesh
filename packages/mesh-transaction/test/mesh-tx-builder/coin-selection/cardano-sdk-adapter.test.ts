@@ -1,18 +1,18 @@
-import { Cardano as CSDK } from '@cardano-sdk/core';
-import * as CardanoSelection from '@cardano-sdk/input-selection';
+import { Cardano as CSDK } from "@cardano-sdk/core";
+import * as CardanoSelection from "@cardano-sdk/input-selection";
 
-import { Asset, Output, TxIn, UTxO } from '@meshsdk/common';
+import { Asset, Output, TxIn, UTxO } from "@meshsdk/common";
 
 import {
   BuilderCallbacksSdkBridge,
   CardanoSdkInputSelector,
-} from '../../../src/mesh-tx-builder/coin-selection';
+} from "../../../src/mesh-tx-builder/coin-selection";
 import {
   BuilderCallbacks,
   ImplicitValue,
-} from '../../../src/mesh-tx-builder/coin-selection/coin-selection-interface';
+} from "../../../src/mesh-tx-builder/coin-selection/coin-selection-interface";
 
-describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
+describe("CardanoSdkInputSelector and BuilderCallbacksSdkBridge", () => {
   let mockBuilderCallbacks: BuilderCallbacks;
   let inputSelector: CardanoSdkInputSelector;
   let bridge: BuilderCallbacksSdkBridge;
@@ -45,10 +45,10 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       },
     };
 
-    jest.spyOn(mockBuilderCallbacks, 'computeMinimumCost');
-    jest.spyOn(mockBuilderCallbacks, 'tokenBundleSizeExceedsLimit');
-    jest.spyOn(mockBuilderCallbacks, 'computeMinimumCoinQuantity');
-    jest.spyOn(mockBuilderCallbacks, 'maxSizeExceed');
+    jest.spyOn(mockBuilderCallbacks, "computeMinimumCost");
+    jest.spyOn(mockBuilderCallbacks, "tokenBundleSizeExceedsLimit");
+    jest.spyOn(mockBuilderCallbacks, "computeMinimumCoinQuantity");
+    jest.spyOn(mockBuilderCallbacks, "maxSizeExceed");
 
     const utxoMap = new Map<string, UTxO>();
     const usedUtxos = new Set<string>();
@@ -58,7 +58,7 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       utxoMap,
       usedUtxos,
     );
-    inputSelector = new CardanoSdkInputSelector(mockBuilderCallbacks);
+    inputSelector = new CardanoSdkInputSelector();
   });
 
   const createMockUTxO = (
@@ -71,7 +71,7 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       outputIndex,
     },
     output: {
-      address: 'addr_test1234',
+      address: "addr_test1234",
       amount,
       scriptRef: undefined,
       scriptHash: undefined,
@@ -85,20 +85,20 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
     txIndex: number,
     amount: Asset[],
   ): TxIn => ({
-    type: 'PubKey',
+    type: "PubKey",
     txIn: {
       txHash,
       txIndex,
       amount,
-      address: 'addr_test1234',
+      address: "addr_test1234",
       scriptSize: 0,
     },
   });
 
-  describe('BuilderCallbacksSdkBridge', () => {
-    it('should compute minimum coin quantity correctly', () => {
+  describe("BuilderCallbacksSdkBridge", () => {
+    it("should compute minimum coin quantity correctly", () => {
       const mockOutput: CSDK.TxOut = {
-        address: <CSDK.PaymentAddress>'addr_test1234',
+        address: <CSDK.PaymentAddress>"addr_test1234",
         value: { coins: 1000000n },
       };
 
@@ -109,7 +109,7 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       ).toHaveBeenCalled();
     });
 
-    it('should compute minimum cost correctly', async () => {
+    it("should compute minimum cost correctly", async () => {
       const mockSelectionSkeleton: CardanoSelection.SelectionSkeleton = {
         inputs: new Set(),
         outputs: new Set(),
@@ -122,9 +122,9 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       expect(mockBuilderCallbacks.computeMinimumCost).toHaveBeenCalled();
     });
 
-    it('should check token bundle size limit correctly', () => {
+    it("should check token bundle size limit correctly", () => {
       const mockTokenBundle = new Map<CSDK.AssetId, bigint>([
-        [<CSDK.AssetId>'token1', 100n],
+        [<CSDK.AssetId>"token1", 100n],
       ]);
       const result = bridge.tokenBundleSizeExceedsLimit(mockTokenBundle);
       expect(result).toBe(false);
@@ -134,16 +134,16 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
     });
   });
 
-  describe('CardanoSdkInputSelector', () => {
-    it('should select inputs and calculate change correctly', async () => {
+  describe("CardanoSdkInputSelector", () => {
+    it("should select inputs and calculate change correctly", async () => {
       const preselectedUtxos: TxIn[] = [
-        createMockTxIn('tx1', 0, [{ unit: 'lovelace', quantity: '2000000' }]),
+        createMockTxIn("tx1", 0, [{ unit: "lovelace", quantity: "2000000" }]),
       ];
 
       const outputs: Output[] = [
         {
-          address: 'addr_test5678',
-          amount: [{ unit: 'lovelace', quantity: '1500000' }],
+          address: "addr_test5678",
+          amount: [{ unit: "lovelace", quantity: "1500000" }],
         },
       ];
 
@@ -155,8 +155,8 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       };
 
       const availableUtxos: UTxO[] = [
-        createMockUTxO('tx2', 0, [{ unit: 'lovelace', quantity: '3000000' }]),
-        createMockUTxO('tx3', 0, [{ unit: 'lovelace', quantity: '4000000' }]),
+        createMockUTxO("tx2", 0, [{ unit: "lovelace", quantity: "3000000" }]),
+        createMockUTxO("tx3", 0, [{ unit: "lovelace", quantity: "4000000" }]),
       ];
 
       const result = await inputSelector.select(
@@ -164,7 +164,8 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
         outputs,
         implicitValue,
         availableUtxos,
-        'addr_test_change',
+        "addr_test_change",
+        mockBuilderCallbacks,
       );
 
       expect(result).toBeDefined();
@@ -174,14 +175,14 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       expect(mockBuilderCallbacks.computeMinimumCost).toHaveBeenCalled();
     });
 
-    it('should handle tokens correctly', async () => {
+    it("should handle tokens correctly", async () => {
       const preselectedUtxos: TxIn[] = [];
       const outputs: Output[] = [
         {
-          address: 'addr_test5678',
+          address: "addr_test5678",
           amount: [
-            { unit: 'lovelace', quantity: '1000000' },
-            { unit: 'token1', quantity: '100' },
+            { unit: "lovelace", quantity: "1000000" },
+            { unit: "token1", quantity: "100" },
           ],
         },
       ];
@@ -194,9 +195,9 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       };
 
       const availableUtxos: UTxO[] = [
-        createMockUTxO('tx1', 0, [
-          { unit: 'lovelace', quantity: '3000100' },
-          { unit: 'token1', quantity: '200' },
+        createMockUTxO("tx1", 0, [
+          { unit: "lovelace", quantity: "3000100" },
+          { unit: "token1", quantity: "200" },
         ]),
       ];
 
@@ -205,7 +206,8 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
         outputs,
         implicitValue,
         availableUtxos,
-        'addr_test_change',
+        "addr_test_change",
+        mockBuilderCallbacks,
       );
 
       expect(result).toBeDefined();
@@ -215,12 +217,12 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       ).toHaveBeenCalled();
     });
 
-    it('should handle implicit values correctly', async () => {
+    it("should handle implicit values correctly", async () => {
       const preselectedUtxos: TxIn[] = [];
       const outputs: Output[] = [
         {
-          address: 'addr_test5678',
-          amount: [{ unit: 'lovelace', quantity: '1500000' }],
+          address: "addr_test5678",
+          amount: [{ unit: "lovelace", quantity: "1500000" }],
         },
       ];
 
@@ -228,11 +230,11 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
         withdrawals: 1000000n,
         deposit: 500000n,
         reclaimDeposit: 200000n,
-        mint: [{ unit: 'token1', quantity: '100' }],
+        mint: [{ unit: "token1", quantity: "100" }],
       };
 
       const availableUtxos: UTxO[] = [
-        createMockUTxO('tx1', 0, [{ unit: 'lovelace', quantity: '3000000' }]),
+        createMockUTxO("tx1", 0, [{ unit: "lovelace", quantity: "3000000" }]),
       ];
 
       const result = await inputSelector.select(
@@ -240,23 +242,24 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
         outputs,
         implicitValue,
         availableUtxos,
-        'addr_test_change',
+        "addr_test_change",
+        mockBuilderCallbacks,
       );
 
       expect(result).toBeDefined();
       expect(result.newInputs.size).toBeGreaterThanOrEqual(0);
       expect(mockBuilderCallbacks.computeMinimumCost).toHaveBeenCalled();
     });
-    it('should handle multiple outputs correctly', async () => {
+    it("should handle multiple outputs correctly", async () => {
       const preselectedUtxos: TxIn[] = [];
       const outputs: Output[] = [
         {
-          address: 'addr_test1234',
-          amount: [{ unit: 'lovelace', quantity: '1000000' }],
+          address: "addr_test1234",
+          amount: [{ unit: "lovelace", quantity: "1000000" }],
         },
         {
-          address: 'addr_test5678',
-          amount: [{ unit: 'lovelace', quantity: '2000000' }],
+          address: "addr_test5678",
+          amount: [{ unit: "lovelace", quantity: "2000000" }],
         },
       ];
 
@@ -268,7 +271,7 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       };
 
       const availableUtxos: UTxO[] = [
-        createMockUTxO('tx1', 0, [{ unit: 'lovelace', quantity: '5000000' }]),
+        createMockUTxO("tx1", 0, [{ unit: "lovelace", quantity: "5000000" }]),
       ];
 
       const result = await inputSelector.select(
@@ -276,7 +279,8 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
         outputs,
         implicitValue,
         availableUtxos,
-        'addr_test_change',
+        "addr_test_change",
+        mockBuilderCallbacks,
       );
 
       expect(result).toBeDefined();
@@ -284,23 +288,23 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       expect(mockBuilderCallbacks.computeMinimumCost).toHaveBeenCalled();
     });
 
-    it('should handle preselected UTxOs correctly', async () => {
+    it("should handle preselected UTxOs correctly", async () => {
       const preselectedUtxos: TxIn[] = [
         {
-          type: 'PubKey',
+          type: "PubKey",
           txIn: {
-            txHash: 'tx1',
+            txHash: "tx1",
             txIndex: 0,
-            amount: [{ unit: 'lovelace', quantity: '20000000' }],
-            address: 'addr_test1234',
+            amount: [{ unit: "lovelace", quantity: "20000000" }],
+            address: "addr_test1234",
             scriptSize: 0,
           },
         },
       ];
       const outputs: Output[] = [
         {
-          address: 'addr_test1234',
-          amount: [{ unit: 'lovelace', quantity: '1000000' }],
+          address: "addr_test1234",
+          amount: [{ unit: "lovelace", quantity: "1000000" }],
         },
       ];
 
@@ -312,8 +316,8 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       };
 
       const availableUtxos: UTxO[] = [
-        createMockUTxO('tx1', 0, [{ unit: 'lovelace', quantity: '2000000' }]),
-        createMockUTxO('tx2', 0, [{ unit: 'lovelace', quantity: '3000000' }]),
+        createMockUTxO("tx1", 0, [{ unit: "lovelace", quantity: "2000000" }]),
+        createMockUTxO("tx2", 0, [{ unit: "lovelace", quantity: "3000000" }]),
       ];
 
       const result = await inputSelector.select(
@@ -321,7 +325,8 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
         outputs,
         implicitValue,
         availableUtxos,
-        'addr_test_change',
+        "addr_test_change",
+        mockBuilderCallbacks,
       );
 
       expect(result).toBeDefined();
@@ -329,15 +334,15 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       expect(mockBuilderCallbacks.computeMinimumCost).toHaveBeenCalled();
     });
 
-    it('should handle multi-asset transactions correctly', async () => {
+    it("should handle multi-asset transactions correctly", async () => {
       const preselectedUtxos: TxIn[] = [];
       const outputs: Output[] = [
         {
-          address: 'addr_test1234',
+          address: "addr_test1234",
           amount: [
-            { unit: 'lovelace', quantity: '1500000' },
-            { unit: 'token1', quantity: '50' },
-            { unit: 'token2', quantity: '100' },
+            { unit: "lovelace", quantity: "1500000" },
+            { unit: "token1", quantity: "50" },
+            { unit: "token2", quantity: "100" },
           ],
         },
       ];
@@ -350,13 +355,13 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
       };
 
       const availableUtxos: UTxO[] = [
-        createMockUTxO('tx1', 0, [
-          { unit: 'lovelace', quantity: '2000000' },
-          { unit: 'token1', quantity: '100' },
+        createMockUTxO("tx1", 0, [
+          { unit: "lovelace", quantity: "2000000" },
+          { unit: "token1", quantity: "100" },
         ]),
-        createMockUTxO('tx2', 0, [
-          { unit: 'lovelace', quantity: '1000000' },
-          { unit: 'token2', quantity: '200' },
+        createMockUTxO("tx2", 0, [
+          { unit: "lovelace", quantity: "1000000" },
+          { unit: "token2", quantity: "200" },
         ]),
       ];
 
@@ -365,7 +370,8 @@ describe('CardanoSdkInputSelector and BuilderCallbacksSdkBridge', () => {
         outputs,
         implicitValue,
         availableUtxos,
-        'addr_test_change',
+        "addr_test_change",
+        mockBuilderCallbacks,
       );
 
       expect(result).toBeDefined();

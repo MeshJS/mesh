@@ -32,11 +32,6 @@ function Left() {
   code1 += `  ],\n`;
   code1 += `  changeAddress: changeAddress,\n`;
   code1 += `  extraInputs: utxos,\n`;
-  code1 += `  selectionConfig: {\n`;
-  code1 += `    threshold: "5000000",\n`;
-  code1 += `    strategy: "largestFirst",\n`;
-  code1 += `    includeTxFees: true,\n`;
-  code1 += `  },\n`;
   code1 += `};\n`;
   code1 += `\n`;
   code1 += `const unsignedTx = await txBuilder.complete(meshTxBody);`;
@@ -79,11 +74,6 @@ function Right() {
       ],
       changeAddress: changeAddress,
       extraInputs: utxos,
-      selectionConfig: {
-        threshold: "5000000",
-        strategy: "largestFirst",
-        includeTxFees: true,
-      },
     };
 
     const unsignedTx = await txBuilder.complete(meshTxBody);
@@ -105,11 +95,6 @@ function Right() {
   code += `  ],\n`;
   code += `  changeAddress: changeAddress,\n`;
   code += `  extraInputs: utxos,\n`;
-  code += `  selectionConfig: {\n`;
-  code += `    threshold: "5000000",\n`;
-  code += `    strategy: "largestFirst",\n`;
-  code += `    includeTxFees: true,\n`;
-  code += `  },\n`;
   code += `};\n`;
   code += `\n`;
   code += txbuilderCode;

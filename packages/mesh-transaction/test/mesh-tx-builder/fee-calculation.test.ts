@@ -176,11 +176,6 @@ describe("MeshTxBuilder - Fee Calculation", () => {
           },
         },
       ],
-      selectionConfig: {
-        threshold: "",
-        strategy: "largestFirst",
-        includeTxFees: false,
-      },
     };
 
     const txBuilder = new MeshTxBuilder();

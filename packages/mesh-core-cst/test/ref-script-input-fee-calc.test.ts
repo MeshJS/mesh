@@ -119,11 +119,6 @@ describe("Ref script inputs", () => {
       inputsForEvaluation: {},
       network: "preprod",
       extraInputs: [],
-      selectionConfig: {
-        threshold: "",
-        strategy: "experimental",
-        includeTxFees: false,
-      },
       expectedNumberKeyWitnesses: 0,
       expectedByronAddressWitnesses: [],
     };

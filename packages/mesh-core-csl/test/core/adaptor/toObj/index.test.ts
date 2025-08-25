@@ -128,11 +128,6 @@ describe("meshTxBuilderBodyToObj", () => {
       expectedNumberKeyWitnesses: 2,
       expectedByronAddressWitnesses: [],
       extraInputs: [],
-      selectionConfig: {
-        threshold: "",
-        strategy: "largestFirst",
-        includeTxFees: false,
-      },
     };
 
     const result = meshTxBuilderBodyToObj(txBody);

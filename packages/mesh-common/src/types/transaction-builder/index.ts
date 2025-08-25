@@ -34,11 +34,6 @@ export type MeshTxBuilderBody = {
   votes: Vote[];
   signingKey: string[];
   extraInputs: UTxO[];
-  selectionConfig: {
-    threshold: string;
-    strategy: UtxoSelectionStrategy;
-    includeTxFees: boolean;
-  };
   chainedTxs: string[];
   inputsForEvaluation: Record<string, UTxO>;
   network: Network | number[][];
@@ -64,11 +59,6 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   withdrawals: [],
   votes: [],
   signingKey: [],
-  selectionConfig: {
-    threshold: "0",
-    strategy: "experimental",
-    includeTxFees: true,
-  },
   chainedTxs: [],
   inputsForEvaluation: {},
   network: "mainnet",
