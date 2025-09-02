@@ -58,7 +58,7 @@ jobs:
       - name: Compare versions
         id: compare-versions
         run: |
-          if [[ "${{ steps.pre-merge-version.outputs.core_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.core_post_merge_version }}" ]]; then
+          if [[ "${{ steps.pre-merge-version.outputs.pre_merge_version }}" != "${{ steps.post-merge-version.outputs.post_merge_version }}" ]]; then
               echo "core-version-updated=true" >> "$GITHUB_OUTPUT"
           else
               echo "core-version-updated=false" >> "$GITHUB_OUTPUT"
