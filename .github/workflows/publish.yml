@@ -31,19 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
     outputs:
-      bitcoin-version-updated: ${{ steps.compare-versions.outputs.bitcoin-version-updated }}
-      hydra-version-updated: ${{ steps.compare-versions.outputs.hydra-version-updated }}
-      common-version-updated: ${{ steps.compare-versions.outputs.common-version-updated }}
-      contract-version-updated: ${{ steps.compare-versions.outputs.contract-version-updated }}
-      core-version-updated: ${{ steps.compare-versions.outputs.core-version-updated }}
-      core-csl-version-updated: ${{ steps.compare-versions.outputs.core-csl-version-updated }}
-      core-cst-version-updated: ${{ steps.compare-versions.outputs.core-cst-version-updated }}
-      provider-version-updated: ${{ steps.compare-versions.outputs.provider-version-updated }}
-      react-version-updated: ${{ steps.compare-versions.outputs.react-version-updated }}
-      svelte-version-updated: ${{ steps.compare-versions.outputs.svelte-version-updated }}
-      transaction-version-updated: ${{ steps.compare-versions.outputs.transaction-version-updated }}
-      wallet-version-updated: ${{ steps.compare-versions.outputs.wallet-version-updated }}
-      cli-version-updated: ${{ steps.compare-versions.outputs.cli-version-updated }}
+      version-updated: ${{ steps.compare-versions.outputs.version-updated }}
     steps:
       - name: Checkout main branch at commit before merge
         uses: actions/checkout@v4
@@ -53,33 +41,8 @@ jobs:
       - name: Get package version from main branch before merge
         id: pre-merge-version
         run: |
-          BITCOIN_PRE_MERGE_VERSION=$(node -p "require('./packages/bitcoin/package.json').version")
-          HYDRA_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-hydra/package.json').version")
-          COMMON_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-common/package.json').version")
-          CONTRACT_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-contract/package.json').version")
-          CORE_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core/package.json').version")
-          CORE_CSL_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core-csl/package.json').version")
-          CORE_CST_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core-cst/package.json').version")
-          PROVIDER_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core-cst/package.json').version")
-          REACT_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-react/package.json').version")
-          SVELTE_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-svelte/package.json').version")
-          TRANSACTION_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
-          WALLET_PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
-          CLI_PRE_MERGE_VERSION=$(node -p "require('./scripts/mesh-cli/package.json').version")
-          
-          echo "bitcoin_pre_merge_version=$BITCOIN_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "hydra_pre_merge_version=$HYDRA_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "common_pre_merge_version=$COMMON_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "contract_pre_merge_version=$CONTRACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "core_pre_merge_version=$CORE_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "core_csl_pre_merge_version=$CORE_CSL_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "core_cst_pre_merge_version=$CORE_CST_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "provider_pre_merge_version=$PROVIDER_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "react_pre_merge_version=$REACT_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "svelte_pre_merge_version=$SVELTE_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "transaction_pre_merge_version=$TRANSACTION_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "wallet_pre_merge_version=$WALLET_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "cli_pre_merge_version=$CLI_PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          PRE_MERGE_VERSION=$(node -p "require('./packages/mesh-core/package.json').version")
+          echo "pre_merge_version=$PRE_MERGE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Checkout main branch at commit after merge
         uses: actions/checkout@v4
@@ -89,106 +52,21 @@ jobs:
       - name: Get package version from main branch after merge
         id: post-merge-version
         run: |
-          BITCOIN_POST_MERGE_VERSION=$(node -p "require('./packages/bitcoin/package.json').version")
-          HYDRA_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-hydra/package.json').version")
-          COMMON_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-common/package.json').version")
-          CONTRACT_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-contract/package.json').version")
-          CORE_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core/package.json').version")
-          CORE_CSL_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core-csl/package.json').version")
-          CORE_CST_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core-cst/package.json').version")
-          PROVIDER_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core-cst/package.json').version")
-          REACT_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-react/package.json').version")
-          SVELTE_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-svelte/package.json').version")
-          TRANSACTION_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-transaction/package.json').version")
-          WALLET_POST_MERGE_VERSION=$(node -p "require('./packages/mesh-wallet/package.json').version")
-          CLI_POST_MERGE_VERSION=$(node -p "require('./scripts/mesh-cli/package.json').version")
-          
-          echo "bitcoin_post_merge_version=$BITCOIN_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "hydra_post_merge_version=$HYDRA_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "common_post_merge_version=$COMMON_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "contract_post_merge_version=$CONTRACT_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "core_post_merge_version=$CORE_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "core_csl_post_merge_version=$CORE_CSL_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "core_cst_post_merge_version=$CORE_CST_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "provider_post_merge_version=$PROVIDER_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "react_post_merge_version=$REACT_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "svelte_post_merge_version=$SVELTE_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "transaction_post_merge_version=$TRANSACTION_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "wallet_post_merge_version=$WALLET_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "cli_post_merge_version=$CLI_POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
+          POST_MERGE_VERSION=$(node -p "require('./packages/mesh-core/package.json').version")
+          echo "post_merge_version=$POST_MERGE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Compare versions
         id: compare-versions
         run: |
-          if [[ "${{ steps.pre-merge-version.outputs.bitcoin_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.bitcoin_post_merge_version }}" ]]; then
-              echo "bitcoin-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "bitcoin-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.hydra_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.hydra_post_merge_version }}" ]]; then
-              echo "hydra-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "hydra-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.common_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.common_post_merge_version }}" ]]; then
-              echo "common-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "common-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.contract_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.contract_post_merge_version }}" ]]; then
-              echo "contract-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "contract-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
           if [[ "${{ steps.pre-merge-version.outputs.core_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.core_post_merge_version }}" ]]; then
               echo "core-version-updated=true" >> "$GITHUB_OUTPUT"
           else
               echo "core-version-updated=false" >> "$GITHUB_OUTPUT"
           fi
-          if [[ "${{ steps.pre-merge-version.outputs.core_csl_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.core_csl_post_merge_version }}" ]]; then
-              echo "core-csl-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "core-csl-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.core_cst_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.core_cst_post_merge_version }}" ]]; then
-              echo "core-cst-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "core-cst-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.provider_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.provider_post_merge_version }}" ]]; then
-              echo "provider-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "provider-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.react_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.react_post_merge_version }}" ]]; then
-              echo "react-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "react-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.svelte_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.svelte_post_merge_version }}" ]]; then
-              echo "svelte-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "svelte-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.transaction_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.transaction_post_merge_version }}" ]]; then
-              echo "transaction-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "transaction-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.wallet_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.wallet_post_merge_version }}" ]]; then
-              echo "wallet-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "wallet-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
-          if [[ "${{ steps.pre-merge-version.outputs.cli_pre_merge_version }}" != "${{ steps.post-merge-version.outputs.cli_post_merge_version }}" ]]; then
-              echo "cli-version-updated=true" >> "$GITHUB_OUTPUT"
-          else
-              echo "cli-version-updated=false" >> "$GITHUB_OUTPUT"
-          fi
 
   publish-meshsdk-bitcoin:
     needs: [build, check-version]
-    if: needs.check-version.outputs.bitcoin-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -203,7 +81,7 @@ jobs:
 
   publish-meshsdk-hydra:
     needs: [build, check-version]
-    if: needs.check-version.outputs.hydra-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -215,10 +93,10 @@ jobs:
       - run: cd packages/mesh-hydra && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
-  
+
   publish-meshsdk-common:
     needs: [build, check-version]
-    if: needs.check-version.outputs.common-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -233,7 +111,7 @@ jobs:
 
   publish-meshsdk-contract:
     needs: [build, check-version]
-    if: needs.check-version.outputs.contract-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -248,7 +126,7 @@ jobs:
 
   publish-meshsdk-core:
     needs: [build, check-version]
-    if: needs.check-version.outputs.core-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -263,7 +141,7 @@ jobs:
 
   publish-meshsdk-core-csl:
     needs: [build, check-version]
-    if: needs.check-version.outputs.core-csl-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -278,7 +156,7 @@ jobs:
 
   publish-meshsdk-core-cst:
     needs: [build, check-version]
-    if: needs.check-version.outputs.core-cst-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -293,7 +171,7 @@ jobs:
 
   publish-meshsdk-provider:
     needs: [build, check-version]
-    if: needs.check-version.outputs.provider-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -308,7 +186,7 @@ jobs:
 
   publish-meshsdk-react:
     needs: [build, check-version]
-    if: needs.check-version.outputs.react-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -323,7 +201,7 @@ jobs:
 
   publish-meshsdk-svelte:
     needs: [build, check-version]
-    if: needs.check-version.outputs.svelte-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -338,7 +216,7 @@ jobs:
 
   publish-meshsdk-transaction:
     needs: [build, check-version]
-    if: needs.check-version.outputs.transaction-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -353,7 +231,7 @@ jobs:
 
   publish-meshsdk-wallet:
     needs: [build, check-version]
-    if: needs.check-version.outputs.wallet-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -368,7 +246,7 @@ jobs:
 
   publish-meshsdk-cli:
     needs: [build, check-version]
-    if: needs.check-version.outputs.cli-version-updated == 'true'
+    if: needs.check-version.outputs.version-updated == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
