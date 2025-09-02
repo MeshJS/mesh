@@ -59,9 +59,9 @@ jobs:
         id: compare-versions
         run: |
           if [[ "${{ steps.pre-merge-version.outputs.pre_merge_version }}" != "${{ steps.post-merge-version.outputs.post_merge_version }}" ]]; then
-              echo "core-version-updated=true" >> "$GITHUB_OUTPUT"
+              echo "version-updated=true" >> "$GITHUB_OUTPUT"
           else
-              echo "core-version-updated=false" >> "$GITHUB_OUTPUT"
+              echo "version-updated=false" >> "$GITHUB_OUTPUT"
           fi
 
   publish-meshsdk-bitcoin:
