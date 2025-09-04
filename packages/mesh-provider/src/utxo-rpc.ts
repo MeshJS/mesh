@@ -220,6 +220,8 @@ export class U5CProvider
   /**
    * Obtain information about a specific stake account.
    * @param address - Wallet address to fetch account information
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide stake account querying methods.
    */
   fetchAccountInfo(address: string): Promise<AccountInfo> {
     throw new Error("Method not implemented.");
@@ -271,6 +273,8 @@ export class U5CProvider
    * Transactions for an address. The `TransactionInfo` would only return the `hash`, `inputs`, and `outputs`.
    * @param address - The address to fetch transactions for
    * @returns - partial TransactionInfo
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide transaction history querying capabilities.
    */
   async fetchAddressTxs(
     address: string,
@@ -285,6 +289,8 @@ export class U5CProvider
    *
    * Fetches the asset addresses for a given asset.
    * @param asset - The asset to fetch addresses for
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide asset-to-address mapping capabilities.
    */
   fetchAssetAddresses(
     asset: string,
@@ -297,6 +303,8 @@ export class U5CProvider
    *
    * Fetches the metadata for a given asset.
    * @param asset - The asset to fetch metadata for
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide asset metadata querying capabilities.
    */
   fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
     throw new Error("Method not implemented.");
@@ -307,6 +315,8 @@ export class U5CProvider
    *
    * Fetches the block information for a given block hash.
    * @param hash - The block hash to fetch block information for
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they require ChainPoint (slot + hash) input and don't provide complete block data compared to other providers.
    */
   fetchBlockInfo(hash: string): Promise<BlockInfo> {
     throw new Error("Method not implemented.");
@@ -318,6 +328,8 @@ export class U5CProvider
    * Fetches the collection assets for a given policy ID.
    * @param policyId - The policy ID to fetch collection assets for
    * @param cursor - The cursor to fetch the next set of assets (optional)
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide policy-based asset collection querying.
    */
   fetchCollectionAssets(
     policyId: string,
@@ -331,6 +343,8 @@ export class U5CProvider
    *
    * Fetches the information (AssetMetadata) for a given handle.
    * @param handle - The handle to fetch information for
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide handle resolution capabilities.
    */
   fetchHandle(handle: string): Promise<object> {
     throw new Error("Method not implemented.");
@@ -341,6 +355,8 @@ export class U5CProvider
    *
    * Resolve the handle's address from the handle.
    * @param handle - The handle to resolve
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide handle-to-address resolution capabilities.
    */
   fetchHandleAddress(handle: string): Promise<string> {
     throw new Error("Method not implemented.");
@@ -350,6 +366,8 @@ export class U5CProvider
    * Unimplemented - open for contribution
    *
    * Fetches protocol parameters
+   * 
+   * @note Can only fetch current epoch parameters. UTxO RPC clients do not support fetching parameters for specific epochs.
    */
   async fetchProtocolParameters(epoch = Number.NaN): Promise<Protocol> {
     const rpcPParams = await this.queryClient.readParams();
@@ -364,6 +382,8 @@ export class U5CProvider
    *
    * Fetches transaction info for a given hash.
    * @param hash - The transaction hash
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide transaction metadata querying capabilities.
    */
   fetchTxInfo(hash: string): Promise<TransactionInfo> {
     throw new Error("Method not implemented.");
@@ -414,6 +434,8 @@ export class U5CProvider
    * @param txHash The transaction hash of the proposal
    * @param certIndex The certificate index of the proposal
    * @returns The governance proposal information
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide governance proposal querying capabilities.
    */
   async fetchGovernanceProposal(
     txHash: string,
@@ -426,6 +448,8 @@ export class U5CProvider
    * Unimplemented - open for contribution
    *
    * @param url
+   * 
+   * @note Cannot be implemented with UTxO RPC clients as they don't provide generic HTTP GET capabilities.
    */
   get(url: string): Promise<any> {
     throw new Error("Method not implemented.");
