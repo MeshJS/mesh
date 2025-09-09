@@ -25,7 +25,7 @@ validator share_token(auth_token: PolicyId) {
 
         redeemer_check?
       }
-      RBurn -> quantity == -1
+      RBurn -> quantity < 0
     }
   }
 
