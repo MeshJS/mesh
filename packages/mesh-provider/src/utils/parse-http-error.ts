@@ -8,7 +8,11 @@ export const parseHttpError = (error: unknown): string => {
         headers: error.response.headers,
         status: error.response.status,
       });
-    } else if (error.request && !(error.request instanceof XMLHttpRequest)) {
+    } else if (
+      typeof XMLHttpRequest !== "undefined" &&
+      error.request &&
+      !(error.request instanceof XMLHttpRequest)
+    ) {
       return JSON.stringify(error.request);
     } else {
       return JSON.stringify({ code: error.code, message: error.message });
