@@ -2,7 +2,7 @@ import { BlockfrostProvider, MeshWallet } from "@meshsdk/core";
 
 export function getProvider(network = "preprod") {
   const provider = new BlockfrostProvider(
-    `/api/blockfrost/${network}/`,
+    `https://cardano-${network}.blockfrost.io/api/v0/`,
   );
   provider.setSubmitTxToBytes(false);
   return provider;
