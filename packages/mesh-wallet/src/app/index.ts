@@ -2,9 +2,12 @@ import { DataSignature, IFetcher, ISigner, ISubmitter } from "@meshsdk/common";
 import {
   Address,
   deserializeTx,
+  Serialization,
   toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,
+  TransactionWitnessSet,
+  VkeyWitness,
 } from "@meshsdk/core-cst";
 
 import { EmbeddedWallet } from "../embedded";
@@ -186,6 +189,7 @@ export class AppWallet implements ISigner, ISubmitter {
   async signTx(
     unsignedTx: string,
     partialSign = false,
+    returnFullTx = true,
     accountIndex = 0,
     keyIndex = 0,
   ): Promise<string> {
@@ -205,6 +209,17 @@ export class AppWallet implements ISigner, ISubmitter {
         accountIndex,
         keyIndex,
       );
+
+      if (!returnFullTx) {
+        let witnessSet = new TransactionWitnessSet();
+        witnessSet.setVkeys(
+          Serialization.CborSet.fromCore(
+            [newSignatures.toCore()],
+            VkeyWitness.fromCore,
+          ),
+        );
+        return witnessSet.toCbor();
+      }
 
       let signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
       return signedTx;
