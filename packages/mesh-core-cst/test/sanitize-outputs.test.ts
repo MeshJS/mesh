@@ -39,11 +39,6 @@ describe("Sanitize outputs", () => {
       withdrawals: [],
       votes: [],
       signingKey: [],
-      selectionConfig: {
-        threshold: "0",
-        strategy: "experimental",
-        includeTxFees: true,
-      },
       chainedTxs: [],
       inputsForEvaluation: {},
       expectedNumberKeyWitnesses: 0,

@@ -57,11 +57,6 @@ describe("Builder", () => {
           },
         },
       ],
-      selectionConfig: {
-        threshold: "5000000",
-        strategy: "experimental",
-        includeTxFees: true,
-      },
       collaterals: [],
       requiredSignatures: [],
       referenceInputs: [],

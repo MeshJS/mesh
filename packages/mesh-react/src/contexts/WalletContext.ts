@@ -176,7 +176,7 @@ export const useWalletStore = () => {
         localStorage.getItem(localstoragePersist) || "",
       );
 
-      if (persist.walletName == "Mesh Web3 Services" && web3Services) {
+      if (persist.walletName == "utxos" && web3Services) {
         Web3Wallet.initWallet({
           networkId: web3Services.networkId,
           address: persist.walletAddress,
@@ -185,7 +185,7 @@ export const useWalletStore = () => {
           projectId: web3Services.projectId,
           appUrl: web3Services.appUrl,
         }).then((wallet) => {
-          setConnectedWalletInstance(wallet);
+          setConnectedWalletInstance(wallet.cardano!);
           setConnectedWalletName(persist.walletName);
           setState(WalletState.CONNECTED);
         });

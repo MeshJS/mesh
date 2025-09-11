@@ -37,7 +37,7 @@ function Left() {
       </p>
       <Codeblock data={`.txOut(address: string, amount: Asset[])`} />
       <p>
-        In order to send values (so as every Cardano transaction), we have to
+        In order to send values (so as every transaction), we have to
         fund the transaction to do so. There are 2 ways to provide values in a
         transaction:
       </p>

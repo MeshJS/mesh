@@ -5,6 +5,7 @@ import {
   Action,
   Asset,
   Certificate,
+  DEFAULT_PROTOCOL_PARAMETERS,
   IEvaluator,
   IFetcher,
   IMeshTxSerializer,
@@ -17,6 +18,7 @@ import {
   ScriptSource,
   SimpleScriptSourceInfo,
   TxIn,
+  TxOutput,
   UTxO,
   Vote,
   Voter,
@@ -39,6 +41,7 @@ import {
   CoinSelectionInterface,
 } from "./coin-selection";
 import {
+  IInputSelector,
   TransactionCost,
   TransactionPrototype,
 } from "./coin-selection/coin-selection-interface";
@@ -49,6 +52,7 @@ export interface MeshTxBuilderOptions {
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
   serializer?: IMeshTxSerializer;
+  selector?: IInputSelector;
   isHydra?: boolean;
   params?: Partial<Protocol>;
   verbose?: boolean;
@@ -56,6 +60,7 @@ export interface MeshTxBuilderOptions {
 
 export class MeshTxBuilder extends MeshTxBuilderCore {
   serializer: IMeshTxSerializer;
+  selector: IInputSelector;
   fetcher?: IFetcher;
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
@@ -67,6 +72,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   constructor({
     serializer,
+    selector,
     fetcher,
     submitter,
     evaluator,
@@ -83,6 +89,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.serializer = serializer;
     } else {
       this.serializer = new CardanoSDKSerializer(this._protocolParams);
+    }
+    if (selector) {
+      this.selector = selector;
+    } else {
+      this.selector = new CardanoSdkInputSelector();
     }
     this.verbose = verbose;
     if (isHydra)
@@ -134,7 +145,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     this.removeDuplicateInputs();
     this.removeDuplicateRefInputs();
-    this.addUtxosFromSelection();
     return this.serializer.serializeTxBody(
       this.meshTxBuilderBody,
       this._protocolParams,
@@ -176,7 +186,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     await this.sanitizeOutputs();
 
     this.sortTxParts();
-
+    if (
+      !this.meshTxBuilderBody.changeAddress ||
+      this.meshTxBuilderBody.changeAddress === ""
+    ) {
+      throw new Error(
+        "Change address is not set, utxo selection cannot be done without this",
+      );
+    }
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype, true);
     if (this.verbose) {
@@ -201,7 +218,18 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   selectUtxos =
     async (): Promise<CoinSelectionInterface.TransactionPrototype> => {
-      const callbacks: CoinSelectionInterface.BuilderCallbacks = {
+      const currentInputs = this.meshTxBuilderBody.inputs;
+      const currentOutputs = this.meshTxBuilderBody.outputs;
+      const changeAddress = this.meshTxBuilderBody.changeAddress;
+      const utxosForSelection = await this.getUtxosForSelection();
+      const implicitValue = {
+        withdrawals: this.getTotalWithdrawal(),
+        deposit: this.getTotalDeposit(),
+        reclaimDeposit: this.getTotalRefund(),
+        mint: this.getTotalMint(),
+      };
+
+      const selectionCallbacks: CoinSelectionInterface.BuilderCallbacks = {
         computeMinimumCost: async (
           selectionSkeleton: TransactionPrototype,
         ): Promise<TransactionCost> => {
@@ -251,24 +279,13 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         },
       };
 
-      const currentInputs = this.meshTxBuilderBody.inputs;
-      const currentOutputs = this.meshTxBuilderBody.outputs;
-      const changeAddress = this.meshTxBuilderBody.changeAddress;
-      const utxosForSelection = await this.getUtxosForSelection();
-      const implicitValue = {
-        withdrawals: this.getTotalWithdrawal(),
-        deposit: this.getTotalDeposit(),
-        reclaimDeposit: this.getTotalRefund(),
-        mint: this.getTotalMint(),
-      };
-
-      const inputSelector = new CardanoSdkInputSelector(callbacks);
-      return await inputSelector.select(
+      return await this.selector.select(
         currentInputs,
         currentOutputs,
         implicitValue,
         utxosForSelection,
         changeAddress,
+        selectionCallbacks,
       );
     };
 
@@ -940,8 +957,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         }
       }
     });
-    this.addUtxosFromSelection();
-
     // Sort inputs based on txHash and txIndex
     this.sortTxParts();
   };
@@ -1719,25 +1734,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   calculateMinLovelaceForOutput = (output: Output): bigint => {
-    let currentOutput = cloneOutput(output);
-    let lovelace = getLovelace(currentOutput);
-    let minAda = 0n;
-    for (let i = 0; i < 3; i++) {
-      const txOutSize = BigInt(
-        this.serializer.serializeOutput(currentOutput).length / 2,
-      );
-      const txOutByteCost = BigInt(this._protocolParams.coinsPerUtxoSize);
-      const totalOutCost = (160n + BigInt(txOutSize)) * txOutByteCost;
-      minAda = totalOutCost;
-      if (lovelace < totalOutCost) {
-        lovelace = totalOutCost;
-      } else {
-        break;
-      }
-      currentOutput = setLoveLace(currentOutput, lovelace);
-    }
-
-    return minAda;
+    return getOutputMinLovelace(output, this._protocolParams.coinsPerUtxoSize);
   };
 
   protected clone(): MeshTxBuilder {
@@ -1812,11 +1809,11 @@ function tierRefScriptFee(
   return BigInt(acc.integerValue(BigNumber.ROUND_FLOOR).toString());
 }
 
-const cloneOutput = (output: Output): Output => {
+export const cloneOutput = (output: Output): Output => {
   return JSONBig.parse(JSONBig.stringify(output));
 };
 
-const setLoveLace = (output: Output, lovelace: bigint): Output => {
+export const setLoveLace = (output: Output, lovelace: bigint): Output => {
   let lovelaceSet = false;
   for (let asset of output.amount) {
     if (asset.unit === "lovelace") {
@@ -1835,13 +1832,39 @@ const setLoveLace = (output: Output, lovelace: bigint): Output => {
   return output;
 };
 
-const getLovelace = (output: Output): bigint => {
+export const getLovelace = (output: Output): bigint => {
   for (let asset of output.amount) {
     if (asset.unit === "lovelace" || asset.unit === "") {
       return BigInt(asset.quantity);
     }
   }
   return 0n;
+};
+
+export const getOutputMinLovelace = (
+  output: Output,
+  coinsPerUtxoSize = DEFAULT_PROTOCOL_PARAMETERS.coinsPerUtxoSize,
+): bigint => {
+  const serializer = new CardanoSDKSerializer();
+  let currentOutput = cloneOutput(output);
+  let lovelace = getLovelace(currentOutput);
+  let minLovelace = 0n;
+  for (let i = 0; i < 3; i++) {
+    const txOutSize = BigInt(
+      serializer.serializeOutput(currentOutput).length / 2,
+    );
+    const txOutByteCost = BigInt(coinsPerUtxoSize);
+    const totalOutCost = (160n + BigInt(txOutSize)) * txOutByteCost;
+    minLovelace = totalOutCost;
+    if (lovelace < totalOutCost) {
+      lovelace = totalOutCost;
+    } else {
+      break;
+    }
+    currentOutput = setLoveLace(currentOutput, lovelace);
+  }
+
+  return minLovelace;
 };
 
 export * from "./utils";

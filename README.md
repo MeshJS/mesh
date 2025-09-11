@@ -15,7 +15,7 @@
   [![Twitter/X](https://img.shields.io/badge/Follow%20us-@MeshJS-blue?logo=x&style=for-the-badge)](https://x.com/meshsdk)
   [![NPM](https://img.shields.io/npm/v/%40meshsdk%2Fcore?style=for-the-badge)](https://www.npmjs.com/package/@meshsdk/core)
 
-  <strong>All-in-one TypeScript SDK for Cardano apps</strong>
+  <strong>All-in-one TypeScript SDK for UTXO apps</strong>
 
 </div>
 

@@ -284,12 +284,20 @@ export class BrowserWallet implements IWallet {
    *
    * @param unsignedTx - a transaction in CBOR
    * @param partialSign - if the transaction is signed partially
+   * @param returnFullTx - if the full tx should be returned or only the witness set (default: true)
    * @returns a signed transaction in CBOR
    */
-  async signTx(unsignedTx: string, partialSign = false): Promise<string> {
+  async signTx(
+    unsignedTx: string,
+    partialSign = false,
+    returnFullTx = true,
+  ): Promise<string> {
     const witness = await this._walletInstance.signTx(unsignedTx, partialSign);
     if (witness === "") {
       return unsignedTx;
+    }
+    if (!returnFullTx) {
+      return witness;
     }
     return BrowserWallet.addBrowserWitnesses(unsignedTx, witness);
   }

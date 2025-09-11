@@ -4,6 +4,7 @@ import {
   BlockstreamProvider,
   BrowserWallet,
   EmbeddedWallet,
+  verifySignature,
 } from "@meshsdk/bitcoin";
 
 import Button from "~/components/button/button";
@@ -32,8 +33,13 @@ const ReactPage: NextPage = () => {
     console.log("network", wallet.getNetworkId());
     console.log("publicKey", wallet.getPublicKey());
     // console.log("utxos", await wallet.getUtxos());
-
     // console.log("brew", EmbeddedWallet.brew());
+
+    const message = "test message";
+    const signature = await wallet.signData(message);
+    console.log("signature", signature);
+    const isValid = verifySignature(message, signature, address.publicKey!);
+    console.log("isValid", isValid);
   }
 
   async function loadBrowserWallet() {
@@ -62,7 +68,6 @@ const ReactPage: NextPage = () => {
       <Metatags title={"Bitcoin"} description={"Building in progress"} />
       <Button onClick={() => loadEmbeddedWallet()}>loadEmbeddedWallet</Button>
       <Button onClick={() => loadBrowserWallet()}>loadBrowserWallet</Button>
-
       <Button onClick={() => provider()}>provider</Button>
     </>
   );

@@ -17,36 +17,39 @@ export default function MeshWalletGetCollateral() {
 
 function Left() {
   let example = ``;
-  example += `[\n`;
-  example += `  {\n`;
-  example += `    "input": {\n`;
-  example += `      "outputIndex": 1,\n`;
-  example += `      "txHash": "ff8d1e97c60989b4f...02ee937595ad741ff597af1"\n`;
-  example += `    },\n`;
-  example += `    "output": {\n`;
-  example += `      "address": "addr_test1qzm...z0fr8c3grjmysm5e6yx",\n`;
-  example += `      "amount": [ { "unit": "lovelace", "quantity": "5000000" } ]\n`;
-  example += `    }\n`;
-  example += `  }\n`;
-  example += `]\n`;
+  example += `[
+`;
+  example += `  {
+`;
+  example += `    "input": {
+`;
+  example += `      "outputIndex": 1,
+`;
+  example += `      "txHash": "ff8d1e97c60989b4f...02ee937595ad741ff597af1"
+`;
+  example += `    },
+`;
+  example += `    "output": {
+`;
+  example += `      "address": "addr_test1qzm...z0fr8c3grjmysm5e6yx",
+`;
+  example += `      "amount": [ { "unit": "lovelace", "quantity": "5000000" } ]
+`;
+  example += `    }
+`;
+  example += `  }
+`;
+  example += `]
+`;
   return (
     <>
       <p>
-        This function shall return a list of one or more UTXOs (unspent
-        transaction outputs) controlled by the wallet that are required to reach
-        AT LEAST the combined ADA value target specified in amount AND the best
-        suitable to be used as collateral inputs for transactions with plutus
-        script inputs (pure ADA-only UTXOs).
+        This API retrieves a list of UTXOs (unspent transaction outputs) controlled by the wallet that are suitable for use as collateral inputs in transactions involving Plutus script inputs. Collateral UTXOs are pure ADA-only UTXOs required to meet the specified ADA value target.
       </p>
       <p>
-        If this cannot be attained, an error message with an explanation of the
-        blocking problem shall be returned. NOTE: wallets are free to return
-        UTXOs that add up to a greater total ADA value than requested in the
-        amount parameter, but wallets must never return any result where UTXOs
-        would sum up to a smaller total ADA value, instead in a case like that
-        an error message must be returned.
+        If the target cannot be met, an error message explaining the issue will be returned. Wallets may return UTXOs exceeding the target value but must never return UTXOs below the specified value.
       </p>
-      <p>Example of a response returned by this endpoint:</p>
+      <p>Example response:</p>
       <Codeblock data={example} />
 
       <AboutGetAddressType />

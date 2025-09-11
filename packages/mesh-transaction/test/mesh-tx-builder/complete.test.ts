@@ -10,7 +10,8 @@ import {
   UTxO,
 } from "@meshsdk/common";
 import { MeshTxBuilder } from "@meshsdk/transaction";
-import {txHash} from "../test-util";
+
+import { txHash } from "../test-util";
 
 class MockTxBuilder extends MeshTxBuilder {
   constructor() {
@@ -50,9 +51,6 @@ describe("MeshTxBuilder", () => {
     jest
       .spyOn(txBuilder.serializer as any, "serializeTxBodyWithMockSignatures")
       .mockImplementation(() => "");
-    jest
-      .spyOn(txBuilder as any, "addUtxosFromSelection")
-      .mockImplementation(() => {});
     jest
       .spyOn(txBuilder as any, "isInputComplete")
       .mockImplementation((txIn) => false);
@@ -105,6 +103,8 @@ describe("MeshTxBuilder", () => {
       inputs: incompleteTxIns,
       collaterals: [],
       mints: incompleteMints,
+      changeAddress:
+        "addr_test1qpsjnpqljma4vdg67vtf8k4xv7umncum5lvrnlupfyyvmtawhmy5tqhkqm4lrwwm6wkykzsa2aafy25vevxhrc3fws0qszw7wl",
     };
 
     // Call the complete method

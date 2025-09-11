@@ -1,18 +1,11 @@
-import {
-  Action,
-  Asset,
-  Output,
-  TxIn,
-  TxOutput,
-  UTxO,
-} from '@meshsdk/common';
+import { Action, Asset, Output, TxIn, TxOutput, UTxO } from "@meshsdk/common";
 
 export interface TransactionPrototype {
   newInputs: Set<UTxO>;
   newOutputs: Set<TxOutput>;
   change: Array<TxOutput>;
   fee: bigint;
-  redeemers?: Array<Omit<Action, 'data'>>;
+  redeemers?: Array<Omit<Action, "data">>;
 }
 
 export interface ImplicitValue {
@@ -24,7 +17,7 @@ export interface ImplicitValue {
 
 export interface TransactionCost {
   fee: bigint;
-  redeemers?: Array<Omit<Action, 'data'>>;
+  redeemers?: Array<Omit<Action, "data">>;
 }
 
 export declare type EstimateTxCosts = (
@@ -52,5 +45,6 @@ export interface IInputSelector {
     implicitValue: ImplicitValue,
     utxos: UTxO[],
     changeAddress: string,
+    constraints: BuilderCallbacks,
   ) => Promise<TransactionPrototype>;
 }

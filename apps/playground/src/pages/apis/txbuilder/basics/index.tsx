@@ -10,16 +10,16 @@ import { Intro } from "../common";
 import TxbuilderBuildWithObject from "./build-with-object";
 import TxbuilderCip20 from "./cip20";
 import TxbuilderCoinSelection from "./coin-selection";
+import TxbuilderCustomPP from "./custom-pp";
 import TxbuilderInitializeTxbuilder from "./initialize-txbuilder";
 import TxbuilderMultisig from "./multisig";
 import TxbuilderMultisigNativeScript from "./multisig-native-script";
+import TxbuilderScriptMetadata from "./script-metadata";
 import TxbuilderSendValues from "./send-values";
 import TxbuilderSetFee from "./set-fee";
 import TxbuilderSetNetwork from "./set-network";
 import TxbuilderSetRequiredSigners from "./set-required-signers";
 import TxbuilderSetTime from "./set-time";
-import TxbuilderCustomPP from "./custom-pp";
-import TxbuilderScriptMetadata from "./script-metadata";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [
@@ -75,16 +75,13 @@ const ReactPage: NextPage = () => {
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/transactions/classes/MeshTxBuilder" />
 
         <TxbuilderInitializeTxbuilder />
-        {/* <TxbuilderCommonFunctions /> */}
         <TxbuilderSendValues />
         <TxbuilderMultisig />
         <TxbuilderMultisigNativeScript />
         <TxbuilderBuildWithObject />
-        {/* <TxbuilderSetMetadata /> */}
         <TxbuilderCoinSelection />
         <TxbuilderCip20 />
         <TxbuilderScriptMetadata />
-        {/* <TxbuilderSetCollateral /> */}
         <TxbuilderSetRequiredSigners />
         <TxbuilderSetTime />
         <TxbuilderSetNetwork />

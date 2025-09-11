@@ -26,7 +26,7 @@ function Left() {
         </li>
       </ul>
       <p>
-        For the rest of Cardano data primitives, they are represented by JS
+        For the rest of data primitives, they are represented by JS
         primitives:
       </p>
       <ul>

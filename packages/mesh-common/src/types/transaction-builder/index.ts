@@ -35,11 +35,6 @@ export type MeshTxBuilderBody = {
   votes: Vote[];
   signingKey: string[];
   extraInputs: UTxO[];
-  selectionConfig: {
-    threshold: string;
-    strategy: UtxoSelectionStrategy;
-    includeTxFees: boolean;
-  };
   chainedTxs: string[];
   inputsForEvaluation: Record<string, UTxO>;
   network: Network | number[][];
@@ -66,11 +61,6 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   withdrawals: [],
   votes: [],
   signingKey: [],
-  selectionConfig: {
-    threshold: "0",
-    strategy: "experimental",
-    includeTxFees: true,
-  },
   chainedTxs: [],
   inputsForEvaluation: {},
   network: "mainnet",
@@ -127,4 +117,18 @@ export const validityRangeToObj = (validityRange: ValidityRange): object => {
     invalidBefore: validityRange.invalidBefore ?? null,
     invalidHereafter: validityRange.invalidHereafter ?? null,
   };
+};
+
+export const validityRangeFromObj = (obj: any): ValidityRange => {
+  const validityRange: ValidityRange = {};
+
+  if (obj.invalidBefore !== null && obj.invalidBefore !== undefined) {
+    validityRange.invalidBefore = Number(obj.invalidBefore);
+  }
+
+  if (obj.invalidHereafter !== null && obj.invalidHereafter !== undefined) {
+    validityRange.invalidHereafter = Number(obj.invalidHereafter);
+  }
+
+  return validityRange;
 };
