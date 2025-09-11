@@ -17,30 +17,143 @@ import {
 } from "./json";
 
 /**
- * Aiken alias
- * Value is the JSON representation of Cardano data Value
+ * @typealias Value
+ * @description
+ * Represents the Cardano data Value in JSON format as a nested associative map structure.
+ * Used for off-chain tooling, API responses, and Cardano smart contract interoperability.
+ *
+ * @purpose
+ * Enables manipulation, serialization, and transmission of Cardano multi-asset values in a JSON-friendly format.
+ * Used throughout Mesh for value aggregation, conversion, and smart contract interactions.
+ *
+ * @property {AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>}
+ *   Maps a policyId (empty string for lovelace) to a map of token names and their quantities.
+ *   - Each token name maps to an integer quantity.
+ *   - Example: `assocMap([[currencySymbol(""), assocMap([[tokenName(""), integer(1000000)]])]])`
+ *
+ * @remarks
+ * **Invariants / edge cases**
+ * - Quantities must be non-negative integers.
+ * - The policyId for lovelace is an empty string.
+ * - Token names are empty string for lovelace.
+ * - All entries must be valid Cardano asset units and quantities.
+ *
+ * @example
+ * // Full example with realistic values
+ * const v: Value = assocMap([
+ *   [currencySymbol(""), assocMap([[tokenName(""), integer(1000000)]])], // lovelace
+ *   [currencySymbol("policyId"), assocMap([[tokenName("TokenA"), integer(5)], [tokenName("TokenB"), integer(10)]])]
+ * ]);
+ *
+ * @see MeshValue.Value
  */
 export type Value = AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>;
 
 /**
- * Aiken alias
- * MValue is the Cardano data Value in Mesh Data type
+ * @typealias MValue
+ * @description
+ * Represents the Cardano data Value in Mesh Data type as a nested map structure.
+ * Used for on-chain concepts and Cardano smart contract interoperability.
+ *
+ * @purpose
+ * Enables efficient manipulation and serialization of Cardano multi-asset values in Mesh.
+ * Used throughout Mesh for value aggregation, conversion, and smart contract interactions.
+ *
+ * @property {Map<string, Map<string, bigint>>}
+ *   Maps a policyId (empty string for lovelace) to a map of token names and their quantities.
+ *   - Each token name maps to a bigint quantity.
+ *   - Example: `Map([["", Map([["", 1000000n]])], ["policyId", Map([["TokenA", 5n]])]])`
+ *
+ * @remarks
+ * **Invariants / edge cases**
+ * - Quantities must be non-negative bigints.
+ * - The policyId for lovelace is an empty string.
+ * - Token names are empty string for lovelace.
+ * - All entries must be valid Cardano asset units and quantities.
+ *
+ * @example
+ * const m: MValue = new Map([
+ *   ["", new Map([["", 1000000n]])], // lovelace
+ *   ["policyId", new Map([["TokenA", 5n], ["TokenB", 10n]])]
+ * ]);
+ *
+ * @see MeshValue.MValue
  */
 export type MValue = Map<string, Map<string, bigint>>;
 
 /**
- * The utility function to convert assets into Cardano data Value in JSON
- * @param assets The assets to convert
- * @returns The Cardano data Value in JSON
+ * @function value
+ * @description
+ * Converts an array of Cardano Asset objects into a Cardano data Value in JSON representation.
+ * Useful for preparing assets for Cardano data serialization or API responses.
+ *
+ * @purpose
+ * Use this function to transform a list of assets (from transaction outputs, balances, etc.)
+ * into the JSON representation required for Cardano smart contracts, data interoperability, or off-chain tooling.
+ *
+ * @param {Asset[]} assets
+ * Array of asset objects to convert.
+ *   - Each asset must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
+ *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "policyIdTokenA", quantity: "5" } ]`
+ *
+ * @returns {Value}
+ * Cardano data Value in JSON representation.
+ *   - Shape: `AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>`
+ *   - Each key is a policyId (empty string for lovelace), mapping to token names and their quantities.
+ *   - Example: `assocMap([[currencySymbol(""), assocMap([[tokenName(""), integer(1000000)]])]])`
+ *
+ * @throws {Error}
+ * If assets contain invalid units or quantities (not enforced here, but downstream logic may fail).
+ *
+ * @example
+ * // Minimal usage
+ * const assets = [
+ *   { unit: "lovelace", quantity: "1000000" },
+ *   { unit: "policyIdTokenA", quantity: "5" }
+ * ];
+ * const jsonValue = value(assets);
+ *
+ * @see MeshValue
+ * @see https://meshjs.dev/apis/data/value#convertor---converts-assets-into-cardano-data-value-in-json
  */
 export const value = (assets: Asset[]) => {
   return MeshValue.fromAssets(assets).toJSON();
 };
 
 /**
- * The utility function to convert assets into Cardano data Value in Mesh Data type
- * @param assets The assets to convert
- * @returns The Cardano data Value in Mesh Data type
+ * @function mValue
+ * @description
+ * Converts an array of Cardano Asset objects into a Cardano data Value in Mesh Data type (MValue).
+ * Useful for preparing assets for on-chain Plutus scripts or Cardano data serialization.
+ *
+ * @purpose
+ * Use this function to transform a list of assets (from transaction outputs, balances, etc.)
+ * into the Mesh Data type representation required for Cardano smart contracts and data interoperability.
+ *
+ * @param {Asset[]} assets
+ * Array of asset objects to convert.
+ *   - Each asset must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
+ *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "policyIdTokenA", quantity: "5" } ]`
+ *
+ * @returns {MValue}
+ * Cardano data Value in Mesh Data type.
+ *   - Shape: `Map<string, Map<string, bigint>>`
+ *   - Each key is a policyId (empty string for lovelace), mapping to token names and their quantities.
+ *   - Example: `Map([["", Map([["", 1000000n]])], ["policyId", Map([["TokenA", 5n]])]])`
+ *
+ * @throws {Error}
+ * If assets contain invalid units or quantities (not enforced here, but downstream logic may fail).
+ *
+ * @example
+ * // Minimal usage
+ * const assets = [
+ *   { unit: "lovelace", quantity: "1000000" },
+ *   { unit: "policyIdTokenA", quantity: "5" }
+ * ];
+ * const value = mValue(assets);
+ *
+ * @see MeshValue
+ * @see https://meshjs.dev/apis/data/value#convertor---converts-assets-into-cardano-data-value-in-mesh-data-type
  */
 export const mValue = (assets: Asset[]) => {
   return MeshValue.fromAssets(assets).toData();
