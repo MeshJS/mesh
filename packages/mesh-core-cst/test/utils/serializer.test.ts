@@ -267,6 +267,7 @@ describe("Build transaction with custom protocol params", () => {
         changeAddress:
           "addr_test1qra9zdhfa8kteyr3mfe7adkf5nlh8jl5xcg9e7pcp5w9yhyf5tek6vpnha97yd5yw9pezm3wyd77fyrfs3ynftyg7njs5cfz2x",
         metadata: new Map(),
+        scriptMetadata: [],
         validityRange: {},
         certificates: [],
         withdrawals: [],
