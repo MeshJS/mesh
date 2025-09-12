@@ -43,7 +43,7 @@ const ReactPage: NextPage = () => {
 
   const blockfrostKey = useProviders((state) => state.blockfrostKey);
 
-  const provider = new BlockfrostProvider(blockfrostKey ?? "");
+  const provider = new BlockfrostProvider(blockfrostKey ?? "replace-me");
 
   return (
     <>
