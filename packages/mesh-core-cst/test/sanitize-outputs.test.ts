@@ -34,6 +34,7 @@ describe("Sanitize outputs", () => {
       changeAddress:
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       metadata: new Map(),
+      scriptMetadata: [],
       validityRange: {},
       certificates: [],
       withdrawals: [],
