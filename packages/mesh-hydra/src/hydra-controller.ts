@@ -1,5 +1,9 @@
-import { ActorRefFrom, createActor, StateValue } from "xstate";
-import { machine } from "./state-management/hydra-machine";
+import { ActorRefFrom, createActor, StateValue, Subscription } from "xstate";
+import {
+  createHydraMachine,
+  HydraMachineConfig,
+  Transaction,
+} from "./state-management/hydra-machine";
 import { Emitter } from "./utils/emitter";
 import { HTTPClient } from "./utils";
 
@@ -13,14 +17,32 @@ type ConnectOptions = {
 type HydraStateName =
   | "*"
   | "Disconnected"
-  | "Connecting"
-  | "Connected.Idle"
-  | "Connected.Initializing.ReadyToCommit"
+  | "Connected"
+  | "Connected.Handshake"
+  | "Connected.NoHead"
+  | "Connected.Initializing"
+  | "Connected.Initializing.Waiting"
+  | "Connected.Initializing.Depositing"
+  | "Connected.Initializing.Depositing.ReadyToCommit"
+  | "Connected.Initializing.Depositing.RequestDraft"
+  | "Connected.Initializing.Depositing.AwaitSignature"
+  | "Connected.Initializing.Depositing.SubmittingDeposit"
+  | "Connected.Initializing.Depositing.AwaitingCommitConfirmation"
   | "Connected.Open"
+  | "Connected.Open.Active"
+  | "Connected.Open.Depositing"
+  | "Connected.Open.Depositing.ReadyToCommit"
+  | "Connected.Open.Depositing.RequestDraft"
+  | "Connected.Open.Depositing.AwaitSignature"
+  | "Connected.Open.Depositing.SubmittingDeposit"
+  | "Connected.Open.Depositing.AwaitingCommitConfirmation"
   | "Connected.Closed"
+  | "Connected.FanoutPossible"
   | "Connected.Final";
 
-type Snapshot = ReturnType<ActorRefFrom<typeof machine>["getSnapshot"]>;
+type Snapshot = ReturnType<
+  ActorRefFrom<ReturnType<typeof createHydraMachine>>["getSnapshot"]
+>;
 
 type Events = {
   "*": (snapshot: Snapshot) => void;
@@ -29,13 +51,15 @@ type Events = {
 };
 
 export class HydraController {
-  private actor = createActor(machine);
+  private actor: ActorRefFrom<ReturnType<typeof createHydraMachine>>;
   private emitter = new Emitter<Events>();
   private _currentSnapshot?: Snapshot;
   private httpClient?: HTTPClient;
+  private subscription?: Subscription;
 
-  constructor() {
-    this.actor.subscribe({
+  constructor(config?: HydraMachineConfig) {
+    this.actor = createActor(createHydraMachine(config));
+    this.subscription = this.actor.subscribe({
       next: (snapshot) => this.handleState(snapshot),
       error: (err) => console.error("Hydra error:", err),
     });
@@ -50,30 +74,54 @@ export class HydraController {
 
   /** Protocol commands */
   init() {
+    this.validateStateForOperation("Init", [
+      "Connected.NoHead",
+      "Connected.Final",
+    ]);
     this.actor.send({ type: "Init" });
   }
-  commit(data: unknown = {}) {
+
+  commit(data: Record<string, unknown> = {}) {
+    this.validateStateForOperation("Commit", [
+      "Connected.Initializing.Waiting",
+      "Connected.Initializing.Depositing.ReadyToCommit",
+      "Connected.Open.Active",
+    ]);
     this.actor.send({ type: "Commit", data });
   }
-  newTx(tx: string) {
+
+  newTx(tx: Transaction) {
+    this.validateStateForOperation("NewTx", ["Connected.Open"]);
     this.actor.send({ type: "NewTx", tx });
   }
+
   recover(txHash: string) {
+    this.validateStateForOperation("Recover", ["Connected.Open"]);
     this.actor.send({ type: "Recover", txHash });
   }
-  decommit(tx: string) {
+
+  decommit(tx: Transaction) {
+    this.validateStateForOperation("Decommit", ["Connected.Open"]);
     this.actor.send({ type: "Decommit", tx });
   }
+
   close() {
+    this.validateStateForOperation("Close", ["Connected.Open"]);
     this.actor.send({ type: "Close" });
   }
+
   contest() {
+    this.validateStateForOperation("Contest", ["Connected.Closed"]);
     this.actor.send({ type: "Contest" });
   }
+
   fanout() {
+    this.validateStateForOperation("Fanout", ["Connected.FanoutPossible"]);
     this.actor.send({ type: "Fanout" });
   }
+
   sideLoadSnapshot(snapshot: unknown) {
+    this.validateStateForOperation("SideLoadSnapshot", ["Connected.Open"]);
     this.actor.send({ type: "SideLoadSnapshot", snapshot });
   }
 
@@ -123,12 +171,12 @@ export class HydraController {
     return await this.httpClient.get("/protocol-parameters");
   }
 
-  async submitCardanoTransaction(tx: unknown) {
+  async submitCardanoTransaction(tx: Transaction) {
     if (!this.httpClient) throw new Error("Not connected");
     return await this.httpClient.post("/cardano-transaction", tx);
   }
 
-  async submitL2Transaction(tx: unknown) {
+  async submitL2Transaction(tx: Transaction) {
     if (!this.httpClient) throw new Error("Not connected");
     return await this.httpClient.post("/transaction", tx);
   }
@@ -176,10 +224,32 @@ export class HydraController {
   }
 
   stop() {
+    this.subscription?.unsubscribe();
     this.actor.stop();
     this.emitter.clear();
     this._currentSnapshot = undefined;
     this.httpClient = undefined;
+    this.subscription = undefined;
+  }
+
+  /**
+   * Validates if the current state allows the specified operation
+   */
+  private validateStateForOperation(
+    operation: string,
+    allowedStates: string[],
+  ) {
+    const currentState = _flattenState(this.state || "");
+    const isAllowed = allowedStates.some(
+      (state) => currentState.includes(state) || currentState === state,
+    );
+
+    if (!isAllowed) {
+      throw new Error(
+        `Operation '${operation}' is not allowed in current state: ${currentState}. ` +
+          `Allowed states: ${allowedStates.join(", ")}`,
+      );
+    }
   }
 
   get state() {
