@@ -527,7 +527,9 @@ export class MeshWallet implements IWallet {
    * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns an Address object
    */
-  getUsedAddress(addressType: GetAddressType = "payment"): Address {
+  async getUsedAddress(addressType: GetAddressType = "payment"): Promise<Address> {
+    await this.init();
+
     if (this.addresses.baseAddressBech32 && addressType === "payment") {
       return toAddress(this.addresses.baseAddressBech32);
     } else {
