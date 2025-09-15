@@ -245,8 +245,11 @@ export class BrowserWallet implements IWallet {
    *
    * @returns a list of UTXOs
    */
-  async getUtxos(): Promise<UTxO[]> {
+  async getUtxos(returnCbor: boolean = false): Promise<UTxO[] | string[]> {
     const deserializedUTxOs = await this.getUsedUTxOs();
+    if (returnCbor) {
+      return deserializedUTxOs.map((du) => du.toCbor());
+    }
     return deserializedUTxOs.map((du) => fromTxUnspentOutput(du));
   }
 

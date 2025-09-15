@@ -392,8 +392,14 @@ export class MeshWallet implements IWallet {
    * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns a list of UTXOs
    */
-  async getUtxos(addressType: GetAddressType = "payment"): Promise<UTxO[]> {
+  async getUtxos(
+    addressType: GetAddressType = "payment",
+    returnCbor = false,
+  ): Promise<UTxO[] | string[]> {
     const utxos = await this.getUsedUTxOs(addressType);
+    if (returnCbor) {
+      return utxos.map((c) => c.toCbor());
+    }
     return utxos.map((c) => fromTxUnspentOutput(c));
   }
 
