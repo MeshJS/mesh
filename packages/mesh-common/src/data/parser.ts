@@ -28,7 +28,8 @@ export const stringToHex = (str: string) =>
  * @param hex The string to be checked
  * @returns True if the string is a hex string, false otherwise
  */
-export const isHexString = (hex: string) => /^[0-9A-F]*$/i.test(hex);
+export const isHexString = (hex: string) =>
+  hex.length % 2 === 0 && /^[0-9A-F]*$/i.test(hex);
 
 /**
  * Converting hex string to utf8 string
@@ -43,9 +44,8 @@ export const hexToString = (hex: string) =>
  * @param hex The hex or utf8 string to be converted
  * @returns The bytes
  */
-export const toBytes = (hex: string): Uint8Array => {
-  if (hex.length % 2 === 0 && /^[0-9A-F]*$/i.test(hex))
-    return Buffer.from(hex, "hex");
+export const toBytes = (hex: string): Buffer => {
+  if (isHexString(hex)) return Buffer.from(hex, "hex");
 
   return Buffer.from(hex, "utf-8");
 };
@@ -56,8 +56,7 @@ export const toBytes = (hex: string): Uint8Array => {
  * @returns The hex string
  */
 export const fromUTF8 = (utf8: string) => {
-  if (utf8.length % 2 === 0 && /^[0-9A-F]*$/i.test(utf8)) return utf8;
-  return bytesToHex(Buffer.from(utf8, "utf-8"));
+  return Buffer.from(utf8, "utf-8").toString("hex");
 };
 
 /**

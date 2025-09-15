@@ -35,6 +35,7 @@ import { OfflineFetcher } from "./offline/offline-fetcher";
 import { BlockfrostAsset, BlockfrostUTxO } from "./types";
 import { parseHttpError } from "./utils";
 import { parseAssetUnit } from "./utils/parse-asset-unit";
+import { inferNetworkFromURL, isURL } from "./utils/url";
 
 export type BlockfrostCachingOptions = {
   enableCaching?: boolean;
@@ -78,21 +79,40 @@ export class BlockfrostProvider
    * @param version The version of the API. Default is 0.
    * @param cachingOptions Optional caching configuration
    */
-  constructor(projectId: string, version?: number, cachingOptions?: BlockfrostCachingOptions);
+  constructor(
+    projectId: string,
+    version?: number,
+    cachingOptions?: BlockfrostCachingOptions,
+  );
 
   constructor(...args: unknown[]) {
     let cachingOptions: BlockfrostCachingOptions | undefined;
-    
-    if (
-      typeof args[0] === "string" &&
-      (args[0].startsWith("http") || args[0].startsWith("/"))
-    ) {
-      this._axiosInstance = axios.create({ baseURL: args[0] });
-      this._network = "mainnet";
+
+    const first = args[0];
+    if (typeof first !== "string") {
+      throw new Error("First argument must of type string");
+    } else if (first.length === 0) {
+      throw new Error("First argument cannot be an empty string");
+    }
+
+    if (isURL(first)) {
+      this._axiosInstance = axios.create({ baseURL: first });
+      const n = inferNetworkFromURL(new URL(first));
+      if (n === undefined)
+        throw new Error("Provided URL have an unrecognized network");
+      this._network = n;
       cachingOptions = args[1] as BlockfrostCachingOptions | undefined;
     } else {
-      const projectId = args[0] as string;
+      const projectId = first as string;
       const network = projectId.slice(0, 7);
+
+      const supported = ["mainnet", "preprod", "preview"];
+      if (!supported.includes(network)) {
+        throw new Error(
+          `Unsupported type of network: ${network}. Please provide one of the following: ${supported}`,
+        );
+      }
+
       this._axiosInstance = axios.create({
         baseURL: `https://cardano-${network}.blockfrost.io/api/v${
           args[1] ?? 0
