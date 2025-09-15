@@ -28,6 +28,7 @@ export type MeshTxBuilderBody = {
   mints: MintParam[];
   changeAddress: string;
   metadata: TxMetadata;
+  scriptMetadata: ScriptMetadata[];
   validityRange: ValidityRange;
   certificates: Certificate[];
   withdrawals: Withdrawal[];
@@ -54,6 +55,7 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   mints: [],
   changeAddress: "",
   metadata: new Map<bigint, Metadatum>(),
+  scriptMetadata: [],
   validityRange: {},
   certificates: [],
   withdrawals: [],
@@ -100,6 +102,10 @@ export type Metadata = {
   metadata: string;
 };
 
+export type ScriptMetadata = {
+  scriptType: "PlutusV1" | "PlutusV2" | "PlutusV3" | "Native";
+  scriptCbor: string;
+};
 // Utilities
 
 export type RequiredWith<T, K extends keyof T> = Required<T> & {

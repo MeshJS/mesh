@@ -47,6 +47,7 @@ import {
   PubKeyTxIn,
   RefTxIn,
   RequiredWith,
+  ScriptMetadata,
   ScriptSource,
   ScriptTxIn,
   ScriptVote,
@@ -606,6 +607,7 @@ class CardanoSDKSerializerCore {
       referenceInputs,
       mints,
       metadata,
+      scriptMetadata,
       validityRange,
       certificates,
       withdrawals,
@@ -701,6 +703,11 @@ class CardanoSDKSerializerCore {
       } catch (e) {
         throwErrorWithOrigin("Error serializing metadata", e);
       }
+    }
+    try {
+      this.addScriptMetadata(scriptMetadata);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing script metadata", e);
     }
 
     return this.txBody;
@@ -1383,6 +1390,45 @@ class CardanoSDKSerializerCore {
         toCardanoMetadataMap(metadata),
       ),
     );
+  };
+
+  private addScriptMetadata = (scripts: ScriptMetadata[]) => {
+    let nativeScriptArray = [];
+    let plutusV1ScriptArray = [];
+    let plutusV2ScriptArray = [];
+    let plutusV3ScriptArray = [];
+    for (let script of scripts) {
+      switch (script.scriptType) {
+        case "Native": {
+          nativeScriptArray.push(
+            NativeScript.fromCbor(HexBlob(script.scriptCbor)),
+          );
+          break;
+        }
+        case "PlutusV1": {
+          plutusV1ScriptArray.push(
+            PlutusV1Script.fromCbor(HexBlob(script.scriptCbor)),
+          );
+          break;
+        }
+        case "PlutusV2": {
+          plutusV2ScriptArray.push(
+            PlutusV2Script.fromCbor(HexBlob(script.scriptCbor)),
+          );
+          break;
+        }
+        case "PlutusV3": {
+          plutusV3ScriptArray.push(
+            PlutusV3Script.fromCbor(HexBlob(script.scriptCbor)),
+          );
+          break;
+        }
+      }
+    }
+    this.txAuxilliaryData.setNativeScripts(nativeScriptArray);
+    this.txAuxilliaryData.setPlutusV1Scripts(plutusV1ScriptArray);
+    this.txAuxilliaryData.setPlutusV2Scripts(plutusV2ScriptArray);
+    this.txAuxilliaryData.setPlutusV3Scripts(plutusV3ScriptArray);
   };
 
   private createMockedWitnessSet = (

@@ -23,9 +23,12 @@ import {
   fromTxUnspentOutput,
   Hash28ByteBase16,
   resolvePrivateKey,
+  Serialization,
   toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,
+  TransactionWitnessSet,
+  VkeyWitness,
 } from "@meshsdk/core-cst";
 import { Transaction } from "@meshsdk/transaction";
 
@@ -425,9 +428,14 @@ export class MeshWallet implements IWallet {
    *
    * @param unsignedTx - a transaction in CBOR
    * @param partialSign - if the transaction is partially signed (default: false)
+   * @param returnFullTx - if the full tx should be returned or only the witness set (default: true)
    * @returns a signed transaction in CBOR
    */
-  async signTx(unsignedTx: string, partialSign = false): Promise<string> {
+  async signTx(
+    unsignedTx: string,
+    partialSign = false,
+    returnFullTx = true,
+  ): Promise<string> {
     await this.init();
 
     if (!this._wallet) {
@@ -452,6 +460,17 @@ export class MeshWallet implements IWallet {
       this._keyIndex,
       this._accountType,
     );
+
+    if (!returnFullTx) {
+      let witnessSet = new TransactionWitnessSet();
+      witnessSet.setVkeys(
+        Serialization.CborSet.fromCore(
+          [newSignatures.toCore()],
+          VkeyWitness.fromCore,
+        ),
+      );
+      return witnessSet.toCbor();
+    }
 
     let signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
     return signedTx;
