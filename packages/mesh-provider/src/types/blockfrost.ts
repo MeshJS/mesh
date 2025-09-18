@@ -15,3 +15,20 @@ export type BlockfrostAsset = {
   asset: Unit;
   quantity: Quantity;
 };
+
+type AdaValue = {
+  lovelace: number;
+};
+
+type PolicyValue = Record<string, number>;
+
+export type BlockfrostAdditionalUtxoValue = {
+  ada: AdaValue;
+} & Record<string, PolicyValue>;
+
+export type BlockfrostAdditionalUtxo = {
+  address: string;
+  value: BlockfrostAdditionalUtxoValue;
+};
+
+export type BlockfrostAdditionalUtxos = Array<BlockfrostAdditionalUtxo>;
