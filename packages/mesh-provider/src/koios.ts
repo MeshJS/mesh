@@ -33,8 +33,7 @@ import {
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 import { KoiosAsset, KoiosReferenceScript, KoiosUTxO } from "./types";
-import { parseHttpError } from "./utils";
-import { parseAssetUnit } from "./utils/parse-asset-unit";
+import { parseHttpError, parseAssetUnit, getAdditionalUtxos } from "./utils";
 
 export type KoiosSupportedNetworks = "api" | "preview" | "preprod" | "guild";
 
@@ -171,9 +170,9 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
 
         return asset !== undefined
           ? utxos.filter(
-              (utxo) =>
-                utxo.output.amount.find((a) => a.unit === asset) !== undefined,
-            )
+            (utxo) =>
+              utxo.output.amount.find((a) => a.unit === asset) !== undefined,
+          )
           : utxos;
       }
 
@@ -610,7 +609,9 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
     return undefined;
   };
 
-  async evaluateTx(tx: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(cbor: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+    const additionalUtxoSet = await getAdditionalUtxos(this, "koios", additionalUtxos, additionalTxs);
+
     try {
       const headers = {
         "Content-Type": "application/json",
@@ -622,7 +623,8 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
         method: "evaluateTransaction",
         params: {
           transaction: {
-            cbor: tx
+            cbor,
+            additionalUtxoSet,
           },
         }
       }

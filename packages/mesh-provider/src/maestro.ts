@@ -32,8 +32,7 @@ import {
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 import { MaestroAssetExtended, MaestroUTxO } from "./types/maestro";
-import { parseHttpError } from "./utils";
-import { parseAssetUnit } from "./utils/parse-asset-unit";
+import { getAdditionalUtxos, parseAssetUnit, parseHttpError } from "./utils";
 
 export type MaestroSupportedNetworks = "Mainnet" | "Preprod" | "Preview";
 
@@ -69,11 +68,22 @@ export class MaestroProvider
    * Evaluates the resources required to execute the transaction
    * @param tx - The transaction to evaluate
    */
-  async evaluateTx(cbor: string): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(
+    cbor: string,
+    additionalUtxos?: UTxO[],
+    additionalTxs?: string[],
+  ): Promise<Omit<Action, "data">[]> {
+    const additional_utxos = await getAdditionalUtxos(
+      this,
+      "maestro",
+      additionalUtxos,
+      additionalTxs,
+    );
+
     try {
       const { data, status } = await this._axiosInstance.post(
         "transactions/evaluate",
-        { cbor },
+        { cbor, additional_utxos },
       );
       if (status === 200) {
         const tagMap: { [key: string]: string } = {
