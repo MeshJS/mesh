@@ -177,7 +177,8 @@ export class U5CProvider
    * Evaluates the resources required to execute the transaction
    * @param tx - The transaction to evaluate
    */
-  async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(tx: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+    // TODO: additionalUtxos/additionalTxs dep on utxoprc implementation
 
     const report = await this.submitClient.evalTx(hexToBytes(tx));
     const evalResult = report.report[0]!.chain.value?.redeemers!;
