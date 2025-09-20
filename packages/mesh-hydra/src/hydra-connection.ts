@@ -26,7 +26,7 @@ export class HydraConnection extends EventEmitter {
 
   async connect(): Promise<void> {
     this._websocket = new WebSocket(this._websocketUrl);
-    
+
     this._status = "CONNECTING";
 
     this._websocket.onopen = () => {
@@ -81,15 +81,22 @@ export class HydraConnection extends EventEmitter {
     }, 5000);
   }
 
-  async disconnect() {
-    if (this._status === "IDLE") {
-      return;
-    }
-    if (this._websocket && this._websocket.readyState === WebSocket.OPEN) {
-      this._websocket.close(1007);
-    }
-    this._status = "IDLE";
-    this._connected = false;
+  async disconnect(timeout?: number): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        if (this._websocket) {
+          this._websocket.onclose = (event: import("ws").CloseEvent) => {
+            console.log("WebSocket disconnected:", event?.reason);
+            this._connected = false;
+            resolve();
+          };
+          this._websocket.close(1000, "initiated disconnect");
+        } else {
+          this._connected = false;
+          resolve();
+        }
+      }, timeout);
+    });
   }
 
   async processStatus(message: {}) {
