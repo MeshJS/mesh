@@ -20,11 +20,10 @@ import {
  * @typealias Value
  * @description
  * Represents the Cardano data Value in JSON format as a nested associative map structure.
- * Used for off-chain tooling, API responses, and Cardano smart contract interoperability.
+ * Aiken alias, can be converted into Aiken's `Value` type with `from_asset_list` in standard library (https://aiken-lang.github.io/stdlib/cardano/assets.html#from_asset_list).
  *
  * @purpose
- * Enables manipulation, serialization, and transmission of Cardano multi-asset values in a JSON-friendly format.
- * Used throughout Mesh for value aggregation, conversion, and smart contract interactions.
+ * TODO
  *
  * @property {AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>}
  *   Maps a policyId (empty string for lovelace) to a map of token names and their quantities.
@@ -42,7 +41,7 @@ import {
  * // Full example with realistic values
  * const v: Value = assocMap([
  *   [currencySymbol(""), assocMap([[tokenName(""), integer(1000000)]])], // lovelace
- *   [currencySymbol("policyId"), assocMap([[tokenName("TokenA"), integer(5)], [tokenName("TokenB"), integer(10)]])]
+ *   [currencySymbol("5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a"), assocMap([[tokenName("7075707079"), integer(5)], [tokenName("6b697474656e"), integer(10)]])]
  * ]);
  *
  * @see MeshValue.Value
@@ -53,16 +52,15 @@ export type Value = AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>;
  * @typealias MValue
  * @description
  * Represents the Cardano data Value in Mesh Data type as a nested map structure.
- * Used for on-chain concepts and Cardano smart contract interoperability.
+ * Aiken alias, can be converted into Aiken's `Value` type with `from_asset_list` in standard library (https://aiken-lang.github.io/stdlib/cardano/assets.html#from_asset_list).
  *
  * @purpose
- * Enables efficient manipulation and serialization of Cardano multi-asset values in Mesh.
- * Used throughout Mesh for value aggregation, conversion, and smart contract interactions.
+ * TODO
  *
  * @property {Map<string, Map<string, bigint>>}
  *   Maps a policyId (empty string for lovelace) to a map of token names and their quantities.
  *   - Each token name maps to a bigint quantity.
- *   - Example: `Map([["", Map([["", 1000000n]])], ["policyId", Map([["TokenA", 5n]])]])`
+ *   - Example: `Map([["", Map([["", 1000000n]])], ["5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a", Map([["7075707079", 5n]])]])`
  *
  * @remarks
  * **Invariants / edge cases**
@@ -74,7 +72,7 @@ export type Value = AssocMap<CurrencySymbol, AssocMap<TokenName, Integer>>;
  * @example
  * const m: MValue = new Map([
  *   ["", new Map([["", 1000000n]])], // lovelace
- *   ["policyId", new Map([["TokenA", 5n], ["TokenB", 10n]])]
+ *   ["5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a", new Map([["7075707079", 5n], ["6b697474656e", 10n]])] // tokens
  * ]);
  *
  * @see MeshValue.MValue
@@ -85,16 +83,14 @@ export type MValue = Map<string, Map<string, bigint>>;
  * @function value
  * @description
  * Converts an array of Cardano Asset objects into a Cardano data Value in JSON representation.
- * Useful for preparing assets for Cardano data serialization or API responses.
  *
  * @purpose
- * Use this function to transform a list of assets (from transaction outputs, balances, etc.)
- * into the JSON representation required for Cardano smart contracts, data interoperability, or off-chain tooling.
+ * TODO
  *
  * @param {Asset[]} assets
  * Array of asset objects to convert.
- *   - Each asset must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
- *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "policyIdTokenA", quantity: "5" } ]`
+ *   - Each asset must have a `unit` (`policyId + tokenName` or `lovelace`) and a `quantity` (stringified integer).
+ *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" } ]`
  *
  * @returns {Value}
  * Cardano data Value in JSON representation.
@@ -109,7 +105,7 @@ export type MValue = Map<string, Map<string, bigint>>;
  * // Minimal usage
  * const assets = [
  *   { unit: "lovelace", quantity: "1000000" },
- *   { unit: "policyIdTokenA", quantity: "5" }
+ *   { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" }
  * ];
  * const jsonValue = value(assets);
  *
@@ -124,22 +120,20 @@ export const value = (assets: Asset[]) => {
  * @function mValue
  * @description
  * Converts an array of Cardano Asset objects into a Cardano data Value in Mesh Data type (MValue).
- * Useful for preparing assets for on-chain Plutus scripts or Cardano data serialization.
  *
  * @purpose
- * Use this function to transform a list of assets (from transaction outputs, balances, etc.)
- * into the Mesh Data type representation required for Cardano smart contracts and data interoperability.
+ * TODO
  *
  * @param {Asset[]} assets
  * Array of asset objects to convert.
- *   - Each asset must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
- *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "policyIdTokenA", quantity: "5" } ]`
+ *   - Each asset must have a `unit` (`policyId + tokenName` or `lovelace`) and a `quantity` (stringified integer).
+ *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" } ]`
  *
  * @returns {MValue}
  * Cardano data Value in Mesh Data type.
  *   - Shape: `Map<string, Map<string, bigint>>`
  *   - Each key is a policyId (empty string for lovelace), mapping to token names and their quantities.
- *   - Example: `Map([["", Map([["", 1000000n]])], ["policyId", Map([["TokenA", 5n]])]])`
+ *   - Example: `Map([["", Map([["", 1000000n]])], ["5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a", Map([["7075707079", 5n]])]])`
  *
  * @throws {Error}
  * If assets contain invalid units or quantities (not enforced here, but downstream logic may fail).
@@ -148,7 +142,7 @@ export const value = (assets: Asset[]) => {
  * // Minimal usage
  * const assets = [
  *   { unit: "lovelace", quantity: "1000000" },
- *   { unit: "policyIdTokenA", quantity: "5" }
+ *   { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" }
  * ];
  * const value = mValue(assets);
  *
@@ -177,20 +171,19 @@ export class MeshValue {
    * @function fromAssets
    * @description
    * Converts an array of Cardano Asset objects into a MeshValue instance, aggregating quantities by asset unit.
-   * Ensures no duplicate units and sums quantities for matching assets.
    *
    * @purpose
-   * Use this to initialize a MeshValue from a list of assets, such as those from transaction outputs, for further manipulation or conversion.
+   * Use this to initialize a MeshValue from a list of assets, such as those from transaction outputs.
    *
    * @param {Asset[]} assets
    * Array of asset objects to convert.
-   *   - Each asset must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
+   *   - Each asset must have a `unit` (`policyId + tokenName` or `lovelace`) and a `quantity` (stringified integer).
    *   - Example value: `{ unit: "lovelace", quantity: "1000000" }`
    *
    * @returns {MeshValue}
    * MeshValue instance representing the aggregated assets.
    *   - Contains a value record: `{ [unit: string]: bigint }`
-   *   - Example: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @throws {Error}
    * If assets contain invalid units or quantities (not enforced here, but downstream logic may fail).
@@ -199,7 +192,7 @@ export class MeshValue {
    * // Minimal usage
    * const mv = MeshValue.fromAssets([
    *   { unit: "lovelace", quantity: "1000000" },
-   *   { unit: "policyId", quantity: "5" }
+   *   { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" }
    * ]);
    *
    * @see MeshValue
@@ -228,7 +221,7 @@ export class MeshValue {
    * @returns {MeshValue}
    * MeshValue instance representing the extracted assets.
    *   - Aggregates all assets found in the Value.
-   *   - Example: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @throws {Error}
    * If the Value structure is invalid or contains malformed asset data (not enforced here, but downstream logic may fail).
@@ -237,7 +230,9 @@ export class MeshValue {
    * // Minimal usage 1
    * const mv = MeshValue.fromValue(plutusValue);
    * // Minimal usage 2
-   * const assets = MeshValue.fromValue(plutusValue).toAssets();
+   * const val: Asset[] = [{ unit: "lovelace", quantity: "1000000" }];
+   * const plutusValue: Value = value(val);
+   * const assets: Asset[] = MeshValue.fromValue(plutusValue).toAssets();
    *
    * @see MeshValue
    * @see https://meshjs.dev/apis/data/value#convertor---converts-value-the-json-representation-of-cardano-data-value-into-meshvalue
@@ -263,15 +258,14 @@ export class MeshValue {
    * @function addAsset
    * @description
    * Adds a single Cardano asset to the MeshValue, updating the quantity if the asset unit already exists.
-   * Ensures aggregation and prevents duplicate asset units.
    *
    * @purpose
    * Use this to incrementally build or update a MeshValue with new assets, such as when processing transaction outputs or aggregating balances.
    *
    * @param {Asset} asset
    * The asset to add.
-   *   - Must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
-   *   - Example value: `{ unit: "policyId", quantity: "10" }`
+   *   - Must have a `unit` (`policyId + tokenName` or `lovelace`) and a `quantity` (stringified integer).
+   *   - Example value: `{ unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "10" }`
    *
    * @returns {this}
    * The updated MeshValue instance for chaining.
@@ -284,7 +278,7 @@ export class MeshValue {
    * @example
    * // Add a single asset
    * const value = new MeshValue();
-   * const singleAsset: Asset = { unit: "policyId", quantity: "100" };
+   * const singleAsset: Asset = { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "100" };
    * value.addAsset(singleAsset);
    *
    * @see MeshValue
@@ -313,13 +307,13 @@ export class MeshValue {
    *
    * @param {Asset[]} assets
    * Array of asset objects to add.
-   *   - Each asset must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
-   *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "policyI", quantity: "5" } ]`
+   *   - Each asset must have a `unit` (`policyId + tokenName` or `lovelace`) and a `quantity` (stringified integer).
+   *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" } ]`
    *
    * @returns {this}
    * The updated MeshValue instance for chaining.
    *   - The internal value record will reflect the new or updated asset quantities.
-   *   - Example: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @throws {Error}
    * If any asset quantity is invalid (not enforced here, but downstream logic may fail).
@@ -328,7 +322,7 @@ export class MeshValue {
    * // Add multiple assets
    * const value = new MeshValue();
    * const assets: Asset[] = [
-   *   { unit: "policyId", quantity: "100" },
+   *   { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "100" },
    *   { unit: "lovelace", quantity: "10" },
    * ];
    * value.addAssets(assets);
@@ -346,20 +340,19 @@ export class MeshValue {
    * @function negateAsset
    * @description
    * Subtracts a single Cardano asset from the MeshValue, reducing the quantity or removing the asset if the quantity reaches zero.
-   * Ensures correct handling of asset removal and quantity clamping.
    *
    * @purpose
    * Use this to decrement or remove an asset from a MeshValue, such as when processing transaction inputs or burning tokens.
    *
    * @param {Asset} asset
    * The asset to subtract.
-   *   - Must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
-   *   - Example value: `{ unit: "policyId", quantity: "10" }`
+   *   - Must have a `unit` (`policyId + tokenName` or `lovelace`) and a `quantity` (stringified integer).
+   *   - Example value: `{ unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "10" }`
    *
    * @returns {this}
    * The updated MeshValue instance for chaining.
    *   - The internal value record will reflect the reduced or removed asset quantity.
-   *   - Example: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @throws {Error}
    * If the asset quantity is invalid or subtraction results in a negative value (not enforced here, but downstream logic may fail).
@@ -397,13 +390,12 @@ export class MeshValue {
    *
    * @param {Asset[]} assets
    * Array of asset objects to subtract.
-   *   - Each asset must have a `unit` ("policyId" or "lovelace") and a `quantity` (stringified integer).
-   *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "policyId", quantity: "5" } ]`
+   *   - Each asset must have a `unit` (`policyId + tokenName` or `lovelace`) and a `quantity` (stringified integer).
+   *   - Example value: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" } ]`
    *
    * @returns {this}
    * The updated MeshValue instance for chaining.
-   *   - Shape: `MeshValue { value: { [unit: string]: bigint } }`
-   *   - Example: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @throws {Error}
    * If any asset quantity is invalid or subtraction results in a negative value (not enforced here, but downstream logic may fail).
@@ -411,10 +403,10 @@ export class MeshValue {
    * @example
    * // Subtract multiple assets
    * const value = new MeshValue();
-   * value.value = { lovelace: 20n, "policyId": 10n };
+   * value.value = { lovelace: 20n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 10n };
    * value.negateAssets([
    *   { unit: "lovelace", quantity: "5" },
-   *   { unit: "policyId", quantity: "3" },
+   *   { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "3" },
    * ]);
    *
    * @see MeshValue
@@ -430,15 +422,14 @@ export class MeshValue {
   /**
    * @function get
    * @description
-   * Retrieves the quantity of a specific asset from the MeshValue by its unit ("policyId" or "lovelace").
-   * Returns the asset quantity as a bigint, or undefined if the asset does not exist.
+   * Retrieves the quantity of a specific asset from the MeshValue by its unit (`policyId + tokenName` or `lovelace`).
    *
    * @purpose
    * Use this to query the current quantity of a particular asset in the MeshValue, such as for balance checks or conditional logic.
    *
    * @param {string} unit
-   * The asset unit to retrieve ("policyId" or "lovelace").
-   *   - Example value: `"lovelace"` or `"policyId"`
+   * The asset unit to retrieve (`policyId + tokenName` or `lovelace`).
+   *   - Example value: `"lovelace"` or `"5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079"`
    *
    * @returns {bigint | undefined}
    * The quantity of the asset as a bigint, or undefined if not present.
@@ -450,7 +441,7 @@ export class MeshValue {
    *
    * @example
    * // Get the quantity of lovelace
-   * const value = new MeshValue({ lovelace: 1000000n, policyId: 5n });
+   * const value = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n });
    * const lovelaceAmount = value.get("lovelace"); // 1000000n
    *
    * @see MeshValue
@@ -464,27 +455,26 @@ export class MeshValue {
    * @function getPolicyAssets
    * @description
    * Retrieves all assets and their quantities for a given policyId from the MeshValue.
-   * Returns an object mapping asset names to their quantities as bigint, or an empty object if no assets exist for the policy.
    *
    * @purpose
-   * Use this to query all assets under a specific policyId, such as for grouping, reporting, or filtering assets by policy.
+   * Use this to filter assets by policy.
    *
    * @param {string} policyId
    * The policyId to retrieve assets for.
-   *   - Example value: `"policyId"`
+   *   - Example value: `"5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a"`
    *
    * @returns {{ [assetName: string]: bigint }}
    * An object mapping asset names to quantities.
    *   - Shape: `{ [assetName: string]: bigint }`
-   *   - Example: `{ "TokenA": 100n, "TokenB": 50n }`
+   *   - Example: `{ "7075707079": 100n, "6b697474656e": 50n }`
    *
    * @throws {Error}
    * None (safe query; returns empty object if not found).
    *
    * @example
    * // Get all assets for a policyId
-   * const value = new MeshValue({ "policyIdTokenA": 100n, "policyIdTokenB": 50n });
-   * const assets = value.getPolicyAssets("policyId"); // { "TokenA": 100n, "TokenB": 50n }
+   * const value = new MeshValue({ "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 100n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a6b697474656e": 50n });
+   * const assets = value.getPolicyAssets("5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a"); // { "7075707079": 100n, "6b697474656e": 50n }
    *
    * @see MeshValue
    */
@@ -506,23 +496,23 @@ export class MeshValue {
   /**
    * @function units
    * @description
-   * Returns an array of all asset units present in the MeshValue, including "lovelace" and all policyId.
+   * Returns an array of all asset units present in the MeshValue, including lovelace and all policyId.
    *
    * @purpose
-   * Use this to list all asset units currently tracked by the MeshValue, such as for iteration, reporting, or validation.
+   * TODO
    *
    * @returns {string[]}
    * Array of asset unit strings.
    *   - Shape: `string[]`
-   *   - Example: `[ "lovelace", "policyIdTokenA", "policyIdTokenB" ]`
+   *   - Example: `[ "lovelace", "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a6b697474656e" ]`
    *
    * @throws {Error}
    * None (safe query; returns empty array if no assets).
    *
    * @example
    * // Get all units in the value
-   * const value = new MeshValue({ lovelace: 1000000n, "policyIdTokenA": 100n });
-   * const allUnits = value.units(); // [ "lovelace", "policyIdTokenA" ]
+   * const value = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 100n });
+   * const allUnits = value.units(); // [ "lovelace", "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079" ]
    *
    * @see MeshValue
    * @see https://meshjs.dev/apis/data/value#accessor---get-all-asset-units-with-no-parameters-needed
@@ -535,14 +525,13 @@ export class MeshValue {
    * @function geq
    * @description
    * Checks if the MeshValue contains quantities greater than or equal to those in another MeshValue for all asset units.
-   * Returns true if all asset quantities in the comparison value are less than or equal to those in this value.
    *
    * @purpose
    * Use this to validate sufficient balances for transactions, withdrawals, or conditional logic.
    *
    * @param {MeshValue} other
    * The MeshValue to compare against.
-   *   - Example value: `MeshValue { value: { lovelace: 1000000n, policyId: 2n } }`
+   *   - Example value: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 2n } }`
    *
    * @returns {boolean}
    * True if this MeshValue has all asset quantities greater than or equal to the other; false otherwise.
@@ -554,8 +543,8 @@ export class MeshValue {
    *
    * @example
    * // Check if value has enough assets
-   * const value = new MeshValue({ lovelace: 1000000n, policyId: 5n });
-   * const required = new MeshValue({ lovelace: 500000n, policyId: 2n });
+   * const value = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n });
+   * const required = new MeshValue({ lovelace: 500000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 2n });
    * const isEnough = value.geq(required); // true
    *
    * @see MeshValue
@@ -569,18 +558,17 @@ export class MeshValue {
    * @function geqUnit
    * @description
    * Checks if the quantity of a specific asset unit in the MeshValue is greater than or equal to a given amount.
-   * Returns true if the asset exists and its quantity is sufficient, false otherwise.
    *
    * @purpose
    * Use this to validate if a particular asset unit meets a minimum required quantity, such as for transaction checks or conditional logic.
    *
    * @param {string} unit
-   * The asset unit to check ("lovelace" or "policyId").
-   *   - Example value: `"lovelace"` or `"policyId"`
+   * The asset unit to check (`lovelace` or `policyId + tokenName`).
+   *   - Example value: `"lovelace"` or `"5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079"`
    *
    * @param {MeshValue} other
    * The MeshValue to compare against.
-   *   - Example value: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example value: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @returns {boolean}
    * True if the asset quantity is greater than or equal to the amount; false otherwise.
@@ -609,14 +597,13 @@ export class MeshValue {
    * @function leq
    * @description
    * Checks if the MeshValue contains quantities less than or equal to those in another MeshValue for all asset units.
-   * Returns true if all asset quantities in this value are less than or equal to those in the comparison value.
    *
    * @purpose
    * Use this to validate if a MeshValue does not exceed another value, such as for limits, quotas, or conditional logic.
    *
    * @param {MeshValue} other
    * The MeshValue to compare against.
-   *   - Example value: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example value: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @returns {boolean}
    * True if this MeshValue has all asset quantities less than or equal to the other; false otherwise.
@@ -628,8 +615,8 @@ export class MeshValue {
    *
    * @example
    * // Check if value does not exceed another
-   * const value = new MeshValue({ lovelace: 1000000n, policyId: 5n });
-   * const limit = new MeshValue({ lovelace: 2000000n, policyId: 10n });
+   * const value = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n });
+   * const limit = new MeshValue({ lovelace: 2000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 10n });
    * const isWithinLimit = value.leq(limit); // true
    *
    * @see MeshValue
@@ -643,18 +630,17 @@ export class MeshValue {
    * @function leqUnit
    * @description
    * Checks if the quantity of a specific asset unit in the MeshValue is less than or equal to the quantity in another MeshValue.
-   * Returns true if the asset exists in both values and the quantity in this value does not exceed the quantity in the other MeshValue, false otherwise.
    *
    * @purpose
    * Use this to validate if a particular asset unit does not exceed the quantity in another MeshValue, such as for limits, quotas, or conditional logic.
    *
    * @param {string} unit
-   * The asset unit to check ("lovelace" or "policyId").
-   *   - Example value: `"lovelace"` or `"policyId"`
+   * The asset unit to check (`lovelace` or `policyId + tokenName`).
+   *   - Example value: `"lovelace"` or `"5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079"`
    *
    * @param {MeshValue} other
    * The MeshValue to compare against.
-   *   - Example value: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example value: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @returns {boolean}
    * True if the asset quantity in this value is less than or equal to the quantity in the other MeshValue; false otherwise.
@@ -684,14 +670,13 @@ export class MeshValue {
    * @function eq
    * @description
    * Checks if the MeshValue contains exactly the same asset units and quantities as another MeshValue.
-   * Returns true if both values have identical units and quantities for "lovelace" and each "policyId".
    *
    * @purpose
    * Use this to validate strict equality between two MeshValue instances, such as for transaction matching, state comparison, or testing.
    *
    * @param {MeshValue} other
    * The MeshValue to compare against.
-   *   - Example value: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example value: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @returns {boolean}
    * True if both MeshValues have the same units and quantities; false otherwise.
@@ -703,8 +688,8 @@ export class MeshValue {
    *
    * @example
    * // Check if two MeshValues are equal
-   * const valueA = new MeshValue({ lovelace: 1000000n, policyId: 5n });
-   * const valueB = new MeshValue({ lovelace: 1000000n, policyId: 5n });
+   * const valueA = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n });
+   * const valueB = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n });
    * const isEqual = valueA.eq(valueB); // true
    *
    * @see MeshValue
@@ -717,18 +702,17 @@ export class MeshValue {
    * @function eqUnit
    * @description
    * Checks if the quantity of a specific asset unit in the MeshValue is exactly equal to the quantity in another MeshValue.
-   * Returns true if both values have the same quantity for the given unit ("lovelace" or "policyId").
    *
    * @purpose
    * Use this to validate strict equality for a particular asset unit between two MeshValue instances, such as for transaction matching or conditional logic.
    *
    * @param {string} unit
-   * The asset unit to check ("lovelace" or "policyId").
-   *   - Example value: `"lovelace"` or `"policyId"`
+   * The asset unit to check (`lovelace` or `policyId + tokenName`).
+   *   - Example value: `"lovelace"` or `"5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079"`
    *
    * @param {MeshValue} other
    * The MeshValue to compare against.
-   *   - Example value: `MeshValue { value: { lovelace: 1000000n, policyId: 5n } }`
+   *   - Example value: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n } }`
    *
    * @returns {boolean}
    * True if both MeshValues have the same quantity for the given unit; false otherwise.
@@ -757,7 +741,6 @@ export class MeshValue {
    * @function isEmpty
    * @description
    * Checks if the MeshValue contains no assets or all asset quantities are zero.
-   * Returns true if there are no units with a nonzero quantity, including "lovelace" and any "policyId".
    *
    * @purpose
    * Use this to validate if a MeshValue represents an empty or zero balance, such as for transaction checks, filtering, or initialization.
@@ -772,7 +755,7 @@ export class MeshValue {
    *
    * @example
    * // Check if a MeshValue is empty
-   * const value = new MeshValue({});
+   * const value = new MeshValue();
    * const isEmpty = value.isEmpty(); // true
    *
    * @see MeshValue
@@ -785,29 +768,27 @@ export class MeshValue {
   /**
    * @function merge
    * @description
-   * Merges another MeshValue into this MeshValue, combining asset quantities for all units ("lovelace" and "policyId").
-   * Quantities for matching units are summed; new units are added.
+   * Merges another MeshValue into this MeshValue, combining asset quantities for all units (`lovelace` and `policyId + tokenName`).
    *
    * @purpose
    * Use this to aggregate balances, combine transaction outputs, or accumulate assets from multiple sources.
    *
    * @param {MeshValue | MeshValue[]} values
    * The MeshValue to merge into this one. Could be a single instance or an array of instances.
-   *   - Example value: `MeshValue { value: { lovelace: 1000000n, policyId: 1n } }`
+   *   - Example value: `MeshValue { value: { lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 1n } }`
    *
    * @returns {this}
    * The updated MeshValue instance with merged quantities.
-   *   - Shape: `MeshValue { value: { [unit: string]: bigint } }`
-   *   - Example: `MeshValue { value: { lovelace: 1500000n, policyId: 7n } }`
+   *   - Example: `MeshValue { value: { lovelace: 1500000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 7n } }`
    *
    * @throws {Error}
    * None (safe merge).
    *
    * @example
    * // Merge two MeshValues
-   * const valueA = new MeshValue({ lovelace: 1000000n, policyId: 5n });
-   * const valueB = new MeshValue({ lovelace: 500000n, policyId: 2n });
-   * valueA.merge(valueB); // valueA now has { lovelace: 1500000n, policyId: 7n }
+   * const valueA = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n });
+   * const valueB = new MeshValue({ lovelace: 500000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 2n });
+   * valueA.merge(valueB); // valueA now has { lovelace: 1500000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 7n }
    *
    * @see MeshValue
    * @see https://meshjs.dev/apis/data/value#operator---merge-the-given-values-with-parameters---values
@@ -830,25 +811,22 @@ export class MeshValue {
   /**
    * @function toAssets
    * @description
-   * Converts the MeshValue into an array of asset objects, each with a unit ("lovelace" or "policyId") and quantity as a string.
-   * Only assets with nonzero quantities are included in the result.
+   * Converts the MeshValue into an array of asset objects, each with a unit (`lovelace` and `policyId + tokenName`) and quantity as a string.
    *
    * @purpose
    * Use this to transform a MeshValue into a standard asset array for serialization, transaction building, or API responses.
    *
    * @returns {Asset[]}
    * Array of asset objects representing the MeshValue.
-   *   - Shape: `Asset[]`
-   *   - Example: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "policyId", quantity: "5" } ]`
+   *   - Example: `[ { unit: "lovelace", quantity: "1000000" }, { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" } ]`
    *
    * @throws {Error}
    * None (safe conversion).
    *
    * @example
    * // Convert MeshValue to asset array
-   * const val: Asset[] = [{ unit: "lovelace", quantity: "1000000" }];
-   * const value = new MeshValue({ lovelace: 1000000n, policyId: 5n });
-   * const assets = value.toAssets(); // [ { unit: "lovelace", quantity: "1000000" }, { unit: "policyId", quantity: "5" } ]
+   * const value = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n });
+   * const assets = value.toAssets(); // [ { unit: "lovelace", quantity: "1000000" }, { unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079", quantity: "5" } ]
    *
    * @see MeshValue
    * @see https://meshjs.dev/apis/data/value#convertor---converts-the-meshvalue-object-into-an-array-of-asset
@@ -865,14 +843,12 @@ export class MeshValue {
    * @function toData
    * @description
    * Converts the MeshValue into a Cardano data Value (JSON representation), suitable for use in Plutus scripts or on-chain data.
-   * All asset units ("lovelace" and "policyId") and their quantities are encoded in the returned Value.
    *
    * @purpose
    * Use this to serialize a MeshValue for smart contract interactions, chain data, or interoperability with Cardano tooling.
    *
    * @returns {MValue}
    * Cardano data Value representing the MeshValue.
-   *   - Shape: `Value`
    *   - Example: `Map([[currencySymbol(""), Map([[tokenName(""), integer(1000000)]])]])`
    *
    * @throws {Error}
@@ -882,11 +858,11 @@ export class MeshValue {
    * // Convert MeshValue to Cardano data Value
    * const val: Asset[] = [
    *   {
-   *     unit: "policyIdTokenA",
+   *     unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079",
    *     quantity: "100",
    *   },
    *   {
-   *     unit: "policyIdTokenB",
+   *     unit: "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a6b697474656e",
    *     quantity: "200",
    *   },
    * ];
@@ -922,24 +898,22 @@ export class MeshValue {
   /**
    * @function toJSON
    * @description
-   * Converts the MeshValue into a plain JSON object, mapping each asset unit ("lovelace" or "policyId") to its quantity as a string.
-   * Only assets with nonzero quantities are included in the result.
+   * Converts the MeshValue into a plain JSON object, mapping each asset unit (`lovelace` or `policyId + tokenName`) to its quantity as a string.
    *
    * @purpose
-   * Use this to serialize a MeshValue for storage, transmission, or API responses in a standard JSON format.
+   * TODO
    *
    * @returns {Value}
    * JSON object representing the MeshValue.
-   *   - Shape: `{ [unit: string]: string }`
-   *   - Example: `{ "lovelace": "1000000", "policyId": "5" }`
+   *   - Example: `{ "lovelace": "1000000", "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": "5" }`
    *
    * @throws {Error}
    * None (safe conversion).
    *
    * @example
    * // Convert MeshValue to JSON
-   * const value = new MeshValue({ lovelace: 1000000n, policyId: 5n });
-   * const json = value.toJSON(); // { "lovelace": "1000000", "policyId": "5" }
+   * const value = new MeshValue({ lovelace: 1000000n, "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": 5n });
+   * const json = value.toJSON(); // { "lovelace": "1000000", "5ac3d4bdca238105a040a565e5d7e734b7c9e1630aec7650e809e34a7075707079": "5" }
    *
    * @see MeshValue
    * @see https://meshjs.dev/apis/data/value#convertor---converts-the-meshvalue-object-into-a-json-representation-of-cardano-data-value
