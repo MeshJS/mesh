@@ -241,6 +241,22 @@ export class MeshWallet implements IWallet {
   }
 
   /**
+   * Returns an address owned by the wallet that should be used as a change address to return leftover assets during transaction creation back to the connected wallet in hex format.
+   *
+   * @returns an address in hex format
+   */
+  async getChangeAddressHex(
+    addressType: GetAddressType = "payment",
+  ): Promise<string> {
+    await this.init();
+
+    if (this.addresses.baseAddress && addressType === "payment") {
+      return this.addresses.baseAddress.toBytes().toString();
+    }
+    return this.addresses.enterpriseAddress.toBytes().toString();
+  }
+
+  /**
    * This function shall return a list of one or more UTXOs (unspent transaction outputs) controlled by the wallet that are required to reach AT LEAST the combined ADA value target specified in amount AND the best suitable to be used as collateral inputs for transactions with plutus script inputs (pure ADA-only UTXOs).
    *
    * If this cannot be attained, an error message with an explanation of the blocking problem shall be returned. NOTE: wallets are free to return UTXOs that add up to a greater total ADA value than requested in the amount parameter, but wallets must never return any result where UTXOs would sum up to a smaller total ADA value, instead in a case like that an error message must be returned.
@@ -257,6 +273,25 @@ export class MeshWallet implements IWallet {
     const utxos = await this.getCollateralUnspentOutput(addressType);
     return utxos.map((utxo, i) => {
       return fromTxUnspentOutput(utxo);
+    });
+  }
+
+  /**
+   * This function shall return a list of one or more UTXOs (unspent transaction outputs) controlled by the wallet that are required to reach AT LEAST the combined ADA value target specified in amount AND the best suitable to be used as collateral inputs for transactions with plutus script inputs (pure ADA-only UTXOs).
+   *
+   * If this cannot be attained, an error message with an explanation of the blocking problem shall be returned. NOTE: wallets are free to return UTXOs that add up to a greater total ADA value than requested in the amount parameter, but wallets must never return any result where UTXOs would sum up to a smaller total ADA value, instead in a case like that an error message must be returned.
+   *
+   * @param addressType - the type of address to fetch UTXOs from (default: payment)
+   * @returns a list of UTXOs in hex format
+   */
+  async getCollateralHex(
+    addressType: GetAddressType = "payment",
+  ): Promise<string[]> {
+    await this.init();
+
+    const utxos = await this.getCollateralUnspentOutput(addressType);
+    return utxos.map((utxo) => {
+      return utxo.toCbor().toString();
     });
   }
 
@@ -354,6 +389,14 @@ export class MeshWallet implements IWallet {
   }
 
   /**
+   * Returns a list of reward addresses owned by the wallet. A reward address is a stake address that is used to receive rewards from staking.
+   * @returns a list of reward addresses in hex format
+   */
+  async getRewardAddressesHex(): Promise<string[]> {
+    return [this.addresses.rewardAddress!.toBytes().toString()];
+  }
+
+  /**
    * Returns a list of unused addresses controlled by the wallet.
    *
    * @returns a list of unused addresses
@@ -363,12 +406,30 @@ export class MeshWallet implements IWallet {
   }
 
   /**
+   * Returns a list of unused addresses controlled by the wallet.
+   *
+   * @returns a list of unused addresses in hex format
+   */
+  async getUnusedAddressesHex(): Promise<string[]> {
+    return [await this.getChangeAddressHex()];
+  }
+
+  /**
    * Returns a list of used addresses controlled by the wallet.
    *
    * @returns a list of used addresses
    */
   async getUsedAddresses(): Promise<string[]> {
     return [await this.getChangeAddress()];
+  }
+
+  /**
+   * Returns a list of used addresses controlled by the wallet.
+   *
+   * @returns a list of used addresses in hex format
+   */
+  async getUsedAddressesHex(): Promise<string[]> {
+    return [await this.getChangeAddressHex()];
   }
 
   /**
@@ -395,6 +456,19 @@ export class MeshWallet implements IWallet {
   async getUtxos(addressType: GetAddressType = "payment"): Promise<UTxO[]> {
     const utxos = await this.getUsedUTxOs(addressType);
     return utxos.map((c) => fromTxUnspentOutput(c));
+  }
+
+  /**
+   * Return a list of all UTXOs (unspent transaction outputs) controlled by the wallet.
+   *
+   * @param addressType - the type of address to fetch UTXOs from (default: payment)
+   * @returns a list of UTXOs in hex format
+   */
+  async getUtxosHex(
+    addressType: GetAddressType = "payment",
+  ): Promise<string[]> {
+    const utxos = await this.getUsedUTxOs(addressType);
+    return utxos.map((c) => c.toCbor().toString());
   }
 
   /**
@@ -469,7 +543,7 @@ export class MeshWallet implements IWallet {
           VkeyWitness.fromCore,
         ),
       );
-      return witnessSet.toCbor();
+      return witnessSet.toCbor().toString();
     }
 
     let signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
@@ -483,7 +557,11 @@ export class MeshWallet implements IWallet {
    * @param partialSign - if the transactions are signed partially
    * @returns array of signed transactions CborHex string
    */
-  async signTxs(unsignedTxs: string[], partialSign = false): Promise<string[]> {
+  async signTxs(
+    unsignedTxs: string[],
+    partialSign = false,
+    returnFullTx = true,
+  ): Promise<string[]> {
     await this.init();
 
     if (!this._wallet) {
@@ -495,7 +573,7 @@ export class MeshWallet implements IWallet {
     const signedTxs: string[] = [];
 
     for (const unsignedTx of unsignedTxs) {
-      const signedTx = await this.signTx(unsignedTx, partialSign);
+      const signedTx = await this.signTx(unsignedTx, partialSign, returnFullTx);
       signedTxs.push(signedTx);
     }
 
