@@ -185,7 +185,7 @@ export const useWalletStore = () => {
           projectId: web3Services.projectId,
           appUrl: web3Services.appUrl,
         }).then((wallet) => {
-          setConnectedWalletInstance(wallet.cardano!);
+          setConnectedWalletInstance(wallet);
           setConnectedWalletName(persist.walletName);
           setState(WalletState.CONNECTED);
         });

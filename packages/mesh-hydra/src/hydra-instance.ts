@@ -43,6 +43,10 @@ export class HydraInstance {
     return decommit;
   }
 
+  async commitEmpty(): Promise<string> {
+    return this._commitToHydra({});
+  }
+
   /**
    * To commit funds to the head, choose which UTxO you would like to make available on layer 2.
    * The function returns the transaction CBOR hex ready to be partially signed.
@@ -82,21 +86,24 @@ export class HydraInstance {
   async commitBlueprint(
     txHash: string,
     outputIndex: number,
-    transaction: hydraTransaction
+    hydraTransaction: hydraTransaction
   ): Promise<string> {
     const utxo = (await this.fetcher.fetchUTxOs(txHash, outputIndex))[0];
     if (!utxo) {
       throw new Error("UTxO not found");
     }
     const hydraUtxo = await hydraUTxO(utxo);
-    return this._commitToHydra({
+    console.log("hydraUtxo", hydraUtxo);
+    const commit = await this._commitToHydra({
       blueprintTx: {
-        ...transaction,
+        ...hydraTransaction,
       },
       utxo: {
         [txHash + "#" + outputIndex]: hydraUtxo,
       },
     });
+    console.log("commit", commit);
+    return commit;
   }
 
   /**
@@ -133,22 +140,21 @@ export class HydraInstance {
   async incrementalBlueprintCommit(
     txHash: string,
     outputIndex: number,
-    transaction: hydraTransaction
+      hydraTransaction: hydraTransaction
   ) {
     return this.commitBlueprint(txHash, outputIndex, {
-      type: transaction.type,
-      cborHex: transaction.cborHex,
-      description: transaction.description,
-      txId: transaction.txId,
+      type: hydraTransaction.type,
+      cborHex: hydraTransaction.cborHex,
+      description: hydraTransaction.description,
+      txId: hydraTransaction.txId,
     });
   }
 
   /**
    * Request to decommit a UTxO from a Head by providing a decommit tx. Upon reaching consensus, this will eventually result in corresponding transaction outputs becoming available on the layer 1.
-   * Method not implemented
    */
-  async decommit(transaction: hydraTransaction) {
-    return this._decommitFromHydra(transaction);
+  async decommit(hydraTransaction: hydraTransaction) {
+    return this._decommitFromHydra(hydraTransaction);
   }
 
   /**
@@ -156,7 +162,7 @@ export class HydraInstance {
    * Method not implemented
    * @returns
    */
-  async incrementalDecommit(transaction: hydraTransaction) {
-    return this.decommit(transaction);
+  async incrementalDecommit(hydraTransaction: hydraTransaction) {
+    return this.decommit(hydraTransaction);
   }
 }

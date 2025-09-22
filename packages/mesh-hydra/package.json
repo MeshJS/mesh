@@ -24,7 +24,9 @@
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
     "pack": "npm pack --pack-destination=./dist",
-    "test": "jest"
+    "test": "jest",
+    "test:quick": "node examples/quick-test.js",
+    "test:ts": "tsx examples/quick-test.ts"
   },
   "dependencies": {
     "@meshsdk/common": "1.9.0-beta.74",
@@ -33,9 +35,10 @@
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
-    "@swc/core": "^1.10.7",
+    "@swc/core": "^1.13.5",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
+    "tsx": "^4.20.5",
     "typescript": "^5.3.3"
   }
 }

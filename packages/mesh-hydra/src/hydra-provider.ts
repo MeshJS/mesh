@@ -12,6 +12,7 @@ import {
   IFetcher,
   IFetcherOptions,
   ISubmitter,
+  POLICY_ID_LENGTH,
   Protocol,
   TransactionInfo,
   UTxO,
@@ -98,6 +99,32 @@ export class HydraProvider implements IFetcher, ISubmitter {
   }
 
   /**
+   * Disconnects from the Hydra Head.
+   *
+   * @param timeout - Optional timeout in milliseconds default to 5 minutes to wait for the disconnect operation to complete.
+   *                  If not provided, the default disconnect timeout will be used.
+   *                  Useful for customizing how long to wait before disconnecting.
+   */
+  async disconnect(timeout?: number) {
+    if (this._status === "DISCONNECTED" || this._status === "IDLE") {
+      return;
+    }
+  
+    const minTimeout = 1 * 60 * 1000;
+    const defaultTimeout = 5 * 60 * 1000;
+  
+    if (timeout !== undefined && timeout < minTimeout) {
+      throw new Error("Timeout must be at least 1 minute (60000 ms)");
+    }
+  
+    const effectiveTimeout = timeout ?? defaultTimeout;
+  
+    await this._connection.disconnect(effectiveTimeout);
+    this._status = "DISCONNECTED";
+    this._eventEmitter.emit("onstatuschange", this._status);
+  }
+  
+  /**
    * FETCHERS and SUBMITTERS
    */
 
@@ -147,11 +174,15 @@ export class HydraProvider implements IFetcher, ISubmitter {
 
   /**
    * Submit a transaction to the Hydra node. Note, unlike other providers, Hydra does not return a transaction hash.
-   * @param tx - The transaction in CBOR hex format
+   * @param tx - The transaction in CBOR hex format usually obtained from an unsigned transaction
    */
   async submitTx(tx: string): Promise<string> {
     try {
-      await this.newTx(tx, "Witnessed Tx ConwayEra");
+      await this.newTx( {
+        type: "Witnessed Tx ConwayEra",
+        description: "",
+        cborHex: tx,
+      });
       const txId = await new Promise<string>((resolve) => {
         this.onMessage((message) => {
           if (message.tag === "TxValid") {
@@ -202,25 +233,15 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Submit a transaction through the head. Note that the transaction is only broadcast if well-formed and valid.
    *
-   * @param cborHex The base16-encoding of the CBOR encoding of some binary data
+   * @param transaction The transaction in text envelope format, containing:
+   *   - type: The type of the transaction (e.g., "Unwitnessed Tx ConwayEra").
+   *   - description: (Optional) A human-readable description of the transaction.
+   *   - cborHex: The CBOR-encoded unsigned transaction.
+   *   - txId: (Optional) The transaction ID.
    * @param type Allowed values: "Tx ConwayEra""Unwitnessed Tx ConwayEra""Witnessed Tx ConwayEra"
-   * @param description
+   * @param description 
    */
-  async newTx(
-    cborHex: string,
-    type:
-      | "Tx ConwayEra"
-      | "Unwitnessed Tx ConwayEra"
-      | "Witnessed Tx ConwayEra",
-    description = "",
-    txId?: string
-  ) {
-    const transaction: hydraTransaction = {
-      type: type,
-      description: description,
-      cborHex: cborHex,
-      txId: txId,
-    };
+  async newTx(transaction: hydraTransaction) {
     const payload = {
       tag: "NewTx",
       transaction: transaction,
@@ -231,24 +252,22 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Request to decommit a UTxO from a Head by providing a decommit tx. Upon reaching consensus, this will eventually result in corresponding transaction outputs becoming available on the layer 1.
    *
-   * @param cborHex The base16-encoding of the CBOR encoding of some binary data
+   * @param decommitTx The decommit transaction in text envelope format, containing:
+   *   - type: The type of the transaction (e.g., "Unwitnessed Tx ConwayEra").
+   *   - description: (Optional) A human-readable description of the transaction.
+   *   - cborHex: The CBOR-encoded unsigned transaction.
    * @param type Allowed values: "Tx ConwayEra""Unwitnessed Tx ConwayEra""Witnessed Tx ConwayEra"
    * @param description
    */
   async decommit(
-    cborHex: string,
-    type:
-      | "Tx ConwayEra"
-      | "Unwitnessed Tx ConwayEra"
-      | "Witnessed Tx ConwayEra",
-    description: string
+    decommitTx: hydraTransaction
   ) {
     const payload = {
       tag: "Decommit",
       decommitTx: {
-        type: type,
-        description: description,
-        cborHex: cborHex,
+        type: decommitTx.type,
+        description: decommitTx.description,
+        cborHex: decommitTx.cborHex,
       },
     };
     this._connection.send(payload);
@@ -271,8 +290,28 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Finalize a head after the contestation period passed. This will distribute the final (as closed and maybe contested) head state back on the layer 1.
    */
-  async fanout() {
-    this._connection.send({ tag: "Fanout" });
+  /**
+   * Finalize a head after the contestation period has passed.
+   * This will distribute the final head state back on layer 1.
+   * Resolves when the head is finalized.
+   */
+  async fanout(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const onMessage = (message: any) => {
+        if (message?.tag === "HeadIsFinalized") {
+          this._eventEmitter.off("onmessage", onMessage);
+          this._status = "FINAL";
+          this._eventEmitter.emit("onstatuschange", this._status);
+          resolve();
+        } else if (message?.tag === "FanoutFailed") {
+          this._eventEmitter.off("onmessage", onMessage);
+          reject(new Error("Fanout failed"));
+        }
+      };
+
+      this._eventEmitter.on("onmessage", onMessage);
+      this._connection.send({ tag: "Fanout" });
+    });
   }
 
   /**
@@ -387,9 +426,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Cardano transaction to be submitted to the L1 network. Accepts transactions encoded as Base16 CBOR string, TextEnvelope type or JSON.
    */
-  async publishCardanoTransaction(headers: RawAxiosRequestHeaders = {}) {
-    // todo
-    await this.post("/cardano-transaction", {}, headers);
+  async publishCardanoTransaction(
+    payload: unknown,
+    headers: RawAxiosRequestHeaders = {}
+  ) {
+    const txHex = await this.post("/cardano-transaction", payload, headers);
+    return txHex;
   }
 
   /**
@@ -560,6 +602,17 @@ export class HydraProvider implements IFetcher, ISubmitter {
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+
+  async fetchAssetsUTxOs(policyId: string): Promise<UTxO[]> {
+    if (policyId.length !== POLICY_ID_LENGTH) {
+      throw new Error("Invalid policyid length");
+    }
+    const utxo = await this.fetchUTxOs();
+    const assets = utxo.filter((asset) =>
+      asset.output.amount.find((a) => a.unit === policyId)
+    );
+    return assets;
   }
 
   /**

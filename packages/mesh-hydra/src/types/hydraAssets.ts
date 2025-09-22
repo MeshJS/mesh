@@ -7,17 +7,19 @@ export type hydraAssets = {
 };
 
 export function hydraAssets(assets: Asset[]): hydraAssets {
-  return assets.reduce(
-    (p, asset) => {
-      if (asset.unit === "" || asset.unit === "lovelace") {
-        p.lovelace += Number(asset.quantity);
-      } else {
-        p[asset.unit] = (p[asset.unit] ?? 0) + Number(asset.quantity);
+  return assets.reduce((p, asset) => {
+    if (asset.unit === "" || asset.unit === "lovelace") {
+      p.lovelace = (p.lovelace ?? 0) + Number(asset.quantity);
+    } else {
+      const policyId = asset.unit.slice(0, 56);
+      const assetName = asset.unit.slice(56);
+      if (!p[policyId]) {
+        p[policyId] = {};
       }
-      return p;
-    },
-    { lovelace: Number(0) } as hydraAssets
-  );
+      p[policyId][assetName.toString()] = (p[policyId][assetName.toString()] ?? 0) + Number(asset.quantity);
+    }
+    return p;
+  }, { lovelace: 0 } as any);
 }
 
 hydraAssets.toAssets = (hydraAssets: hydraAssets): Asset[] => {

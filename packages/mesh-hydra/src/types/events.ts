@@ -172,7 +172,7 @@ export type CommandFailed = {
     | {
         tag: "Abort";
       }
-    | { tag: "NewTx"; transaction: hydraTransaction }
+    | { tag: "NewTx"; hydraTransaction: hydraTransaction }
     | { tag: "GetUTxO" }
     | { tag: "Decommit"; decommitTx: hydraTransaction }
     | { tag: "Close" }
