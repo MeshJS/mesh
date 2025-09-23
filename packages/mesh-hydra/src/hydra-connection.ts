@@ -81,23 +81,22 @@ export class HydraConnection extends EventEmitter {
     }, 5000);
   }
 
-  async disconnect() {
-    if (this._status === "IDLE") {
-      return;
-    }
-    if (this._websocket && this._websocket.readyState === WebSocket.OPEN) {
-      this._websocket.close(1007);
-    }
-    this._status = "IDLE";
-    this._connected = false;
-  }
-
-  async processStatus(message: {}) {
-    let status: hydraStatus | null = null;
-    if ((status = hydraStatus(message)) && status !== null) {
-      this._status = status;
-      this._eventEmitter.emit("onstatuschange", status);
-    }
+  async disconnect(timeout?: number): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        if (this._websocket) {
+          this._websocket.onclose = (event: import("ws").CloseEvent) => {
+            console.log("WebSocket disconnected:", event?.reason);
+            this._connected = false;
+            resolve();
+          };
+          this._websocket.close(1000, "initiated disconnect");
+        } else {
+          this._connected = false;
+          resolve();
+        }
+      }, timeout);
+    });
   }
 
   _websocket: WebSocket | undefined;
