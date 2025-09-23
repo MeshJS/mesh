@@ -957,6 +957,11 @@ class CardanoSDKSerializerCore {
       );
     } else if (output.datum?.type === "Embedded") {
       // Embedded datums get added to witness set
+      cardanoOutput.setDatum(
+        Datum.newDataHash(
+          DatumHash(fromBuilderToPlutusData(output.datum.data).hash()),
+        ),
+      );
       const currentWitnessDatum =
         this.txWitnessSet.plutusData() ??
         Serialization.CborSet.fromCore([], Serialization.PlutusData.fromCore);
