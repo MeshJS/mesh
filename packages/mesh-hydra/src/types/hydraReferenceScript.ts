@@ -2,17 +2,17 @@ import { NativeScript, PlutusScript } from "@meshsdk/common";
 import { getReferenceScriptInfo } from "../utils/hydraScriptRef";
 
 export type hydraReferenceScript = {
-  scriptLanguage: string;
   script: {
     cborHex: string;
     description: string;
     type:
-      | "SimpleScript"
-      | "PlutusScriptV1"
-      | "PlutusScriptV2"
-      | "PlutusScriptV3"
-      | "Unknown";
+    | "SimpleScript"
+    | "PlutusScriptV1"
+    | "PlutusScriptV2"
+    | "PlutusScriptV3"
+    | null
   };
+  scriptLanguage: string;
 } | null;
 
 export type hydraScriptInfo = {
@@ -42,11 +42,11 @@ export async function hydraReferenceScript(
   }
 
   return {
-    scriptLanguage,
     script: {
       cborHex: scriptRef,
       description: "",
-      type: scriptType,
+      type: scriptType === "Unknown" ? null : scriptType,
     },
-  };
+    scriptLanguage,
+  }
 }
