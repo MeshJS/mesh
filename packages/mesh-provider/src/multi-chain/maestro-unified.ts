@@ -4,7 +4,8 @@ import {
   MaestroSupportedNetworks as BitcoinMaestroNetworks,
   TransactionsInfo as BitcoinTransactionInfo,
   UTxO as BitcoinUTxO,
-  AddressInfo as BitcoinAddressInfo
+  AddressInfo as BitcoinAddressInfo,
+  TransactionsStatus as BitcoinTransactionStatus
 } from "@meshsdk/bitcoin";
 import type { TransactionInfo as CardanoTransactionInfo, UTxO as CardanoUTxO, IFetcherOptions } from "@meshsdk/common";
 
@@ -14,7 +15,7 @@ export type MaestroConfig =
 
 /**
  * Unified Maestro provider that supports both Cardano and Bitcoin operations.
- * Chain is specified in the constructor for a clean, type-safe API.
+ * Chain is specified in the constructor
  *
  * @example
  * ```typescript
@@ -162,6 +163,54 @@ export class MaestroMultiChainProvider {
    */
   getChain(): "cardano" | "bitcoin" {
     return this._chain;
+  }
+
+  /**
+   * Get transaction details by hash.
+   * @param txHash - The transaction hash.
+   * @returns Promise of transaction details (type depends on chain).
+   */
+  async getTxInfo(txHash: string): Promise<CardanoTransactionInfo | BitcoinTransactionInfo> {
+    if (this._chain === "cardano") {
+      if (!this._cardanoProvider) {
+        throw new Error("Cardano provider not initialized.");
+      }
+      return this._cardanoProvider.fetchTxInfo(txHash);
+    }
+
+    if (this._chain === "bitcoin") {
+      if (!this._bitcoinProvider) {
+        throw new Error("Bitcoin provider not initialized.");
+      }
+      return await this._bitcoinProvider.fetchTxInfo(txHash);
+    }
+
+    throw new Error(`Unsupported chain: ${this._chain}`);
+  }
+
+  /**
+   * Get transaction status/confirmation details.
+   * @param txHash - The transaction hash.
+   * @returns Promise of transaction status (type depends on chain).
+   */
+  async getTxStatus(txHash: string): Promise<{ confirmed: boolean; details: CardanoTransactionInfo } | BitcoinTransactionStatus> {
+    if (this._chain === "cardano") {
+      // Cardano uses fetchTxInfo which includes status in the response
+      if (!this._cardanoProvider) {
+        throw new Error("Cardano provider not initialized.");
+      }
+      const txInfo = await this._cardanoProvider.fetchTxInfo(txHash);
+      return { confirmed: true, details: txInfo };
+    }
+
+    if (this._chain === "bitcoin") {
+      if (!this._bitcoinProvider) {
+        throw new Error("Bitcoin provider not initialized.");
+      }
+      return await this._bitcoinProvider.fetchTransactionStatus(txHash);
+    }
+
+    throw new Error(`Unsupported chain: ${this._chain}`);
   }
 
   /**
