@@ -26,6 +26,9 @@ describe("MeshWallet", () => {
     expect(await wallet.getChangeAddress()).toEqual(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
     );
+    expect(await wallet.getChangeAddressHex()).toEqual(
+      "005867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6",
+    );
   });
 
   it("stake key sign tx", async () => {

@@ -253,7 +253,7 @@ export class MeshWallet implements IWallet {
     if (this.addresses.baseAddress && addressType === "payment") {
       return this.addresses.baseAddress.toBytes().toString();
     }
-    return this.addresses.enterpriseAddress.toBytes().toString();
+    return this.addresses.enterpriseAddress!.toBytes().toString();
   }
 
   /**
