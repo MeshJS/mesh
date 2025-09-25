@@ -7,3 +7,4 @@ export * from "./utxo-rpc";
 export * from "./yaci";
 export * from "./offline";
 export * from "./kupo";
+export * from "./multi-chain";

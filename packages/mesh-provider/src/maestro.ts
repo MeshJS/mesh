@@ -542,6 +542,22 @@ export class MaestroProvider
     }
   }
 
+  async post(url: string, body: any): Promise<any> {
+    try {
+      const { data, status } = await this._axiosInstance.post(url, body, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (status === 200) {
+        return data;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
   /**
    * Allow you to listen to a transaction confirmation. Upon confirmation, the callback will be called.
    * @param txHash - The transaction hash to listen for confirmation
