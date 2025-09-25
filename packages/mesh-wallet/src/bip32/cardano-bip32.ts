@@ -1,33 +1,57 @@
-import { Bip32PrivateKey } from "@cardano-sdk/crypto";
-import base32 from "base32-encoding";
+import { Bip32PrivateKey, Bip32PrivateKeyHex } from "@cardano-sdk/crypto";
 import { mnemonicToEntropy } from "bip39";
 
 import { IBip32 } from "../interfaces/bip32";
+import { ISigner } from "../interfaces/signer";
+import { CardanoSigner } from "../signer/cardano-signer";
+
+type CardanoBip32Constructor =
+  | {
+      type: "mnemonic";
+      mnemonic: string[];
+      password?: string;
+    }
+  | { type: "entropy"; entropy: string; password?: string }
+  | { type: "keyHex"; keyHex: string };
 
 class CardanoBip32 implements IBip32 {
   private bip32PrivateKey: Bip32PrivateKey;
 
-  constructor(mnemonic: string[], password?: string);
-  constructor(keyHex: string, password?: string);
-
-  // Actual implementation of the constructor
-  constructor(mnemonicOrKeyHex: string[] | string, password: string = "") {
-    if (Array.isArray(mnemonicOrKeyHex)) {
-      // Handle mnemonic case
-      const entropy = mnemonicToEntropy(mnemonicOrKeyHex.join(" "));
+  // Bip32 can be initialized with either a mnemonic array or a keyHex string
+  constructor(constructorParams: CardanoBip32Constructor) {
+    if (constructorParams.type === "mnemonic") {
+      const { mnemonic, password } = constructorParams;
+      const entropy = mnemonicToEntropy(mnemonic.join(" "));
       this.bip32PrivateKey = Bip32PrivateKey.fromBip39Entropy(
         Buffer.from(entropy, "hex"),
-        password,
+        password || "",
       );
-    } else if (typeof mnemonicOrKeyHex === "string") {
-      // Handle keyHex case
-      this.bip32PrivateKey = Bip32PrivateKey.fromHex(mnemonicOrKeyHex);
+    } else if (constructorParams.type === "entropy") {
+      const { entropy, password } = constructorParams;
+      this.bip32PrivateKey = Bip32PrivateKey.fromBip39Entropy(
+        Buffer.from(entropy, "hex"),
+        password || "",
+      );
+    } else if (constructorParams.type === "keyHex") {
+      const { keyHex } = constructorParams;
+      this.bip32PrivateKey = Bip32PrivateKey.fromHex(
+        keyHex as Bip32PrivateKeyHex,
+      );
     } else {
-      throw new Error(
-        "Invalid constructor arguments, expected mnemonic array or keyHex string.",
-      );
+      throw new Error("Invalid constructor parameters");
     }
   }
+
+  /**
+   * Derive a new IBip32 instance using the specified derivation path.
+   * @param path The derivation path as an array of numbers.
+   * @returns {IBip32} A new IBip32 instance derived from the current key using the specified path.
+   */
+  derive(path: number[]): IBip32 {
+    this.bip32PrivateKey = this.bip32PrivateKey.derive(path);
+    return this;
+  }
+
   /**
    * Get the Bip32 public key in hex format.
    * @returns {string} The public key in hex format.
@@ -35,14 +59,16 @@ class CardanoBip32 implements IBip32 {
   getPublicKey(): string {
     return this.bip32PrivateKey.toPublic().hex();
   }
-  derive(path: number[]): IBip32 {
-    throw new Error("Method not implemented.");
-  }
-  sign(data: string): string {
-    throw new Error("Method not implemented.");
-  }
-  verify(data: string, signature: string): boolean {
-    throw new Error("Method not implemented.");
+
+  /**
+   * Get an ISigner instance initialized with the current Bip32 private key.
+   * @returns {ISigner} An ISigner instance initialized with the current Bip32 private key.
+   */
+  toSigner(): ISigner {
+    return new CardanoSigner({
+      type: "extendedKeyHex",
+      ed25519PrivateKeyHex: this.bip32PrivateKey.toRawKey().hex(),
+    });
   }
 }
 export default CardanoBip32;
