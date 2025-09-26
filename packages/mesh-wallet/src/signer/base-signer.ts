@@ -9,18 +9,18 @@ import { HexBlob } from "@cardano-sdk/util";
 
 import { ISigner } from "../interfaces/signer";
 
-type CardanoSignerConstructor =
+export type BaseSignerConstructor =
   | {
       type: "extendedKeyHex";
       ed25519PrivateKeyHex: string;
     }
   | { type: "normalKeyHex"; ed25519PrivateKeyHex: string };
 
-export class CardanoSigner implements ISigner {
+export class BaseSigner implements ISigner {
   private ed25519PrivateKey: Ed25519PrivateKey;
 
   // Signer can be initialized with either an extendedKeyHex or a normalKeyHex
-  constructor(constructorParams: CardanoSignerConstructor) {
+  constructor(constructorParams: BaseSignerConstructor) {
     if (constructorParams.type === "extendedKeyHex") {
       const { ed25519PrivateKeyHex } = constructorParams;
       this.ed25519PrivateKey = Ed25519PrivateKey.fromExtendedHex(

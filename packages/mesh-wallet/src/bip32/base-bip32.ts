@@ -3,9 +3,9 @@ import { mnemonicToEntropy } from "bip39";
 
 import { IBip32 } from "../interfaces/bip32";
 import { ISigner } from "../interfaces/signer";
-import { CardanoSigner } from "../signer/cardano-signer";
+import { BaseSigner } from "../signer/base-signer";
 
-type CardanoBip32Constructor =
+export type BaseBip32Constructor =
   | {
       type: "mnemonic";
       mnemonic: string[];
@@ -14,11 +14,11 @@ type CardanoBip32Constructor =
   | { type: "entropy"; entropy: string; password?: string }
   | { type: "keyHex"; keyHex: string };
 
-class CardanoBip32 implements IBip32 {
+export class BaseBip32 implements IBip32 {
   private bip32PrivateKey: Bip32PrivateKey;
 
   // Bip32 can be initialized with either a mnemonic array or a keyHex string
-  constructor(constructorParams: CardanoBip32Constructor) {
+  constructor(constructorParams: BaseBip32Constructor) {
     if (constructorParams.type === "mnemonic") {
       const { mnemonic, password } = constructorParams;
       const entropy = mnemonicToEntropy(mnemonic.join(" "));
@@ -48,7 +48,7 @@ class CardanoBip32 implements IBip32 {
    * @returns {IBip32} A new IBip32 instance derived from the current key using the specified path.
    */
   derive(path: number[]): IBip32 {
-    return new CardanoBip32({
+    return new BaseBip32({
       type: "keyHex",
       keyHex: this.bip32PrivateKey.derive(path).hex(),
     });
@@ -67,10 +67,9 @@ class CardanoBip32 implements IBip32 {
    * @returns {ISigner} An ISigner instance initialized with the current Bip32 private key.
    */
   toSigner(): ISigner {
-    return new CardanoSigner({
+    return new BaseSigner({
       type: "extendedKeyHex",
       ed25519PrivateKeyHex: this.bip32PrivateKey.toRawKey().hex(),
     });
   }
 }
-export default CardanoBip32;
