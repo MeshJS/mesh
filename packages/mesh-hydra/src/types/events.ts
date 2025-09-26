@@ -230,3 +230,19 @@ export type DecommitFinalized = {
   seq: number;
   timestamp: string;
 };
+
+export type CommitFinalized = {
+  depositTxId: string,
+  headId: string,
+  seq: number;
+  tag: "CommitFinalized";
+  timestamp: string;
+};
+
+export type CommitApproved = {
+  headId: string,
+  seq: number;
+  tag: "CommitApproved";
+  timestamp: string;
+  utxoToCommit: Record<string, hydraUTxOs>;
+};
