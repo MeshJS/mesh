@@ -232,15 +232,15 @@ export type DecommitFinalized = {
 };
 
 export type CommitFinalized = {
-  depositTxId: string,
-  headId: string,
+  depositTxId: string;
+  headId: string;
   seq: number;
   tag: "CommitFinalized";
   timestamp: string;
 };
 
 export type CommitApproved = {
-  headId: string,
+  headId: string;
   seq: number;
   tag: "CommitApproved";
   timestamp: string;
