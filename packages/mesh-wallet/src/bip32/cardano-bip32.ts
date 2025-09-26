@@ -48,8 +48,10 @@ class CardanoBip32 implements IBip32 {
    * @returns {IBip32} A new IBip32 instance derived from the current key using the specified path.
    */
   derive(path: number[]): IBip32 {
-    this.bip32PrivateKey = this.bip32PrivateKey.derive(path);
-    return this;
+    return new CardanoBip32({
+      type: "keyHex",
+      keyHex: this.bip32PrivateKey.derive(path).hex(),
+    });
   }
 
   /**
