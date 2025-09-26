@@ -144,8 +144,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
           ? { headStatus: message.headStatus }
           : { tag: message.tag };
       if (status.headStatus === "Idle") {
-        this._eventEmitter.emit("onstatuschange", status);
         this._connection.send({ tag: "Init" });
+        this._eventEmitter.emit("onstatuschange", status);
       }
     });
   }
@@ -158,7 +158,6 @@ export class HydraProvider implements IFetcher, ISubmitter {
         message.tag === "Greetings"
           ? { headStatus: message.headStatus }
           : { tag: message.tag };
-      console.log("status", status.headStatus);
       if (
         status.headStatus === "Initializing" ||
         status.tag === "HeadIsInitializing"
@@ -205,6 +204,23 @@ export class HydraProvider implements IFetcher, ISubmitter {
         return message.transactionId;
       }
     });
+  }
+
+  /**
+   * Attempt to recover a deposit transaction in the Hydra head by its transaction ID.
+   * @param txId - The transaction ID (as a string) of the deposit transaction to recover.
+   *
+   * @example
+   * ```ts
+   * await hydraProvider.recover(txId);
+   * ```
+   */
+  async recover(txId: string): Promise<void> {
+    const payload = {
+      tag: "Recover",
+      recoverTxId: txId,
+    };
+    this._connection.send(payload);
   }
 
   /**
@@ -256,8 +272,14 @@ export class HydraProvider implements IFetcher, ISubmitter {
    */
   async fanout() {
     this.onMessage((message) => {
-      const status = hydraStatus({ tag: message.tag });
-      if (status === "FANOUT_POSSIBLE") {
+      const status =
+        message.tag === "Greetings"
+          ? { headStatus: message.headStatus }
+          : { tag: message.tag };
+      if (
+        status.headStatus === "FanoutPossible" ||
+        status.tag === "ReadyToFanout"
+      ) {
         this._connection.send({ tag: "Fanout" });
         this._eventEmitter.emit("onstatuschange", status);
       }
@@ -423,8 +445,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
   }
 
   /**
-   * Submit a transaction to the Hydra node. Note, unlike other providers, Hydra does not return a transaction hash.
+   * Submit a transaction to the Hydra node. Note, unlike other providers,this returns a transaction hash (txId).
    * @param cborHex - The transaction in CBOR hex format usually the unsigned transaction
+   * @returns The transaction hash (txId)
    */
   async submitTx(cborHex: string): Promise<string> {
     try {
@@ -769,6 +792,6 @@ export class HydraProvider implements IFetcher, ISubmitter {
   }
 
   fetchTxInfo(hash: string): Promise<TransactionInfo> {
-    throw new Error("unsupported by Hydra: transactions do not return a hash");
+    throw new Error("Method not implemented");
   }
 }
