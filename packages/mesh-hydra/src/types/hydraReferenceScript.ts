@@ -37,7 +37,7 @@ export async function hydraReferenceScript(
   const { scriptInstance, scriptLanguage, scriptType } =
     await getReferenceScriptInfo(scriptRef);
 
-  if (!scriptRef || !scriptInstance || !scriptLanguage) {
+  if (!scriptRef || !scriptInstance || !scriptLanguage || !scriptType) {
     return null;
   }
 
