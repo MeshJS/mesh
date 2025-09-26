@@ -26,29 +26,28 @@ export class HydraConnection extends EventEmitter {
 
   async connect(): Promise<void> {
     this._websocket = new WebSocket(this._websocketUrl);
-    
+
     this._status = "CONNECTING";
 
     this._websocket.onopen = () => {
       this._connected = true;
       this._status = "CONNECTED";
-      console.log("WebSocket connected successfully");
+      console.log("Hydra websocket connected");
     };
 
     this._websocket.onerror = (error) => {
-      console.error("Hydra error:", error);
+      console.error("Hydra websocket error:", error);
       this._connected = false;
     };
 
     this._websocket.onclose = (code) => {
-      console.error("Hydra websocket closed", code.code, code.reason);
+      console.error("Hydra websocket closed:", code.code, code.reason);
       this._status = "DISCONNECTED";
       this._connected = false;
     };
 
     this._websocket.onmessage = (data: MessageEvent) => {
       const message = JSON.parse(data.data as string);
-      console.log("Received message from Hydra:", message);
       this._eventEmitter.emit("onmessage", message);
       this.processStatus(message);
     };
@@ -75,7 +74,7 @@ export class HydraConnection extends EventEmitter {
 
     const timeout = setTimeout(() => {
       if (!send) {
-        console.log(`websocket failed to send ${data}`);
+        console.log(`Hydra websocket failed to send ${JSON.stringify(data)}`);
         clearInterval(interval);
       }
     }, 5000);
@@ -86,7 +85,7 @@ export class HydraConnection extends EventEmitter {
       setTimeout(() => {
         if (this._websocket) {
           this._websocket.onclose = (event: import("ws").CloseEvent) => {
-            console.log("WebSocket disconnected:", event?.reason);
+            console.log("Hydra websocket disconnected:", event?.reason);
             this._connected = false;
             resolve();
           };
@@ -97,6 +96,14 @@ export class HydraConnection extends EventEmitter {
         }
       }, timeout);
     });
+  }
+
+  async processStatus(message: {}) {
+    let status: hydraStatus | null = null;
+    if ((status = hydraStatus(message)) && status !== null) {
+      this._status = status;
+      this._eventEmitter.emit("onstatuschange", status);
+    }
   }
 
   _websocket: WebSocket | undefined;
