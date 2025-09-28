@@ -18,12 +18,14 @@ describe("BaseBip32", () => {
       type: "mnemonic",
       mnemonic: "solution,".repeat(24).split(",").slice(0, 24),
     });
+
     expect(bip32).toBeInstanceOf(BaseBip32);
     const accountKey = bip32.derive([
       1852 + HARDENED_OFFSET,
       1815 + HARDENED_OFFSET,
       0 + HARDENED_OFFSET,
     ]);
+
     expect(
       Ed25519PublicKey.fromHex(
         Ed25519PublicKeyHex(

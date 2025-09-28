@@ -36,6 +36,8 @@
   },
   "dependencies": {
     "@cardano-sdk/crypto": "0.4.4",
+    "@cardano-sdk/core": "0.46.10",
+    "@cardano-sdk/util": "0.17.1",
     "@types/base32-encoding": "^1.0.2",
     "base32-encoding": "^1.0.0",
     "@simplewebauthn/browser": "^13.0.0"
