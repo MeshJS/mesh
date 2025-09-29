@@ -27,6 +27,10 @@ export type BlockfrostAdditionalUtxoValue = {
 } & Record<string, PolicyValue>;
 
 export type BlockfrostAdditionalUtxo = {
+  transaction: {
+    id: string;
+  };
+  index: number;
   address: string;
   value: BlockfrostAdditionalUtxoValue;
 };

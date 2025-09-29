@@ -609,6 +609,12 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
     return undefined;
   };
 
+  /**
+   * Evaluates the resources required to execute the transaction
+   * @param cbor - The transaction CBOR hex string to evaluate
+   * @param additionalUtxos - Optional array of additional UTxOs to include in the evaluation context for resolving transaction inputs
+   * @param additionalTxs - Optional array of transaction CBOR hex strings to provide additional UTxOs from their outputs
+   */
   async evaluateTx(cbor: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
     const additionalUtxoSet = await getAdditionalUtxos(this, "koios", additionalUtxos, additionalTxs);
 

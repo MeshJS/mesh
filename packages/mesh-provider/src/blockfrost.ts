@@ -109,29 +109,23 @@ export class BlockfrostProvider
 
   /**
    * Evaluates the resources required to execute the transaction
-   * @param tx - The transaction to evaluate
+   * @param cbor - The transaction CBOR hex string to evaluate
+   * @param additionalUtxos - Optional array of additional UTxOs to include in the evaluation context for resolving transaction inputs
+   * @param additionalTxs - Optional array of transaction CBOR hex strings to provide additional UTxOs from their outputs
    */
   async evaluateTx(cbor: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
     const additionalUtxo = await getAdditionalUtxos(this, "blockfrost", additionalUtxos, additionalTxs);
 
-    console.log("additionalUtxo:", additionalUtxo)
-
-    const body = {
-      jsonrpc: "2.0",
-      method: "evaluateTransaction",
-      params: {
-        transaction: {
-          cbor,
-          additionalUtxo,
-        },
-      }
+    const params = {
+      cbor,
+      additionalUtxo,
     }
 
     try {
       const headers = { "Content-Type": "application/json" };
       const { status, data } = await this._axiosInstance.post(
-        "utils/txs/evaluate/utxos?version=6",
-        body.params.transaction,
+        "utils/txs/evaluate/utxos",
+        params,
         {
           headers,
         },
