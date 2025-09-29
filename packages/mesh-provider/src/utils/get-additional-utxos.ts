@@ -9,9 +9,11 @@ import {
   KoiosAdditionalUtxos,
   MaestroAdditionalUtxo,
   MaestroAdditionalUtxos,
+  OgmiosAdditionalUtxo,
+  OgmiosAdditionalUtxos,
 } from "../types";
 
-type OutputFormat = "koios" | "maestro" | "blockfrost";
+type OutputFormat = "koios" | "maestro" | "blockfrost" | "ogmios";
 
 export async function getAdditionalUtxos(
   provider: IFetcher,
@@ -19,7 +21,7 @@ export async function getAdditionalUtxos(
   additionalUtxos?: UTxO[],
   additionalTxs?: string[],
 ): Promise<
-  MaestroAdditionalUtxos | KoiosAdditionalUtxos | BlockfrostAdditionalUtxos
+  MaestroAdditionalUtxos | KoiosAdditionalUtxos | BlockfrostAdditionalUtxos | OgmiosAdditionalUtxos
 > {
   const foundUtxos = new Set<string>();
   const uniqueUtxos: UTxO[] = [];
@@ -73,6 +75,17 @@ export async function getAdditionalUtxos(
     }),
 
     blockfrost: uniqueUtxos.map<BlockfrostAdditionalUtxo>((utxo) => {
+      return {
+        transaction: {
+          id: utxo.input.txHash,
+        },
+        index: utxo.input.outputIndex,
+        address: utxo.output.address,
+        value: parseValue(utxo),
+      };
+    }),
+
+    ogmios: uniqueUtxos.map<OgmiosAdditionalUtxo>((utxo) => {
       return {
         transaction: {
           id: utxo.input.txHash,
