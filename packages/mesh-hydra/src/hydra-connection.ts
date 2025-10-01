@@ -26,29 +26,28 @@ export class HydraConnection extends EventEmitter {
 
   async connect(): Promise<void> {
     this._websocket = new WebSocket(this._websocketUrl);
-    
+
     this._status = "CONNECTING";
 
     this._websocket.onopen = () => {
       this._connected = true;
       this._status = "CONNECTED";
-      console.log("WebSocket connected successfully");
+      console.log("Hydra websocket connected");
     };
 
     this._websocket.onerror = (error) => {
-      console.error("Hydra error:", error);
+      console.error("Hydra websocket error:", error);
       this._connected = false;
     };
 
     this._websocket.onclose = (code) => {
-      console.error("Hydra websocket closed", code.code, code.reason);
+      console.error("Hydra websocket closed:", code.code, code.reason);
       this._status = "DISCONNECTED";
       this._connected = false;
     };
 
     this._websocket.onmessage = (data: MessageEvent) => {
       const message = JSON.parse(data.data as string);
-      console.log("Received message from Hydra:", message);
       this._eventEmitter.emit("onmessage", message);
       this.processStatus(message);
     };
@@ -75,21 +74,28 @@ export class HydraConnection extends EventEmitter {
 
     const timeout = setTimeout(() => {
       if (!send) {
-        console.log(`websocket failed to send ${data}`);
+        console.log(`Hydra websocket failed to send ${JSON.stringify(data)}`);
         clearInterval(interval);
       }
     }, 5000);
   }
 
-  async disconnect() {
-    if (this._status === "IDLE") {
-      return;
-    }
-    if (this._websocket && this._websocket.readyState === WebSocket.OPEN) {
-      this._websocket.close(1007);
-    }
-    this._status = "IDLE";
-    this._connected = false;
+  async disconnect(timeout?: number): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        if (this._websocket) {
+          this._websocket.onclose = (event: import("ws").CloseEvent) => {
+            console.log("Hydra websocket disconnected:", event?.reason);
+            this._connected = false;
+            resolve();
+          };
+          this._websocket.close(1000, "initiated disconnect");
+        } else {
+          this._connected = false;
+          resolve();
+        }
+      }, timeout);
+    });
   }
 
   async processStatus(message: {}) {

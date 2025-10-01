@@ -503,7 +503,9 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         Datum.newInlineData(fromBuilderToPlutusData(output.datum.data)),
       );
     } else if (output.datum?.type === "Embedded") {
-      throw new Error("Embedded datum not supported");
+      cardanoOutput.setDatum(
+        Datum.newDataHash(fromBuilderToPlutusData(output.datum.data).hash()),
+      );
     }
     if (output.referenceScript) {
       switch (output.referenceScript.version) {
@@ -955,6 +957,11 @@ class CardanoSDKSerializerCore {
       );
     } else if (output.datum?.type === "Embedded") {
       // Embedded datums get added to witness set
+      cardanoOutput.setDatum(
+        Datum.newDataHash(
+          DatumHash(fromBuilderToPlutusData(output.datum.data).hash()),
+        ),
+      );
       const currentWitnessDatum =
         this.txWitnessSet.plutusData() ??
         Serialization.CborSet.fromCore([], Serialization.PlutusData.fromCore);
