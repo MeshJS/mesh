@@ -114,6 +114,8 @@ export class BlockfrostProvider
    * @param additionalTxs - Optional array of transaction CBOR hex strings to provide additional UTxOs from their outputs
    */
   async evaluateTx(cbor: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+    // TODO: Remove the first provider (fetcher) parameter from getAdditionalUtxos
+    // and replace the logic inside getAdditionalUtxos with offline functions to extract UTxOs from txs
     const additionalUtxo = await getAdditionalUtxos(this, "blockfrost", additionalUtxos, additionalTxs);
 
     const params = {

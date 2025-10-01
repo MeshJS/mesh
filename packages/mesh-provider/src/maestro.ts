@@ -75,6 +75,8 @@ export class MaestroProvider
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
+    // TODO: Remove the first provider (fetcher) parameter from getAdditionalUtxos
+    // and replace the logic inside getAdditionalUtxos with offline functions to extract UTxOs from txs
     const additional_utxos = await getAdditionalUtxos(
       this,
       "maestro",

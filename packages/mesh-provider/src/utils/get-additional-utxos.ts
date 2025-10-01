@@ -36,8 +36,9 @@ export async function getAdditionalUtxos(
 
   if (additionalTxs) {
     for (const txHash of additionalTxs) {
-      // should use offline function to get transaction outputs(utxos)
-      // const outputs = getTransactionOutputs(txHash);
+      // TODO: Replace provider.fetchUTxOs with offline function to extract UTxOs from transaction CBOR
+      // This will allow removal of the 'provider' parameter from this function
+      // Example: const utxos = getTransactionOutputs(txHash);
       const utxos = await provider.fetchUTxOs(txHash);
 
       for (const utxo of utxos) {
