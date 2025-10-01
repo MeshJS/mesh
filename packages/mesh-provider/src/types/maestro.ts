@@ -51,6 +51,6 @@ export type MaestroAdditionalUtxo = {
   tx_hash: string;
   index: number;
   txout_cbor: string;
-}
+};
 
 export type MaestroAdditionalUtxos = Array<MaestroAdditionalUtxo>;

@@ -25,12 +25,7 @@ export default function FetcherProtocolParameters({
       sidebarTo="fetchProtocolParameters"
       title="Fetch Protocol Parameters"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }

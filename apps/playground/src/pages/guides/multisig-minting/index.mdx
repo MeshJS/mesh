@@ -12,20 +12,20 @@ export default function MDXPage({ children }) {
     { label: 'Demo', to: 'demo' },
   ];
 
-  return (
-    <LayoutImageHeaderAndBody
+return (
+<LayoutImageHeaderAndBody
       title={guideminting.title}
       description={guideminting.description}
       image={guideminting.image}
       cover={guideminting.cover}
       sidebarItems={sidebarItems}
     >
-      <>
-        {children}
-        <Demo />
-      </>
-    </LayoutImageHeaderAndBody>
-  );
+<>
+{children}
+<Demo />
+</>
+</LayoutImageHeaderAndBody>
+);
 }
 
 A multi-signature (multi-sig) transaction requires more than one user to sign a transaction prior to the transaction being broadcast on a blockchain. You can think of it like a husband and wife savings account, where both signatures are required to spend the funds, preventing one spouse from spending the money without the approval of the other. For a multi-sig transaction, you can include 2 or more required signers, these signers can be wallets ([Browser Wallet](/apis/wallets/browserwallet) or [Mesh Wallet](/apis/wallets/meshwallet)) or Plutus script.

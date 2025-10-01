@@ -24,12 +24,7 @@ export default function FetcherAddressAssets({
       sidebarTo="fetchAddressAssets"
       title="Fetch Address Assets"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -38,9 +33,7 @@ function Left(userInput: string) {
   return (
     <>
       <p>Fetch assets from an address.</p>
-      <Codeblock
-        data={`await provider.fetchAddressAssets('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchAddressAssets('${userInput}')`} />
     </>
   );
 }

@@ -43,7 +43,8 @@ import { parseAssetUnit } from "./utils/parse-asset-unit";
  * ```
  */
 export class YaciProvider
-  implements IFetcher, IListener, ISubmitter, IEvaluator {
+  implements IFetcher, IListener, ISubmitter, IEvaluator
+{
   private readonly _axiosInstance: AxiosInstance;
   private readonly _adminAxiosInstance: AxiosInstance | undefined;
 
@@ -182,11 +183,11 @@ export class YaciProvider
       if (status === 200)
         return data.length > 0
           ? paginateUTxOs(page + 1, [
-            ...utxos,
-            ...(await Promise.all(
-              data.map((utxo: any) => this.toUTxO(utxo, utxo.tx_hash)),
-            )),
-          ])
+              ...utxos,
+              ...(await Promise.all(
+                data.map((utxo: any) => this.toUTxO(utxo, utxo.tx_hash)),
+              )),
+            ])
           : utxos;
 
       throw parseHttpError(data);
@@ -539,7 +540,11 @@ export class YaciProvider
    * Evaluates the resources required to execute the transaction
    * @param tx - The transaction to evaluate
    */
-  async evaluateTx(txHex: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(
+    txHex: string,
+    additionalUtxos?: UTxO[],
+    additionalTxs?: string[],
+  ): Promise<Omit<Action, "data">[]> {
     // TODO: additionalUtxos/additionalTxs dep on utxoprc implementation
 
     try {

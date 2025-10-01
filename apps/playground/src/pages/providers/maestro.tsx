@@ -82,22 +82,10 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/MaestroProvider" />
 
-        <ProviderFetchers
-          provider={provider}
-          providerName="maestro"
-        />
-        <ProviderEvaluators
-          provider={provider}
-          providerName="maestro"
-        />
-        <ProviderSubmitters
-          provider={provider}
-          providerName="maestro"
-        />
-        <ProviderListeners
-          provider={provider}
-          providerName="maestro"
-        />
+        <ProviderFetchers provider={provider} providerName="maestro" />
+        <ProviderEvaluators provider={provider} providerName="maestro" />
+        <ProviderSubmitters provider={provider} providerName="maestro" />
+        <ProviderListeners provider={provider} providerName="maestro" />
       </SidebarFullwidth>
     </>
   );

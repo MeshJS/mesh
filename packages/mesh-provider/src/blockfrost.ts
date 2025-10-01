@@ -33,7 +33,7 @@ import {
 import { utxosToAssets } from "./common/utxos-to-assets";
 import { OfflineFetcher } from "./offline/offline-fetcher";
 import { BlockfrostAsset, BlockfrostUTxO } from "./types";
-import { parseHttpError, parseAssetUnit, getAdditionalUtxos } from "./utils";
+import { getAdditionalUtxos, parseAssetUnit, parseHttpError } from "./utils";
 
 export type BlockfrostCachingOptions = {
   enableCaching?: boolean;
@@ -50,13 +50,14 @@ export type BlockfrostSupportedNetworks = "mainnet" | "preview" | "preprod";
  * import { BlockfrostProvider } from "@meshsdk/core";
  *
  * const provider = new BlockfrostProvider('<Your-API-Key>');
- * 
+ *
  * // With caching enabled
  * const providerWithCache = new BlockfrostProvider('<Your-API-Key>', 0, { enableCaching: true });
  * ```
  */
 export class BlockfrostProvider
-  implements IFetcher, IListener, ISubmitter, IEvaluator {
+  implements IFetcher, IListener, ISubmitter, IEvaluator
+{
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: BlockfrostSupportedNetworks;
   private submitTxToBytes = true;
@@ -76,7 +77,11 @@ export class BlockfrostProvider
    * @param version The version of the API. Default is 0.
    * @param cachingOptions Optional caching configuration
    */
-  constructor(projectId: string, version?: number, cachingOptions?: BlockfrostCachingOptions);
+  constructor(
+    projectId: string,
+    version?: number,
+    cachingOptions?: BlockfrostCachingOptions,
+  );
 
   constructor(...args: unknown[]) {
     let cachingOptions: BlockfrostCachingOptions | undefined;
@@ -92,8 +97,9 @@ export class BlockfrostProvider
       const projectId = args[0] as string;
       const network = projectId.slice(0, 7);
       this._axiosInstance = axios.create({
-        baseURL: `https://cardano-${network}.blockfrost.io/api/v${args[1] ?? 0
-          }`,
+        baseURL: `https://cardano-${network}.blockfrost.io/api/v${
+          args[1] ?? 0
+        }`,
         headers: { project_id: projectId },
       });
       this._network = network as BlockfrostSupportedNetworks;
@@ -103,7 +109,8 @@ export class BlockfrostProvider
     // Initialize caching if enabled
     if (cachingOptions?.enableCaching) {
       this._enableCaching = true;
-      this._offlineFetcher = cachingOptions.offlineFetcher || new OfflineFetcher(this._network);
+      this._offlineFetcher =
+        cachingOptions.offlineFetcher || new OfflineFetcher(this._network);
     }
   }
 
@@ -113,15 +120,24 @@ export class BlockfrostProvider
    * @param additionalUtxos - Optional array of additional UTxOs to include in the evaluation context for resolving transaction inputs
    * @param additionalTxs - Optional array of transaction CBOR hex strings to provide additional UTxOs from their outputs
    */
-  async evaluateTx(cbor: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(
+    cbor: string,
+    additionalUtxos?: UTxO[],
+    additionalTxs?: string[],
+  ): Promise<Omit<Action, "data">[]> {
     // TODO: Remove the first provider (fetcher) parameter from getAdditionalUtxos
     // and replace the logic inside getAdditionalUtxos with offline functions to extract UTxOs from txs
-    const additionalUtxo = await getAdditionalUtxos(this, "blockfrost", additionalUtxos, additionalTxs);
+    const additionalUtxo = await getAdditionalUtxos(
+      this,
+      "blockfrost",
+      additionalUtxos,
+      additionalTxs,
+    );
 
     const params = {
       cbor,
       additionalUtxo,
-    }
+    };
 
     try {
       const headers = { "Content-Type": "application/json" };
@@ -257,7 +273,10 @@ export class BlockfrostProvider
     // Check cache first if caching is enabled
     if (this._enableCaching && this._offlineFetcher) {
       try {
-        const cachedUtxos = await this._offlineFetcher.fetchAddressUTxOs(address, asset);
+        const cachedUtxos = await this._offlineFetcher.fetchAddressUTxOs(
+          address,
+          asset,
+        );
         if (cachedUtxos.length > 0) {
           return cachedUtxos;
         }
@@ -280,13 +299,13 @@ export class BlockfrostProvider
       if (status === 200 || status == 202)
         return data.length > 0
           ? paginateUTxOs(page + 1, [
-            ...utxos,
-            ...(await Promise.all(
-              data.map((utxo: BlockfrostUTxO) =>
-                this.toUTxO(utxo, utxo.tx_hash),
-              ),
-            )),
-          ])
+              ...utxos,
+              ...(await Promise.all(
+                data.map((utxo: BlockfrostUTxO) =>
+                  this.toUTxO(utxo, utxo.tx_hash),
+                ),
+              )),
+            ])
           : utxos;
 
       throw parseHttpError(data);
@@ -296,7 +315,11 @@ export class BlockfrostProvider
       const fetchedUtxos = await paginateUTxOs();
 
       // Cache the fetched UTXOs if caching is enabled
-      if (this._enableCaching && this._offlineFetcher && fetchedUtxos.length > 0) {
+      if (
+        this._enableCaching &&
+        this._offlineFetcher &&
+        fetchedUtxos.length > 0
+      ) {
         try {
           this._offlineFetcher.addUTxOs(fetchedUtxos);
         } catch (error) {
@@ -841,7 +864,8 @@ export class BlockfrostProvider
   setCaching(enable: boolean, offlineFetcher?: OfflineFetcher): void {
     this._enableCaching = enable;
     if (enable) {
-      this._offlineFetcher = offlineFetcher || new OfflineFetcher(this._network);
+      this._offlineFetcher =
+        offlineFetcher || new OfflineFetcher(this._network);
     } else {
       this._offlineFetcher = undefined;
     }

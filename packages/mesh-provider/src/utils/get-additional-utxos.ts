@@ -21,7 +21,10 @@ export async function getAdditionalUtxos(
   additionalUtxos?: UTxO[],
   additionalTxs?: string[],
 ): Promise<
-  MaestroAdditionalUtxos | KoiosAdditionalUtxos | BlockfrostAdditionalUtxos | OgmiosAdditionalUtxos
+  | MaestroAdditionalUtxos
+  | KoiosAdditionalUtxos
+  | BlockfrostAdditionalUtxos
+  | OgmiosAdditionalUtxos
 > {
   const foundUtxos = new Set<string>();
   const uniqueUtxos: UTxO[] = [];

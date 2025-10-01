@@ -33,11 +33,13 @@ import {
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 import { KoiosAsset, KoiosReferenceScript, KoiosUTxO } from "./types";
-import { parseHttpError, parseAssetUnit, getAdditionalUtxos } from "./utils";
+import { getAdditionalUtxos, parseAssetUnit, parseHttpError } from "./utils";
 
 export type KoiosSupportedNetworks = "api" | "preview" | "preprod" | "guild";
 
-export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluator {
+export class KoiosProvider
+  implements IFetcher, IListener, ISubmitter, IEvaluator
+{
   private readonly _axiosInstance: AxiosInstance;
   private readonly _network: KoiosSupportedNetworks;
 
@@ -170,9 +172,9 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
 
         return asset !== undefined
           ? utxos.filter(
-            (utxo) =>
-              utxo.output.amount.find((a) => a.unit === asset) !== undefined,
-          )
+              (utxo) =>
+                utxo.output.amount.find((a) => a.unit === asset) !== undefined,
+            )
           : utxos;
       }
 
@@ -615,15 +617,24 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
    * @param additionalUtxos - Optional array of additional UTxOs to include in the evaluation context for resolving transaction inputs
    * @param additionalTxs - Optional array of transaction CBOR hex strings to provide additional UTxOs from their outputs
    */
-  async evaluateTx(cbor: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(
+    cbor: string,
+    additionalUtxos?: UTxO[],
+    additionalTxs?: string[],
+  ): Promise<Omit<Action, "data">[]> {
     // TODO: Remove the first provider (fetcher) parameter from getAdditionalUtxos
     // and replace the logic inside getAdditionalUtxos with offline functions to extract UTxOs from txs
-    const additionalUtxoSet = await getAdditionalUtxos(this, "koios", additionalUtxos, additionalTxs);
+    const additionalUtxoSet = await getAdditionalUtxos(
+      this,
+      "koios",
+      additionalUtxos,
+      additionalTxs,
+    );
 
     try {
       const headers = {
         "Content-Type": "application/json",
-        "Accept": "application/json",
+        Accept: "application/json",
       };
 
       const body = {
@@ -634,14 +645,12 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
             cbor,
             additionalUtxoSet,
           },
-        }
-      }
+        },
+      };
 
-      const { data, status } = await this._axiosInstance.post(
-        "ogmios",
-        body,
-        { headers },
-      );
+      const { data, status } = await this._axiosInstance.post("ogmios", body, {
+        headers,
+      });
 
       if (status === 200 || status === 202) {
         if (!data.result || !data.result.length) {
@@ -660,7 +669,7 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
               steps: val.budget.cpu,
             },
           };
-        })
+        });
       }
 
       throw parseHttpError(data);
@@ -668,6 +677,4 @@ export class KoiosProvider implements IFetcher, IListener, ISubmitter, IEvaluato
       throw parseHttpError(error);
     }
   }
-
-
 }

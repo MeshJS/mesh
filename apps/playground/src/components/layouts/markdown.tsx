@@ -27,7 +27,9 @@ export default function Markdown({ children }: { children: React.ReactNode }) {
             </h2>
           ),
           //@ts-ignore
-          a: (props) => <Link href={props.href}>{props.children as string}</Link>,
+          a: (props) => (
+            <Link href={props.href}>{props.children as string}</Link>
+          ),
         }}
       >
         {children}

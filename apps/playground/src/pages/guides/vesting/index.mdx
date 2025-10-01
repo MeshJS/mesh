@@ -11,20 +11,20 @@ export default function MDXPage({ children }) {
     { label: 'Demo', to: 'demo' },
   ];
 
-  return (
-    <LayoutImageHeaderAndBody
+return (
+<LayoutImageHeaderAndBody
       title={guideVesting.title}
       description={guideVesting.description}
       image={guideVesting.image}
       cover={guideVesting.cover}
       sidebarItems={sidebarItems}
     >
-      <>
-        {children}
-        <Demo />
-      </>
-    </LayoutImageHeaderAndBody>
-  );
+<>
+{children}
+<Demo />
+</>
+</LayoutImageHeaderAndBody>
+);
 }
 
 Vesting contract is a smart contract that locks up funds and allows the beneficiary to withdraw the funds after the lockup period.
@@ -172,7 +172,7 @@ const txBuilder = new MeshTxBuilder({
 await txBuilder
   .txOut(scriptAddr, amount)
   .txOutInlineDatumValue(
-    mConStr0([lockUntilTimeStampMs, ownerPubKeyHash, beneficiaryPubKeyHash])
+    mConStr0([lockUntilTimeStampMs, ownerPubKeyHash, beneficiaryPubKeyHash]),
   )
   .changeAddress(walletAddress)
   .selectUtxosFrom(utxos)
@@ -235,7 +235,7 @@ const datum = deserializeDatum<VestingDatum>(vestingUtxo.output.plutusData!);
 const invalidBefore =
   unixTimeToEnclosingSlot(
     Math.min(datum.fields[0].int as number, Date.now() - 15000),
-    SLOT_CONFIG_NETWORK.preprod
+    SLOT_CONFIG_NETWORK.preprod,
   ) + 1;
 ```
 
@@ -255,7 +255,7 @@ await txBuilder
     vestingUtxo.input.txHash,
     vestingUtxo.input.outputIndex,
     vestingUtxo.output.amount,
-    scriptAddr
+    scriptAddr,
   )
   .spendingReferenceTxInInlineDatumPresent()
   .spendingReferenceTxInRedeemerValue("")
@@ -265,7 +265,7 @@ await txBuilder
     collateralInput.txHash,
     collateralInput.outputIndex,
     collateralOutput.amount,
-    collateralOutput.address
+    collateralOutput.address,
   )
   .invalidBefore(invalidBefore)
   .requiredSignerHash(pubKeyHash)

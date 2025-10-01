@@ -2,8 +2,8 @@ import { useState } from "react";
 
 import { useWallet } from "@meshsdk/react";
 
-import Textarea from "~/components/form/textarea";
 import Select from "~/components/form/select";
+import Textarea from "~/components/form/textarea";
 import InputTable from "~/components/sections/input-table";
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
@@ -25,8 +25,11 @@ function Left() {
   return (
     <>
       <p>
-        Add a metadata script to the transaction using <code>.metadataScript()</code>. This demo shows how to attach a CBOR-encoded script along with its type to a transaction.
-        The accepted script types are: <code>Native</code>, <code>PlutusV1</code>, <code>PlutusV2</code>, and <code>PlutusV3</code>.
+        Add a metadata script to the transaction using{" "}
+        <code>.metadataScript()</code>. This demo shows how to attach a
+        CBOR-encoded script along with its type to a transaction. The accepted
+        script types are: <code>Native</code>, <code>PlutusV1</code>,{" "}
+        <code>PlutusV2</code>, and <code>PlutusV3</code>.
       </p>
       <Codeblock
         data={`txBuilder\n  .metadataScript(scriptCbor, scriptType)\n`}
@@ -38,8 +41,12 @@ function Left() {
 function Right() {
   const { wallet, connected } = useWallet();
 
-  const [scriptCbor, setScriptCbor] = useState<string>("830302828200581c4fa1dd19be215b14a30f2a73f8b29e25bc917fbb2b3325b18394dca78200581c546a29981d02d06ea800e9bb9da1a9d8fc0e251a52a683f55bd7aa8f");
-  const [scriptType, setScriptType] = useState<"PlutusV1" | "PlutusV2" | "PlutusV3" | "Native">("Native");
+  const [scriptCbor, setScriptCbor] = useState<string>(
+    "830302828200581c4fa1dd19be215b14a30f2a73f8b29e25bc917fbb2b3325b18394dca78200581c546a29981d02d06ea800e9bb9da1a9d8fc0e251a52a683f55bd7aa8f",
+  );
+  const [scriptType, setScriptType] = useState<
+    "PlutusV1" | "PlutusV2" | "PlutusV3" | "Native"
+  >("Native");
 
   async function runDemo() {
     const utxos = await wallet.getUtxos();
@@ -99,7 +106,13 @@ function Right() {
             label="Script Type"
             value={scriptType}
             onChange={(e) =>
-              setScriptType(e.target.value as "PlutusV1" | "PlutusV2" | "PlutusV3" | "Native")
+              setScriptType(
+                e.target.value as
+                  | "PlutusV1"
+                  | "PlutusV2"
+                  | "PlutusV3"
+                  | "Native",
+              )
             }
             options={{
               PlutusV1: "PlutusV1",

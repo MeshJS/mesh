@@ -6,6 +6,7 @@ import Metatags from "~/components/site/metatags";
 import { metaReactUicomponents } from "~/data/links-react";
 import ReactConnectWallet from "./connect-wallet";
 import ReactPoweredMesh from "./powered-mesh";
+
 // import ReactStakeButton from "./stake-button";
 
 const ReactPage: NextPage = () => {

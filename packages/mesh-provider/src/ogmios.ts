@@ -7,8 +7,9 @@ import {
   SUPPORTED_OGMIOS_LINKS,
   UTxO,
 } from "@meshsdk/common";
-import { getAdditionalUtxos } from "./utils";
+
 import { BlockfrostProvider } from "./blockfrost";
+import { getAdditionalUtxos } from "./utils";
 
 export class OgmiosProvider implements IEvaluator, ISubmitter {
   private readonly _baseUrl: string;
@@ -28,12 +29,21 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
    * @param additionalUtxos - Optional array of additional UTxOs to include in the evaluation context for resolving transaction inputs
    * @param additionalTxs - Optional array of transaction CBOR hex strings to provide additional UTxOs from their outputs
    */
-  async evaluateTx(cbor: string, additionalUtxos?: UTxO[], additionalTxs?: string[]): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(
+    cbor: string,
+    additionalUtxos?: UTxO[],
+    additionalTxs?: string[],
+  ): Promise<Omit<Action, "data">[]> {
     // Use BlockfrostProvider for fetching additional UTxOs at this moment (as ogmios doesn't implement IFetcher)
     // TODO: Remove the first provider (fetcher) parameter from getAdditionalUtxos
     // and replace the logic inside getAdditionalUtxos with offline functions to extract UTxOs from txs
     const blockfrostProvider = new BlockfrostProvider("apikey");
-    const additionalUtxo = await getAdditionalUtxos(blockfrostProvider, "ogmios", additionalUtxos, additionalTxs);
+    const additionalUtxo = await getAdditionalUtxos(
+      blockfrostProvider,
+      "ogmios",
+      additionalUtxos,
+      additionalTxs,
+    );
 
     const client = await this.open();
 
@@ -41,7 +51,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
       transaction: {
         cbor,
       },
-      additionalUtxo
+      additionalUtxo,
     });
 
     return new Promise((resolve, reject) => {

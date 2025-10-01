@@ -18,8 +18,9 @@ function Left() {
     <>
       <p>
         This API returns an address owned by the wallet that should be used as a
-        change address. A change address is essential during transaction creation
-        to ensure leftover assets are securely returned to the connected wallet.
+        change address. A change address is essential during transaction
+        creation to ensure leftover assets are securely returned to the
+        connected wallet.
       </p>
       <p>
         The change address helps maintain the integrity of transactions by
