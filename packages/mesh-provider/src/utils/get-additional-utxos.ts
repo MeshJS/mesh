@@ -1,5 +1,12 @@
-import { IFetcher, parseAssetUnit, UTxO } from "@meshsdk/common";
-import { toTxUnspentOutput } from "@meshsdk/core-cst";
+import { parseAssetUnit, UTxO } from "@meshsdk/common";
+import {
+  deserializeTx,
+  fromTxUnspentOutput,
+  toTxUnspentOutput,
+  TransactionId,
+  TransactionInput,
+  TransactionUnspentOutput,
+} from "@meshsdk/core-cst";
 
 import {
   BlockfrostAdditionalUtxo,
@@ -15,17 +22,40 @@ import {
 
 type OutputFormat = "koios" | "maestro" | "blockfrost" | "ogmios";
 
-export async function getAdditionalUtxos(
-  provider: IFetcher,
+/**
+ * Extract UTxOs from transaction CBOR hex string
+ * @param txCbor - Transaction in CBOR hex format
+ * @returns Array of UTxOs parsed from the transaction outputs
+ */
+function getTransactionOutputsFromCbor(txCbor: string): UTxO[] {
+  const tx = deserializeTx(txCbor);
+  const txBody = tx.body();
+  const txHash = tx.getId();
+  const outputs = txBody.outputs();
+  const utxos: UTxO[] = [];
+
+  for (let i = 0; i < outputs.length; i++) {
+    const output = outputs[i];
+    if (output) {
+      const txInput = new TransactionInput(TransactionId(txHash), BigInt(i));
+      const txUnspentOutput = new TransactionUnspentOutput(txInput, output);
+      const utxo = fromTxUnspentOutput(txUnspentOutput);
+      utxos.push(utxo);
+    }
+  }
+
+  return utxos;
+}
+
+export function getAdditionalUtxos(
   format: OutputFormat,
   additionalUtxos?: UTxO[],
   additionalTxs?: string[],
-): Promise<
+):
   | MaestroAdditionalUtxos
   | KoiosAdditionalUtxos
   | BlockfrostAdditionalUtxos
-  | OgmiosAdditionalUtxos
-> {
+  | OgmiosAdditionalUtxos {
   const foundUtxos = new Set<string>();
   const uniqueUtxos: UTxO[] = [];
 
@@ -38,11 +68,8 @@ export async function getAdditionalUtxos(
   }
 
   if (additionalTxs) {
-    for (const txHash of additionalTxs) {
-      // TODO: Replace provider.fetchUTxOs with offline function to extract UTxOs from transaction CBOR
-      // This will allow removal of the 'provider' parameter from this function
-      // Example: const utxos = getTransactionOutputs(txHash);
-      const utxos = await provider.fetchUTxOs(txHash);
+    for (const txCbor of additionalTxs) {
+      const utxos = getTransactionOutputsFromCbor(txCbor);
 
       for (const utxo of utxos) {
         addUniqueUtxo(utxo, foundUtxos, uniqueUtxos);

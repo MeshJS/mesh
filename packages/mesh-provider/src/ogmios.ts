@@ -8,7 +8,6 @@ import {
   UTxO,
 } from "@meshsdk/common";
 
-import { BlockfrostProvider } from "./blockfrost";
 import { getAdditionalUtxos } from "./utils";
 
 export class OgmiosProvider implements IEvaluator, ISubmitter {
@@ -34,12 +33,7 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
-    // Use BlockfrostProvider for fetching additional UTxOs at this moment (as ogmios doesn't implement IFetcher)
-    // TODO: Remove the first provider (fetcher) parameter from getAdditionalUtxos
-    // and replace the logic inside getAdditionalUtxos with offline functions to extract UTxOs from txs
-    const blockfrostProvider = new BlockfrostProvider("apikey");
-    const additionalUtxo = await getAdditionalUtxos(
-      blockfrostProvider,
+    const additionalUtxo = getAdditionalUtxos(
       "ogmios",
       additionalUtxos,
       additionalTxs,

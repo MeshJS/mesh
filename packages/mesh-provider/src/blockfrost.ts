@@ -125,10 +125,7 @@ export class BlockfrostProvider
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
-    // TODO: Remove the first provider (fetcher) parameter from getAdditionalUtxos
-    // and replace the logic inside getAdditionalUtxos with offline functions to extract UTxOs from txs
-    const additionalUtxo = await getAdditionalUtxos(
-      this,
+    const additionalUtxo = getAdditionalUtxos(
       "blockfrost",
       additionalUtxos,
       additionalTxs,
