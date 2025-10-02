@@ -125,7 +125,7 @@ export class BlockfrostProvider
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
-    const additionalUtxo = getAdditionalUtxos(
+    const additionalUtxoSet = getAdditionalUtxos(
       "blockfrost",
       additionalUtxos,
       additionalTxs,
@@ -133,7 +133,7 @@ export class BlockfrostProvider
 
     const params = {
       cbor,
-      additionalUtxo,
+      additionalUtxoSet,
     };
 
     try {

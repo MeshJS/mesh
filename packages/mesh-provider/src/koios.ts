@@ -622,7 +622,7 @@ export class KoiosProvider
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
-    const additionalUtxoSet = getAdditionalUtxos(
+    const additionalUtxo = getAdditionalUtxos(
       "koios",
       additionalUtxos,
       additionalTxs,
@@ -640,8 +640,8 @@ export class KoiosProvider
         params: {
           transaction: {
             cbor,
-            additionalUtxoSet,
           },
+          additionalUtxo,
         },
       };
 

@@ -40,15 +40,7 @@ export type KoiosReferenceScript = {
   value?: KoiosValue;
 };
 
-type KoiosTxIn = {
-  transaction: { id: string };
-  output: { index: number };
-};
-
-type KoiosTxOut = {
-  address: string;
-  value: Record<string, string>;
-};
-
-export type KoiosAdditionalUtxo = [KoiosTxIn, KoiosTxOut];
-export type KoiosAdditionalUtxos = Array<KoiosAdditionalUtxo>;
+export type {
+  OgmiosAdditionalUtxo as KoiosAdditionalUtxo,
+  OgmiosAdditionalUtxos as KoiosAdditionalUtxos,
+} from "./ogmios";

@@ -11,13 +11,14 @@ import {
 import {
   BlockfrostAdditionalUtxo,
   BlockfrostAdditionalUtxos,
-  BlockfrostAdditionalUtxoValue,
+  BlockfrostTxOutValue,
   KoiosAdditionalUtxo,
   KoiosAdditionalUtxos,
   MaestroAdditionalUtxo,
   MaestroAdditionalUtxos,
   OgmiosAdditionalUtxo,
   OgmiosAdditionalUtxos,
+  OgmiosAdditionalUtxoValue,
 } from "../types";
 
 type OutputFormat = "koios" | "maestro" | "blockfrost" | "ogmios";
@@ -78,22 +79,21 @@ export function getAdditionalUtxos(
   }
 
   const result = {
-    koios: uniqueUtxos.map<KoiosAdditionalUtxo>((utxo) => [
-      {
-        transaction: { id: utxo.input.txHash },
-        output: { index: utxo.input.outputIndex },
-      },
-      {
+    blockfrost: uniqueUtxos.map<BlockfrostAdditionalUtxo>((utxo) => {
+      const txIn = {
+        txId: utxo.input.txHash,
+        index: utxo.input.outputIndex,
+      };
+
+      const value = parseValueForBlockfrost(utxo);
+
+      const txOut = {
         address: utxo.output.address,
-        value: utxo.output.amount.reduce<Record<string, string>>(
-          (acc, { unit, quantity }) => {
-            acc[unit] = quantity;
-            return acc;
-          },
-          {},
-        ),
-      },
-    ]),
+        value,
+      };
+
+      return [txIn, txOut];
+    }),
 
     maestro: uniqueUtxos.map<MaestroAdditionalUtxo>((utxo) => {
       const txUnspentOutput = toTxUnspentOutput(utxo);
@@ -105,14 +105,14 @@ export function getAdditionalUtxos(
       };
     }),
 
-    blockfrost: uniqueUtxos.map<BlockfrostAdditionalUtxo>((utxo) => {
+    koios: uniqueUtxos.map<KoiosAdditionalUtxo>((utxo) => {
       return {
         transaction: {
           id: utxo.input.txHash,
         },
         index: utxo.input.outputIndex,
         address: utxo.output.address,
-        value: parseValue(utxo),
+        value: parseValueForOgmios(utxo),
       };
     }),
 
@@ -123,7 +123,7 @@ export function getAdditionalUtxos(
         },
         index: utxo.input.outputIndex,
         address: utxo.output.address,
-        value: parseValue(utxo),
+        value: parseValueForOgmios(utxo),
       };
     }),
   };
@@ -131,17 +131,38 @@ export function getAdditionalUtxos(
   return result[format];
 }
 
-const parseValue = (utxo: UTxO): BlockfrostAdditionalUtxoValue => {
-  const value = utxo.output.amount.reduce((acc, { unit, quantity }) => {
+const parseValueForBlockfrost = (utxo: UTxO): BlockfrostTxOutValue => {
+  const value: any = {};
+
+  utxo.output.amount.forEach(({ unit, quantity }) => {
     if (unit === "lovelace") {
-      acc.ada = { lovelace: Number(quantity) };
+      value.coins = Number(quantity);
     } else {
       const { policyId, assetName } = parseAssetUnit(unit);
-      if (!acc[policyId]) acc[policyId] = {};
-      acc[policyId][assetName] = Number(quantity);
+      if (!value[policyId]) {
+        value[policyId] = {};
+      }
+      value[policyId][assetName] = Number(quantity);
     }
-    return acc;
-  }, {} as BlockfrostAdditionalUtxoValue);
+  });
+
+  return value;
+};
+
+const parseValueForOgmios = (utxo: UTxO): OgmiosAdditionalUtxoValue => {
+  const value: any = {};
+
+  utxo.output.amount.forEach(({ unit, quantity }) => {
+    if (unit === "lovelace") {
+      value.ada = { lovelace: Number(quantity) };
+    } else {
+      const { policyId, assetName } = parseAssetUnit(unit);
+      if (!value[policyId]) {
+        value[policyId] = {};
+      }
+      value[policyId][assetName] = Number(quantity);
+    }
+  });
 
   return value;
 };

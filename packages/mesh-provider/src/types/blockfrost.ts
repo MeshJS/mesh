@@ -16,23 +16,21 @@ export type BlockfrostAsset = {
   quantity: Quantity;
 };
 
-type AdaValue = {
-  lovelace: number;
-};
-
-type PolicyValue = Record<string, number>;
-
-export type BlockfrostAdditionalUtxoValue = {
-  ada: AdaValue;
-} & Record<string, PolicyValue>;
-
-export type BlockfrostAdditionalUtxo = {
-  transaction: {
-    id: string;
-  };
+export type BlockfrostTxIn = {
+  txId: string;
   index: number;
-  address: string;
-  value: BlockfrostAdditionalUtxoValue;
 };
+
+export type BlockfrostTxOutValue = {
+  coins: number;
+  [policyId: string]: { [assetName: string]: number } | number;
+};
+
+export type BlockfrostTxOut = {
+  address: string;
+  value: BlockfrostTxOutValue;
+};
+
+export type BlockfrostAdditionalUtxo = [BlockfrostTxIn, BlockfrostTxOut];
 
 export type BlockfrostAdditionalUtxos = Array<BlockfrostAdditionalUtxo>;
