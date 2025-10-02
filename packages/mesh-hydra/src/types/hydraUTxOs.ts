@@ -1,7 +1,8 @@
 import { UTxO } from "@meshsdk/common";
-import { hydraAssets } from "./hydraAssets";
+import { resolveScriptHash } from "@meshsdk/core";
+import { HydraAssets, hydraAssets } from "./hydraAssets";
 import { hydraReferenceScript } from "./hydraReferenceScript";
-import { parseDatumCbor } from "@meshsdk/core-cst";
+import { resolvePlutusData } from "../utils/resolveDatum";
 
 export type hydraUTxOs = {
   [txRef: string]: hydraUTxO;
@@ -20,21 +21,19 @@ export async function hydraUTxOs(utxos: UTxO[]): Promise<hydraUTxOs> {
 export type hydraUTxO = {
   address: string;
   datum: string | null;
-  datumhash: string | null;
   inlineDatum: object | null;
   inlineDatumRaw: string | null;
   inlineDatumhash: string | null;
   referenceScript: hydraReferenceScript | null;
-  value: hydraAssets;
+  value: HydraAssets;
 };
 
 export async function hydraUTxO(utxo: UTxO): Promise<hydraUTxO> {
   return {
     address: utxo.output.address,
     datum: null,
-    datumhash: null,
     inlineDatum: utxo.output.plutusData
-      ? parseDatumCbor(utxo.output.plutusData)
+      ? (await resolvePlutusData(utxo.output.plutusData)).inlineDatum
       : null,
     inlineDatumRaw: utxo.output.plutusData ?? null,
     inlineDatumhash: utxo.output.dataHash ?? null,
@@ -59,11 +58,23 @@ hydraUTxO.toUTxO = (hydraUTxO: hydraUTxO, txId: string): UTxO => {
       address: hydraUTxO.address,
       amount: hydraAssets.toAssets(hydraUTxO.value),
       dataHash: hydraUTxO.inlineDatumhash ?? undefined,
-      plutusData: hydraUTxO.inlineDatumRaw?.toString(),
-      scriptHash: hydraUTxO.referenceScript?.script.cborHex ?? undefined, //To do
-      scriptRef:
-        hydraUTxO.referenceScript?.script.cborHex ??
-        hydraUTxO.referenceScript?.script.cborHex.toString(),
+      plutusData: hydraUTxO.inlineDatumRaw?.toString() ?? undefined,
+      scriptHash: (() => {
+        const ref = hydraUTxO.referenceScript?.script;
+        if (!ref?.cborHex || ref.type === "SimpleScript") return undefined;
+
+        const match = /V(1|2|3)$/.exec(ref.type as string);
+        const version = match
+          ? (`V${match[1]}` as "V1" | "V2" | "V3")
+          : undefined;
+
+        return resolveScriptHash(ref.cborHex, version);
+      })(),
+
+      scriptRef: (() => {
+        const cbor = hydraUTxO.referenceScript?.script?.cborHex;
+        return cbor ? cbor.toString() : undefined;
+      })(),
     },
   };
 };
