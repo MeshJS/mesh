@@ -35,6 +35,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@meshsdk/bitcoin": "1.9.0-beta.78",
     "@meshsdk/common": "1.9.0-beta.78",
     "@meshsdk/core-cst": "1.9.0-beta.78",
     "@utxorpc/sdk": "^0.6.7",
