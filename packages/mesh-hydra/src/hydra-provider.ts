@@ -256,14 +256,32 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Terminate a head with the latest known snapshot. This effectively moves the head from the Open state to the Close state where the contestation phase begin. As a result of closing a head, no more transactions can be submitted via NewTx.
    */
   async close() {
-    this._connection.send({ tag: "Close" });
+    this.onMessage((message) => {
+      const status =
+        message.tag === "Greetings"
+          ? { headStatus: message.headStatus }
+          : { tag: message.tag };
+      if (status.headStatus === "Open") {
+        this._connection.send({ tag: "Close" });
+        this._eventEmitter.emit("onstatuschange", status);
+      }
+    });
   }
 
   /**
    * Challenge the latest snapshot announced as a result of a head closure from another participant. Note that this necessarily contest with the latest snapshot known of your local Hydra node. Participants can only contest once.
    */
   async contest() {
-    this._connection.send({ tag: "Contest" });
+    this.onMessage((message) => {
+      const status =
+        message.tag === "Greetings"
+          ? { headStatus: message.headStatus }
+          : { tag: message.tag };
+      if (status.headStatus === "Closed" || status.tag === "HeadIsClosed") {
+        this._connection.send({ tag: "Contest" });
+        this._eventEmitter.emit("onstatuschange", status);
+      }
+    });
   }
 
   /**
@@ -374,7 +392,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   async fetchCollectionAssets(policyId: string): Promise<{ assets: Asset[] }> {
     if (policyId.length !== POLICY_ID_LENGTH) {
       throw new Error(
-        "Invalid policyId length: must be a 56-character hexadecimal string"
+        "Invalid policyId length: must be a 56-character hex string"
       );
     }
 
