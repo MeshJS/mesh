@@ -50,7 +50,7 @@ function Left() {
       <Codeblock
         data={`addr_test1qryvgass5dsrf2kxl3vgfz76uhp83kv5lagzcp29tcana68ca5aqa6swlq6llfamln09tal7n5kvt4275ckwedpt4v7q48uhex`}
       />
-      
+
       <h3>Stop Devnet and yaci-cli</h3>
 
       <p>To stop the devnet, run the following command from devnet:</p>

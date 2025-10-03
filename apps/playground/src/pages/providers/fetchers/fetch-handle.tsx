@@ -22,12 +22,7 @@ export default function FetcherHandle({
       sidebarTo="fetchHandle"
       title="Fetch Handle"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -48,9 +43,7 @@ function Left(userInput: string) {
         ADA Handle also released a CIP68 handle and this function will fetch the
         metadata of the handle.
       </p>
-      <Codeblock
-        data={`await provider.fetchHandle('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchHandle('${userInput}')`} />
     </>
   );
 }

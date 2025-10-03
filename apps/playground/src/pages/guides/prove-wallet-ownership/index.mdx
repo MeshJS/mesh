@@ -1,4 +1,5 @@
 import { useState } from "react";
+
 import Button from "~/components/button/button";
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
 import { guideownership } from "~/data/links-guides";
@@ -15,20 +16,20 @@ export default function MDXPage({ children }) {
     { label: 'Demo', to: 'demo' },
   ];
 
-  return (
-    <LayoutImageHeaderAndBody
+return (
+<LayoutImageHeaderAndBody
       title={guideownership.title}
       description={guideownership.description}
       image={guideownership.image}
       cover={guideownership.cover}
       sidebarItems={sidebarItems}
     >
-      <>
-        {children}
-        <Demo />
-      </>
-    </LayoutImageHeaderAndBody>
-  );
+<>
+{children}
+<Demo />
+</>
+</LayoutImageHeaderAndBody>
+);
 }
 
 It's cryptographically easy to prove the ownership of an account by signing a piece of data using a private key. Since a user's public address can be used as their identifier, we can build an authentication mechanism that is based on message signing. This mechanism is made possible because we are able to cryptographically prove the ownership of an account by signing a specific piece of data using the corresponding private key. If the data is correctly signed, then the backend will recognize it as coming from the owner of the public address.

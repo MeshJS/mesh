@@ -17,9 +17,9 @@ function Left() {
     <>
       <p>
         Vesting contract is a smart contract that locks up funds for a period of
-        time and allows the beneficiary to withdraw the funds after the lockup period.
-        Usually, vesting contract defines a beneficiary who can be different
-        from the original owner.
+        time and allows the beneficiary to withdraw the funds after the lockup
+        period. Usually, vesting contract defines a beneficiary who can be
+        different from the original owner.
       </p>
 
       <p>

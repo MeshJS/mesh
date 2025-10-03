@@ -1,3 +1,5 @@
+import { randomBytes } from "crypto";
+
 import {
   AccountInfo,
   Asset,
@@ -6,19 +8,18 @@ import {
   fromUTF8,
   IFetcher,
   IFetcherOptions,
+  Network,
   Protocol,
   resolveEpochNo,
   resolveSlotNo,
+  SLOT_CONFIG_NETWORK,
   SUPPORTED_HANDLES,
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
+import { Serialization, TransactionOutput, Value } from "@meshsdk/core-cst";
 
-import {randomBytes} from 'crypto';
-
-import {parseHttpError} from "../utils";
-import {Serialization, TransactionOutput, Value} from "@meshsdk/core-cst";
-import {Network, SLOT_CONFIG_NETWORK} from "@meshsdk/common";
+import { parseHttpError } from "../utils";
 
 type AssetAddress = {
   address: string;
@@ -72,9 +73,7 @@ export class OfflineFetcher implements IFetcher {
   private protocolParameters: Record<number, Protocol> = {};
   private transactions: Record<string, TransactionInfo> = {};
 
-  constructor(
-    private network?: Network,
-  ) {}
+  constructor(private network?: Network) {}
 
   private paginate<T>(
     items: T[],
@@ -921,14 +920,17 @@ export class OfflineFetcher implements IFetcher {
     const slot = resolveSlotNo(this.network ?? "mainnet", time);
     const epoch = resolveEpochNo(this.network ?? "mainnet", time);
     const epochSlot = this.slotToEpochSlot(BigInt(slot));
-    const randomBlockHash = randomBytes(32).toString('hex');
-    const randomPrevBlockHash = randomBytes(32).toString('hex');
-    const randomOCert = randomBytes(32).toString('hex');
+    const randomBlockHash = randomBytes(32).toString("hex");
+    const randomPrevBlockHash = randomBytes(32).toString("hex");
+    const randomOCert = randomBytes(32).toString("hex");
     const fee = tx.body().fee().toString();
-    const totalOutput = tx.body().outputs().reduce((acc, output) => {
-      const amount = output.amount().coin();
-      return acc + amount;
-    }, 0n);
+    const totalOutput = tx
+      .body()
+      .outputs()
+      .reduce((acc, output) => {
+        const amount = output.amount().coin();
+        return acc + amount;
+      }, 0n);
     const ttl = tx.body().ttl();
     const validityStartInterval = tx.body().validityStartInterval();
     const txHash = tx.body().hash();
@@ -955,16 +957,23 @@ export class OfflineFetcher implements IFetcher {
     const fetchedUTxOs = txInputs.values().map((input) => {
       const txHash = input.transactionId();
       const outputIndex = Number(input.index());
-      const utxo = Object.values(this.utxos).flat().find(utxo => {
-        return utxo.input.txHash === txHash && utxo.input.outputIndex === outputIndex;
-      })
+      const utxo = Object.values(this.utxos)
+        .flat()
+        .find((utxo) => {
+          return (
+            utxo.input.txHash === txHash &&
+            utxo.input.outputIndex === outputIndex
+          );
+        });
       if (!utxo) {
-        throw new Error(`UTxO not found for transaction hash and output index: ${txHash} ${outputIndex}`);
+        throw new Error(
+          `UTxO not found for transaction hash and output index: ${txHash} ${outputIndex}`,
+        );
       }
       return utxo;
     });
 
-    for(const addressUtxos of Object.values(this.utxos)) {
+    for (const addressUtxos of Object.values(this.utxos)) {
       for (const utxo of fetchedUTxOs) {
         const index = addressUtxos.indexOf(utxo);
         if (index !== -1) {
@@ -973,9 +982,12 @@ export class OfflineFetcher implements IFetcher {
       }
     }
 
-    const newUtxOs = tx.body().outputs().map((output, index) => {
-      return this.mapOutputToUTxO(output, txHash, index);
-    });
+    const newUtxOs = tx
+      .body()
+      .outputs()
+      .map((output, index) => {
+        return this.mapOutputToUTxO(output, txHash, index);
+      });
 
     const transactionInfo: TransactionInfo = {
       inputs: fetchedUTxOs,
@@ -986,10 +998,12 @@ export class OfflineFetcher implements IFetcher {
       fees: fee,
       size: txHex.length / 2,
       deposit: "0",
-      invalidBefore: validityStartInterval ? validityStartInterval.toString() : "",
+      invalidBefore: validityStartInterval
+        ? validityStartInterval.toString()
+        : "",
       invalidAfter: ttl ? ttl.toString() : "",
-      outputs: newUtxOs
-    }
+      outputs: newUtxOs,
+    };
 
     this.addBlock(blockInfo);
     this.addTransaction(transactionInfo);
@@ -1001,7 +1015,11 @@ export class OfflineFetcher implements IFetcher {
     return slot % epochLength;
   }
 
-  private mapOutputToUTxO(output: TransactionOutput, txHash: string, index: number): UTxO {
+  private mapOutputToUTxO(
+    output: TransactionOutput,
+    txHash: string,
+    index: number,
+  ): UTxO {
     return {
       input: {
         txHash,

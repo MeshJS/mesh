@@ -1,5 +1,4 @@
 import Link from "~/components/link";
-
 import LiveCodeDemo from "~/components/sections/live-code-demo";
 import TwoColumnsScroll from "~/components/sections/two-columns-scroll";
 
@@ -19,8 +18,8 @@ function Left() {
     <>
       <p>
         This API allows applications to request the submission of a signed
-        transaction through the connected wallet. The wallet will attempt to send
-        the transaction to the blockchain network.
+        transaction through the connected wallet. The wallet will attempt to
+        send the transaction to the blockchain network.
       </p>
       <p>
         If the transaction is successfully submitted, the wallet returns the

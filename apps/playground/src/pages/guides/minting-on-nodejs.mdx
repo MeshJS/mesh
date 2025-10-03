@@ -7,17 +7,17 @@ export default function MDXPage({ children }) {
     { label: 'Build the minting transaction', to: 'buildthemintingtransaction' },
   ];
 
-  return (
-    <LayoutImageHeaderAndBody
+return (
+<LayoutImageHeaderAndBody
       title={guidenodejs.title}
       description={guidenodejs.description}
       image={guidenodejs.image}
       cover={guidenodejs.cover}
       sidebarItems={sidebarItems}
     >
-      {children}
-    </LayoutImageHeaderAndBody>
-  );
+{children}
+</LayoutImageHeaderAndBody>
+);
 }
 
 In this guide, we will be minting some assets with **MeshWallet** on Node.js.

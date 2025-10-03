@@ -58,14 +58,14 @@ const ReactPage: NextPage = () => {
           blockchain data, and more.
         </p>
         <p>
-          These APIs are designed to simplify wallet integration for applications,
-          ensuring secure and efficient interactions with the blockchain. By
-          delegating sensitive operations to the wallet, applications can maintain
-          high security standards and user trust.
+          These APIs are designed to simplify wallet integration for
+          applications, ensuring secure and efficient interactions with the
+          blockchain. By delegating sensitive operations to the wallet,
+          applications can maintain high security standards and user trust.
         </p>
         <p>
-          Explore the individual API pages to learn more about each functionality
-          and how to use them effectively in your application.
+          Explore the individual API pages to learn more about each
+          functionality and how to use them effectively in your application.
         </p>
       </>
     );

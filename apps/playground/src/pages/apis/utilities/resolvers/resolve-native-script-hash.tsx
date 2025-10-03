@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import { NativeScript } from "@meshsdk/core";
 import {
+  NativeScript,
   resolveNativeScriptHash,
   resolvePaymentKeyHash,
 } from "@meshsdk/core";

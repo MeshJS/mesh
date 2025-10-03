@@ -23,12 +23,7 @@ export default function FetcherBlockInfo({
       sidebarTo="fetchBlockInfo"
       title="Fetch Block Info"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -40,9 +35,7 @@ function Left(userInput: string) {
         Fetch block infomation. You can get the hash from{" "}
         <code>fetchTxInfo()</code>.
       </p>
-      <Codeblock
-        data={`await provider.fetchBlockInfo('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchBlockInfo('${userInput}')`} />
     </>
   );
 }

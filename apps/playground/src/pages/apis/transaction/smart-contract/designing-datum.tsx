@@ -92,10 +92,17 @@ function Left() {
   return (
     <>
       <p>
-        In Plutus smart contracts, a datum is a piece of data that is attached to a transaction output. It plays a crucial role in enabling smart contracts to validate and execute transactions based on specific conditions. Mesh SDK provides the flexibility to design datum structures tailored to your contract requirements.
+        In Plutus smart contracts, a datum is a piece of data that is attached
+        to a transaction output. It plays a crucial role in enabling smart
+        contracts to validate and execute transactions based on specific
+        conditions. Mesh SDK provides the flexibility to design datum structures
+        tailored to your contract requirements.
       </p>
       <p>
-        The <code>Data</code> type in Mesh SDK allows you to create various datum structures, including strings, numbers, arrays, maps, and constructors. Additionally, the <code>resolveDataHash</code> function helps verify the integrity of the datum by generating its hash.
+        The <code>Data</code> type in Mesh SDK allows you to create various
+        datum structures, including strings, numbers, arrays, maps, and
+        constructors. Additionally, the <code>resolveDataHash</code> function
+        helps verify the integrity of the datum by generating its hash.
       </p>
       <Codeblock
         data={`import { resolveDataHash } from '@meshsdk/core';\nimport type { Data } from '@meshsdk/core';`}
@@ -104,8 +111,14 @@ function Left() {
 
       <h3>Best Practices</h3>
       <ul>
-        <li>Ensure the datum structure aligns with the requirements of your Plutus smart contract.</li>
-        <li>Use <code>resolveDataHash</code> to validate datum integrity before attaching it to a transaction.</li>
+        <li>
+          Ensure the datum structure aligns with the requirements of your Plutus
+          smart contract.
+        </li>
+        <li>
+          Use <code>resolveDataHash</code> to validate datum integrity before
+          attaching it to a transaction.
+        </li>
         <li>Optimize datum design for performance and compatibility.</li>
       </ul>
 

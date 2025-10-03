@@ -23,7 +23,7 @@ export function hydraAssets(assets: Asset[]): HydraAssets {
       }
       return acc;
     },
-    { lovelace: 0 } as HydraAssets
+    { lovelace: 0 } as HydraAssets,
   );
 }
 

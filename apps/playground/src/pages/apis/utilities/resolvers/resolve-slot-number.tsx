@@ -149,8 +149,6 @@ function Right2() {
   );
 }
 
-
-
 // function Right() {
 //   const [userInput, setUserInput] = useState<
 //     "preprod" | "testnet" | "preview" | "mainnet"

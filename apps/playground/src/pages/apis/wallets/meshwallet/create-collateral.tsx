@@ -25,9 +25,9 @@ function Left() {
       </p>
       <p>
         The total balance in the UTXOs corresponding to these inputs represents
-        the transaction's collateral amount. If the contract executes successfully,
-        the collateral remains safe. This mechanism ensures that contracts are
-        carefully designed and thoroughly tested.
+        the transaction's collateral amount. If the contract executes
+        successfully, the collateral remains safe. This mechanism ensures that
+        contracts are carefully designed and thoroughly tested.
       </p>
       <p>Example:</p>
       <Codeblock data={codeSample} />

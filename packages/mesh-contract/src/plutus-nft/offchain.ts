@@ -9,17 +9,15 @@ import {
   stringToHex,
 } from "@meshsdk/common";
 import {
+  applyCborEncoding,
+  applyParamsToScript,
   deserializeAddress,
   resolveScriptHash,
   serializeAddressObj,
   serializePlutusScript,
   UTxO,
-  applyCborEncoding,
-  applyParamsToScript,
 } from "@meshsdk/core";
-import {
-  parseDatumCbor
-} from "@meshsdk/core-cst";
+import { parseDatumCbor } from "@meshsdk/core-cst";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
 import blueprint from "./aiken-workspace/plutus.json";
@@ -27,11 +25,11 @@ import { OracleDatum } from "./type";
 
 /**
  * Mesh Plutus NFT contract class
- * 
- * This NFT minting script enables users to mint NFTs with an automatically incremented index, which increases by one for each newly minted NFT. 
- * 
- * To facilitate this process, the first step is to set up a one-time minting policy by minting an oracle token. This oracle token is essential as it holds the current state and index of the NFTs, acting as a reference for the minting sequence. 
- * 
+ *
+ * This NFT minting script enables users to mint NFTs with an automatically incremented index, which increases by one for each newly minted NFT.
+ *
+ * To facilitate this process, the first step is to set up a one-time minting policy by minting an oracle token. This oracle token is essential as it holds the current state and index of the NFTs, acting as a reference for the minting sequence.
+ *
  * With each new NFT minted, the token index within the oracle is incremented by one, ensuring a consistent and orderly progression in the numbering of the NFTs.
  */
 export class MeshPlutusNFTContract extends MeshTxInitiator {

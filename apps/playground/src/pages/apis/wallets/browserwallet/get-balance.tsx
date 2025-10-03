@@ -34,18 +34,21 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of all assets in the connected wallet. Each asset is represented as an object containing the following properties:
+        This API retrieves a list of all assets in the connected wallet. Each
+        asset is represented as an object containing the following properties:
       </p>
       <ul>
         <li>
-          <strong>Unit:</strong> A unique identifier for the asset, which can be used to display its name in the user interface.
+          <strong>Unit:</strong> A unique identifier for the asset, which can be
+          used to display its name in the user interface.
         </li>
         <li>
           <strong>Quantity:</strong> The amount of the asset held in the wallet.
         </li>
       </ul>
       <p>
-        This information is useful for applications that need to display wallet balances or perform operations involving specific assets.
+        This information is useful for applications that need to display wallet
+        balances or perform operations involving specific assets.
       </p>
       <p>Example:</p>
       <Codeblock data={codeSample} />

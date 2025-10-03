@@ -30,8 +30,8 @@ function Left() {
       </ul>
       <p>
         Other network IDs may be returned by wallets, but these are not governed
-        by CIP-30. The network ID remains consistent unless the connected account
-        changes.
+        by CIP-30. The network ID remains consistent unless the connected
+        account changes.
       </p>
     </>
   );

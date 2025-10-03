@@ -26,7 +26,8 @@ function Left() {
         rids of unnecessary wrappers.
       </p>
       <p>
-        Mesh supports building data for your app in all 3 different formats.{" "}
+        Mesh supports building data for your app in all 3 different
+        formats.{" "}
       </p>
       <div>
         <li>

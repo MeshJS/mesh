@@ -18,15 +18,15 @@ export default function SerializePlutusScript() {
 function Left() {
   return (
     <>
-      <p>The function <code>serializePlutusScript</code> allows you to provide the <code>plutusScript</code>{" "}
-         with an option of <code>networkId</code> and <code>stakeCredentialHash</code>,  {" "}
-         returns:
-         <ul>
-      <li>
-        Bech32 address
-      </li>
-      </ul>
-      This example demonstrates how to derive and serialize a plutus script into a bech32 address.
+      <p>
+        The function <code>serializePlutusScript</code> allows you to provide
+        the <code>plutusScript</code> with an option of <code>networkId</code>{" "}
+        and <code>stakeCredentialHash</code>, returns:
+        <ul>
+          <li>Bech32 address</li>
+        </ul>
+        This example demonstrates how to derive and serialize a plutus script
+        into a bech32 address.
       </p>
     </>
   );

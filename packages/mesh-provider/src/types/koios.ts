@@ -14,7 +14,7 @@ export type KoiosUTxO = {
   asset_list: Array<KoiosAsset>;
   block_height: number;
   block_time: number;
-  payment_addr: { cred: string, bech32: string };
+  payment_addr: { cred: string; bech32: string };
 };
 
 export type KoiosAsset = {
@@ -39,3 +39,8 @@ export type KoiosReferenceScript = {
   type: string;
   value?: KoiosValue;
 };
+
+export type {
+  OgmiosAdditionalUtxo as KoiosAdditionalUtxo,
+  OgmiosAdditionalUtxos as KoiosAdditionalUtxos,
+} from "./ogmios";

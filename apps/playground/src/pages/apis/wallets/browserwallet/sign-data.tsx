@@ -49,10 +49,8 @@ function Left() {
       <Codeblock data={example} />
       <p>
         Continue reading this{" "}
-        <Link href="/guides/prove-wallet-ownership">
-          guide
-        </Link>{" "}
-        to learn how to verify the signature.
+        <Link href="/guides/prove-wallet-ownership">guide</Link> to learn how to
+        verify the signature.
       </p>
     </>
   );

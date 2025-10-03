@@ -113,22 +113,10 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/U5CProvider" />
 
-        <ProviderFetchers
-          provider={provider}
-          providerName="utxorpc"
-        />
-        <ProviderEvaluators
-          provider={provider}
-          providerName="utxorpc"
-        />
-        <ProviderSubmitters
-          provider={provider}
-          providerName="utxorpc"
-        />
-        <ProviderListeners
-          provider={provider}
-          providerName="utxorpc"
-        />
+        <ProviderFetchers provider={provider} providerName="utxorpc" />
+        <ProviderEvaluators provider={provider} providerName="utxorpc" />
+        <ProviderSubmitters provider={provider} providerName="utxorpc" />
+        <ProviderListeners provider={provider} providerName="utxorpc" />
       </SidebarFullwidth>
     </>
   );

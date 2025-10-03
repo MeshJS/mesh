@@ -10,17 +10,17 @@ export default function MDXPage({ children }) {
     { label: 'Update the Listing', to: 'updatethelisting' },
   ];
 
-  return (
-    <LayoutImageHeaderAndBody
+return (
+<LayoutImageHeaderAndBody
       title={guidetransactions.title}
       description={guidetransactions.description}
       image={guidetransactions.image}
       cover={guidetransactions.cover}
       sidebarItems={sidebarItems}
     >
-      {children}
-    </LayoutImageHeaderAndBody>
-  );
+{children}
+</LayoutImageHeaderAndBody>
+);
 }
 
 In this guide, we will build a marketplace where users can list their assets for sale and purchase the listed assets. The seller can update or cancel the listing at any time.

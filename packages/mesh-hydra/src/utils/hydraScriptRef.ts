@@ -1,4 +1,4 @@
-import { PlutusScript, NativeScript } from "@meshsdk/common";
+import { NativeScript, PlutusScript } from "@meshsdk/common";
 import { fromScriptRef } from "@meshsdk/core-cst";
 
 import { hydraScriptInfo } from "../types";
@@ -9,7 +9,7 @@ import { hydraScriptInfo } from "../types";
  * @returns An object containing the script instance, type, and language.
  */
 export async function getReferenceScriptInfo(
-  scriptRef: string | null
+  scriptRef: string | null,
 ): Promise<hydraScriptInfo> {
   let scriptInstance: PlutusScript | NativeScript | undefined = undefined;
   let scriptType: hydraScriptInfo["scriptType"] = "Unknown";

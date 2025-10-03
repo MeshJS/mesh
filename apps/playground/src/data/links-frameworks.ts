@@ -23,7 +23,6 @@ export const metaSvelte = {
 // nuxt
 // react-native
 
-
 export const linksFrameworks: MenuItem[] = [metaNextjs, metaSvelte];
 
 export const metaFrameworks: MenuItem = {

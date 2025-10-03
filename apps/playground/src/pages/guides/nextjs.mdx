@@ -8,17 +8,17 @@ export default function MDXPage({ children }) {
     { label: 'Connect wallet and view assets', to: 'connectwalletandviewassets' },
   ];
 
-  return (
-    <LayoutImageHeaderAndBody
+return (
+<LayoutImageHeaderAndBody
       title={guidenextjs.title}
       description={guidenextjs.description}
       image={guidenextjs.image}
       cover={guidenextjs.cover}
       sidebarItems={sidebarItems}
     >
-      {children}
-    </LayoutImageHeaderAndBody>
-  );
+{children}
+</LayoutImageHeaderAndBody>
+);
 }
 
 In this guide, we will set up a Next.js application and connect it to the Cardano blockchain using Mesh. We will create a simple application that allows users to connect their wallets and view the assets in their wallets.
@@ -51,7 +51,7 @@ npx create-next-app@latest --typescript .
 
 ```bash
 Need to install the following packages:
-Ok to proceed? (y) 
+Ok to proceed? (y)
 
 ✔ Would you like to use ESLint? … Yes
 ✔ Would you like to use Tailwind CSS? … Yes

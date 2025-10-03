@@ -82,18 +82,9 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/KoiosProvider" />
 
-        <ProviderFetchers
-          provider={provider}
-          providerName="koios"
-        />
-        <ProviderSubmitters
-          provider={provider}
-          providerName="koios"
-        />
-        <ProviderListeners
-          provider={provider}
-          providerName="koios"
-        />
+        <ProviderFetchers provider={provider} providerName="koios" />
+        <ProviderSubmitters provider={provider} providerName="koios" />
+        <ProviderListeners provider={provider} providerName="koios" />
       </SidebarFullwidth>
     </>
   );

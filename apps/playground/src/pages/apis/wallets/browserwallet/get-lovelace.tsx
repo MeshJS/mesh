@@ -18,10 +18,13 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves the Lovelace balance in the connected wallet. Lovelace is the smallest denomination of ADA, where 1 ADA equals 1,000,000 Lovelace.
+        This API retrieves the Lovelace balance in the connected wallet.
+        Lovelace is the smallest denomination of ADA, where 1 ADA equals
+        1,000,000 Lovelace.
       </p>
       <p>
-        Applications can use this information to display the wallet's balance or perform operations involving ADA.
+        Applications can use this information to display the wallet's balance or
+        perform operations involving ADA.
       </p>
     </>
   );

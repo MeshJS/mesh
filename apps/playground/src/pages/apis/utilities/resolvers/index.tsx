@@ -29,7 +29,7 @@ const ReactPage: NextPage = () => {
     { label: "Script Hash Rep Id", to: "resolveScriptHashDRepId" },
     { label: "Epoch Number", to: "resolveEpochNumber" },
     { label: "Slot Number", to: "resolveSlotNumber" },
-    
+
     // ------------------- Deprecated zone ---------------------
 
     // { label: "Native Script Address", to: "resolveNativeScriptAddress" },
@@ -61,13 +61,12 @@ const ReactPage: NextPage = () => {
         <ResolveScriptHashDRepId />
         <ResolveEpochNumber />
         <ResolveSlotNumber />
-        
+
         {/* ------------------- Deprecated zone ---------------------*/}
         {/* <ResolveNativeScriptAddress /> */}
         {/* <ResolvePaymentKeyHash /> */}
         {/* <ResolvePlutusScriptAddress /> */}
         {/* <ResolvePlutusScriptHash /> */}
-
       </SidebarFullwidth>
     </>
   );

@@ -31,8 +31,8 @@ function Left() {
         delegation representation in the Cardano blockchain.
       </p>
       <p>
-        Applications can use this information to interact with delegation-related
-        features or display the DRep ID details to the user.
+        Applications can use this information to interact with
+        delegation-related features or display the DRep ID details to the user.
       </p>
       <p>Example response:</p>
       <Codeblock data={codeSample} />

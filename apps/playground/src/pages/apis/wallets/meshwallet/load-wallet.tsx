@@ -133,13 +133,20 @@ function Left(
   return (
     <>
       <p>
-        This API enables applications to load and initialize a wallet connection. It provides access to the wallet's capabilities, such as signing transactions, submitting transactions, and querying blockchain data.
+        This API enables applications to load and initialize a wallet
+        connection. It provides access to the wallet's capabilities, such as
+        signing transactions, submitting transactions, and querying blockchain
+        data.
       </p>
       <p>
-        The wallet connection is established securely, ensuring that sensitive operations are handled by the wallet and not exposed to the application directly. This is crucial for maintaining security and user trust.
+        The wallet connection is established securely, ensuring that sensitive
+        operations are handled by the wallet and not exposed to the application
+        directly. This is crucial for maintaining security and user trust.
       </p>
       <p>
-        Applications can use this functionality to integrate wallet features seamlessly, enabling blockchain interactions without requiring users to manage private keys manually.
+        Applications can use this functionality to integrate wallet features
+        seamlessly, enabling blockchain interactions without requiring users to
+        manage private keys manually.
       </p>
       <p>You can initialize Mesh Wallet with:</p>
       <ul>

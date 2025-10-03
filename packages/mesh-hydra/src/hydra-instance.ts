@@ -1,4 +1,5 @@
 import { IFetcher, ISubmitter } from "@meshsdk/common";
+
 import { HydraProvider } from "./hydra-provider";
 import { hydraTransaction, hydraUTxO } from "./types";
 
@@ -112,7 +113,7 @@ export class HydraInstance {
   async commitBlueprint(
     txHash: string,
     outputIndex: number,
-    transaction: hydraTransaction
+    transaction: hydraTransaction,
   ): Promise<string> {
     const utxo = (await this.fetcher.fetchUTxOs(txHash, outputIndex))[0];
     if (!utxo) {
@@ -163,7 +164,7 @@ export class HydraInstance {
   async incrementalBlueprintCommit(
     txHash: string,
     outputIndex: number,
-    transaction: hydraTransaction
+    transaction: hydraTransaction,
   ) {
     return this.commitBlueprint(txHash, outputIndex, {
       type: transaction.type,
@@ -178,9 +179,7 @@ export class HydraInstance {
    *
    */
   async decommit(transaction: hydraTransaction) {
-    throw new Error(
-      "Method not implemented use hydraProvider instead"
-    );
+    throw new Error("Method not implemented use hydraProvider instead");
   }
 
   /**
@@ -189,8 +188,6 @@ export class HydraInstance {
    * @returns
    */
   async incrementalDecommit(transaction: hydraTransaction) {
-    throw new Error(
-      "Method not implemented use hydraProvider instead"
-    );
+    throw new Error("Method not implemented use hydraProvider instead");
   }
 }

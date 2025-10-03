@@ -1,5 +1,6 @@
 import type { NextPage } from "next";
 
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import MintMeshToken from "~/components/cardano/mint-mesh-token";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
@@ -12,7 +13,6 @@ import EscrowCancelEscrow from "./cancel-escrow";
 import EscrowCompleteEscrow from "./complete-escrow";
 import EscrowInitiateEscrow from "./initiate-escrow";
 import EscrowRecipientDeposit from "./recipient-deposit";
-import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [

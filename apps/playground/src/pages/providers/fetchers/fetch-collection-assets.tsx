@@ -21,12 +21,7 @@ export default function FetcherCollectionAssets({
       sidebarTo="fetchCollectionAssets"
       title="Fetch Collection Assets"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }

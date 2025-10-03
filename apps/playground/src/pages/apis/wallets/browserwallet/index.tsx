@@ -12,12 +12,12 @@ import BrowserWalletGetAvailableWallets from "./get-available-wallets";
 import BrowserWalletGetBalance from "./get-balance";
 import BrowserWalletGetChangeAddress from "./get-change-address";
 import BrowserWalletGetCollateral from "./get-collateral";
+import BrowserWalletGetDRep from "./get-drep";
 import BrowserWalletGetExtensions from "./get-extensions";
 import BrowserWalletGetLovelace from "./get-lovelace";
 import BrowserWalletGetNetworkId from "./get-networkid";
 import BrowserWalletGetPolicyIdAssets from "./get-policyid-assets";
 import BrowserWalletGetPolicyIds from "./get-policyids";
-import BrowserWalletGetDRep from "./get-drep";
 import BrowserWalletGetRegisteredpubstakekeys from "./get-registeredpubstakekeys";
 import BrowserWalletGetRewardAddresses from "./get-reward-addresses";
 import BrowserWalletGetSupportedExtensions from "./get-supported-extensions";
@@ -80,12 +80,13 @@ const ReactPage: NextPage = () => {
           </p>
           <p>
             In addition to the CIP-30 APIs, <code>BrowserWallet</code> includes
-            utility functions that simplify common tasks such as retrieving wallet
-            balances, signing transactions, and managing UTXOs.
+            utility functions that simplify common tasks such as retrieving
+            wallet balances, signing transactions, and managing UTXOs.
           </p>
           <p>
             This section allows you to explore and test the available APIs for
-            browser wallets, enabling seamless integration into your applications.
+            browser wallets, enabling seamless integration into your
+            applications.
           </p>
         </TitleIconDescriptionBody>
 

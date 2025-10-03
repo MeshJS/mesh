@@ -1,5 +1,7 @@
 import type { NextPage } from "next";
+
 import { OfflineFetcher } from "@meshsdk/core";
+
 import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
@@ -101,9 +103,10 @@ const ReactPage: NextPage = () => {
           description="An offline blockchain data provider for testing, development and offline scenarios."
         >
           <p>
-            The OfflineFetcher provides access to blockchain data without requiring network
-            connectivity. It's ideal for testing, development, and scenarios where you need
-            to work with pre-loaded blockchain data offline.
+            The OfflineFetcher provides access to blockchain data without
+            requiring network connectivity. It's ideal for testing, development,
+            and scenarios where you need to work with pre-loaded blockchain data
+            offline.
           </p>
 
           <p>Initialize the fetcher:</p>
@@ -111,35 +114,31 @@ const ReactPage: NextPage = () => {
           <Codeblock data={code1} />
 
           <p>
-            Before you can fetch data, you need to add it to the fetcher. Here are examples
-            of adding different types of blockchain data:
+            Before you can fetch data, you need to add it to the fetcher. Here
+            are examples of adding different types of blockchain data:
           </p>
 
           <Codeblock data={code2} />
 
           <p>
-            The fetcher's state can be saved and loaded, making it easy to persist data
-            between sessions:
+            The fetcher's state can be saved and loaded, making it easy to
+            persist data between sessions:
           </p>
 
           <Codeblock data={code3} />
 
           <p>
-            Once data is added, you can use the fetch* methods just like with other providers
-            such as {" "}
-            <Link href="/providers/blockfrost">
-              BlockfrostProvider
-            </Link>
-            . This makes OfflineFetcher a drop-in replacement for testing and offline scenarios.
+            Once data is added, you can use the fetch* methods just like with
+            other providers such as{" "}
+            <Link href="/providers/blockfrost">BlockfrostProvider</Link>. This
+            makes OfflineFetcher a drop-in replacement for testing and offline
+            scenarios.
           </p>
         </TitleIconDescriptionBody>
 
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/OfflineFetcher" />
 
-        <ProviderFetchers
-          provider={fetcher}
-          providerName="offline"
-        />
+        <ProviderFetchers provider={fetcher} providerName="offline" />
       </SidebarFullwidth>
     </>
   );

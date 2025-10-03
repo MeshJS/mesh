@@ -53,10 +53,7 @@ export async function getAssetUtxo({
   datum: any;
 }) {
   const provider = getProvider();
-  const utxos = await provider.fetchAddressUTxOs(
-    scriptAddress,
-    asset,
-  );
+  const utxos = await provider.fetchAddressUTxOs(scriptAddress, asset);
 
   const dataHash = resolveDataHash(datum);
 

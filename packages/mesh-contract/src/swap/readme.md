@@ -15,9 +15,9 @@ There are 2 actions (or endpoints) available to interact with this smart contrac
 To initialize the swap, we need to initialize a provider, MeshTxBuilder and MeshSwapContract.
 
 ```typescript
-import { BlockfrostProvider, MeshTxBuilder } from '@meshsdk/core';
-import { MeshSwapContract } from '@meshsdk/contracts';
-import { useWallet } from '@meshsdk/react';
+import { MeshSwapContract } from "@meshsdk/contracts";
+import { BlockfrostProvider, MeshTxBuilder } from "@meshsdk/core";
+import { useWallet } from "@meshsdk/react";
 
 const { connected, wallet } = useWallet();
 

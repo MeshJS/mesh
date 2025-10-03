@@ -33,9 +33,7 @@ function Left() {
         You can topup ADA for any address. To topup ADA in your wallet, run the
         following command from devnet:
       </p>
-      <Codeblock
-        data={`await provider.addressTopup(<address>, <amount>)`}
-      />
+      <Codeblock data={`await provider.addressTopup(<address>, <amount>)`} />
     </>
   );
 }

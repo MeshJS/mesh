@@ -24,7 +24,11 @@ export const articleElementsOfCardano = {
   image: "/articles/spices-4185324_640.jpg",
 };
 
-export const linksArticles: MenuItem[] = [articleElementsOfCardano,articleMesh20, articleNew16];
+export const linksArticles: MenuItem[] = [
+  articleElementsOfCardano,
+  articleMesh20,
+  articleNew16,
+];
 
 export const metaArticles: MenuItem = {
   link: `/blogs`,

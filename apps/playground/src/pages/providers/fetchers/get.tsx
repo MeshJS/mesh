@@ -24,12 +24,7 @@ export default function FetcherGet({
       sidebarTo="get"
       title="Get data from URL"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }

@@ -63,10 +63,14 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of all UTXOs (unspent transaction outputs) controlled by the wallet. UTXOs are essential for constructing transactions and managing wallet balances.
+        This API retrieves a list of all UTXOs (unspent transaction outputs)
+        controlled by the wallet. UTXOs are essential for constructing
+        transactions and managing wallet balances.
       </p>
       <p>
-        Each UTXO includes details such as the transaction hash, output index, address, and amount. These details are crucial for identifying and utilizing unspent outputs.
+        Each UTXO includes details such as the transaction hash, output index,
+        address, and amount. These details are crucial for identifying and
+        utilizing unspent outputs.
       </p>
       <p>Example response:</p>
       <Codeblock data={example} />

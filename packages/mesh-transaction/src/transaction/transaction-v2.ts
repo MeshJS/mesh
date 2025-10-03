@@ -49,10 +49,7 @@ export interface TransactionV2 {
   setRequiredSigners(addresses: string[]): this;
   setTimeToExpire(slot: string): this;
   setTimeToStart(slot: string): this;
-  setMetadata(
-    label: number,
-    metadata: unknown
-  ): this;
+  setMetadata(label: number, metadata: unknown): this;
   withdrawRewards(rewardAddress: string, lovelace: string): this;
   delegateStake(rewardAddress: string, poolId: string): this;
   deregisterStake(rewardAddress: string): this;

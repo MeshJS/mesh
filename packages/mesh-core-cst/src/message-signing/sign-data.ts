@@ -7,12 +7,10 @@ import {
   CborUInt,
 } from "@harmoniclabs/cbor";
 
-import { DataSignature, stringToHex, isHexString} from "@meshsdk/common";
+import { DataSignature, isHexString, stringToHex } from "@meshsdk/common";
 
 import { HexBlob, Signer } from "../types";
 import { CoseSign1, getCoseKeyFromPublicKey } from "./cose-sign1";
-
-
 
 /**
  * Sign the data string using the provided signer

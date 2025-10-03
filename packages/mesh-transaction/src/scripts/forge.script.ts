@@ -1,10 +1,9 @@
 import type { NativeScript } from "@meshsdk/common";
-
 import {
   buildScriptPubkey,
   deserializeEd25519KeyHash,
-  toNativeScript,
   resolvePaymentKeyHash,
+  toNativeScript,
 } from "@meshsdk/core-cst";
 
 export class ForgeScript {

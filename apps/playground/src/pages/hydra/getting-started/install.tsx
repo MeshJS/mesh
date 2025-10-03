@@ -14,14 +14,10 @@ export default function MidnightInstallationInstructions() {
 function Left() {
   return (
     <>
-      <p>
-        How to get started?
-      </p>
+      <p>How to get started?</p>
       <Codeblock data={`$ do some cli`} />
       <h3>Check your installation</h3>
-      <p>
-        More instructions here.
-      </p>
+      <p>More instructions here.</p>
     </>
   );
 }

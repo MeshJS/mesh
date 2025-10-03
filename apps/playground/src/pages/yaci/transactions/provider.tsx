@@ -31,8 +31,8 @@ function Left() {
       />
       <p>
         By default, the <code>YaciProvider</code> will use the default URL,{" "}
-        <code>https://yaci-node.meshjs.dev/api/v1/</code>. If you want to use a custom
-        URL, you can pass it as a parameter.
+        <code>https://yaci-node.meshjs.dev/api/v1/</code>. If you want to use a
+        custom URL, you can pass it as a parameter.
       </p>
       <p>
         In this example, we initialize the <code>YaciProvider</code> and fetch

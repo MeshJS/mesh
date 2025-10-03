@@ -21,7 +21,7 @@ export default function MenuItemDropdown({
     >
       <button
         type="button"
-        className="dark:text-white lg:hover:text-black lg:dark:hover:text-white dark:hover:text-white flex w-full items-center justify-between border-b border-neutral-100 py-2 pl-3 pr-4 font-medium text-neutral-700 hover:bg-neutral-50 lg:w-auto lg:border-0 lg:p-0 lg:hover:bg-transparent dark:border-neutral-700 dark:hover:bg-neutral-700 lg:dark:hover:bg-transparent"
+        className="flex w-full items-center justify-between border-b border-neutral-100 py-2 pl-3 pr-4 font-medium text-neutral-700 hover:bg-neutral-50 lg:w-auto lg:border-0 lg:p-0 lg:hover:bg-transparent lg:hover:text-black dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700 dark:hover:text-white lg:dark:hover:bg-transparent lg:dark:hover:text-white"
         aria-label="More"
       >
         {title}

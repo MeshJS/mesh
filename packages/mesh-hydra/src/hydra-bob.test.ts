@@ -1,6 +1,7 @@
 import { BlockfrostProvider, MeshTxBuilder, MeshWallet } from "@meshsdk/core";
-import { HydraProvider } from "./hydra-provider";
+
 import { HydraInstance } from "./hydra-instance";
+import { HydraProvider } from "./hydra-provider";
 
 describe("Hydra Provider", () => {
   let provider: HydraProvider;
@@ -49,7 +50,7 @@ describe("Hydra Provider", () => {
     const unsignedTx = await txBuilder
       .txIn(
         "cd8d9b66df467df82cf6df10a0dbd24847a27ac280e1033e509a8bc0de8d2579",
-        2
+        2,
       )
       .txOut("", [
         {
@@ -74,7 +75,7 @@ describe("Hydra Provider", () => {
     expect(utxo).toBeDefined();
 
     const aliceheadUtxo = await provider.fetchAddressUTxOs(
-      "addr_test1vrlkv8dryg2lcmxjd8adpyd20vmnvwm8cjxv7fh6rpyve9qnmsq0l"
+      "addr_test1vrlkv8dryg2lcmxjd8adpyd20vmnvwm8cjxv7fh6rpyve9qnmsq0l",
     );
     expect(aliceheadUtxo).toBeDefined();
 
@@ -92,10 +93,10 @@ describe("Hydra Provider", () => {
             unit: "lovelace",
             quantity: "50000000",
           },
-        ]
+        ],
       )
       .changeAddress(
-        "addr_test1vrlkv8dryg2lcmxjd8adpyd20vmnvwm8cjxv7fh6rpyve9qnmsq0l"
+        "addr_test1vrlkv8dryg2lcmxjd8adpyd20vmnvwm8cjxv7fh6rpyve9qnmsq0l",
       )
       .setNetwork("preprod")
       .selectUtxosFrom(aliceheadUtxo)
@@ -110,7 +111,7 @@ describe("Hydra Provider", () => {
   it("should fail to fetch UTXOs for an invalid address", async () => {
     await provider.connect();
     await expect(
-      provider.fetchAddressUTxOs("invalid_address")
+      provider.fetchAddressUTxOs("invalid_address"),
     ).rejects.toThrow();
   });
 

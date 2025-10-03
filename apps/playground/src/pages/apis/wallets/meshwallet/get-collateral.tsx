@@ -44,10 +44,15 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of UTXOs (unspent transaction outputs) controlled by the wallet that are suitable for use as collateral inputs in transactions involving Plutus script inputs. Collateral UTXOs are pure ADA-only UTXOs required to meet the specified ADA value target.
+        This API retrieves a list of UTXOs (unspent transaction outputs)
+        controlled by the wallet that are suitable for use as collateral inputs
+        in transactions involving Plutus script inputs. Collateral UTXOs are
+        pure ADA-only UTXOs required to meet the specified ADA value target.
       </p>
       <p>
-        If the target cannot be met, an error message explaining the issue will be returned. Wallets may return UTXOs exceeding the target value but must never return UTXOs below the specified value.
+        If the target cannot be met, an error message explaining the issue will
+        be returned. Wallets may return UTXOs exceeding the target value but
+        must never return UTXOs below the specified value.
       </p>
       <p>Example response:</p>
       <Codeblock data={example} />

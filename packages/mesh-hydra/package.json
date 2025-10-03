@@ -38,5 +38,6 @@
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
-  }
+  },
+  "prettier": "@meshsdk/configs/prettier"
 }

@@ -11,17 +11,17 @@ export default function MDXPage({ children }) {
     }
   ]
 
-  return (
-    <LayoutImageHeaderAndBody
+return (
+<LayoutImageHeaderAndBody
       title={guideprovider.title}
       description={guideprovider.description}
       image={guideprovider.image}
       cover={guideprovider.cover}
       sidebarItems={sidebarItems}
     >
-      {children}
-    </LayoutImageHeaderAndBody>
-  );
+{children}
+</LayoutImageHeaderAndBody>
+);
 }
 
 As of writing (Dec 2022), Mesh offers a few options: [Blockfrost](https://blockfrost.io/) or [Koios](https://www.koios.rest/) (see a list of [Providers](/providers)). These blockchain providers allow developers to access the Cardano blockchain and retrieve intricate data. For example, they can be used to query the UTXO of a smart contract and use it as part of a transaction, or to submit a signed transaction to the chain.
