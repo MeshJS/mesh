@@ -1,24 +1,28 @@
-import { UTxO } from "@meshsdk/common";
-
-import {
-  NetworkType,
-  validateTx,
-  ValidationContext,
-} from "../../src/utils/validator";
+import { validateTx, ValidationInputContext } from "../../src/utils/validator";
 
 describe("Validate tx", () => {
   test("basic validate tx", async () => {
-    const validationContext: ValidationContext = {
+    const validationContext: ValidationInputContext = {
       accountContexts: [],
       currentCommitteeMembers: [],
       drepContexts: [],
-      govActionContexts: [],
+      govActionContexts: [
+        {
+          actionId: {
+            txHash:
+              "95b2b05ae3e09a19a00673524f8ff4426839e2410fd2565a52a49952d48a6b39",
+            index: 0n,
+          },
+          actionType: "treasuryWithdrawalsAction",
+          isActive: true,
+        },
+      ],
       lastEnactedGovAction: [],
-      networkType: NetworkType.Preprod,
+      networkType: "preprod",
       poolContexts: [],
       potentialCommitteeMembers: [],
       protocolParameters: {
-        adaPerUtxoByte: 4310,
+        adaPerUtxoByte: 4310n,
         collateralPercentage: 150,
         costModels: {
           plutusV1: [
@@ -80,12 +84,12 @@ describe("Validate tx", () => {
             655, 1, 1964219, 24520, 3,
           ],
         },
-        drepDeposit: 500000000,
+        drepDeposit: 500000000n,
         executionPrices: {
-          memPrice: { denominator: 10000, numerator: 577 },
-          stepPrice: { denominator: 10000000, numerator: 721 },
+          memPrice: { denominator: 10000n, numerator: 577n },
+          stepPrice: { denominator: 10000000n, numerator: 721n },
         },
-        governanceActionDeposit: 100000000000,
+        governanceActionDeposit: 100000000000n,
         maxBlockBodySize: 98304,
         maxBlockExecutionUnits: { mem: 80000000, steps: 40000000000 },
         maxBlockHeaderSize: 1100,
@@ -94,16 +98,16 @@ describe("Validate tx", () => {
         maxTransactionSize: 16384,
         maxTxExecutionUnits: { mem: 16000000, steps: 10000000000 },
         maxValueSize: 5000,
-        minFeeCoefficientA: 44,
-        minFeeConstantB: 155381,
-        minPoolCost: 170000000,
+        minFeeCoefficientA: 44n,
+        minFeeConstantB: 155381n,
+        minPoolCost: 170000000n,
         protocolVersion: [10, 0],
-        referenceScriptCostPerByte: { denominator: 1, numerator: 15 },
-        stakeKeyDeposit: 2000000,
-        stakePoolDeposit: 500000000,
+        referenceScriptCostPerByte: { denominator: 1n, numerator: 15n },
+        stakeKeyDeposit: 2000000n,
+        stakePoolDeposit: 500000000n,
       },
-      slot: 0,
-      treasuryValue: 0,
+      slot: 41023545n,
+      treasuryValue: 0n,
       utxoSet: [
         {
           isSpent: false,
