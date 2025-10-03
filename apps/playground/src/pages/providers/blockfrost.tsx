@@ -43,7 +43,8 @@ const ReactPage: NextPage = () => {
 
   const blockfrostKey = useProviders((state) => state.blockfrostKey);
 
-  const provider = new BlockfrostProvider(blockfrostKey ?? "");
+  // replace with your Blockfrost API key
+  const provider = new BlockfrostProvider(blockfrostKey ?? "preprod12345");
 
   return (
     <>
