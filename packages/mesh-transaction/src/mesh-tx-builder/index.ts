@@ -339,6 +339,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.sortMints();
     this.sortWithdrawals();
     this.sortVotes();
+    this.sortProposals();
   };
 
   sortInputs = () => {
@@ -472,6 +473,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }
       return 0;
     });
+  };
+
+  sortProposals = () => {
+    // Proposals are sorted by their order in the transaction body
+    // According to CIP-1694, proposals should maintain insertion order
+    // No additional sorting is needed as they're already in the correct order
   };
 
   evaluateRedeemers = async () => {
@@ -1257,6 +1264,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       } else if (certType.type === "StakeVoteRegistrationAndDelegation") {
         accum += BigInt(certType.coin);
       }
+    }
+    for (let proposal of this.meshTxBuilderBody.proposals) {
+      accum += BigInt(proposal.proposalType.deposit);
     }
     return accum;
   };
