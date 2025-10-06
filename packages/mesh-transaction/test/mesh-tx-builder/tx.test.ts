@@ -86,8 +86,14 @@ describe("MeshTxBuilder transactions", () => {
         "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
       )
       .completeSync();
-
-    expect(txHex !== "").toBeTruthy();
+    const cardanoTx = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(txHex),
+    );
+    console.log(txHex);
+    expect(
+      cardanoTx.body().outputs().at(0)!.datum()?.asDataHash(),
+    ).toBeDefined();
+    expect(cardanoTx.witnessSet().plutusData()?.size()).toBe(1);
   });
 
   it("Build tx of spending native script should succeed", () => {

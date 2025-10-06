@@ -14,6 +14,7 @@ import TxbuilderCustomPP from "./custom-pp";
 import TxbuilderInitializeTxbuilder from "./initialize-txbuilder";
 import TxbuilderMultisig from "./multisig";
 import TxbuilderMultisigNativeScript from "./multisig-native-script";
+import TxbuilderScriptMetadata from "./script-metadata";
 import TxbuilderSendValues from "./send-values";
 import TxbuilderSetFee from "./set-fee";
 import TxbuilderSetNetwork from "./set-network";
@@ -29,6 +30,7 @@ const ReactPage: NextPage = () => {
     { label: "Build with object", to: "buildWithObject" },
     { label: "Coin selection", to: "coinSelection" },
     { label: "Set metadata", to: "cip20" },
+    { label: "Set script metadata ", to: "scriptMetadata" },
     { label: "Set required signers", to: "requiredSigners" },
     { label: "Set time", to: "setTime" },
     { label: "Set network", to: "setNetwork" },
@@ -79,6 +81,7 @@ const ReactPage: NextPage = () => {
         <TxbuilderBuildWithObject />
         <TxbuilderCoinSelection />
         <TxbuilderCip20 />
+        <TxbuilderScriptMetadata />
         <TxbuilderSetRequiredSigners />
         <TxbuilderSetTime />
         <TxbuilderSetNetwork />

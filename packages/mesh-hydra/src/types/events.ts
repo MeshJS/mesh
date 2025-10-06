@@ -118,20 +118,20 @@ export type HeadIsFinalized = {
 
 export type TxValid = {
   headId: string;
-  tag: "TxValid";
   seq: number;
+  tag: "TxValid";
   timestamp: string;
-  transaction: hydraTransaction;
+  transactionId: string;
 };
 
 export type TxInvalid = {
-  tag: "TxInvalid";
   headId: string;
-  utxo: hydraUTxOs;
-  transaction: hydraTransaction;
-  validationError: { reason: string };
   seq: number;
+  tag: "TxInvalid";
   timestamp: string;
+  transaction: hydraTransaction;
+  utxo: hydraUTxOs;
+  validationError: { reason: string };
 };
 
 export type SnapshotConfirmed = {
@@ -229,4 +229,20 @@ export type DecommitFinalized = {
   decommitTxId: string;
   seq: number;
   timestamp: string;
+};
+
+export type CommitFinalized = {
+  depositTxId: string;
+  headId: string;
+  seq: number;
+  tag: "CommitFinalized";
+  timestamp: string;
+};
+
+export type CommitApproved = {
+  headId: string;
+  seq: number;
+  tag: "CommitApproved";
+  timestamp: string;
+  utxoToCommit: Record<string, hydraUTxOs>;
 };
