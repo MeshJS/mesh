@@ -24,7 +24,11 @@ import {
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
-import { Address, CardanoSDKUtil, deserializePlutusScript } from "@meshsdk/core-cst";
+import {
+  Address,
+  CardanoSDKUtil,
+  deserializePlutusScript,
+} from "@meshsdk/core-cst";
 
 import { utxosToAssets } from "./common/utxos-to-assets";
 
@@ -117,7 +121,8 @@ import { utxosToAssets } from "./common/utxos-to-assets";
  * ```
  */
 export class U5CProvider
-  implements IFetcher, ISubmitter, IEvaluator, IListener {
+  implements IFetcher, ISubmitter, IEvaluator, IListener
+{
   // Clients for querying and submitting transactions on the Cardano blockchain.
   private queryClient: CardanoQueryClient;
   private submitClient: CardanoSubmitClient;
@@ -177,18 +182,23 @@ export class U5CProvider
    * Evaluates the resources required to execute the transaction
    * @param tx - The transaction to evaluate
    */
-  async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(
+    tx: string,
+    additionalUtxos?: UTxO[],
+    additionalTxs?: string[],
+  ): Promise<Omit<Action, "data">[]> {
+    // TODO: additionalUtxos/additionalTxs dep on utxoprc implementation
 
     const report = await this.submitClient.evalTx(hexToBytes(tx));
     const evalResult = report.report[0]!.chain.value?.redeemers!;
 
     const tagMap: { [key: number]: RedeemerTagType } = {
       // 0: "UNSPECIFIED",   // REDEEMER_PURPOSE_UNSPECIFIED
-      1: "SPEND",   // REDEEMER_PURPOSE_SPEND
-      2: "MINT",    // REDEEMER_PURPOSE_MINT
-      3: "CERT",    // REDEEMER_PURPOSE_CERT
-      4: "REWARD",  // REDEEMER_PURPOSE_REWARD
-      5: "VOTE",    // REDEEMER_PURPOSE_VOTE
+      1: "SPEND", // REDEEMER_PURPOSE_SPEND
+      2: "MINT", // REDEEMER_PURPOSE_MINT
+      3: "CERT", // REDEEMER_PURPOSE_CERT
+      4: "REWARD", // REDEEMER_PURPOSE_REWARD
+      5: "VOTE", // REDEEMER_PURPOSE_VOTE
       6: "PROPOSE", // REDEEMER_PURPOSE_PROPOSE
     };
 
@@ -198,12 +208,14 @@ export class U5CProvider
       result.push({
         tag: tagMap[action.purpose!]!,
         index: action.index,
-        budget: { mem: Number(action.exUnits!.memory), steps: Number(action.exUnits!.steps) },
+        budget: {
+          mem: Number(action.exUnits!.memory),
+          steps: Number(action.exUnits!.steps),
+        },
       });
-    })
+    });
 
     return result;
-
   }
 
   /**
@@ -380,8 +392,12 @@ export class U5CProvider
 
     // Fetch specific UTxO if index is given
     if (index !== undefined) {
-      const [utxo] = await this.queryClient.readUtxosByOutputRef([{ txHash: txHash, outputIndex: index }]);
-      return utxo ? [this._rpcUtxoToMeshUtxo(utxo.txoRef, utxo.parsedValued!)] : [];
+      const [utxo] = await this.queryClient.readUtxosByOutputRef([
+        { txHash: txHash, outputIndex: index },
+      ]);
+      return utxo
+        ? [this._rpcUtxoToMeshUtxo(utxo.txoRef, utxo.parsedValued!)]
+        : [];
     }
 
     // Otherwise, fetch all UTxOs in batches
@@ -396,7 +412,9 @@ export class U5CProvider
       }));
 
       const utxos = await this.queryClient.readUtxosByOutputRef(batch);
-      const meshUtxos = utxos.map(u => this._rpcUtxoToMeshUtxo(u.txoRef, u.parsedValued!));
+      const meshUtxos = utxos.map((u) =>
+        this._rpcUtxoToMeshUtxo(u.txoRef, u.parsedValued!),
+      );
       allUtxos.push(...meshUtxos);
 
       if (utxos.length < batchSize) break;
@@ -405,7 +423,6 @@ export class U5CProvider
 
     return allUtxos;
   }
-
 
   /**
    * Unimplemented - open for contribution
@@ -508,12 +525,13 @@ export class U5CProvider
     let scriptHash: string | undefined = undefined;
 
     if (rpcTxOutput.script !== undefined) {
-      if (rpcTxOutput.script.script.case !== "native" && rpcTxOutput.script.script.value) {
-        scriptRef = bytesToHex(rpcTxOutput.script.script.value)
-        scriptRef = cbor
-          .encode(Buffer.from(scriptRef, "hex"))
-          .toString("hex");
-        let V: "V1" | "V2" | "V3"
+      if (
+        rpcTxOutput.script.script.case !== "native" &&
+        rpcTxOutput.script.script.value
+      ) {
+        scriptRef = bytesToHex(rpcTxOutput.script.script.value);
+        scriptRef = cbor.encode(Buffer.from(scriptRef, "hex")).toString("hex");
+        let V: "V1" | "V2" | "V3";
         if (rpcTxOutput.script.script.case === "plutusV1") {
           V = "V1";
         } else if (rpcTxOutput.script.script.case === "plutusV2") {
@@ -521,7 +539,7 @@ export class U5CProvider
         } else {
           V = "V3";
         }
-        scriptHash = deserializePlutusScript(scriptRef!, V).hash()
+        scriptHash = deserializePlutusScript(scriptRef!, V).hash();
       }
     }
 

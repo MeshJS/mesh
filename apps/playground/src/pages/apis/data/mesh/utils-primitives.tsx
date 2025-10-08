@@ -26,8 +26,7 @@ function Left() {
         </li>
       </ul>
       <p>
-        For the rest of data primitives, they are represented by JS
-        primitives:
+        For the rest of data primitives, they are represented by JS primitives:
       </p>
       <ul>
         <li>

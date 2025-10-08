@@ -74,22 +74,10 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/BlockfrostProvider" />
 
-        <ProviderFetchers
-          provider={provider}
-          providerName="blockfrost"
-        />
-        <ProviderEvaluators
-          provider={provider}
-          providerName="blockfrost"
-        />
-        <ProviderSubmitters
-          provider={provider}
-          providerName="blockfrost"
-        />
-        <ProviderListeners
-          provider={provider}
-          providerName="blockfrost"
-        />
+        <ProviderFetchers provider={provider} providerName="blockfrost" />
+        <ProviderEvaluators provider={provider} providerName="blockfrost" />
+        <ProviderSubmitters provider={provider} providerName="blockfrost" />
+        <ProviderListeners provider={provider} providerName="blockfrost" />
       </SidebarFullwidth>
     </>
   );

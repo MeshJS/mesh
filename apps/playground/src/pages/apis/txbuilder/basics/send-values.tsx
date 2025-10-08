@@ -37,8 +37,8 @@ function Left() {
       </p>
       <Codeblock data={`.txOut(address: string, amount: Asset[])`} />
       <p>
-        In order to send values (so as every transaction), we have to
-        fund the transaction to do so. There are 2 ways to provide values in a
+        In order to send values (so as every transaction), we have to fund the
+        transaction to do so. There are 2 ways to provide values in a
         transaction:
       </p>
       <ul>
@@ -50,9 +50,7 @@ function Left() {
         </li>
         <li>
           <p>Providing an array of UTxOs, and perform auto UTxO selection:</p>
-          <Codeblock
-            data={`.selectUtxosFrom(extraInputs: UTxO[])`}
-          />
+          <Codeblock data={`.selectUtxosFrom(extraInputs: UTxO[])`} />
         </li>
       </ul>
       <p>

@@ -18,7 +18,6 @@ import {
   UTxO,
 } from "@meshsdk/common";
 
-import { parseHttpError } from "./utils";
 import { HydraConnection } from "./hydra-connection";
 import { hydraStatus, hydraTransaction, hydraUTxO } from "./types";
 import {
@@ -47,6 +46,7 @@ import {
   TxInvalid,
   TxValid,
 } from "./types/events";
+import { parseHttpError } from "./utils";
 
 /**
  * HydraProvider is a tool for administrating & interacting with Hydra Heads.
@@ -319,7 +319,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
     const utxo = utxos.filter((utxo) => utxo.output.address === address);
     if (asset) {
       return utxo.filter((utxo) =>
-        utxo.output.amount.some((a) => a.unit === asset)
+        utxo.output.amount.some((a) => a.unit === asset),
       );
     }
     return utxo;
@@ -365,7 +365,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * @returns theaddress and quantity for each UTxO holding the specified asset.
    */
   async fetchAssetAddresses(
-    asset: string
+    asset: string,
   ): Promise<{ address: string; quantity: string }[]> {
     const utxos = await this.fetchUTxOs();
     const addressesWithQuantity: { address: string; quantity: string }[] = [];
@@ -392,15 +392,15 @@ export class HydraProvider implements IFetcher, ISubmitter {
   async fetchCollectionAssets(policyId: string): Promise<{ assets: Asset[] }> {
     if (policyId.length !== POLICY_ID_LENGTH) {
       throw new Error(
-        "Invalid policyId length: must be a 56-character hex string"
+        "Invalid policyId length: must be a 56-character hex string",
       );
     }
 
     const utxos = await this.fetchUTxOs();
     const filteredUtxos = utxos.filter((utxo) =>
       utxo.output.amount.some(
-        (a) => a.unit.slice(0, POLICY_ID_LENGTH) === policyId
-      )
+        (a) => a.unit.slice(0, POLICY_ID_LENGTH) === policyId,
+      ),
     );
     if (filteredUtxos.length === 0 || undefined) {
       throw new Error(`No assets found in the head snapshot: ${policyId}`);
@@ -410,12 +410,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
         utxo.output.amount
           .filter(
             (a) =>
-              a.unit.length > policyId.length && a.unit.startsWith(policyId)
+              a.unit.length > policyId.length && a.unit.startsWith(policyId),
           )
           .map((a) => ({
             unit: a.unit,
             quantity: a.quantity,
-          }))
+          })),
       ),
     };
   }
@@ -426,7 +426,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * @returns object with policyId and assetName.
    */
   async fetchHydraAssets(
-    blockchainProvider: IFetcher
+    blockchainProvider: IFetcher,
   ): Promise<{ policyId: string; assetName: string }[] | undefined> {
     const utxos = await this.fetchUTxOs();
     if (!utxos || utxos.length === 0) {
@@ -449,7 +449,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
       [...assetUnits].map(async (unit) => {
         const metadata = await blockchainProvider.fetchAssetMetadata(unit);
         return metadata === undefined ? unit : null;
-      })
+      }),
     );
     if (!results) {
       return undefined;
@@ -557,7 +557,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
    */
   async publishDecommit(
     payload: unknown,
-    headers: RawAxiosRequestHeaders = {}
+    headers: RawAxiosRequestHeaders = {},
   ) {
     const txHex = await this.post("/decommit", payload, headers);
     return txHex;
@@ -647,8 +647,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
         | DecommitInvalid
         | DecommitRequested
         | DecommitApproved
-        | DecommitFinalized
-    ) => void
+        | DecommitFinalized,
+    ) => void,
   ) {
     this._eventEmitter.on("onmessage", (message) => {
       switch (message.tag) {
@@ -764,7 +764,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   async post(
     url: string,
     payload: unknown,
-    headers: RawAxiosRequestHeaders
+    headers: RawAxiosRequestHeaders,
   ): Promise<any> {
     try {
       const { data, status } = await this._axiosInstance.post(url, payload, {
@@ -789,7 +789,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
 
   async fetchAddressTxs(
     address: string,
-    options: IFetcherOptions = DEFAULT_FETCHER_OPTIONS
+    options: IFetcherOptions = DEFAULT_FETCHER_OPTIONS,
   ): Promise<TransactionInfo[]> {
     throw new Error("Method not implemented.");
   }
@@ -804,7 +804,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
 
   async fetchGovernanceProposal(
     txHash: string,
-    certIndex: number
+    certIndex: number,
   ): Promise<GovernanceProposalInfo> {
     throw new Error("Method not implemented");
   }

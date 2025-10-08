@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
-import { hydraStatus } from "./types/hydraStatus";
 import WebSocket, { MessageEvent } from "isomorphic-ws";
+
+import { hydraStatus } from "./types/hydraStatus";
 
 export class HydraConnection extends EventEmitter {
   constructor({

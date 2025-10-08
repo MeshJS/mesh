@@ -66,8 +66,8 @@ function Left() {
   return (
     <>
       <p>
-        In order for pps to communicate with the user's wallet, we need a way
-        to connect to their wallet.
+        In order for pps to communicate with the user's wallet, we need a way to
+        connect to their wallet.
       </p>
 
       <p>
@@ -122,12 +122,13 @@ function Left() {
 
       <h3>UTXOS - Web3 Services</h3>
       <p>
-        <Link href="https://utxos.dev/">UTXOS</Link>{" "}
-        streamline user onboarding and Web3 integration, accelerating your app's time to market and provide seamless user experiences.
+        <Link href="https://utxos.dev/">UTXOS</Link> streamline user onboarding
+        and Web3 integration, accelerating your app's time to market and provide
+        seamless user experiences.
       </p>
       <p>
-        To integrate UTXOS, use the <code>web3Services</code> prop.
-        The <code>networkId</code> is the network ID of the wallet you are
+        To integrate UTXOS, use the <code>web3Services</code> prop. The{" "}
+        <code>networkId</code> is the network ID of the wallet you are
         connecting to. You may use any <Link href="/providers">providers</Link>{" "}
         for <code>fetcher</code> and <code>submitter</code>.
       </p>

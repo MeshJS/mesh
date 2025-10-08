@@ -26,10 +26,13 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of CIP-30 extensions enabled by the connected wallet. CIP-30 extensions define additional capabilities that wallets can support, enhancing their functionality.
+        This API retrieves a list of CIP-30 extensions enabled by the connected
+        wallet. CIP-30 extensions define additional capabilities that wallets
+        can support, enhancing their functionality.
       </p>
       <p>
-        Applications can use this information to determine the features supported by the wallet and adapt their behavior accordingly.
+        Applications can use this information to determine the features
+        supported by the wallet and adapt their behavior accordingly.
       </p>
       <p>Example response:</p>
       <Codeblock data={codeSample} />

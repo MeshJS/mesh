@@ -22,8 +22,8 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of assets associated with a specific policy ID.
-        A policy ID is a unique identifier that groups assets under a common
+        This API retrieves a list of assets associated with a specific policy
+        ID. A policy ID is a unique identifier that groups assets under a common
         policy.
       </p>
       <p>

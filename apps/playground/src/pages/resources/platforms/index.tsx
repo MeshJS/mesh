@@ -7,7 +7,10 @@ import { linksFrameworks, metaFrameworks } from "~/data/links-frameworks";
 const ReactPage: NextPage = () => {
   return (
     <>
-      <Metatags title={metaFrameworks.title} description={metaFrameworks.desc} />
+      <Metatags
+        title={metaFrameworks.title}
+        description={metaFrameworks.desc}
+      />
       <HeaderAndCards
         headerTitle={metaFrameworks.title}
         headerParagraph={metaFrameworks.desc}

@@ -51,14 +51,25 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of assets in the wallet, excluding lovelace. Each asset is represented as an object with the following properties:
+        This API retrieves a list of assets in the wallet, excluding lovelace.
+        Each asset is represented as an object with the following properties:
       </p>
       <ul>
-        <li><code>unit</code>: A unique identifier for the asset.</li>
-        <li><code>policyId</code>: The policy ID associated with the asset.</li>
-        <li><code>assetName</code>: The name of the asset.</li>
-        <li><code>fingerprint</code>: A unique fingerprint for the asset.</li>
-        <li><code>quantity</code>: The amount of the asset held in the wallet.</li>
+        <li>
+          <code>unit</code>: A unique identifier for the asset.
+        </li>
+        <li>
+          <code>policyId</code>: The policy ID associated with the asset.
+        </li>
+        <li>
+          <code>assetName</code>: The name of the asset.
+        </li>
+        <li>
+          <code>fingerprint</code>: A unique fingerprint for the asset.
+        </li>
+        <li>
+          <code>quantity</code>: The amount of the asset held in the wallet.
+        </li>
       </ul>
       <p>Example response:</p>
       <Codeblock data={codeSample} />

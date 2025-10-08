@@ -1,0 +1,1 @@
+module.exports = "@meshsdk/configs/prettier";

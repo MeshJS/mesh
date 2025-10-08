@@ -1,8 +1,11 @@
-export type hydraStatus = typeof status[number];
+export type hydraStatus = (typeof status)[number];
 
-export function hydraStatus(value: { headStatus?: string; tag?: string; }): hydraStatus | null {
+export function hydraStatus(value: {
+  headStatus?: string;
+  tag?: string;
+}): hydraStatus | null {
   if (value.headStatus === "Open") return "OPEN";
-  
+
   switch (value.tag) {
     case "HeadIsInitializing":
       return "INITIALIZING";

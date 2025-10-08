@@ -15,3 +15,22 @@ export type BlockfrostAsset = {
   asset: Unit;
   quantity: Quantity;
 };
+
+export type BlockfrostTxIn = {
+  txId: string;
+  index: number;
+};
+
+export type BlockfrostTxOutValue = {
+  coins: number;
+  [policyId: string]: { [assetName: string]: number } | number;
+};
+
+export type BlockfrostTxOut = {
+  address: string;
+  value: BlockfrostTxOutValue;
+};
+
+export type BlockfrostAdditionalUtxo = [BlockfrostTxIn, BlockfrostTxOut];
+
+export type BlockfrostAdditionalUtxos = Array<BlockfrostAdditionalUtxo>;

@@ -7,17 +7,17 @@ export default function MDXPage({ children }) {
     { label: 'Make a simple transaction', to: 'makeasimpletransaction' },
   ];
 
-  return (
-    <LayoutImageHeaderAndBody
+return (
+<LayoutImageHeaderAndBody
       title={guidestandalone.title}
       description={guidestandalone.description}
       image={guidestandalone.image}
       cover={guidestandalone.cover}
       sidebarItems={sidebarItems}
     >
-      {children}
-    </LayoutImageHeaderAndBody>
-  );
+{children}
+</LayoutImageHeaderAndBody>
+);
 }
 
 If you're looking to run a javascript files to interact with the blockchain, you can use the tsx package to run the files directly from the command line.

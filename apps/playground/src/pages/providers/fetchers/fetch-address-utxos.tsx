@@ -28,12 +28,7 @@ export default function FetcherAddressUtxos({
       sidebarTo="fetchAddressUtxos"
       title="Fetch Address UTxOs"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -42,9 +37,7 @@ function Left(userInput: string) {
   return (
     <>
       <p>Fetch UTxOs controlled by an address.</p>
-      <Codeblock
-        data={`await provider.fetchAddressUTxOs('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchAddressUTxOs('${userInput}')`} />
       <p>
         Optionally, you can filter UTXOs containing a particular asset by
         providing <code>asset</code>, where it is the concatenation of policy ID

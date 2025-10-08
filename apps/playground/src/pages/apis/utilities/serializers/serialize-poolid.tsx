@@ -23,16 +23,13 @@ function Left() {
   return (
     <>
       <p>
-        The function <code>serializePoolId</code> allows you to provide the <code>pubKeyHash</code>{" "}
-        i.e (pool Hash), {" "}
-        returns:
+        The function <code>serializePoolId</code> allows you to provide the{" "}
+        <code>pubKeyHash</code> i.e (pool Hash), returns:
         <ul>
-          <li>
-            Pool Id
-          </li>
+          <li>Pool Id</li>
         </ul>
-        You can use this function to convert a pool hash into a pool ID, which is useful for interacting with {" "} 
-        staking and delegation mechanisms.
+        You can use this function to convert a pool hash into a pool ID, which
+        is useful for interacting with staking and delegation mechanisms.
       </p>
     </>
   );
@@ -54,7 +51,7 @@ function Right() {
       code={codeSnippet}
       runCodeFunction={runDemo}
     >
-       <InputTable
+      <InputTable
         listInputs={[
           <Input
             value={userInput}

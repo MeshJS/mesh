@@ -33,7 +33,7 @@ export default function TwoColumnsScroll({
           <LinkIcon className="h-5 w-5" />
         </button>
       </div>
-      <div className="grid grid-cols-1 md:px-4 pb-16 lg:grid-cols-2 lg:gap-16">
+      <div className="grid grid-cols-1 pb-16 md:px-4 lg:grid-cols-2 lg:gap-16">
         <div className="col-span-1 xl:col-auto">{leftSection}</div>
         {rightSection && <div className="col-span-1">{rightSection}</div>}
       </div>

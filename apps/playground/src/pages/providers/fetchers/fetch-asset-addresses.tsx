@@ -21,12 +21,7 @@ export default function FetcherAssetAddresses({
       sidebarTo="fetchAssetAddresses"
       title="Fetch Asset Addresses"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -38,9 +33,7 @@ function Left(userInput: string) {
         Fetch a list of a addresses containing a specific <code>asset</code>{" "}
         where it is the concatenation of policy ID and asset.
       </p>
-      <Codeblock
-        data={`await provider.fetchAssetAddresses('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchAssetAddresses('${userInput}')`} />
     </>
   );
 }
