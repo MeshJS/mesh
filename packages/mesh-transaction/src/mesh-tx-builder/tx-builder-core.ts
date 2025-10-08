@@ -13,7 +13,9 @@ import {
   DEFAULT_REDEEMER_BUDGET,
   DRep,
   DREP_DEPOSIT,
+  VOTING_PROPOSAL_DEPOSIT,
   emptyTxBuilderBody,
+  GovernanceAction,
   LanguageVersion,
   MeshTxBuilderBody,
   Metadatum,
@@ -22,10 +24,12 @@ import {
   Network,
   Output,
   PoolParams,
+  Proposal,
   Protocol,
   PubKeyTxIn,
   Quantity,
   Redeemer,
+  RewardAddress,
   RefTxIn,
   TxIn,
   TxInParameter,
@@ -64,6 +68,8 @@ export class MeshTxBuilderCore {
   protected withdrawalItem?: Withdrawal;
 
   protected voteItem?: Vote;
+
+  protected proposalItem?: Proposal;
 
   protected collateralQueueItem?: PubKeyTxIn;
 
@@ -1107,6 +1113,125 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Creates a governance proposal and adds it to the transaction
+   * @param governanceAction The governance action to propose
+   * @param anchor The anchor containing proposal information
+   * @param rewardAccount The reward address for the proposal return
+   * @param deposit The deposit amount for the proposal
+   * @returns The MeshTxBuilder instance
+   */
+  proposal = (
+    governanceAction: GovernanceAction,
+    anchor: Anchor,
+    rewardAccount: RewardAddress,
+    deposit: string = VOTING_PROPOSAL_DEPOSIT,
+  ) => {
+    if (this.proposalItem) {
+      this.queueProposal();
+    }
+    this.proposalItem = {
+      type: "BasicProposal",
+      proposalType: {
+        governanceAction,
+        anchor,
+        rewardAccount,
+        deposit,
+      },
+    };
+    return this;
+  };
+
+  /**
+   * Adds a plutus script witness to the proposal
+   * @param scriptCbor The CborHex of the script
+   * @param version The plutus version of the script
+   */
+  proposalScript = (scriptCbor: string, version: LanguageVersion) => {
+    const currentProposal = this.proposalItem;
+    if (!currentProposal) {
+      throw Error(
+        "Proposal script attempted to be defined, but no proposal was found",
+      );
+    }
+    this.proposalItem = {
+      type: "ScriptProposal",
+      proposalType: currentProposal.proposalType,
+      scriptSource: {
+        type: "Provided",
+        script: {
+          code: scriptCbor,
+          version,
+        },
+      },
+    };
+    return this;
+  };
+
+  /**
+   * Adds a reference to a plutus script for the proposal
+   * @param txHash The transaction hash of the reference UTxO
+   * @param txIndex The transaction index of the reference UTxO
+   * @param scriptSize The size of the plutus script in bytes referenced
+   * @param scriptHash The script hash of the script
+   * @param version The plutus version of the script
+   */
+  proposalTxInReference = (
+    txHash: string,
+    txIndex: number,
+    scriptSize: string,
+    scriptHash: string,
+    version: LanguageVersion,
+  ) => {
+    const currentProposal = this.proposalItem;
+    if (!currentProposal) {
+      throw Error(
+        "Proposal script reference attempted to be defined, but no proposal was found",
+      );
+    }
+    this.proposalItem = {
+      type: "ScriptProposal",
+      proposalType: currentProposal.proposalType,
+      scriptSource: {
+        type: "Inline",
+        txHash,
+        txIndex,
+        scriptHash,
+        scriptSize,
+        version,
+      },
+      redeemer:
+        currentProposal.type === "ScriptProposal"
+          ? currentProposal.redeemer
+          : undefined,
+    };
+    return this;
+  };
+
+  /**
+   * Adds redeemer data to a plutus script proposal
+   * @param redeemer The redeemer data
+   * @param type The data type (Mesh or CBOR)
+   * @param exUnits The execution units budget
+   * @returns The MeshTxBuilder instance
+   */
+  proposalRedeemerValue = (
+    redeemer: BuilderData["content"],
+    type: BuilderData["type"] = "Mesh",
+    exUnits = { ...DEFAULT_REDEEMER_BUDGET },
+  ) => {
+    if (!this.proposalItem) throw Error("proposalRedeemerValue: Undefined proposal");
+    if (!(this.proposalItem.type === "ScriptProposal"))
+      throw Error("proposalRedeemerValue: Adding redeemer to non plutus proposal");
+    this.proposalItem.redeemer = this.castBuilderDataToRedeemer(
+      redeemer,
+      type,
+      exUnits,
+    );
+
+    return this;
+  };
+
+  /**
    * Creates a pool registration certificate, and adds it to the transaction
    * @param poolParams Parameters for pool registration
    * @returns The MeshTxBuilder instance
@@ -1602,6 +1727,9 @@ export class MeshTxBuilderCore {
     if (this.voteItem) {
       this.queueVote();
     }
+    if (this.proposalItem) {
+      this.queueProposal();
+    }
   };
 
   private queueInput = () => {
@@ -1714,6 +1842,26 @@ export class MeshTxBuilderCore {
     }
     this.meshTxBuilderBody.votes.push(this.voteItem);
     this.voteItem = undefined;
+  };
+
+  private queueProposal = () => {
+    if (!this.proposalItem) {
+      throw Error("queueProposal: Undefined proposal");
+    }
+    if (this.proposalItem.type === "ScriptProposal") {
+      if (!this.proposalItem.scriptSource) {
+        throw Error("queueProposal: Missing proposal script information");
+      }
+      if (!this.proposalItem.redeemer) {
+        throw Error("queueProposal: Missing proposal redeemer information");
+      }
+    } else if (this.proposalItem.type === "SimpleScriptProposal") {
+      if (!this.proposalItem.simpleScriptSource) {
+        throw Error("queueProposal: Missing proposal script information");
+      }
+    }
+    this.meshTxBuilderBody.proposals.push(this.proposalItem);
+    this.proposalItem = undefined;
   };
 
   protected castRawDataToJsonString = (rawData: object | string) => {
@@ -1923,6 +2071,7 @@ export class MeshTxBuilderCore {
     this.txInQueueItem = undefined;
     this.withdrawalItem = undefined;
     this.voteItem = undefined;
+    this.proposalItem = undefined;
     this.collateralQueueItem = undefined;
     this.refScriptTxInQueueItem = undefined;
   };
@@ -1965,6 +2114,9 @@ export class MeshTxBuilderCore {
       : undefined;
     newBuilder.voteItem = this.voteItem
       ? structuredClone(this.voteItem)
+      : undefined;
+    newBuilder.proposalItem = this.proposalItem
+      ? structuredClone(this.proposalItem)
       : undefined;
     newBuilder.collateralQueueItem = this.collateralQueueItem
       ? structuredClone(this.collateralQueueItem)

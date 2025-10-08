@@ -43,6 +43,7 @@ import {
   Output,
   PlutusDataType,
   PlutusScript,
+  Proposal,
   Protocol,
   PubKeyTxIn,
   RefTxIn,
@@ -129,6 +130,7 @@ import {
   toCardanoVoter,
   toCardanoVotingProcedure,
 } from "../utils/vote";
+import { toCardanoProposalProcedure } from "../utils/proposal";
 
 const VKEY_PUBKEY_SIZE_BYTES = 32;
 const VKEY_SIGNATURE_SIZE_BYTES = 64;
@@ -614,6 +616,7 @@ class CardanoSDKSerializerCore {
       certificates,
       withdrawals,
       votes,
+      proposals,
       totalCollateral,
       collateralReturnAddress,
       changeAddress,
@@ -662,6 +665,11 @@ class CardanoSDKSerializerCore {
       this.addAllVotes(votes);
     } catch (e) {
       throwErrorWithOrigin("Error serializing votes", e);
+    }
+    try {
+      this.addAllProposals(proposals);
+    } catch (e) {
+      throwErrorWithOrigin("Error serializing proposals", e);
     }
     try {
       this.addAllCollateralInputs(collaterals);
@@ -1772,6 +1780,114 @@ class CardanoSDKSerializerCore {
       this.addSimpleScriptRef(nativeScriptSource);
     }
     this.addBasicVote({ type: "BasicVote", vote: vote.vote });
+  };
+
+  private addAllProposals = (proposals: Proposal[]) => {
+    for (let i = 0; i < proposals.length; i++) {
+      const proposal = proposals[i];
+      if (!proposal) continue;
+      switch (proposal.type) {
+        case "BasicProposal": {
+          this.addBasicProposal(proposal);
+          break;
+        }
+        case "ScriptProposal": {
+          this.addScriptProposal(proposal, i);
+          break;
+        }
+        case "SimpleScriptProposal": {
+          this.addSimpleScriptProposal(proposal);
+          break;
+        }
+      }
+    }
+  };
+
+  private addBasicProposal = (proposal: Proposal) => {
+    const currentProcedures = this.txBody.proposalProcedures();
+    const proposalProcedures = currentProcedures 
+      ? [...currentProcedures.values()] 
+      : [];
+
+    const proposalProcedure = toCardanoProposalProcedure(
+      proposal.proposalType.governanceAction,
+      proposal.proposalType.anchor,
+      proposal.proposalType.rewardAccount,
+      BigInt(proposal.proposalType.deposit),
+    );
+
+    proposalProcedures.push(proposalProcedure);
+    this.txBody.setProposalProcedures(
+      CborSet.fromCore(
+        proposalProcedures.map(p => p.toCore()),
+        Serialization.ProposalProcedure.fromCore,
+      )
+    );
+  };
+
+  private addScriptProposal = (proposal: Proposal, index: number) => {
+    if (proposal.type !== "ScriptProposal") {
+      throw new Error("Expected ScriptProposal");
+    }
+    if (!proposal.scriptSource)
+      throw new Error("Script source not provided for plutus script proposal");
+    const plutusScriptSource = proposal.scriptSource as ScriptSource;
+    if (!plutusScriptSource) {
+      throw new Error(
+        "A script source for a plutus proposal was not plutus script somehow",
+      );
+    }
+    if (!proposal.redeemer) {
+      throw new Error("A redeemer was not provided for a plutus proposal");
+    }
+
+    // Add proposal redeemer to witness set
+    let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
+    let redeemersList = [...redeemers.values()];
+    redeemersList.push(
+      new Redeemer(
+        RedeemerTag.Proposing,
+        BigInt(index),
+        fromBuilderToPlutusData(proposal.redeemer.data),
+        new ExUnits(
+          BigInt(proposal.redeemer.exUnits.mem),
+          BigInt(proposal.redeemer.exUnits.steps),
+        ),
+      ),
+    );
+    redeemers.setValues(redeemersList);
+    this.txWitnessSet.setRedeemers(redeemers);
+
+    if (plutusScriptSource.type === "Provided") {
+      this.addProvidedPlutusScript(plutusScriptSource.script);
+    } else if (plutusScriptSource.type === "Inline") {
+      this.addScriptRef(plutusScriptSource);
+    }
+    this.addBasicProposal(proposal);
+  };
+
+  private addSimpleScriptProposal = (proposal: Proposal) => {
+    if (proposal.type !== "SimpleScriptProposal") {
+      throw new Error("Expected SimpleScriptProposal");
+    }
+    if (!proposal.simpleScriptSource)
+      throw new Error("Script source not provided for native script proposal");
+    const nativeScriptSource: SimpleScriptSourceInfo =
+      proposal.simpleScriptSource as SimpleScriptSourceInfo;
+    if (!nativeScriptSource)
+      throw new Error(
+        "A script source for a native script was not a native script somehow",
+      );
+    if (nativeScriptSource.type === "Provided") {
+      this.scriptsProvided.add(
+        Script.newNativeScript(
+          NativeScript.fromCbor(HexBlob(nativeScriptSource.scriptCode)),
+        ).toCbor(),
+      );
+    } else if (nativeScriptSource.type === "Inline") {
+      this.addSimpleScriptRef(nativeScriptSource);
+    }
+    this.addBasicProposal(proposal);
   };
 
   private mockVkeyWitnesses = (
