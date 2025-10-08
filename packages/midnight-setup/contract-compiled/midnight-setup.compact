@@ -1,0 +1,9 @@
+pragma language_version >= 0.17.0;
+
+import CompactStandardLibrary;
+
+export ledger message: Bytes<32>;
+
+constructor() {
+  message = "Made with ❤️ by MeshJS team!";
+}
