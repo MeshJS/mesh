@@ -1,13 +1,16 @@
 import { useState } from "react";
+
 import Button from "~/components/button/button";
 import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
 
 export default function MDXPage({ children }) {
   return (
     <LayoutImageHeaderAndBody
-      title={'Governance'}
-      description={'Our guidelines and directives regarding governance actions as a dRep at the Cardano Ecosystem'}
-      image={'/governance/network-3524352_640.jpg'}
+      title={"Governance"}
+      description={
+        "Our guidelines and directives regarding governance actions as a dRep at the Cardano Ecosystem"
+      }
+      image={"/governance/network-3524352_640.jpg"}
     >
       <>{children}</>
     </LayoutImageHeaderAndBody>

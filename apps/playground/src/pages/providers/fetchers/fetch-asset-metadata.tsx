@@ -21,12 +21,7 @@ export default function FetcherAssetMetadata({
       sidebarTo="fetchAssetMetadata"
       title="Fetch Asset Metadata"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -38,9 +33,7 @@ function Left(userInput: string) {
         Fetch the asset metadata by providing asset's <code>unit</code>, which
         is the concatenation of policy ID and asset name in hex.
       </p>
-      <Codeblock
-        data={`await provider.fetchAssetMetadata('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchAssetMetadata('${userInput}')`} />
     </>
   );
 }

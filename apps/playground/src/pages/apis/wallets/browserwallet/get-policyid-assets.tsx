@@ -23,9 +23,9 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of assets associated with a specific policy ID.
-        If no assets in the wallet belong to the specified policy ID, an empty
-        list is returned.
+        This API retrieves a list of assets associated with a specific policy
+        ID. If no assets in the wallet belong to the specified policy ID, an
+        empty list is returned.
       </p>
       <p>
         Applications can use this API to query assets belonging to a particular

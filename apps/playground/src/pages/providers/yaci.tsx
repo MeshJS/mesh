@@ -72,26 +72,11 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/YaciProvider" />
 
-        <ProviderFetchers
-          provider={provider}
-          providerName="yaci"
-        />
-        <ProviderEvaluators
-          provider={provider}
-          providerName="yaci"
-        />
-        <ProviderSubmitters
-          provider={provider}
-          providerName="yaci"
-        />
-        <ProviderListeners
-          provider={provider}
-          providerName="yaci"
-        />
-        <ProviderYaciEndpoints
-          provider={provider}
-          providerName="yaci"
-        />
+        <ProviderFetchers provider={provider} providerName="yaci" />
+        <ProviderEvaluators provider={provider} providerName="yaci" />
+        <ProviderSubmitters provider={provider} providerName="yaci" />
+        <ProviderListeners provider={provider} providerName="yaci" />
+        <ProviderYaciEndpoints provider={provider} providerName="yaci" />
       </SidebarFullwidth>
     </>
   );

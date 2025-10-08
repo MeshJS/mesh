@@ -34,9 +34,9 @@ function Left() {
         keys, which are crucial for managing your cryptocurrencies securely.
       </p>
       <p>
-        Alternatively, you can generate private keys directly by passing `true` to
-        the `brew` function. This approach is useful for scenarios where you need
-        immediate access to private keys without mnemonic phrases.
+        Alternatively, you can generate private keys directly by passing `true`
+        to the `brew` function. This approach is useful for scenarios where you
+        need immediate access to private keys without mnemonic phrases.
       </p>
       <Codeblock data={`const privatekey = MeshWallet.brew(true);`} />
     </>

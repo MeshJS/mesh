@@ -9,10 +9,10 @@ import {
 import {
   applyParamsToScript,
   blake2b,
+  HexBlob,
   Transaction,
   TransactionOutput,
   TxCBOR,
-  HexBlob,
 } from "@meshsdk/core-cst";
 
 export const txHash = (tx: string) => {
@@ -55,31 +55,31 @@ export const drepBech32 = (index: number) => {
     Buffer.from(numberString, "utf-8"),
   ]);
   return encodeBech32DRep(bytes);
-}
+};
 
 export const rewardAddress = (index: number) => {
   const numberString = index.toString().padStart(28, "0");
   const bytes = Buffer.concat([
-    Buffer.from([0xE1]),
+    Buffer.from([0xe1]),
     Buffer.from(numberString, "utf-8"),
   ]);
   return encodeBech32RewardAddress(bytes);
-}
+};
 
 export const keyHashHex = (index: number) => {
   const numberString = index.toString().padStart(28, "0");
-  return HexBlob.fromBytes(Buffer.from(numberString, "utf-8"),).toString();
-}
+  return HexBlob.fromBytes(Buffer.from(numberString, "utf-8")).toString();
+};
 
 export const vrfKeyHashHex = (index: number) => {
   const numberString = index.toString().padStart(32, "0");
-  return HexBlob.fromBytes(Buffer.from(numberString, "utf-8"),).toString();
-}
+  return HexBlob.fromBytes(Buffer.from(numberString, "utf-8")).toString();
+};
 
 export const poolIdBech32 = (index: number) => {
   const numberString = index.toString().padStart(28, "0");
   return encodeBech32PoolId(Buffer.from(numberString, "utf-8"));
-}
+};
 
 const encodeBech32PoolId = (bytes: Uint8Array): string => {
   const words = bech32.toWords(bytes);
@@ -91,7 +91,7 @@ const encodeBech32Address = (bytes: Uint8Array): string => {
   return bech32.encode("addr_test", words, 200);
 };
 
-const encodeBech32RewardAddress  = (bytes: Uint8Array): string => {
+const encodeBech32RewardAddress = (bytes: Uint8Array): string => {
   const words = bech32.toWords(bytes);
   return bech32.encode("stake", words, 200);
 };
@@ -99,7 +99,7 @@ const encodeBech32RewardAddress  = (bytes: Uint8Array): string => {
 const encodeBech32DRep = (bytes: Uint8Array) => {
   const words = bech32.toWords(bytes);
   return bech32.encode("drep", words, 200);
-}
+};
 
 export const mockTokenUnit = (num: number) => {
   const policyId = num.toString(16).padStart(56, "0");

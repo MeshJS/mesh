@@ -51,9 +51,10 @@ describe("Unbalanced", () => {
       fee: "0",
       expectedNumberKeyWitnesses: 0,
       expectedByronAddressWitnesses: [],
+      proposals: [],
     };
 
-    const txHex = serializer.serializeTxBody(body, undefined, false);
+    const txHex = serializer.serializeTxBody(body, undefined);
     const cardanoTx = Transaction.fromCbor(TxCBOR(txHex));
     expect(cardanoTx.body().outputs()[0]!.amount().coin()).toEqual(
       BigInt(2000000),

@@ -333,7 +333,9 @@ export const toValue = (assets: Asset[]) => {
       multiAsset.set(AssetId(asset.unit), BigInt(asset.quantity));
     });
 
-  const lovelace = assets.find((asset) => asset.unit === "lovelace" || asset.unit === "");
+  const lovelace = assets.find(
+    (asset) => asset.unit === "lovelace" || asset.unit === "",
+  );
   const value = new Value(BigInt(lovelace ? lovelace.quantity : 0));
 
   if (assets.length > 1 || !lovelace) {

@@ -33,58 +33,25 @@ export default function ProviderFetchers({
     <>
       <FetcherGet provider={provider} providerName={providerName} />
 
-      <FetcherAccountInfo
-        provider={provider}
-        providerName={providerName}
-      />
-      <FetcherAddressAssets
-        provider={provider}
-        providerName={providerName}
-      />
-      <FetcherAddressUtxos
-        provider={provider}
-        providerName={providerName}
-      />
-      <FetcherAssetAddresses
-        provider={provider}
-        providerName={providerName}
-      />
-      <FetcherAssetMetadata
-        provider={provider}
-        providerName={providerName}
-      />
-      <FetcherBlockInfo
-        provider={provider}
-        providerName={providerName}
-      />
+      <FetcherAccountInfo provider={provider} providerName={providerName} />
+      <FetcherAddressAssets provider={provider} providerName={providerName} />
+      <FetcherAddressUtxos provider={provider} providerName={providerName} />
+      <FetcherAssetAddresses provider={provider} providerName={providerName} />
+      <FetcherAssetMetadata provider={provider} providerName={providerName} />
+      <FetcherBlockInfo provider={provider} providerName={providerName} />
       <FetcherCollectionAssets
         provider={provider}
         providerName={providerName}
       />
-      <FetcherHandleAddress
-        provider={provider}
-        providerName={providerName}
-      />
-      <FetcherHandle
-        provider={provider}
-        providerName={providerName}
-      />
+      <FetcherHandleAddress provider={provider} providerName={providerName} />
+      <FetcherHandle provider={provider} providerName={providerName} />
       <FetcherProtocolParameters
         provider={provider}
         providerName={providerName}
       />
-      <FetcherTransactionInfo
-        provider={provider}
-        providerName={providerName}
-      />
-      <FetcherUtxos
-        provider={provider}
-        providerName={providerName}
-      />
-      <FetcherProposalInfo
-        provider={provider}
-        providerName={providerName}
-      />
+      <FetcherTransactionInfo provider={provider} providerName={providerName} />
+      <FetcherUtxos provider={provider} providerName={providerName} />
+      <FetcherProposalInfo provider={provider} providerName={providerName} />
     </>
   );
 }

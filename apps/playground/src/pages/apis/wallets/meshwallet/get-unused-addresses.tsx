@@ -30,10 +30,14 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of unused addresses controlled by the wallet. Unused addresses are wallet-controlled addresses that have not been involved in any transactions.
+        This API retrieves a list of unused addresses controlled by the wallet.
+        Unused addresses are wallet-controlled addresses that have not been
+        involved in any transactions.
       </p>
       <p>
-        Unused addresses are important for maintaining privacy and security in transactions. They can be used for new transactions without revealing previous activity.
+        Unused addresses are important for maintaining privacy and security in
+        transactions. They can be used for new transactions without revealing
+        previous activity.
       </p>
       <p>Example response:</p>
       <Codeblock data={example} />

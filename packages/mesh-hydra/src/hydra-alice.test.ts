@@ -1,6 +1,7 @@
 import { BlockfrostProvider, MeshTxBuilder, MeshWallet } from "@meshsdk/core";
-import { HydraProvider } from "./hydra-provider";
+
 import { HydraInstance } from "./hydra-instance";
+import { HydraProvider } from "./hydra-provider";
 
 describe("Hydra Provider", () => {
   let provider: HydraProvider;
@@ -10,9 +11,9 @@ describe("Hydra Provider", () => {
   let txBuilder: MeshTxBuilder;
 
   beforeEach(() => {
-      provider = new HydraProvider({
-        httpUrl: "http://localhost:4001",
-      });
+    provider = new HydraProvider({
+      httpUrl: "http://localhost:4001",
+    });
 
     blockchainProvider = new BlockfrostProvider("");
     const seedPhrase = [""];
@@ -50,7 +51,7 @@ describe("Hydra Provider", () => {
     const unsignedTx = await txBuilder
       .txIn(
         "cd8d9b66df467df82cf6df10a0dbd24847a27ac280e1033e509a8bc0de8d2579",
-        2
+        2,
       )
       .txOut("", [
         {
@@ -73,7 +74,7 @@ describe("Hydra Provider", () => {
         cborHex: unsignedTx,
         description: "a new blueprint tx",
         type: "Tx ConwayEra",
-      }
+      },
     );
     console.log("tx", tx);
     const signedTx = await wallet.signTx(tx, true);
@@ -85,7 +86,7 @@ describe("Hydra Provider", () => {
   it("should fail to fetch UTXOs for an invalid address", async () => {
     await provider.connect();
     await expect(
-      provider.fetchAddressUTxOs("invalid_address")
+      provider.fetchAddressUTxOs("invalid_address"),
     ).rejects.toThrow();
   });
 

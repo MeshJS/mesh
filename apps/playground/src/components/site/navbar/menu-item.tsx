@@ -11,7 +11,7 @@ export default function MenuItem({
     <li>
       <Link
         href={link}
-        className="lg:hover:text-black lg:dark:hover:text-white dark:hover:text-white block border-b border-neutral-100 py-2 pl-3 pr-4 text-neutral-700 hover:bg-neutral-50 lg:border-0 lg:p-0 lg:hover:bg-transparent dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700 lg:dark:hover:bg-transparent hover:no-underline"
+        className="block border-b border-neutral-100 py-2 pl-3 pr-4 text-neutral-700 hover:bg-neutral-50 hover:no-underline lg:border-0 lg:p-0 lg:hover:bg-transparent lg:hover:text-black dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700 dark:hover:text-white lg:dark:hover:bg-transparent lg:dark:hover:text-white"
       >
         {title}
       </Link>

@@ -1,5 +1,6 @@
 import type { NextPage } from "next";
 
+import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 import MintMeshToken from "~/components/cardano/mint-mesh-token";
 import SidebarFullwidth from "~/components/layouts/sidebar-fullwidth";
 import Link from "~/components/link";
@@ -13,7 +14,6 @@ import MarketplaceBuyAsset from "./buy-asset";
 import MarketplaceCancelListing from "./cancel-listing";
 import MarketplaceListAsset from "./list-asset";
 import MarketplaceUpdateListing from "./update-listing";
-import ButtonFloatDocumentation from "~/components/button/button-float-documentation";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [

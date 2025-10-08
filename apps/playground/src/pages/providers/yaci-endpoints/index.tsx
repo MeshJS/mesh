@@ -14,10 +14,7 @@ export default function ProviderYaciEndpoints({
   return (
     <>
       <YaciDevnetInfo provider={provider} providerName={providerName} />
-      <YacigetGenesisByEra
-        provider={provider}
-        providerName={providerName}
-      />
+      <YacigetGenesisByEra provider={provider} providerName={providerName} />
       <YaciTopupAddress provider={provider} providerName={providerName} />
     </>
   );

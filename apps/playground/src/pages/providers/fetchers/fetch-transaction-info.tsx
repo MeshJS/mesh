@@ -23,12 +23,7 @@ export default function FetcherTransactionInfo({
       sidebarTo="fetchTxInfo"
       title="Fetch Transaction Info"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -40,9 +35,7 @@ function Left(userInput: string) {
         Fetch transaction infomation. Only confirmed transaction can be
         retrieved.
       </p>
-      <Codeblock
-        data={`await provider.fetchTxInfo('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchTxInfo('${userInput}')`} />
     </>
   );
 }

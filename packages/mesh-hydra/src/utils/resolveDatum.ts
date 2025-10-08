@@ -15,7 +15,7 @@ export async function resolvePlutusData(datumHash: string) {
     }
     if (value && typeof value === "object") {
       return Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [k, normalize(v)])
+        Object.entries(value).map(([k, v]) => [k, normalize(v)]),
       );
     }
     return value;
