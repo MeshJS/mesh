@@ -339,6 +339,7 @@ describe("Build transaction with custom protocol params", () => {
         fee: "0",
         expectedNumberKeyWitnesses: 0,
         expectedByronAddressWitnesses: [],
+        proposals: [],
       }),
     ).toBeTruthy();
   });
