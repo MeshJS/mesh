@@ -1,0 +1,33 @@
+# Development directories
+packages/
+compact/
+node_modules/
+src/
+
+# Build artifacts not needed
+.turbo
+
+# Yarn/workspace files (we use npm in main repo)
+yarn.lock
+turbo.json
+
+# Development configs
+tsconfig.json
+tsup.config.ts
+.eslintrc*
+.prettierrc*
+
+# Tests
+*.test.ts
+*.spec.ts
+test/
+tests/
+
+# Git
+.git
+.gitignore
+
+# Misc
+*.log
+.DS_Store
+

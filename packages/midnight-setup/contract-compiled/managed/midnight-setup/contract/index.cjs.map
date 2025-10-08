@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "file": "index.cjs",
+  "sourceRoot": "../../../../",
+  "sources": ["src/midnight-setup.compact"],
+  "names": [],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;EAMA;;;;;;;;;;;;GAEC;EAFD;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;IAFA;;;;;;;;;uDAAiC;IAG/B;;;;;;;;;uDAAO;;;;;;;GACR;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;IAJD;qCAAA;;;;;;;;;;;wFAAiC;KAAA;;;;;;;;;;;;;;"
+}
