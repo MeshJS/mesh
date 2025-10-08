@@ -7,3 +7,4 @@ export * from "./address";
 export * from "./encoding";
 export * from "./witness-set";
 export * from "./fee";
+export * from "./proposal";
