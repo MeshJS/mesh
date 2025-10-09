@@ -22,6 +22,7 @@ FILES=(
   "packages/mesh-svelte/package.json"
   "packages/mesh-transaction/package.json"
   "packages/mesh-wallet/package.json"
+  "packages/midnight-setup/package.json"
   "scripts/mesh-cli/package.json"
 )
 
@@ -43,6 +44,7 @@ for FILE in "${FILES[@]}"; do
     sed -i '' -e "s/\"@meshsdk\/svelte\": \".*\"/\"@meshsdk\/svelte\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/transaction\": \".*\"/\"@meshsdk\/transaction\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/wallet\": \".*\"/\"@meshsdk\/wallet\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/midnight-setup\": \".*\"/\"@meshsdk\/midnight-setup\": \"$VERSION\"/" "$FILE" 
  
     echo "Updated version in $FILE"
   else
