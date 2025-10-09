@@ -7,10 +7,6 @@ src/
 # Build artifacts not needed
 .turbo
 
-# Yarn/workspace files (we use npm in main repo)
-yarn.lock
-turbo.json
-
 # Development configs
 tsconfig.json
 tsup.config.ts
@@ -30,4 +26,3 @@ tests/
 # Misc
 *.log
 .DS_Store
-

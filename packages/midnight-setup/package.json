@@ -1,7 +1,7 @@
 {
   "name": "@meshsdk/midnight-setup",
   "version": "1.9.0-beta.79",
-  "description": "Midnight Network integration for MeshSDK - https://meshjs.dev/midnight",
+  "description": "Midnight Network integration SDK for MeshSDK - https://meshjs.dev/midnight",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
   "module": "./dist/index.js",
@@ -12,22 +12,15 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    },
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.js",
-      "require": "./dist/react.cjs"
-    },
-    "./styles.css": "./dist/styles.css"
+    }
   },
   "files": [
-    "dist/**",
-    "contract-compiled/**"
+    "dist/**"
   ],
   "scripts": {
-    "build:mesh": "tsup src/index.ts src/react.ts --format esm,cjs --dts && cp src/react/styles.css dist/styles.css",
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "dev": "tsup src/index.ts src/react.ts --format esm,cjs --watch --dts",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
     "pack": "npm pack --pack-destination=./dist",
@@ -35,22 +28,10 @@
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "^0.8.1",
-    "@midnight-ntwrk/ledger": "^4.0.0",
     "@midnight-ntwrk/midnight-js-contracts": "2.0.2",
     "@midnight-ntwrk/midnight-js-types": "2.0.2",
-    "@midnight-ntwrk/zswap": "4.0.0",
-    "@radix-ui/react-dialog": "^1.1.14",
-    "@radix-ui/react-label": "^2.1.7",
-    "@radix-ui/react-progress": "^1.1.7",
-    "@radix-ui/react-slot": "^1.2.3",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "fp-ts": "^2.16.1",
-    "lucide-react": "^0.523.0",
     "pino": "^8.16.1",
-    "rxjs": "^7.8.1",
-    "semver": "^7.6.0",
-    "tailwind-merge": "^3.3.1"
+    "rxjs": "^7.8.1"
   },
   "peerDependencies": {
     "@midnight-ntwrk/dapp-connector-api": "^3.0.0",
@@ -58,26 +39,12 @@
     "@midnight-ntwrk/midnight-js-http-client-proof-provider": "^2.0.2",
     "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "^2.0.2",
     "@midnight-ntwrk/midnight-js-level-private-state-provider": "^2.0.2",
-    "@midnight-ntwrk/midnight-js-network-id": "^2.0.2",
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
+    "@midnight-ntwrk/midnight-js-network-id": "^2.0.2"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
-    "@types/react": "^18.2.61",
-    "@types/react-dom": "^18.2.19",
     "@types/ws": "^8.5.9",
     "eslint": "^8.57.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
   },

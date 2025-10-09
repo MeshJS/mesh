@@ -1,10 +1,10 @@
-import type { 
-  PrivateStateProvider, 
-  ZKConfigProvider, 
-  ProofProvider, 
-  PublicDataProvider, 
-  WalletProvider, 
-  MidnightProvider 
+import type {
+  MidnightProvider,
+  PrivateStateProvider,
+  ProofProvider,
+  PublicDataProvider,
+  WalletProvider,
+  ZKConfigProvider,
 } from "@midnight-ntwrk/midnight-js-types";
 
 // Private state identifier for the contract
@@ -22,6 +22,26 @@ export interface MidnightSetupContractProviders {
   publicDataProvider: PublicDataProvider;
   walletProvider: WalletProvider;
   midnightProvider: MidnightProvider;
+}
+
+// Deployed contract interface
+export interface DeployedContract {
+  deployTxData: {
+    public: {
+      contractAddress: string;
+    };
+  };
+}
+
+// Contract instance type - accepts any Midnight contract
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ContractInstance = any;
+
+// Contract state from public data provider
+export interface QueryContractState {
+  data: unknown;
+  blockHeight?: number | bigint;
+  blockHash?: string | Uint8Array;
 }
 
 // Contract state types - using unknown for flexible state data
