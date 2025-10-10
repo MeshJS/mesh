@@ -16,7 +16,13 @@
 ## Installation
 
 ```bash
-npm install @meshsdk/midnight-setup \
+npm install @meshsdk/midnight-setup
+```
+
+**For Midnight Network projects, you'll also need these providers, if you already have them, skip this section:**
+
+```bash
+npm install \
   @midnight-ntwrk/dapp-connector-api@3.0.0 \
   @midnight-ntwrk/midnight-js-fetch-zk-config-provider@2.0.2 \
   @midnight-ntwrk/midnight-js-http-client-proof-provider@2.0.2 \
@@ -244,6 +250,6 @@ See [LICENSE](./LICENSE) for more information.
 ---
 
 <div align="center">
-  <p>Built with ❤️ by the MeshJS Team</p>
-  <p>Powered by Midnight Network</p>
+  <p><img src="https://meshjs.dev/logo-mesh/black/logo-mesh-vector.svg" alt="MeshJS Logo" width="30" height="20" style="vertical-align: middle; margin-right: 8px;" /> Powered by <a href="https://meshjs.dev/">MeshJS Team</a></p>
+  <p>Built with ❤️ on Midnight Network</p>
 </div>
