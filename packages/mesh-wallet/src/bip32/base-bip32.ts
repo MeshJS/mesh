@@ -1,4 +1,5 @@
 import { Bip32PrivateKey, Bip32PrivateKeyHex } from "@cardano-sdk/crypto";
+import * as BaseEncoding from "@scure/base";
 import { mnemonicToEntropy } from "bip39";
 
 import { IBip32 } from "../interfaces/bip32";
@@ -12,7 +13,8 @@ export type BaseBip32Constructor =
       password?: string;
     }
   | { type: "entropy"; entropy: string; password?: string }
-  | { type: "keyHex"; keyHex: string };
+  | { type: "keyHex"; keyHex: string }
+  | { type: "bech32"; bech32: string };
 
 export class BaseBip32 implements IBip32 {
   private bip32PrivateKey: Bip32PrivateKey;
@@ -37,6 +39,11 @@ export class BaseBip32 implements IBip32 {
       this.bip32PrivateKey = Bip32PrivateKey.fromHex(
         keyHex as Bip32PrivateKeyHex,
       );
+    } else if (constructorParams.type === "bech32") {
+      const { bech32 } = constructorParams;
+      const bech32DecodedBytes =
+        BaseEncoding.bech32.decodeToBytes(bech32).bytes;
+      this.bip32PrivateKey = Bip32PrivateKey.fromBytes(bech32DecodedBytes);
     } else {
       throw new Error("Invalid constructor parameters");
     }
