@@ -5,8 +5,7 @@ import {
 } from "@cardano-sdk/crypto";
 
 import { BaseBip32 } from "../../src/bip32/base-bip32";
-
-const HARDENED_OFFSET = 0x80000000;
+import { HARDENED_OFFSET } from "../../src/utils/constants";
 
 describe("BaseBip32", () => {
   beforeAll(async () => {
@@ -14,10 +13,9 @@ describe("BaseBip32", () => {
   });
 
   it("should create a BaseBip32 instance from mnemonic", () => {
-    const bip32 = new BaseBip32({
-      type: "mnemonic",
-      mnemonic: "solution,".repeat(24).split(",").slice(0, 24),
-    });
+    const bip32 = BaseBip32.fromMnemonic(
+      "solution,".repeat(24).split(",").slice(0, 24),
+    );
 
     expect(bip32).toBeInstanceOf(BaseBip32);
     const accountKey = bip32.derive([

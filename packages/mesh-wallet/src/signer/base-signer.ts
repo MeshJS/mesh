@@ -9,31 +9,23 @@ import { HexBlob } from "@cardano-sdk/util";
 
 import { ISigner } from "../interfaces/signer";
 
-export type BaseSignerConstructor =
-  | {
-      type: "extendedKeyHex";
-      ed25519PrivateKeyHex: string;
-    }
-  | { type: "normalKeyHex"; ed25519PrivateKeyHex: string };
-
 export class BaseSigner implements ISigner {
   private ed25519PrivateKey: Ed25519PrivateKey;
 
-  // Signer can be initialized with either an extendedKeyHex or a normalKeyHex
-  constructor(constructorParams: BaseSignerConstructor) {
-    if (constructorParams.type === "extendedKeyHex") {
-      const { ed25519PrivateKeyHex } = constructorParams;
-      this.ed25519PrivateKey = Ed25519PrivateKey.fromExtendedHex(
-        Ed25519PrivateExtendedKeyHex(ed25519PrivateKeyHex),
-      );
-    } else if (constructorParams.type === "normalKeyHex") {
-      const { ed25519PrivateKeyHex } = constructorParams;
-      this.ed25519PrivateKey = Ed25519PrivateKey.fromNormalHex(
-        Ed25519PrivateNormalKeyHex(ed25519PrivateKeyHex),
-      );
-    } else {
-      throw new Error("Invalid constructor parameters");
-    }
+  private constructor(ed25519PrivateKey: Ed25519PrivateKey) {
+    this.ed25519PrivateKey = ed25519PrivateKey;
+  }
+
+  static fromExtendedKeyHex(keyHex: string): BaseSigner {
+    return new BaseSigner(
+      Ed25519PrivateKey.fromExtendedHex(Ed25519PrivateExtendedKeyHex(keyHex)),
+    );
+  }
+
+  static fromNormalKeyHex(keyHex: string): BaseSigner {
+    return new BaseSigner(
+      Ed25519PrivateKey.fromNormalHex(Ed25519PrivateNormalKeyHex(keyHex)),
+    );
   }
 
   /**

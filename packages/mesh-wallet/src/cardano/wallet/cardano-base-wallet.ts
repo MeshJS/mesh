@@ -22,91 +22,68 @@ export type CardanoWalletSources = {
   drepKey?: CardanoWalletSource;
 };
 
-export type CardanoWalletConstructor = {
-  networkId: number;
-  key:
-    | {
-        type: "bip32Root";
-        bech32: string;
-      }
-    | {
-        type: "bip32RootHex";
-        hex: string;
-      }
-    | {
-        type: "keySources";
-        walletSources: CardanoWalletSources;
-      }
-    | {
-        type: "mnemonic";
-        mnemonic: string[];
-        password?: string;
-      };
-};
-
 export class BaseCardanoWallet implements ICardanoWallet {
   public networkId: number;
   private signer: CardanoSigner;
   private address: CardanoAddress;
 
-  constructor(constructorParams: CardanoWalletConstructor) {
-    this.networkId = constructorParams.networkId;
-    if (constructorParams.key.type === "bip32Root") {
-      const bip32 = new BaseBip32({
-        type: "bech32",
-        bech32: constructorParams.key.bech32,
-      });
-      this.signer = CardanoSigner.fromBip32(bip32);
-      this.address = addressFromSigner(this.signer, this.networkId);
-    } else if (constructorParams.key.type === "bip32RootHex") {
-      const bip32 = new BaseBip32({
-        type: "keyHex",
-        keyHex: constructorParams.key.hex,
-      });
-      this.signer = CardanoSigner.fromBip32(bip32);
-      this.address = addressFromSigner(this.signer, this.networkId);
-    } else if (constructorParams.key.type === "keySources") {
-      const { paymentKey, stakeKey, drepKey } =
-        constructorParams.key.walletSources;
+  private constructor(
+    networkId: number,
+    signer: CardanoSigner,
+    address: CardanoAddress,
+  ) {
+    this.networkId = networkId;
+    this.signer = signer;
+    this.address = address;
+  }
 
-      if (paymentKey.type !== "ed25519PrivateKeyHex") {
-        throw new Error("Payment key must be a private key, and not a script");
-      }
+  static fromBip32Root(networkId: number, bech32: string): BaseCardanoWallet {
+    const bip32 = BaseBip32.fromBech32(bech32);
+    const signer = CardanoSigner.fromBip32(bip32);
+    const address = addressFromSigner(signer, networkId);
+    return new BaseCardanoWallet(networkId, signer, address);
+  }
 
-      const paymentSigner = new BaseSigner({
-        type: "normalKeyHex",
-        ed25519PrivateKeyHex: paymentKey.keyHex,
-      });
-      const stakeSigner = stakeKey
-        ? stakeKey.type === "ed25519PrivateKeyHex"
-          ? new BaseSigner({
-              type: "normalKeyHex",
-              ed25519PrivateKeyHex: stakeKey.keyHex,
-            })
-          : undefined
-        : undefined;
-      const drepSigner = drepKey
-        ? drepKey.type === "ed25519PrivateKeyHex"
-          ? new BaseSigner({
-              type: "normalKeyHex",
-              ed25519PrivateKeyHex: drepKey.keyHex,
-            })
-          : undefined
-        : undefined;
-      this.signer = new CardanoSigner(paymentSigner, stakeSigner, drepSigner);
-      this.address = addressFromSigner(this.signer, this.networkId);
-    } else if (constructorParams.key.type === "mnemonic") {
-      const bip32 = new BaseBip32({
-        type: "mnemonic",
-        mnemonic: constructorParams.key.mnemonic,
-        password: constructorParams.key.password,
-      });
+  static fromBip32RootHex(networkId: number, hex: string): BaseCardanoWallet {
+    const bip32 = BaseBip32.fromKeyHex(hex);
+    const signer = CardanoSigner.fromBip32(bip32);
+    const address = addressFromSigner(signer, networkId);
+    return new BaseCardanoWallet(networkId, signer, address);
+  }
 
-      this.signer = CardanoSigner.fromBip32(bip32);
-      this.address = addressFromSigner(this.signer, this.networkId);
-    } else {
-      throw new Error("Invalid wallet constructor parameters");
+  static fromWalletSources(
+    networkId: number,
+    walletSources: CardanoWalletSources,
+  ): BaseCardanoWallet {
+    const { paymentKey, stakeKey, drepKey } = walletSources;
+    if (paymentKey.type !== "ed25519PrivateKeyHex") {
+      throw new Error("Payment key must be a private key, and not a script");
     }
+    const paymentSigner = BaseSigner.fromNormalKeyHex(paymentKey.keyHex);
+    const stakeSigner = stakeKey
+      ? stakeKey.type === "ed25519PrivateKeyHex"
+        ? BaseSigner.fromNormalKeyHex(stakeKey.keyHex)
+        : undefined
+      : undefined;
+    const drepSigner = drepKey
+      ? drepKey.type === "ed25519PrivateKeyHex"
+        ? BaseSigner.fromNormalKeyHex(drepKey.keyHex)
+        : undefined
+      : undefined;
+    const signer = new CardanoSigner(paymentSigner, stakeSigner, drepSigner);
+    const address = addressFromSigner(signer, networkId);
+    return new BaseCardanoWallet(networkId, signer, address);
+  }
+
+  static fromMnemonic(
+    networkId: number,
+    mnemonic: string[],
+    password?: string,
+  ): BaseCardanoWallet {
+    const bip32 = BaseBip32.fromMnemonic(mnemonic, password);
+    const signer = CardanoSigner.fromBip32(bip32);
+    const address = addressFromSigner(signer, networkId);
+    return new BaseCardanoWallet(networkId, signer, address);
   }
 
   submitTx(tx: string): string {

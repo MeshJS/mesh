@@ -12,13 +12,11 @@ describe("BaseSigner", () => {
   });
 
   it("base wallet signing should produce correct signature", async () => {
-    const bip32 = new BaseBip32({
-      type: "mnemonic",
-      mnemonic:
-        "globe cupboard camera aim congress cradle decorate enter fringe dove margin witness police coral junk genius harbor fire evolve climb rather broccoli post snack".split(
-          " ",
-        ),
-    });
+    const bip32 = BaseBip32.fromMnemonic(
+      "globe cupboard camera aim congress cradle decorate enter fringe dove margin witness police coral junk genius harbor fire evolve climb rather broccoli post snack".split(
+        " ",
+      ),
+    );
 
     const accountKey = bip32.derive([
       1852 + HARDENED_OFFSET,
