@@ -37,6 +37,14 @@ export class BaseSigner implements ISigner {
   }
 
   /**
+   * Get the Ed25519 public key hash in hex format.
+   * @returns {string} The public key hash in hex format.
+   */
+  getPublicKeyHash(): string {
+    return this.ed25519PrivateKey.toPublic().hash().hex();
+  }
+
+  /**
    * Sign data using the Ed25519 private key.
    * @param data data to be signed in hex format
    * @returns {string} The signature in hex format.

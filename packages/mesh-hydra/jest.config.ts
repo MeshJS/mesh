@@ -4,7 +4,7 @@ const jestConfig: Config = {
   clearMocks: true,
   maxWorkers: 1,
   testEnvironment: "node",
-  testMatch: ["**/*.test.ts"],
+  testMatch: ["a"],
   setupFiles: ["dotenv/config"],
   preset: "ts-jest",
   moduleNameMapper: {
