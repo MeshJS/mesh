@@ -1,4 +1,8 @@
-import { Bip32PrivateKey, Bip32PrivateKeyHex } from "@cardano-sdk/crypto";
+import {
+  Bip32PrivateKey,
+  Bip32PrivateKeyHex,
+  ready,
+} from "@cardano-sdk/crypto";
 import * as BaseEncoding from "@scure/base";
 import { mnemonicToEntropy } from "bip39";
 
@@ -13,7 +17,11 @@ export class BaseBip32 implements IBip32 {
     this.bip32PrivateKey = privateKey;
   }
 
-  static fromMnemonic(mnemonic: string[], password?: string): BaseBip32 {
+  static async fromMnemonic(
+    mnemonic: string[],
+    password?: string,
+  ): Promise<BaseBip32> {
+    await ready();
     const entropy = mnemonicToEntropy(mnemonic.join(" "));
     const bip32PrivateKey = Bip32PrivateKey.fromBip39Entropy(
       Buffer.from(entropy, "hex"),
@@ -22,7 +30,11 @@ export class BaseBip32 implements IBip32 {
     return new BaseBip32(bip32PrivateKey);
   }
 
-  static fromEntropy(entropy: string, password?: string): BaseBip32 {
+  static async fromEntropy(
+    entropy: string,
+    password?: string,
+  ): Promise<BaseBip32> {
+    await ready();
     const bip32PrivateKey = Bip32PrivateKey.fromBip39Entropy(
       Buffer.from(entropy, "hex"),
       password || "",
@@ -48,7 +60,8 @@ export class BaseBip32 implements IBip32 {
    * @param path The derivation path as an array of numbers.
    * @returns {IBip32} A new IBip32 instance derived from the current key using the specified path.
    */
-  derive(path: number[]): IBip32 {
+  async derive(path: number[]): Promise<IBip32> {
+    await ready();
     return new BaseBip32(this.bip32PrivateKey.derive(path));
   }
 
@@ -56,7 +69,8 @@ export class BaseBip32 implements IBip32 {
    * Get the Bip32 public key in hex format.
    * @returns {string} The public key in hex format.
    */
-  getPublicKey(): string {
+  async getPublicKey(): Promise<string> {
+    await ready();
     return this.bip32PrivateKey.toPublic().hex();
   }
 
@@ -64,7 +78,9 @@ export class BaseBip32 implements IBip32 {
    * Get an ISigner instance initialized with the current Bip32 private key.
    * @returns {ISigner} An ISigner instance initialized with the current Bip32 private key.
    */
-  toSigner(): ISigner {
-    return BaseSigner.fromExtendedKeyHex(this.bip32PrivateKey.toRawKey().hex());
+  toSigner(): Promise<ISigner> {
+    return Promise.resolve(
+      BaseSigner.fromExtendedKeyHex(this.bip32PrivateKey.toRawKey().hex()),
+    );
   }
 }

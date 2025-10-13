@@ -1,34 +1,27 @@
-import {
-  Ed25519PublicKey,
-  Ed25519PublicKeyHex,
-  ready,
-} from "@cardano-sdk/crypto";
+import { Ed25519PublicKey, Ed25519PublicKeyHex } from "@cardano-sdk/crypto";
 
 import { BaseBip32 } from "../../src/bip32/base-bip32";
 import { HARDENED_OFFSET } from "../../src/utils/constants";
 
 describe("BaseBip32", () => {
-  beforeAll(async () => {
-    await ready();
-  });
-
-  it("should create a BaseBip32 instance from mnemonic", () => {
-    const bip32 = BaseBip32.fromMnemonic(
+  it("should create a BaseBip32 instance from mnemonic", async () => {
+    const bip32 = await BaseBip32.fromMnemonic(
       "solution,".repeat(24).split(",").slice(0, 24),
     );
 
     expect(bip32).toBeInstanceOf(BaseBip32);
-    const accountKey = bip32.derive([
+    let accountKey = await bip32.derive([
       1852 + HARDENED_OFFSET,
       1815 + HARDENED_OFFSET,
       0 + HARDENED_OFFSET,
     ]);
 
+    accountKey = await accountKey.derive([0, 0]);
+    const paymentSigner = await accountKey.toSigner();
+
     expect(
       Ed25519PublicKey.fromHex(
-        Ed25519PublicKeyHex(
-          accountKey.derive([0, 0]).toSigner().getPublicKey(),
-        ),
+        Ed25519PublicKeyHex(paymentSigner.getPublicKey()),
       )
         .hash()
         .hex(),

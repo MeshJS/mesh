@@ -20,18 +20,22 @@ export class CardanoSigner {
     this.drepSigner = drepSigner;
   }
 
-  static fromBip32(
+  static async fromBip32(
     bip32: BaseBip32,
     accountDerivationPath?: number[],
-  ): CardanoSigner {
+  ): Promise<CardanoSigner> {
     const accountBip32 = accountDerivationPath
-      ? bip32.derive(accountDerivationPath)
-      : bip32.derive(DEFAULT_ACCOUNT_KEY_DERIVATION_PATH);
+      ? await bip32.derive(accountDerivationPath)
+      : await bip32.derive(DEFAULT_ACCOUNT_KEY_DERIVATION_PATH);
+
+    const paymentAccount = await accountBip32.derive([0, 0]);
+    const stakeAccount = await accountBip32.derive([2, 0]);
+    const drepAccount = await accountBip32.derive([3, 0]);
 
     return new CardanoSigner(
-      accountBip32.derive([0, 0]).toSigner(),
-      accountBip32.derive([2, 0]).toSigner(),
-      accountBip32.derive([3, 0]).toSigner(),
+      await paymentAccount.toSigner(),
+      await stakeAccount.toSigner(),
+      await drepAccount.toSigner(),
     );
   }
 

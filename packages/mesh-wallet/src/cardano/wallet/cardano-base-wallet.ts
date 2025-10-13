@@ -62,25 +62,25 @@ export class BaseCardanoWallet implements ICardanoWallet {
     );
   }
 
-  static fromBip32Root(
+  static async fromBip32Root(
     networkId: number,
     bech32: string,
     fetcher?: IFetcher,
     submitter?: ISubmitter,
-  ): BaseCardanoWallet {
+  ): Promise<BaseCardanoWallet> {
     const bip32 = BaseBip32.fromBech32(bech32);
-    const signer = CardanoSigner.fromBip32(bip32);
+    const signer = await CardanoSigner.fromBip32(bip32);
     return this.createWallet(networkId, signer, fetcher, submitter);
   }
 
-  static fromBip32RootHex(
+  static async fromBip32RootHex(
     networkId: number,
     hex: string,
     fetcher?: IFetcher,
     submitter?: ISubmitter,
-  ): BaseCardanoWallet {
+  ): Promise<BaseCardanoWallet> {
     const bip32 = BaseBip32.fromKeyHex(hex);
-    const signer = CardanoSigner.fromBip32(bip32);
+    const signer = await CardanoSigner.fromBip32(bip32);
     return this.createWallet(networkId, signer, fetcher, submitter);
   }
 
@@ -109,15 +109,15 @@ export class BaseCardanoWallet implements ICardanoWallet {
     return this.createWallet(networkId, signer, fetcher, submitter);
   }
 
-  static fromMnemonic(
+  static async fromMnemonic(
     networkId: number,
     mnemonic: string[],
     password?: string,
     fetcher?: IFetcher,
     submitter?: ISubmitter,
-  ): BaseCardanoWallet {
-    const bip32 = BaseBip32.fromMnemonic(mnemonic, password);
-    const signer = CardanoSigner.fromBip32(bip32);
+  ): Promise<BaseCardanoWallet> {
+    const bip32 = await BaseBip32.fromMnemonic(mnemonic, password);
+    const signer = await CardanoSigner.fromBip32(bip32);
     return this.createWallet(networkId, signer, fetcher, submitter);
   }
 
@@ -139,26 +139,26 @@ export class BaseCardanoWallet implements ICardanoWallet {
   getBalance(): Promise<string> {
     throw new Error("Method not implemented.");
   }
-  getUsedAddresses(): string[] {
+  getUsedAddresses(): Promise<string[]> {
     return this.address.stakePubkey
-      ? [this.address.getBaseAddressHex()!]
-      : [this.address.getEnterpriseAddressHex()];
+      ? Promise.resolve([this.address.getBaseAddressHex()!])
+      : Promise.resolve([this.address.getEnterpriseAddressHex()]);
   }
-  getUnusedAddresses(): string[] {
+  getUnusedAddresses(): Promise<string[]> {
     return this.address.stakePubkey
-      ? [this.address.getBaseAddressHex()!]
-      : [this.address.getEnterpriseAddressHex()];
+      ? Promise.resolve([this.address.getBaseAddressHex()!])
+      : Promise.resolve([this.address.getEnterpriseAddressHex()]);
   }
-  getChangeAddress(): string {
+  getChangeAddress(): Promise<string> {
     return this.address.stakePubkey
-      ? this.address.getBaseAddressHex()!
-      : this.address.getEnterpriseAddressHex();
+      ? Promise.resolve(this.address.getBaseAddressHex()!)
+      : Promise.resolve(this.address.getEnterpriseAddressHex());
   }
-  getRewardAddress(): string {
+  getRewardAddress(): Promise<string> {
     if (!this.address.stakePubkey) {
       throw new Error("No stake address for this wallet");
     }
-    return this.address.getRewardAddressHex()!;
+    return Promise.resolve(this.address.getRewardAddressHex()!);
   }
   async signTx(tx: string): Promise<string> {
     if (!this.fetcher) {
