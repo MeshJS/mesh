@@ -1,6 +1,6 @@
 export interface ISigner {
-  getPublicKey(): string;
-  getPublicKeyHash(): string;
-  sign(data: string): string;
-  verify(data: string, signature: string): boolean;
+  getPublicKey(): Promise<string>;
+  getPublicKeyHash(): Promise<string>;
+  sign(data: string): Promise<string>;
+  verify(data: string, signature: string): Promise<boolean>;
 }

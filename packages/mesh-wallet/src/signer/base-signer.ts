@@ -32,16 +32,16 @@ export class BaseSigner implements ISigner {
    * Get the Ed25519 public key in hex format.
    * @returns {string} The public key in hex format.
    */
-  getPublicKey(): string {
-    return this.ed25519PrivateKey.toPublic().hex();
+  getPublicKey(): Promise<string> {
+    return Promise.resolve(this.ed25519PrivateKey.toPublic().hex());
   }
 
   /**
    * Get the Ed25519 public key hash in hex format.
    * @returns {string} The public key hash in hex format.
    */
-  getPublicKeyHash(): string {
-    return this.ed25519PrivateKey.toPublic().hash().hex();
+  getPublicKeyHash(): Promise<string> {
+    return Promise.resolve(this.ed25519PrivateKey.toPublic().hash().hex());
   }
 
   /**
@@ -49,8 +49,8 @@ export class BaseSigner implements ISigner {
    * @param data data to be signed in hex format
    * @returns {string} The signature in hex format.
    */
-  sign(data: string): string {
-    return this.ed25519PrivateKey.sign(HexBlob(data)).hex();
+  sign(data: string): Promise<string> {
+    return Promise.resolve(this.ed25519PrivateKey.sign(HexBlob(data)).hex());
   }
 
   /**
@@ -59,12 +59,14 @@ export class BaseSigner implements ISigner {
    * @param signature The signature to verify in hex format.
    * @returns {boolean} True if the signature is valid, false otherwise.
    */
-  verify(data: string, signature: string): boolean {
-    return this.ed25519PrivateKey
-      .toPublic()
-      .verify(
-        Ed25519Signature.fromHex(Ed25519SignatureHex(signature)),
-        HexBlob(data),
-      );
+  verify(data: string, signature: string): Promise<boolean> {
+    return Promise.resolve(
+      this.ed25519PrivateKey
+        .toPublic()
+        .verify(
+          Ed25519Signature.fromHex(Ed25519SignatureHex(signature)),
+          HexBlob(data),
+        ),
+    );
   }
 }

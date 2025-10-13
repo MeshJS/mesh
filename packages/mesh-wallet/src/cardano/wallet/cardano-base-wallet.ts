@@ -1,10 +1,9 @@
 import { Cardano, Serialization } from "@cardano-sdk/core";
-import { TransactionWitnessSet } from "@cardano-sdk/core/dist/cjs/Serialization";
 
 import { IFetcher, ISubmitter, UTxO } from "@meshsdk/common";
 
 import { BaseBip32 } from "../../bip32/base-bip32";
-import { ICardanoWallet } from "../../interfaces/cardano-base-wallet";
+import { ICardanoWallet } from "../../interfaces/cardano-wallet";
 import { BaseSigner } from "../../signer/base-signer";
 import { CardanoAddress, CredentialType } from "../address/cardano-address";
 import { CardanoSigner } from "../signer/cardano-signer";
@@ -12,6 +11,10 @@ import { CardanoSigner } from "../signer/cardano-signer";
 export type CardanoWalletSource =
   | {
       type: "ed25519PrivateKeyHex";
+      keyHex: string;
+    }
+  | {
+      type: "ed25519ExtendedPrivateKeyHex";
       keyHex: string;
     }
   | {
@@ -46,13 +49,13 @@ export class BaseCardanoWallet implements ICardanoWallet {
     this.submitter = submitter;
   }
 
-  private static createWallet(
+  private static async createWallet(
     networkId: number,
     signer: CardanoSigner,
     fetcher?: IFetcher,
     submitter?: ISubmitter,
-  ): BaseCardanoWallet {
-    const address = addressFromSigner(signer, networkId);
+  ): Promise<BaseCardanoWallet> {
+    const address = await addressFromSigner(signer, networkId);
     return new BaseCardanoWallet(
       networkId,
       signer,
@@ -84,29 +87,39 @@ export class BaseCardanoWallet implements ICardanoWallet {
     return this.createWallet(networkId, signer, fetcher, submitter);
   }
 
-  static fromWalletSources(
+  static async fromWalletSources(
     networkId: number,
     walletSources: CardanoWalletSources,
     fetcher?: IFetcher,
     submitter?: ISubmitter,
-  ): BaseCardanoWallet {
+  ): Promise<BaseCardanoWallet> {
     const { paymentKey, stakeKey, drepKey } = walletSources;
-    if (paymentKey.type !== "ed25519PrivateKeyHex") {
+    let paymentSigner: BaseSigner;
+
+    if (paymentKey.type === "ed25519PrivateKeyHex") {
+      paymentSigner = BaseSigner.fromNormalKeyHex(paymentKey.keyHex);
+    } else if (paymentKey.type === "ed25519ExtendedPrivateKeyHex") {
+      paymentSigner = BaseSigner.fromExtendedKeyHex(paymentKey.keyHex);
+    } else {
       throw new Error("Payment key must be a private key, and not a script");
     }
-    const paymentSigner = BaseSigner.fromNormalKeyHex(paymentKey.keyHex);
-    const stakeSigner = stakeKey
-      ? stakeKey.type === "ed25519PrivateKeyHex"
-        ? BaseSigner.fromNormalKeyHex(stakeKey.keyHex)
-        : undefined
-      : undefined;
-    const drepSigner = drepKey
-      ? drepKey.type === "ed25519PrivateKeyHex"
-        ? BaseSigner.fromNormalKeyHex(drepKey.keyHex)
-        : undefined
-      : undefined;
+
+    let stakeSigner: BaseSigner | undefined = undefined;
+    if (stakeKey && stakeKey.type === "ed25519PrivateKeyHex") {
+      stakeSigner = BaseSigner.fromNormalKeyHex(stakeKey.keyHex);
+    } else if (stakeKey && stakeKey.type === "ed25519ExtendedPrivateKeyHex") {
+      stakeSigner = BaseSigner.fromExtendedKeyHex(stakeKey.keyHex);
+    }
+
+    let drepSigner: BaseSigner | undefined = undefined;
+    if (drepKey && drepKey.type === "ed25519PrivateKeyHex") {
+      drepSigner = BaseSigner.fromNormalKeyHex(drepKey.keyHex);
+    } else if (drepKey && drepKey.type === "ed25519ExtendedPrivateKeyHex") {
+      drepSigner = BaseSigner.fromExtendedKeyHex(drepKey.keyHex);
+    }
+
     const signer = new CardanoSigner(paymentSigner, stakeSigner, drepSigner);
-    return this.createWallet(networkId, signer, fetcher, submitter);
+    return await this.createWallet(networkId, signer, fetcher, submitter);
   }
 
   static async fromMnemonic(
@@ -172,25 +185,27 @@ export class BaseCardanoWallet implements ICardanoWallet {
       this.fetcher,
     );
 
-    let witnessSet = new TransactionWitnessSet();
+    let witnessSet = new Serialization.TransactionWitnessSet();
     let signatures = [];
 
-    if (requiredSigners.has(this.signer.paymentSigner.getPublicKeyHash())) {
-      signatures.push(this.signer.paymentSignTx(tx));
+    if (
+      requiredSigners.has(await this.signer.paymentSigner.getPublicKeyHash())
+    ) {
+      signatures.push(await this.signer.paymentSignTx(tx));
     }
 
     if (
       this.signer.stakeSigner &&
-      requiredSigners.has(this.signer.stakeSigner.getPublicKeyHash())
+      requiredSigners.has(await this.signer.stakeSigner.getPublicKeyHash())
     ) {
-      signatures.push(this.signer.stakeSignTx(tx));
+      signatures.push(await this.signer.stakeSignTx(tx));
     }
 
     if (
       this.signer.drepSigner &&
-      requiredSigners.has(this.signer.drepSigner.getPublicKeyHash())
+      requiredSigners.has(await this.signer.drepSigner.getPublicKeyHash())
     ) {
-      signatures.push(this.signer.drepSignTx(tx));
+      signatures.push(await this.signer.drepSignTx(tx));
     }
 
     witnessSet.setVkeys(
@@ -424,16 +439,16 @@ export class BaseCardanoWallet implements ICardanoWallet {
   }
 }
 
-const addressFromSigner = (signer: CardanoSigner, networkId: number) => {
+const addressFromSigner = async (signer: CardanoSigner, networkId: number) => {
   return new CardanoAddress(
     networkId,
     {
       type: CredentialType.KeyHash,
-      hash: signer.paymentSigner.getPublicKeyHash(),
+      hash: await signer.paymentSigner.getPublicKeyHash(),
     },
     signer.stakeSigner && {
       type: CredentialType.KeyHash,
-      hash: signer.stakeSigner.getPublicKeyHash(),
+      hash: await signer.stakeSigner.getPublicKeyHash(),
     },
   );
 };

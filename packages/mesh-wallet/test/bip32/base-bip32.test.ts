@@ -21,7 +21,7 @@ describe("BaseBip32", () => {
 
     expect(
       Ed25519PublicKey.fromHex(
-        Ed25519PublicKeyHex(paymentSigner.getPublicKey()),
+        Ed25519PublicKeyHex(await paymentSigner.getPublicKey()),
       )
         .hash()
         .hex(),

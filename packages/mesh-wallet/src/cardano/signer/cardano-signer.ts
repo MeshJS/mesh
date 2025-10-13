@@ -39,40 +39,40 @@ export class CardanoSigner {
     );
   }
 
-  paymentSign(data: string): string {
-    return this.paymentSigner.sign(data);
+  paymentSign(data: string): Promise<string> {
+    return Promise.resolve(this.paymentSigner.sign(data));
   }
 
-  paymentSignTx(tx: string): string {
-    return this.signerSignTx(tx, this.paymentSigner);
+  paymentSignTx(tx: string): Promise<string> {
+    return Promise.resolve(this.signerSignTx(tx, this.paymentSigner));
   }
 
-  stakeSign(data: string): string {
+  stakeSign(data: string): Promise<string> {
     if (!this.stakeSigner) {
       throw new Error("Stake signer not provided");
     }
-    return this.stakeSigner.sign(data);
+    return Promise.resolve(this.stakeSigner.sign(data));
   }
 
-  stakeSignTx(tx: string): string {
+  stakeSignTx(tx: string): Promise<string> {
     if (!this.stakeSigner) {
       throw new Error("Stake signer not provided");
     }
-    return this.signerSignTx(tx, this.stakeSigner);
+    return Promise.resolve(this.signerSignTx(tx, this.stakeSigner));
   }
 
-  drepSign(data: string): string {
+  drepSign(data: string): Promise<string> {
     if (!this.drepSigner) {
       throw new Error("DRep signer not provided");
     }
-    return this.drepSigner.sign(data);
+    return Promise.resolve(this.drepSigner.sign(data));
   }
 
-  drepSignTx(tx: string): string {
+  drepSignTx(tx: string): Promise<string> {
     if (!this.drepSigner) {
       throw new Error("DRep signer not provided");
     }
-    return this.signerSignTx(tx, this.drepSigner);
+    return Promise.resolve(this.signerSignTx(tx, this.drepSigner));
   }
 
   private signerSignTx(tx: string, signer: ISigner): string {
