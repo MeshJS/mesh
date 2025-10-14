@@ -5,6 +5,7 @@ import { IFetcher, ISubmitter, UTxO } from "@meshsdk/common";
 import { BaseBip32 } from "../../bip32/base-bip32";
 import { ICardanoWallet } from "../../interfaces/cardano-wallet";
 import { BaseSigner } from "../../signer/base-signer";
+import { toTxUnspentOutput } from "../../utils/conerter";
 import { CardanoAddress, CredentialType } from "../address/cardano-address";
 import { CardanoSigner } from "../signer/cardano-signer";
 
@@ -30,8 +31,8 @@ export type CardanoWalletSources = {
 
 export class BaseCardanoWallet implements ICardanoWallet {
   public networkId: number;
-  private signer: CardanoSigner;
-  private address: CardanoAddress;
+  public signer: CardanoSigner;
+  public address: CardanoAddress;
   private fetcher?: IFetcher;
   private submitter?: ISubmitter;
 
@@ -152,8 +153,19 @@ export class BaseCardanoWallet implements ICardanoWallet {
     if (!this.fetcher) {
       throw new Error("[CardanoWallet] No fetcher provided");
     }
+    const addresses = [];
+    if (this.address.getEnterpriseAddressBech32()) {
+      addresses.push(this.address.getEnterpriseAddressBech32()!);
+    } else if (this.address.getBaseAddressBech32()) {
+      addresses.push(this.address.getBaseAddressBech32()!);
+    }
 
-    return [];
+    const utxos = [];
+    for (const addr of addresses) {
+      const fetchedUtxos = await this.fetcher.fetchAddressUTxOs(addr);
+      utxos.push(...fetchedUtxos);
+    }
+    return utxos.map((utxo) => toTxUnspentOutput(utxo).toCbor());
   }
 
   async getCollateral(): Promise<string[]> {
