@@ -1,4 +1,4 @@
-import { Cardano } from "@cardano-sdk/core";
+import { Cardano, setInConwayEra } from "@cardano-sdk/core";
 
 export enum CredentialType {
   KeyHash = 0,
@@ -20,6 +20,7 @@ export class CardanoAddress {
     paymentPubkey: Credential,
     stakePubkey?: Credential,
   ) {
+    setInConwayEra(true);
     this.networkId = networkId;
     this.paymentPubkey = paymentPubkey;
     this.stakePubkey = stakePubkey;

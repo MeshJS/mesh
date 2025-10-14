@@ -1,3 +1,4 @@
+import { setInConwayEra } from "@cardano-sdk/core";
 import {
   Ed25519PrivateExtendedKeyHex,
   Ed25519PrivateKey,
@@ -9,10 +10,16 @@ import { HexBlob } from "@cardano-sdk/util";
 
 import { ISigner } from "../interfaces/signer";
 
+/**
+ * BaseSigner provides functionalities to sign and verify data using Ed25519 keys.
+ * It supports construction from both extended and normal private key hex formats.
+ */
+
 export class BaseSigner implements ISigner {
   private ed25519PrivateKey: Ed25519PrivateKey;
 
   private constructor(ed25519PrivateKey: Ed25519PrivateKey) {
+    setInConwayEra(true);
     this.ed25519PrivateKey = ed25519PrivateKey;
   }
 
@@ -30,43 +37,41 @@ export class BaseSigner implements ISigner {
 
   /**
    * Get the Ed25519 public key in hex format.
-   * @returns {string} The public key in hex format.
+   * @returns {Promise<string>} A promise that resolves to the public key in hex format.
    */
-  getPublicKey(): Promise<string> {
-    return Promise.resolve(this.ed25519PrivateKey.toPublic().hex());
+  async getPublicKey(): Promise<string> {
+    return this.ed25519PrivateKey.toPublic().hex();
   }
 
   /**
    * Get the Ed25519 public key hash in hex format.
-   * @returns {string} The public key hash in hex format.
+   * @returns {Promise<string>} A promise that resolves to the public key hash in hex format.
    */
-  getPublicKeyHash(): Promise<string> {
-    return Promise.resolve(this.ed25519PrivateKey.toPublic().hash().hex());
+  async getPublicKeyHash(): Promise<string> {
+    return this.ed25519PrivateKey.toPublic().hash().hex();
   }
 
   /**
    * Sign data using the Ed25519 private key.
    * @param data data to be signed in hex format
-   * @returns {string} The signature in hex format.
+   * @returns {Promise<string>} A promise that resolves to the signature in hex format.
    */
-  sign(data: string): Promise<string> {
-    return Promise.resolve(this.ed25519PrivateKey.sign(HexBlob(data)).hex());
+  async sign(data: string): Promise<string> {
+    return this.ed25519PrivateKey.sign(HexBlob(data)).hex();
   }
 
   /**
    * Verify a signature using the Ed25519 public key.
    * @param data The original data in hex format.
    * @param signature The signature to verify in hex format.
-   * @returns {boolean} True if the signature is valid, false otherwise.
+   * @returns {Promise<boolean>} A promise that resolves to true if the signature is valid, false otherwise.
    */
-  verify(data: string, signature: string): Promise<boolean> {
-    return Promise.resolve(
-      this.ed25519PrivateKey
-        .toPublic()
-        .verify(
-          Ed25519Signature.fromHex(Ed25519SignatureHex(signature)),
-          HexBlob(data),
-        ),
-    );
+  async verify(data: string, signature: string): Promise<boolean> {
+    return this.ed25519PrivateKey
+      .toPublic()
+      .verify(
+        Ed25519Signature.fromHex(Ed25519SignatureHex(signature)),
+        HexBlob(data),
+      );
   }
 }

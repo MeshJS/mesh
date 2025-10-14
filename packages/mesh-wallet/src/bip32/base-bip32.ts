@@ -1,3 +1,4 @@
+import { setInConwayEra } from "@cardano-sdk/core";
 import {
   Bip32PrivateKey,
   Bip32PrivateKeyHex,
@@ -14,6 +15,7 @@ export class BaseBip32 implements IBip32 {
   private bip32PrivateKey: Bip32PrivateKey;
 
   private constructor(privateKey: Bip32PrivateKey) {
+    setInConwayEra(true);
     this.bip32PrivateKey = privateKey;
   }
 
@@ -58,7 +60,7 @@ export class BaseBip32 implements IBip32 {
   /**
    * Derive a new IBip32 instance using the specified derivation path.
    * @param path The derivation path as an array of numbers.
-   * @returns {IBip32} A new IBip32 instance derived from the current key using the specified path.
+   * @returns {Promise<IBip32>} A promise that resolves to a new IBip32 instance derived from the current key using the specified path.
    */
   async derive(path: number[]): Promise<IBip32> {
     await ready();
@@ -67,7 +69,7 @@ export class BaseBip32 implements IBip32 {
 
   /**
    * Get the Bip32 public key in hex format.
-   * @returns {string} The public key in hex format.
+   * @returns {Promise<string>} A promise that resolves to the public key in hex format.
    */
   async getPublicKey(): Promise<string> {
     await ready();
@@ -76,11 +78,9 @@ export class BaseBip32 implements IBip32 {
 
   /**
    * Get an ISigner instance initialized with the current Bip32 private key.
-   * @returns {ISigner} An ISigner instance initialized with the current Bip32 private key.
+   * @returns {Promise<ISigner>} A promise that resolves to an ISigner instance initialized with the current Bip32 private key.
    */
-  toSigner(): Promise<ISigner> {
-    return Promise.resolve(
-      BaseSigner.fromExtendedKeyHex(this.bip32PrivateKey.toRawKey().hex()),
-    );
+  async toSigner(): Promise<ISigner> {
+    return BaseSigner.fromExtendedKeyHex(this.bip32PrivateKey.toRawKey().hex());
   }
 }

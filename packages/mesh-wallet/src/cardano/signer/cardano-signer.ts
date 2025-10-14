@@ -1,4 +1,4 @@
-import { Serialization } from "@cardano-sdk/core";
+import { Serialization, setInConwayEra } from "@cardano-sdk/core";
 import { HexBlob } from "@cardano-sdk/util";
 
 import { BaseBip32 } from "../../bip32/base-bip32";
@@ -15,6 +15,7 @@ export class CardanoSigner {
     stakeSigner?: ISigner,
     drepSigner?: ISigner,
   ) {
+    setInConwayEra(true);
     this.paymentSigner = paymentSigner;
     this.stakeSigner = stakeSigner;
     this.drepSigner = drepSigner;
@@ -39,49 +40,49 @@ export class CardanoSigner {
     );
   }
 
-  paymentSign(data: string): Promise<string> {
-    return Promise.resolve(this.paymentSigner.sign(data));
+  async paymentSign(data: string): Promise<string> {
+    return this.paymentSigner.sign(data);
   }
 
-  paymentSignTx(tx: string): Promise<string> {
-    return Promise.resolve(this.signerSignTx(tx, this.paymentSigner));
+  async paymentSignTx(tx: string): Promise<string> {
+    return this.signerSignTx(tx, this.paymentSigner);
   }
 
-  stakeSign(data: string): Promise<string> {
+  async stakeSign(data: string): Promise<string> {
     if (!this.stakeSigner) {
       throw new Error("Stake signer not provided");
     }
-    return Promise.resolve(this.stakeSigner.sign(data));
+    return this.stakeSigner.sign(data);
   }
 
-  stakeSignTx(tx: string): Promise<string> {
+  async stakeSignTx(tx: string): Promise<string> {
     if (!this.stakeSigner) {
       throw new Error("Stake signer not provided");
     }
-    return Promise.resolve(this.signerSignTx(tx, this.stakeSigner));
+    return this.signerSignTx(tx, this.stakeSigner);
   }
 
-  drepSign(data: string): Promise<string> {
+  async drepSign(data: string): Promise<string> {
     if (!this.drepSigner) {
       throw new Error("DRep signer not provided");
     }
-    return Promise.resolve(this.drepSigner.sign(data));
+    return this.drepSigner.sign(data);
   }
 
-  drepSignTx(tx: string): Promise<string> {
+  async drepSignTx(tx: string): Promise<string> {
     if (!this.drepSigner) {
       throw new Error("DRep signer not provided");
     }
-    return Promise.resolve(this.signerSignTx(tx, this.drepSigner));
+    return this.signerSignTx(tx, this.drepSigner);
   }
 
-  private signerSignTx(tx: string, signer: ISigner): string {
+  private async signerSignTx(tx: string, signer: ISigner): Promise<string> {
     const cardanoTx = Serialization.Transaction.fromCbor(tx);
     const txHash = cardanoTx.body().hash();
 
     const vkeyWitness = new Serialization.VkeyWitness(
-      signer.getPublicKey(),
-      signer.sign(HexBlob(txHash)),
+      await signer.getPublicKey(),
+      await signer.sign(HexBlob(txHash)),
     );
     return vkeyWitness.toCbor();
   }

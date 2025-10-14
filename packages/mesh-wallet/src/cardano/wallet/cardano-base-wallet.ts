@@ -1,4 +1,4 @@
-import { Cardano, Serialization } from "@cardano-sdk/core";
+import { Cardano, Serialization, setInConwayEra } from "@cardano-sdk/core";
 
 import { IFetcher, ISubmitter, UTxO } from "@meshsdk/common";
 
@@ -42,6 +42,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
     fetcher?: IFetcher,
     submitter?: ISubmitter,
   ) {
+    setInConwayEra(true);
     this.networkId = networkId;
     this.signer = signer;
     this.address = address;
@@ -101,7 +102,9 @@ export class BaseCardanoWallet implements ICardanoWallet {
     } else if (paymentKey.type === "ed25519ExtendedPrivateKeyHex") {
       paymentSigner = BaseSigner.fromExtendedKeyHex(paymentKey.keyHex);
     } else {
-      throw new Error("Payment key must be a private key, and not a script");
+      throw new Error(
+        "[CardanoWallet] Payment key must be a private key, and not a script",
+      );
     }
 
     let stakeSigner: BaseSigner | undefined = undefined;
@@ -136,57 +139,74 @@ export class BaseCardanoWallet implements ICardanoWallet {
 
   async submitTx(tx: string): Promise<string> {
     if (!this.submitter) {
-      throw new Error("No submitter provided");
+      throw new Error("[CardanoWallet] No submitter provided");
     }
     return await this.submitter.submitTx(tx);
   }
+
   getNetworkId(): number {
     return this.networkId;
   }
-  getUtxos(): Promise<string[]> {
-    throw new Error("Method not implemented.");
-  }
-  getCollateral(): Promise<string[]> {
-    throw new Error("Method not implemented.");
-  }
-  getBalance(): Promise<string> {
-    throw new Error("Method not implemented.");
-  }
-  getUsedAddresses(): Promise<string[]> {
-    return this.address.stakePubkey
-      ? Promise.resolve([this.address.getBaseAddressHex()!])
-      : Promise.resolve([this.address.getEnterpriseAddressHex()]);
-  }
-  getUnusedAddresses(): Promise<string[]> {
-    return this.address.stakePubkey
-      ? Promise.resolve([this.address.getBaseAddressHex()!])
-      : Promise.resolve([this.address.getEnterpriseAddressHex()]);
-  }
-  getChangeAddress(): Promise<string> {
-    return this.address.stakePubkey
-      ? Promise.resolve(this.address.getBaseAddressHex()!)
-      : Promise.resolve(this.address.getEnterpriseAddressHex());
-  }
-  getRewardAddress(): Promise<string> {
-    if (!this.address.stakePubkey) {
-      throw new Error("No stake address for this wallet");
+
+  async getUtxos(): Promise<string[]> {
+    if (!this.fetcher) {
+      throw new Error("[CardanoWallet] No fetcher provided");
     }
-    return Promise.resolve(this.address.getRewardAddressHex()!);
+
+    return [];
+  }
+
+  async getCollateral(): Promise<string[]> {
+    if (!this.fetcher) {
+      throw new Error("[CardanoWallet] No fetcher provided");
+    }
+    return [];
+  }
+
+  async getBalance(): Promise<string> {
+    if (!this.fetcher) {
+      throw new Error("[CardanoWallet] No fetcher provided");
+    }
+    return "0";
+  }
+
+  async getUsedAddresses(): Promise<string[]> {
+    return this.address.stakePubkey
+      ? [this.address.getBaseAddressHex()!]
+      : [this.address.getEnterpriseAddressHex()];
+  }
+  async getUnusedAddresses(): Promise<string[]> {
+    return this.address.stakePubkey
+      ? [this.address.getBaseAddressHex()!]
+      : [this.address.getEnterpriseAddressHex()];
+  }
+  async getChangeAddress(): Promise<string> {
+    return this.address.stakePubkey
+      ? this.address.getBaseAddressHex()!
+      : this.address.getEnterpriseAddressHex();
+  }
+  async getRewardAddress(): Promise<string> {
+    if (!this.address.stakePubkey) {
+      throw new Error("[CardanoWallet] No stake address for this wallet");
+    }
+    return this.address.getRewardAddressHex()!;
   }
   async signTx(tx: string): Promise<string> {
     if (!this.fetcher) {
       throw new Error(
-        "No fetcher provided, wallet sign tx does not behave correctly without a fetcher to resolve inputs. If you need to blindly sign a tx, use the CardanoSigner class directly.",
+        "[CardanoWallet] No fetcher provided, wallet sign tx does not behave correctly without a fetcher to resolve inputs. If you need to blindly sign a tx, use the CardanoSigner class directly.",
       );
     }
-    const transaction = Serialization.Transaction.fromCbor(tx);
+    const transaction = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(tx),
+    );
     let requiredSigners = await this.getRequiredSignatures(
       transaction,
       this.fetcher,
     );
 
     let witnessSet = new Serialization.TransactionWitnessSet();
-    let signatures = [];
+    let signatures: string[] = [];
 
     if (
       requiredSigners.has(await this.signer.paymentSigner.getPublicKeyHash())
@@ -207,7 +227,6 @@ export class BaseCardanoWallet implements ICardanoWallet {
     ) {
       signatures.push(await this.signer.drepSignTx(tx));
     }
-
     witnessSet.setVkeys(
       Serialization.CborSet.fromCore(
         signatures.map((sig) => {
@@ -220,7 +239,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
   }
 
   signData(data: string): Promise<string> {
-    throw new Error("Method not implemented.");
+    throw new Error("[CardanoWallet] Method not implemented.");
   }
 
   private async getRequiredSignatures(
@@ -249,7 +268,9 @@ export class BaseCardanoWallet implements ICardanoWallet {
           utxos.push(utxo);
         }
       } else {
-        throw new Error(`Transaction not found for transaction id: ${txId}`);
+        throw new Error(
+          `[CardanoWallet] Transaction not found for transaction id: ${txId}`,
+        );
       }
     }
     // Filter utxos to only those that are inputs to this transaction
@@ -381,7 +402,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
           }
         } else {
           throw new Error(
-            "Error parsing required signers: Unknown certificate type",
+            "[CardanoWallet] Error parsing required signers: Unknown certificate type",
           );
         }
       }
