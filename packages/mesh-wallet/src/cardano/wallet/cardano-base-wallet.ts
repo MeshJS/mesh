@@ -156,10 +156,11 @@ export class BaseCardanoWallet implements ICardanoWallet {
     const addresses = [];
     if (this.address.getEnterpriseAddressBech32()) {
       addresses.push(this.address.getEnterpriseAddressBech32()!);
-    } else if (this.address.getBaseAddressBech32()) {
-      addresses.push(this.address.getBaseAddressBech32()!);
     }
 
+    if (this.address.getBaseAddressBech32()) {
+      addresses.push(this.address.getBaseAddressBech32()!);
+    }
     const utxos = [];
     for (const addr of addresses) {
       const fetchedUtxos = await this.fetcher.fetchAddressUTxOs(addr);
