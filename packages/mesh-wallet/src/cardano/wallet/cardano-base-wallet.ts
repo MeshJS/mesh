@@ -6,6 +6,7 @@ import { BaseBip32 } from "../../bip32/base-bip32";
 import { ICardanoWallet } from "../../interfaces/cardano-wallet";
 import { BaseSigner } from "../../signer/base-signer";
 import { toTxUnspentOutput } from "../../utils/conerter";
+import { mergeValue } from "../../utils/value";
 import { CardanoAddress, CredentialType } from "../address/cardano-address";
 import { CardanoSigner } from "../signer/cardano-signer";
 
@@ -189,7 +190,13 @@ export class BaseCardanoWallet implements ICardanoWallet {
     if (!this.fetcher) {
       throw new Error("[CardanoWallet] No fetcher provided");
     }
-    return "0";
+    const utxos = await this.fetchAccountUtxos();
+    const cardanoUtxos = utxos.map((utxo) => toTxUnspentOutput(utxo));
+    let total = new Serialization.Value(0n);
+    for (const utxo of cardanoUtxos) {
+      total = mergeValue(total, utxo.output().amount());
+    }
+    return total.toCbor();
   }
 
   async getUsedAddresses(): Promise<string[]> {

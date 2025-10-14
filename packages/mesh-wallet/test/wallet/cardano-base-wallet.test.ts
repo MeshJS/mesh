@@ -1,3 +1,5 @@
+import { Serialization } from "@cardano-sdk/core";
+
 import { OfflineFetcher } from "@meshsdk/provider";
 
 import { BaseCardanoWallet } from "../../src/cardano/wallet/cardano-base-wallet";
@@ -86,6 +88,10 @@ describe("CardanoBaseWallet", () => {
           {
             unit: "lovelace",
             quantity: "500000000",
+          },
+          {
+            unit: "0ba402c042775dfffedbd958cae3805a281bad34f46b5b6fd5c2c7714d657368546f6b656e",
+            quantity: "1",
           },
         ],
       },
@@ -180,5 +186,26 @@ describe("CardanoBaseWallet", () => {
     );
     const utxos = await wallet.getUtxos();
     expect(utxos.length).toBe(5);
+  });
+
+  it("should fetch correct balance", async () => {
+    const wallet = await BaseCardanoWallet.fromMnemonic(
+      0,
+      "solution,".repeat(24).split(",").slice(0, 24),
+      "",
+      offlineFetcher,
+    );
+    const balance = await wallet.getBalance();
+    const value = Serialization.Value.fromCbor(balance);
+    expect(value.coin()).toBe(
+      977313882n + 977313882n + 954457687n + 954284486n + 500000000n,
+    );
+    expect(
+      value
+        .multiasset()
+        ?.get(
+          "0ba402c042775dfffedbd958cae3805a281bad34f46b5b6fd5c2c7714d657368546f6b656e",
+        ),
+    ).toBe(1n);
   });
 });
