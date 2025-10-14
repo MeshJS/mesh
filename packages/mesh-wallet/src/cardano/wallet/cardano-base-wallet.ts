@@ -153,25 +153,34 @@ export class BaseCardanoWallet implements ICardanoWallet {
     if (!this.fetcher) {
       throw new Error("[CardanoWallet] No fetcher provided");
     }
-    const addresses = [];
-    if (this.address.getEnterpriseAddressBech32()) {
-      addresses.push(this.address.getEnterpriseAddressBech32()!);
-    }
-
-    if (this.address.getBaseAddressBech32()) {
-      addresses.push(this.address.getBaseAddressBech32()!);
-    }
-    const utxos = [];
-    for (const addr of addresses) {
-      const fetchedUtxos = await this.fetcher.fetchAddressUTxOs(addr);
-      utxos.push(...fetchedUtxos);
-    }
+    const utxos = await this.fetchAccountUtxos();
     return utxos.map((utxo) => toTxUnspentOutput(utxo).toCbor());
   }
 
   async getCollateral(): Promise<string[]> {
     if (!this.fetcher) {
       throw new Error("[CardanoWallet] No fetcher provided");
+    }
+    const utxos = await this.fetchAccountUtxos();
+    const cardanoUtxos = utxos.map((utxo) => toTxUnspentOutput(utxo));
+
+    // find utxos that are pure ADA-only
+    const pureAdaUtxos = cardanoUtxos.filter((utxo) => {
+      return utxo.output().amount().multiasset() === undefined;
+    });
+
+    // sort utxos by their lovelace amount
+    pureAdaUtxos.sort((a, b) => {
+      return (
+        Number(a.output().amount().coin()) - Number(b.output().amount().coin())
+      );
+    });
+
+    // return the smallest utxo but not less than 5000000 lovelace
+    for (const utxo of pureAdaUtxos) {
+      if (Number(utxo.output().amount().coin()) >= 5000000) {
+        return [utxo.toCbor()];
+      }
     }
     return [];
   }
@@ -277,9 +286,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
     for (const txId of transactionIds) {
       const fetchedUtxos: UTxO[] = await fetcher.fetchUTxOs(txId);
       if (fetchedUtxos) {
-        for (const utxo of fetchedUtxos) {
-          utxos.push(utxo);
-        }
+        utxos.push(...fetchedUtxos);
       } else {
         throw new Error(
           `[CardanoWallet] Transaction not found for transaction id: ${txId}`,
@@ -470,6 +477,26 @@ export class BaseCardanoWallet implements ICardanoWallet {
       }
     }
     return requiredSigners;
+  }
+
+  private async fetchAccountUtxos(): Promise<UTxO[]> {
+    if (!this.fetcher) {
+      throw new Error("[CardanoWallet] No fetcher provided");
+    }
+    const addresses = [];
+    if (this.address.getEnterpriseAddressBech32()) {
+      addresses.push(this.address.getEnterpriseAddressBech32()!);
+    }
+    if (this.address.getBaseAddressBech32()) {
+      addresses.push(this.address.getBaseAddressBech32()!);
+    }
+
+    const utxos = [];
+    for (const addr of addresses) {
+      const fetchedUtxos = await this.fetcher.fetchAddressUTxOs(addr);
+      utxos.push(...fetchedUtxos);
+    }
+    return utxos;
   }
 }
 
