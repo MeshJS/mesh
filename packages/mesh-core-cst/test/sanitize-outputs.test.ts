@@ -46,6 +46,7 @@ describe("Sanitize outputs", () => {
       expectedByronAddressWitnesses: [],
       fee: "1000000",
       network: "mainnet",
+      proposals: [],
     };
 
     const txHex = serializer.serializeTxBody(body);

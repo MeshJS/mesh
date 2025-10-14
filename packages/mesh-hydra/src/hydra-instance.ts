@@ -1,14 +1,28 @@
 import { IFetcher, ISubmitter } from "@meshsdk/common";
+
 import { HydraProvider } from "./hydra-provider";
 import { hydraTransaction, hydraUTxO } from "./types";
 
 /**
- * Represents an instance of the Hydra protocol, providing methods to interact with a Hydra head.
- *
+ * HydraInstance is a tool for interacting with a Hydra head.
  * @constructor
  * @param provider - The Hydra provider instance for interacting with the Hydra head.
  * @param fetcher - The fetcher instance for fetching UTxOs and other data.
  * @param submitter - The submitter instance for submitting transactions.
+ *
+ * @example
+ *
+ * ```tsx
+ * const provider = new HydraProvider({
+ *   httpUrl: "<hydra-head-url>",
+ * });
+ *
+ * const instance = new HydraInstance({
+ *   provider: provider,
+ *   fetcher: blockchainProvider,
+ *   submitter: blockchainProvider,
+ * });
+ * ```
  */
 export class HydraInstance {
   provider: HydraProvider;
@@ -40,7 +54,23 @@ export class HydraInstance {
     const decommit = await this.provider.publishDecommit(payload, {
       "Content-Type": "application/json",
     });
-    return decommit;
+    return decommit.cborHex;
+  }
+
+  /**
+   * If you don't want to commit any funds and only want to receive on layer 2,
+   * you can request an empty commit transaction to open the head:
+   * @example
+   * ```tsx
+   * const commit = await hydraInstance.commitEmpty();
+   * const submitTx = await wallet.submitTx(commit);
+   * console.log("submitTx", submitTx);
+   * ```
+   *
+   * @returns The transaction CBOR hex ready to be submitted.
+   */
+  async commitEmpty(): Promise<string> {
+    return this._commitToHydra({});
   }
 
   /**
@@ -61,16 +91,9 @@ export class HydraInstance {
   }
 
   /**
-   * Commits a Cardano transaction blueprint to the Hydra head.
-   *
-   * This method allows you to commit a transaction in the Cardano text envelope format
-   * (i.e., a JSON object containing a 'type' and a 'cborHex' field) as a blueprint UTxO
-   * to the Hydra head. This is useful for advanced use cases such as reference scripts,
-   * inline datums, or other on-chain features that require a transaction context.
-   *
+   * Allows Commit UTxOs as ScriptUTxOs in a Cardano transaction blueprint to the Hydra head.
    *
    * https://hydra.family/head-protocol/docs/how-to/commit-blueprint
-   *
    * @param txHash - The transaction hash of the UTxO to be committed as a blueprint.
    * @param outputIndex - The output index of the UTxO to be committed.
    * @param hydraTransaction - The Cardano transaction in text envelope format, containing:
@@ -78,11 +101,19 @@ export class HydraInstance {
    *   - description: (Optional) A human-readable description of the transaction.
    *   - cborHex: The CBOR-encoded unsigned transaction.
    * @returns The function returns the transaction CBOR hex ready to be partially signed.
+   * @example
+   * ```tsx
+   * const commitTx = await instance.commitBlueprint(txHash, outputIndex, {
+   *   type: "Tx ConwayEra",
+   *   cborHex: unsignedTx,
+   *   description: "Commit Blueprint",
+   * });
+   * ```
    */
   async commitBlueprint(
     txHash: string,
     outputIndex: number,
-    transaction: hydraTransaction
+    transaction: hydraTransaction,
   ): Promise<string> {
     const utxo = (await this.fetcher.fetchUTxOs(txHash, outputIndex))[0];
     if (!utxo) {
@@ -133,7 +164,7 @@ export class HydraInstance {
   async incrementalBlueprintCommit(
     txHash: string,
     outputIndex: number,
-    transaction: hydraTransaction
+    transaction: hydraTransaction,
   ) {
     return this.commitBlueprint(txHash, outputIndex, {
       type: transaction.type,
@@ -145,10 +176,10 @@ export class HydraInstance {
 
   /**
    * Request to decommit a UTxO from a Head by providing a decommit tx. Upon reaching consensus, this will eventually result in corresponding transaction outputs becoming available on the layer 1.
-   * Method not implemented
+   *
    */
   async decommit(transaction: hydraTransaction) {
-    return this._decommitFromHydra(transaction);
+    throw new Error("Method not implemented use hydraProvider instead");
   }
 
   /**
@@ -157,6 +188,6 @@ export class HydraInstance {
    * @returns
    */
   async incrementalDecommit(transaction: hydraTransaction) {
-    return this.decommit(transaction);
+    throw new Error("Method not implemented use hydraProvider instead");
   }
 }

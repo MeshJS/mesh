@@ -25,6 +25,7 @@ export const DEFAULT_PROTOCOL_PARAMETERS: Protocol = {
 };
 
 export const DREP_DEPOSIT = "500000000";
+export const VOTING_PROPOSAL_DEPOSIT = "100000000000";
 
 export const resolveTxFees = (
   txSize: number,

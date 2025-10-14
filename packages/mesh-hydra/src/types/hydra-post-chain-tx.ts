@@ -1,5 +1,5 @@
-import { hydraUTxO } from "./hydraUTxOs";
 import { HydraHeadParameters, HydraSnapshot } from "./hydra";
+import { hydraUTxO } from "./hydraUTxOs";
 
 export type PostChainTx =
   | InitTx

@@ -1,34 +1,51 @@
 import { Asset } from "@meshsdk/common";
 
-export type hydraAssets = {
+export type HydraAssets = {
   lovelace: number;
 } & {
-  [assets: string]: number;
+  [policyId: string]: {
+    [assetNameHex: string]: number;
+  };
 };
 
-export function hydraAssets(assets: Asset[]): hydraAssets {
+export function hydraAssets(assets: Asset[]): HydraAssets {
   return assets.reduce(
-    (p, asset) => {
+    (acc, asset) => {
       if (asset.unit === "" || asset.unit === "lovelace") {
-        p.lovelace += Number(asset.quantity);
+        acc.lovelace += Number(asset.quantity);
       } else {
-        p[asset.unit] = (p[asset.unit] ?? 0) + Number(asset.quantity);
+        const policyId = asset.unit.slice(0, 56);
+        const assetNameHex = asset.unit.slice(56) || "";
+
+        if (!acc[policyId]) acc[policyId] = {};
+        acc[policyId][assetNameHex] =
+          (acc[policyId][assetNameHex] ?? 0) + Number(asset.quantity);
       }
-      return p;
+      return acc;
     },
-    { lovelace: Number(0) } as hydraAssets
+    { lovelace: 0 } as HydraAssets,
   );
 }
 
-hydraAssets.toAssets = (hydraAssets: hydraAssets): Asset[] => {
-  const assets: Asset[] = [];
-  for (const unit of Object.keys(hydraAssets)) {
-    if (unit === "lovelace") {
-      assets.push({
-        unit: unit,
-        quantity: hydraAssets[unit].toString(),
+hydraAssets.toAssets = (assetsObj: HydraAssets): Asset[] => {
+  const newAssets: Asset[] = [];
+
+  if (assetsObj.lovelace && assetsObj.lovelace > 0) {
+    newAssets.push({
+      unit: "lovelace",
+      quantity: assetsObj.lovelace.toString(),
+    });
+  }
+
+  for (const [policyId, assets] of Object.entries(assetsObj)) {
+    if (policyId === "lovelace") continue;
+    for (const [assetNameHex, quantity] of Object.entries(assets)) {
+      newAssets.push({
+        unit: `${policyId}${assetNameHex}`,
+        quantity: quantity.toString(),
       });
     }
   }
-  return assets;
+
+  return newAssets;
 };

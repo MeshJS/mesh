@@ -22,12 +22,7 @@ export default function FetcherHandleAddress({
       sidebarTo="fetchHandleAddress"
       title="Fetch Handle Address"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -48,9 +43,7 @@ function Left(userInput: string) {
         We can resolve the handle's address with <code>fetchHandleAddress</code>
         .
       </p>
-      <Codeblock
-        data={`await provider.fetchHandleAddress('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchHandleAddress('${userInput}')`} />
     </>
   );
 }

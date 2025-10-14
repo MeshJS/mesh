@@ -23,12 +23,7 @@ export default function FetcherAccountInfo({
       sidebarTo="fetchAccountInfo"
       title="Fetch Account Info"
       leftSection={Left(userInput)}
-      rightSection={Right(
-        provider,
-        userInput,
-        setUserInput,
-        providerName,
-      )}
+      rightSection={Right(provider, userInput, setUserInput, providerName)}
     />
   );
 }
@@ -37,9 +32,7 @@ function Left(userInput: string) {
   return (
     <>
       <p>Obtain information about a specific stake account.</p>
-      <Codeblock
-        data={`await provider.fetchAccountInfo('${userInput}')`}
-      />
+      <Codeblock data={`await provider.fetchAccountInfo('${userInput}')`} />
     </>
   );
 }

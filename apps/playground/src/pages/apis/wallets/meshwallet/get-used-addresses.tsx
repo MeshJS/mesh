@@ -30,10 +30,14 @@ function Left() {
   return (
     <>
       <p>
-        This API retrieves a list of used addresses controlled by the wallet. Used addresses are wallet-controlled addresses that have been involved in transactions.
+        This API retrieves a list of used addresses controlled by the wallet.
+        Used addresses are wallet-controlled addresses that have been involved
+        in transactions.
       </p>
       <p>
-        Tracking used addresses is essential for analyzing transaction history and managing wallet activity. These addresses provide insights into past transactions.
+        Tracking used addresses is essential for analyzing transaction history
+        and managing wallet activity. These addresses provide insights into past
+        transactions.
       </p>
       <p>Example response:</p>
       <Codeblock data={example} />

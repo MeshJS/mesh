@@ -1,0 +1,68 @@
+{
+  "name": "@meshsdk/midnight-setup",
+  "version": "1.9.0-beta.81",
+  "description": "Midnight Network integration SDK for MeshSDK - https://meshjs.dev/midnight",
+  "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
+    "test": "echo 'Tests for Midnight Network integration'"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "^0.8.1",
+    "@midnight-ntwrk/midnight-js-contracts": "2.0.2",
+    "@midnight-ntwrk/midnight-js-types": "2.0.2",
+    "pino": "^8.16.1",
+    "rxjs": "^7.8.1"
+  },
+  "peerDependencies": {
+    "@midnight-ntwrk/dapp-connector-api": "^3.0.0",
+    "@midnight-ntwrk/midnight-js-fetch-zk-config-provider": "^2.0.2",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "^2.0.2",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "^2.0.2",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "^2.0.2",
+    "@midnight-ntwrk/midnight-js-network-id": "^2.0.2"
+  },
+  "devDependencies": {
+    "@meshsdk/configs": "*",
+    "@types/ws": "^8.5.9",
+    "eslint": "^8.57.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "prettier": "@meshsdk/configs/prettier",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "midnight",
+    "midnight-network",
+    "blockchain",
+    "smart-contracts",
+    "dapp",
+    "web3",
+    "compact",
+    "meshjs",
+    "cardano",
+    "sdk"
+  ]
+}

@@ -6,6 +6,7 @@ import { bech32 } from "bech32";
 
 import {
   Asset,
+  LanguageVersion,
   NativeScript,
   PlutusScript,
   Quantity,
@@ -23,6 +24,7 @@ import {
   Ed25519KeyHashHex,
   EnterpriseAddress,
   Hash28ByteBase16,
+  PlutusLanguageVersion,
   PlutusV1Script,
   PlutusV2Script,
   PlutusV3Script,
@@ -331,7 +333,9 @@ export const toValue = (assets: Asset[]) => {
       multiAsset.set(AssetId(asset.unit), BigInt(asset.quantity));
     });
 
-  const lovelace = assets.find((asset) => asset.unit === "lovelace" || asset.unit === "");
+  const lovelace = assets.find(
+    (asset) => asset.unit === "lovelace" || asset.unit === "",
+  );
   const value = new Value(BigInt(lovelace ? lovelace.quantity : 0));
 
   if (assets.length > 1 || !lovelace) {
@@ -445,3 +449,16 @@ export const getDRepIds = (
   }
   return result;
 };
+
+export const toPlutusLanguageVersion = (version: LanguageVersion): PlutusLanguageVersion => {
+  switch (version) {
+    case "V1":
+      return PlutusLanguageVersion.V1;
+    case "V2":
+      return PlutusLanguageVersion.V2;
+    case "V3":
+      return PlutusLanguageVersion.V3;
+  }
+};
+
+

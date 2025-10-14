@@ -48,14 +48,8 @@ const ReactPage: NextPage = () => {
         </TitleIconDescriptionBody>
         <ButtonFloatDocumentation href="https://docs.meshjs.dev/providers/classes/OgmiosProvider" />
 
-        <ProviderEvaluators
-          provider={provider}
-          providerName="ogmios"
-        />
-        <ProviderSubmitters
-          provider={provider}
-          providerName="ogmios"
-        />
+        <ProviderEvaluators provider={provider} providerName="ogmios" />
+        <ProviderSubmitters provider={provider} providerName="ogmios" />
       </SidebarFullwidth>
     </>
   );

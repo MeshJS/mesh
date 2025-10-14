@@ -5,6 +5,7 @@ import { UTxO } from "../utxo";
 import { Certificate } from "./certificate";
 import { MintParam } from "./mint";
 import { Output } from "./output";
+import { Proposal } from "./proposal";
 import { PubKeyTxIn, RefTxIn, TxIn } from "./txin";
 import { Vote } from "./vote";
 import { Withdrawal } from "./withdrawal";
@@ -17,6 +18,7 @@ export * from "./txin";
 export * from "./withdrawal";
 export * from "./certificate";
 export * from "./vote";
+export * from "./proposal";
 
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
@@ -33,6 +35,7 @@ export type MeshTxBuilderBody = {
   certificates: Certificate[];
   withdrawals: Withdrawal[];
   votes: Vote[];
+  proposals: Proposal[];
   signingKey: string[];
   extraInputs: UTxO[];
   chainedTxs: string[];
@@ -60,6 +63,7 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   certificates: [],
   withdrawals: [],
   votes: [],
+  proposals: [],
   signingKey: [],
   chainedTxs: [],
   inputsForEvaluation: {},

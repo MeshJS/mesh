@@ -6,8 +6,8 @@ import Metatags from "~/components/site/metatags";
 import { metaReactGettingstarted } from "~/data/links-react";
 import ReactConnectWallet from "../ui-components/connect-wallet";
 import ReactHookUseWallet from "../wallet-hooks/use-wallet";
-import ReactSetup from "./setup";
 import MeshProvider from "./mesh-provider";
+import ReactSetup from "./setup";
 
 const ReactPage: NextPage = () => {
   const sidebarItems = [

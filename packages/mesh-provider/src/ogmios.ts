@@ -5,7 +5,10 @@ import {
   ISubmitter,
   Network,
   SUPPORTED_OGMIOS_LINKS,
+  UTxO,
 } from "@meshsdk/common";
+
+import { getAdditionalUtxos } from "./utils";
 
 export class OgmiosProvider implements IEvaluator, ISubmitter {
   private readonly _baseUrl: string;
@@ -21,15 +24,28 @@ export class OgmiosProvider implements IEvaluator, ISubmitter {
 
   /**
    * Evaluates the resources required to execute the transaction
-   * @param tx - The transaction to evaluate
+   * @param cbor - The transaction CBOR hex string to evaluate
+   * @param additionalUtxos - Optional array of additional UTxOs to include in the evaluation context for resolving transaction inputs
+   * @param additionalTxs - Optional array of transaction CBOR hex strings to provide additional UTxOs from their outputs
    */
-  async evaluateTx(tx: string): Promise<Omit<Action, "data">[]> {
+  async evaluateTx(
+    cbor: string,
+    additionalUtxos?: UTxO[],
+    additionalTxs?: string[],
+  ): Promise<Omit<Action, "data">[]> {
+    const additionalUtxo = getAdditionalUtxos(
+      "ogmios",
+      additionalUtxos,
+      additionalTxs,
+    );
+
     const client = await this.open();
 
     this.send(client, "evaluateTransaction", {
       transaction: {
-        cbor: tx,
+        cbor,
       },
+      additionalUtxo,
     });
 
     return new Promise((resolve, reject) => {
