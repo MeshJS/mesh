@@ -3,6 +3,95 @@ import { OfflineFetcher } from "@meshsdk/provider";
 import { BaseCardanoWallet } from "../../src/cardano/wallet/cardano-base-wallet";
 
 describe("CardanoBaseWallet", () => {
+  const offlineFetcher = new OfflineFetcher("preprod");
+  offlineFetcher.addUTxOs([
+    {
+      input: {
+        txHash:
+          "45703dfd724f8bc92ebabdbff28b54d3434b126f31d31b2fffa5e3ed1edc1023",
+        outputIndex: 1,
+      },
+      output: {
+        address:
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+        amount: [
+          {
+            unit: "lovelace",
+            quantity: "977313882",
+          },
+        ],
+      },
+    },
+    {
+      input: {
+        txHash:
+          "e6a99b6338fbacd1e411c7bf69d963d83975d8ad1336cb70cd600bdd049c4cae",
+        outputIndex: 1,
+      },
+      output: {
+        address:
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+        amount: [
+          {
+            unit: "lovelace",
+            quantity: "977313882",
+          },
+        ],
+      },
+    },
+    {
+      input: {
+        txHash:
+          "62e6bf27216633a367924fd9d94681f75609788fa8e6187c8a583a95d60fbbcd",
+        outputIndex: 1,
+      },
+      output: {
+        address:
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+        amount: [
+          {
+            unit: "lovelace",
+            quantity: "954457687",
+          },
+        ],
+      },
+    },
+    {
+      input: {
+        txHash:
+          "ad3ec70ffbc9a2d169fc6a4a9fdbae168ebad547f3939c97fc3bb41fa70c9999",
+        outputIndex: 0,
+      },
+      output: {
+        address:
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+        amount: [
+          {
+            unit: "lovelace",
+            quantity: "954284486",
+          },
+        ],
+      },
+    },
+    {
+      input: {
+        txHash:
+          "ad3ec70ffbc9a2d169fc6a4a9fdbae168ebad547f3939c97fc3bb41fa70c9999",
+        outputIndex: 1,
+      },
+      output: {
+        address:
+          "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr",
+        amount: [
+          {
+            unit: "lovelace",
+            quantity: "500000000",
+          },
+        ],
+      },
+    },
+  ]);
+
   it("should create correct wallet from signer", async () => {
     const wallet = await BaseCardanoWallet.fromMnemonic(
       0,
@@ -54,95 +143,6 @@ describe("CardanoBaseWallet", () => {
   });
 
   it("should sign with correct witness", async () => {
-    const offlineFetcher = new OfflineFetcher("preprod");
-    offlineFetcher.addUTxOs([
-      {
-        input: {
-          txHash:
-            "45703dfd724f8bc92ebabdbff28b54d3434b126f31d31b2fffa5e3ed1edc1023",
-          outputIndex: 1,
-        },
-        output: {
-          address:
-            "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-          amount: [
-            {
-              unit: "lovelace",
-              quantity: "977313882",
-            },
-          ],
-        },
-      },
-      {
-        input: {
-          txHash:
-            "e6a99b6338fbacd1e411c7bf69d963d83975d8ad1336cb70cd600bdd049c4cae",
-          outputIndex: 1,
-        },
-        output: {
-          address:
-            "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-          amount: [
-            {
-              unit: "lovelace",
-              quantity: "977313882",
-            },
-          ],
-        },
-      },
-      {
-        input: {
-          txHash:
-            "62e6bf27216633a367924fd9d94681f75609788fa8e6187c8a583a95d60fbbcd",
-          outputIndex: 1,
-        },
-        output: {
-          address:
-            "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-          amount: [
-            {
-              unit: "lovelace",
-              quantity: "954457687",
-            },
-          ],
-        },
-      },
-      {
-        input: {
-          txHash:
-            "ad3ec70ffbc9a2d169fc6a4a9fdbae168ebad547f3939c97fc3bb41fa70c9999",
-          outputIndex: 0,
-        },
-        output: {
-          address:
-            "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-          amount: [
-            {
-              unit: "lovelace",
-              quantity: "954284486",
-            },
-          ],
-        },
-      },
-      {
-        input: {
-          txHash:
-            "ad3ec70ffbc9a2d169fc6a4a9fdbae168ebad547f3939c97fc3bb41fa70c9999",
-          outputIndex: 1,
-        },
-        output: {
-          address:
-            "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr",
-          amount: [
-            {
-              unit: "lovelace",
-              quantity: "500000000",
-            },
-          ],
-        },
-      },
-    ]);
-
     const wallet = await BaseCardanoWallet.fromMnemonic(
       0,
       "solution,".repeat(24).split(",").slice(0, 24),
@@ -168,6 +168,15 @@ describe("CardanoBaseWallet", () => {
     );
     expect(signature3).toBe(
       "a100d9010282825820c32dfdb461dd016e8fdd9b6d424a77439eab8f8c644a804b013b6cefa2454f955840b71e7ffac89eac0dc051323fe30172b3c83d753f92c489478188ccbeed67b77bcc1af7d42c43d987ac767eeb3b0aea20697dbf87697de00487d16cbe2ff7750e82582002c9f4600bc90fcf09c7ef26346fd64dc3f39c3695ed986f53caad400ef419ad5840f40a8b338f56e958e65051178c9397e4c15c522aca5a0ff5639c5ee6f9a040280e7c5b15981504937978311c8763aedc164a89535f9fdcbb28089294efdc6b0e",
+    );
+  });
+
+  it("should fetch utxos from multiple addresses", async () => {
+    const wallet = await BaseCardanoWallet.fromMnemonic(
+      0,
+      "solution,".repeat(24).split(",").slice(0, 24),
+      "",
+      offlineFetcher,
     );
     const utxos = await wallet.getUtxos();
     expect(utxos.length).toBe(5);
