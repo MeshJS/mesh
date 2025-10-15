@@ -1,6 +1,6 @@
 import { Cardano, Serialization, setInConwayEra } from "@cardano-sdk/core";
 
-import { IFetcher, ISubmitter, UTxO } from "@meshsdk/common";
+import { DataSignature, IFetcher, ISubmitter, UTxO } from "@meshsdk/common";
 
 import { BaseBip32 } from "../../bip32/base-bip32";
 import { ICardanoWallet } from "../../interfaces/cardano-wallet";
@@ -267,8 +267,32 @@ export class BaseCardanoWallet implements ICardanoWallet {
     return witnessSet.toCbor();
   }
 
-  signData(data: string): Promise<string> {
-    throw new Error("[CardanoWallet] Method not implemented.");
+  signData(data: string, address?: string): Promise<DataSignature> {
+    if (!this.signer) {
+      throw new Error("[CardanoWallet] No signer provided");
+    }
+    if (address) {
+      if (address === this.address.getBaseAddressBech32()) {
+        return this.signer.paymentSignData(
+          data,
+          this.address.getBaseAddressHex()!,
+        );
+      } else if (address === this.address.getEnterpriseAddressBech32()) {
+        return this.signer.paymentSignData(
+          data,
+          this.address.getEnterpriseAddressHex()!,
+        );
+      } else if (address === this.address.getRewardAddressBech32()) {
+        if (!this.address.stakePubkey) {
+          throw new Error("[CardanoWallet] No stake address for this wallet");
+        }
+        return this.signer.stakeSignData(
+          data,
+          this.address.getRewardAddressHex()!,
+        );
+      }
+    }
+    return this.signer.paymentSignData(data, this.address.getBaseAddressHex()!);
   }
 
   private async getRequiredSignatures(
