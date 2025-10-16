@@ -1,6 +1,7 @@
 import { Cardano, Serialization } from "@cardano-sdk/core";
 import { HexBlob } from "@cardano-sdk/util";
 
+import { DataSignature } from "@meshsdk/common";
 import { OfflineFetcher } from "@meshsdk/provider";
 
 import { BaseCardanoWallet } from "../../src/cardano/wallet/cardano-base-wallet";
@@ -210,5 +211,23 @@ describe("CardanoBaseWallet", () => {
           ),
         ),
     ).toBe(1n);
+  });
+
+  it("should sign data correctly", async () => {
+    const wallet = await BaseCardanoWallet.fromMnemonic(
+      0,
+      "solution,".repeat(24).split(",").slice(0, 24),
+      "",
+      offlineFetcher,
+    );
+    const signedData = await wallet.signData(
+      "abc",
+      wallet.address.getBaseAddressBech32(),
+    );
+    expect(signedData).toEqual<DataSignature>({
+      key: "a4010103272006215820c32dfdb461dd016e8fdd9b6d424a77439eab8f8c644a804b013b6cefa2454f95",
+      signature:
+        "845846a2012767616464726573735839005867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6a166686173686564f441ab58405fdb1b2006cba85db90a2edb254317ade112d72883d9f28956fc3337104a6ee74ca2e252163c2f790ca23e0d3c96205e0bf9d460cca4fc325f49db65b8741d0b",
+    });
   });
 });
