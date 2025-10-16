@@ -15,7 +15,7 @@ import { DataSignature, isHexString, stringToHex } from "@meshsdk/common";
 import { BaseBip32 } from "../../bip32/base-bip32";
 import { ISigner } from "../../interfaces/signer";
 import { DEFAULT_ACCOUNT_KEY_DERIVATION_PATH } from "../../utils/constants";
-import { CoseSign1, getCoseKeyFromPublicKey } from "./cip-08";
+import { CoseSign1, getCoseKeyFromPublicKey } from "./cip-8";
 
 export class CardanoSigner {
   public paymentSigner: ISigner;
@@ -132,8 +132,6 @@ export class CardanoSigner {
     // Set protected headers as per CIP08
     // Set Algorthm used by Cardano keys
     protectedMap.push({ k: new CborUInt(1), v: new CborNegInt(-8) });
-    // Set PublicKey
-    protectedMap.push({ k: new CborUInt(4), v: new CborBytes(publicKey) });
     // Set Address
     protectedMap.push({
       k: new CborText("address"),
