@@ -1,4 +1,5 @@
 import { Cardano, Serialization, setInConwayEra } from "@cardano-sdk/core";
+import { HexBlob } from "@cardano-sdk/util";
 
 import { DataSignature, IFetcher, ISubmitter, UTxO } from "@meshsdk/common";
 
@@ -259,7 +260,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
     witnessSet.setVkeys(
       Serialization.CborSet.fromCore(
         signatures.map((sig) => {
-          return Serialization.VkeyWitness.fromCbor(sig).toCore();
+          return Serialization.VkeyWitness.fromCbor(HexBlob(sig)).toCore();
         }),
         Serialization.VkeyWitness.fromCore,
       ),

@@ -1,4 +1,5 @@
-import { Serialization } from "@cardano-sdk/core";
+import { Cardano, Serialization } from "@cardano-sdk/core";
+import { HexBlob } from "@cardano-sdk/util";
 
 import { OfflineFetcher } from "@meshsdk/provider";
 
@@ -196,7 +197,7 @@ describe("CardanoBaseWallet", () => {
       offlineFetcher,
     );
     const balance = await wallet.getBalance();
-    const value = Serialization.Value.fromCbor(balance);
+    const value = Serialization.Value.fromCbor(HexBlob(balance));
     expect(value.coin()).toBe(
       977313882n + 977313882n + 954457687n + 954284486n + 500000000n,
     );
@@ -204,7 +205,9 @@ describe("CardanoBaseWallet", () => {
       value
         .multiasset()
         ?.get(
-          "0ba402c042775dfffedbd958cae3805a281bad34f46b5b6fd5c2c7714d657368546f6b656e",
+          Cardano.AssetId(
+            "0ba402c042775dfffedbd958cae3805a281bad34f46b5b6fd5c2c7714d657368546f6b656e",
+          ),
         ),
     ).toBe(1n);
   });

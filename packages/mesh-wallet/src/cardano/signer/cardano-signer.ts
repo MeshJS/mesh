@@ -1,4 +1,5 @@
 import { Serialization, setInConwayEra } from "@cardano-sdk/core";
+import { Ed25519PublicKeyHex, Ed25519SignatureHex } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 import {
   CborBytes,
@@ -106,12 +107,14 @@ export class CardanoSigner {
   }
 
   private async signerSignTx(tx: string, signer: ISigner): Promise<string> {
-    const cardanoTx = Serialization.Transaction.fromCbor(tx);
+    const cardanoTx = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(tx),
+    );
     const txHash = cardanoTx.body().hash();
 
     const vkeyWitness = new Serialization.VkeyWitness(
-      await signer.getPublicKey(),
-      await signer.sign(HexBlob(txHash)),
+      Ed25519PublicKeyHex(await signer.getPublicKey()),
+      Ed25519SignatureHex(await signer.sign(HexBlob(txHash))),
     );
     return vkeyWitness.toCbor();
   }
