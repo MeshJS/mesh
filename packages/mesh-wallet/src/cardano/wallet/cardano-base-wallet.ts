@@ -268,6 +268,37 @@ export class BaseCardanoWallet implements ICardanoWallet {
     return witnessSet.toCbor();
   }
 
+  async signTxReturnFullTx(tx: string): Promise<string> {
+    const witnessCbor = await this.signTx(tx);
+    const addedWitnesses = Serialization.TransactionWitnessSet.fromCbor(
+      HexBlob(witnessCbor),
+    );
+    const transaction = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(tx),
+    );
+    let witnessSet = transaction.witnessSet();
+    let witnessSetVkeys = witnessSet.vkeys();
+    let witnessSetVkeysValues: Serialization.VkeyWitness[] = witnessSetVkeys
+      ? [
+          ...witnessSetVkeys.values(),
+          ...(addedWitnesses.vkeys()?.values() ?? []),
+        ]
+      : [...(addedWitnesses.vkeys()?.values() ?? [])];
+
+    witnessSet.setVkeys(
+      Serialization.CborSet.fromCore(
+        witnessSetVkeysValues.map((vkw) => vkw.toCore()),
+        Serialization.VkeyWitness.fromCore,
+      ),
+    );
+    const signedTx = new Serialization.Transaction(
+      transaction.body(),
+      witnessSet,
+      transaction.auxiliaryData(),
+    );
+    return signedTx.toCbor();
+  }
+
   signData(data: string, address?: string): Promise<DataSignature> {
     if (!this.signer) {
       throw new Error("[CardanoWallet] No signer provided");

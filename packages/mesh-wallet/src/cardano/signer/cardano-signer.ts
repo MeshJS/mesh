@@ -56,8 +56,8 @@ export class CardanoSigner {
     return this.paymentSigner.sign(data);
   }
 
-  async paymentSignTx(tx: string): Promise<string> {
-    return this.signerSignTx(tx, this.paymentSigner);
+  async paymentSignTx(tx: string, returnFullTx = false): Promise<string> {
+    return this.signerSignTx(tx, this.paymentSigner, returnFullTx);
   }
 
   async paymentSignData(data: string, address: string): Promise<DataSignature> {
@@ -71,11 +71,11 @@ export class CardanoSigner {
     return this.stakeSigner.sign(data);
   }
 
-  async stakeSignTx(tx: string): Promise<string> {
+  async stakeSignTx(tx: string, returnFullTx = false): Promise<string> {
     if (!this.stakeSigner) {
       throw new Error("Stake signer not provided");
     }
-    return this.signerSignTx(tx, this.stakeSigner);
+    return this.signerSignTx(tx, this.stakeSigner, returnFullTx);
   }
 
   async stakeSignData(data: string, address: string): Promise<DataSignature> {
@@ -92,11 +92,11 @@ export class CardanoSigner {
     return this.drepSigner.sign(data);
   }
 
-  async drepSignTx(tx: string): Promise<string> {
+  async drepSignTx(tx: string, returnFullTx = false): Promise<string> {
     if (!this.drepSigner) {
       throw new Error("DRep signer not provided");
     }
-    return this.signerSignTx(tx, this.drepSigner);
+    return this.signerSignTx(tx, this.drepSigner, returnFullTx);
   }
 
   async drepSignData(data: string, address: string): Promise<DataSignature> {
@@ -106,7 +106,11 @@ export class CardanoSigner {
     return this.signerSignData(data, address, this.drepSigner);
   }
 
-  private async signerSignTx(tx: string, signer: ISigner): Promise<string> {
+  private async signerSignTx(
+    tx: string,
+    signer: ISigner,
+    returnFullTx = false,
+  ): Promise<string> {
     const cardanoTx = Serialization.Transaction.fromCbor(
       Serialization.TxCBOR(tx),
     );
@@ -116,6 +120,24 @@ export class CardanoSigner {
       Ed25519PublicKeyHex(await signer.getPublicKey()),
       Ed25519SignatureHex(await signer.sign(HexBlob(txHash))),
     );
+    if (returnFullTx) {
+      const txWitnessSet = cardanoTx.witnessSet();
+      let witnessSetVkeys = txWitnessSet.vkeys();
+      let witnessSetVkeysValues: Serialization.VkeyWitness[] = witnessSetVkeys
+        ? [...witnessSetVkeys.values(), vkeyWitness]
+        : [vkeyWitness];
+      txWitnessSet.setVkeys(
+        Serialization.CborSet.fromCore(
+          witnessSetVkeysValues.map((vkw) => vkw.toCore()),
+          Serialization.VkeyWitness.fromCore,
+        ),
+      );
+      return new Serialization.Transaction(
+        cardanoTx.body(),
+        txWitnessSet,
+        cardanoTx.auxiliaryData(),
+      ).toCbor();
+    }
     return vkeyWitness.toCbor();
   }
 
