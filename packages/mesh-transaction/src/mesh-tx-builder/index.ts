@@ -1192,28 +1192,28 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   protected getVoteRequiredSignatures(): Set<string> {
     const voteCreds = new Set<string>();
     for (let vote of this.meshTxBuilderBody.votes) {
-      if (vote.type !== "SimpleScriptVote") {
+      if (vote.type === "SimpleScriptVote") {
         const nativeScript = this.getVoteNativeScript(vote);
         if (nativeScript) {
           let pubKeys = this.getNativeScriptPubKeys(nativeScript);
           for (let pubKey of pubKeys) {
             voteCreds.add(pubKey);
           }
-        } else if (vote.type === "BasicVote") {
-          const voter = vote.vote.voter;
-          if (voter.type === "DRep") {
-            const drep = coreToCstDRep(voter.drepId);
-            const keyHash = drep.toKeyHash();
-            if (keyHash) {
-              voteCreds.add(keyHash);
-            }
-          } else if (voter.type === "StakingPool") {
-            voteCreds.add(voter.keyHash);
-          } else if (voter.type === "ConstitutionalCommittee") {
-            const hotCred = voter.hotCred;
-            if (hotCred.type === "KeyHash") {
-              voteCreds.add(hotCred.keyHash);
-            }
+        }
+      } else if (vote.type === "BasicVote") {
+        const voter = vote.vote.voter;
+        if (voter.type === "DRep") {
+          const drep = coreToCstDRep(voter.drepId);
+          const keyHash = drep.toKeyHash();
+          if (keyHash) {
+            voteCreds.add(keyHash);
+          }
+        } else if (voter.type === "StakingPool") {
+          voteCreds.add(voter.keyHash);
+        } else if (voter.type === "ConstitutionalCommittee") {
+          const hotCred = voter.hotCred;
+          if (hotCred.type === "KeyHash") {
+            voteCreds.add(hotCred.keyHash);
           }
         }
       }
