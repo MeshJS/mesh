@@ -1,38 +1,30 @@
-import { bitcoin, bip32, bip39, ECPair } from "../../core";
-import { BIP32Interface } from "bip32";
-import { UTxO } from "../../types/utxo";
-import { Address } from "../../types/address";
-import { IBitcoinProvider } from "../../interfaces/provider";
 import type { Network } from "bitcoinjs-lib";
+import { coinselect } from "@bitcoinerlab/coinselect";
+import { DescriptorsFactory } from "@bitcoinerlab/descriptors";
+import * as secp256k1 from "@bitcoinerlab/secp256k1";
+import { BIP32Interface } from "bip32";
 import { mnemonicToSeedSync, validateMnemonic } from "bip39";
+import { bip32, bip39, bitcoin, ECPair } from "../../core";
+import { IBitcoinProvider } from "../../interfaces/provider";
+import { UTxO } from "../../types/utxo";
+import {
+  CreateWalletOptions,
+  GetAddressResult,
+  GetBalanceResult,
+  NetworkType,
+  SendTransferParams,
+  SendTransferResult,
+  SignMessageParams,
+  SignMessageResult,
+  SignMultipleTransactionsParams,
+  SignPsbtParams,
+  SignPsbtResult,
+  TransactionPayload,
+} from "../../types/wallet";
 import { resolveAddress } from "../../utils";
 
-export type CreateWalletOptions = {
-  testnet: boolean;
-  key:
-    | {
-        type: "mnemonic";
-        words: string[];
-      }
-    | {
-        type: "address";
-        address: string;
-      };
-  path?: string;
-  provider?: IBitcoinProvider;
-};
-
-export type TransactionPayload = {
-  inputs: {
-    txid: string;
-    vout: number;
-    value: number;
-  }[];
-  outputs: {
-    address: string;
-    value: number;
-  }[];
-};
+// Initialize descriptors factory
+const { Output } = DescriptorsFactory(secp256k1);
 
 /**
  * EmbeddedWallet is a class that provides a simple interface to interact with Bitcoin wallets.
@@ -45,15 +37,24 @@ export class EmbeddedWallet {
   private readonly _address?: string;
 
   constructor(options: CreateWalletOptions) {
-    this._network = options.testnet
-      ? bitcoin.networks.testnet
-      : bitcoin.networks.bitcoin;
+    switch (options.network) {
+      case "Testnet":
+        this._network = bitcoin.networks.testnet;
+        break;
+      case "Regtest":
+        this._network = bitcoin.networks.regtest;
+        break;
+      case "Mainnet":
+      default:
+        this._network = bitcoin.networks.bitcoin;
+        break;
+    }
 
     if (options.key.type === "mnemonic") {
       this._wallet = _derive(
         options.key.words,
         options.path ?? "m/84'/0'/0'/0/0",
-        this._network
+        this._network,
       );
       this._isReadOnly = false;
     } else {
@@ -66,41 +67,58 @@ export class EmbeddedWallet {
   }
 
   /**
-   * Returns the wallet's SegWit (P2WPKH) address and associated public key.
+   * Returns the wallet's Bitcoin addresses following Xverse API format.
    *
-   * @returns {Address} The wallet address object including address, public key, and metadata.
-   * @throws {Error} If internal address or public key is not properly initialized.
+   * @param purposes Array of address purposes to request:
+   *   - `'ordinals'` for managing ordinals (should return P2TR taproot address)
+   *   - `'payment'` for managing bitcoin (returns P2WPKH address)
+   *   TODO: Should follow Xverse docs to return taproot address for ordinals purpose
+   * @param message Optional message to display in request prompt (ignored for embedded wallets)
+   * @returns {Promise<GetAddressResult[]>} Array of address objects with address, publicKey, purpose, addressType, network, and walletType
+   * @throws {Error} If wallet is not properly initialized.
    */
-  getAddress(): Address {
+  async getAddresses(
+    purposes?: Array<"payment" | "ordinals">,
+    message?: string,
+  ): Promise<GetAddressResult[]> {
+    // TODO: Implement full Xverse API compliance
+    // - Default to both purposes if not specified: ["payment", "ordinals"]
+    // - Generate payment address (P2WPKH) when "payment" is requested
+    // - Generate ordinals address (P2TR - Taproot) when "ordinals" is requested
+    // - Filter addresses based on requested purposes
+    //
+    // Note: `message` parameter is used by Xverse to show custom prompts to users,
+    // but embedded wallets don't have UI prompts, so this parameter is ignored here
+
     if (this._isReadOnly && this._address) {
-      return {
-        address: this._address,
-        purpose: "payment",
-        addressType: "p2wpkh",
-      };
+      return [
+        {
+          address: this._address,
+          publicKey: "", // Not available for read-only wallets
+          purpose: "payment",
+          addressType: "p2wpkh",
+          network: this._getNetworkString(),
+          walletType: "software",
+        },
+      ];
     }
 
     if (!this._wallet) {
       throw new Error("Wallet not initialized properly.");
     }
 
-    return resolveAddress(this._wallet.publicKey, this._network);
-
-    // const p2wpkh = bitcoin.payments.p2wpkh({
-    //   pubkey: this._wallet.publicKey,
-    //   network: this._network,
-    // });
-
-    // if (!p2wpkh?.address) {
-    //   throw new Error("Address is not initialized.");
-    // }
-
-    // return {
-    //   address: p2wpkh.address,
-    //   publicKey: this._wallet.publicKey.toString("hex"),
-    //   purpose: "payment",
-    //   addressType: "p2wpkh",
-    // };
+    const addressInfo = resolveAddress(this._wallet.publicKey, this._network);
+    return [
+      {
+        address: addressInfo.address,
+        publicKey:
+          addressInfo.publicKey || this._wallet.publicKey.toString("hex"),
+        purpose: "payment",
+        addressType: addressInfo.addressType,
+        network: this._getNetworkString(),
+        walletType: "software",
+      },
+    ];
   }
 
   /**
@@ -133,26 +151,44 @@ export class EmbeddedWallet {
   }
 
   /**
+   * Returns the network type as a string for API responses.
+   */
+  private _getNetworkString(): "mainnet" | "testnet" | "regtest" {
+    if (this._network === bitcoin.networks.testnet) return "testnet";
+    if (this._network === bitcoin.networks.regtest) return "regtest";
+    return "mainnet";
+  }
+
+  /**
    * Get UTXOs for the wallet address.
    * @returns An array of UTXOs.
    */
   async getUTxOs(): Promise<UTxO[]> {
-    const address = this.getAddress();
+    const address = await this.getAddresses();
     if (this._provider === undefined) {
       throw new Error("`provider` is not defined. Provide a BitcoinProvider.");
     }
 
-    return await this._provider.fetchAddressUTxOs(address.address);
+    return await this._provider.fetchAddressUTxOs(address[0].address);
   }
 
   /**
-   * Signs a given message using the wallet's private key.
+   * Signs a message following Xverse API format.
    *
-   * @param message - The message to be signed.
-   * @returns The signature of the message as a string.
+   * @param params - Object containing address, message, and optional protocol
+   * @returns Promise resolving to signature result
    * @throws {Error} If the wallet is read-only or private key is not available.
    */
-  async signData(message: string): Promise<string> {
+  async signMessage(params: SignMessageParams): Promise<SignMessageResult> {
+    const { address, message, protocol = "ECDSA" } = params;
+
+    // TODO: Implement BIP322 support for message signing
+    if (protocol === "BIP322") {
+      throw new Error(
+        "BIP322 protocol is not yet supported. Only ECDSA is currently available.",
+      );
+    }
+
     if (this._isReadOnly) {
       throw new Error("Cannot sign data with a read-only wallet.");
     }
@@ -160,6 +196,10 @@ export class EmbeddedWallet {
     if (!this._wallet || !this._wallet.privateKey) {
       throw new Error("Private key is not available for signing.");
     }
+
+    // TODO: This uses legacy message signing format which may not be appropriate for SegWit addresses
+    // Since we're using BIP84 derivation path (m/84'/0'/0'/0/0) for native SegWit (P2WPKH),
+    // we should implement BIP322 message signing for proper SegWit address ownership proof
 
     // Create ECPair from private key
     const keyPair = ECPair.fromPrivateKey(this._wallet.privateKey, {
@@ -176,17 +216,22 @@ export class EmbeddedWallet {
     const hash = bitcoin.crypto.hash256(bufferToHash);
     // Sign the hash
     const signature = keyPair.sign(hash);
-    // DER encode and return as base64
-    return signature.toString("base64");
+
+    return {
+      signature: signature.toString("base64"),
+      messageHash: hash.toString("hex"),
+      address: address,
+    };
   }
 
   /**
-   * Sign a transaction payload.
-   * @param payload - The transaction payload to sign.
-   * @returns The signed transaction in hex format.
+   * Sign a PSBT following Xverse API format.
+   * @param params - Object containing PSBT and signing instructions
+   * @returns Promise resolving to signed PSBT result
    * @throws {Error} If the wallet is read-only or private key is not available.
    */
-  async signTx(payload: TransactionPayload): Promise<string> {
+  async signPsbt(params: SignPsbtParams): Promise<SignPsbtResult> {
+    const { psbt: psbtBase64, signInputs, broadcast = false } = params;
     if (this._isReadOnly) {
       throw new Error("Cannot sign transactions with a read-only wallet.");
     }
@@ -195,44 +240,232 @@ export class EmbeddedWallet {
       throw new Error("Private key is not available for signing.");
     }
 
-    const psbt = new bitcoin.Psbt({ network: this._network });
-    const p2wpkh = bitcoin.payments.p2wpkh({
-      pubkey: this._wallet.publicKey,
+    const psbt = bitcoin.Psbt.fromBase64(psbtBase64, {
       network: this._network,
     });
+
     const ecPair = ECPair.fromPrivateKey(this._wallet.privateKey, {
       network: this._network,
     });
 
-    for (const input of payload.inputs) {
-      psbt.addInput({
-        hash: input.txid,
-        index: input.vout,
-        witnessUtxo: {
-          script: p2wpkh.output!,
-          value: input.value,
-        },
-      });
-    }
+    // Sign the specified inputs
+    const allInputIndexes = Object.values(signInputs).flat();
+    allInputIndexes.forEach((inputIndex) => {
+      psbt.signInput(inputIndex, this._wallet!);
+      psbt.validateSignaturesOfInput(
+        inputIndex,
+        (pubkey, hash, signature) =>
+          ecPair.publicKey.equals(pubkey) && ecPair.verify(hash, signature),
+      );
+    });
 
-    for (const output of payload.outputs) {
-      psbt.addOutput({
-        address: output.address,
-        value: output.value,
-      });
-    }
+    const signedPsbt = psbt.toBase64();
 
-    for (let i = 0; i < payload.inputs.length; i++) {
-      psbt.signInput(i, this._wallet);
-      psbt.validateSignaturesOfInput(i, (pubkey, hash, signature) => {
-        return (
-          ecPair.publicKey.equals(pubkey) && ecPair.verify(hash, signature)
+    if (broadcast) {
+      if (!this._provider) {
+        throw new Error(
+          "`provider` is not defined. Provide a BitcoinProvider for broadcasting.",
         );
+      }
+
+      psbt.finalizeAllInputs();
+      const txHex = psbt.extractTransaction().toHex();
+      const txid = await this._provider.submitTx(txHex);
+
+      return {
+        psbt: signedPsbt,
+        txid: txid,
+      };
+    }
+
+    return {
+      psbt: signedPsbt,
+    };
+  }
+
+  /**
+   * Send Bitcoin to recipients following Xverse API format.
+   * @param params - Object containing recipients array
+   * @returns Promise resolving to transaction result
+   * @throws {Error} If the wallet is read-only or provider is not available.
+   */
+  async sendTransfer(params: SendTransferParams): Promise<SendTransferResult> {
+    if (this._isReadOnly) {
+      throw new Error("Cannot send transactions with a read-only wallet.");
+    }
+
+    if (!this._provider) {
+      throw new Error("`provider` is not defined. Provide a BitcoinProvider for sending.");
+    }
+
+    if (!this._wallet) {
+      throw new Error("Wallet not initialized properly.");
+    }
+
+    const { recipients } = params;
+
+    const [addresses, utxos] = await Promise.all([
+      this.getAddresses(),
+      this.getUTxOs(),
+    ]);
+
+    const walletAddress = addresses[0].address;
+    const psbt = await this._buildTransferPsbt(
+      utxos,
+      recipients,
+      walletAddress,
+    );
+
+    // Sign and broadcast using signPsbt
+    const inputCount = psbt.inputCount;
+    const signInputs: Record<string, number[]> = {
+      [walletAddress]: Array.from({ length: inputCount }, (_, i) => i),
+    };
+
+    const signResult = await this.signPsbt({
+      psbt: psbt.toBase64(),
+      signInputs,
+      broadcast: true,
+    });
+
+    return { txid: signResult.txid! };
+  }
+
+  /**
+   * Get wallet balance following Xverse API format.
+   * @returns Promise resolving to balance information
+   * @throws {Error} If provider is not available.
+   */
+  async getBalance(): Promise<GetBalanceResult> {
+    if (!this._provider) {
+      throw new Error(
+        "`provider` is not defined. Provide a BitcoinProvider for balance.",
+      );
+    }
+
+    const addresses = await this.getAddresses();
+    const address = addresses[0].address;
+
+    const addressInfo = await this._provider.fetchAddress(address);
+    const confirmed = addressInfo.chain_stats.funded_txo_sum - addressInfo.chain_stats.spent_txo_sum;
+    const unconfirmed = addressInfo.mempool_stats.funded_txo_sum - addressInfo.mempool_stats.spent_txo_sum;
+    const total = confirmed + unconfirmed;
+
+    return {
+      confirmed: confirmed.toString(),
+      unconfirmed: unconfirmed.toString(),
+      total: total.toString(),
+    };
+  }
+
+  /**
+   * Sign multiple transactions (Xverse custom method).
+   * @param params - Object containing network, message, and PSBTs array
+   * @returns Promise resolving to signed PSBTs
+   * @throws {Error} If the wallet is read-only or private key is not available.
+   */
+  async signMultipleTransactions(
+    params: SignMultipleTransactionsParams,
+  ): Promise<SignPsbtResult[]> {
+    if (!this._wallet || !this._wallet.privateKey) {
+      throw new Error("Private key is not available for signing.");
+    }
+
+    const { psbts } = params;
+    const results: SignPsbtResult[] = [];
+
+    for (const psbtInfo of psbts) {
+      const psbt = bitcoin.Psbt.fromBase64(psbtInfo.psbtBase64, {
+        network: this._network,
+      });
+
+      // Sign all specified input indexes
+      const inputIndexes = psbtInfo.inputsToSign.flatMap(
+        (input) => input.signingIndexes,
+      );
+      inputIndexes.forEach((index) => psbt.signInput(index, this._wallet!));
+
+      results.push({
+        psbt: psbt.toBase64(),
       });
     }
 
-    psbt.finalizeAllInputs();
-    return psbt.extractTransaction().toHex();
+    return results;
+  }
+
+  /**
+   * Build PSBT for transfer using optimal coin selection.
+   * @param utxos Available UTXOs
+   * @param recipients Transfer recipients
+   * @param walletAddress Wallet address for change
+   * @returns Built PSBT ready for signing
+   */
+  private async _buildTransferPsbt(
+    utxos: UTxO[],
+    recipients: any[],
+    walletAddress: string,
+  ): Promise<bitcoin.Psbt> {
+    // Get fee rate from provider
+    let feeRate = 10; // Default fallback
+    if (this._provider) {
+      try {
+        feeRate = await this._provider.fetchFeeEstimates(6);
+      } catch (error) {
+        console.warn("Fee estimation failed, using default rate:", error);
+      }
+    }
+
+    // Use @bitcoinerlab/coinselect for optimal UTXO selection (MIT License)
+    // Source: https://github.com/bitcoinerlab/coinselect
+    const utxosWithDescriptors = utxos.map((utxo) => ({
+      output: new Output({ descriptor: `addr(${walletAddress})` }),
+      value: utxo.value,
+      txid: utxo.txid,
+      vout: utxo.vout,
+    }));
+
+    const targetsWithDescriptors = recipients.map((recipient) => ({
+      output: new Output({ descriptor: `addr(${recipient.address})` }),
+      value: recipient.amount,
+    }));
+
+    const result = coinselect({
+      utxos: utxosWithDescriptors,
+      targets: targetsWithDescriptors,
+      remainder: new Output({ descriptor: `addr(${walletAddress})` }),
+      feeRate,
+    });
+
+    if (!result) {
+      throw new Error("Insufficient funds for transaction.");
+    }
+
+    // Build PSBT
+    const psbt = new bitcoin.Psbt({ network: this._network });
+    const p2wpkh = bitcoin.payments.p2wpkh({
+      pubkey: this._wallet!.publicKey,
+      network: this._network,
+    });
+
+    // Add inputs
+    result.utxos.forEach((selectedUtxo: any) => {
+      const utxo = utxos.find(
+        (u) => u.txid === selectedUtxo.txid && u.vout === selectedUtxo.vout,
+      )!;
+      psbt.addInput({
+        hash: utxo.txid,
+        index: utxo.vout,
+        witnessUtxo: { script: p2wpkh.output!, value: utxo.value },
+      });
+    });
+
+    // Add outputs (coinselect handles change automatically)
+    result.targets.forEach((target: any) => {
+      const address = target.output.address || walletAddress;
+      psbt.addOutput({ address, value: target.value });
+    });
+
+    return psbt;
   }
 
   /**
@@ -245,7 +478,7 @@ export class EmbeddedWallet {
   static brew(strength: number = 128): string[] {
     if (![128, 160, 192, 224, 256].includes(strength)) {
       throw new Error(
-        "Invalid strength. Must be one of: 128, 160, 192, 224, 256."
+        "Invalid strength. Must be one of: 128, 160, 192, 224, 256.",
       );
     }
 
@@ -257,7 +490,7 @@ export class EmbeddedWallet {
 function _derive(
   words: string[],
   path: string = "m/84'/0'/0'/0/0",
-  network?: Network
+  network?: Network,
 ): BIP32Interface {
   const mnemonic = words.join(" ");
 
@@ -296,7 +529,7 @@ function varIntBuffer(n: number): Buffer {
 export function verifySignature(
   message: string,
   signatureBase64: string,
-  publicKeyHex: string
+  publicKeyHex: string,
 ): boolean {
   try {
     const messageBuffer = Buffer.from(message, "utf8");

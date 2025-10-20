@@ -18,5 +18,6 @@ export interface IBitcoinProvider {
   ): Promise<TransactionsInfo[]>;
   fetchScriptUTxOs(hash: string): Promise<UTxO[]>;
   fetchTransactionStatus(txid: string): Promise<TransactionsStatus>;
+  fetchFeeEstimates(blocks: number): Promise<number>;
   submitTx(tx: string): Promise<string>;
 }

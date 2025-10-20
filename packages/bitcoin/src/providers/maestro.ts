@@ -1,36 +1,9 @@
 import axios, { AxiosInstance } from "axios";
+
 import { IBitcoinProvider } from "../interfaces/provider";
-import { UTxO } from "../types";
-import { AddressInfo } from "../types/address-info";
-import { ScriptInfo } from "../types/script-info";
-import { TransactionsInfo } from "../types/transactions-info";
-import { TransactionsStatus } from "../types/transactions-status";
+import { UTxO, AddressInfo, ScriptInfo, TransactionsInfo, TransactionsStatus } from "../types";
+import { MaestroSupportedNetworks, MaestroConfig, SatoshiActivityResponse, BalanceResponse } from "../types/maestro";
 import { parseHttpError } from "./common";
-
-export type MaestroSupportedNetworks = "mainnet" | "testnet";
-
-export interface MaestroConfig {
-    network: MaestroSupportedNetworks;
-    apiKey: string;
-}
-
-type FeeEstimateResponse = {
-    feerate: number;
-};
-
-type SatoshiActivityResponse = {
-    data: Array<{
-        tx_hash: string;
-        block_height: number;
-        block_time: number;
-        value: number;
-    }>;
-    cursor?: string;
-};
-
-type BalanceResponse = {
-    data: number;
-};
 
 /**
  * Maestro provider for Bitcoin operations.
@@ -40,17 +13,39 @@ export class MaestroProvider implements IBitcoinProvider {
     private readonly _network: MaestroSupportedNetworks;
 
     /**
+     * Create provider with custom base URL (for proxy endpoints).
+     * @param baseUrl - The base URL of the proxy endpoint.
+     * @param apiKey - The API key for the proxy.
+     */
+    constructor(baseUrl: string, apiKey: string);
+
+    /**
      * Create provider with Maestro configuration.
      * @param config - The Maestro configuration object.
-     * @param config.network - The network to use (mainnet or testnet).
-     * @param config.apiKey - The Maestro API key.
      */
-    constructor({ network, apiKey }: MaestroConfig) {
-        this._axiosInstance = axios.create({
-            baseURL: `https://xbt-${network}.gomaestro-api.org/v0`,
-            headers: { "api-key": apiKey },
-        });
-        this._network = network;
+    constructor(config: MaestroConfig);
+
+    constructor(...args: unknown[]) {
+        if (
+            typeof args[0] === "string" &&
+            (args[0].startsWith("http") || args[0].startsWith("/"))
+        ) {
+            // Custom baseURL (proxy) constructor
+            this._axiosInstance = axios.create({
+                baseURL: args[0],
+                headers: { "api-key": args[1] as string },
+            });
+            // Extract network from URL if possible, default to mainnet
+            this._network = args[0].includes("testnet") ? "testnet" : "mainnet";
+        } else {
+            // Standard config constructor
+            const { network, apiKey } = args[0] as MaestroConfig;
+            this._axiosInstance = axios.create({
+                baseURL: `https://xbt-${network}.gomaestro-api.org/v0`,
+                headers: { "api-key": apiKey },
+            });
+            this._network = network;
+        }
     }
 
     /**
@@ -60,7 +55,9 @@ export class MaestroProvider implements IBitcoinProvider {
      * @note Maestro does not have any endpoint available for this yet
      */
     async fetchScript(hash: string): Promise<ScriptInfo> {
-        throw new Error("fetchScript is not implemented - Maestro does not have any endpoint available for this yet");
+        throw new Error(
+            "fetchScript is not implemented - Maestro does not have any endpoint available for this yet",
+        );
     }
 
     /**
@@ -70,8 +67,13 @@ export class MaestroProvider implements IBitcoinProvider {
      * @returns TransactionsInfo[]
      * @note Maestro does not have any endpoint available for this yet
      */
-    async fetchScriptTransactions(hash: string, last_seen_txid?: string): Promise<TransactionsInfo[]> {
-        throw new Error("fetchScriptTransactions is not implemented - Maestro does not have any endpoint available for this yet");
+    async fetchScriptTransactions(
+        hash: string,
+        last_seen_txid?: string,
+    ): Promise<TransactionsInfo[]> {
+        throw new Error(
+            "fetchScriptTransactions is not implemented - Maestro does not have any endpoint available for this yet",
+        );
     }
 
     /**
@@ -81,7 +83,9 @@ export class MaestroProvider implements IBitcoinProvider {
      * @note Maestro does not have any endpoint available for this yet
      */
     async fetchScriptUTxOs(hash: string): Promise<UTxO[]> {
-        throw new Error("fetchScriptUTxOs is not implemented - Maestro does not have any endpoint available for this yet");
+        throw new Error(
+            "fetchScriptUTxOs is not implemented - Maestro does not have any endpoint available for this yet",
+        );
     }
 
     /**
@@ -91,8 +95,10 @@ export class MaestroProvider implements IBitcoinProvider {
      */
     async fetchAddress(address: string): Promise<AddressInfo> {
         try {
-            const { data, status } = await this._axiosInstance.get(`/esplora/address/${address}`);
-            
+            const { data, status } = await this._axiosInstance.get(
+                `/esplora/address/${address}`,
+            );
+
             if (status === 200) return data as AddressInfo;
             throw parseHttpError(data);
         } catch (error) {
@@ -107,13 +113,16 @@ export class MaestroProvider implements IBitcoinProvider {
      * @param last_seen_txid - The last seen transaction ID (optional).
      * @returns TransactionsInfo[]
      */
-    async fetchAddressTransactions(address: string, last_seen_txid?: string): Promise<TransactionsInfo[]> {
+    async fetchAddressTransactions(
+        address: string,
+        last_seen_txid?: string,
+    ): Promise<TransactionsInfo[]> {
         try {
             const url = last_seen_txid
                 ? `/esplora/address/${address}/txs/chain/${last_seen_txid}`
                 : `/esplora/address/${address}/txs`;
             const { data, status } = await this._axiosInstance.get(url);
-            
+
             if (status === 200) return data as TransactionsInfo[];
             throw parseHttpError(data);
         } catch (error) {
@@ -128,8 +137,10 @@ export class MaestroProvider implements IBitcoinProvider {
      */
     async fetchAddressUTxOs(address: string): Promise<UTxO[]> {
         try {
-            const { data, status } = await this._axiosInstance.get(`/esplora/address/${address}/utxo`);
-            
+            const { data, status } = await this._axiosInstance.get(
+                `/esplora/address/${address}/utxo`,
+            );
+
             if (status === 200) return data as UTxO[];
             throw parseHttpError(data);
         } catch (error) {
@@ -144,8 +155,10 @@ export class MaestroProvider implements IBitcoinProvider {
      */
     async fetchTransactionStatus(txid: string): Promise<TransactionsStatus> {
         try {
-            const { data, status } = await this._axiosInstance.get(`/esplora/tx/${txid}/status`);
-            
+            const { data, status } = await this._axiosInstance.get(
+                `/esplora/tx/${txid}/status`,
+            );
+
             if (status === 200) return data as TransactionsStatus;
             throw parseHttpError(data);
         } catch (error) {
@@ -160,12 +173,16 @@ export class MaestroProvider implements IBitcoinProvider {
      */
     async submitTx(txHex: string): Promise<string> {
         try {
-            const { data, status } = await this._axiosInstance.post('/esplora/tx', txHex, {
-                headers: {
-                    'Content-Type': 'application/json',
+            const { data, status } = await this._axiosInstance.post(
+                "/esplora/tx",
+                txHex,
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
                 },
-            });
-            
+            );
+
             if (status === 200) return data.txid || data;
             throw parseHttpError(data);
         } catch (error) {
@@ -173,23 +190,25 @@ export class MaestroProvider implements IBitcoinProvider {
         }
     }
 
-    // Additional Bitcoin-specific methods (beyond IBitcoinProvider)
     /**
      * Get fee estimates for Bitcoin transactions.
      * @param blocks - The number of blocks to estimate fees for (default: 6).
      * @returns FeeEstimateResponse containing the estimated fee rate.
      */
-    async fetchFeeEstimates(blocks: number = 6): Promise<FeeEstimateResponse> {
+    async fetchFeeEstimates(blocks: number = 6): Promise<number> {
         try {
-            const { data, status } = await this._axiosInstance.get(`/rpc/transaction/estimatefee/${blocks}`);
-            
-            if (status === 200) return data as FeeEstimateResponse;
+            const { data, status } = await this._axiosInstance.get(
+                `/rpc/transaction/estimatefee/${blocks}`,
+            );
+
+            if (status === 200) return data as number;
             throw parseHttpError(data);
         } catch (error) {
             throw parseHttpError(error);
         }
     }
 
+    // Additional Bitcoin-specific methods (beyond IBitcoinProvider)
     /**
      * Fetch satoshi activity for a Bitcoin address (transaction history).
      * @param address - The Bitcoin address.
@@ -204,12 +223,12 @@ export class MaestroProvider implements IBitcoinProvider {
     async fetchSatoshiActivity(
         address: string,
         options: {
-            order?: 'asc' | 'desc';
+            order?: "asc" | "desc";
             count?: number;
             from?: number;
             to?: number;
             cursor?: string;
-        } = {}
+        } = {},
     ): Promise<SatoshiActivityResponse> {
         const params = new URLSearchParams();
 
@@ -220,11 +239,11 @@ export class MaestroProvider implements IBitcoinProvider {
         });
 
         const queryString = params.toString();
-        const url = `/addresses/${address}/activity${queryString ? `?${queryString}` : ''}`;
+        const url = `/addresses/${address}/activity${queryString ? `?${queryString}` : ""}`;
 
         try {
             const { data, status } = await this._axiosInstance.get(url);
-            
+
             if (status === 200) return data as SatoshiActivityResponse;
             throw parseHttpError(data);
         } catch (error) {
@@ -239,8 +258,10 @@ export class MaestroProvider implements IBitcoinProvider {
      */
     async fetchTxInfo(hash: string): Promise<TransactionsInfo> {
         try {
-            const { data, status } = await this._axiosInstance.get(`/esplora/tx/${hash}`);
-            
+            const { data, status } = await this._axiosInstance.get(
+                `/esplora/tx/${hash}`,
+            );
+
             if (status === 200) return data as TransactionsInfo;
             throw parseHttpError(data);
         } catch (error) {
@@ -255,8 +276,10 @@ export class MaestroProvider implements IBitcoinProvider {
      */
     async fetchAddressBalance(address: string): Promise<BalanceResponse> {
         try {
-            const { data, status } = await this._axiosInstance.get(`/addresses/${address}/balance`);
-            
+            const { data, status } = await this._axiosInstance.get(
+                `/addresses/${address}/balance`,
+            );
+
             if (status === 200) return data as BalanceResponse;
             throw parseHttpError(data);
         } catch (error) {
@@ -282,7 +305,7 @@ export class MaestroProvider implements IBitcoinProvider {
     async get(url: string): Promise<any> {
         try {
             const { data, status } = await this._axiosInstance.get(url);
-            
+
             if (status === 200) return data;
             throw parseHttpError(data);
         } catch (error) {
@@ -300,10 +323,10 @@ export class MaestroProvider implements IBitcoinProvider {
         try {
             const { data, status } = await this._axiosInstance.post(url, body, {
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
             });
-            
+
             if (status === 200) return data;
             throw parseHttpError(data);
         } catch (error) {
