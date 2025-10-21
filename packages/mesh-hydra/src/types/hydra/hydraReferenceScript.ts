@@ -1,6 +1,6 @@
 import { NativeScript, PlutusScript } from "@meshsdk/common";
 
-import { getReferenceScriptInfo } from "../utils/hydraScriptRef";
+import { getReferenceScriptInfo } from "../../utils";
 
 export type hydraReferenceScript = {
   script: {

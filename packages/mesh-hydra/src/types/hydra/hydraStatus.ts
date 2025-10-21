@@ -1,9 +1,6 @@
 export type hydraStatus = (typeof status)[number];
 
-export function hydraStatus(value: {
-  headStatus?: string;
-  tag?: string;
-}): hydraStatus | null {
+export function getHydraStatus(value: { headStatus?: string; tag?: string }): hydraStatus | null {
   if (value.headStatus === "Open") return "OPEN";
 
   switch (value.tag) {
@@ -24,9 +21,6 @@ export function hydraStatus(value: {
 
 const status = [
   "IDLE",
-  "DISCONNECTED",
-  "CONNECTING",
-  "CONNECTED",
   "INITIALIZING",
   "OPEN",
   "CLOSED",
