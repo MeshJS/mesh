@@ -13,6 +13,7 @@ import {
   DecommitRequested,
 } from "./events/decommit";
 import { DepositActivated, DepositExpired } from "./events/deposit";
+import { Greetings } from "./events/greetings";
 import {
   HeadIsAborted,
   HeadIsClosed,
@@ -35,6 +36,7 @@ import { SnapshotConfirmed, SnapshotSideLoaded } from "./events/snapshot";
 import { TxInvalid, TxValid } from "./events/transaction";
 
 export type ServerOutput =
+  | Greetings
   | NetworkConnected
   | NetworkDisconnected
   | NetworkVersionMismatch

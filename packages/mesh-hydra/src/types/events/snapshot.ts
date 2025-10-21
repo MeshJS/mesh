@@ -1,6 +1,7 @@
+import { UTxO } from "@meshsdk/common";
 import { hydraTransaction } from "../hydra/hydraTransaction";
-import { HydraUTxOs } from "../hydra/hydraUTxOs";
 import { HydraBaseEvent } from "./network";
+import { HydraUTxOs } from "../hydra/hydraUTxOs";
 
 export type SnapshotSignatures = {
   multiSignature: string[];
@@ -9,7 +10,7 @@ export type SnapshotSignatures = {
 export type InitialSnapshot = {
   headId: string;
   tag: "InitialSnapshot";
-  initialUTxO: HydraUTxOs;
+  initialUTxO: UTxO[];
 };
 
 export interface NoSeenSnapshot {
@@ -40,9 +41,9 @@ export type ConfirmedSnapshot = {
     version: number;
     number: number;
     confirmed: hydraTransaction[];
-    utxo: HydraUTxOs;
-    utxoToCommit?: HydraUTxOs | null;
-    utxoToDecommit?: HydraUTxOs | null;
+    utxo: UTxO[];
+    utxoToCommit?: UTxO[] | null;
+    utxoToDecommit?: UTxO[] | null;
   };
   signatures: SnapshotSignatures;
 };
@@ -82,7 +83,10 @@ export type SideLoadSnapshot = {
   snapshot: InitialSnapshot | ConfirmedSnapshot;
 };
 
+export type snapshotSideLoad = InitialSnapshot | ConfirmedSnapshot;
+
 export type snapshotEvents =
+  | snapshotSideLoad
   | InitialSnapshot
   | NoSeenSnapshot
   | LastSeenSnapshot

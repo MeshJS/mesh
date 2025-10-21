@@ -101,6 +101,10 @@ export type FailedToConstructFanoutTx = {
   tag: "FailedToConstructFanoutTx";
 };
 
+export type TransactionSubmitted = {
+  tag: "TransactionSubmitted";
+};
+
 export type PostTxOnChainFailed = {
   tag: "PostTxOnChainFailed";
   postChainTx: PostChainTx;
