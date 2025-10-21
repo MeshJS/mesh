@@ -1,7 +1,6 @@
 import { EventEmitter } from "events";
+import { hydraStatus, getHydraStatus } from "./types/hydra/hydraStatus";
 import WebSocket, { MessageEvent } from "isomorphic-ws";
-
-import { hydraStatus } from "./types/hydraStatus";
 
 export class HydraConnection extends EventEmitter {
   constructor({
@@ -28,11 +27,8 @@ export class HydraConnection extends EventEmitter {
   async connect(): Promise<void> {
     this._websocket = new WebSocket(this._websocketUrl);
 
-    this._status = "CONNECTING";
-
     this._websocket.onopen = () => {
       this._connected = true;
-      this._status = "CONNECTED";
       console.log("Hydra websocket connected");
     };
 
@@ -43,7 +39,6 @@ export class HydraConnection extends EventEmitter {
 
     this._websocket.onclose = (code) => {
       console.error("Hydra websocket closed:", code.code, code.reason);
-      this._status = "DISCONNECTED";
       this._connected = false;
     };
 
@@ -101,7 +96,7 @@ export class HydraConnection extends EventEmitter {
 
   async processStatus(message: {}) {
     let status: hydraStatus | null = null;
-    if ((status = hydraStatus(message)) && status !== null) {
+    if ((status = getHydraStatus(message)) && status !== null) {
       this._status = status;
       this._eventEmitter.emit("onstatuschange", status);
     }
