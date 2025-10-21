@@ -1,5 +1,4 @@
 import axios, { AxiosInstance } from "axios";
-
 import { IBitcoinProvider } from "../interfaces/provider";
 import { UTxO, AddressInfo, ScriptInfo, TransactionsInfo, TransactionsStatus } from "../types";
 import { MaestroSupportedNetworks, MaestroConfig, SatoshiActivityResponse, BalanceResponse } from "../types/maestro";
@@ -30,15 +29,12 @@ export class MaestroProvider implements IBitcoinProvider {
             typeof args[0] === "string" &&
             (args[0].startsWith("http") || args[0].startsWith("/"))
         ) {
-            // Custom baseURL (proxy) constructor
             this._axiosInstance = axios.create({
                 baseURL: args[0],
                 headers: { "api-key": args[1] as string },
             });
-            // Extract network from URL if possible, default to mainnet
             this._network = args[0].includes("testnet") ? "testnet" : "mainnet";
         } else {
-            // Standard config constructor
             const { network, apiKey } = args[0] as MaestroConfig;
             this._axiosInstance = axios.create({
                 baseURL: `https://xbt-${network}.gomaestro-api.org/v0`,
@@ -200,8 +196,6 @@ export class MaestroProvider implements IBitcoinProvider {
             const { data, status } = await this._axiosInstance.get(
                 `/rpc/transaction/estimatefee/${blocks}`,
             );
-
-            if (status === 200) return data as number;
             throw parseHttpError(data);
         } catch (error) {
             throw parseHttpError(error);

@@ -1,7 +1,4 @@
 import type { Network } from "bitcoinjs-lib";
-import { coinselect } from "@bitcoinerlab/coinselect";
-import { DescriptorsFactory } from "@bitcoinerlab/descriptors";
-import * as secp256k1 from "@bitcoinerlab/secp256k1";
 import { BIP32Interface } from "bip32";
 import { mnemonicToSeedSync, validateMnemonic } from "bip39";
 import { bip32, bip39, bitcoin, ECPair } from "../../core";
@@ -11,7 +8,6 @@ import {
   CreateWalletOptions,
   GetAddressResult,
   GetBalanceResult,
-  NetworkType,
   SendTransferParams,
   SendTransferResult,
   SignMessageParams,
@@ -19,12 +15,8 @@ import {
   SignMultipleTransactionsParams,
   SignPsbtParams,
   SignPsbtResult,
-  TransactionPayload,
 } from "../../types/wallet";
 import { resolveAddress } from "../../utils";
-
-// Initialize descriptors factory
-const { Output } = DescriptorsFactory(secp256k1);
 
 /**
  * EmbeddedWallet is a class that provides a simple interface to interact with Bitcoin wallets.
@@ -394,6 +386,44 @@ export class EmbeddedWallet {
   }
 
   /**
+   * Simple largest-first coin selection algorithm.
+   * Selects UTXOs in descending order by value until target amount + fees is reached.
+   * 
+   * @param utxos Available UTXOs
+   * @param targetAmount Amount needed in satoshis
+   * @param feeRate Fee rate in sat/vByte
+   * @returns Selected UTXOs and change amount
+   */
+  private _selectUtxosLargestFirst(utxos: UTxO[], targetAmount: number, feeRate: number): 
+    { selectedUtxos: UTxO[], change: number } {
+    
+    // Sort UTXOs by value (descending) - largest first
+    const sortedUtxos = [...utxos].sort((a, b) => b.value - a.value);
+    
+    let selectedValue = 0;
+    const selectedUtxos: UTxO[] = [];
+    
+    // Accumulate UTXOs until we have enough
+    for (const utxo of sortedUtxos) {
+      selectedUtxos.push(utxo);
+      selectedValue += utxo.value;
+      
+      // Calculate fee with current selection (rough estimate)
+      const estimatedTxSize = selectedUtxos.length * 150 + 2 * 34 + 10; // inputs + outputs + overhead
+      const fee = Math.ceil(estimatedTxSize * feeRate);
+      
+      // Check if we have enough
+      if (selectedValue >= targetAmount + fee) {
+        const finalFee = Math.ceil((selectedUtxos.length * 150 + 2 * 34 + 10) * feeRate);
+        const change = selectedValue - targetAmount - finalFee;
+        return { selectedUtxos, change };
+      }
+    }
+    
+    throw new Error("Insufficient funds for transaction.");
+  }
+
+  /**
    * Build PSBT for transfer using optimal coin selection.
    * @param utxos Available UTXOs
    * @param recipients Transfer recipients
@@ -405,7 +435,6 @@ export class EmbeddedWallet {
     recipients: any[],
     walletAddress: string,
   ): Promise<bitcoin.Psbt> {
-    // Get fee rate from provider
     let feeRate = 10; // Default fallback
     if (this._provider) {
       try {
@@ -415,43 +444,16 @@ export class EmbeddedWallet {
       }
     }
 
-    // Use @bitcoinerlab/coinselect for optimal UTXO selection (MIT License)
-    // Source: https://github.com/bitcoinerlab/coinselect
-    const utxosWithDescriptors = utxos.map((utxo) => ({
-      output: new Output({ descriptor: `addr(${walletAddress})` }),
-      value: utxo.value,
-      txid: utxo.txid,
-      vout: utxo.vout,
-    }));
-
-    const targetsWithDescriptors = recipients.map((recipient) => ({
-      output: new Output({ descriptor: `addr(${recipient.address})` }),
-      value: recipient.amount,
-    }));
-
-    const result = coinselect({
-      utxos: utxosWithDescriptors,
-      targets: targetsWithDescriptors,
-      remainder: new Output({ descriptor: `addr(${walletAddress})` }),
-      feeRate,
-    });
-
-    if (!result) {
-      throw new Error("Insufficient funds for transaction.");
-    }
-
-    // Build PSBT
+    // Use simple largest-first coin selection
+    const targetAmount = recipients.reduce((sum, r) => sum + r.amount, 0);
+    const { selectedUtxos, change } = this._selectUtxosLargestFirst(utxos, targetAmount, feeRate);
     const psbt = new bitcoin.Psbt({ network: this._network });
     const p2wpkh = bitcoin.payments.p2wpkh({
       pubkey: this._wallet!.publicKey,
       network: this._network,
     });
 
-    // Add inputs
-    result.utxos.forEach((selectedUtxo: any) => {
-      const utxo = utxos.find(
-        (u) => u.txid === selectedUtxo.txid && u.vout === selectedUtxo.vout,
-      )!;
+    selectedUtxos.forEach(utxo => {
       psbt.addInput({
         hash: utxo.txid,
         index: utxo.vout,
@@ -459,11 +461,13 @@ export class EmbeddedWallet {
       });
     });
 
-    // Add outputs (coinselect handles change automatically)
-    result.targets.forEach((target: any) => {
-      const address = target.output.address || walletAddress;
-      psbt.addOutput({ address, value: target.value });
+    recipients.forEach(recipient => {
+      psbt.addOutput({ address: recipient.address, value: recipient.amount });
     });
+
+    if (change > 0) {
+      psbt.addOutput({ address: walletAddress, value: change });
+    }
 
     return psbt;
   }
