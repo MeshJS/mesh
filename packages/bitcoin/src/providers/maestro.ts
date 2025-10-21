@@ -196,6 +196,8 @@ export class MaestroProvider implements IBitcoinProvider {
             const { data, status } = await this._axiosInstance.get(
                 `/rpc/transaction/estimatefee/${blocks}`,
             );
+
+            if (status === 200) return data.data.feerate;
             throw parseHttpError(data);
         } catch (error) {
             throw parseHttpError(error);
