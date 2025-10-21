@@ -1,7 +1,6 @@
-import { IFetcher, ISubmitter } from "@meshsdk/common";
-
+import { IFetcher, ISubmitter, UTxO } from "@meshsdk/common";
 import { HydraProvider } from "./hydra-provider";
-import { hydraTransaction, hydraUTxO } from "./types";
+import { hydraTransaction, hydraUTxO, hydraUTxOs } from "./types";
 
 /**
  * HydraInstance is a tool for interacting with a Hydra head.
@@ -48,13 +47,6 @@ export class HydraInstance {
       "Content-Type": "application/json",
     });
     return commit.cborHex;
-  }
-
-  private async _decommitFromHydra(payload: any): Promise<string> {
-    const decommit = await this.provider.publishDecommit(payload, {
-      "Content-Type": "application/json",
-    });
-    return decommit.cborHex;
   }
 
   /**
@@ -113,7 +105,7 @@ export class HydraInstance {
   async commitBlueprint(
     txHash: string,
     outputIndex: number,
-    transaction: hydraTransaction,
+    transaction: hydraTransaction
   ): Promise<string> {
     const utxo = (await this.fetcher.fetchUTxOs(txHash, outputIndex))[0];
     if (!utxo) {
@@ -127,6 +119,48 @@ export class HydraInstance {
       utxo: {
         [txHash + "#" + outputIndex]: hydraUtxo,
       },
+    });
+  }
+
+  /**
+   * Commit multiple UTxOs in a Cardano transaction blueprint to the Hydra head.
+   *
+   * @param utxos - Array of UTxO to commit, each with txHash and outputIndex
+   * @param transaction - The Cardano transaction in text envelope format, containing:
+   *   - type: The type of the transaction (e.g., "Unwitnessed Tx ConwayEra").
+   *   - description: (Optional) A human-readable description of the transaction.
+   *   - cborHex: The CBOR-encoded unsigned transaction.
+   * @returns The function returns the transaction CBOR hex ready to be partially signed.
+   * @example
+   * ```tsx
+   * const commitTx = await instance.commitBlueprintUTxOs([
+   *   { txHash: "abc123...", outputIndex: 0 },
+   *   { txHash: "def456...", outputIndex: 1 },
+   * ], {
+   *   type: "Tx ConwayEra",
+   *   cborHex: unsignedTx,
+   *   description: "Commit Multiple Blueprint",
+   * });
+   * ```
+   */
+  async commitBlueprintUTxOs(
+    txIn: { txHash: string; outputIndex: number }[],
+    transaction: hydraTransaction
+  ): Promise<string> {
+    const utxo : UTxO[] = [];
+    for (const { txHash, outputIndex } of txIn) {
+      const utxos = await this.fetcher.fetchUTxOs(txHash, outputIndex);
+      if (!utxos.length) {
+        throw new Error(`UTxO not found for ${txHash}#${outputIndex}`);
+      }
+      utxo.push(...utxos);
+    }
+
+    return this._commitToHydra({
+      blueprintTx: {
+        ...transaction,
+      },
+      utxo: await hydraUTxOs(utxo),
     });
   }
 
@@ -164,7 +198,7 @@ export class HydraInstance {
   async incrementalBlueprintCommit(
     txHash: string,
     outputIndex: number,
-    transaction: hydraTransaction,
+    transaction: hydraTransaction
   ) {
     return this.commitBlueprint(txHash, outputIndex, {
       type: transaction.type,
@@ -172,22 +206,5 @@ export class HydraInstance {
       description: transaction.description,
       txId: transaction.txId,
     });
-  }
-
-  /**
-   * Request to decommit a UTxO from a Head by providing a decommit tx. Upon reaching consensus, this will eventually result in corresponding transaction outputs becoming available on the layer 1.
-   *
-   */
-  async decommit(transaction: hydraTransaction) {
-    throw new Error("Method not implemented use hydraProvider instead");
-  }
-
-  /**
-   * https://hydra.family/head-protocol/docs/how-to/incremental-decommit
-   * Method not implemented
-   * @returns
-   */
-  async incrementalDecommit(transaction: hydraTransaction) {
-    throw new Error("Method not implemented use hydraProvider instead");
   }
 }
