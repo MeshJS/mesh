@@ -121,19 +121,9 @@ describe("EmbeddedWallet - Address Derivation", () => {
   });
 
   describe("getNetworkId", () => {
-    it("should return 0 for mainnet", () => {
+    it("should return 1 for mainnet", () => {
       const wallet = new EmbeddedWallet({
         network: "Mainnet",
-        key: { type: "mnemonic", words: testMnemonic },
-        provider: mockProvider,
-      });
-
-      expect(wallet.getNetworkId()).toBe(0);
-    });
-
-    it("should return 1 for testnet", () => {
-      const wallet = new EmbeddedWallet({
-        network: "Testnet",
         key: { type: "mnemonic", words: testMnemonic },
         provider: mockProvider,
       });
@@ -141,14 +131,24 @@ describe("EmbeddedWallet - Address Derivation", () => {
       expect(wallet.getNetworkId()).toBe(1);
     });
 
-    it("should return 0 for regtest", () => {
+    it("should return 0 for testnet", () => {
+      const wallet = new EmbeddedWallet({
+        network: "Testnet",
+        key: { type: "mnemonic", words: testMnemonic },
+        provider: mockProvider,
+      });
+
+      expect(wallet.getNetworkId()).toBe(0);
+    });
+
+    it("should return 2 for regtest", () => {
       const wallet = new EmbeddedWallet({
         network: "Regtest",
         key: { type: "mnemonic", words: testMnemonic },
         provider: mockProvider,
       });
 
-      expect(wallet.getNetworkId()).toBe(0);
+      expect(wallet.getNetworkId()).toBe(2);
     });
   });
 

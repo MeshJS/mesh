@@ -26,7 +26,7 @@ describe("EmbeddedWallet - Constructor & Basic Functionality", () => {
       });
 
       expect(wallet).toBeDefined();
-      expect(wallet.getNetworkId()).toBe(0);
+      expect(wallet.getNetworkId()).toBe(1);
     });
 
     it("should create wallet with mnemonic for testnet", () => {
@@ -37,7 +37,7 @@ describe("EmbeddedWallet - Constructor & Basic Functionality", () => {
       });
 
       expect(wallet).toBeDefined();
-      expect(wallet.getNetworkId()).toBe(1);
+      expect(wallet.getNetworkId()).toBe(0);
     });
 
     it("should create wallet with mnemonic for regtest", () => {
@@ -48,7 +48,7 @@ describe("EmbeddedWallet - Constructor & Basic Functionality", () => {
       });
 
       expect(wallet).toBeDefined();
-      expect(wallet.getNetworkId()).toBe(0);
+      expect(wallet.getNetworkId()).toBe(2);
     });
 
     it("should create read-only wallet with address", () => {
@@ -88,7 +88,7 @@ describe("EmbeddedWallet - Constructor & Basic Functionality", () => {
   describe("Network validation", () => {
     it("should handle all supported networks", () => {
       const networks = ["Mainnet", "Testnet", "Regtest"] as const;
-      const expectedNetworkIds = [0, 1, 0];
+      const expectedNetworkIds = [1, 0, 2];
 
       networks.forEach((network, index) => {
         const wallet = new EmbeddedWallet({

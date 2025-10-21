@@ -133,13 +133,16 @@ export class EmbeddedWallet {
 
   /**
    * Returns the network identifier of the wallet.
-   * 0': Indicates the Bitcoin mainnet.
-   * 1': Indicates the Bitcoin testnet.
+   * 0: Indicates the Bitcoin testnet.
+   * 1: Indicates the Bitcoin mainnet.
+   * 2: Indicates the Bitcoin regtest.
    *
-   * @returns {0 | 1} The Bitcoin network ID.
+   * @returns {0 | 1 | 2} The Bitcoin network ID.
    */
-  getNetworkId(): 0 | 1 {
-    return this._network === bitcoin.networks.testnet ? 1 : 0;
+  getNetworkId(): 0 | 1 | 2 {
+    if (this._network === bitcoin.networks.testnet) return 0;
+    if (this._network === bitcoin.networks.regtest) return 2;
+    return 1; // mainnet
   }
 
   /**
