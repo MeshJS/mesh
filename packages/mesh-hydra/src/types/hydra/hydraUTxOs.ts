@@ -1,15 +1,15 @@
 import { UTxO } from "@meshsdk/common";
 import { resolveScriptHash } from "@meshsdk/core";
 
-import { resolvePlutusData } from "../utils/resolveDatum";
+import { resolvePlutusData } from "../../utils/resolveDatum";
 import { HydraAssets, hydraAssets } from "./hydraAssets";
 import { hydraReferenceScript } from "./hydraReferenceScript";
 
-export type hydraUTxOs = {
+export type HydraUTxOs = {
   [txRef: string]: hydraUTxO;
 };
 
-export async function hydraUTxOs(utxos: UTxO[]): Promise<hydraUTxOs> {
+export async function hydraUTxOs(utxos: UTxO[]): Promise<HydraUTxOs> {
   const entries = await Promise.all(
     utxos.map(async (utxo) => [
       utxo.input.txHash + "#" + utxo.input.outputIndex,

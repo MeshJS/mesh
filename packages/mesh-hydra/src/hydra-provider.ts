@@ -7,7 +7,6 @@ import {
   AssetMetadata,
   BlockInfo,
   castProtocol,
-  DEFAULT_FETCHER_OPTIONS,
   GovernanceProposalInfo,
   IFetcher,
   IFetcherOptions,
@@ -19,33 +18,21 @@ import {
 } from "@meshsdk/common";
 
 import { HydraConnection } from "./hydra-connection";
-import { hydraStatus, hydraTransaction, hydraUTxO } from "./types";
 import {
-  CommandFailed,
-  Committed,
-  DecommitApproved,
-  DecommitFinalized,
-  DecommitInvalid,
-  DecommitRequested,
-  GetUTxOResponse,
-  Greetings,
-  HeadIsAborted,
-  HeadIsClosed,
-  HeadIsContested,
-  HeadIsFinalized,
-  HeadIsInitializing,
-  HeadIsOpen,
-  IgnoredHeadInitializing,
-  InvalidInput,
-  PeerConnected,
-  PeerDisconnected,
-  PeerHandshakeFailure,
+  clientInput,
+  ClientMessage,
+  hydraStatus,
+  hydraTransaction,
+  hydraUTxO,
+  hydraUTxOs,
+  ServerOutput,
+} from "./types";
+import { handleHydraErrors } from "./types/events/handler";
+import {
   PostTxOnChainFailed,
-  ReadyToFanout,
-  SnapshotConfirmed,
-  TxInvalid,
-  TxValid,
-} from "./types/events";
+  TransactionSubmitted,
+} from "./types/events/post-tx-failed";
+import { seenSnapshot, snapshotSideLoad } from "./types/events/snapshot";
 import { parseHttpError } from "./utils";
 
 /**
@@ -59,9 +46,12 @@ import { parseHttpError } from "./utils";
  */
 export class HydraProvider implements IFetcher, ISubmitter {
   private _connection: HydraConnection;
-  private _status: hydraStatus = "DISCONNECTED";
   private readonly _eventEmitter: EventEmitter;
   private readonly _axiosInstance: AxiosInstance;
+  private _messageCallback:
+    | ((data: ServerOutput | ClientMessage) => void)
+    | null = null;
+  private _messageQueue: (ServerOutput | ClientMessage)[] = [];
 
   constructor({
     httpUrl,
@@ -85,40 +75,38 @@ export class HydraProvider implements IFetcher, ISubmitter {
     this._axiosInstance = axios.create({
       baseURL: httpUrl,
     });
+
+    this._eventEmitter.on(
+      "onmessage",
+      (message: ServerOutput | ClientMessage) => {
+        this._messageQueue.push(message);
+
+        if (this._messageCallback) {
+          this._messageCallback(message);
+        }
+      },
+    );
   }
 
   /**
    * Connects to the Hydra Head.
    */
   async connect() {
-    if (this._status !== "DISCONNECTED") {
-      return;
-    }
     this._connection.connect();
-    this._status = "CONNECTED";
-    this._eventEmitter.emit("onstatuschange", this._status);
   }
 
   /**
    * Disconnects from the Hydra Head.
    *
-   * @param timeout - Optional timeout in milliseconds default to 5 minutes to wait for the disconnect operation to complete.
-   *                  If not provided, the default disconnect timeout will be used.
-   *                  Useful for customizing how long to wait before disconnecting.
+   * @param timeout Optional timeout in milliseconds (defaults to 5 minutes) to wait for the disconnect operation to complete.
+   *                If not provided, the default disconnect timeout will be used.
+   *                Useful for customizing how long to wait before disconnecting.
    */
   async disconnect(timeout: number = 300_000) {
-    if (this._status === "DISCONNECTED") {
-      return;
-    }
-
     if (timeout < 60_000) {
       throw new Error("Timeout must be at least 60,000 ms (1 minute)");
     }
-
     await this._connection.disconnect(timeout);
-
-    this._status = "DISCONNECTED";
-    this._eventEmitter.emit("onstatuschange", this._status);
   }
 
   /**
@@ -137,49 +125,58 @@ export class HydraProvider implements IFetcher, ISubmitter {
   /**
    * Initializes a new Head. This command is a no-op when a Head is already open and the server will output an CommandFailed message should this happen.
    */
-  async init() {
-    this.onMessage((message) => {
-      const status =
-        message.tag === "Greetings"
-          ? { headStatus: message.headStatus }
-          : { tag: message.tag };
-      if (status.headStatus === "Idle") {
-        this._connection.send({ tag: "Init" });
-        this._eventEmitter.emit("onstatuschange", status);
-      }
+  /**
+   * Initialize the head when status is Idle.
+   */
+  async init(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.onMessage((msg) => {
+        if (msg.tag === "Greetings" && msg.headStatus === "Idle") {
+          this._connection.send(clientInput.init);
+        }
+        if (msg.tag === "HeadIsInitializing") {
+          resolve();
+        }
+        if (handleHydraErrors(msg as ClientMessage, reject)) {
+          return;
+        }
+      });
     });
   }
+
   /**
    * Aborts a head before it is opened. This can only be done before all participants have committed. Once opened, the head can't be aborted anymore but it can be closed using: `Close`.
    */
-  async abort() {
-    this.onMessage((message) => {
-      const status =
-        message.tag === "Greetings"
-          ? { headStatus: message.headStatus }
-          : { tag: message.tag };
-      if (
-        status.headStatus === "Initializing" ||
-        status.tag === "HeadIsInitializing"
-      ) {
-        this._connection.send({ tag: "Abort" });
-        this._eventEmitter.emit("onstatuschange", status);
-      }
+  async abort(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.onMessage((msg) => {
+        if (
+          msg.tag === "HeadIsInitializing" ||
+          (msg.tag === "Greetings" && msg.headStatus === "Initializing")
+        ) {
+          this._connection.send(clientInput.abort);
+        }
+        if (msg.tag === "HeadIsAborted") {
+          resolve();
+        }
+        if (handleHydraErrors(msg as ClientMessage, reject)) {
+          return;
+        }
+      });
     });
   }
 
   /**
    * Submit a transaction through the Hydra head.
-   *The transaction must be well-formed and valid; otherwise, it will not be broadcast.
+   * The transaction must be well-formed and valid; otherwise, it will not be broadcast.
    *
-   * @param transaction - The transaction object to submit. Should have the following structure:
-   *   - type: The type of the transaction. Allowed values: "Tx ConwayEra", "Unwitnessed Tx ConwayEra", "Witnessed Tx ConwayEra".
-   *   - description: (Optional) A human-readable description of the transaction.
-   *   - cborHex: The base16-encoded CBOR representation of the transaction.
-   *   - txId: (Optional) The transaction ID.
-   *
+   * @param transaction The transaction object to submit. Should have the following structure:
+   *   - type: The type of the transaction
+   *   - description (optional)
+   *   - cborHex:
+   * @returns txhash
    * @example
-   * ```ts
+   * ```tsx
    * await hydraProvider.newTx({
    *   type: "Tx ConwayEra",
    *   description: "",
@@ -187,40 +184,58 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * });
    * ```
    */
-  async newTx(transaction: hydraTransaction): Promise<void> {
-    const hydraTransaction = {
-      type: transaction.type,
-      description: transaction.description,
-      cborHex: transaction.cborHex,
-      txId: transaction.txId,
-    };
-    const payload = {
-      tag: "NewTx",
-      transaction: hydraTransaction,
-    };
-    this._connection.send(payload);
-    this.onMessage((message) => {
-      if (message.tag === "TxValid") {
-        return message.transactionId;
-      }
+  async newTx(transaction: hydraTransaction): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.onMessage((msg) => {
+        if (
+          msg.tag === "HeadIsOpen" ||
+          (msg.tag === "Greetings" && msg.headStatus === "Open")
+        ) {
+          const payload = clientInput.newTx(transaction);
+          this._connection.send(payload);
+        }
+
+        if (msg.tag === "TxValid" && msg.transactionId) {
+          resolve(msg.transactionId);
+        } else if (msg.tag === "TxInvalid") {
+          reject(
+            new Error(
+              `Transaction invalid: ${JSON.stringify(msg.validationError)}`,
+            ),
+          );
+        }
+      });
     });
   }
 
   /**
    * Attempt to recover a deposit transaction in the Hydra head by its transaction ID.
-   * @param txId - The transaction ID (as a string) of the deposit transaction to recover.
+   * @param txHash - The deposit txId or txHash of the deposit transaction to recover.
    *
    * @example
    * ```ts
    * await hydraProvider.recover(txId);
    * ```
    */
-  async recover(txId: string): Promise<void> {
-    const payload = {
-      tag: "Recover",
-      recoverTxId: txId,
-    };
-    this._connection.send(payload);
+  async recover(txHash: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.onMessage((msg) => {
+        if (
+          msg.tag === "HeadIsOpen" ||
+          (msg.tag === "Greetings" && msg.headStatus === "Open")
+        ) {
+          const payload = clientInput.recover(txHash);
+          this._connection.send(payload);
+        }
+
+        if (msg.tag === "CommitRecovered" && msg.recoveredTxId === txHash) {
+          resolve(msg.recoveredTxId);
+        }
+        if (handleHydraErrors(msg as ClientMessage, reject)) {
+          return;
+        }
+      });
+    });
   }
 
   /**
@@ -240,31 +255,56 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * });
    * ```
    */
-  async decommit(transaction: hydraTransaction) {
-    const payload = {
-      tag: "Decommit",
-      decommitTx: {
-        type: transaction.type,
-        description: transaction.description,
-        cborHex: transaction.cborHex,
-      },
-    };
-    this._connection.send(payload);
+  async decommit(transaction: hydraTransaction): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.onMessage(async (msg) => {
+        if (
+          msg.tag === "HeadIsOpen" ||
+          (msg.tag === "Greetings" && msg.headStatus === "Open")
+        ) {
+          const payload = clientInput.decommit(transaction);
+          const tx: hydraTransaction = await this.publishDecommit(payload, {
+            "Content-Type": "application/json",
+          });
+          resolve(tx.cborHex);
+        }
+        if (handleHydraErrors(msg as ClientMessage, reject)) {
+          return;
+        }
+      });
+    });
+  }
+
+  /**
+   * Decommits a UTxO from the Hydra Head incrementally, making it available on layer 1.
+   *
+   * @param transaction The transaction object to decommit.
+   * @returns Promise resolving to the transaction hash or result.
+   */
+  async incrementalDecommit(transaction: hydraTransaction) {
+    return this.decommit(transaction);
   }
 
   /**
    * Terminate a head with the latest known snapshot. This effectively moves the head from the Open state to the Close state where the contestation phase begin. As a result of closing a head, no more transactions can be submitted via NewTx.
    */
   async close() {
-    this.onMessage((message) => {
-      const status =
-        message.tag === "Greetings"
-          ? { headStatus: message.headStatus }
-          : { tag: message.tag };
-      if (status.headStatus === "Open") {
-        this._connection.send({ tag: "Close" });
-        this._eventEmitter.emit("onstatuschange", status);
-      }
+    return new Promise((resolve, reject) => {
+      this.onMessage((message) => {
+        if (
+          message.tag === "HeadIsOpen" ||
+          (message.tag === "Greetings" && message.headStatus === "Open")
+        ) {
+          this._connection.send(clientInput.close);
+        }
+        if (message.tag === "HeadIsClosed") {
+          resolve(message);
+        }
+        if (handleHydraErrors(message as ClientMessage, reject)) {
+          reject(new Error("Failed to close head"));
+          return;
+        }
+      });
     });
   }
 
@@ -272,15 +312,21 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Challenge the latest snapshot announced as a result of a head closure from another participant. Note that this necessarily contest with the latest snapshot known of your local Hydra node. Participants can only contest once.
    */
   async contest() {
-    this.onMessage((message) => {
-      const status =
-        message.tag === "Greetings"
-          ? { headStatus: message.headStatus }
-          : { tag: message.tag };
-      if (status.headStatus === "Closed" || status.tag === "HeadIsClosed") {
-        this._connection.send({ tag: "Contest" });
-        this._eventEmitter.emit("onstatuschange", status);
-      }
+    return new Promise((resolve, reject) => {
+      this.onMessage((msg) => {
+        if (
+          msg.tag === "HeadIsClosed" ||
+          (msg.tag === "Greetings" && msg.headStatus === "Closed")
+        )
+          this._connection.send(clientInput.contest);
+        if (msg.tag === "Greetings") {
+          resolve(msg.headStatus === "Closed");
+        }
+        if (handleHydraErrors(msg as ClientMessage, reject)) {
+          reject(new Error("Failed to contest head"));
+          return;
+        }
+      });
     });
   }
 
@@ -289,18 +335,22 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * This will distribute the final (as closed and maybe contested) head state back on the layer 1.
    */
   async fanout() {
-    this.onMessage((message) => {
-      const status =
-        message.tag === "Greetings"
-          ? { headStatus: message.headStatus }
-          : { tag: message.tag };
-      if (
-        status.headStatus === "FanoutPossible" ||
-        status.tag === "ReadyToFanout"
-      ) {
-        this._connection.send({ tag: "Fanout" });
-        this._eventEmitter.emit("onstatuschange", status);
-      }
+    return new Promise((resolve, reject) => {
+      this.onMessage((msg) => {
+        if (
+          msg.tag === "ReadyToFanout" ||
+          (msg.tag === "Greetings" && msg.headStatus === "Closed")
+        ) {
+          this._connection.send(clientInput.fanout);
+          if (msg.tag === "Greetings") {
+            resolve(msg.headStatus === "Final");
+          }
+        }
+        if (handleHydraErrors(msg as ClientMessage, reject)) {
+          reject(new Error("Failed to fanout head"));
+          return;
+        }
+      });
     });
   }
 
@@ -362,7 +412,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
    *
    * @param asset - The asset unit in Cardano format, defined as a concatenation of the policy ID and asset name in hex
    *
-   * @returns theaddress and quantity for each UTxO holding the specified asset.
+   * @returns the address and quantity for each UTxO holding the specified asset.
    */
   async fetchAssetAddresses(
     asset: string,
@@ -392,7 +442,7 @@ export class HydraProvider implements IFetcher, ISubmitter {
   async fetchCollectionAssets(policyId: string): Promise<{ assets: Asset[] }> {
     if (policyId.length !== POLICY_ID_LENGTH) {
       throw new Error(
-        "Invalid policyId length: must be a 56-character hex string",
+        "Invalid policyId length: must be a 56-character hexadecimal string",
       );
     }
 
@@ -421,75 +471,187 @@ export class HydraProvider implements IFetcher, ISubmitter {
   }
 
   /**
-   * Fetches all assets minted on the Hydra Head that are not available on Cardano L1.
-   * @param blockchainProvider - An IFetcher instance to fetch asset metadata.
-   * @returns object with policyId and assetName.
-   */
-  async fetchHydraAssets(
-    blockchainProvider: IFetcher,
-  ): Promise<{ policyId: string; assetName: string }[] | undefined> {
-    const utxos = await this.fetchUTxOs();
-    if (!utxos || utxos.length === 0) {
-      throw new Error("No UTxOs found in the head snapshot");
-    }
-
-    const assetUnits = new Set<string>();
-    for (const utxo of utxos) {
-      for (const asset of utxo.output.amount ?? []) {
-        if (asset.unit !== "lovelace") {
-          assetUnits.add(asset.unit);
-        }
-      }
-    }
-    if (!assetUnits.size) {
-      throw new Error("No script UTxOs found in the head snapshot");
-    }
-
-    const results = await Promise.all(
-      [...assetUnits].map(async (unit) => {
-        const metadata = await blockchainProvider.fetchAssetMetadata(unit);
-        return metadata === undefined ? unit : null;
-      }),
-    );
-    if (!results) {
-      return undefined;
-    }
-    return results
-      .filter((x): x is string => x !== null)
-      .map((unit) => ({
-        policyId: unit.slice(0, POLICY_ID_LENGTH),
-        assetName: unit.slice(POLICY_ID_LENGTH),
-      }));
-  }
-
-  /**
    * Submit a transaction to the Hydra node. Note, unlike other providers,this returns a transaction hash (txId).
    * @param cborHex - The transaction in CBOR hex format usually the unsigned transaction
    * @returns The transaction hash (txId)
    */
   async submitTx(cborHex: string): Promise<string> {
     try {
-      await this.newTx({
+      const txHash = await this.newTx({
         type: "Tx ConwayEra",
         description: "",
         cborHex,
       });
-
-      return new Promise<string>((resolve, reject) => {
-        this.onMessage((message) => {
-          if (message.tag === "TxValid" && message.transactionId) {
-            resolve(message.transactionId);
-          } else if (
-            message.tag === "TxInvalid" &&
-            message.transaction?.cborHex === cborHex
-          ) {
-            reject(new Error(JSON.stringify(message.validationError)));
-          }
-        });
-      });
+      return txHash;
     } catch (error) {
       throw parseHttpError(error);
     }
+  }
+  /**
+   * Submit a transaction to the Cardano L1 network.
+   * @param transaction - The transaction to submit
+   * @returns The transaction cborHex
+   */
+
+  async submitL1Tx(
+    transaction: hydraTransaction,
+  ): Promise<TransactionSubmitted | PostTxOnChainFailed> {
+    const tx = await this.publishCardanoTransaction(transaction, {
+      "Content-Type": "application/json",
+    });
+    return new Promise((resolve) => {
+      resolve(tx as TransactionSubmitted);
+      this.onMessage((msg) => {
+        if (handleHydraErrors(msg as ClientMessage, resolve)) {
+          return;
+        }
+      });
+    });
+  }
+
+  /*
+  SNAPSHOT & COMMIT OPERATIONS
+  */
+
+  /**
+   * Obtain a list of pending deposit transaction ID's.
+   */
+  async getPendingCommits() {
+    const commit = await this.get("/commits");
+    return commit;
+  }
+
+  /**
+   * Get the latest snapshot signed by the Hydra node.
+   * This returns snapshot information.
+   *
+   * @returns {Promise<seenSnapshot>} The latest seen snapshot information.
+   * @throws {Error} If the latest snapshot cannot be retrieved or parsed.
+   */
+  async getLatestSeenSnapshot(): Promise<seenSnapshot> {
+    try {
+      const snapshot = await this.subscribeSeenSnapshot();
+      if (!snapshot) {
+        throw new Error(
+          "Unable to fetch the latest seen snapshot from Hydra node",
+        );
+      }
+      return snapshot;
+    } catch (error) {
+      throw new Error(
+        `Error fetching latest seen snapshot: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * This is used to get the snapshop from a healthy node ready to
+   * sideload into a stuck or unhealthy node
+   * @returns
+   */
+  async getSideloadedSnapshot(): Promise<snapshotSideLoad> {
+    const data: snapshotSideLoad = await this.get(`/snapshot`);
+    let snapshot = {};
+
+    if (data.tag === "InitialSnapshot") {
+      const utxos: UTxO[] = [];
+      for (const [key, value] of Object.entries(data.initialUTxO)) {
+        const utxo = hydraUTxO.toUTxO(value as unknown as hydraUTxO, key);
+        utxos.push(utxo);
+      }
+
+      snapshot = {
+        tag: "InitialSnapshot",
+        headId: data.headId,
+        initialUTxO: utxos,
+      };
+    }
+    if (data.tag === "ConfirmedSnapshot") {
+      const utxos: UTxO[] = [];
+      const utxoToCommit: UTxO[] = [];
+      const utxoToDecommit: UTxO[] = [];
+
+      for (const [key, value] of Object.entries(data.snapshot.utxo)) {
+        const utxo = hydraUTxO.toUTxO(value as unknown as hydraUTxO, key);
+        utxos.push(utxo);
+      }
+
+      if (data.snapshot.utxoToCommit) {
+        for (const [key, value] of Object.entries(data.snapshot.utxoToCommit)) {
+          const utxo = hydraUTxO.toUTxO(value as unknown as hydraUTxO, key);
+          utxoToCommit.push(utxo);
+        }
+      }
+
+      if (data.snapshot.utxoToDecommit) {
+        for (const [key, value] of Object.entries(
+          data.snapshot.utxoToDecommit,
+        )) {
+          const utxo = hydraUTxO.toUTxO(value as unknown as hydraUTxO, key);
+          utxoToDecommit.push(utxo);
+        }
+      }
+
+      snapshot = {
+        tag: "ConfirmedSnapshot",
+        snapshot: {
+          ...data.snapshot,
+          utxo: utxos as UTxO[],
+          utxoToCommit: utxoToCommit.length ? utxoToCommit : null,
+          utxoToDecommit: utxoToDecommit.length ? utxoToDecommit : null,
+        },
+        signatures: data.signatures,
+      };
+    }
+
+    return snapshot as snapshotSideLoad;
+  }
+
+  /**
+   * sync or sideLoadSnapshot to the hydra unhealthy node
+   *
+   */
+  async syncSideloadSnapshot(snapshot: snapshotSideLoad): Promise<object> {
+    let hydraSnapshot = {};
+    if (snapshot.tag === "InitialSnapshot") {
+      const initialUTxO = snapshot.initialUTxO.map((utxo) => hydraUTxO(utxo));
+      hydraSnapshot = {
+        tag: "InitialSnapshot",
+        headId: snapshot.headId,
+        initialUTxO: await Promise.all(initialUTxO),
+      };
+    }
+
+    if (snapshot.tag === "ConfirmedSnapshot") {
+      const utxo = await hydraUTxOs(snapshot.snapshot.utxo);
+      const utxoToCommit = snapshot.snapshot.utxoToCommit
+        ? await hydraUTxOs(snapshot.snapshot.utxoToCommit)
+        : null;
+      const utxoToDecommit = snapshot.snapshot.utxoToDecommit
+        ? await hydraUTxOs(snapshot.snapshot.utxoToDecommit)
+        : null;
+      hydraSnapshot = {
+        tag: "ConfirmedSnapshot",
+        snapshot: {
+          ...snapshot.snapshot,
+          utxo: utxo,
+          utxoToCommit: utxoToCommit,
+          utxoToDecommit: utxoToDecommit,
+        },
+        signatures: snapshot.signatures,
+      };
+    }
+    await this.post("/snapshot", hydraSnapshot, {
+      "Content-Type": "application/json",
+    });
+
+    return new Promise((resolve) => {
+      this.onMessage((msg) => {
+        if (msg.tag === "SnapshotConfirmed") {
+          resolve(msg.snapshot);
+        }
+      });
+    });
   }
 
   /**
@@ -500,42 +662,16 @@ export class HydraProvider implements IFetcher, ISubmitter {
    * Draft a commit transaction, which can be completed and later submitted to the L1 network.
    */
   async buildCommit(payload: unknown, headers: RawAxiosRequestHeaders = {}) {
-    const txHex = await this.post("/commit", payload, headers);
-    return txHex;
+    return await this.post("/commit", payload, headers);
   }
 
   /**
-   * Emitted by the server after drafting a commit transaction with the user provided utxos. Transaction returned to the user is in it's cbor representation encoded as Base16.
+   *
+   * gets last seen snapshot in the head
    */
-  async subscribeCommit() {
-    // todo
-    await this.get("/commit");
-  }
 
-  /**
-   * Obtain a list of pending deposit transaction ID's.
-   */
-  async buildCommits() {
-    const commits = await this.get("/commits");
-    return commits;
-  }
-
-  async subscribeCommits() {
-    // todo
-    await this.get("/commits");
-  }
-
-  /**
-   * Recover deposited UTxO by providing a TxId of a deposit transaction in the request path.
-   */
-  async commitsTxId(headers: RawAxiosRequestHeaders = {}) {
-    // todo
-    await this.post("/commits/tx-id", {}, headers);
-  }
-
-  async subscribeCommitsTxId() {
-    // todo
-    await this.get("/commits/tx-id");
+  async subscribeSeenSnapshot(): Promise<seenSnapshot> {
+    return this.get("/snapshot/last-seen");
   }
 
   /**
@@ -559,16 +695,17 @@ export class HydraProvider implements IFetcher, ISubmitter {
     payload: unknown,
     headers: RawAxiosRequestHeaders = {},
   ) {
-    const txHex = await this.post("/decommit", payload, headers);
-    return txHex;
+    return await this.post("/decommit", payload, headers);
   }
 
   /**
-   * Emitted by the server after drafting a decommit transaction.
+   * Cardano transaction to be submitted to the L1 network. Accepts transactions encoded as Base16 CBOR string, TextEnvelope type or JSON.
    */
-  async subscribeDecommit() {
-    // todo
-    await this.get("/decommit");
+  async publishCardanoTransaction(
+    payload: unknown,
+    headers: RawAxiosRequestHeaders = {},
+  ): Promise<PostTxOnChainFailed | TransactionSubmitted> {
+    return await this.post("/cardano-transaction", payload, headers);
   }
 
   /**
@@ -601,137 +738,16 @@ export class HydraProvider implements IFetcher, ISubmitter {
     return protocolParams;
   }
 
-  /**
-   * Cardano transaction to be submitted to the L1 network. Accepts transactions encoded as Base16 CBOR string, TextEnvelope type or JSON.
-   */
-  async publishCardanoTransaction(headers: RawAxiosRequestHeaders = {}) {
-    // todo
-    await this.post("/cardano-transaction", {}, headers);
-  }
-
-  /**
-   * Successfully submitted a cardano transaction to the L1 network.
-   */
-  async subscribeCardanoTransaction() {
-    // todo
-    await this.get("/cardano-transaction");
-  }
-
-  /**
-   * Events emitted by the Hydra node.
-   * @param callback - The callback function to be called when a message is received
-   */
-  onMessage(
-    callback: (
-      data:
-        | Greetings
-        | PeerConnected
-        | PeerDisconnected
-        | PeerHandshakeFailure
-        | HeadIsInitializing
-        | Committed
-        | HeadIsOpen
-        | HeadIsClosed
-        | HeadIsContested
-        | ReadyToFanout
-        | HeadIsAborted
-        | HeadIsFinalized
-        | TxValid
-        | TxInvalid
-        | SnapshotConfirmed
-        | GetUTxOResponse
-        | InvalidInput
-        | PostTxOnChainFailed
-        | CommandFailed
-        | IgnoredHeadInitializing
-        | DecommitInvalid
-        | DecommitRequested
-        | DecommitApproved
-        | DecommitFinalized,
-    ) => void,
-  ) {
-    this._eventEmitter.on("onmessage", (message) => {
-      switch (message.tag) {
-        case "Greetings":
-          callback(message as Greetings);
-          break;
-        case "PeerConnected":
-          callback(message as PeerConnected);
-          break;
-        case "onPeerDisconnected":
-          callback(message as PeerDisconnected);
-          break;
-        case "PeerHandshakeFailure":
-          callback(message as PeerHandshakeFailure);
-          break;
-        case "HeadIsInitializing":
-          callback(message as HeadIsInitializing);
-          break;
-        case "Committed":
-          callback(message as Committed);
-          break;
-        case "HeadIsOpen":
-          callback(message as HeadIsOpen);
-          break;
-        case "HeadIsClosed":
-          callback(message as HeadIsClosed);
-          break;
-        case "HeadIsContested":
-          callback(message as HeadIsContested);
-          break;
-        case "ReadyToFanout":
-          callback(message as ReadyToFanout);
-          break;
-        case "HeadIsAborted":
-          callback(message as HeadIsAborted);
-          break;
-        case "HeadIsFinalized":
-          callback(message as HeadIsFinalized);
-          break;
-        case "TxValid":
-          callback(message as TxValid);
-          break;
-        case "TxInvalid":
-          callback(message as TxInvalid);
-          break;
-        case "SnapshotConfirmed":
-          callback(message as SnapshotConfirmed);
-          break;
-        case "GetUTxOResponse":
-          callback(message as GetUTxOResponse);
-          break;
-        case "InvalidInput":
-          callback(message as InvalidInput);
-          break;
-        case "PostTxOnChainFailed":
-          callback(message as PostTxOnChainFailed);
-          break;
-        case "CommandFailed":
-          callback(message as CommandFailed);
-          break;
-        case "IgnoredHeadInitializing":
-          callback(message as IgnoredHeadInitializing);
-          break;
-        case "DecommitInvalid":
-          callback(message as DecommitInvalid);
-          break;
-        case "DecommitRequested":
-          callback(message as DecommitRequested);
-          break;
-        case "DecommitApproved":
-          callback(message as DecommitApproved);
-          break;
-        case "DecommitFinalized":
-          callback(message as DecommitFinalized);
-          break;
-        default:
-          break;
-      }
+  onMessage(callback: (data: ServerOutput | ClientMessage) => void) {
+    this._messageCallback = callback;
+    this._messageQueue.forEach((message) => {
+      callback(message);
     });
   }
-
   onStatusChange(callback: (status: hydraStatus) => void) {
-    this._eventEmitter.on("onstatuschange", callback);
+    this._eventEmitter.on("onstatuschange", (status) => {
+      callback(status);
+    });
   }
 
   /**
@@ -780,36 +796,55 @@ export class HydraProvider implements IFetcher, ISubmitter {
   }
 
   /**
-   * NOT IMPLEMENTED FETCHERS
+   * NOT SUPPORTED FETCHERS
    */
 
-  fetchAccountInfo(address: string): Promise<AccountInfo> {
-    throw new Error("Method not implemented.");
+  /**
+   * Note: Not supported in Hydra L2.
+   */
+  async fetchAccountInfo(address?: string): Promise<AccountInfo> {
+    throw new Error(`Not supported in Hydra L2.`);
   }
 
+  /**
+   * Not supported in Hydra L2.
+   */
   async fetchAddressTxs(
-    address: string,
-    options: IFetcherOptions = DEFAULT_FETCHER_OPTIONS,
+    address?: string,
+    option?: IFetcherOptions,
   ): Promise<TransactionInfo[]> {
-    throw new Error("Method not implemented.");
+    throw new Error("Not supported in Hydra L2.");
   }
 
-  fetchAssetMetadata(asset: string): Promise<AssetMetadata> {
-    throw new Error("Method not implemented.");
+  /**
+   * Not supported in Hydra L2.
+   */
+  async fetchAssetMetadata(asset?: string): Promise<AssetMetadata> {
+    throw new Error("Not supported in Hydra L2.");
   }
 
-  fetchBlockInfo(hash: string): Promise<BlockInfo> {
-    throw new Error("Method not implemented.");
+  /**
+   * Note: Not supported in Hydra L2.
+   */
+  async fetchBlockInfo(hash?: string): Promise<BlockInfo> {
+    throw new Error("Not supported in Hydra L2.");
   }
 
+  /**
+   * Not supported in Hydra L2.
+   */
   async fetchGovernanceProposal(
-    txHash: string,
-    certIndex: number,
+    txHash?: string,
+    certIndex?: number,
   ): Promise<GovernanceProposalInfo> {
-    throw new Error("Method not implemented");
+    throw new Error("Not supported in Hydra L2.");
   }
 
-  fetchTxInfo(hash: string): Promise<TransactionInfo> {
-    throw new Error("Method not implemented");
+  /**
+   * Not supported in Hydra L2.
+   */
+  async fetchTxInfo(hash: string): Promise<TransactionInfo> {
+    const utxos = await this.fetchUTxOs(hash);
+    throw new Error("Method not implemented.");
   }
 }
