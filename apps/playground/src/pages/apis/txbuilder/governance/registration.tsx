@@ -34,7 +34,7 @@ function Left() {
 
   let codeAnchor = ``;
   codeAnchor += `async function getMeshJsonHash(url: string) {\n`;
-  codeAnchor += `  var drepAnchor = getFile(url);\n`;
+  codeAnchor += `  var drepAnchor = await getFile(url);\n`;
   codeAnchor += `  const anchorObj = JSON.parse(drepAnchor);\n`;
   codeAnchor += `  return hashDrepAnchor(anchorObj);\n`;
   codeAnchor += `}\n`;
@@ -129,7 +129,7 @@ function Right() {
   const [anchorUrl, setAnchorUrl] = useState<string>("");
 
   async function getMeshJsonHash(url: string) {
-    var drepAnchor = getFile(url);
+    var drepAnchor = await getFile(url);
     const anchorObj = JSON.parse(drepAnchor);
     const anchorHash = hashDrepAnchor(anchorObj);
     return anchorHash;
