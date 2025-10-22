@@ -1,4 +1,5 @@
 import { Cardano, setInConwayEra } from "@cardano-sdk/core";
+import { Hash28ByteBase16 } from "@cardano-sdk/crypto";
 
 export enum CredentialType {
   KeyHash = 0,
@@ -31,7 +32,10 @@ export class CardanoAddress {
       this.networkId === 1
         ? Cardano.NetworkId.Mainnet
         : Cardano.NetworkId.Testnet,
-      this.paymentPubkey,
+      {
+        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        type: this.paymentPubkey.type,
+      },
     );
     return enterpriseAddress.toAddress().toBech32();
   }
@@ -41,7 +45,10 @@ export class CardanoAddress {
       this.networkId === 1
         ? Cardano.NetworkId.Mainnet
         : Cardano.NetworkId.Testnet,
-      this.paymentPubkey,
+      {
+        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        type: this.paymentPubkey.type,
+      },
     );
     return enterpriseAddress.toAddress().toBytes();
   }
@@ -52,8 +59,14 @@ export class CardanoAddress {
       this.networkId === 1
         ? Cardano.NetworkId.Mainnet
         : Cardano.NetworkId.Testnet,
-      this.paymentPubkey,
-      this.stakePubkey,
+      {
+        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        type: this.paymentPubkey.type,
+      },
+      {
+        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        type: this.stakePubkey.type,
+      },
     );
     return baseAddress.toAddress().toBech32();
   }
@@ -64,8 +77,14 @@ export class CardanoAddress {
       this.networkId === 1
         ? Cardano.NetworkId.Mainnet
         : Cardano.NetworkId.Testnet,
-      this.paymentPubkey,
-      this.stakePubkey,
+      {
+        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        type: this.paymentPubkey.type,
+      },
+      {
+        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        type: this.stakePubkey.type,
+      },
     );
     return baseAddress.toAddress().toBytes();
   }
@@ -76,7 +95,10 @@ export class CardanoAddress {
       this.networkId === 1
         ? Cardano.NetworkId.Mainnet
         : Cardano.NetworkId.Testnet,
-      this.stakePubkey,
+      {
+        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        type: this.stakePubkey.type,
+      },
     );
     return rewardAddress.toAddress().toBech32();
   }
@@ -87,7 +109,10 @@ export class CardanoAddress {
       this.networkId === 1
         ? Cardano.NetworkId.Mainnet
         : Cardano.NetworkId.Testnet,
-      this.stakePubkey,
+      {
+        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        type: this.stakePubkey.type,
+      },
     );
     return rewardAddress.toAddress().toBytes();
   }
