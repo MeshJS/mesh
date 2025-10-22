@@ -163,6 +163,31 @@ export class BlockstreamProvider implements IBitcoinProvider {
   }
 
   /**
+   * Get fee estimates for confirmation within a specified number of blocks.
+   * Returns fee rate in sat/vB based on Blockstream's fee estimates API.
+   * @param blocks - Confirmation target in blocks (1-25, 144, 504, 1008)
+   * @returns Fee rate in sat/vB
+   */
+  async fetchFeeEstimates(blocks: number): Promise<number> {
+    try {
+      const { data, status } = await this._axiosInstance.get("/fee-estimates");
+
+      if (status === 200) {
+        const feeEstimates = data as Record<string, number>;
+        
+        // Find the closest available confirmation target
+        const availableTargets = Object.keys(feeEstimates).map(Number).sort((a, b) => a - b);
+        const closestTarget = availableTargets.find(target => target >= blocks) || availableTargets[availableTargets.length - 1];
+        
+        return feeEstimates[closestTarget.toString()] || 10;
+      }
+      throw parseHttpError(data);
+    } catch (error) {
+      throw parseHttpError(error);
+    }
+  }
+
+  /**
    * Broadcast a raw transaction to the network.
    * The transaction should be provided as hex in the request body. The txid will be returned on success.
    * @param tx - The transaction in hex format.

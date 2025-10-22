@@ -19,7 +19,7 @@ const ReactPage: NextPage = () => {
     const expectAddress = "tb1q3x7c8nuew6ayzmy3fnfx6ydnr8a4kf2267za7y";
 
     const wallet = new EmbeddedWallet({
-      testnet: false,
+      network: "Mainnet",
       key: {
         type: "mnemonic",
         words: mnemonic.split(" "),
@@ -27,18 +27,20 @@ const ReactPage: NextPage = () => {
       provider: provider,
     });
 
-    const address = wallet.getAddress();
-    console.log("address", address);
-    console.log("expectAddress", expectAddress === address.address);
+    const addresses = await wallet.getAddresses();
+    const address = addresses[0]?.address!;
+    console.log("address", addresses);
+    console.log("expectAddress", expectAddress === address);
     console.log("network", wallet.getNetworkId());
     console.log("publicKey", wallet.getPublicKey());
     // console.log("utxos", await wallet.getUtxos());
     // console.log("brew", EmbeddedWallet.brew());
+    
 
     const message = "test message";
-    const signature = await wallet.signData(message);
-    console.log("signature", signature);
-    const isValid = verifySignature(message, signature, address.publicKey!);
+    const signedMessage = await wallet.signMessage({ address, message });
+    console.log("signature", signedMessage.signature);
+    const isValid = verifySignature(message, signedMessage.signature, addresses[0]?.publicKey!);
     console.log("isValid", isValid);
   }
 
