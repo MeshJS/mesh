@@ -64,7 +64,7 @@ export class CardanoAddress {
         type: this.paymentPubkey.type,
       },
       {
-        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        hash: Hash28ByteBase16(this.stakePubkey.hash),
         type: this.stakePubkey.type,
       },
     );
@@ -82,7 +82,7 @@ export class CardanoAddress {
         type: this.paymentPubkey.type,
       },
       {
-        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        hash: Hash28ByteBase16(this.stakePubkey.hash),
         type: this.stakePubkey.type,
       },
     );
@@ -96,7 +96,7 @@ export class CardanoAddress {
         ? Cardano.NetworkId.Mainnet
         : Cardano.NetworkId.Testnet,
       {
-        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        hash: Hash28ByteBase16(this.stakePubkey.hash),
         type: this.stakePubkey.type,
       },
     );
@@ -110,7 +110,7 @@ export class CardanoAddress {
         ? Cardano.NetworkId.Mainnet
         : Cardano.NetworkId.Testnet,
       {
-        hash: Hash28ByteBase16(this.paymentPubkey.hash),
+        hash: Hash28ByteBase16(this.stakePubkey.hash),
         type: this.stakePubkey.type,
       },
     );
