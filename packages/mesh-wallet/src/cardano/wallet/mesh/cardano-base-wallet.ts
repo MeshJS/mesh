@@ -218,6 +218,8 @@ export class BaseCardanoWallet implements ICardanoWallet {
    * NOTE: This method is only an approximation to CIP-30 getCollateral, as this wallet is completely
    * stateless and does not track which UTxOs are specifically set as collateral. Which means that there
    * will be overlap between getUtxos() and getCollateral() results.
+   *
+   * The basic strategy is to return the smallest pure ADA UTxO that is at least 5 ADA belonging to the wallet.
    * @returns {Promise<string[]>} A promise that resolves to an array of UTxOs in CBOR hex format
    */
   async getCollateral(): Promise<string[]> {

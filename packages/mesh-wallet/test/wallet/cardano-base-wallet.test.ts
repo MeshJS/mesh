@@ -4,7 +4,9 @@ import { HexBlob } from "@cardano-sdk/util";
 import { DataSignature } from "@meshsdk/common";
 import { OfflineFetcher } from "@meshsdk/provider";
 
-import { BaseCardanoWallet } from "../../src/cardano/wallet/cardano-base-wallet";
+import { BaseBip32 } from "../../src";
+import { CardanoSigner } from "../../src/cardano/signer/cardano-signer";
+import { BaseCardanoWallet } from "../../src/cardano/wallet/mesh/cardano-base-wallet";
 
 describe("CardanoBaseWallet", () => {
   const offlineFetcher = new OfflineFetcher("preprod");
@@ -98,9 +100,26 @@ describe("CardanoBaseWallet", () => {
         ],
       },
     },
+    {
+      input: {
+        txHash:
+          "ad3ec70ffbc9a2d169fc6a4a9fdbae168ebad547f3939c97fc3bb41fa70c9999",
+        outputIndex: 2,
+      },
+      output: {
+        address:
+          "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr",
+        amount: [
+          {
+            unit: "lovelace",
+            quantity: "5000000",
+          },
+        ],
+      },
+    },
   ]);
 
-  it("should create correct wallet from signer", async () => {
+  it("should create correct wallet from mnemonic", async () => {
     const wallet = await BaseCardanoWallet.fromMnemonic(
       0,
       "solution,".repeat(24).split(",").slice(0, 24),
@@ -187,7 +206,7 @@ describe("CardanoBaseWallet", () => {
       offlineFetcher,
     );
     const utxos = await wallet.getUtxos();
-    expect(utxos.length).toBe(5);
+    expect(utxos.length).toBe(6);
   });
 
   it("should fetch correct balance", async () => {
@@ -200,7 +219,7 @@ describe("CardanoBaseWallet", () => {
     const balance = await wallet.getBalance();
     const value = Serialization.Value.fromCbor(HexBlob(balance));
     expect(value.coin()).toBe(
-      977313882n + 977313882n + 954457687n + 954284486n + 500000000n,
+      977313882n + 977313882n + 954457687n + 954284486n + 500000000n + 5000000n,
     );
     expect(
       value
@@ -211,6 +230,22 @@ describe("CardanoBaseWallet", () => {
           ),
         ),
     ).toBe(1n);
+  });
+
+  it("should fetch correct collateral", async () => {
+    const wallet = await BaseCardanoWallet.fromMnemonic(
+      0,
+      "solution,".repeat(24).split(",").slice(0, 24),
+      "",
+      offlineFetcher,
+    );
+    const collaterals = await wallet.getCollateral();
+    expect(collaterals.length).toBe(1);
+    const collateral = Serialization.TransactionUnspentOutput.fromCbor(
+      HexBlob(collaterals[0]!),
+    );
+    expect(collateral.output().amount().coin()).toBe(5000000n);
+    expect(collateral.output().amount().multiasset()).toBe(undefined);
   });
 
   it("should sign data correctly", async () => {
