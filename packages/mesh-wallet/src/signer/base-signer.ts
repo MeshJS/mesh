@@ -23,12 +23,22 @@ export class BaseSigner implements ISigner {
     this.ed25519PrivateKey = ed25519PrivateKey;
   }
 
+  /**
+   * Create a BaseSigner instance from an Ed25519 private key in extended hex format.
+   * @param keyHex Ed25519 private key in extended hex format
+   * @returns {BaseSigner} A BaseSigner instance
+   */
   static fromExtendedKeyHex(keyHex: string): BaseSigner {
     return new BaseSigner(
       Ed25519PrivateKey.fromExtendedHex(Ed25519PrivateExtendedKeyHex(keyHex)),
     );
   }
 
+  /**
+   * Create a BaseSigner instance from an Ed25519 private key in normal hex format.
+   * @param keyHex Ed25519 private key in normal hex format
+   * @returns {BaseSigner} A BaseSigner instance
+   */
   static fromNormalKeyHex(keyHex: string): BaseSigner {
     return new BaseSigner(
       Ed25519PrivateKey.fromNormalHex(Ed25519PrivateNormalKeyHex(keyHex)),
