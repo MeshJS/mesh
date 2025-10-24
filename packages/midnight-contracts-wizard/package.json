@@ -37,6 +37,7 @@
     "ora": "^5.4.1"
   },
   "devDependencies": {
+    "@meshsdk/configs": "*",
     "@types/fs-extra": "^11.0.0",
     "@types/inquirer": "^9.0.0",
     "@types/node": "^20.19.23",
