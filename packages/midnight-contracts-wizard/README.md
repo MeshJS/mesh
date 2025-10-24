@@ -5,19 +5,13 @@ A CLI tool to create new Midnight contracts projects with selected smart contrac
 ## Installation
 
 ```bash
-npm install -g @meshsdk/midnight-contracts-wizard
+npm install @meshsdk/midnight-contracts-wizard
 ```
 
 ## Usage
 
 ```bash
 npx @meshsdk/midnight-contracts-wizard
-```
-
-Or if installed globally:
-
-```bash
-midnight-contracts-wizard
 ```
 
 ## Features
@@ -32,23 +26,23 @@ midnight-contracts-wizard
 
 ### Tokenization Contract
 
-Complete project tokenization system with ZK privacy investment (7 ZK circuits)
+- Complete project tokenization system with ZK privacy investment (7 ZK circuits)
 
 ### Staking Contract
 
-Privacy-focused staking system with rewards and lock periods (8 ZK circuits)
+- Privacy-focused staking system with rewards and lock periods (8 ZK circuits)
 
 ### Identity Contracts
 
-Complete identity management system with cryptographic libraries (1 ZK circuit)
+- Complete identity management system with cryptographic libraries (1 ZK circuit)
 
 ### Oracle Contract
 
-Decentralized oracle system with privacy-preserving data feeds (7 ZK circuits)
+- Decentralized oracle system with privacy-preserving data feeds (7 ZK circuits)
 
 ### Lending & Borrowing Contract
 
-Privacy-preserving decentralized lending protocol (7 ZK circuits)
+- Privacy-preserving decentralized lending protocol (7 ZK circuits)
 
 ## Generated Project Structure
 
