@@ -65,35 +65,6 @@ my-project/
 └── README.md
 ```
 
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Build TypeScript
-npm run build
-
-# Make executable
-npm run install-cli
-
-# Test locally
-npm test
-
-# Development mode (watch)
-npm run dev
-```
-
-## Publishing
-
-```bash
-# Login to npm
-npm login
-
-# Publish package
-npm publish
-```
-
 ---
 
 <div align="center">
