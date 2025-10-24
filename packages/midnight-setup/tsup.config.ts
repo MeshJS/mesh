@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/react.ts"],
+  entry: ["src/index.ts"],
   format: ["esm", "cjs"],
   dts: true,
   splitting: false,
@@ -11,31 +11,15 @@ export default defineConfig({
   cjsInterop: true,
   external: [
     "@midnight-ntwrk/compact-runtime",
-    "@midnight-ntwrk/ledger",
     "@midnight-ntwrk/midnight-js-contracts",
     "@midnight-ntwrk/midnight-js-types",
-    "@midnight-ntwrk/midnight-js-network-id",
-    "@midnight-ntwrk/zswap",
     "@midnight-ntwrk/dapp-connector-api",
     "@midnight-ntwrk/midnight-js-fetch-zk-config-provider",
     "@midnight-ntwrk/midnight-js-http-client-proof-provider",
     "@midnight-ntwrk/midnight-js-indexer-public-data-provider",
     "@midnight-ntwrk/midnight-js-level-private-state-provider",
-    "fp-ts",
+    "@midnight-ntwrk/midnight-js-network-id",
     "pino",
-    "rxjs",
-    "semver",
-    "react",
-    "react-dom",
-    "react/jsx-runtime",
-    "@radix-ui/react-dialog",
-    "@radix-ui/react-label",
-    "@radix-ui/react-progress",
-    "@radix-ui/react-slot",
-    "lucide-react",
-    "class-variance-authority",
-    "clsx",
-    "tailwind-merge"
+    "rxjs"
   ],
 });
-

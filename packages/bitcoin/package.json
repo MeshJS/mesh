@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/bitcoin",
-  "version": "1.9.0-beta.80",
+  "version": "1.9.0-beta.83",
   "description": "Mesh Bitcoin package",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@bitcoin-js/tiny-secp256k1-asmjs": "^2.2.3",
-    "bip174": "^3.0.0-rc.1",
+    "bip174": "^3.0.0",
     "bip32": "^4.0.0",
     "bip39": "^3.1.0",
     "bitcoinjs-lib": "^6.1.7",
@@ -34,7 +34,10 @@
   "devDependencies": {
     "@meshsdk/configs": "*",
     "@swc/core": "^1.10.7",
+    "dotenv": "^17.2.3",
     "eslint": "^8.57.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
   }

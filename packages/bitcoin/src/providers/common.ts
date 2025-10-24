@@ -13,7 +13,7 @@ export const parseHttpError = (error: unknown): string => {
     });
   }
 
-  if (error.request && !(error.request instanceof XMLHttpRequest)) {
+  if (error.request) {
     return JSON.stringify(error.request);
   }
 
