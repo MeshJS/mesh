@@ -50,7 +50,6 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "prettier": "@meshsdk/configs/prettier",
   "repository": {
     "type": "git",
     "url": "https://github.com/MeshJS/mesh.git",
