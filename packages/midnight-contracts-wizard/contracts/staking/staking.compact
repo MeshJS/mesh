@@ -1,0 +1,332 @@
+pragma language_version >= 0.16.0;
+
+import CompactStandardLibrary;
+
+// =======================
+//        Enums
+// =======================
+
+/**
+ * @dev Staking status for users
+ * @notice Defines the possible states a user can be in regarding their staking position
+ * - NotStaked: User has no active stake
+ * - Staked: User has an active stake that can be unstaked
+ * - Locked: User's stake is locked and cannot be unstaked until the lock period expires
+ */
+enum StakingStatus {
+    NotStaked,
+    Staked,
+    Locked
+}
+
+// =======================
+//   Ledger State (Public)
+// =======================
+
+/**
+ * @dev Total staked supply
+ * @notice Tracks the total amount of tokens currently staked in the contract
+ */
+export ledger totalStakedSupply: Uint<64>;
+
+/**
+ * @dev Lock period
+ * @notice Minimum duration (in time units) that tokens must remain staked
+ */
+export ledger lockPeriod: Uint<64>;
+
+/**
+ * @dev Contract owner
+ * @notice Address of the contract owner who can perform administrative functions
+ */
+export ledger ownerId: Uint<32>;
+
+/**
+ * @dev Transaction counter
+ * @notice Increments with each state-changing operation to prevent replay attacks
+ */
+export ledger nonce: Counter;
+
+/**
+ * @dev Stake start time
+ * @notice Stores the timestamp when staking began (public)
+ */
+export ledger stakeStartTime: Uint<64>;
+
+/**
+ * @dev Reward rate value
+ * @notice Stores the current reward rate for staking calculations
+ */
+export ledger rewardRateValue: Uint<64>;
+
+/**
+ * @dev Staked balances
+ * @notice Maps each user ID to their total staked token amount
+ */
+export ledger stakedBalances: Map<Uint<32>, Uint<64>>;
+
+/**
+ * @dev Reward balances
+ * @notice Maps each user ID to their accumulated rewards that can be claimed
+ */
+export ledger rewardBalances: Map<Uint<32>, Uint<64>>;
+
+/**
+ * @dev User staking status
+ * @notice Maps each user ID to their current staking status (NotStaked, Staked, or Locked)
+ */
+export ledger userStatus: Map<Uint<32>, StakingStatus>;
+
+
+// =======================
+//   Witness State (Private)
+// =======================
+
+/**
+ * @dev Private stake start time
+ * @notice Provides the private stake start time for ZK proof generation
+ */
+witness getStakeStartTime(): Uint<64>;
+
+/**
+ * @dev Private reward rate
+ * @notice Provides the private reward rate for ZK proof generation
+ */
+witness getRewardRate(): Uint<64>;
+
+/**
+ * @dev Private balance
+ * @notice Provides the private balance for ZK proof generation
+ */
+witness getBalance(): Uint<64>;
+
+// =======================
+//        Constructor
+// =======================
+
+/**
+ * @dev Constructor
+ * @notice Initializes the staking contract with the owner ID, lock period, and reward rate
+ * @param initialOwnerId The address of the contract owner who can perform administrative functions
+ * @param initialLockPeriod The minimum duration (in time units) that tokens must remain staked
+ * @param initialRewardRate The initial reward rate for staking calculations
+ */
+constructor(initialOwnerId: Uint<32>, initialLockPeriod: Uint<64>, initialRewardRate: Uint<64>) {
+    totalStakedSupply = 0;
+    lockPeriod = disclose(initialLockPeriod);
+    ownerId = disclose(initialOwnerId);
+    rewardRateValue = disclose(initialRewardRate);
+}
+
+// =======================
+//   Witness Functions (For ZK Proofs)
+// =======================
+
+/**
+ * @dev Private check to ensure lock-up period has passed
+ * @notice Verifies if the lock-up period has passed for a given user
+ * @param stakerId The ID of the staker to check
+ * @param currentTime The current timestamp to compare against
+ * @return Boolean indicating whether the lock-up period has passed
+ */
+witness checkLockPeriod(stakerId: Uint<32>, currentTime: Uint<64>): Boolean;
+
+/**
+ * @dev Private calculation of accrued rewards
+ * @notice Calculates the accrued rewards for a given user based on their stake and time
+ * @param stakerId The ID of the staker
+ * @param currentTime The current timestamp for reward calculation
+ * @return The amount of accrued rewards
+ */
+witness calculateRewards(stakerId: Uint<32>, currentTime: Uint<64>): Uint<64>;
+
+/**
+ * @dev Private verification of sufficient funds for staking
+ * @notice Verifies if the user has sufficient funds to stake the requested amount
+ * @param stakerId The ID of the staker
+ * @param amount The amount to be staked
+ * @return Boolean indicating whether the user has sufficient funds
+ */
+witness verifyStakeAmount(stakerId: Uint<32>, amount: Uint<64>): Boolean;
+
+// =======================
+//   Circuits (Transition Functions)
+// =======================
+
+/**
+ * @dev Stake function
+ * @notice Allows a user to stake tokens, which are locked for the configured lock period
+ * @param stakerId The ID of the user staking tokens
+ * @param amount The amount of tokens to stake
+ * @param currentTime The current timestamp for recording the stake start time
+ */
+export circuit stake(
+    stakerId: Uint<32>, 
+    amount: Uint<64>, 
+    currentTime: Uint<64>
+): [] {
+    // Verify sufficient funds privately
+    const isValid = verifyStakeAmount(disclose(stakerId), disclose(amount));
+    assert(isValid, "Insufficient private token balance");
+    
+    // Update staked balance
+    const currentStake = stakedBalances.member(disclose(stakerId)) 
+        ? stakedBalances.lookup(disclose(stakerId)) 
+        : 0 as Uint<64>;
+        
+    stakedBalances.insert(disclose(stakerId), (currentStake + disclose(amount)) as Uint<64>);
+    
+    // Update total supply
+    totalStakedSupply = (totalStakedSupply + disclose(amount)) as Uint<64>;
+    
+    // Update stake start time
+    stakeStartTime = disclose(currentTime);
+    
+    // Update user status to Locked
+    userStatus.insert(disclose(stakerId), StakingStatus.Locked);
+    
+    nonce.increment(1);
+}
+
+/**
+ * @dev Unstake function
+ * @notice Allows a user to unstake tokens after the lock period has passed
+ * @param stakerId The ID of the user unstaking tokens
+ * @param amount The amount of tokens to unstake
+ * @param currentTime The current timestamp for verifying the lock period
+ */
+export circuit unstake(
+    stakerId: Uint<32>, 
+    amount: Uint<64>, 
+    currentTime: Uint<64>
+): [] {
+    // Check if lock period has passed privately
+    const isLockPeriodPassed = checkLockPeriod(disclose(stakerId), disclose(currentTime));
+    assert(isLockPeriodPassed, "Lock-up period not completed");
+    
+    // Check user has sufficient stake
+    assert(stakedBalances.member(disclose(stakerId)), "No staked balance found");
+    const currentStake = stakedBalances.lookup(disclose(stakerId));
+    assert(currentStake >= disclose(amount), "Insufficient staked amount");
+    
+    // Update staked balance
+    stakedBalances.insert(disclose(stakerId), (currentStake - disclose(amount)) as Uint<64>);
+    
+    // Update total supply
+    totalStakedSupply = (totalStakedSupply - disclose(amount)) as Uint<64>;
+    
+    // Update status if balance is zero
+    if ((currentStake - disclose(amount)) == 0 as Uint<64>) {
+        userStatus.insert(disclose(stakerId), StakingStatus.NotStaked);
+    } else {
+        // Re-lock remaining stake
+        stakeStartTime = disclose(currentTime);
+        userStatus.insert(disclose(stakerId), StakingStatus.Locked);
+    }
+    
+    nonce.increment(1);
+}
+
+/**
+ * @dev Claim rewards function
+ * @notice Allows a user to claim their accumulated staking rewards
+ * @param stakerId The ID of the user claiming rewards
+ * @param currentTime The current timestamp for reward calculation
+ */
+export circuit claimRewards(
+    stakerId: Uint<32>, 
+    currentTime: Uint<64>
+): [] {
+    // Calculate rewards privately
+    const rewardsToClaim = calculateRewards(disclose(stakerId), disclose(currentTime));
+    
+    // Assert that rewards are positive
+    assert(rewardsToClaim > 0, "No rewards to claim");
+    
+    // Update public reward balance
+    const currentRewards = rewardBalances.member(disclose(stakerId)) 
+        ? rewardBalances.lookup(disclose(stakerId)) 
+        : 0 as Uint<64>;
+        
+    rewardBalances.insert(disclose(stakerId), (currentRewards + disclose(rewardsToClaim)) as Uint<64>);
+    
+    nonce.increment(1);
+}
+
+/**
+ * @dev Update reward rate function
+ * @notice Updates the global reward rate for all stakers (owner only)
+ * @param callerId The ID of the caller (must be the contract owner)
+ * @param newRewardRate The new reward rate to be applied
+ */
+export circuit updateRewardRate(
+    callerId: Uint<32>,
+    newRewardRate: Uint<64>
+): [] {
+    // Access control: Only owner can update the rate
+    assert(ownerId == disclose(callerId), "Only contract owner can update reward rate");
+    
+    // Update global reward rate
+    rewardRateValue = disclose(newRewardRate);
+    
+    nonce.increment(1);
+}
+
+/**
+ * @dev Update lock period function
+ * @notice Updates the global lock period for all stakers (owner only)
+ * @param callerId The ID of the caller (must be the contract owner)
+ * @param newLockPeriod The new lock period duration (in time units)
+ */
+export circuit updateLockPeriod(
+    callerId: Uint<32>,
+    newLockPeriod: Uint<64>
+): [] {
+    // Access control: Only owner can update the lock period
+    assert(ownerId == disclose(callerId), "Only contract owner can update lock period");
+    
+    // Update public lock period
+    lockPeriod = disclose(newLockPeriod);
+    
+    nonce.increment(1);
+}
+
+// =======================
+//   Query Functions (Publicly readable ledger state)
+// =======================
+
+/**
+ * @dev Query stake function
+ * @notice Returns the total staked amount for a specified user
+ * @param stakerId The ID of the user to query
+ * @return The amount of tokens currently staked by the user, or 0 if no stake exists
+ */
+export circuit queryStake(stakerId: Uint<32>): Uint<64> {
+    return stakedBalances.member(disclose(stakerId)) 
+        ? stakedBalances.lookup(disclose(stakerId)) 
+        : 0 as Uint<64>;
+}
+
+/**
+ * @dev Query rewards function
+ * @notice Returns the accumulated rewards for a specified user
+ * @param stakerId The ID of the user to query
+ * @return The amount of rewards accumulated by the user, or 0 if no rewards exist
+ */
+export circuit queryRewards(stakerId: Uint<32>): Uint<64> {
+    return rewardBalances.member(disclose(stakerId)) 
+        ? rewardBalances.lookup(disclose(stakerId)) 
+        : 0 as Uint<64>;
+}
+
+/**
+ * @dev Query status function
+ * @notice Returns the current staking status for a specified user
+ * @param stakerId The ID of the user to query
+ * @return The user's staking status (NotStaked, Staked, or Locked), or NotStaked if no status exists
+ */
+export circuit queryStatus(stakerId: Uint<32>): StakingStatus {
+    return userStatus.member(disclose(stakerId)) 
+        ? userStatus.lookup(disclose(stakerId)) 
+        : StakingStatus.NotStaked;
+}

@@ -1,0 +1,28 @@
+# Source files
+src/
+contracts/
+
+# Development files
+jest.config.ts
+tsconfig.json
+tsconfig.spec.json
+
+# Test files
+test/
+**/*.test.ts
+**/*.spec.ts
+
+# Documentation
+INSTRUCTIONS.md
+
+# Build artifacts
+coverage/
+.nyc_output/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
