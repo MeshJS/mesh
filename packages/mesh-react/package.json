@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/react",
-  "version": "1.9.0-beta.83",
+  "version": "1.9.0-beta.84",
   "description": "React component library - https://meshjs.dev/react",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -30,10 +30,10 @@
   },
   "dependencies": {
     "@fabianbormann/cardano-peer-connect": "^1.2.18",
-    "@meshsdk/bitcoin": "1.9.0-beta.83",
-    "@meshsdk/common": "1.9.0-beta.83",
-    "@meshsdk/transaction": "1.9.0-beta.83",
-    "@meshsdk/wallet": "1.9.0-beta.83",
+    "@meshsdk/bitcoin": "1.9.0-beta.84",
+    "@meshsdk/common": "1.9.0-beta.84",
+    "@meshsdk/transaction": "1.9.0-beta.84",
+    "@meshsdk/wallet": "1.9.0-beta.84",
     "@meshsdk/web3-sdk": "0.0.50",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-dropdown-menu": "^2.1.2",

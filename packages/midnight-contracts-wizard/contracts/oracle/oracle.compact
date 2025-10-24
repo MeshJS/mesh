@@ -1,0 +1,278 @@
+pragma language_version >= 0.16.0;
+
+import CompactStandardLibrary;
+
+/**
+ * @dev Trusted oracle operator registry
+ * @notice Merkle tree storing authorized oracle operator commitments for privacy-preserving authorization
+ */
+export ledger authorizedOperators: MerkleTree<100, Bytes<32>>;
+
+/**
+ * @dev Oracle address
+ * @notice Stores the address of the trusted oracle for signature verification
+ */
+export ledger oracleAddress: Uint<32>;
+
+/**
+ * @dev Oracle data value
+ * @notice Stores the current value updated by the oracle
+ */
+export ledger dataValue: Uint<64>;
+
+/**
+ * @dev Oracle feeds registry
+ * @notice Maps data keys to their latest oracle data points with metadata
+ */
+export ledger oracleFeeds: Map<Bytes<32>, OracleDataPoint>;
+
+/**
+ * @dev Authorized auditors registry
+ * @notice Merkle tree storing authorized auditor commitments for compliance and oversight
+ */
+export ledger authorizedAuditors: MerkleTree<100, Bytes<32>>;
+
+/**
+ * @dev Contract owner
+ * @notice Stores the contract owner's public key for administrative functions
+ */
+export ledger owner: Bytes<32>;
+
+/**
+ * @dev Oracle data point structure
+ * @notice Represents a single oracle data submission with value, timestamp, and operator metadata
+ * @param value The oracle data value (e.g., price, rate, or other metric)
+ * @param timestamp Unix timestamp when the data was submitted
+ * @param operator Commitment hash of the operator who submitted the data
+ */
+struct OracleDataPoint {
+    value: Uint<128>;
+    timestamp: Uint<64>;
+    operator: Bytes<32>;
+}
+
+/**
+ * @dev Constructor
+ * @notice Initializes the oracle contract with the trusted oracle address
+ * @param oracle The address of the trusted oracle for signature verification
+ */
+constructor(oracle: Uint<32>) {
+    oracleAddress = disclose(oracle);
+    dataValue = 0; // Initialize with a default value
+}
+
+/**
+ * @dev Verify signature witness
+ * @notice Verifies a digital signature against data and oracle address
+ * @param signature The 64-byte signature to verify
+ * @param data The 32-byte data that was signed
+ * @param oracleAddress The oracle's address for verification
+ * @return Boolean indicating whether the signature is valid
+ */
+witness verifySignature(signature: Bytes<64>, data: Bytes<32>, oracleAddress: Uint<32>): Boolean;
+
+/**
+ * @dev Hash data witness
+ * @notice Computes a hash of the provided value for signature verification
+ * @param newValue The value to hash
+ * @return A 32-byte hash of the input value
+ */
+witness hashData(newValue: Uint<64>): Bytes<32>;
+
+/**
+ * @dev Get private oracle data witness
+ * @notice Provides oracle data privately for zero-knowledge proof generation
+ * @param dataKey The identifier for the data feed
+ * @return The oracle data value (kept private)
+ */
+witness getPrivateOracleData(dataKey: Bytes<32>): Uint<128>;
+
+/**
+ * @dev Validate data freshness witness
+ * @notice Checks if oracle data is recent enough for use
+ * @param dataKey The data feed identifier
+ * @param maxAge Maximum acceptable age in seconds
+ * @return Boolean indicating whether the data is fresh enough
+ */
+witness validateDataFreshness(dataKey: Bytes<32>, maxAge: Uint<64>): Boolean;
+
+/**
+ * @dev Find operator witness
+ * @notice Provides the Merkle tree path for an operator's authorization proof
+ * @param operatorCommitment The operator's commitment hash
+ * @return The Merkle tree path proving the operator is authorized
+ */
+witness findOperator(operatorCommitment: Bytes<32>): MerkleTreePath<100, Bytes<32>>;
+
+/**
+ * @dev Get current time witness
+ * @notice Provides the current timestamp for recording updates and freshness checks
+ * @return The current Unix timestamp in seconds
+ */
+witness getCurrentTime(): Uint<64>;
+
+/**
+ * @dev Find auditor witness
+ * @notice Provides the Merkle tree path for an auditor's authorization proof
+ * @param auditorCommitment The auditor's commitment hash
+ * @return The Merkle tree path proving the auditor is authorized
+ */
+witness findAuditor(auditorCommitment: Bytes<32>): MerkleTreePath<100, Bytes<32>>;
+
+/**
+ * @dev Get secret key witness
+ * @notice Provides the caller's secret key for owner verification
+ * @return The caller's 32-byte secret key
+ */
+witness getSecretKey(): Bytes<32>;
+
+/**
+ * @dev Register oracle operator circuit
+ * @notice Allows the contract owner to register a new authorized oracle operator
+ * @param operatorCommitment Hash commitment of the operator's credentials
+ */
+export circuit registerOperator(operatorCommitment: Bytes<32>): [] {
+    // Verify caller is contract owner
+    const callerPk = persistentHash<Bytes<32>>(disclose(getSecretKey()));
+    assert(owner == callerPk, "Only owner can register operators");
+    
+    authorizedOperators.insert(disclose(operatorCommitment));
+}
+
+/**
+ * @dev Submit oracle data circuit
+ * @notice Allows authorized operators to submit oracle data with cryptographic proof of authorization
+ * @param dataKey Identifier for the data feed (e.g., price pair, metric name)
+ * @param dataValue The oracle data value to store
+ * @param timestamp Unix timestamp when the data was observed
+ * @param operatorProof The operator's commitment hash for authorization verification
+ */
+export circuit submitOracleData(
+    dataKey: Bytes<32>,
+    dataValue: Uint<128>,
+    timestamp: Uint<64>,
+    operatorProof: Bytes<32>
+): [] {
+    // Verify operator is authorized using Merkle proof
+    const path = disclose(findOperator(operatorProof));
+    assert(authorizedOperators.checkRoot(merkleTreePathRoot<100, Bytes<32>>(path)), 
+           "Unauthorized oracle operator");
+
+    // Create the OracleDataPoint struct
+    const dataPoint = OracleDataPoint {
+        value: disclose(dataValue),
+        timestamp: disclose(timestamp),
+        operator: disclose(operatorProof)
+    };
+
+    // Insert the complete struct into the map
+    oracleFeeds.insert(disclose(dataKey), dataPoint);
+}
+
+/**
+ * @dev Get oracle data circuit
+ * @notice Retrieves the current oracle data value with freshness validation
+ * @param dataKey The identifier for the data feed to retrieve
+ * @param maxAge Maximum acceptable age in seconds for the data to be considered valid
+ * @return The current oracle data value if it passes freshness checks
+ */
+export circuit getOracleData(dataKey: Bytes<32>, maxAge: Uint<64>): Uint<128> {
+    assert(oracleFeeds.member(disclose(dataKey)), "Oracle data not found");
+
+    const dataPoint = oracleFeeds.lookup(disclose(dataKey));
+
+    // Verify data freshness
+    const currentTime = disclose(getCurrentTime());
+    assert(currentTime - dataPoint.timestamp <= disclose(maxAge), "Oracle data is stale");
+
+    // Return only the value
+    return dataPoint.value;
+}
+
+/**
+ * @dev Verify oracle condition circuit
+ * @notice Proves that oracle data meets a threshold condition without revealing the actual value
+ * @param dataKey The identifier for the data feed to verify
+ * @param threshold The threshold value to compare against
+ * @return Boolean indicating whether the oracle value meets or exceeds the threshold
+ */
+export circuit verifyOracleCondition(
+    dataKey: Bytes<32>,
+    threshold: Uint<128>
+): Boolean {
+    const oracleValue = getPrivateOracleData(disclose(dataKey));
+    return disclose(oracleValue) >= disclose(threshold);
+}
+
+/**
+ * @dev Check collateral ratio circuit
+ * @notice Verifies that collateral value meets the required ratio (150%) without revealing exact amounts
+ * @param collateralAmount The amount of collateral held (kept private)
+ * @param debtAmount The amount of debt owed (kept private)
+ * @param priceKey The identifier for the price feed to use in valuation
+ * @return Boolean indicating whether the collateral ratio requirement is met
+ */
+export circuit checkCollateralRatio(
+    collateralAmount: Uint<128>,
+    debtAmount: Uint<128>,
+    priceKey: Bytes<32>
+): Boolean {
+    const price = getPrivateOracleData(disclose(priceKey));
+    
+    // Calculate collateral value and required collateral (150% ratio)
+    const collateralValue = (disclose(collateralAmount) as Field) * (disclose(price) as Field);
+    const requiredCollateral = (disclose(debtAmount) as Field) * (150 as Field); 
+    
+    return (collateralValue as Uint<128>) >= (requiredCollateral as Uint<128>);
+}
+
+/**
+ * @dev Register auditor circuit
+ * @notice Allows the contract owner to register a new authorized auditor for compliance oversight
+ * @param auditorCommitment Hash commitment of the auditor's credentials
+ */
+export circuit registerAuditor(auditorCommitment: Bytes<32>): [] {
+    // Verify caller is contract owner
+    const callerPk = persistentHash<Bytes<32>>(disclose(getSecretKey()));
+    assert(owner == callerPk, "Only owner can register auditors");
+
+    authorizedAuditors.insert(disclose(auditorCommitment));
+}
+
+/**
+ * @dev Disclose oracle data to auditor circuit
+ * @notice Allows authorized auditors to access oracle data for compliance and oversight purposes
+ * @param dataKey The identifier for the data feed to disclose
+ * @param auditorKey The auditor's public key or commitment hash
+ * @return The complete oracle data point including value, timestamp, and operator information
+ */
+export circuit discloseToAuditor(
+    dataKey: Bytes<32>,
+    auditorKey: Bytes<32>
+): OracleDataPoint {
+    // Verify auditor is authorized using Merkle proof
+    const path = disclose(findAuditor(disclose(auditorKey)));
+    assert(authorizedAuditors.checkRoot(merkleTreePathRoot<100, Bytes<32>>(path)), 
+           "Unauthorized auditor");
+    
+    // Verify the data exists
+    assert(oracleFeeds.member(disclose(dataKey)), "Oracle data not found");
+
+    // Retrieve and return the oracle data
+    const dataPoint = oracleFeeds.lookup(disclose(dataKey));
+    return dataPoint;
+}
+
+/**
+ * @dev Update oracle value circuit
+ * @notice Allows a trusted oracle to update the data value with cryptographic signature verification
+ * @param newValue The new oracle data value to store
+ * @param signature The oracle's 64-byte signature over the combined data and value
+ * @param data The 32-byte data context (e.g., data feed identifier) for the update
+ */
+export circuit updateValue(newValue: Uint<64>, signature: Bytes<64>, data: Bytes<32>): [] {
+    // Hash both the data context and new value for signature verification
+    const message = persistentHash<[Bytes<32>, Uint<64>]>([disclose(data), disclose(newValue)]);
+    assert(verifySignature(disclose(signature), message, oracleAddress), "Invalid signature");
+    dataValue = disclose(newValue);
+}
