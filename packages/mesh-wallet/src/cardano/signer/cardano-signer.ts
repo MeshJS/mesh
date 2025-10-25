@@ -12,103 +12,17 @@ import {
 
 import { DataSignature, isHexString, stringToHex } from "@meshsdk/common";
 
-import { BaseBip32 } from "../../bip32/base-bip32";
 import { ISigner } from "../../interfaces/signer";
-import { DEFAULT_ACCOUNT_KEY_DERIVATION_PATH } from "../../utils/constants";
 import { CoseSign1, getCoseKeyFromPublicKey } from "./cip-8";
 
 export class CardanoSigner {
-  public paymentSigner: ISigner;
-  public stakeSigner?: ISigner;
-  public drepSigner?: ISigner;
-
-  constructor(
-    paymentSigner: ISigner,
-    stakeSigner?: ISigner,
-    drepSigner?: ISigner,
-  ) {
+  constructor() {
     setInConwayEra(true);
-    this.paymentSigner = paymentSigner;
-    this.stakeSigner = stakeSigner;
-    this.drepSigner = drepSigner;
   }
 
-  static async fromBip32(
-    bip32: BaseBip32,
-    accountDerivationPath?: number[],
-  ): Promise<CardanoSigner> {
-    const accountBip32 = accountDerivationPath
-      ? await bip32.derive(accountDerivationPath)
-      : await bip32.derive(DEFAULT_ACCOUNT_KEY_DERIVATION_PATH);
-
-    const paymentAccount = await accountBip32.derive([0, 0]);
-    const stakeAccount = await accountBip32.derive([2, 0]);
-    const drepAccount = await accountBip32.derive([3, 0]);
-
-    return new CardanoSigner(
-      await paymentAccount.toSigner(),
-      await stakeAccount.toSigner(),
-      await drepAccount.toSigner(),
-    );
-  }
-
-  async paymentSign(data: string): Promise<string> {
-    return this.paymentSigner.sign(data);
-  }
-
-  async paymentSignTx(tx: string, returnFullTx = false): Promise<string> {
-    return this.signerSignTx(tx, this.paymentSigner, returnFullTx);
-  }
-
-  async paymentSignData(data: string, address: string): Promise<DataSignature> {
-    return this.signerSignData(data, address, this.paymentSigner);
-  }
-
-  async stakeSign(data: string): Promise<string> {
-    if (!this.stakeSigner) {
-      throw new Error("Stake signer not provided");
-    }
-    return this.stakeSigner.sign(data);
-  }
-
-  async stakeSignTx(tx: string, returnFullTx = false): Promise<string> {
-    if (!this.stakeSigner) {
-      throw new Error("Stake signer not provided");
-    }
-    return this.signerSignTx(tx, this.stakeSigner, returnFullTx);
-  }
-
-  async stakeSignData(data: string, address: string): Promise<DataSignature> {
-    if (!this.stakeSigner) {
-      throw new Error("Stake signer not provided");
-    }
-    return this.signerSignData(data, address, this.stakeSigner);
-  }
-
-  async drepSign(data: string): Promise<string> {
-    if (!this.drepSigner) {
-      throw new Error("DRep signer not provided");
-    }
-    return this.drepSigner.sign(data);
-  }
-
-  async drepSignTx(tx: string, returnFullTx = false): Promise<string> {
-    if (!this.drepSigner) {
-      throw new Error("DRep signer not provided");
-    }
-    return this.signerSignTx(tx, this.drepSigner, returnFullTx);
-  }
-
-  async drepSignData(data: string, address: string): Promise<DataSignature> {
-    if (!this.drepSigner) {
-      throw new Error("DRep signer not provided");
-    }
-    return this.signerSignData(data, address, this.drepSigner);
-  }
-
-  private async signerSignTx(
+  static async signTx(
     tx: string,
-    signer: ISigner,
+    signers: ISigner[],
     returnFullTx = false,
   ): Promise<string> {
     const cardanoTx = Serialization.Transaction.fromCbor(
@@ -116,19 +30,27 @@ export class CardanoSigner {
     );
     const txHash = cardanoTx.body().hash();
 
-    const vkeyWitness = new Serialization.VkeyWitness(
-      Ed25519PublicKeyHex(await signer.getPublicKey()),
-      Ed25519SignatureHex(await signer.sign(HexBlob(txHash))),
-    );
+    const vkeyWitnesses: [Ed25519PublicKeyHex, Ed25519SignatureHex][] = [];
+    for (const signer of signers) {
+      vkeyWitnesses.push([
+        Ed25519PublicKeyHex(await signer.getPublicKey()),
+        Ed25519SignatureHex(await signer.sign(HexBlob(txHash))),
+      ]);
+    }
+
     if (returnFullTx) {
       const txWitnessSet = cardanoTx.witnessSet();
       let witnessSetVkeys = txWitnessSet.vkeys();
-      let witnessSetVkeysValues: Serialization.VkeyWitness[] = witnessSetVkeys
-        ? [...witnessSetVkeys.values(), vkeyWitness]
-        : [vkeyWitness];
+      let witnessSetVkeysValues: [Ed25519PublicKeyHex, Ed25519SignatureHex][] =
+        witnessSetVkeys
+          ? [
+              ...witnessSetVkeys.values().map((vkw) => vkw.toCore()),
+              ...vkeyWitnesses,
+            ]
+          : vkeyWitnesses;
       txWitnessSet.setVkeys(
         Serialization.CborSet.fromCore(
-          witnessSetVkeysValues.map((vkw) => vkw.toCore()),
+          witnessSetVkeysValues,
           Serialization.VkeyWitness.fromCore,
         ),
       );
@@ -138,10 +60,19 @@ export class CardanoSigner {
         cardanoTx.auxiliaryData(),
       ).toCbor();
     }
-    return vkeyWitness.toCbor();
+
+    const txWitnessSet = new Serialization.TransactionWitnessSet();
+    txWitnessSet.setVkeys(
+      Serialization.CborSet.fromCore(
+        vkeyWitnesses,
+        Serialization.VkeyWitness.fromCore,
+      ),
+    );
+
+    return txWitnessSet.toCbor();
   }
 
-  private async signerSignData(
+  static async signData(
     data: string,
     addressHex: string,
     signer: ISigner,

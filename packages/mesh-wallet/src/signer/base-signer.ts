@@ -45,6 +45,21 @@ export class BaseSigner implements ISigner {
     );
   }
 
+  static fromKeyHex(keyHex: string): BaseSigner {
+    // Extended key is 64 bytes (128 hex chars), normal key is 32 bytes (64 hex chars)
+    const hexLength = keyHex.length;
+
+    if (hexLength === 128) {
+      return this.fromExtendedKeyHex(keyHex);
+    } else if (hexLength === 64) {
+      return this.fromNormalKeyHex(keyHex);
+    } else {
+      throw new Error(
+        `Invalid key length: ${hexLength}. Expected 64 (normal key) or 128 (extended key) hex characters.`,
+      );
+    }
+  }
+
   /**
    * Get the Ed25519 public key in hex format.
    * @returns {Promise<string>} A promise that resolves to the public key in hex format.

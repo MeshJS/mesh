@@ -7,11 +7,15 @@ import {
 import * as BaseEncoding from "@scure/base";
 import { mnemonicToEntropy } from "bip39";
 
-import { IBip32 } from "../interfaces/bip32";
+import {
+  DerivationPath,
+  derivationPathVectorFromString,
+  ISecretManager,
+} from "../interfaces/secret-manager";
 import { ISigner } from "../interfaces/signer";
 import { BaseSigner } from "../signer/base-signer";
 
-export class BaseBip32 implements IBip32 {
+export class InMemoryBip32 implements ISecretManager {
   private bip32PrivateKey: Bip32PrivateKey;
 
   private constructor(privateKey: Bip32PrivateKey) {
@@ -22,49 +26,39 @@ export class BaseBip32 implements IBip32 {
   static async fromMnemonic(
     mnemonic: string[],
     password?: string,
-  ): Promise<BaseBip32> {
+  ): Promise<InMemoryBip32> {
     await ready();
     const entropy = mnemonicToEntropy(mnemonic.join(" "));
     const bip32PrivateKey = Bip32PrivateKey.fromBip39Entropy(
       Buffer.from(entropy, "hex"),
       password || "",
     );
-    return new BaseBip32(bip32PrivateKey);
+    return new InMemoryBip32(bip32PrivateKey);
   }
 
   static async fromEntropy(
     entropy: string,
     password?: string,
-  ): Promise<BaseBip32> {
+  ): Promise<InMemoryBip32> {
     await ready();
     const bip32PrivateKey = Bip32PrivateKey.fromBip39Entropy(
       Buffer.from(entropy, "hex"),
       password || "",
     );
-    return new BaseBip32(bip32PrivateKey);
+    return new InMemoryBip32(bip32PrivateKey);
   }
 
-  static fromKeyHex(keyHex: string): BaseBip32 {
+  static fromKeyHex(keyHex: string): InMemoryBip32 {
     const bip32PrivateKey = Bip32PrivateKey.fromHex(
       keyHex as Bip32PrivateKeyHex,
     );
-    return new BaseBip32(bip32PrivateKey);
+    return new InMemoryBip32(bip32PrivateKey);
   }
 
-  static fromBech32(bech32: string): BaseBip32 {
+  static fromBech32(bech32: string): InMemoryBip32 {
     const bech32DecodedBytes = BaseEncoding.bech32.decodeToBytes(bech32).bytes;
     const bip32PrivateKey = Bip32PrivateKey.fromBytes(bech32DecodedBytes);
-    return new BaseBip32(bip32PrivateKey);
-  }
-
-  /**
-   * Derive a new IBip32 instance using the specified derivation path.
-   * @param path The derivation path as an array of numbers.
-   * @returns {Promise<IBip32>} A promise that resolves to a new IBip32 instance derived from the current key using the specified path.
-   */
-  async derive(path: number[]): Promise<IBip32> {
-    await ready();
-    return new BaseBip32(this.bip32PrivateKey.derive(path));
+    return new InMemoryBip32(bip32PrivateKey);
   }
 
   /**
@@ -80,7 +74,11 @@ export class BaseBip32 implements IBip32 {
    * Get an ISigner instance initialized with the current Bip32 private key.
    * @returns {Promise<ISigner>} A promise that resolves to an ISigner instance initialized with the current Bip32 private key.
    */
-  async toSigner(): Promise<ISigner> {
-    return BaseSigner.fromExtendedKeyHex(this.bip32PrivateKey.toRawKey().hex());
+  async getSigner(derivationPath: DerivationPath): Promise<ISigner> {
+    const path = Array.isArray(derivationPath)
+      ? derivationPath
+      : derivationPathVectorFromString(derivationPath);
+    const bip32PrivateKey = this.bip32PrivateKey.derive(path);
+    return BaseSigner.fromExtendedKeyHex(bip32PrivateKey.toRawKey().hex());
   }
 }
