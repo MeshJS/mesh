@@ -7,9 +7,7 @@ import { ICardanoWallet } from "../../../interfaces/cardano-wallet";
 import { ISecretManager } from "../../../interfaces/secret-manager";
 import { toTxUnspentOutput } from "../../../utils/conerter";
 import { mergeValue } from "../../../utils/value";
-import {
-  AddressType,
-} from "../../address/cardano-address";
+import { AddressType } from "../../address/cardano-address";
 import {
   AddressManager,
   CredentialSource,
@@ -59,13 +57,13 @@ export interface BaseCardanoWalletConfig {
 }
 
 export class BaseCardanoWallet implements ICardanoWallet {
-  public networkId: number;
-  private addressManager: AddressManager;
-  public fetcher?: IFetcher;
-  public submitter?: ISubmitter;
-  private walletAddressType: WalletAddressType;
+  protected networkId: number;
+  protected addressManager: AddressManager;
+  protected fetcher?: IFetcher;
+  protected submitter?: ISubmitter;
+  protected walletAddressType: WalletAddressType;
 
-  private constructor(
+  protected constructor(
     networkId: number,
     addressManager: AddressManager,
     walletAddressType: WalletAddressType,
