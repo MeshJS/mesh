@@ -1,0 +1,25 @@
+pragma language_version >= 0.16.0;
+
+import CompactStandardLibrary;
+import "../identity/CryptoLibrary";
+
+/**
+ * @dev Exported types and functions
+ * @notice Makes cryptographic primitives and identity types available to external consumers
+ * - CoinInfo: Coin information structure for token handling
+ * - Signature: Digital signature type for credential verification
+ * - CredentialSubject: Structure representing credential subject data
+ * - SignedCredentialSubject: Credential subject with issuer signature
+ * - sign: Function to create digital signatures
+ * - verifySignature: Function to verify digital signatures
+ * - derivePk: Function to derive public key from private key
+ * - subjectHash: Function to hash credential subject data
+ */
+export { CoinInfo }
+export { Signature }
+export { CredentialSubject }
+export { SignedCredentialSubject }
+export { sign }
+export { verifySignature }
+export { derivePk }
+export { subjectHash }
