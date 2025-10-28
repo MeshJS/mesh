@@ -1,6 +1,7 @@
 import type { Network } from "bitcoinjs-lib";
 import { BIP32Interface } from "bip32";
 import { mnemonicToSeedSync, validateMnemonic } from "bip39";
+
 import { bip32, bip39, bitcoin, ECPair } from "../../core";
 import { IBitcoinProvider } from "../../interfaces/provider";
 import { UTxO } from "../../types/utxo";
@@ -59,14 +60,22 @@ export class EmbeddedWallet {
   }
 
   /**
-   * Returns the wallet's Bitcoin addresses following Xverse API format.
+   * Apps can specify which wallet addresses they require: Bitcoin ordinals address or Bitcoin payment address,
+   * using the `purposes` request parameter. The `message` request param gives apps the option to display a
+   * message to the user when requesting their addresses. (note: ignored for embedded wallets)
    *
-   * @param purposes Array of address purposes to request:
-   *   - `'ordinals'` for managing ordinals (should return P2TR taproot address)
-   *   - `'payment'` for managing bitcoin (returns P2WPKH address)
-   *   TODO: Should follow Xverse docs to return taproot address for ordinals purpose
-   * @param message Optional message to display in request prompt (ignored for embedded wallets)
-   * @returns {Promise<GetAddressResult[]>} Array of address objects with address, publicKey, purpose, addressType, network, and walletType
+   * @param purposes Array of strings used to specify the purpose of the address(es) to request:
+   *   - `'ordinals'` is preferably used to manage the user's ordinals
+   *   - `'payment'` is preferably used to manage the user's bitcoin
+   *   Example: `['ordinals', 'payment']`
+   * @param message Optional - a message to be displayed to the user in the request prompt (ignored for embedded wallets)
+   * @returns {Promise<GetAddressResult[]>} Once resolved, returns an array of the user's wallet address objects:
+   *   - `address`: string - the user's connected wallet address
+   *   - `publicKey`: A hex string representing the bytes of the public key of the account. You can use this to construct partially signed Bitcoin transactions (PSBT)
+   *   - `purpose`: string - The purpose of the address ('ordinals' for managing ordinals, 'payment' for managing bitcoin)
+   *   - `addressType`: string - the address's format ('P2TR' for ordinals, 'P2SH' for payment, 'P2WPKH' for payment using Ledger)
+   *   - `network`: string - the network where the address is being used ('mainnet', 'testnet', 'signet')
+   *   - `walletType`: string - the type of wallet used for the account ('ledger' for Ledger devices, 'software' otherwise)
    * @throws {Error} If wallet is not properly initialized.
    */
   async getAddresses(
@@ -168,10 +177,22 @@ export class EmbeddedWallet {
   }
 
   /**
-   * Signs a message following Xverse API format.
+   * You can request to sign a message with wallet's Bitcoin addresses, by invoking the `signMessage` method.
    *
-   * @param params - Object containing address, message, and optional protocol
-   * @returns Promise resolving to signature result
+   * @param params - Object containing the following parameters:
+   *   - `address`: a string representing the address to use to sign the message
+   *   - `message`: a string representing the message to be signed by the wallet
+   *   - `protocol` (optional): By default, signMessage will use two type of signatures depending on the Bitcoin address used for signing:
+   *     - ECDSA signatures over the secp256k1 curve when signing with the Bitcoin payment (`p2sh`) address
+   *     - BIP322 signatures when signing with the Bitcoin Ordinals (`p2tr`) address or a Ledger-based Bitcoin payment address (`p2wpkh`)
+   *
+   *     You have the option to specify your preferred signature type with the `protocol` parameter:
+   *     - `ECDSA` to request ECDSA signatures over the secp256k1 curve (available for payment addresses only: `p2sh` and `p2wpkh`)
+   *     - `BIP322` to request BIP322 signatures (available for all payment (`p2sh` and `p2wpkh`) & ordinals addresses (`p2tr`))
+   * @returns Promise that resolves to the `SignMessageResult` object containing:
+   *   - `signature`: a string representing the signed message
+   *   - `messageHash`: a string representing the hash of the message
+   *   - `address`: a string representing the address used for signing
    * @throws {Error} If the wallet is read-only or private key is not available.
    */
   async signMessage(params: SignMessageParams): Promise<SignMessageResult> {
@@ -220,9 +241,24 @@ export class EmbeddedWallet {
   }
 
   /**
-   * Sign a PSBT following Xverse API format.
-   * @param params - Object containing PSBT and signing instructions
-   * @returns Promise resolving to signed PSBT result
+   * You can use the `signPsbt` method to request the signature of a Partially Signed Bitcoin Transaction (PSBT)
+   * from Bitcoin wallet addresses.
+   *
+   * The PSBT to be signed must be base64-encoded. You can use any Bitcoin library to construct this transaction.
+   *
+   * @param params - Object containing the following parameters:
+   *   - `psbt`: a string representing the psbt to sign, encoded in base64
+   *   - `signInputs`: A Record<string, number[]> where:
+   *     - the keys are the addresses to use for signing
+   *     - the values are the indexes of the inputs to sign with each address
+   *   - `broadcast`: a boolean flag that specifies whether to broadcast the signed transaction after signature
+   *
+   * Depending on your use case, you can request that the PSBT be finalized and broadcasted after signing,
+   * by setting the broadcast flag to true. Otherwise, the signed PSBT will be returned in the response without broadcasting.
+   *
+   * @returns Promise that resolves to the `SignPsbtResult` object containing:
+   *   - `psbt`: The base64 encoded signed PSBT
+   *   - `txid`: The transaction id as a hex-encoded string (only returned if the transaction was broadcasted)
    * @throws {Error} If the wallet is read-only or private key is not available.
    */
   async signPsbt(params: SignPsbtParams): Promise<SignPsbtResult> {
@@ -279,9 +315,14 @@ export class EmbeddedWallet {
   }
 
   /**
-   * Send Bitcoin to recipients following Xverse API format.
-   * @param params - Object containing recipients array
-   * @returns Promise resolving to transaction result
+   * You can use the `sendTransfer` method to request a transfer of any amount of Bitcoin to one or more recipients from the wallet.
+   *
+   * @param params - Object containing the following parameters:
+   *   - `recipients`: an array of objects with <address, amount> properties:
+   *     - `address`: a string representing the recipient's address
+   *     - `amount`: a number representing the amount of Bitcoin to send, denominated in satoshis (Bitcoin base unit)
+   * @returns Promise that resolves to the `sendTransferResult` object containing:
+   *   - `txid`: The transaction id as a hex-encoded string
    * @throws {Error} If the wallet is read-only or provider is not available.
    */
   async sendTransfer(params: SendTransferParams): Promise<SendTransferResult> {
@@ -290,7 +331,9 @@ export class EmbeddedWallet {
     }
 
     if (!this._provider) {
-      throw new Error("`provider` is not defined. Provide a BitcoinProvider for sending.");
+      throw new Error(
+        "`provider` is not defined. Provide a BitcoinProvider for sending.",
+      );
     }
 
     if (!this._wallet) {
@@ -327,8 +370,14 @@ export class EmbeddedWallet {
   }
 
   /**
-   * Get wallet balance following Xverse API format.
-   * @returns Promise resolving to balance information
+   * You can use the `getBalance` method to retrieve Bitcoin balance.
+   *
+   * The `getBalance` method will return an object representing the connected wallet's payment address BTC holdings:
+   *
+   * @returns Promise that resolves to an object containing the following balance information:
+   *   - `confirmed`: a string representing the connected wallet's confirmed BTC balance, i.e. the amount of confirmed BTC which the payment address holds, in satoshis
+   *   - `unconfirmed`: a string representing the connected wallet's unconfirmed BTC balance, i.e. the amount of unconfirmed BTC which the payment address will send/receive as a result of pending mempool transactions, in satoshis (Note: this amount can be negative if the net result of pending mempool transaction decreases the address balance)
+   *   - `total`: a string representing the sum of confirmed and unconfirmed BTC balances
    * @throws {Error} If provider is not available.
    */
   async getBalance(): Promise<GetBalanceResult> {
@@ -342,8 +391,12 @@ export class EmbeddedWallet {
     const address = addresses[0].address;
 
     const addressInfo = await this._provider.fetchAddress(address);
-    const confirmed = addressInfo.chain_stats.funded_txo_sum - addressInfo.chain_stats.spent_txo_sum;
-    const unconfirmed = addressInfo.mempool_stats.funded_txo_sum - addressInfo.mempool_stats.spent_txo_sum;
+    const confirmed =
+      addressInfo.chain_stats.funded_txo_sum -
+      addressInfo.chain_stats.spent_txo_sum;
+    const unconfirmed =
+      addressInfo.mempool_stats.funded_txo_sum -
+      addressInfo.mempool_stats.spent_txo_sum;
     const total = confirmed + unconfirmed;
 
     return {
@@ -354,8 +407,11 @@ export class EmbeddedWallet {
   }
 
   /**
-   * Sign multiple transactions (Xverse custom method).
-   * @param params - Object containing network, message, and PSBTs array
+   * To request signing of multiple PSBTs, you can use the `signMultipleTransactions` function.
+   *
+   * @param params - Object containing an array of PSBTs to sign, where each PSBT contains:
+   *   - `psbtBase64`: a valid psbt encoded in base64
+   *   - `inputsToSign`: an array of objects describing the address and index of input to sign
    * @returns Promise resolving to signed PSBTs
    * @throws {Error} If the wallet is read-only or private key is not available.
    */
@@ -391,38 +447,42 @@ export class EmbeddedWallet {
   /**
    * Simple largest-first coin selection algorithm.
    * Selects UTXOs in descending order by value until target amount + fees is reached.
-   * 
+   *
    * @param utxos Available UTXOs
    * @param targetAmount Amount needed in satoshis
    * @param feeRate Fee rate in sat/vByte
    * @returns Selected UTXOs and change amount
    */
-  private _selectUtxosLargestFirst(utxos: UTxO[], targetAmount: number, feeRate: number): 
-    { selectedUtxos: UTxO[], change: number } {
-    
+  private _selectUtxosLargestFirst(
+    utxos: UTxO[],
+    targetAmount: number,
+    feeRate: number,
+  ): { selectedUtxos: UTxO[]; change: number } {
     // Sort UTXOs by value (descending) - largest first
     const sortedUtxos = [...utxos].sort((a, b) => b.value - a.value);
-    
+
     let selectedValue = 0;
     const selectedUtxos: UTxO[] = [];
-    
+
     // Accumulate UTXOs until we have enough
     for (const utxo of sortedUtxos) {
       selectedUtxos.push(utxo);
       selectedValue += utxo.value;
-      
+
       // Calculate fee with current selection (rough estimate)
       const estimatedTxSize = selectedUtxos.length * 150 + 2 * 34 + 10; // inputs + outputs + overhead
       const fee = Math.ceil(estimatedTxSize * feeRate);
-      
+
       // Check if we have enough
       if (selectedValue >= targetAmount + fee) {
-        const finalFee = Math.ceil((selectedUtxos.length * 150 + 2 * 34 + 10) * feeRate);
+        const finalFee = Math.ceil(
+          (selectedUtxos.length * 150 + 2 * 34 + 10) * feeRate,
+        );
         const change = selectedValue - targetAmount - finalFee;
         return { selectedUtxos, change };
       }
     }
-    
+
     throw new Error("Insufficient funds for transaction.");
   }
 
@@ -449,14 +509,18 @@ export class EmbeddedWallet {
 
     // Use simple largest-first coin selection
     const targetAmount = recipients.reduce((sum, r) => sum + r.amount, 0);
-    const { selectedUtxos, change } = this._selectUtxosLargestFirst(utxos, targetAmount, feeRate);
+    const { selectedUtxos, change } = this._selectUtxosLargestFirst(
+      utxos,
+      targetAmount,
+      feeRate,
+    );
     const psbt = new bitcoin.Psbt({ network: this._network });
     const p2wpkh = bitcoin.payments.p2wpkh({
       pubkey: this._wallet!.publicKey,
       network: this._network,
     });
 
-    selectedUtxos.forEach(utxo => {
+    selectedUtxos.forEach((utxo) => {
       psbt.addInput({
         hash: utxo.txid,
         index: utxo.vout,
@@ -464,7 +528,7 @@ export class EmbeddedWallet {
       });
     });
 
-    recipients.forEach(recipient => {
+    recipients.forEach((recipient) => {
       psbt.addOutput({ address: recipient.address, value: recipient.amount });
     });
 
