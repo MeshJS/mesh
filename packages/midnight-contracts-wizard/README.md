@@ -1,4 +1,4 @@
-# @meshsdk/midnight-contracts-wizard
+# Midnight Contracts Wizard
 
 A CLI tool to create new Midnight contracts projects with selected smart contracts.
 

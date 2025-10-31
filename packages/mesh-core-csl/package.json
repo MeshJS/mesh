@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core-csl",
-  "version": "1.9.0-beta.84",
+  "version": "1.9.0-beta.85",
   "description": "Types and utilities functions between Mesh and cardano-serialization-lib",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
-    "@meshsdk/provider": "1.9.0-beta.84",
+    "@meshsdk/provider": "1.9.0-beta.85",
     "@types/json-bigint": "^1.0.4",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
@@ -39,7 +39,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.0-beta.84",
+    "@meshsdk/common": "1.9.0-beta.85",
     "@sidan-lab/whisky-js-browser": "^1.0.11",
     "@sidan-lab/whisky-js-nodejs": "^1.0.11",
     "@types/base32-encoding": "^1.0.2",

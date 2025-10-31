@@ -29,7 +29,7 @@
     "generator"
   ],
   "author": "MeshJS Team",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "chalk": "^4.1.2",
     "fs-extra": "^11.1.1",
