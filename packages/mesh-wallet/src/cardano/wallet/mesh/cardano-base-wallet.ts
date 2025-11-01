@@ -32,6 +32,11 @@ export interface BaseCardanoWalletConfig {
    */
   networkId: number;
   /**
+   * Optional custom credential source for the payment credential.
+   * If not provided, the wallet will derive payment credentials using default derivation paths.
+   */
+  customPaymentCredentialSource?: CredentialSource;
+  /**
    * Optional custom credential source for the stake credential.
    * If not provided, the wallet will derive stake credentials using default derivation paths.
    */
@@ -84,6 +89,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
     const addressManager = await AddressManager.create({
       secretManager: config.secretManager,
       networkId: config.networkId,
+      customPaymentCredentialSource: config.customPaymentCredentialSource,
       customStakeCredentialSource: config.customStakeCredentialSource,
       customDrepCredentialSource: config.customDrepCredentialSource,
     });
@@ -111,6 +117,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
     return BaseCardanoWallet.create({
       secretManager: bip32,
       networkId: config.networkId,
+      customPaymentCredentialSource: config.customPaymentCredentialSource,
       customStakeCredentialSource: config.customStakeCredentialSource,
       customDrepCredentialSource: config.customDrepCredentialSource,
       walletAddressType: config.walletAddressType,
@@ -133,6 +140,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
     return BaseCardanoWallet.create({
       secretManager: bip32,
       networkId: config.networkId,
+      customPaymentCredentialSource: config.customPaymentCredentialSource,
       customStakeCredentialSource: config.customStakeCredentialSource,
       customDrepCredentialSource: config.customDrepCredentialSource,
       walletAddressType: config.walletAddressType,
@@ -159,6 +167,7 @@ export class BaseCardanoWallet implements ICardanoWallet {
     return BaseCardanoWallet.create({
       secretManager: bip32,
       networkId: config.networkId,
+      customPaymentCredentialSource: config.customPaymentCredentialSource,
       customStakeCredentialSource: config.customStakeCredentialSource,
       customDrepCredentialSource: config.customDrepCredentialSource,
       walletAddressType: config.walletAddressType,
@@ -411,27 +420,9 @@ export class BaseCardanoWallet implements ICardanoWallet {
       throw new Error("[CardanoWallet] No fetcher provided");
     }
 
-    const addresses: string[] = [];
-
-    // Get base address
-    try {
-      const baseAddress = await this.addressManager.getNextAddress(
-        AddressType.Base,
-      );
-      addresses.push(baseAddress.getAddressBech32());
-    } catch (error) {
-      // If base address is not available (e.g., no stake credential), continue
-    }
-
-    // Get enterprise address
-    try {
-      const enterpriseAddress = await this.addressManager.getNextAddress(
-        AddressType.Enterprise,
-      );
-      addresses.push(enterpriseAddress.getAddressBech32());
-    } catch (error) {
-      // If enterprise address is not available, continue
-    }
+    const addresses = (
+      await this.addressManager.asyncGetAllUsedAddresses()
+    ).map((address) => address.getAddressBech32());
 
     const utxos: UTxO[] = [];
     for (const addr of addresses) {

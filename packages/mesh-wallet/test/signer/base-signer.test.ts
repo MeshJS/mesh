@@ -1,26 +1,24 @@
 import { Transaction, TxCBOR } from "@meshsdk/core-cst";
 
-import { BaseBip32 } from "../../src";
+import { InMemoryBip32 } from "../../src";
 
 const HARDENED_OFFSET = 0x80000000;
 
 describe("BaseSigner", () => {
   it("base wallet signing should produce correct signature", async () => {
-    const bip32 = await BaseBip32.fromMnemonic(
+    const bip32 = await InMemoryBip32.fromMnemonic(
       "globe cupboard camera aim congress cradle decorate enter fringe dove margin witness police coral junk genius harbor fire evolve climb rather broccoli post snack".split(
         " ",
       ),
     );
 
-    let accountKey = await bip32.derive([
+    const paymentSigner = await bip32.getSigner([
       1852 + HARDENED_OFFSET,
       1815 + HARDENED_OFFSET,
       0 + HARDENED_OFFSET,
+      0,
+      0,
     ]);
-
-    accountKey = await accountKey.derive([0, 0]);
-
-    const paymentSigner = await accountKey.toSigner();
 
     expect(
       await paymentSigner.sign(

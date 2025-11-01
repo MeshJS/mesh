@@ -27,6 +27,7 @@ export type CredentialSource =
 export interface AddressManagerConfig {
   secretManager: ISecretManager;
   networkId: number;
+  customPaymentCredentialSource?: CredentialSource;
   customStakeCredentialSource?: CredentialSource;
   customDrepCredentialSource?: CredentialSource;
 }
@@ -46,14 +47,31 @@ export class AddressManager {
   static async create(config: AddressManagerConfig): Promise<AddressManager> {
     const secretManager = config.secretManager;
 
-    const paymentSigner = await secretManager.getSigner([
-      ...DEFAULT_PAYMENT_KEY_DERIVATION_PATH,
-      0,
-    ]);
-    const paymentCredential: Credential = {
-      type: CredentialType.KeyHash,
-      hash: await paymentSigner.getPublicKeyHash(),
-    };
+    let paymentSigner: ISigner;
+    let paymentCredential: Credential;
+
+    if (config.customPaymentCredentialSource) {
+      if (config.customPaymentCredentialSource.type === "scriptHash") {
+        throw new Error(
+          "Payment credential cannot be a script hash. Payment credentials must be key hashes that can sign transactions.",
+        );
+      } else {
+        paymentSigner = config.customPaymentCredentialSource.signer;
+        paymentCredential = {
+          type: CredentialType.KeyHash,
+          hash: await paymentSigner.getPublicKeyHash(),
+        };
+      }
+    } else {
+      paymentSigner = await secretManager.getSigner([
+        ...DEFAULT_PAYMENT_KEY_DERIVATION_PATH,
+        0,
+      ]);
+      paymentCredential = {
+        type: CredentialType.KeyHash,
+        hash: await paymentSigner.getPublicKeyHash(),
+      };
+    }
 
     let stakeSigner: ISigner | undefined = undefined;
     let stakeCredential: Credential;
@@ -168,6 +186,13 @@ export class AddressManager {
       this.paymentCredential,
       this.stakeCredential,
     );
+  }
+
+  asyncGetAllUsedAddresses(): Promise<CardanoAddress[]> {
+    return Promise.all([
+      this.getNextAddress(AddressType.Base),
+      this.getNextAddress(AddressType.Enterprise),
+    ]);
   }
 
   //TODO: Implement getDrepId

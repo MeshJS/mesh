@@ -4,9 +4,11 @@ import { HexBlob } from "@cardano-sdk/util";
 import { DataSignature } from "@meshsdk/common";
 import { OfflineFetcher } from "@meshsdk/provider";
 
-import { BaseBip32 } from "../../src";
+import { InMemoryBip32 } from "../../src";
+import { AddressType } from "../../src/cardano/address/cardano-address";
 import { CardanoSigner } from "../../src/cardano/signer/cardano-signer";
 import { BaseCardanoWallet } from "../../src/cardano/wallet/mesh/cardano-base-wallet";
+import { BaseSigner } from "../../src/signer/base-signer";
 
 describe("CardanoBaseWallet", () => {
   const offlineFetcher = new OfflineFetcher("preprod");
@@ -120,62 +122,127 @@ describe("CardanoBaseWallet", () => {
   ]);
 
   it("should create correct wallet from mnemonic", async () => {
-    const wallet = await BaseCardanoWallet.fromMnemonic(
-      0,
-      "solution,".repeat(24).split(",").slice(0, 24),
-    );
+    const wallet = await BaseCardanoWallet.fromMnemonic({
+      mnemonic: "solution,".repeat(24).split(",").slice(0, 24),
+      networkId: 0,
+      walletAddressType: AddressType.Base,
+    });
 
     expect(await wallet.getChangeAddress()).toBe(
       "005867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6",
     );
   });
 
-  it("should create correct wallet from wallet sources", async () => {
-    const wallet = await BaseCardanoWallet.fromWalletSources(0, {
-      paymentKey: {
-        type: "ed25519ExtendedPrivateKeyHex",
-        keyHex:
-          "f083e5878c6f980c53d30b9cc2baadd780307b08acec9e0792892e013bbe9241eebbb8e9d5d47d91cafc181111fdba61513bbbe6e80127e3b6237bcf347e9d05",
+  it("should create correct wallet using default derivation paths", async () => {
+    const bip32 = await InMemoryBip32.fromMnemonic(
+      "solution,".repeat(24).split(",").slice(0, 24),
+    );
+
+    const wallet = await BaseCardanoWallet.create({
+      secretManager: bip32,
+      networkId: 0,
+      walletAddressType: AddressType.Base,
+    });
+
+    expect(await wallet.getChangeAddress()).toBe(
+      "005867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6",
+    );
+
+    const usedAddresses = await wallet.getUsedAddresses();
+    const baseAddress = Cardano.Address.fromString(usedAddresses[0]!);
+    expect(baseAddress?.toBech32()).toBe(
+      "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+    );
+
+    const wallet2 = await BaseCardanoWallet.create({
+      secretManager: bip32,
+      networkId: 0,
+      walletAddressType: AddressType.Enterprise,
+    });
+
+    expect(await wallet2.getChangeAddress()).toBe(
+      "605867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f",
+    );
+
+    const usedAddresses2 = await wallet2.getUsedAddresses();
+    const enterpriseAddress = Cardano.Address.fromString(usedAddresses2[0]!);
+    expect(enterpriseAddress?.toBech32()).toBe(
+      "addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr",
+    );
+  });
+
+  it("should create correct wallet from custom extended keys", async () => {
+    const paymentSigner = BaseSigner.fromExtendedKeyHex(
+      "f083e5878c6f980c53d30b9cc2baadd780307b08acec9e0792892e013bbe9241eebbb8e9d5d47d91cafc181111fdba61513bbbe6e80127e3b6237bcf347e9d05",
+    );
+    const stakeSigner = BaseSigner.fromExtendedKeyHex(
+      "b810d6398db44f380a9ab279f63950c4b95432f44fafb5a6f026afe23bbe92416a05410d56bb31b9e3631ae60ecabaec2b0355bfc8c830da138952ea9454de50",
+    );
+
+    const bip32 = await InMemoryBip32.fromMnemonic(
+      "solution,".repeat(24).split(",").slice(0, 24),
+    );
+
+    const wallet = await BaseCardanoWallet.create({
+      secretManager: bip32,
+      networkId: 0,
+      walletAddressType: AddressType.Base,
+      customPaymentCredentialSource: {
+        type: "signer",
+        signer: paymentSigner,
       },
-      stakeKey: {
-        type: "ed25519ExtendedPrivateKeyHex",
-        keyHex:
-          "b810d6398db44f380a9ab279f63950c4b95432f44fafb5a6f026afe23bbe92416a05410d56bb31b9e3631ae60ecabaec2b0355bfc8c830da138952ea9454de50",
+      customStakeCredentialSource: {
+        type: "signer",
+        signer: stakeSigner,
       },
     });
 
     expect(await wallet.getChangeAddress()).toBe(
       "005867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e6",
     );
-    expect((wallet as any).address.getBaseAddressBech32()).toBe(
+
+    const usedAddresses = await wallet.getUsedAddresses();
+    const baseAddress = Cardano.Address.fromString(usedAddresses[0]!);
+    expect(baseAddress?.toBech32()).toBe(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
     );
 
-    const wallet2 = await BaseCardanoWallet.fromWalletSources(0, {
-      paymentKey: {
-        type: "ed25519PrivateKeyHex",
-        keyHex:
-          "d4ffb1e83d44b66849b4f16183cbf2ba1358c491cfeb39f0b66b5f811a88f182",
+    const paymentSigner2 = BaseSigner.fromNormalKeyHex(
+      "d4ffb1e83d44b66849b4f16183cbf2ba1358c491cfeb39f0b66b5f811a88f182",
+    );
+
+    const wallet2 = await BaseCardanoWallet.create({
+      secretManager: bip32,
+      networkId: 0,
+      walletAddressType: AddressType.Enterprise,
+      customPaymentCredentialSource: {
+        type: "signer",
+        signer: paymentSigner2,
       },
     });
+
     expect(await wallet2.getChangeAddress()).toBe(
       "6091af38e77f68201a084e6cbe7a5e13477678d866afbbbb26c61e86fc",
     );
-    expect((wallet2 as any).address.getEnterpriseAddressBech32()).toBe(
+
+    const usedAddresses2 = await wallet2.getUsedAddresses();
+    const enterpriseAddress = Cardano.Address.fromString(usedAddresses2[0]!);
+    expect(enterpriseAddress?.toBech32()).toBe(
       "addr_test1vzg67w880a5zqxsgfektu7j7zdrhv7xcv6hmhwexcc0gdlqm7wz4f",
     );
-    expect((wallet2 as any).signer.paymentSigner.getPublicKey()).resolves.toBe(
+
+    expect(await paymentSigner2.getPublicKey()).toBe(
       "a5aa30e677bdd5936095f0f16b29f2716e35a909163a51f91995a1c3ed19a9e1",
     );
   });
 
   it("should sign with correct witness", async () => {
-    const wallet = await BaseCardanoWallet.fromMnemonic(
-      0,
-      "solution,".repeat(24).split(",").slice(0, 24),
-      "",
-      offlineFetcher,
-    );
+    const wallet = await BaseCardanoWallet.fromMnemonic({
+      mnemonic: "solution,".repeat(24).split(",").slice(0, 24),
+      networkId: 0,
+      walletAddressType: AddressType.Base,
+      fetcher: offlineFetcher,
+    });
     const signature = await wallet.signTx(
       "84a500d901028282582045703dfd724f8bc92ebabdbff28b54d3434b126f31d31b2fffa5e3ed1edc102301825820e6a99b6338fbacd1e411c7bf69d963d83975d8ad1336cb70cd600bdd049c4cae01018282583900fbbd5c9ecf59fb9ba10f723003d3a3ed6214fa71f03b85041ae5c2e34253771c046276f5eb6777961f972c7ef25abad3f3319ea69cad00e21a3b9aca00825839005867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e61a38e3de57021a0002985d031a063659930801a100d9010281825820c32dfdb461dd016e8fdd9b6d424a77439eab8f8c644a804b013b6cefa2454f9558402047ca362a5f5a9b2f9c5ad0c772c3be8eb1b66fe8e86faf96f5717fcc05b1340da85cbac4ba8d6182ac849a66792d70340a7ea3ff9bea76460d982ff5a46f0af5f6",
     );
@@ -199,23 +266,23 @@ describe("CardanoBaseWallet", () => {
   });
 
   it("should fetch utxos from multiple addresses", async () => {
-    const wallet = await BaseCardanoWallet.fromMnemonic(
-      0,
-      "solution,".repeat(24).split(",").slice(0, 24),
-      "",
-      offlineFetcher,
-    );
+    const wallet = await BaseCardanoWallet.fromMnemonic({
+      mnemonic: "solution,".repeat(24).split(",").slice(0, 24),
+      networkId: 0,
+      walletAddressType: AddressType.Base,
+      fetcher: offlineFetcher,
+    });
     const utxos = await wallet.getUtxos();
     expect(utxos.length).toBe(6);
   });
 
   it("should fetch correct balance", async () => {
-    const wallet = await BaseCardanoWallet.fromMnemonic(
-      0,
-      "solution,".repeat(24).split(",").slice(0, 24),
-      "",
-      offlineFetcher,
-    );
+    const wallet = await BaseCardanoWallet.fromMnemonic({
+      mnemonic: "solution,".repeat(24).split(",").slice(0, 24),
+      networkId: 0,
+      walletAddressType: AddressType.Base,
+      fetcher: offlineFetcher,
+    });
     const balance = await wallet.getBalance();
     const value = Serialization.Value.fromCbor(HexBlob(balance));
     expect(value.coin()).toBe(
@@ -233,12 +300,12 @@ describe("CardanoBaseWallet", () => {
   });
 
   it("should fetch correct collateral", async () => {
-    const wallet = await BaseCardanoWallet.fromMnemonic(
-      0,
-      "solution,".repeat(24).split(",").slice(0, 24),
-      "",
-      offlineFetcher,
-    );
+    const wallet = await BaseCardanoWallet.fromMnemonic({
+      mnemonic: "solution,".repeat(24).split(",").slice(0, 24),
+      networkId: 0,
+      walletAddressType: AddressType.Base,
+      fetcher: offlineFetcher,
+    });
     const collaterals = await wallet.getCollateral();
     expect(collaterals.length).toBe(1);
     const collateral = Serialization.TransactionUnspentOutput.fromCbor(
@@ -249,16 +316,16 @@ describe("CardanoBaseWallet", () => {
   });
 
   it("should sign data correctly", async () => {
-    const wallet = await BaseCardanoWallet.fromMnemonic(
-      0,
-      "solution,".repeat(24).split(",").slice(0, 24),
-      "",
-      offlineFetcher,
-    );
-    const signedData = await wallet.signData(
-      "abc",
-      wallet.address.getBaseAddressBech32(),
-    );
+    const wallet = await BaseCardanoWallet.fromMnemonic({
+      mnemonic: "solution,".repeat(24).split(",").slice(0, 24),
+      networkId: 0,
+      walletAddressType: AddressType.Base,
+      fetcher: offlineFetcher,
+    });
+
+    const addressHex = await wallet.getChangeAddress();
+
+    const signedData = await wallet.signData("abc", addressHex);
     expect(signedData).toEqual<DataSignature>({
       key: "a4010103272006215820c32dfdb461dd016e8fdd9b6d424a77439eab8f8c644a804b013b6cefa2454f95",
       signature:
