@@ -184,7 +184,7 @@ export class MaestroProvider implements IBitcoinProvider {
     /**
      * Get fee estimates for Bitcoin transactions.
      * @param blocks - The number of blocks to estimate fees for (default: 6).
-     * @returns FeeEstimateResponse containing the estimated fee rate.
+     * @returns The estimated fee rate in satoshis per vByte.
      */
     async fetchFeeEstimates(blocks: number = 6): Promise<number> {
         try {
