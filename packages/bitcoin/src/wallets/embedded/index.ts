@@ -44,9 +44,15 @@ export class EmbeddedWallet {
     }
 
     if (options.key.type === "mnemonic") {
+      // Use BIP84 standard: m/84'/coin_type'/0'/0/0
+      // coin_type: 0 for mainnet, 1 for testnet (including testnet4)
+      const defaultPath = this._network === bitcoin.networks.testnet || this._network === bitcoin.networks.regtest
+        ? "m/84'/1'/0'/0/0"
+        : "m/84'/0'/0'/0/0";
+      
       this._wallet = _derive(
         options.key.words,
-        options.path ?? "m/84'/0'/0'/0/0",
+        options.path ?? defaultPath,
         this._network,
       );
       this._isReadOnly = false;
@@ -109,6 +115,7 @@ export class EmbeddedWallet {
     }
 
     const addressInfo = resolveAddress(this._wallet.publicKey, this._network);
+
     return [
       {
         address: addressInfo.address,
@@ -507,7 +514,7 @@ export class EmbeddedWallet {
       }
     }
 
-    // Use simple largest-first coin selection
+    // Use largest-first coin selection
     const targetAmount = recipients.reduce((sum, r) => sum + r.amount, 0);
     const { selectedUtxos, change } = this._selectUtxosLargestFirst(
       utxos,
@@ -524,7 +531,10 @@ export class EmbeddedWallet {
       psbt.addInput({
         hash: utxo.txid,
         index: utxo.vout,
-        witnessUtxo: { script: p2wpkh.output!, value: utxo.value },
+        witnessUtxo: {
+          script: p2wpkh.output!,
+          value: utxo.value,
+        },
       });
     });
 
