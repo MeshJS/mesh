@@ -45,10 +45,9 @@ export class EmbeddedWallet {
 
     if (options.key.type === "mnemonic") {
       // Use BIP84 standard: m/84'/coin_type'/0'/0/0
-      // coin_type: 0 for mainnet, 1 for testnet (including testnet4)
-      const defaultPath = this._network === bitcoin.networks.testnet || this._network === bitcoin.networks.regtest
-        ? "m/84'/1'/0'/0/0"
-        : "m/84'/0'/0'/0/0";
+      // coin_type: 0 for mainnet, 1 for testnet (including testnet4 and regtest)
+      const coinType = this._network === bitcoin.networks.bitcoin ? 0 : 1;
+      const defaultPath = `m/84'/${coinType}'/0'/0/0`;
       
       this._wallet = _derive(
         options.key.words,
