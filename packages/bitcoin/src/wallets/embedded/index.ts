@@ -505,7 +505,7 @@ export class EmbeddedWallet {
     recipients: any[],
     walletAddress: string,
   ): Promise<bitcoin.Psbt> {
-    let feeRate = 10; // Default fallback
+    let feeRate = 2; // Default fallback
     if (this._provider) {
       try {
         feeRate = await this._provider.fetchFeeEstimates(6);
