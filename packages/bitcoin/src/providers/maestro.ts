@@ -172,11 +172,6 @@ export class MaestroProvider implements IBitcoinProvider {
             const { data, status } = await this._axiosInstance.post(
                 "/esplora/tx",
                 txHex,
-                {
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                },
             );
 
             if (status === 200) return data.txid || data;
@@ -189,7 +184,7 @@ export class MaestroProvider implements IBitcoinProvider {
     /**
      * Get fee estimates for Bitcoin transactions.
      * @param blocks - The number of blocks to estimate fees for (default: 6).
-     * @returns FeeEstimateResponse containing the estimated fee rate.
+     * @returns The estimated fee rate in satoshis per vByte.
      */
     async fetchFeeEstimates(blocks: number = 6): Promise<number> {
         try {
@@ -197,7 +192,18 @@ export class MaestroProvider implements IBitcoinProvider {
                 `/rpc/transaction/estimatefee/${blocks}`,
             );
 
-            if (status === 200) return data.data.feerate;
+            if (status === 200) {
+                const feeRateInBtc = data.data.feerate;
+                if (feeRateInBtc === 0) {
+                    if (this._network === "testnet") {
+                        return 1; // 1 sat/vByte fallback for testnet (low activity expected)
+                    } else {
+                        throw new Error("Fee estimation unavailable for mainnet");
+                    }
+                }
+
+                return feeRateInBtc * 100_000_000;
+            }
             throw parseHttpError(data);
         } catch (error) {
             throw parseHttpError(error);

@@ -9,8 +9,8 @@ const MockedMaestroProvider = MaestroProvider as jest.MockedClass<typeof Maestro
 describe("EmbeddedWallet - Core Functionality", () => {
   let mockProvider: jest.Mocked<MaestroProvider>;
   const testMnemonic = ["abandon", "abandon", "abandon", "abandon", "abandon", "abandon", "abandon", "abandon", "abandon", "abandon", "abandon", "about"];
-  const testAddressTestnet = "tb1qcr8te4kr609gcawutmrza0j4xv80jy8zmfp6l0";
-  const readOnlyAddress = "tb1qcr8te4kr609gcawutmrza0j4xv80jy8zmfp6l0";
+  const testAddressTestnet = "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl";
+  const readOnlyAddress = "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl";
 
   beforeEach(() => {
     jest.clearAllMocks();
