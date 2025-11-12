@@ -1,0 +1,59 @@
+{
+  "name": "@meshsdk/hydra-react",
+  "version": "1.9.0-beta.74",
+  "description": "React bindings for Mesh Hydra using RxJS streams",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsup",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "tsup --watch",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@meshsdk/hydra": "1.9.0-beta.74",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@meshsdk/configs": "*",
+    "@types/react": "^18.2.61",
+    "eslint": "^8.57.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "react": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc",
+    "react-dom": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc"
+  },
+  "prettier": "@meshsdk/configs/prettier",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "cardano",
+    "ada",
+    "web3",
+    "blockchain",
+    "sdk",
+    "hydra",
+    "react",
+    "rxjs"
+  ]
+}
+
