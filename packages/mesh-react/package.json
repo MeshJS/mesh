@@ -29,7 +29,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@fabianbormann/cardano-peer-connect": "^1.2.18",
+    "@cardananium/cardano-peer-connect": "^1.2.19",
     "@meshsdk/bitcoin": "1.9.0-beta.86",
     "@meshsdk/common": "1.9.0-beta.86",
     "@meshsdk/transaction": "1.9.0-beta.86",
@@ -57,6 +57,9 @@
   "peerDependencies": {
     "react": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc",
     "react-dom": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc"
+  },
+  "overrides": {
+    "ip": "npm:@webpod/ip@latest"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

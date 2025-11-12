@@ -15,8 +15,7 @@
     "lint": "turbo lint",
     "pack": "turbo pack",
     "test": "turbo test -- --passWithNoTests",
-    "sh:version": "sh scripts/bump-version.sh",
-    "postinstall": "patch-package"
+    "sh:version": "sh scripts/bump-version.sh"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
@@ -24,7 +23,6 @@
     "@types/jest": "^29.5.12",
     "dotenv": "^16.4.5",
     "jest": "^29.7.0",
-    "patch-package": "^8.0.0",
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "turbo": "latest"
@@ -43,5 +41,8 @@
     "@bitcoinerlab/descriptors": "^2.3.1",
     "@bitcoinerlab/secp256k1": "^1.2.0",
     "npm": "^10.8.0"
+  },
+  "overrides": {
+    "ip": "npm:@webpod/ip@latest"
   }
 }

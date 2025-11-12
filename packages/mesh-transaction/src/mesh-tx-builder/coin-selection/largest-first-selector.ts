@@ -1,5 +1,3 @@
-import { MAX_U64 } from "@cardano-sdk/input-selection";
-
 import { Output, TxIn, TxOutput, UTxO, value } from "@meshsdk/common";
 
 import {
@@ -8,6 +6,8 @@ import {
   ImplicitValue,
   TransactionPrototype,
 } from "./coin-selection-interface";
+
+const MAX_U64 = 18446744073709551615n;
 
 // Value utilities
 type Value = Map<string, bigint>;
