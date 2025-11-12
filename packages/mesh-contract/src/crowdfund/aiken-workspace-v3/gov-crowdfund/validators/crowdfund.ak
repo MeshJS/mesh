@@ -1,7 +1,9 @@
 use aiken/collection/list
 use aiken/collection/pairs.{has_key}
 use cardano/address.{Address, Credential, Script}
-use cardano/assets.{Lovelace, PolicyId, from_lovelace, lovelace_of}
+use cardano/assets.{
+  Lovelace, PolicyId, from_lovelace, is_zero, lovelace_of, without_lovelace,
+}
 use cardano/transaction.{Output, OutputReference, Transaction, find_input}
 use cocktail.{
   inputs_at_with_policy, key_signed, only_minted_token, output_inline_datum,
@@ -124,7 +126,18 @@ validator crowdfund(auth_token: PolicyId, proposer_key_hash: ByteArray) {
         let input_lovelace_check =
           lovelace_of(auth_input.output.value) >= min_charge + current_fundraised_amount
 
-        expect [_] = outputs_at_with_lovelace(outputs, fee_address, min_charge)
+        let fee_output_check =
+          when min_charge is {
+            0 -> True
+            _ -> {
+              expect [fee_output] =
+                outputs
+                  |> list.filter(fn(output) { output.address == fee_address })
+              lovelace_of(fee_output.value) >= min_charge && (
+                without_lovelace(fee_output.value) |> is_zero()
+              )
+            }
+          }
 
         let fundraise_check = current_fundraised_amount >= fundraise_target
         let completion_script_withdrawal_credential: Credential =
@@ -132,7 +145,7 @@ validator crowdfund(auth_token: PolicyId, proposer_key_hash: ByteArray) {
         let withdrawal_script_check =
           withdrawals
             |> has_key(completion_script_withdrawal_credential)
-        fundraise_check? && withdrawal_script_check? && input_lovelace_check? && policy_only_minted_token(
+        fee_output_check? && fundraise_check? && withdrawal_script_check? && input_lovelace_check? && policy_only_minted_token(
           mint,
           auth_token,
           completion_script,

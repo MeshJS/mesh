@@ -1,3 +1,4 @@
+use aiken/cbor
 use aiken/crypto.{ScriptHash}
 use cardano/address.{Credential}
 use cardano/assets.{Lovelace}
@@ -78,4 +79,9 @@ pub type VGovernanceAction {
     constitution: Constitution,
   }
   NicePoll
+}
+
+test action_test() {
+  trace cbor.serialise(NicePoll)
+  "" == ""
 }

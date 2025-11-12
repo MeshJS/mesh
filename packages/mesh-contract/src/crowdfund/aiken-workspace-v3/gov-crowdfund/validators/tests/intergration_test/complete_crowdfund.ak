@@ -5,18 +5,17 @@ use crowdfund.{
   CompleteCrowdfund, ContributeFund, CrowdfundRedeemer as ACrowdfundRedeemer,
 }
 use mocktail.{
-  add_redeemer, complete, mint, mock_policy_id, mock_script_hash, mock_tx_hash,
-  mock_utxo_ref, mocktail_tx, script_withdrawal, tx_in, tx_in_inline_datum,
-  tx_out, tx_out_inline_datum,
+  add_redeemer, complete, mint, mock_script_hash, mock_tx_hash, mock_utxo_ref,
+  mocktail_tx, script_withdrawal, tx_in, tx_in_inline_datum, tx_out,
+  tx_out_inline_datum,
 }
 use start
 use tests/utils.{
   mock_auth_token, mock_completion_script, mock_crowdfund_address,
   mock_crowdfund_datum, mock_current_fundraised_amount, mock_deadline,
-  mock_extra_fundraised_amount, mock_fee_address, mock_fundraise_target,
-  mock_gov_action_period, mock_gov_address, mock_min_charge,
-  mock_proposer_key_hash, mock_share_token, mock_spend_script_hash,
-  mock_start_hash,
+  mock_fee_address, mock_fundraise_target, mock_gov_action_period,
+  mock_gov_address, mock_min_charge, mock_proposer_key_hash, mock_share_token,
+  mock_spend_script_hash, mock_start_hash,
 }
 use types.{Init, RMint}
 
@@ -94,8 +93,7 @@ fn mock_complete_crowdfund_tx(
     |> tx_out(
         !is_output_to_fee_address_correct,
         mock_fee_address,
-        from_lovelace(mock_extra_fundraised_amount - 10)
-          |> add(mock_policy_id(999), mock_completion_script, 10),
+        from_lovelace(mock_min_charge - 1),
       )
     |> tx_out(is_fundraise_target_sent, mock_gov_address, fundraise_output)
     |> tx_out_inline_datum(is_fundraise_target_sent, fundraise_output_datum)
