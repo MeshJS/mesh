@@ -67,7 +67,7 @@ validator crowdfund(auth_token: PolicyId, proposer_key_hash: ByteArray) {
 
     let current_address = own_input.output.address
 
-    // check only 1 auth toke input from current address
+    // check only 1 auth token input from current address
     expect [auth_input] =
       inputs_at_with_policy(inputs, current_address, auth_token)
 

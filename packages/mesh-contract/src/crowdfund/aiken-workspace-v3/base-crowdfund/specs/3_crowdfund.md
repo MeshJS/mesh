@@ -27,7 +27,7 @@
    - The value increase in current respending utxo equal to the increase in `current_fundraised_amount`, comparing input output datum
    - If `allow_over_scription` is False, check whether `current_fundraised_amount` <= `fundraise_target`
    - `deadline` is not passed
-   - `Shares` - Minted exactly the amount of `share_token` that lovelave contributed, with token name of `completion_script`
+   - `Shares` - Minted exactly the amount of `share_token` that lovelace contributed, with token name of `completion_script`
 
 2. CompleteCrowdfund
 

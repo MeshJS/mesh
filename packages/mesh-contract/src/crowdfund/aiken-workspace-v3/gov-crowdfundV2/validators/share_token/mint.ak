@@ -2,7 +2,7 @@ use aiken/collection/dict
 use cardano/assets.{PolicyId}
 use cardano/transaction.{Transaction}
 use cocktail.{inputs_with_policy}
-use types.{ContributeFund, CrowdfundRedeemer, MintPolarity, RBurn, RMint}
+use types.{ContributeFund, CrowdfundGovRedeemer, MintPolarity, RBurn, RMint}
 use utils.{redeemer_with_input}
 
 validator share_token(auth_token: PolicyId) {
@@ -19,7 +19,7 @@ validator share_token(auth_token: PolicyId) {
         expect Some(auth_token_redeemer_data) =
           redeemer_with_input(redeemers, auth_token_input)
 
-        expect auth_token_redeemer: CrowdfundRedeemer = auth_token_redeemer_data
+        expect auth_token_redeemer: CrowdfundGovRedeemer = auth_token_redeemer_data
 
         let redeemer_check = auth_token_redeemer == ContributeFund
 
