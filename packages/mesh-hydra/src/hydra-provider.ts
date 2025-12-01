@@ -52,6 +52,9 @@ export class HydraProvider implements IFetcher, ISubmitter {
     | ((data: ServerOutput | ClientMessage) => void)
     | null = null;
   private _messageQueue: (ServerOutput | ClientMessage)[] = [];
+  private _disconnectTimeout: NodeJS.Timeout | null = null;
+  private _isDisconnecting: boolean = false;
+  private _currentStatus: hydraStatus = "IDLE";
 
   constructor({
     httpUrl,
@@ -86,27 +89,69 @@ export class HydraProvider implements IFetcher, ISubmitter {
         }
       },
     );
+
+    this._eventEmitter.on("onstatuschange", (status: hydraStatus) => {
+      this._currentStatus = status;
+    });
   }
 
   /**
    * Connects to the Hydra Head.
    */
   async connect() {
-    this._connection.connect();
+    try {
+      await this._connection.connect();
+    } catch (error) {
+      throw new Error(
+        `Failed to connect to Hydra Head: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
    * Disconnects from the Hydra Head.
    *
    * @param timeout Optional timeout in milliseconds (defaults to 5 minutes) to wait for the disconnect operation to complete.
+   *                If set to 0, disconnects immediately (reactive to clicks/events).
    *                If not provided, the default disconnect timeout will be used.
    *                Useful for customizing how long to wait before disconnecting.
+   * @throws {Error} If timeout is less than 0 or between 1 and 59,999 ms
    */
   async disconnect(timeout: number = 300_000) {
-    if (timeout < 60_000) {
-      throw new Error("Timeout must be at least 60,000 ms (1 minute)");
+    if (timeout < 0) {
+      throw new Error("Timeout must be a non-negative number");
     }
-    await this._connection.disconnect(timeout);
+    if (timeout > 0 && timeout < 60_000) {
+      throw new Error(
+        "Timeout must be at least 60,000 ms (1 minute) or 0 for immediate disconnect",
+      );
+    }
+
+    const clearPendingTimeout = () => {
+      if (this._disconnectTimeout) {
+        clearTimeout(this._disconnectTimeout);
+        this._disconnectTimeout = null;
+      }
+    };
+
+    if (timeout === 0) {
+      clearPendingTimeout();
+      this._isDisconnecting = false;
+      await this._connection.disconnect(0);
+      return;
+    }
+
+    if (this._isDisconnecting) return;
+
+    this._isDisconnecting = true;
+    this._disconnectTimeout = setTimeout(async () => {
+      try {
+        await this._connection.disconnect(0);
+      } finally {
+        this._disconnectTimeout = null;
+        this._isDisconnecting = false;
+      }
+    }, timeout);
   }
 
   /**
@@ -139,6 +184,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
         }
         if (handleHydraErrors(msg as ClientMessage, reject)) {
           return;
+        } else {
+          reject(new Error("Failed to initialize, head is not in Idle state"));
         }
       });
     });
@@ -161,6 +208,10 @@ export class HydraProvider implements IFetcher, ISubmitter {
         }
         if (handleHydraErrors(msg as ClientMessage, reject)) {
           return;
+        } else {
+          reject(
+            new Error("Failed to abort, head is not in Initializing state"),
+          );
         }
       });
     });
@@ -203,6 +254,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
               `Transaction invalid: ${JSON.stringify(msg.validationError)}`,
             ),
           );
+        } else {
+          reject(
+            new Error(
+              "Failed to submit transaction, head is not in Open state",
+            ),
+          );
         }
       });
     });
@@ -233,6 +290,12 @@ export class HydraProvider implements IFetcher, ISubmitter {
         }
         if (handleHydraErrors(msg as ClientMessage, reject)) {
           return;
+        } else {
+          reject(
+            new Error(
+              "Failed to recover transaction, head is not in Open state",
+            ),
+          );
         }
       });
     });
@@ -270,6 +333,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
         }
         if (handleHydraErrors(msg as ClientMessage, reject)) {
           return;
+        } else {
+          reject(new Error("Failed to decommit, head is not in Open state"));
         }
       });
     });
@@ -303,6 +368,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
         if (handleHydraErrors(message as ClientMessage, reject)) {
           reject(new Error("Failed to close head"));
           return;
+        } else {
+          reject(new Error("Failed to close, head is not in Open state"));
         }
       });
     });
@@ -325,6 +392,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
         if (handleHydraErrors(msg as ClientMessage, reject)) {
           reject(new Error("Failed to contest head"));
           return;
+        } else {
+          reject(new Error("Failed to contest, head is not in Closed state"));
         }
       });
     });
@@ -349,6 +418,8 @@ export class HydraProvider implements IFetcher, ISubmitter {
         if (handleHydraErrors(msg as ClientMessage, reject)) {
           reject(new Error("Failed to fanout head"));
           return;
+        } else {
+          reject(new Error("Failed to fanout, head is not in Closed state"));
         }
       });
     });
@@ -738,16 +809,62 @@ export class HydraProvider implements IFetcher, ISubmitter {
     return protocolParams;
   }
 
+  /**
+   * Registers a callback to receive messages from the Hydra Head.
+   * When called, the callback will immediately be invoked for all messages that have already been received
+   * (queued in the message queue), and subsequently for each new incoming message.
+   *
+   * @param callback - The function to call with each ServerOutput or ClientMessage received.
+   *
+   * @example
+   * ```ts
+   * hydraProvider.onMessage((message) => {
+   *   console.log("Received Hydra message:", message);
+   * });
+   * ```
+   */
   onMessage(callback: (data: ServerOutput | ClientMessage) => void) {
     this._messageCallback = callback;
     this._messageQueue.forEach((message) => {
       callback(message);
     });
   }
-  onStatusChange(callback: (status: hydraStatus) => void) {
-    this._eventEmitter.on("onstatuschange", (status) => {
+
+  /**
+   * Subscribe to status changes of the Hydra Head.
+   * The callback will be called whenever the status changes.
+   *
+   * @param callback Function to call when status changes, receives the new hydraStatus
+   * @returns The current status
+   *
+   * @example
+   * ```ts
+   * hydraProvider.onStatusChange((status) => {
+   *   console.log(`Hydra Head status changed to: ${status}`);
+   * });
+   * ```
+   */
+  onStatusChange(callback: (status: hydraStatus) => void): hydraStatus {
+    this._eventEmitter.on("onstatuschange", (status: hydraStatus) => {
+      this._currentStatus = status;
       callback(status);
     });
+    return this._currentStatus;
+  }
+
+  /**
+   * Get the current status of the Hydra Head.
+   *
+   * @returns The current hydraStatus
+   *
+   * @example
+   * ```ts
+   * const currentStatus = hydraProvider.getStatus();
+   * console.log(`Current status: ${currentStatus}`);
+   * ```
+   */
+  getStatus(): hydraStatus {
+    return this._currentStatus;
   }
 
   /**
