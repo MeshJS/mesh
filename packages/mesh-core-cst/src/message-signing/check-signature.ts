@@ -35,9 +35,7 @@ export const checkSignature = async (
     const coseSign1PublicKey = Ed25519PublicKey.fromBytes(publicKeyBuffer);
 
     const credential: CredentialCore = {
-      hash: Hash28ByteBase16.fromEd25519KeyHashHex(
-        coseSign1PublicKey.hash().hex(),
-      ),
+      hash: Hash28ByteBase16(coseSign1PublicKey.hash().hex()),
       type: 0,
     };
 
