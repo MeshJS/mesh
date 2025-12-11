@@ -65,7 +65,7 @@ function Right() {
   const [anchorUrl, setAnchorUrl] = useState<string>("");
 
   async function getMeshJsonHash(url: string) {
-    var drepAnchor = getFile(url);
+    var drepAnchor = await getFile(url);
     const anchorObj = JSON.parse(drepAnchor);
     const anchorHash = hashDrepAnchor(anchorObj);
     return anchorHash;
