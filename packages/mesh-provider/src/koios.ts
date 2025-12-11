@@ -660,7 +660,10 @@ export class KoiosProvider
           }
           return <Omit<Action, "data">>{
             index: val.validator.index,
-            tag: val.validator.purpose.toUpperCase(),
+            tag:
+              val.validator.purpose.toUpperCase() === "PUBLISH"
+                ? "CERT"
+                : val.validator.purpose.toUpperCase(),
             budget: {
               mem: val.budget.memory,
               steps: val.budget.cpu,

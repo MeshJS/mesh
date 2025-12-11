@@ -1,5 +1,13 @@
 import dotenv from "dotenv";
 
+import {
+  applyCborEncoding,
+  DRep,
+  MeshTxBuilder,
+  resolveScriptHash,
+  serializeRewardAddress,
+} from "@meshsdk/core";
+import { blake2b } from "@meshsdk/core-cst";
 import { BlockfrostProvider } from "@meshsdk/provider";
 
 dotenv.config();
@@ -48,5 +56,79 @@ describe("Blockfrost Evaluator", () => {
       .evaluateTx(chainedSuccessTx, [])
       .catch(() => "error");
     expect(res).toBe("error");
+  });
+
+  it("should succeed with with registering certificates", async () => {
+    const txHash = (tx: string) => {
+      return blake2b(32).update(Buffer.from(tx, "utf-8")).digest("hex");
+    };
+
+    const alwaysSucceedCbor = applyCborEncoding(
+      "58340101002332259800a518a4d153300249011856616c696461746f722072657475726e65642066616c736500136564004ae715cd01",
+    );
+
+    const alwaysSucceedHash = resolveScriptHash(alwaysSucceedCbor, "V3");
+
+    const txBuilder = new MeshTxBuilder({});
+    const drep: DRep = {
+      alwaysAbstain: null,
+    };
+
+    const txHex = await txBuilder
+      .voteDelegationCertificate(
+        drep,
+        serializeRewardAddress(alwaysSucceedHash, true),
+      )
+      .certificateScript(alwaysSucceedCbor, "V3")
+      .certificateRedeemerValue("")
+      .txIn(
+        txHash("tx1"),
+        0,
+        [
+          {
+            unit: "lovelace",
+            quantity: "100000000",
+          },
+        ],
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+        0,
+      )
+      .txInCollateral(
+        txHash("tx1"),
+        0,
+        [
+          {
+            unit: "lovelace",
+            quantity: "100000000",
+          },
+        ],
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+
+    const res = await provider.evaluateTx(txHex, [
+      {
+        input: {
+          txHash: txHash("tx1"),
+          outputIndex: 0,
+        },
+        output: {
+          address:
+            "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+          amount: [
+            {
+              unit: "lovelace",
+              quantity: "100000000",
+            },
+          ],
+        },
+      },
+    ]);
+    expect(res).toEqual([
+      { tag: "CERT", index: 0, budget: { mem: 2001, steps: 380149 } },
+    ]);
   });
 });
