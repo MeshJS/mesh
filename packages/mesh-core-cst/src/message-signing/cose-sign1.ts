@@ -41,8 +41,10 @@ class CoseSign1 {
     if (
       !this.unProtectedMap.map.find((value) => {
         return (
-          JSONBig.stringify(value.k) ===
-          JSONBig.stringify(new CborText("hashed"))
+          JSONBig.stringify(value.k.toRawObj()) ===
+          JSONBig.stringify({
+            text: "hashed",
+          })
         );
       })
     ) {
@@ -190,8 +192,10 @@ class CoseSign1 {
   getAddress(): Buffer {
     const address = this.protectedMap.map.find((value) => {
       return (
-        JSONBig.stringify(value.k) ===
-        JSONBig.stringify(new CborText("address"))
+        JSONBig.stringify(value.k.toRawObj()) ===
+        JSONBig.stringify({
+          text: "address",
+        })
       );
     });
     if (!address) throw Error("Address not found");
@@ -200,7 +204,12 @@ class CoseSign1 {
 
   getPublicKey(): Buffer {
     const publicKey = this.protectedMap.map.find((value) => {
-      return JSONBig.stringify(value.k) === JSONBig.stringify(new CborUInt(4));
+      return (
+        JSONBig.stringify(value.k.toRawObj()) ===
+        JSONBig.stringify({
+          uint: BigInt(4),
+        })
+      );
     });
     if (!publicKey) throw Error("Public key not found");
     return Buffer.from((publicKey.v as CborBytes).bytes);
@@ -216,11 +225,10 @@ class CoseSign1 {
 }
 
 const getPublicKeyFromCoseKey = (cbor: string): Buffer => {
-  const decodedCoseKey = Cbor.parse(cbor) as CborMap;
+  const decodedCoseKey = Cbor.parse(cbor).toRawObj() as RawCborMap;
   const publicKeyEntry = decodedCoseKey.map.find((value) => {
     return (
-      JSONBig.stringify(value.k) ===
-      JSONBig.stringify(new CborNegInt(BigInt(-2)))
+      JSONBig.stringify(value.k) === JSONBig.stringify({ neg: BigInt(-2) })
     );
   });
 

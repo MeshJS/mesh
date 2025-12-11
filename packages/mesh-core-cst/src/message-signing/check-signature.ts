@@ -29,7 +29,6 @@ export const checkSignature = async (
   await ready();
   const builder = CoseSign1.fromCbor(signature);
   const publicKeyBuffer = getPublicKeyFromCoseKey(key);
-
   if (address) {
     let network = NetworkId.Mainnet;
     const paymentAddress = BaseAddress.fromAddress(Address.fromBech32(address));
