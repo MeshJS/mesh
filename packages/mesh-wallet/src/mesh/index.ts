@@ -636,7 +636,7 @@ export class MeshWallet implements IWallet {
         : this.addresses.enterpriseAddressBech32!,
     );
 
-    return utxos.map((utxo) => toTxUnspentOutput(utxo));
+    return utxos.map((utxo: UTxO) => toTxUnspentOutput(utxo));
   }
 
   /**
@@ -804,10 +804,8 @@ export class MeshWallet implements IWallet {
     if (pubKeyHash && stakeKeyHash) {
       this.addresses.baseAddress = buildBaseAddress(
         this._networkId,
-        Hash28ByteBase16.fromEd25519KeyHashHex(Ed25519KeyHashHex(pubKeyHash)),
-        Hash28ByteBase16.fromEd25519KeyHashHex(
-          Ed25519KeyHashHex(Ed25519KeyHashHex(stakeKeyHash)),
-        ),
+        Hash28ByteBase16(pubKeyHash),
+        Hash28ByteBase16(stakeKeyHash),
       ).toAddress();
       this.addresses.baseAddressBech32 = this.addresses.baseAddress.toBech32();
     }
@@ -815,7 +813,7 @@ export class MeshWallet implements IWallet {
     if (pubKeyHash) {
       this.addresses.enterpriseAddress = buildEnterpriseAddress(
         this._networkId,
-        Hash28ByteBase16.fromEd25519KeyHashHex(Ed25519KeyHashHex(pubKeyHash)),
+        Hash28ByteBase16(Ed25519KeyHashHex(pubKeyHash)),
       ).toAddress();
       this.addresses.enterpriseAddressBech32 =
         this.addresses.enterpriseAddress.toBech32();
@@ -824,7 +822,7 @@ export class MeshWallet implements IWallet {
     if (stakeKeyHash) {
       this.addresses.rewardAddress = buildRewardAddress(
         this._networkId,
-        Hash28ByteBase16.fromEd25519KeyHashHex(Ed25519KeyHashHex(stakeKeyHash)),
+        Hash28ByteBase16(stakeKeyHash),
       ).toAddress();
 
       this.addresses.rewardAddressBech32 =

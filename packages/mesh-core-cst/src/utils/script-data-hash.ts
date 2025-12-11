@@ -55,9 +55,5 @@ export const hashScriptData = (
     );
   }
 
-  return Hash32ByteBase16.fromHexBlob(
-    HexBlob.fromBytes(
-      Crypto.blake2b(Crypto.blake2b.BYTES).update(writer.encode()).digest(),
-    ),
-  );
+  return Hash32ByteBase16.fromHexBlob(Crypto.blake2b.hash(writer.encode(), 32));
 };

@@ -181,10 +181,7 @@ export const resolveStakeKeyHash = (bech32: string) => {
 
 export const resolveTxHash = (txHex: string) => {
   const txBody = deserializeTx(txHex).body();
-  const hash = blake2b(blake2b.BYTES)
-    .update(hexToBytes(txBody.toCbor()))
-    .digest();
-  return Cardano.TransactionId.fromHexBlob(HexBlob.fromBytes(hash)).toString();
+  return txBody.hash().toString();
 };
 
 export const resolveScriptHashDRepId = (scriptHash: string) => {

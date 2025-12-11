@@ -41,7 +41,7 @@ export const deserializeNativeScript = (nativeScript: string): NativeScript =>
   NativeScript.fromCbor(HexBlob(nativeScript));
 
 export const deserializeScriptHash = (scriptHash: string) =>
-  ScriptHash.fromEd25519KeyHashHex(Ed25519KeyHashHex(scriptHash));
+  ScriptHash(scriptHash);
 
 export const deserializeScriptRef = (scriptRef: string): Script =>
   Script.fromCbor(HexBlob(scriptRef));

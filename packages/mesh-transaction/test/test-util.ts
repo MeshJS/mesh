@@ -16,7 +16,7 @@ import {
 } from "@meshsdk/core-cst";
 
 export const txHash = (tx: string) => {
-  return blake2b(32).update(Buffer.from(tx, "utf-8")).digest("hex");
+  return blake2b.hash(Buffer.from(tx, "utf-8"), 32);
 };
 
 export const alwaysSucceedCbor = applyCborEncoding(
