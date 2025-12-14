@@ -250,13 +250,18 @@ async function createProject(
     if (!contract) continue;
     for (const filePath of contract.files) {
       // Get the correct path to contracts directory
-      const currentDir = path.dirname(process.argv[1] || __filename);
-      const sourcePath = path.join(currentDir, "..", filePath);
+      const packageRoot = path.resolve(__dirname, "..");
+      const sourcePath = path.join(packageRoot, filePath);
       const destPath = path.join(projectDir, filePath);
 
       if (await fs.pathExists(sourcePath)) {
         await fs.ensureDir(path.dirname(destPath));
         await fs.copy(sourcePath, destPath);
+      } else {
+        console.error(
+          chalk.red(`Error: Contract file not found: ${sourcePath}`),
+        );
+        throw new Error(`Contract file not found: ${sourcePath}`);
       }
     }
   }
@@ -355,6 +360,84 @@ async function createTsConfig(projectDir: string): Promise<void> {
   );
 }
 
+function generateManagedStructure(selectedContracts: string[]): string {
+  const managedDirs: string[] = [];
+
+  for (const contractKey of selectedContracts) {
+    const contract = contracts[contractKey];
+    if (!contract) continue;
+
+    for (const filePath of contract.files) {
+      const fileName = path.basename(filePath, ".compact");
+      managedDirs.push(fileName);
+    }
+  }
+
+  if (managedDirs.length === 0) {
+    return "src/managed/\n└── (compiled contracts will appear here)";
+  }
+
+  const structure = managedDirs
+    .map((dir, index) => {
+      const isLast = index === managedDirs.length - 1;
+      const prefix = isLast ? "└──" : "├──";
+      const indent = isLast ? "    " : "│   ";
+
+      return `${prefix} ${dir}/       # Compiled ${dir} contract
+${indent}├── compiler/                # Compilation artifacts
+${indent}├── contract/                # Contract bytecode
+${indent}├── keys/                    # Cryptographic keys
+${indent}└── zkir/                    # ZK proof system files`;
+    })
+    .join("\n");
+
+  return `src/managed/\n${structure}`;
+}
+
+function generateProjectStructure(
+  projectName: string,
+  selectedContracts: string[],
+): string {
+  const contractFiles: string[] = [];
+
+  for (const contractKey of selectedContracts) {
+    const contract = contracts[contractKey];
+    if (!contract) continue;
+
+    for (const filePath of contract.files) {
+      contractFiles.push(filePath);
+    }
+  }
+
+  if (contractFiles.length === 0) {
+    return `${projectName}/
+├── contracts/                # Source contract files (.compact)
+├── src/
+│   ├── managed/              # Compiled contracts (after compact compile)
+│   └── index.ts              # Your application code
+└── package.json              # Dependencies and scripts`;
+  }
+
+  const contractsStructure = contractFiles
+    .map((file, index) => {
+      const isLast = index === contractFiles.length - 1;
+      const prefix = isLast ? "└──" : "├──";
+      const relativePath = file.startsWith("contracts/")
+        ? file.substring("contracts/".length)
+        : file;
+      return `${prefix} ${relativePath}`;
+    })
+    .join("\n│   ");
+
+  return `${projectName}/
+├── contracts/                # Source contract files (.compact)
+│   ${contractsStructure}
+├── src/
+│   ├── managed/              # Compiled contracts (after compact compile)
+│   └── index.ts              # Your application code
+└── package.json              # Dependencies and scripts`;
+}
+
 async function createReadme(
   projectDir: string,
   projectName: string,
@@ -367,6 +450,11 @@ async function createReadme(
 
   const compileCommands = generateCompileCommands(selectedContracts);
   const compileCommandsText = compileCommands.join("\n\n");
+  const managedStructure = generateManagedStructure(selectedContracts);
+  const projectStructure = generateProjectStructure(
+    projectName,
+    selectedContracts,
+  );
 
   const readme = `# Midnight Contracts Wizard
 
@@ -393,17 +481,7 @@ ${compileCommandsText}
 ### What gets generated after compilation:
 
 \`\`\`
-src/managed/
-├── tokenization/           # Compiled tokenization contract
-│   ├── compiler/          # Compilation artifacts
-│   ├── contract/          # Contract bytecode
-│   ├── keys/              # Cryptographic keys
-│   └── zkir/              # ZK proof system files
-└── TokenizationLibrary/   # Compiled library
-    ├── compiler/
-    ├── contract/
-    ├── keys/
-    └── zkir/
+${managedStructure}
 \`\`\`
 
 ## What's Included
@@ -421,12 +499,7 @@ src/managed/
 ## Project Structure
 
 \`\`\`
-${projectName}/
-├── contracts/         # Source contract files (.compact)
-├── src/
-│   ├── managed/        # Compiled contracts (after compact compile)
-│   └── index.ts      # Your application code
-└── package.json       # Dependencies and scripts
+${projectStructure}
 \`\`\`
 
 ---
