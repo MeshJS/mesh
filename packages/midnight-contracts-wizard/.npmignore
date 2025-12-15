@@ -1,6 +1,5 @@
 # Source files
 src/
-contracts/
 
 # Development files
 jest.config.ts
