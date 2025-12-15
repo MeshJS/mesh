@@ -22,7 +22,7 @@
     "./typescript/wasm-base.json": "./typescript/wasm-base.json"
   },
   "devDependencies": {
-    "@vercel/style-guide": "^5.2.0",
+    "@vercel/style-guide": "^6.0.0",
     "eslint-config-turbo": "^1.12.4",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-only-warn": "^1.1.0",
