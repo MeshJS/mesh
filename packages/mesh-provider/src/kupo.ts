@@ -31,7 +31,7 @@ export class KupoProvider implements IFetcher {
     throw new Error("Method not implemented.");
   }
   async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
-    const { status, data } = await this.get(address);
+    const { status, data } = await this.get(`${address}?unspent`);
     if (status === 200) {
       return data
         .map((utxo: any) => {
