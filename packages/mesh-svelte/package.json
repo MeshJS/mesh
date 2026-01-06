@@ -46,6 +46,9 @@
     "vite-plugin-top-level-await": "^1.4.4",
     "vite-plugin-wasm": "^3.3.0"
   },
+  "overrides": {
+    "libsodium-wrappers-sumo": "0.7.15"
+  },
   "peerDependencies": {
     "svelte": "^5.0.0"
   },

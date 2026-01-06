@@ -59,7 +59,8 @@
     "react-dom": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc"
   },
   "overrides": {
-    "ip": "npm:@webpod/ip@latest"
+    "ip": "npm:@webpod/ip@latest",
+    "libsodium-wrappers-sumo": "0.7.15"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

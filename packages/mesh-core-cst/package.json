@@ -54,7 +54,8 @@
   "overrides": {
     "@cardano-sdk/crypto": {
       "pbkdf2": "crypto"
-    }
+    },
+    "libsodium-wrappers-sumo": "0.7.15"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

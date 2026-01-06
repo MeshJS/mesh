@@ -43,6 +43,9 @@
     "axios": "^1.7.2",
     "cbor": "^10.0.9"
   },
+  "overrides": {
+    "libsodium-wrappers-sumo": "0.7.15"
+  },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
     "access": "public"
