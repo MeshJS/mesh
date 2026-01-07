@@ -29,16 +29,18 @@ export const buildBaseAddress = (
   networkId: number,
   paymentKeyHash: Hash28ByteBase16,
   stakeKeyHash: Hash28ByteBase16,
+  paymentCredType: CredentialType = CredentialType.KeyHash,
+  stakeCredType: CredentialType = CredentialType.KeyHash
 ): BaseAddress => {
   return BaseAddress.fromCredentials(
     networkId,
     {
       hash: paymentKeyHash,
-      type: CredentialType.KeyHash,
+      type: paymentCredType,
     },
     {
       hash: stakeKeyHash,
-      type: CredentialType.KeyHash,
+      type: stakeCredType,
     },
   );
 };
