@@ -36,7 +36,6 @@
     "@meshsdk/common": "1.9.0-beta.92",
     "@meshsdk/core-cst": "1.9.0-beta.92",
     "@meshsdk/provider": "1.9.0-beta.92",
-    "@meshsdk/react": "1.9.0-beta.92",
     "@meshsdk/transaction": "1.9.0-beta.92",
     "@meshsdk/wallet": "1.9.0-beta.92",
     "libsodium-wrappers-sumo": "0.7.15"
