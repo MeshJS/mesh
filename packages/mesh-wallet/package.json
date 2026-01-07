@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/wallet",
-  "version": "1.9.0-beta.91",
+  "version": "1.9.0-beta.92",
   "description": "Wallets - https://meshjs.dev/apis/wallets",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -35,12 +35,10 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.0-beta.91",
-    "@meshsdk/core-cst": "1.9.0-beta.91",
-    "@meshsdk/transaction": "1.9.0-beta.91",
-    "@simplewebauthn/browser": "^13.0.0"
-  },
-  "overrides": {
+    "@meshsdk/common": "1.9.0-beta.92",
+    "@meshsdk/core-cst": "1.9.0-beta.92",
+    "@meshsdk/transaction": "1.9.0-beta.92",
+    "@simplewebauthn/browser": "^13.0.0",
     "libsodium-wrappers-sumo": "0.7.15"
   },
   "prettier": "@meshsdk/configs/prettier",
