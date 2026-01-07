@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/midnight-contracts-wizard",
-  "version": "1.9.0-beta.91",
+  "version": "1.9.0-beta.92",
   "description": "Create a new Midnight contracts project with selected smart contracts",
   "main": "dist/index.js",
   "bin": {
