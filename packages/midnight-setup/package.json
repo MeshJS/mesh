@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/midnight-setup",
-  "version": "1.9.0-beta.92",
+  "version": "1.9.0-beta.93",
   "description": "Midnight Network integration SDK for MeshSDK - https://meshjs.dev/midnight",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
