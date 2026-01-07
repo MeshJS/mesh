@@ -1,0 +1,18 @@
+name = "iohk/programmable-tokens"
+version = "0.3.0"
+compiler = "v1.1.17"
+plutus = "v3"
+license = "Apache-2.0"
+description = "Aiken implementation of CIP-0143 programmable tokens (migrated from Plutarch)"
+
+[repository]
+user = "iohk"
+project = "programmable-tokens"
+platform = "github"
+
+[[dependencies]]
+name = "aiken-lang/stdlib"
+version = "v3.0.0"
+source = "github"
+
+[config]
