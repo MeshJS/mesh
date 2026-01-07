@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/react",
-  "version": "1.9.0-beta.90",
+  "version": "1.9.0-beta.91",
   "description": "React component library - https://meshjs.dev/react",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -30,10 +30,10 @@
   },
   "dependencies": {
     "@cardananium/cardano-peer-connect": "^1.2.19",
-    "@meshsdk/bitcoin": "1.9.0-beta.90",
-    "@meshsdk/common": "1.9.0-beta.90",
-    "@meshsdk/transaction": "1.9.0-beta.90",
-    "@meshsdk/wallet": "1.9.0-beta.90",
+    "@meshsdk/bitcoin": "1.9.0-beta.91",
+    "@meshsdk/common": "1.9.0-beta.91",
+    "@meshsdk/transaction": "1.9.0-beta.91",
+    "@meshsdk/wallet": "1.9.0-beta.91",
     "@meshsdk/web3-sdk": "0.0.50",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
@@ -59,7 +59,8 @@
     "react-dom": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc"
   },
   "overrides": {
-    "ip": "npm:@webpod/ip@latest"
+    "ip": "npm:@webpod/ip@latest",
+    "libsodium-wrappers-sumo": "0.7.15"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

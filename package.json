@@ -43,6 +43,7 @@
     "npm": "^10.8.0"
   },
   "overrides": {
-    "ip": "npm:@webpod/ip@latest"
+    "ip": "npm:@webpod/ip@latest",
+    "libsodium-wrappers-sumo": "0.7.15"
   }
 }
