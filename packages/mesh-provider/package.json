@@ -41,9 +41,7 @@
     "@utxorpc/sdk": "^0.6.7",
     "@utxorpc/spec": "^0.16.0",
     "axios": "^1.7.2",
-    "cbor": "^10.0.9"
-  },
-  "overrides": {
+    "cbor": "^10.0.9",
     "libsodium-wrappers-sumo": "0.7.15"
   },
   "prettier": "@meshsdk/configs/prettier",

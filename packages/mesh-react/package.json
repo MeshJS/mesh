@@ -52,15 +52,15 @@
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "latest",
-    "tsup": "^8.0.2"
+    "tsup": "^8.0.2",
+    "libsodium-wrappers-sumo": "0.7.15"
   },
   "peerDependencies": {
     "react": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc",
     "react-dom": ">=16.0.0 <20.0.0 || >=16.0.0-rc <20.0.0-rc || >=19.0.0-rc"
   },
   "overrides": {
-    "ip": "npm:@webpod/ip@latest",
-    "libsodium-wrappers-sumo": "0.7.15"
+    "ip": "npm:@webpod/ip@latest"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

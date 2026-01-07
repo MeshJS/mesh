@@ -49,13 +49,13 @@
     "base32-encoding": "^1.0.0",
     "bech32": "^2.0.0",
     "blakejs": "^1.2.1",
-    "bn.js": "^5.2.0"
+    "bn.js": "^5.2.0",
+    "libsodium-wrappers-sumo": "0.7.15"
   },
   "overrides": {
     "@cardano-sdk/crypto": {
       "pbkdf2": "crypto"
-    },
-    "libsodium-wrappers-sumo": "0.7.15"
+    }
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

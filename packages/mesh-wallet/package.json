@@ -38,9 +38,7 @@
     "@meshsdk/common": "1.9.0-beta.91",
     "@meshsdk/core-cst": "1.9.0-beta.91",
     "@meshsdk/transaction": "1.9.0-beta.91",
-    "@simplewebauthn/browser": "^13.0.0"
-  },
-  "overrides": {
+    "@simplewebauthn/browser": "^13.0.0",
     "libsodium-wrappers-sumo": "0.7.15"
   },
   "prettier": "@meshsdk/configs/prettier",
