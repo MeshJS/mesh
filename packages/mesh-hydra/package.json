@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/hydra",
-  "version": "1.9.0-beta.93",
+  "version": "1.9.0-beta.94",
   "description": "Mesh Hydra package",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -27,9 +27,9 @@
     "test": "jest"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.0-beta.93",
-    "@meshsdk/core": "1.9.0-beta.93",
-    "@meshsdk/core-cst": "1.9.0-beta.93",
+    "@meshsdk/common": "1.9.0-beta.94",
+    "@meshsdk/core": "1.9.0-beta.94",
+    "@meshsdk/core-cst": "1.9.0-beta.94",
     "axios": "^1.7.2"
   },
   "devDependencies": {
