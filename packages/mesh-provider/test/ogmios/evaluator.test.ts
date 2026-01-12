@@ -7,7 +7,7 @@ import {
   resolveScriptHash,
   serializeRewardAddress,
 } from "@meshsdk/core";
-import { blake2b } from "@meshsdk/core-cst";
+import { blake2b, HexBlob } from "@meshsdk/core-cst";
 import { OgmiosProvider } from "@meshsdk/provider";
 
 dotenv.config();
@@ -60,7 +60,7 @@ describe("Ogmios Evaluator", () => {
 
   it("should succeed with with registering certificates", async () => {
     const txHash = (tx: string) => {
-      return blake2b(32).update(Buffer.from(tx, "utf-8")).digest("hex");
+      return blake2b.hash(HexBlob(tx), 32);
     };
 
     const alwaysSucceedCbor = applyCborEncoding(
