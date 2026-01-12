@@ -7,8 +7,6 @@ Apache-2.0 License for more details.
 */
 
 import { Cardano } from "@cardano-sdk/core";
-import { blake2b } from "@cardano-sdk/crypto";
-import { HexBlob } from "@cardano-sdk/util";
 import base32 from "base32-encoding";
 import { bech32 } from "bech32";
 
@@ -47,7 +45,7 @@ import { hexToBytes } from "../utils/encoding";
 export const resolveDataHash = (
   rawData: BuilderData["content"],
   type: PlutusDataType = "Mesh",
-) => {
+): string => {
   const plutusData = fromBuilderToPlutusData({
     content: rawData,
     type,
@@ -58,7 +56,7 @@ export const resolveDataHash = (
 export const resolveNativeScriptAddress = (
   script: NativeScript,
   networkId = 0,
-) => {
+): string => {
   const nativeScript = toNativeScript(script);
 
   const enterpriseAddress = EnterpriseAddress.fromCredentials(networkId, {
@@ -69,11 +67,11 @@ export const resolveNativeScriptAddress = (
   return enterpriseAddress.toAddress().toBech32().toString();
 };
 
-export const resolveNativeScriptHash = (script: NativeScript) => {
+export const resolveNativeScriptHash = (script: NativeScript): string => {
   return toNativeScript(script).hash().toString();
 };
 
-export const resolvePaymentKeyHash = (bech32: string) => {
+export const resolvePaymentKeyHash = (bech32: string): string => {
   try {
     const paymentKeyHash = [
       toBaseAddress(bech32)?.getPaymentCredential().hash,
@@ -95,7 +93,7 @@ export const resolvePaymentKeyHash = (bech32: string) => {
 export const resolvePlutusScriptAddress = (
   script: PlutusScript,
   networkId = 0,
-) => {
+): string => {
   const plutusScript = deserializePlutusScript(script.code, script.version);
 
   const enterpriseAddress = EnterpriseAddress.fromCredentials(networkId, {
@@ -106,7 +104,7 @@ export const resolvePlutusScriptAddress = (
   return enterpriseAddress.toAddress().toBech32().toString();
 };
 
-export const resolvePlutusScriptHash = (bech32: string) => {
+export const resolvePlutusScriptHash = (bech32: string): string => {
   try {
     const enterpriseAddress = toEnterpriseAddress(bech32);
     const scriptHash = enterpriseAddress?.getPaymentCredential().hash;
@@ -119,11 +117,11 @@ export const resolvePlutusScriptHash = (bech32: string) => {
   }
 };
 
-export const resolvePoolId = (hash: string) => {
+export const resolvePoolId = (hash: string): string => {
   return PoolId.fromKeyHash(Ed25519KeyHashHex(hash)).toString();
 };
 
-export const resolvePrivateKey = (words: string[]) => {
+export const resolvePrivateKey = (words: string[]): string => {
   const buildBip32PrivateKey = (
     entropy: string,
     password = "",
@@ -142,11 +140,13 @@ export const resolvePrivateKey = (words: string[]) => {
   return bech32PrivateKey;
 };
 
-export const resolveScriptRef = (script: PlutusScript | NativeScript) => {
+export const resolveScriptRef = (
+  script: PlutusScript | NativeScript,
+): string => {
   return toScriptRef(script).toCbor().toString();
 };
 
-export const resolveRewardAddress = (bech32: string) => {
+export const resolveRewardAddress = (bech32: string): string => {
   try {
     const address = toAddress(bech32);
     const baseAddress = toBaseAddress(bech32);
@@ -164,7 +164,7 @@ export const resolveRewardAddress = (bech32: string) => {
   }
 };
 
-export const resolveStakeKeyHash = (bech32: string) => {
+export const resolveStakeKeyHash = (bech32: string): string => {
   try {
     const stakeKeyHash = [
       toBaseAddress(bech32)?.getStakeCredential().hash,
@@ -179,19 +179,19 @@ export const resolveStakeKeyHash = (bech32: string) => {
   }
 };
 
-export const resolveTxHash = (txHex: string) => {
+export const resolveTxHash = (txHex: string): string => {
   const txBody = deserializeTx(txHex).body();
   return txBody.hash().toString();
 };
 
-export const resolveScriptHashDRepId = (scriptHash: string) => {
+export const resolveScriptHashDRepId = (scriptHash: string): string => {
   return DRepID.cip129FromCredential({
     type: Cardano.CredentialType.ScriptHash,
     hash: Hash28ByteBase16(scriptHash),
   }).toString();
 };
 
-export const resolveEd25519KeyHash = (bech32: string) => {
+export const resolveEd25519KeyHash = (bech32: string): string => {
   try {
     const keyHash = [
       toBaseAddress(bech32)?.getPaymentCredential().hash,
