@@ -75,19 +75,56 @@ export type CreateMeshWalletOptions = {
  * - mnemonic: A list of 24 words
  * - address: A bech32 address that can be used to create a read-only wallet, generally starts with `addr` or `addr_test1`
  *
+ * @param options.networkId - The network ID (0 for mainnet, 1 for testnet)
+ * @param options.fetcher - Optional fetcher for blockchain data
+ * @param options.submitter - Optional submitter for transactions
+ * @param options.key - The key configuration (one of: root, cli, mnemonic, bip32Bytes, or address)
+ * @param options.accountIndex - Optional account index (default: 0)
+ * @param options.keyIndex - Optional key index (default: 0)
+ * @param options.accountType - Optional account type: "payment" (default), "stake", or "drep".
+ *                              Determines which key is used for signing transactions:
+ *                              - "payment": Uses the payment key (default behavior)
+ *                              - "stake": Uses the stake key for staking-related transactions
+ *                              - "drep": Uses the DRep key for delegation representative transactions
+ *
  * ```javascript
  * import { MeshWallet, BlockfrostProvider } from '@meshsdk/core';
  *
  * const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
  *
+ * // Create wallet with default payment account
  * const wallet = new MeshWallet({
  *   networkId: 0,
  *   fetcher: provider,
  *   submitter: provider,
  *   key: {
  *     type: 'mnemonic',
- *     words: ["solution","solution","solution","solution","solution",","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution"],
+ *     words: ["solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution"],
  *   },
+ * });
+ *
+ * // Create wallet with stake account type for staking transactions
+ * const stakeWallet = new MeshWallet({
+ *   networkId: 0,
+ *   fetcher: provider,
+ *   submitter: provider,
+ *   key: {
+ *     type: 'mnemonic',
+ *     words: ["solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution"],
+ *   },
+ *   accountType: 'stake',
+ * });
+ *
+ * // Create wallet with drep account type for delegation representative transactions
+ * const drepWallet = new MeshWallet({
+ *   networkId: 0,
+ *   fetcher: provider,
+ *   submitter: provider,
+ *   key: {
+ *     type: 'mnemonic',
+ *     words: ["solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution","solution"],
+ *   },
+ *   accountType: 'drep',
  * });
  * ```
  *
