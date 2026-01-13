@@ -17,6 +17,13 @@ import {
 } from "./json";
 
 /**
+ * Compare two hex strings by byte ordering (lexicographic comparison)
+ * Works because hex digits 0-9, a-f are in ascending ASCII order
+ */
+const compareByteOrder = (a: string, b: string): number =>
+  a < b ? -1 : a > b ? 1 : 0;
+
+/**
  * Aiken alias
  * Value is the JSON representation of Cardano data Value
  */
@@ -59,6 +66,29 @@ export class MeshValue {
   constructor(value: Record<string, bigint> = {}) {
     this.value = value;
   }
+
+  /**
+   * Sort a Value (JSON representation) by policy ID then token name
+   * @param plutusValue The Value to sort
+   * @returns Sorted Value
+   */
+  static sortValue = (plutusValue: Value): Value => {
+    const sortedPolicies = [...plutusValue.map].sort((a, b) =>
+      compareByteOrder(a.k.bytes, b.k.bytes),
+    );
+
+    const sortedMap = sortedPolicies.map((policyEntry) => {
+      const sortedTokens = [...policyEntry.v.map].sort((a, b) =>
+        compareByteOrder(a.k.bytes, b.k.bytes),
+      );
+      return {
+        k: policyEntry.k,
+        v: { map: sortedTokens },
+      };
+    });
+
+    return { map: sortedMap };
+  };
 
   /**
    * Converting assets into MeshValue
@@ -296,19 +326,20 @@ export class MeshValue {
 
   /**
    * Convert the MeshValue object into Cardano data Value in Mesh Data type
+   * Entries are sorted by byte ordering of policy ID, then token name
    */
   toData = (): MValue => {
-    const valueMap: MValue = new Map();
+    const unsortedMap: Map<string, Map<string, bigint>> = new Map();
     this.toAssets().forEach((asset) => {
       const sanitizedName = asset.unit.replace("lovelace", "");
       const policy = sanitizedName.slice(0, 56) || "";
       const token = sanitizedName.slice(56) || "";
 
-      if (!valueMap.has(policy)) {
-        valueMap.set(policy, new Map());
+      if (!unsortedMap.has(policy)) {
+        unsortedMap.set(policy, new Map());
       }
 
-      const tokenMap = valueMap.get(policy)!;
+      const tokenMap = unsortedMap.get(policy)!;
       const quantity = tokenMap?.get(token);
       if (!quantity) {
         tokenMap.set(token, BigInt(asset.quantity));
@@ -317,11 +348,30 @@ export class MeshValue {
       }
     });
 
+    // Sort by policy ID (byte ordering), then by token name (byte ordering)
+    const sortedPolicies = Array.from(unsortedMap.keys()).sort(compareByteOrder);
+    const valueMap: MValue = new Map();
+
+    sortedPolicies.forEach((policy) => {
+      const unsortedTokenMap = unsortedMap.get(policy)!;
+      const sortedTokens = Array.from(unsortedTokenMap.keys()).sort(
+        compareByteOrder,
+      );
+      const sortedTokenMap = new Map<string, bigint>();
+
+      sortedTokens.forEach((token) => {
+        sortedTokenMap.set(token, unsortedTokenMap.get(token)!);
+      });
+
+      valueMap.set(policy, sortedTokenMap);
+    });
+
     return valueMap;
   };
 
   /**
    * Convert the MeshValue object into a JSON representation of Cardano data Value
+   * Entries are sorted by byte ordering of policy ID, then token name
    * @returns Cardano data Value in JSON
    */
   toJSON = (): Value => {
@@ -345,11 +395,19 @@ export class MeshValue {
       }
     });
 
-    Object.keys(valueMap).forEach((policy) => {
+    // Sort policies by byte ordering
+    const sortedPolicies = Object.keys(valueMap).sort(compareByteOrder);
+
+    sortedPolicies.forEach((policy) => {
       const policyByte = currencySymbol(policy);
-      const tokens: [TokenName, Integer][] = Object.keys(valueMap[policy]!).map(
-        (name) => [tokenName(name), integer(valueMap[policy]![name]!)],
+      // Sort tokens by byte ordering
+      const sortedTokenNames = Object.keys(valueMap[policy]!).sort(
+        compareByteOrder,
       );
+      const tokens: [TokenName, Integer][] = sortedTokenNames.map((name) => [
+        tokenName(name),
+        integer(valueMap[policy]![name]!),
+      ]);
 
       const policyMap = assocMap(tokens);
       valueMapToParse.push([policyByte, policyMap]);
