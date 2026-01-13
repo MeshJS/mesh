@@ -48,7 +48,7 @@ function Left() {
       <Codeblock data={signature} />
 
       <p>
-        There are 7 optional fields to pass in to initialized the lower level
+        There are 7 optional fields to pass in to initialize the lower level
         APIs instance:
       </p>
 

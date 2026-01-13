@@ -75,7 +75,7 @@ export type CreateMeshWalletOptions = {
  * - mnemonic: A list of 24 words
  * - address: A bech32 address that can be used to create a read-only wallet, generally starts with `addr` or `addr_test1`
  *
- * @param options.networkId - The network ID (0 for mainnet, 1 for testnet)
+ * @param options.networkId - The network ID (1 for mainnet, 0 for testnet)
  * @param options.fetcher - Optional fetcher for blockchain data
  * @param options.submitter - Optional submitter for transactions
  * @param options.key - The key configuration (one of: root, cli, mnemonic, bip32Bytes, or address)
