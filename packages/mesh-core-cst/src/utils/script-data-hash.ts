@@ -1,6 +1,6 @@
 /* eslint-disable unicorn/number-literal-case */
+import blake2b from "blake2b";
 import { Cardano, Serialization } from "@cardano-sdk/core";
-import * as Crypto from "@cardano-sdk/crypto";
 import { Hash32ByteBase16 } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 
@@ -25,7 +25,7 @@ export const hashScriptData = (
   costModels: Serialization.Costmdls,
   redemeers?: Serialization.Redeemers,
   datums?: Serialization.CborSet<Cardano.PlutusData, PlutusData>,
-): Crypto.Hash32ByteBase16 | undefined => {
+): Hash32ByteBase16 | undefined => {
   const writer = new Serialization.CborWriter();
   if (datums && datums.size() > 0 && (!redemeers || redemeers.size() === 0)) {
     /*
@@ -55,7 +55,7 @@ export const hashScriptData = (
     );
   }
 
-  const hashHex = Crypto.blake2b(32)
+  const hashHex = blake2b(32)
     .update(Buffer.from(writer.encode()))
     .digest("hex");
   return Hash32ByteBase16.fromHexBlob(HexBlob(hashHex));
