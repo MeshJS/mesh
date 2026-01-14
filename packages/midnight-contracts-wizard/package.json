@@ -7,10 +7,10 @@
     "midnight-contracts-wizard": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build:midnight": "tsc",
     "clean": "rm -rf dist",
     "format": "prettier --write \"src/**/*.{ts,js,json}\"",
-    "dev": "tsc --watch",
+    "dev:midnight": "tsc --watch",
     "lint": "eslint",
     "pack": "npm pack",
     "test": "jest",

@@ -25,6 +25,9 @@
   },
   "dependencies": {
     "@bitcoin-js/tiny-secp256k1-asmjs": "^2.2.3",
+    "@meshsdk/common": "*",
+    "@meshsdk/provider": "*",
+    "axios": "^1.7.9",
     "bip174": "^3.0.0",
     "bip32": "^4.0.0",
     "bip39": "^3.1.0",
