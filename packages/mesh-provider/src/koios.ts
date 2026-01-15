@@ -460,7 +460,9 @@ export class KoiosProvider
     txHash: string,
     certIndex: number,
   ): Promise<GovernanceProposalInfo> {
-    throw new Error("Method not implemented");
+    // Koios API doesn't currently support governance proposal queries
+    // This is consistent with other providers like Maestro, Yaci, and U5C
+    throw new Error("Governance proposal queries are not supported by Koios API");
   }
 
   /**
