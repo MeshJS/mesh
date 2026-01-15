@@ -437,6 +437,7 @@ export class KoiosProvider
         _assets: true,
         _scripts: true,
         _bytecode: true,
+        _datums: true,
       });
 
       if (status === 200) {
