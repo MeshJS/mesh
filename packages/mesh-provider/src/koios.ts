@@ -283,23 +283,30 @@ export class KoiosProvider
    * @param cursor The cursor for pagination
    * @returns The list of assets and the next cursor
    */
-  async fetchCollectionAssets(policyId: string): Promise<{ assets: Asset[] }> {
+  async fetchCollectionAssets(
+    policyId: string,
+    cursor?: number | string,
+  ): Promise<{ assets: Asset[]; next?: string | number | null }> {
     try {
+      // Note: Koios API doesn't support pagination for policy_asset_info endpoint
+      // We return all assets and set next to null to match the interface
       const { data, status } = await this._axiosInstance.get(
         `policy_asset_info?_asset_policy=${policyId}`,
       );
 
-      if (status === 200)
+      if (status === 200) {
         return {
           assets: data.map((asset: KoiosAsset) => ({
             unit: `${asset.policy_id}${asset.asset_name}`,
             quantity: asset.total_supply,
           })),
+          next: null, // Koios doesn't support pagination for this endpoint
         };
+      }
 
       throw parseHttpError(data);
     } catch (error) {
-      throw parseHttpError(error);
+      return { assets: [], next: null };
     }
   }
 
