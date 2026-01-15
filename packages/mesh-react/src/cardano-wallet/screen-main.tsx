@@ -1,7 +1,5 @@
-import { BrowserWallet } from "@meshsdk/bitcoin";
 import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
 
-import IconBitcoin from "../common/icons/icon-bitcoin";
 import IconBookDashed from "../common/icons/icon-book-dashed";
 import IconDownload from "../common/icons/icon-download";
 import IconFingerprint from "../common/icons/icon-fingerprint";
@@ -34,7 +32,7 @@ export default function ScreenMain({
   web3Services?: EnableWeb3WalletOptions;
 }) {
   const wallets = useWalletList({ injectFn });
-  const { connect, setBitcoinWallet } = useWallet();
+  const { connect } = useWallet();
 
   return (
     <TooltipProvider>
@@ -99,18 +97,6 @@ export default function ScreenMain({
             }}
           />
         )}
-
-        <WalletIcon
-          iconReactNode={IconBitcoin()}
-          name={"Bitcoin"}
-          action={async () => {
-            const wallet = await BrowserWallet.enable(
-              "Mesh SDK want to connect",
-            );
-            setBitcoinWallet(wallet, "Bitcoin");
-            setOpen(false);
-          }}
-        />
       </div>
     </TooltipProvider>
   );

@@ -7,6 +7,7 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
+  target: "esnext",
   external: [
     "bip32",
     "ecpair",

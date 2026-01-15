@@ -1,15 +1,15 @@
-import { MaestroProvider as CardanoMaestroProvider, type MaestroSupportedNetworks as CardanoMaestroNetworks } from "../maestro";
-import {
-  MaestroProvider as BitcoinMaestroProvider,
+import { MaestroProvider as CardanoMaestroProvider, type MaestroSupportedNetworks as CardanoMaestroNetworks } from "@meshsdk/provider";
+import type { TransactionInfo as CardanoTransactionInfo, UTxO as CardanoUTxO, IFetcherOptions } from "@meshsdk/common";
+import { MaestroProvider as BitcoinMaestroProvider } from "../providers";
+import type {
   MaestroSupportedNetworks as BitcoinMaestroNetworks,
   TransactionsInfo as BitcoinTransactionInfo,
   UTxO as BitcoinUTxO,
   AddressInfo as BitcoinAddressInfo,
   TransactionsStatus as BitcoinTransactionStatus
-} from "@meshsdk/bitcoin";
-import type { TransactionInfo as CardanoTransactionInfo, UTxO as CardanoUTxO, IFetcherOptions } from "@meshsdk/common";
+} from "../types";
 
-export type MaestroConfig =
+export type MaestroMultiChainConfig =
   | { chain: "cardano"; apiKey: string; network: CardanoMaestroNetworks; turboSubmit?: boolean }
   | { chain: "bitcoin"; apiKey: string; network: BitcoinMaestroNetworks };
 
@@ -48,7 +48,7 @@ export class MaestroMultiChainProvider {
    * Create a Maestro provider for the specified chain.
    * @param config - Chain-specific configuration object.
    */
-  constructor(config: MaestroConfig) {
+  constructor(config: MaestroMultiChainConfig) {
     this._chain = config.chain;
 
     if (config.chain === "cardano") {
