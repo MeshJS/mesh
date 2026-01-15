@@ -152,7 +152,7 @@ function Header({
         ) : (
           <span style={{ width: "24px" }}></span>
         )}
-        <span>
+        <span className="mesh-text-white">
           {/* @ts-ignore */}
           {screens[screen].title}
         </span>
