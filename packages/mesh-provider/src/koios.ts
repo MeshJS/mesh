@@ -659,11 +659,13 @@ export class KoiosProvider
       });
 
       if (status === 200 || status === 202) {
-        if (!data.result || !data.result.length) {
+        if (!data.result) {
           return [];
         }
 
-        return data.result.map((val: any) => {
+        // Koios Ogmios endpoint returns result as an object, not an array
+        // Use Object.values() to convert to array, matching Ogmios provider behavior
+        return Object.values(data.result).map((val: any) => {
           if (!val.validator || !val.budget) {
             throw new Error("Invalid response format");
           }
