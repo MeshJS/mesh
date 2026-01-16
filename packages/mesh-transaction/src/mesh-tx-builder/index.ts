@@ -47,6 +47,22 @@ import {
 } from "./coin-selection/coin-selection-interface";
 import { MeshTxBuilderCore } from "./tx-builder-core";
 
+/**
+ * Options for initializing a MeshTxBuilder instance.
+ *
+ * @param fetcher - Optional fetcher for blockchain data. Used to query missing transaction information.
+ * @param submitter - Optional submitter for transactions. Used to submit transactions directly from the builder instance.
+ * @param evaluator - Optional evaluator for redeemer execution unit optimization. Returns error messages for invalid transactions.
+ * @param serializer - Optional serializer for transaction serialization. Defaults to CardanoSDKSerializer.
+ * @param selector - Optional coin selection strategy selector. Defaults to CardanoSdkInputSelector.
+ *                   Available built-in selectors:
+ *                   - CardanoSdkInputSelector: Default selector using Cardano SDK's round-robin random improve algorithm
+ *                   - LargestFirstInputSelector: Largest-first selection algorithm
+ *                   Custom selectors can be created by implementing the IInputSelector interface.
+ * @param isHydra - Optional flag to use Hydra-specific protocol parameters (all fees set to 0).
+ * @param params - Optional partial protocol parameters to override defaults.
+ * @param verbose - Optional flag to enable verbose logging for transaction building.
+ */
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
@@ -58,6 +74,30 @@ export interface MeshTxBuilderOptions {
   verbose?: boolean;
 }
 
+/**
+ * MeshTxBuilder provides a comprehensive API for building Cardano transactions.
+ * It supports various transaction types including payments, token minting, smart contract interactions, and more.
+ *
+ * @example
+ * ```javascript
+ * import { MeshTxBuilder, BlockfrostProvider, LargestFirstInputSelector } from '@meshsdk/core';
+ *
+ * const provider = new BlockfrostProvider('<BLOCKFROST_API_KEY>');
+ *
+ * // Initialize with default selector
+ * const txBuilder = new MeshTxBuilder({
+ *   fetcher: provider,
+ *   submitter: provider,
+ *   verbose: true,
+ * });
+ *
+ * // Initialize with custom selector (largest-first algorithm)
+ * const txBuilderWithCustomSelector = new MeshTxBuilder({
+ *   fetcher: provider,
+ *   selector: new LargestFirstInputSelector(),
+ * });
+ * ```
+ */
 export class MeshTxBuilder extends MeshTxBuilderCore {
   serializer: IMeshTxSerializer;
   selector: IInputSelector;
@@ -70,6 +110,22 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   protected queriedUTxOs: { [x: string]: UTxO[] } = {};
   protected utxosWithRefScripts: UTxO[] = [];
 
+  /**
+   * Creates a new MeshTxBuilder instance.
+   *
+   * @param options - Configuration options for the transaction builder
+   * @param options.serializer - Optional serializer instance. Defaults to CardanoSDKSerializer.
+   * @param options.selector - Optional coin selection strategy. Defaults to CardanoSdkInputSelector.
+   *                          Use this to customize how UTxOs are selected for transactions.
+   *                          Built-in options: CardanoSdkInputSelector, LargestFirstInputSelector.
+   *                          Custom selectors must implement the IInputSelector interface.
+   * @param options.fetcher - Optional fetcher for blockchain data queries.
+   * @param options.submitter - Optional submitter for transaction submission.
+   * @param options.evaluator - Optional evaluator for redeemer execution unit optimization.
+   * @param options.params - Optional protocol parameters to override defaults.
+   * @param options.isHydra - If true, uses Hydra-specific protocol parameters (all fees set to 0).
+   * @param options.verbose - If true, enables verbose logging during transaction building.
+   */
   constructor({
     serializer,
     selector,
