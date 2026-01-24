@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { IFetcher, ISubmitter } from "@meshsdk/common";
-import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
+import { EnableWeb3WalletOptions } from "@utxos/sdk";
 
 import { Button } from "../common/button";
 import {
@@ -19,7 +19,6 @@ import ConnectedButton from "./connected-button";
 import { screens } from "./data";
 import ScreenBurner from "./screen-burner";
 import ScreenMain from "./screen-main";
-import ScreenP2P from "./screen-p2p";
 import ScreenWebauthn from "./screen-webauthn";
 
 interface ButtonProps {
@@ -28,13 +27,6 @@ interface ButtonProps {
   isDark?: boolean;
   persist?: boolean;
   injectFn?: () => Promise<void>;
-  cardanoPeerConnect?: {
-    dAppInfo: {
-      name: string;
-      url: string;
-    };
-    announce: string[];
-  };
   burnerWallet?: {
     networkId: 0 | 1;
     provider: IFetcher & ISubmitter;
@@ -54,7 +46,6 @@ export const CardanoWallet = ({
   isDark = false,
   persist = false,
   injectFn = undefined,
-  cardanoPeerConnect = undefined,
   burnerWallet = undefined,
   webauthn = undefined,
   showDownload = true,
@@ -101,17 +92,10 @@ export const CardanoWallet = ({
             setOpen={setOpen}
             setScreen={setScreen}
             persist={persist}
-            cardanoPeerConnect={cardanoPeerConnect != undefined}
             burnerWallet={burnerWallet != undefined}
             webauthn={webauthn != undefined}
             showDownload={showDownload}
             web3Services={web3Services}
-          />
-        )}
-        {screen == "p2p" && (
-          <ScreenP2P
-            cardanoPeerConnect={cardanoPeerConnect}
-            setOpen={setOpen}
           />
         )}
         {screen == "burner" && burnerWallet && (

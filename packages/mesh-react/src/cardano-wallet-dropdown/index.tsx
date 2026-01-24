@@ -9,22 +9,14 @@ interface ButtonProps {
   label?: string;
   onConnected?: Function;
   isDark?: boolean;
-  extensions?: number[];
-  cardanoPeerConnect?: {
-    dAppInfo: {
-      name: string;
-      url: string;
-    };
-    announce: string[];
-  };
+  persist?: boolean;
 }
 
 export const CardanoWallet = ({
   label = "Connect Wallet",
   onConnected = undefined,
   isDark = false,
-  extensions = [],
-  cardanoPeerConnect = undefined,
+  persist = false,
 }: ButtonProps) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [hideMenuList, setHideMenuList] = useState(true);
@@ -41,43 +33,6 @@ export const CardanoWallet = ({
   useEffect(() => {
     setIsDarkMode(isDark);
   }, [isDark]);
-
-  // useEffect(() => {
-  //   if (
-  //     typeof window !== "undefined" &&
-  //     typeof navigator !== "undefined" &&
-  //     cardanoPeerConnect
-  //   ) {
-  //     import("@fabianbormann/cardano-peer-connect").then((module) => {
-  //       const dAppPeerConnect = new module.DAppPeerConnect({
-  //         dAppInfo: {
-  //           name: cardanoPeerConnect.dAppInfo.name,
-  //           url: cardanoPeerConnect.dAppInfo.url,
-  //         },
-  //         announce: cardanoPeerConnect.announce,
-  //         onApiInject: (name: string, address: string) => {},
-  //         onApiEject: (name: string, address: string) => {},
-  //         onConnect: (address: string, walletInfo?: IWalletInfo) => {
-  //           console.log("Connected to wallet", address, walletInfo);
-  //         },
-  //         onDisconnect: () => {
-  //           console.log("Disconnected from wallet");
-  //         },
-  //         verifyConnection: (
-  //           walletInfo: IWalletInfo,
-  //           callback: (granted: boolean, autoconnect: boolean) => void,
-  //         ) => {
-  //           console.log("verifyConnection", walletInfo);
-  //           callback(true, true);
-  //         },
-  //         useWalletDiscovery: true,
-  //       });
-
-  //       console.log(dAppPeerConnect);
-  //       console.log(dAppPeerConnect.getAddress());
-  //     });
-  //   }
-  // }, []);
 
   return (
     <div
@@ -109,7 +64,7 @@ export const CardanoWallet = ({
                 icon={wallet.icon}
                 label={wallet.name}
                 action={() => {
-                  connect(wallet.id, extensions);
+                  connect(wallet.id, persist);
                   setHideMenuList(!hideMenuList);
                 }}
                 active={name === wallet.id}

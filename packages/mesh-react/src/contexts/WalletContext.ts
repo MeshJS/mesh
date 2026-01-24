@@ -2,11 +2,7 @@ import { createContext, useCallback, useEffect, useState } from "react";
 
 import { IWallet } from "@meshsdk/common";
 import { BrowserWallet } from "@meshsdk/wallet";
-import {
-  EnableWeb3WalletOptions,
-  UserSocialData,
-  Web3Wallet,
-} from "@meshsdk/web3-sdk";
+import { EnableWeb3WalletOptions, UserSocialData } from "@utxos/sdk";
 
 interface WalletContext {
   hasConnectedWallet: boolean;
@@ -145,27 +141,16 @@ export const useWalletStore = () => {
 
   // if persist
   useEffect(() => {
-    const persist = localStorage.getItem(localstoragePersist);
-    if (persistSession && persist) {
-      const persist = JSON.parse(
-        localStorage.getItem(localstoragePersist) || "",
-      );
+    const persistData = localStorage.getItem(localstoragePersist);
+    if (persistSession && persistData) {
+      const persist = JSON.parse(persistData);
 
-      if (persist.walletName == "utxos" && web3Services) {
-        Web3Wallet.initWallet({
-          networkId: web3Services.networkId,
-          address: persist.walletAddress,
-          fetcher: web3Services.fetcher,
-          submitter: web3Services.submitter,
-          projectId: web3Services.projectId,
-          appUrl: web3Services.appUrl,
-        }).then((wallet) => {
-          setConnectedWalletInstance(wallet.cardano!);
-          setConnectedWalletName(persist.walletName);
-          setState(WalletState.CONNECTED);
-        });
-
-        setWeb3UserData(persist.user);
+      // Web3Wallet session restoration requires re-authentication
+      // as the API now requires keyHashes instead of just an address
+      if (persist.walletName == "utxos") {
+        // Clear the persist data since we can't restore web3 wallet sessions
+        // Users will need to re-authenticate with web3 services
+        localStorage.removeItem(localstoragePersist);
       } else {
         connectWallet(persist.walletName);
       }
