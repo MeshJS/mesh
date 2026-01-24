@@ -1,10 +1,7 @@
 export const screens = {
   main: {
     title: "Connect Wallet",
-  },
-  p2p: {
-    title: "Peer Connect (CIP45)",
-    subtitle: "Use wallet that supports CIP-45, scan this QR code to connect.",
+    subtitle: undefined as string | undefined,
   },
   burner: {
     title: "Burner Wallet",
@@ -16,4 +13,6 @@ export const screens = {
     subtitle:
       "Derive self-custody wallet on Chrome, Safari, or Firefox browsers on Android, iOS, macOS, and Windows devices, or using password managers.",
   },
-};
+} as const;
+
+export type ScreenKey = keyof typeof screens;

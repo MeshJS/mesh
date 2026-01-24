@@ -1,12 +1,11 @@
-import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
+import { EnableWeb3WalletOptions } from "@utxos/sdk";
 
 import IconBookDashed from "../common/icons/icon-book-dashed";
 import IconDownload from "../common/icons/icon-download";
 import IconFingerprint from "../common/icons/icon-fingerprint";
-import IconMonitorSmartphone from "../common/icons/icon-monitor-smartphone";
 import { TooltipProvider } from "../common/tooltip";
 import { useWallet, useWalletList } from "../hooks";
-import { screens } from "./data";
+import { screens, ScreenKey } from "./data";
 import WalletIcon from "./wallet-icon";
 import Web3Services from "./web3-services";
 
@@ -15,17 +14,15 @@ export default function ScreenMain({
   setOpen,
   setScreen,
   persist,
-  cardanoPeerConnect,
   burnerWallet,
   webauthn,
   showDownload,
   web3Services,
 }: {
   injectFn?: () => Promise<void>;
-  setOpen: Function;
-  setScreen: Function;
+  setOpen: (open: boolean) => void;
+  setScreen: (screen: ScreenKey) => void;
   persist: boolean;
-  cardanoPeerConnect: boolean;
   burnerWallet: boolean;
   webauthn: boolean;
   showDownload: boolean;
@@ -63,15 +60,6 @@ export default function ScreenMain({
             name={screens.webauthn.title}
             action={() => {
               setScreen("webauthn");
-            }}
-          />
-        )}
-        {cardanoPeerConnect && (
-          <WalletIcon
-            iconReactNode={IconMonitorSmartphone()}
-            name={screens.p2p.title}
-            action={() => {
-              setScreen("p2p");
             }}
           />
         )}

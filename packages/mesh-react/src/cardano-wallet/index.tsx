@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { IFetcher, ISubmitter } from "@meshsdk/common";
-import { EnableWeb3WalletOptions } from "@meshsdk/web3-sdk";
+import { EnableWeb3WalletOptions } from "@utxos/sdk";
 
 import { Button } from "../common/button";
 import {
@@ -16,25 +16,17 @@ import {
 import IconChevronRight from "../common/icons/icon-chevron-right";
 import { useWallet } from "../hooks";
 import ConnectedButton from "./connected-button";
-import { screens } from "./data";
+import { screens, ScreenKey } from "./data";
 import ScreenBurner from "./screen-burner";
 import ScreenMain from "./screen-main";
-import ScreenP2P from "./screen-p2p";
 import ScreenWebauthn from "./screen-webauthn";
 
 interface ButtonProps {
   label?: string;
-  onConnected?: Function;
+  onConnected?: () => void;
   isDark?: boolean;
   persist?: boolean;
   injectFn?: () => Promise<void>;
-  cardanoPeerConnect?: {
-    dAppInfo: {
-      name: string;
-      url: string;
-    };
-    announce: string[];
-  };
   burnerWallet?: {
     networkId: 0 | 1;
     provider: IFetcher & ISubmitter;
@@ -54,20 +46,19 @@ export const CardanoWallet = ({
   isDark = false,
   persist = false,
   injectFn = undefined,
-  cardanoPeerConnect = undefined,
   burnerWallet = undefined,
   webauthn = undefined,
   showDownload = true,
   web3Services = undefined,
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
-  const [screen, setScreen] = useState("main");
+  const [screen, setScreen] = useState<ScreenKey>("main");
   const { wallet, connected, setPersist, setWeb3Services } = useWallet();
 
   useEffect(() => {
     setPersist(persist);
     if (web3Services) setWeb3Services(web3Services);
-  }, []);
+  }, [persist, web3Services, setPersist, setWeb3Services]);
 
   useEffect(() => {
     if (connected) {
@@ -101,17 +92,10 @@ export const CardanoWallet = ({
             setOpen={setOpen}
             setScreen={setScreen}
             persist={persist}
-            cardanoPeerConnect={cardanoPeerConnect != undefined}
             burnerWallet={burnerWallet != undefined}
             webauthn={webauthn != undefined}
             showDownload={showDownload}
             web3Services={web3Services}
-          />
-        )}
-        {screen == "p2p" && (
-          <ScreenP2P
-            cardanoPeerConnect={cardanoPeerConnect}
-            setOpen={setOpen}
           />
         )}
         {screen == "burner" && burnerWallet && (
@@ -139,28 +123,28 @@ function Header({
   screen,
   setScreen,
 }: {
-  screen: string;
-  setScreen: Function;
+  screen: ScreenKey;
+  setScreen: (screen: ScreenKey) => void;
 }) {
+  const screenData = screens[screen];
   return (
     <DialogHeader>
       <DialogTitle className="mesh-flex mesh-justify-between">
-        {screen != "main" ? (
-          <button onClick={() => setScreen("main")}>
+        {screen !== "main" ? (
+          <button
+            onClick={() => setScreen("main")}
+            aria-label="Back to wallet selection"
+          >
             <IconChevronRight />
           </button>
         ) : (
           <span style={{ width: "24px" }}></span>
         )}
-        <span className="mesh-text-white">
-          {/* @ts-ignore */}
-          {screens[screen].title}
-        </span>
+        <span className="mesh-text-white">{screenData.title}</span>
         <span style={{ width: "24px" }}></span>
       </DialogTitle>
       <DialogDescription>
-        {/* @ts-ignore */}
-        {screens[screen].subtitle && screens[screen].subtitle}
+        {screenData.subtitle && screenData.subtitle}
       </DialogDescription>
     </DialogHeader>
   );

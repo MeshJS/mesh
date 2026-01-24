@@ -14,7 +14,13 @@ export function MenuItem({
       className="mesh-flex mesh-cursor-pointer mesh-items-center mesh-px-4 mesh-py-2 mesh-opacity-80 hover:mesh-opacity-100 mesh-h-16"
       onClick={action}
     >
-      {icon && <img className="mesh-pr-2 mesh-m-1 mesh-h-8" src={icon} />}
+      {icon && (
+        <img
+          className="mesh-pr-2 mesh-m-1 mesh-h-8"
+          src={icon}
+          alt={`${label} icon`}
+        />
+      )}
       <span className="mesh-mr-menu-item mesh-text-xl mesh-font-normal mesh-text-neutral-700 hover:mesh-text-black">
         {label
           .split(" ")

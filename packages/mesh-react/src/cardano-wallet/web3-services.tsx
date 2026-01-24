@@ -4,7 +4,7 @@ import {
   EnableWeb3WalletOptions,
   UserControlledWalletDirectTo,
   Web3Wallet,
-} from "@meshsdk/web3-sdk";
+} from "@utxos/sdk";
 
 import IconDiscord from "../common/icons/icon-discord";
 import IconGoogle from "../common/icons/icon-google";
@@ -18,7 +18,7 @@ export default function Web3Services({
   persist,
 }: {
   options: EnableWeb3WalletOptions;
-  setOpen: Function;
+  setOpen: (open: boolean) => void;
   persist: boolean;
 }) {
   const { setWallet, setWeb3UserData } = useWallet();
@@ -43,7 +43,7 @@ export default function Web3Services({
       "utxos",
       persist
         ? {
-            walletAddress: await wallet.getChangeAddress(),
+            walletAddress: await wallet.cardano.getChangeAddress(),
             user: user,
           }
         : undefined,

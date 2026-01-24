@@ -2,11 +2,7 @@ import { createContext, useCallback, useEffect, useState } from "react";
 
 import { IWallet } from "@meshsdk/common";
 import { BrowserWallet } from "@meshsdk/wallet";
-import {
-  EnableWeb3WalletOptions,
-  UserSocialData,
-  Web3Wallet,
-} from "@meshsdk/web3-sdk";
+import { EnableWeb3WalletOptions, UserSocialData } from "@utxos/sdk";
 
 interface WalletContext {
   hasConnectedWallet: boolean;
@@ -145,32 +141,32 @@ export const useWalletStore = () => {
 
   // if persist
   useEffect(() => {
-    const persist = localStorage.getItem(localstoragePersist);
-    if (persistSession && persist) {
-      const persist = JSON.parse(
-        localStorage.getItem(localstoragePersist) || "",
-      );
+    const persistData = localStorage.getItem(localstoragePersist);
+    if (persistSession && persistData) {
+      try {
+        const persist = JSON.parse(persistData);
 
-      if (persist.walletName == "utxos" && web3Services) {
-        Web3Wallet.initWallet({
-          networkId: web3Services.networkId,
-          address: persist.walletAddress,
-          fetcher: web3Services.fetcher,
-          submitter: web3Services.submitter,
-          projectId: web3Services.projectId,
-          appUrl: web3Services.appUrl,
-        }).then((wallet) => {
-          setConnectedWalletInstance(wallet.cardano!);
-          setConnectedWalletName(persist.walletName);
-          setState(WalletState.CONNECTED);
-        });
+        // Validate required field exists
+        if (!persist || typeof persist.walletName !== "string") {
+          throw new Error("Invalid persist data structure");
+        }
 
-        setWeb3UserData(persist.user);
-      } else {
-        connectWallet(persist.walletName);
+        // Web3Wallet session restoration requires re-authentication
+        // as the API now requires keyHashes instead of just an address
+        if (persist.walletName === "utxos") {
+          // Clear the persist data since we can't restore web3 wallet sessions
+          // Users will need to re-authenticate with web3 services
+          localStorage.removeItem(localstoragePersist);
+        } else {
+          connectWallet(persist.walletName);
+        }
+      } catch (error) {
+        // Clear corrupted persist data to prevent repeated failures
+        console.error("Failed to restore wallet session:", error);
+        localStorage.removeItem(localstoragePersist);
       }
     }
-  }, [persistSession]);
+  }, [persistSession, connectWallet]);
 
   return {
     hasConnectedWallet: INITIAL_STATE.walletName !== connectedWalletName,
