@@ -16,14 +16,14 @@ import {
 import IconChevronRight from "../common/icons/icon-chevron-right";
 import { useWallet } from "../hooks";
 import ConnectedButton from "./connected-button";
-import { screens } from "./data";
+import { screens, ScreenKey } from "./data";
 import ScreenBurner from "./screen-burner";
 import ScreenMain from "./screen-main";
 import ScreenWebauthn from "./screen-webauthn";
 
 interface ButtonProps {
   label?: string;
-  onConnected?: Function;
+  onConnected?: () => void;
   isDark?: boolean;
   persist?: boolean;
   injectFn?: () => Promise<void>;
@@ -52,13 +52,13 @@ export const CardanoWallet = ({
   web3Services = undefined,
 }: ButtonProps) => {
   const [open, setOpen] = useState(false);
-  const [screen, setScreen] = useState("main");
+  const [screen, setScreen] = useState<ScreenKey>("main");
   const { wallet, connected, setPersist, setWeb3Services } = useWallet();
 
   useEffect(() => {
     setPersist(persist);
     if (web3Services) setWeb3Services(web3Services);
-  }, []);
+  }, [persist, web3Services, setPersist, setWeb3Services]);
 
   useEffect(() => {
     if (connected) {
@@ -123,28 +123,28 @@ function Header({
   screen,
   setScreen,
 }: {
-  screen: string;
-  setScreen: Function;
+  screen: ScreenKey;
+  setScreen: (screen: ScreenKey) => void;
 }) {
+  const screenData = screens[screen];
   return (
     <DialogHeader>
       <DialogTitle className="mesh-flex mesh-justify-between">
-        {screen != "main" ? (
-          <button onClick={() => setScreen("main")}>
+        {screen !== "main" ? (
+          <button
+            onClick={() => setScreen("main")}
+            aria-label="Back to wallet selection"
+          >
             <IconChevronRight />
           </button>
         ) : (
           <span style={{ width: "24px" }}></span>
         )}
-        <span className="mesh-text-white">
-          {/* @ts-ignore */}
-          {screens[screen].title}
-        </span>
+        <span className="mesh-text-white">{screenData.title}</span>
         <span style={{ width: "24px" }}></span>
       </DialogTitle>
       <DialogDescription>
-        {/* @ts-ignore */}
-        {screens[screen].subtitle && screens[screen].subtitle}
+        {screenData.subtitle && screenData.subtitle}
       </DialogDescription>
     </DialogHeader>
   );

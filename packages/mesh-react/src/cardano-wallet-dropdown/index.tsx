@@ -7,7 +7,7 @@ import { WalletBalance } from "./wallet-balance";
 
 interface ButtonProps {
   label?: string;
-  onConnected?: Function;
+  onConnected?: () => void;
   isDark?: boolean;
   persist?: boolean;
 }
@@ -28,7 +28,7 @@ export const CardanoWallet = ({
     if (connected && onConnected) {
       onConnected();
     }
-  }, [connected]);
+  }, [connected, onConnected]);
 
   useEffect(() => {
     setIsDarkMode(isDark);

@@ -16,7 +16,7 @@ export default function ScreenBurner({
 }: {
   networkId: 0 | 1;
   provider: IFetcher & ISubmitter;
-  setOpen: Function;
+  setOpen: (open: boolean) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [hasKeyInStorage, setHasKeyInStorage] = useState(false);

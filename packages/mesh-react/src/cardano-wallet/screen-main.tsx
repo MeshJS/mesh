@@ -5,7 +5,7 @@ import IconDownload from "../common/icons/icon-download";
 import IconFingerprint from "../common/icons/icon-fingerprint";
 import { TooltipProvider } from "../common/tooltip";
 import { useWallet, useWalletList } from "../hooks";
-import { screens } from "./data";
+import { screens, ScreenKey } from "./data";
 import WalletIcon from "./wallet-icon";
 import Web3Services from "./web3-services";
 
@@ -20,8 +20,8 @@ export default function ScreenMain({
   web3Services,
 }: {
   injectFn?: () => Promise<void>;
-  setOpen: Function;
-  setScreen: Function;
+  setOpen: (open: boolean) => void;
+  setScreen: (screen: ScreenKey) => void;
   persist: boolean;
   burnerWallet: boolean;
   webauthn: boolean;

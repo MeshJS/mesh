@@ -18,7 +18,7 @@ export default function ScreenWebauthn({
   url: string;
   networkId: 0 | 1;
   provider: IFetcher & ISubmitter;
-  setOpen: Function;
+  setOpen: (open: boolean) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState<string>("");

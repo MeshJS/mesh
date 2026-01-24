@@ -18,15 +18,23 @@ export const WalletBalance = ({
 
   return connected && lovelace && wallet?.icon ? (
     <>
-      <img className="mesh-m-2 mesh-h-6" src={wallet.icon} />₳{" "}
-      {parseInt((parseInt(lovelace, 10) / 1_000_000).toString(), 10)}.
+      <img
+        className="mesh-m-2 mesh-h-6"
+        src={wallet.icon}
+        alt={`${wallet.name} wallet icon`}
+      />
+      ₳ {parseInt((parseInt(lovelace, 10) / 1_000_000).toString(), 10)}.
       <span className="mesh-text-xs">
         {lovelace.substring(lovelace.length - 6)}
       </span>
     </>
   ) : connected && wallet?.icon ? (
     <>
-      <img className="mesh-m-2 mesh-h-6" src={wallet.icon} />
+      <img
+        className="mesh-m-2 mesh-h-6"
+        src={wallet.icon}
+        alt={`${wallet.name} wallet icon`}
+      />
     </>
   ) : connecting ? (
     <>Connecting...</>

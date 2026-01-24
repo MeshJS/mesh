@@ -18,7 +18,7 @@ export default function Web3Services({
   persist,
 }: {
   options: EnableWeb3WalletOptions;
-  setOpen: Function;
+  setOpen: (open: boolean) => void;
   persist: boolean;
 }) {
   const { setWallet, setWeb3UserData } = useWallet();
