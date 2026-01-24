@@ -13,22 +13,23 @@ export const useWalletSubmit = () => {
   const submitTx = useCallback(async (signedTx: string) => {
     setSubmitting(true);
     setError(undefined);
+    setResult(undefined);
 
     try {
-      if (hasConnectedWallet) {
-        const txHash = await connectedWalletInstance.submitTx(signedTx);
-        setResult(txHash);
+      if (!hasConnectedWallet) {
+        throw new Error(
+          "Please make sure to connect a wallet before calling useWalletSubmit",
+        );
       }
 
-      throw new Error(
-        "Please make sure to connect a wallet before calling useWalletSubmit",
-      );
+      const txHash = await connectedWalletInstance.submitTx(signedTx);
+      setResult(txHash);
     } catch (error) {
       setError(error);
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
-  }, []);
+  }, [hasConnectedWallet, connectedWalletInstance]);
 
   return {
     error,

@@ -143,19 +143,30 @@ export const useWalletStore = () => {
   useEffect(() => {
     const persistData = localStorage.getItem(localstoragePersist);
     if (persistSession && persistData) {
-      const persist = JSON.parse(persistData);
+      try {
+        const persist = JSON.parse(persistData);
 
-      // Web3Wallet session restoration requires re-authentication
-      // as the API now requires keyHashes instead of just an address
-      if (persist.walletName == "utxos") {
-        // Clear the persist data since we can't restore web3 wallet sessions
-        // Users will need to re-authenticate with web3 services
+        // Validate required field exists
+        if (!persist || typeof persist.walletName !== "string") {
+          throw new Error("Invalid persist data structure");
+        }
+
+        // Web3Wallet session restoration requires re-authentication
+        // as the API now requires keyHashes instead of just an address
+        if (persist.walletName === "utxos") {
+          // Clear the persist data since we can't restore web3 wallet sessions
+          // Users will need to re-authenticate with web3 services
+          localStorage.removeItem(localstoragePersist);
+        } else {
+          connectWallet(persist.walletName);
+        }
+      } catch (error) {
+        // Clear corrupted persist data to prevent repeated failures
+        console.error("Failed to restore wallet session:", error);
         localStorage.removeItem(localstoragePersist);
-      } else {
-        connectWallet(persist.walletName);
       }
     }
-  }, [persistSession]);
+  }, [persistSession, connectWallet]);
 
   return {
     hasConnectedWallet: INITIAL_STATE.walletName !== connectedWalletName,
