@@ -4,7 +4,6 @@ import IntroTransaction from "./transactions";
 import { useEffect } from "react";
 import IntroWallets from "./wallets";
 import IntroContracts from "./contracts";
-import IntroProviders from "./providers";
 import IntroCommon from "./common";
 import IntroCoreCsl from "./core-csl";
 
@@ -27,9 +26,6 @@ export default function PackagePage({
   }
   if (params.package === "contracts") {
     return <IntroContracts />;
-  }
-  if (params.package === "providers") {
-    return <IntroProviders />;
   }
   if (params.package === "common") {
     return <IntroCommon />;
