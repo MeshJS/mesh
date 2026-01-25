@@ -27,7 +27,7 @@ export default function Web3Services({
   async function loadWallet(directTo: UserControlledWalletDirectTo) {
     setLoading(true);
     const _options: EnableWeb3WalletOptions = {
-      networkId: 0,
+      networkId: options.networkId,
       fetcher: options.fetcher,
       submitter: options.submitter,
       appUrl: options.appUrl,
