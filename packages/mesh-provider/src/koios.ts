@@ -280,26 +280,46 @@ export class KoiosProvider
   /**
    * Fetches the list of assets for a given policy ID.
    * @param policyId The policy ID to fetch assets for
-   * @param cursor The cursor for pagination
+   * @param cursor The cursor for pagination (used as offset)
    * @returns The list of assets and the next cursor
    */
-  async fetchCollectionAssets(policyId: string): Promise<{ assets: Asset[] }> {
+  async fetchCollectionAssets(
+    policyId: string,
+    cursor?: number | string,
+  ): Promise<{ assets: Asset[]; next?: string | number | null }> {
     try {
+      // Koios API supports pagination with limit and offset
+      // Default limit is 500 (Koios API maximum), cursor is used as offset
+      const limit = 500;
+      const offset = cursor
+        ? typeof cursor === "number"
+          ? cursor
+          : parseInt(cursor, 10)
+        : 0;
+
       const { data, status } = await this._axiosInstance.get(
-        `policy_asset_info?_asset_policy=${policyId}`,
+        `policy_asset_info?_asset_policy=${policyId}&limit=${limit}&offset=${offset}`,
       );
 
-      if (status === 200)
+      if (status === 200) {
+        const assets = data.map((asset: KoiosAsset) => ({
+          unit: `${asset.policy_id}${asset.asset_name}`,
+          quantity: asset.total_supply,
+        }));
+
+        // If we got fewer assets than the limit, there are no more pages
+        // Otherwise, return the next offset
+        const next = data.length === limit ? offset + limit : null;
+
         return {
-          assets: data.map((asset: KoiosAsset) => ({
-            unit: `${asset.policy_id}${asset.asset_name}`,
-            quantity: asset.total_supply,
-          })),
+          assets,
+          next,
         };
+      }
 
       throw parseHttpError(data);
     } catch (error) {
-      throw parseHttpError(error);
+      return { assets: [], next: null };
     }
   }
 
@@ -453,7 +473,9 @@ export class KoiosProvider
     txHash: string,
     certIndex: number,
   ): Promise<GovernanceProposalInfo> {
-    throw new Error("Method not implemented");
+    // Koios API doesn't currently support governance proposal queries
+    // This is consistent with other providers like Maestro, Yaci, and U5C
+    throw new Error("Governance proposal queries are not supported by Koios API");
   }
 
   /**
