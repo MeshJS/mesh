@@ -27,6 +27,7 @@ function Left() {
   signature += `  submitter?: ISubmitter;\n`;
   signature += `  evaluator?: IEvaluator;\n`;
   signature += `  serializer?: IMeshTxSerializer;\n`;
+  signature += `  selector?: IInputSelector;\n`;
   signature += `  isHydra?: boolean;\n`;
   signature += `  params?: Partial<Protocol>;\n`;
   signature += `  verbose?: boolean;\n`;
@@ -47,7 +48,7 @@ function Left() {
       <Codeblock data={signature} />
 
       <p>
-        There are 6 optional fields to pass in to initialized the lower level
+        There are 7 optional fields to pass in to initialize the lower level
         APIs instance:
       </p>
 
@@ -71,6 +72,12 @@ function Left() {
         <li>
           <code>evaluator</code>: It would perform redeemer execution unit
           optimization, returning error message in case of invalid transaction.
+        </li>
+        <li>
+          <code>selector</code>: The coin selection strategy selector. Defaults to{" "}
+          <code>CardanoSdkInputSelector</code> which uses Cardano SDK's round-robin random improve algorithm.
+          You can also use <code>LargestFirstInputSelector</code> for largest-first selection algorithm,
+          or implement a custom selector by implementing the <code>IInputSelector</code> interface.
         </li>
         <li>
           <code>isHydra</code>: Use another set of default protocol parameters
