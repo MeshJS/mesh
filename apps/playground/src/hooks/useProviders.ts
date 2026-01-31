@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { KoiosSupportedNetworks } from "@meshsdk/core";
+type KoiosSupportedNetworks = "api" | "preview" | "preprod" | "guild";
 
 interface State {
   blockfrostKey: string | undefined;

@@ -18,20 +18,6 @@ export function CommonCardanoWallet() {
   return (
     <CardanoWallet
       label={"Connect a Wallet"}
-      cardanoPeerConnect={{
-        dAppInfo: {
-          name: "Mesh SDK",
-          url: "https://meshjs.dev/",
-        },
-        announce: [
-          "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",
-          "wss://dev.tracker.cf-identity-wallet.metadata.dev.cf-deployments.org",
-          "wss://tracker.de-0.eternl.art",
-          "wss://tracker.de-5.eternl.art",
-          "wss://tracker.de-6.eternl.art",
-          "wss://tracker.us-5.eternl.art",
-        ],
-      }}
       burnerWallet={{
         networkId: 0,
         provider: provider,

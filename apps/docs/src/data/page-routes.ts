@@ -15,11 +15,6 @@ export const pageRoutes = [
     title: "Core CSL",
   },
   {
-    id: "providers",
-    url: "/providers",
-    title: "Providers",
-  },
-  {
     id: "transactions",
     url: "/transactions",
     title: "Transactions",

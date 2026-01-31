@@ -134,14 +134,6 @@ function Left() {
       </p>
       <Codeblock data={codeWeb3Services} />
 
-      <h3>Decentralized WebRTC Wallet Communication (CIP 45)</h3>
-      <p>
-        <Link href="https://cips.cardano.org/cip/CIP-45">CIP-45</Link> is a
-        communication method between pps and wallets based on WebTorrent
-        trackers and WebRTC. Using WebTorrent trackers for the peer discovery to
-        remove the need of this central component.
-      </p>
-
       <h3>Burner wallet</h3>
       <p>
         Burner wallets are wallets that are created on the fly on the user's
@@ -179,15 +171,6 @@ function Right() {
   example += `        label={"Connect a Wallet"}\n`;
   example += `        persist={true}\n`;
   example += `        onConnected={()=>{console.log('on connected')}}\n`;
-  example += `        cardanoPeerConnect={{\n`;
-  example += `          dAppInfo: {\n`;
-  example += `            name: "Mesh SDK",\n`;
-  example += `            url: "https://meshjs.dev/",\n`;
-  example += `          },\n`;
-  example += `          announce: [\n`;
-  example += `            "wss://dev.btt.cf-identity-wallet.metadata.dev.cf-deployments.org",\n`;
-  example += `          ],\n`;
-  example += `        }}\n`;
   example += `        burnerWallet={{\n`;
   example += `          networkId: 0,\n`;
   example += `          provider: provider,\n`;

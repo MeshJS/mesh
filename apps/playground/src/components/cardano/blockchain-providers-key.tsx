@@ -1,9 +1,7 @@
-import {
-  KoiosSupportedNetworks,
-  MaestroSupportedNetworks,
-} from "@meshsdk/core";
-
 import Input from "~/components/form/input";
+
+type KoiosSupportedNetworks = "api" | "preview" | "preprod" | "guild";
+type MaestroSupportedNetworks = "Mainnet" | "Preprod" | "Preview";
 import InputTable from "~/components/sections/input-table";
 import { useProviders } from "~/hooks/useProviders";
 import Select from "../form/select";
