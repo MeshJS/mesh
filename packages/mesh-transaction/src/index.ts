@@ -3,4 +3,8 @@ export * from "./scripts";
 export * from "./transaction";
 export * from "./utils";
 export * from "./tx-parser";
-export { LargestFirstInputSelector } from "./mesh-tx-builder/coin-selection";
+export {
+  CoinSelectionError,
+  CoverageFirstSelector,
+  LargestFirstInputSelector,
+} from "./mesh-tx-builder/coin-selection";
