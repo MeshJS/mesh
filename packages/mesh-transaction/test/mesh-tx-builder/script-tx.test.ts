@@ -15,7 +15,13 @@ import {
   Serialization,
 } from "@meshsdk/core-cst";
 
-import { alwaysSucceedCbor, alwaysSucceedHash, txHash } from "../test-util";
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  alwaysSucceedParam,
+  alwaysSucceedParamHash,
+  txHash,
+} from "../test-util";
 
 describe("MeshTxBuilder - Script Transactions", () => {
   const offlineFetcher = new OfflineFetcher();
@@ -755,6 +761,80 @@ describe("MeshTxBuilder - Script Transactions", () => {
     ).toEqual([
       { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
     ]);
+  });
+
+  it("should be able to withdraw from multiple scripts in the same transaction", async () => {
+    // console.log(alwaysSucceedParam(0));
+    // console.log(alwaysSucceedParam(1));
+    // console.log(alwaysSucceedParam(2));
+    // console.log(serializeRewardAddress(alwaysSucceedParamHash(0), true));
+    // console.log(serializeRewardAddress(alwaysSucceedParamHash(1), true));
+    // console.log(serializeRewardAddress(alwaysSucceedParamHash(2), true));
+    const txHex = await txBuilder
+      .withdrawalPlutusScriptV3()
+      .withdrawal(serializeRewardAddress(alwaysSucceedParamHash(0), true), "0")
+      .withdrawalScript(alwaysSucceedParam(0))
+      .withdrawalRedeemerValue(0)
+      .withdrawalPlutusScriptV3()
+      .withdrawal(serializeRewardAddress(alwaysSucceedParamHash(1), true), "0")
+      .withdrawalScript(alwaysSucceedParam(1))
+      .withdrawalRedeemerValue(1)
+      .withdrawalPlutusScriptV3()
+      .withdrawal(serializeRewardAddress(alwaysSucceedParamHash(2), true), "0")
+      .withdrawalScript(alwaysSucceedParam(2))
+      .withdrawalRedeemerValue(2)
+      .txIn(txHash("tx1"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+
+    const txHex2 = await txBuilder2
+      .withdrawalPlutusScriptV3()
+      .withdrawal(serializeRewardAddress(alwaysSucceedParamHash(0), true), "0")
+      .withdrawalScript(alwaysSucceedParam(0))
+      .withdrawalRedeemerValue(0)
+      .withdrawalPlutusScriptV3()
+      .withdrawal(serializeRewardAddress(alwaysSucceedParamHash(1), true), "0")
+      .withdrawalScript(alwaysSucceedParam(1))
+      .withdrawalRedeemerValue(1)
+      .withdrawalPlutusScriptV3()
+      .withdrawal(serializeRewardAddress(alwaysSucceedParamHash(2), true), "0")
+      .withdrawalScript(alwaysSucceedParam(2))
+      .withdrawalRedeemerValue(2)
+      .txIn(txHash("tx1"), 0)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(
+        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      )
+      .complete();
+
+    console.log(txHex);
+    console.log(txHex2);
+    // expect(
+    //   await offlineEvaluator.evaluateTx(
+    //     txHex,
+    //     Object.values(
+    //       txBuilder.meshTxBuilderBody.inputsForEvaluation,
+    //     ) as UTxO[],
+    //     txBuilder.meshTxBuilderBody.chainedTxs,
+    //   ),
+    // ).toEqual([
+    //   { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+    // ]);
+
+    // expect(
+    //   await offlineEvaluator.evaluateTx(
+    //     txHex2,
+    //     Object.values(
+    //       txBuilder.meshTxBuilderBody.inputsForEvaluation,
+    //     ) as UTxO[],
+    //     txBuilder.meshTxBuilderBody.chainedTxs,
+    //   ),
+    // ).toEqual([
+    //   { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+    // ]);
   });
 
   it("should be able to spend multiple inputs from same script address", async () => {
