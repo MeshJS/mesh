@@ -25,6 +25,15 @@ export const alwaysSucceedCbor = applyCborEncoding(
 
 export const alwaysSucceedHash = resolveScriptHash(alwaysSucceedCbor, "V3");
 
+export const alwaysSucceedParam = (nonce: number) => {
+  return applyParamsToScript("52010100223259800a518a4d136564004ae681", [nonce]);
+};
+
+export const alwaysSucceedParamHash = (nonce: number) => {
+  const cbor = alwaysSucceedParam(nonce);
+  return resolveScriptHash(cbor, "V3");
+};
+
 export const alwaysFailCbor = applyCborEncoding(
   "5001010023259800b452689b2b20025735",
 );
