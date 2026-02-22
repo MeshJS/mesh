@@ -1,4 +1,4 @@
-import { resolveDataHash } from "@meshsdk/core";
+import { resolveDataHash, UTxO } from "@meshsdk/core";
 
 import { getProvider } from "./mesh-wallet";
 
@@ -10,7 +10,7 @@ export async function fetchAssetUtxo({
   address: string;
   asset: string;
   datum: string;
-}) {
+}): Promise<UTxO | undefined> {
   const provider = getProvider();
   const utxos = await provider.fetchAddressUTxOs(address, asset);
 
