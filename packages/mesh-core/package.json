@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core",
-  "version": "1.9.0-beta.94",
+  "version": "1.9.0-beta.99",
   "description": "Mesh SDK Core - https://meshjs.dev/",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -33,11 +33,11 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.0-beta.94",
-    "@meshsdk/core-cst": "1.9.0-beta.94",
-    "@meshsdk/provider": "1.9.0-beta.94",
-    "@meshsdk/transaction": "1.9.0-beta.94",
-    "@meshsdk/wallet": "1.9.0-beta.94",
+    "@meshsdk/common": "1.9.0-beta.99",
+    "@meshsdk/core-cst": "1.9.0-beta.99",
+    "@meshsdk/provider": "1.9.0-beta.89",
+    "@meshsdk/transaction": "1.9.0-beta.99",
+    "@meshsdk/wallet": "1.9.0-beta.99",
     "libsodium-wrappers-sumo": "0.7.15"
   },
   "prettier": "@meshsdk/configs/prettier",

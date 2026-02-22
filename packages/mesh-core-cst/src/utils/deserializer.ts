@@ -1,8 +1,7 @@
 import { Serialization } from "@cardano-sdk/core";
-import { Ed25519KeyHashHex } from "@cardano-sdk/crypto";
 import { HexBlob } from "@cardano-sdk/util";
 
-import { DeserializedAddress, LanguageVersion, toBytes } from "@meshsdk/common";
+import { LanguageVersion, toBytes } from "@meshsdk/common";
 
 import {
   Ed25519KeyHash,
@@ -18,8 +17,9 @@ import {
   Value,
 } from "../types";
 
-export const deserializeEd25519KeyHash = (ed25519KeyHash: string) =>
-  Ed25519KeyHash.fromBytes(toBytes(ed25519KeyHash));
+export const deserializeEd25519KeyHash = (
+  ed25519KeyHash: string,
+): Ed25519KeyHash => Ed25519KeyHash.fromBytes(toBytes(ed25519KeyHash));
 
 export const deserializePlutusScript = (
   plutusScript: string,
@@ -40,7 +40,7 @@ export const deserializePlutusScript = (
 export const deserializeNativeScript = (nativeScript: string): NativeScript =>
   NativeScript.fromCbor(HexBlob(nativeScript));
 
-export const deserializeScriptHash = (scriptHash: string) =>
+export const deserializeScriptHash = (scriptHash: string): ScriptHash =>
   ScriptHash(scriptHash);
 
 export const deserializeScriptRef = (scriptRef: string): Script =>

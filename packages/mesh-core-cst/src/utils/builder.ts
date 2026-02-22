@@ -1,5 +1,5 @@
 import { pbkdf2Sync } from "crypto";
-import { blake2b, ready } from "@cardano-sdk/crypto";
+import blake2b from "blake2b";
 import { HexBlob } from "@cardano-sdk/util";
 import hash from "hash.js";
 
@@ -168,7 +168,7 @@ export const buildDRepID = (
   addressType: AddressType = AddressType.EnterpriseKey,
 ): DRepID => {
   const dRepKeyBytes = Buffer.from(dRepKey, "hex");
-  const dRepIdHex = blake2b.hash(HexBlob.fromBytes(dRepKeyBytes), 28);
+  const dRepIdHex = blake2b(28).update(dRepKeyBytes).digest("hex");
   const paymentAddress = EnterpriseAddress.packParts({
     networkId,
     paymentPart: {
