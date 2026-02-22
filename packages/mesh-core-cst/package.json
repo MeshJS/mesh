@@ -50,6 +50,7 @@
     "bech32": "^2.0.0",
     "blakejs": "^1.2.1",
     "bn.js": "^5.2.0",
+    "hash.js": "^1.1.7",
     "libsodium-wrappers-sumo": "0.7.15",
     "scalus": "^0.14.2"
   },
