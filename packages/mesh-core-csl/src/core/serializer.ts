@@ -47,7 +47,7 @@ import {
   keyHashToRewardAddress,
   rewardAddressToKeyHash,
   scriptHashToRewardAddress,
-  serialzeAddress,
+  serializeAddress,
   signTransaction,
 } from "../utils";
 import { meshTxBuilderBodyToObj, txBuilderBodyFromObj } from "./adaptor";
@@ -100,7 +100,7 @@ export class CSLSerializer implements IMeshTxSerializer {
     address: Partial<DeserializedAddress>,
     networkId?: number,
   ): string {
-    return serialzeAddress(address, networkId);
+    return serializeAddress(address, networkId);
   }
 
   serializePoolId(hash: string): string {
