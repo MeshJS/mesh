@@ -9,7 +9,7 @@ import {
 import { csl } from "../deser";
 import { getV2ScriptHash } from "./scripts";
 
-export const serialzeAddress = (
+export const serializeAddress = (
   deserializedAddress: Partial<DeserializedAddress>,
   networkId = 0,
 ) => {

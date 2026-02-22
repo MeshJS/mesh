@@ -25,7 +25,7 @@ import {
 } from "../types";
 import { fromJsonToPlutusData, fromPlutusDataToJson } from "./data";
 
-export const serialzeAddress = (
+export const serializeAddress = (
   deserializedAddress: Partial<DeserializedAddress>,
   networkId = 0,
 ) => {
