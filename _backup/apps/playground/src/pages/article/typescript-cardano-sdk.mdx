@@ -1,0 +1,17 @@
+import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
+import { articleMesh20 } from "~/data/links-articles";
+
+export default function MDXPage({ children }) {
+  return (
+    <LayoutImageHeaderAndBody
+      title={articleMesh20.title}
+      description={articleMesh20.description}
+      image={articleMesh20.image}
+      cover={articleMesh20.cover}
+    >
+      {children}
+    </LayoutImageHeaderAndBody>
+  );
+}
+
+New article

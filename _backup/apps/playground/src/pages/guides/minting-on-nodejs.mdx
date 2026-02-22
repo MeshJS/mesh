@@ -1,0 +1,224 @@
+import LayoutImageHeaderAndBody from "~/components/layouts/image-header-and-body";
+import { guidenodejs } from "~/data/links-guides";
+
+export default function MDXPage({ children }) {
+  const sidebarItems = [
+    { label: 'System setup', to: 'systemsetup' },
+    { label: 'Build the minting transaction', to: 'buildthemintingtransaction' },
+  ];
+
+return (
+<LayoutImageHeaderAndBody
+      title={guidenodejs.title}
+      description={guidenodejs.description}
+      image={guidenodejs.image}
+      cover={guidenodejs.cover}
+      sidebarItems={sidebarItems}
+    >
+{children}
+</LayoutImageHeaderAndBody>
+);
+}
+
+In this guide, we will be minting some assets with **MeshWallet** on Node.js.
+
+## System setup
+
+### 1\. Visual Studio Code
+
+Visual Studio Code is a code editor made by Microsoft. Download and install [Visual Studio Code](https://code.visualstudio.com/) for code editing.
+
+### 2\. Node.js
+
+Node.js is a cross-platform JavaScript runtime environment that runs on the V8 engine and executes JavaScript code. Install the Long-Term Support (LTS) version of [Node.js](https://nodejs.org/) (as of writing v16.16.0).
+
+## Project setup
+
+Firstly, create a new folder, and initialize a Node.js project:
+
+```
+npm init
+```
+
+Next, install the **typescript** and **Mesh** package:
+
+```
+npm install --dev typescript && npm install @meshsdk/core
+```
+
+Then, initialize Typescript which is require to compile a TypeScript:
+
+```
+npx tsc --init
+```
+
+After that, open the **tsconfig.json** file and define the following configurations:
+
+```
+{
+  ...
+  "target": "ESNext",
+  "module": "ESNext",
+  "moduleResolution": "Node",
+  "outDir": "dist",
+  ...
+}
+```
+
+Finally, open the **package.json** file add the following configurations:
+
+```
+{
+  ...
+  "type": "module",
+  "scripts": {
+    "start": "tsc && node ./dist/main.js"
+  }
+  ...
+}
+```
+
+## Build the minting transaction
+
+### 1\. Create list of NFT's metadata
+
+Create a file named **metadata.ts** and define the metadata for our NFTs:
+
+```
+export const metadata: { [assetName: string]: any } = {
+  MeshToken01: {
+    name: "Mesh Token 1",
+    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    mediaType: "image/jpg",
+    description: "Just a purple coin.",
+    artist: "This NFT was minted by Mesh (https://meshjs.dev/).",
+  },
+  MeshToken02: {
+    name: "Mesh Token 2",
+    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    mediaType: "image/jpg",
+    description: "This is suppose to be a gold coin.",
+    artist: "This NFT was minted by Mesh (https://meshjs.dev/).",
+  },
+  MeshToken03: {
+    name: "Mesh Token 3",
+    image: "ipfs://QmRzicpReutwCkM6aotuKjErFCUD213DpwPq6ByuzMJaua",
+    mediaType: "image/jpg",
+    description: "A coin with a M on it.",
+    artist: "This NFT was minted by Mesh (https://meshjs.dev/).",
+  },
+};
+```
+
+### 2\. Create a list of recipients
+
+Create a file named **recipients.ts** and specify the list of recipients:
+
+```
+export const recipients: { [recipient: string]: string } = {
+  addr_test1vpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0c7e4cxr:
+    "MeshToken01",
+  addr_test1qqlcxawu4gxarenqvdqyw0tqyjy69mrgsmfqhm6h65jwm4vvldqg2n2p8y4kyjm8sqfyg0tpq9042atz0fr8c3grjmyscxry4r:
+    "MeshToken02",
+  addr_test1qq5tay78z9l77vkxvrvtrv70nvjdk0fyvxmqzs57jg0vq6wk3w9pfppagj5rc4wsmlfyvc8xs7ytkumazu9xq49z94pqzl95zt:
+    "MeshToken03",
+};
+```
+
+### 3\. Create **main.ts** and import the packages:
+
+Lets create a file named **main.ts** and import the packages we need and the files we have created:
+
+```
+import {
+  MeshWallet,
+  Transaction,
+  ForgeScript,
+  BlockfrostProvider,
+  resolveTxHash,
+} from '@meshsdk/core';
+import type { Mint, AssetMetadata } from '@meshsdk/core';
+
+
+import { metadata } from './metadata.js';
+import { recipients } from './recipients.js';
+```
+
+### 4\. Define variables
+
+Next, lets define some variables we will need for minting. You should be using your own wallet if you want to mint a collection of your own. For this example, these are the variables we need:
+
+```
+const demoCLIKey = {
+  paymentSkey:
+    '5820aaca553a7b95b38b5d9b82a5daa7a27ac8e34f3cf27152a978f4576520dd6503',
+  stakeSkey:
+    '582097c458f19a3111c3b965220b1bef7d548fd75bc140a7f0a4f080e03cce604f0e',
+};
+const networkId = 0;
+const blockfrostKey = 'BLOCKFROST_KEY_HERE';
+```
+
+### 5\. Build the minting transaction
+
+In this guide, we are building a minting transaction, but it could be any transactions. [Learn more about Transaction](/apis/transaction).
+
+Firstly, we need a blockchain provider, in this guide, we will import **BlockfrostProvider**, but you can use other providers as well:
+
+```
+const provider = new BlockfrostProvider(blockfrostKey);
+```
+
+Next, lets initialize the **MeshWallet** and its forging script. In this example, we initialize using CLI generated keys, but you can also load your wallet with private key and mnemonic phrases. [Learn more about MeshWallet](/apis/wallets/meshwallet).
+
+```
+const wallet = new MeshWallet({
+  networkId: networkId,
+  fetcher: provider,
+  submitter: provider,
+  key: {
+    type: 'cli',
+    payment: demoCLIKey.paymentSkey,
+    stake: demoCLIKey.stakeSkey,
+  },
+});
+
+
+const walletAddress = wallet.getPaymentAddress();
+const forgingScript = ForgeScript.withOneSignature(walletAddress);
+```
+
+Then, lets create a new **Transaction**, loop through each recipient, and mint an assets with **mintAsset** ([Learn more about minting transactions](/apis/transaction)):
+
+```
+const tx = new Transaction({ initiator: wallet });
+for (let recipient in recipients) {
+  const recipientAddress = recipient;
+  const assetName = recipients[recipient];
+  const assetMetadata: AssetMetadata = metadata[assetName];
+  const asset: Mint = {
+    assetName: assetName,
+    assetQuantity: '1',
+    metadata: assetMetadata,
+    label: '721',
+    recipient: recipientAddress
+  };
+  tx.mintAsset(forgingScript, asset);
+}
+```
+
+Finally, lets sign and submit the transaction:
+
+```
+const unsignedTx = await tx.build();
+const signedTx = await wallet.signTx(unsignedTx, false);
+const txHash = await wallet.submitTx(signedTx);
+```
+
+To execute the script, run the following on your Terminal:
+
+```
+npm start
+```
+
+For a successful transaction, you should get a transaction hash, you should have minted multiple assets in a single transaction, and sent them to multiple recipients.
