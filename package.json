@@ -39,11 +39,9 @@
   "dependencies": {
     "@bitcoinerlab/coinselect": "^1.3.2",
     "@bitcoinerlab/descriptors": "^2.3.1",
-    "@bitcoinerlab/secp256k1": "^1.2.0",
-    "npm": "^10.8.0"
+    "@bitcoinerlab/secp256k1": "^1.2.0"
   },
   "overrides": {
-    "ip": "npm:@webpod/ip@latest",
-    "libsodium-wrappers-sumo": "0.7.15"
+    "ip": "npm:@webpod/ip@latest"
   }
 }

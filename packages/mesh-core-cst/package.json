@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/core-cst",
-  "version": "1.9.0-beta.99",
+  "version": "1.9.0-beta.100",
   "description": "Types and utilities functions between Mesh and cardano-js-sdk",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -36,22 +36,21 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@cardano-sdk/core": "^0.46.11",
-    "@cardano-sdk/crypto": "^0.4.4",
-    "@cardano-sdk/input-selection": "^0.14.27",
-    "@cardano-sdk/util": "^0.17.1",
+    "@cardano-sdk/core": "0.46.12",
+    "@cardano-sdk/crypto": "0.4.5",
+    "@cardano-sdk/input-selection": "0.14.28",
+    "@cardano-sdk/util": "0.17.1",
     "@harmoniclabs/cbor": "1.6.0",
     "@harmoniclabs/pair": "^1.0.0",
     "@harmoniclabs/plutus-data": "1.2.6",
     "@harmoniclabs/uplc": "1.4.1",
-    "@meshsdk/common": "1.9.0-beta.99",
+    "@meshsdk/common": "1.9.0-beta.100",
     "@types/base32-encoding": "^1.0.2",
     "base32-encoding": "^1.0.0",
     "bech32": "^2.0.0",
     "blakejs": "^1.2.1",
     "bn.js": "^5.2.0",
     "hash.js": "^1.1.7",
-    "libsodium-wrappers-sumo": "0.7.15",
     "scalus": "^0.14.2"
   },
   "overrides": {
