@@ -48,10 +48,11 @@ export const buildBaseAddress = (
 export const buildEnterpriseAddress = (
   networkId: number,
   paymentKeyHash: Hash28ByteBase16,
+  paymentCredType: CredentialType = CredentialType.KeyHash,
 ): EnterpriseAddress => {
   return EnterpriseAddress.fromCredentials(networkId, {
     hash: paymentKeyHash,
-    type: CredentialType.KeyHash,
+    type: paymentCredType,
   });
 };
 
@@ -89,9 +90,10 @@ export const buildBip32PrivateKey = (
 export const buildRewardAddress = (
   networkId: number,
   stakeKeyHash: Hash28ByteBase16,
+  stakeCredType: CredentialType = CredentialType.KeyHash,
 ): RewardAddress => {
   const cred = {
-    type: CredentialType.KeyHash,
+    type: stakeCredType,
     hash: stakeKeyHash,
   };
   return RewardAddress.fromCredentials(networkId, cred);
