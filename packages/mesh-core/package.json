@@ -35,10 +35,9 @@
   "dependencies": {
     "@meshsdk/common": "1.9.0-beta.99",
     "@meshsdk/core-cst": "1.9.0-beta.99",
-    "@meshsdk/provider": "1.9.0-beta.89",
+    "@meshsdk/provider": "1.9.0-beta.99",
     "@meshsdk/transaction": "1.9.0-beta.99",
-    "@meshsdk/wallet": "1.9.0-beta.99",
-    "libsodium-wrappers-sumo": "0.7.15"
+    "@meshsdk/wallet": "1.9.0-beta.99"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
