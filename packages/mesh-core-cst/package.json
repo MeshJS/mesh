@@ -36,10 +36,10 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@cardano-sdk/core": "^0.46.12",
-    "@cardano-sdk/crypto": "^0.4.5",
-    "@cardano-sdk/input-selection": "^0.14.28",
-    "@cardano-sdk/util": "^0.17.1",
+    "@cardano-sdk/core": "0.46.12",
+    "@cardano-sdk/crypto": "0.4.5",
+    "@cardano-sdk/input-selection": "0.14.28",
+    "@cardano-sdk/util": "0.17.1",
     "@harmoniclabs/cbor": "1.6.0",
     "@harmoniclabs/pair": "^1.0.0",
     "@harmoniclabs/plutus-data": "1.2.6",
