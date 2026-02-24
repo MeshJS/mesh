@@ -179,7 +179,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       .selectUtxosFrom(utxos);
 
     let ownerToReceiveLovelace =
-      ((inputDatum.fields[1].int as number) * this.feePercentageBasisPoint) /
+      (Number(inputDatum.fields[1].int) * this.feePercentageBasisPoint) /
       10000;
     if (this.feePercentageBasisPoint > 0 && ownerToReceiveLovelace < 1000000) {
       ownerToReceiveLovelace = 1000000;
@@ -196,7 +196,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     }
 
     const sellerToReceiveLovelace =
-      (inputDatum.fields[1].int as number) + Number(inputLovelace);
+      Number(inputDatum.fields[1].int) + Number(inputLovelace);
 
     if (sellerToReceiveLovelace > 0) {
       const sellerAddress = serializeAddressObj(
