@@ -1,10 +1,8 @@
 import {
   applyCborEncoding,
-  BlockfrostProvider,
   DEFAULT_REDEEMER_BUDGET,
   mConStr0,
   NativeScript,
-  OfflineFetcher,
   resolveNativeScriptHash,
   resolveNativeScriptHex,
   resolveScriptHash,
@@ -12,6 +10,7 @@ import {
 } from "@meshsdk/core";
 import { OfflineEvaluator } from "@meshsdk/core-csl";
 import { resolvePlutusScriptAddress, Serialization } from "@meshsdk/core-cst";
+import { OfflineFetcher } from "@meshsdk/provider";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
 describe("MeshTxBuilder transactions", () => {
@@ -90,9 +89,7 @@ describe("MeshTxBuilder transactions", () => {
       Serialization.TxCBOR(txHex),
     );
     console.log(txHex);
-    expect(
-      cardanoTx.body().outputs().at(0)!.datum()?.asDataHash(),
-    ).toBeDefined();
+    expect(cardanoTx.body().outputs()[0]!.datum()?.asDataHash()).toBeDefined();
     expect(cardanoTx.witnessSet().plutusData()?.size()).toBe(1);
   });
 

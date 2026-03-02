@@ -1,8 +1,5 @@
-import {
-  DRep,
-  MeshTxBuilder,
-  OfflineFetcher,
-} from "@meshsdk/core";
+import { MeshTxBuilder } from "@meshsdk/core";
+import { OfflineFetcher } from "@meshsdk/provider";
 
 import { txHash } from "../test-util";
 

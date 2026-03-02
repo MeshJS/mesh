@@ -1,6 +1,7 @@
 import { UTxO } from "@meshsdk/common";
-import { OfflineFetcher, TxParser } from "@meshsdk/core";
+import { TxParser } from "@meshsdk/core";
 import { CSLSerializer } from "@meshsdk/core-csl";
+import { OfflineFetcher } from "@meshsdk/provider";
 
 describe("TxParser", () => {
   it("should parse the tx", async () => {

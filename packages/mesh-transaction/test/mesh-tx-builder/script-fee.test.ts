@@ -2,10 +2,10 @@ import {
   DEFAULT_PROTOCOL_PARAMETERS,
   MeshTxBuilder,
   MeshWallet,
-  OfflineFetcher,
   resolveScriptRef,
 } from "@meshsdk/core";
 import { calculateFees, Serialization } from "@meshsdk/core-cst";
+import { OfflineFetcher } from "@meshsdk/provider";
 
 import { alwaysSucceedCbor, alwaysSucceedHash, txHash } from "../test-util";
 

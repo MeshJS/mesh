@@ -1,7 +1,6 @@
 import {
   DRep,
   MeshTxBuilder,
-  OfflineFetcher,
   serializeNativeScript,
   serializePlutusScript,
   serializeRewardAddress,
@@ -14,6 +13,7 @@ import {
   resolveScriptRef,
   Serialization,
 } from "@meshsdk/core-cst";
+import { OfflineFetcher } from "@meshsdk/provider";
 
 import { alwaysSucceedCbor, alwaysSucceedHash, txHash } from "../test-util";
 

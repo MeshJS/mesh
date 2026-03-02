@@ -1,4 +1,4 @@
-import { OfflineFetcher } from "@meshsdk/core";
+import { OfflineFetcher } from "@meshsdk/provider";
 
 import { OfflineEvaluatorScalus } from "../src/offline-providers";
 

@@ -1,12 +1,12 @@
 import {
   MeshTxBuilder,
-  OfflineFetcher,
   resolveScriptHash,
   resolveScriptRef,
   serializePlutusScript,
 } from "@meshsdk/core";
 import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
 import { Transaction, TxCBOR } from "@meshsdk/core-cst";
+import { OfflineFetcher } from "@meshsdk/provider";
 
 import { alwaysSucceedCbor, mintParamCbor, txHash } from "../test-util";
 
