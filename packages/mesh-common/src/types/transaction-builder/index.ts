@@ -19,6 +19,7 @@ export * from "./withdrawal";
 export * from "./certificate";
 export * from "./vote";
 export * from "./proposal";
+export * from "./tx-builder-v2";
 
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
@@ -35,7 +36,7 @@ export type MeshTxBuilderBody = {
   certificates: Certificate[];
   withdrawals: Withdrawal[];
   votes: Vote[];
-  proposals: Proposal[];
+  proposals: Proposal[]; 
   signingKey: string[];
   extraInputs: UTxO[];
   chainedTxs: string[];

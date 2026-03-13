@@ -13,7 +13,6 @@ import {
   DEFAULT_REDEEMER_BUDGET,
   DRep,
   DREP_DEPOSIT,
-  VOTING_PROPOSAL_DEPOSIT,
   emptyTxBuilderBody,
   GovernanceAction,
   LanguageVersion,
@@ -29,8 +28,8 @@ import {
   PubKeyTxIn,
   Quantity,
   Redeemer,
-  RewardAddress,
   RefTxIn,
+  RewardAddress,
   TxIn,
   TxInParameter,
   Unit,
@@ -38,6 +37,7 @@ import {
   UtxoSelection,
   Vote,
   Voter,
+  VOTING_PROPOSAL_DEPOSIT,
   VotingProcedure,
   Withdrawal,
 } from "@meshsdk/common";
@@ -1219,9 +1219,12 @@ export class MeshTxBuilderCore {
     type: BuilderData["type"] = "Mesh",
     exUnits = { ...DEFAULT_REDEEMER_BUDGET },
   ) => {
-    if (!this.proposalItem) throw Error("proposalRedeemerValue: Undefined proposal");
+    if (!this.proposalItem)
+      throw Error("proposalRedeemerValue: Undefined proposal");
     if (!(this.proposalItem.type === "ScriptProposal"))
-      throw Error("proposalRedeemerValue: Adding redeemer to non plutus proposal");
+      throw Error(
+        "proposalRedeemerValue: Adding redeemer to non plutus proposal",
+      );
     this.proposalItem.redeemer = this.castBuilderDataToRedeemer(
       redeemer,
       type,
