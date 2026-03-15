@@ -1,4 +1,4 @@
-import { Output, TxIn, TxOutput, UTxO, value } from "@meshsdk/common";
+import { Output, TxIn, TxOutput, UTxO } from "@meshsdk/common";
 
 import {
   BuilderCallbacks,
@@ -154,14 +154,12 @@ export class LargestFirstInputSelector implements IInputSelector {
   ): { changeOutputs: TxOutput[]; valueFulfilled: boolean } => {
     let lovelaceAvailable = remainingValue.get("lovelace") || 0n;
     let valueFulfilled = true;
-    const valueAssets = remainingValue
-      .entries()
+    const valueAssets = Array.from(remainingValue.entries())
       .filter(([_, quantity]) => quantity > 0n)
       .map(([unit, quantity]) => ({
         unit,
         quantity: String(quantity),
-      }))
-      .toArray();
+      }));
     const changeOutputs: TxOutput[] = [];
     let currentBundle: { unit: string; quantity: string }[] = [
       {
@@ -259,9 +257,11 @@ export class LargestFirstInputSelector implements IInputSelector {
     const selectedUtxos = new Set<UTxO>();
     while (remainingUtxos.length > 0) {
       // We select per asset by UTxO with largest quantity of that asset
-      const assetToSelect = remainingValue.entries().find(([_, quantity]) => {
-        return quantity < 0n;
-      });
+      const assetToSelect = Array.from(remainingValue.entries()).find(
+        ([_, quantity]) => {
+          return quantity < 0n;
+        },
+      );
       if (!assetToSelect) {
         break; // No more assets to select
       }
