@@ -1519,10 +1519,14 @@ export class MeshTxBuilderCore {
   /**
    * Configure the address to accept change UTxO
    * @param addr The address to accept change UTxO
+   * @param outputIndex The index at which the change output should be placed
    * @returns The MeshTxBuilder instance
    */
-  changeAddress = (addr: string) => {
+  changeAddress = (addr: string, outputIndex?: number) => {
     this.meshTxBuilderBody.changeAddress = addr;
+    if (outputIndex !== undefined) {
+      this.meshTxBuilderBody.changeAddressOutputIndex = outputIndex;
+    }
     return this;
   };
 
