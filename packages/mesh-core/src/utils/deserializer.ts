@@ -1,4 +1,5 @@
 import { DeserializedAddress } from "@meshsdk/common";
+import { PoolId } from "@meshsdk/core-cst";
 
 import { core } from "../core";
 
@@ -27,5 +28,7 @@ export const deserializeDatum = <T = any>(datumCbor: string): T =>
  * @param poolId The poolxxxx bech32 pool id
  * @returns The Ed25519 key hash
  */
-export const deserializePoolId = (poolId: string): string =>
-  core.resolveEd25519KeyHash(poolId);
+export const deserializePoolId = (poolId: string): string => {
+  const cardanoPoolId: PoolId = PoolId(poolId);
+  return PoolId.toKeyHash(cardanoPoolId).toString();
+};
