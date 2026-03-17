@@ -2,6 +2,7 @@ import { Asset, Budget, LanguageVersion } from "@meshsdk/common";
 
 import { MeshTxBuilderV2 } from "../src";
 
+
 describe("MeshTxBuilderV2 Grouped interfaces", () => {
   it("should build a tx with spendPlutusV2", () => {
     const tx = new MeshTxBuilderV2();
@@ -9,13 +10,13 @@ describe("MeshTxBuilderV2 Grouped interfaces", () => {
       "0000000000000000000000000000000000000000000000000000000000000000";
 
     tx.spendPlutusV2(mockHash, 0)
-      .redeemerJson({ action: "spend" })
       .script("112233")
-      .datumJson({ data: "foo" })
+      .redeemerJson({ action: "spend" })
       .txOut(
         "addr_test1vzuwvztxzv3j4a2wvy7xntry2a8y869svj4a7y7qy2wvywqzcqxny",
-        [],
-      );
+        []
+      )
+      .datumJson({ data: "foo" });
 
     // @ts-ignore
     tx.queueAllLastItem();
@@ -54,8 +55,8 @@ describe("MeshTxBuilderV2 Grouped interfaces", () => {
   it("should have correct mintPlutus interface", () => {
     const tx = new MeshTxBuilderV2();
     tx.mintPlutusV2("1", "policyId123", "assetName456")
-      .redeemerCbor("998877")
       .script("556677")
+      .redeemerCbor("998877")
       .txOut(
         "addr_test1vzuwvztxzv3j4a2wvy7xntry2a8y869svj4a7y7qy2wvywqzcqxny",
         [],
@@ -83,8 +84,8 @@ describe("MeshTxBuilderV2 Grouped interfaces", () => {
   it("should build a tx with withdrawPlutusV2", () => {
     const tx = new MeshTxBuilderV2();
     tx.withdrawPlutusV2("stake_test1uqevw2xnsc0pvn9t9r9c7qryfqfeerchgrlm3ea2nefr9hqp8n5xl", "1000000")
-      .redeemerJson({ action: "withdraw" })
-      .script("445566");
+      .script("445566")
+      .redeemerJson({ action: "withdraw" });
 
     // @ts-ignore
     tx.queueAllLastItem();
@@ -113,8 +114,8 @@ describe("MeshTxBuilderV2 Grouped interfaces", () => {
       { txHash: "0000000000000000000000000000000000000000000000000000000000000000", txIndex: 0 },
       { voteKind: "Yes" }
     )
-      .redeemerJson({ action: "vote" })
-      .script("111111");
+      .script("111111")
+      .redeemerJson({ action: "vote" });
 
     // @ts-ignore
     tx.queueAllLastItem();

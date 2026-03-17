@@ -1,59 +1,59 @@
 import { MeshTxBuilder, RefTxIn, Voter, VotingProcedure } from "@meshsdk/core";
-import { SpendRedeemerBuilder } from "./spend";
-import { MintRedeemerBuilder } from "./mint";
-import { WithdrawRedeemerBuilder } from "./withdrawal";
-import { VoteRedeemerBuilder } from "./vote";
+import { SpendScriptBuilder } from "./spend";
+import { MintScriptBuilder } from "./mint";
+import { WithdrawScriptBuilder } from "./withdrawal";
+import { VoteScriptBuilder } from "./vote";
 
 export interface _MeshTxBuilderV2
   extends Omit<MeshTxBuilder, ScriptMethodsToDrop> {
-  spendPlutusV1(txHash: string, txIndex: number): SpendRedeemerBuilder;
-  spendPlutusV2(txHash: string, txIndex: number): SpendRedeemerBuilder;
-  spendPlutusV3(txHash: string, txIndex: number): SpendRedeemerBuilder;
+  spendPlutusV1(txHash: string, txIndex: number): SpendScriptBuilder;
+  spendPlutusV2(txHash: string, txIndex: number): SpendScriptBuilder;
+  spendPlutusV3(txHash: string, txIndex: number): SpendScriptBuilder;
 
   mintPlutusV1(
     quantity: string,
     policyId: string,
     assetName: string,
-  ): MintRedeemerBuilder;
+  ): MintScriptBuilder;
   mintPlutusV2(
     quantity: string,
     policyId: string,
     assetName: string,
-  ): MintRedeemerBuilder;
+  ): MintScriptBuilder;
   mintPlutusV3(
     quantity: string,
     policyId: string,
     assetName: string,
-  ): MintRedeemerBuilder;
+  ): MintScriptBuilder;
 
   withdrawPlutusV1(
     rewardAddress: string,
     amount: string,
-  ): WithdrawRedeemerBuilder;
+  ): WithdrawScriptBuilder;
   withdrawPlutusV2(
     rewardAddress: string,
     amount: string,
-  ): WithdrawRedeemerBuilder;
+  ): WithdrawScriptBuilder;
   withdrawPlutusV3(
     rewardAddress: string,
     amount: string,
-  ): WithdrawRedeemerBuilder;
+  ): WithdrawScriptBuilder;
 
   votePlutusV1(
     voter: Voter,
     govActionId: RefTxIn,
     votingProcedure: VotingProcedure,
-  ): VoteRedeemerBuilder;
+  ): VoteScriptBuilder;
   votePlutusV2(
     voter: Voter,
     govActionId: RefTxIn,
     votingProcedure: VotingProcedure,
-  ): VoteRedeemerBuilder;
+  ): VoteScriptBuilder;
   votePlutusV3(
     voter: Voter,
     govActionId: RefTxIn,
     votingProcedure: VotingProcedure,
-  ): VoteRedeemerBuilder;
+  ): VoteScriptBuilder;
 }
 
 type ScriptMethodsToDrop =

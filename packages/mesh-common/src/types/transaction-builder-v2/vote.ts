@@ -1,22 +1,24 @@
 import { Budget, BuilderData } from "@meshsdk/core";
+
 import { _MeshTxBuilderV2 } from "./builder-core";
 
-export interface VoteRedeemerBuilder {
-  redeemerJson(
-    redeemer: BuilderData["content"],
-    exUnits?: Budget,
-  ): VoteScriptBuilder;
-  redeemerCbor(
-    redeemer: BuilderData["content"],
-    exUnits?: Budget,
-  ): VoteScriptBuilder;
-}
 export interface VoteScriptBuilder {
-  script(scriptCbor: string): _MeshTxBuilderV2;
+  script(scriptCbor: string): VoteRedeemerBuilder;
   referenceScript(
     txHash: string,
     txIndex: number,
     scriptSize?: string,
     scriptHash?: string,
+  ): VoteRedeemerBuilder;
+}
+
+export interface VoteRedeemerBuilder {
+  redeemerJson(
+    redeemer: BuilderData["content"],
+    exUnits?: Budget,
+  ): _MeshTxBuilderV2;
+  redeemerCbor(
+    redeemer: BuilderData["content"],
+    exUnits?: Budget,
   ): _MeshTxBuilderV2;
 }

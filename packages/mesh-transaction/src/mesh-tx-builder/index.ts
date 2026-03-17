@@ -1878,4 +1878,3 @@ export const getOutputMinLovelace = (
 };
 
 export * from "./utils";
-export { MeshTxBuilderV2 } from "../mesh-builder-v2";

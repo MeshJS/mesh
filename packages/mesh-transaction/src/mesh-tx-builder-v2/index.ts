@@ -17,45 +17,19 @@ import type {
   WithdrawScriptBuilder,
 } from "@meshsdk/common";
 import { Asset, Budget, DEFAULT_REDEEMER_BUDGET } from "@meshsdk/common";
-import { MeshTxBuilder, MeshTxBuilderOptions } from "@meshsdk/core";
-
-import { MeshTxBuilderCore } from "../mesh-tx-builder/tx-builder-core";
+import { byteString, conStr0, MeshTxBuilder, MeshTxBuilderOptions } from "@meshsdk/core";
 
 class SpendBuilderImpl
   implements
-    SpendRedeemerBuilder,
     SpendScriptBuilder,
-    SpendDatumBuilder,
-    SpendTxOutBuilder
+    SpendRedeemerBuilder,
+    SpendTxOutBuilder,
+    SpendDatumBuilder
 {
-  constructor(private readonly core: MeshTxBuilder) {}
+  constructor(private readonly builder: MeshTxBuilder & _MeshTxBuilderV2) {}
 
-  redeemerJson(
-    redeemer: BuilderData["content"],
-    exUnits?: Budget,
-  ): SpendScriptBuilder {
-    this.core.txInRedeemerValue(
-      redeemer,
-      "JSON",
-      exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
-    );
-    return this;
-  }
-
-  redeemerCbor(
-    redeemer: BuilderData["content"],
-    exUnits?: Budget,
-  ): SpendScriptBuilder {
-    this.core.txInRedeemerValue(
-      redeemer,
-      "CBOR",
-      exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
-    );
-    return this;
-  }
-
-  script(scriptCbor: string): SpendDatumBuilder {
-    this.core.txInScript(scriptCbor);
+  script(scriptCbor: string): SpendRedeemerBuilder {
+    this.builder.txInScript(scriptCbor);
     return this;
   }
 
@@ -64,8 +38,8 @@ class SpendBuilderImpl
     refTxIndex: number,
     scriptSize?: string,
     scriptHash?: string,
-  ): SpendDatumBuilder {
-    this.core.spendingTxInReference(
+  ): SpendRedeemerBuilder {
+    this.builder.spendingTxInReference(
       refTxHash,
       refTxIndex,
       scriptSize,
@@ -74,38 +48,77 @@ class SpendBuilderImpl
     return this;
   }
 
-  datumJson(datum: BuilderData["content"]): SpendTxOutBuilder {
-    this.core.txOutInlineDatumValue(datum, "JSON");
+  redeemerJson(
+    redeemer: BuilderData["content"],//check back
+    exUnits?: Budget,
+  ): SpendTxOutBuilder {
+    this.builder.txInRedeemerValue(
+      redeemer,
+      "JSON",
+      exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
+    );
     return this;
   }
 
-  datumCbor(datum: BuilderData["content"]): SpendTxOutBuilder {
-    this.core.txOutInlineDatumValue(datum, "CBOR");
+  redeemerCbor(
+    redeemer: BuilderData["content"],
+    exUnits?: Budget,
+  ): SpendTxOutBuilder {
+    this.builder.txInRedeemerValue(
+      redeemer,
+      "CBOR",
+      exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
+    );
     return this;
   }
 
-  datumHash(datumHash: string): SpendTxOutBuilder {
-    this.core.txOutDatumHashValue(datumHash);
+  txOut(address: string, amount: Asset[]): SpendDatumBuilder {
+    this.builder.txInInlineDatumPresent();
+    this.builder.txOut(address, amount);
     return this;
   }
 
-  txOut(address: string, amount: Asset[]): _MeshTxBuilderV2 {
-    this.core.txInInlineDatumPresent();
-    this.core.txOut(address, amount);
-    return this.core as unknown as _MeshTxBuilderV2;
+  datumJson(datum: BuilderData["content"]): _MeshTxBuilderV2 {
+    this.builder.txOutInlineDatumValue(datum, "JSON");
+    return this.builder as _MeshTxBuilderV2;
+  }
+
+  datumCbor(datum: BuilderData["content"]): _MeshTxBuilderV2 {
+    this.builder.txOutInlineDatumValue(datum, "CBOR");
+    return this.builder as _MeshTxBuilderV2;
+  }
+
+  datumHash(datumHash: string): _MeshTxBuilderV2 {
+    this.builder.txOutDatumHashValue(datumHash);
+    return this.builder as _MeshTxBuilderV2;
   }
 }
 
 class MintBuilderImpl
-  implements MintRedeemerBuilder, MintScriptBuilder, MintTxOutBuilder
+  implements MintScriptBuilder, MintRedeemerBuilder, MintTxOutBuilder
 {
-  constructor(private readonly core: MeshTxBuilder) {}
+  constructor(private readonly builder: MeshTxBuilder & _MeshTxBuilderV2) {}
+
+  script(scriptCbor: string): MintRedeemerBuilder {
+    this.builder.mintingScript(scriptCbor);
+    return this;
+  }
+
+  referenceScript(
+    txHash: string,
+    txIndex: number,
+    scriptSize?: string,
+    scriptHash?: string,
+  ): MintRedeemerBuilder {
+    this.builder.mintTxInReference(txHash, txIndex, scriptSize, scriptHash);
+    return this;
+  }
 
   redeemerJson(
     redeemer: BuilderData["content"],
     exUnits?: Budget,
-  ): MintScriptBuilder {
-    this.core.mintRedeemerValue(
+  ): MintTxOutBuilder {
+    this.builder.mintRedeemerValue(
       redeemer,
       "JSON",
       exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
@@ -116,68 +129,29 @@ class MintBuilderImpl
   redeemerCbor(
     redeemer: BuilderData["content"],
     exUnits?: Budget,
-  ): MintScriptBuilder {
-    this.core.mintRedeemerValue(
+  ): MintTxOutBuilder {
+    this.builder.mintRedeemerValue(
       redeemer,
       "CBOR",
       exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
     );
-    return this;
-  }
-
-  script(scriptCbor: string): MintTxOutBuilder {
-    this.core.mintingScript(scriptCbor);
-    return this;
-  }
-
-  referenceScript(
-    txHash: string,
-    txIndex: number,
-    scriptSize?: string,
-    scriptHash?: string,
-  ): MintTxOutBuilder {
-    this.core.mintTxInReference(txHash, txIndex, scriptSize, scriptHash);
     return this;
   }
 
   txOut(address: string, amount: Asset[]): _MeshTxBuilderV2 {
-    this.core.txOut(address, amount);
-    return this.core as unknown as _MeshTxBuilderV2;
+    this.builder.txOut(address, amount);
+    return this.builder as _MeshTxBuilderV2;
   }
 }
 
 class WithdrawBuilderImpl
-  implements WithdrawRedeemerBuilder, WithdrawScriptBuilder
+  implements WithdrawScriptBuilder, WithdrawRedeemerBuilder
 {
-  constructor(private readonly core: MeshTxBuilder) {}
+  constructor(private readonly builder: MeshTxBuilder & _MeshTxBuilderV2) {}
 
-  redeemerJson(
-    redeemer: BuilderData["content"],
-    exUnits?: Budget,
-  ): WithdrawScriptBuilder {
-    this.core.withdrawalRedeemerValue(
-      redeemer,
-      "JSON",
-      exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
-    );
+  script(scriptCbor: string): WithdrawRedeemerBuilder {
+    this.builder.withdrawalScript(scriptCbor);
     return this;
-  }
-
-  redeemerCbor(
-    redeemer: BuilderData["content"],
-    exUnits?: Budget,
-  ): WithdrawScriptBuilder {
-    this.core.withdrawalRedeemerValue(
-      redeemer,
-      "CBOR",
-      exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
-    );
-    return this;
-  }
-
-  script(scriptCbor: string): _MeshTxBuilderV2 {
-    this.core.withdrawalScript(scriptCbor);
-    return this.core as unknown as _MeshTxBuilderV2;
   }
 
   referenceScript(
@@ -185,42 +159,42 @@ class WithdrawBuilderImpl
     txIndex: number,
     scriptSize?: string,
     scriptHash?: string,
-  ): _MeshTxBuilderV2 {
-    this.core.withdrawalTxInReference(txHash, txIndex, scriptSize, scriptHash);
-    return this.core as unknown as _MeshTxBuilderV2;
+  ): WithdrawRedeemerBuilder {
+    this.builder.withdrawalTxInReference(txHash, txIndex, scriptSize, scriptHash);
+    return this;
   }
-}
-
-class VoteBuilderImpl implements VoteRedeemerBuilder, VoteScriptBuilder {
-  constructor(private readonly core: MeshTxBuilder) {}
 
   redeemerJson(
     redeemer: BuilderData["content"],
     exUnits?: Budget,
-  ): VoteScriptBuilder {
-    this.core.voteRedeemerValue(
+  ): _MeshTxBuilderV2 {
+    this.builder.withdrawalRedeemerValue(
       redeemer,
       "JSON",
       exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
     );
-    return this;
+    return this.builder as _MeshTxBuilderV2;
   }
 
   redeemerCbor(
     redeemer: BuilderData["content"],
     exUnits?: Budget,
-  ): VoteScriptBuilder {
-    this.core.voteRedeemerValue(
+  ): _MeshTxBuilderV2 {
+    this.builder.withdrawalRedeemerValue(
       redeemer,
       "CBOR",
       exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
     );
-    return this;
+    return this.builder as _MeshTxBuilderV2;
   }
+}
 
-  script(scriptCbor: string): _MeshTxBuilderV2 {
-    this.core.voteScript(scriptCbor);
-    return this.core as unknown as _MeshTxBuilderV2;
+class VoteBuilderImpl implements VoteScriptBuilder, VoteRedeemerBuilder {
+  constructor(private readonly builder: MeshTxBuilder & _MeshTxBuilderV2) {}
+
+  script(scriptCbor: string): VoteRedeemerBuilder {
+    this.builder.voteScript(scriptCbor);
+    return this;
   }
 
   referenceScript(
@@ -228,24 +202,48 @@ class VoteBuilderImpl implements VoteRedeemerBuilder, VoteScriptBuilder {
     txIndex: number,
     scriptSize?: string,
     scriptHash?: string,
+  ): VoteRedeemerBuilder {
+    this.builder.voteTxInReference(txHash, txIndex, scriptSize, scriptHash);
+    return this;
+  }
+
+  redeemerJson(
+    redeemer: BuilderData["content"],
+    exUnits?: Budget,
   ): _MeshTxBuilderV2 {
-    this.core.voteTxInReference(txHash, txIndex, scriptSize, scriptHash);
-    return this.core as unknown as _MeshTxBuilderV2;
+    this.builder.voteRedeemerValue(
+      redeemer,
+      "JSON",
+      exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
+    );
+    return this.builder as _MeshTxBuilderV2;
+  }
+
+  redeemerCbor(
+    redeemer: BuilderData["content"],
+    exUnits?: Budget,
+  ): _MeshTxBuilderV2 {
+    this.builder.voteRedeemerValue(
+      redeemer,
+      "CBOR",
+      exUnits ?? { ...DEFAULT_REDEEMER_BUDGET },
+    );
+    return this.builder as _MeshTxBuilderV2;
   }
 }
 
-class __MeshTxBuilderV2 extends MeshTxBuilder {
-  spendPlutusV1(txHash: string, txIndex: number): SpendRedeemerBuilder {
+class TxBuilderV2 extends MeshTxBuilder {
+  spendPlutusV1(txHash: string, txIndex: number): SpendScriptBuilder {
     this.spendingPlutusScriptV1();
     this.txIn(txHash, txIndex);
     return new SpendBuilderImpl(this);
   }
-  spendPlutusV2(txHash: string, txIndex: number): SpendRedeemerBuilder {
+  spendPlutusV2(txHash: string, txIndex: number): SpendScriptBuilder {
     this.spendingPlutusScriptV2();
     this.txIn(txHash, txIndex);
     return new SpendBuilderImpl(this);
   }
-  spendPlutusV3(txHash: string, txIndex: number): SpendRedeemerBuilder {
+  spendPlutusV3(txHash: string, txIndex: number): SpendScriptBuilder {
     this.spendingPlutusScriptV3();
     this.txIn(txHash, txIndex);
     return new SpendBuilderImpl(this);
@@ -255,7 +253,7 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
     quantity: string,
     policyId: string,
     assetName: string,
-  ): MintRedeemerBuilder {
+  ): MintScriptBuilder {
     this.mintPlutusScriptV1();
     this.mint(quantity, policyId, assetName);
     return new MintBuilderImpl(this);
@@ -264,7 +262,7 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
     quantity: string,
     policyId: string,
     assetName: string,
-  ): MintRedeemerBuilder {
+  ): MintScriptBuilder {
     this.mintPlutusScriptV2();
     this.mint(quantity, policyId, assetName);
     return new MintBuilderImpl(this);
@@ -273,7 +271,7 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
     quantity: string,
     policyId: string,
     assetName: string,
-  ): MintRedeemerBuilder {
+  ): MintScriptBuilder {
     this.mintPlutusScriptV3();
     this.mint(quantity, policyId, assetName);
     return new MintBuilderImpl(this);
@@ -281,16 +279,16 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
 
   withdrawPlutusV1(
     rewardAddress: string,
-    coin: string,
-  ): WithdrawRedeemerBuilder {
+    amount: string,
+  ): WithdrawScriptBuilder {
     this.withdrawalPlutusScriptV1();
-    this.withdrawal(rewardAddress, coin);
+    this.withdrawal(rewardAddress, amount);
     return new WithdrawBuilderImpl(this);
   }
   withdrawPlutusV2(
     rewardAddress: string,
     coin: string,
-  ): WithdrawRedeemerBuilder {
+  ): WithdrawScriptBuilder {
     this.withdrawalPlutusScriptV2();
     this.withdrawal(rewardAddress, coin);
     return new WithdrawBuilderImpl(this);
@@ -298,7 +296,7 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
   withdrawPlutusV3(
     rewardAddress: string,
     coin: string,
-  ): WithdrawRedeemerBuilder {
+  ): WithdrawScriptBuilder {
     this.withdrawalPlutusScriptV3();
     this.withdrawal(rewardAddress, coin);
     return new WithdrawBuilderImpl(this);
@@ -308,7 +306,7 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
     voter: Voter,
     govActionId: RefTxIn,
     votingProcedure: VotingProcedure,
-  ): VoteRedeemerBuilder {
+  ): VoteScriptBuilder {
     this.votePlutusScriptV1();
     this.vote(voter, govActionId, votingProcedure);
     return new VoteBuilderImpl(this);
@@ -317,7 +315,7 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
     voter: Voter,
     govActionId: RefTxIn,
     votingProcedure: VotingProcedure,
-  ): VoteRedeemerBuilder {
+  ): VoteScriptBuilder {
     this.votePlutusScriptV2();
     this.vote(voter, govActionId, votingProcedure);
     return new VoteBuilderImpl(this);
@@ -326,7 +324,7 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
     voter: Voter,
     govActionId: RefTxIn,
     votingProcedure: VotingProcedure,
-  ): VoteRedeemerBuilder {
+  ): VoteScriptBuilder {
     this.votePlutusScriptV3();
     this.vote(voter, govActionId, votingProcedure);
     return new VoteBuilderImpl(this);
@@ -334,10 +332,10 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
 }
 
 /**
- * `MeshTxBuilderV2` is a strongly-typed wrapper around the core `MeshTxBuilder`
+ * \`MeshTxBuilderV2\` is a strongly-typed wrapper around the core \`MeshTxBuilder\`
  * that enforces a rigid Type-State machine for Plutus operations.
  *
- * It natively provides TypeScript autocomplete restrictions (Script -> Datum -> Redeemer)
+ * It natively provides TypeScript autocomplete restrictions (Script -> Redeemer -> TxOut -> Datum)
  * for transactions like spending, minting, withdrawing, and voting, dropping standalone
  * script methods to prevent incorrect chained execution ordering.
  *
@@ -350,11 +348,12 @@ class __MeshTxBuilderV2 extends MeshTxBuilder {
  *
  * tx.spendPlutusV3(txHash, index)
  *   .script(scriptCbor)
- *   .datumJson(datumValue)
  *   .redeemerJson(redeemerValue)
- *   .txOut(address, assets); // Drops you back into the main builder methods
+ *   .txOut(address, assets)
+ *   .datumJson(datumValue); // Drops you back into the main builder methods
  * ```
  */
+
 export const MeshTxBuilderV2: new (
   options?: MeshTxBuilderOptions,
-) => _MeshTxBuilderV2 = __MeshTxBuilderV2;
+) => _MeshTxBuilderV2 = TxBuilderV2;
