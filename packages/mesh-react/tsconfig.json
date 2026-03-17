@@ -1,8 +1,0 @@
-{
-  "extends": "@meshsdk/configs/typescript/base.json",
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"],
-  "compilerOptions": {
-    "jsx": "react-jsx"
-  }
-}

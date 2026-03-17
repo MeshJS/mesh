@@ -17,6 +17,54 @@ import {
 
 import { mockUnit } from "./common";
 
+const unsortedValue: Value = assocMap([
+  [currencySymbol(""), assocMap([[tokenName(""), integer(200000000)]])],
+  [
+    currencySymbol("c69b981db7a65e339a6d783755f85a2e03afa1cece9714c55fe4c913"),
+    assocMap([[tokenName("5553444d"), integer(200000000)]]),
+  ],
+  [
+    currencySymbol("a2818ba06a88bb6c08d10f4f9b897c09768f28d274093628ad7086fc"),
+    assocMap([[tokenName("484f534b59"), integer(100000000)]]),
+  ],
+  [
+    currencySymbol("82e46eb16633bf8bfa820c83ffeb63192c6e21757d2bf91290b2f41d"),
+    assocMap([[tokenName("494147"), integer(100000000)]]),
+  ],
+  [
+    currencySymbol("378f9732c755ed6f4fc8d406f1461d0cca95d7d2e69416784684df39"),
+    assocMap([[tokenName("534e454b"), integer(100000000)]]),
+  ],
+  [
+    currencySymbol("3363b99384d6ee4c4b009068af396c8fdf92dafd111e58a857af0429"),
+    assocMap([[tokenName("4e49474854"), integer(100000000)]]),
+  ],
+]);
+
+const sortedValue: Value = assocMap([
+  [currencySymbol(""), assocMap([[tokenName(""), integer(200000000)]])],
+  [
+    currencySymbol("3363b99384d6ee4c4b009068af396c8fdf92dafd111e58a857af0429"),
+    assocMap([[tokenName("4e49474854"), integer(100000000)]]),
+  ],
+  [
+    currencySymbol("378f9732c755ed6f4fc8d406f1461d0cca95d7d2e69416784684df39"),
+    assocMap([[tokenName("534e454b"), integer(100000000)]]),
+  ],
+  [
+    currencySymbol("82e46eb16633bf8bfa820c83ffeb63192c6e21757d2bf91290b2f41d"),
+    assocMap([[tokenName("494147"), integer(100000000)]]),
+  ],
+  [
+    currencySymbol("a2818ba06a88bb6c08d10f4f9b897c09768f28d274093628ad7086fc"),
+    assocMap([[tokenName("484f534b59"), integer(100000000)]]),
+  ],
+  [
+    currencySymbol("c69b981db7a65e339a6d783755f85a2e03afa1cece9714c55fe4c913"),
+    assocMap([[tokenName("5553444d"), integer(200000000)]]),
+  ],
+]);
+
 describe("value", () => {
   it("should create a new Value instance with the correct value", () => {
     const val: Asset[] = [{ unit: "lovelace", quantity: "1000000" }];
@@ -267,6 +315,35 @@ describe("MeshValue class", () => {
 
       const jsonValue = meshValue.toJSON();
       expect(JSON.stringify(jsonValue)).toEqual(JSON.stringify(expectedValue));
+    });
+  });
+  describe("sortValue", () => {
+    test("should sort policies and tokens by byte ordering", () => {
+      const sortedValue = MeshValue.sortValue(unsortedValue);
+      expect(JSON.stringify(sortedValue)).toEqual(JSON.stringify(sortedValue));
+    });
+
+    test("should handle empty Value", () => {
+      const emptyValue: Value = assocMap([]);
+      const sortedValue = MeshValue.sortValue(emptyValue);
+      expect(JSON.stringify(sortedValue)).toEqual(JSON.stringify(emptyValue));
+    });
+
+    test("should handle already sorted Value", () => {
+      const alreadySorted: Value = assocMap([
+        [currencySymbol(""), assocMap([[tokenName(""), integer(200000000)]])],
+        [
+          currencySymbol(
+            "3363b99384d6ee4c4b009068af396c8fdf92dafd111e58a857af0429",
+          ),
+          assocMap([[tokenName("4e49474854"), integer(100000000)]]),
+        ],
+      ]);
+
+      const sortedValue = MeshValue.sortValue(alreadySorted);
+      expect(JSON.stringify(sortedValue)).toEqual(
+        JSON.stringify(alreadySorted),
+      );
     });
   });
 });
