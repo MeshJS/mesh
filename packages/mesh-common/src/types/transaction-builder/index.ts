@@ -35,7 +35,7 @@ export type MeshTxBuilderBody = {
   certificates: Certificate[];
   withdrawals: Withdrawal[];
   votes: Vote[];
-  proposals: Proposal[];
+  proposals: Proposal[]; 
   signingKey: string[];
   extraInputs: UTxO[];
   chainedTxs: string[];
