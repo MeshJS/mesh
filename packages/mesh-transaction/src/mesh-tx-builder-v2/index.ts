@@ -1,23 +1,27 @@
 import type {
   _MeshTxBuilderV2,
-  BuilderData,
   MintRedeemerBuilder,
   MintScriptBuilder,
   MintTxOutBuilder,
-  RefTxIn,
   SpendDatumBuilder,
   SpendRedeemerBuilder,
   SpendScriptBuilder,
   SpendTxOutBuilder,
-  Voter,
   VoteRedeemerBuilder,
   VoteScriptBuilder,
-  VotingProcedure,
   WithdrawRedeemerBuilder,
   WithdrawScriptBuilder,
+} from "./types";
+import {
+  Asset,
+  Budget,
+  BuilderData,
+  DEFAULT_REDEEMER_BUDGET,
+  RefTxIn,
+  Voter,
+  VotingProcedure,
 } from "@meshsdk/common";
-import { Asset, Budget, DEFAULT_REDEEMER_BUDGET } from "@meshsdk/common";
-import { byteString, conStr0, MeshTxBuilder, MeshTxBuilderOptions } from "@meshsdk/core";
+import { MeshTxBuilder, MeshTxBuilderOptions } from "../mesh-tx-builder";
 
 class SpendBuilderImpl
   implements
