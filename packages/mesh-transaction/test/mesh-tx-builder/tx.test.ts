@@ -36,6 +36,45 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHex !== "").toBeTruthy();
   });
 
+  it("Basic send tx with change output index", async () => {
+    let mesh = new MeshTxBuilder();
+    let txHex = await mesh
+      .txIn(
+        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
+        3,
+        [{ unit: "lovelace", quantity: "9891607895" }],
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+        0
+      )
+      .txOut(
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+        [{ unit: "lovelace", quantity: "2000000" }],
+      )
+      .txOut(
+        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+        [{ unit: "lovelace", quantity: "3000000" }],
+      )
+      .changeAddress(
+        "addr_test1wql6cyymfrmqe9cjeyfh5d4h945nfszy3yup8d74kkrhsks4dkk0y",
+        1
+      )
+      .complete();
+
+    const cardanoTx = Serialization.Transaction.fromCbor(
+      Serialization.TxCBOR(txHex),
+    );
+    const outputs = cardanoTx.body().outputs();
+    // 3 outputs expected: 2 explicit, 1 change
+    expect(outputs.length).toBe(3);
+    
+    // The change output should be at index 1 (between the two explicit outputs)
+    const changeOutput = outputs[1];
+    expect(changeOutput!.address().toBech32()).toBe("addr_test1wql6cyymfrmqe9cjeyfh5d4h945nfszy3yup8d74kkrhsks4dkk0y");
+    // Verify explicit outputs are pushed to indices 0 and 2
+    expect(outputs[0]!.amount().coin().toString()).toBe("2000000");
+    expect(outputs[2]!.amount().coin().toString()).toBe("3000000");
+  });
+
   it("Basic send tx with set fee", () => {
     let mesh = new MeshTxBuilder();
     let txHex = mesh

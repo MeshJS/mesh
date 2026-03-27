@@ -313,6 +313,22 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     this.meshTxBuilderBody.fee = selectionSkeleton.fee.toString();
     this.queueAllLastItem();
+
+    const changeLen = selectionSkeleton.change.length;
+    if (this.meshTxBuilderBody.changeAddressOutputIndex !== undefined && changeLen > 0) {
+      let idx = this.meshTxBuilderBody.changeAddressOutputIndex;
+      const changes = this.meshTxBuilderBody.outputs.splice(-changeLen, changeLen);
+      
+      const maxIdx = this.meshTxBuilderBody.outputs.length;
+      if (idx > maxIdx) {
+        idx = maxIdx;
+      } else if (idx < 0) {
+        idx = 0;
+      }
+
+      this.meshTxBuilderBody.outputs.splice(idx, 0, ...changes);
+    }
+
     this.removeDuplicateInputs();
     this.sortTxParts();
     this.updateRedeemer(
