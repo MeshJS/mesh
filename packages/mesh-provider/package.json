@@ -40,8 +40,10 @@
     "@meshsdk/core-cst": "1.9.0-beta.90",
     "@utxorpc/sdk": "^0.6.7",
     "@utxorpc/spec": "^0.16.0",
+    "@scure/base": "^1.2.6",
     "axios": "^1.7.2",
-    "cbor": "^10.0.9"
+    "cbor": "^10.0.9",
+    "scalus": "^0.15.0"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
