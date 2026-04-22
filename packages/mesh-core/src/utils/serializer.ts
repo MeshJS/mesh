@@ -1,8 +1,5 @@
-import JSONBig from "json-bigint";
-
 import {
   BuilderData,
-  Data,
   DeserializedAddress,
   NativeScript,
   PlutusDataType,
