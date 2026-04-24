@@ -18,7 +18,7 @@ import cbor from "cbor";
 import { bech32 } from "@scure/base";
 
 // Use `import type` for scalus types, `require()` at runtime since scalus is CJS
-import type { Emulator, SlotConfig, SubmitResult } from "scalus";
+import type { Emulator, Scalus, SlotConfig, SubmitResult } from "scalus";
 
 // Scalus is CJS so we use dynamic import at construction time
 let ScalusLib: typeof import("scalus") | undefined;
@@ -183,12 +183,28 @@ export class ScalusProvider implements IFetcher, ISubmitter, IEvaluator {
       1000,
     );
 
-    const redeemers = ScalusLib!.Scalus.evalPlutusScripts(
-      txBytes,
-      utxoMapBytes,
-      scalusSlotConfig,
-      this.costModels,
-    );
+    let redeemers: Scalus.Redeemer[];
+    try {
+      redeemers = ScalusLib!.Scalus.evalPlutusScripts(
+        txBytes,
+        utxoMapBytes,
+        scalusSlotConfig,
+        this.costModels,
+      );
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : String(error);
+      const isScriptFailure =
+        msg.includes("script evaluation") ||
+        msg.includes("PlutusScript") ||
+        (error != null &&
+          typeof error === "object" &&
+          "logs" in error);
+      if (isScriptFailure) {
+        throw error;
+      }
+      return [];
+    }
 
     const tagMap: Record<string, Action["tag"]> = {
       Spend: "SPEND",
