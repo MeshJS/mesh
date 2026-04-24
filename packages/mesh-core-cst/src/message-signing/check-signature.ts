@@ -1,4 +1,4 @@
-import { ready } from "@cardano-sdk/crypto";
+import { blake2b, ready } from "@cardano-sdk/crypto";
 
 import { DataSignature, isHexString, stringToHex } from "@meshsdk/common";
 
@@ -104,7 +104,13 @@ export const checkSignature = async (
     return false;
   }
   const hexData = isHexString(data) ? data : stringToHex(data);
-  if (Buffer.from(hexData, "hex").compare(builder.getPayload()!) !== 0) {
+  const builderPayload = builder.getPayload();
+  const payloadCompare =
+    Buffer.from(hexData, "hex").compare(builderPayload!) == 0;
+  const hashedPayloadCompare =
+    blake2b.hash(hexData, 28) == builderPayload!.toString("hex");
+
+  if (!payloadCompare && !hashedPayloadCompare) {
     return false;
   }
 

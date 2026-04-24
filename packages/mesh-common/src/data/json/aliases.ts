@@ -88,13 +88,13 @@ export type Tuple<T extends any[]> = { list: T };
  * Aiken alias
  * The Plutus Data Option in JSON
  */
-export type Option<T> = Some<T> | None;
+export type Option<T extends PlutusData> = Some<T> | None;
 
 /**
  * Aiken alias
  * The Plutus Data Option - Some in JSON
  */
-export type Some<T> = ConStr0<[T]>;
+export type Some<T extends PlutusData> = ConStr0<[T]>;
 
 /**
  * Aiken alias
@@ -246,7 +246,7 @@ export const tuple = <T extends PlutusData[]>(...args: T): Tuple<T> => ({
  * @param value The optional value of the option
  * @returns Return None constructor if the value is not provided, otherwise return Some constructor with the value
  */
-export const option = <T>(value?: T): Option<T> => {
+export const option = <T extends PlutusData>(value?: T): Option<T> => {
   if (!value) {
     return none();
   }
@@ -258,7 +258,7 @@ export const option = <T>(value?: T): Option<T> => {
  * @param value The value of the option
  * @returns The Plutus Data Option - Some object
  */
-export const some = <T>(value: T): Some<T> => conStr0([value]);
+export const some = <T extends PlutusData>(value: T): Some<T> => conStr0([value]);
 
 /**
  * The utility function to create a Plutus Data Option - None in JSON

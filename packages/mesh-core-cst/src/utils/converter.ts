@@ -15,6 +15,7 @@ import {
   UTxO,
 } from "@meshsdk/common";
 
+import { resolveDataHash } from "../resolvers";
 import {
   Address,
   AssetId,
@@ -81,8 +82,8 @@ export const toRewardAddress = (bech32: string): RewardAddress | undefined =>
 export const fromTxUnspentOutput = (
   txUnspentOutput: TransactionUnspentOutput,
 ): UTxO => {
-  const dataHash = txUnspentOutput.output().datum()
-    ? txUnspentOutput.output().datum()?.toCbor().toString()
+  let dataHash = txUnspentOutput.output().datum()
+    ? txUnspentOutput.output().datum()?.asDataHash()?.toString()
     : undefined;
 
   const scriptRef = txUnspentOutput.output().scriptRef()
@@ -93,6 +94,9 @@ export const fromTxUnspentOutput = (
     ? txUnspentOutput.output().datum()?.asInlineData()?.toCbor().toString()
     : undefined;
 
+  if (plutusData && !dataHash) {
+    dataHash = resolveDataHash(plutusData, "CBOR");
+  }
   return <UTxO>{
     input: {
       outputIndex: Number(txUnspentOutput.input().index()),
@@ -450,7 +454,9 @@ export const getDRepIds = (
   return result;
 };
 
-export const toPlutusLanguageVersion = (version: LanguageVersion): PlutusLanguageVersion => {
+export const toPlutusLanguageVersion = (
+  version: LanguageVersion,
+): PlutusLanguageVersion => {
   switch (version) {
     case "V1":
       return PlutusLanguageVersion.V1;
@@ -461,4 +467,40 @@ export const toPlutusLanguageVersion = (version: LanguageVersion): PlutusLanguag
   }
 };
 
+export const utxosToCborMap = (utxos: UTxO[]): string => {
+  const cborWriter = new Serialization.CborWriter();
+  cborWriter.writeStartMap(utxos.length);
+  for (const utxo of utxos) {
+    const cardanoUtxo = toTxUnspentOutput(utxo);
+    cborWriter.writeEncodedValue(
+      Buffer.from(cardanoUtxo.input().toCbor(), "hex"),
+    );
+    cborWriter.writeEncodedValue(
+      Buffer.from(cardanoUtxo.output().toCbor(), "hex"),
+    );
+  }
+  return cborWriter.encodeAsHex();
+};
 
+export const cborMapToUtxos = (cborMaps: string[]): UTxO[] => {
+  const utxos: UTxO[] = [];
+  for (const cborMap of cborMaps) {
+    const cborReader = new Serialization.CborReader(
+      Buffer.from(cborMap, "hex"),
+    );
+    const mapLength = cborReader.readStartMap();
+    if (!mapLength) {
+      throw new Error("Invalid CBOR map: expected a map of UTxOs");
+    }
+    for (let i = 0; i < mapLength; i++) {
+      const inputCbor = cborReader.readEncodedValue();
+      const outputCbor = cborReader.readEncodedValue();
+      const utxo = Serialization.TransactionUnspentOutput.fromCore([
+        Serialization.TransactionInput.fromCbor(inputCbor).toCore(),
+        Serialization.TransactionOutput.fromCbor(outputCbor).toCore(),
+      ]);
+      utxos.push(fromTxUnspentOutput(utxo));
+    }
+  }
+  return utxos;
+};

@@ -23,6 +23,7 @@
     "sourceMap": true,
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
-    "noUnusedLocals": false
+    "noUnusedLocals": false,
+    "types": ["node", "jest"]
   }
 }

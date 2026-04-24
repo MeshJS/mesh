@@ -12,10 +12,10 @@ export const utxoToObj = ({
     output: {
       address,
       amount,
-      dataHash: dataHash ?? null,
-      plutusData: plutusData ?? null,
-      scriptRef: scriptRef ?? null,
-      scriptHash: scriptHash ?? null,
+      dataHash: dataHash || null,
+      plutusData: plutusData || null,
+      scriptRef: scriptRef || null,
+      scriptHash: scriptHash || null,
     },
   };
 };
