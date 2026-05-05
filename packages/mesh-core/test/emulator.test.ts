@@ -1,15 +1,16 @@
+import { Emulator, SlotConfig } from "scalus";
+
 import {
   applyCborEncoding,
   MeshTxBuilder,
+  NativeScript,
   resolveNativeScriptHash,
   resolveNativeScriptHex,
   resolvePaymentKeyHash,
   resolveScriptHash,
-  NativeScript,
+  ScalusEmulator,
 } from "@meshsdk/core";
 import { AppWallet } from "@meshsdk/wallet";
-import { ScalusProvider } from "@meshsdk/provider";
-import { Emulator, SlotConfig } from "scalus";
 
 const TEST_MNEMONIC = [
   "solution",
@@ -59,7 +60,7 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
   const currentSlot = slotConfig.timeToSlot(Date.now());
   emulator.setSlot(currentSlot);
 
-  const provider = new ScalusProvider(emulator, slotConfig);
+  const provider = new ScalusEmulator(emulator, slotConfig);
 
   const newTxBuilder = () =>
     new MeshTxBuilder({
@@ -71,7 +72,7 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
   return { wallet, address, provider, emulator, slotConfig, newTxBuilder };
 }
 
-describe("ScalusProvider", () => {
+describe("ScalusEmulator", () => {
   describe("Basic payment lifecycle", () => {
     it("should build, sign, submit and confirm a simple payment", async () => {
       const { wallet, address, provider, newTxBuilder } =
@@ -523,7 +524,7 @@ describe("ScalusProvider", () => {
 
       const txHex = await newTxBuilder()
         .txOut(address, [{ unit: "lovelace", quantity: "2000000" }])
-        .metadataValue(674, "Hello from ScalusProvider test")
+        .metadataValue(674, "Hello from ScalusEmulator test")
         .changeAddress(address)
         .selectUtxosFrom(utxos)
         .complete();
