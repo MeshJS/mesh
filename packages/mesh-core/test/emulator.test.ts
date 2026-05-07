@@ -9,6 +9,7 @@ import {
   resolvePaymentKeyHash,
   resolveScriptHash,
   ScalusEmulator,
+  UTxO,
 } from "@meshsdk/core";
 import { AppWallet } from "@meshsdk/wallet";
 
@@ -66,7 +67,6 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
     new MeshTxBuilder({
       fetcher: provider,
       submitter: provider,
-      evaluator: provider,
     });
 
   return { wallet, address, provider, emulator, slotConfig, newTxBuilder };
@@ -643,6 +643,62 @@ describe("ScalusEmulator", () => {
       expect(
         filteredUtxos[0]!.output.amount.find((a) => a.unit === unit)!.quantity,
       ).toBe("200");
+    });
+
+    it("should allow inputting additional UTxOs for script evaluation", async () => {
+      const { address, provider, newTxBuilder } = await createTestSetup();
+
+      const policyId = resolveScriptHash(alwaysSucceedCbor, "V3");
+      const tokenNameHex = Buffer.from("SpendTest").toString("hex");
+      const unit = policyId + tokenNameHex;
+
+      const utxos = await provider.fetchAddressUTxOs(address);
+      const testUtxo: UTxO = {
+        input: {
+          txHash:
+            "ffe00432c78714fbd9c1784a6b574b0b11bd7c9dedb305aa7f55593505607539",
+          outputIndex: 0,
+        },
+        output: {
+          address,
+          amount: [{ unit: "lovelace", quantity: "2000000" }],
+        },
+      };
+      // Step 1: Mint tokens using plutus script
+      const mintTxHex = await newTxBuilder()
+        .txIn(
+          testUtxo.input.txHash,
+          testUtxo.input.outputIndex,
+          testUtxo.output.amount,
+          testUtxo.output.address,
+          0,
+        )
+        .mintPlutusScriptV3()
+        .mint("50", policyId, tokenNameHex)
+        .mintRedeemerValue("")
+        .mintingScript(alwaysSucceedCbor)
+        .txInCollateral(
+          utxos[0]!.input.txHash,
+          utxos[0]!.input.outputIndex,
+          utxos[0]!.output.amount,
+          utxos[0]!.output.address,
+        )
+        .setFee("2000000")
+        .txOut(address, [
+          { unit: "lovelace", quantity: "2000000" },
+          { unit, quantity: "50" },
+        ])
+        .changeAddress(address)
+        .selectUtxosFrom(utxos)
+        .complete();
+      const evaluateResult = await provider.evaluateTx(mintTxHex, [testUtxo]);
+      expect(evaluateResult).toEqual([
+        {
+          tag: "MINT",
+          index: 0,
+          budget: { mem: 6300000000, steps: 6300000000 },
+        },
+      ]);
     });
   });
 });
