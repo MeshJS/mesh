@@ -19,6 +19,7 @@ import type {
   UTxO,
 } from "@meshsdk/common";
 import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/common";
+import { utxosToCborMap } from "@meshsdk/core-cst";
 
 // Scalus is CJS so we use dynamic import at construction time
 let ScalusLib: typeof import("scalus") | undefined;
@@ -178,8 +179,12 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
   ): Promise<Omit<Action, "data">[]> {
     const txBytes = hexToBytes(tx);
 
-    const utxoMapBytes = this.emulator.getUtxosCbor();
-
+    const utxoMapBytes = this.emulator.getAllUtxos();
+    let utxos: UTxO[] = utxoMapBytes.map((e) => decodeUtxoEntry(e));
+    if (additionalUtxos) {
+      utxos = utxos.concat(additionalUtxos);
+    }
+    const utxoMapCbor = Buffer.from(utxosToCborMap(utxos), "hex");
     const scalusSlotConfig = new ScalusLib!.SlotConfig(
       this.slotConfig.slotToTime(0),
       0,
@@ -190,20 +195,12 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
     try {
       redeemers = ScalusLib!.Scalus.evalPlutusScripts(
         txBytes,
-        utxoMapBytes,
+        utxoMapCbor,
         scalusSlotConfig,
         this.costModels,
       );
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      const isScriptFailure =
-        msg.includes("script evaluation") ||
-        msg.includes("PlutusScript") ||
-        (error != null && typeof error === "object" && "logs" in error);
-      if (isScriptFailure) {
-        throw error;
-      }
-      return [];
+      throw error;
     }
 
     const tagMap: Record<string, Action["tag"]> = {
