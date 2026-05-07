@@ -234,7 +234,15 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
           selectionSkeleton: TransactionPrototype,
         ): Promise<TransactionCost> => {
           const clonedBuilder = this.clone();
-          await clonedBuilder.updateByTxPrototype(selectionSkeleton);
+          if (this.manualFee) {
+            const newSelectionSkeleton = {
+              ...selectionSkeleton,
+              fee: BigInt(this.manualFee),
+            };
+            await clonedBuilder.updateByTxPrototype(newSelectionSkeleton);
+          } else {
+            await clonedBuilder.updateByTxPrototype(selectionSkeleton);
+          }
 
           try {
             await clonedBuilder.evaluateRedeemers();
