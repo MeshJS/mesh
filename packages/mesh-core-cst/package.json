@@ -51,7 +51,7 @@
     "blakejs": "^1.2.1",
     "bn.js": "^5.2.0",
     "hash.js": "^1.1.7",
-    "scalus": "^0.14.2"
+    "scalus": "^0.17.0"
   },
   "overrides": {
     "@cardano-sdk/crypto": {
