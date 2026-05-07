@@ -1,7 +1,8 @@
 // Use `import type` for scalus types, `require()` at runtime since scalus is CJS
-import type { Emulator, Scalus, SlotConfig, SubmitResult } from "scalus";
+import type { Scalus, SlotConfig, SubmitResult } from "scalus";
 import { bech32 } from "@scure/base";
 import cbor from "cbor";
+import { Emulator } from "scalus";
 
 import type {
   AccountInfo,
@@ -18,7 +19,12 @@ import type {
   TransactionInfo,
   UTxO,
 } from "@meshsdk/common";
-import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/common";
+import {
+  DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+} from "@meshsdk/common";
 import { utxosToCborMap } from "@meshsdk/core-cst";
 
 // Scalus is CJS so we use dynamic import at construction time
@@ -39,13 +45,13 @@ let ScalusLib: typeof import("scalus") | undefined;
  * ```
  */
 export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
-  private emulator: Emulator;
+  public emulator: Emulator;
   private slotConfig: SlotConfig;
   private protocolParams: Protocol;
   private costModels: number[][];
 
   constructor(
-    emulator: Emulator,
+    initialUtxos: UTxO[],
     slotConfig: SlotConfig,
     options?: {
       protocolParams?: Protocol;
@@ -56,14 +62,18 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
       };
     },
   ) {
-    this.emulator = emulator;
+    this.emulator = new Emulator(
+      Buffer.from(utxosToCborMap(initialUtxos), "hex"),
+      slotConfig,
+    );
+
     this.slotConfig = slotConfig;
     this.protocolParams =
       options?.protocolParams ?? DEFAULT_PROTOCOL_PARAMETERS;
     this.costModels = [
-      options?.costModels?.PlutusV1 ?? [],
-      options?.costModels?.PlutusV2 ?? [],
-      options?.costModels?.PlutusV3 ?? [],
+      options?.costModels?.PlutusV1 ?? DEFAULT_V1_COST_MODEL_LIST,
+      options?.costModels?.PlutusV2 ?? DEFAULT_V2_COST_MODEL_LIST,
+      options?.costModels?.PlutusV3 ?? DEFAULT_V3_COST_MODEL_LIST,
     ];
 
     // Eagerly load the scalus module
@@ -190,7 +200,6 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
       0,
       1000,
     );
-
     let redeemers: Scalus.Redeemer[];
     try {
       redeemers = ScalusLib!.Scalus.evalPlutusScripts(

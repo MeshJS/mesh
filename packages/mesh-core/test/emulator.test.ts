@@ -53,23 +53,44 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
   await wallet.init();
   const address = wallet.getPaymentAddress();
 
-  const emulator = Emulator.withAddresses(
-    [address],
-    slotConfig,
-    lovelacePerAddress,
-  );
   const currentSlot = slotConfig.timeToSlot(Date.now());
-  emulator.setSlot(currentSlot);
 
-  const provider = new ScalusEmulator(emulator, slotConfig);
+  const provider = new ScalusEmulator(
+    [
+      {
+        input: {
+          txHash:
+            "0000000000000000000000000000000000000000000000000000000000000000",
+          outputIndex: 0,
+        },
+        output: {
+          address,
+          amount: [
+            { unit: "lovelace", quantity: lovelacePerAddress.toString() },
+          ],
+        },
+      },
+    ],
+    slotConfig,
+  );
+
+  provider.emulator.setSlot(currentSlot);
 
   const newTxBuilder = () =>
     new MeshTxBuilder({
       fetcher: provider,
       submitter: provider,
+      evaluator: provider,
     });
 
-  return { wallet, address, provider, emulator, slotConfig, newTxBuilder };
+  return {
+    wallet,
+    address,
+    provider,
+    emulator: provider.emulator,
+    slotConfig,
+    newTxBuilder,
+  };
 }
 
 describe("ScalusEmulator", () => {
@@ -318,7 +339,7 @@ describe("ScalusEmulator", () => {
     });
 
     it("should evaluate a plutus spending transaction", async () => {
-      const { wallet, address, provider, newTxBuilder, slotConfig } =
+      const { wallet, address, provider, newTxBuilder, emulator } =
         await createTestSetup();
 
       const policyId = resolveScriptHash(alwaysSucceedCbor, "V3");
@@ -346,7 +367,6 @@ describe("ScalusEmulator", () => {
         .changeAddress(address)
         .selectUtxosFrom(utxos)
         .complete();
-
       const signedMint = await wallet.signTx(mintTxHex);
       const mintHash = await provider.submitTx(signedMint);
       expect(mintHash.length).toBe(64);
@@ -646,7 +666,7 @@ describe("ScalusEmulator", () => {
     });
 
     it("should allow inputting additional UTxOs for script evaluation", async () => {
-      const { address, provider, newTxBuilder } = await createTestSetup();
+      const { address, provider, emulator } = await createTestSetup();
 
       const policyId = resolveScriptHash(alwaysSucceedCbor, "V3");
       const tokenNameHex = Buffer.from("SpendTest").toString("hex");
@@ -665,7 +685,9 @@ describe("ScalusEmulator", () => {
         },
       };
       // Step 1: Mint tokens using plutus script
-      const mintTxHex = await newTxBuilder()
+      const mintTxHex = await new MeshTxBuilder({
+        fetcher: provider,
+      })
         .txIn(
           testUtxo.input.txHash,
           testUtxo.input.outputIndex,
@@ -696,7 +718,7 @@ describe("ScalusEmulator", () => {
         {
           tag: "MINT",
           index: 0,
-          budget: { mem: 6300000000, steps: 6300000000 },
+          budget: { mem: 2001, steps: 380149 },
         },
       ]);
     });
