@@ -63,7 +63,7 @@ export class BuilderCallbacksSdkBridge
       change: selectionSkeleton.change.map((output) =>
         CSDKOutputToMeshOutput(output),
       ),
-      fee: selectionSkeleton.fee,
+      fee: BigInt(1_000_000_000),
     });
 
     return {

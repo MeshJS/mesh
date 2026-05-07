@@ -333,7 +333,7 @@ export class LargestFirstInputSelector implements IInputSelector {
             newInputs: selectedUtxos,
             newOutputs: new Set(),
             change: changeOutputs,
-            fee: MAX_U64,
+            fee: BigInt(1_000_000_000),
           })
         ).fee;
       }
