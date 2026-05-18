@@ -18,7 +18,6 @@ import {
   ScriptSource,
   SimpleScriptSourceInfo,
   TxIn,
-  TxOutput,
   UTxO,
   Vote,
   Voter,
