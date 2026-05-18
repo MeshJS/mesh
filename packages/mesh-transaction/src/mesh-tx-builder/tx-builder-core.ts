@@ -1670,6 +1670,16 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Alias for setNetwork for custom cost models
+   * @param costModels
+   * @returns The MeshTxBuilder instance
+   */
+  setCostModels = (costModels: number[][]) => {
+    this.setNetwork(costModels);
+    return this;
+  };
+
+  /**
    * Add a transaction that is used as input, but not yet reflected on the global blockchain
    * @param txHex The transaction hex of chained transaction
    * @returns The MeshTxBuilderCore instance
