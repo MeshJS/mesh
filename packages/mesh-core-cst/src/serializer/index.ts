@@ -1528,15 +1528,15 @@ class CardanoSDKSerializerCore {
 
     // After building tx witness set, we must hash it with the cost models
     // and put the hash in the tx body
-    let costModelV1 = Serialization.CostModel.newPlutusV1(
-      DEFAULT_V1_COST_MODEL_LIST,
-    );
-    let costModelV2 = Serialization.CostModel.newPlutusV2(
-      DEFAULT_V2_COST_MODEL_LIST,
-    );
-    let costModelV3 = Serialization.CostModel.newPlutusV3(
-      DEFAULT_V3_COST_MODEL_LIST,
-    );
+    let v1CostList =
+      this.protocolParams.costModels?.PlutusV1 ?? DEFAULT_V1_COST_MODEL_LIST;
+    let v2CostList =
+      this.protocolParams.costModels?.PlutusV2 ?? DEFAULT_V2_COST_MODEL_LIST;
+    let v3CostList =
+      this.protocolParams.costModels?.PlutusV3 ?? DEFAULT_V3_COST_MODEL_LIST;
+    let costModelV1 = Serialization.CostModel.newPlutusV1(v1CostList);
+    let costModelV2 = Serialization.CostModel.newPlutusV2(v2CostList);
+    let costModelV3 = Serialization.CostModel.newPlutusV3(v3CostList);
     let costModels = new Serialization.Costmdls();
 
     if (this.usedLanguages[PlutusLanguageVersion.V1]) {

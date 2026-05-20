@@ -75,5 +75,19 @@ describe("Protocol", () => {
       expect(casted.epoch).toBe(correct.epoch);
       expect(casted.decentralisation).toBe(correct.decentralisation);
     });
+
+    it("should preserve costModels when provided", () => {
+      const v3 = [100788, 420, 1, 1, 1000];
+      const casted = castProtocol({ costModels: { PlutusV3: v3 } });
+
+      expect(casted.costModels).toBeDefined();
+      expect(casted.costModels?.PlutusV3).toEqual(v3);
+    });
+
+    it("should leave costModels undefined when not provided", () => {
+      const casted = castProtocol({ minFeeA: 44 });
+
+      expect(casted.costModels).toBeUndefined();
+    });
   });
 });

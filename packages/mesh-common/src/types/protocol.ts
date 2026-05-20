@@ -1,5 +1,11 @@
 import { DEFAULT_PROTOCOL_PARAMETERS } from "../constants";
 
+export type CostModels = {
+  PlutusV1?: number[];
+  PlutusV2?: number[];
+  PlutusV3?: number[];
+};
+
 export type Protocol = {
   epoch: number;
   minFeeA: number;
@@ -22,12 +28,14 @@ export type Protocol = {
   maxCollateralInputs: number;
   coinsPerUtxoSize: number;
   minFeeRefScriptCostPerByte: number;
+  costModels?: CostModels;
 };
 
 export const castProtocol = (
   data: Partial<Record<keyof Protocol, any>>,
 ): Protocol => {
-  const result: Partial<Record<keyof Protocol, number | string>> = {};
+  const result: Partial<Record<keyof Protocol, number | string | CostModels>> =
+    {};
 
   for (const rawKey in DEFAULT_PROTOCOL_PARAMETERS) {
     const key = rawKey as keyof Protocol;
@@ -38,6 +46,10 @@ export const castProtocol = (
     } else if (typeof defaultValue === "string") {
       result[key] = !value && value !== "" ? defaultValue : value.toString();
     }
+  }
+
+  if (data.costModels && typeof data.costModels === "object") {
+    result.costModels = data.costModels as CostModels;
   }
 
   return result as Protocol;
