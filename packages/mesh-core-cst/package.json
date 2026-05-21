@@ -50,8 +50,7 @@
     "bech32": "^2.0.0",
     "blakejs": "^1.2.1",
     "bn.js": "^5.2.0",
-    "hash.js": "^1.1.7",
-    "scalus": "^0.17.0"
+    "hash.js": "^1.1.7"
   },
   "overrides": {
     "@cardano-sdk/crypto": {
