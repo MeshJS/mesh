@@ -121,34 +121,35 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   completeCostModels = async () => {
+    console.log("completing cost models...");
     if (Array.isArray(this.meshTxBuilderBody.network)) {
       return;
-    } else {
-      if (this.fetcher) {
-        try {
-          const costModels = await this.fetcher.fetchCostModels();
+    }
+    const defaults = [
+      DEFAULT_V1_COST_MODEL_LIST,
+      DEFAULT_V2_COST_MODEL_LIST,
+      DEFAULT_V3_COST_MODEL_LIST,
+    ];
+    if (this.fetcher) {
+      try {
+        console.log("fetching cost models from fetcher...");
+        const costModels = await this.fetcher.fetchCostModels();
+        if (Array.isArray(costModels) && costModels.length > 0) {
           this.meshTxBuilderBody.network = costModels;
-        } catch (error) {
-          console.warn(
-            "Failed to fetch cost models, using default cost models. Error: ",
-            error,
-          );
-          this.meshTxBuilderBody.network = [
-            DEFAULT_V1_COST_MODEL_LIST,
-            DEFAULT_V2_COST_MODEL_LIST,
-            DEFAULT_V3_COST_MODEL_LIST,
-          ];
+          return;
         }
-        return;
-      } else {
-        this.meshTxBuilderBody.network = [
-          DEFAULT_V1_COST_MODEL_LIST,
-          DEFAULT_V2_COST_MODEL_LIST,
-          DEFAULT_V3_COST_MODEL_LIST,
-        ];
-        return;
+        console.warn(
+          "fetchCostModels returned an invalid value, using default cost models:",
+          costModels,
+        );
+      } catch (error) {
+        console.warn(
+          "Failed to fetch cost models, using default cost models. Error: ",
+          error,
+        );
       }
     }
+    this.meshTxBuilderBody.network = defaults;
   };
 
   /**
