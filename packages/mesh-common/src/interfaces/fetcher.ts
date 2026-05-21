@@ -40,6 +40,7 @@ export interface IFetcher {
     cursor?: number | string,
   ): Promise<{ assets: Asset[]; next?: string | number | null }>;
   fetchProtocolParameters(epoch: number): Promise<Protocol>;
+  fetchCostModels(epoch?: number): Promise<number[][]>;
   fetchTxInfo(hash: string): Promise<TransactionInfo>;
   fetchUTxOs(hash: string, index?: number): Promise<UTxO[]>;
   fetchGovernanceProposal(

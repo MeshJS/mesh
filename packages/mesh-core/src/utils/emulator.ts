@@ -114,6 +114,10 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
     return this.protocolParams;
   }
 
+  async fetchCostModels(_epoch: number): Promise<number[][]> {
+    return this.costModels;
+  }
+
   // --- Unsupported IFetcher methods (emulator doesn't track this data) ---
 
   async fetchAccountInfo(_address: string): Promise<AccountInfo> {

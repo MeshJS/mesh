@@ -443,7 +443,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     const serializerCore = new CardanoSDKSerializerCore(
       protocolParams ?? this.protocolParams,
     );
-
     return serializerCore.coreSerializeTx(txBuilderBody);
   };
 
