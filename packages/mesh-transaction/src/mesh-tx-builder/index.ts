@@ -6,6 +6,9 @@ import {
   Asset,
   Certificate,
   DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
   IEvaluator,
   IFetcher,
   IMeshTxSerializer,
@@ -18,7 +21,6 @@ import {
   ScriptSource,
   SimpleScriptSourceInfo,
   TxIn,
-  TxOutput,
   UTxO,
   Vote,
   Voter,
@@ -118,6 +120,38 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     );
   };
 
+  completeCostModels = async () => {
+    console.log("completing cost models...");
+    if (Array.isArray(this.meshTxBuilderBody.network)) {
+      return;
+    }
+    const defaults = [
+      DEFAULT_V1_COST_MODEL_LIST,
+      DEFAULT_V2_COST_MODEL_LIST,
+      DEFAULT_V3_COST_MODEL_LIST,
+    ];
+    if (this.fetcher) {
+      try {
+        console.log("fetching cost models from fetcher...");
+        const costModels = await this.fetcher.fetchCostModels();
+        if (Array.isArray(costModels) && costModels.length > 0) {
+          this.meshTxBuilderBody.network = costModels;
+          return;
+        }
+        console.warn(
+          "fetchCostModels returned an invalid value, using default cost models:",
+          costModels,
+        );
+      } catch (error) {
+        console.warn(
+          "Failed to fetch cost models, using default cost models. Error: ",
+          error,
+        );
+      }
+    }
+    this.meshTxBuilderBody.network = defaults;
+  };
+
   /**
    * It builds the transaction query the blockchain for missing information
    * @param customizedTx The optional customized transaction body
@@ -163,7 +197,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         this.setFee(customizedTx.fee);
       }
     }
-
+    await this.completeCostModels();
     this.queueAllLastItem();
 
     if (this.verbose) {

@@ -124,13 +124,13 @@ import {
 } from "../utils";
 import { toCardanoCert } from "../utils/certificate";
 import { toCardanoMetadataMap } from "../utils/metadata";
+import { toCardanoProposalProcedure } from "../utils/proposal";
 import { hashScriptData } from "../utils/script-data-hash";
 import {
   toCardanoGovernanceActionId,
   toCardanoVoter,
   toCardanoVotingProcedure,
 } from "../utils/vote";
-import { toCardanoProposalProcedure } from "../utils/proposal";
 
 const VKEY_PUBKEY_SIZE_BYTES = 32;
 const VKEY_SIGNATURE_SIZE_BYTES = 64;
@@ -443,7 +443,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     const serializerCore = new CardanoSDKSerializerCore(
       protocolParams ?? this.protocolParams,
     );
-
     return serializerCore.coreSerializeTx(txBuilderBody);
   };
 
@@ -728,7 +727,15 @@ class CardanoSDKSerializerCore {
     if (txBuilderBody.fee !== undefined) {
       this.txBody.setFee(BigInt(txBuilderBody.fee));
     }
-    this.buildWitnessSet();
+
+    const setCostModels = Array.isArray(txBuilderBody.network)
+      ? txBuilderBody.network
+      : [
+          DEFAULT_V1_COST_MODEL_LIST,
+          DEFAULT_V2_COST_MODEL_LIST,
+          DEFAULT_V3_COST_MODEL_LIST,
+        ];
+    this.buildWitnessSet(setCostModels);
     return new Transaction(
       bodyCore,
       this.txWitnessSet,
@@ -738,9 +745,17 @@ class CardanoSDKSerializerCore {
 
   coreSerializeTxWithMockSignatures(txBuilderBody: MeshTxBuilderBody): string {
     const bodyCore = this.coreSerializeTxBody(txBuilderBody);
+    const setCostModels = Array.isArray(txBuilderBody.network)
+      ? txBuilderBody.network
+      : [
+          DEFAULT_V1_COST_MODEL_LIST,
+          DEFAULT_V2_COST_MODEL_LIST,
+          DEFAULT_V3_COST_MODEL_LIST,
+        ];
     const mockWitSet = this.createMockedWitnessSet(
       txBuilderBody.expectedNumberKeyWitnesses,
       txBuilderBody.expectedByronAddressWitnesses,
+      setCostModels,
     );
     return new Transaction(
       bodyCore,
@@ -1449,8 +1464,9 @@ class CardanoSDKSerializerCore {
   private createMockedWitnessSet = (
     requiredSignaturesCount: number,
     requiredByronSignatures: string[],
+    setCostModels: number[][],
   ): TransactionWitnessSet => {
-    this.buildWitnessSet();
+    this.buildWitnessSet(setCostModels);
     const clonedWitnessSet = TransactionWitnessSet.fromCbor(
       this.txWitnessSet.toCbor(),
     );
@@ -1470,7 +1486,7 @@ class CardanoSDKSerializerCore {
     return clonedWitnessSet;
   };
 
-  private buildWitnessSet = () => {
+  private buildWitnessSet = (setCostModels: number[][]) => {
     // Add provided scripts to tx witness set
     let nativeScripts =
       this.txWitnessSet.nativeScripts() ??
@@ -1529,13 +1545,13 @@ class CardanoSDKSerializerCore {
     // After building tx witness set, we must hash it with the cost models
     // and put the hash in the tx body
     let costModelV1 = Serialization.CostModel.newPlutusV1(
-      DEFAULT_V1_COST_MODEL_LIST,
+      setCostModels[0] ?? DEFAULT_V1_COST_MODEL_LIST,
     );
     let costModelV2 = Serialization.CostModel.newPlutusV2(
-      DEFAULT_V2_COST_MODEL_LIST,
+      setCostModels[1] ?? DEFAULT_V2_COST_MODEL_LIST,
     );
     let costModelV3 = Serialization.CostModel.newPlutusV3(
-      DEFAULT_V3_COST_MODEL_LIST,
+      setCostModels[2] ?? DEFAULT_V3_COST_MODEL_LIST,
     );
     let costModels = new Serialization.Costmdls();
 
@@ -1805,8 +1821,8 @@ class CardanoSDKSerializerCore {
 
   private addBasicProposal = (proposal: Proposal) => {
     const currentProcedures = this.txBody.proposalProcedures();
-    const proposalProcedures = currentProcedures 
-      ? [...currentProcedures.values()] 
+    const proposalProcedures = currentProcedures
+      ? [...currentProcedures.values()]
       : [];
 
     const proposalProcedure = toCardanoProposalProcedure(
@@ -1819,9 +1835,9 @@ class CardanoSDKSerializerCore {
     proposalProcedures.push(proposalProcedure);
     this.txBody.setProposalProcedures(
       CborSet.fromCore(
-        proposalProcedures.map(p => p.toCore()),
+        proposalProcedures.map((p) => p.toCore()),
         Serialization.ProposalProcedure.fromCore,
-      )
+      ),
     );
   };
 
