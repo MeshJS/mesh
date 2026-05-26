@@ -1,4 +1,3 @@
-import { Serialization } from "@cardano-sdk/core";
 import { Scalus, SlotConfig as ScalusSlotConfig } from "scalus";
 
 import {
