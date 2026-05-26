@@ -40,7 +40,6 @@ for FILE in "${FILES[@]}"; do
     sed -i '' -e "s/\"@meshsdk\/core\": \".*\"/\"@meshsdk\/core\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/core-csl\": \".*\"/\"@meshsdk\/core-csl\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/core-cst\": \".*\"/\"@meshsdk\/core-cst\": \"$VERSION\"/" "$FILE"
-    sed -i '' -e "s/\"@meshsdk\/provider\": \".*\"/\"@meshsdk\/provider\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/react\": \".*\"/\"@meshsdk\/react\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/svelte\": \".*\"/\"@meshsdk\/svelte\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/transaction\": \".*\"/\"@meshsdk\/transaction\": \"$VERSION\"/" "$FILE"
