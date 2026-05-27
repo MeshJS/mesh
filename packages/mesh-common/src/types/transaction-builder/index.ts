@@ -29,6 +29,7 @@ export type MeshTxBuilderBody = {
   referenceInputs: RefTxIn[];
   mints: MintParam[];
   changeAddress: string;
+  changeAddressOutputIndex?: number;
   metadata: TxMetadata;
   scriptMetadata: ScriptMetadata[];
   validityRange: ValidityRange;
