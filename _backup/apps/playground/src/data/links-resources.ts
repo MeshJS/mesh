@@ -1,5 +1,6 @@
 import {
   AcademicCapIcon,
+  CubeIcon,
   DocumentTextIcon,
   Squares2X2Icon,
   StarIcon,
@@ -7,9 +8,16 @@ import {
 
 import { MenuItem } from "~/types/menu-item";
 import { metaGuides } from "./links-guides";
+import { metaStarterTemplates } from "./links-starter-templates";
 
 export const linksResources: MenuItem[] = [
   metaGuides,
+  {
+    title: metaStarterTemplates.title,
+    desc: metaStarterTemplates.desc,
+    link: metaStarterTemplates.link,
+    icon: CubeIcon,
+  },
   {
     title: "Documentation",
     desc: "Full documentation for MeshJS",
