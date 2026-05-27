@@ -76,7 +76,7 @@ graph TD
   click core_csl "https://docs.meshjs.dev/core-csl" _parent
   click core_cst "https://docs.meshjs.dev/core-cst" _parent
   click provider "https://docs.meshjs.dev/providers" _parent
-  click react "https://meshjs.dev/react" _parent
+  click react "https://docs.meshjs.dev/react" _parent
   click transaction "https://docs.meshjs.dev/transactions" _parent
   click wallet "https://docs.meshjs.dev/wallets" _parent
 ```
