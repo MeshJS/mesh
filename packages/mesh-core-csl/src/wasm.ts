@@ -1,6 +1,6 @@
-import { csl } from "./deser/csl";
+import { EvalWasmResult } from "whisky-evaluator";
 
-export const parseWasmResult = (result: csl.WasmResult): string => {
+export const parseWasmResult = (result: EvalWasmResult): string => {
   if (result.get_status() !== "success") {
     throw new Error(result.get_error());
   }

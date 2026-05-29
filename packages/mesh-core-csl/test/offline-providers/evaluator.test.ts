@@ -338,17 +338,15 @@ describe("Offline Evaluator", () => {
         return e;
       });
     expect(res).toBeInstanceOf(Error);
-    expect(res.message).toBe(
-      JSON.stringify([
-        {
-          index: 0,
-          budget: { mem: 550, steps: 1203691 },
-          tag: "mint",
-          errorMessage: "the validator crashed / exited prematurely",
-          logs: ["This is a trace"],
-        },
-      ]),
-    );
+    expect(JSON.parse(res.message)).toEqual([
+      {
+        index: 0,
+        budget: { mem: 550, steps: 1203691 },
+        tag: "mint",
+        errorMessage: "the validator crashed / exited prematurely",
+        logs: ['Log("This is a trace")'],
+      },
+    ]);
   });
 
   it("should log slot based on network defaults", async () => {
@@ -402,22 +400,20 @@ describe("Offline Evaluator", () => {
         return e;
       });
     expect(res).toBeInstanceOf(Error);
-    expect(res.message).toBe(
-      JSON.stringify([
-        {
-          index: 0,
-          budget: { mem: 122164, steps: 41878310 },
-          tag: "spend",
-          errorMessage: "the validator crashed / exited prematurely",
-          logs: [
-            "time_now: 1734809125000",
-            "loan_term: 1734809132108",
-            "time_now > loan_term ? False",
-            "Validator returned false",
-          ],
-        },
-      ]),
-    );
+    expect(JSON.parse(res.message)).toEqual([
+      {
+        index: 0,
+        budget: { mem: 122164, steps: 41878310 },
+        tag: "spend",
+        errorMessage: "the validator crashed / exited prematurely",
+        logs: [
+          'Log("time_now: 1734809125000")',
+          'Log("loan_term: 1734809132108")',
+          'Log("time_now > loan_term ? False")',
+          'Log("Validator returned false")',
+        ],
+      },
+    ]);
 
     const mainnetEvaluator = new OfflineEvaluator(fetcher, "mainnet");
 
@@ -432,22 +428,20 @@ describe("Offline Evaluator", () => {
       });
 
     expect(res2).toBeInstanceOf(Error);
-    expect(res2.message).toBe(
-      JSON.stringify([
-        {
-          index: 0,
-          budget: { mem: 122164, steps: 41878310 },
-          tag: "spend",
-          errorMessage: "the validator crashed / exited prematurely",
-          logs: [
-            "time_now: 1670692216000",
-            "loan_term: 1734809132108",
-            "time_now > loan_term ? False",
-            "Validator returned false",
-          ],
-        },
-      ]),
-    );
+    expect(JSON.parse(res2.message)).toEqual([
+      {
+        index: 0,
+        budget: { mem: 122164, steps: 41878310 },
+        tag: "spend",
+        errorMessage: "the validator crashed / exited prematurely",
+        logs: [
+          'Log("time_now: 1670692216000")',
+          'Log("loan_term: 1734809132108")',
+          'Log("time_now > loan_term ? False")',
+          'Log("Validator returned false")',
+        ],
+      },
+    ]);
   });
 
   it("should log slot based on config", async () => {
@@ -505,22 +499,20 @@ describe("Offline Evaluator", () => {
         return e;
       });
     expect(res).toBeInstanceOf(Error);
-    expect(res.message).toBe(
-      JSON.stringify([
-        {
-          index: 0,
-          budget: { mem: 122164, steps: 41878310 },
-          tag: "spend",
-          errorMessage: "the validator crashed / exited prematurely",
-          logs: [
-            "time_now: 1670692216000",
-            "loan_term: 1734809132108",
-            "time_now > loan_term ? False",
-            "Validator returned false",
-          ],
-        },
-      ]),
-    );
+    expect(JSON.parse(res.message)).toEqual([
+      {
+        index: 0,
+        budget: { mem: 122164, steps: 41878310 },
+        tag: "spend",
+        errorMessage: "the validator crashed / exited prematurely",
+        logs: [
+          'Log("time_now: 1670692216000")',
+          'Log("loan_term: 1734809132108")',
+          'Log("time_now > loan_term ? False")',
+          'Log("Validator returned false")',
+        ],
+      },
+    ]);
 
     const mainnetEvaluator = new OfflineEvaluator(fetcher, "mainnet", {
       slotLength: SLOT_CONFIG_NETWORK.preprod.slotLength,
@@ -539,21 +531,19 @@ describe("Offline Evaluator", () => {
       });
 
     expect(res2).toBeInstanceOf(Error);
-    expect(res2.message).toBe(
-      JSON.stringify([
-        {
-          index: 0,
-          budget: { mem: 122164, steps: 41878310 },
-          tag: "spend",
-          errorMessage: "the validator crashed / exited prematurely",
-          logs: [
-            "time_now: 1734809125000",
-            "loan_term: 1734809132108",
-            "time_now > loan_term ? False",
-            "Validator returned false",
-          ],
-        },
-      ]),
-    );
+    expect(JSON.parse(res2.message)).toEqual([
+      {
+        index: 0,
+        budget: { mem: 122164, steps: 41878310 },
+        tag: "spend",
+        errorMessage: "the validator crashed / exited prematurely",
+        logs: [
+          'Log("time_now: 1734809125000")',
+          'Log("loan_term: 1734809132108")',
+          'Log("time_now > loan_term ? False")',
+          'Log("Validator returned false")',
+        ],
+      },
+    ]);
   });
 });
