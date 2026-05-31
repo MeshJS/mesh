@@ -121,7 +121,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   completeCostModels = async () => {
-    console.log("completing cost models...");
     if (Array.isArray(this.meshTxBuilderBody.network)) {
       return;
     }

@@ -1,4 +1,5 @@
 import { js_get_tx_outs_utxo } from "@sidan-lab/whisky-js-nodejs";
+import { js_evaluate_tx_scripts } from "whisky-evaluator";
 
 import {
   Action,
@@ -71,22 +72,32 @@ export const evaluateTransaction = (
   txHex: string,
   resolvedUtxos: UTxO[],
   chainedTxs: string[],
-  network: Network,
+  costModels: number[][],
   slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
 ): Omit<Action, "data">[] => {
-  const additionalTxs = csl.JsVecString.new();
+  let additionalTxs: string[] = [];
   for (const tx of chainedTxs) {
-    additionalTxs.add(tx);
+    additionalTxs.push(tx);
   }
-  const mappedUtxos = csl.JsVecString.new();
+  let mappedUtxos: string[] = [];
   for (const utxo of resolvedUtxos) {
-    mappedUtxos.add(JSON.stringify(utxo));
+    mappedUtxos.push(JSON.stringify(utxo));
   }
-  const result = csl.js_evaluate_tx_scripts(
+  if (!costModels || costModels.length !== 3) {
+    throw new Error(
+      "Cost models for all three Plutus versions must be provided",
+    );
+  }
+  let mappedCostModels: string = JSON.stringify({
+    plutus_v1: costModels[0],
+    plutus_v2: costModels[1],
+    plutus_v3: costModels[2],
+  });
+  const result = js_evaluate_tx_scripts(
     txHex,
     mappedUtxos,
     additionalTxs,
-    network,
+    mappedCostModels,
     JSON.stringify(slotConfig),
   );
   const unwrappedResult = parseWasmResult(result);

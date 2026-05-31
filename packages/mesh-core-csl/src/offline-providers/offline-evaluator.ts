@@ -1,5 +1,8 @@
 import {
   Action,
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
   IEvaluator,
   IFetcher,
   Network,
@@ -70,6 +73,7 @@ export class OfflineEvaluator implements IEvaluator {
   private readonly fetcher: IFetcher;
   private readonly network: Network;
   public slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
+  public costModels: number[][];
 
   /**
    * Creates a new instance of OfflineEvaluator.
@@ -81,6 +85,7 @@ export class OfflineEvaluator implements IEvaluator {
     fetcher: IFetcher,
     network: Network,
     slotConfig?: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
+    customCostModels?: number[][],
   ) {
     this.fetcher = fetcher;
     this.network = network;
@@ -89,6 +94,11 @@ export class OfflineEvaluator implements IEvaluator {
       zeroSlot: SLOT_CONFIG_NETWORK[network].zeroSlot,
       zeroTime: SLOT_CONFIG_NETWORK[network].zeroTime,
     };
+    this.costModels = customCostModels ?? [
+      DEFAULT_V1_COST_MODEL_LIST,
+      DEFAULT_V2_COST_MODEL_LIST,
+      DEFAULT_V3_COST_MODEL_LIST,
+    ];
   }
 
   /**
@@ -159,7 +169,7 @@ export class OfflineEvaluator implements IEvaluator {
       tx,
       additionalUtxos,
       additionalTxs,
-      this.network,
+      this.costModels,
       this.slotConfig,
     );
   }
