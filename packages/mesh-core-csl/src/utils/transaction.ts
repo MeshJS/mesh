@@ -72,7 +72,7 @@ export const evaluateTransaction = (
   txHex: string,
   resolvedUtxos: UTxO[],
   chainedTxs: string[],
-  network: Network,
+  costModels: number[][],
   slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
 ): Omit<Action, "data">[] => {
   let additionalTxs: string[] = [];
@@ -83,11 +83,21 @@ export const evaluateTransaction = (
   for (const utxo of resolvedUtxos) {
     mappedUtxos.push(JSON.stringify(utxo));
   }
+  if (!costModels || costModels.length !== 3) {
+    throw new Error(
+      "Cost models for all three Plutus versions must be provided",
+    );
+  }
+  let mappedCostModels: string = JSON.stringify({
+    plutus_v1: costModels[0],
+    plutus_v2: costModels[1],
+    plutus_v3: costModels[2],
+  });
   const result = js_evaluate_tx_scripts(
     txHex,
     mappedUtxos,
     additionalTxs,
-    network,
+    mappedCostModels,
     JSON.stringify(slotConfig),
   );
   const unwrappedResult = parseWasmResult(result);

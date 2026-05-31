@@ -45,7 +45,7 @@
     "base32-encoding": "^1.0.0",
     "bech32": "^2.0.0",
     "json-bigint": "^1.0.0",
-    "whisky-evaluator": "^0.1.0"
+    "whisky-evaluator": "0.1.1"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
