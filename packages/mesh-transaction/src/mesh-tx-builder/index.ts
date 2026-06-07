@@ -1861,7 +1861,10 @@ function tierRefScriptFee(
 }
 
 export const cloneOutput = (output: Output): Output => {
-  return JSONBig.parse(JSONBig.stringify(output));
+  // structuredClone preserves Map, bigint and nested Mesh Data objects, which a
+  // JSON round-trip silently drops (e.g. a Map in an inline datum becomes `{}`).
+  // See https://github.com/MeshJS/mesh/issues/704
+  return structuredClone(output);
 };
 
 export const setLoveLace = (output: Output, lovelace: bigint): Output => {
