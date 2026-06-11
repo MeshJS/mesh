@@ -1729,6 +1729,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         stepUnits += BigInt(vote.redeemer.exUnits.steps);
       }
     }
+    for (let proposal of this.meshTxBuilderBody.proposals) {
+      if (proposal.type === "ScriptProposal" && proposal.redeemer) {
+        memUnits += BigInt(proposal.redeemer.exUnits.mem);
+        stepUnits += BigInt(proposal.redeemer.exUnits.steps);
+      }
+    }
     memUnits = BigInt(
       new BigNumber(memUnits).integerValue(BigNumber.ROUND_CEIL).toString(),
     );
