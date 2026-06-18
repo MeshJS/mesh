@@ -131,7 +131,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     ];
     if (this.fetcher) {
       try {
-        console.log("fetching cost models from fetcher...");
         const costModels = await this.fetcher.fetchCostModels();
         if (Array.isArray(costModels) && costModels.length > 0) {
           this.meshTxBuilderBody.network = costModels;
