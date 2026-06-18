@@ -1,7 +1,7 @@
 {
-  "name": "@meshsdk/transaction",
+  "name": "@meshsdk/scalus-emulator",
   "version": "1.9.0",
-  "description": "Transactions - https://meshjs.dev/apis/transaction",
+  "description": "Scalus emulator utilities for Mesh SDK",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
   "module": "./dist/index.js",
@@ -18,7 +18,6 @@
     "dist/**"
   ],
   "scripts": {
-    "build:docs": "typedoc src/index.ts --json ../../apps/docs/src/data/mesh-transactions.json",
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
@@ -27,21 +26,16 @@
     "pack": "npm pack --pack-destination=./dist",
     "test": "jest"
   },
+  "dependencies": {
+    "scalus": "^0.17.0",
+    "@meshsdk/core-cst": "1.9.0",
+    "@meshsdk/common": "1.9.0"
+  },
   "devDependencies": {
     "@meshsdk/configs": "*",
-    "@types/json-bigint": "^1.0.4",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
-  },
-  "dependencies": {
-    "@meshsdk/common": "1.9.0",
-    "@meshsdk/core-cst": "1.9.0",
-    "@meshsdk/scalus-emulator": "1.9.0",
-    "@cardano-sdk/core": "0.46.12",
-    "@cardano-sdk/util": "0.17.1",
-    "@cardano-sdk/input-selection": "0.14.28",
-    "json-bigint": "^1.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
