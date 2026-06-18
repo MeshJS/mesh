@@ -1,8 +1,7 @@
 // Use `import type` for scalus types, `require()` at runtime since scalus is CJS
-import type { Scalus, SlotConfig, SubmitResult } from "scalus";
 import { bech32 } from "@scure/base";
 import cbor from "cbor";
-import { Emulator } from "scalus";
+import { Emulator, Scalus, SlotConfig, SubmitResult } from "scalus";
 
 import type {
   AccountInfo,
@@ -15,6 +14,7 @@ import type {
   IFetcher,
   IFetcherOptions,
   ISubmitter,
+  SlotConfig as MeshSlotConfig,
   Protocol,
   TransactionInfo,
   UTxO,
@@ -52,7 +52,7 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
 
   constructor(
     initialUtxos: UTxO[],
-    slotConfig: SlotConfig,
+    slotConfig: MeshSlotConfig,
     options?: {
       protocolParams?: Protocol;
       costModels?: {
@@ -62,12 +62,17 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
       };
     },
   ) {
+    const scalusSlotConfig = new SlotConfig(
+      slotConfig.zeroTime,
+      slotConfig.zeroSlot,
+      slotConfig.slotLength,
+    );
     this.emulator = new Emulator(
       Buffer.from(utxosToCborMap(initialUtxos), "hex"),
-      slotConfig,
+      scalusSlotConfig,
     );
-
-    this.slotConfig = slotConfig;
+    this.slotConfig = scalusSlotConfig;
+    this.emulator.setSlot(scalusSlotConfig.timeToSlot(Date.now()));
     this.protocolParams =
       options?.protocolParams ?? DEFAULT_PROTOCOL_PARAMETERS;
     this.costModels = [

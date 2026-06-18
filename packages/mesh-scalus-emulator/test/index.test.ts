@@ -8,9 +8,10 @@ import {
   resolveNativeScriptHex,
   resolvePaymentKeyHash,
   resolveScriptHash,
+  SLOT_CONFIG_NETWORK,
   UTxO,
 } from "@meshsdk/core";
-import { AppWallet } from "@meshsdk/wallet";
+import { MeshWallet } from "@meshsdk/wallet";
 
 import { ScalusEmulator } from "../src";
 
@@ -46,15 +47,12 @@ const alwaysSucceedCbor = applyCborEncoding(
 );
 
 async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
-  const slotConfig = SlotConfig.preview;
-  const wallet = new AppWallet({
+  const wallet = new MeshWallet({
     networkId: 0,
     key: { type: "mnemonic", words: TEST_MNEMONIC },
   });
   await wallet.init();
-  const address = wallet.getPaymentAddress();
-
-  const currentSlot = slotConfig.timeToSlot(Date.now());
+  const address = (await wallet.getChangeAddress())!;
 
   const provider = new ScalusEmulator(
     [
@@ -72,10 +70,8 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
         },
       },
     ],
-    slotConfig,
+    SLOT_CONFIG_NETWORK["preview"],
   );
-
-  provider.emulator.setSlot(currentSlot);
 
   const newTxBuilder = () =>
     new MeshTxBuilder({
@@ -89,7 +85,7 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
     address,
     provider,
     emulator: provider.emulator,
-    slotConfig,
+    slotConfig: SlotConfig.preview,
     newTxBuilder,
   };
 }
