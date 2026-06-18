@@ -72,7 +72,6 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
       scalusSlotConfig,
     );
     this.slotConfig = scalusSlotConfig;
-    this.emulator.setSlot(scalusSlotConfig.timeToSlot(Date.now()));
     this.protocolParams =
       options?.protocolParams ?? DEFAULT_PROTOCOL_PARAMETERS;
     this.costModels = [
@@ -170,6 +169,10 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
 
   async get(_url: string): Promise<any> {
     throw new Error("get not supported by ScalusEmulator");
+  }
+
+  async setSlot(slot: number): Promise<void> {
+    this.emulator.setSlot(slot);
   }
 
   // ---------------------------------------------------------------------------

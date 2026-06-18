@@ -72,6 +72,8 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
     ],
     SLOT_CONFIG_NETWORK["preview"],
   );
+  const slotConfig = SlotConfig.preview;
+  await provider.setSlot(slotConfig.timeToSlot(Date.now()));
 
   const newTxBuilder = () =>
     new MeshTxBuilder({
@@ -85,7 +87,7 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
     address,
     provider,
     emulator: provider.emulator,
-    slotConfig: SlotConfig.preview,
+    slotConfig,
     newTxBuilder,
   };
 }
