@@ -1,7 +1,7 @@
 {
-  "name": "@meshsdk/core",
+  "name": "@meshsdk/scalus-emulator",
   "version": "1.9.1",
-  "description": "Mesh SDK Core - https://meshjs.dev/",
+  "description": "Scalus emulator utilities for Mesh SDK",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
   "module": "./dist/index.js",
@@ -20,25 +20,22 @@
   "scripts": {
     "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
     "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
-    "format": "prettier --check . --ignore-path ../../.gitignore",
     "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
     "pack": "npm pack --pack-destination=./dist",
     "test": "jest"
+  },
+  "dependencies": {
+    "scalus": "^0.17.0",
+    "@meshsdk/core-cst": "1.9.1",
+    "@meshsdk/common": "1.9.1"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
     "eslint": "^8.57.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
-  },
-  "dependencies": {
-    "@meshsdk/common": "1.9.1",
-    "@meshsdk/core-cst": "1.9.1",
-    "@meshsdk/provider": "1.9.0-beta.101",
-    "@meshsdk/transaction": "1.9.1",
-    "@meshsdk/wallet": "1.9.1",
-    "scalus": "^0.17.0"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
@@ -47,10 +44,9 @@
   "license": "Apache-2.0",
   "keywords": [
     "cardano",
+    "ada",
     "web3",
     "blockchain",
-    "sdk",
-    "typescript",
-    "javascript"
+    "sdk"
   ]
 }
