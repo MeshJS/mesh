@@ -10,20 +10,14 @@ VERSION=$1
 
 # List of package.json files to update
 FILES=(
-  "packages/bitcoin/package.json"
-  "packages/mesh-hydra/package.json"
   "packages/mesh-common/package.json"
   "packages/mesh-contract/package.json"
   "packages/mesh-core/package.json"
   "packages/mesh-core-csl/package.json"
   "packages/mesh-core-cst/package.json"
-  "packages/mesh-provider/package.json"
-  "packages/mesh-react/package.json"
-  "packages/mesh-svelte/package.json"
   "packages/mesh-transaction/package.json"
   "packages/mesh-wallet/package.json"
-  "packages/midnight-setup/package.json"
-  "packages/midnight-contracts-wizard/package.json"
+  "packages/mesh-scalus-emulator/package.json"
   "scripts/mesh-cli/package.json"
 )
 
