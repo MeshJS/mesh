@@ -9,6 +9,7 @@ import {
   resolvePaymentKeyHash,
   resolveScriptHash,
   SLOT_CONFIG_NETWORK,
+  unixTimeToEnclosingSlot,
   UTxO,
 } from "@meshsdk/core";
 import { MeshWallet } from "@meshsdk/wallet";
@@ -72,8 +73,9 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
     ],
     SLOT_CONFIG_NETWORK["preview"],
   );
-  const slotConfig = SlotConfig.preview;
-  await provider.setSlot(slotConfig.timeToSlot(Date.now()));
+  await provider.setSlot(
+    unixTimeToEnclosingSlot(Date.now(), SLOT_CONFIG_NETWORK["preview"]),
+  );
 
   const newTxBuilder = () =>
     new MeshTxBuilder({
@@ -87,7 +89,7 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
     address,
     provider,
     emulator: provider.emulator,
-    slotConfig,
+    slotConfig: SLOT_CONFIG_NETWORK["preview"],
     newTxBuilder,
   };
 }
@@ -385,7 +387,7 @@ describe("ScalusEmulator", () => {
       const { wallet, address, provider, newTxBuilder, slotConfig } =
         await createTestSetup();
 
-      const currentSlot = slotConfig.timeToSlot(Date.now());
+      const currentSlot = unixTimeToEnclosingSlot(Date.now(), slotConfig);
       const ttlSlot = currentSlot + 300;
 
       const utxos = await provider.fetchAddressUTxOs(address);
@@ -406,7 +408,7 @@ describe("ScalusEmulator", () => {
       const { wallet, address, provider, newTxBuilder, slotConfig } =
         await createTestSetup();
 
-      const currentSlot = slotConfig.timeToSlot(Date.now());
+      const currentSlot = unixTimeToEnclosingSlot(Date.now(), slotConfig);
       const validFrom = currentSlot - 10;
       const validTo = currentSlot + 300;
 
@@ -429,7 +431,7 @@ describe("ScalusEmulator", () => {
       const { wallet, address, provider, newTxBuilder, slotConfig } =
         await createTestSetup();
 
-      const currentSlot = slotConfig.timeToSlot(Date.now());
+      const currentSlot = unixTimeToEnclosingSlot(Date.now(), slotConfig);
       const expiredSlot = currentSlot - 100;
 
       const utxos = await provider.fetchAddressUTxOs(address);
@@ -449,7 +451,7 @@ describe("ScalusEmulator", () => {
       const { wallet, address, provider, newTxBuilder, slotConfig } =
         await createTestSetup();
 
-      const currentSlot = slotConfig.timeToSlot(Date.now());
+      const currentSlot = unixTimeToEnclosingSlot(Date.now(), slotConfig);
       const futureStart = currentSlot + 300;
       const futureTtl = currentSlot + 600;
 
