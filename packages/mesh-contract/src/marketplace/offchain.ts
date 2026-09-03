@@ -24,6 +24,7 @@ import {
 import { applyParamsToScript } from "@meshsdk/core-cst";
 
 import { MeshTxInitiator, MeshTxInitiatorInput } from "../common";
+import { computeMarketplacePurchasePayouts } from "./purchase-fee-math";
 import blueprintV1 from "./aiken-workspace-v1/plutus.json";
 import blueprintV2 from "./aiken-workspace-v2/plutus.json";
 
@@ -178,27 +179,24 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       )
       .selectUtxosFrom(utxos);
 
-    let ownerToReceiveLovelace =
-      ((inputDatum.fields[1].int as number) * this.feePercentageBasisPoint) /
-      10000;
-    if (this.feePercentageBasisPoint > 0 && ownerToReceiveLovelace < 1000000) {
-      ownerToReceiveLovelace = 1000000;
-    }
+    const { ownerToReceiveLovelace, sellerToReceiveLovelace } =
+      computeMarketplacePurchasePayouts(
+        inputDatum.fields[1].int,
+        this.feePercentageBasisPoint,
+        inputLovelace,
+      );
 
-    if (ownerToReceiveLovelace > 0) {
+    if (ownerToReceiveLovelace > 0n) {
       const ownerToReceive = [
         {
           unit: "lovelace",
-          quantity: Math.ceil(ownerToReceiveLovelace).toString(),
+          quantity: ownerToReceiveLovelace.toString(),
         },
       ];
       tx.txOut(this.ownerAddress, ownerToReceive);
     }
 
-    const sellerToReceiveLovelace =
-      (inputDatum.fields[1].int as number) + Number(inputLovelace);
-
-    if (sellerToReceiveLovelace > 0) {
+    if (sellerToReceiveLovelace > 0n) {
       const sellerAddress = serializeAddressObj(
         inputDatum.fields[0],
         this.networkId,
