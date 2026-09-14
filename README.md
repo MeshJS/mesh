@@ -81,7 +81,6 @@ This monorepo publishes the core Mesh packages to npm under the `@meshsdk` scope
 | ------- | ----------- | ---- |
 | [@meshsdk/core](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core) | The main entry point. Re-exports transactions, wallets, providers and common utilities. | [Playground](https://meshjs.dev/) |
 | [@meshsdk/transaction](https://github.com/MeshJS/mesh/tree/main/packages/mesh-transaction) | `MeshTxBuilder` for sending assets, minting tokens and interacting with smart contracts | [Docs](https://docs.meshjs.dev/transactions) · [Playground](https://meshjs.dev/apis/txbuilder) |
-| [@meshsdk/wallet](https://github.com/MeshJS/mesh/tree/main/packages/mesh-wallet) | Browser (CIP-30) and headless wallets for managing keys, signing and submitting | [Docs](https://docs.meshjs.dev/wallets) · [Playground](https://meshjs.dev/apis/wallets) |
 | [@meshsdk/contract](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract) | Open-source smart contracts with off-chain transaction code | [Docs](https://docs.meshjs.dev/contracts) · [Playground](https://meshjs.dev/smart-contracts) |
 | [@meshsdk/common](https://github.com/MeshJS/mesh/tree/main/packages/mesh-common) | Shared constants, types and interfaces used across the SDK | [Docs](https://docs.meshjs.dev/common) |
 | [@meshsdk/core-cst](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core-cst) | Serialization and utilities built on cardano-js-sdk and Harmonic Labs libraries | [Docs](https://docs.meshjs.dev/core-cst) |
@@ -94,6 +93,7 @@ These `@meshsdk` packages are developed in their own repositories:
 
 | Package | Description | Repository |
 | ------- | ----------- | ---------- |
+| @meshsdk/wallet | Browser (CIP-30) and headless wallets for managing keys, signing and submitting | [MeshJS/wallet](https://github.com/MeshJS/wallet) |
 | @meshsdk/provider | Blockchain data providers (Blockfrost, Koios, Maestro, Ogmios and more) | [MeshJS/providers](https://github.com/MeshJS/providers) |
 | @meshsdk/react | React components and hooks for Cardano wallet connection | [MeshJS/react](https://github.com/MeshJS/react) |
 | @meshsdk/hydra | Hydra Head protocol client for layer-2 scaling | [MeshJS/hydra](https://github.com/MeshJS/hydra) |
@@ -139,7 +139,7 @@ graph TD
   click core_cst "https://docs.meshjs.dev/core-cst" _parent
   click provider "https://github.com/MeshJS/providers" _parent
   click transaction "https://docs.meshjs.dev/transactions" _parent
-  click wallet "https://docs.meshjs.dev/wallets" _parent
+  click wallet "https://github.com/MeshJS/wallet" _parent
   click contract "https://docs.meshjs.dev/contracts" _parent
 ```
 

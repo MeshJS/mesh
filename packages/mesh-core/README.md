@@ -8,7 +8,7 @@
 
   <h1 style="border-bottom: none"><a href='https://meshjs.dev/'>Mesh</a> TypeScript SDK</h1>
 
-[![Licence](https://img.shields.io/github/license/meshjs/mesh)](https://github.com/meshjs/mesh/blob/master/LICENSE)
+[![Licence](https://img.shields.io/github/license/meshjs/mesh)](https://github.com/MeshJS/mesh/blob/main/LICENSE.md)
 [![Build](https://github.com/meshjs/mesh/actions/workflows/build.yml/badge.svg)](https://github.com/meshjs/mesh/actions/workflows/build.yml)
 [![Package](https://github.com/meshjs/mesh/actions/workflows/publish.yml/badge.svg)](https://github.com/meshjs/mesh/actions/workflows/publish.yml)
 
@@ -50,19 +50,19 @@ A collection of packages that provide different functionalities to interact with
 | [@meshsdk/core](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core)               | Exports all the functionalities including wallets, transactions, and providers                     |                                                          | [:shipit:](https://meshjs.dev/)                 |
 | [@meshsdk/core-csl](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core-csl)       | Types and utilities functions between Mesh and cardano-serialization-lib                           | [:page_facing_up:](https://docs.meshjs.dev/core-csl)     |                                                 |
 | [@meshsdk/core-cst](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core-cst)       | Types and utilities functions between Mesh and cardano-js-sdk                                      | [:page_facing_up:](https://docs.meshjs.dev/core-cst)     |                                                 |
-| [@meshsdk/provider](https://github.com/MeshJS/mesh/tree/main/packages/mesh-provider)       | Blockchain data providers                                                                          | [:page_facing_up:](https://docs.meshjs.dev/providers)    | [:shipit:](https://meshjs.dev/providers)        |
-| [@meshsdk/react](https://github.com/MeshJS/mesh/tree/main/packages/mesh-react)             | React component library                                                                            |                                                          | [:shipit:](https://meshjs.dev/react)            |
-| [@meshsdk/transaction](https://github.com/MeshJS/mesh/tree/main/packages/mesh-transaction) | Transactions to send assets, mint tokens, and interact with smart contracts                        | [:page_facing_up:](https://docs.meshjs.dev/transactions) | [:shipit:](https://meshjs.dev/apis/transaction) |
-| [@meshsdk/wallet](https://github.com/MeshJS/mesh/tree/main/packages/mesh-wallet)           | Wallets to manage assets and interact with the blockchain                                          | [:page_facing_up:](https://docs.meshjs.dev/wallets)      | [:shipit:](https://meshjs.dev/apis/wallets)     |
+| [@meshsdk/provider](https://github.com/MeshJS/providers)                                    | Blockchain data providers                                                                          | [:page_facing_up:](https://docs.meshjs.dev/providers)    | [:shipit:](https://meshjs.dev/providers)        |
+| [@meshsdk/react](https://github.com/MeshJS/react)                                           | React component library                                                                            |                                                          | [:shipit:](https://meshjs.dev/react)            |
+| [@meshsdk/transaction](https://github.com/MeshJS/mesh/tree/main/packages/mesh-transaction) | Transactions to send assets, mint tokens, and interact with smart contracts                        | [:page_facing_up:](https://docs.meshjs.dev/transactions) | [:shipit:](https://meshjs.dev/apis/txbuilder)   |
+| [@meshsdk/wallet](https://github.com/MeshJS/wallet)                                         | Wallets to manage assets and interact with the blockchain                                          | [:page_facing_up:](https://docs.meshjs.dev/wallets)      | [:shipit:](https://meshjs.dev/apis/wallets)     |
 
 ### Apps
 
 Frontend documentation and live demos for Mesh SDK.
 
-|                                                                             | Description                  | Website                              |
-| --------------------------------------------------------------------------- | ---------------------------- | ------------------------------------ |
-| [apps/docs](https://github.com/MeshJS/mesh/tree/main/apps/docs)             | Mesh technical docs          | [:shipit:](https://docs.meshjs.dev/) |
-| [apps/playground](https://github.com/MeshJS/mesh/tree/main/apps/playground) | Mesh homepage and live demos | [:shipit:](https://meshjs.dev/)      |
+|                                                         | Description                  | Website                              |
+| ------------------------------------------------------- | ---------------------------- | ------------------------------------ |
+| Mesh docs                                               | Mesh technical docs          | [:shipit:](https://docs.meshjs.dev/) |
+| [MeshJS/meshjs.dev](https://github.com/MeshJS/meshjs.dev) | Mesh homepage and live demos | [:shipit:](https://meshjs.dev/)      |
 
 ### Mesh Smart Contracts Library
 
