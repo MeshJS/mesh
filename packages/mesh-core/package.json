@@ -37,8 +37,7 @@
     "@meshsdk/core-cst": "1.9.1",
     "@meshsdk/provider": "1.9.0-beta.101",
     "@meshsdk/transaction": "1.9.1",
-    "@meshsdk/wallet": "1.9.1",
-    "scalus": "^0.17.0"
+    "@meshsdk/wallet": "1.9.1"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {

@@ -2,6 +2,7 @@ import type { Config } from "jest";
 
 const jestConfig: Config = {
   clearMocks: true,
+  testPathIgnorePatterns: ["/offline-evaluator-scalus.test.ts$"],
   maxWorkers: 1,
   testEnvironment: "node",
   testMatch: ["**/packages/**/*.test.ts"],

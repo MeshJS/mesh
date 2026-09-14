@@ -24,7 +24,9 @@
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
     "pack": "npm pack --pack-destination=./dist",
-    "test": "jest"
+    "test": "jest && npm run test:scalus",
+    "test:scalus": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config jest.scalus.config.ts",
+    "test:package": "node --test test/scalus-package.test.mjs"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
@@ -50,7 +52,8 @@
     "bech32": "^2.0.0",
     "blakejs": "^1.2.1",
     "bn.js": "^5.2.0",
-    "hash.js": "^1.1.7"
+    "hash.js": "^1.1.7",
+    "scalus": "^1.2.1"
   },
   "overrides": {
     "@cardano-sdk/crypto": {
