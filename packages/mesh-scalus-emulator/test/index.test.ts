@@ -1,17 +1,20 @@
-import { SlotConfig } from "scalus";
+import { CardanoInfo, ProtocolParams, Utxo, Value } from "scalus";
 
 import {
   applyCborEncoding,
   MeshTxBuilder,
   NativeScript,
+  resolveDataHash,
   resolveNativeScriptHash,
   resolveNativeScriptHex,
   resolvePaymentKeyHash,
+  resolvePlutusScriptAddress,
   resolveScriptHash,
   SLOT_CONFIG_NETWORK,
   unixTimeToEnclosingSlot,
   UTxO,
 } from "@meshsdk/core";
+import { getTransactionOutputs } from "@meshsdk/core-cst";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import { ScalusEmulator } from "../src";
@@ -43,6 +46,13 @@ const TEST_MNEMONIC = [
   "solution",
 ];
 
+// Context-reading Plutus V3 validator from Scalus provider conformance fixtures.
+const contextSensitiveScriptHex =
+  "58710101002323233001001337006eb4d5d09aba200233700646660020026eb0d5d0" +
+  "9aab9e37546ae8400d2000222533357346ae8c00840044ccc00c00cd5d100119b800" +
+  "0148008d55ce9baa357426ae88d5d1001112999ab9a3371200290000a4c266004004" +
+  "66e04005200235573c6ea80041";
+
 const alwaysSucceedCbor = applyCborEncoding(
   "58340101002332259800a518a4d153300249011856616c696461746f722072657475726e65642066616c736500136564004ae715cd01",
 );
@@ -55,7 +65,7 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
   await wallet.init();
   const address = (await wallet.getChangeAddress())!;
 
-  const provider = new ScalusEmulator(
+  const provider = await ScalusEmulator.create(
     [
       {
         input: {
@@ -71,17 +81,19 @@ async function createTestSetup(lovelacePerAddress = 10_000_000_000n) {
         },
       },
     ],
-    SLOT_CONFIG_NETWORK["preview"],
+    CardanoInfo.preview(),
   );
   await provider.setSlot(
     unixTimeToEnclosingSlot(Date.now(), SLOT_CONFIG_NETWORK["preview"]),
   );
+  const params = await provider.fetchProtocolParameters();
 
   const newTxBuilder = () =>
     new MeshTxBuilder({
       fetcher: provider,
       submitter: provider,
       evaluator: provider,
+      params,
     });
 
   return {
@@ -339,7 +351,7 @@ describe("ScalusEmulator", () => {
       ).toBe("100");
     });
 
-    it("should evaluate a plutus spending transaction", async () => {
+    it("should query outputs after a plutus minting transaction", async () => {
       const { wallet, address, provider, newTxBuilder, emulator } =
         await createTestSetup();
 
@@ -380,6 +392,215 @@ describe("ScalusEmulator", () => {
       );
       expect(tokenOutput).toBeDefined();
     });
+  });
+
+  it("builds, evaluates, signs and submits a context-reading Plutus V3 spend", async () => {
+    const { wallet, address, provider, newTxBuilder, emulator } =
+      await createTestSetup();
+    const scriptAddress = resolvePlutusScriptAddress(
+      { code: applyCborEncoding(contextSensitiveScriptHex), version: "V3" },
+      0,
+    );
+    emulator.addUtxo(
+      new Utxo(
+        "11".repeat(32),
+        0,
+        scriptAddress,
+        Value.ada(50n),
+      ).withInlineDatum(Uint8Array.of(0x18, 0x2a)),
+    );
+    emulator.addUtxo(new Utxo("22".repeat(32), 0, address, Value.ada(10n)));
+    const [scriptUtxo] = await provider.fetchAddressUTxOs(scriptAddress);
+    expect(scriptUtxo!.output.plutusData).toBe("182a");
+    const walletUtxos = await provider.fetchAddressUTxOs(address);
+    const collateral = walletUtxos.find(
+      (u) => u.input.txHash === "22".repeat(32),
+    )!;
+    const tx = await newTxBuilder()
+      .spendingPlutusScriptV3()
+      .txIn(
+        scriptUtxo!.input.txHash,
+        scriptUtxo!.input.outputIndex,
+        scriptUtxo!.output.amount,
+        scriptAddress,
+      )
+      .txInInlineDatumPresent()
+      .txInRedeemerValue("05", "CBOR")
+      .txInScript(applyCborEncoding(contextSensitiveScriptHex))
+      .txInCollateral(
+        collateral.input.txHash,
+        collateral.input.outputIndex,
+        collateral.output.amount,
+        address,
+      )
+      .changeAddress(address)
+      .selectUtxosFrom(walletUtxos.filter((u) => u !== collateral))
+      .complete();
+    const budgets = await provider.evaluateTx(tx);
+    expect(budgets).toHaveLength(1);
+    expect(budgets[0]!.tag).toBe("SPEND");
+    expect(budgets[0]!.budget.steps).toBeGreaterThan(0);
+    const signed = await wallet.signTx(tx);
+    const hash = await provider.submitTx(signed);
+    expect(emulator.hasTx(hash)).toBe(true);
+    expect(await provider.fetchAddressUTxOs(scriptAddress)).toEqual([]);
+  });
+
+  it("uses the emulator's custom parameters and keeps cost models in V1/V2/V3 order", async () => {
+    const info = CardanoInfo.preview();
+    const json = JSON.parse(info.protocolParams.toBlockfrostJson());
+    json.min_fee_a = 2000;
+    const custom = info.withProtocolParams(
+      ProtocolParams.fromBlockfrostJson(JSON.stringify(json)),
+    );
+    const provider = await ScalusEmulator.create([], custom);
+    const params = await provider.fetchProtocolParameters();
+    expect(params.minFeeA).toBe(2000);
+    const models = custom.protocolParams.costModels;
+    expect(await provider.fetchCostModels()).toEqual([
+      models.PlutusV1,
+      models.PlutusV2,
+      models.PlutusV3,
+    ]);
+
+    const { wallet, address } = await createTestSetup();
+    provider.emulator.addUtxo(
+      new Utxo("44".repeat(32), 0, address, Value.ada(20n)),
+    );
+    const inputs = await provider.fetchAddressUTxOs(address);
+    const underpriced = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+    })
+      .txOut(address, [{ unit: "lovelace", quantity: "5000000" }])
+      .changeAddress(address)
+      .selectUtxosFrom(inputs)
+      .complete();
+    await expect(
+      provider.submitTx(await wallet.signTx(underpriced)),
+    ).rejects.toThrow("less than minimum required");
+    const tx = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .txOut(address, [{ unit: "lovelace", quantity: "5000000" }])
+      .changeAddress(address)
+      .selectUtxosFrom(inputs)
+      .complete();
+    const hash = await provider.submitTx(await wallet.signTx(tx));
+    expect(provider.emulator.hasTx(hash)).toBe(true);
+  });
+
+  it("evaluates a script spend from a pending parent transaction", async () => {
+    const { address, provider, emulator, newTxBuilder } =
+      await createTestSetup();
+    const scriptAddress = resolvePlutusScriptAddress(
+      { code: applyCborEncoding(contextSensitiveScriptHex), version: "V3" },
+      0,
+    );
+    const parent = await newTxBuilder()
+      .txOut(scriptAddress, [{ unit: "lovelace", quantity: "50000000" }])
+      .txOutInlineDatumValue("182a", "CBOR")
+      .changeAddress(address)
+      .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
+      .complete();
+    const scriptUtxo = getTransactionOutputs(parent).find(
+      (u) => u.output.address === scriptAddress,
+    )!;
+    const chainedFetcher = Object.create(provider) as ScalusEmulator;
+    chainedFetcher.fetchUTxOs = async (hash, index) =>
+      hash === scriptUtxo.input.txHash &&
+      (index === undefined || index === scriptUtxo.input.outputIndex)
+        ? [scriptUtxo]
+        : provider.fetchUTxOs(hash, index);
+    const child = await new MeshTxBuilder({
+      fetcher: chainedFetcher,
+      submitter: provider,
+      evaluator: provider,
+      params: await provider.fetchProtocolParameters(),
+    })
+      .spendingPlutusScriptV3()
+      .txIn(
+        scriptUtxo.input.txHash,
+        scriptUtxo.input.outputIndex,
+        scriptUtxo.output.amount,
+        scriptAddress,
+      )
+      .txInInlineDatumPresent()
+      .txInRedeemerValue("05", "CBOR")
+      .txInScript(applyCborEncoding(contextSensitiveScriptHex))
+      .inputForEvaluation(scriptUtxo)
+      .txOut(address, [{ unit: "lovelace", quantity: "40000000" }])
+      .changeAddress(address)
+      .chainTx(parent)
+      .complete();
+
+    expect(emulator.hasTx(scriptUtxo.input.txHash)).toBe(false);
+    await expect(provider.evaluateTx(child)).rejects.toThrow();
+    const budgets = await provider.evaluateTx(child, [], [parent]);
+    expect(budgets).toHaveLength(1);
+    expect(budgets[0]!.tag).toBe("SPEND");
+  });
+
+  it("preserves datum hashes, inline datums and reference scripts in initial UTxOs", async () => {
+    const { address } = await createTestSetup();
+    const base = {
+      input: { txHash: "33".repeat(32), outputIndex: 0 },
+      output: { address, amount: [{ unit: "lovelace", quantity: "5000000" }] },
+    };
+    const inputs = [
+      {
+        ...base,
+        output: {
+          ...base.output,
+          plutusData: "182a",
+          scriptRef: "82034100",
+        },
+      },
+      {
+        ...base,
+        input: { ...base.input, outputIndex: 1 },
+        output: { ...base.output, dataHash: "ab".repeat(32) },
+      },
+    ];
+    const provider = await ScalusEmulator.create(inputs);
+    for (const input of inputs)
+      expect(
+        (
+          await provider.fetchUTxOs(input.input.txHash, input.input.outputIndex)
+        )[0],
+      ).toMatchObject(input);
+    const inlineDatum = "182a";
+    await expect(
+      ScalusEmulator.create([
+        {
+          ...base,
+          output: {
+            ...base.output,
+            plutusData: inlineDatum,
+            dataHash: resolveDataHash(inlineDatum, "CBOR"),
+          },
+        },
+      ]),
+    ).resolves.toBeInstanceOf(ScalusEmulator);
+    await expect(
+      ScalusEmulator.create([
+        {
+          ...base,
+          output: {
+            ...base.output,
+            plutusData: inlineDatum,
+            dataHash: "ab".repeat(32),
+          },
+        },
+      ]),
+    ).rejects.toThrow("does not match");
+    await expect(provider.evaluateTx("zz")).rejects.toThrow(
+      "Invalid hexadecimal CBOR",
+    );
   });
 
   describe("Validity intervals", () => {
