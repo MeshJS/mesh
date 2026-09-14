@@ -256,7 +256,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const utxosForSelection = await this.getUtxosForSelection();
       const implicitValue = {
         withdrawals: this.getTotalWithdrawal(),
-        deposit: this.getTotalDeposit(),
+        deposit: this.getTotalDeposit() + this.getDonation(),
         reclaimDeposit: this.getTotalRefund(),
         mint: this.getTotalMint(),
       };
@@ -1309,6 +1309,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       accum += BigInt(proposal.proposalType.deposit);
     }
     return accum;
+  };
+
+  protected getDonation = (): bigint => {
+    return BigInt(this.meshTxBuilderBody.donation ?? 0);
   };
 
   protected getTotalRefund = (): bigint => {
