@@ -320,9 +320,10 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
       }
 
       if ((cert.drep as { dRepId: string }).dRepId !== undefined) {
-        return CardanoCert.newStakeVoteDelegationCert(
-          new Serialization.StakeVoteDelegation(
+        return CardanoCert.newStakeVoteRegistrationDelegationCert(
+          new Serialization.StakeVoteRegistrationDelegation(
             rewardAddress.getPaymentCredential(),
+            BigInt(cert.coin),
             toDRep((cert.drep as { dRepId: string }).dRepId),
             Ed25519KeyHashHex(cert.poolKeyHash),
           ),
@@ -330,9 +331,10 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
       } else if (
         (cert.drep as { alwaysAbstain: null }).alwaysAbstain !== undefined
       ) {
-        return CardanoCert.newStakeVoteDelegationCert(
-          new Serialization.StakeVoteDelegation(
+        return CardanoCert.newStakeVoteRegistrationDelegationCert(
+          new Serialization.StakeVoteRegistrationDelegation(
             rewardAddress.getPaymentCredential(),
+            BigInt(cert.coin),
             Serialization.DRep.newAlwaysAbstain(),
             Ed25519KeyHashHex(cert.poolKeyHash),
           ),
@@ -341,9 +343,10 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
         (cert.drep as { alwaysNoConfidence: null }).alwaysNoConfidence !==
         undefined
       ) {
-        return CardanoCert.newStakeVoteDelegationCert(
-          new Serialization.StakeVoteDelegation(
+        return CardanoCert.newStakeVoteRegistrationDelegationCert(
+          new Serialization.StakeVoteRegistrationDelegation(
             rewardAddress.getPaymentCredential(),
+            BigInt(cert.coin),
             Serialization.DRep.newAlwaysNoConfidence(),
             Ed25519KeyHashHex(cert.poolKeyHash),
           ),
