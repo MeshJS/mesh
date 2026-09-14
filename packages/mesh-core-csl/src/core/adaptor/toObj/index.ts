@@ -29,6 +29,7 @@ export const meshTxBuilderBodyToObj = ({
   votes,
   fee,
   network,
+  donation,
 }: MeshTxBuilderBody) => {
   let mintsObj: object[] = [];
   mints.forEach((mint: MintParam) => {
@@ -61,6 +62,7 @@ export const meshTxBuilderBodyToObj = ({
     votes: votes.map(voteToObj),
     fee,
     network: networkToObj(network),
+    ...(donation !== undefined ? { donation } : {}),
   };
 };
 

@@ -1660,6 +1660,17 @@ export class MeshTxBuilderCore {
   };
 
   /**
+   * Sets the treasury donation in lovelace.
+   */
+  setDonation = (donation: string) => {
+    if (BigInt(donation) <= 0n) {
+      throw new Error("Donation must be a positive amount of lovelace");
+    }
+    this.meshTxBuilderBody.donation = donation;
+    return this;
+  };
+
+  /**
    * Sets the network to use, this is mainly to know the cost models to be used to calculate script integrity hash
    * @param network The specific network this transaction is being built for ("testnet" | "preview" | "preprod" | "mainnet")
    * @returns The MeshTxBuilder instance
