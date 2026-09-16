@@ -59,7 +59,6 @@ export const getTransactionOutputs = (txHex: string): UTxO[] => {
   deserializedTx
     .body()
     .outputs()
-    .values()
     .forEach((output, index) => {
       outputs.push(
         fromTxUnspentOutput(

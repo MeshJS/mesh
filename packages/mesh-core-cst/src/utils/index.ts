@@ -8,3 +8,4 @@ export * from "./encoding";
 export * from "./witness-set";
 export * from "./fee";
 export * from "./proposal";
+export * from "./transaction";

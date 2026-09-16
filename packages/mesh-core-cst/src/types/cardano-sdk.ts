@@ -221,6 +221,8 @@ export type CostModel = Serialization.CostModel;
 
 export const CborWriter = Serialization.CborWriter;
 export type CborWriter = Serialization.CborWriter;
+export const CborReader = Serialization.CborReader;
+export type CborReader = Serialization.CborReader;
 
 export const ConstrPlutusData = Serialization.ConstrPlutusData;
 export type ConstrPlutusData = Serialization.ConstrPlutusData;
