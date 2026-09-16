@@ -12,28 +12,50 @@ import {
 } from "@meshsdk/core";
 import { OfflineEvaluator } from "@meshsdk/core-csl";
 import { resolvePlutusScriptAddress, Serialization } from "@meshsdk/core-cst";
+import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshTxBuilder } from "@meshsdk/transaction";
+import { MeshWallet } from "@meshsdk/wallet";
 
 describe("MeshTxBuilder transactions", () => {
-  it("Basic send tx", () => {
-    let mesh = new MeshTxBuilder({ verbose: true });
-    let txHex = mesh
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [{ unit: "lovelace", quantity: "9891607895" }],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .txOut(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-        [{ unit: "lovelace", quantity: "2000000" }],
-      )
-      .changeAddress(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .completeSync();
+  it("Basic send tx", async () => {
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "mnemonic",
+        words: Array(24).fill("solution"),
+      },
+    });
+    await wallet.init();
+    const address = (await wallet.getChangeAddress())!;
+    const provider = await ScalusEmulator.create([
+      {
+        input: {
+          txHash: "0".repeat(64),
+          outputIndex: 0,
+        },
+        output: {
+          address,
+          amount: [{ unit: "lovelace", quantity: "10000000000" }],
+        },
+      },
+    ]);
+    const params = await provider.fetchProtocolParameters();
+    const utxos = await provider.fetchAddressUTxOs(address);
 
-    expect(txHex !== "").toBeTruthy();
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .txOut(address, [{ unit: "lovelace", quantity: "2000000" }])
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
+    const signedTx = await wallet.signTx(txHex);
+    const txHash = await provider.submitTx(signedTx);
+
+    expect(txHash).toHaveLength(64);
   });
 
   it("Basic send tx with set fee", () => {
