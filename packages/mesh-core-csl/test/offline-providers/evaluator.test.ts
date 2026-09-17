@@ -1,4 +1,4 @@
-import { SLOT_CONFIG_NETWORK } from "@meshsdk/common";
+import { SLOT_CONFIG_NETWORK, UTxO } from "@meshsdk/common";
 import { OfflineEvaluator } from "@meshsdk/core-csl";
 import { OfflineFetcher } from "@meshsdk/provider";
 
@@ -119,7 +119,12 @@ describe("Offline Evaluator", () => {
     };
     fetcher.addUTxOs([utxo_1, utxo_2, utxo_3, utxo_4, utxo_5, utxo_6, utxo_7]);
 
-    const res = await evaluator.evaluateTx(txHex, [], []);
+    // All inputs are resolved from the fetcher (across several parent txs, in
+    // parallel). The caller's array must not be mutated in the process — the
+    // previous implementation pushed the resolved UTxOs into it.
+    const additionalUtxos: UTxO[] = [];
+    const res = await evaluator.evaluateTx(txHex, additionalUtxos, []);
+    expect(additionalUtxos).toHaveLength(0);
     expect(res).toStrictEqual([
       {
         index: 0,
