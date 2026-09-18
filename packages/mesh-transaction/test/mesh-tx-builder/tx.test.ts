@@ -5,8 +5,10 @@ import {
   mConStr0,
   NativeScript,
   OfflineFetcher,
+  resolveNativeScriptAddress,
   resolveNativeScriptHash,
   resolveNativeScriptHex,
+  resolvePaymentKeyHash,
   resolveScriptHash,
   resolveScriptHashDRepId,
 } from "@meshsdk/core";
@@ -90,20 +92,17 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHash).toHaveLength(64);
   });
 
-  it("Adding embedded datum should produce correct tx cbor", () => {
-    let mesh = new MeshTxBuilder();
+  it("Adding embedded datum should produce correct tx cbor", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
 
-    let txHex = mesh
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [{ unit: "lovelace", quantity: "9891607895" }],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .txOut(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-        [{ unit: "lovelace", quantity: "2000000" }],
-      )
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .txOut(address, [{ unit: "lovelace", quantity: "2000000" }])
       .txOutDatumEmbedValue(
         {
           constructor: 0,
@@ -111,52 +110,67 @@ describe("MeshTxBuilder transactions", () => {
         },
         "JSON",
       )
-      .changeAddress(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .completeSync();
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
     const cardanoTx = Serialization.Transaction.fromCbor(
       Serialization.TxCBOR(txHex),
     );
-    console.log(txHex);
     expect(
       cardanoTx.body().outputs().at(0)!.datum()?.asDataHash(),
     ).toBeDefined();
     expect(cardanoTx.witnessSet().plutusData()?.size()).toBe(1);
+    const signedTx = await wallet.signTx(txHex);
+    const txHash = await provider.submitTx(signedTx);
+    expect(txHash).toHaveLength(64);
   });
 
-  it("Build tx of spending native script should succeed", () => {
-    let mesh = new MeshTxBuilder();
+  it("Build tx of spending native script should succeed", async () => {
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "mnemonic",
+        words: Array(24).fill("solution"),
+      },
+    });
+    await wallet.init();
+    const address = (await wallet.getChangeAddress())!;
+    const nativeScript: NativeScript = {
+      type: "sig",
+      keyHash: resolvePaymentKeyHash(address),
+    };
+    const provider = await ScalusEmulator.create([
+      {
+        input: { txHash: "0".repeat(64), outputIndex: 0 },
+        output: {
+          address: resolveNativeScriptAddress(nativeScript, 0),
+          amount: [{ unit: "lovelace", quantity: "10000000000" }],
+        },
+      },
+    ]);
+    const params = await provider.fetchProtocolParameters();
+    const utxo = (await provider.fetchUTxOs("0".repeat(64)))[0]!;
 
-    let txHex = mesh
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
       .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [{ unit: "lovelace", quantity: "9891607895" }],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
+        utxo.input.txHash,
+        utxo.input.outputIndex,
+        utxo.output.amount,
+        utxo.output.address,
       )
-      .txInScript(
-        resolveNativeScriptHex({
-          type: "all",
-          scripts: [
-            {
-              type: "after",
-              slot: "1",
-            },
-          ],
-        }),
-      )
-      .txOut(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-        [{ unit: "lovelace", quantity: "2000000" }],
-      )
-      .changeAddress(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .setNetwork("preprod")
-      .completeSync();
+      .txInScript(resolveNativeScriptHex(nativeScript))
+      .txOut(address, [{ unit: "lovelace", quantity: "2000000" }])
+      .changeAddress(address)
+      .complete();
+    const signedTx = await wallet.signTx(txHex);
+    const txHash = await provider.submitTx(signedTx);
 
-    expect(txHex !== "").toBeTruthy();
+    expect(txHash).toHaveLength(64);
   });
 
   it("Build tx of spending native script with ref should succeed", () => {
