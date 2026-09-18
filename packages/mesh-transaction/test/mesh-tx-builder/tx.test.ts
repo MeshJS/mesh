@@ -16,31 +16,38 @@ import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 import { MeshWallet } from "@meshsdk/wallet";
 
+async function createTestSetup() {
+  const wallet = new MeshWallet({
+    networkId: 0,
+    key: {
+      type: "mnemonic",
+      words: Array(24).fill("solution"),
+    },
+  });
+  await wallet.init();
+  const address = (await wallet.getChangeAddress())!;
+  const provider = await ScalusEmulator.create([
+    {
+      input: {
+        txHash: "0".repeat(64),
+        outputIndex: 0,
+      },
+      output: {
+        address,
+        amount: [{ unit: "lovelace", quantity: "10000000000" }],
+      },
+    },
+  ]);
+  const params = await provider.fetchProtocolParameters();
+  const utxos = await provider.fetchAddressUTxOs(address);
+
+  return { wallet, address, provider, params, utxos };
+}
+
 describe("MeshTxBuilder transactions", () => {
   it("Basic send tx", async () => {
-    const wallet = new MeshWallet({
-      networkId: 0,
-      key: {
-        type: "mnemonic",
-        words: Array(24).fill("solution"),
-      },
-    });
-    await wallet.init();
-    const address = (await wallet.getChangeAddress())!;
-    const provider = await ScalusEmulator.create([
-      {
-        input: {
-          txHash: "0".repeat(64),
-          outputIndex: 0,
-        },
-        output: {
-          address,
-          amount: [{ unit: "lovelace", quantity: "10000000000" }],
-        },
-      },
-    ]);
-    const params = await provider.fetchProtocolParameters();
-    const utxos = await provider.fetchAddressUTxOs(address);
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
 
     const txHex = await new MeshTxBuilder({
       fetcher: provider,
