@@ -65,29 +65,29 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHash).toHaveLength(64);
   });
 
-  it("Basic send tx with set fee", () => {
-    let mesh = new MeshTxBuilder();
-    let txHex = mesh
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [{ unit: "lovelace", quantity: "9891607895" }],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .txOut(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-        [{ unit: "lovelace", quantity: "2000000" }],
-      )
-      .changeAddress(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
+  it("Basic send tx with set fee", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
+
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .txOut(address, [{ unit: "lovelace", quantity: "2000000" }])
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
       .setFee("5000000")
-      .completeSync();
+      .complete();
     const cardanoTx = Serialization.Transaction.fromCbor(
       Serialization.TxCBOR(txHex),
     );
     expect(cardanoTx.body().fee().toString()).toBe("5000000");
-    expect(txHex !== "").toBeTruthy();
+    const signedTx = await wallet.signTx(txHex);
+    const txHash = await provider.submitTx(signedTx);
+
+    expect(txHash).toHaveLength(64);
   });
 
   it("Adding embedded datum should produce correct tx cbor", () => {
