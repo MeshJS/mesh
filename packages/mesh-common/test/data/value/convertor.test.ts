@@ -305,6 +305,15 @@ describe("MeshValue class", () => {
       expect(JSON.stringify(jsonValue)).toEqual(JSON.stringify(expectedValue));
     });
 
+    test("keeps a lovelace quantity that does not fit in a JS number", () => {
+      const quantity = "9007199254740993";
+      const meshValue = new MeshValue();
+      meshValue.toAssets = () => [{ unit: "lovelace", quantity }];
+
+      const jsonValue = meshValue.toJSON();
+      expect(jsonValue.map[0].v.map[0].v.int).toBe(BigInt(quantity));
+    });
+
     test("should correctly convert MeshValue to JSON with no asset", () => {
       const assets: Asset[] = [];
 
