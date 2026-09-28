@@ -17,6 +17,9 @@ import {
   getTransactionOutputs,
 } from "../utils";
 
+/** Most tx hashes an evaluator keeps fetched outputs for, dropping the oldest first */
+const MAX_CACHED_TX_HASHES = 1000;
+
 /**
  * OfflineEvaluator implements the IEvaluator interface to provide offline evaluation of Plutus scripts.
  * This class evaluates Plutus scripts contained in Cardano transactions without requiring network connectivity,
@@ -74,6 +77,8 @@ export class OfflineEvaluator implements IEvaluator {
   private readonly network: Network;
   public slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
   public costModels: number[][];
+  /** Outputs fetched per tx hash. Outputs never change once created, so they are reused across evaluations */
+  private readonly fetchedUTxOs = new Map<string, Promise<UTxO[]>>();
 
   /**
    * Creates a new instance of OfflineEvaluator.
@@ -122,6 +127,8 @@ export class OfflineEvaluator implements IEvaluator {
     additionalUtxos: UTxO[],
     additionalTxs: string[],
   ): Promise<Omit<Action, "data">[]> {
+    // Resolved utxos are appended to a copy, leaving the caller's array untouched
+    additionalUtxos = [...additionalUtxos];
     // Track which utxos is resolved
     const foundUtxos = new Set<string>();
 
@@ -137,9 +144,14 @@ export class OfflineEvaluator implements IEvaluator {
     const inputsToResolve = getTransactionInputs(tx).filter(
       (input) => !foundUtxos.has(`${input.txHash}:${input.outputIndex}`),
     );
-    const txHashesSet = new Set(inputsToResolve.map((input) => input.txHash));
-    for (const txHash of txHashesSet) {
-      const utxos = await this.fetcher.fetchUTxOs(txHash);
+    const txHashes = Array.from(
+      new Set(inputsToResolve.map((input) => input.txHash)),
+    );
+    const fetched = await Promise.all(
+      txHashes.map((txHash) => this.fetchUTxOsOnce(txHash)),
+    );
+    for (const [i, txHash] of txHashes.entries()) {
+      const utxos = fetched[i]!;
       for (const utxo of utxos) {
         if (utxo)
           if (
@@ -158,6 +170,8 @@ export class OfflineEvaluator implements IEvaluator {
       (input) => !foundUtxos.has(`${input.txHash}:${input.outputIndex}`),
     );
     if (missing.length > 0) {
+      // The fetcher may not have seen these outputs yet; ask again next time
+      missing.forEach((input) => this.fetchedUTxOs.delete(input.txHash));
       const missingList = missing
         .map((m) => `${m.txHash}:${m.outputIndex}`)
         .join(", ");
@@ -172,5 +186,26 @@ export class OfflineEvaluator implements IEvaluator {
       this.costModels,
       this.slotConfig,
     );
+  }
+
+  /**
+   * Fetches the outputs of a transaction once: concurrent and later calls for the same hash
+   * reuse the first request, while a failed or empty response is forgotten.
+   */
+  private fetchUTxOsOnce(txHash: string): Promise<UTxO[]> {
+    const cached = this.fetchedUTxOs.get(txHash);
+    if (cached) return cached;
+    const request = this.fetcher.fetchUTxOs(txHash);
+    this.fetchedUTxOs.set(txHash, request);
+    request.then(
+      (utxos) => {
+        if (!utxos || utxos.length === 0) this.fetchedUTxOs.delete(txHash);
+      },
+      () => this.fetchedUTxOs.delete(txHash),
+    );
+    if (this.fetchedUTxOs.size > MAX_CACHED_TX_HASHES) {
+      this.fetchedUTxOs.delete(this.fetchedUTxOs.keys().next().value!);
+    }
+    return request;
   }
 }
