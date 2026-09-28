@@ -23,6 +23,12 @@ import {
 const compareByteOrder = (a: string, b: string): number =>
   a < b ? -1 : a > b ? 1 : 0;
 
+// A JS number cannot hold every lovelace amount. 2^53 + 1 is still under max ADA.
+const jsInteger = (amount: bigint): number | bigint => {
+  const asNumber = Number(amount);
+  return BigInt(asNumber) === amount ? asNumber : amount;
+};
+
 /**
  * Aiken alias
  * Value is the JSON representation of Cardano data Value
@@ -377,7 +383,7 @@ export class MeshValue {
   toJSON = (): Value => {
     const valueMapToParse: [CurrencySymbol, AssocMap<TokenName, Integer>][] =
       [];
-    const valueMap: { [key: string]: { [key: string]: number } } = {};
+    const valueMap: { [key: string]: { [key: string]: bigint } } = {};
 
     this.toAssets().forEach((asset) => {
       const sanitizedName = asset.unit.replace("lovelace", "");
@@ -388,10 +394,11 @@ export class MeshValue {
         valueMap[policy] = {};
       }
 
-      if (!valueMap[policy]![token]) {
-        valueMap[policy]![token] = Number(asset.quantity);
+      const quantity = BigInt(asset.quantity);
+      if (valueMap[policy]![token] === undefined) {
+        valueMap[policy]![token] = quantity;
       } else {
-        valueMap[policy]![token] += Number(asset.quantity);
+        valueMap[policy]![token] += quantity;
       }
     });
 
@@ -406,7 +413,7 @@ export class MeshValue {
       );
       const tokens: [TokenName, Integer][] = sortedTokenNames.map((name) => [
         tokenName(name),
-        integer(valueMap[policy]![name]!),
+        integer(jsInteger(valueMap[policy]![name]!)),
       ]);
 
       const policyMap = assocMap(tokens);
