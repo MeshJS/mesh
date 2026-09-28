@@ -26,7 +26,10 @@ import { MeshTxBuilder } from "@meshsdk/transaction";
 import { MeshWallet } from "@meshsdk/wallet";
 import { alwaysSucceedCbor, alwaysSucceedHash } from "../test-util";
 
-async function createTestSetup(includeCollateral = false) {
+async function createTestSetup(
+  includeCollateral = false,
+  initialLovelace = "10000000000",
+) {
   const wallet = new MeshWallet({
     networkId: 0,
     key: {
@@ -44,7 +47,7 @@ async function createTestSetup(includeCollateral = false) {
       },
       output: {
         address,
-        amount: [{ unit: "lovelace", quantity: "10000000000" }],
+        amount: [{ unit: "lovelace", quantity: initialLovelace }],
       },
     },
     ...(includeCollateral
@@ -517,47 +520,67 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHash).toHaveLength(64);
   });
 
-  it("Drep vote", () => {
-    let mesh = new MeshTxBuilder();
+  it("Drep vote", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup(false, "120000000000");
+    const keyHash = resolvePaymentKeyHash(address);
+    const rewardAddress = serializeRewardAddress(keyHash);
+    const drepId = Cardano.DRepID.cip129FromCredential({
+      type: Cardano.CredentialType.KeyHash,
+      hash: Hash28ByteBase16(keyHash),
+    }).toString();
+    const anchor = {
+      anchorUrl: "https://path-to.jsonld",
+      anchorDataHash:
+        "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+    };
+    const newTxBuilder = () =>
+      new MeshTxBuilder({
+        fetcher: provider,
+        submitter: provider,
+        evaluator: provider,
+        params,
+      });
 
-    let txHex = mesh
-      .changeAddress(
-        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
+    const stakeRegistrationTx = await newTxBuilder()
+      .registerStakeCertificate(rewardAddress)
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
+    await provider.submitTx(await wallet.signTx(stakeRegistrationTx));
+
+    const drepRegistrationTx = await newTxBuilder()
+      .drepRegistrationCertificate(drepId, anchor)
+      .changeAddress(address)
+      .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
+      .complete();
+    await provider.submitTx(await wallet.signTx(drepRegistrationTx));
+
+    const proposalTx = await newTxBuilder()
+      .proposal(
+        { kind: "InfoAction", action: { type: "InfoAction" } },
+        anchor,
+        rewardAddress,
       )
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [
-          {
-            unit: "lovelace",
-            quantity: "9891607895",
-          },
-        ],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
+      .changeAddress(address)
+      .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
+      .complete();
+    const proposalTxHash = await provider.submitTx(
+      await wallet.signTx(proposalTx),
+    );
+
+    const voteTx = await newTxBuilder()
       .vote(
-        {
-          type: "DRep",
-          drepId: "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
-        },
-        {
-          txHash:
-            "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-          txIndex: 3,
-        },
-        {
-          voteKind: "Yes",
-          anchor: {
-            anchorUrl: "https://path-to.jsonld",
-            anchorDataHash:
-              "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
-          },
-        },
+        { type: "DRep", drepId },
+        { txHash: proposalTxHash, txIndex: 0 },
+        { voteKind: "Yes", anchor },
       )
-      .completeSync();
+      .changeAddress(address)
+      .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
+      .complete();
+    const voteTxHash = await provider.submitTx(await wallet.signTx(voteTx));
 
-    console.log(txHex);
-    expect(txHex !== "").toBeTruthy();
+    expect(voteTxHash).toHaveLength(64);
   });
 
   it("Script drep vote", () => {
