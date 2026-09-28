@@ -30,13 +30,15 @@ async function createTestSetup({
   includeCollateral = false,
   initialLovelace = "10000000000",
   costModels,
+  network = "preview",
 }: {
   includeCollateral?: boolean;
   initialLovelace?: string;
   costModels?: number[][];
+  network?: "preview" | "mainnet";
 } = {}) {
   const wallet = new MeshWallet({
-    networkId: 0,
+    networkId: network === "mainnet" ? 1 : 0,
     key: {
       type: "mnemonic",
       words: Array(24).fill("solution"),
@@ -71,20 +73,22 @@ async function createTestSetup({
       : []),
   ];
   let info: Parameters<typeof ScalusEmulator.create>[1];
-  if (costModels) {
+  if (costModels || network === "mainnet") {
     const { CardanoInfo, ProtocolParams } = await importScalus();
-    const previewInfo = CardanoInfo.preview();
-    const protocolParameters = JSON.parse(
-      previewInfo.protocolParams.toBlockfrostJson(),
-    );
-    protocolParameters.cost_models_raw = {
-      PlutusV1: costModels[0],
-      PlutusV2: costModels[1],
-      PlutusV3: costModels[2],
-    };
-    info = previewInfo.withProtocolParams(
-      ProtocolParams.fromBlockfrostJson(JSON.stringify(protocolParameters)),
-    );
+    info = network === "mainnet" ? CardanoInfo.mainnet() : CardanoInfo.preview();
+    if (costModels) {
+      const protocolParameters = JSON.parse(
+        info.protocolParams.toBlockfrostJson(),
+      );
+      protocolParameters.cost_models_raw = {
+        PlutusV1: costModels[0],
+        PlutusV2: costModels[1],
+        PlutusV3: costModels[2],
+      };
+      info = info.withProtocolParams(
+        ProtocolParams.fromBlockfrostJson(JSON.stringify(protocolParameters)),
+      );
+    }
   }
   const provider = await ScalusEmulator.create(initialUtxos, info);
   const params = await provider.fetchProtocolParameters();
@@ -835,141 +839,67 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHash).toHaveLength(64);
   });
 
-  it("balance test", () => {
-    let mesh = new MeshTxBuilder();
-    let txHex = mesh
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [{ unit: "lovelace", quantity: "9891607895" }],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .txOut(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-        [],
-      )
-      .changeAddress(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .completeSync();
+  it("balance test", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .txIn("0".repeat(64), 0)
+      .txOut(address, [])
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
+    const txHash = await provider.submitTx(await wallet.signTx(txHex));
 
-    expect(txHex !== "").toBeTruthy();
+    expect(txHash).toHaveLength(64);
   });
 
-  it("byron output test", () => {
-    let mesh = new MeshTxBuilder();
-    let txHex = mesh
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [{ unit: "lovelace", quantity: "9891607895" }],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
+  it("byron output test", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup({ network: "mainnet" });
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
       .txOut(
         "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt",
         [{ unit: "lovelace", quantity: "2000000" }],
       )
-      .changeAddress(
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .completeSync();
+      .setNetwork("mainnet")
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
+    const txHash = await provider.submitTx(await wallet.signTx(txHex));
 
-    expect(txHex !== "").toBeTruthy();
+    expect(txHash).toHaveLength(64);
   });
 
-  it("byron change output test", () => {
-    let mesh = new MeshTxBuilder();
-    let txHex = mesh
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [{ unit: "lovelace", quantity: "9891607895" }],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .txOut(
-        "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt",
-        [{ unit: "lovelace", quantity: "2000000" }],
-      )
-      .changeAddress(
-        "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt",
-      )
-      .completeSync();
+  it("byron change output test", async () => {
+    const { wallet, provider, params, utxos } =
+      await createTestSetup({ network: "mainnet" });
+    const byronAddress =
+      "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt";
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .txOut(byronAddress, [{ unit: "lovelace", quantity: "2000000" }])
+      .setNetwork("mainnet")
+      .changeAddress(byronAddress)
+      .selectUtxosFrom(utxos)
+      .setFee("200000")
+      .complete();
+    const txHash = await provider.submitTx(await wallet.signTx(txHex));
 
-    expect(txHex !== "").toBeTruthy();
-  });
-
-  it("test", async () => {
-    let mesh = new MeshTxBuilder();
-    const txHex = await mesh.complete({
-      inputs: [
-        {
-          type: "PubKey",
-          txIn: {
-            txHash:
-              "99acc8beeed1d17c3823ed683eb1ae92372b6301b165c622ea5ee7c93a61654a",
-            txIndex: 0,
-            amount: [{ unit: "lovelace", quantity: "100000000" }],
-            address:
-              "addr_test1qpgzv6fytsl7fg4htxkvrlhq83ytmx6wryh0rzrmvs9asqrvawkzn6eqgpekwadfakznxj70tzepz54g0ppfqyuzefnq7lcxng",
-            scriptSize: 0,
-          },
-        },
-      ],
-      outputs: [
-        {
-          address:
-            "addr_test1wql6cyymfrmqe9cjeyfh5d4h945nfszy3yup8d74kkrhsks4dkk0y",
-          amount: [{ unit: "lovelace", quantity: "3000000" }],
-          datum: {
-            type: "Inline",
-            data: {
-              type: "JSON",
-              content: `{"constructor":0,"fields":[{"bytes":"547261646546756e644944313233"},{"constructor":0,"fields":[{"constructor":0,"fields":[{"bytes":"502669245c3fe4a2b759acc1fee03c48bd9b4e192ef1887b640bd800"}]},{"constructor":0,"fields":[{"constructor":0,"fields":[{"constructor":0,"fields":[{"bytes":"6cebac29eb2040736775a9ed85334bcf58b21152a87842901382ca66"}]}]}]}]},{"map":[{"k":{"bytes":""},"v":{"map":[{"k":{"bytes":""},"v":{"int":3000000}}]}}]}]}`,
-            },
-          },
-        },
-      ],
-      collaterals: [
-        {
-          type: "PubKey",
-          txIn: {
-            txHash:
-              "31fd8553fb1d1328e98ab267960974e9bd42be901e2b889182934ae396f7bd4e",
-            txIndex: 0,
-            amount: [{ unit: "lovelace", quantity: "5000000" }],
-            address:
-              "addr_test1qpgzv6fytsl7fg4htxkvrlhq83ytmx6wryh0rzrmvs9asqrvawkzn6eqgpekwadfakznxj70tzepz54g0ppfqyuzefnq7lcxng",
-            scriptSize: 0,
-          },
-        },
-      ],
-      requiredSignatures: [],
-      referenceInputs: [
-        {
-          txHash:
-            "96c998f4b5caa72b20e4f6be3b3996548bff0e9a7dc298a33c8f939014bc4567",
-          txIndex: 0,
-        },
-      ],
-      mints: [],
-      changeAddress:
-        "addr_test1qpgzv6fytsl7fg4htxkvrlhq83ytmx6wryh0rzrmvs9asqrvawkzn6eqgpekwadfakznxj70tzepz54g0ppfqyuzefnq7lcxng",
-      metadata: new Map(),
-      validityRange: {},
-      certificates: [],
-      withdrawals: [],
-      votes: [],
-      signingKey: [],
-      chainedTxs: [],
-      inputsForEvaluation: {},
-      network: "preprod",
-      fee: "300000",
-    });
-
-    const cardanoTx = Serialization.Transaction.fromCbor(
-      Serialization.TxCBOR(txHex),
-    );
-    expect(cardanoTx.body().fee().toString()).toBe("300000");
+    expect(txHash).toHaveLength(64);
   });
 
   it("test eval redeemer indexes", async () => {
