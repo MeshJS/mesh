@@ -436,34 +436,43 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHash).toHaveLength(64);
   });
 
-  it("Build tx to delegate vote should succeed", () => {
-    let mesh = new MeshTxBuilder();
+  it("Build tx to delegate vote should succeed", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
+    const rewardAddress = serializeRewardAddress(
+      resolvePaymentKeyHash(address),
+    );
+    const registrationTx = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .registerStakeCertificate(rewardAddress)
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
+    await provider.submitTx(await wallet.signTx(registrationTx));
 
-    let txHex = mesh
-      .txIn(
-        "f5be282d696cc5ca269d18de02224c3717aabc01ab2b76002860a110e108016a",
-        0,
-        [
-          {
-            unit: "lovelace",
-            quantity: "554042851",
-          },
-        ],
-        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
-      )
+    const delegationUtxos = await provider.fetchAddressUTxOs(address);
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
       .voteDelegationCertificate(
         {
           dRepId: "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
         },
-        "stake_test1uzdx8vwxvz5wy45fwdrwk2l85ax7j5wtr4cee6a8xc632cc3p6psh",
+        rewardAddress,
       )
-      .changeAddress(
-        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
-      )
-      .setNetwork("preprod")
-      .completeSync();
+      .changeAddress(address)
+      .selectUtxosFrom(delegationUtxos)
+      .complete();
+    const txHash = await provider.submitTx(await wallet.signTx(txHex));
 
-    console.log(txHex);
+    expect(txHash).toHaveLength(64);
   });
 
   it("Build tx to update DRep should succeed", () => {
