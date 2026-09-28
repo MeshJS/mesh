@@ -12,6 +12,7 @@ import {
   resolvePaymentKeyHash,
   resolveScriptHash,
   resolveScriptHashDRepId,
+  serializeRewardAddress,
 } from "@meshsdk/core";
 import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
@@ -22,8 +23,9 @@ import {
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 import { MeshWallet } from "@meshsdk/wallet";
+import { alwaysSucceedCbor, alwaysSucceedHash } from "../test-util";
 
-async function createTestSetup() {
+async function createTestSetup(includeCollateral = false) {
   const wallet = new MeshWallet({
     networkId: 0,
     key: {
@@ -44,6 +46,20 @@ async function createTestSetup() {
         amount: [{ unit: "lovelace", quantity: "10000000000" }],
       },
     },
+    ...(includeCollateral
+      ? [
+          {
+            input: {
+              txHash: "1".repeat(64),
+              outputIndex: 0,
+            },
+            output: {
+              address,
+              amount: [{ unit: "lovelace", quantity: "5000000" }],
+            },
+          },
+        ]
+      : []),
   ]);
   const params = await provider.fetchProtocolParameters();
   const utxos = await provider.fetchAddressUTxOs(address);
@@ -372,51 +388,52 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHash).toHaveLength(64);
   });
 
-  it("Build tx to withdraw from script stake should succeed", () => {
-    let mesh = new MeshTxBuilder();
-    let scriptCbor =
-      "58ff58fd01010033232323232322322533300432323232323232533300b3370e9002001099198011bac301030113011301130113011301130113011300e375400e014601e601a6ea800c54ccc02ccdc3a400c0042646464660086eb0c048c04cc04cc04cc04cc04cc04cc04cc04cc040dd5004806180898090011bad3010001300d37540062c44646600200200644a66602200229404c94ccc03ccdc79bae301300200414a2266006006002602600260146ea8004c030c034008c02c004c02c008c024004c018dd50008a4c26cac6eb80055cd2ab9d5573caae7d5d0aba24c011e581ce3d28c78fa125198affefff50269125c81ba34e598890ed1d077f1710001";
+  it("Build tx to withdraw from script stake should succeed", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup(true);
+    const collateralHash = "1".repeat(64);
+    const rewardAddress = serializeRewardAddress(alwaysSucceedHash, true);
+    const registrationUtxos = utxos.filter(
+      (utxo) => utxo.input.txHash !== collateralHash,
+    );
 
-    let txHex = mesh
-      .txIn(
-        "f5be282d696cc5ca269d18de02224c3717aabc01ab2b76002860a110e108016a",
-        0,
-        [
-          {
-            unit: "lovelace",
-            quantity: "554042851",
-          },
-        ],
-        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
-      )
-      .txInCollateral(
-        "80fff8d27e8dffec05ac773f22140cf86d8e30a0243e7df6849b74633d79e007",
-        5,
-        [
-          {
-            unit: "lovelace",
-            quantity: "5000000",
-          },
-        ],
-        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
-      )
+    const registrationTx = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .registerStakeCertificate(rewardAddress)
+      .changeAddress(address)
+      .selectUtxosFrom(registrationUtxos)
+      .complete();
+    await provider.submitTx(await wallet.signTx(registrationTx));
+
+    const withdrawalUtxos = (await provider.fetchAddressUTxOs(address)).filter(
+      (utxo) => utxo.input.txHash !== collateralHash,
+    );
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
       .withdrawalPlutusScriptV3()
-      .withdrawal(
-        "stake_test17zfe24q7scqldhc6csp5uf2yr4z5gtv5vq4ex394g7ve36q8j32jn",
-        "0",
-      )
-      .withdrawalScript(scriptCbor)
+      .withdrawal(rewardAddress, "0")
+      .withdrawalScript(alwaysSucceedCbor)
       .withdrawalRedeemerValue(mConStr0([]), "Mesh", DEFAULT_REDEEMER_BUDGET)
-      .requiredSignerHash(
-        "e3d28c78fa125198affefff50269125c81ba34e598890ed1d077f171",
+      .selectUtxosFrom(withdrawalUtxos)
+      .txInCollateral(
+        collateralHash,
+        0,
+        [{ unit: "lovelace", quantity: "5000000" }],
+        address,
       )
-      .changeAddress(
-        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
-      )
-      .setNetwork("preprod")
-      .completeSync();
+      .changeAddress(address)
+      .complete();
+    const txHash = await provider.submitTx(await wallet.signTx(txHex));
 
-    console.log(txHex);
+    expect(txHash).toHaveLength(64);
   });
 
   it("Build tx to delegate vote should succeed", () => {
