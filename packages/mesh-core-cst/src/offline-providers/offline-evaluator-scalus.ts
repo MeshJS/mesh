@@ -36,11 +36,16 @@ const MESH_TAG: Record<RedeemerBudget["tag"], RedeemerTagType> = {
   Proposing: "PROPOSE",
 };
 
+/** Most tx hashes an evaluator keeps fetched outputs for, dropping the oldest first */
+const MAX_CACHED_TX_HASHES = 1000;
+
 export class OfflineEvaluatorScalus implements IEvaluator {
   private readonly fetcher: IFetcher;
   private readonly network: Network;
   public slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
   public costModels: number[][];
+  /** Outputs fetched per tx hash. Outputs never change once created, so they are reused across evaluations */
+  private readonly fetchedUTxOs = new Map<string, Promise<UTxO[]>>();
 
   /**
    * Creates a new instance of OfflineEvaluatorScalus.
@@ -106,10 +111,11 @@ export class OfflineEvaluatorScalus implements IEvaluator {
       queriesNeeded.add(input.txHash);
     }
     const fetchedUtxos: Map<string, UTxO[]> = new Map<string, UTxO[]>();
-    for (const txHash of queriesNeeded) {
-      const utxos = await this.fetcher.fetchUTxOs(txHash);
-      fetchedUtxos.set(txHash, utxos);
-    }
+    await Promise.all(
+      Array.from(queriesNeeded, async (txHash) => {
+        fetchedUtxos.set(txHash, await this.fetchUTxOsOnce(txHash));
+      }),
+    );
 
     for (const input of inputsToResolve) {
       const utxos = fetchedUtxos.get(input.txHash);
@@ -120,6 +126,8 @@ export class OfflineEvaluatorScalus implements IEvaluator {
       }
       const utxo = utxos.find((u) => u.input.outputIndex === input.outputIndex);
       if (!utxo) {
+        // The fetcher may not have seen this output yet; ask again next time
+        this.fetchedUTxOs.delete(input.txHash);
         throw new Error(
           `UTxO not found for input: ${input.txHash}:${input.outputIndex}`,
         );
@@ -169,5 +177,26 @@ export class OfflineEvaluatorScalus implements IEvaluator {
         },
       };
     });
+  }
+
+  /**
+   * Fetches the outputs of a transaction once: concurrent and later calls for the same hash
+   * reuse the first request, while a failed or empty response is forgotten.
+   */
+  private fetchUTxOsOnce(txHash: string): Promise<UTxO[]> {
+    const cached = this.fetchedUTxOs.get(txHash);
+    if (cached) return cached;
+    const request = this.fetcher.fetchUTxOs(txHash);
+    this.fetchedUTxOs.set(txHash, request);
+    request.then(
+      (utxos) => {
+        if (!utxos || utxos.length === 0) this.fetchedUTxOs.delete(txHash);
+      },
+      () => this.fetchedUTxOs.delete(txHash),
+    );
+    if (this.fetchedUTxOs.size > MAX_CACHED_TX_HASHES) {
+      this.fetchedUTxOs.delete(this.fetchedUTxOs.keys().next().value!);
+    }
+    return request;
   }
 }

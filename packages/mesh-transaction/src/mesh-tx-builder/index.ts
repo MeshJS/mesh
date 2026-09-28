@@ -36,6 +36,7 @@ import {
   CredentialType as CstCredentialType,
   NativeScript as CstNativeScript,
   Script as CstScript,
+  getTransactionOutputs,
 } from "@meshsdk/core-cst";
 
 import {
@@ -71,6 +72,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   protected queriedTxHashes: Set<string> = new Set();
   protected queriedUTxOs: { [x: string]: UTxO[] } = {};
   protected utxosWithRefScripts: UTxO[] = [];
+  /** In-flight `fetchUTxOs` calls, keyed by tx hash, so concurrent lookups share one request */
+  protected pendingUTxOQueries: Map<string, Promise<void>> = new Map();
+  /** UTxOs already known to the builder (selection pool, evaluation inputs, chained txs), keyed by `txHash#index` */
+  protected knownUTxOs: Map<string, UTxO> = new Map();
 
   constructor({
     serializer,
@@ -195,7 +200,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         this.setFee(customizedTx.fee);
       }
     }
-    await this.completeCostModels();
+    // Cost models don't depend on the rest of the body, so fetch them alongside the UTxOs
+    const costModelsCompleted = this.completeCostModels();
     this.queueAllLastItem();
 
     if (this.verbose) {
@@ -214,7 +220,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (let collateral of this.meshTxBuilderBody.collaterals) {
       collateral.txIn.scriptSize = 0;
     }
-    await this.completeTxParts();
+    try {
+      await this.completeTxParts();
+    } finally {
+      await costModelsCompleted;
+    }
     await this.sanitizeOutputs();
 
     this.sortTxParts();
@@ -522,11 +532,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   evaluateRedeemers = async () => {
-    let txHex = this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-    );
-    if (this.evaluator) {
+    if (this.evaluator && this.hasPlutusScriptWitness()) {
+      const txHex = this.serializer.serializeTxBody(
+        this.meshTxBuilderBody,
+        this._protocolParams,
+      );
       const txEvaluation = await this.evaluator
         .evaluateTx(
           txHex,
@@ -554,6 +564,25 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
     }
+  };
+
+  /**
+   * Whether any part of the transaction is witnessed by a Plutus script, i.e. whether
+   * there are redeemers for an evaluator to price
+   */
+  protected hasPlutusScriptWitness = (): boolean => {
+    const { inputs, mints, certificates, withdrawals, votes, proposals } =
+      this.meshTxBuilderBody;
+    return (
+      inputs.some((input) => input.type === "Script") ||
+      mints.some((mint) => mint.type === "Plutus") ||
+      certificates.some((cert) => cert.type === "ScriptCertificate") ||
+      withdrawals.some(
+        (withdrawal) => withdrawal.type === "ScriptWithdrawal",
+      ) ||
+      votes.some((vote) => vote.type === "ScriptVote") ||
+      proposals.some((proposal) => proposal.type === "ScriptProposal")
+    );
   };
 
   protected getRedeemerCosts = () => {
@@ -658,16 +687,54 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   /**
-   * Get the UTxO information from the blockchain
-   * @param txHash The TxIn object that contains the txHash and txIndex, while missing amount and address information
+   * Get the UTxO information from the blockchain.
+   * Concurrent calls for the same hash share one request; a failed or empty
+   * response is not remembered, so a later `complete()` can retry it.
+   * @param txHash The hash of the transaction whose outputs are needed
    */
   protected getUTxOInfo = async (txHash: string): Promise<void> => {
-    let utxos: UTxO[] = [];
-    if (!this.queriedTxHashes.has(txHash)) {
-      this.queriedTxHashes.add(txHash);
-      utxos = (await this.fetcher?.fetchUTxOs(txHash)) || [];
-      this.queriedUTxOs[txHash] = utxos;
+    if (this.queriedTxHashes.has(txHash)) return;
+    let query = this.pendingUTxOQueries.get(txHash);
+    if (!query) {
+      query = (async () => {
+        try {
+          const utxos = (await this.fetcher?.fetchUTxOs(txHash)) || [];
+          this.queriedUTxOs[txHash] = utxos;
+          if (utxos.length > 0) this.queriedTxHashes.add(txHash);
+        } finally {
+          this.pendingUTxOQueries.delete(txHash);
+        }
+      })();
+      this.pendingUTxOQueries.set(txHash, query);
     }
+    return query;
+  };
+
+  /**
+   * Index the UTxOs the builder already holds - the selection pool, the inputs given
+   * for evaluation and the outputs of chained transactions - so they need not be fetched
+   */
+  protected indexKnownUTxOs = () => {
+    const { extraInputs, inputsForEvaluation, chainedTxs } =
+      this.meshTxBuilderBody;
+    const known = new Map<string, UTxO>();
+    const add = (utxo: UTxO) =>
+      known.set(this.makeTxId(utxo.input.txHash, utxo.input.outputIndex), utxo);
+    extraInputs.forEach(add);
+    Object.values(inputsForEvaluation).forEach(add);
+    chainedTxs.forEach((txHex) => getTransactionOutputs(txHex).forEach(add));
+    this.knownUTxOs = known;
+  };
+
+  /**
+   * Look up a UTxO among the fetched ones and the ones the builder already holds
+   */
+  protected findUTxO = (txHash: string, index: number): UTxO | undefined => {
+    return (
+      this.queriedUTxOs[txHash]?.find(
+        (utxo) => utxo.input.outputIndex === index,
+      ) ?? this.knownUTxOs.get(this.makeTxId(txHash, index))
+    );
   };
 
   protected queryAllTxInfo = (
@@ -675,29 +742,35 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     incompleteScriptSources: ScriptSource[],
     incompleteSimpleScriptSources: SimpleScriptSourceInfo[],
   ) => {
-    const queryUTxOPromises: Promise<void>[] = [];
-    if (
-      (incompleteTxIns.length > 0 ||
-        incompleteScriptSources.length > 0 ||
-        incompleteSimpleScriptSources.length) &&
-      !this.fetcher
-    )
-      throw Error(
-        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
-      );
+    const txHashesToQuery = new Set<string>();
+    const queryIfUnknown = (txHash: string, index: number) => {
+      if (!this.findUTxO(txHash, index)) txHashesToQuery.add(txHash);
+    };
     for (let i = 0; i < incompleteTxIns.length; i++) {
       const currentTxIn = incompleteTxIns[i]!;
       if (!this.isInputInfoComplete(currentTxIn)) {
-        queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
+        queryIfUnknown(currentTxIn.txIn.txHash, currentTxIn.txIn.txIndex);
       }
     }
     for (let i = 0; i < incompleteScriptSources.length; i++) {
       const scriptSource = incompleteScriptSources[i]!;
       if (scriptSource.type === "Inline") {
-        queryUTxOPromises.push(this.getUTxOInfo(scriptSource.txHash));
+        queryIfUnknown(scriptSource.txHash, scriptSource.txIndex);
       }
     }
-    return Promise.all(queryUTxOPromises);
+    for (let i = 0; i < incompleteSimpleScriptSources.length; i++) {
+      const simpleScriptSource = incompleteSimpleScriptSources[i]!;
+      if (simpleScriptSource.type === "Inline") {
+        queryIfUnknown(simpleScriptSource.txHash, simpleScriptSource.txIndex);
+      }
+    }
+    if (txHashesToQuery.size > 0 && !this.fetcher)
+      throw Error(
+        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
+      );
+    return Promise.all(
+      Array.from(txHashesToQuery, (txHash) => this.getUTxOInfo(txHash)),
+    );
   };
 
   protected completeTxInformation = (input: TxIn) => {
@@ -716,10 +789,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   protected completeInputInfo = (input: TxIn) => {
-    const utxos: UTxO[] = this.queriedUTxOs[input.txIn.txHash]!;
-    const utxo = utxos?.find(
-      (utxo) => utxo.input.outputIndex === input.txIn.txIndex,
-    );
+    const utxo = this.findUTxO(input.txIn.txHash, input.txIn.txIndex);
     const amount = utxo?.output.amount;
     const address = utxo?.output.address;
     if (!amount || amount.length === 0)
@@ -741,39 +811,55 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
   };
 
+  /**
+   * Find the UTxO holding a reference script, with the script's hash filled in
+   * even when the source of the UTxO did not provide it
+   */
+  protected findScriptRefUTxO = (
+    txHash: string,
+    index: number,
+  ): { scriptRef: string; scriptHash: string } => {
+    const utxo = this.findUTxO(txHash, index);
+    if (!utxo)
+      throw Error(`Couldn't find script reference utxo for ${txHash}#${index}`);
+    const { scriptRef, scriptHash } = utxo.output;
+    if (!scriptRef)
+      throw Error(`Utxo ${txHash}#${index} does not hold a reference script`);
+    return {
+      scriptRef,
+      scriptHash:
+        scriptHash ??
+        CstScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptRef)
+          .hash()
+          .toString(),
+    };
+  };
+
   protected completeScriptInfo = (scriptSource: ScriptSource) => {
     if (scriptSource?.type != "Inline") return;
-    const refUtxos = this.queriedUTxOs[scriptSource.txHash]!;
-    const scriptRefUtxo = refUtxos.find(
-      (utxo) => utxo.input.outputIndex === scriptSource.txIndex,
+    const { scriptRef, scriptHash } = this.findScriptRefUTxO(
+      scriptSource.txHash,
+      scriptSource.txIndex,
     );
-    if (!scriptRefUtxo)
-      throw Error(
-        `Couldn't find script reference utxo for ${scriptSource.txHash}#${scriptSource.txIndex}`,
-      );
-    scriptSource.scriptHash = scriptRefUtxo?.output.scriptHash!;
-    scriptSource.scriptSize = (
-      scriptRefUtxo?.output.scriptRef!.length / 2
-    ).toString();
+    scriptSource.scriptHash = scriptHash;
+    scriptSource.scriptSize = (scriptRef.length / 2).toString();
   };
 
   protected completeSimpleScriptInfo = (
     simpleScript: SimpleScriptSourceInfo,
   ) => {
     if (simpleScript.type !== "Inline") return;
-    const refUtxos = this.queriedUTxOs[simpleScript.txHash]!;
-    const scriptRefUtxo = refUtxos.find(
-      (utxo) => utxo.input.outputIndex === simpleScript.txIndex,
+    const { scriptRef, scriptHash } = this.findScriptRefUTxO(
+      simpleScript.txHash,
+      simpleScript.txIndex,
     );
-    if (!scriptRefUtxo)
-      throw Error(
-        `Couldn't find script reference utxo for ${simpleScript.txHash}#${simpleScript.txIndex}`,
-      );
-    simpleScript.simpleScriptHash = scriptRefUtxo?.output.scriptHash!;
+    simpleScript.simpleScriptHash = scriptHash;
+    simpleScript.scriptSize = (scriptRef.length / 2).toString();
   };
 
   protected isInputComplete = (txIn: TxIn): boolean => {
-    if (txIn.type === "PubKey") return this.isInputInfoComplete(txIn);
+    if (txIn.type === "PubKey" || txIn.type === "SimpleScript")
+      return this.isInputInfoComplete(txIn);
     if (txIn.type === "Script") {
       const { scriptSource } = txIn.scriptTxIn;
       return (
@@ -872,6 +958,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   protected completeTxParts = async (): Promise<void> => {
+    this.indexKnownUTxOs();
     // Checking if all inputs are complete
     const { inputs, collaterals, mints, withdrawals, votes, certificates } =
       this.meshTxBuilderBody;
@@ -1519,12 +1606,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     txHash: string,
     index: number,
   ): CstNativeScript | undefined => {
-    const utxos = this.queriedUTxOs[txHash];
-    if (!utxos) {
-      return undefined;
-    }
-
-    const utxo = utxos.find((utxo) => utxo.input.outputIndex === index);
+    const utxo = this.findUTxO(txHash, index);
     if (utxo?.output.scriptRef) {
       const script = CstScript.fromCbor(
         <CardanoSDKUtil.HexBlob>utxo.output.scriptRef,
@@ -1811,9 +1893,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     newBuilder.txHex = this.txHex;
 
-    newBuilder.queriedTxHashes = structuredClone(this.queriedTxHashes);
-
-    newBuilder.queriedUTxOs = structuredClone(this.queriedUTxOs);
+    // Fetched and known UTxOs are only ever added to, never edited, so clones made
+    // during coin selection can share them instead of deep-copying every script
+    newBuilder.queriedTxHashes = this.queriedTxHashes;
+    newBuilder.queriedUTxOs = this.queriedUTxOs;
+    newBuilder.pendingUTxOQueries = this.pendingUTxOQueries;
+    newBuilder.knownUTxOs = this.knownUTxOs;
     newBuilder.utxosWithRefScripts = structuredClone(this.utxosWithRefScripts);
 
     return newBuilder;
