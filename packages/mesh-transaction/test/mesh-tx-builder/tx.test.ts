@@ -26,10 +26,15 @@ import { MeshTxBuilder } from "@meshsdk/transaction";
 import { MeshWallet } from "@meshsdk/wallet";
 import { alwaysSucceedCbor, alwaysSucceedHash } from "../test-util";
 
-async function createTestSetup(
+async function createTestSetup({
   includeCollateral = false,
   initialLovelace = "10000000000",
-) {
+  costModels,
+}: {
+  includeCollateral?: boolean;
+  initialLovelace?: string;
+  costModels?: number[][];
+} = {}) {
   const wallet = new MeshWallet({
     networkId: 0,
     key: {
@@ -39,7 +44,7 @@ async function createTestSetup(
   });
   await wallet.init();
   const address = (await wallet.getChangeAddress())!;
-  const provider = await ScalusEmulator.create([
+  const initialUtxos = [
     {
       input: {
         txHash: "0".repeat(64),
@@ -64,11 +69,49 @@ async function createTestSetup(
           },
         ]
       : []),
-  ]);
+  ];
+  let info: Parameters<typeof ScalusEmulator.create>[1];
+  if (costModels) {
+    const { CardanoInfo, ProtocolParams } = await importScalus();
+    const previewInfo = CardanoInfo.preview();
+    const protocolParameters = JSON.parse(
+      previewInfo.protocolParams.toBlockfrostJson(),
+    );
+    protocolParameters.cost_models_raw = {
+      PlutusV1: costModels[0],
+      PlutusV2: costModels[1],
+      PlutusV3: costModels[2],
+    };
+    info = previewInfo.withProtocolParams(
+      ProtocolParams.fromBlockfrostJson(JSON.stringify(protocolParameters)),
+    );
+  }
+  const provider = await ScalusEmulator.create(initialUtxos, info);
   const params = await provider.fetchProtocolParameters();
   const utxos = await provider.fetchAddressUTxOs(address);
 
-  return { wallet, address, provider, params, utxos };
+  return { wallet, address, provider, params, utxos, costModels };
+}
+
+const importScalus = new Function(
+  "return import('scalus')",
+) as () => Promise<typeof import("scalus")>;
+
+async function createCustomCostModels() {
+  const { CardanoInfo } = await importScalus();
+  const info = CardanoInfo.preview();
+  const protocolParameters = JSON.parse(
+    info.protocolParams.toBlockfrostJson(),
+  );
+  const costModelsRaw = protocolParameters.cost_models_raw;
+  const costModels = [
+    [...costModelsRaw.PlutusV1],
+    [...costModelsRaw.PlutusV2],
+    [...costModelsRaw.PlutusV3],
+  ];
+  const lastV3Parameter = costModels[2]![costModels[2]!.length - 1]!;
+  costModels[2]![costModels[2]!.length - 1] = lastV3Parameter + 1;
+  return costModels;
 }
 
 describe("MeshTxBuilder transactions", () => {
@@ -394,7 +437,7 @@ describe("MeshTxBuilder transactions", () => {
 
   it("Build tx to withdraw from script stake should succeed", async () => {
     const { wallet, address, provider, params, utxos } =
-      await createTestSetup(true);
+      await createTestSetup({ includeCollateral: true });
     const collateralHash = "1".repeat(64);
     const rewardAddress = serializeRewardAddress(alwaysSucceedHash, true);
     const registrationUtxos = utxos.filter(
@@ -522,7 +565,7 @@ describe("MeshTxBuilder transactions", () => {
 
   it("Drep vote", async () => {
     const { wallet, address, provider, params, utxos } =
-      await createTestSetup(false, "120000000000");
+      await createTestSetup({ initialLovelace: "120000000000" });
     const keyHash = resolvePaymentKeyHash(address);
     const rewardAddress = serializeRewardAddress(keyHash);
     const drepId = Cardano.DRepID.cip129FromCredential({
@@ -585,7 +628,10 @@ describe("MeshTxBuilder transactions", () => {
 
   it("Script drep vote", async () => {
     const { wallet, address, provider, params, utxos } =
-      await createTestSetup(true, "120000000000");
+      await createTestSetup({
+        includeCollateral: true,
+        initialLovelace: "120000000000",
+      });
     const collateralHash = "1".repeat(64);
     const keyHash = resolvePaymentKeyHash(address);
     const rewardAddress = serializeRewardAddress(keyHash);
@@ -678,7 +724,7 @@ describe("MeshTxBuilder transactions", () => {
 
   it("CC vote", async () => {
     const { wallet, address, provider, params, utxos } =
-      await createTestSetup(false, "120000000000");
+      await createTestSetup({ initialLovelace: "120000000000" });
     const hotKeyHash = resolvePaymentKeyHash(address);
     const rewardAddress = serializeRewardAddress(hotKeyHash);
     const anchor = {
@@ -731,52 +777,62 @@ describe("MeshTxBuilder transactions", () => {
     expect(voteTxHash).toHaveLength(64);
   });
 
-  it("Custom cost models", () => {
-    let mesh = new MeshTxBuilder();
+  it("Custom cost models", async () => {
+    const costModels = await createCustomCostModels();
+    const { wallet, address, utxos, provider, params } =
+      await createTestSetup({ includeCollateral: true, costModels });
+    const collateralHash = "1".repeat(64);
+    const collateral = utxos.find(
+      (utxo) => utxo.input.txHash === collateralHash,
+    )!;
+    const spendingUtxos = utxos.filter(
+      (utxo) => utxo.input.txHash !== collateralHash,
+    );
+    const scriptAddress = resolvePlutusScriptAddress(
+      { code: alwaysSucceedCbor, version: "V3" },
+      0,
+    );
+    const newTxBuilder = () =>
+      new MeshTxBuilder({
+        fetcher: provider,
+        submitter: provider,
+        evaluator: provider,
+        params,
+      });
 
-    let txHex = mesh
+    const parentTx = await newTxBuilder()
+      .txOut(scriptAddress, [{ unit: "lovelace", quantity: "50000000" }])
+      .txOutInlineDatumValue(mConStr0([]))
+      .changeAddress(address)
+      .selectUtxosFrom(spendingUtxos)
+      .complete();
+    await provider.submitTx(await wallet.signTx(parentTx));
+
+    const [scriptUtxo] = await provider.fetchAddressUTxOs(scriptAddress);
+    const txHex = await newTxBuilder()
       .spendingPlutusScriptV3()
       .txIn(
-        "fc1c806abc9981f4bee2ce259f61578c3341012f3d04f22e82e7e40c7e7e3c3c",
-        0,
-        [
-          {
-            unit: "lovelace",
-            quantity: "9692479606",
-          },
-        ],
-        resolvePlutusScriptAddress(
-          {
-            code: "58365834010100323232322533300232323232324a260106012004600e002600e004600a00260066ea8004526136565734aae795d0aba201",
-            version: "V3",
-          },
-          0,
-        ),
+        scriptUtxo!.input.txHash,
+        scriptUtxo!.input.outputIndex,
+        scriptUtxo!.output.amount,
+        scriptAddress,
       )
-      .txInScript(
-        "58365834010100323232322533300232323232324a260106012004600e002600e004600a00260066ea8004526136565734aae795d0aba201",
-      )
-      .txInDatumValue(mConStr0([]))
-      .txInRedeemerValue(mConStr0([]), "Mesh", { mem: 100000, steps: 1000000 })
-      .setNetwork([[1], [1], [1]])
-      .changeAddress(
-        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
-      )
+      .txInInlineDatumPresent()
+      .txInRedeemerValue(mConStr0([]))
+      .txInScript(alwaysSucceedCbor)
+      .changeAddress(address)
+      .selectUtxosFrom(spendingUtxos)
       .txInCollateral(
-        "3fbdf2b0b4213855dd9b87f7c94a50cf352ba6edfdded85ecb22cf9ceb75f814",
-        7,
-        [
-          {
-            unit: "lovelace",
-            quantity: "10000000",
-          },
-        ],
-        "addr_test1vpw22xesfv0hnkfw4k5vtrz386tfgkxu6f7wfadug7prl7s6gt89x",
+        collateral.input.txHash,
+        collateral.input.outputIndex,
+        collateral.output.amount,
+        address,
       )
-      .completeSync();
+      .setCostModels(costModels)
+      .complete();
+    const txHash = await provider.submitTx(await wallet.signTx(txHex));
 
-    console.log(txHex);
-    expect(txHex !== "").toBeTruthy();
+    expect(txHash).toHaveLength(64);
   });
 
   it("balance test", () => {
