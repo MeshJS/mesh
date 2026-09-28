@@ -4,6 +4,7 @@ import type { RedeemerBudget } from "scalus";
 
 import {
   Action,
+  CachedFetcher,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
@@ -59,7 +60,8 @@ export class OfflineEvaluatorScalus implements IEvaluator {
     customCostModels?: number[][],
     public readonly protocolMajorVersion = 11,
   ) {
-    this.fetcher = fetcher;
+    // Outputs never change once created, so they are fetched once and reused across evaluations
+    this.fetcher = CachedFetcher.wrap(fetcher);
     this.network = network;
     this.slotConfig = slotConfig ?? {
       slotLength: SLOT_CONFIG_NETWORK[network].slotLength,
@@ -101,31 +103,20 @@ export class OfflineEvaluatorScalus implements IEvaluator {
     const inputsToResolve = getTransactionInputs(tx).filter((input) => {
       return !foundUtxos.has(`${input.txHash}:${input.outputIndex}`);
     });
-    const queriesNeeded: Set<string> = new Set<string>();
-    for (const input of inputsToResolve) {
-      queriesNeeded.add(input.txHash);
-    }
-    const fetchedUtxos: Map<string, UTxO[]> = new Map<string, UTxO[]>();
-    for (const txHash of queriesNeeded) {
-      const utxos = await this.fetcher.fetchUTxOs(txHash);
-      fetchedUtxos.set(txHash, utxos);
-    }
-
-    for (const input of inputsToResolve) {
-      const utxos = fetchedUtxos.get(input.txHash);
-      if (!utxos) {
-        throw new Error(
-          `Unable to fetch UTxOs for transaction hash: ${input.txHash}`,
-        );
-      }
-      const utxo = utxos.find((u) => u.input.outputIndex === input.outputIndex);
+    const resolved = await Promise.all(
+      inputsToResolve.map((input) =>
+        this.fetcher.fetchUTxOs(input.txHash, input.outputIndex),
+      ),
+    );
+    inputsToResolve.forEach((input, i) => {
+      const utxo = resolved[i]![0];
       if (!utxo) {
         throw new Error(
           `UTxO not found for input: ${input.txHash}:${input.outputIndex}`,
         );
       }
       foundUtxos.set(`${input.txHash}:${input.outputIndex}`, utxo);
-    }
+    });
 
     const cborWriter = new CborWriter();
     cborWriter.writeStartMap(foundUtxos.size);

@@ -118,8 +118,21 @@ describe("Offline Evaluator", () => {
       },
     };
     fetcher.addUTxOs([utxo_1, utxo_2, utxo_3, utxo_4, utxo_5, utxo_6, utxo_7]);
+    const fetchUTxOs = jest.spyOn(fetcher, "fetchUTxOs");
 
     const res = await evaluator.evaluateTx(txHex, [], []);
+    // Evaluating again, as the tx builder does per coin selection round, fetches nothing new
+    expect(await evaluator.evaluateTx(txHex, [], [])).toStrictEqual(res);
+    const fetchedTxHashes = fetchUTxOs.mock.calls.map(([txHash]) => txHash);
+    expect(fetchedTxHashes.sort()).toStrictEqual(
+      Array.from(
+        new Set(
+          [utxo_1, utxo_2, utxo_3, utxo_4, utxo_5, utxo_6, utxo_7].map(
+            (utxo) => utxo.input.txHash,
+          ),
+        ),
+      ).sort(),
+    );
     expect(res).toStrictEqual([
       {
         index: 0,
