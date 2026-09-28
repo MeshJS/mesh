@@ -805,7 +805,7 @@ describe("MeshTxBuilder transactions", () => {
       });
 
     const parentTx = await newTxBuilder()
-      .txOut(scriptAddress, [{ unit: "lovelace", quantity: "50000000" }])
+      .txOut(scriptAddress, [{ unit: "lovelace", quantity: "5000000" }])
       .txOutInlineDatumValue(mConStr0([]))
       .changeAddress(address)
       .selectUtxosFrom(spendingUtxos)
@@ -1350,3 +1350,4 @@ describe("MeshTxBuilder transactions", () => {
     ).toBeTruthy();
   });
 });
+
