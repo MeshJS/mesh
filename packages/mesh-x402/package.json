@@ -1,0 +1,63 @@
+{
+  "name": "@meshsdk/x402",
+  "version": "1.9.1",
+  "description": "x402 payments (Cardano exact scheme) - https://meshjs.dev/apis/x402",
+  "main": "./dist/index.cjs",
+  "browser": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsup src/index.ts --format esm,cjs --dts",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist",
+    "test": "jest",
+    "test:integration": "jest --config jest.integration.config.ts"
+  },
+  "devDependencies": {
+    "@meshsdk/configs": "*",
+    "@meshsdk/provider": "^1.9.0-beta.105",
+    "@types/node": "^20.11.0",
+    "dotenv": "^16.4.5",
+    "eslint": "^8.57.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@harmoniclabs/cbor": "1.6.0",
+    "@harmoniclabs/plutus-data": "1.2.6",
+    "@meshsdk/common": "1.9.1",
+    "@meshsdk/core-cst": "1.9.1",
+    "@meshsdk/transaction": "1.9.1",
+    "@meshsdk/wallet": "1.9.1",
+    "@noble/hashes": "^1.5.0",
+    "hono": "^4.6.0"
+  },
+  "prettier": "@meshsdk/configs/prettier",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "cardano",
+    "ada",
+    "web3",
+    "blockchain",
+    "sdk",
+    "x402",
+    "payments"
+  ]
+}

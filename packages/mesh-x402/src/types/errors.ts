@@ -1,0 +1,46 @@
+export type X402ErrorCode =
+  // core verification rules (1-8)
+  | "REQUIREMENTS_MISMATCH"
+  | "INVALID_NETWORK"
+  | "PAYTO_NOT_FOUND"
+  | "INSUFFICIENT_AMOUNT"
+  | "ASSET_MISMATCH"
+  | "NONCE_NOT_UNSPENT"
+  | "VALUE_NOT_CONSERVED"
+  | "FEE_TOO_LOW"
+  | "TTL_EXPIRED"
+  | "TTL_TOO_FAR"
+  | "BELOW_MIN_UTXO"
+  // settlement
+  | "SETTLEMENT_PENDING"
+  | "EXPIRED"
+  // masumi
+  | "MASUMI_UNKNOWN_FIELD"
+  | "MASUMI_INVALID_PAYMENT_TYPE"
+  | "MASUMI_COMMITMENT_DIGEST_MISMATCH"
+  | "MASUMI_TERMS_DIGEST_MISMATCH"
+  | "MASUMI_INVALID_COSE_SIGNATURE"
+  | "MASUMI_ESCROW_ADDRESS_MISMATCH"
+  | "MASUMI_INVALID_OUTPUT_SHAPE"
+  | "MASUMI_NONCE_NOT_BUYER_CREDENTIAL"
+  | "MASUMI_INVALID_DEADLINE_ORDERING"
+  | "MASUMI_TTL_AFTER_PAY_BY_TIME"
+  | "MASUMI_INVALID_LOCKED_LOVELACE"
+  | "MASUMI_INVALID_COLLATERAL_RETURN"
+  | "MASUMI_ASSET_SET_MISMATCH"
+  // script
+  | "SCRIPT_ADDRESS_MISMATCH"
+  | "SCRIPT_DATUM_NOT_INLINE"
+  // client-side
+  | "INSUFFICIENT_UTXOS"
+  | "NO_ACCEPTABLE_REQUIREMENT";
+
+export class X402Error extends Error {
+  readonly code: X402ErrorCode;
+
+  constructor(code: X402ErrorCode, message?: string) {
+    super(message ?? code);
+    this.name = "X402Error";
+    this.code = code;
+  }
+}
