@@ -583,72 +583,97 @@ describe("MeshTxBuilder transactions", () => {
     expect(voteTxHash).toHaveLength(64);
   });
 
-  it("Script drep vote", () => {
-    let mesh = new MeshTxBuilder();
+  it("Script drep vote", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup(true, "120000000000");
+    const collateralHash = "1".repeat(64);
+    const keyHash = resolvePaymentKeyHash(address);
+    const rewardAddress = serializeRewardAddress(keyHash);
+    const drepId = resolveScriptHashDRepId(alwaysSucceedHash);
+    const anchor = {
+      anchorUrl: "https://path-to.jsonld",
+      anchorDataHash:
+        "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+    };
+    const newTxBuilder = () =>
+      new MeshTxBuilder({
+        fetcher: provider,
+        submitter: provider,
+        evaluator: provider,
+        params,
+      });
+    const spendableUtxos = (await provider.fetchAddressUTxOs(address)).filter(
+      (utxo) => utxo.input.txHash !== collateralHash,
+    );
 
-    let txHex = mesh
-      .changeAddress(
-        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
-      )
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [
-          {
-            unit: "lovelace",
-            quantity: "9891607895",
-          },
-        ],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .txInCollateral(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [
-          {
-            unit: "lovelace",
-            quantity: "9891607895",
-          },
-        ],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .votePlutusScriptV3()
-      .vote(
-        {
-          type: "DRep",
-          drepId: resolveScriptHashDRepId(
-            resolveScriptHash(
-              applyCborEncoding(
-                "5834010100323232322533300232323232324a260106012004600e002600e004600a00260066ea8004526136565734aae795d0aba201",
-              ),
-              "V3",
-            ),
-          ),
-        },
-        {
-          txHash:
-            "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-          txIndex: 3,
-        },
-        {
-          voteKind: "Yes",
-          anchor: {
-            anchorUrl: "https://path-to.jsonld",
-            anchorDataHash:
-              "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
-          },
-        },
-      )
-      .voteScript(
-        applyCborEncoding(
-          "5834010100323232322533300232323232324a260106012004600e002600e004600a00260066ea8004526136565734aae795d0aba201",
+    const stakeRegistrationTx = await newTxBuilder()
+      .registerStakeCertificate(rewardAddress)
+      .changeAddress(address)
+      .selectUtxosFrom(spendableUtxos)
+      .complete();
+    await provider.submitTx(await wallet.signTx(stakeRegistrationTx));
+
+    const drepRegistrationTx = await newTxBuilder()
+      .drepRegistrationCertificate(drepId, anchor)
+      .certificateScript(alwaysSucceedCbor, "V3")
+      .certificateRedeemerValue("")
+      .changeAddress(address)
+      .selectUtxosFrom(
+        (await provider.fetchAddressUTxOs(address)).filter(
+          (utxo) => utxo.input.txHash !== collateralHash,
         ),
       )
-      .voteRedeemerValue("")
-      .completeSync();
+      .txInCollateral(
+        collateralHash,
+        0,
+        [{ unit: "lovelace", quantity: "5000000" }],
+        address,
+      )
+      .complete();
+    await provider.submitTx(await wallet.signTx(drepRegistrationTx));
 
-    console.log(txHex);
-    expect(txHex !== "").toBeTruthy();
+    const proposalTx = await newTxBuilder()
+      .proposal(
+        { kind: "InfoAction", action: { type: "InfoAction" } },
+        anchor,
+        rewardAddress,
+      )
+      .changeAddress(address)
+      .selectUtxosFrom(
+        (await provider.fetchAddressUTxOs(address)).filter(
+          (utxo) => utxo.input.txHash !== collateralHash,
+        ),
+      )
+      .complete();
+    const proposalTxHash = await provider.submitTx(
+      await wallet.signTx(proposalTx),
+    );
+
+    const voteTx = await newTxBuilder()
+      .votePlutusScriptV3()
+      .vote(
+        { type: "DRep", drepId },
+        { txHash: proposalTxHash, txIndex: 0 },
+        { voteKind: "Yes", anchor },
+      )
+      .voteScript(alwaysSucceedCbor)
+      .voteRedeemerValue("")
+      .changeAddress(address)
+      .selectUtxosFrom(
+        (await provider.fetchAddressUTxOs(address)).filter(
+          (utxo) => utxo.input.txHash !== collateralHash,
+        ),
+      )
+      .txInCollateral(
+        collateralHash,
+        0,
+        [{ unit: "lovelace", quantity: "5000000" }],
+        address,
+      )
+      .complete();
+    const voteTxHash = await provider.submitTx(await wallet.signTx(voteTx));
+
+    expect(voteTxHash).toHaveLength(64);
   });
 
   it("CC vote", () => {
