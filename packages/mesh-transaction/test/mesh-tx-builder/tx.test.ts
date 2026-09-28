@@ -676,50 +676,59 @@ describe("MeshTxBuilder transactions", () => {
     expect(voteTxHash).toHaveLength(64);
   });
 
-  it("CC vote", () => {
-    let mesh = new MeshTxBuilder();
+  it("CC vote", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup(false, "120000000000");
+    const hotKeyHash = resolvePaymentKeyHash(address);
+    const rewardAddress = serializeRewardAddress(hotKeyHash);
+    const anchor = {
+      anchorUrl: "https://path-to.jsonld",
+      anchorDataHash:
+        "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+    };
+    const newTxBuilder = () =>
+      new MeshTxBuilder({
+        fetcher: provider,
+        submitter: provider,
+        evaluator: provider,
+        params,
+      });
 
-    let txHex = mesh
-      .changeAddress(
-        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
+    const stakeRegistrationTx = await newTxBuilder()
+      .registerStakeCertificate(rewardAddress)
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
+    await provider.submitTx(await wallet.signTx(stakeRegistrationTx));
+
+    const proposalTx = await newTxBuilder()
+      .proposal(
+        { kind: "InfoAction", action: { type: "InfoAction" } },
+        anchor,
+        rewardAddress,
       )
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [
-          {
-            unit: "lovelace",
-            quantity: "9891607895",
-          },
-        ],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
+      .changeAddress(address)
+      .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
+      .complete();
+    const proposalTxHash = await provider.submitTx(
+      await wallet.signTx(proposalTx),
+    );
+
+    const voteTx = await newTxBuilder()
       .vote(
         {
           type: "ConstitutionalCommittee",
-          hotCred: {
-            type: "KeyHash",
-            keyHash: "e3a4c41d67592a1b8d87c62e5c5d73f7e8db836171945412d13f40f8",
-          },
+          hotCred: { type: "KeyHash", keyHash: hotKeyHash },
         },
-        {
-          txHash:
-            "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-          txIndex: 3,
-        },
-        {
-          voteKind: "Yes",
-          anchor: {
-            anchorUrl: "https://path-to.jsonld",
-            anchorDataHash:
-              "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
-          },
-        },
+        { txHash: proposalTxHash, txIndex: 0 },
+        { voteKind: "Yes", anchor },
       )
-      .completeSync();
+      .changeAddress(address)
+      .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
+      .complete();
+    const voteTxHash = await provider.submitTx(await wallet.signTx(voteTx));
 
-    console.log(txHex);
-    expect(txHex !== "").toBeTruthy();
+    expect(voteTxHash).toHaveLength(64);
   });
 
   it("Custom cost models", () => {
