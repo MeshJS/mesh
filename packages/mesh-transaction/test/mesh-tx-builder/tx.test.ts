@@ -300,68 +300,76 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHash).toHaveLength(64);
   });
 
-  it("Build tx to deregister script DRep should succeed", () => {
-    let mesh = new MeshTxBuilder();
-    let script: NativeScript = {
+  it("Build tx to deregister script DRep should succeed", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
+    const script: NativeScript = {
       type: "all",
       scripts: [
         {
           type: "sig",
-          keyHash: "61b11c0a34ab172285f06610bd299fd833a429235297bb1020804199",
+          keyHash: resolvePaymentKeyHash(address),
         },
       ],
     };
+    const drepId = resolveScriptHashDRepId(resolveNativeScriptHash(script));
 
-    let drepId = resolveScriptHashDRepId(resolveNativeScriptHash(script));
+    const registrationTx = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .drepRegistrationCertificate(drepId, {
+        anchorUrl:
+          "https://raw.githubusercontent.com/HinsonSIDAN/cardano-drep/main/HinsonSIDAN.jsonld",
+        anchorDataHash:
+          "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+      })
+      .certificateScript(resolveNativeScriptHex(script))
+      .complete();
+    await provider.submitTx(await wallet.signTx(registrationTx));
 
-    let txHex = mesh
-      .changeAddress(
-        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
-      )
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [
-          {
-            unit: "lovelace",
-            quantity: "9891607895",
-          },
-        ],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
+    const updatedUtxos = await provider.fetchAddressUTxOs(address);
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .changeAddress(address)
+      .selectUtxosFrom(updatedUtxos)
       .drepDeregistrationCertificate(drepId, "500000000")
       .certificateScript(resolveNativeScriptHex(script))
-      .completeSync();
+      .complete();
+    const signedTx = await wallet.signTx(txHex);
+    const txHash = await provider.submitTx(signedTx);
 
-    console.log(txHex);
-    expect(txHex !== "").toBeTruthy();
+    expect(txHash).toHaveLength(64);
   });
 
-  it("Build tx to register script stake should succeed", () => {
-    let mesh = new MeshTxBuilder();
+  it("Build tx to register script stake should succeed", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
 
-    let txHex = mesh
-      .txIn(
-        "40d48affc2e9648c4e40b2dad65b24185357c07d140045d98b28bb60714e9d4a",
-        0,
-        [
-          {
-            unit: "lovelace",
-            quantity: "554843556",
-          },
-        ],
-        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
-      )
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
       .registerStakeCertificate(
         "stake_test17ryje2rawy9d7m2fwn4nrxgch8st3anccre32g885gu232snvhvu7",
       )
-      .changeAddress(
-        "addr_test1qr3a9rrclgf9rx90lmll2qnfzfwgrw35ukvgjrk36pmlzu0jemqwylc286744g0tnqkrvu0dkl8r48k0upkfmg7mncpqf0672w",
-      )
-      .setNetwork("preprod")
-      .completeSync();
+      .complete();
+    const signedTx = await wallet.signTx(txHex);
+    const txHash = await provider.submitTx(signedTx);
 
-    console.log(txHex);
+    expect(txHash).toHaveLength(64);
   });
 
   it("Build tx to withdraw from script stake should succeed", () => {
