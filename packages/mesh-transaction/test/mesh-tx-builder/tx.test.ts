@@ -17,6 +17,7 @@ import {
 import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
   Cardano,
+  Hash28ByteBase16,
   resolvePlutusScriptAddress,
   Serialization,
 } from "@meshsdk/core-cst";
@@ -475,35 +476,45 @@ describe("MeshTxBuilder transactions", () => {
     expect(txHash).toHaveLength(64);
   });
 
-  it("Build tx to update DRep should succeed", () => {
-    let mesh = new MeshTxBuilder();
+  it("Build tx to update DRep should succeed", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
+    const drepId = Cardano.DRepID.cip129FromCredential({
+      type: Cardano.CredentialType.KeyHash,
+      hash: Hash28ByteBase16(resolvePaymentKeyHash(address)),
+    }).toString();
+    const anchor = {
+      anchorUrl: "https://path-to.jsonld",
+      anchorDataHash:
+        "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+    };
 
-    let txHex = mesh
-      .changeAddress(
-        "addr_test1qpsmz8q2xj43wg597pnpp0ffnlvr8fpfydff0wcsyzqyrxguk5v6wzdvfjyy8q5ysrh8wdxg9h0u4ncse4cxhd7qhqjqk8pse6",
-      )
-      .txIn(
-        "2cb57168ee66b68bd04a0d595060b546edf30c04ae1031b883c9ac797967dd85",
-        3,
-        [
-          {
-            unit: "lovelace",
-            quantity: "9891607895",
-          },
-        ],
-        "addr_test1vru4e2un2tq50q4rv6qzk7t8w34gjdtw3y2uzuqxzj0ldrqqactxh",
-      )
-      .drepUpdateCertificate(
-        "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
-        {
-          anchorUrl: "https://path-to.jsonld",
-          anchorDataHash:
-            "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
-        },
-      )
-      .completeSync();
-    console.log(txHex);
-    expect(txHex !== "").toBeTruthy();
+    const registrationTx = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .drepRegistrationCertificate(drepId, anchor)
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .complete();
+    await provider.submitTx(await wallet.signTx(registrationTx));
+
+    const updateUtxos = await provider.fetchAddressUTxOs(address);
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .drepUpdateCertificate(drepId, anchor)
+      .changeAddress(address)
+      .selectUtxosFrom(updateUtxos)
+      .complete();
+    const txHash = await provider.submitTx(await wallet.signTx(txHex));
+
+    expect(txHash).toHaveLength(64);
   });
 
   it("Drep vote", () => {
