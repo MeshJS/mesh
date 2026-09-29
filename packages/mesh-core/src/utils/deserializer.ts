@@ -2,6 +2,7 @@ import { DeserializedAddress } from "@meshsdk/common";
 import { PoolId } from "@meshsdk/core-cst";
 
 import { core } from "../core";
+import { PoolId } from "@meshsdk/core-cst";
 
 /**
  * Deserialize bech32 address into payment and staking parts, with visibility of whether they are script or key hash
