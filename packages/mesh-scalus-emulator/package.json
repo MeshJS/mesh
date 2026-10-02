@@ -30,7 +30,7 @@
   "dependencies": {
     "@meshsdk/common": "1.9.1",
     "@meshsdk/core-cst": "1.9.1",
-    "scalus": "^1.2.1"
+    "scalus": "^1.3.0"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
