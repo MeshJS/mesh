@@ -10,6 +10,8 @@ import {
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
   IEvaluator,
+  ITxBalancer,
+  txInToUtxo,
   IFetcher,
   IMeshTxSerializer,
   ISubmitter,
@@ -53,6 +55,7 @@ export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
+  balancer?: ITxBalancer;
   serializer?: IMeshTxSerializer;
   selector?: IInputSelector;
   isHydra?: boolean;
@@ -66,6 +69,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
+  balancer?: ITxBalancer;
   txHex: string = "";
   verbose: boolean;
   protected queriedTxHashes: Set<string> = new Set();
@@ -78,6 +82,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     fetcher,
     submitter,
     evaluator,
+    balancer,
     params,
     isHydra = false,
     verbose = false,
@@ -86,6 +91,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
     if (evaluator) this.evaluator = evaluator;
+    if (balancer) this.balancer = balancer;
     if (params) this.protocolParams(params);
     if (serializer) {
       this.serializer = serializer;
@@ -244,8 +250,26 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this._protocolParams,
     );
 
-    this.txHex = txHex;
-    return txHex;
+    // Coin selection has already appended the change output to the body, so it is the last one. A
+    // balancer settles the fee, the execution units and that output's lovelace together; without
+    // one the units were computed before the change output existed.
+    const balanced = this.balancer
+      ? await this.balancer.balanceTx(
+          txHex,
+          // Every input the transaction names has to resolve, not only the ones a script reads:
+          // `inputsForEvaluation` is empty when nothing evaluates.
+          [
+            ...this.meshTxBuilderBody.inputs.map((i) => txInToUtxo(i.txIn)),
+            ...this.meshTxBuilderBody.collaterals.map((c) => txInToUtxo(c.txIn)),
+            ...Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+          ],
+          this._protocolParams,
+          this.meshTxBuilderBody.outputs.length - 1,
+        )
+      : txHex;
+
+    this.txHex = balanced;
+    return balanced;
   };
 
   selectUtxos =
