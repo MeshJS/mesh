@@ -6,6 +6,7 @@ import {
   CIP68_222,
   Data,
   DEFAULT_REDEEMER_BUDGET,
+  hashPlutusScript,
   hexToString,
   IInitiator,
   metadataToCip68,
@@ -26,7 +27,6 @@ import {
   Cardano,
   CardanoSDKUtil,
   deserializeNativeScript,
-  deserializePlutusScript,
   deserializeTx,
   fromScriptRef,
   Serialization,
@@ -397,12 +397,7 @@ export class Transaction {
           );
         if ("code" in forgeScript) {
           // Burn plutus script assets with provided script
-          policyId = deserializePlutusScript(
-            forgeScript.code,
-            forgeScript.version,
-          )
-            .hash()
-            .toString();
+          policyId = hashPlutusScript(forgeScript.code, forgeScript.version);
 
           this.isCollateralNeeded = true;
           this.mintPlutusScript(forgeScript)
@@ -428,9 +423,7 @@ export class Transaction {
           }
 
           if ("code" in script) {
-            policyId = deserializePlutusScript(script.code, script.version)
-              .hash()
-              .toString();
+            policyId = hashPlutusScript(script.code, script.version);
 
             this.isCollateralNeeded = true;
             this.mintPlutusScript(script)
