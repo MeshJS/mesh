@@ -619,6 +619,7 @@ class CardanoSDKSerializerCore {
       totalCollateral,
       collateralReturnAddress,
       changeAddress,
+      donation,
     } = txBuilderBody;
 
     const uniqueRefInputs = this.removeBodyInputRefInputOverlap(
@@ -688,6 +689,13 @@ class CardanoSDKSerializerCore {
           "Error serializing total collateral and collateral return",
           e,
         );
+      }
+    }
+    if (donation) {
+      try {
+        this.txBody.setDonation(BigInt(donation));
+      } catch (e) {
+        throwErrorWithOrigin("Error serializing donation", e);
       }
     }
     try {
