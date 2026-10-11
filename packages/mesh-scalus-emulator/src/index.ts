@@ -1,12 +1,8 @@
-// Use `import type` for scalus types, `require()` at runtime since scalus is CJS
-import { bech32 } from "@scure/base";
-import cbor from "cbor";
-import { Emulator, Scalus, SlotConfig, SubmitResult } from "scalus";
+import type { CardanoInfo, Emulator, RedeemerBudget, Utxo } from "scalus";
 
 import type {
   AccountInfo,
   Action,
-  Asset,
   AssetMetadata,
   BlockInfo,
   GovernanceProposalInfo,
@@ -14,116 +10,211 @@ import type {
   IFetcher,
   IFetcherOptions,
   ISubmitter,
-  SlotConfig as MeshSlotConfig,
+  Asset as MeshAsset,
+  UTxO as MeshUTxO,
   Protocol,
+  RedeemerTagType,
   TransactionInfo,
-  UTxO,
 } from "@meshsdk/common";
+import { castProtocol } from "@meshsdk/common";
 import {
-  DEFAULT_PROTOCOL_PARAMETERS,
-  DEFAULT_V1_COST_MODEL_LIST,
-  DEFAULT_V2_COST_MODEL_LIST,
-  DEFAULT_V3_COST_MODEL_LIST,
-} from "@meshsdk/common";
-import { utxosToCborMap } from "@meshsdk/core-cst";
+  CborReader,
+  CborWriter,
+  getTransactionOutputs,
+  resolveDataHash,
+} from "@meshsdk/core-cst";
 
-// Scalus is CJS so we use dynamic import at construction time
-let ScalusLib: typeof import("scalus") | undefined;
+function hexToBytes(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(hex))
+    throw new Error("Invalid hexadecimal CBOR");
+  return Uint8Array.from(hex.match(/../g) ?? [], (byte) => parseInt(byte, 16));
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function toScalusScriptRef(scriptRef: string): Uint8Array {
+  const writer = new CborWriter();
+  writer.writeTag(24);
+  writer.writeByteString(hexToBytes(scriptRef));
+  return writer.encode();
+}
+
+function toMeshScriptRef(scriptRef: Uint8Array): string {
+  const reader = new CborReader(scriptRef);
+  if (Number(reader.readTag()) !== 24)
+    throw new Error("Invalid Scalus reference script: expected CBOR tag 24");
+  return bytesToHex(reader.readByteString());
+}
 
 /**
- * Scalus Emulator provider for MeshJS.
- * Implements IFetcher + ISubmitter + IEvaluator backed by a local Scalus Cardano emulator.
- *
- * Usage:
- * ```ts
- * import { ScalusEmulator } from "@meshsdk/provider";
- * import { Emulator, SlotConfig } from "scalus";
- *
- * const emulator = Emulator.withAddresses([aliceAddr], SlotConfig.preview);
- * const provider = new ScalusEmulator(emulator, SlotConfig.preview);
- * const txBuilder = new MeshTxBuilder({ fetcher: provider, submitter: provider, evaluator: provider });
- * ```
+ * `"Spend"` and friends, as mesh spells them. Keying this on Scalus's own union makes a tag
+ * added upstream a compile error here rather than a runtime throw.
  */
-export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
-  public emulator: Emulator;
-  private slotConfig: SlotConfig;
-  private protocolParams: Protocol;
-  private costModels: number[][];
+const MESH_TAG: Record<RedeemerBudget["tag"], RedeemerTagType> = {
+  Spend: "SPEND",
+  Mint: "MINT",
+  Cert: "CERT",
+  Reward: "REWARD",
+  Voting: "VOTE",
+  Proposing: "PROPOSE",
+};
 
-  constructor(
-    initialUtxos: UTxO[],
-    slotConfig: MeshSlotConfig,
-    options?: {
-      protocolParams?: Protocol;
-      costModels?: {
-        PlutusV1?: number[];
-        PlutusV2?: number[];
-        PlutusV3?: number[];
-      };
+function toMeshUtxo(utxo: Utxo): MeshUTxO {
+  const amount: MeshAsset[] = [
+    { unit: "lovelace", quantity: utxo.value.coin.toString() },
+    ...utxo.value.assets.map((a) => ({
+      unit: a.unit,
+      quantity: a.quantity.toString(),
+    })),
+  ];
+  return {
+    input: { txHash: utxo.txHash, outputIndex: utxo.outputIndex },
+    output: {
+      address: utxo.address,
+      amount,
+      dataHash: utxo.datumHash,
+      plutusData: utxo.inlineDatum && bytesToHex(utxo.inlineDatum),
+      scriptRef: utxo.scriptRef && toMeshScriptRef(utxo.scriptRef),
     },
-  ) {
-    const scalusSlotConfig = new SlotConfig(
-      slotConfig.zeroTime,
-      slotConfig.zeroSlot,
-      slotConfig.slotLength,
+  };
+}
+
+function fromMeshUtxo(utxo: MeshUTxO, lib: typeof import("scalus")): Utxo {
+  const { Asset, Utxo, Value } = lib;
+  const lovelace = utxo.output.amount.find((a) => a.unit === "lovelace");
+  const assets = utxo.output.amount
+    .filter((a) => a.unit !== "lovelace")
+    .map(
+      (a) =>
+        new Asset(a.unit.slice(0, 56), a.unit.slice(56), BigInt(a.quantity)),
     );
-    this.emulator = new Emulator(
-      Buffer.from(utxosToCborMap(initialUtxos), "hex"),
-      scalusSlotConfig,
+  const value = new Value(BigInt(lovelace?.quantity ?? "0"), assets);
+  const { dataHash, plutusData, scriptRef } = utxo.output;
+  if (
+    dataHash &&
+    plutusData &&
+    dataHash !== resolveDataHash(plutusData, "CBOR")
+  )
+    throw new Error("a UTxO's datum hash does not match its inline datum");
+  const base = new Utxo(
+    utxo.input.txHash,
+    utxo.input.outputIndex,
+    utxo.output.address,
+    value,
+  );
+  // Neither the datum nor the reference script may be dropped here. An inline datum is how a
+  // script UTxO carries its state, so an input that reaches `evaluateTx` without it builds a
+  // script context that is missing it - a wrong budget, or a phase-2 failure that reads like a
+  // validator bug.
+  const withDatum = plutusData
+    ? base.withInlineDatum(hexToBytes(plutusData))
+    : dataHash
+      ? base.withDatumHash(dataHash)
+      : base;
+  return scriptRef
+    ? withDatum.withScriptRef(toScalusScriptRef(scriptRef))
+    : withDatum;
+}
+
+export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
+  constructor(readonly emulator: Emulator) {}
+
+  /** Create a provider without synchronously loading the ESM-only Scalus package. */
+  static async create(
+    initialUtxos: MeshUTxO[] = [],
+    info?: CardanoInfo,
+  ): Promise<ScalusEmulator> {
+    const lib = await import("scalus");
+    const emulator = lib.Emulator.create(info ?? lib.CardanoInfo.preview());
+    for (const utxo of initialUtxos) emulator.addUtxo(fromMeshUtxo(utxo, lib));
+    return new ScalusEmulator(emulator);
+  }
+
+  async setSlot(slot: number): Promise<void> {
+    this.emulator.setSlot(slot);
+  }
+
+  async fetchProtocolParameters(epoch = 0): Promise<Protocol> {
+    const p = this.emulator.getProtocolParameters();
+    // `castProtocol` fills in the parameters a transaction build never reads (block sizes,
+    // decentralisation, min pool cost) from mesh's own defaults.
+    return castProtocol({
+      epoch,
+      minFeeA: p.txFeePerByte,
+      minFeeB: p.txFeeFixed,
+      maxTxSize: p.maxTxSize,
+      maxValSize: p.maxValueSize,
+      keyDeposit: p.stakeAddressDeposit.toString(),
+      poolDeposit: p.stakePoolDeposit.toString(),
+      coinsPerUtxoSize: Number(p.utxoCostPerByte),
+      priceMem: p.priceMemory,
+      priceStep: p.priceSteps,
+      maxTxExMem: p.maxTxExecutionMemory.toString(),
+      maxTxExSteps: p.maxTxExecutionSteps.toString(),
+      collateralPercent: p.collateralPercentage,
+      maxCollateralInputs: p.maxCollateralInputs,
+      minFeeRefScriptCostPerByte: p.minFeeRefScriptCostPerByte,
+    });
+  }
+
+  async fetchAddressUTxOs(
+    address: string,
+    asset?: string,
+  ): Promise<MeshUTxO[]> {
+    const filter = asset === undefined ? { address } : { address, unit: asset };
+    return this.emulator.getUtxos(filter).map(toMeshUtxo);
+  }
+
+  async fetchUTxOs(hash: string, index?: number): Promise<MeshUTxO[]> {
+    const utxos = this.emulator.getUtxos({ txHash: hash });
+    const matching =
+      index === undefined
+        ? utxos
+        : utxos.filter((u) => u.outputIndex === index);
+    return matching.map(toMeshUtxo);
+  }
+
+  async submitTx(txHex: string): Promise<string> {
+    const result = this.emulator.submitTx(hexToBytes(txHex));
+    if (!result.isSuccess) {
+      throw new Error(
+        `${result.errorRule}: ${result.error} ${result.logs.join(" ")}`,
+      );
+    }
+    return result.txHash!;
+  }
+
+  async evaluateTx(
+    txHex: string,
+    additionalUtxos: MeshUTxO[] = [],
+    additionalTxs: string[] = [],
+  ): Promise<Omit<Action, "data">[]> {
+    const lib = await import("scalus");
+    const pendingOutputs = additionalTxs.flatMap(getTransactionOutputs);
+    const budgets = this.emulator.evaluateTx(
+      hexToBytes(txHex),
+      [...additionalUtxos, ...pendingOutputs].map((u) => fromMeshUtxo(u, lib)),
     );
-    this.slotConfig = scalusSlotConfig;
-    this.protocolParams =
-      options?.protocolParams ?? DEFAULT_PROTOCOL_PARAMETERS;
-    this.costModels = [
-      options?.costModels?.PlutusV1 ?? DEFAULT_V1_COST_MODEL_LIST,
-      options?.costModels?.PlutusV2 ?? DEFAULT_V2_COST_MODEL_LIST,
-      options?.costModels?.PlutusV3 ?? DEFAULT_V3_COST_MODEL_LIST,
-    ];
-
-    // Eagerly load the scalus module
-    if (!ScalusLib) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      ScalusLib = require("scalus") as typeof import("scalus");
-    }
+    return budgets.map((r) => {
+      const tag = MESH_TAG[r.tag];
+      if (!tag) throw new Error(`Unknown redeemer tag: ${r.tag}`);
+      return {
+        tag,
+        index: r.index,
+        budget: { mem: Number(r.budget.memory), steps: Number(r.budget.steps) },
+      };
+    });
   }
 
-  // ---------------------------------------------------------------------------
-  // IFetcher
-  // ---------------------------------------------------------------------------
-
-  async fetchAddressUTxOs(address: string, asset?: string): Promise<UTxO[]> {
-    const entries = this.emulator.getUtxosForAddress(address);
-    const utxos = entries.map((e) => decodeUtxoEntry(e, address));
-    if (asset) {
-      return utxos.filter((u) => u.output.amount.some((a) => a.unit === asset));
-    }
-    return utxos;
+  async fetchCostModels(_epoch?: number): Promise<number[][]> {
+    const { PlutusV1, PlutusV2, PlutusV3 } =
+      this.emulator.getProtocolParameters().costModels;
+    return [PlutusV1, PlutusV2, PlutusV3];
   }
 
-  async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
-    const allEntries = this.emulator.getAllUtxos();
-    const utxos: UTxO[] = [];
-    for (const entry of allEntries) {
-      const utxo = decodeUtxoEntry(entry);
-      if (utxo.input.txHash === hash) {
-        if (index === undefined || utxo.input.outputIndex === index) {
-          utxos.push(utxo);
-        }
-      }
-    }
-    return utxos;
-  }
-
-  async fetchProtocolParameters(_epoch: number): Promise<Protocol> {
-    return this.protocolParams;
-  }
-
-  async fetchCostModels(_epoch: number): Promise<number[][]> {
-    return this.costModels;
-  }
-
-  // --- Unsupported IFetcher methods (emulator doesn't track this data) ---
-
+  // Explorer/history queries are outside the emulator provider surface.
   async fetchAccountInfo(_address: string): Promise<AccountInfo> {
     throw new Error("fetchAccountInfo not supported by ScalusEmulator");
   }
@@ -152,7 +243,7 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
   async fetchCollectionAssets(
     _policyId: string,
     _cursor?: number | string,
-  ): Promise<{ assets: Asset[]; next?: string | number | null }> {
+  ): Promise<{ assets: MeshAsset[]; next?: string | number | null }> {
     throw new Error("fetchCollectionAssets not supported by ScalusEmulator");
   }
 
@@ -170,212 +261,4 @@ export class ScalusEmulator implements IFetcher, ISubmitter, IEvaluator {
   async get(_url: string): Promise<any> {
     throw new Error("get not supported by ScalusEmulator");
   }
-
-  async setSlot(slot: number): Promise<void> {
-    this.emulator.setSlot(slot);
-  }
-
-  // ---------------------------------------------------------------------------
-  // ISubmitter
-  // ---------------------------------------------------------------------------
-
-  async submitTx(tx: string): Promise<string> {
-    const txBytes = hexToBytes(tx);
-    const result: SubmitResult = this.emulator.submitTx(txBytes);
-    if (!result.isSuccess) {
-      const logs = result.logs?.join("\n") ?? "";
-      throw new Error(
-        `Transaction rejected: ${result.error}${logs ? `\nLogs:\n${logs}` : ""}`,
-      );
-    }
-    return result.txHash!;
-  }
-
-  // ---------------------------------------------------------------------------
-  // IEvaluator
-  // ---------------------------------------------------------------------------
-
-  async evaluateTx(
-    tx: string,
-    additionalUtxos?: UTxO[],
-  ): Promise<Omit<Action, "data">[]> {
-    const txBytes = hexToBytes(tx);
-
-    const utxoMapBytes = this.emulator.getAllUtxos();
-    let utxos: UTxO[] = utxoMapBytes.map((e) => decodeUtxoEntry(e));
-    if (additionalUtxos) {
-      utxos = utxos.concat(additionalUtxos);
-    }
-    const utxoMapCbor = Buffer.from(utxosToCborMap(utxos), "hex");
-    const scalusSlotConfig = new ScalusLib!.SlotConfig(
-      this.slotConfig.slotToTime(0),
-      0,
-      1000,
-    );
-    let redeemers: Scalus.Redeemer[];
-    try {
-      redeemers = ScalusLib!.Scalus.evalPlutusScripts(
-        txBytes,
-        utxoMapCbor,
-        scalusSlotConfig,
-        this.costModels,
-      );
-    } catch (error) {
-      throw error;
-    }
-
-    const tagMap: Record<string, Action["tag"]> = {
-      Spend: "SPEND",
-      Mint: "MINT",
-      Cert: "CERT",
-      Reward: "REWARD",
-      Voting: "VOTE",
-      Proposing: "PROPOSE",
-    };
-
-    return redeemers.map(
-      (r): Omit<Action, "data"> => ({
-        tag: tagMap[r.tag] || "SPEND",
-        index: r.index,
-        budget: {
-          mem: Number(r.budget.memory),
-          steps: Number(r.budget.steps),
-        },
-      }),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// CBOR Decoding Helpers
-// ---------------------------------------------------------------------------
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
-}
-
-function bytesToHex(bytes: Uint8Array | Buffer): string {
-  return Buffer.from(bytes).toString("hex");
-}
-
-/**
- * Convert raw Cardano address bytes to bech32 string.
- * Header byte determines address type and network.
- */
-function addressBytesToBech32(addrBytes: Uint8Array): string {
-  const header = addrBytes[0]!;
-  const networkId = header & 0x0f;
-  const prefix =
-    networkId === 1
-      ? "addr" // mainnet
-      : "addr_test"; // testnet
-
-  // bech32 encode the full address bytes (header + payload)
-  const words = bech32.toWords(addrBytes);
-  return bech32.encode(prefix, words, 1023);
-}
-
-/**
- * Decode a Cardano CBOR value field into Asset[].
- * Value is either: uint (lovelace only) or [uint, multiasset_map]
- */
-function decodeValue(value: unknown): Asset[] {
-  if (typeof value === "number" || typeof value === "bigint") {
-    return [{ unit: "lovelace", quantity: String(value) }];
-  }
-  if (Array.isArray(value)) {
-    const [lovelace, multiAsset] = value;
-    const assets: Asset[] = [{ unit: "lovelace", quantity: String(lovelace) }];
-    if (multiAsset instanceof Map) {
-      for (const [policyId, assetMap] of multiAsset) {
-        const policyHex = bytesToHex(policyId as Uint8Array);
-        if (assetMap instanceof Map) {
-          for (const [assetName, quantity] of assetMap) {
-            const nameHex = bytesToHex(assetName as Uint8Array);
-            assets.push({
-              unit: policyHex + nameHex,
-              quantity: String(quantity),
-            });
-          }
-        }
-      }
-    }
-    return assets;
-  }
-  return [{ unit: "lovelace", quantity: "0" }];
-}
-
-/**
- * Decode a single CBOR-encoded UTxO entry (Map with one key-value pair)
- * from the Scalus emulator into a MeshJS UTxO.
- *
- * @param cborBytes - CBOR encoded Map[TransactionInput, TransactionOutput]
- * @param knownAddress - If provided, skip address decoding (optimization for fetchAddressUTxOs)
- */
-function decodeUtxoEntry(cborBytes: Uint8Array, knownAddress?: string): UTxO {
-  const decoded = cbor.decode(cborBytes) as Map<unknown, unknown>;
-  const entry = Array.from(decoded.entries())[0]!;
-  const [txIn, txOut] = entry;
-
-  // Decode TransactionInput: [hash_bytes, index]
-  const txInArr = txIn as [Uint8Array, number];
-  const txHash = bytesToHex(txInArr[0]);
-  const outputIndex = txInArr[1];
-
-  // Decode TransactionOutput (Babbage era uses Map format)
-  let address: string;
-  let amount: Asset[];
-  let dataHash: string | undefined;
-  let plutusData: string | undefined;
-  let scriptRef: string | undefined;
-
-  if (txOut instanceof Map) {
-    // Babbage-era map format: {0: address, 1: value, ?2: datumOption, ?3: scriptRef}
-    const addrBytes = txOut.get(0) as Uint8Array;
-    address = knownAddress ?? addressBytesToBech32(addrBytes);
-    amount = decodeValue(txOut.get(1));
-
-    const datumOption = txOut.get(2);
-    if (datumOption != null && Array.isArray(datumOption)) {
-      const [tag, datum] = datumOption;
-      if (tag === 0) {
-        // DatumHash
-        dataHash = bytesToHex(datum as Uint8Array);
-      } else if (tag === 1) {
-        // Inline datum — encode back to CBOR hex
-        plutusData = bytesToHex(cbor.encode(datum));
-      }
-    }
-
-    const scriptRefVal = txOut.get(3);
-    if (scriptRefVal != null) {
-      // ScriptRef is CBOR-tagged, encode back to hex
-      scriptRef = bytesToHex(cbor.encode(scriptRefVal));
-    }
-  } else if (Array.isArray(txOut)) {
-    // Shelley-era array format: [address, value, ?datumHash]
-    const addrBytes = txOut[0] as Uint8Array;
-    address = knownAddress ?? addressBytesToBech32(addrBytes);
-    amount = decodeValue(txOut[1]);
-    if (txOut[2]) {
-      dataHash = bytesToHex(txOut[2] as Uint8Array);
-    }
-  } else {
-    throw new Error("Unexpected TransactionOutput format");
-  }
-
-  return {
-    input: { txHash, outputIndex },
-    output: {
-      address: address!,
-      amount,
-      dataHash,
-      plutusData,
-      scriptRef,
-    },
-  };
 }

@@ -8,6 +8,11 @@ import { RedeemerPurpose, Serialization } from "../src";
 import { hashScriptData } from "../src/utils/script-data-hash";
 
 describe("ScriptIntegrityHash", () => {
+  // The expected hashes below are snapshots of this implementation's output, not values taken
+  // from chain. They depend on DEFAULT_V*_COST_MODEL_LIST, so they must be regenerated whenever
+  // the cost models are updated — they last changed with the epoch-638 cost model update.
+  // What IS independently verified is the language-view encoding those cost models flow through:
+  // see "language view encoding matches the CDDL spec vectors" at the bottom of this file.
   beforeAll(() => {
     setInConwayEra(true);
   });
@@ -57,7 +62,7 @@ describe("ScriptIntegrityHash", () => {
     const scriptDataHash = hashScriptData(costModels, redeemers);
     expect(scriptDataHash).toEqual(
       Hash32ByteBase16(
-        "a43e368f595e7f5cc0513d7c3757e2125a039cab3b301c50cf52b2a56c6a6339",
+        "ad7666218da9f433bdc6e72dfea42f14b3b6f5ea7ade261b1e5c5543b1feb280",
       ),
     );
   });
@@ -66,7 +71,7 @@ describe("ScriptIntegrityHash", () => {
     const scriptDataHash = hashScriptData(costModels, redeemers, datums);
     expect(scriptDataHash).toEqual(
       Hash32ByteBase16(
-        "e4003e3d4453734b7ee5a63da479da5a06174da8832537e1f8272a86e86ea2e0",
+        "3230002fca6d6029b0cfd541e548ce83652d6089172f6fea9932b187928014e8",
       ),
     );
   });
@@ -102,7 +107,7 @@ describe("ScriptIntegrityHash", () => {
     const scriptDataHash = hashScriptData(costModels, redeemers, datums);
     expect(scriptDataHash).toEqual(
       Hash32ByteBase16(
-        "6f32d12156681ae2d87bb002b5bbdd89077c0a415b051e3d9c19fac066a058b2",
+        "0a1e15fba0743419dd9bc9b1fc4a549b7879d06fc1b8622ea88bb646fa704eeb",
       ),
     );
   });
@@ -134,7 +139,7 @@ describe("ScriptIntegrityHash", () => {
     );
     expect(scriptDataHash).toEqual(
       Hash32ByteBase16(
-        "78985bcb429aa3ae4a899695d69b59146d99c15b64b09c5c03862c7b2767c6e3",
+        "67753ae489614bc8e71e12cb043d00e86ffe9a859c7711cf56d9f9b1ce95c0d2",
       ),
     );
   });
@@ -168,8 +173,41 @@ describe("ScriptIntegrityHash", () => {
     );
     expect(scriptDataHash).toEqual(
       Hash32ByteBase16(
-        "92dc8e163d91890742728c6edb4b17997b6d63d6f8c13143c41779842140e9d3",
+        "7daf0cb375f2c45806cce6a3f81ac1b93836f9124ea3263b51d3432564f2107d",
       ),
+    );
+  });
+});
+
+/**
+ * Independent check of the language-view encoding — the step the cost models feed into on their
+ * way to the script data hash. Unlike the snapshots above, these vectors are not our own output:
+ * they are quoted verbatim from the Conway CDDL (IntersectMBO/cardano-ledger,
+ * eras/conway/impl/cddl/data/conway.cddl), which documents the encoding of an all-zero cost model
+ * along with PlutusV1's two quirks — the list is indefinite-length and wrapped in a bytestring,
+ * and the language id is encoded twice (as a uint key and again as a bytestring).
+ *
+ * This is what makes updating the snapshots above safe: if the cost models change but these still
+ * pass, only the input data moved, not the encoding.
+ */
+describe("language view encoding matches the CDDL spec vectors", () => {
+  it("PlutusV1: indefinite-length list in a bytestring, id encoded twice", () => {
+    const costModels = new Serialization.Costmdls();
+    costModels.insert(Serialization.CostModel.newPlutusV1(new Array(166).fill(0)));
+
+    // CDDL: "58a89f0000...ff", with the language version encoded as "4100".
+    expect(costModels.languageViewsEncoding()).toEqual(
+      "a1" + "4100" + "58a8" + "9f" + "00".repeat(166) + "ff",
+    );
+  });
+
+  it("PlutusV2: definite-length list, id encoded once", () => {
+    const costModels = new Serialization.Costmdls();
+    costModels.insert(Serialization.CostModel.newPlutusV2(new Array(175).fill(0)));
+
+    // CDDL: "98af0000...", with the language version encoded as "01".
+    expect(costModels.languageViewsEncoding()).toEqual(
+      "a1" + "01" + "98af" + "00".repeat(175),
     );
   });
 });

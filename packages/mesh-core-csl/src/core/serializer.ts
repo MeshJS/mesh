@@ -75,6 +75,11 @@ export class CSLSerializer implements IMeshTxSerializer {
     txBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
   ): string {
+    if (txBody.donation) {
+      throw new Error(
+        "Treasury donation is not supported by the CSL serializer, use CSTSerializer instead",
+      );
+    }
     const txBodyJson = JSONbig.stringify(meshTxBuilderBodyToObj(txBody));
     const params = JSONbig.stringify(protocolParams || this.protocolParams);
 
