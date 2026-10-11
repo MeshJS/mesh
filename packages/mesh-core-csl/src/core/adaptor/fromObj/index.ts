@@ -125,6 +125,10 @@ export const txBuilderBodyFromObj = (objJson: any): MeshTxBuilderBody => {
     txBuilderBody.network = networkFromObj(obj.network);
   }
 
+  if (obj.donation) {
+    txBuilderBody.donation = obj.donation.toString();
+  }
+
   return txBuilderBody;
 };
 

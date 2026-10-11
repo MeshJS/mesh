@@ -45,6 +45,7 @@ export type MeshTxBuilderBody = {
   expectedByronAddressWitnesses: string[];
   totalCollateral?: Quantity;
   collateralReturnAddress?: string;
+  donation?: Quantity;
 };
 
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({

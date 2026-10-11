@@ -119,6 +119,7 @@ describe("OfflineEvaluatorScalus", () => {
     };
     fetcher.addUTxOs([utxo_1, utxo_2, utxo_3, utxo_4, utxo_5, utxo_6, utxo_7]);
 
+    expect(evaluator.protocolMajorVersion).toBe(11);
     const res = await evaluator.evaluateTx(txHex, [], []);
     expect(res).toStrictEqual([
       {
@@ -126,7 +127,13 @@ describe("OfflineEvaluatorScalus", () => {
         tag: "MINT",
         budget: {
           mem: 508703,
-          steps: 164980381,
+          // Scalus 1.2.0 at the default PV11; 0.17.0 returned 164980381.
+          //
+          // This figure does not move with the protocol version: the cost models are supplied
+          // explicitly above and this script uses no version-gated builtin, so PV1 through PV99
+          // all evaluate to the same budget (measured). It pins evaluation, not PV selection -
+          // the assertion that pins the PV default is `protocolMajorVersion` above.
+          steps: 164973765,
         },
       },
     ]);

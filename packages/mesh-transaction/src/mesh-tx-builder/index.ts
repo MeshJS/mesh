@@ -131,7 +131,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     ];
     if (this.fetcher) {
       try {
-        console.log("fetching cost models from fetcher...");
         const costModels = await this.fetcher.fetchCostModels();
         if (Array.isArray(costModels) && costModels.length > 0) {
           this.meshTxBuilderBody.network = costModels;
@@ -257,7 +256,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const utxosForSelection = await this.getUtxosForSelection();
       const implicitValue = {
         withdrawals: this.getTotalWithdrawal(),
-        deposit: this.getTotalDeposit(),
+        deposit: this.getTotalDeposit() + this.getDonation(),
         reclaimDeposit: this.getTotalRefund(),
         mint: this.getTotalMint(),
       };
@@ -1312,6 +1311,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return accum;
   };
 
+  protected getDonation = (): bigint => {
+    return BigInt(this.meshTxBuilderBody.donation ?? 0);
+  };
+
   protected getTotalRefund = (): bigint => {
     let accum = 0n;
     for (let cert of this.meshTxBuilderBody.certificates) {
@@ -1727,6 +1730,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       if (vote.type === "ScriptVote" && vote.redeemer) {
         memUnits += BigInt(vote.redeemer.exUnits.mem);
         stepUnits += BigInt(vote.redeemer.exUnits.steps);
+      }
+    }
+    for (let proposal of this.meshTxBuilderBody.proposals) {
+      if (proposal.type === "ScriptProposal" && proposal.redeemer) {
+        memUnits += BigInt(proposal.redeemer.exUnits.mem);
+        stepUnits += BigInt(proposal.redeemer.exUnits.steps);
       }
     }
     memUnits = BigInt(
