@@ -32,6 +32,7 @@ jobs:
         run: |
           npm test --workspace @meshsdk/core-cst
           npm test --workspace @meshsdk/scalus-emulator
+          npm test --workspace @meshsdk/tx-emulator
       - name: Test Scalus package exports
         run: |
           npm run test:package --workspace @meshsdk/core-cst
