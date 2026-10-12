@@ -1,17 +1,19 @@
 import type { LanguageVersion, UTxO } from "@meshsdk/common";
 
 import {
+  checkCredential,
   fail,
   freeze,
   labelOf,
   parseAddress,
   PartContext,
   paymentCredential,
-  toExUnits,
   toNativeScriptSource,
   toPlutusData,
   toPlutusScriptSource,
+  toRedeemer,
   toResolvableInput,
+  withKnownHash,
 } from "./normalize";
 import {
   CollateralPart,
@@ -35,31 +37,14 @@ const checkLock = (
   utxo: UTxO | undefined,
   expected: { type: "key" } | { type: "script"; hash?: string },
 ) => {
-  if (!utxo) return;
-  const credential = paymentCredential(parseAddress(ctx, utxo.output.address));
-  const outRef = `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+  if (!utxo) return undefined;
   // Byron addresses carry no payment credential and are always key-locked
-  const locked = credential ?? { type: "key" as const, hash: undefined };
-  if (expected.type === "key" && locked.type === "script")
-    fail(
-      ctx,
-      "WITNESS_MISMATCH",
-      `${outRef} is locked by script ${locked.hash}, not by a key`,
-    );
-  if (expected.type === "script") {
-    if (locked.type === "key")
-      fail(
-        ctx,
-        "WITNESS_MISMATCH",
-        `${outRef} is locked by a key, not a script`,
-      );
-    if (expected.hash !== undefined && expected.hash !== locked.hash)
-      fail(
-        ctx,
-        "WITNESS_MISMATCH",
-        `${outRef} is locked by script ${locked.hash}, not by ${expected.hash}`,
-      );
-  }
+  const credential = paymentCredential(
+    parseAddress(ctx, utxo.output.address),
+  ) ?? { type: "key" as const };
+  const outRef = `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+  checkCredential(ctx, outRef, credential, expected);
+  return credential;
 };
 
 /**
@@ -160,11 +145,14 @@ export const spend = {
   }): SpendPart => {
     const ctx: PartContext = { part: "spend", label: params.label };
     const resolvable = toResolvableInput(ctx, params.utxo);
-    const script = toNativeScriptSource(ctx, params.script);
-    checkLock(ctx, resolvable.utxo, {
-      type: "script",
-      hash: script.scriptHash,
-    });
+    const given = toNativeScriptSource(ctx, params.script);
+    const script = withKnownHash(
+      given,
+      checkLock(ctx, resolvable.utxo, {
+        type: "script",
+        hash: given.scriptHash,
+      }),
+    );
     return freeze({
       kind: "spend",
       ...resolvable,
@@ -191,18 +179,20 @@ export const spend = {
   }): SpendPart => {
     const ctx: PartContext = { part: "spend", label: params.label };
     const resolvable = toResolvableInput(ctx, params.utxo);
-    const script = toPlutusScriptSource(ctx, params.script);
-    checkLock(ctx, resolvable.utxo, {
-      type: "script",
-      hash: script.scriptHash,
-    });
+    const given = toPlutusScriptSource(ctx, params.script);
+    const script = withKnownHash(
+      given,
+      checkLock(ctx, resolvable.utxo, {
+        type: "script",
+        hash: given.scriptHash,
+      }),
+    );
     const datum = toSpendDatum(
       ctx,
       params.datum,
       resolvable.utxo,
       script.version,
     );
-    const { data, exUnits } = params.redeemer;
     return freeze({
       kind: "spend",
       ...resolvable,
@@ -210,10 +200,7 @@ export const spend = {
         type: "plutus",
         script,
         ...(datum && { datum }),
-        redeemer: {
-          data: toPlutusData(ctx, data).data,
-          ...(exUnits && { exUnits: toExUnits(ctx, exUnits) }),
-        },
+        redeemer: toRedeemer(ctx, params.redeemer),
       },
       ...labelOf(params.label),
     });

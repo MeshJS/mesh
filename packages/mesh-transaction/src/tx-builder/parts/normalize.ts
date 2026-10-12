@@ -26,9 +26,11 @@ import {
   InputRef,
   NativeScriptInput,
   NativeScriptSource,
+  PartRedeemer,
   PlutusDataInput,
   PlutusScriptInput,
   PlutusScriptSource,
+  RedeemerInput,
   TxPart,
 } from "./types";
 
@@ -157,6 +159,77 @@ export const toExUnits = (
   }
   return { mem: String(budget.mem), steps: String(budget.steps) };
 };
+
+export const toRedeemer = (
+  ctx: PartContext,
+  redeemer: RedeemerInput,
+): PartRedeemer => ({
+  data: toPlutusData(ctx, redeemer.data).data,
+  ...(redeemer.exUnits && { exUnits: toExUnits(ctx, redeemer.exUnits) }),
+});
+
+/** The stake credential of a reward address */
+export const rewardCredential = (
+  ctx: PartContext,
+  rewardAddress: string,
+): { type: "key" | "script"; hash: string } => {
+  const credential =
+    typeof rewardAddress === "string"
+      ? Address.fromString(rewardAddress)?.asReward()?.getPaymentCredential()
+      : undefined;
+  if (!credential)
+    return fail(
+      ctx,
+      "INVALID_ADDRESS",
+      `invalid reward address ${rewardAddress}`,
+    );
+  return {
+    type: credential.type === CredentialType.ScriptHash ? "script" : "key",
+    hash: credential.hash.toString(),
+  };
+};
+
+/**
+ * Checks that a credential is the one a witness can authorise: a key, or the script with the
+ * given hash (when the hash is known).
+ */
+export const checkCredential = (
+  ctx: PartContext,
+  what: string,
+  credential: { type: "key" | "script"; hash?: string },
+  expected: { type: "key" } | { type: "script"; hash?: string },
+) => {
+  if (expected.type === "key" && credential.type === "script")
+    fail(
+      ctx,
+      "WITNESS_MISMATCH",
+      `${what} is locked by script ${credential.hash}, not by a key`,
+    );
+  if (expected.type === "script") {
+    if (credential.type === "key")
+      fail(ctx, "WITNESS_MISMATCH", `${what} is locked by a key, not a script`);
+    if (expected.hash !== undefined && expected.hash !== credential.hash)
+      fail(
+        ctx,
+        "WITNESS_MISMATCH",
+        `${what} is locked by script ${credential.hash}, not by ${expected.hash}`,
+      );
+  }
+};
+
+/**
+ * Fills in the hash of a script referenced by out ref alone from the credential it must match,
+ * which is known from the address it witnesses.
+ */
+export const withKnownHash = <
+  T extends PlutusScriptSource | NativeScriptSource,
+>(
+  source: T,
+  credential: { type: "key" | "script"; hash?: string } | undefined,
+): T =>
+  source.scriptHash === undefined && credential?.type === "script"
+    ? { ...source, scriptHash: credential.hash }
+    : source;
 
 /** A script held in a reference output, read from the output's script reference */
 const readScriptReference = (
