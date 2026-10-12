@@ -1,13 +1,16 @@
 import type {
   Asset,
+  AssetsPrototype,
   Budget,
   BuilderData,
   Data,
   DataOptionPrototype,
   ExUnitsPrototype,
   LanguageVersion,
+  MetadatumPrototype,
   NativeScript,
   NativeScriptPrototype,
+  NetworkIdPrototype,
   PlutusDataVariant,
   PlutusScript,
   ScriptRefPrototype,
@@ -100,6 +103,25 @@ export type OutputDatumInput =
   | { type: "hash"; data: PlutusDataInput; embed?: boolean }
   | { type: "hash"; hash: string };
 
+/**
+ * Quantities minted (positive) or burnt (negative) under one policy, keyed by asset name in
+ * hex (`""` for the empty name)
+ */
+export type MintAssetsInput = Record<string, bigint>;
+
+/**
+ * A metadata value: integers, text and byte strings (each at most 64 bytes), lists, and maps
+ * (`Map`s or plain objects)
+ */
+export type MetadataValueInput =
+  | bigint
+  | number
+  | string
+  | Uint8Array
+  | MetadataValueInput[]
+  | Map<MetadataValueInput, MetadataValueInput>
+  | { [key: string]: MetadataValueInput };
+
 /* ---------------------------------------------------------------------------------------------
  * Parts
  * ------------------------------------------------------------------------------------------- */
@@ -157,16 +179,26 @@ export type SpendDatum =
       readonly hash: string;
     };
 
+export type KeyWitness = { readonly type: "key" };
+
+export type NativeWitness = {
+  readonly type: "native";
+  readonly script: NativeScriptSource;
+};
+
+export type PlutusWitness = {
+  readonly type: "plutus";
+  readonly script: PlutusScriptSource;
+  readonly redeemer: PartRedeemer;
+};
+
 export type SpendWitness =
-  | { readonly type: "key" }
-  | { readonly type: "native"; readonly script: NativeScriptSource }
-  | {
-      readonly type: "plutus";
-      readonly script: PlutusScriptSource;
+  | KeyWitness
+  | NativeWitness
+  | (PlutusWitness & {
       /** Left out until the spent UTxO is known when not given explicitly */
       readonly datum?: SpendDatum;
-      readonly redeemer: PartRedeemer;
-    };
+    });
 
 /** An input spent by the transaction, with what witnesses it */
 export type SpendPart = PartBase &
@@ -215,12 +247,97 @@ export type OutputPart = PartBase & {
   readonly embeddedDatum?: Readonly<PlutusDataVariant>;
 };
 
+/**
+ * Tokens minted or burnt under one policy. A transaction holds at most one part per policy,
+ * as the ledger runs a minting script, and takes its redeemer, once per policy.
+ */
+export type MintPart = PartBase & {
+  readonly kind: "mint";
+  readonly policyId: string;
+  /** Signed quantities by asset name, as in `MintPrototype` */
+  readonly assets: Readonly<AssetsPrototype>;
+  readonly witness: NativeWitness | PlutusWitness;
+};
+
+/** Rewards withdrawn from a stake address */
+export type WithdrawalPart = PartBase & {
+  readonly kind: "withdrawal";
+  readonly rewardAddress: string;
+  /** Lovelace withdrawn; left out to withdraw the whole balance, looked up before assembly */
+  readonly amount?: string;
+  readonly witness: KeyWitness | NativeWitness | PlutusWitness;
+};
+
+/** A key whose signature the transaction requires, visible to its scripts */
+export type RequiredSignerPart = PartBase & {
+  readonly kind: "requiredSigner";
+  readonly keyHash: string;
+};
+
+/** The slots between which the transaction is valid */
+export type ValidityPart = PartBase & {
+  readonly kind: "validity";
+  /** First slot the transaction is valid in (`validity_start_interval`) */
+  readonly invalidBefore?: string;
+  /** First slot the transaction is no longer valid in (`ttl`) */
+  readonly invalidHereafter?: string;
+};
+
+/** One metadata entry */
+export type MetadataPart = PartBase & {
+  readonly kind: "metadata";
+  readonly metadataLabel: string;
+  readonly value: Readonly<MetadatumPrototype>;
+};
+
+/** A script published in the transaction's auxiliary data */
+export type AuxiliaryScriptPart = PartBase & {
+  readonly kind: "auxiliaryScript";
+  readonly script:
+    | {
+        readonly type: "native";
+        readonly script: Readonly<NativeScriptPrototype>;
+      }
+    | {
+        readonly type: "plutus";
+        readonly version: LanguageVersion;
+        readonly cbor: string;
+      };
+};
+
+/** Lovelace donated to the treasury */
+export type DonationPart = PartBase & {
+  readonly kind: "donation";
+  readonly amount: string;
+};
+
+/** The current treasury value, as the transaction asserts it */
+export type TreasuryValuePart = PartBase & {
+  readonly kind: "treasuryValue";
+  readonly amount: string;
+};
+
+/** The network the transaction is meant for */
+export type NetworkIdPart = PartBase & {
+  readonly kind: "networkId";
+  readonly networkId: Readonly<NetworkIdPrototype>;
+};
+
 export type TxPart =
   | SpendPart
   | ReferenceInputPart
   | CollateralPart
   | CollateralReturnPart
-  | OutputPart;
+  | OutputPart
+  | MintPart
+  | WithdrawalPart
+  | RequiredSignerPart
+  | ValidityPart
+  | MetadataPart
+  | AuxiliaryScriptPart
+  | DonationPart
+  | TreasuryValuePart
+  | NetworkIdPart;
 
 /** Something a part leaves to be filled in before assembly */
 export type Unresolved =
@@ -238,4 +355,6 @@ export type Unresolved =
   /** The lovelace an output needs to hold */
   | { readonly type: "minCoin" }
   /** The lovelace forfeited on script failure */
-  | { readonly type: "totalCollateral" };
+  | { readonly type: "totalCollateral" }
+  /** The reward balance of a stake address, to withdraw in full */
+  | { readonly type: "rewardBalance"; readonly rewardAddress: string };

@@ -1,6 +1,9 @@
 import {
+  KeyWitness,
   NativeScriptSource,
+  NativeWitness,
   PlutusScriptSource,
+  PlutusWitness,
   TxPart,
   Unresolved,
 } from "./types";
@@ -16,6 +19,16 @@ const scriptReferenceGaps = (
   return complete ? [] : [{ type: "scriptReference", input: source.input }];
 };
 
+const witnessGaps = (
+  witness: KeyWitness | NativeWitness | PlutusWitness,
+): Unresolved[] => {
+  if (witness.type === "key") return [];
+  const gaps = scriptReferenceGaps(witness.script);
+  if (witness.type === "plutus" && !witness.redeemer.exUnits)
+    gaps.push({ type: "exUnits" });
+  return gaps;
+};
+
 /**
  * What a part leaves to be filled in before it can be assembled into a transaction. An empty
  * list means the part is complete as it is.
@@ -27,10 +40,9 @@ export const unresolved = (part: TxPart): Unresolved[] => {
         ? []
         : [{ type: "utxo", input: part.input }];
       const { witness } = part;
-      if (witness.type === "native") {
-        gaps.push(...scriptReferenceGaps(witness.script));
-      } else if (witness.type === "plutus") {
-        gaps.push(...scriptReferenceGaps(witness.script));
+      if (witness.type === "key") return gaps;
+      gaps.push(...scriptReferenceGaps(witness.script));
+      if (witness.type === "plutus") {
         if (!witness.datum) gaps.push({ type: "datum", input: part.input });
         if (!witness.redeemer.exUnits) gaps.push({ type: "exUnits" });
       }
@@ -45,5 +57,27 @@ export const unresolved = (part: TxPart): Unresolved[] => {
         : [];
     case "output":
       return part.output.amount.coin === undefined ? [{ type: "minCoin" }] : [];
+    case "mint":
+      return witnessGaps(part.witness);
+    case "withdrawal":
+      return [
+        ...(part.amount === undefined
+          ? [
+              {
+                type: "rewardBalance" as const,
+                rewardAddress: part.rewardAddress,
+              },
+            ]
+          : []),
+        ...witnessGaps(part.witness),
+      ];
+    case "requiredSigner":
+    case "validity":
+    case "metadata":
+    case "auxiliaryScript":
+    case "donation":
+    case "treasuryValue":
+    case "networkId":
+      return [];
   }
 };

@@ -12,14 +12,23 @@ import {
 } from "@meshsdk/core-cst";
 
 import {
+  auxiliaryScript,
   collateral,
   collateralReturn,
+  donation,
+  metadata,
+  mint,
+  networkId,
   output,
   referenceInput,
+  requiredSigner,
   spend,
+  treasuryValue,
   TxPart,
+  validity,
+  withdrawal,
 } from "../../../src/tx-builder";
-import { alwaysSucceedCbor, baseAddress } from "../../test-util";
+import { alwaysSucceedCbor, baseAddress, rewardAddress } from "../../test-util";
 
 /**
  * Puts parts into a transaction the simplest way that is still valid CBOR, to show their
@@ -86,6 +95,49 @@ const toPrototype = (parts: TxPart[]): TransactionPrototype => {
         if (part.embeddedDatum?.type === "CBOR")
           (ws.plutus_data ??= { elems: [] }).elems.push(part.embeddedDatum.hex);
         break;
+      case "mint":
+        body.mint = { ...body.mint, [part.policyId]: part.assets };
+        if (part.witness.script.type === "attached") {
+          if (part.witness.type === "native")
+            (ws.native_scripts ??= []).push(part.witness.script.script);
+          else if ("version" in part.witness.script)
+            (ws.plutus_v3_scripts ??= []).push(part.witness.script.cbor);
+        }
+        break;
+      case "withdrawal":
+        body.withdrawals = {
+          ...body.withdrawals,
+          [part.rewardAddress]: part.amount ?? "0",
+        };
+        break;
+      case "requiredSigner":
+        (body.required_signers ??= []).push(part.keyHash);
+        break;
+      case "validity":
+        body.validity_start_interval = part.invalidBefore;
+        body.ttl = part.invalidHereafter;
+        break;
+      case "networkId":
+        body.network_id = part.networkId;
+        break;
+      case "donation":
+        body.donation = part.amount;
+        break;
+      case "treasuryValue":
+        body.current_treasury_value = part.amount;
+        break;
+      case "metadata": {
+        const aux = (proto.auxiliary_data ??= { prefer_alonzo_format: true });
+        aux.metadata = { ...aux.metadata, [part.metadataLabel]: part.value };
+        break;
+      }
+      case "auxiliaryScript": {
+        const aux = (proto.auxiliary_data ??= { prefer_alonzo_format: true });
+        if (part.script.type === "native")
+          (aux.native_scripts ??= []).push(part.script.script);
+        else (aux.plutus_v3_scripts ??= []).push(part.script.cbor);
+        break;
+      }
     }
   }
   return proto;
@@ -190,5 +242,45 @@ describe("parts as TransactionPrototype fragments", () => {
         ex_units: { mem: "7000", steps: "3000000" },
       },
     ]);
+  });
+
+  it("survive encoding to CBOR and decoding back: mint, withdrawals and scalars", () => {
+    const parts: TxPart[] = [
+      spend.pubKey({ utxo: at(0, keyAddress) }),
+      mint.native({ script: nativeScript, assets: { "0102": 5n, "": -1n } }),
+      mint.plutus({
+        script: plutusScript,
+        redeemer: { data: mConStr0([]) },
+        assets: { abcd: 1n },
+      }),
+      withdrawal.pubKey({ rewardAddress: rewardAddress(1), amount: 7n }),
+      requiredSigner({ keyHash: "e".repeat(56) }),
+      validity({ invalidBefore: 0, invalidHereafter: 1000 }),
+      networkId({ network: "testnet" }),
+      donation({ amount: 3n }),
+      treasuryValue({ amount: 9n }),
+      metadata({ metadataLabel: 674, value: { msg: ["hi", 2n ** 63n] } }),
+      auxiliaryScript({ script: nativeScript }),
+    ];
+    const proto = toPrototype(parts);
+
+    const decoded = transactionPrototypeFromHex(
+      transactionPrototypeToHex(proto),
+    );
+
+    expect(decoded.body.mint).toEqual(proto.body.mint);
+    expect(decoded.body.withdrawals).toEqual(proto.body.withdrawals);
+    expect(decoded.body.required_signers).toEqual(["e".repeat(56)]);
+    expect(decoded.body.validity_start_interval).toBe("0");
+    expect(decoded.body.ttl).toBe("1000");
+    expect(decoded.body.network_id).toEqual({ type: "TESTNET" });
+    expect(decoded.body.donation).toBe("3");
+    expect(decoded.body.current_treasury_value).toBe("9");
+    expect(decoded.auxiliary_data?.metadata).toEqual(
+      proto.auxiliary_data?.metadata,
+    );
+    expect(decoded.auxiliary_data?.native_scripts).toEqual(
+      proto.auxiliary_data?.native_scripts,
+    );
   });
 });
