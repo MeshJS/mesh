@@ -1,4 +1,10 @@
-import { DataSignature, IFetcher, ISigner, ISubmitter } from "@meshsdk/common";
+import {
+  CachedFetcher,
+  DataSignature,
+  IFetcher,
+  ISigner,
+  ISubmitter,
+} from "@meshsdk/common";
 import {
   Address,
   deserializeTx,
@@ -36,12 +42,13 @@ export type CreateAppWalletOptions = {
 };
 
 export class AppWallet implements ISigner, ISubmitter {
-  private readonly _fetcher?: IFetcher;
+  private readonly _fetcher?: CachedFetcher;
   private readonly _submitter?: ISubmitter;
   private readonly _wallet: EmbeddedWallet;
 
   constructor(options: CreateAppWalletOptions) {
-    this._fetcher = options.fetcher;
+    // UTxO lookups share one short-lived cache with other users of the same fetcher
+    this._fetcher = options.fetcher && CachedFetcher.wrap(options.fetcher);
     this._submitter = options.submitter;
 
     switch (options.key.type) {
@@ -248,13 +255,18 @@ export class AppWallet implements ISigner, ISubmitter {
     throw new Error(`[AppWallet] signTxs() is not implemented.`);
   }
 
-  submitTx(tx: string): Promise<string> {
+  async submitTx(tx: string): Promise<string> {
     if (!this._submitter) {
       throw new Error(
         "[AppWallet] Submitter is required to submit transactions. Please provide a submitter.",
       );
     }
-    return this._submitter.submitTx(tx);
+    try {
+      return await this._submitter.submitTx(tx);
+    } finally {
+      // The submitted tx changes this wallet's UTxOs; don't serve them from cache
+      this._fetcher?.clearVolatile();
+    }
   }
 
   static brew(strength = 256): string[] {

@@ -7,6 +7,7 @@ import {
   mConStr0,
   stringToHex,
   UTxO,
+  utxoToTxIn,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-cst";
 
@@ -58,12 +59,7 @@ export class MeshHelloWorldContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        scriptUtxo.input.txHash,
-        scriptUtxo.input.outputIndex,
-        scriptUtxo.output.amount,
-        scriptUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(scriptUtxo))
       .txInScript(this.scriptCbor)
       .txInRedeemerValue(mConStr0([stringToHex(message)]))
       .txInDatumValue(mConStr0([signerHash]))

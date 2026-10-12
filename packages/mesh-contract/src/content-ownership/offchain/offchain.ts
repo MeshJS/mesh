@@ -13,6 +13,7 @@ import {
   stringToHex,
   toUTF8,
   UTxO,
+  utxoToTxIn,
 } from "@meshsdk/core";
 import {
   applyParamsToScript,
@@ -191,12 +192,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     const tokenName = "";
 
     const txHex = await this.mesh
-      .txIn(
-        paramUtxo.input.txHash,
-        paramUtxo.input.outputIndex,
-        paramUtxo.output.amount,
-        paramUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(paramUtxo))
       .mintPlutusScriptV3()
       .mint("1", policyId, tokenName)
       .mintingScript(paramScript)
@@ -325,10 +321,6 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     const contentNumber = currentOracleDatum.fields[4].int as number;
     const ownershipNumber = currentOracleDatum.fields[7].int as number;
     const contentTokenName = stringToHex(`Registry (${contentNumber})`);
-    const {
-      input: { txHash: oracleTxHash, outputIndex: oracleTxId },
-      output: { address: oracleAddress, amount: oracleValue },
-    } = scriptUtxo[0]!;
     const oracleDatumValue = this.getOracleDatum(
       contentNumber + 1,
       ownershipNumber,
@@ -338,7 +330,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
-      .txIn(oracleTxHash, oracleTxId, oracleValue, oracleAddress)
+      .txIn(...utxoToTxIn(scriptUtxo[0]!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr0([]))
       .txInScript(this.scriptInfo.oracleValidator.cbor)
@@ -406,10 +398,6 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     const contentNumber = currentOracleDatum.fields[4].int as number;
     const ownershipNumber = currentOracleDatum.fields[7].int as number;
     const ownershipTokenName = stringToHex(`Registry (${ownershipNumber})`);
-    const {
-      input: { txHash: oracleTxHash, outputIndex: oracleTxId },
-      output: { address: oracleAddress, amount: oracleValue },
-    } = scriptUtxo[0]!;
     const oracleDatumValue = this.getOracleDatum(
       contentNumber,
       ownershipNumber + 1,
@@ -418,7 +406,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
-      .txIn(oracleTxHash, oracleTxId, oracleValue, oracleAddress)
+      .txIn(...utxoToTxIn(scriptUtxo[0]!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptInfo.oracleValidator.cbor)
@@ -563,14 +551,6 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     const { txHash: oracleTxHash, outputIndex: oracleTxId } =
       oracleUtxo[0]!.input;
 
-    const {
-      input: { txHash: contentTxHash, outputIndex: contentTxId },
-      output: { address: _contentAddress, amount: contentAmount },
-    } = contentUtxo[0]!;
-    const {
-      input: { txHash: ownershipTxHash, outputIndex: ownershipTxId },
-      output: { amount: ownershipValue, address: ownershipAddress },
-    } = ownershipUtxo[0]!;
     const ownerAssetClass: [string, string] = [
       ownerAssetHex.slice(0, 56),
       ownerAssetHex.slice(56),
@@ -586,12 +566,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
-      .txIn(
-        contentTxHash,
-        contentTxId,
-        contentAmount,
-        this.scriptInfo.contentRegistry.address,
-      )
+      .txIn(...utxoToTxIn(contentUtxo[0]!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr(0, [contentHashHex, ownerAssetClass]))
       .spendingTxInReference(
@@ -608,7 +583,7 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       ])
       .txOutInlineDatumValue(newContentRegistry)
       .spendingPlutusScriptV3()
-      .txIn(ownershipTxHash, ownershipTxId, ownershipValue, ownershipAddress)
+      .txIn(...utxoToTxIn(ownershipUtxo[0]!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr(0, []))
       .spendingTxInReference(
@@ -681,19 +656,9 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     );
 
     await this.mesh
-      .txIn(
-        ownerTokenUtxo.input.txHash,
-        ownerTokenUtxo.input.outputIndex,
-        ownerTokenUtxo.output.amount,
-        ownerTokenUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(ownerTokenUtxo))
       .spendingPlutusScriptV3()
-      .txIn(
-        content!.input.txHash,
-        content!.input.outputIndex,
-        content!.output.amount,
-        content!.output.address,
-      )
+      .txIn(...utxoToTxIn(content!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr(1, [newContentHashHex, contentNumber]))
       .spendingTxInReference(
@@ -751,19 +716,9 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     );
 
     await this.mesh
-      .txIn(
-        ownerTokenUtxo.input.txHash,
-        ownerTokenUtxo.input.outputIndex,
-        ownerTokenUtxo.output.amount,
-        ownerTokenUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(ownerTokenUtxo))
       .spendingPlutusScriptV3()
-      .txIn(
-        ownership!.input.txHash,
-        ownership!.input.outputIndex,
-        ownership!.output.amount,
-        ownership!.output.address,
-      )
+      .txIn(...utxoToTxIn(ownership!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr(1, [newOwnerAssetClass, contentNumber]))
       .spendingTxInReference(
@@ -809,14 +764,10 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     );
     const { txHash: oracleTxHash, outputIndex: oracleTxId } =
       oracleUtxo[0]!.input;
-    const {
-      input: { txHash: validatorTxHash, outputIndex: validatorTxId },
-      output: { amount: scriptValue, address: scriptAddress },
-    } = scriptUtxos[0]!;
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
-      .txIn(validatorTxHash, validatorTxId, scriptValue, scriptAddress)
+      .txIn(...utxoToTxIn(scriptUtxos[0]!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr(2, []))
       .txInScript(this.scriptInfo.contentRegistry.cbor)
@@ -858,14 +809,10 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
     );
     const { txHash: oracleTxHash, outputIndex: oracleTxId } =
       oracleUtxo[0]!.input;
-    const {
-      input: { txHash: validatorTxHash, outputIndex: validatorTxId },
-      output: { amount: scriptValue, address: scriptAddress },
-    } = scriptUtxos[0]!;
 
     const txHex = await this.mesh
       .spendingPlutusScriptV3()
-      .txIn(validatorTxHash, validatorTxId, scriptValue, scriptAddress)
+      .txIn(...utxoToTxIn(scriptUtxos[0]!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr(2, []))
       .txInScript(this.scriptInfo.ownershipRegistry.cbor)
@@ -901,12 +848,10 @@ export class MeshContentOwnershipContract extends MeshTxInitiator {
       this.scriptInfo.oracleValidator.address,
       this.scriptInfo.oracleNFT.hash,
     );
-    const { txHash, outputIndex } = oracleUtxo[0]!.input;
-
     const txHex = await this.mesh
       .txIn(txInHash, txInId)
       .spendingPlutusScriptV3()
-      .txIn(txHash, outputIndex)
+      .txIn(...utxoToTxIn(oracleUtxo[0]!))
       .txInInlineDatumPresent()
       .txInRedeemerValue(mConStr(3, []))
       .txInScript(this.scriptInfo.oracleValidator.cbor)
