@@ -3,8 +3,11 @@ import type {
   AssetsPrototype,
   Budget,
   BuilderData,
+  CertificatePrototype,
+  CredTypePrototype,
   Data,
   DataOptionPrototype,
+  DRepPrototype,
   ExUnitsPrototype,
   LanguageVersion,
   MetadatumPrototype,
@@ -121,6 +124,29 @@ export type MetadataValueInput =
   | MetadataValueInput[]
   | Map<MetadataValueInput, MetadataValueInput>
   | { [key: string]: MetadataValueInput };
+
+/**
+ * A credential: a bech32 reward address (whose stake credential is taken), or the credential
+ * itself
+ */
+export type CredentialInput = string | CredTypePrototype;
+
+/** A DRep: its id in bech32 (CIP-105 or CIP-129), or its credential */
+export type DRepCredentialInput = string | CredTypePrototype;
+
+/** Whom a stake credential delegates its vote to */
+export type DRepInput =
+  DRepCredentialInput | "alwaysAbstain" | "alwaysNoConfidence" | DRepPrototype;
+
+/** A stake pool: its id in bech32, or its operator key hash in hex */
+export type PoolInput = string;
+
+export type AnchorInput = { url: string; dataHash: string };
+
+/** How a script credential authorises a certificate; key credentials need nothing */
+export type CredentialWitnessInput =
+  | { native: NativeScriptInput }
+  | { plutus: PlutusScriptInput; redeemer: RedeemerInput };
 
 /* ---------------------------------------------------------------------------------------------
  * Parts
@@ -323,6 +349,38 @@ export type NetworkIdPart = PartBase & {
   readonly networkId: Readonly<NetworkIdPrototype>;
 };
 
+type WithOptionalCoin<T> = T extends { type: infer K; value: infer V }
+  ? {
+      type: K;
+      value: V extends { coin: string }
+        ? Omit<V, "coin"> & { coin?: string }
+        : V;
+    }
+  : never;
+
+/**
+ * A `CertificatePrototype` whose deposit or refund may still be missing, to be filled in from
+ * the protocol parameter named by the part's `depositParameter`
+ */
+export type CertificateFragment = WithOptionalCoin<CertificatePrototype>;
+
+/**
+ * A certificate. Certificates keep the order their parts are given in, as that order is part of
+ * the transaction.
+ */
+export type CertificatePart = PartBase & {
+  readonly kind: "certificate";
+  readonly certificate: Readonly<CertificateFragment>;
+  /** The protocol parameter the missing deposit or refund is taken from */
+  readonly depositParameter?: "keyDeposit" | "drepDeposit";
+  /**
+   * What authorises the certificate: nothing for a legacy stake registration; the keys it names
+   * for pool certificates; otherwise its credential's key or script
+   */
+  readonly witness:
+    { readonly type: "none" } | KeyWitness | NativeWitness | PlutusWitness;
+};
+
 export type TxPart =
   | SpendPart
   | ReferenceInputPart
@@ -337,7 +395,8 @@ export type TxPart =
   | AuxiliaryScriptPart
   | DonationPart
   | TreasuryValuePart
-  | NetworkIdPart;
+  | NetworkIdPart
+  | CertificatePart;
 
 /** Something a part leaves to be filled in before assembly */
 export type Unresolved =
@@ -357,4 +416,9 @@ export type Unresolved =
   /** The lovelace forfeited on script failure */
   | { readonly type: "totalCollateral" }
   /** The reward balance of a stake address, to withdraw in full */
-  | { readonly type: "rewardBalance"; readonly rewardAddress: string };
+  | { readonly type: "rewardBalance"; readonly rewardAddress: string }
+  /** A deposit or refund, from a protocol parameter */
+  | {
+      readonly type: "deposit";
+      readonly parameter: "keyDeposit" | "drepDeposit";
+    };
