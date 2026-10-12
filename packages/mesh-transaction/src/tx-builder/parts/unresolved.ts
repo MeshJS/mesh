@@ -78,6 +78,15 @@ export const unresolved = (part: TxPart): Unresolved[] => {
           : []),
         ...(part.witness.type === "none" ? [] : witnessGaps(part.witness)),
       ];
+    case "vote":
+      return witnessGaps(part.witness);
+    case "proposal":
+      return [
+        ...(part.depositParameter
+          ? [{ type: "deposit" as const, parameter: part.depositParameter }]
+          : []),
+        ...(part.witness.type === "none" ? [] : witnessGaps(part.witness)),
+      ];
     case "requiredSigner":
     case "validity":
     case "metadata":

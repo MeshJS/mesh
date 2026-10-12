@@ -20,6 +20,9 @@ import type {
   TransactionInputPrototype,
   UTxO,
   ValuePrototype,
+  VotePrototype,
+  VoterPrototype,
+  VotingProposalPrototype,
 } from "@meshsdk/common";
 
 /*
@@ -147,6 +150,26 @@ export type AnchorInput = { url: string; dataHash: string };
 export type CredentialWitnessInput =
   | { native: NativeScriptInput }
   | { plutus: PlutusScriptInput; redeemer: RedeemerInput };
+
+/** A governance action: the transaction that proposed it and the proposal's position there */
+export type GovActionIdInput = { txHash: string; index: number };
+
+/** Who votes: a DRep, a constitutional committee member's hot credential, or a stake pool */
+export type VoterInput =
+  | { drep: DRepCredentialInput }
+  | { committee: CredentialInput }
+  | { pool: PoolInput };
+
+export type VoteInput = {
+  action: GovActionIdInput;
+  vote: "yes" | "no" | "abstain";
+  /** Where the rationale is published */
+  anchor?: AnchorInput;
+};
+
+/** The protocol parameters deposits and refunds are taken from */
+export type DepositParameter =
+  "keyDeposit" | "drepDeposit" | "govActionDeposit";
 
 /* ---------------------------------------------------------------------------------------------
  * Parts
@@ -372,13 +395,44 @@ export type CertificatePart = PartBase & {
   readonly kind: "certificate";
   readonly certificate: Readonly<CertificateFragment>;
   /** The protocol parameter the missing deposit or refund is taken from */
-  readonly depositParameter?: "keyDeposit" | "drepDeposit";
+  readonly depositParameter?: Exclude<DepositParameter, "govActionDeposit">;
   /**
    * What authorises the certificate: nothing for a legacy stake registration; the keys it names
    * for pool certificates; otherwise its credential's key or script
    */
   readonly witness:
     { readonly type: "none" } | KeyWitness | NativeWitness | PlutusWitness;
+};
+
+/**
+ * The votes of one voter. A transaction holds at most one part per voter, as the ledger runs a
+ * voter's script, and takes its redeemer, once for all of that voter's votes.
+ */
+export type VotePart = PartBase & {
+  readonly kind: "vote";
+  readonly voter: Readonly<VoterPrototype>;
+  readonly votes: readonly Readonly<VotePrototype>[];
+  readonly witness: KeyWitness | NativeWitness | PlutusWitness;
+};
+
+/**
+ * A governance proposal. Proposals keep the order their parts are given in, as that order is
+ * part of the transaction.
+ */
+export type ProposalPart = PartBase & {
+  readonly kind: "proposal";
+  readonly proposal: Readonly<
+    Omit<VotingProposalPrototype, "deposit"> & {
+      /** Left out to take the `govActionDeposit` protocol parameter */
+      deposit?: string;
+    }
+  >;
+  readonly depositParameter?: "govActionDeposit";
+  /**
+   * The guardrail script a parameter change or treasury withdrawal names in its policy hash;
+   * nothing for every other proposal
+   */
+  readonly witness: { readonly type: "none" } | NativeWitness | PlutusWitness;
 };
 
 export type TxPart =
@@ -396,7 +450,9 @@ export type TxPart =
   | DonationPart
   | TreasuryValuePart
   | NetworkIdPart
-  | CertificatePart;
+  | CertificatePart
+  | VotePart
+  | ProposalPart;
 
 /** Something a part leaves to be filled in before assembly */
 export type Unresolved =
@@ -420,5 +476,5 @@ export type Unresolved =
   /** A deposit or refund, from a protocol parameter */
   | {
       readonly type: "deposit";
-      readonly parameter: "keyDeposit" | "drepDeposit";
+      readonly parameter: DepositParameter;
     };
