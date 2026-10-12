@@ -688,7 +688,25 @@ describe("documented round-trip asymmetries", () => {
     });
   });
 
-  it("loses a STAKE_REGISTRATION deposit — encoder emits the no-deposit cert form", () => {
+  it("keeps a STAKE_REGISTRATION / STAKE_DEREGISTRATION deposit (certificates 7 and 8)", () => {
+    for (const type of ["STAKE_REGISTRATION", "STAKE_DEREGISTRATION"] as const) {
+      const proto: TransactionPrototype = {
+        ...base(),
+        body: {
+          ...base().body,
+          certs: [
+            {
+              type,
+              value: { stake_credential: { type: "SCRIPT", value: KEY_HASH }, coin: "2000000" },
+            },
+          ],
+        },
+      };
+      expect(roundTrip(proto).body.certs).toEqual(proto.body.certs);
+    }
+  });
+
+  it("keeps the legacy no-deposit STAKE_REGISTRATION (certificate 0)", () => {
     const proto: TransactionPrototype = {
       ...base(),
       body: {
@@ -696,7 +714,7 @@ describe("documented round-trip asymmetries", () => {
         certs: [
           {
             type: "STAKE_REGISTRATION",
-            value: { stake_credential: { type: "KEY", value: KEY_HASH }, coin: "2000000" },
+            value: { stake_credential: { type: "KEY", value: KEY_HASH } },
           },
         ],
       },
