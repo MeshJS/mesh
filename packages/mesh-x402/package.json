@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/x402",
-  "version": "1.9.1",
+  "version": "0.0.1",
   "description": "x402 payments (Cardano exact scheme) - https://meshjs.dev/apis/x402",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
