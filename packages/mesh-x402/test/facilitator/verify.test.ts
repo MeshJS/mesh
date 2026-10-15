@@ -23,7 +23,10 @@ const buildValidPayload = async (): Promise<{
   const buyerAddress = await wallet.getChangeAddress();
   fetcher.addUtxo({
     input: { txHash: "3".repeat(64), outputIndex: 0 },
-    output: { address: buyerAddress, amount: [{ unit: "lovelace", quantity: "50000000" }] },
+    output: {
+      address: buyerAddress,
+      amount: [{ unit: "lovelace", quantity: "50000000" }],
+    },
   });
 
   const requirement: PaymentRequirements = {
@@ -40,7 +43,11 @@ const buildValidPayload = async (): Promise<{
     requirement,
     wallet,
     { url: "https://example.com" },
-    { fetcher, protocol: DEFAULT_PROTOCOL_PARAMETERS, currentSlot: CURRENT_SLOT },
+    {
+      fetcher,
+      protocol: DEFAULT_PROTOCOL_PARAMETERS,
+      currentSlot: CURRENT_SLOT,
+    },
   );
   const payload = await signPayment(wallet, built);
   return { payload, requirement, fetcher };
@@ -63,7 +70,13 @@ const tamperConsistently = (
 describe("verifyPayment - core rule isolation", () => {
   it("passes on an untampered payload", async () => {
     const { payload, requirement, fetcher } = await buildValidPayload();
-    const result = await verifyPayment(payload, requirement, fetcher, DEFAULT_PROTOCOL_PARAMETERS, CURRENT_SLOT);
+    const result = await verifyPayment(
+      payload,
+      requirement,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      CURRENT_SLOT,
+    );
     expect(result).toEqual({ isValid: true });
   });
 
@@ -75,37 +88,82 @@ describe("verifyPayment - core rule isolation", () => {
     // each other. The facilitator must reject on the mismatch against its own trusted copy,
     // before any of those checks run.
     const { payload, requirement, fetcher } = await buildValidPayload();
-    const attackerPayload = { ...payload, accepted: { ...payload.accepted, amount: "1" } };
-    const result = await verifyPayment(attackerPayload, requirement, fetcher, DEFAULT_PROTOCOL_PARAMETERS, CURRENT_SLOT);
-    expect(result).toEqual({ isValid: false, invalidReason: "REQUIREMENTS_MISMATCH" });
+    const attackerPayload = {
+      ...payload,
+      accepted: { ...payload.accepted, amount: "1" },
+    };
+    const result = await verifyPayment(
+      attackerPayload,
+      requirement,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      CURRENT_SLOT,
+    );
+    expect(result).toEqual({
+      isValid: false,
+      invalidReason: "REQUIREMENTS_MISMATCH",
+    });
   });
 
   it("rejects a network mismatch (rule 1)", async () => {
     const { payload, fetcher } = await buildValidPayload();
-    const { payload: tampered, requirement: trusted } = tamperConsistently(payload, (a) => ({
-      ...a,
-      network: "cardano:mainnet",
-    }));
-    const result = await verifyPayment(tampered, trusted, fetcher, DEFAULT_PROTOCOL_PARAMETERS, CURRENT_SLOT);
-    expect(result).toEqual({ isValid: false, invalidReason: "INVALID_NETWORK" });
+    const { payload: tampered, requirement: trusted } = tamperConsistently(
+      payload,
+      (a) => ({
+        ...a,
+        network: "cardano:mainnet",
+      }),
+    );
+    const result = await verifyPayment(
+      tampered,
+      trusted,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      CURRENT_SLOT,
+    );
+    expect(result).toEqual({
+      isValid: false,
+      invalidReason: "INVALID_NETWORK",
+    });
   });
 
   it("rejects an amount above what the tx actually pays (rules 2-4)", async () => {
     const { payload, fetcher } = await buildValidPayload();
-    const { payload: tampered, requirement: trusted } = tamperConsistently(payload, (a) => ({
-      ...a,
-      amount: "999000000",
-    }));
-    const result = await verifyPayment(tampered, trusted, fetcher, DEFAULT_PROTOCOL_PARAMETERS, CURRENT_SLOT);
-    expect(result).toEqual({ isValid: false, invalidReason: "PAYTO_NOT_FOUND" });
+    const { payload: tampered, requirement: trusted } = tamperConsistently(
+      payload,
+      (a) => ({
+        ...a,
+        amount: "999000000",
+      }),
+    );
+    const result = await verifyPayment(
+      tampered,
+      trusted,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      CURRENT_SLOT,
+    );
+    expect(result).toEqual({
+      isValid: false,
+      invalidReason: "PAYTO_NOT_FOUND",
+    });
   });
 
   it("rejects an already-spent nonce (rule 5)", async () => {
     const { payload, requirement, fetcher } = await buildValidPayload();
     const [txHash, index] = payload.payload.nonce.split("#");
     fetcher.spend(txHash!, Number(index));
-    const result = await verifyPayment(payload, requirement, fetcher, DEFAULT_PROTOCOL_PARAMETERS, CURRENT_SLOT);
-    expect(result).toEqual({ isValid: false, invalidReason: "NONCE_NOT_UNSPENT" });
+    const result = await verifyPayment(
+      payload,
+      requirement,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      CURRENT_SLOT,
+    );
+    expect(result).toEqual({
+      isValid: false,
+      invalidReason: "NONCE_NOT_UNSPENT",
+    });
   });
 
   it("rejects a TTL already past (rule 7)", async () => {
@@ -124,11 +182,20 @@ describe("verifyPayment - core rule isolation", () => {
 
   it("rejects a maxTimeoutSeconds narrower than the tx's actual TTL (rule 7)", async () => {
     const { payload, fetcher } = await buildValidPayload();
-    const { payload: tampered, requirement: trusted } = tamperConsistently(payload, (a) => ({
-      ...a,
-      maxTimeoutSeconds: 1,
-    }));
-    const result = await verifyPayment(tampered, trusted, fetcher, DEFAULT_PROTOCOL_PARAMETERS, CURRENT_SLOT);
+    const { payload: tampered, requirement: trusted } = tamperConsistently(
+      payload,
+      (a) => ({
+        ...a,
+        maxTimeoutSeconds: 1,
+      }),
+    );
+    const result = await verifyPayment(
+      tampered,
+      trusted,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      CURRENT_SLOT,
+    );
     expect(result).toEqual({ isValid: false, invalidReason: "TTL_TOO_FAR" });
   });
 });

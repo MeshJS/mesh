@@ -1,8 +1,10 @@
-import { deserializeTx, resolveTxHash } from "@meshsdk/core-cst";
 import { IFetcher, ISubmitter, Protocol } from "@meshsdk/common";
+import { deserializeTx, resolveTxHash } from "@meshsdk/core-cst";
 
-import { PaymentPayload } from "../types/payment-payload";
 import { base64ToHex } from "../encoding";
+import { buildSignedTerms, computeTermsDigest } from "../masumi/terms";
+import { tryNormalizeCardanoNetwork } from "../types/network";
+import { PaymentPayload } from "../types/payment-payload";
 import {
   getAssetTransferMethod,
   getConfirmationPolicy,
@@ -10,10 +12,12 @@ import {
   PaymentRequirementsExtraMasumi,
 } from "../types/payment-requirements";
 import { PaymentResponse } from "../types/payment-response";
-import { tryNormalizeCardanoNetwork } from "../types/network";
-import { buildSignedTerms, computeTermsDigest } from "../masumi/terms";
-import { checkRequirementsMatchTrusted, verifyPayment, VerifyOptions } from "./verify";
 import { SettlementStore } from "./store";
+import {
+  checkRequirementsMatchTrusted,
+  VerifyOptions,
+  verifyPayment,
+} from "./verify";
 
 /**
  * Confirmation and rollback grace period kept on top of the TTL before a claim may be
@@ -27,11 +31,29 @@ const failure = (
   network: Network,
   txHash: string,
   errorReason: string,
-  extra: PaymentResponse["extra"] = { status: "pending", confirmations: -1, transactionId: txHash },
-): PaymentResponse => ({ success: false, network, transaction: txHash, extra, errorReason });
+  extra: PaymentResponse["extra"] = {
+    status: "pending",
+    confirmations: -1,
+    transactionId: txHash,
+  },
+): PaymentResponse => ({
+  success: false,
+  network,
+  transaction: txHash,
+  extra,
+  errorReason,
+});
 
-const pending = (network: Network, txHash: string, confirmations: number): PaymentResponse =>
-  failure(network, txHash, "settlement_pending", { status: "pending", confirmations, transactionId: txHash });
+const pending = (
+  network: Network,
+  txHash: string,
+  confirmations: number,
+): PaymentResponse =>
+  failure(network, txHash, "settlement_pending", {
+    status: "pending",
+    confirmations,
+    transactionId: txHash,
+  });
 
 /**
  * A submission error that is a *definitive* ledger/node rejection (so the claim can be
@@ -65,7 +87,8 @@ export const settlePayment = async (
   currentSlot: number,
   options: VerifyOptions = {},
 ): Promise<PaymentResponse> => {
-  const network = tryNormalizeCardanoNetwork(payload?.accepted?.network) ?? "cardano:mainnet";
+  const network =
+    tryNormalizeCardanoNetwork(payload?.accepted?.network) ?? "cardano:mainnet";
   let txHex: string;
   let txHash: string;
   let ttlSlot: number | undefined;
@@ -96,21 +119,38 @@ export const settlePayment = async (
   if (record?.state === "expired") return failure(network, txHash, "EXPIRED");
 
   if (!record) {
-    const verification = await verifyPayment(payload, trustedRequirements, fetcher, protocol, currentSlot, options);
-    if (!verification.isValid) return failure(network, txHash, verification.invalidReason);
+    const verification = await verifyPayment(
+      payload,
+      trustedRequirements,
+      fetcher,
+      protocol,
+      currentSlot,
+      options,
+    );
+    if (!verification.isValid)
+      return failure(network, txHash, verification.invalidReason);
 
     let termsDigest: string | undefined;
     if (getAssetTransferMethod(payload.accepted) === "masumi") {
       const extra = payload.accepted.extra as PaymentRequirementsExtraMasumi;
-      termsDigest = computeTermsDigest(buildSignedTerms(extra, { ...payload.accepted, network }));
+      termsDigest = computeTermsDigest(
+        buildSignedTerms(extra, { ...payload.accepted, network }),
+      );
       // Logical replay: several different transactions can lock against one 402; only the first
       // transaction to claim a `termsDigest` may proceed.
       const boundTx = await store.bindTermsDigest(termsDigest, txHash);
-      if (boundTx !== txHash) return failure(network, txHash, "MASUMI_TERMS_ALREADY_CLAIMED");
+      if (boundTx !== txHash)
+        return failure(network, txHash, "MASUMI_TERMS_ALREADY_CLAIMED");
     }
 
     // Atomic claim BEFORE awaiting the submission, so concurrent calls cannot both broadcast.
-    const claimed = await store.claim({ txHash, state: "submitting", broadcastAt: Date.now(), ttlSlot, termsDigest });
+    const claimed = await store.claim({
+      txHash,
+      state: "submitting",
+      broadcastAt: Date.now(),
+      ttlSlot,
+      termsDigest,
+    });
     if (!claimed) return failure(network, txHash, "duplicate_settlement");
 
     try {
@@ -118,15 +158,27 @@ export const settlePayment = async (
     } catch (error) {
       if (isDefinitiveRejection(error)) {
         await store.release(txHash);
-        return failure(network, txHash, `submission_rejected: ${error instanceof Error ? error.message : String(error)}`);
+        return failure(
+          network,
+          txHash,
+          `submission_rejected: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
       // Unknown node result / transport failure: keep the claim and reconcile by tx id on the retry.
     }
-    record = { txHash, state: "submitted", broadcastAt: Date.now(), ttlSlot, termsDigest };
+    record = {
+      txHash,
+      state: "submitted",
+      broadcastAt: Date.now(),
+      ttlSlot,
+      termsDigest,
+    };
     await store.put(txHash, record);
   }
 
-  const l1Confirmations = getConfirmationPolicy(payload.accepted).l1Confirmations;
+  const l1Confirmations = getConfirmationPolicy(
+    payload.accepted,
+  ).l1Confirmations;
 
   let confirmations: number | null = null;
   try {
@@ -141,7 +193,12 @@ export const settlePayment = async (
     // `-1`: the facilitator's own authenticated broadcast acceptance is the evidence asked for.
     if (l1Confirmations === -1 && record.state === "submitted") {
       await store.put(txHash, { ...record, state: "settled" });
-      return { success: true, network, transaction: txHash, extra: { status: "mempool", confirmations: -1 } };
+      return {
+        success: true,
+        network,
+        transaction: txHash,
+        extra: { status: "mempool", confirmations: -1 },
+      };
     }
     // The validity window closed without the ledger recording the tx: it can no longer land.
     const expiry = record.ttlSlot ?? ttlSlot;
@@ -152,8 +209,14 @@ export const settlePayment = async (
     return pending(network, txHash, -1);
   }
 
-  if (confirmations < l1Confirmations) return pending(network, txHash, confirmations);
+  if (confirmations < l1Confirmations)
+    return pending(network, txHash, confirmations);
 
   await store.put(txHash, { ...record, state: "settled" });
-  return { success: true, network, transaction: txHash, extra: { status: "confirmed", confirmations } };
+  return {
+    success: true,
+    network,
+    transaction: txHash,
+    extra: { status: "confirmed", confirmations },
+  };
 };

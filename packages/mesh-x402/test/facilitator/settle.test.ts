@@ -12,12 +12,19 @@ import { buildTestWallet } from "../fixtures/testWallet";
 const SELLER_ADDRESS =
   "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w";
 
-const buildSignedDefaultPayload = async (fetcher: FakeFetcher, submitter: FakeSubmitter, currentSlot: number) => {
+const buildSignedDefaultPayload = async (
+  fetcher: FakeFetcher,
+  submitter: FakeSubmitter,
+  currentSlot: number,
+) => {
   const wallet = await buildTestWallet(fetcher, submitter);
   const buyerAddress = await wallet.getChangeAddress();
   fetcher.addUtxo({
     input: { txHash: "1".repeat(64), outputIndex: 0 },
-    output: { address: buyerAddress, amount: [{ unit: "lovelace", quantity: "50000000" }] },
+    output: {
+      address: buyerAddress,
+      amount: [{ unit: "lovelace", quantity: "50000000" }],
+    },
   });
 
   const requirement: PaymentRequirements = {
@@ -45,10 +52,16 @@ describe("settlePayment", () => {
     const fetcher = new FakeFetcher();
     const submitter = new FakeSubmitter();
     const currentSlot = 1_000_000;
-    const { signed, requirement } = await buildSignedDefaultPayload(fetcher, submitter, currentSlot);
+    const { signed, requirement } = await buildSignedDefaultPayload(
+      fetcher,
+      submitter,
+      currentSlot,
+    );
     const store = new InMemorySettlementStore();
 
-    const txHex = Buffer.from(signed.payload.transaction, "base64").toString("hex");
+    const txHex = Buffer.from(signed.payload.transaction, "base64").toString(
+      "hex",
+    );
     const txHash = resolveTxHash(txHex);
     fetcher.setConfirmed(txHash, "block-1", 1);
 
@@ -71,15 +84,29 @@ describe("settlePayment", () => {
     const fetcher = new FakeFetcher();
     const submitter = new FakeSubmitter();
     const currentSlot = 1_000_000;
-    const { signed, requirement } = await buildSignedDefaultPayload(fetcher, submitter, currentSlot);
+    const { signed, requirement } = await buildSignedDefaultPayload(
+      fetcher,
+      submitter,
+      currentSlot,
+    );
     const store = new InMemorySettlementStore();
 
-    const txHex = Buffer.from(signed.payload.transaction, "base64").toString("hex");
+    const txHex = Buffer.from(signed.payload.transaction, "base64").toString(
+      "hex",
+    );
     const txHash = resolveTxHash(txHex);
     fetcher.setConfirmed(txHash, "block-1", 0); // below the requirement's l1Confirmations: 1
 
     const settle = () =>
-      settlePayment(signed, requirement, fetcher, submitter, store, DEFAULT_PROTOCOL_PARAMETERS, currentSlot);
+      settlePayment(
+        signed,
+        requirement,
+        fetcher,
+        submitter,
+        store,
+        DEFAULT_PROTOCOL_PARAMETERS,
+        currentSlot,
+      );
 
     const first = await settle();
     expect(first.success).toBe(false);
@@ -102,7 +129,11 @@ describe("settlePayment", () => {
     const fetcher = new FakeFetcher();
     const submitter = new FakeSubmitter();
     const currentSlot = 1_000_000;
-    const { signed, requirement } = await buildSignedDefaultPayload(fetcher, submitter, currentSlot);
+    const { signed, requirement } = await buildSignedDefaultPayload(
+      fetcher,
+      submitter,
+      currentSlot,
+    );
     const store = new InMemorySettlementStore();
 
     const [nonceTxHash, nonceIndex] = signed.payload.nonce.split("#");

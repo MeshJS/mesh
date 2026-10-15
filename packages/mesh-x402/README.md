@@ -13,7 +13,12 @@ verification rules, implemented without Evolution SDK.
 import { MeshWallet } from "@meshsdk/wallet";
 import { fetchWithPayment } from "@meshsdk/x402";
 
-const wallet = new MeshWallet({ networkId: 0, fetcher, submitter, key: { type: "mnemonic", words } });
+const wallet = new MeshWallet({
+  networkId: 0,
+  fetcher,
+  submitter,
+  key: { type: "mnemonic", words },
+});
 await wallet.init();
 
 const { response, paymentResponse } = await fetchWithPayment(
@@ -43,7 +48,10 @@ const app = createFacilitatorApp({
   submitter,
   store: new InMemorySettlementStore(),
   supportedNetworks: ["cardano:preprod"],
-  resolveChainState: async (network) => ({ protocol: await fetcher.fetchProtocolParameters(epoch), currentSlot }),
+  resolveChainState: async (network) => ({
+    protocol: await fetcher.fetchProtocolParameters(epoch),
+    currentSlot,
+  }),
   // optional: range of confirmationPolicy.l1Confirmations this facilitator settles (default 0..20;
   // -1 = settle on its own mempool acceptance is opt-in) and approval of non-default Masumi deployments
   l1Confirmations: { minimum: 0, maximum: 20 },
@@ -83,11 +91,29 @@ a `validateRegistryClaim` validator that independently confirms the registry ass
 endpoint, network and exact price:
 
 ```ts
-const validateRegistryClaim: MasumiRegistryValidator = async ({ agentIdentifier, sellerAddress, network, amount, asset, resource }) =>
-  myRegistryLookup(agentIdentifier, { sellerAddress, network, amount, asset, endpoint: resource.url }); // true only if authentic
+const validateRegistryClaim: MasumiRegistryValidator = async ({
+  agentIdentifier,
+  sellerAddress,
+  network,
+  amount,
+  asset,
+  resource,
+}) =>
+  myRegistryLookup(agentIdentifier, {
+    sellerAddress,
+    network,
+    amount,
+    asset,
+    endpoint: resource.url,
+  }); // true only if authentic
 
-createFacilitatorApp({ /* ... */ validateRegistryClaim });           // facilitator
-fetchWithPayment(url, init, wallet, { fetcher, protocol, currentSlot, validateRegistryClaim }); // client
+createFacilitatorApp({ /* ... */ validateRegistryClaim }); // facilitator
+fetchWithPayment(url, init, wallet, {
+  fetcher,
+  protocol,
+  currentSlot,
+  validateRegistryClaim,
+}); // client
 ```
 
 A validator that returns anything but `true`, or throws, refuses the payment (`MASUMI_INVALID_AGENT_IDENTIFIER`).
@@ -100,15 +126,30 @@ funds can legitimately leave it, matching `vested_pay.ak`'s full action set:
 
 ```ts
 import {
-  buildSubmitResultTx, buildWithdrawTx, buildAuthorizeRefundTx,       // seller actions
-  buildSetRefundRequestedTx, buildAuthorizeWithdrawalTx, buildWithdrawRefundTx, // buyer actions
-  buildWithdrawDisputedTx, signAdminIntent, verifyAdminSignature,     // admin-quorum settlement
+  buildAuthorizeRefundTx, // seller actions
+  buildAuthorizeWithdrawalTx, // buyer actions
+  buildSetRefundRequestedTx,
+  buildSubmitResultTx,
+  buildWithdrawDisputedTx,
+  buildWithdrawRefundTx,
+  buildWithdrawTx,
+  signAdminIntent,
+  verifyAdminSignature, // admin-quorum settlement
 } from "@meshsdk/x402";
 
 // e.g. seller delivers, then withdraws once the buyer has authorized it (or unlock_time has passed):
-const tx = await buildSubmitResultTx(escrowUtxo, currentDatum, resultHashHex, sellerWallet, deployment, {
-  fetcher, evaluator, currentSlot, // `evaluator` is required here (unlike client/build.ts's ChainContext) -
-});                                 // spending a script needs real ExUnits estimation, not just fee calc.
+const tx = await buildSubmitResultTx(
+  escrowUtxo,
+  currentDatum,
+  resultHashHex,
+  sellerWallet,
+  deployment,
+  {
+    fetcher,
+    evaluator,
+    currentSlot, // `evaluator` is required here (unlike client/build.ts's ChainContext) -
+  },
+); // spending a script needs real ExUnits estimation, not just fee calc.
 ```
 
 Each builder takes the escrow's current `UTxO` + its parsed datum (`parseMasumiLockDatum`), the relevant

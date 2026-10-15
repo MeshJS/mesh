@@ -12,5 +12,10 @@ import { buildMasumiDatum, MasumiDatumView } from "../datum";
 
 export const buildContinuationDatum = (
   current: MasumiDatumView,
-  overrides: Partial<Pick<MasumiDatumView, "resultHash" | "sellerCooldownTime" | "buyerCooldownTime" | "state">>,
+  overrides: Partial<
+    Pick<
+      MasumiDatumView,
+      "resultHash" | "sellerCooldownTime" | "buyerCooldownTime" | "state"
+    >
+  >,
 ): Data => buildMasumiDatum({ ...current, ...overrides });

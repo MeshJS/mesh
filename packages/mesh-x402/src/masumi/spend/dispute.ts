@@ -1,22 +1,28 @@
-import { MeshWallet } from "@meshsdk/wallet";
 import { Asset, UTxO } from "@meshsdk/common";
+import { MeshWallet } from "@meshsdk/wallet";
 
-import { AdminSignature, AssetValueEntry } from "../cip8-admin";
-import { credentialsToBech32, MASUMI_STATE, MasumiDatumView } from "../datum";
-import { MasumiDeployment } from "../../types/payment-requirements";
 import { LOVELACE } from "../../types/asset";
 import { X402Error } from "../../types/errors";
+import { MasumiDeployment } from "../../types/payment-requirements";
+import { AdminSignature, AssetValueEntry } from "../cip8-admin";
+import { credentialsToBech32, MASUMI_STATE, MasumiDatumView } from "../datum";
 import { SpendContext } from "./context";
 import { buildWithdrawDisputedRedeemer } from "./redeemer";
-import { finishSpend, loadSpender, startEscrowSpend, WITHDRAW_WINDOW_SLOTS } from "./spend";
-import { slotAtOrAfter } from "./timing";
+import {
+  finishSpend,
+  loadSpender,
+  startEscrowSpend,
+  WITHDRAW_WINDOW_SLOTS,
+} from "./spend";
 import { taggedOutputDatum } from "./tagged-output";
+import { slotAtOrAfter } from "./timing";
 
 /** `AssetValue`'s convention for lovelace: empty policy id, one "asset" with an empty name. */
 const assetValueToAssets = (entries: AssetValueEntry[]): Asset[] =>
   entries.flatMap((entry) =>
     entry.assets.map((a) => ({
-      unit: entry.policyId === "" ? LOVELACE : `${entry.policyId}${a.assetName}`,
+      unit:
+        entry.policyId === "" ? LOVELACE : `${entry.policyId}${a.assetName}`,
       quantity: a.quantity.toString(),
     })),
   );
@@ -39,7 +45,10 @@ export const buildWithdrawDisputedTx = async (
   ctx: SpendContext,
 ): Promise<string> => {
   if (currentDatum.state !== MASUMI_STATE.Disputed) {
-    throw new X402Error("MASUMI_INVALID_OUTPUT_SHAPE", "WithdrawDisputed is only valid from the Disputed state");
+    throw new X402Error(
+      "MASUMI_INVALID_OUTPUT_SHAPE",
+      "WithdrawDisputed is only valid from the Disputed state",
+    );
   }
 
   const [submitter, changeAddress] = await Promise.all([
@@ -56,8 +65,15 @@ export const buildWithdrawDisputedTx = async (
     submitter.networkId,
   );
 
-  const redeemer = buildWithdrawDisputedRedeemer(buyerValue, sellerValue, adminSignatures);
-  const invalidBefore = slotAtOrAfter(Number(currentDatum.externalDisputeUnlockTime), ctx.currentSlot);
+  const redeemer = buildWithdrawDisputedRedeemer(
+    buyerValue,
+    sellerValue,
+    adminSignatures,
+  );
+  const invalidBefore = slotAtOrAfter(
+    Number(currentDatum.externalDisputeUnlockTime),
+    ctx.currentSlot,
+  );
 
   const chain = startEscrowSpend(escrowUtxo, redeemer, deployment, ctx)
     .txOut(buyerPayoutAddress, assetValueToAssets(buyerValue))

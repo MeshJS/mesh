@@ -8,12 +8,12 @@
  * or inferred. Mirrors `x402-foundation/x402`'s `blueprint.ts` (Apache-2.0), but uses Mesh's
  * own `applyParamsToScript`/`resolvePlutusScriptAddress` instead of Evolution SDK.
  */
+import { PlutusScript } from "@meshsdk/common";
 import {
   applyParamsToScript,
   resolvePlutusScriptAddress,
   resolvePlutusScriptHash,
 } from "@meshsdk/core-cst";
-import { PlutusScript } from "@meshsdk/common";
 
 import { CardanoNetwork, toNetworkId } from "../types/network";
 import { MasumiDeployment } from "../types/payment-requirements";
@@ -56,8 +56,9 @@ const appliedScriptCache = new Map<string, PlutusScript>();
  * order and duplicates are preserved - a repeated key carries repeated voting weight and
  * changes the hash. Applying + parsing is pure, so memoize it per parameterization.
  */
-export const resolveMasumiEscrowScript = (deployment: MasumiDeployment): PlutusScript =>
-  applyMasumiDeployment(deployment);
+export const resolveMasumiEscrowScript = (
+  deployment: MasumiDeployment,
+): PlutusScript => applyMasumiDeployment(deployment);
 
 const applyMasumiDeployment = (deployment: MasumiDeployment): PlutusScript => {
   const cacheKey = `${deployment.requiredAdmins}|${deployment.adminVkeys.join(",")}|${deployment.cooldownPeriod}`;
@@ -66,7 +67,11 @@ const applyMasumiDeployment = (deployment: MasumiDeployment): PlutusScript => {
 
   const code = applyParamsToScript(
     MASUMI_VESTED_PAY_COMPILED_CODE,
-    [BigInt(deployment.requiredAdmins), deployment.adminVkeys, BigInt(deployment.cooldownPeriod)],
+    [
+      BigInt(deployment.requiredAdmins),
+      deployment.adminVkeys,
+      BigInt(deployment.cooldownPeriod),
+    ],
     "Mesh",
   );
   const script: PlutusScript = { version: "V3", code };
@@ -80,7 +85,9 @@ const applyMasumiDeployment = (deployment: MasumiDeployment): PlutusScript => {
 };
 
 /** Derives the escrow validator's script hash for a deployment (network-independent). */
-export const masumiEscrowScriptHash = (deployment: MasumiDeployment): string => {
+export const masumiEscrowScriptHash = (
+  deployment: MasumiDeployment,
+): string => {
   const script = applyMasumiDeployment(deployment);
   // Enterprise addresses at any networkId share the same payment-credential hash for a
   // given script, so deriving via networkId 0 and reading the hash back out is sufficient.
@@ -91,14 +98,23 @@ export const masumiEscrowScriptHash = (deployment: MasumiDeployment): string => 
 export const masumiEscrowAddress = (
   network: CardanoNetwork,
   deployment: MasumiDeployment = MASUMI_DEFAULT_DEPLOYMENT,
-): string => resolvePlutusScriptAddress(applyMasumiDeployment(deployment), toNetworkId(network));
+): string =>
+  resolvePlutusScriptAddress(
+    applyMasumiDeployment(deployment),
+    toNetworkId(network),
+  );
 
 /** Whether `deployment` is exactly the canonical default (same admins in the same order, same threshold/cooldown). */
-export const isDefaultMasumiDeployment = (deployment: MasumiDeployment): boolean =>
+export const isDefaultMasumiDeployment = (
+  deployment: MasumiDeployment,
+): boolean =>
   deployment.requiredAdmins === MASUMI_DEFAULT_DEPLOYMENT.requiredAdmins &&
   deployment.cooldownPeriod === MASUMI_DEFAULT_DEPLOYMENT.cooldownPeriod &&
-  deployment.adminVkeys.length === MASUMI_DEFAULT_DEPLOYMENT.adminVkeys.length &&
-  deployment.adminVkeys.every((k, i) => k === MASUMI_DEFAULT_DEPLOYMENT.adminVkeys[i]);
+  deployment.adminVkeys.length ===
+    MASUMI_DEFAULT_DEPLOYMENT.adminVkeys.length &&
+  deployment.adminVkeys.every(
+    (k, i) => k === MASUMI_DEFAULT_DEPLOYMENT.adminVkeys[i],
+  );
 
 /**
  * The effective authority of a deployment, per distinct admin key. `admin_vks` may repeat a
@@ -111,14 +127,23 @@ export const masumiAdminWeights = (
 ): { key: string; weight: number; canSettleAlone: boolean }[] => {
   const required = Number(deployment.requiredAdmins);
   const weights = new Map<string, number>();
-  for (const key of deployment.adminVkeys) weights.set(key, (weights.get(key) ?? 0) + 1);
-  return Array.from(weights, ([key, weight]) => ({ key, weight, canSettleAlone: weight >= required }));
+  for (const key of deployment.adminVkeys)
+    weights.set(key, (weights.get(key) ?? 0) + 1);
+  return Array.from(weights, ([key, weight]) => ({
+    key,
+    weight,
+    canSettleAlone: weight >= required,
+  }));
 };
 
 /** Policy hook: may a non-default deployment be used? Receives the deployment, the weights and the network. */
 export type AllowMasumiDeployment = (
   deployment: MasumiDeployment,
-  details: { weights: ReturnType<typeof masumiAdminWeights>; totalWeight: number; network: CardanoNetwork },
+  details: {
+    weights: ReturnType<typeof masumiAdminWeights>;
+    totalWeight: number;
+    network: CardanoNetwork;
+  },
 ) => boolean | Promise<boolean>;
 
 /**

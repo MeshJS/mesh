@@ -35,14 +35,19 @@ describe("script assetTransferMethod - end to end (build -> sign -> verify)", ()
 
     fetcher.addUtxo({
       input: { txHash: "f".repeat(64), outputIndex: 0 },
-      output: { address: buyerAddress, amount: [{ unit: "lovelace", quantity: "50000000" }] },
+      output: {
+        address: buyerAddress,
+        amount: [{ unit: "lovelace", quantity: "50000000" }],
+      },
     });
 
     const extra = {
       assetTransferMethod: "script" as const,
       confirmationPolicy: { l1Confirmations: 1 },
       script: { type: "plutusV3" as const, code: alwaysSucceedCbor },
-      datum: fromBuilderToPlutusData({ type: "Mesh", content: mConStr0([]) }).toCbor().toString(),
+      datum: fromBuilderToPlutusData({ type: "Mesh", content: mConStr0([]) })
+        .toCbor()
+        .toString(),
     };
     const scriptAddress = resolveScriptAddress(extra, "cardano:preprod");
 
@@ -65,7 +70,13 @@ describe("script assetTransferMethod - end to end (build -> sign -> verify)", ()
     );
     const signed = await signPayment(wallet, built);
 
-    const result = await verifyPayment(signed, requirement, fetcher, DEFAULT_PROTOCOL_PARAMETERS, currentSlot);
+    const result = await verifyPayment(
+      signed,
+      requirement,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      currentSlot,
+    );
     expect(result).toEqual({ isValid: true });
   });
 
@@ -81,14 +92,19 @@ describe("script assetTransferMethod - end to end (build -> sign -> verify)", ()
 
     fetcher.addUtxo({
       input: { txHash: "9".repeat(64), outputIndex: 0 },
-      output: { address: buyerAddress, amount: [{ unit: "lovelace", quantity: "50000000" }] },
+      output: {
+        address: buyerAddress,
+        amount: [{ unit: "lovelace", quantity: "50000000" }],
+      },
     });
 
     const extra = {
       assetTransferMethod: "script" as const,
       confirmationPolicy: { l1Confirmations: 1 },
       script: { type: "plutusV3" as const, code: alwaysSucceedCbor },
-      datum: fromBuilderToPlutusData({ type: "Mesh", content: mConStr0([]) }).toCbor().toString(),
+      datum: fromBuilderToPlutusData({ type: "Mesh", content: mConStr0([]) })
+        .toCbor()
+        .toString(),
     };
     const scriptAddress = resolveScriptAddress(extra, "cardano:preprod");
 
@@ -113,7 +129,10 @@ describe("script assetTransferMethod - end to end (build -> sign -> verify)", ()
 
     // The tx still pays `scriptAddress` (so rules 2-4 pass); only the declared script now
     // disagrees with it, so the mismatch must be caught by the script-method-specific check.
-    const mismatchedExtra = { ...extra, script: { type: "plutusV3" as const, code: alwaysFailCbor } };
+    const mismatchedExtra = {
+      ...extra,
+      script: { type: "plutusV3" as const, code: alwaysFailCbor },
+    };
     const mismatchedRequirement = { ...requirement, extra: mismatchedExtra };
     const mismatchedPayload = { ...signed, accepted: mismatchedRequirement };
 
@@ -124,6 +143,9 @@ describe("script assetTransferMethod - end to end (build -> sign -> verify)", ()
       DEFAULT_PROTOCOL_PARAMETERS,
       currentSlot,
     );
-    expect(result).toEqual({ isValid: false, invalidReason: "SCRIPT_ADDRESS_MISMATCH" });
+    expect(result).toEqual({
+      isValid: false,
+      invalidReason: "SCRIPT_ADDRESS_MISMATCH",
+    });
   });
 });

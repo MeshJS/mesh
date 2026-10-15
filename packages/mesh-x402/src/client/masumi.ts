@@ -1,10 +1,6 @@
-import { MeshTxBuilder } from "@meshsdk/transaction";
 import { IFetcher, Protocol, UTxO } from "@meshsdk/common";
+import { MeshTxBuilder } from "@meshsdk/transaction";
 
-import { LOVELACE, toMeshUnit } from "../types/asset";
-import { PaymentRequirements, PaymentRequirementsExtraMasumi, ResourceInfo } from "../types/payment-requirements";
-import { X402Error } from "../types/errors";
-import { buildMasumiLock } from "../masumi/lock";
 import { slotToUnixMs, unixMsToSlot } from "../chain";
 import {
   AllowMasumiDeployment,
@@ -12,7 +8,19 @@ import {
   masumiEscrowAddress,
   resolveMasumiDeployment,
 } from "../masumi/escrow-address";
-import { checkRegistryClaim, MasumiRegistryValidator, validateMasumiRequirementsFull } from "../masumi/validate";
+import { buildMasumiLock } from "../masumi/lock";
+import {
+  checkRegistryClaim,
+  MasumiRegistryValidator,
+  validateMasumiRequirementsFull,
+} from "../masumi/validate";
+import { LOVELACE, toMeshUnit } from "../types/asset";
+import { X402Error } from "../types/errors";
+import {
+  PaymentRequirements,
+  PaymentRequirementsExtraMasumi,
+  ResourceInfo,
+} from "../types/payment-requirements";
 import { paymentTtlSlot } from "./ttl";
 
 /** Builds the unsigned escrow-lock transaction for the `masumi` assetTransferMethod. */
@@ -35,10 +43,18 @@ export const buildMasumiEscrowPayment = async (
   const failure = await validateMasumiRequirementsFull(requirement);
   if (failure) throw new X402Error(failure.code, failure.detail);
 
-  const registryFailure = await checkRegistryClaim(requirement, registry?.resource, registry?.validate);
-  if (registryFailure) throw new X402Error(registryFailure.code, registryFailure.detail);
+  const registryFailure = await checkRegistryClaim(
+    requirement,
+    registry?.resource,
+    registry?.validate,
+  );
+  if (registryFailure)
+    throw new X402Error(registryFailure.code, registryFailure.detail);
 
-  const deployment = resolveMasumiDeployment(requirement.network, extra.deployment);
+  const deployment = resolveMasumiDeployment(
+    requirement.network,
+    extra.deployment,
+  );
   if (!deployment) {
     throw new X402Error(
       "MASUMI_ESCROW_ADDRESS_MISMATCH",
@@ -53,7 +69,13 @@ export const buildMasumiEscrowPayment = async (
       `Derived Masumi escrow address ${escrowAddress} does not match payTo ${requirement.payTo} - refusing to pay into an unverified escrow`,
     );
   }
-  if (!(await isMasumiDeploymentAllowed(requirement.network, deployment, allowDeployment))) {
+  if (
+    !(await isMasumiDeploymentAllowed(
+      requirement.network,
+      deployment,
+      allowDeployment,
+    ))
+  ) {
     throw new X402Error(
       "MASUMI_DEPLOYMENT_NOT_ALLOWED",
       "extra.deployment is not the canonical Masumi deployment and the application has not explicitly allowed it",
@@ -62,16 +84,31 @@ export const buildMasumiEscrowPayment = async (
 
   // The lock's TTL must be on/before `pay_by_time`, so cap it there (and refuse a lock that can no longer land in time).
   const payByTime = Number(extra.terms!.payByTime);
-  const ttlSlot = Math.min(paymentTtlSlot(requirement, currentSlot), unixMsToSlot(requirement.network, payByTime));
-  if (ttlSlot <= currentSlot || slotToUnixMs(requirement.network, ttlSlot) > payByTime) {
-    throw new X402Error("MASUMI_PAY_BY_TIME_PASSED", "terms.payByTime has already passed (or leaves no validity window)");
+  const ttlSlot = Math.min(
+    paymentTtlSlot(requirement, currentSlot),
+    unixMsToSlot(requirement.network, payByTime),
+  );
+  if (
+    ttlSlot <= currentSlot ||
+    slotToUnixMs(requirement.network, ttlSlot) > payByTime
+  ) {
+    throw new X402Error(
+      "MASUMI_PAY_BY_TIME_PASSED",
+      "terms.payByTime has already passed (or leaves no validity window)",
+    );
   }
 
   const unit = toMeshUnit(requirement.asset);
   const amount = BigInt(requirement.amount);
   const coinsPerUtxoByte = BigInt(protocol.coinsPerUtxoSize);
 
-  const lock = buildMasumiLock(extra, buyerAddress, requirement.asset, amount, coinsPerUtxoByte);
+  const lock = buildMasumiLock(
+    extra,
+    buyerAddress,
+    requirement.asset,
+    amount,
+    coinsPerUtxoByte,
+  );
 
   const outputAmount =
     unit === LOVELACE

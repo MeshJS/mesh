@@ -1,4 +1,5 @@
-export type CardanoNetwork = "cardano:mainnet" | "cardano:preprod" | "cardano:preview";
+export type CardanoNetwork =
+  "cardano:mainnet" | "cardano:preprod" | "cardano:preview";
 
 const CIP34_ALIASES: Record<string, CardanoNetwork> = {
   "cip34:1-764824073": "cardano:mainnet",
@@ -41,7 +42,9 @@ export const fromNetworkId = (
 ): CardanoNetwork => (networkId === 1 ? "cardano:mainnet" : testnet);
 
 /** Like `normalizeCardanoNetwork`, but returns `null` instead of throwing. */
-export const tryNormalizeCardanoNetwork = (network: unknown): CardanoNetwork | null => {
+export const tryNormalizeCardanoNetwork = (
+  network: unknown,
+): CardanoNetwork | null => {
   if (typeof network !== "string") return null;
   try {
     return normalizeCardanoNetwork(network);
@@ -51,8 +54,13 @@ export const tryNormalizeCardanoNetwork = (network: unknown): CardanoNetwork | n
 };
 
 /** bech32 human-readable-part check: does `address` belong to `network`'s address space (mainnet vs. testnets)? */
-export const addressMatchesNetwork = (address: string, network: CardanoNetwork): boolean => {
-  const isMainnetAddress = address.startsWith("addr1") || address.startsWith("stake1");
-  const isTestnetAddress = address.startsWith("addr_test1") || address.startsWith("stake_test1");
+export const addressMatchesNetwork = (
+  address: string,
+  network: CardanoNetwork,
+): boolean => {
+  const isMainnetAddress =
+    address.startsWith("addr1") || address.startsWith("stake1");
+  const isTestnetAddress =
+    address.startsWith("addr_test1") || address.startsWith("stake_test1");
   return network === "cardano:mainnet" ? isMainnetAddress : isTestnetAddress;
 };

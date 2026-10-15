@@ -1,7 +1,7 @@
 /** Internal scaffolding shared by every spend builder (deliberately not re-exported). */
+import { UTxO } from "@meshsdk/common";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 import { MeshWallet } from "@meshsdk/wallet";
-import { UTxO } from "@meshsdk/common";
 
 import { MasumiDeployment } from "../../types/payment-requirements";
 import { resolveMasumiEscrowScript } from "../escrow-address";
@@ -14,8 +14,15 @@ export const WITHDRAW_WINDOW_SLOTS = 3600;
 
 /** Network id, UTxOs and a collateral input of the wallet that pays for and signs the spend. */
 export const loadSpender = async (wallet: MeshWallet) => {
-  const [networkId, utxos] = await Promise.all([wallet.getNetworkId(), wallet.getUtxos()]);
-  return { networkId: networkId as 0 | 1, utxos, collateral: selectCollateralUtxo(utxos) };
+  const [networkId, utxos] = await Promise.all([
+    wallet.getNetworkId(),
+    wallet.getUtxos(),
+  ]);
+  return {
+    networkId: networkId as 0 | 1,
+    utxos,
+    collateral: selectCollateralUtxo(utxos),
+  };
 };
 
 type Spender = Awaited<ReturnType<typeof loadSpender>>;
@@ -28,7 +35,11 @@ export const startEscrowSpend = (
   ctx: SpendContext,
 ): MeshTxBuilder => {
   const { input, output } = escrowUtxo;
-  return new MeshTxBuilder({ fetcher: ctx.fetcher, evaluator: ctx.evaluator, verbose: false })
+  return new MeshTxBuilder({
+    fetcher: ctx.fetcher,
+    evaluator: ctx.evaluator,
+    verbose: false,
+  })
     .spendingPlutusScriptV3()
     .txIn(input.txHash, input.outputIndex, output.amount, output.address)
     .txInInlineDatumPresent()
@@ -48,7 +59,12 @@ export const finishSpend = (
   },
 ): Promise<string> => {
   const { input, output } = spender.collateral;
-  chain = chain.txInCollateral(input.txHash, input.outputIndex, output.amount, output.address);
+  chain = chain.txInCollateral(
+    input.txHash,
+    input.outputIndex,
+    output.amount,
+    output.address,
+  );
   if (opts.signerHash) chain = chain.requiredSignerHash(opts.signerHash);
   return chain
     .invalidBefore(opts.invalidBefore)
@@ -67,4 +83,8 @@ export const freshCooldownTime = (
   deployment: MasumiDeployment,
   invalidHereafter: number,
   currentSlot: number,
-): bigint => BigInt(slotToUnixMs(invalidHereafter, currentSlot) + Number(deployment.cooldownPeriod));
+): bigint =>
+  BigInt(
+    slotToUnixMs(invalidHereafter, currentSlot) +
+      Number(deployment.cooldownPeriod),
+  );

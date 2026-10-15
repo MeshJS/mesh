@@ -7,10 +7,17 @@ const app = createFacilitatorApp({
   fetcher: new FakeFetcher(),
   submitter: new FakeSubmitter(),
   supportedNetworks: ["cardano:preprod"],
-  resolveChainState: async () => ({ protocol: DEFAULT_PROTOCOL_PARAMETERS, currentSlot: 1_000_000 }),
+  resolveChainState: async () => ({
+    protocol: DEFAULT_PROTOCOL_PARAMETERS,
+    currentSlot: 1_000_000,
+  }),
 });
 const post = (path: string, body: string) =>
-  app.request(path, { method: "POST", headers: { "content-type": "application/json" }, body });
+  app.request(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+  });
 
 describe("facilitator HTTP surface", () => {
   it("advertises the settleable confirmation range and no fee sponsorship", async () => {
@@ -33,7 +40,13 @@ describe("facilitator HTTP surface", () => {
   });
 
   it("rejects a network this facilitator does not serve", async () => {
-    const res = await post("/verify", JSON.stringify({ paymentPayload: {}, paymentRequirements: { network: "cardano:mainnet", extra: {} } }));
+    const res = await post(
+      "/verify",
+      JSON.stringify({
+        paymentPayload: {},
+        paymentRequirements: { network: "cardano:mainnet", extra: {} },
+      }),
+    );
     expect(res.status).toBe(400);
   });
 });

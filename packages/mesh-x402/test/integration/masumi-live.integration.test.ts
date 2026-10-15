@@ -18,10 +18,13 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import { buildPaymentPayload } from "../../src/client/build";
 import { signPayment } from "../../src/client/sign";
-import { verifyPayment } from "../../src/facilitator/verify";
 import { settlePayment } from "../../src/facilitator/settle";
 import { InMemorySettlementStore } from "../../src/facilitator/store";
-import { PaymentRequirements, PaymentRequirementsExtraMasumi } from "../../src/types/payment-requirements";
+import { verifyPayment } from "../../src/facilitator/verify";
+import {
+  PaymentRequirements,
+  PaymentRequirementsExtraMasumi,
+} from "../../src/types/payment-requirements";
 import { buildMasumiRequirements } from "../fixtures/masumiFixture";
 
 const PROJECT_ID = process.env.TEST_BLOCKFROST_PROJECT_ID;
@@ -50,7 +53,9 @@ describeIfConfigured("masumi assetTransferMethod - live preprod", () => {
 
     // Same wallet as both buyer (builds/signs the tx) and seller (signs `termsDigest`) - the
     // fixture derives `terms.sellerAddress` from whatever wallet it's given.
-    const requirement = await buildMasumiRequirements(wallet, { amount: "2000000" });
+    const requirement = await buildMasumiRequirements(wallet, {
+      amount: "2000000",
+    });
     // eslint-disable-next-line no-console
     console.log(`[integration] escrow address: ${requirement.payTo}`);
     console.log(
@@ -65,11 +70,25 @@ describeIfConfigured("masumi assetTransferMethod - live preprod", () => {
     );
     const signed = await signPayment(wallet, built);
 
-    const verifyResult = await verifyPayment(signed, requirement, provider, protocol, currentSlot);
+    const verifyResult = await verifyPayment(
+      signed,
+      requirement,
+      provider,
+      protocol,
+      currentSlot,
+    );
     expect(verifyResult).toEqual({ isValid: true });
 
     const store = new InMemorySettlementStore();
-    let settleResult = await settlePayment(signed, requirement, provider, provider, store, protocol, currentSlot);
+    let settleResult = await settlePayment(
+      signed,
+      requirement,
+      provider,
+      provider,
+      store,
+      protocol,
+      currentSlot,
+    );
     // eslint-disable-next-line no-console
     console.log(`[integration] settle: ${JSON.stringify(settleResult)}`);
 
@@ -77,13 +96,23 @@ describeIfConfigured("masumi assetTransferMethod - live preprod", () => {
     while (!settleResult.success && Date.now() < deadline) {
       await sleep(15_000);
       const latest = await provider.fetchLatestBlock();
-      settleResult = await settlePayment(signed, requirement, provider, provider, store, protocol, Number(latest.slot));
+      settleResult = await settlePayment(
+        signed,
+        requirement,
+        provider,
+        provider,
+        store,
+        protocol,
+        Number(latest.slot),
+      );
       // eslint-disable-next-line no-console
       console.log(`[integration] settle poll: ${JSON.stringify(settleResult)}`);
     }
 
     expect(settleResult.success).toBe(true);
     // eslint-disable-next-line no-console
-    console.log(`[integration] confirmed on preprod: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`);
+    console.log(
+      `[integration] confirmed on preprod: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`,
+    );
   });
 });

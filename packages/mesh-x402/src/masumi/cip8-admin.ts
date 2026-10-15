@@ -6,7 +6,14 @@
  * matched) since the validator recomputes and compares these bytes on-chain.
  */
 import { Cbor, CborArray, CborBytes } from "@harmoniclabs/cbor";
-import { DataB, DataConstr, DataI, dataToCbor } from "@harmoniclabs/plutus-data";
+import {
+  DataB,
+  DataConstr,
+  DataI,
+  dataToCbor,
+} from "@harmoniclabs/plutus-data";
+
+import { DataSignature } from "@meshsdk/common";
 import {
   blake2b,
   Crypto,
@@ -15,7 +22,6 @@ import {
   getPublicKeyFromCoseKey,
   HexBlob,
 } from "@meshsdk/core-cst";
-import { DataSignature } from "@meshsdk/common";
 import { MeshWallet } from "@meshsdk/wallet";
 
 /** The 3 fields `has_valid_admin_signature` checks - not a combined COSE_Sign1 blob. */
@@ -26,7 +32,10 @@ export type AdminSignature = {
 };
 
 /** `[(policyId, [(assetName, quantity)])]` - Aiken's `AssetValue` shape, used for dispute payouts. */
-export type AssetValueEntry = { policyId: string; assets: { assetName: string; quantity: bigint }[] };
+export type AssetValueEntry = {
+  policyId: string;
+  assets: { assetName: string; quantity: bigint }[];
+};
 
 /** Cardano CIP-8 protected-header byte cap the validator enforces (`max_protected_headers_bytes`). */
 export const MAX_PROTECTED_HEADERS_BYTES = 256;
@@ -45,7 +54,12 @@ export const cborByteString = (bytes: Uint8Array): Uint8Array => {
     return Uint8Array.from([0x58, length, ...bytes]);
   }
   if (length < 65536) {
-    return Uint8Array.from([0x59, (length >> 8) & 0xff, length & 0xff, ...bytes]);
+    return Uint8Array.from([
+      0x59,
+      (length >> 8) & 0xff,
+      length & 0xff,
+      ...bytes,
+    ]);
   }
   throw new Error("cborByteString: length must be < 65536");
 };
@@ -61,7 +75,10 @@ const EMPTY_AAD = Uint8Array.from([0x40]);
  * validator's own test vector: `cip8SigStructure(hex("a10126"), hex("0001"))` ===
  * `846a5369676e61747572653143a1012640420001` hex.
  */
-export const cip8SigStructure = (protectedHeaders: Uint8Array, payload: Uint8Array): Uint8Array =>
+export const cip8SigStructure = (
+  protectedHeaders: Uint8Array,
+  payload: Uint8Array,
+): Uint8Array =>
   Uint8Array.from([
     ...SIG_STRUCTURE_PREFIX,
     ...cborByteString(protectedHeaders),
@@ -70,14 +87,19 @@ export const cip8SigStructure = (protectedHeaders: Uint8Array, payload: Uint8Arr
   ]);
 
 /** Parses a Mesh `DataSignature` (from `wallet.signData`) into the 3 fields an `AdminSignature` needs. */
-export const adminSignatureFromDataSignature = (ds: DataSignature): AdminSignature => {
+export const adminSignatureFromDataSignature = (
+  ds: DataSignature,
+): AdminSignature => {
   const decoded = Cbor.parse(ds.signature);
   if (!(decoded instanceof CborArray) || decoded.array.length !== 4) {
     throw new Error("Invalid COSE_Sign1 structure");
   }
   const protectedBytes = decoded.array[0];
   const signatureBytes = decoded.array[3];
-  if (!(protectedBytes instanceof CborBytes) || !(signatureBytes instanceof CborBytes)) {
+  if (
+    !(protectedBytes instanceof CborBytes) ||
+    !(signatureBytes instanceof CborBytes)
+  ) {
     throw new Error("Invalid COSE_Sign1 protected header or signature field");
   }
   return {
@@ -88,7 +110,10 @@ export const adminSignatureFromDataSignature = (ds: DataSignature): AdminSignatu
 };
 
 /** Produces one admin's `AdminSignature` over `digestHex` via `wallet.signData`. */
-export const signAdminIntent = async (digestHex: string, wallet: MeshWallet): Promise<AdminSignature> => {
+export const signAdminIntent = async (
+  digestHex: string,
+  wallet: MeshWallet,
+): Promise<AdminSignature> => {
   const ds = await wallet.signData(digestHex);
   return adminSignatureFromDataSignature(ds);
 };
@@ -104,7 +129,11 @@ export const verifyAdminSignature = async (
   signature: AdminSignature,
 ): Promise<boolean> => {
   await Crypto.ready();
-  if (Buffer.from(signature.protectedHeaders, "hex").length > MAX_PROTECTED_HEADERS_BYTES) return false;
+  if (
+    Buffer.from(signature.protectedHeaders, "hex").length >
+    MAX_PROTECTED_HEADERS_BYTES
+  )
+    return false;
 
   const vkHash = blake2b.hash(HexBlob(signature.verificationKey), 28);
   if (vkHash !== adminVkHashHex.toLowerCase()) return false;
@@ -118,8 +147,12 @@ export const verifyAdminSignature = async (
   const sig = new Ed25519Signature(signatureBuffer);
 
   for (const payloadHex of [digestHex, hashedDigest]) {
-    const structure = cip8SigStructure(protectedHeaderBytes, Buffer.from(payloadHex, "hex"));
-    if (pk.verify(sig, HexBlob(Buffer.from(structure).toString("hex")))) return true;
+    const structure = cip8SigStructure(
+      protectedHeaderBytes,
+      Buffer.from(payloadHex, "hex"),
+    );
+    if (pk.verify(sig, HexBlob(Buffer.from(structure).toString("hex"))))
+      return true;
   }
   return false;
 };
@@ -130,16 +163,25 @@ export const verifyAdminSignature = async (
  * `cbor.serialise` output (see `assetValueToCanonicalCbor`'s doc comment).
  */
 const cborUint = (n: bigint): Uint8Array => {
-  if (n < 0n) throw new Error("cborUint: AssetValue quantities must be non-negative");
+  if (n < 0n)
+    throw new Error("cborUint: AssetValue quantities must be non-negative");
   if (n < 24n) return Uint8Array.from([Number(n)]);
   if (n < 256n) return Uint8Array.from([0x18, Number(n)]);
-  if (n < 65536n) return Uint8Array.from([0x19, Number(n >> 8n), Number(n & 0xffn)]);
+  if (n < 65536n)
+    return Uint8Array.from([0x19, Number(n >> 8n), Number(n & 0xffn)]);
   if (n < 4294967296n) {
-    return Uint8Array.from([0x1a, Number((n >> 24n) & 0xffn), Number((n >> 16n) & 0xffn), Number((n >> 8n) & 0xffn), Number(n & 0xffn)]);
+    return Uint8Array.from([
+      0x1a,
+      Number((n >> 24n) & 0xffn),
+      Number((n >> 16n) & 0xffn),
+      Number((n >> 8n) & 0xffn),
+      Number(n & 0xffn),
+    ]);
   }
   const bytes = new Uint8Array(9);
   bytes[0] = 0x1b;
-  for (let i = 0; i < 8; i++) bytes[8 - i] = Number((n >> BigInt(8 * i)) & 0xffn);
+  for (let i = 0; i < 8; i++)
+    bytes[8 - i] = Number((n >> BigInt(8 * i)) & 0xffn);
   return bytes;
 };
 
@@ -150,7 +192,8 @@ const cborDefiniteMapHeader = (length: number): Uint8Array => {
   throw new Error("cborDefiniteMapHeader: too many entries");
 };
 
-const concatBytes = (parts: Uint8Array[]): Uint8Array => Uint8Array.from(Buffer.concat(parts.map((p) => Buffer.from(p))));
+const concatBytes = (parts: Uint8Array[]): Uint8Array =>
+  Uint8Array.from(Buffer.concat(parts.map((p) => Buffer.from(p))));
 
 /**
  * `AssetValue = Pairs<ByteArray, Pairs<ByteArray, Int>>` re-encoded byte-for-byte as Aiken's
@@ -197,7 +240,10 @@ export const computeDisputeWithdrawalDigest = async (
   sellerValue: AssetValueEntry[],
 ): Promise<string> => {
   await Crypto.ready();
-  const ownRefData = new DataConstr(0, [new DataB(Buffer.from(ownRef.txHash, "hex")), new DataI(BigInt(ownRef.outputIndex))]);
+  const ownRefData = new DataConstr(0, [
+    new DataB(Buffer.from(ownRef.txHash, "hex")),
+    new DataI(BigInt(ownRef.outputIndex)),
+  ]);
   const ownRefCbor = Buffer.from(dataToCbor(ownRefData).toString(), "hex");
   const disputeWithdrawalCbor = Buffer.concat([
     Buffer.from("d8799f", "hex"),

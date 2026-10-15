@@ -20,7 +20,10 @@ describe("default assetTransferMethod - end to end (build -> sign -> verify)", (
 
     fetcher.addUtxo({
       input: { txHash: "a".repeat(64), outputIndex: 0 },
-      output: { address: buyerAddress, amount: [{ unit: "lovelace", quantity: "50000000" }] },
+      output: {
+        address: buyerAddress,
+        amount: [{ unit: "lovelace", quantity: "50000000" }],
+      },
     });
 
     const requirement: PaymentRequirements = {
@@ -45,9 +48,14 @@ describe("default assetTransferMethod - end to end (build -> sign -> verify)", (
 
     const signed = await signPayment(wallet, built);
     // The spec requires base64; a plain re-parse as hex would fail, proving the conversion happened.
-    expect(() => Buffer.from(signed.payload.transaction, "base64")).not.toThrow();
+    expect(() =>
+      Buffer.from(signed.payload.transaction, "base64"),
+    ).not.toThrow();
 
-    const signedTxHex = Buffer.from(signed.payload.transaction, "base64").toString("hex");
+    const signedTxHex = Buffer.from(
+      signed.payload.transaction,
+      "base64",
+    ).toString("hex");
     const tx = deserializeTx(signedTxHex);
     const payToOutput = tx
       .body()
@@ -56,7 +64,13 @@ describe("default assetTransferMethod - end to end (build -> sign -> verify)", (
     expect(payToOutput?.amount().coin()).toBe(2_000_000n);
 
     // The nonce input must still be "unspent" in the fetcher for verification to accept it.
-    const result = await verifyPayment(signed, requirement, fetcher, DEFAULT_PROTOCOL_PARAMETERS, currentSlot);
+    const result = await verifyPayment(
+      signed,
+      requirement,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      currentSlot,
+    );
     expect(result).toEqual({ isValid: true });
   });
 
@@ -68,7 +82,10 @@ describe("default assetTransferMethod - end to end (build -> sign -> verify)", (
 
     fetcher.addUtxo({
       input: { txHash: "b".repeat(64), outputIndex: 0 },
-      output: { address: buyerAddress, amount: [{ unit: "lovelace", quantity: "50000000" }] },
+      output: {
+        address: buyerAddress,
+        amount: [{ unit: "lovelace", quantity: "50000000" }],
+      },
     });
 
     const requirement: PaymentRequirements = {
@@ -81,14 +98,32 @@ describe("default assetTransferMethod - end to end (build -> sign -> verify)", (
       extra: { confirmationPolicy: { l1Confirmations: 1 } },
     };
 
-    const chain = { fetcher, protocol: DEFAULT_PROTOCOL_PARAMETERS, currentSlot: 1_000_000 };
-    const built = await buildPaymentPayload(requirement, wallet, { url: "https://example.com" }, chain);
+    const chain = {
+      fetcher,
+      protocol: DEFAULT_PROTOCOL_PARAMETERS,
+      currentSlot: 1_000_000,
+    };
+    const built = await buildPaymentPayload(
+      requirement,
+      wallet,
+      { url: "https://example.com" },
+      chain,
+    );
     const signed = await signPayment(wallet, built);
 
     const [nonceTxHash, nonceIndex] = signed.payload.nonce.split("#");
     fetcher.spend(nonceTxHash!, Number(nonceIndex));
 
-    const result = await verifyPayment(signed, requirement, fetcher, DEFAULT_PROTOCOL_PARAMETERS, chain.currentSlot);
-    expect(result).toEqual({ isValid: false, invalidReason: "NONCE_NOT_UNSPENT" });
+    const result = await verifyPayment(
+      signed,
+      requirement,
+      fetcher,
+      DEFAULT_PROTOCOL_PARAMETERS,
+      chain.currentSlot,
+    );
+    expect(result).toEqual({
+      isValid: false,
+      invalidReason: "NONCE_NOT_UNSPENT",
+    });
   });
 });

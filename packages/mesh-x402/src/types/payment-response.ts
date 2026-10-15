@@ -17,8 +17,9 @@ export type PaymentResponse = {
   errorReason?: string;
 };
 
-export const encodePaymentResponseHeader = (response: PaymentResponse): string =>
-  encodeHeaderJson(response);
+export const encodePaymentResponseHeader = (
+  response: PaymentResponse,
+): string => encodeHeaderJson(response);
 
 export const decodePaymentResponseHeader = (header: string): PaymentResponse =>
   decodeHeaderJson<PaymentResponse>(header);

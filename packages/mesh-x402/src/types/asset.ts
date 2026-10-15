@@ -1,6 +1,7 @@
 export const LOVELACE = "lovelace";
 
-export type ParsedAsset = "lovelace" | { policyId: string; assetNameHex: string };
+export type ParsedAsset =
+  "lovelace" | { policyId: string; assetNameHex: string };
 
 /** Parses an x402 Cardano asset string: `"lovelace"` or `"policyId.assetNameHex"`. */
 export const parseAssetUnit = (asset: string): ParsedAsset => {
@@ -17,13 +18,18 @@ export const parseAssetUnit = (asset: string): ParsedAsset => {
       `Invalid x402 asset string "${asset}" - expected "lovelace" or "policyId.assetNameHex"`,
     );
   }
-  return { policyId: policyId.toLowerCase(), assetNameHex: assetNameHex.toLowerCase() };
+  return {
+    policyId: policyId.toLowerCase(),
+    assetNameHex: assetNameHex.toLowerCase(),
+  };
 };
 
 /** Converts an x402 asset string to Mesh's `Asset.unit` form (concatenated, no separator). */
 export const toMeshUnit = (asset: string): string => {
   const parsed = parseAssetUnit(asset);
-  return parsed === LOVELACE ? LOVELACE : `${parsed.policyId}${parsed.assetNameHex}`;
+  return parsed === LOVELACE
+    ? LOVELACE
+    : `${parsed.policyId}${parsed.assetNameHex}`;
 };
 
 /** Converts a Mesh `Asset.unit` string back to the x402 `"policyId.assetNameHex"` form. */
@@ -35,7 +41,8 @@ export const fromMeshUnit = (unit: string): string => {
 };
 
 /** Compares two x402 asset strings for equality, normalizing case and lovelace's empty-suffix form. */
-export const assetsEqual = (a: string, b: string): boolean => toMeshUnit(a) === toMeshUnit(b);
+export const assetsEqual = (a: string, b: string): boolean =>
+  toMeshUnit(a) === toMeshUnit(b);
 
 /** Whether `asset` is exactly `"lovelace"` or the canonical lowercase `"policyId.assetNameHex"` form. */
 export const isCanonicalAsset = (asset: string): boolean => {
@@ -45,4 +52,6 @@ export const isCanonicalAsset = (asset: string): boolean => {
 
 /** Parses a positive canonical decimal amount string; returns `null` for anything else. */
 export const parsePositiveAmount = (amount: unknown): bigint | null =>
-  typeof amount === "string" && /^[1-9][0-9]*$/.test(amount) ? BigInt(amount) : null;
+  typeof amount === "string" && /^[1-9][0-9]*$/.test(amount)
+    ? BigInt(amount)
+    : null;

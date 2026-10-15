@@ -109,8 +109,12 @@ export const MIN_L1_CONFIRMATIONS = -1;
 export const MAX_L1_CONFIRMATIONS = 20;
 
 /** Returns the requirement's confirmation policy, defaulting an absent one to `{ l1Confirmations: 1 }`. */
-export const getConfirmationPolicy = (requirement: PaymentRequirements): ConfirmationPolicy =>
-  requirement.extra.confirmationPolicy ?? { l1Confirmations: DEFAULT_L1_CONFIRMATIONS };
+export const getConfirmationPolicy = (
+  requirement: PaymentRequirements,
+): ConfirmationPolicy =>
+  requirement.extra.confirmationPolicy ?? {
+    l1Confirmations: DEFAULT_L1_CONFIRMATIONS,
+  };
 
 export type ResourceInfo = {
   url: string;

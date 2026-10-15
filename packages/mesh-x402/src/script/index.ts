@@ -4,6 +4,7 @@
  * matches the derived/declared script address, but never validates datum *content* - that's
  * the resource server's responsibility.
  */
+import { Data, mConStr } from "@meshsdk/common";
 import {
   applyParamsToScript,
   deserializeBech32Address,
@@ -11,10 +12,12 @@ import {
   resolvePlutusScriptHash,
   scriptHashToBech32,
 } from "@meshsdk/core-cst";
-import { Data, mConStr } from "@meshsdk/common";
 
-import { toNetworkId, CardanoNetwork } from "../types/network";
-import { PaymentRequirementsExtraScript, ScriptParameter } from "../types/payment-requirements";
+import { CardanoNetwork, toNetworkId } from "../types/network";
+import {
+  PaymentRequirementsExtraScript,
+  ScriptParameter,
+} from "../types/payment-requirements";
 
 const versionMap = { plutusV1: "V1", plutusV2: "V2", plutusV3: "V3" } as const;
 
@@ -26,7 +29,8 @@ const EVEN_HEX = /^([0-9a-f]{2})*$/;
  * encoded as bytes, `bigint`/`integer` is a canonical integer, `boolean` is `Constr 0|1 []`.
  */
 const parameterToData = (param: ScriptParameter): Data => {
-  if (!param || typeof param !== "object") throw new Error("script parameter must be an object");
+  if (!param || typeof param !== "object")
+    throw new Error("script parameter must be an object");
   switch (param.type) {
     case "bytes":
       if (typeof param.value !== "string" || !EVEN_HEX.test(param.value)) {
@@ -34,30 +38,44 @@ const parameterToData = (param: ScriptParameter): Data => {
       }
       return param.value;
     case "string":
-      if (typeof param.value !== "string") throw new Error("string parameter must carry a string");
+      if (typeof param.value !== "string")
+        throw new Error("string parameter must carry a string");
       return Buffer.from(param.value, "utf8").toString("hex");
     case "bigint":
     case "integer": {
       const v = param.value;
-      if (typeof v === "number" ? !Number.isSafeInteger(v) : typeof v !== "bigint" && !(typeof v === "string" && /^(0|-?[1-9][0-9]*)$/.test(v))) {
-        throw new Error("integer parameter must be a safe integer or canonical decimal string");
+      if (
+        typeof v === "number"
+          ? !Number.isSafeInteger(v)
+          : typeof v !== "bigint" &&
+            !(typeof v === "string" && /^(0|-?[1-9][0-9]*)$/.test(v))
+      ) {
+        throw new Error(
+          "integer parameter must be a safe integer or canonical decimal string",
+        );
       }
       return BigInt(v as string | number | bigint);
     }
     case "boolean":
-      if (typeof param.value !== "boolean") throw new Error("boolean parameter must carry a boolean");
+      if (typeof param.value !== "boolean")
+        throw new Error("boolean parameter must carry a boolean");
       return mConStr(param.value ? 1 : 0, []);
     default:
-      throw new Error(`Unsupported script parameter type: ${String((param as ScriptParameter).type)}`);
+      throw new Error(
+        `Unsupported script parameter type: ${String((param as ScriptParameter).type)}`,
+      );
   }
 };
 
 /** The final (parameter-applied) script code of a `script`-method requirement. */
 const appliedScriptCode = (extra: PaymentRequirementsExtraScript): string => {
   const script = extra.script!;
-  if (!EVEN_HEX.test(script.code) || script.code.length === 0) throw new Error("script.code must be lowercase even-length hex");
+  if (!EVEN_HEX.test(script.code) || script.code.length === 0)
+    throw new Error("script.code must be lowercase even-length hex");
   const params = Object.values(extra.parameters ?? {}).map(parameterToData);
-  return params.length ? applyParamsToScript(script.code, params, "Mesh") : script.code;
+  return params.length
+    ? applyParamsToScript(script.code, params, "Mesh")
+    : script.code;
 };
 
 /**
@@ -66,20 +84,34 @@ const appliedScriptCode = (extra: PaymentRequirementsExtraScript): string => {
  * When both are declared they must agree - otherwise the advertised hash is not the script
  * the client would actually be locking into.
  */
-export const resolveScriptHash = (extra: PaymentRequirementsExtraScript): string => {
-  if (extra.scriptHash !== undefined && !/^[0-9a-f]{56}$/.test(extra.scriptHash)) {
+export const resolveScriptHash = (
+  extra: PaymentRequirementsExtraScript,
+): string => {
+  if (
+    extra.scriptHash !== undefined &&
+    !/^[0-9a-f]{56}$/.test(extra.scriptHash)
+  ) {
     throw new Error("scriptHash must be 28-byte lowercase hex");
   }
   if (extra.script) {
     const code = appliedScriptCode(extra);
-    const hash = resolvePlutusScriptHash(resolvePlutusScriptAddress({ version: versionMap[extra.script.type], code }, 0));
+    const hash = resolvePlutusScriptHash(
+      resolvePlutusScriptAddress(
+        { version: versionMap[extra.script.type], code },
+        0,
+      ),
+    );
     if (extra.scriptHash !== undefined && extra.scriptHash !== hash) {
-      throw new Error("scriptHash does not match the script after applying parameters");
+      throw new Error(
+        "scriptHash does not match the script after applying parameters",
+      );
     }
     return hash;
   }
   if (extra.scriptHash) return extra.scriptHash;
-  throw new Error("script-method PaymentRequirements must declare `script` or `scriptHash`");
+  throw new Error(
+    "script-method PaymentRequirements must declare `script` or `scriptHash`",
+  );
 };
 
 /**
@@ -97,26 +129,38 @@ export const resolveScriptAddress = (
 };
 
 /** Whether `payTo` is a script address whose payment credential equals the declared/derived script hash. */
-export const scriptPayToMatches = (extra: PaymentRequirementsExtraScript, payTo: string): boolean => {
+export const scriptPayToMatches = (
+  extra: PaymentRequirementsExtraScript,
+  payTo: string,
+): boolean => {
   try {
-    return deserializeBech32Address(payTo).scriptHash === resolveScriptHash(extra);
+    return (
+      deserializeBech32Address(payTo).scriptHash === resolveScriptHash(extra)
+    );
   } catch {
     return false;
   }
 };
 
 /** A Plutus V1 script cannot spend an output that carries an inline datum, so that combination strands funds. */
-export const scriptV1WithInlineDatum = (extra: PaymentRequirementsExtraScript): boolean =>
-  extra.script?.type === "plutusV1" && extra.datum !== undefined;
+export const scriptV1WithInlineDatum = (
+  extra: PaymentRequirementsExtraScript,
+): boolean => extra.script?.type === "plutusV1" && extra.datum !== undefined;
 
 /**
  * The inline datum the `payTo` output carries, passed through verbatim (the client does not
  * interpret it). `undefined` when the script spends without one. Rejects anything that is not
  * non-empty CBOR hex.
  */
-export const buildScriptOutputDatum = (extra: PaymentRequirementsExtraScript): string | undefined => {
+export const buildScriptOutputDatum = (
+  extra: PaymentRequirementsExtraScript,
+): string | undefined => {
   if (extra.datum === undefined) return undefined;
-  if (typeof extra.datum !== "string" || extra.datum.length === 0 || !/^([0-9a-fA-F]{2})+$/.test(extra.datum)) {
+  if (
+    typeof extra.datum !== "string" ||
+    extra.datum.length === 0 ||
+    !/^([0-9a-fA-F]{2})+$/.test(extra.datum)
+  ) {
     throw new Error('script "datum" must be non-empty CBOR hex');
   }
   return extra.datum;

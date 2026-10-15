@@ -13,8 +13,10 @@ export type ChainStateProvider = {
  * client and `resolveChainState` for the facilitator. Reads the tip fresh on every call.
  */
 export const chainStateFrom =
-  (provider: ChainStateProvider) =>
-  async (): Promise<ChainState> => {
-    const [protocol, latest] = await Promise.all([provider.fetchProtocolParameters(), provider.fetchLatestBlock()]);
+  (provider: ChainStateProvider) => async (): Promise<ChainState> => {
+    const [protocol, latest] = await Promise.all([
+      provider.fetchProtocolParameters(),
+      provider.fetchLatestBlock(),
+    ]);
     return { protocol, currentSlot: Number(latest.slot) };
   };

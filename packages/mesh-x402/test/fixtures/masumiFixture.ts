@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
+
 import { MeshWallet } from "@meshsdk/wallet";
 
-import { PaymentRequirements, PaymentRequirementsExtraMasumi, MasumiDeployment } from "../../src/types/payment-requirements";
 import {
   buildSignedTerms,
   commitmentPartDigest,
@@ -11,6 +11,11 @@ import {
   MASUMI_DEFAULT_DEPLOYMENT,
   masumiEscrowAddress,
 } from "../../src/masumi";
+import {
+  MasumiDeployment,
+  PaymentRequirements,
+  PaymentRequirementsExtraMasumi,
+} from "../../src/types/payment-requirements";
 
 export type MasumiFixtureOptions = {
   amount?: string;
@@ -51,7 +56,10 @@ export const buildMasumiRequirements = async (
     name: "resource",
     canonicalization: "jcs" as const,
     content: resourceContent,
-    digest: commitmentPartDigest({ canonicalization: "jcs", content: resourceContent }),
+    digest: commitmentPartDigest({
+      canonicalization: "jcs",
+      content: resourceContent,
+    }),
   };
   const inputCommitment = {
     version: "1" as const,
@@ -96,7 +104,10 @@ export const buildMasumiRequirements = async (
   };
 
   const termsDigest = computeTermsDigest(
-    buildSignedTerms(extraBeforeSignature, { ...requirementsBase, extra: extraBeforeSignature }),
+    buildSignedTerms(extraBeforeSignature, {
+      ...requirementsBase,
+      extra: extraBeforeSignature,
+    }),
   );
 
   const sellerSignature = await sellerWallet.signData(termsDigest);

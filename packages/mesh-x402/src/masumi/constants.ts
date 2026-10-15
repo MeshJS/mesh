@@ -81,8 +81,14 @@ export const masumiCollateralLovelace = (
   nativeTokenCount: number,
   coinsPerUtxoByte: bigint,
 ): bigint => {
-  const minUtxo = masumiMinUtxoLovelace(lockDatumBytes, nativeTokenCount, coinsPerUtxoByte);
+  const minUtxo = masumiMinUtxoLovelace(
+    lockDatumBytes,
+    nativeTokenCount,
+    coinsPerUtxoByte,
+  );
   if (requestedLovelace >= minUtxo) return 0n;
   const shortfall = minUtxo - requestedLovelace;
-  return shortfall > MASUMI_MIN_COLLATERAL_LOVELACE ? shortfall : MASUMI_MIN_COLLATERAL_LOVELACE;
+  return shortfall > MASUMI_MIN_COLLATERAL_LOVELACE
+    ? shortfall
+    : MASUMI_MIN_COLLATERAL_LOVELACE;
 };

@@ -6,8 +6,11 @@
  */
 
 /** Converts a POSIX-millisecond timestamp to a slot number, relative to a known (slot, time) pair. */
-export const unixMsToSlot = (targetUnixMs: number, currentSlot: number, nowMs: number = Date.now()): number =>
-  currentSlot + Math.round((targetUnixMs - nowMs) / 1000);
+export const unixMsToSlot = (
+  targetUnixMs: number,
+  currentSlot: number,
+  nowMs: number = Date.now(),
+): number => currentSlot + Math.round((targetUnixMs - nowMs) / 1000);
 
 /**
  * `must_start_after(range, T)` requires the tx's validity range LOWER bound to be Finite and
@@ -21,15 +24,22 @@ export const unixMsToSlot = (targetUnixMs: number, currentSlot: number, nowMs: n
  * computes a wildly negative slot number (`currentSlot - ~56 years of seconds`), corrupting the
  * transaction's validity range.
  */
-export const slotAtOrAfter = (targetUnixMs: number, currentSlot: number, nowMs: number = Date.now()): number =>
+export const slotAtOrAfter = (
+  targetUnixMs: number,
+  currentSlot: number,
+  nowMs: number = Date.now(),
+): number =>
   Math.max(currentSlot, Math.ceil(currentSlot + (targetUnixMs - nowMs) / 1000));
 
 /**
  * `must_end_before(range, T)` requires the tx's validity range UPPER bound to be Finite and
  * strictly `< T`. Rounding down keeps `invalidHereafter` safely clear of `T`.
  */
-export const slotStrictlyBefore = (targetUnixMs: number, currentSlot: number, nowMs: number = Date.now()): number =>
-  Math.floor(currentSlot + (targetUnixMs - nowMs) / 1000) - 1;
+export const slotStrictlyBefore = (
+  targetUnixMs: number,
+  currentSlot: number,
+  nowMs: number = Date.now(),
+): number => Math.floor(currentSlot + (targetUnixMs - nowMs) / 1000) - 1;
 
 /**
  * Inverse of `unixMsToSlot`: the POSIX-ms timestamp a given slot corresponds to.
@@ -43,8 +53,11 @@ export const slotStrictlyBefore = (targetUnixMs: number, currentSlot: number, no
  * `invalidHereafter` would be far too small, failing the continuation datum's
  * `seller_cooldown_time >= cooldown_time` (or `buyer_cooldown_time >= cooldown_time`) check.
  */
-export const slotToUnixMs = (slot: number, currentSlot: number, nowMs: number = Date.now()): number =>
-  nowMs + (slot - currentSlot) * 1000;
+export const slotToUnixMs = (
+  slot: number,
+  currentSlot: number,
+  nowMs: number = Date.now(),
+): number => nowMs + (slot - currentSlot) * 1000;
 
 /**
  * Plenty of real-world margin for building/submitting a transaction (slots are 1 second each -

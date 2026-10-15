@@ -5,7 +5,8 @@
  * - `settled`: success already reported - another `/settle` is a duplicate;
  * - `expired`: validity window closed without the ledger recording it (terminal failure).
  */
-export type SettlementState = "submitting" | "submitted" | "settled" | "expired";
+export type SettlementState =
+  "submitting" | "submitted" | "settled" | "expired";
 
 export type SettlementRecord = {
   txHash: string;
@@ -28,7 +29,9 @@ export type SettlementRecord = {
  */
 export type SettlementStore = {
   has(txHash: string): Promise<boolean> | boolean;
-  get(txHash: string): Promise<SettlementRecord | undefined> | SettlementRecord | undefined;
+  get(
+    txHash: string,
+  ): Promise<SettlementRecord | undefined> | SettlementRecord | undefined;
   /** Atomic insert-if-absent. Returns `true` when this call took the claim. */
   claim(record: SettlementRecord): Promise<boolean> | boolean;
   /** Overwrites an existing claim (state transitions). */
@@ -39,7 +42,10 @@ export type SettlementStore = {
    * Masumi logical replay: binds a `termsDigest` to the FIRST transaction id that claims it,
    * atomically, and returns the bound transaction id (which may be a different one).
    */
-  bindTermsDigest(termsDigest: string, txHash: string): Promise<string> | string;
+  bindTermsDigest(
+    termsDigest: string,
+    txHash: string,
+  ): Promise<string> | string;
 };
 
 /** In-memory default store. Not durable - a facilitator restart forgets what it claimed. */

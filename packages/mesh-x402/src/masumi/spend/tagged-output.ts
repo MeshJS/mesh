@@ -9,5 +9,7 @@
 import { mOutputReference } from "@meshsdk/common";
 
 /** The inline datum every payout output tagged to `ownRef` must carry. */
-export const taggedOutputDatum = (ownRef: { txHash: string; outputIndex: number }) =>
-  mOutputReference(ownRef.txHash, ownRef.outputIndex);
+export const taggedOutputDatum = (ownRef: {
+  txHash: string;
+  outputIndex: number;
+}) => mOutputReference(ownRef.txHash, ownRef.outputIndex);

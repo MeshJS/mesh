@@ -31,9 +31,13 @@ export const encodeBlockchainIdentifier = (identifierText: string): string =>
   toHex(LZString.compressToUint8Array(identifierText));
 
 /** Inverse of `encodeBlockchainIdentifier`; returns `null` for anything that does not decompress. */
-export const decodeBlockchainIdentifier = (identifierHex: string): string | null => {
+export const decodeBlockchainIdentifier = (
+  identifierHex: string,
+): string | null => {
   if (!/^([0-9a-f]{2})+$/.test(identifierHex)) return null;
-  const text = LZString.decompressFromUint8Array(Uint8Array.from(Buffer.from(identifierHex, "hex")));
+  const text = LZString.decompressFromUint8Array(
+    Uint8Array.from(Buffer.from(identifierHex, "hex")),
+  );
   return typeof text === "string" && text.length > 0 ? text : null;
 };
 

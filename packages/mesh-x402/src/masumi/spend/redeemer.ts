@@ -2,7 +2,14 @@
  * Encodes `vested_pay`'s `Action` redeemer type (7 variants; constructor tag = position below,
  * 0-indexed, matching the Aiken source's `pub type Action { ... }` declaration order).
  */
-import { Data, mConStr, mConStr0, mConStr1, mConStr2, mConStr3 } from "@meshsdk/common";
+import {
+  Data,
+  mConStr,
+  mConStr0,
+  mConStr1,
+  mConStr2,
+  mConStr3,
+} from "@meshsdk/common";
 
 import { AdminSignature, AssetValueEntry } from "../cip8-admin";
 
@@ -14,7 +21,9 @@ export const SUBMIT_RESULT_REDEEMER: Data = mConStr(5, []);
 export const AUTHORIZE_REFUND_REDEEMER: Data = mConStr(6, []);
 
 /** `AssetValue = Pairs<ByteArray, Pairs<ByteArray, Int>>` - a native Plutus Map, nested. */
-const assetValueToMeshData = (entries: AssetValueEntry[]): Map<string, Map<string, bigint>> =>
+const assetValueToMeshData = (
+  entries: AssetValueEntry[],
+): Map<string, Map<string, bigint>> =>
   new Map(
     entries.map((entry) => [
       entry.policyId,

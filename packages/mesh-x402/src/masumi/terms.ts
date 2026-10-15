@@ -41,7 +41,9 @@ const base64UrlDecode = (value: string): Uint8Array => {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
   const decoded = Buffer.from(base64, "base64");
   if (decoded.toString("base64url") !== value) {
-    throw new Error("Commitment raw content is not canonical unpadded base64url");
+    throw new Error(
+      "Commitment raw content is not canonical unpadded base64url",
+    );
   }
   return Uint8Array.from(decoded);
 };
@@ -56,7 +58,9 @@ export const commitmentPartBytes = (part: {
   }
   if (part.canonicalization === "raw") {
     if (typeof part.content !== "string") {
-      throw new Error("Commitment raw content must be an unpadded base64url string");
+      throw new Error(
+        "Commitment raw content must be an unpadded base64url string",
+      );
     }
     return base64UrlDecode(part.content);
   }
@@ -109,7 +113,8 @@ export const buildSignedTerms = (
   extra: PaymentRequirementsExtraMasumi,
   requirements: PaymentRequirements,
 ): MasumiSignedTerms => {
-  if (!extra.terms) throw new Error("Masumi payment requirements are missing `extra.terms`");
+  if (!extra.terms)
+    throw new Error("Masumi payment requirements are missing `extra.terms`");
   return {
     ...extra.terms,
     scheme: requirements.scheme,

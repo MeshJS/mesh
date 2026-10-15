@@ -33,7 +33,9 @@ const serializeString = (value: string): string => {
     const isHighSurrogate = code <= 0xdbff;
     const next = isHighSurrogate ? value.charCodeAt(i + 1) : Number.NaN;
     if (!isHighSurrogate || !(next >= 0xdc00 && next <= 0xdfff)) {
-      throw new Error("JCS cannot serialize a string containing an unpaired surrogate");
+      throw new Error(
+        "JCS cannot serialize a string containing an unpaired surrogate",
+      );
     }
     i++;
   }
@@ -71,4 +73,5 @@ export const jcs = (value: unknown): string => {
 };
 
 /** UTF-8 bytes of the canonical form of a JSON value. */
-export const jcsBytes = (value: unknown): Uint8Array => new TextEncoder().encode(jcs(value));
+export const jcsBytes = (value: unknown): Uint8Array =>
+  new TextEncoder().encode(jcs(value));

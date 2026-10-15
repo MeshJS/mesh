@@ -14,7 +14,11 @@ export const signPayment = async (
   wallet: MeshWallet,
   payload: PaymentPayload,
 ): Promise<PaymentPayload> => {
-  const signedTxHex = await wallet.signTx(payload.payload.transaction, false, true);
+  const signedTxHex = await wallet.signTx(
+    payload.payload.transaction,
+    false,
+    true,
+  );
   return {
     ...payload,
     payload: { ...payload.payload, transaction: hexToBase64(signedTxHex) },

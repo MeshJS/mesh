@@ -1,23 +1,27 @@
-import { MeshTxBuilder } from "@meshsdk/transaction";
-import { MeshWallet } from "@meshsdk/wallet";
 import { IFetcher, Protocol } from "@meshsdk/common";
 import { deserializeBech32Address, deserializeTx } from "@meshsdk/core-cst";
+import { MeshTxBuilder } from "@meshsdk/transaction";
+import { MeshWallet } from "@meshsdk/wallet";
 
-import { parsePositiveAmount, toMeshUnit } from "../types/asset";
-import { tryNormalizeCardanoNetwork } from "../types/network";
 import { AllowMasumiDeployment } from "../masumi/escrow-address";
 import { MasumiRegistryValidator } from "../masumi/validate";
+import {
+  buildScriptOutputDatum,
+  scriptPayToMatches,
+  scriptV1WithInlineDatum,
+} from "../script";
+import { parsePositiveAmount, toMeshUnit } from "../types/asset";
+import { X402Error } from "../types/errors";
+import { tryNormalizeCardanoNetwork } from "../types/network";
+import { PaymentPayload } from "../types/payment-payload";
 import {
   getAssetTransferMethod,
   PaymentRequirements,
   PaymentRequirementsExtraScript,
   ResourceInfo,
 } from "../types/payment-requirements";
-import { PaymentPayload } from "../types/payment-payload";
-import { X402Error } from "../types/errors";
 import { buildMasumiEscrowPayment } from "./masumi";
 import { paymentTtlSlot } from "./ttl";
-import { buildScriptOutputDatum, scriptPayToMatches, scriptV1WithInlineDatum } from "../script";
 
 /**
  * Chain context a caller must supply to build a payment: the current tip's slot (for TTL)
@@ -66,7 +70,10 @@ const buildScriptPayment = async (
 ): Promise<string> => {
   const extra = requirement.extra as PaymentRequirementsExtraScript;
   if (!extra.script && !extra.scriptHash) {
-    throw new X402Error("SCRIPT_INVALID", "script-method PaymentRequirements must declare `script` or `scriptHash`");
+    throw new X402Error(
+      "SCRIPT_INVALID",
+      "script-method PaymentRequirements must declare `script` or `scriptHash`",
+    );
   }
   if (scriptV1WithInlineDatum(extra)) {
     throw new X402Error(
@@ -107,13 +114,25 @@ export const buildPaymentPayload = async (
   resource: ResourceInfo,
   chain: ChainContext,
 ): Promise<PaymentPayload> => {
-  if (requirement.scheme !== "exact" || !tryNormalizeCardanoNetwork(requirement.network)) {
-    throw new X402Error("NO_ACCEPTABLE_REQUIREMENT", `unsupported scheme/network: ${requirement.scheme} on ${requirement.network}`);
+  if (
+    requirement.scheme !== "exact" ||
+    !tryNormalizeCardanoNetwork(requirement.network)
+  ) {
+    throw new X402Error(
+      "NO_ACCEPTABLE_REQUIREMENT",
+      `unsupported scheme/network: ${requirement.scheme} on ${requirement.network}`,
+    );
   }
   if (parsePositiveAmount(requirement.amount) === null) {
-    throw new X402Error("INVALID_AMOUNT", `amount must be a positive canonical decimal string, got "${requirement.amount}"`);
+    throw new X402Error(
+      "INVALID_AMOUNT",
+      `amount must be a positive canonical decimal string, got "${requirement.amount}"`,
+    );
   }
-  requirement = { ...requirement, network: tryNormalizeCardanoNetwork(requirement.network)! };
+  requirement = {
+    ...requirement,
+    network: tryNormalizeCardanoNetwork(requirement.network)!,
+  };
 
   const utxos = await wallet.getUtxos();
   const buyerAddress = await wallet.getChangeAddress();
@@ -121,7 +140,16 @@ export const buildPaymentPayload = async (
   const method = getAssetTransferMethod(requirement);
   const unsignedTx =
     method === "masumi"
-      ? await buildMasumiEscrowPayment(requirement, buyerAddress, utxos, chain.protocol, chain.currentSlot, chain.fetcher, chain.allowMasumiDeployment, { resource, validate: chain.validateRegistryClaim })
+      ? await buildMasumiEscrowPayment(
+          requirement,
+          buyerAddress,
+          utxos,
+          chain.protocol,
+          chain.currentSlot,
+          chain.fetcher,
+          chain.allowMasumiDeployment,
+          { resource, validate: chain.validateRegistryClaim },
+        )
       : method === "script"
         ? await buildScriptPayment(requirement, buyerAddress, utxos, chain)
         : await buildDefaultPayment(requirement, buyerAddress, utxos, chain);
@@ -139,16 +167,26 @@ export const buildPaymentPayload = async (
   })();
   const ownsInput = (input: (typeof inputs)[number]): boolean =>
     utxos.some((u) => {
-      if (u.input.txHash !== input.transactionId().toString() || u.input.outputIndex !== Number(input.index())) return false;
+      if (
+        u.input.txHash !== input.transactionId().toString() ||
+        u.input.outputIndex !== Number(input.index())
+      )
+        return false;
       try {
-        return deserializeBech32Address(u.output.address).pubKeyHash === buyerPaymentHash;
+        return (
+          deserializeBech32Address(u.output.address).pubKeyHash ===
+          buyerPaymentHash
+        );
       } catch {
         return false;
       }
     });
   const nonceInput = inputs.find(ownsInput) ?? inputs[0];
   if (!nonceInput) {
-    throw new X402Error("INSUFFICIENT_UTXOS", "Built transaction has no inputs to use as the payload nonce");
+    throw new X402Error(
+      "INSUFFICIENT_UTXOS",
+      "Built transaction has no inputs to use as the payload nonce",
+    );
   }
   const nonce = `${nonceInput.transactionId().toString()}#${nonceInput.index()}`;
 

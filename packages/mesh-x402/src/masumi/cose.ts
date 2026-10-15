@@ -19,8 +19,10 @@ import {
   CborText,
   CborUInt,
 } from "@harmoniclabs/cbor";
-import { Address, Crypto, signData, type Signer } from "@meshsdk/core-cst";
+
+import type { Signer } from "@meshsdk/core-cst";
 import { DataSignature } from "@meshsdk/common";
+import { Address, Crypto, signData } from "@meshsdk/core-cst";
 
 import { addressCredentials } from "./datum";
 
@@ -30,8 +32,10 @@ import { addressCredentials } from "./datum";
  * before the 402 challenge is sent) - exported as a convenience for Mesh-based resource
  * servers, not called by this package's own client/facilitator flows.
  */
-export const signTermsDigest = (termsDigestHex: string, signer: Signer): DataSignature =>
-  signData(termsDigestHex, signer);
+export const signTermsDigest = (
+  termsDigestHex: string,
+  signer: Signer,
+): DataSignature => signData(termsDigestHex, signer);
 
 /**
  * Reads the COSE_Sign1's unprotected `hashed` header. Absent defaults to `false`, matching
@@ -46,7 +50,9 @@ const isHashedPayload = (referenceSignatureHex: string): boolean => {
   if (!(unprotected instanceof CborMap)) {
     throw new Error("Invalid COSE_Sign1 unprotected header");
   }
-  const hashedEntry = unprotected.map.find((e) => e.k instanceof CborText && e.k.text === "hashed");
+  const hashedEntry = unprotected.map.find(
+    (e) => e.k instanceof CborText && e.k.text === "hashed",
+  );
   if (!hashedEntry) return false;
   return hashedEntry.v instanceof CborSimple && hashedEntry.v.simple === true;
 };
@@ -59,7 +65,9 @@ const cborInt = (value: unknown): bigint | null => {
 
 const mapGet = (map: CborMap, label: bigint | string): unknown => {
   const entry = map.map.find((e) =>
-    typeof label === "string" ? e.k instanceof CborText && e.k.text === label : cborInt(e.k) === label,
+    typeof label === "string"
+      ? e.k instanceof CborText && e.k.text === label
+      : cborInt(e.k) === label,
   );
   return entry?.v;
 };
@@ -95,7 +103,8 @@ export const verifySellerTermsSignature = async (
     if (!(key instanceof CborMap)) return false;
     if (cborInt(mapGet(key, 1n)) !== 1n) return false; // kty = OKP
     const keyAlg = mapGet(key, 3n);
-    if (keyAlg !== undefined && cborInt(keyAlg) !== COSE_ALG_EDDSA) return false;
+    if (keyAlg !== undefined && cborInt(keyAlg) !== COSE_ALG_EDDSA)
+      return false;
     if (cborInt(mapGet(key, -1n)) !== 6n) return false; // crv = Ed25519
     if (mapGet(key, -4n) !== undefined) return false; // private material present
     const publicKeyHex = bytesHex(mapGet(key, -2n));
@@ -106,25 +115,39 @@ export const verifySellerTermsSignature = async (
     const sign1 = Cbor.parse(referenceSignatureHex);
     if (!(sign1 instanceof CborArray) || sign1.array.length !== 4) return false;
     const [protectedBytes, unprotected, payload, signature] = sign1.array;
-    if (!(protectedBytes instanceof CborBytes) || !(unprotected instanceof CborMap)) return false;
-    if (!(payload instanceof CborBytes) || !(signature instanceof CborBytes)) return false;
+    if (
+      !(protectedBytes instanceof CborBytes) ||
+      !(unprotected instanceof CborMap)
+    )
+      return false;
+    if (!(payload instanceof CborBytes) || !(signature instanceof CborBytes))
+      return false;
     if (signature.bytes.length !== 64) return false;
 
     const protectedMap = Cbor.parse(Buffer.from(protectedBytes.bytes));
     if (!(protectedMap instanceof CborMap)) return false;
     if (cborInt(mapGet(protectedMap, 1n)) !== COSE_ALG_EDDSA) return false;
-    const rawAddress = Address.fromBech32(sellerAddressBech32).toBytes().toLowerCase();
+    const rawAddress = Address.fromBech32(sellerAddressBech32)
+      .toBytes()
+      .toLowerCase();
     if (bytesHex(mapGet(protectedMap, "address")) !== rawAddress) return false;
 
-    if (Buffer.from(payload.bytes).toString("hex") !== termsDigestHex.toLowerCase()) return false;
+    if (
+      Buffer.from(payload.bytes).toString("hex") !==
+      termsDigestHex.toLowerCase()
+    )
+      return false;
 
-    const signKid = bytesHex(mapGet(protectedMap, 4n)) ?? bytesHex(mapGet(unprotected, 4n));
+    const signKid =
+      bytesHex(mapGet(protectedMap, 4n)) ?? bytesHex(mapGet(unprotected, 4n));
     if (keyKid && signKid && keyKid !== signKid) return false;
 
     // --- key bound to the address's payment-key credential ---
     const sellerCredentials = addressCredentials(sellerAddressBech32);
     if (sellerCredentials.payment.isScript) return false;
-    const publicKey = Crypto.Ed25519PublicKey.fromHex(publicKeyHex as Crypto.Ed25519PublicKeyHex);
+    const publicKey = Crypto.Ed25519PublicKey.fromHex(
+      publicKeyHex as Crypto.Ed25519PublicKeyHex,
+    );
     if (publicKey.hash().hex() !== sellerCredentials.payment.hash) return false;
 
     // --- Ed25519 over Sig_structure = ["Signature1", protected, h'', payload] ---
@@ -138,7 +161,9 @@ export const verifySellerTermsSignature = async (
     ).toBuffer();
     return publicKey.verify(
       Crypto.Ed25519Signature.fromHex(
-        Buffer.from(signature.bytes).toString("hex") as Crypto.Ed25519SignatureHex,
+        Buffer.from(signature.bytes).toString(
+          "hex",
+        ) as Crypto.Ed25519SignatureHex,
       ),
       Buffer.from(sigStructure).toString("hex") as never,
     );

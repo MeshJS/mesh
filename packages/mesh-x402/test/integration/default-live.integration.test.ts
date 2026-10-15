@@ -10,9 +10,9 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import { buildPaymentPayload } from "../../src/client/build";
 import { signPayment } from "../../src/client/sign";
-import { verifyPayment } from "../../src/facilitator/verify";
 import { settlePayment } from "../../src/facilitator/settle";
 import { InMemorySettlementStore } from "../../src/facilitator/store";
+import { verifyPayment } from "../../src/facilitator/verify";
 import { PaymentRequirements } from "../../src/types/payment-requirements";
 
 const PROJECT_ID = process.env.TEST_BLOCKFROST_PROJECT_ID;
@@ -38,7 +38,9 @@ describeIfConfigured("default assetTransferMethod - live preprod", () => {
     const buyerAddress = await wallet.getChangeAddress();
     const utxos = await wallet.getUtxos();
     // eslint-disable-next-line no-console
-    console.log(`[integration] wallet address: ${buyerAddress}, utxo count: ${utxos.length}`);
+    console.log(
+      `[integration] wallet address: ${buyerAddress}, utxo count: ${utxos.length}`,
+    );
     expect(utxos.length).toBeGreaterThan(0); // fails fast with a clear message if unfunded
 
     const protocol = await provider.fetchProtocolParameters();
@@ -65,11 +67,25 @@ describeIfConfigured("default assetTransferMethod - live preprod", () => {
     // eslint-disable-next-line no-console
     console.log(`[integration] built payload, nonce: ${signed.payload.nonce}`);
 
-    const verifyResult = await verifyPayment(signed, requirement, provider, protocol, currentSlot);
+    const verifyResult = await verifyPayment(
+      signed,
+      requirement,
+      provider,
+      protocol,
+      currentSlot,
+    );
     expect(verifyResult).toEqual({ isValid: true });
 
     const store = new InMemorySettlementStore();
-    let settleResult = await settlePayment(signed, requirement, provider, provider, store, protocol, currentSlot);
+    let settleResult = await settlePayment(
+      signed,
+      requirement,
+      provider,
+      provider,
+      store,
+      protocol,
+      currentSlot,
+    );
     // eslint-disable-next-line no-console
     console.log(`[integration] settle: ${JSON.stringify(settleResult)}`);
     expect(settleResult.transaction).toBeTruthy(); // broadcast happened, we have a real tx id
@@ -95,6 +111,8 @@ describeIfConfigured("default assetTransferMethod - live preprod", () => {
     expect(settleResult.success).toBe(true);
     expect(settleResult.extra.status).toBe("confirmed");
     // eslint-disable-next-line no-console
-    console.log(`[integration] confirmed on preprod: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`);
+    console.log(
+      `[integration] confirmed on preprod: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`,
+    );
   });
 });

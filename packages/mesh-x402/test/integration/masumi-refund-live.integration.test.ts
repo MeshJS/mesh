@@ -8,19 +8,19 @@
  * Requires `TEST_BLOCKFROST_PROJECT_ID` and `TEST_WALLET_MNEMONIC` in `.env`. Not part of
  * `npm test`; run explicitly via `npm run test:integration`.
  */
-import { BlockfrostProvider } from "@meshsdk/provider";
-import { MeshWallet } from "@meshsdk/wallet";
 import { UTxO } from "@meshsdk/common";
 import { resolveTxHash } from "@meshsdk/core-cst";
+import { BlockfrostProvider } from "@meshsdk/provider";
+import { MeshWallet } from "@meshsdk/wallet";
 
 import { buildPaymentPayload } from "../../src/client/build";
 import { signPayment } from "../../src/client/sign";
 import { settlePayment } from "../../src/facilitator/settle";
 import { InMemorySettlementStore } from "../../src/facilitator/store";
+import { MasumiDatumView, parseMasumiLockDatum } from "../../src/masumi/datum";
 import { MASUMI_DEFAULT_DEPLOYMENT } from "../../src/masumi/escrow-address";
-import { parseMasumiLockDatum, MasumiDatumView } from "../../src/masumi/datum";
-import { buildAuthorizeRefundTx } from "../../src/masumi/spend/seller";
 import { buildWithdrawRefundTx } from "../../src/masumi/spend/buyer";
+import { buildAuthorizeRefundTx } from "../../src/masumi/spend/seller";
 import { buildMasumiRequirements } from "../fixtures/masumiFixture";
 
 const PROJECT_ID = process.env.TEST_BLOCKFROST_PROJECT_ID;
@@ -37,7 +37,9 @@ const submitAndWaitForEscrowUtxo = async (
 ): Promise<UTxO | undefined> => {
   const txHash = resolveTxHash(signedTxHex);
   await provider.submitTx(signedTxHex);
-  log(`submitted ${txHash} - https://preprod.cardanoscan.io/transaction/${txHash}`);
+  log(
+    `submitted ${txHash} - https://preprod.cardanoscan.io/transaction/${txHash}`,
+  );
 
   const deadline = Date.now() + 5 * 60 * 1000;
   while (Date.now() < deadline) {
@@ -48,14 +50,19 @@ const submitAndWaitForEscrowUtxo = async (
         (u) =>
           u.input.txHash === txHash &&
           (!previousUtxoRef ||
-            !(u.input.txHash === previousUtxoRef.txHash && u.input.outputIndex === previousUtxoRef.outputIndex)),
+            !(
+              u.input.txHash === previousUtxoRef.txHash &&
+              u.input.outputIndex === previousUtxoRef.outputIndex
+            )),
       );
       if (next) return next;
       // For WithdrawRefund, the escrow UTxO is fully consumed (no continuation) - success means
       // the previous UTxO is simply gone, not that a new one with this txHash appears.
       if (previousUtxoRef) {
         const stillThere = utxos.some(
-          (u) => u.input.txHash === previousUtxoRef.txHash && u.input.outputIndex === previousUtxoRef.outputIndex,
+          (u) =>
+            u.input.txHash === previousUtxoRef.txHash &&
+            u.input.outputIndex === previousUtxoRef.outputIndex,
         );
         if (!stillThere) return undefined;
       }
@@ -69,7 +76,10 @@ const submitAndWaitForEscrowUtxo = async (
 /** See masumi-lifecycle-live.integration.test.ts: the escrow and wallet addresses are indexed
  * independently by Blockfrost, so confirming the escrow output alone doesn't guarantee the
  * wallet's own collateral/fee UTxOs have caught up yet. */
-const waitForWalletUtxo = async (wallet: MeshWallet, txHash: string): Promise<void> => {
+const waitForWalletUtxo = async (
+  wallet: MeshWallet,
+  txHash: string,
+): Promise<void> => {
   const deadline = Date.now() + 2 * 60 * 1000;
   while (Date.now() < deadline) {
     const utxos = await wallet.getUtxos();
@@ -80,9 +90,15 @@ const waitForWalletUtxo = async (wallet: MeshWallet, txHash: string): Promise<vo
 };
 
 const requireDatum = (utxo: UTxO): MasumiDatumView => {
-  if (!utxo.output.plutusData) throw new Error(`UTxO ${utxo.input.txHash}#${utxo.input.outputIndex} has no inline datum`);
+  if (!utxo.output.plutusData)
+    throw new Error(
+      `UTxO ${utxo.input.txHash}#${utxo.input.outputIndex} has no inline datum`,
+    );
   const view = parseMasumiLockDatum(utxo.output.plutusData);
-  if (!view) throw new Error(`Failed to parse Masumi datum on ${utxo.input.txHash}#${utxo.input.outputIndex}`);
+  if (!view)
+    throw new Error(
+      `Failed to parse Masumi datum on ${utxo.input.txHash}#${utxo.input.outputIndex}`,
+    );
   return view;
 };
 
@@ -99,7 +115,9 @@ describeIfConfigured("masumi vested_pay - live refund path on preprod", () => {
     });
     await wallet.init();
 
-    const requirement = await buildMasumiRequirements(wallet, { amount: "2000000" });
+    const requirement = await buildMasumiRequirements(wallet, {
+      amount: "2000000",
+    });
     log(`escrow address: ${requirement.payTo}`);
 
     let currentSlot = Number((await provider.fetchLatestBlock()).slot);
@@ -114,31 +132,62 @@ describeIfConfigured("masumi vested_pay - live refund path on preprod", () => {
     const signedLock = await signPayment(wallet, built);
 
     const lockStore = new InMemorySettlementStore();
-    let settleResult = await settlePayment(signedLock, requirement, provider, provider, lockStore, protocol, currentSlot);
+    let settleResult = await settlePayment(
+      signedLock,
+      requirement,
+      provider,
+      provider,
+      lockStore,
+      protocol,
+      currentSlot,
+    );
     const lockDeadline = Date.now() + 5 * 60 * 1000;
     while (!settleResult.success && Date.now() < lockDeadline) {
       await sleep(15_000);
       currentSlot = Number((await provider.fetchLatestBlock()).slot);
-      settleResult = await settlePayment(signedLock, requirement, provider, provider, lockStore, protocol, currentSlot);
+      settleResult = await settlePayment(
+        signedLock,
+        requirement,
+        provider,
+        provider,
+        lockStore,
+        protocol,
+        currentSlot,
+      );
     }
     expect(settleResult.success).toBe(true);
-    log(`locked: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`);
+    log(
+      `locked: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`,
+    );
 
     const escrowUtxos = await provider.fetchAddressUTxOs(requirement.payTo);
-    let escrowUtxo = escrowUtxos.find((u) => u.input.txHash === settleResult.transaction)!;
+    let escrowUtxo = escrowUtxos.find(
+      (u) => u.input.txHash === settleResult.transaction,
+    )!;
     expect(escrowUtxo).toBeDefined();
     let datum = requireDatum(escrowUtxo);
     await waitForWalletUtxo(wallet, settleResult.transaction);
 
     // --- AuthorizeRefund (seller cooperates) ---
     currentSlot = Number((await provider.fetchLatestBlock()).slot);
-    const authRefundTx = await buildAuthorizeRefundTx(escrowUtxo, datum, wallet, MASUMI_DEFAULT_DEPLOYMENT, {
-      fetcher: provider,
-      evaluator: provider,
-      currentSlot,
-    });
+    const authRefundTx = await buildAuthorizeRefundTx(
+      escrowUtxo,
+      datum,
+      wallet,
+      MASUMI_DEFAULT_DEPLOYMENT,
+      {
+        fetcher: provider,
+        evaluator: provider,
+        currentSlot,
+      },
+    );
     const signedAuthRefund = await wallet.signTx(authRefundTx);
-    const nextUtxo = await submitAndWaitForEscrowUtxo(signedAuthRefund, provider, requirement.payTo, escrowUtxo.input);
+    const nextUtxo = await submitAndWaitForEscrowUtxo(
+      signedAuthRefund,
+      provider,
+      requirement.payTo,
+      escrowUtxo.input,
+    );
     expect(nextUtxo).toBeDefined();
     escrowUtxo = nextUtxo!;
     datum = requireDatum(escrowUtxo);
@@ -148,11 +197,17 @@ describeIfConfigured("masumi vested_pay - live refund path on preprod", () => {
 
     // --- WithdrawRefund (unconditional once RefundAuthorized) ---
     currentSlot = Number((await provider.fetchLatestBlock()).slot);
-    const withdrawRefundTx = await buildWithdrawRefundTx(escrowUtxo, datum, wallet, MASUMI_DEFAULT_DEPLOYMENT, {
-      fetcher: provider,
-      evaluator: provider,
-      currentSlot,
-    });
+    const withdrawRefundTx = await buildWithdrawRefundTx(
+      escrowUtxo,
+      datum,
+      wallet,
+      MASUMI_DEFAULT_DEPLOYMENT,
+      {
+        fetcher: provider,
+        evaluator: provider,
+        currentSlot,
+      },
+    );
     const signedWithdrawRefund = await wallet.signTx(withdrawRefundTx);
     const finalResult = await submitAndWaitForEscrowUtxo(
       signedWithdrawRefund,

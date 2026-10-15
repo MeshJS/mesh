@@ -19,7 +19,10 @@ describe("createFacilitatorApp", () => {
       fetcher,
       submitter: new FakeSubmitter(),
       supportedNetworks: ["cardano:preprod"],
-      resolveChainState: async () => ({ protocol: DEFAULT_PROTOCOL_PARAMETERS, currentSlot: CURRENT_SLOT }),
+      resolveChainState: async () => ({
+        protocol: DEFAULT_PROTOCOL_PARAMETERS,
+        currentSlot: CURRENT_SLOT,
+      }),
     });
 
     const res = await app.request("/supported");
@@ -38,7 +41,10 @@ describe("createFacilitatorApp", () => {
 
     fetcher.addUtxo({
       input: { txHash: "2".repeat(64), outputIndex: 0 },
-      output: { address: buyerAddress, amount: [{ unit: "lovelace", quantity: "50000000" }] },
+      output: {
+        address: buyerAddress,
+        amount: [{ unit: "lovelace", quantity: "50000000" }],
+      },
     });
 
     const requirement: PaymentRequirements = {
@@ -55,7 +61,11 @@ describe("createFacilitatorApp", () => {
       requirement,
       wallet,
       { url: "https://example.com" },
-      { fetcher, protocol: DEFAULT_PROTOCOL_PARAMETERS, currentSlot: CURRENT_SLOT },
+      {
+        fetcher,
+        protocol: DEFAULT_PROTOCOL_PARAMETERS,
+        currentSlot: CURRENT_SLOT,
+      },
     );
     const signed = await signPayment(wallet, built);
 
@@ -63,10 +73,16 @@ describe("createFacilitatorApp", () => {
       fetcher,
       submitter,
       supportedNetworks: ["cardano:preprod"],
-      resolveChainState: async () => ({ protocol: DEFAULT_PROTOCOL_PARAMETERS, currentSlot: CURRENT_SLOT }),
+      resolveChainState: async () => ({
+        protocol: DEFAULT_PROTOCOL_PARAMETERS,
+        currentSlot: CURRENT_SLOT,
+      }),
     });
 
-    const requestBody = JSON.stringify({ paymentPayload: signed, paymentRequirements: requirement });
+    const requestBody = JSON.stringify({
+      paymentPayload: signed,
+      paymentRequirements: requirement,
+    });
 
     const verifyRes = await app.request("/verify", {
       method: "POST",
@@ -75,7 +91,9 @@ describe("createFacilitatorApp", () => {
     });
     expect(await verifyRes.json()).toEqual({ isValid: true });
 
-    const txHex = Buffer.from(signed.payload.transaction, "base64").toString("hex");
+    const txHex = Buffer.from(signed.payload.transaction, "base64").toString(
+      "hex",
+    );
     fetcher.setConfirmed(resolveTxHash(txHex), "block-1", 1);
 
     const settleRes = await app.request("/settle", {

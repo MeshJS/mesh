@@ -1,22 +1,32 @@
-import { PaymentPayload, PAYMENT_SIGNATURE_HEADER, decodePaymentSignatureHeader } from "../types/payment-payload";
+import { PAYMENT_REQUIRED_HEADER } from "../client/fetch";
+import { encodeHeaderJson } from "../encoding";
+import { FacilitatorClient } from "../facilitator/client";
+import { CardanoNetwork } from "../types/network";
 import {
+  decodePaymentSignatureHeader,
+  PAYMENT_SIGNATURE_HEADER,
+  PaymentPayload,
+} from "../types/payment-payload";
+import {
+  getAssetTransferMethod,
   PaymentRequirements,
   ResourceInfo,
   X402ChallengeResponse,
-  getAssetTransferMethod,
 } from "../types/payment-requirements";
-import { PAYMENT_RESPONSE_HEADER, PaymentResponse, encodePaymentResponseHeader } from "../types/payment-response";
-import { CardanoNetwork } from "../types/network";
-import { encodeHeaderJson } from "../encoding";
-import { PAYMENT_REQUIRED_HEADER } from "../client/fetch";
-import { FacilitatorClient } from "../facilitator/client";
+import {
+  encodePaymentResponseHeader,
+  PAYMENT_RESPONSE_HEADER,
+  PaymentResponse,
+} from "../types/payment-response";
 import { masumiTermsDigestOf } from "./offers";
 
 /** Key under which an issued offer is remembered: `termsDigest` for Masumi (spec), else the offer's identity. */
 export const offerKey = (r: PaymentRequirements): string =>
   getAssetTransferMethod(r) === "masumi"
     ? masumiTermsDigestOf(r)
-    : [r.network, r.payTo, r.amount, r.asset, getAssetTransferMethod(r)].join("|");
+    : [r.network, r.payTo, r.amount, r.asset, getAssetTransferMethod(r)].join(
+        "|",
+      );
 
 /** Default cap on remembered offers; the oldest are evicted first. */
 export const DEFAULT_MAX_OFFERS = 10_000;
@@ -34,7 +44,8 @@ export class OfferBook {
     const key = offerKey(r);
     this.offers.delete(key); // re-recording refreshes its age
     this.offers.set(key, r);
-    while (this.offers.size > this.maxOffers) this.offers.delete(this.offers.keys().next().value as string);
+    while (this.offers.size > this.maxOffers)
+      this.offers.delete(this.offers.keys().next().value as string);
   }
 
   get(accepted: PaymentRequirements): PaymentRequirements | undefined {
@@ -50,7 +61,11 @@ export type PaywallHooks = {
   onChallenge?: (req: Request, challenge: X402ChallengeResponse) => void;
   onTrusted?: (req: Request, trusted: PaymentRequirements) => void;
   /** Payment refused (unknown offer, failed verify, or failed/timed-out settle). */
-  onRejected?: (req: Request, reason: string, response: PaymentResponse) => void;
+  onRejected?: (
+    req: Request,
+    reason: string,
+    response: PaymentResponse,
+  ) => void;
   onPaid?: (req: Request, response: PaymentResponse) => void;
 };
 
@@ -63,7 +78,11 @@ export type PaywallConfig = {
   /** Produces the paid content once settlement succeeded. */
   serve: (req: Request, paid: PaymentResponse) => Response | Promise<Response>;
   /** Overrides the trusted-requirements lookup (default: the `book` entry for `payload.accepted`). Never return the client's own copy. */
-  trusted?: (req: Request, payload: PaymentPayload) => PaymentRequirements | undefined | Promise<PaymentRequirements | undefined>;
+  trusted?: (
+    req: Request,
+    payload: PaymentPayload,
+  ) =>
+    PaymentRequirements | undefined | Promise<PaymentRequirements | undefined>;
   book?: OfferBook;
   resource?: (req: Request) => ResourceInfo;
   pollMs?: number;
@@ -81,7 +100,10 @@ export const createPaywall = (config: PaywallConfig) => {
   const hooks = config.hooks ?? {};
 
   return async (req: Request): Promise<Response> => {
-    const facilitator = typeof config.facilitator === "function" ? config.facilitator(req) : config.facilitator;
+    const facilitator =
+      typeof config.facilitator === "function"
+        ? config.facilitator(req)
+        : config.facilitator;
     const signature = req.headers.get(PAYMENT_SIGNATURE_HEADER);
 
     if (!signature) {
@@ -94,7 +116,10 @@ export const createPaywall = (config: PaywallConfig) => {
         accepts: [requirements],
       };
       hooks.onChallenge?.(req, challenge);
-      return Response.json(challenge, { status: 402, headers: { [PAYMENT_REQUIRED_HEADER]: encodeHeaderJson(challenge) } });
+      return Response.json(challenge, {
+        status: 402,
+        headers: { [PAYMENT_REQUIRED_HEADER]: encodeHeaderJson(challenge) },
+      });
     }
 
     const reject = (reason: string, transaction = "") => {
@@ -106,7 +131,15 @@ export const createPaywall = (config: PaywallConfig) => {
         errorReason: reason,
       };
       hooks.onRejected?.(req, reason, response);
-      return Response.json({ error: reason }, { status: 402, headers: { [PAYMENT_RESPONSE_HEADER]: encodePaymentResponseHeader(response) } });
+      return Response.json(
+        { error: reason },
+        {
+          status: 402,
+          headers: {
+            [PAYMENT_RESPONSE_HEADER]: encodePaymentResponseHeader(response),
+          },
+        },
+      );
     };
 
     let payload: PaymentPayload;
@@ -116,24 +149,36 @@ export const createPaywall = (config: PaywallConfig) => {
       return Response.json({ error: "INVALID_PAYLOAD" }, { status: 400 });
     }
 
-    const trusted = config.trusted ? await config.trusted(req, payload) : book.get(payload.accepted);
+    const trusted = config.trusted
+      ? await config.trusted(req, payload)
+      : book.get(payload.accepted);
     if (!trusted) return reject("UNKNOWN_OFFER");
     hooks.onTrusted?.(req, trusted);
 
     // `payload.resource` is client-supplied and unsigned; the facilitator uses it for Masumi registry
     // endpoint checks, so hand it this server's own resource instead.
     const resource = config.resource?.(req) ?? { url: req.url };
-    const body = { paymentPayload: { ...payload, resource }, paymentRequirements: trusted };
+    const body = {
+      paymentPayload: { ...payload, resource },
+      paymentRequirements: trusted,
+    };
 
     let settled: PaymentResponse;
     try {
       const verified = await facilitator.verify(body);
       if (!verified.isValid) return reject(verified.invalidReason);
-      settled = await facilitator.settleUntilFinal(body, { pollMs: config.pollMs, timeoutMs: config.timeoutMs });
+      settled = await facilitator.settleUntilFinal(body, {
+        pollMs: config.pollMs,
+        timeoutMs: config.timeoutMs,
+      });
     } catch {
       return reject("FACILITATOR_UNAVAILABLE");
     }
-    if (!settled.success) return reject(settled.errorReason ?? "SETTLE_FAILED", settled.transaction);
+    if (!settled.success)
+      return reject(
+        settled.errorReason ?? "SETTLE_FAILED",
+        settled.transaction,
+      );
 
     hooks.onPaid?.(req, settled);
     const content = await config.serve(req, settled);

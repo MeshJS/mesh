@@ -1,4 +1,8 @@
-import { cborByteString, cip8SigStructure, computeDisputeWithdrawalDigest } from "../../src/masumi/cip8-admin";
+import {
+  cborByteString,
+  cip8SigStructure,
+  computeDisputeWithdrawalDigest,
+} from "../../src/masumi/cip8-admin";
 
 const hex = (h: string) => Buffer.from(h, "hex");
 const toHex = (b: Uint8Array) => Buffer.from(b).toString("hex");
@@ -6,9 +10,11 @@ const toHex = (b: Uint8Array) => Buffer.from(b).toString("hex");
 describe("cip8-admin - byte-exact vectors from vested_pay.ak's own tests", () => {
   it("cborByteString matches the validator's test vectors", () => {
     expect(toHex(cborByteString(hex("010203")))).toBe("43010203");
-    expect(toHex(cborByteString(hex("000102030405060708090a0b0c0d0e0f1011121314151617")))).toBe(
-      "5818000102030405060708090a0b0c0d0e0f1011121314151617",
-    );
+    expect(
+      toHex(
+        cborByteString(hex("000102030405060708090a0b0c0d0e0f1011121314151617")),
+      ),
+    ).toBe("5818000102030405060708090a0b0c0d0e0f1011121314151617");
   });
 
   it("cip8SigStructure matches the validator's test vector", () => {
@@ -28,16 +34,26 @@ describe("cip8-admin - byte-exact vectors from vested_pay.ak's own tests", () =>
   // against the real deployed validator source, not derived from this implementation.
   it("computeDisputeWithdrawalDigest matches the validator's own cbor.serialise for a non-empty AssetValue", async () => {
     const digest = await computeDisputeWithdrawalDigest(
-      { txHash: "71596eba35edab7ee96406eb0ba571ffbf0660274b319f9f96926f48e0ebd089", outputIndex: 0 },
+      {
+        txHash:
+          "71596eba35edab7ee96406eb0ba571ffbf0660274b319f9f96926f48e0ebd089",
+        outputIndex: 0,
+      },
       [{ policyId: "", assets: [{ assetName: "", quantity: 1_500_000n }] }],
       [],
     );
-    expect(digest).toBe("e2dfe5ab50d48774b1521eea2e2bdfc95591884c2cdcd7b7e2ec4a72");
+    expect(digest).toBe(
+      "e2dfe5ab50d48774b1521eea2e2bdfc95591884c2cdcd7b7e2ec4a72",
+    );
   });
 
   it("computeDisputeWithdrawalDigest still matches for empty buyer/seller AssetValue lists", async () => {
     const digest = await computeDisputeWithdrawalDigest(
-      { txHash: "1111111111111111111111111111111111111111111111111111111111111111", outputIndex: 0 },
+      {
+        txHash:
+          "1111111111111111111111111111111111111111111111111111111111111111",
+        outputIndex: 0,
+      },
       [],
       [],
     );

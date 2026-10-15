@@ -1,4 +1,10 @@
-import { IFetcher, ISubmitter, UTxO, DEFAULT_PROTOCOL_PARAMETERS, Protocol } from "@meshsdk/common";
+import {
+  DEFAULT_PROTOCOL_PARAMETERS,
+  IFetcher,
+  ISubmitter,
+  Protocol,
+  UTxO,
+} from "@meshsdk/common";
 import { resolveTxHash } from "@meshsdk/core-cst";
 
 /**
@@ -22,7 +28,8 @@ export class FakeFetcher implements IFetcher {
   /** Marks a `txHash#index` as spent by removing it from the live UTxO set. */
   spend(txHash: string, outputIndex: number): void {
     this.utxos = this.utxos.filter(
-      (u) => !(u.input.txHash === txHash && u.input.outputIndex === outputIndex),
+      (u) =>
+        !(u.input.txHash === txHash && u.input.outputIndex === outputIndex),
     );
   }
 
@@ -33,7 +40,9 @@ export class FakeFetcher implements IFetcher {
 
   async fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
     return this.utxos.filter(
-      (u) => u.input.txHash === hash && (index === undefined || u.input.outputIndex === index),
+      (u) =>
+        u.input.txHash === hash &&
+        (index === undefined || u.input.outputIndex === index),
     );
   }
 
@@ -49,8 +58,11 @@ export class FakeFetcher implements IFetcher {
 
   async fetchBlockInfo(hash: string) {
     const confirmations = this.blockConfirmations.get(hash);
-    if (confirmations === undefined) throw new Error(`FakeFetcher: no block info for ${hash}`);
-    return { confirmations } as unknown as Awaited<ReturnType<IFetcher["fetchBlockInfo"]>>;
+    if (confirmations === undefined)
+      throw new Error(`FakeFetcher: no block info for ${hash}`);
+    return { confirmations } as unknown as Awaited<
+      ReturnType<IFetcher["fetchBlockInfo"]>
+    >;
   }
 
   async fetchProtocolParameters(): Promise<Protocol> {

@@ -11,9 +11,9 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import { buildPaymentPayload } from "../../src/client/build";
 import { signPayment } from "../../src/client/sign";
-import { verifyPayment } from "../../src/facilitator/verify";
 import { settlePayment } from "../../src/facilitator/settle";
 import { InMemorySettlementStore } from "../../src/facilitator/store";
+import { verifyPayment } from "../../src/facilitator/verify";
 import { resolveScriptAddress } from "../../src/script";
 import { PaymentRequirements } from "../../src/types/payment-requirements";
 
@@ -52,7 +52,9 @@ describeIfConfigured("script assetTransferMethod - live preprod", () => {
       assetTransferMethod: "script" as const,
       confirmationPolicy: { l1Confirmations: 1 },
       script: { type: "plutusV3" as const, code: alwaysSucceedCbor },
-      datum: fromBuilderToPlutusData({ type: "Mesh", content: mConStr0([]) }).toCbor().toString(),
+      datum: fromBuilderToPlutusData({ type: "Mesh", content: mConStr0([]) })
+        .toCbor()
+        .toString(),
     };
     const scriptAddress = resolveScriptAddress(extra, "cardano:preprod");
     // eslint-disable-next-line no-console
@@ -76,11 +78,25 @@ describeIfConfigured("script assetTransferMethod - live preprod", () => {
     );
     const signed = await signPayment(wallet, built);
 
-    const verifyResult = await verifyPayment(signed, requirement, provider, protocol, currentSlot);
+    const verifyResult = await verifyPayment(
+      signed,
+      requirement,
+      provider,
+      protocol,
+      currentSlot,
+    );
     expect(verifyResult).toEqual({ isValid: true });
 
     const store = new InMemorySettlementStore();
-    let settleResult = await settlePayment(signed, requirement, provider, provider, store, protocol, currentSlot);
+    let settleResult = await settlePayment(
+      signed,
+      requirement,
+      provider,
+      provider,
+      store,
+      protocol,
+      currentSlot,
+    );
     // eslint-disable-next-line no-console
     console.log(`[integration] settle: ${JSON.stringify(settleResult)}`);
 
@@ -88,13 +104,23 @@ describeIfConfigured("script assetTransferMethod - live preprod", () => {
     while (!settleResult.success && Date.now() < deadline) {
       await sleep(15_000);
       const latest = await provider.fetchLatestBlock();
-      settleResult = await settlePayment(signed, requirement, provider, provider, store, protocol, Number(latest.slot));
+      settleResult = await settlePayment(
+        signed,
+        requirement,
+        provider,
+        provider,
+        store,
+        protocol,
+        Number(latest.slot),
+      );
       // eslint-disable-next-line no-console
       console.log(`[integration] settle poll: ${JSON.stringify(settleResult)}`);
     }
 
     expect(settleResult.success).toBe(true);
     // eslint-disable-next-line no-console
-    console.log(`[integration] confirmed on preprod: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`);
+    console.log(
+      `[integration] confirmed on preprod: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`,
+    );
   });
 });

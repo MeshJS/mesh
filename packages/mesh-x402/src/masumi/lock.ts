@@ -12,8 +12,8 @@ import { fromBuilderToPlutusData } from "@meshsdk/core-cst";
 
 import { LOVELACE } from "../types/asset";
 import { PaymentRequirementsExtraMasumi } from "../types/payment-requirements";
-import { buildMasumiLockDatum } from "./datum";
 import { masumiCollateralLovelace } from "./constants";
+import { buildMasumiLockDatum } from "./datum";
 
 /** Buyer-side inputs to the lock, never declared by the server. */
 export type MasumiBuyerInput = {
@@ -56,9 +56,12 @@ export const buildMasumiLock = (
   buyerInput: MasumiBuyerInput = {},
 ): MasumiLock => {
   const { terms } = extra;
-  if (!terms) throw new Error("Masumi payment requirements are missing `extra.terms`");
+  if (!terms)
+    throw new Error("Masumi payment requirements are missing `extra.terms`");
   if (!extra.referenceKey || !extra.referenceSignature) {
-    throw new Error("Masumi payment requirements are missing `extra.referenceKey`/`referenceSignature`");
+    throw new Error(
+      "Masumi payment requirements are missing `extra.referenceKey`/`referenceSignature`",
+    );
   }
 
   const isLovelace = asset.toLowerCase() === LOVELACE;
@@ -88,9 +91,17 @@ export const buildMasumiLock = (
   let datum = build(collateral);
   let converged = false;
   for (let round = 0; round < COLLATERAL_FIXED_POINT_ROUNDS; round++) {
-    const datumCbor = fromBuilderToPlutusData({ type: "Mesh", content: datum }).toCbor();
+    const datumCbor = fromBuilderToPlutusData({
+      type: "Mesh",
+      content: datum,
+    }).toCbor();
     const datumBytes = datumCbor.length / 2;
-    const needed = masumiCollateralLovelace(requestedLovelace, datumBytes, nativeTokenCount, coinsPerUtxoByte);
+    const needed = masumiCollateralLovelace(
+      requestedLovelace,
+      datumBytes,
+      nativeTokenCount,
+      coinsPerUtxoByte,
+    );
     if (needed <= collateral) {
       converged = true;
       break;
@@ -99,7 +110,9 @@ export const buildMasumiLock = (
     datum = build(collateral);
   }
   if (!converged) {
-    throw new Error("Masumi collateral did not converge; refusing to build an unspendable lock");
+    throw new Error(
+      "Masumi collateral did not converge; refusing to build an unspendable lock",
+    );
   }
 
   return {

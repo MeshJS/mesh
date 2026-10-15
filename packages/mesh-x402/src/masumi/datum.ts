@@ -7,10 +7,16 @@
  * 19-field `Constr 0` datum for a fresh lock (`state = FundsLocked`, empty `result_hash`,
  * zero cooldowns) and parses it back for facilitator verification.
  */
-import { DataB, DataConstr, DataI, dataFromCbor, Data as PlutusDataNode } from "@harmoniclabs/plutus-data";
+import {
+  DataB,
+  DataConstr,
+  dataFromCbor,
+  DataI,
+  Data as PlutusDataNode,
+} from "@harmoniclabs/plutus-data";
 
-import { deserializeBech32Address, serializeAddress } from "@meshsdk/core-cst";
 import { Data, mConStr, mConStr0, mConStr1 } from "@meshsdk/common";
+import { deserializeBech32Address, serializeAddress } from "@meshsdk/core-cst";
 
 /** A payment or stake credential extracted from an address or datum. */
 export type MasumiCredential = { isScript: boolean; hash: string };
@@ -85,18 +91,24 @@ export const credentialsToData = (creds: MasumiAddressCredentials): Data => {
   return mConStr0([credentialToData(creds.payment), stakeOption]);
 };
 
-export const optionCredentialsToData = (creds: MasumiAddressCredentials | null | undefined): Data =>
-  creds ? mConStr0([credentialsToData(creds)]) : mConStr1([]);
+export const optionCredentialsToData = (
+  creds: MasumiAddressCredentials | null | undefined,
+): Data => (creds ? mConStr0([credentialsToData(creds)]) : mConStr1([]));
 
 /** Extracts the payment and (optional) stake credentials of a base/enterprise bech32 address. */
-export const addressCredentials = (bech32: string): MasumiAddressCredentials => {
+export const addressCredentials = (
+  bech32: string,
+): MasumiAddressCredentials => {
   const parsed = deserializeBech32Address(bech32);
   const payment = parsed.pubKeyHash
     ? { isScript: false, hash: parsed.pubKeyHash }
     : parsed.scriptHash
       ? { isScript: true, hash: parsed.scriptHash }
       : undefined;
-  if (!payment) throw new Error(`Masumi datum address must have a payment credential: ${bech32}`);
+  if (!payment)
+    throw new Error(
+      `Masumi datum address must have a payment credential: ${bech32}`,
+    );
 
   const stake = parsed.stakeCredentialHash
     ? { isScript: false, hash: parsed.stakeCredentialHash }
@@ -108,13 +120,18 @@ export const addressCredentials = (bech32: string): MasumiAddressCredentials => 
 };
 
 /** Inverse of `addressCredentials`: re-serializes decoded credentials back to a bech32 address. */
-export const credentialsToBech32 = (creds: MasumiAddressCredentials, networkId: 0 | 1): string =>
+export const credentialsToBech32 = (
+  creds: MasumiAddressCredentials,
+  networkId: 0 | 1,
+): string =>
   serializeAddress(
     {
       pubKeyHash: !creds.payment.isScript ? creds.payment.hash : undefined,
       scriptHash: creds.payment.isScript ? creds.payment.hash : undefined,
-      stakeCredentialHash: creds.stake && !creds.stake.isScript ? creds.stake.hash : undefined,
-      stakeScriptCredentialHash: creds.stake && creds.stake.isScript ? creds.stake.hash : undefined,
+      stakeCredentialHash:
+        creds.stake && !creds.stake.isScript ? creds.stake.hash : undefined,
+      stakeScriptCredentialHash:
+        creds.stake && creds.stake.isScript ? creds.stake.hash : undefined,
     },
     networkId,
   );
@@ -152,9 +169,13 @@ export const buildMasumiDatum = (view: MasumiDatumView): Data =>
 export const buildMasumiLockDatum = (input: MasumiLockDatumInput): Data =>
   buildMasumiDatum({
     buyer: addressCredentials(input.buyerAddress),
-    buyerReturnAddress: input.buyerReturnAddress ? addressCredentials(input.buyerReturnAddress) : null,
+    buyerReturnAddress: input.buyerReturnAddress
+      ? addressCredentials(input.buyerReturnAddress)
+      : null,
     seller: addressCredentials(input.sellerAddress),
-    sellerReturnAddress: input.sellerReturnAddress ? addressCredentials(input.sellerReturnAddress) : null,
+    sellerReturnAddress: input.sellerReturnAddress
+      ? addressCredentials(input.sellerReturnAddress)
+      : null,
     referenceKey: input.referenceKey,
     referenceSignature: input.referenceSignature,
     sellerNonce: input.sellerNonce,
@@ -177,17 +198,23 @@ export const buildMasumiLockDatum = (input: MasumiLockDatumInput): Data =>
 type ConstrView = { index: number; fields: PlutusDataNode[] };
 
 const asConstr = (d: PlutusDataNode): ConstrView | null =>
-  d instanceof DataConstr ? { index: Number(d.constr), fields: d.fields } : null;
-const asInt = (d: PlutusDataNode): bigint | null => (d instanceof DataI ? d.int : null);
+  d instanceof DataConstr
+    ? { index: Number(d.constr), fields: d.fields }
+    : null;
+const asInt = (d: PlutusDataNode): bigint | null =>
+  d instanceof DataI ? d.int : null;
 const asHex = (d: PlutusDataNode): string | null =>
-  d instanceof DataB ? Buffer.from(d.bytes.toBuffer()).toString("hex").toLowerCase() : null;
+  d instanceof DataB
+    ? Buffer.from(d.bytes.toBuffer()).toString("hex").toLowerCase()
+    : null;
 
 /** Cardano payment/stake credential hashes are Blake2b-224: 28 bytes = 56 hex chars. */
 const CREDENTIAL_HASH_HEX_LENGTH = 56;
 
 const dataToCredential = (d: PlutusDataNode): MasumiCredential | null => {
   const c = asConstr(d);
-  if (!c || (c.index !== 0 && c.index !== 1) || c.fields.length !== 1) return null;
+  if (!c || (c.index !== 0 && c.index !== 1) || c.fields.length !== 1)
+    return null;
   const hash = asHex(c.fields[0]!);
   if (hash === null || hash.length !== CREDENTIAL_HASH_HEX_LENGTH) return null;
   return { isScript: c.index === 1, hash };
@@ -203,7 +230,8 @@ const dataToAddress = (d: PlutusDataNode): MasumiAddressCredentials | null => {
   if (opt.index === 1) return opt.fields.length === 0 ? { payment } : null; // None
   if (opt.index !== 0 || opt.fields.length !== 1) return null;
   const stakeRef = asConstr(opt.fields[0]!);
-  if (!stakeRef || stakeRef.index !== 0 || stakeRef.fields.length !== 1) return null; // pointer addresses unsupported
+  if (!stakeRef || stakeRef.index !== 0 || stakeRef.fields.length !== 1)
+    return null; // pointer addresses unsupported
   const stake = dataToCredential(stakeRef.fields[0]!);
   return stake ? { payment, stake } : null;
 };
@@ -223,7 +251,9 @@ const dataToOptionAddress = (
  * Parses a Masumi lock datum (CBOR hex, as read off an on-chain inline datum) into a typed
  * view. Total: returns `null` when the structure does not match the 19-field datum.
  */
-export const parseMasumiLockDatum = (datumCbor: string): MasumiDatumView | null => {
+export const parseMasumiLockDatum = (
+  datumCbor: string,
+): MasumiDatumView | null => {
   let data: PlutusDataNode;
   try {
     data = dataFromCbor(datumCbor);

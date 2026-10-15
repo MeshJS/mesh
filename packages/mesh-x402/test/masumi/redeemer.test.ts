@@ -26,20 +26,35 @@ describe("Action redeemer encoding - constructor tags match vested_pay.ak's decl
     ["WithdrawRefund", WITHDRAW_REFUND_REDEEMER, 3],
     ["SubmitResult", SUBMIT_RESULT_REDEEMER, 5],
     ["AuthorizeRefund", AUTHORIZE_REFUND_REDEEMER, 6],
-  ] as const)("%s encodes without throwing and round-trips through CBOR", (_name, redeemer) => {
-    const plutusData = fromBuilderToPlutusData({ type: "Mesh", content: redeemer });
-    const hex = plutusData.toCbor().toString();
-    expect(hex).toMatch(/^[0-9a-f]+$/);
-    expect(hex.length).toBeGreaterThan(0);
-  });
+  ] as const)(
+    "%s encodes without throwing and round-trips through CBOR",
+    (_name, redeemer) => {
+      const plutusData = fromBuilderToPlutusData({
+        type: "Mesh",
+        content: redeemer,
+      });
+      const hex = plutusData.toCbor().toString();
+      expect(hex).toMatch(/^[0-9a-f]+$/);
+      expect(hex.length).toBeGreaterThan(0);
+    },
+  );
 
   it("WithdrawDisputed carries buyer/seller values and admin signatures", () => {
     const redeemer = buildWithdrawDisputedRedeemer(
       [{ policyId: "", assets: [{ assetName: "", quantity: 2_000_000n }] }],
       [{ policyId: "", assets: [{ assetName: "", quantity: 1_000_000n }] }],
-      [{ verificationKey: "aa".repeat(32), protectedHeaders: "a10127", signature: "bb".repeat(64) }],
+      [
+        {
+          verificationKey: "aa".repeat(32),
+          protectedHeaders: "a10127",
+          signature: "bb".repeat(64),
+        },
+      ],
     );
-    const plutusData = fromBuilderToPlutusData({ type: "Mesh", content: redeemer });
+    const plutusData = fromBuilderToPlutusData({
+      type: "Mesh",
+      content: redeemer,
+    });
     const hex = plutusData.toCbor().toString();
     expect(hex).toMatch(/^[0-9a-f]+$/);
     // The admin pubkey/signature bytes must appear verbatim in the encoded redeemer.

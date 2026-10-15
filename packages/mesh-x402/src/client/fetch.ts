@@ -1,11 +1,22 @@
 import { MeshWallet } from "@meshsdk/wallet";
 
-import { toNetworkId, tryNormalizeCardanoNetwork } from "../types/network";
 import { fromBase64 } from "../encoding";
-import { PaymentRequirements, X402ChallengeResponse } from "../types/payment-requirements";
-import { PAYMENT_SIGNATURE_HEADER, PaymentPayload, encodePaymentSignatureHeader } from "../types/payment-payload";
-import { PAYMENT_RESPONSE_HEADER, decodePaymentResponseHeader, PaymentResponse } from "../types/payment-response";
 import { X402Error } from "../types/errors";
+import { toNetworkId, tryNormalizeCardanoNetwork } from "../types/network";
+import {
+  encodePaymentSignatureHeader,
+  PAYMENT_SIGNATURE_HEADER,
+  PaymentPayload,
+} from "../types/payment-payload";
+import {
+  PaymentRequirements,
+  X402ChallengeResponse,
+} from "../types/payment-requirements";
+import {
+  decodePaymentResponseHeader,
+  PAYMENT_RESPONSE_HEADER,
+  PaymentResponse,
+} from "../types/payment-response";
 import { buildPaymentPayload, ChainContext } from "./build";
 import { signPayment } from "./sign";
 
@@ -14,7 +25,9 @@ export const PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED";
 
 export type FetchWithPaymentOptions = {
   /** Picks which `accepts[]` entry to pay. Default: first entry matching the wallet's network. */
-  selectRequirement?: (accepts: PaymentRequirements[]) => PaymentRequirements | undefined;
+  selectRequirement?: (
+    accepts: PaymentRequirements[],
+  ) => PaymentRequirements | undefined;
   /** Custom `fetch` (default: global). Lets callers observe or instrument both requests. */
   fetch?: typeof fetch;
   /** Called with the decoded 402 challenge. */
@@ -33,7 +46,11 @@ const defaultSelectRequirement =
   (accepts: PaymentRequirements[]): PaymentRequirements | undefined =>
     accepts.find((r) => {
       const network = tryNormalizeCardanoNetwork(r.network);
-      return r.scheme === "exact" && network !== null && toNetworkId(network) === walletNetworkId;
+      return (
+        r.scheme === "exact" &&
+        network !== null &&
+        toNetworkId(network) === walletNetworkId
+      );
     });
 
 /**
@@ -41,7 +58,9 @@ const defaultSelectRequirement =
  * `PAYMENT-REQUIRED` response header; a JSON body is accepted as a fallback for servers that
  * only echo it there.
  */
-const readChallenge = async (response: Response): Promise<X402ChallengeResponse> => {
+const readChallenge = async (
+  response: Response,
+): Promise<X402ChallengeResponse> => {
   const header = response.headers.get(PAYMENT_REQUIRED_HEADER);
   if (header) return JSON.parse(fromBase64(header)) as X402ChallengeResponse;
   return (await response.json()) as X402ChallengeResponse;
@@ -65,17 +84,35 @@ export const fetchWithPayment = async (
 
   const challenge = await readChallenge(initial);
   if (challenge.x402Version !== 2 || !Array.isArray(challenge.accepts)) {
-    throw new X402Error("NO_ACCEPTABLE_REQUIREMENT", "402 response is not an x402 v2 PaymentRequired object");
+    throw new X402Error(
+      "NO_ACCEPTABLE_REQUIREMENT",
+      "402 response is not an x402 v2 PaymentRequired object",
+    );
   }
   options.onChallenge?.(challenge);
-  const select = options.selectRequirement ?? defaultSelectRequirement(await wallet.getNetworkId());
+  const select =
+    options.selectRequirement ??
+    defaultSelectRequirement(await wallet.getNetworkId());
   const chosen = select(challenge.accepts);
   if (!chosen) {
-    throw new X402Error("NO_ACCEPTABLE_REQUIREMENT", "No PaymentRequirements entry matched this wallet");
+    throw new X402Error(
+      "NO_ACCEPTABLE_REQUIREMENT",
+      "No PaymentRequirements entry matched this wallet",
+    );
   }
 
-  const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-  const built = await buildPaymentPayload(chosen, wallet, { url, ...challenge.resource }, chain);
+  const url =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+  const built = await buildPaymentPayload(
+    chosen,
+    wallet,
+    { url, ...challenge.resource },
+    chain,
+  );
   const signed = await signPayment(wallet, built);
 
   options.onSigned?.(signed);
@@ -86,6 +123,8 @@ export const fetchWithPayment = async (
   const responseHeader = response.headers.get(PAYMENT_RESPONSE_HEADER);
   return {
     response,
-    paymentResponse: responseHeader ? decodePaymentResponseHeader(responseHeader) : undefined,
+    paymentResponse: responseHeader
+      ? decodePaymentResponseHeader(responseHeader)
+      : undefined,
   };
 };

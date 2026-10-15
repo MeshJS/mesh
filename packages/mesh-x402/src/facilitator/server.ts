@@ -1,12 +1,20 @@
 import { Hono } from "hono";
+
 import { IFetcher, ISubmitter, Protocol } from "@meshsdk/common";
 
-import { AssetTransferMethod, PaymentRequirements } from "../types/payment-requirements";
 import { CardanoNetwork, tryNormalizeCardanoNetwork } from "../types/network";
 import { PaymentPayload } from "../types/payment-payload";
-import { DEFAULT_L1_CONFIRMATION_RANGE, VerifyOptions, verifyPayment } from "./verify";
+import {
+  AssetTransferMethod,
+  PaymentRequirements,
+} from "../types/payment-requirements";
 import { settlePayment } from "./settle";
 import { InMemorySettlementStore, SettlementStore } from "./store";
+import {
+  DEFAULT_L1_CONFIRMATION_RANGE,
+  VerifyOptions,
+  verifyPayment,
+} from "./verify";
 
 export type FacilitatorConfig = {
   fetcher: IFetcher;
@@ -21,7 +29,9 @@ export type FacilitatorConfig = {
   /** Independently validates a non-empty Masumi `agentIdentifier`. Default: registry claims are rejected. */
   validateRegistryClaim?: VerifyOptions["validateRegistryClaim"];
   /** Resolves live protocol parameters and the current tip's slot for a given network. */
-  resolveChainState: (network: CardanoNetwork) => Promise<{ protocol: Protocol; currentSlot: number }>;
+  resolveChainState: (
+    network: CardanoNetwork,
+  ) => Promise<{ protocol: Protocol; currentSlot: number }>;
 };
 
 /**
@@ -56,16 +66,26 @@ export const createFacilitatorApp = (config: FacilitatorConfig): Hono => {
     } catch {
       return null;
     }
-    const network = tryNormalizeCardanoNetwork(body?.paymentRequirements?.network);
-    if (!body?.paymentPayload || !body.paymentRequirements || !network || !supported.has(network)) return null;
-    const method = body.paymentRequirements.extra?.assetTransferMethod ?? "default";
+    const network = tryNormalizeCardanoNetwork(
+      body?.paymentRequirements?.network,
+    );
+    if (
+      !body?.paymentPayload ||
+      !body.paymentRequirements ||
+      !network ||
+      !supported.has(network)
+    )
+      return null;
+    const method =
+      body.paymentRequirements.extra?.assetTransferMethod ?? "default";
     if (!methods.includes(method)) return null;
     return { body, ...(await config.resolveChainState(network)) };
   };
 
   app.post("/verify", async (c) => {
     const request = await readRequest(c.req.raw);
-    if (!request) return c.json({ isValid: false, invalidReason: "INVALID_PAYLOAD" }, 400);
+    if (!request)
+      return c.json({ isValid: false, invalidReason: "INVALID_PAYLOAD" }, 400);
     const result = await verifyPayment(
       request.body.paymentPayload,
       request.body.paymentRequirements,
@@ -79,7 +99,16 @@ export const createFacilitatorApp = (config: FacilitatorConfig): Hono => {
 
   app.post("/settle", async (c) => {
     const request = await readRequest(c.req.raw);
-    if (!request) return c.json({ success: false, errorReason: "INVALID_PAYLOAD", transaction: "", network: "" }, 400);
+    if (!request)
+      return c.json(
+        {
+          success: false,
+          errorReason: "INVALID_PAYLOAD",
+          transaction: "",
+          network: "",
+        },
+        400,
+      );
     const result = await settlePayment(
       request.body.paymentPayload,
       request.body.paymentRequirements,

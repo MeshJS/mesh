@@ -4,20 +4,29 @@
  * the issuer side, so an application needs nothing beyond `@meshsdk/x402` to run all three methods.
  */
 import { randomBytes } from "node:crypto";
+
 import { MeshWallet } from "@meshsdk/wallet";
 
+import {
+  MASUMI_DEFAULT_DEPLOYMENT,
+  masumiEscrowAddress,
+} from "../masumi/escrow-address";
+import { expectedBlockchainIdentifier } from "../masumi/identifier";
+import {
+  buildSignedTerms,
+  commitmentPartDigest,
+  computeInputHash,
+  computeTermsDigest,
+} from "../masumi/terms";
+import { validateMasumiRequirementsFull } from "../masumi/validate";
+import { resolveScriptAddress } from "../script";
+import { X402Error } from "../types/errors";
 import { CardanoNetwork } from "../types/network";
 import {
   PaymentRequirements,
   PaymentRequirementsExtraMasumi,
   PaymentRequirementsExtraScript,
 } from "../types/payment-requirements";
-import { MASUMI_DEFAULT_DEPLOYMENT, masumiEscrowAddress } from "../masumi/escrow-address";
-import { buildSignedTerms, commitmentPartDigest, computeInputHash, computeTermsDigest } from "../masumi/terms";
-import { expectedBlockchainIdentifier } from "../masumi/identifier";
-import { resolveScriptAddress } from "../script";
-import { validateMasumiRequirementsFull } from "../masumi/validate";
-import { X402Error } from "../types/errors";
 
 export const DEFAULT_OFFER_TIMEOUT_SECONDS = 600;
 
@@ -39,10 +48,14 @@ const common = (p: CommonOfferParams) => ({
   asset: p.asset ?? "lovelace",
   maxTimeoutSeconds: p.maxTimeoutSeconds ?? DEFAULT_OFFER_TIMEOUT_SECONDS,
 });
-const policy = (p: CommonOfferParams) => ({ confirmationPolicy: { l1Confirmations: p.confirmations ?? 1 } });
+const policy = (p: CommonOfferParams) => ({
+  confirmationPolicy: { l1Confirmations: p.confirmations ?? 1 },
+});
 
 /** `default` method: pay `payTo` directly. */
-export const buildDefaultOffer = (p: CommonOfferParams & { payTo: string }): PaymentRequirements => ({
+export const buildDefaultOffer = (
+  p: CommonOfferParams & { payTo: string },
+): PaymentRequirements => ({
   ...common(p),
   payTo: p.payTo,
   extra: { ...policy(p) },
@@ -50,7 +63,11 @@ export const buildDefaultOffer = (p: CommonOfferParams & { payTo: string }): Pay
 
 /** `script` method: lock into the address of `script` (parameters applied), optionally with an inline CBOR datum. */
 export const buildScriptOffer = (
-  p: CommonOfferParams & Pick<PaymentRequirementsExtraScript, "script" | "scriptHash" | "parameters" | "datum">,
+  p: CommonOfferParams &
+    Pick<
+      PaymentRequirementsExtraScript,
+      "script" | "scriptHash" | "parameters" | "datum"
+    >,
 ): PaymentRequirements => {
   const extra: PaymentRequirementsExtraScript = {
     assetTransferMethod: "script",
@@ -90,16 +107,26 @@ export const buildMasumiOffer = async (
   p: MasumiOfferParams,
 ): Promise<{ requirements: PaymentRequirements; termsDigest: string }> => {
   const deployment = p.deployment;
-  const payTo = masumiEscrowAddress(p.network, deployment ?? MASUMI_DEFAULT_DEPLOYMENT);
+  const payTo = masumiEscrowAddress(
+    p.network,
+    deployment ?? MASUMI_DEFAULT_DEPLOYMENT,
+  );
 
-  const maxTimeoutMs = (p.maxTimeoutSeconds ?? DEFAULT_OFFER_TIMEOUT_SECONDS) * 1000;
+  const maxTimeoutMs =
+    (p.maxTimeoutSeconds ?? DEFAULT_OFFER_TIMEOUT_SECONDS) * 1000;
   const payByOffsetMs = p.payByOffsetMs ?? maxTimeoutMs;
   if (payByOffsetMs > maxTimeoutMs) {
-    throw new X402Error("MASUMI_INVALID_DEADLINE_ORDERING", "payByOffsetMs must not exceed maxTimeoutSeconds");
+    throw new X402Error(
+      "MASUMI_INVALID_DEADLINE_ORDERING",
+      "payByOffsetMs must not exceed maxTimeoutSeconds",
+    );
   }
   const issuedAt = Date.now();
   const payByTime = issuedAt + payByOffsetMs;
-  const submitResultTime = Math.max(payByTime + 6 * 60 * 1000, issuedAt + 16 * 60 * 1000);
+  const submitResultTime = Math.max(
+    payByTime + 6 * 60 * 1000,
+    issuedAt + 16 * 60 * 1000,
+  );
   const unlockTime = submitResultTime + 16 * 60 * 1000;
   const externalDisputeUnlockTime = unlockTime + 16 * 60 * 1000;
 
@@ -107,9 +134,17 @@ export const buildMasumiOffer = async (
     name: "job-input",
     canonicalization: "jcs" as const,
     content: p.jobInput,
-    digest: commitmentPartDigest({ canonicalization: "jcs", content: p.jobInput }),
+    digest: commitmentPartDigest({
+      canonicalization: "jcs",
+      content: p.jobInput,
+    }),
   };
-  const inputCommitment = { version: "1" as const, algorithm: "sha256" as const, parts: [part], digest: "" };
+  const inputCommitment = {
+    version: "1" as const,
+    algorithm: "sha256" as const,
+    parts: [part],
+    digest: "",
+  };
   const inputHash = computeInputHash(inputCommitment);
   inputCommitment.digest = inputHash;
 
@@ -134,10 +169,19 @@ export const buildMasumiOffer = async (
     ...(deployment ? { deployment } : {}),
   };
 
-  const termsDigest = computeTermsDigest(buildSignedTerms(unsigned, { ...base, extra: unsigned }));
+  const termsDigest = computeTermsDigest(
+    buildSignedTerms(unsigned, { ...base, extra: unsigned }),
+  );
   const sig = await p.sellerWallet.signData(termsDigest);
-  const signed: PaymentRequirementsExtraMasumi = { ...unsigned, referenceKey: sig.key, referenceSignature: sig.signature };
-  const extra: PaymentRequirementsExtraMasumi = { ...signed, blockchainIdentifier: expectedBlockchainIdentifier(signed, payTo) };
+  const signed: PaymentRequirementsExtraMasumi = {
+    ...unsigned,
+    referenceKey: sig.key,
+    referenceSignature: sig.signature,
+  };
+  const extra: PaymentRequirementsExtraMasumi = {
+    ...signed,
+    blockchainIdentifier: expectedBlockchainIdentifier(signed, payTo),
+  };
   const requirements: PaymentRequirements = { ...base, extra };
   // Never hand out an offer the client or facilitator would refuse.
   const failure = await validateMasumiRequirementsFull(requirements);
@@ -147,4 +191,9 @@ export const buildMasumiOffer = async (
 
 /** The `termsDigest` a Masumi payload's `accepted` terms hash to - the key for looking up the issuer's stored offer. */
 export const masumiTermsDigestOf = (accepted: PaymentRequirements): string =>
-  computeTermsDigest(buildSignedTerms(accepted.extra as PaymentRequirementsExtraMasumi, accepted));
+  computeTermsDigest(
+    buildSignedTerms(
+      accepted.extra as PaymentRequirementsExtraMasumi,
+      accepted,
+    ),
+  );

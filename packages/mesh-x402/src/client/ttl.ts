@@ -6,7 +6,10 @@ import { PaymentRequirements } from "../types/payment-requirements";
 const TTL_SAFETY_FRACTION = 0.9;
 
 /** The TTL slot for a payment: `currentSlot` plus (most of) `maxTimeoutSeconds`, converted with the network's slot length. */
-export const paymentTtlSlot = (requirement: PaymentRequirements, currentSlot: number): number =>
+export const paymentTtlSlot = (
+  requirement: PaymentRequirements,
+  currentSlot: number,
+): number =>
   currentSlot +
   secondsToSlots(
     tryNormalizeCardanoNetwork(requirement.network)!,
