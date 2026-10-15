@@ -8,3 +8,4 @@ export * from "./script";
 export * from "./server/offers";
 export * from "./chain-state";
 export * from "./server/paywall";
+export * from "./http";

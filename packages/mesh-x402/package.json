@@ -37,6 +37,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.5",
     "@harmoniclabs/cbor": "1.6.0",
     "@harmoniclabs/plutus-data": "1.2.6",
     "@meshsdk/common": "1.9.1",
