@@ -108,6 +108,60 @@ describe("script method", () => {
     ).toEqual({ isValid: true });
   });
 
+  describe("declared datum must be the one attached to the payTo output", () => {
+    const build = async (builtWith: Record<string, unknown>) => {
+      const { fetcher, wallet } = await walletWithFunds();
+      const built = await buildPaymentPayload(
+        scriptReq({ script: { type: "plutusV3", code: CODE }, ...builtWith }),
+        wallet,
+        { url: "u" },
+        { fetcher, protocol: P, currentSlot: SLOT },
+      );
+      return { fetcher, signed: await signPayment(wallet, built) };
+    };
+    const verifyAgainst = async (
+      signed: Awaited<ReturnType<typeof build>>["signed"],
+      fetcher: Awaited<ReturnType<typeof build>>["fetcher"],
+      declared: Record<string, unknown>,
+    ) => {
+      const req = scriptReq({
+        script: { type: "plutusV3", code: CODE },
+        ...declared,
+      });
+      return verifyPayment({ ...signed, accepted: req }, req, fetcher, P, SLOT);
+    };
+
+    it("accepts the declared datum, including an equivalent encoding of it", async () => {
+      const { fetcher, signed } = await build({ datum: "d8799fff" }); // Constr 0 [] (indefinite list)
+      expect(
+        await verifyAgainst(signed, fetcher, { datum: "d8799fff" }),
+      ).toEqual({ isValid: true });
+      expect(await verifyAgainst(signed, fetcher, { datum: "d87980" })).toEqual(
+        { isValid: true },
+      ); // same data, definite list
+    });
+
+    it("rejects a payment that left out the declared datum", async () => {
+      const { fetcher, signed } = await build({});
+      expect(
+        await verifyAgainst(signed, fetcher, { datum: "d8799fff" }),
+      ).toEqual({
+        isValid: false,
+        invalidReason: "SCRIPT_DATUM_NOT_INLINE",
+      });
+    });
+
+    it("rejects a payment that attached a different datum", async () => {
+      const { fetcher, signed } = await build({ datum: "d8799f01ff" }); // Constr 0 [1]
+      expect(
+        await verifyAgainst(signed, fetcher, { datum: "d8799fff" }),
+      ).toEqual({
+        isValid: false,
+        invalidReason: "SCRIPT_DATUM_MISMATCH",
+      });
+    });
+  });
+
   it("rejects a Plutus V1 script combined with an inline datum (funds would strand)", async () => {
     const { fetcher, wallet } = await walletWithFunds();
     const req = scriptReq({

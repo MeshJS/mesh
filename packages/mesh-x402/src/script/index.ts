@@ -4,6 +4,8 @@
  * matches the derived/declared script address, but never validates datum *content* - that's
  * the resource server's responsibility.
  */
+import { dataFromCbor, dataToCbor } from "@harmoniclabs/plutus-data";
+
 import { Data, mConStr } from "@meshsdk/common";
 import {
   applyParamsToScript,
@@ -164,4 +166,27 @@ export const buildScriptOutputDatum = (
     throw new Error('script "datum" must be non-empty CBOR hex');
   }
   return extra.datum;
+};
+
+/**
+ * Compares the datum a script offer declares with the inline datum found on the `payTo` output.
+ * The contents are never judged (that is the server's contract, not ours); only that the declared
+ * datum is the one attached. Datums are compared as Plutus data trees, so equivalent CBOR
+ * encodings of the same datum match. Returns `"ok"` when none is declared.
+ */
+export const declaredDatumStatus = (
+  extra: PaymentRequirementsExtraScript,
+  inlineDatumCbor: string | undefined,
+): "ok" | "missing" | "mismatch" => {
+  if (extra.datum === undefined) return "ok";
+  if (inlineDatumCbor === undefined) return "missing";
+  try {
+    const canonical = (cbor: string) =>
+      dataToCbor(dataFromCbor(cbor)).toString();
+    return canonical(extra.datum) === canonical(inlineDatumCbor)
+      ? "ok"
+      : "mismatch";
+  } catch {
+    return "mismatch";
+  }
 };

@@ -5,7 +5,11 @@ import { secondsToSlots } from "../chain";
 import { base64ToHex } from "../encoding";
 import { AllowMasumiDeployment } from "../masumi/escrow-address";
 import { MasumiRegistryValidator } from "../masumi/validate";
-import { scriptPayToMatches, scriptV1WithInlineDatum } from "../script";
+import {
+  declaredDatumStatus,
+  scriptPayToMatches,
+  scriptV1WithInlineDatum,
+} from "../script";
 import {
   isCanonicalAsset,
   LOVELACE,
@@ -451,14 +455,19 @@ export const verifyPayment = async (
         options,
       );
     }
-    if (method === "script") return verifyScriptPayment(normalized);
+    if (method === "script")
+      return verifyScriptPayment(normalized, tx, payToOutput.index);
     return { isValid: true };
   } catch {
     return invalid("INVALID_PAYLOAD");
   }
 };
 
-const verifyScriptPayment = (payload: PaymentPayload): VerifyResult => {
+const verifyScriptPayment = (
+  payload: PaymentPayload,
+  tx: Tx,
+  payToIndex: number,
+): VerifyResult => {
   const extra = payload.accepted.extra as PaymentRequirementsExtraScript;
   // A requirement declaring neither `script` nor `scriptHash` can never be checked, so it is
   // rejected outright rather than silently passing.
@@ -468,6 +477,12 @@ const verifyScriptPayment = (payload: PaymentPayload): VerifyResult => {
   // `payTo`'s script credential must equal the declared script's hash (a stake part on `payTo` is fine).
   if (!scriptPayToMatches(extra, payload.accepted.payTo))
     return invalid("SCRIPT_ADDRESS_MISMATCH");
-  // Datum content is intentionally not validated here - that's the resource server's job.
+  // The datum's *content* is the server's contract (not judged here), but a declared datum must be
+  // the one attached inline to the `payTo` output, or the server could never spend what it was paid.
+  const output = tx.body().outputs().at(payToIndex)!;
+  const inlineDatum = output.datum()?.asInlineData()?.toCbor().toString();
+  const datum = declaredDatumStatus(extra, inlineDatum);
+  if (datum === "missing") return invalid("SCRIPT_DATUM_NOT_INLINE");
+  if (datum === "mismatch") return invalid("SCRIPT_DATUM_MISMATCH");
   return { isValid: true };
 };

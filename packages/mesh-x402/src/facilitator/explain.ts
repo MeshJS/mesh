@@ -69,6 +69,7 @@ const METHOD_RULES: Record<AssetTransferMethod, VerificationRule[]> = {
       codes: [
         "SCRIPT_ADDRESS_MISMATCH",
         "SCRIPT_DATUM_NOT_INLINE",
+        "SCRIPT_DATUM_MISMATCH",
         "SCRIPT_INVALID",
         "SCRIPT_V1_WITH_DATUM",
       ],

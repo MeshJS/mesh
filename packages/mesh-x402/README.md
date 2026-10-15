@@ -2,10 +2,10 @@
 
 x402 payments (Cardano `exact` scheme) - [meshjs.dev/apis/x402](https://meshjs.dev/apis/x402)
 
-Client and facilitator implementation of the [x402](https://github.com/x402-foundation/x402) payment protocol's
-Cardano `exact` scheme, built on Mesh SDK wallet/transaction primitives. Wire-compatible with the upstream
-`@x402/cardano` spec (`specs/schemes/exact/scheme_exact_cardano.md`) — same network IDs, payload shape, and
-verification rules, implemented without Evolution SDK.
+Client, resource-server and facilitator implementation of the [x402](https://github.com/x402-foundation/x402)
+payment protocol's Cardano `exact` scheme, built on Mesh primitives (`MeshWallet`, `MeshTxBuilder`, `@meshsdk/core-cst`).
+It follows the [scheme specification](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_cardano.md):
+same network IDs, payload shape and verification rules.
 
 ## Client
 
@@ -165,10 +165,9 @@ WithdrawRefund; and `WithdrawDisputed` against a custom 1-of-1 test deployment. 
 
 ## Attribution
 
-The Masumi `vested_pay` escrow support (`src/masumi/`) ports several files near-verbatim from
-[`x402-foundation/x402`](https://github.com/x402-foundation/x402) (Apache-2.0), adapted to Mesh's
-primitives in place of Evolution SDK, so the two implementations agree byte-for-byte on the
-compiled validator, digests, and deadline/collateral math: `blueprintCode.ts`, `constants.ts`,
+The Masumi `vested_pay` escrow support (`src/masumi/`) is derived from the constants, digests and test vectors in
+[`x402-foundation/x402`](https://github.com/x402-foundation/x402) (Apache-2.0), expressed with Mesh primitives, so
+the compiled validator, digests and deadline/collateral math agree byte for byte: `blueprintCode.ts`, `constants.ts`,
 `jcs.ts`, parts of `terms.ts` (from `digests.ts`), `datum.ts`, `lock.ts`, and `escrow-address.ts`
 (from `blueprint.ts`). See each file's header comment for its specific source path.
 

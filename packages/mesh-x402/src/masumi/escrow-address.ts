@@ -5,8 +5,8 @@
  * is a different address - and a look-alike `vested_pay` with different admins is a
  * different trust domain. The facilitator therefore derives the address itself from the
  * canonical compiled validator and requires it to equal `payTo`; `payTo` is never defaulted
- * or inferred. Mirrors `x402-foundation/x402`'s `blueprint.ts` (Apache-2.0), but uses Mesh's
- * own `applyParamsToScript`/`resolvePlutusScriptAddress` instead of Evolution SDK.
+ * or inferred. Derived from `x402-foundation/x402`'s `blueprint.ts` (Apache-2.0), built on Mesh's
+ * `applyParamsToScript` and `resolvePlutusScriptAddress`.
  */
 import { PlutusScript } from "@meshsdk/common";
 import {
