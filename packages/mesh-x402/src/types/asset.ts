@@ -8,7 +8,11 @@ export const parseAssetUnit = (asset: string): ParsedAsset => {
 
   const [policyId, ...rest] = asset.split(".");
   const assetNameHex = rest.join(".");
-  if (!policyId || policyId.length !== 56 || !/^[0-9a-fA-F]*$/.test(assetNameHex)) {
+  if (
+    !policyId ||
+    !/^[0-9a-fA-F]{56}$/.test(policyId) ||
+    !/^([0-9a-fA-F]{2}){0,32}$/.test(assetNameHex)
+  ) {
     throw new Error(
       `Invalid x402 asset string "${asset}" - expected "lovelace" or "policyId.assetNameHex"`,
     );
@@ -32,3 +36,13 @@ export const fromMeshUnit = (unit: string): string => {
 
 /** Compares two x402 asset strings for equality, normalizing case and lovelace's empty-suffix form. */
 export const assetsEqual = (a: string, b: string): boolean => toMeshUnit(a) === toMeshUnit(b);
+
+/** Whether `asset` is exactly `"lovelace"` or the canonical lowercase `"policyId.assetNameHex"` form. */
+export const isCanonicalAsset = (asset: string): boolean => {
+  if (asset === LOVELACE) return true;
+  return /^[0-9a-f]{56}\.([0-9a-f]{2}){0,32}$/.test(asset);
+};
+
+/** Parses a positive canonical decimal amount string; returns `null` for anything else. */
+export const parsePositiveAmount = (amount: unknown): bigint | null =>
+  typeof amount === "string" && /^[1-9][0-9]*$/.test(amount) ? BigInt(amount) : null;

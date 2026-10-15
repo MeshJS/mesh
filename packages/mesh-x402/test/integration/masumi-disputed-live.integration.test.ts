@@ -130,16 +130,18 @@ describeIfConfigured("masumi vested_pay - live WithdrawDisputed on preprod (cust
       requirement,
       wallet,
       { url: "https://example.com/disputed-test" },
-      { fetcher: provider, protocol, currentSlot },
+      // A non-default deployment needs explicit application approval (this test's own 1-of-1 admin set).
+      { fetcher: provider, protocol, currentSlot, allowMasumiDeployment: () => true },
     );
     const signedLock = await signPayment(wallet, built);
 
-    let settleResult = await settlePayment(signedLock, requirement, provider, provider, lockStore, protocol, currentSlot);
+    const facilitatorOptions = { allowMasumiDeployment: () => true };
+    let settleResult = await settlePayment(signedLock, requirement, provider, provider, lockStore, protocol, currentSlot, facilitatorOptions);
     const lockDeadline = Date.now() + 5 * 60 * 1000;
     while (!settleResult.success && Date.now() < lockDeadline) {
       await sleep(15_000);
       currentSlot = Number((await provider.fetchLatestBlock()).slot);
-      settleResult = await settlePayment(signedLock, requirement, provider, provider, lockStore, protocol, currentSlot);
+      settleResult = await settlePayment(signedLock, requirement, provider, provider, lockStore, protocol, currentSlot, facilitatorOptions);
     }
     expect(settleResult.success).toBe(true);
     log(`locked: https://preprod.cardanoscan.io/transaction/${settleResult.transaction}`);

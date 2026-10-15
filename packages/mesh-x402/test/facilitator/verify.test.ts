@@ -129,6 +129,6 @@ describe("verifyPayment - core rule isolation", () => {
       maxTimeoutSeconds: 1,
     }));
     const result = await verifyPayment(tampered, trusted, fetcher, DEFAULT_PROTOCOL_PARAMETERS, CURRENT_SLOT);
-    expect(result).toEqual({ isValid: false, invalidReason: "TTL_EXPIRED" });
+    expect(result).toEqual({ isValid: false, invalidReason: "TTL_TOO_FAR" });
   });
 });

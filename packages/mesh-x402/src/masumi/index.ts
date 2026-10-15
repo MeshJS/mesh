@@ -6,3 +6,5 @@ export * from "./jcs";
 export * from "./terms";
 export * from "./cose";
 export * from "./lock";
+export * from "./identifier";
+export * from "./validate";

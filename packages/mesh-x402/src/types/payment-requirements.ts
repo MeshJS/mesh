@@ -55,7 +55,10 @@ export type PlutusScriptCode = {
 export type ScriptParameter = { value: unknown; type: string };
 
 export type PaymentRequirementsExtraBase = {
-  confirmationPolicy: ConfirmationPolicy;
+  /** Optional; an absent policy normalizes to `{ l1Confirmations: 1 }` (see `getConfirmationPolicy`). */
+  confirmationPolicy?: ConfirmationPolicy;
+  /** Optional; MUST be `false` when present - this scheme has no fee sponsorship. */
+  areFeesSponsored?: false;
 };
 
 export type PaymentRequirementsExtraDefault = PaymentRequirementsExtraBase & {
@@ -100,6 +103,14 @@ export type PaymentRequirements = {
 export const getAssetTransferMethod = (
   requirement: PaymentRequirements,
 ): AssetTransferMethod => requirement.extra.assetTransferMethod ?? "default";
+
+export const DEFAULT_L1_CONFIRMATIONS = 1;
+export const MIN_L1_CONFIRMATIONS = -1;
+export const MAX_L1_CONFIRMATIONS = 20;
+
+/** Returns the requirement's confirmation policy, defaulting an absent one to `{ l1Confirmations: 1 }`. */
+export const getConfirmationPolicy = (requirement: PaymentRequirements): ConfirmationPolicy =>
+  requirement.extra.confirmationPolicy ?? { l1Confirmations: DEFAULT_L1_CONFIRMATIONS };
 
 export type ResourceInfo = {
   url: string;

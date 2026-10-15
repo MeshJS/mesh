@@ -39,3 +39,20 @@ export const fromNetworkId = (
   networkId: 0 | 1,
   testnet: "cardano:preprod" | "cardano:preview" = "cardano:preprod",
 ): CardanoNetwork => (networkId === 1 ? "cardano:mainnet" : testnet);
+
+/** Like `normalizeCardanoNetwork`, but returns `null` instead of throwing. */
+export const tryNormalizeCardanoNetwork = (network: unknown): CardanoNetwork | null => {
+  if (typeof network !== "string") return null;
+  try {
+    return normalizeCardanoNetwork(network);
+  } catch {
+    return null;
+  }
+};
+
+/** bech32 human-readable-part check: does `address` belong to `network`'s address space (mainnet vs. testnets)? */
+export const addressMatchesNetwork = (address: string, network: CardanoNetwork): boolean => {
+  const isMainnetAddress = address.startsWith("addr1") || address.startsWith("stake1");
+  const isTestnetAddress = address.startsWith("addr_test1") || address.startsWith("stake_test1");
+  return network === "cardano:mainnet" ? isMainnetAddress : isTestnetAddress;
+};

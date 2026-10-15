@@ -7,6 +7,7 @@ import {
   commitmentPartDigest,
   computeInputHash,
   computeTermsDigest,
+  expectedBlockchainIdentifier,
   MASUMI_DEFAULT_DEPLOYMENT,
   masumiEscrowAddress,
 } from "../../src/masumi";
@@ -98,10 +99,14 @@ export const buildMasumiRequirements = async (
 
   const sellerSignature = await sellerWallet.signData(termsDigest);
 
-  const extra: PaymentRequirementsExtraMasumi = {
+  const signedExtra: PaymentRequirementsExtraMasumi = {
     ...extraBeforeSignature,
     referenceKey: sellerSignature.key,
     referenceSignature: sellerSignature.signature,
+  };
+  const extra: PaymentRequirementsExtraMasumi = {
+    ...signedExtra,
+    blockchainIdentifier: expectedBlockchainIdentifier(signedExtra, payTo),
   };
 
   return { ...requirementsBase, extra };

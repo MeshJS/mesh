@@ -92,3 +92,50 @@ export const masumiEscrowAddress = (
   network: CardanoNetwork,
   deployment: MasumiDeployment = MASUMI_DEFAULT_DEPLOYMENT,
 ): string => resolvePlutusScriptAddress(applyMasumiDeployment(deployment), toNetworkId(network));
+
+/** Whether `deployment` is exactly the canonical default (same admins in the same order, same threshold/cooldown). */
+export const isDefaultMasumiDeployment = (deployment: MasumiDeployment): boolean =>
+  deployment.requiredAdmins === MASUMI_DEFAULT_DEPLOYMENT.requiredAdmins &&
+  deployment.cooldownPeriod === MASUMI_DEFAULT_DEPLOYMENT.cooldownPeriod &&
+  deployment.adminVkeys.length === MASUMI_DEFAULT_DEPLOYMENT.adminVkeys.length &&
+  deployment.adminVkeys.every((k, i) => k === MASUMI_DEFAULT_DEPLOYMENT.adminVkeys[i]);
+
+/**
+ * The effective authority of a deployment, per distinct admin key. `admin_vks` may repeat a
+ * key and each occurrence counts toward the threshold, so `requiredAdmins: 2` over `[x, x, y]`
+ * is "`x` alone can settle", not "2 of 3". A wallet/UI approving a custom deployment MUST show
+ * this (spec: "Weighted voting"), never the raw array length.
+ */
+export const masumiAdminWeights = (
+  deployment: MasumiDeployment,
+): { key: string; weight: number; canSettleAlone: boolean }[] => {
+  const required = Number(deployment.requiredAdmins);
+  const weights = new Map<string, number>();
+  for (const key of deployment.adminVkeys) weights.set(key, (weights.get(key) ?? 0) + 1);
+  return Array.from(weights, ([key, weight]) => ({ key, weight, canSettleAlone: weight >= required }));
+};
+
+/** Policy hook: may a non-default deployment be used? Receives the deployment, the weights and the network. */
+export type AllowMasumiDeployment = (
+  deployment: MasumiDeployment,
+  details: { weights: ReturnType<typeof masumiAdminWeights>; totalWeight: number; network: CardanoNetwork },
+) => boolean | Promise<boolean>;
+
+/**
+ * The spec requires an application to *explicitly* allow a non-default parameter set - the
+ * seller's signature alone is not approval. Absent a policy hook, only the canonical
+ * deployment passes.
+ */
+export const isMasumiDeploymentAllowed = async (
+  network: CardanoNetwork,
+  deployment: MasumiDeployment,
+  allow?: AllowMasumiDeployment,
+): Promise<boolean> => {
+  if (isDefaultMasumiDeployment(deployment)) return true;
+  if (!allow) return false;
+  return allow(deployment, {
+    weights: masumiAdminWeights(deployment),
+    totalWeight: deployment.adminVkeys.length,
+    network,
+  });
+};

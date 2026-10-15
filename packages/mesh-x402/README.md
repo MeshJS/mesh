@@ -16,8 +16,22 @@ import { fetchWithPayment } from "@meshsdk/x402";
 const wallet = new MeshWallet({ networkId: 0, fetcher, submitter, key: { type: "mnemonic", words } });
 await wallet.init();
 
-const response = await fetchWithPayment("https://example.com/paid-resource", undefined, wallet);
+const { response, paymentResponse } = await fetchWithPayment(
+  "https://example.com/paid-resource",
+  undefined,
+  wallet,
+  { fetcher, protocol, currentSlot },
+);
 ```
+
+The 402 challenge is read from the base64 `PAYMENT-REQUIRED` response header (a JSON body is accepted as a
+fallback); the paid retry carries `PAYMENT-SIGNATURE`, and the decoded `PAYMENT-RESPONSE` is returned.
+
+Before signing a `masumi` lock the client verifies the whole requirements object (closed-object schema, commitment
+digests, seller COSE signature over `termsDigest`, derived escrow address, `blockchainIdentifier`). A **non-default**
+Masumi deployment is refused unless the application opts in via `chain.allowMasumiDeployment` - the seller's signature
+alone is not approval. Show the user `masumiAdminWeights(deployment)` (effective weight per distinct admin key), never
+the raw `adminVkeys.length`.
 
 ## Facilitator
 
@@ -30,8 +44,19 @@ const app = createFacilitatorApp({
   store: new InMemorySettlementStore(),
   supportedNetworks: ["cardano:preprod"],
   resolveChainState: async (network) => ({ protocol: await fetcher.fetchProtocolParameters(epoch), currentSlot }),
+  // optional: range of confirmationPolicy.l1Confirmations this facilitator settles (default 0..20;
+  // -1 = settle on its own mempool acceptance is opt-in) and approval of non-default Masumi deployments
+  l1Confirmations: { minimum: 0, maximum: 20 },
+  allowMasumiDeployment: (deployment, { weights }) => false,
 });
 ```
+
+Settlement semantics (spec "Pending settlement" / "Duplicate Settlement Mitigation"): the canonical transaction id is
+claimed atomically before broadcast; a concurrent or already-settled call gets `duplicate_settlement`; below the
+confirmation threshold `/settle` returns `settlement_pending` and a retry with the same payload resumes observing
+without rebroadcasting; a tx whose TTL passed unrecorded is a terminal `EXPIRED`. For a Masumi payment the
+`termsDigest` is also bound to the first transaction that claims it. A multi-instance facilitator must implement
+`SettlementStore` (`claim` must be an atomic insert-if-absent) on shared storage.
 
 `POST /verify` and `POST /settle` both take `{ paymentPayload, paymentRequirements }` in the request body -
 **not** just the client's `paymentPayload` alone. `paymentRequirements` must be the resource server's own record
@@ -80,6 +105,8 @@ compiled validator, digests, and deadline/collateral math: `blueprintCode.ts`, `
 (from `blueprint.ts`). See each file's header comment for its specific source path.
 
 ## Testing
+
+See [TESTING.md](./TESTING.md) for the spec-conformance test guide (automated + manual).
 
 `npm test` runs the full unit test suite (client/facilitator/masumi end-to-end flows for all three
 `assetTransferMethod`s, facilitator rule isolation, settlement idempotency, COSE signature binding, byte-exact

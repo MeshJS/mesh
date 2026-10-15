@@ -44,7 +44,8 @@
     "@meshsdk/transaction": "1.9.1",
     "@meshsdk/wallet": "1.9.1",
     "@noble/hashes": "^1.5.0",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "lz-string": "^1.5.0"
   },
   "prettier": "@meshsdk/configs/prettier",
   "publishConfig": {
