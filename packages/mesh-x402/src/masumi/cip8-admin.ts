@@ -5,14 +5,7 @@
  * `cbor_byte_string` compute and check them. Byte-for-byte ported (not just behaviorally
  * matched) since the validator recomputes and compares these bytes on-chain.
  */
-import {
-  Cbor,
-  CborArray,
-  CborBytes,
-  CborMap,
-  CborSimple,
-  CborText,
-} from "@harmoniclabs/cbor";
+import { Cbor, CborArray, CborBytes } from "@harmoniclabs/cbor";
 import { DataB, DataConstr, DataI, dataToCbor } from "@harmoniclabs/plutus-data";
 import {
   blake2b,

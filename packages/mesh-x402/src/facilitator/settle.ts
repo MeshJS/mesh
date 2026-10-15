@@ -2,6 +2,7 @@ import { deserializeTx, resolveTxHash } from "@meshsdk/core-cst";
 import { IFetcher, ISubmitter, Protocol } from "@meshsdk/common";
 
 import { PaymentPayload } from "../types/payment-payload";
+import { base64ToHex } from "../encoding";
 import {
   getAssetTransferMethod,
   getConfirmationPolicy,
@@ -11,10 +12,8 @@ import {
 import { PaymentResponse } from "../types/payment-response";
 import { tryNormalizeCardanoNetwork } from "../types/network";
 import { buildSignedTerms, computeTermsDigest } from "../masumi/terms";
-import { verifyPayment, VerifyOptions } from "./verify";
+import { checkRequirementsMatchTrusted, verifyPayment, VerifyOptions } from "./verify";
 import { SettlementStore } from "./store";
-
-const base64ToHex = (base64: string): string => Buffer.from(base64, "base64").toString("hex");
 
 /**
  * Confirmation and rollback grace period kept on top of the TTL before a claim may be
@@ -80,6 +79,12 @@ export const settlePayment = async (
   }
 
   let record = await store.get(txHash);
+
+  // A retry resumes observing an existing claim without re-verifying; it must still be presented
+  // with the requirements the payment was made for, not another route's.
+  if (record && !checkRequirementsMatchTrusted(payload, trustedRequirements)) {
+    return failure(network, txHash, "REQUIREMENTS_MISMATCH");
+  }
 
   if (record?.state === "submitting" || record?.state === "settled") {
     return failure(network, txHash, "duplicate_settlement", {

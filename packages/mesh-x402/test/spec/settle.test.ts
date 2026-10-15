@@ -39,6 +39,19 @@ const setup = async (l1Confirmations: number | undefined = 1) => {
   return { fetcher, submitter, payload, requirement, txHash, store: new InMemorySettlementStore() };
 };
 
+describe("pending-settlement retry", () => {
+  it("still requires the requirements the payment was made for (another route's terms are refused)", async () => {
+    const s = await setup(1);
+    // First call broadcasts and stays pending (tx not yet visible).
+    const first = await settlePayment(s.payload, s.requirement, s.fetcher, s.submitter, s.store, P, SLOT);
+    expect(first.errorReason).toBe("settlement_pending");
+    const dearer = { ...s.requirement, amount: "9000000" };
+    const retry = await settlePayment(s.payload, dearer, s.fetcher, s.submitter, s.store, P, SLOT);
+    expect(retry.errorReason).toBe("REQUIREMENTS_MISMATCH");
+    expect(s.submitter.submitted).toHaveLength(1);
+  });
+});
+
 describe("duplicate settlement mitigation", () => {
   it("claims atomically: two concurrent /settle calls broadcast once, the loser gets duplicate_settlement", async () => {
     const s = await setup();

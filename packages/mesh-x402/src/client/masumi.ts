@@ -2,7 +2,7 @@ import { MeshTxBuilder } from "@meshsdk/transaction";
 import { IFetcher, Protocol, UTxO } from "@meshsdk/common";
 
 import { LOVELACE, toMeshUnit } from "../types/asset";
-import { PaymentRequirements, PaymentRequirementsExtraMasumi } from "../types/payment-requirements";
+import { PaymentRequirements, PaymentRequirementsExtraMasumi, ResourceInfo } from "../types/payment-requirements";
 import { X402Error } from "../types/errors";
 import { buildMasumiLock } from "../masumi/lock";
 import { slotToUnixMs, unixMsToSlot } from "../chain";
@@ -12,7 +12,7 @@ import {
   masumiEscrowAddress,
   resolveMasumiDeployment,
 } from "../masumi/escrow-address";
-import { validateMasumiRequirementsFull } from "../masumi/validate";
+import { checkRegistryClaim, MasumiRegistryValidator, validateMasumiRequirementsFull } from "../masumi/validate";
 import { paymentTtlSlot } from "./ttl";
 
 /** Builds the unsigned escrow-lock transaction for the `masumi` assetTransferMethod. */
@@ -24,6 +24,7 @@ export const buildMasumiEscrowPayment = async (
   currentSlot: number,
   fetcher: IFetcher,
   allowDeployment?: AllowMasumiDeployment,
+  registry?: { resource: ResourceInfo; validate?: MasumiRegistryValidator },
 ): Promise<string> => {
   const extra = requirement.extra as PaymentRequirementsExtraMasumi;
 
@@ -33,6 +34,9 @@ export const buildMasumiEscrowPayment = async (
   // be rejected by the facilitator or - worse - silently strand the funds.
   const failure = await validateMasumiRequirementsFull(requirement);
   if (failure) throw new X402Error(failure.code, failure.detail);
+
+  const registryFailure = await checkRegistryClaim(requirement, registry?.resource, registry?.validate);
+  if (registryFailure) throw new X402Error(registryFailure.code, registryFailure.detail);
 
   const deployment = resolveMasumiDeployment(requirement.network, extra.deployment);
   if (!deployment) {

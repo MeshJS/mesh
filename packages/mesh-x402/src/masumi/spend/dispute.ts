@@ -1,15 +1,14 @@
-import { MeshTxBuilder } from "@meshsdk/transaction";
 import { MeshWallet } from "@meshsdk/wallet";
 import { Asset, UTxO } from "@meshsdk/common";
 
 import { AdminSignature, AssetValueEntry } from "../cip8-admin";
 import { credentialsToBech32, MASUMI_STATE, MasumiDatumView } from "../datum";
 import { MasumiDeployment } from "../../types/payment-requirements";
-import { resolveMasumiEscrowScript } from "../escrow-address";
+import { LOVELACE } from "../../types/asset";
 import { X402Error } from "../../types/errors";
-import { selectCollateralUtxo } from "./collateral";
 import { SpendContext } from "./context";
 import { buildWithdrawDisputedRedeemer } from "./redeemer";
+import { finishSpend, loadSpender, startEscrowSpend, WITHDRAW_WINDOW_SLOTS } from "./spend";
 import { slotAtOrAfter } from "./timing";
 import { taggedOutputDatum } from "./tagged-output";
 
@@ -17,7 +16,7 @@ import { taggedOutputDatum } from "./tagged-output";
 const assetValueToAssets = (entries: AssetValueEntry[]): Asset[] =>
   entries.flatMap((entry) =>
     entry.assets.map((a) => ({
-      unit: entry.policyId === "" ? "lovelace" : `${entry.policyId}${a.assetName}`,
+      unit: entry.policyId === "" ? LOVELACE : `${entry.policyId}${a.assetName}`,
       quantity: a.quantity.toString(),
     })),
   );
@@ -43,41 +42,32 @@ export const buildWithdrawDisputedTx = async (
     throw new X402Error("MASUMI_INVALID_OUTPUT_SHAPE", "WithdrawDisputed is only valid from the Disputed state");
   }
 
-  const networkId = (await submitterWallet.getNetworkId()) as 0 | 1;
-  const submitterAddress = await submitterWallet.getChangeAddress();
-  const submitterUtxos = await submitterWallet.getUtxos();
-  const collateral = selectCollateralUtxo(submitterUtxos);
-  const script = resolveMasumiEscrowScript(deployment);
-  const ownRef = { txHash: escrowUtxo.input.txHash, outputIndex: escrowUtxo.input.outputIndex };
-  const datumTag = taggedOutputDatum(ownRef);
-
-  const buyerPayoutAddress = credentialsToBech32(currentDatum.buyerReturnAddress ?? currentDatum.buyer, networkId);
-  const sellerPayoutAddress = credentialsToBech32(currentDatum.sellerReturnAddress ?? currentDatum.seller, networkId);
+  const [submitter, changeAddress] = await Promise.all([
+    loadSpender(submitterWallet),
+    submitterWallet.getChangeAddress(),
+  ]);
+  const datumTag = taggedOutputDatum(escrowUtxo.input);
+  const buyerPayoutAddress = credentialsToBech32(
+    currentDatum.buyerReturnAddress ?? currentDatum.buyer,
+    submitter.networkId,
+  );
+  const sellerPayoutAddress = credentialsToBech32(
+    currentDatum.sellerReturnAddress ?? currentDatum.seller,
+    submitter.networkId,
+  );
 
   const redeemer = buildWithdrawDisputedRedeemer(buyerValue, sellerValue, adminSignatures);
   const invalidBefore = slotAtOrAfter(Number(currentDatum.externalDisputeUnlockTime), ctx.currentSlot);
 
-  const tx = await new MeshTxBuilder({ fetcher: ctx.fetcher, evaluator: ctx.evaluator, verbose: false })
-    .spendingPlutusScriptV3()
-    .txIn(escrowUtxo.input.txHash, escrowUtxo.input.outputIndex, escrowUtxo.output.amount, escrowUtxo.output.address)
-    .txInInlineDatumPresent()
-    .txInRedeemerValue(redeemer, "Mesh")
-    .txInScript(script.code)
+  const chain = startEscrowSpend(escrowUtxo, redeemer, deployment, ctx)
     .txOut(buyerPayoutAddress, assetValueToAssets(buyerValue))
     .txOutInlineDatumValue(datumTag, "Mesh")
     .txOut(sellerPayoutAddress, assetValueToAssets(sellerValue))
-    .txOutInlineDatumValue(datumTag, "Mesh")
-    .txInCollateral(
-      collateral.input.txHash,
-      collateral.input.outputIndex,
-      collateral.output.amount,
-      collateral.output.address,
-    )
-    .invalidBefore(invalidBefore)
-    .invalidHereafter(invalidBefore + 3600)
-    .changeAddress(submitterAddress)
-    .selectUtxosFrom(submitterUtxos)
-    .complete();
+    .txOutInlineDatumValue(datumTag, "Mesh");
 
-  return tx;
+  return finishSpend(chain, submitter, {
+    changeAddress,
+    invalidBefore,
+    invalidHereafter: invalidBefore + WITHDRAW_WINDOW_SLOTS,
+  });
 };

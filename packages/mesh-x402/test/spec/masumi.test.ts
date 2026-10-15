@@ -91,6 +91,64 @@ describe("masumi - schema / identifier (facilitator and client agree)", () => {
   });
 });
 
+describe("masumi - registry claims (a non-empty agentIdentifier must be independently validated)", () => {
+  const AGENT = `${MASUMI_V2_REGISTRY_POLICY_ID}01`;
+  const accept = jest.fn(() => true);
+  const buildWith = async (s: Awaited<ReturnType<typeof setup>>, validateRegistryClaim?: never) => {
+    const built = await buildPaymentPayload(s.requirement, s.buyer, { url: "https://x.test/r" }, { ...s.chain, validateRegistryClaim });
+    return signPayment(s.buyer, built);
+  };
+
+  it("the client refuses a registered offer without a validator, and passes the claim to one", async () => {
+    const s = await setup({ agentIdentifier: AGENT });
+    await expect(buildPaymentPayload(s.requirement, s.buyer, { url: "https://x.test/r" }, s.chain)).rejects.toMatchObject({
+      code: "MASUMI_INVALID_AGENT_IDENTIFIER",
+    });
+
+    await buildWith(s, accept as never);
+    expect(accept).toHaveBeenCalledWith({
+      agentIdentifier: AGENT,
+      sellerAddress: extraOf(s.requirement).terms!.sellerAddress,
+      network: "cardano:preprod",
+      amount: s.requirement.amount,
+      asset: "lovelace",
+      resource: { url: "https://x.test/r" },
+    });
+  });
+
+  it("the client refuses when the validator rejects or throws", async () => {
+    const s = await setup({ agentIdentifier: AGENT });
+    for (const validate of [() => false, () => { throw new Error("registry down"); }, async () => false]) {
+      await expect(
+        buildPaymentPayload(s.requirement, s.buyer, { url: "https://x.test/r" }, { ...s.chain, validateRegistryClaim: validate as never }),
+      ).rejects.toMatchObject({ code: "MASUMI_INVALID_AGENT_IDENTIFIER" });
+    }
+  });
+
+  it("the facilitator rejects a registered claim unless a validator confirms it (fail closed)", async () => {
+    const s = await setup({ agentIdentifier: AGENT });
+    const signed = await buildWith(s, accept as never);
+    const refused = { isValid: false, invalidReason: "MASUMI_INVALID_AGENT_IDENTIFIER" };
+
+    expect(await verifyPayment(signed, s.requirement, s.fetcher, P, SLOT)).toEqual(refused);
+    expect(await verifyPayment(signed, s.requirement, s.fetcher, P, SLOT, { validateRegistryClaim: () => false })).toEqual(refused);
+    expect(
+      await verifyPayment(signed, s.requirement, s.fetcher, P, SLOT, {
+        validateRegistryClaim: () => {
+          throw new Error("registry down");
+        },
+      }),
+    ).toEqual(refused);
+    expect(await verifyPayment(signed, s.requirement, s.fetcher, P, SLOT, { validateRegistryClaim: () => true })).toEqual({ isValid: true });
+  });
+
+  it("unregistered sellers (empty agentIdentifier) need no validator", async () => {
+    const s = await setup();
+    const signed = await buildWith(s);
+    expect(await verifyPayment(signed, s.requirement, s.fetcher, P, SLOT)).toEqual({ isValid: true });
+  });
+});
+
 describe("masumi - deployment approval (seller signature is not approval)", () => {
   it("client and facilitator refuse a non-default deployment unless explicitly allowed", async () => {
     const s = await setup({ deployment: CUSTOM });

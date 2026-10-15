@@ -1,3 +1,4 @@
+import { decodeHeaderJson, encodeHeaderJson } from "../encoding";
 import { PaymentRequirements, ResourceInfo } from "./payment-requirements";
 
 export type PaymentPayloadTransactionPart = {
@@ -15,20 +16,10 @@ export type PaymentPayload = {
   payload: PaymentPayloadTransactionPart;
 };
 
-const toBase64 = (value: string): string =>
-  typeof Buffer !== "undefined"
-    ? Buffer.from(value, "utf-8").toString("base64")
-    : btoa(value);
-
-const fromBase64 = (value: string): string =>
-  typeof Buffer !== "undefined"
-    ? Buffer.from(value, "base64").toString("utf-8")
-    : atob(value);
-
 export const encodePaymentSignatureHeader = (payload: PaymentPayload): string =>
-  toBase64(JSON.stringify(payload));
+  encodeHeaderJson(payload);
 
 export const decodePaymentSignatureHeader = (header: string): PaymentPayload =>
-  JSON.parse(fromBase64(header)) as PaymentPayload;
+  decodeHeaderJson<PaymentPayload>(header);
 
 export const PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE";

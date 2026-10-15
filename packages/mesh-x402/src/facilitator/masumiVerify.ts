@@ -17,7 +17,7 @@ import {
   resolveMasumiDeployment,
 } from "../masumi/escrow-address";
 import { masumiMinUtxoLovelace, MASUMI_MIN_COLLATERAL_LOVELACE } from "../masumi/constants";
-import { isLovelacePayment, validateMasumiRequirementsFull } from "../masumi/validate";
+import { checkRegistryClaim, isLovelacePayment, validateMasumiRequirementsFull } from "../masumi/validate";
 import { invalid, VerifyOptions, VerifyResult } from "./verify";
 
 const credEqual = (a: MasumiCredential | undefined, b: MasumiCredential | undefined): boolean =>
@@ -73,6 +73,10 @@ export const verifyMasumiPayment = async (
     return invalid("MASUMI_DEPLOYMENT_NOT_ALLOWED");
   }
   const escrowAddress = masumiEscrowAddress(requirements.network, deployment);
+
+  // A non-empty agentIdentifier is a registry claim; the prefix check is not enough on its own.
+  const registry = await checkRegistryClaim(requirements, payload.resource, options.validateRegistryClaim);
+  if (registry) return invalid(registry.code);
 
   // The lock's validity upper bound must fall on/before `pay_by_time` (slot -> wall-clock via
   // the network's slot configuration, not an assumed 1 slot/s).

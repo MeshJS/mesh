@@ -1,8 +1,7 @@
 import { MeshWallet } from "@meshsdk/wallet";
 
+import { hexToBase64 } from "../encoding";
 import { PaymentPayload } from "../types/payment-payload";
-
-const hexToBase64 = (hex: string): string => Buffer.from(hex, "hex").toString("base64");
 
 /**
  * Signs the payload's transaction with the wallet (sole signer for `default`/`script`; for

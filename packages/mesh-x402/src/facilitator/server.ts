@@ -18,6 +18,8 @@ export type FacilitatorConfig = {
   l1Confirmations?: { minimum: number; maximum: number };
   /** Explicit approval of non-default Masumi deployments. Default: only the canonical deployment is accepted. */
   allowMasumiDeployment?: VerifyOptions["allowMasumiDeployment"];
+  /** Independently validates a non-empty Masumi `agentIdentifier`. Default: registry claims are rejected. */
+  validateRegistryClaim?: VerifyOptions["validateRegistryClaim"];
   /** Resolves live protocol parameters and the current tip's slot for a given network. */
   resolveChainState: (network: CardanoNetwork) => Promise<{ protocol: Protocol; currentSlot: number }>;
 };
@@ -40,6 +42,7 @@ export const createFacilitatorApp = (config: FacilitatorConfig): Hono => {
   const options: VerifyOptions = {
     l1Confirmations: config.l1Confirmations ?? DEFAULT_L1_CONFIRMATION_RANGE,
     allowMasumiDeployment: config.allowMasumiDeployment,
+    validateRegistryClaim: config.validateRegistryClaim,
   };
   const supported = new Set(config.supportedNetworks);
   const methods = config.supportedMethods ?? ["default", "masumi", "script"];

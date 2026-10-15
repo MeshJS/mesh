@@ -6,6 +6,7 @@ import { deserializeBech32Address, deserializeTx } from "@meshsdk/core-cst";
 import { parsePositiveAmount, toMeshUnit } from "../types/asset";
 import { tryNormalizeCardanoNetwork } from "../types/network";
 import { AllowMasumiDeployment } from "../masumi/escrow-address";
+import { MasumiRegistryValidator } from "../masumi/validate";
 import {
   getAssetTransferMethod,
   PaymentRequirements,
@@ -16,7 +17,7 @@ import { PaymentPayload } from "../types/payment-payload";
 import { X402Error } from "../types/errors";
 import { buildMasumiEscrowPayment } from "./masumi";
 import { paymentTtlSlot } from "./ttl";
-import { buildScriptOutputDatum, resolveScriptAddress, scriptPayToMatches, scriptV1WithInlineDatum } from "../script";
+import { buildScriptOutputDatum, scriptPayToMatches, scriptV1WithInlineDatum } from "../script";
 
 /**
  * Chain context a caller must supply to build a payment: the current tip's slot (for TTL)
@@ -35,6 +36,8 @@ export type ChainContext = {
    * (`masumiAdminWeights`) to the user before approving.
    */
   allowMasumiDeployment?: AllowMasumiDeployment;
+  /** Independently validates a non-empty Masumi `agentIdentifier` before the client pays. Default: such offers are refused. */
+  validateRegistryClaim?: MasumiRegistryValidator;
 };
 
 export { paymentTtlSlot } from "./ttl";
@@ -118,7 +121,7 @@ export const buildPaymentPayload = async (
   const method = getAssetTransferMethod(requirement);
   const unsignedTx =
     method === "masumi"
-      ? await buildMasumiEscrowPayment(requirement, buyerAddress, utxos, chain.protocol, chain.currentSlot, chain.fetcher, chain.allowMasumiDeployment)
+      ? await buildMasumiEscrowPayment(requirement, buyerAddress, utxos, chain.protocol, chain.currentSlot, chain.fetcher, chain.allowMasumiDeployment, { resource, validate: chain.validateRegistryClaim })
       : method === "script"
         ? await buildScriptPayment(requirement, buyerAddress, utxos, chain)
         : await buildDefaultPayment(requirement, buyerAddress, utxos, chain);

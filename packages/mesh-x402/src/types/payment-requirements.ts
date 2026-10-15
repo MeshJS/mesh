@@ -43,7 +43,7 @@ export type MasumiDeployment = {
   requiredAdmins: string;
   /** 28-byte key hashes, hex. */
   adminVkeys: string[];
-  /** Decimal string, in slots (e.g. `"420000"`). */
+  /** Decimal string, POSIX milliseconds (e.g. `"420000"`). */
   cooldownPeriod: string;
 };
 

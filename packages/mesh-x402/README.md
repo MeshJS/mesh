@@ -66,6 +66,33 @@ entry it generated), never derived from the request itself. The facilitator reje
 from building a payload against terms it invented itself (a trivial amount, its own address, or, for `masumi`,
 substituted admin keys) instead of what was actually offered.
 
+## Resource server
+
+`buildDefaultOffer`, `buildScriptOffer` and `buildMasumiOffer` build the `PaymentRequirements` for a 402 (the Masumi
+builder seller-signs the terms, keeps `pay_by_time` within `maxTimeoutSeconds`, and refuses to emit an offer the client
+would reject). `createPaywall` turns them into a `(Request) => Response` handler: 402 with `PAYMENT-REQUIRED`, then
+verify and settle through a `createFacilitatorClient`, then the content with `PAYMENT-RESPONSE`. It remembers issued
+offers in a bounded in-memory `OfferBook` and passes the facilitator the server's own offer and resource, never the
+client's copy; use `PaywallConfig.trusted` with durable storage in production.
+
+## Masumi registry claims
+
+A non-empty `terms.agentIdentifier` claims a registered Masumi V2 agent. The policy prefix alone proves nothing (anyone
+can copy a registered id into terms they sign themselves), so the claim is **refused** unless the application supplies
+a `validateRegistryClaim` validator that independently confirms the registry asset, seller authorization, metadata,
+endpoint, network and exact price:
+
+```ts
+const validateRegistryClaim: MasumiRegistryValidator = async ({ agentIdentifier, sellerAddress, network, amount, asset, resource }) =>
+  myRegistryLookup(agentIdentifier, { sellerAddress, network, amount, asset, endpoint: resource.url }); // true only if authentic
+
+createFacilitatorApp({ /* ... */ validateRegistryClaim });           // facilitator
+fetchWithPayment(url, init, wallet, { fetcher, protocol, currentSlot, validateRegistryClaim }); // client
+```
+
+A validator that returns anything but `true`, or throws, refuses the payment (`MASUMI_INVALID_AGENT_IDENTIFIER`).
+Unregistered sellers (omitted, `null` or empty `agentIdentifier`) need no validator.
+
 ## Masumi escrow lifecycle (spend side)
 
 Beyond locking a payment into the `masumi` escrow, `src/masumi/spend/` implements every way

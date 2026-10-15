@@ -1,8 +1,9 @@
 import { MeshWallet } from "@meshsdk/wallet";
 
 import { toNetworkId, tryNormalizeCardanoNetwork } from "../types/network";
+import { fromBase64 } from "../encoding";
 import { PaymentRequirements, X402ChallengeResponse } from "../types/payment-requirements";
-import { PAYMENT_SIGNATURE_HEADER, encodePaymentSignatureHeader } from "../types/payment-payload";
+import { PAYMENT_SIGNATURE_HEADER, PaymentPayload, encodePaymentSignatureHeader } from "../types/payment-payload";
 import { PAYMENT_RESPONSE_HEADER, decodePaymentResponseHeader, PaymentResponse } from "../types/payment-response";
 import { X402Error } from "../types/errors";
 import { buildPaymentPayload, ChainContext } from "./build";
@@ -14,6 +15,12 @@ export const PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED";
 export type FetchWithPaymentOptions = {
   /** Picks which `accepts[]` entry to pay. Default: first entry matching the wallet's network. */
   selectRequirement?: (accepts: PaymentRequirements[]) => PaymentRequirements | undefined;
+  /** Custom `fetch` (default: global). Lets callers observe or instrument both requests. */
+  fetch?: typeof fetch;
+  /** Called with the decoded 402 challenge. */
+  onChallenge?: (challenge: X402ChallengeResponse) => void;
+  /** Called with the signed payload just before the paid retry. */
+  onSigned?: (payload: PaymentPayload) => void;
 };
 
 export type FetchWithPaymentResult = {
@@ -28,8 +35,6 @@ const defaultSelectRequirement =
       const network = tryNormalizeCardanoNetwork(r.network);
       return r.scheme === "exact" && network !== null && toNetworkId(network) === walletNetworkId;
     });
-
-const fromBase64 = (value: string): string => Buffer.from(value, "base64").toString("utf-8");
 
 /**
  * Reads the 402's `PaymentRequired` object. Per spec it is the base64 JSON in the
@@ -54,13 +59,15 @@ export const fetchWithPayment = async (
   chain: ChainContext,
   options: FetchWithPaymentOptions = {},
 ): Promise<FetchWithPaymentResult> => {
-  const initial = await fetch(input, init);
+  const doFetch = options.fetch ?? fetch;
+  const initial = await doFetch(input, init);
   if (initial.status !== 402) return { response: initial };
 
   const challenge = await readChallenge(initial);
   if (challenge.x402Version !== 2 || !Array.isArray(challenge.accepts)) {
     throw new X402Error("NO_ACCEPTABLE_REQUIREMENT", "402 response is not an x402 v2 PaymentRequired object");
   }
+  options.onChallenge?.(challenge);
   const select = options.selectRequirement ?? defaultSelectRequirement(await wallet.getNetworkId());
   const chosen = select(challenge.accepts);
   if (!chosen) {
@@ -71,10 +78,11 @@ export const fetchWithPayment = async (
   const built = await buildPaymentPayload(chosen, wallet, { url, ...challenge.resource }, chain);
   const signed = await signPayment(wallet, built);
 
+  options.onSigned?.(signed);
   const headers = new Headers(init?.headers);
   headers.set(PAYMENT_SIGNATURE_HEADER, encodePaymentSignatureHeader(signed));
 
-  const response = await fetch(input, { ...init, headers });
+  const response = await doFetch(input, { ...init, headers });
   const responseHeader = response.headers.get(PAYMENT_RESPONSE_HEADER);
   return {
     response,

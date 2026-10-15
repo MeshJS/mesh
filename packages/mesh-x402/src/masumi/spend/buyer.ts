@@ -1,28 +1,18 @@
-import { MeshTxBuilder } from "@meshsdk/transaction";
 import { MeshWallet } from "@meshsdk/wallet";
 import { UTxO } from "@meshsdk/common";
 
 import { credentialsToBech32, MASUMI_STATE, MasumiDatumView } from "../datum";
 import { MasumiDeployment } from "../../types/payment-requirements";
-import { resolveMasumiEscrowScript } from "../escrow-address";
 import { buildContinuationDatum } from "./continuation";
-import { selectCollateralUtxo } from "./collateral";
 import { SpendContext } from "./context";
 import {
   AUTHORIZE_WITHDRAWAL_REDEEMER,
   SET_REFUND_REQUESTED_REDEEMER,
   WITHDRAW_REFUND_REDEEMER,
 } from "./redeemer";
-import { slotAtOrAfter, slotStrictlyBefore, slotToUnixMs, tightUpperBound, TX_VALIDITY_BUFFER_SLOTS } from "./timing";
+import { finishSpend, freshCooldownTime, loadSpender, startEscrowSpend, WITHDRAW_WINDOW_SLOTS } from "./spend";
+import { slotAtOrAfter, slotStrictlyBefore, tightUpperBound, TX_VALIDITY_BUFFER_SLOTS } from "./timing";
 import { taggedOutputDatum } from "./tagged-output";
-
-/**
- * The validator computes `cooldown_time` as `tx_latest_time + cooldown_period`, where
- * `tx_latest_time` is THIS transaction's own validity-range upper bound (converted to POSIX ms
- * by the ledger) - not wall-clock "now". `cooldownPeriod` is already POSIX ms.
- */
-const freshCooldownTime = (deployment: MasumiDeployment, invalidHereafter: number, currentSlot: number): bigint =>
-  BigInt(slotToUnixMs(invalidHereafter, currentSlot) + Number(deployment.cooldownPeriod));
 
 /**
  * Buyer requests a refund (or signals a dispute, if a result already exists). Valid from
@@ -37,12 +27,7 @@ export const buildSetRefundRequestedTx = async (
   ctx: SpendContext,
 ): Promise<string> => {
   const newState = currentDatum.resultHash === "" ? MASUMI_STATE.RefundRequested : MASUMI_STATE.Disputed;
-
-  const networkId = (await buyerWallet.getNetworkId()) as 0 | 1;
-  const buyerAddress = credentialsToBech32(currentDatum.buyer, networkId);
-  const buyerUtxos = await buyerWallet.getUtxos();
-  const collateral = selectCollateralUtxo(buyerUtxos);
-  const script = resolveMasumiEscrowScript(deployment);
+  const buyer = await loadSpender(buyerWallet);
 
   const invalidBefore = slotAtOrAfter(Number(currentDatum.buyerCooldownTime), ctx.currentSlot);
   const invalidHereafter = tightUpperBound(
@@ -56,28 +41,16 @@ export const buildSetRefundRequestedTx = async (
     state: newState,
   });
 
-  const tx = await new MeshTxBuilder({ fetcher: ctx.fetcher, evaluator: ctx.evaluator, verbose: false })
-    .spendingPlutusScriptV3()
-    .txIn(escrowUtxo.input.txHash, escrowUtxo.input.outputIndex, escrowUtxo.output.amount, escrowUtxo.output.address)
-    .txInInlineDatumPresent()
-    .txInRedeemerValue(SET_REFUND_REQUESTED_REDEEMER, "Mesh")
-    .txInScript(script.code)
+  const chain = startEscrowSpend(escrowUtxo, SET_REFUND_REQUESTED_REDEEMER, deployment, ctx)
     .txOut(escrowUtxo.output.address, escrowUtxo.output.amount)
-    .txOutInlineDatumValue(continuationDatum, "Mesh")
-    .txInCollateral(
-      collateral.input.txHash,
-      collateral.input.outputIndex,
-      collateral.output.amount,
-      collateral.output.address,
-    )
-    .requiredSignerHash(currentDatum.buyer.payment.hash)
-    .invalidBefore(invalidBefore)
-    .invalidHereafter(invalidHereafter)
-    .changeAddress(buyerAddress)
-    .selectUtxosFrom(buyerUtxos)
-    .complete();
+    .txOutInlineDatumValue(continuationDatum, "Mesh");
 
-  return tx;
+  return finishSpend(chain, buyer, {
+    changeAddress: credentialsToBech32(currentDatum.buyer, buyer.networkId),
+    signerHash: currentDatum.buyer.payment.hash,
+    invalidBefore,
+    invalidHereafter,
+  });
 };
 
 /**
@@ -91,15 +64,10 @@ export const buildAuthorizeWithdrawalTx = async (
   deployment: MasumiDeployment,
   ctx: SpendContext,
 ): Promise<string> => {
-  const networkId = (await buyerWallet.getNetworkId()) as 0 | 1;
-  const buyerAddress = credentialsToBech32(currentDatum.buyer, networkId);
-  const buyerUtxos = await buyerWallet.getUtxos();
-  const collateral = selectCollateralUtxo(buyerUtxos);
-  const script = resolveMasumiEscrowScript(deployment);
+  const buyer = await loadSpender(buyerWallet);
 
   const invalidBefore = slotAtOrAfter(Number(currentDatum.buyerCooldownTime), ctx.currentSlot);
-  // No must_end_before for this action; a short, fixed window keeps the resulting cooldown
-  // (derived from this bound - see freshCooldownTime's doc) practically usable.
+  // No must_end_before for this action; a short window keeps the derived cooldown usable.
   const invalidHereafter = invalidBefore + TX_VALIDITY_BUFFER_SLOTS;
 
   const continuationDatum = buildContinuationDatum(currentDatum, {
@@ -108,28 +76,16 @@ export const buildAuthorizeWithdrawalTx = async (
     state: MASUMI_STATE.WithdrawAuthorized,
   });
 
-  const tx = await new MeshTxBuilder({ fetcher: ctx.fetcher, evaluator: ctx.evaluator, verbose: false })
-    .spendingPlutusScriptV3()
-    .txIn(escrowUtxo.input.txHash, escrowUtxo.input.outputIndex, escrowUtxo.output.amount, escrowUtxo.output.address)
-    .txInInlineDatumPresent()
-    .txInRedeemerValue(AUTHORIZE_WITHDRAWAL_REDEEMER, "Mesh")
-    .txInScript(script.code)
+  const chain = startEscrowSpend(escrowUtxo, AUTHORIZE_WITHDRAWAL_REDEEMER, deployment, ctx)
     .txOut(escrowUtxo.output.address, escrowUtxo.output.amount)
-    .txOutInlineDatumValue(continuationDatum, "Mesh")
-    .txInCollateral(
-      collateral.input.txHash,
-      collateral.input.outputIndex,
-      collateral.output.amount,
-      collateral.output.address,
-    )
-    .requiredSignerHash(currentDatum.buyer.payment.hash)
-    .invalidBefore(invalidBefore)
-    .invalidHereafter(invalidHereafter)
-    .changeAddress(buyerAddress)
-    .selectUtxosFrom(buyerUtxos)
-    .complete();
+    .txOutInlineDatumValue(continuationDatum, "Mesh");
 
-  return tx;
+  return finishSpend(chain, buyer, {
+    changeAddress: credentialsToBech32(currentDatum.buyer, buyer.networkId),
+    signerHash: currentDatum.buyer.payment.hash,
+    invalidBefore,
+    invalidHereafter,
+  });
 };
 
 /**
@@ -145,24 +101,16 @@ export const buildWithdrawRefundTx = async (
   deployment: MasumiDeployment,
   ctx: SpendContext,
 ): Promise<string> => {
-  const networkId = (await buyerWallet.getNetworkId()) as 0 | 1;
-  const buyerAddress = credentialsToBech32(currentDatum.buyer, networkId);
-  const buyerUtxos = await buyerWallet.getUtxos();
-  const collateral = selectCollateralUtxo(buyerUtxos);
-  const script = resolveMasumiEscrowScript(deployment);
-  const ownRef = { txHash: escrowUtxo.input.txHash, outputIndex: escrowUtxo.input.outputIndex };
+  const buyer = await loadSpender(buyerWallet);
+  const buyerAddress = credentialsToBech32(currentDatum.buyer, buyer.networkId);
 
-  let chain = new MeshTxBuilder({ fetcher: ctx.fetcher, evaluator: ctx.evaluator, verbose: false })
-    .spendingPlutusScriptV3()
-    .txIn(escrowUtxo.input.txHash, escrowUtxo.input.outputIndex, escrowUtxo.output.amount, escrowUtxo.output.address)
-    .txInInlineDatumPresent()
-    .txInRedeemerValue(WITHDRAW_REFUND_REDEEMER, "Mesh")
-    .txInScript(script.code);
-
+  let chain = startEscrowSpend(escrowUtxo, WITHDRAW_REFUND_REDEEMER, deployment, ctx);
   if (currentDatum.buyerReturnAddress) {
     // Tagged output required: the full locked value must land at buyerReturnAddress.
-    const refundAddress = credentialsToBech32(currentDatum.buyerReturnAddress, networkId);
-    chain = chain.txOut(refundAddress, escrowUtxo.output.amount).txOutInlineDatumValue(taggedOutputDatum(ownRef), "Mesh");
+    const refundAddress = credentialsToBech32(currentDatum.buyerReturnAddress, buyer.networkId);
+    chain = chain
+      .txOut(refundAddress, escrowUtxo.output.amount)
+      .txOutInlineDatumValue(taggedOutputDatum(escrowUtxo.input), "Mesh");
   } else {
     // No on-chain output check applies; route the refund to the buyer's own address.
     chain = chain.txOut(buyerAddress, escrowUtxo.output.amount);
@@ -173,19 +121,10 @@ export const buildWithdrawRefundTx = async (
       ? ctx.currentSlot
       : slotAtOrAfter(Number(currentDatum.submitResultTime), ctx.currentSlot);
 
-  const tx = await chain
-    .txInCollateral(
-      collateral.input.txHash,
-      collateral.input.outputIndex,
-      collateral.output.amount,
-      collateral.output.address,
-    )
-    .requiredSignerHash(currentDatum.buyer.payment.hash)
-    .invalidBefore(invalidBefore)
-    .invalidHereafter(invalidBefore + 3600)
-    .changeAddress(buyerAddress)
-    .selectUtxosFrom(buyerUtxos)
-    .complete();
-
-  return tx;
+  return finishSpend(chain, buyer, {
+    changeAddress: buyerAddress,
+    signerHash: currentDatum.buyer.payment.hash,
+    invalidBefore,
+    invalidHereafter: invalidBefore + WITHDRAW_WINDOW_SLOTS,
+  });
 };

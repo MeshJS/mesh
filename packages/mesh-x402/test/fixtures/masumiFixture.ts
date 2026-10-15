@@ -19,6 +19,8 @@ export type MasumiFixtureOptions = {
   deployment?: MasumiDeployment;
   /** Milliseconds from now to `payByTime`; the other 3 deadlines derive from it with spec-minimum gaps + margin. */
   payByTimeOffsetMs?: number;
+  /** Non-empty = a registered-agent claim. Default: unregistered (empty). */
+  agentIdentifier?: string;
 };
 
 /**
@@ -66,7 +68,7 @@ export const buildMasumiRequirements = async (
     sellerAddress,
     sellerNonce: randomBytes(32).toString("hex"),
     buyerNonce: randomBytes(10).toString("hex"),
-    agentIdentifier: "",
+    agentIdentifier: options.agentIdentifier ?? "",
     inputHash,
     payByTime: String(payByTime),
     submitResultTime: String(submitResultTime),

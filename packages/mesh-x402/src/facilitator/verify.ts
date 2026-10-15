@@ -2,6 +2,7 @@ import { deserializeTx } from "@meshsdk/core-cst";
 import { IFetcher, Protocol, UTxO } from "@meshsdk/common";
 
 import { secondsToSlots } from "../chain";
+import { base64ToHex } from "../encoding";
 import { LOVELACE, isCanonicalAsset, parsePositiveAmount, toMeshUnit } from "../types/asset";
 import { addressMatchesNetwork, CardanoNetwork, toNetworkId, tryNormalizeCardanoNetwork } from "../types/network";
 import {
@@ -15,6 +16,7 @@ import {
 import { PaymentPayload } from "../types/payment-payload";
 import { X402ErrorCode } from "../types/errors";
 import { AllowMasumiDeployment } from "../masumi/escrow-address";
+import { MasumiRegistryValidator } from "../masumi/validate";
 import { scriptPayToMatches, scriptV1WithInlineDatum } from "../script";
 import { verifyMasumiPayment } from "./masumiVerify";
 
@@ -28,13 +30,13 @@ export type VerifyOptions = {
   l1Confirmations?: { minimum: number; maximum: number };
   /** Explicit approval of a non-default Masumi deployment (spec: an application MUST allow it; the seller signature is not approval). Default: deny. */
   allowMasumiDeployment?: AllowMasumiDeployment;
+  /** Independently validates a non-empty Masumi `agentIdentifier` (registry asset, seller authorization, metadata, endpoint, price). Default: such claims are rejected. */
+  validateRegistryClaim?: MasumiRegistryValidator;
 };
 
 export const DEFAULT_L1_CONFIRMATION_RANGE = { minimum: 0, maximum: MAX_L1_CONFIRMATIONS };
 
 type Tx = ReturnType<typeof deserializeTx>;
-
-const base64ToHex = (base64: string): string => Buffer.from(base64, "base64").toString("hex");
 
 /** Structural equality for JSON-shaped values (order-independent for object keys). */
 const deepEqual = (a: unknown, b: unknown): boolean => {
@@ -72,7 +74,7 @@ const withCanonicalNetwork = (requirements: PaymentRequirements): PaymentRequire
  * default `assetTransferMethod` are compared as issued (the Masumi `termsDigest` does not
  * cover the policy, so it is bound only by this exact match).
  */
-const checkRequirementsMatchTrusted = (
+export const checkRequirementsMatchTrusted = (
   payload: PaymentPayload,
   trustedRequirements: PaymentRequirements,
 ): boolean =>

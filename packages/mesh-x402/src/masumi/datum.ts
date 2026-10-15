@@ -7,7 +7,7 @@
  * 19-field `Constr 0` datum for a fresh lock (`state = FundsLocked`, empty `result_hash`,
  * zero cooldowns) and parses it back for facilitator verification.
  */
-import { DataB, DataConstr, DataI, DataList, dataFromCbor, Data as PlutusDataNode } from "@harmoniclabs/plutus-data";
+import { DataB, DataConstr, DataI, dataFromCbor, Data as PlutusDataNode } from "@harmoniclabs/plutus-data";
 
 import { deserializeBech32Address, serializeAddress } from "@meshsdk/core-cst";
 import { Data, mConStr, mConStr0, mConStr1 } from "@meshsdk/common";

@@ -15,6 +15,7 @@ import {
   MIN_L1_CONFIRMATIONS,
   PaymentRequirements,
   PaymentRequirementsExtraMasumi,
+  ResourceInfo,
 } from "../types/payment-requirements";
 import { addressCredentials } from "./datum";
 import { masumiDeadlineIntervalsHold } from "./constants";
@@ -234,6 +235,58 @@ export const validateMasumiRequirementsFull = async (
   }
 
   return null;
+};
+
+/** What a registry validator is asked to confirm about a non-empty `terms.agentIdentifier`. */
+export type MasumiRegistryClaim = {
+  agentIdentifier: string;
+  /** The seller address the terms are signed by. */
+  sellerAddress: string;
+  network: string;
+  /** The signed top-level amount and asset: a registered price must resolve to exactly these. */
+  amount: string;
+  asset: string;
+  /** The protected resource whose URL must be covered by the registry endpoint. */
+  resource: ResourceInfo;
+};
+
+/**
+ * Independently validates a Masumi V2 registry claim on the selected network: the registry asset,
+ * seller authorization, metadata, endpoint, network and exact price. Return `true` only when the
+ * claim is authentic and resolves to the signed `amount`/`asset`.
+ */
+export type MasumiRegistryValidator = (claim: MasumiRegistryClaim) => boolean | Promise<boolean>;
+
+/**
+ * A non-empty `agentIdentifier` asserts a registered agent's identity and reputation. The policy
+ * prefix alone proves nothing (anyone can copy a registered id into terms they sign themselves),
+ * so the claim is refused unless the application supplies a validator that confirms it. A
+ * validator that throws also refuses. Unregistered sellers (omitted, `null` or empty) pass.
+ */
+export const checkRegistryClaim = async (
+  requirements: PaymentRequirements,
+  resource: ResourceInfo | undefined,
+  validate: MasumiRegistryValidator | undefined,
+): Promise<MasumiValidationFailure | null> => {
+  const terms = (requirements.extra as PaymentRequirementsExtraMasumi).terms!;
+  const agentIdentifier = typeof terms.agentIdentifier === "string" ? terms.agentIdentifier : "";
+  if (agentIdentifier === "") return null;
+  const code = "MASUMI_INVALID_AGENT_IDENTIFIER";
+  if (!validate) return fail(code, "a registry claim needs an independent validator (validateRegistryClaim)");
+  if (!resource) return fail(code, "a registry claim needs the protected resource for endpoint validation");
+  try {
+    const accepted = await validate({
+      agentIdentifier,
+      sellerAddress: terms.sellerAddress,
+      network: requirements.network,
+      amount: requirements.amount,
+      asset: requirements.asset,
+      resource,
+    });
+    return accepted === true ? null : fail(code, "registry validation rejected the claim");
+  } catch {
+    return fail(code, "registry validation failed");
+  }
 };
 
 /** `true` for a payment of lovelace (as opposed to one native token). */
