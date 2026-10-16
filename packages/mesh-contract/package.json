@@ -25,7 +25,7 @@
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
     "pack": "npm pack --pack-destination=./dist",
-    "test": "jest"
+    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js"
   },
   "devDependencies": {
     "@meshsdk/configs": "*",
