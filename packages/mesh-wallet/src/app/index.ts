@@ -21,18 +21,18 @@ import { GetAddressType } from "../types";
 
 export type AppWalletKeyType =
   | {
-      type: "root";
-      bech32: string;
-    }
+    type: "root";
+    bech32: string;
+  }
   | {
-      type: "cli";
-      payment: string;
-      stake?: string;
-    }
+    type: "cli";
+    payment: string;
+    stake?: string;
+  }
   | {
-      type: "mnemonic";
-      words: string[];
-    };
+    type: "mnemonic";
+    words: string[];
+  };
 
 export type CreateAppWalletOptions = {
   networkId: number;
@@ -62,9 +62,7 @@ export class AppWallet implements ISigner, ISubmitter {
    * @returns void
    */
   async init() {
-    if (this._wallet) {
-      await this._wallet.init();
-    }
+    await this._wallet.init();
   }
 
   /**
@@ -80,26 +78,22 @@ export class AppWallet implements ISigner, ISubmitter {
   ): Promise<TransactionUnspentOutput[]> {
     const utxos = await this.getUnspentOutputs(accountIndex, addressType);
 
-    // find utxos that are pure ADA-only
-    const pureAdaUtxos = utxos.filter((utxo) => {
-      return utxo.output().amount().multiasset() === undefined;
-    });
+    const lovelace = (utxo: TransactionUnspentOutput) =>
+      utxo.output().amount().coin();
 
-    // sort utxos by their lovelace amount
-    pureAdaUtxos.sort((a, b) => {
-      return (
-        Number(a.output().amount().coin()) - Number(b.output().amount().coin())
-      );
-    });
+    // pure ADA-only utxos of at least 5000000 lovelace, smallest first
+    const candidates = utxos
+      .filter(
+        (utxo) =>
+          utxo.output().amount().multiasset() === undefined &&
+          lovelace(utxo) >= 5000000n,
+      )
+      .sort((a, b) => {
+        const [x, y] = [lovelace(a), lovelace(b)];
+        return x < y ? -1 : x > y ? 1 : 0;
+      });
 
-    // return the smallest utxo but not less than 5000000 lovelace
-    for (const utxo of pureAdaUtxos) {
-      if (Number(utxo.output().amount().coin()) >= 5000000) {
-        return [utxo];
-      }
-    }
-
-    return [];
+    return candidates.length > 0 ? [candidates[0]!] : [];
   }
 
   getEnterpriseAddress(accountIndex = 0, keyIndex = 0): string {
@@ -193,7 +187,7 @@ export class AppWallet implements ISigner, ISubmitter {
       );
 
       if (!returnFullTx) {
-        let witnessSet = new TransactionWitnessSet();
+        const witnessSet = new TransactionWitnessSet();
         witnessSet.setVkeys(
           Serialization.CborSet.fromCore(
             [newSignatures.toCore()],
@@ -203,7 +197,7 @@ export class AppWallet implements ISigner, ISubmitter {
         return witnessSet.toCbor();
       }
 
-      let signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
+      const signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
       return signedTx;
     } catch (error) {
       throw new Error(`[AppWallet] An error occurred during signTx: ${error}.`);
@@ -216,11 +210,7 @@ export class AppWallet implements ISigner, ISubmitter {
     accountIndex = 0,
     keyIndex = 0,
   ): string {
-    try {
-      throw new Error(`[AppWallet] signTxSync() is not implemented.`);
-    } catch (error) {
-      throw new Error(`[AppWallet] An error occurred during signTx: ${error}.`);
-    }
+    throw new Error(`[AppWallet] signTxSync() is not implemented.`);
   }
 
   async signTxs(
