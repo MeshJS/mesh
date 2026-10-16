@@ -51,35 +51,10 @@ export class AppWallet implements ISigner, ISubmitter {
     this._fetcher = options.fetcher && CachedFetcher.wrap(options.fetcher);
     this._submitter = options.submitter;
 
-    switch (options.key.type) {
-      case "mnemonic":
-        this._wallet = new EmbeddedWallet({
-          networkId: options.networkId,
-          key: {
-            type: "mnemonic",
-            words: options.key.words,
-          },
-        });
-        break;
-      case "root":
-        this._wallet = new EmbeddedWallet({
-          networkId: options.networkId,
-          key: {
-            type: "root",
-            bech32: options.key.bech32,
-          },
-        });
-        break;
-      case "cli":
-        this._wallet = new EmbeddedWallet({
-          networkId: options.networkId,
-          key: {
-            type: "cli",
-            payment: options.key.payment,
-            stake: options.key.stake,
-          },
-        });
-    }
+    this._wallet = new EmbeddedWallet({
+      networkId: options.networkId,
+      key: options.key,
+    });
   }
 
   /**
