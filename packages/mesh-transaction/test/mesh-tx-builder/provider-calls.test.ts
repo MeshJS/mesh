@@ -204,6 +204,104 @@ describe("MeshTxBuilder provider calls", () => {
     );
   });
 
+  it.each(["Plutus", "Native"] as const)(
+    "fetches missing script bytes for a locally known %s reference UTxO",
+    async (kind) => {
+      const nativeScript: NativeScript = { type: "all", scripts: [] };
+      const scriptRef = resolveScriptRef(
+        kind === "Plutus"
+          ? { code: alwaysSucceedCbor, version: "V3" }
+          : nativeScript,
+      );
+      const scriptHash = Serialization.Script.fromCbor(
+        scriptRef as ReturnType<Serialization.Script["toCbor"]>,
+      )
+        .hash()
+        .toString();
+      const referenceUtxo: UTxO = {
+        input: { txHash: refScriptTxHash, outputIndex: 0 },
+        output: {
+          address: scriptAddress,
+          amount: lovelace("5000000"),
+          scriptHash,
+          scriptRef,
+        },
+      };
+      const { wallet, address, emulator, params, utxos, collateral } =
+        await setup(() => [
+          ...(kind === "Plutus"
+            ? lockedScriptUtxos(1)
+            : [
+                {
+                  input: { txHash: scriptTxHash, outputIndex: 0 },
+                  output: {
+                    address: resolveNativeScriptAddress(nativeScript, 0),
+                    amount: lovelace("20000000"),
+                  },
+                },
+              ]),
+          referenceUtxo,
+        ]);
+      const { provider, countFor } = recordCalls(emulator);
+      const builder = new MeshTxBuilder({
+        fetcher: provider,
+        evaluator: provider,
+        params,
+      });
+      // Evaluation data can identify a reference UTxO without including its script bytes.
+      const localReference = structuredClone(referenceUtxo);
+      delete localReference.output.scriptRef;
+      builder.inputForEvaluation(localReference);
+
+      if (kind === "Plutus") {
+        builder
+          .spendingPlutusScriptV3()
+          .txIn(scriptTxHash, 0)
+          .txInInlineDatumPresent()
+          .txInRedeemerValue(mConStr0([]))
+          .spendingTxInReference(refScriptTxHash, 0)
+          .txInCollateral(
+            collateral.input.txHash,
+            collateral.input.outputIndex,
+            collateral.output.amount,
+            collateral.output.address,
+          );
+      } else {
+        builder
+          .txIn(scriptTxHash, 0)
+          .simpleScriptTxInReference(refScriptTxHash, 0);
+      }
+      const txHex = await builder
+        .changeAddress(address)
+        .selectUtxosFrom(utxos)
+        .complete();
+
+      expect(countFor("fetchUTxOs", refScriptTxHash)).toBe(1);
+      const input = builder.meshTxBuilderBody.inputs.find(
+        (input) => input.txIn.txHash === scriptTxHash,
+      )!;
+      const source =
+        input.type === "Script"
+          ? input.scriptTxIn.scriptSource
+          : input.type === "SimpleScript"
+            ? input.simpleScriptTxIn.scriptSource
+            : undefined;
+      expect(source).toMatchObject({
+        type: "Inline",
+        scriptSize: (scriptRef.length / 2).toString(),
+        ...(kind === "Plutus"
+          ? { scriptHash }
+          : { simpleScriptHash: scriptHash }),
+      });
+      expect(localReference.output.scriptRef).toBeUndefined();
+      expect(
+        await emulator.submitTx(
+          kind === "Plutus" ? await wallet.signTx(txHex) : txHex,
+        ),
+      ).toHaveLength(64);
+    },
+  );
+
   it("reuses fetched outputs and cost models across builders", async () => {
     const { wallet, address, emulator, params, utxos, collateral } =
       await setup(() => [

@@ -749,8 +749,15 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     incompleteSimpleScriptSources: SimpleScriptSourceInfo[],
   ) => {
     const txHashesToQuery = new Set<string>();
-    const queryIfUnknown = (txHash: string, index: number) => {
-      if (!this.findUTxO(txHash, index)) txHashesToQuery.add(txHash);
+    const queryIfUnknown = (
+      txHash: string,
+      index: number,
+      needsScriptRef = false,
+    ) => {
+      const utxo = this.findUTxO(txHash, index);
+      // Locally supplied UTxOs may omit script bytes even when their hash is known.
+      if (!utxo || (needsScriptRef && !utxo.output.scriptRef))
+        txHashesToQuery.add(txHash);
     };
     for (let i = 0; i < incompleteTxIns.length; i++) {
       const currentTxIn = incompleteTxIns[i]!;
@@ -761,13 +768,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (let i = 0; i < incompleteScriptSources.length; i++) {
       const scriptSource = incompleteScriptSources[i]!;
       if (scriptSource.type === "Inline") {
-        queryIfUnknown(scriptSource.txHash, scriptSource.txIndex);
+        queryIfUnknown(scriptSource.txHash, scriptSource.txIndex, true);
       }
     }
     for (let i = 0; i < incompleteSimpleScriptSources.length; i++) {
       const simpleScriptSource = incompleteSimpleScriptSources[i]!;
       if (simpleScriptSource.type === "Inline") {
-        queryIfUnknown(simpleScriptSource.txHash, simpleScriptSource.txIndex);
+        queryIfUnknown(
+          simpleScriptSource.txHash,
+          simpleScriptSource.txIndex,
+          true,
+        );
       }
     }
     if (txHashesToQuery.size > 0 && !this.fetcher)
