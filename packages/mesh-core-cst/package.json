@@ -24,7 +24,7 @@
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
     "pack": "npm pack --pack-destination=./dist",
-    "test": "jest && npm run test:scalus",
+    "test": "npm run test:scalus && jest",
     "test:scalus": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config jest.scalus.config.ts",
     "test:package": "node --test test/scalus-package.test.mjs"
   },

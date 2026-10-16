@@ -3,7 +3,7 @@ import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
 import { resolveScriptRef } from "@meshsdk/core-cst";
 import { OfflineFetcher } from "@meshsdk/provider";
 
-import { MeshTxBuilder } from "../../dist";
+import { MeshTxBuilder } from "../../src";
 import { alwaysFailCbor, alwaysFailHash, txHash } from "../test-util";
 
 describe("MeshTxBuilder - Failed Script Transactions", () => {

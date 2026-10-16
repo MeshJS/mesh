@@ -1,14 +1,17 @@
+import { jest } from "@jest/globals";
+
 import { SLOT_CONFIG_NETWORK } from "@meshsdk/common";
-import { OfflineEvaluator } from "@meshsdk/core-csl";
 import { OfflineFetcher } from "@meshsdk/provider";
 
-describe("Offline Evaluator", () => {
-  let evaluator: OfflineEvaluator;
+import { OfflineEvaluatorScalus } from "../src/offline-providers";
+
+describe("OfflineEvaluatorScalus cases", () => {
+  let evaluator: OfflineEvaluatorScalus;
   let fetcher: OfflineFetcher;
 
   beforeEach(() => {
     fetcher = new OfflineFetcher();
-    evaluator = new OfflineEvaluator(fetcher, "preprod");
+    evaluator = new OfflineEvaluatorScalus(fetcher, "preprod");
   });
 
   it("should successfully evaluate correct tx", async () => {
@@ -118,15 +121,28 @@ describe("Offline Evaluator", () => {
       },
     };
     fetcher.addUTxOs([utxo_1, utxo_2, utxo_3, utxo_4, utxo_5, utxo_6, utxo_7]);
+    const fetchUTxOs = jest.spyOn(fetcher, "fetchUTxOs");
 
     const res = await evaluator.evaluateTx(txHex, [], []);
+    // Evaluating again, as the tx builder does per coin selection round, fetches nothing new
+    expect(await evaluator.evaluateTx(txHex, [], [])).toStrictEqual(res);
+    const fetchedTxHashes = fetchUTxOs.mock.calls.map(([txHash]) => txHash);
+    expect(fetchedTxHashes.sort()).toStrictEqual(
+      Array.from(
+        new Set(
+          [utxo_1, utxo_2, utxo_3, utxo_4, utxo_5, utxo_6, utxo_7].map(
+            (utxo) => utxo.input.txHash,
+          ),
+        ),
+      ).sort(),
+    );
     expect(res).toStrictEqual([
       {
         index: 0,
         tag: "MINT",
         budget: {
           mem: 508703,
-          steps: 164980381,
+          steps: 164973765,
         },
       },
     ]);
@@ -280,7 +296,7 @@ describe("Offline Evaluator", () => {
         tag: "MINT",
         budget: {
           mem: 15167,
-          steps: 4549992,
+          steps: 4549397,
         },
       },
     ]);
@@ -338,15 +354,8 @@ describe("Offline Evaluator", () => {
         return e;
       });
     expect(res).toBeInstanceOf(Error);
-    expect(JSON.parse(res.message)).toEqual([
-      {
-        index: 0,
-        budget: { mem: 550, steps: 1203691 },
-        tag: "mint",
-        errorMessage: "the validator crashed / exited prematurely",
-        logs: ['Log("This is a trace")'],
-      },
-    ]);
+    expect(res.message).toContain("Mint[0] failed");
+    expect(res.message).toContain("This is a trace");
   });
 
   it("should log slot based on network defaults", async () => {
@@ -388,7 +397,7 @@ describe("Offline Evaluator", () => {
       },
     ]);
 
-    const preprodEvaluator = new OfflineEvaluator(fetcher, "preprod");
+    const preprodEvaluator = new OfflineEvaluatorScalus(fetcher, "preprod");
 
     const res = await preprodEvaluator
       .evaluateTx(
@@ -400,22 +409,13 @@ describe("Offline Evaluator", () => {
         return e;
       });
     expect(res).toBeInstanceOf(Error);
-    expect(JSON.parse(res.message)).toEqual([
-      {
-        index: 0,
-        budget: { mem: 122164, steps: 41878310 },
-        tag: "spend",
-        errorMessage: "the validator crashed / exited prematurely",
-        logs: [
-          'Log("time_now: 1734809125000")',
-          'Log("loan_term: 1734809132108")',
-          'Log("time_now > loan_term ? False")',
-          'Log("Validator returned false")',
-        ],
-      },
-    ]);
+    expect(res.message).toContain("Spend[0] failed");
+    expect(res.message).toContain("time_now: 1734809125000");
+    expect(res.message).toContain("loan_term: 1734809132108");
+    expect(res.message).toContain("time_now > loan_term ? False");
+    expect(res.message).toContain("Validator returned false");
 
-    const mainnetEvaluator = new OfflineEvaluator(fetcher, "mainnet");
+    const mainnetEvaluator = new OfflineEvaluatorScalus(fetcher, "mainnet");
 
     const res2 = await mainnetEvaluator
       .evaluateTx(
@@ -428,20 +428,11 @@ describe("Offline Evaluator", () => {
       });
 
     expect(res2).toBeInstanceOf(Error);
-    expect(JSON.parse(res2.message)).toEqual([
-      {
-        index: 0,
-        budget: { mem: 122164, steps: 41878310 },
-        tag: "spend",
-        errorMessage: "the validator crashed / exited prematurely",
-        logs: [
-          'Log("time_now: 1670692216000")',
-          'Log("loan_term: 1734809132108")',
-          'Log("time_now > loan_term ? False")',
-          'Log("Validator returned false")',
-        ],
-      },
-    ]);
+    expect(res2.message).toContain("Spend[0] failed");
+    expect(res2.message).toContain("time_now: 1670692216000");
+    expect(res2.message).toContain("loan_term: 1734809132108");
+    expect(res2.message).toContain("time_now > loan_term ? False");
+    expect(res2.message).toContain("Validator returned false");
   });
 
   it("should log slot based on config", async () => {
@@ -483,7 +474,7 @@ describe("Offline Evaluator", () => {
       },
     ]);
 
-    const preprodEvaluator = new OfflineEvaluator(fetcher, "preprod", {
+    const preprodEvaluator = new OfflineEvaluatorScalus(fetcher, "preprod", {
       slotLength: SLOT_CONFIG_NETWORK.mainnet.slotLength,
       zeroSlot: SLOT_CONFIG_NETWORK.mainnet.zeroSlot,
       zeroTime: SLOT_CONFIG_NETWORK.mainnet.zeroTime,
@@ -499,22 +490,13 @@ describe("Offline Evaluator", () => {
         return e;
       });
     expect(res).toBeInstanceOf(Error);
-    expect(JSON.parse(res.message)).toEqual([
-      {
-        index: 0,
-        budget: { mem: 122164, steps: 41878310 },
-        tag: "spend",
-        errorMessage: "the validator crashed / exited prematurely",
-        logs: [
-          'Log("time_now: 1670692216000")',
-          'Log("loan_term: 1734809132108")',
-          'Log("time_now > loan_term ? False")',
-          'Log("Validator returned false")',
-        ],
-      },
-    ]);
+    expect(res.message).toContain("Spend[0] failed");
+    expect(res.message).toContain("time_now: 1670692216000");
+    expect(res.message).toContain("loan_term: 1734809132108");
+    expect(res.message).toContain("time_now > loan_term ? False");
+    expect(res.message).toContain("Validator returned false");
 
-    const mainnetEvaluator = new OfflineEvaluator(fetcher, "mainnet", {
+    const mainnetEvaluator = new OfflineEvaluatorScalus(fetcher, "mainnet", {
       slotLength: SLOT_CONFIG_NETWORK.preprod.slotLength,
       zeroSlot: SLOT_CONFIG_NETWORK.preprod.zeroSlot,
       zeroTime: SLOT_CONFIG_NETWORK.preprod.zeroTime,
@@ -531,19 +513,10 @@ describe("Offline Evaluator", () => {
       });
 
     expect(res2).toBeInstanceOf(Error);
-    expect(JSON.parse(res2.message)).toEqual([
-      {
-        index: 0,
-        budget: { mem: 122164, steps: 41878310 },
-        tag: "spend",
-        errorMessage: "the validator crashed / exited prematurely",
-        logs: [
-          'Log("time_now: 1734809125000")',
-          'Log("loan_term: 1734809132108")',
-          'Log("time_now > loan_term ? False")',
-          'Log("Validator returned false")',
-        ],
-      },
-    ]);
+    expect(res2.message).toContain("Spend[0] failed");
+    expect(res2.message).toContain("time_now: 1734809125000");
+    expect(res2.message).toContain("loan_term: 1734809132108");
+    expect(res2.message).toContain("time_now > loan_term ? False");
+    expect(res2.message).toContain("Validator returned false");
   });
 });

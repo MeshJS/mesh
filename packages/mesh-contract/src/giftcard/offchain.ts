@@ -15,6 +15,7 @@ import {
   deserializeDatum,
   resolveScriptHash,
   UTxO,
+  utxoToTxIn,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-cst";
 
@@ -107,12 +108,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
     const redeemAddr = this.getScriptAddress(redeemScript.code);
 
     await this.mesh
-      .txIn(
-        firstUtxo.input.txHash,
-        firstUtxo.input.outputIndex,
-        firstUtxo.output.amount,
-        firstUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(firstUtxo))
       .mintPlutusScript(this.languageVersion)
       .mint("1", giftCardPolicy, tokenNameHex)
       .mintingScript(giftCardScript)
@@ -167,12 +163,7 @@ export class MeshGiftCardContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        giftCardUtxo.input.txHash,
-        giftCardUtxo.input.outputIndex,
-        giftCardUtxo.output.amount,
-        giftCardUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(giftCardUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue("")
       .txInScript(redeemScript)
