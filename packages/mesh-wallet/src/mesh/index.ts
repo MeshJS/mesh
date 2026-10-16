@@ -6,6 +6,7 @@ import type {
   UTxO,
 } from "@meshsdk/common";
 import {
+  CachedFetcher,
   IFetcher,
   ISubmitter,
   POLICY_ID_LENGTH,
@@ -99,7 +100,7 @@ export class MeshWallet implements IWallet {
   private readonly _wallet: EmbeddedWallet | null;
   private readonly _accountIndex: number = 0;
   private readonly _keyIndex: number = 0;
-  private readonly _fetcher?: IFetcher;
+  private readonly _fetcher?: CachedFetcher;
   private readonly _submitter?: ISubmitter;
   private readonly _networkId: 0 | 1;
   addresses: {
@@ -119,7 +120,9 @@ export class MeshWallet implements IWallet {
     this._networkId = options.networkId;
     this._keyType = options.key.type;
 
-    if (options.fetcher) this._fetcher = options.fetcher;
+    // UTxO and collateral lookups share one short-lived cache, so building a tx
+    // does not fetch the same address twice
+    if (options.fetcher) this._fetcher = CachedFetcher.wrap(options.fetcher);
     if (options.submitter) this._submitter = options.submitter;
     if (options.accountIndex) this._accountIndex = options.accountIndex;
     if (options.keyIndex) this._keyIndex = options.keyIndex;
@@ -594,7 +597,12 @@ export class MeshWallet implements IWallet {
         "[MeshWallet] Submitter is required to submit transactions. Please provide a submitter.",
       );
     }
-    return this._submitter.submitTx(tx);
+    try {
+      return await this._submitter.submitTx(tx);
+    } finally {
+      // The submitted tx changes this wallet's UTxOs; don't serve them from cache
+      this._fetcher?.clearVolatile();
+    }
   }
 
   /**

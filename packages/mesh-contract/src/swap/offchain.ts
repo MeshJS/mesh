@@ -15,6 +15,7 @@ import {
   deserializeAddress,
   deserializeDatum,
   serializeAddressObj,
+  utxoToTxIn,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-cst";
 
@@ -87,12 +88,7 @@ export class MeshSwapContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        swapUtxo.input.txHash,
-        swapUtxo.input.outputIndex,
-        swapUtxo.output.amount,
-        swapUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(swapUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptCbor)
@@ -124,12 +120,7 @@ export class MeshSwapContract extends MeshTxInitiator {
     );
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        swapUtxo.input.txHash,
-        swapUtxo.input.outputIndex,
-        swapUtxo.output.amount,
-        swapUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(swapUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr0([]))
       .txInScript(this.scriptCbor)
