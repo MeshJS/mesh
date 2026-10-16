@@ -20,9 +20,14 @@ export const getRequiredInputs = (transactionHex: string): TxInput[] => {
         `Invalid UTxO format: ${utxoStr}. Expected format is txHash#outputIndex`,
       );
     }
+    if (!/^\d+$/.test(outputIndex)) {
+      throw new Error(
+        `Invalid UTxO output index: ${outputIndex}. Expected a nonnegative integer`,
+      );
+    }
     return {
       txHash: txHash,
-      outputIndex: parseInt(outputIndex),
+      outputIndex: Number(outputIndex),
     };
   });
 };
