@@ -122,14 +122,17 @@ export class OfflineEvaluator implements IEvaluator {
     additionalUtxos: UTxO[],
     additionalTxs: string[],
   ): Promise<Omit<Action, "data">[]> {
-    // Track which utxos is resolved
+    // Work on a copy so the caller's `additionalUtxos` array is never mutated.
+    const resolvedUtxos: UTxO[] = [...additionalUtxos];
+
+    // Track which utxos are resolved
     const foundUtxos = new Set<string>();
 
-    for (const utxo of additionalUtxos) {
+    for (const utxo of resolvedUtxos) {
       foundUtxos.add(`${utxo.input.txHash}:${utxo.input.outputIndex}`);
     }
-    for (const tx of additionalTxs) {
-      const outputs = getTransactionOutputs(tx);
+    for (const additionalTx of additionalTxs) {
+      const outputs = getTransactionOutputs(additionalTx);
       for (const output of outputs) {
         foundUtxos.add(`${output.input.txHash}:${output.input.outputIndex}`);
       }
@@ -138,20 +141,24 @@ export class OfflineEvaluator implements IEvaluator {
       (input) => !foundUtxos.has(`${input.txHash}:${input.outputIndex}`),
     );
     const txHashesSet = new Set(inputsToResolve.map((input) => input.txHash));
-    for (const txHash of txHashesSet) {
-      const utxos = await this.fetcher.fetchUTxOs(txHash);
+
+    // Resolve each distinct parent transaction's UTxOs concurrently.
+    const fetchedUtxoSets = await Promise.all(
+      [...txHashesSet].map((txHash) => this.fetcher.fetchUTxOs(txHash)),
+    );
+    for (const utxos of fetchedUtxoSets) {
       for (const utxo of utxos) {
-        if (utxo)
-          if (
-            inputsToResolve.find(
-              (input) =>
-                input.txHash === txHash &&
-                input.outputIndex === utxo.input.outputIndex,
-            )
-          ) {
-            additionalUtxos.push(utxo);
-            foundUtxos.add(`${utxo.input.txHash}:${utxo.input.outputIndex}`);
-          }
+        if (
+          utxo &&
+          inputsToResolve.some(
+            (input) =>
+              input.txHash === utxo.input.txHash &&
+              input.outputIndex === utxo.input.outputIndex,
+          )
+        ) {
+          resolvedUtxos.push(utxo);
+          foundUtxos.add(`${utxo.input.txHash}:${utxo.input.outputIndex}`);
+        }
       }
     }
     const missing = inputsToResolve.filter(
@@ -167,7 +174,7 @@ export class OfflineEvaluator implements IEvaluator {
     }
     return evaluateTransaction(
       tx,
-      additionalUtxos,
+      resolvedUtxos,
       additionalTxs,
       this.costModels,
       this.slotConfig,
