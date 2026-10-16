@@ -7,6 +7,7 @@ import {
   resolveScriptRef,
   UTxO,
 } from "@meshsdk/core";
+import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
   OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
@@ -421,6 +422,74 @@ describe("MeshTxBuilder provider calls", () => {
       64,
     );
   });
+
+  it.each([
+    ["CSL", OfflineEvaluator],
+    ["Scalus", OfflineEvaluatorScalus],
+  ] as const)(
+    "%s offline evaluator leaves caller-owned inputs unchanged across evaluations",
+    async (_name, Evaluator) => {
+      const { address, emulator, params, utxos, collateral } = await setup(() =>
+        lockedScriptUtxos(1),
+      );
+      const txHex = await new MeshTxBuilder({
+        fetcher: emulator,
+        evaluator: emulator,
+        params,
+      })
+        .spendingPlutusScriptV3()
+        .txIn(scriptTxHash, 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]))
+        .txInScript(alwaysSucceedCbor)
+        .txInCollateral(
+          collateral.input.txHash,
+          collateral.input.outputIndex,
+          collateral.output.amount,
+          collateral.output.address,
+        )
+        .changeAddress(address)
+        .selectUtxosFrom(utxos)
+        .complete();
+
+      // Supply the script input but leave collateral for the evaluator to fetch and
+      // append internally. Freeze every level to detect nested writes as well.
+      const supplied = lockedScriptUtxos(1);
+      const original = lockedScriptUtxos(1);
+      for (const utxo of supplied) {
+        Object.freeze(utxo.input);
+        utxo.output.amount.forEach(Object.freeze);
+        Object.freeze(utxo.output.amount);
+        Object.freeze(utxo.output);
+        Object.freeze(utxo);
+      }
+      Object.freeze(supplied);
+      const { provider, countFor, count } = recordCalls<IFetcher>(emulator);
+      const evaluator = new Evaluator(provider, "preview");
+
+      const first = await evaluator.evaluateTx(txHex, supplied, []);
+      expect(first).toEqual([
+        expect.objectContaining({
+          tag: "SPEND",
+          index: 0,
+          budget: {
+            mem: expect.any(Number),
+            steps: expect.any(Number),
+          },
+        }),
+      ]);
+      expect(supplied).toStrictEqual(original);
+      expect(countFor("fetchUTxOs", scriptTxHash)).toBe(0);
+      expect(countFor("fetchUTxOs", collateral.input.txHash)).toBe(1);
+      const callsAfterFirst = count("fetchUTxOs");
+
+      expect(await evaluator.evaluateTx(txHex, supplied, [])).toStrictEqual(
+        first,
+      );
+      expect(supplied).toStrictEqual(original);
+      expect(count("fetchUTxOs")).toBe(callsAfterFirst);
+    },
+  );
 
   it("offline evaluator fetches each transaction once across evaluations", async () => {
     const { address, emulator, params, utxos, collateral } = await setup(() =>
