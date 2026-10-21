@@ -1,6 +1,6 @@
 // Type-only: erased at compile time, so the CommonJS build still loads Scalus through the
 // dynamic import() below rather than a top-level require of an ESM-only package.
-import type { RedeemerBudget } from "scalus";
+import type { RedeemerBudget, ScriptCache, TxEvaluator } from "scalus";
 
 import {
   Action,
@@ -17,7 +17,6 @@ import {
   UTxO,
 } from "@meshsdk/common";
 
-import { CborWriter } from "../types";
 import { toTxUnspentOutput } from "../utils";
 import {
   getTransactionInputs,
@@ -37,11 +36,22 @@ const MESH_TAG: Record<RedeemerBudget["tag"], RedeemerTagType> = {
   Proposing: "PROPOSE",
 };
 
+/** How many decoded scripts an evaluator keeps. */
+const SCRIPT_CACHE_SIZE = 64;
+
 export class OfflineEvaluatorScalus implements IEvaluator {
   private readonly fetcher: IFetcher;
   private readonly network: Network;
   public slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
   public costModels: number[][];
+
+  // Scalus loads on first use. A TxEvaluator is fixed to one slot config and set of cost models,
+  // so it is rebuilt when either field above changes; the script cache outlives the rebuilds,
+  // so each script is still decoded only once.
+  private scalus?: Promise<typeof import("scalus")>;
+  private scriptCache?: ScriptCache;
+  private txEvaluator?: TxEvaluator;
+  private txEvaluatorKey?: string;
 
   /**
    * Creates a new instance of OfflineEvaluatorScalus.
@@ -118,47 +128,73 @@ export class OfflineEvaluatorScalus implements IEvaluator {
       foundUtxos.set(`${input.txHash}:${input.outputIndex}`, utxo);
     });
 
-    const cborWriter = new CborWriter();
-    cborWriter.writeStartMap(foundUtxos.size);
-    for (const [key, utxo] of foundUtxos) {
-      const cardanoUtxo = toTxUnspentOutput(utxo);
-      cborWriter.writeEncodedValue(
-        Buffer.from(cardanoUtxo.input().toCbor(), "hex"),
-      );
-      cborWriter.writeEncodedValue(
-        Buffer.from(cardanoUtxo.output().toCbor(), "hex"),
-      );
-    }
+    const txEvaluator = await this.getTxEvaluator();
+    return txEvaluator
+      .evaluate(
+        tx,
+        // A TransactionUnspentOutput encodes as the [input, output] pair Scalus reads.
+        Array.from(foundUtxos.values(), (utxo) =>
+          toTxUnspentOutput(utxo).toCbor(),
+        ),
+      )
+      .map((scalusRedeemer) => {
+        // Still guarded at runtime: the dependency is a caret range, so an installed Scalus can
+        // emit a tag the compiled-against declarations did not carry.
+        const tag = MESH_TAG[scalusRedeemer.tag];
+        if (!tag)
+          throw new Error(`Unknown redeemer tag: ${scalusRedeemer.tag}`);
+        return {
+          tag,
+          index: scalusRedeemer.index,
+          budget: {
+            mem: Number(scalusRedeemer.budget.memory),
+            steps: Number(scalusRedeemer.budget.steps),
+          },
+        };
+      });
+  }
+
+  private async getTxEvaluator(): Promise<TxEvaluator> {
+    // Read once, so the evaluator matches its key even if a field changes while Scalus loads.
+    const { zeroTime, zeroSlot, slotLength } = this.slotConfig;
+    const costModels = this.costModels;
+    // Compared by value: the fields are public, so a caller can also mutate them in place.
+    const key = JSON.stringify([zeroTime, zeroSlot, slotLength, costModels]);
+    if (this.txEvaluator && this.txEvaluatorKey === key)
+      return this.txEvaluator;
 
     // Keep native import() in the CJS build: Scalus 1.x is ESM-only.
-    //
-    // `evalPlutusScripts` is the top-level export. The `Scalus` namespace object that used to
-    // carry it is a 0.x shape kept only for backwards compatibility, and is deprecated.
-    const { evalPlutusScripts, SlotConfig: ScalusSlotConfig } =
-      await import("scalus");
-    return evalPlutusScripts(
-      Buffer.from(tx, "hex"),
-      cborWriter.encode(),
-      new ScalusSlotConfig(
-        this.slotConfig.zeroTime,
-        this.slotConfig.zeroSlot,
-        this.slotConfig.slotLength,
-      ),
-      this.costModels,
-      this.protocolMajorVersion,
-    ).map((scalusRedeemer) => {
-      // Still guarded at runtime: the dependency is a caret range, so an installed Scalus can
-      // emit a tag the compiled-against declarations did not carry.
-      const tag = MESH_TAG[scalusRedeemer.tag];
-      if (!tag) throw new Error(`Unknown redeemer tag: ${scalusRedeemer.tag}`);
-      return {
-        tag,
-        index: scalusRedeemer.index,
-        budget: {
-          mem: Number(scalusRedeemer.budget.memory),
-          steps: Number(scalusRedeemer.budget.steps),
-        },
-      };
+    this.scalus ??= import("scalus").catch((error: unknown) => {
+      // Not remembered, so a later call can try again.
+      this.scalus = undefined;
+      // What Node throws (`..._MISSING`, or `..._MISSING_FLAG` under Jest) when a vm context
+      // gives no way to import() an ES module. Its message names neither Scalus nor a fix.
+      const code = (error as { code?: unknown } | null)?.code;
+      if (
+        typeof code === "string" &&
+        code.startsWith("ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING")
+      )
+        throw new Error(
+          "Cannot load Scalus to evaluate scripts: it is an ES module, and this runtime " +
+            "cannot import() one. Under Jest, run it with --experimental-vm-modules.",
+          { cause: error },
+        );
+      throw error;
     });
+    const { ScriptCache, TxEvaluator } = await this.scalus;
+    this.scriptCache ??= new ScriptCache(SCRIPT_CACHE_SIZE);
+    const [PlutusV1, PlutusV2, PlutusV3] = costModels;
+    this.txEvaluator = new TxEvaluator({
+      slotConfig: { zeroTime, zeroSlot, slotLength },
+      costModels: {
+        ...(PlutusV1 && { PlutusV1 }),
+        ...(PlutusV2 && { PlutusV2 }),
+        ...(PlutusV3 && { PlutusV3 }),
+      },
+      protocolMajorVersion: this.protocolMajorVersion,
+      scriptCache: this.scriptCache,
+    });
+    this.txEvaluatorKey = key;
+    return this.txEvaluator;
   }
 }
