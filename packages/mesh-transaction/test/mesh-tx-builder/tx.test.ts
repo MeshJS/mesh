@@ -97,6 +97,11 @@ async function createTestSetup({
   return { wallet, address, provider, params, utxos, costModels };
 }
 
+/** The emulator's proposal deposit. `proposal` defaults to mainnet's, which it rejects. */
+function govActionDeposit(provider: ScalusEmulator) {
+  return provider.emulator.getProtocolParameters().govActionDeposit.toString();
+}
+
 const importScalus = new Function(
   "return import('scalus')",
 ) as () => Promise<typeof import("scalus")>;
@@ -490,9 +495,13 @@ describe("MeshTxBuilder transactions", () => {
   it("Build tx to delegate vote should succeed", async () => {
     const { wallet, address, provider, params, utxos } =
       await createTestSetup();
-    const rewardAddress = serializeRewardAddress(
-      resolvePaymentKeyHash(address),
-    );
+    const keyHash = resolvePaymentKeyHash(address);
+    const rewardAddress = serializeRewardAddress(keyHash);
+    // Votes can only be delegated to a registered DRep, so register the wallet's own.
+    const drepId = Cardano.DRepID.cip129FromCredential({
+      type: Cardano.CredentialType.KeyHash,
+      hash: Hash28ByteBase16(keyHash),
+    }).toString();
     const registrationTx = await new MeshTxBuilder({
       fetcher: provider,
       submitter: provider,
@@ -500,6 +509,7 @@ describe("MeshTxBuilder transactions", () => {
       params,
     })
       .registerStakeCertificate(rewardAddress)
+      .drepRegistrationCertificate(drepId)
       .changeAddress(address)
       .selectUtxosFrom(utxos)
       .complete();
@@ -512,12 +522,7 @@ describe("MeshTxBuilder transactions", () => {
       evaluator: provider,
       params,
     })
-      .voteDelegationCertificate(
-        {
-          dRepId: "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
-        },
-        rewardAddress,
-      )
+      .voteDelegationCertificate({ dRepId: drepId }, rewardAddress)
       .changeAddress(address)
       .selectUtxosFrom(delegationUtxos)
       .complete();
@@ -608,6 +613,7 @@ describe("MeshTxBuilder transactions", () => {
         { kind: "InfoAction", action: { type: "InfoAction" } },
         anchor,
         rewardAddress,
+        govActionDeposit(provider),
       )
       .changeAddress(address)
       .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
@@ -687,6 +693,7 @@ describe("MeshTxBuilder transactions", () => {
         { kind: "InfoAction", action: { type: "InfoAction" } },
         anchor,
         rewardAddress,
+        govActionDeposit(provider),
       )
       .changeAddress(address)
       .selectUtxosFrom(
@@ -756,6 +763,7 @@ describe("MeshTxBuilder transactions", () => {
         { kind: "InfoAction", action: { type: "InfoAction" } },
         anchor,
         rewardAddress,
+        govActionDeposit(provider),
       )
       .changeAddress(address)
       .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
