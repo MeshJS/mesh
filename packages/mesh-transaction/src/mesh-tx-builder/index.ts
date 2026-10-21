@@ -17,10 +17,12 @@ import {
   MeshTxBuilderBody,
   MintItem,
   MintParam,
+  Network,
   Output,
   Protocol,
   ScriptSource,
   SimpleScriptSourceInfo,
+  SLOT_CONFIG_NETWORK,
   TxIn,
   UTxO,
   Vote,
@@ -37,7 +39,9 @@ import {
   CredentialType as CstCredentialType,
   NativeScript as CstNativeScript,
   Script as CstScript,
+  getTransactionInputs,
   getTransactionOutputs,
+  OfflineEvaluatorScalus,
 } from "@meshsdk/core-cst";
 
 import {
@@ -54,7 +58,20 @@ import { MeshTxBuilderCore } from "./tx-builder-core";
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
-  evaluator?: IEvaluator;
+  /**
+   * Computes the execution units of the transaction's scripts. `"scalus"` evaluates locally
+   * with Scalus (`OfflineEvaluatorScalus`), set up by the builder; it needs a `fetcher`.
+   * Without an evaluator, redeemers keep the units declared on them.
+   */
+  evaluator?: IEvaluator | "scalus";
+  /**
+   * The network whose slot arithmetic `evaluator: "scalus"` uses; `setNetwork` sets it too.
+   * An evaluator you pass yourself carries its own. Without a network, mainnet is assumed for
+   * a mainnet change address. A transaction with a validity
+   * interval fails to evaluate when the network is unknown or has no known slot times
+   * (`"testnet"`).
+   */
+  network?: Network;
   serializer?: IMeshTxSerializer;
   selector?: IInputSelector;
   isHydra?: boolean;
@@ -69,6 +86,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
   txHex: string = "";
+  /** The network the Scalus evaluator's slot arithmetic is for, if given or set */
+  network?: Network;
+  /**
+   * The evaluator this builder made itself for `evaluator: "scalus"`, if any. Only it is
+   * configured from the builder's state (network, cost models, known UTxOs); an evaluator
+   * passed in is used as given.
+   */
+  protected scalusEvaluator?: OfflineEvaluatorScalus;
   verbose: boolean;
   protected queriedTxHashes: Set<string> = new Set();
   protected queriedUTxOs: { [x: string]: UTxO[] } = {};
@@ -82,6 +107,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     fetcher,
     submitter,
     evaluator,
+    network,
     params,
     isHydra = false,
     verbose = false,
@@ -89,7 +115,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     super();
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
-    if (evaluator) this.evaluator = evaluator;
+    if (evaluator === "scalus") {
+      // Scalus resolves the inputs the builder does not hold through the fetcher
+      if (!fetcher)
+        throw new Error(
+          '`evaluator: "scalus"` needs a `fetcher` to resolve the transaction\'s inputs.',
+        );
+      // Its network and cost models are set before each evaluation, once they are known
+      this.scalusEvaluator = new OfflineEvaluatorScalus(fetcher, "mainnet");
+      this.evaluator = this.scalusEvaluator;
+    } else if (evaluator) this.evaluator = evaluator;
+    this.network = network;
     if (params) this.protocolParams(params);
     if (serializer) {
       this.serializer = serializer;
@@ -128,11 +164,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (Array.isArray(this.meshTxBuilderBody.network)) {
       return;
     }
-    const defaults = [
-      DEFAULT_V1_COST_MODEL_LIST,
-      DEFAULT_V2_COST_MODEL_LIST,
-      DEFAULT_V3_COST_MODEL_LIST,
-    ];
     if (this.fetcher) {
       try {
         const costModels = await this.cachedFetcher()!.fetchCostModels();
@@ -151,7 +182,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         );
       }
     }
-    this.meshTxBuilderBody.network = defaults;
+    this.meshTxBuilderBody.network = [...DEFAULT_COST_MODELS];
   };
 
   /**
@@ -536,10 +567,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         this.meshTxBuilderBody,
         this._protocolParams,
       );
+      const isScalus = this.evaluator === this.scalusEvaluator;
+      if (isScalus) this.configureScalusEvaluator(this.scalusEvaluator!);
       const txEvaluation = await this.evaluator
         .evaluateTx(
           txHex,
-          Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+          // The Scalus evaluator runs locally, so it can take every UTxO the builder holds.
+          // Others get only those given for evaluation, as before: a remote one may reject
+          // UTxOs that also exist on chain.
+          isScalus
+            ? this.utxosForScalusEvaluator(txHex)
+            : Object.values(this.meshTxBuilderBody.inputsForEvaluation),
           this.meshTxBuilderBody.chainedTxs,
         )
         .catch((error) => {
@@ -563,6 +601,132 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
     }
+  };
+
+  /**
+   * The network the Scalus evaluator's slot arithmetic is for: the `network` option or
+   * `setNetwork`, else mainnet for a mainnet change address. Not read from the fetcher cache,
+   * where any builder sharing the fetcher may have left a guess.
+   */
+  protected networkForEvaluation = (): Network | undefined => {
+    if (this.network) return this.network;
+    // Only a mainnet address pins the network; testnet ones fit preprod and preview alike
+    if (this.meshTxBuilderBody.changeAddress.startsWith("addr1"))
+      return "mainnet";
+    return undefined;
+  };
+
+  /**
+   * Point the Scalus evaluator at the network and cost models of the transaction being built.
+   * Both become known only while completing it: the change address is set and the cost models
+   * are fetched then.
+   */
+  protected configureScalusEvaluator = (evaluator: OfflineEvaluatorScalus) => {
+    const network = this.networkForEvaluation();
+    // A custom network ("testnet") has no slot arithmetic: its slot config is all zeros. A
+    // misspelt one has none at all.
+    const slotConfig = network ? SLOT_CONFIG_NETWORK[network] : undefined;
+    if (!slotConfig?.slotLength) {
+      const { invalidBefore, invalidHereafter } =
+        this.meshTxBuilderBody.validityRange;
+      // Scripts see the validity interval as POSIX time, which depends on the network
+      if (invalidBefore != null || invalidHereafter != null)
+        throw new Error(
+          `The transaction has a validity interval, but ${
+            network
+              ? `the slot times of network "${network}" are unknown`
+              : "the network it is for is unknown"
+          }, so its scripts cannot be evaluated. Pass \`network\` (or call \`setNetwork\`) ` +
+            "with a public network, or pass another evaluator built for your network.",
+        );
+    }
+    // Without a validity interval the slot arithmetic is never used
+    const { zeroTime, zeroSlot, slotLength } = slotConfig?.slotLength
+      ? slotConfig
+      : SLOT_CONFIG_NETWORK.mainnet;
+    evaluator.slotConfig = { zeroTime, zeroSlot, slotLength };
+    const fetched = this.meshTxBuilderBody.network;
+    if (Array.isArray(fetched))
+      // A version the provider sent no model for keeps the default, as before
+      evaluator.costModels = DEFAULT_COST_MODELS.map((defaults, version) =>
+        fetched[version]?.length ? fetched[version]! : defaults,
+      );
+  };
+
+  /**
+   * Key inputs given only by address and value (`txIn(hash, index, amount, address, 0)`), as
+   * UTxOs. They lack any datum, so the Scalus evaluator prefers their chain UTxO. Only
+   * non-Plutus inputs that declare no reference script (`scriptSize` 0) qualify.
+   */
+  protected declaredKeyInputs = (): Map<string, UTxO> => {
+    const { inputs, collaterals } = this.meshTxBuilderBody;
+    const declared = new Map<string, UTxO>();
+    for (const { type, txIn } of [...inputs, ...collaterals]) {
+      const { txHash, txIndex, address, amount, scriptSize } = txIn;
+      if (type !== "Script" && address && amount && scriptSize === 0)
+        declared.set(this.makeTxId(txHash, txIndex), {
+          input: { txHash, outputIndex: txIndex },
+          output: { address, amount },
+        });
+    }
+    return declared;
+  };
+
+  /**
+   * Fetch, once per `complete()`, the chain UTxOs of the declared key inputs the builder does
+   * not hold, for the Scalus evaluator. One the fetcher does not have yet (an empty answer or
+   * a "not found" error) keeps its declared data; any other failure is thrown, since declared
+   * data could lack a datum or reference script the chain UTxO holds.
+   */
+  protected fetchDeclaredKeyInputs = async (): Promise<void> => {
+    const fetcher = this.cachedFetcher();
+    if (
+      !fetcher ||
+      !this.scalusEvaluator ||
+      this.evaluator !== this.scalusEvaluator ||
+      !this.hasPlutusScriptWitness()
+    )
+      return;
+    const txHashes = new Set<string>();
+    for (const { input } of this.declaredKeyInputs().values())
+      if (!this.findUTxO(input.txHash, input.outputIndex))
+        txHashes.add(input.txHash);
+    await Promise.all(
+      Array.from(txHashes, async (txHash) => {
+        const utxos = await fetcher.fetchUTxOs(txHash).catch((error) => {
+          if (isNotFound(error)) return [];
+          throw error;
+        });
+        if (utxos.length > 0) this.queriedUTxOs[txHash] = utxos;
+      }),
+    );
+  };
+
+  /**
+   * The UTxOs the Scalus evaluator needs for the inputs, collateral and reference inputs of a
+   * transaction, so it need not fetch them (and can evaluate before an indexer sees them): the
+   * ones the builder holds, fetched first as in `findUTxO`, else the declared key inputs.
+   * Anything else is left for the evaluator to fetch.
+   */
+  protected utxosForScalusEvaluator = (txHex: string): UTxO[] => {
+    const declared = this.declaredKeyInputs();
+    return getTransactionInputs(txHex).flatMap(
+      ({ txHash, outputIndex }) =>
+        this.findUTxO(txHash, outputIndex) ??
+        declared.get(this.makeTxId(txHash, outputIndex)) ??
+        [],
+    );
+  };
+
+  /**
+   * Also the network the Scalus evaluator's slot arithmetic is for. The body keeps it only
+   * until the cost models are fetched in its place. Like the `network` option, and unlike the
+   * body, it is kept across `reset()`.
+   */
+  override setNetwork = (network: Network | number[][]) => {
+    if (typeof network === "string") this.network = network;
+    this.meshTxBuilderBody.network = network;
+    return this;
   };
 
   /**
@@ -1072,11 +1236,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     });
 
     // Getting all missing utxo information
-    await this.queryAllTxInfo(
-      incompleteTxIns,
-      incompleteScriptSources,
-      incompleteSimpleScriptSources,
-    );
+    await Promise.all([
+      this.queryAllTxInfo(
+        incompleteTxIns,
+        incompleteScriptSources,
+        incompleteSimpleScriptSources,
+      ),
+      this.fetchDeclaredKeyInputs(),
+    ]);
     // Completing all inputs
     incompleteTxIns.forEach((txIn) => {
       this.completeTxInformation(txIn);
@@ -1903,11 +2070,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         fetcher: this.fetcher,
         submitter: this.submitter,
         evaluator: this.evaluator,
+        network: this.network,
         verbose: this.verbose,
         params: { ...this._protocolParams },
       });
     });
 
+    // The clone was handed the evaluator, so it would not know it as the Scalus one
+    newBuilder.scalusEvaluator = this.scalusEvaluator;
     newBuilder.txHex = this.txHex;
 
     // Fetched and known UTxOs are only ever added to, never edited, so clones made
@@ -1920,6 +2090,38 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return newBuilder;
   }
 }
+
+const DEFAULT_COST_MODELS = [
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+];
+
+/** "UTxO not found", or OfflineFetcher's "No UTxOs found for transaction hash: ..." */
+const NOT_FOUND = /\bnot found\b|\bno \w+ found\b/i;
+
+/**
+ * Whether a fetcher's error says the transaction is not there: an HTTP 404, as Blockfrost and
+ * Maestro throw it (`parseHttpError`'s JSON string, sometimes encoded twice, with a `status`),
+ * or an error saying "not found", as `OfflineFetcher` throws. Fetchers that return `[]` for a
+ * missing transaction (Kupo, UTxO RPC, the Scalus emulator) do not get here.
+ */
+const isNotFound = (error: unknown): boolean => {
+  let parsed: unknown = error;
+  for (let i = 0; i < 2 && typeof parsed === "string"; i++) {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      break;
+    }
+  }
+  if (typeof parsed === "string") return NOT_FOUND.test(parsed);
+  if (typeof parsed !== "object" || parsed === null) return false;
+  // Errors from another realm (a vm context, a worker) are not `instanceof Error`
+  const { status, message } = parsed as Record<string, unknown>;
+  if (status !== undefined) return status === 404;
+  return typeof message === "string" && NOT_FOUND.test(message);
+};
 
 function minRefScriptFee(
   totalRefScriptsSize: bigint,

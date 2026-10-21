@@ -176,7 +176,8 @@ export class OfflineEvaluatorScalus implements IEvaluator {
       )
         throw new Error(
           "Cannot load Scalus to evaluate scripts: it is an ES module, and this runtime " +
-            "cannot import() one. Under Jest, run it with --experimental-vm-modules.",
+            "cannot import() one. Under Jest, run it with --experimental-vm-modules, or " +
+            "give MeshTxBuilder another evaluator.",
           { cause: error },
         );
       throw error;
