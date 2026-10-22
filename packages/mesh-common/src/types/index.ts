@@ -26,3 +26,4 @@ export * from "./deserialized";
 export * from "./blueprint";
 export * from "./governance";
 export * from "./tx-prototype";
+export * from "./chain-state";
