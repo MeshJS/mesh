@@ -3,6 +3,11 @@ import type {
   Asset,
   AssetMetadata,
   BlockInfo,
+  CommitteeMemberState,
+  ConstitutionState,
+  DRepState,
+  EnactedGovernanceAction,
+  PoolState,
   Protocol,
   TransactionInfo,
   UTxO,
@@ -48,4 +53,28 @@ export interface IFetcher {
     certIndex: number,
   ): Promise<GovernanceProposalInfo>;
   get(url: string): Promise<any>;
+}
+
+/**
+ * Governance state of the ledger: DReps, the constitutional committee, the last enacted action
+ * of each purpose, the treasury and the constitution. A method throws when the provider cannot
+ * answer it.
+ */
+export interface IGovernanceFetcher {
+  /** A DRep's registration, by CIP-105 or CIP-129 id; an unknown DRep is not registered */
+  fetchDRepState(drepId: string): Promise<DRepState>;
+  /** The constitutional committee: its sitting members and those proposed to join it */
+  fetchCommitteeState(): Promise<CommitteeMemberState[]>;
+  /** The last enacted action of each governance purpose that has one */
+  fetchLastEnactedGovernanceActions(): Promise<EnactedGovernanceAction[]>;
+  /** The treasury, in lovelace */
+  fetchTreasury(): Promise<string>;
+  /** The constitution in force */
+  fetchConstitution(): Promise<ConstitutionState>;
+}
+
+/** Stake pool registrations. A method throws when the provider cannot answer it. */
+export interface IStakePoolFetcher {
+  /** A stake pool's registration, by bech32 id or key hash; an unknown pool is not registered */
+  fetchPoolState(poolId: string): Promise<PoolState>;
 }
