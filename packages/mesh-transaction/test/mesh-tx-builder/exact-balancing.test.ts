@@ -460,6 +460,17 @@ describe("MeshTxBuilder exact balancing", () => {
     expect(await emulator.submitTx(signedTx)).toHaveLength(64);
   });
 
+  it("largest-first prices the final transaction during selection", async () => {
+    const context = await setup();
+    const evaluator = countingEvaluator(context.emulator);
+    await spendScriptUtxo(context, {
+      evaluator,
+      selector: new LargestFirstInputSelector(),
+    });
+    // Two selection passes, then one evaluation finds the final transaction settled
+    expect(evaluator.calls).toBe(3);
+  });
+
   it("throws when the change output cannot pay the higher fee", async () => {
     const context = await setup();
     // Only the script input pays, and the change is about 1.1 ADA. The final transaction
