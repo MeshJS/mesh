@@ -57,6 +57,11 @@ export class BuilderCallbacksSdkBridge
   computeMinimumCost = async (
     selectionSkeleton: CardanoSelection.SelectionSkeleton,
   ): Promise<CardanoSelection.TxCosts> => {
+    // The SDK asks for the cost before it knows the fee: the change it passes still holds
+    // the whole excess. The placeholder fee only serves the size estimate - it encodes in as
+    // many bytes as any fee from 0.065 to 4294 ADA. Scripts still see it, and the change
+    // before the fee: MeshTxBuilder re-prices them on the final transaction, but a script
+    // that rejects a high fee (e.g. requires fee < 2 ADA) fails here already.
     const costs = await this.builderCallback.computeMinimumCost({
       newInputs: this.getNewInputs(selectionSkeleton),
       newOutputs: new Set<TxOutput>(),
