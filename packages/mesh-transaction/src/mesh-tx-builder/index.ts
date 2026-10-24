@@ -51,6 +51,9 @@ import {
 } from "./coin-selection/coin-selection-interface";
 import { MeshTxBuilderCore } from "./tx-builder-core";
 
+/** How many times `complete()` evaluates the final transaction before giving up on a fixed point */
+const MAX_BALANCING_PASSES = 20;
+
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
@@ -237,6 +240,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype, true);
+    await this.settleFeeAndChange(txPrototype.change.length);
     if (this.verbose) {
       console.log(
         "txBodyJson - after coin selection",
@@ -337,6 +341,100 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         selectionCallbacks,
       );
     };
+
+  /**
+   * Coin selection prices the redeemers on a skeleton, whose fee and change differ from the
+   * final transaction's. A script that reads the fee or the outputs can then need other units
+   * than the skeleton's. So evaluate the final transaction, recompute the fee, move the
+   * difference into the change output and repeat, until one more pass changes nothing.
+   * The first pass sets the fee to the minimum, which may refund the selection's estimate to
+   * the change. After that the fee only rises: a script that is cheaper with a higher fee
+   * could otherwise flip between two fees forever. Paying more than the minimum is valid.
+   * When the selection already priced the final transaction, this costs one evaluation.
+   * @param changeOutputCount How many outputs at the end are change added by coin selection
+   */
+  protected settleFeeAndChange = async (changeOutputCount: number) => {
+    if (!this.evaluator || !this.hasPlutusScriptWitness()) return;
+    const body = this.meshTxBuilderBody;
+    // The change output with the most lovelace absorbs the fee difference. When the change
+    // is split, the others usually hold just their minimum.
+    const change = body.outputs
+      .slice(body.outputs.length - changeOutputCount)
+      .reduce<Output | undefined>(
+        (best, output) =>
+          best && getLovelace(best) >= getLovelace(output) ? best : output,
+        undefined,
+      );
+    for (let pass = 1; ; pass++) {
+      if (pass > MAX_BALANCING_PASSES) {
+        throw new Error(
+          `Fee and execution units did not settle after ${MAX_BALANCING_PASSES} evaluations of the final transaction`,
+        );
+      }
+      const unitsBefore = JSON.stringify(this.getRedeemerCosts());
+      const feeBefore = BigInt(body.fee);
+      await this.evaluateRedeemers().catch((error) => {
+        throw new Error(
+          `Evaluate redeemers failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      const minFee = this.getActualFee();
+      // Without a change output there is nothing to refund the excess to
+      const fee =
+        (pass === 1 && change) || minFee > feeBefore ? minFee : feeBefore;
+      if (fee === feeBefore) {
+        if (JSON.stringify(this.getRedeemerCosts()) === unitsBefore) break;
+        continue;
+      }
+      if (!change) {
+        throw new Error(
+          `Fee changed from ${feeBefore} to ${fee} after evaluating the final transaction, but there is no change output to absorb the difference`,
+        );
+      }
+      const newChange = getLovelace(change) + feeBefore - fee;
+      const minChange = this.calculateMinLovelaceForOutput(
+        setLoveLace(cloneOutput(change), newChange),
+      );
+      if (newChange < minChange) {
+        throw new Error(
+          `Fee changed from ${feeBefore} to ${fee} after evaluating the final transaction, which leaves ${newChange} lovelace in the change output, below its minimum of ${minChange}`,
+        );
+      }
+      setLoveLace(change, newChange);
+      body.fee = fee.toString();
+    }
+    this.checkSettledCollateral();
+  };
+
+  /**
+   * Settling can raise the fee. Check once that the collateral still covers it.
+   */
+  protected checkSettledCollateral = () => {
+    const { collateralPercent } = this._protocolParams;
+    const { collaterals, totalCollateral, fee } = this.meshTxBuilderBody;
+    const collateralAmounts = collaterals.map(
+      (collateral) => collateral.txIn.amount,
+    );
+    // Without a total collateral there is no collateral return, so the inputs are the collateral
+    const collateral = totalCollateral
+      ? BigInt(totalCollateral)
+      : collaterals.length > 0 && collateralAmounts.every((amount) => amount)
+        ? collateralAmounts.reduce(
+            (sum, amount) =>
+              sum + getLovelace({ address: "", amount: amount! }),
+            0n,
+          )
+        : undefined;
+    // The ledger rule: collateral * 100 >= fee * collateralPercent
+    if (
+      collateral !== undefined &&
+      collateral * 100n < BigInt(fee) * BigInt(collateralPercent)
+    ) {
+      throw new Error(
+        `Collateral of ${collateral} lovelace does not cover ${collateralPercent}% of the fee ${fee}`,
+      );
+    }
+  };
 
   updateByTxPrototype = async (
     selectionSkeleton: CoinSelectionInterface.TransactionPrototype,
