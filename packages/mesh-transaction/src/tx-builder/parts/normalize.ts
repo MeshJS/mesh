@@ -22,8 +22,8 @@ import {
   toScriptRef,
 } from "@meshsdk/core-cst";
 
-import { TxPartError, TxPartErrorCode } from "./errors";
-import {
+import type { TxPartErrorCode } from "./errors";
+import type {
   InputRef,
   NativeScriptInput,
   NativeScriptSource,
@@ -32,6 +32,7 @@ import {
   PlutusScriptSource,
   TxPart,
 } from "./types";
+import { TxPartError } from "./errors";
 
 /** Reports problems found while building one part */
 export type PartContext = {
@@ -103,9 +104,10 @@ export const parseAddress = (ctx: PartContext, address: string): Address => {
     typeof address === "string" ? Address.fromString(address) : null;
   if (!parsed)
     return fail(ctx, "INVALID_ADDRESS", `invalid address ${address}`);
+  const addressType = parsed.getType();
   if (
-    parsed.getType() === AddressType.RewardKey ||
-    parsed.getType() === AddressType.RewardScript
+    addressType === AddressType.RewardKey ||
+    addressType === AddressType.RewardScript
   )
     return fail(
       ctx,
