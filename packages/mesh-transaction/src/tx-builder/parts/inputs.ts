@@ -1,21 +1,7 @@
 import type { LanguageVersion, UTxO } from "@meshsdk/common";
 
-import {
-  checkCredential,
-  fail,
-  freeze,
-  labelOf,
-  parseAddress,
-  PartContext,
-  paymentCredential,
-  toNativeScriptSource,
-  toPlutusData,
-  toPlutusScriptSource,
-  toRedeemer,
-  toResolvableInput,
-  withKnownHash,
-} from "./normalize";
-import {
+import type { PartContext } from "./normalize";
+import type {
   CollateralPart,
   CollateralReturnPart,
   InputRef,
@@ -27,6 +13,20 @@ import {
   SpendDatumInput,
   SpendPart,
 } from "./types";
+import {
+  checkCredential,
+  fail,
+  freeze,
+  labelOf,
+  parseAddress,
+  paymentCredential,
+  toNativeScriptSource,
+  toPlutusData,
+  toPlutusScriptSource,
+  toRedeemer,
+  toResolvableInput,
+  withKnownHash,
+} from "./normalize";
 
 /**
  * Checks that a known output is locked the way its witness expects: by a key, or by the script

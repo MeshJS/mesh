@@ -8,6 +8,8 @@ import type {
 } from "@meshsdk/common";
 import { toScriptRef } from "@meshsdk/core-cst";
 
+import type { PartContext } from "./normalize";
+import type { OutputDatumInput, OutputPart, ValueInput } from "./types";
 import {
   errorText,
   fail,
@@ -17,10 +19,8 @@ import {
   isHex,
   labelOf,
   parseAddress,
-  PartContext,
   toPlutusData,
 } from "./normalize";
-import { OutputDatumInput, OutputPart, ValueInput } from "./types";
 
 /** Asset names are at most 32 bytes */
 const MAX_ASSET_NAME_HEX = 64;
