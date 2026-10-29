@@ -10,6 +10,7 @@ import type {
 } from "@meshsdk/common";
 import {
   Address,
+  AddressType,
   CredentialType,
   NativeScript as CstNativeScript,
   Script as CstScript,
@@ -102,6 +103,15 @@ export const parseAddress = (ctx: PartContext, address: string): Address => {
     typeof address === "string" ? Address.fromString(address) : null;
   if (!parsed)
     return fail(ctx, "INVALID_ADDRESS", `invalid address ${address}`);
+  if (
+    parsed.getType() === AddressType.RewardKey ||
+    parsed.getType() === AddressType.RewardScript
+  )
+    return fail(
+      ctx,
+      "INVALID_ADDRESS",
+      `reward address ${address} cannot receive transaction outputs`,
+    );
   return parsed;
 };
 

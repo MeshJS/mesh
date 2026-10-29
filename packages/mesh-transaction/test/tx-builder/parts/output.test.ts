@@ -4,8 +4,17 @@ import {
   resolveDataHash,
   resolveScriptRef,
 } from "@meshsdk/core";
+import {
+  keyHashToRewardAddress,
+  scriptHashToRewardAddress,
+} from "@meshsdk/core-cst";
 
-import { output, TxPartError, unresolved } from "../../../src/tx-builder";
+import {
+  collateralReturn,
+  output,
+  TxPartError,
+  unresolved,
+} from "../../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
 
 const address = baseAddress(1);
@@ -25,6 +34,35 @@ const expectPartError = (build: () => unknown, code: string) => {
 };
 
 describe("output", () => {
+  it.each([0, 1])(
+    "rejects key and script reward addresses on network %s",
+    (network) => {
+      for (const rewardAddress of [
+        keyHashToRewardAddress("a".repeat(56), network),
+        scriptHashToRewardAddress("a".repeat(56), network),
+      ]) {
+        expectPartError(
+          () =>
+            output({ address: rewardAddress, value: { lovelace: 2_000_000n } }),
+          "INVALID_ADDRESS",
+        );
+        expectPartError(
+          () => collateralReturn({ address: rewardAddress }),
+          "INVALID_ADDRESS",
+        );
+      }
+    },
+  );
+
+  it("accepts Byron output addresses", () => {
+    const byronAddress =
+      "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt";
+    expect(
+      output({ address: byronAddress, value: { lovelace: 2_000_000n } }).output
+        .address,
+    ).toBe(byronAddress);
+  });
+
   it("takes value as Mesh assets or as quantities by unit", () => {
     const fromAssets = output({
       address,
