@@ -25,22 +25,23 @@
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint",
     "pack": "npm pack --pack-destination=./dist",
-    "test": "jest"
+    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js"
   },
   "devDependencies": {
-    "@meshsdk/scalus-emulator": "1.9.1",
     "@meshsdk/configs": "*",
+    "@meshsdk/scalus-emulator": "1.9.1",
     "@types/json-bigint": "^1.0.4",
     "eslint": "^8.57.0",
+    "scalus": "^1.4.1",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@cardano-sdk/core": "0.46.12",
+    "@cardano-sdk/input-selection": "0.14.28",
+    "@cardano-sdk/util": "0.17.1",
     "@meshsdk/common": "1.9.1",
     "@meshsdk/core-cst": "1.9.1",
-    "@cardano-sdk/core": "0.46.12",
-    "@cardano-sdk/util": "0.17.1",
-    "@cardano-sdk/input-selection": "0.14.28",
     "json-bigint": "^1.0.0"
   },
   "prettier": "@meshsdk/configs/prettier",
