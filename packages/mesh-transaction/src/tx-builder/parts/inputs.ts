@@ -32,7 +32,7 @@ import {
  * Checks that a known output is locked the way its witness expects: by a key, or by the script
  * with the given hash (when the hash is known).
  */
-const checkLock = (
+export const checkLock = (
   ctx: PartContext,
   utxo: UTxO | undefined,
   expected: { type: "key" } | { type: "script"; hash?: string },
@@ -51,7 +51,7 @@ const checkLock = (
  * Works out the datum of a spent script output, checking an explicit choice against the
  * output when it is known.
  */
-const toSpendDatum = (
+export const toSpendDatum = (
   ctx: PartContext,
   datum: SpendDatumInput | undefined,
   utxo: UTxO | undefined,
