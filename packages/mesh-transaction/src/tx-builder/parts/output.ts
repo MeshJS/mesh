@@ -116,7 +116,13 @@ export const output = (params: {
   label?: string;
 }): OutputPart => {
   const ctx: PartContext = { part: "output", label: params.label };
-  parseAddress(ctx, params.address);
+  const address = parseAddress(ctx, params.address);
+  if (address.asReward())
+    fail(
+      ctx,
+      "INVALID_ADDRESS",
+      `reward address ${params.address} cannot receive transaction outputs`,
+    );
   const datum = params.datum && toDatum(ctx, params.datum);
   return freeze({
     kind: "output",

@@ -258,7 +258,13 @@ export const collateralReturn = (params: {
   label?: string;
 }): CollateralReturnPart => {
   const ctx: PartContext = { part: "collateralReturn", label: params.label };
-  parseAddress(ctx, params.address);
+  const address = parseAddress(ctx, params.address);
+  if (address.asReward())
+    fail(
+      ctx,
+      "INVALID_ADDRESS",
+      `reward address ${params.address} cannot receive transaction outputs`,
+    );
   const { totalCollateral } = params;
   if (
     totalCollateral !== undefined &&
