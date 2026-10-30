@@ -21,8 +21,8 @@ import {
   toScriptRef,
 } from "@meshsdk/core-cst";
 
-import { TxPartError, TxPartErrorCode } from "./errors";
-import {
+import type { TxPartErrorCode } from "./errors";
+import type {
   InputRef,
   NativeScriptInput,
   NativeScriptSource,
@@ -33,6 +33,7 @@ import {
   RedeemerInput,
   TxPart,
 } from "./types";
+import { TxPartError } from "./errors";
 
 /** Reports problems found while building one part */
 export type PartContext = {
