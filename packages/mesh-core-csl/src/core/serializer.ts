@@ -21,6 +21,7 @@ import {
   PlutusDataType,
   PlutusScript,
   Protocol,
+  TransactionPrototype,
   TxInput,
   TxTester,
   UTxO,
@@ -40,6 +41,7 @@ import {
   toNativeScript,
 } from "../deser";
 import { CSLParser } from "../parser";
+import { serializeTxPrototype } from "../tx-prototype";
 import {
   calculateTxHash,
   deserializeBech32Address,
@@ -88,6 +90,10 @@ export class CSLSerializer implements IMeshTxSerializer {
       throw new Error(`txBuildResult error: ${txBuildResult.get_error()}`);
     }
     return txBuildResult.get_data();
+  }
+
+  serializeTxPrototype(txPrototype: TransactionPrototype): string {
+    return serializeTxPrototype(txPrototype);
   }
 
   addSigningKeys(txHex: string, signingKeys: string[]): string {

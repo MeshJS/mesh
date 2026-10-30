@@ -1,0 +1,129 @@
+import {
+  mConStr0,
+  resolveScriptHash,
+  resolveScriptRef,
+  UTxO,
+} from "@meshsdk/core";
+import {
+  resolvePlutusScriptAddress,
+  transactionPrototypeToHex,
+} from "@meshsdk/core-cst";
+import { ScalusEmulator } from "@meshsdk/scalus-emulator";
+import { MeshWallet } from "@meshsdk/wallet";
+
+import {
+  assembleTxPrototype,
+  collateral,
+  collateralReturn,
+  mint,
+  output,
+  spend,
+} from "../../src/tx-builder";
+import { alwaysSucceedCbor, mintParamCbor } from "../test-util";
+
+const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
+const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
+const exUnits = { mem: 1_000_000, steps: 400_000_000 };
+
+/*
+ * Transactions assembled by hand, with a generous fixed fee, and submitted to the emulator: the
+ * ledger rules check every redeemer index, the script data hash and the collateral return.
+ */
+describe("assembleTxPrototype on the emulator", () => {
+  it("assembles a transaction the ledger accepts: script spends, mints, collateral return", async () => {
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words: Array(24).fill("solution") },
+    });
+    await wallet.init();
+    const address = (await wallet.getChangeAddress())!;
+    const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
+    const at = (
+      txHash: string,
+      outputIndex: number,
+      addr: string,
+      quantity: string,
+      extra: Partial<UTxO["output"]> = {},
+    ): UTxO => ({
+      input: { txHash, outputIndex },
+      output: { address: addr, amount: lovelace(quantity), ...extra },
+    });
+    const funds = at("0".repeat(64), 0, address, "100000000");
+    const collateralUtxo = at("1".repeat(64), 0, address, "5000000");
+    // Script outputs whose out refs sort differently from the order they are given in
+    const locked = [
+      at("2".repeat(64), 2, scriptAddress, "10000000", {
+        plutusData: "d87980",
+      }),
+      at("2".repeat(64), 0, scriptAddress, "10000000", {
+        plutusData: "d87980",
+      }),
+      at("2".repeat(64), 1, scriptAddress, "10000000", {
+        plutusData: "d87980",
+      }),
+    ];
+    const reference = at("3".repeat(64), 0, address, "20000000", {
+      scriptRef: resolveScriptRef(plutusScript),
+    });
+    const provider = await ScalusEmulator.create([
+      funds,
+      collateralUtxo,
+      ...locked,
+      reference,
+    ]);
+
+    const fee = 2_000_000n;
+    const policies = [7, 3].map((n) => ({
+      script: { code: mintParamCbor(n), version: "V3" as const },
+      n,
+    }));
+    const parts = [
+      ...locked.map((utxo, i) =>
+        spend.plutus({
+          utxo,
+          script: { reference },
+          redeemer: { data: mConStr0([i]), exUnits },
+        }),
+      ),
+      spend.pubKey({ utxo: funds }),
+      ...policies.map(({ script, n }) =>
+        mint.plutus({
+          script,
+          redeemer: { data: n, exUnits },
+          assets: { "01": 5n },
+        }),
+      ),
+      output({
+        address,
+        value: {
+          lovelace: 130_000_000n - fee,
+          ...Object.fromEntries(
+            policies.map(({ script }) => [
+              `${resolveScriptHash(script.code, "V3")}01`,
+              5n,
+            ]),
+          ),
+        },
+      }),
+      collateral({ utxo: collateralUtxo }),
+      collateralReturn({ address, totalCollateral: 3_000_000n }),
+    ];
+
+    const { prototype, redeemers } = assembleTxPrototype(parts, {
+      fee,
+      costModels: await provider.fetchCostModels(),
+    });
+    const txHex = transactionPrototypeToHex(prototype);
+
+    // The evaluator finds a script behind every redeemer pointer
+    const evaluated = await provider.evaluateTx(txHex);
+    expect(evaluated.map((r) => `${r.tag}:${r.index}`).sort()).toEqual(
+      redeemers.map((r) => `${r.tag}:${r.index}`).sort(),
+    );
+
+    const txHash = await provider.submitTx(await wallet.signTx(txHex));
+    expect(txHash).toHaveLength(64);
+    const returned = await provider.fetchUTxOs(txHash);
+    expect(returned).toHaveLength(1);
+  });
+});

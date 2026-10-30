@@ -56,6 +56,7 @@ import {
   SimpleScriptTxIn,
   SimpleScriptVote,
   toBytes,
+  TransactionPrototype,
   TxIn,
   TxInput,
   TxMetadata,
@@ -126,6 +127,7 @@ import { toCardanoCert } from "../utils/certificate";
 import { toCardanoMetadataMap } from "../utils/metadata";
 import { toCardanoProposalProcedure } from "../utils/proposal";
 import { hashScriptData } from "../utils/script-data-hash";
+import { transactionPrototypeToHex } from "../tx-prototype-to-cbor";
 import {
   toCardanoGovernanceActionId,
   toCardanoVoter,
@@ -453,6 +455,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     const serializerCore = new CardanoSDKSerializerCore(protocolParams);
     return serializerCore.coreSerializeTxWithMockSignatures(txBuilderBody);
   }
+
+  serializeTxPrototype = (txPrototype: TransactionPrototype): string => {
+    return transactionPrototypeToHex(txPrototype);
+  };
 
   addSigningKeys = (txHex: string, signingKeys: string[]): string => {
     let cardanoTx = Transaction.fromCbor(Serialization.TxCBOR(txHex));

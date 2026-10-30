@@ -10,6 +10,7 @@ import {
   Output,
   PlutusScript,
   Protocol,
+  TransactionPrototype,
   TxInput,
   UTxO,
 } from "../types";
@@ -23,6 +24,11 @@ export interface IMeshTxSerializer {
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
   ): string;
+  /**
+   * Serializes a fully resolved `TransactionPrototype` to transaction CBOR, as is: nothing is
+   * added, sorted or recomputed. Optional until every serializer implements it.
+   */
+  serializeTxPrototype?(txPrototype: TransactionPrototype): string;
   addSigningKeys(txHex: string, signingKeys: string[]): string;
   serializeData(data: BuilderData): string;
   serializeAddress(address: DeserializedAddress, networkId?: 0 | 1): string;
