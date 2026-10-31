@@ -1,5 +1,6 @@
 import {
   BuilderData,
+  hashPlutusScript,
   LanguageVersion,
   NativeScript,
   PlutusDataType,
@@ -58,7 +59,10 @@ export const resolveScriptHash = (
   if (!version) {
     return core.deserializeNativeScript(scriptCode).hash().toString();
   }
-  return core.deserializePlutusScript(scriptCode, version).hash().toString();
+  // Hash the serialised script bytes (ledger rule); the deserialized
+  // script object's hash() unwraps the CBOR byte string first and
+  // disagrees with Aiken/cardano-cli (see MeshJS/mesh#763).
+  return hashPlutusScript(scriptCode, version);
 };
 
 /**

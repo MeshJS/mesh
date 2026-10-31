@@ -429,4 +429,18 @@ describe("Serialization utils", () => {
       "b2040523c8f8b1cf6888c7d5ffdfbb94b8bc2e1465f2ad891fdce923",
     );
   });
+
+  it("should deserialize plutus script with the ledger script hash", () => {
+    // Aiken blueprint vector (giftcard redeem validator, Plutus V3): the
+    // hash must be taken over the serialised script bytes, not the
+    // CBOR-unwrapped bytes (see MeshJS/mesh#763).
+    const result = serializer.deserializer.script.deserializePlutusScript({
+      code: "59011501010032323232323232232232253330063232323232533300b3370e900118061baa001132323232325333013301600213253330113370e6eb4c04c009200113371e00201e2940dd718088008b180a00099299980799b8748008c040dd50008a5eb7bdb1804dd5980a18089baa001323300100137566028602a602a602a602a60226ea8020894ccc04c004530103d87a80001323232325333014337220200042a66602866e3c0400084cdd2a4000660306e980052f5c02980103d87a80001330060060033756602a0066eb8c04c008c05c008c054004c048c04c008c044004c034dd50008b1807980800118070009807001180600098041baa00114984d958dd70009bae0015734aae7555cf2ab9f5740ae855d101",
+      version: "V3",
+    });
+
+    expect(result.scriptHash).toEqual(
+      "b2386630f1b210c58d0e46f132e931b362c3f373685118018e4d956f",
+    );
+  });
 });

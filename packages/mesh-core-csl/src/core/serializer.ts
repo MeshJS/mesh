@@ -11,6 +11,7 @@ import {
   DeserializedAddress,
   DeserializedScript,
   emptyTxBuilderBody,
+  hashPlutusScript,
   IDeserializer,
   IMeshTxSerializer,
   IResolver,
@@ -29,7 +30,6 @@ import {
 import {
   castDataToPlutusData,
   csl,
-  deserializePlutusScript,
   resolveDataHash,
   resolveEd25519KeyHash,
   resolvePrivateKey,
@@ -143,9 +143,10 @@ export class CSLSerializer implements IMeshTxSerializer {
       deserializePlutusScript: function (
         script: PlutusScript,
       ): DeserializedScript {
-        const scriptHash = deserializePlutusScript(script.code, script.version)
-          .hash()
-          .to_hex();
+        // The ledger hashes the serialised script bytes as they appear in
+        // the CBOR byte string; the deserialized object's hash() unwraps
+        // the CBOR first and disagrees with Aiken/cardano-cli (#763).
+        const scriptHash = hashPlutusScript(script.code, script.version);
         return { scriptHash, scriptCbor: script.code };
       },
     },
