@@ -143,10 +143,10 @@ export class CardanoSdkInputSelector implements IInputSelector {
       aggregatedOuts.add(aggregatedTxOut);
     }
     // Convert Mesh types to CSDK types
-    const preselectedUtoxsCSDK = new Set(
+    const preselectedUtxosCSDK = new Set(
       preselectedUtxos.map(meshTxInToCSDKUtxo),
     );
-    const utxoxCSDK = utxos.map(meshUtxoToCSDKUtxo);
+    const utxosCSDK = utxos.map(meshUtxoToCSDKUtxo);
 
     // Create selector with change address resolver
     const selector = CardanoSelection.roundRobinRandomImprove({
@@ -167,8 +167,8 @@ export class CardanoSdkInputSelector implements IInputSelector {
 
     // Perform selection
     const selectResult = await selector.select({
-      preSelectedUtxo: preselectedUtoxsCSDK,
-      utxo: new Set(utxoxCSDK),
+      preSelectedUtxo: preselectedUtxosCSDK,
+      utxo: new Set(utxosCSDK),
       outputs: aggregatedOuts,
       constraints: builderCallbacksBridge,
       implicitValue: meshImplicitCoinToCSDKImplicitCoins(implicitValue),
