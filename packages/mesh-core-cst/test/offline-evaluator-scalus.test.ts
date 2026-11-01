@@ -201,13 +201,24 @@ describe("OfflineEvaluatorScalus", () => {
     expect(evaluator.acceptsKnownUtxos).toBe(true);
   });
 
+  it("keeps its TxEvaluator when configured with nothing new", async () => {
+    fetcher.addUTxOs(utxos);
+    built.txEvaluators = 0;
+    const [original] = await evaluator.evaluateTx(txHex);
+
+    // What a builder does before each of its evaluations
+    evaluator.configure({ network: "preprod", costModels: [[], [], []] });
+    evaluator.configure({});
+    expect(await evaluator.evaluateTx(txHex)).toStrictEqual([original]);
+    expect(built.txEvaluators).toBe(1);
+  });
+
   it("takes cost models from a context, version by version", async () => {
     fetcher.addUTxOs(utxos);
     const [original] = await evaluator.evaluateTx(txHex);
 
-    // The minting script is Plutus V2, so doubling its model doubles the budget. An empty
-    // entry, what a builder passes for a version its provider sent no model for, keeps the
-    // current model of that version.
+    // The minting script is Plutus V2, so doubling its model doubles the budget; an empty entry
+    // keeps the current model of its version
     const [v1, v2, v3] = evaluator.costModels as [number[], number[], number[]];
     evaluator.configure({ costModels: [[], v2.map((p) => p * 2), []] });
     expect(await evaluator.evaluateTx(txHex)).toStrictEqual([
@@ -226,8 +237,7 @@ describe("OfflineEvaluatorScalus", () => {
     };
 
     it("cannot evaluate a transaction with a validity interval, and says so before fetching anything", async () => {
-      // The transaction has a TTL, which its scripts see as a time that depends on the network.
-      // The fetcher holds no UTxOs: a fetch would fail first, with another message.
+      // The transaction has a TTL. The fetcher holds no UTxOs: a fetch would fail with another message.
       const unknown = new OfflineEvaluatorScalus(fetcher);
       await expect(unknown.evaluateTx(txHex)).rejects.toThrow(
         /network it is for is unknown.*`configure`/s,

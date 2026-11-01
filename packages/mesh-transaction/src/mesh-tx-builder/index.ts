@@ -60,18 +60,14 @@ export interface MeshTxBuilderOptions {
   submitter?: ISubmitter;
   /**
    * Computes the execution units of the transaction's scripts. Left out, the builder evaluates
-   * locally with Scalus (`OfflineEvaluatorScalus`) when it has a `fetcher` to resolve inputs
-   * with; without one, redeemers keep the units declared on them. `null` turns evaluation off.
-   * An evaluator that takes a context (`IEvaluator.configure`) gets the network and the cost
-   * models the builder learns while completing the transaction.
+   * locally with Scalus (`OfflineEvaluatorScalus`) if it has a `fetcher` to resolve inputs with.
+   * `null` turns evaluation off: redeemers keep the units declared on them.
    */
   evaluator?: IEvaluator | null;
   /**
-   * The network the transaction is for, which fixes the slot arithmetic its scripts see;
-   * `setNetwork` sets it too. Without it, mainnet is assumed for a mainnet change address, and
-   * an evaluator passed in keeps its own. The default evaluator cannot evaluate a transaction
-   * with a validity interval while the network is unknown or has no known slot times
-   * (`"testnet"`).
+   * The network the transaction is for, passed to an evaluator that takes it (`setNetwork` sets
+   * it too). Without it, mainnet is assumed for a mainnet change address. The default evaluator
+   * needs it to evaluate a transaction with a validity interval.
    */
   network?: Network;
   serializer?: IMeshTxSerializer;
@@ -112,9 +108,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
     if (evaluator) this.evaluator = evaluator;
-    // Mesh's default is local evaluation with Scalus. It resolves the inputs the builder does
-    // not hold through the fetcher, so without one there is nothing to evaluate with. Its
-    // network and cost models are set before each evaluation, once they are known.
+    // Mesh's default: local evaluation with Scalus, which resolves inputs through the fetcher
     else if (evaluator === undefined && fetcher)
       this.evaluator = new OfflineEvaluatorScalus(fetcher);
     this.network = network;
@@ -565,11 +559,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         .evaluateTx(
           txHex,
           // A local evaluator can take every UTxO the builder holds. Others get only those
-          // given for evaluation, as before: a remote one may reject UTxOs that also exist
-          // on chain.
+          // given for evaluation: a remote one may reject UTxOs that also exist on chain.
           evaluator.acceptsKnownUtxos
             ? this.utxosForLocalEvaluator(txHex)
-            : Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+            : this.utxosForEvaluation(),
           this.meshTxBuilderBody.chainedTxs,
         )
         .catch((error) => {
@@ -608,12 +601,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return undefined;
   };
 
-  /**
-   * What the builder learned while completing the transaction, for an evaluator that takes it
-   * (`IEvaluator.configure`): the network, for slot arithmetic, and the cost models it fetched.
-   * Both become known only while completing: the change address is set and the cost models
-   * are fetched then.
-   */
+  /** What the builder learned while completing the transaction, for `IEvaluator.configure` */
   protected evaluationContext = (): EvaluationContext => {
     const fetched = this.meshTxBuilderBody.network;
     return {
@@ -669,6 +657,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }),
     );
   };
+
+  /**
+   * The UTxOs given for evaluation, each replaced by its fetched copy when the builder has one:
+   * a given copy may lack the script bytes the chain UTxO holds.
+   */
+  protected utxosForEvaluation = (): UTxO[] =>
+    Object.values(this.meshTxBuilderBody.inputsForEvaluation).map(
+      (utxo) =>
+        this.findUTxO(utxo.input.txHash, utxo.input.outputIndex) ?? utxo,
+    );
 
   /**
    * The UTxOs a local evaluator needs for the inputs, collateral and reference inputs of a
@@ -2037,7 +2035,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         serializer: this.serializer,
         fetcher: this.fetcher,
         submitter: this.submitter,
-        // The same evaluator, or none: a clone never makes its own default
+        // A clone never makes a default of its own
         evaluator: this.evaluator ?? null,
         network: this.network,
         verbose: this.verbose,

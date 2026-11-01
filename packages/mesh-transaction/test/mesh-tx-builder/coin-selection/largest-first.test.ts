@@ -49,7 +49,6 @@ describe("MeshTxBuilder - coin selection - Largest first", () => {
     ]);
     txBuilder = new MeshTxBuilder({
       fetcher: offlineFetcher,
-      // Selection is under test, with the units declared on the redeemers
       evaluator: null,
       selector: new LargestFirstInputSelector(),
     });

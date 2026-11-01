@@ -91,7 +91,6 @@ describe("MeshTxBuilder - Duplicate Inputs", () => {
     },
   ]);
 
-  // Input handling is under test, with the units declared on the redeemers
   const txBuilder = new MeshTxBuilder({
     fetcher: offlineFetcher,
     evaluator: null,

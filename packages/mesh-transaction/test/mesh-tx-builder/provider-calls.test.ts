@@ -491,7 +491,7 @@ describe("MeshTxBuilder provider calls", () => {
     },
   );
 
-  it("offline evaluator fetches each transaction once across evaluations", async () => {
+  it("offline evaluator given to the builder gets the UTxOs the builder holds and fetches none itself", async () => {
     const { address, emulator, params, utxos, collateral } = await setup(() =>
       lockedScriptUtxos(1),
     );
@@ -501,10 +501,11 @@ describe("MeshTxBuilder provider calls", () => {
       "preview",
     );
     const builderEvaluator = recordCalls(evaluator);
+    const builderFetcher = recordCalls<IFetcher>(emulator);
 
     const build = () =>
       new MeshTxBuilder({
-        fetcher: emulator,
+        fetcher: builderFetcher.provider,
         evaluator: builderEvaluator.provider,
         params,
       })
@@ -523,13 +524,15 @@ describe("MeshTxBuilder provider calls", () => {
         .selectUtxosFrom(utxos)
         .complete();
     await build();
-    // A second build with the same evaluator needs nothing new from the fetcher
+    // Fetched outputs are cached across builders sharing a fetcher
     await build();
 
     expect(builderEvaluator.count("evaluateTx")).toBeGreaterThanOrEqual(2);
-    const fetchedTxHashes = evaluatorFetcher.args("fetchUTxOs");
+    // The builder fetched the script input and the collateral once each, and passed them on
+    const fetchedTxHashes = builderFetcher.args("fetchUTxOs");
     expect(fetchedTxHashes).toContain(scriptTxHash);
     expect(fetchedTxHashes).toContain(collateral.input.txHash);
     expect(new Set(fetchedTxHashes).size).toBe(fetchedTxHashes.length);
+    expect(evaluatorFetcher.args("fetchUTxOs")).toEqual([]);
   });
 });

@@ -52,11 +52,7 @@ export const getTransactionInputs = (
   return inputs;
 };
 
-/**
- * The validity interval of a transaction, in slots: `invalidBefore` is the slot it is valid
- * from, `invalidHereafter` the slot it is valid until (its TTL). Either is left out when the
- * transaction does not set it.
- */
+/** The validity interval of a transaction, in slots; a bound it does not set is left out */
 export const getTransactionValidityInterval = (
   txHex: string,
 ): { invalidBefore?: number; invalidHereafter?: number } => {
@@ -64,7 +60,9 @@ export const getTransactionValidityInterval = (
   const invalidBefore = body.validityStartInterval();
   const invalidHereafter = body.ttl();
   return {
-    ...(invalidBefore !== undefined && { invalidBefore: Number(invalidBefore) }),
+    ...(invalidBefore !== undefined && {
+      invalidBefore: Number(invalidBefore),
+    }),
     ...(invalidHereafter !== undefined && {
       invalidHereafter: Number(invalidHereafter),
     }),

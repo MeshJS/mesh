@@ -43,25 +43,23 @@ const SCRIPT_CACHE_SIZE = 64;
 
 type EvaluatorSlotConfig = Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
 
-/**
- * The slot arithmetic of a network, or all zeros when it is not known: for no network, for
- * `"testnet"` (a custom network, whose slot config mesh leaves at zero) and for a name mesh
- * does not know.
- */
+/** The slot arithmetic of a network; all zeros for none, `"testnet"` (custom) or an unknown name */
 const slotConfigOf = (network?: Network): EvaluatorSlotConfig => {
   const { zeroTime, zeroSlot, slotLength } = (network &&
-    SLOT_CONFIG_NETWORK[network]) || { zeroTime: 0, zeroSlot: 0, slotLength: 0 };
+    SLOT_CONFIG_NETWORK[network]) || {
+    zeroTime: 0,
+    zeroSlot: 0,
+    slotLength: 0,
+  };
   return { zeroTime, zeroSlot, slotLength };
 };
 
 export class OfflineEvaluatorScalus implements IEvaluator {
   private readonly fetcher: IFetcher;
   private network?: Network;
-  /** Whether the slot config was given to the constructor, so a network never replaces it */
   private readonly pinnedSlotConfig: boolean;
   public slotConfig: EvaluatorSlotConfig;
   public costModels: number[][];
-  /** Runs locally: a builder may pass every UTxO it holds, so they need not be fetched */
   readonly acceptsKnownUtxos = true;
 
   // Scalus loads on first use. A TxEvaluator is fixed to one slot config and set of cost models,
@@ -75,10 +73,9 @@ export class OfflineEvaluatorScalus implements IEvaluator {
   /**
    * Creates a new instance of OfflineEvaluatorScalus.
    * @param fetcher - An implementation of IFetcher to resolve transaction UTXOs
-   * @param network - The network to evaluate scripts for. It may be left out and given later
-   *   through `configure`, as `MeshTxBuilder` does for its default evaluator. Until it is known,
-   *   only transactions without a validity interval can be evaluated: scripts see the interval
-   *   as POSIX time, which depends on the network.
+   * @param network - The network to evaluate scripts for; may be given later through
+   *   `configure`, as `MeshTxBuilder` does. Until known, only transactions without a validity
+   *   interval can be evaluated.
    * @param slotConfig - Slot configuration for the network (optional, defaults to network-specific values)
    * @param customCostModels - Custom cost models for Plutus versions (optional, defaults to mainnet cost models)
    * @param protocolMajorVersion Ledger protocol version used for costing. Defaults to 11
@@ -105,10 +102,9 @@ export class OfflineEvaluatorScalus implements IEvaluator {
   }
 
   /**
-   * Takes what a transaction builder learned while completing a transaction. A network other
-   * than the evaluator's replaces its slot config, unless one was given to the constructor.
-   * Cost models replace the current ones version by version; a version the context has no
-   * model for keeps the current one.
+   * A network other than the current one replaces the slot config, unless one was given to the
+   * constructor. Cost models replace the current ones version by version; an empty entry keeps
+   * the current model of its version.
    */
   configure({ network, costModels }: EvaluationContext): void {
     if (network && network !== this.network) {
@@ -127,7 +123,7 @@ export class OfflineEvaluatorScalus implements IEvaluator {
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
-    // Before any fetch: without a usable slot config there is nothing to evaluate with
+    // Before any fetch: a missing network must not surface as a missing UTxO
     const slotConfig = this.slotConfigFor(tx);
     const foundUtxos: Map<String, UTxO> = new Map<string, UTxO>();
 
@@ -194,9 +190,8 @@ export class OfflineEvaluatorScalus implements IEvaluator {
   }
 
   /**
-   * The slot config to evaluate `tx` under. Without a known one, a transaction with a validity
-   * interval cannot be evaluated: its scripts see the interval as POSIX time, which depends on
-   * the network. One without an interval never uses the slot arithmetic, so any config will do.
+   * The slot config to evaluate `tx` under. Scripts see the validity interval as POSIX time, so
+   * without a known one only a transaction without an interval can be evaluated, under any.
    */
   private slotConfigFor(tx: string): EvaluatorSlotConfig {
     if (this.slotConfig.slotLength > 0) return this.slotConfig;

@@ -176,7 +176,9 @@ describe("MeshTxBuilder's default evaluator", () => {
 
   it("is not made without a fetcher to resolve inputs with", () => {
     expect(new MeshTxBuilder().evaluator).toBeUndefined();
-    expect(new MeshTxBuilder({ evaluator: undefined }).evaluator).toBeUndefined();
+    expect(
+      new MeshTxBuilder({ evaluator: undefined }).evaluator,
+    ).toBeUndefined();
     expect(new MeshTxBuilderV2().evaluator).toBeUndefined();
   });
 
@@ -208,6 +210,10 @@ describe("MeshTxBuilder's default evaluator", () => {
     expect(units).toEqual(declaredUnits);
     // Only what the builder needs to complete the transaction
     expect(fetchUTxOs.mock.calls.map(([hash]) => hash)).toEqual([scriptTxHash]);
+
+    const v2 = await spendScript({ v2: true, builder: { evaluator: null } });
+    expect(v2.builder.evaluator).toBeUndefined();
+    expect(v2.units).toEqual(declaredUnits);
   });
 
   it("gives way to the evaluator it is given, which gets only the UTxOs given for evaluation", async () => {
@@ -231,15 +237,23 @@ describe("MeshTxBuilder's default evaluator", () => {
   });
 
   it("tells an evaluator it is given what it learns, if the evaluator takes a context", async () => {
+    const [v1, ...rest] = DEFAULT_COST_MODELS;
+    const fetched = [[v1![0]! + 1, ...v1!.slice(1)], ...rest];
     const configure = jest.fn();
     const mine: IEvaluator = { evaluateTx: async () => [], configure };
-    await spendScript({ builder: { evaluator: mine, network: "preprod" } });
+    await spendScript({
+      builder: { evaluator: mine, network: "preprod" },
+      fetcher: (emulator) =>
+        new Proxy(emulator, {
+          get: (target, prop, receiver) =>
+            prop === "fetchCostModels"
+              ? async () => fetched
+              : Reflect.get(target, prop, receiver),
+        }),
+    });
     expect(configure.mock.calls.length).toBeGreaterThan(0);
-    for (const [context] of configure.mock.calls as [EvaluationContext][]) {
-      expect(context.network).toBe("preprod");
-      // The cost models of the three Plutus versions, fetched or default
-      expect(context.costModels).toHaveLength(3);
-    }
+    for (const [context] of configure.mock.calls as [EvaluationContext][])
+      expect(context).toEqual({ network: "preprod", costModels: fetched });
   });
 
   it("tells a Scalus evaluator it is given the network, as it does its own", async () => {
@@ -249,7 +263,7 @@ describe("MeshTxBuilder's default evaluator", () => {
       fetcher: (created) => (emulator = created),
       builder: { network: "preprod" },
       invalidHereafter: 100_000_000,
-      // Made for no network, as the default is; without one it could not evaluate this
+      // Made for no network, as the default is
       configure: (builder) => {
         mine = new OfflineEvaluatorScalus(emulator);
         builder.evaluator = mine;
@@ -257,6 +271,40 @@ describe("MeshTxBuilder's default evaluator", () => {
     });
     expect(builder.evaluator).toBe(mine);
     expect(slotConfigOf(builder)).toBe(SLOT_CONFIG_NETWORK.preprod.zeroTime);
+  });
+
+  it("gives a local evaluator it is given every UTxO it holds, declared key inputs fetched", async () => {
+    const evaluateTx = jest.fn(async () => []);
+    const mine: IEvaluator = { evaluateTx, acceptsKnownUtxos: true };
+    const { fetchUTxOs } = await spendScript({
+      builder: { evaluator: mine },
+      // More than the script input holds, so a wallet UTxO must be selected
+      configure: (builder, address) =>
+        builder.txOut(address, lovelace("30000000")),
+    });
+    // The collateral, given by address and value, is fetched for it, like the script input
+    expect(fetchUTxOs.mock.calls.map(([hash]) => hash).sort()).toEqual(
+      ["1".repeat(64), scriptTxHash].sort(),
+    );
+    const calls = evaluateTx.mock.calls as unknown as [string, UTxO[]][];
+    expect(calls.length).toBeGreaterThan(0);
+    for (const [, additionalUtxos] of calls) {
+      const txHashes = additionalUtxos.map((utxo) => utxo.input.txHash);
+      expect(txHashes).toContain(scriptTxHash);
+      expect(txHashes).toContain("1".repeat(64));
+    }
+    // The selected wallet input, which the builder holds
+    const [, lastUtxos] = calls[calls.length - 1]!;
+    expect(lastUtxos.map((utxo) => utxo.input.txHash)).toContain(
+      "0".repeat(64),
+    );
+  });
+
+  it("is kept across reset(), with what it has loaded and cached", async () => {
+    const { builder } = await spendScript();
+    const evaluator = builder.evaluator;
+    builder.reset();
+    expect(builder.evaluator).toBe(evaluator);
   });
 
   it("evaluates with the UTxOs the builder holds, fetching only the rest", async () => {
@@ -496,8 +544,7 @@ describe("MeshTxBuilder's default evaluator", () => {
     });
 
     it("need not be known for a transaction valid from slot 0, which carries no start", async () => {
-      // The serializer leaves a zero start out, so the scripts see no lower bound. The check
-      // is on the transaction as serialized, which is what the ledger evaluates.
+      // The serializer leaves a zero start out, so the scripts see no lower bound
       const { units } = await spendScript({
         configure: (builder) => builder.invalidBefore(0),
       });

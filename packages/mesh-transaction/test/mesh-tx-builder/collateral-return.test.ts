@@ -103,7 +103,6 @@ describe("MeshTxBuilder - collateral return test", () => {
 
   const txBuilder = new MeshTxBuilder({
     fetcher: offlineFetcher,
-    // Collateral is under test, with the units declared on the redeemers
     evaluator: null,
   });
 

@@ -96,7 +96,6 @@ describe("MeshTxBuilder - Script Transactions", () => {
     },
   ]);
 
-  // Building is under test, with the units declared on the redeemers
   const txBuilder = new MeshTxBuilder({
     serializer: new CSLSerializer(),
     fetcher: offlineFetcher,

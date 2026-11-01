@@ -45,7 +45,6 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
         },
       },
     ]);
-    // Selection is under test, with the units declared on the redeemers
     txBuilder = new MeshTxBuilder({ fetcher: offlineFetcher, evaluator: null });
   });
 
