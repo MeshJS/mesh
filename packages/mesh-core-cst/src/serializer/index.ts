@@ -33,6 +33,7 @@ import {
   DeserializedAddress,
   DeserializedScript,
   fromUTF8,
+  hashPlutusScript,
   IDeserializer,
   IMeshTxSerializer,
   IResolver,
@@ -300,7 +301,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
           }
         }
         return {
-          scriptHash: cardanoPlutusScript.hash().toString(),
+          // The ledger hashes the serialised script bytes as they appear in
+          // the CBOR byte string; the SDK object hashes the unwrapped bytes,
+          // which disagrees with Aiken/cardano-cli (see MeshJS/mesh#763).
+          scriptHash: hashPlutusScript(script.code, script.version),
           scriptCbor: cardanoPlutusScript.toCbor().toString(),
         };
       },

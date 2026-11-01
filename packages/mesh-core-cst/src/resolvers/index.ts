@@ -13,6 +13,7 @@ import { bech32 } from "bech32";
 import {
   BuilderData,
   fromUTF8,
+  hashPlutusScript,
   mnemonicToEntropy,
   NativeScript,
   PlutusDataType,
@@ -29,7 +30,6 @@ import {
   PoolId,
 } from "../types";
 import {
-  deserializePlutusScript,
   deserializeTx,
   fromBuilderToPlutusData,
   toAddress,
@@ -93,10 +93,13 @@ export const resolvePlutusScriptAddress = (
   script: PlutusScript,
   networkId = 0,
 ): string => {
-  const plutusScript = deserializePlutusScript(script.code, script.version);
+  // Hash the serialised script bytes (ledger rule); the SDK object's
+  // hash() unwraps the CBOR byte string first and disagrees with
+  // Aiken/cardano-cli (see MeshJS/mesh#763).
+  const scriptHash = hashPlutusScript(script.code, script.version);
 
   const enterpriseAddress = EnterpriseAddress.fromCredentials(networkId, {
-    hash: plutusScript.hash(),
+    hash: Hash28ByteBase16(scriptHash),
     type: Cardano.CredentialType.ScriptHash,
   });
 
