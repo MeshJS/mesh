@@ -1,12 +1,14 @@
 // Type-only: erased at compile time, so the CommonJS build still loads Scalus through the
 // dynamic import() below rather than a top-level require of an ESM-only package.
-import type { RedeemerBudget } from "scalus";
+import type { RedeemerBudget, ScriptCache, TxEvaluator } from "scalus";
 
 import {
   Action,
+  CachedFetcher,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
+  EvaluationContext,
   IEvaluator,
   IFetcher,
   Network,
@@ -16,11 +18,11 @@ import {
   UTxO,
 } from "@meshsdk/common";
 
-import { CborWriter } from "../types";
 import { toTxUnspentOutput } from "../utils";
 import {
   getTransactionInputs,
   getTransactionOutputs,
+  getTransactionValidityInterval,
 } from "../utils/transaction";
 
 /**
@@ -36,16 +38,44 @@ const MESH_TAG: Record<RedeemerBudget["tag"], RedeemerTagType> = {
   Proposing: "PROPOSE",
 };
 
+/** How many decoded scripts an evaluator keeps. */
+const SCRIPT_CACHE_SIZE = 64;
+
+type EvaluatorSlotConfig = Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
+
+/** The slot arithmetic of a network; all zeros for none, `"testnet"` (custom) or an unknown name */
+const slotConfigOf = (network?: Network): EvaluatorSlotConfig => {
+  const { zeroTime, zeroSlot, slotLength } = (network &&
+    SLOT_CONFIG_NETWORK[network]) || {
+    zeroTime: 0,
+    zeroSlot: 0,
+    slotLength: 0,
+  };
+  return { zeroTime, zeroSlot, slotLength };
+};
+
 export class OfflineEvaluatorScalus implements IEvaluator {
   private readonly fetcher: IFetcher;
-  private readonly network: Network;
-  public slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
+  private network?: Network;
+  private readonly pinnedSlotConfig: boolean;
+  public slotConfig: EvaluatorSlotConfig;
   public costModels: number[][];
+  readonly acceptsKnownUtxos = true;
+
+  // Scalus loads on first use. A TxEvaluator is fixed to one slot config and set of cost models,
+  // so it is rebuilt when either field above changes; the script cache outlives the rebuilds,
+  // so each script is still decoded only once.
+  private scalus?: Promise<typeof import("scalus")>;
+  private scriptCache?: ScriptCache;
+  private txEvaluator?: TxEvaluator;
+  private txEvaluatorKey?: string;
 
   /**
    * Creates a new instance of OfflineEvaluatorScalus.
    * @param fetcher - An implementation of IFetcher to resolve transaction UTXOs
-   * @param network - The network to evaluate scripts for
+   * @param network - The network to evaluate scripts for; may be given later through
+   *   `configure`, as `MeshTxBuilder` does. Until known, only transactions without a validity
+   *   interval can be evaluated.
    * @param slotConfig - Slot configuration for the network (optional, defaults to network-specific values)
    * @param customCostModels - Custom cost models for Plutus versions (optional, defaults to mainnet cost models)
    * @param protocolMajorVersion Ledger protocol version used for costing. Defaults to 11
@@ -54,18 +84,16 @@ export class OfflineEvaluatorScalus implements IEvaluator {
    */
   constructor(
     fetcher: IFetcher,
-    network: Network,
-    slotConfig?: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
+    network?: Network,
+    slotConfig?: EvaluatorSlotConfig,
     customCostModels?: number[][],
     public readonly protocolMajorVersion = 11,
   ) {
-    this.fetcher = fetcher;
+    // Outputs never change once created, so they are fetched once and reused across evaluations
+    this.fetcher = CachedFetcher.wrap(fetcher);
     this.network = network;
-    this.slotConfig = slotConfig ?? {
-      slotLength: SLOT_CONFIG_NETWORK[network].slotLength,
-      zeroSlot: SLOT_CONFIG_NETWORK[network].zeroSlot,
-      zeroTime: SLOT_CONFIG_NETWORK[network].zeroTime,
-    };
+    this.pinnedSlotConfig = slotConfig !== undefined;
+    this.slotConfig = slotConfig ?? slotConfigOf(network);
     this.costModels = customCostModels ?? [
       DEFAULT_V1_COST_MODEL_LIST,
       DEFAULT_V2_COST_MODEL_LIST,
@@ -73,11 +101,30 @@ export class OfflineEvaluatorScalus implements IEvaluator {
     ];
   }
 
+  /**
+   * A network other than the current one replaces the slot config, unless one was given to the
+   * constructor. Cost models replace the current ones version by version; an empty entry keeps
+   * the current model of its version.
+   */
+  configure({ network, costModels }: EvaluationContext): void {
+    if (network && network !== this.network) {
+      this.network = network;
+      if (!this.pinnedSlotConfig) this.slotConfig = slotConfigOf(network);
+    }
+    if (costModels)
+      this.costModels = this.costModels.map((current, version) => {
+        const model = costModels[version];
+        return model && model.length > 0 ? model : current;
+      });
+  }
+
   async evaluateTx(
     tx: string,
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
+    // Before any fetch: a missing network must not surface as a missing UTxO
+    const slotConfig = this.slotConfigFor(tx);
     const foundUtxos: Map<String, UTxO> = new Map<string, UTxO>();
 
     if (additionalUtxos) {
@@ -101,73 +148,112 @@ export class OfflineEvaluatorScalus implements IEvaluator {
     const inputsToResolve = getTransactionInputs(tx).filter((input) => {
       return !foundUtxos.has(`${input.txHash}:${input.outputIndex}`);
     });
-    const queriesNeeded: Set<string> = new Set<string>();
-    for (const input of inputsToResolve) {
-      queriesNeeded.add(input.txHash);
-    }
-    const fetchedUtxos: Map<string, UTxO[]> = new Map<string, UTxO[]>();
-    for (const txHash of queriesNeeded) {
-      const utxos = await this.fetcher.fetchUTxOs(txHash);
-      fetchedUtxos.set(txHash, utxos);
-    }
-
-    for (const input of inputsToResolve) {
-      const utxos = fetchedUtxos.get(input.txHash);
-      if (!utxos) {
-        throw new Error(
-          `Unable to fetch UTxOs for transaction hash: ${input.txHash}`,
-        );
-      }
-      const utxo = utxos.find((u) => u.input.outputIndex === input.outputIndex);
+    const resolved = await Promise.all(
+      inputsToResolve.map((input) =>
+        this.fetcher.fetchUTxOs(input.txHash, input.outputIndex),
+      ),
+    );
+    inputsToResolve.forEach((input, i) => {
+      const utxo = resolved[i]![0];
       if (!utxo) {
         throw new Error(
           `UTxO not found for input: ${input.txHash}:${input.outputIndex}`,
         );
       }
       foundUtxos.set(`${input.txHash}:${input.outputIndex}`, utxo);
-    }
+    });
 
-    const cborWriter = new CborWriter();
-    cborWriter.writeStartMap(foundUtxos.size);
-    for (const [key, utxo] of foundUtxos) {
-      const cardanoUtxo = toTxUnspentOutput(utxo);
-      cborWriter.writeEncodedValue(
-        Buffer.from(cardanoUtxo.input().toCbor(), "hex"),
+    const txEvaluator = await this.getTxEvaluator(slotConfig);
+    return txEvaluator
+      .evaluate(
+        tx,
+        // A TransactionUnspentOutput encodes as the [input, output] pair Scalus reads.
+        Array.from(foundUtxos.values(), (utxo) =>
+          toTxUnspentOutput(utxo).toCbor(),
+        ),
+      )
+      .map((scalusRedeemer) => {
+        // Still guarded at runtime: the dependency is a caret range, so an installed Scalus can
+        // emit a tag the compiled-against declarations did not carry.
+        const tag = MESH_TAG[scalusRedeemer.tag];
+        if (!tag)
+          throw new Error(`Unknown redeemer tag: ${scalusRedeemer.tag}`);
+        return {
+          tag,
+          index: scalusRedeemer.index,
+          budget: {
+            mem: Number(scalusRedeemer.budget.memory),
+            steps: Number(scalusRedeemer.budget.steps),
+          },
+        };
+      });
+  }
+
+  /**
+   * The slot config to evaluate `tx` under. Scripts see the validity interval as POSIX time, so
+   * without a known one only a transaction without an interval can be evaluated, under any.
+   */
+  private slotConfigFor(tx: string): EvaluatorSlotConfig {
+    if (this.slotConfig.slotLength > 0) return this.slotConfig;
+    const { invalidBefore, invalidHereafter } =
+      getTransactionValidityInterval(tx);
+    if (invalidBefore !== undefined || invalidHereafter !== undefined)
+      throw new Error(
+        `The transaction has a validity interval, but ${
+          this.network
+            ? `the slot times of network "${this.network}" are unknown`
+            : "the network it is for is unknown"
+        }, so its scripts cannot be evaluated. Give the evaluator a public network, in its ` +
+          "constructor or through `configure`; with MeshTxBuilder, pass `network` (or call " +
+          "`setNetwork`), or pass another evaluator built for your network.",
       );
-      cborWriter.writeEncodedValue(
-        Buffer.from(cardanoUtxo.output().toCbor(), "hex"),
-      );
-    }
+    return slotConfigOf("mainnet");
+  }
+
+  private async getTxEvaluator(
+    slotConfig: EvaluatorSlotConfig,
+  ): Promise<TxEvaluator> {
+    // Read once, so the evaluator matches its key even if a field changes while Scalus loads.
+    const { zeroTime, zeroSlot, slotLength } = slotConfig;
+    const costModels = this.costModels;
+    // Compared by value: the fields are public, so a caller can also mutate them in place.
+    const key = JSON.stringify([zeroTime, zeroSlot, slotLength, costModels]);
+    if (this.txEvaluator && this.txEvaluatorKey === key)
+      return this.txEvaluator;
 
     // Keep native import() in the CJS build: Scalus 1.x is ESM-only.
-    //
-    // `evalPlutusScripts` is the top-level export. The `Scalus` namespace object that used to
-    // carry it is a 0.x shape kept only for backwards compatibility, and is deprecated.
-    const { evalPlutusScripts, SlotConfig: ScalusSlotConfig } =
-      await import("scalus");
-    return evalPlutusScripts(
-      Buffer.from(tx, "hex"),
-      cborWriter.encode(),
-      new ScalusSlotConfig(
-        this.slotConfig.zeroTime,
-        this.slotConfig.zeroSlot,
-        this.slotConfig.slotLength,
-      ),
-      this.costModels,
-      this.protocolMajorVersion,
-    ).map((scalusRedeemer) => {
-      // Still guarded at runtime: the dependency is a caret range, so an installed Scalus can
-      // emit a tag the compiled-against declarations did not carry.
-      const tag = MESH_TAG[scalusRedeemer.tag];
-      if (!tag) throw new Error(`Unknown redeemer tag: ${scalusRedeemer.tag}`);
-      return {
-        tag,
-        index: scalusRedeemer.index,
-        budget: {
-          mem: Number(scalusRedeemer.budget.memory),
-          steps: Number(scalusRedeemer.budget.steps),
-        },
-      };
+    this.scalus ??= import("scalus").catch((error: unknown) => {
+      // Not remembered, so a later call can try again.
+      this.scalus = undefined;
+      // What Node throws (`..._MISSING`, or `..._MISSING_FLAG` under Jest) when a vm context
+      // gives no way to import() an ES module. Its message names neither Scalus nor a fix.
+      const code = (error as { code?: unknown } | null)?.code;
+      if (
+        typeof code === "string" &&
+        code.startsWith("ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING")
+      )
+        throw new Error(
+          "Cannot load Scalus to evaluate scripts: it is an ES module, and this runtime " +
+            "cannot import() one. Under Jest, run it with --experimental-vm-modules, or " +
+            "give MeshTxBuilder another evaluator, or `evaluator: null` to skip evaluation.",
+          { cause: error },
+        );
+      throw error;
     });
+    const { ScriptCache, TxEvaluator } = await this.scalus;
+    this.scriptCache ??= new ScriptCache(SCRIPT_CACHE_SIZE);
+    const [PlutusV1, PlutusV2, PlutusV3] = costModels;
+    this.txEvaluator = new TxEvaluator({
+      slotConfig: { zeroTime, zeroSlot, slotLength },
+      costModels: {
+        ...(PlutusV1 && { PlutusV1 }),
+        ...(PlutusV2 && { PlutusV2 }),
+        ...(PlutusV3 && { PlutusV3 }),
+      },
+      protocolMajorVersion: this.protocolMajorVersion,
+      scriptCache: this.scriptCache,
+    });
+    this.txEvaluatorKey = key;
+    return this.txEvaluator;
   }
 }

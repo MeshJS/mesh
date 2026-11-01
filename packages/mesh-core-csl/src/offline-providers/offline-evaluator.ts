@@ -1,5 +1,6 @@
 import {
   Action,
+  CachedFetcher,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
@@ -87,7 +88,8 @@ export class OfflineEvaluator implements IEvaluator {
     slotConfig?: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
     customCostModels?: number[][],
   ) {
-    this.fetcher = fetcher;
+    // Outputs never change once created, so they are fetched once and reused across evaluations
+    this.fetcher = CachedFetcher.wrap(fetcher);
     this.network = network;
     this.slotConfig = slotConfig ?? {
       slotLength: SLOT_CONFIG_NETWORK[network].slotLength,
@@ -122,6 +124,8 @@ export class OfflineEvaluator implements IEvaluator {
     additionalUtxos: UTxO[],
     additionalTxs: string[],
   ): Promise<Omit<Action, "data">[]> {
+    // Resolved utxos are appended to a copy, leaving the caller's array untouched
+    additionalUtxos = [...additionalUtxos];
     // Track which utxos is resolved
     const foundUtxos = new Set<string>();
 
@@ -137,21 +141,15 @@ export class OfflineEvaluator implements IEvaluator {
     const inputsToResolve = getTransactionInputs(tx).filter(
       (input) => !foundUtxos.has(`${input.txHash}:${input.outputIndex}`),
     );
-    const txHashesSet = new Set(inputsToResolve.map((input) => input.txHash));
-    for (const txHash of txHashesSet) {
-      const utxos = await this.fetcher.fetchUTxOs(txHash);
-      for (const utxo of utxos) {
-        if (utxo)
-          if (
-            inputsToResolve.find(
-              (input) =>
-                input.txHash === txHash &&
-                input.outputIndex === utxo.input.outputIndex,
-            )
-          ) {
-            additionalUtxos.push(utxo);
-            foundUtxos.add(`${utxo.input.txHash}:${utxo.input.outputIndex}`);
-          }
+    const fetched = await Promise.all(
+      inputsToResolve.map((input) =>
+        this.fetcher.fetchUTxOs(input.txHash, input.outputIndex),
+      ),
+    );
+    for (const utxo of fetched.flat()) {
+      if (!foundUtxos.has(`${utxo.input.txHash}:${utxo.input.outputIndex}`)) {
+        additionalUtxos.push(utxo);
+        foundUtxos.add(`${utxo.input.txHash}:${utxo.input.outputIndex}`);
       }
     }
     const missing = inputsToResolve.filter(

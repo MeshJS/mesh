@@ -1,4 +1,9 @@
-import { IFetcher, IMeshTxSerializer, UTxO } from "@meshsdk/common";
+import {
+  CachedFetcher,
+  IFetcher,
+  IMeshTxSerializer,
+  UTxO,
+} from "@meshsdk/common";
 
 /**
  * TxParser class to parse transaction hex strings and resolve UTxOs.
@@ -33,16 +38,20 @@ export class TxParser {
     });
 
     // fetch missing utxos
-    for (const txHash in toResolveUtxos) {
-      const outputIndices = toResolveUtxos[txHash];
-      if (!this.fetcher) {
-        throw new Error(
-          "Fetcher is not provided. Cannot resolve UTxOs without fetcher.",
-        );
-      }
-      const utxos = await this.fetcher.fetchUTxOs(txHash);
-      outputIndices?.forEach((outputIndex) => {
-        const utxoData = utxos.find(
+    const toResolve = Object.entries(toResolveUtxos);
+    if (toResolve.length > 0 && !this.fetcher) {
+      throw new Error(
+        "Fetcher is not provided. Cannot resolve UTxOs without fetcher.",
+      );
+    }
+    const fetched = await Promise.all(
+      toResolve.map(([txHash]) =>
+        CachedFetcher.wrap(this.fetcher!).fetchUTxOs(txHash),
+      ),
+    );
+    toResolve.forEach(([txHash, outputIndices], i) => {
+      outputIndices.forEach((outputIndex) => {
+        const utxoData = fetched[i]!.find(
           (utxo) => utxo.input.outputIndex === outputIndex,
         );
         if (!utxoData) {
@@ -50,7 +59,7 @@ export class TxParser {
         }
         resolvedUtxos.push(utxoData);
       });
-    }
+    });
 
     this.serializer.parser.parse(txHex, resolvedUtxos);
     return this.serializer.parser.getBuilderBody();
