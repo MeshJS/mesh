@@ -57,6 +57,11 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
     feePercentageBasisPoint: number,
   ) {
     super(inputs);
+    if (feePercentageBasisPoint < 0 || feePercentageBasisPoint > 10000) {
+      throw new Error(
+        `feePercentageBasisPoint must be between 0 and 10000, got ${feePercentageBasisPoint}`,
+      );
+    }
     this.ownerAddress = ownerAddress;
     this.feePercentageBasisPoint = feePercentageBasisPoint;
 
@@ -154,9 +159,14 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       marketplaceUtxo.output.plutusData!,
     );
 
-    const inputLovelace = marketplaceUtxo.output.amount.find(
+    const lovelaceEntry = marketplaceUtxo.output.amount.find(
       (a) => a.unit === "lovelace",
-    )!.quantity;
+    );
+    if (!lovelaceEntry) {
+      throw new Error(
+        "purchaseAsset: marketplace UTxO is missing a lovelace entry",
+      );
+    }
 
     const tx = this.mesh
       .spendingPlutusScript(this.languageVersion)
@@ -178,27 +188,36 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
       )
       .selectUtxosFrom(utxos);
 
-    let ownerToReceiveLovelace =
-      ((inputDatum.fields[1].int as number) * this.feePercentageBasisPoint) /
-      10000;
-    if (this.feePercentageBasisPoint > 0 && ownerToReceiveLovelace < 1000000) {
-      ownerToReceiveLovelace = 1000000;
+    // Keep all lovelace arithmetic in BigInt to avoid precision loss for
+    // prices above Number.MAX_SAFE_INTEGER (~9M ADA).
+    const priceBig = BigInt(inputDatum.fields[1].int);
+    const feeBig = BigInt(Math.round(this.feePercentageBasisPoint));
+
+    // Ceiling division: (a * b + d - 1) / d mirrors Math.ceil without floats.
+    let ownerToReceiveLovelace = (priceBig * feeBig + 9999n) / 10000n;
+    // Apply 1-ADA minimum only when the listing has a non-zero price; a free
+    // listing (price = 0) should not incur a mandatory fee.
+    if (
+      this.feePercentageBasisPoint > 0 &&
+      priceBig > 0n &&
+      ownerToReceiveLovelace < 1000000n
+    ) {
+      ownerToReceiveLovelace = 1000000n;
     }
 
-    if (ownerToReceiveLovelace > 0) {
+    if (ownerToReceiveLovelace > 0n) {
       const ownerToReceive = [
         {
           unit: "lovelace",
-          quantity: Math.ceil(ownerToReceiveLovelace).toString(),
+          quantity: ownerToReceiveLovelace.toString(),
         },
       ];
       tx.txOut(this.ownerAddress, ownerToReceive);
     }
 
-    const sellerToReceiveLovelace =
-      (inputDatum.fields[1].int as number) + Number(inputLovelace);
+    const sellerToReceiveLovelace = priceBig + BigInt(lovelaceEntry.quantity);
 
-    if (sellerToReceiveLovelace > 0) {
+    if (sellerToReceiveLovelace > 0n) {
       const sellerAddress = serializeAddressObj(
         inputDatum.fields[0],
         this.networkId,
