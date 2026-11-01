@@ -16,6 +16,7 @@ import {
   serializeAddressObj,
   serializePlutusScript,
   UTxO,
+  utxoToTxIn,
 } from "@meshsdk/core";
 import { parseDatumCbor } from "@meshsdk/core-cst";
 
@@ -106,12 +107,7 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
       deserializeAddress(walletAddress);
 
     const txHex = await this.mesh
-      .txIn(
-        paramUtxo.input.txHash,
-        paramUtxo.input.outputIndex,
-        paramUtxo.output.amount,
-        paramUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(paramUtxo))
       .mintPlutusScriptV3()
       .mint("1", policyId, tokenName)
       .mintingScript(paramScript)
@@ -181,12 +177,7 @@ export class MeshPlutusNFTContract extends MeshTxInitiator {
 
     const tx = this.mesh
       .spendingPlutusScriptV3()
-      .txIn(
-        oracleUtxo.input.txHash,
-        oracleUtxo.input.outputIndex,
-        oracleUtxo.output.amount,
-        oracleUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(oracleUtxo))
       .txInRedeemerValue(mConStr0([]))
       .txInScript(this.getOracleCbor())
       .txInInlineDatumPresent()

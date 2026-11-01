@@ -108,3 +108,23 @@ export const resolveEpochNo = (
 
   return Number(epoch);
 };
+
+/**
+ * Resolve when the epoch containing a timestamp ends, i.e. when the next one starts.
+ * Epoch and slot lengths come from the network's genesis and only change by hard fork.
+ * @param network Network: mainnet | preprod | preview.
+ * @param milliseconds Timestamp in milliseconds
+ * @returns Unix time in milliseconds of the next epoch boundary
+ */
+export const resolveEpochEnd = (
+  network: Network,
+  milliseconds = Date.now(),
+): number => {
+  const { zeroTime, slotLength, epochLength } = SLOT_CONFIG_NETWORK[network];
+  const epochMs = epochLength * slotLength;
+  if (epochMs <= 0)
+    throw new Error(`No epoch length is known for network ${network}`);
+  return (
+    zeroTime + (Math.floor((milliseconds - zeroTime) / epochMs) + 1) * epochMs
+  );
+};

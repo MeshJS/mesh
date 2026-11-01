@@ -1,5 +1,6 @@
 import {
   BrowserWallet,
+  CachedFetcher,
   IFetcher,
   IWallet,
   LanguageVersion,
@@ -37,7 +38,8 @@ export class MeshTxInitiator {
   }: MeshTxInitiatorInput) {
     this.mesh = mesh;
     if (fetcher) {
-      this.fetcher = fetcher;
+      // Shares one cache with the builder and wallet using the same fetcher
+      this.fetcher = CachedFetcher.wrap(fetcher);
     }
     if (wallet) {
       this.wallet = wallet;

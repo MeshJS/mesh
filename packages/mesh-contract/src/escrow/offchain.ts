@@ -19,6 +19,7 @@ import {
   mergeAssets,
   serializeAddressObj,
   UTxO,
+  utxoToTxIn,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-cst";
 
@@ -135,12 +136,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        escrowUtxo.input.txHash,
-        escrowUtxo.input.outputIndex,
-        escrowUtxo.output.amount,
-        this.scriptAddress,
-      )
+      .txIn(...utxoToTxIn(escrowUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptCbor)
@@ -178,12 +174,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        escrowUtxo.input.txHash,
-        escrowUtxo.input.outputIndex,
-        escrowUtxo.output.amount,
-        this.scriptAddress,
-      )
+      .txIn(...utxoToTxIn(escrowUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .txInRedeemerValue(
         recipientDepositRedeemer(walletAddress, depositAmount),
@@ -231,12 +222,7 @@ export class MeshEscrowContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        escrowUtxo.input.txHash,
-        escrowUtxo.input.outputIndex,
-        escrowUtxo.output.amount,
-        this.scriptAddress,
-      )
+      .txIn(...utxoToTxIn(escrowUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr2([]))
       .txInScript(this.scriptCbor)

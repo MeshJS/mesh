@@ -12,16 +12,21 @@ import { deserializePlutusScript } from "@meshsdk/core-cst";
 import { getOutputMinLovelace } from ".";
 
 /**
- * Convert UTxO to TxIn parameters in array for MeshTxBuilder
+ * Convert UTxO to TxIn parameters in array for MeshTxBuilder, e.g. `txIn(...utxoToTxIn(utxo))`.
+ * Passing the reference script size too means the builder has all it needs and does not
+ * fetch the UTxO again.
  * @param utxo UTxO
- * @returns [txHash, outputIndex, amount, address]
+ * @returns [txHash, outputIndex, amount, address, scriptSize]
  */
-export const utxoToTxIn = (utxo: UTxO): [string, number, Asset[], string] => {
+export const utxoToTxIn = (
+  utxo: UTxO,
+): [string, number, Asset[], string, number] => {
   return [
     utxo.input.txHash,
     utxo.input.outputIndex,
     utxo.output.amount,
     utxo.output.address,
+    utxo.output.scriptRef ? utxo.output.scriptRef.length / 2 : 0,
   ];
 };
 

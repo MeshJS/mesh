@@ -4,9 +4,11 @@ import type { RedeemerBudget, ScriptCache, TxEvaluator } from "scalus";
 
 import {
   Action,
+  CachedFetcher,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
+  EvaluationContext,
   IEvaluator,
   IFetcher,
   Network,
@@ -20,6 +22,7 @@ import { toTxUnspentOutput } from "../utils";
 import {
   getTransactionInputs,
   getTransactionOutputs,
+  getTransactionValidityInterval,
 } from "../utils/transaction";
 
 /**
@@ -38,11 +41,26 @@ const MESH_TAG: Record<RedeemerBudget["tag"], RedeemerTagType> = {
 /** How many decoded scripts an evaluator keeps. */
 const SCRIPT_CACHE_SIZE = 64;
 
+type EvaluatorSlotConfig = Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
+
+/** The slot arithmetic of a network; all zeros for none, `"testnet"` (custom) or an unknown name */
+const slotConfigOf = (network?: Network): EvaluatorSlotConfig => {
+  const { zeroTime, zeroSlot, slotLength } = (network &&
+    SLOT_CONFIG_NETWORK[network]) || {
+    zeroTime: 0,
+    zeroSlot: 0,
+    slotLength: 0,
+  };
+  return { zeroTime, zeroSlot, slotLength };
+};
+
 export class OfflineEvaluatorScalus implements IEvaluator {
   private readonly fetcher: IFetcher;
-  private readonly network: Network;
-  public slotConfig: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">;
+  private network?: Network;
+  private readonly pinnedSlotConfig: boolean;
+  public slotConfig: EvaluatorSlotConfig;
   public costModels: number[][];
+  readonly acceptsKnownUtxos = true;
 
   // Scalus loads on first use. A TxEvaluator is fixed to one slot config and set of cost models,
   // so it is rebuilt when either field above changes; the script cache outlives the rebuilds,
@@ -55,7 +73,9 @@ export class OfflineEvaluatorScalus implements IEvaluator {
   /**
    * Creates a new instance of OfflineEvaluatorScalus.
    * @param fetcher - An implementation of IFetcher to resolve transaction UTXOs
-   * @param network - The network to evaluate scripts for
+   * @param network - The network to evaluate scripts for; may be given later through
+   *   `configure`, as `MeshTxBuilder` does. Until known, only transactions without a validity
+   *   interval can be evaluated.
    * @param slotConfig - Slot configuration for the network (optional, defaults to network-specific values)
    * @param customCostModels - Custom cost models for Plutus versions (optional, defaults to mainnet cost models)
    * @param protocolMajorVersion Ledger protocol version used for costing. Defaults to 11
@@ -64,18 +84,16 @@ export class OfflineEvaluatorScalus implements IEvaluator {
    */
   constructor(
     fetcher: IFetcher,
-    network: Network,
-    slotConfig?: Omit<Omit<SlotConfig, "startEpoch">, "epochLength">,
+    network?: Network,
+    slotConfig?: EvaluatorSlotConfig,
     customCostModels?: number[][],
     public readonly protocolMajorVersion = 11,
   ) {
-    this.fetcher = fetcher;
+    // Outputs never change once created, so they are fetched once and reused across evaluations
+    this.fetcher = CachedFetcher.wrap(fetcher);
     this.network = network;
-    this.slotConfig = slotConfig ?? {
-      slotLength: SLOT_CONFIG_NETWORK[network].slotLength,
-      zeroSlot: SLOT_CONFIG_NETWORK[network].zeroSlot,
-      zeroTime: SLOT_CONFIG_NETWORK[network].zeroTime,
-    };
+    this.pinnedSlotConfig = slotConfig !== undefined;
+    this.slotConfig = slotConfig ?? slotConfigOf(network);
     this.costModels = customCostModels ?? [
       DEFAULT_V1_COST_MODEL_LIST,
       DEFAULT_V2_COST_MODEL_LIST,
@@ -83,11 +101,30 @@ export class OfflineEvaluatorScalus implements IEvaluator {
     ];
   }
 
+  /**
+   * A network other than the current one replaces the slot config, unless one was given to the
+   * constructor. Cost models replace the current ones version by version; an empty entry keeps
+   * the current model of its version.
+   */
+  configure({ network, costModels }: EvaluationContext): void {
+    if (network && network !== this.network) {
+      this.network = network;
+      if (!this.pinnedSlotConfig) this.slotConfig = slotConfigOf(network);
+    }
+    if (costModels)
+      this.costModels = this.costModels.map((current, version) => {
+        const model = costModels[version];
+        return model && model.length > 0 ? model : current;
+      });
+  }
+
   async evaluateTx(
     tx: string,
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
+    // Before any fetch: a missing network must not surface as a missing UTxO
+    const slotConfig = this.slotConfigFor(tx);
     const foundUtxos: Map<String, UTxO> = new Map<string, UTxO>();
 
     if (additionalUtxos) {
@@ -111,33 +148,22 @@ export class OfflineEvaluatorScalus implements IEvaluator {
     const inputsToResolve = getTransactionInputs(tx).filter((input) => {
       return !foundUtxos.has(`${input.txHash}:${input.outputIndex}`);
     });
-    const queriesNeeded: Set<string> = new Set<string>();
-    for (const input of inputsToResolve) {
-      queriesNeeded.add(input.txHash);
-    }
-    const fetchedUtxos: Map<string, UTxO[]> = new Map<string, UTxO[]>();
-    for (const txHash of queriesNeeded) {
-      const utxos = await this.fetcher.fetchUTxOs(txHash);
-      fetchedUtxos.set(txHash, utxos);
-    }
-
-    for (const input of inputsToResolve) {
-      const utxos = fetchedUtxos.get(input.txHash);
-      if (!utxos) {
-        throw new Error(
-          `Unable to fetch UTxOs for transaction hash: ${input.txHash}`,
-        );
-      }
-      const utxo = utxos.find((u) => u.input.outputIndex === input.outputIndex);
+    const resolved = await Promise.all(
+      inputsToResolve.map((input) =>
+        this.fetcher.fetchUTxOs(input.txHash, input.outputIndex),
+      ),
+    );
+    inputsToResolve.forEach((input, i) => {
+      const utxo = resolved[i]![0];
       if (!utxo) {
         throw new Error(
           `UTxO not found for input: ${input.txHash}:${input.outputIndex}`,
         );
       }
       foundUtxos.set(`${input.txHash}:${input.outputIndex}`, utxo);
-    }
+    });
 
-    const txEvaluator = await this.getTxEvaluator();
+    const txEvaluator = await this.getTxEvaluator(slotConfig);
     return txEvaluator
       .evaluate(
         tx,
@@ -163,9 +189,32 @@ export class OfflineEvaluatorScalus implements IEvaluator {
       });
   }
 
-  private async getTxEvaluator(): Promise<TxEvaluator> {
+  /**
+   * The slot config to evaluate `tx` under. Scripts see the validity interval as POSIX time, so
+   * without a known one only a transaction without an interval can be evaluated, under any.
+   */
+  private slotConfigFor(tx: string): EvaluatorSlotConfig {
+    if (this.slotConfig.slotLength > 0) return this.slotConfig;
+    const { invalidBefore, invalidHereafter } =
+      getTransactionValidityInterval(tx);
+    if (invalidBefore !== undefined || invalidHereafter !== undefined)
+      throw new Error(
+        `The transaction has a validity interval, but ${
+          this.network
+            ? `the slot times of network "${this.network}" are unknown`
+            : "the network it is for is unknown"
+        }, so its scripts cannot be evaluated. Give the evaluator a public network, in its ` +
+          "constructor or through `configure`; with MeshTxBuilder, pass `network` (or call " +
+          "`setNetwork`), or pass another evaluator built for your network.",
+      );
+    return slotConfigOf("mainnet");
+  }
+
+  private async getTxEvaluator(
+    slotConfig: EvaluatorSlotConfig,
+  ): Promise<TxEvaluator> {
     // Read once, so the evaluator matches its key even if a field changes while Scalus loads.
-    const { zeroTime, zeroSlot, slotLength } = this.slotConfig;
+    const { zeroTime, zeroSlot, slotLength } = slotConfig;
     const costModels = this.costModels;
     // Compared by value: the fields are public, so a caller can also mutate them in place.
     const key = JSON.stringify([zeroTime, zeroSlot, slotLength, costModels]);
@@ -185,7 +234,8 @@ export class OfflineEvaluatorScalus implements IEvaluator {
       )
         throw new Error(
           "Cannot load Scalus to evaluate scripts: it is an ES module, and this runtime " +
-            "cannot import() one. Under Jest, run it with --experimental-vm-modules.",
+            "cannot import() one. Under Jest, run it with --experimental-vm-modules, or " +
+            "give MeshTxBuilder another evaluator, or `evaluator: null` to skip evaluation.",
           { cause: error },
         );
       throw error;
