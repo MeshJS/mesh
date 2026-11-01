@@ -1,6 +1,7 @@
 import { jest } from "@jest/globals";
 import * as scalus from "scalus";
 
+import { SLOT_CONFIG_NETWORK } from "@meshsdk/common";
 import { OfflineFetcher } from "@meshsdk/core";
 
 import { OfflineEvaluatorScalus } from "../src/offline-providers";
@@ -194,5 +195,84 @@ describe("OfflineEvaluatorScalus", () => {
 
     expect(built.txEvaluators).toBe(4);
     expect(built.scriptCaches.map((cache) => cache.size)).toStrictEqual([1]);
+  });
+
+  it("takes every UTxO a builder holds, running locally", () => {
+    expect(evaluator.acceptsKnownUtxos).toBe(true);
+  });
+
+  it("takes cost models from a context, version by version", async () => {
+    fetcher.addUTxOs(utxos);
+    const [original] = await evaluator.evaluateTx(txHex);
+
+    // The minting script is Plutus V2, so doubling its model doubles the budget. An empty
+    // entry, what a builder passes for a version its provider sent no model for, keeps the
+    // current model of that version.
+    const [v1, v2, v3] = evaluator.costModels as [number[], number[], number[]];
+    evaluator.configure({ costModels: [[], v2.map((p) => p * 2), []] });
+    expect(await evaluator.evaluateTx(txHex)).toStrictEqual([
+      { ...original, budget: { mem: 1017406, steps: 329947530 } },
+    ]);
+    expect(evaluator.costModels[0]).toBe(v1);
+    expect(evaluator.costModels[2]).toBe(v3);
+    evaluator.configure({ costModels: [[], v2, []] });
+    expect(await evaluator.evaluateTx(txHex)).toStrictEqual([original]);
+  });
+
+  describe("without a network", () => {
+    const preprodSlotConfig = () => {
+      const { zeroTime, zeroSlot, slotLength } = SLOT_CONFIG_NETWORK.preprod;
+      return { zeroTime, zeroSlot, slotLength };
+    };
+
+    it("cannot evaluate a transaction with a validity interval, and says so before fetching anything", async () => {
+      // The transaction has a TTL, which its scripts see as a time that depends on the network.
+      // The fetcher holds no UTxOs: a fetch would fail first, with another message.
+      const unknown = new OfflineEvaluatorScalus(fetcher);
+      await expect(unknown.evaluateTx(txHex)).rejects.toThrow(
+        /network it is for is unknown.*`configure`/s,
+      );
+    });
+
+    it("evaluates as for the network it is configured with", async () => {
+      fetcher.addUTxOs(utxos);
+      const unknown = new OfflineEvaluatorScalus(fetcher);
+      unknown.configure({ network: "preprod" });
+      expect(await unknown.evaluateTx(txHex)).toStrictEqual(
+        await evaluator.evaluateTx(txHex),
+      );
+    });
+
+    it("cannot evaluate as for a network whose slot times are unknown", async () => {
+      fetcher.addUTxOs(utxos);
+      const unknown = new OfflineEvaluatorScalus(fetcher);
+      // A custom network, whose slot config mesh leaves at zero
+      unknown.configure({ network: "testnet" });
+      await expect(unknown.evaluateTx(txHex)).rejects.toThrow(
+        /slot times of network "testnet" are unknown/,
+      );
+    });
+
+    it("keeps a slot config it was constructed with, whatever network it is configured with", async () => {
+      fetcher.addUTxOs(utxos);
+      const pinned = new OfflineEvaluatorScalus(
+        fetcher,
+        undefined,
+        preprodSlotConfig(),
+      );
+      pinned.configure({ network: "testnet" });
+      expect(pinned.slotConfig).toStrictEqual(preprodSlotConfig());
+      expect(await pinned.evaluateTx(txHex)).toStrictEqual(
+        await evaluator.evaluateTx(txHex),
+      );
+    });
+
+    it("follows the network when constructed with one but no slot config", () => {
+      const preprod = new OfflineEvaluatorScalus(fetcher, "preprod");
+      preprod.configure({ network: "mainnet" });
+      expect(preprod.slotConfig.zeroTime).toBe(
+        SLOT_CONFIG_NETWORK.mainnet.zeroTime,
+      );
+    });
   });
 });

@@ -45,7 +45,8 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
         },
       },
     ]);
-    txBuilder = new MeshTxBuilder({ fetcher: offlineFetcher });
+    // Selection is under test, with the units declared on the redeemers
+    txBuilder = new MeshTxBuilder({ fetcher: offlineFetcher, evaluator: null });
   });
 
   it("Transaction should select the correct utxos", async () => {

@@ -10,6 +10,7 @@ import {
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
+  EvaluationContext,
   IEvaluator,
   IFetcher,
   IMeshTxSerializer,
@@ -22,7 +23,6 @@ import {
   Protocol,
   ScriptSource,
   SimpleScriptSourceInfo,
-  SLOT_CONFIG_NETWORK,
   TxIn,
   UTxO,
   Vote,
@@ -59,16 +59,18 @@ export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
   /**
-   * Computes the execution units of the transaction's scripts. `"scalus"` evaluates locally
-   * with Scalus (`OfflineEvaluatorScalus`), set up by the builder; it needs a `fetcher`.
-   * Without an evaluator, redeemers keep the units declared on them.
+   * Computes the execution units of the transaction's scripts. Left out, the builder evaluates
+   * locally with Scalus (`OfflineEvaluatorScalus`) when it has a `fetcher` to resolve inputs
+   * with; without one, redeemers keep the units declared on them. `null` turns evaluation off.
+   * An evaluator that takes a context (`IEvaluator.configure`) gets the network and the cost
+   * models the builder learns while completing the transaction.
    */
-  evaluator?: IEvaluator | "scalus";
+  evaluator?: IEvaluator | null;
   /**
-   * The network whose slot arithmetic `evaluator: "scalus"` uses; `setNetwork` sets it too.
-   * An evaluator you pass yourself carries its own. Without a network, mainnet is assumed for
-   * a mainnet change address. A transaction with a validity
-   * interval fails to evaluate when the network is unknown or has no known slot times
+   * The network the transaction is for, which fixes the slot arithmetic its scripts see;
+   * `setNetwork` sets it too. Without it, mainnet is assumed for a mainnet change address, and
+   * an evaluator passed in keeps its own. The default evaluator cannot evaluate a transaction
+   * with a validity interval while the network is unknown or has no known slot times
    * (`"testnet"`).
    */
   network?: Network;
@@ -86,14 +88,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
   txHex: string = "";
-  /** The network the Scalus evaluator's slot arithmetic is for, if given or set */
+  /** The network the transaction is for, if given or set; see `MeshTxBuilderOptions.network` */
   network?: Network;
-  /**
-   * The evaluator this builder made itself for `evaluator: "scalus"`, if any. Only it is
-   * configured from the builder's state (network, cost models, known UTxOs); an evaluator
-   * passed in is used as given.
-   */
-  protected scalusEvaluator?: OfflineEvaluatorScalus;
   verbose: boolean;
   protected queriedTxHashes: Set<string> = new Set();
   protected queriedUTxOs: { [x: string]: UTxO[] } = {};
@@ -115,16 +111,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     super();
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
-    if (evaluator === "scalus") {
-      // Scalus resolves the inputs the builder does not hold through the fetcher
-      if (!fetcher)
-        throw new Error(
-          '`evaluator: "scalus"` needs a `fetcher` to resolve the transaction\'s inputs.',
-        );
-      // Its network and cost models are set before each evaluation, once they are known
-      this.scalusEvaluator = new OfflineEvaluatorScalus(fetcher, "mainnet");
-      this.evaluator = this.scalusEvaluator;
-    } else if (evaluator) this.evaluator = evaluator;
+    if (evaluator) this.evaluator = evaluator;
+    // Mesh's default is local evaluation with Scalus. It resolves the inputs the builder does
+    // not hold through the fetcher, so without one there is nothing to evaluate with. Its
+    // network and cost models are set before each evaluation, once they are known.
+    else if (evaluator === undefined && fetcher)
+      this.evaluator = new OfflineEvaluatorScalus(fetcher);
     this.network = network;
     if (params) this.protocolParams(params);
     if (serializer) {
@@ -567,16 +559,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         this.meshTxBuilderBody,
         this._protocolParams,
       );
-      const isScalus = this.evaluator === this.scalusEvaluator;
-      if (isScalus) this.configureScalusEvaluator(this.scalusEvaluator!);
-      const txEvaluation = await this.evaluator
+      const evaluator = this.evaluator;
+      evaluator.configure?.(this.evaluationContext());
+      const txEvaluation = await evaluator
         .evaluateTx(
           txHex,
-          // The Scalus evaluator runs locally, so it can take every UTxO the builder holds.
-          // Others get only those given for evaluation, as before: a remote one may reject
-          // UTxOs that also exist on chain.
-          isScalus
-            ? this.utxosForScalusEvaluator(txHex)
+          // A local evaluator can take every UTxO the builder holds. Others get only those
+          // given for evaluation, as before: a remote one may reject UTxOs that also exist
+          // on chain.
+          evaluator.acceptsKnownUtxos
+            ? this.utxosForLocalEvaluator(txHex)
             : Object.values(this.meshTxBuilderBody.inputsForEvaluation),
           this.meshTxBuilderBody.chainedTxs,
         )
@@ -604,9 +596,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   /**
-   * The network the Scalus evaluator's slot arithmetic is for: the `network` option or
-   * `setNetwork`, else mainnet for a mainnet change address. Not read from the fetcher cache,
-   * where any builder sharing the fetcher may have left a guess.
+   * The network the transaction is for, if known: the `network` option or `setNetwork`, else
+   * mainnet for a mainnet change address. Not read from the fetcher cache, where any builder
+   * sharing the fetcher may have left a guess.
    */
   protected networkForEvaluation = (): Network | undefined => {
     if (this.network) return this.network;
@@ -617,46 +609,23 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   /**
-   * Point the Scalus evaluator at the network and cost models of the transaction being built.
-   * Both become known only while completing it: the change address is set and the cost models
+   * What the builder learned while completing the transaction, for an evaluator that takes it
+   * (`IEvaluator.configure`): the network, for slot arithmetic, and the cost models it fetched.
+   * Both become known only while completing: the change address is set and the cost models
    * are fetched then.
    */
-  protected configureScalusEvaluator = (evaluator: OfflineEvaluatorScalus) => {
-    const network = this.networkForEvaluation();
-    // A custom network ("testnet") has no slot arithmetic: its slot config is all zeros. A
-    // misspelt one has none at all.
-    const slotConfig = network ? SLOT_CONFIG_NETWORK[network] : undefined;
-    if (!slotConfig?.slotLength) {
-      const { invalidBefore, invalidHereafter } =
-        this.meshTxBuilderBody.validityRange;
-      // Scripts see the validity interval as POSIX time, which depends on the network
-      if (invalidBefore != null || invalidHereafter != null)
-        throw new Error(
-          `The transaction has a validity interval, but ${
-            network
-              ? `the slot times of network "${network}" are unknown`
-              : "the network it is for is unknown"
-          }, so its scripts cannot be evaluated. Pass \`network\` (or call \`setNetwork\`) ` +
-            "with a public network, or pass another evaluator built for your network.",
-        );
-    }
-    // Without a validity interval the slot arithmetic is never used
-    const { zeroTime, zeroSlot, slotLength } = slotConfig?.slotLength
-      ? slotConfig
-      : SLOT_CONFIG_NETWORK.mainnet;
-    evaluator.slotConfig = { zeroTime, zeroSlot, slotLength };
+  protected evaluationContext = (): EvaluationContext => {
     const fetched = this.meshTxBuilderBody.network;
-    if (Array.isArray(fetched))
-      // A version the provider sent no model for keeps the default, as before
-      evaluator.costModels = DEFAULT_COST_MODELS.map((defaults, version) =>
-        fetched[version]?.length ? fetched[version]! : defaults,
-      );
+    return {
+      network: this.networkForEvaluation(),
+      costModels: Array.isArray(fetched) ? fetched : undefined,
+    };
   };
 
   /**
    * Key inputs given only by address and value (`txIn(hash, index, amount, address, 0)`), as
-   * UTxOs. They lack any datum, so the Scalus evaluator prefers their chain UTxO. Only
-   * non-Plutus inputs that declare no reference script (`scriptSize` 0) qualify.
+   * UTxOs. They lack any datum, so a local evaluator gets their chain UTxO when the chain has
+   * it. Only non-Plutus inputs that declare no reference script (`scriptSize` 0) qualify.
    */
   protected declaredKeyInputs = (): Map<string, UTxO> => {
     const { inputs, collaterals } = this.meshTxBuilderBody;
@@ -674,7 +643,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * Fetch, once per `complete()`, the chain UTxOs of the declared key inputs the builder does
-   * not hold, for the Scalus evaluator. One the fetcher does not have yet (an empty answer or
+   * not hold, for a local evaluator. One the fetcher does not have yet (an empty answer or
    * a "not found" error) keeps its declared data; any other failure is thrown, since declared
    * data could lack a datum or reference script the chain UTxO holds.
    */
@@ -682,8 +651,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     const fetcher = this.cachedFetcher();
     if (
       !fetcher ||
-      !this.scalusEvaluator ||
-      this.evaluator !== this.scalusEvaluator ||
+      !this.evaluator?.acceptsKnownUtxos ||
       !this.hasPlutusScriptWitness()
     )
       return;
@@ -703,12 +671,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   /**
-   * The UTxOs the Scalus evaluator needs for the inputs, collateral and reference inputs of a
+   * The UTxOs a local evaluator needs for the inputs, collateral and reference inputs of a
    * transaction, so it need not fetch them (and can evaluate before an indexer sees them): the
    * ones the builder holds, fetched first as in `findUTxO`, else the declared key inputs.
    * Anything else is left for the evaluator to fetch.
    */
-  protected utxosForScalusEvaluator = (txHex: string): UTxO[] => {
+  protected utxosForLocalEvaluator = (txHex: string): UTxO[] => {
     const declared = this.declaredKeyInputs();
     return getTransactionInputs(txHex).flatMap(
       ({ txHash, outputIndex }) =>
@@ -719,9 +687,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   /**
-   * Also the network the Scalus evaluator's slot arithmetic is for. The body keeps it only
-   * until the cost models are fetched in its place. Like the `network` option, and unlike the
-   * body, it is kept across `reset()`.
+   * Also the network the transaction is for, as `MeshTxBuilderOptions.network`: an evaluator
+   * that takes a context gets it. The body keeps it only until the cost models are fetched in
+   * its place. Like the option, and unlike the body, it is kept across `reset()`.
    */
   override setNetwork = (network: Network | number[][]) => {
     if (typeof network === "string") this.network = network;
@@ -2069,15 +2037,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         serializer: this.serializer,
         fetcher: this.fetcher,
         submitter: this.submitter,
-        evaluator: this.evaluator,
+        // The same evaluator, or none: a clone never makes its own default
+        evaluator: this.evaluator ?? null,
         network: this.network,
         verbose: this.verbose,
         params: { ...this._protocolParams },
       });
     });
 
-    // The clone was handed the evaluator, so it would not know it as the Scalus one
-    newBuilder.scalusEvaluator = this.scalusEvaluator;
     newBuilder.txHex = this.txHex;
 
     // Fetched and known UTxOs are only ever added to, never edited, so clones made

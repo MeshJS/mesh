@@ -3,6 +3,7 @@ import {
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
+  EvaluationContext,
   IEvaluator,
   IFetcher,
   mConStr0,
@@ -40,7 +41,7 @@ const DEFAULT_COST_MODELS = [
 const declaredUnits = { mem: 7, steps: 7 };
 
 type SpendOptions = {
-  /** Options over `evaluator: "scalus"` and the emulator as fetcher */
+  /** Options over the emulator as fetcher, and so over the default evaluator */
   builder?: MeshTxBuilderOptions;
   /** Builds with MeshTxBuilderV2 instead */
   v2?: boolean;
@@ -65,7 +66,7 @@ const serialisesContextCbor = "4b4a010100232498dd980081";
 
 /**
  * Spends a V3 script (always succeeds unless given) with `declaredUnits`, through a builder whose fetcher is
- * an emulator and whose evaluator is `"scalus"`, selecting from the wallet's UTxOs. Returns the
+ * an emulator and whose evaluator is the default, selecting from the wallet's UTxOs. Returns the
  * units the transaction carries.
  */
 async function spendScript(options: SpendOptions = {}) {
@@ -109,7 +110,6 @@ async function spendScript(options: SpendOptions = {}) {
   const builderOptions: MeshTxBuilderOptions = {
     fetcher: options.fetcher?.(emulator) ?? emulator,
     params: await emulator.fetchProtocolParameters(),
-    evaluator: "scalus",
     ...options.builder,
   };
   // MeshTxBuilderV2 is a MeshTxBuilder with typed script methods; the untyped ones used here
@@ -153,8 +153,8 @@ async function spendScript(options: SpendOptions = {}) {
 const slotConfigOf = (builder: MeshTxBuilder) =>
   (builder.evaluator as OfflineEvaluatorScalus).slotConfig.zeroTime;
 
-describe('MeshTxBuilder with evaluator: "scalus"', () => {
-  it("evaluates with Scalus", async () => {
+describe("MeshTxBuilder's default evaluator", () => {
+  it("is Scalus, given a fetcher", async () => {
     const { builder, units, submit } = await spendScript();
 
     expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
@@ -164,7 +164,7 @@ describe('MeshTxBuilder with evaluator: "scalus"', () => {
     expect(await submit()).toHaveLength(64);
   });
 
-  it("evaluates with Scalus in MeshTxBuilderV2", async () => {
+  it("is Scalus in MeshTxBuilderV2 too", async () => {
     const { builder, units, submit } = await spendScript({ v2: true });
 
     expect(builder).toBeInstanceOf(MeshTxBuilderV2);
@@ -174,9 +174,21 @@ describe('MeshTxBuilder with evaluator: "scalus"', () => {
     expect(await submit()).toHaveLength(64);
   });
 
-  it("is opt-in: without an evaluator, the declared units stay, also across clones", async () => {
+  it("is not made without a fetcher to resolve inputs with", () => {
+    expect(new MeshTxBuilder().evaluator).toBeUndefined();
+    expect(new MeshTxBuilder({ evaluator: undefined }).evaluator).toBeUndefined();
+    expect(new MeshTxBuilderV2().evaluator).toBeUndefined();
+  });
+
+  it("is shared with the clones coin selection evaluates on", async () => {
+    const { builder } = await spendScript();
+    const clone = (builder as unknown as { clone(): MeshTxBuilder }).clone();
+    expect(clone.evaluator).toBe(builder.evaluator);
+  });
+
+  it("is turned off by `evaluator: null`: the declared units stay, also across clones", async () => {
     const { builder, units, fetchUTxOs } = await spendScript({
-      builder: { evaluator: undefined },
+      builder: { evaluator: null },
       // Nothing is fetched for evaluation, so a fetcher failing on the collateral cannot matter
       fetcher: (emulator) =>
         new Proxy(emulator, {
@@ -198,7 +210,7 @@ describe('MeshTxBuilder with evaluator: "scalus"', () => {
     expect(fetchUTxOs.mock.calls.map(([hash]) => hash)).toEqual([scriptTxHash]);
   });
 
-  it("uses the evaluator it is given, with only the UTxOs given for evaluation", async () => {
+  it("gives way to the evaluator it is given, which gets only the UTxOs given for evaluation", async () => {
     // A remote evaluator may reject additional UTxOs that also exist on chain
     const evaluateTx = jest.fn(async () => []);
     const mine = { evaluateTx } as IEvaluator;
@@ -218,13 +230,33 @@ describe('MeshTxBuilder with evaluator: "scalus"', () => {
       expect(additionalUtxos).toEqual([given]);
   });
 
-  it("needs a fetcher to resolve inputs with", () => {
-    expect(() => new MeshTxBuilder({ evaluator: "scalus" })).toThrow(
-      /`fetcher`/,
-    );
-    expect(() => new MeshTxBuilderV2({ evaluator: "scalus" })).toThrow(
-      /`fetcher`/,
-    );
+  it("tells an evaluator it is given what it learns, if the evaluator takes a context", async () => {
+    const configure = jest.fn();
+    const mine: IEvaluator = { evaluateTx: async () => [], configure };
+    await spendScript({ builder: { evaluator: mine, network: "preprod" } });
+    expect(configure.mock.calls.length).toBeGreaterThan(0);
+    for (const [context] of configure.mock.calls as [EvaluationContext][]) {
+      expect(context.network).toBe("preprod");
+      // The cost models of the three Plutus versions, fetched or default
+      expect(context.costModels).toHaveLength(3);
+    }
+  });
+
+  it("tells a Scalus evaluator it is given the network, as it does its own", async () => {
+    let emulator!: ScalusEmulator;
+    let mine!: OfflineEvaluatorScalus;
+    const { builder } = await spendScript({
+      fetcher: (created) => (emulator = created),
+      builder: { network: "preprod" },
+      invalidHereafter: 100_000_000,
+      // Made for no network, as the default is; without one it could not evaluate this
+      configure: (builder) => {
+        mine = new OfflineEvaluatorScalus(emulator);
+        builder.evaluator = mine;
+      },
+    });
+    expect(builder.evaluator).toBe(mine);
+    expect(slotConfigOf(builder)).toBe(SLOT_CONFIG_NETWORK.preprod.zeroTime);
   });
 
   it("evaluates with the UTxOs the builder holds, fetching only the rest", async () => {
@@ -463,10 +495,13 @@ describe('MeshTxBuilder with evaluator: "scalus"', () => {
       expect(slotConfigOf(builder)).toBe(SLOT_CONFIG_NETWORK.mainnet.zeroTime);
     });
 
-    it("must be known for a transaction valid from slot 0", async () => {
-      await expect(
-        spendScript({ configure: (builder) => builder.invalidBefore(0) }),
-      ).rejects.toThrow(/network it is for is unknown/);
+    it("need not be known for a transaction valid from slot 0, which carries no start", async () => {
+      // The serializer leaves a zero start out, so the scripts see no lower bound. The check
+      // is on the transaction as serialized, which is what the ledger evaluates.
+      const { units } = await spendScript({
+        configure: (builder) => builder.invalidBefore(0),
+      });
+      expect(units).not.toEqual(declaredUnits);
     });
 
     it("must be known for a transaction with a validity interval", async () => {
