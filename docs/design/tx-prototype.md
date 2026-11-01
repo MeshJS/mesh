@@ -248,9 +248,9 @@ the encoder fails the round-trip tests while the targeted encoder tests stay gre
 
 Round-tripping is not the identity, and each gap is pinned by a test rather than left implicit:
 `null`/`[]` normalise to absent; set encoding is not represented on either side; `CBOR`-variant
-datums come back structurally expanded as `MANUAL`; `STAKE_REGISTRATION`'s `coin` is dropped because
-CDDL certs 0/1 and 7/8 are distinct shapes; values above 2^53 truncate where the encoder narrows at
-the Mesh-type boundary. `PARAMETER_CHANGE_ACTION` is deliberately not decoded — its ~34 fields
+datums come back structurally expanded as `MANUAL`; values above 2^53 truncate where the encoder
+narrows at the Mesh-type boundary. `STAKE_REGISTRATION`/`STAKE_DEREGISTRATION` with a `coin` encode
+as the Conway certificates 7/8 and without one as the legacy 0/1, so both round-trip. `PARAMETER_CHANGE_ACTION` is deliberately not decoded — its ~34 fields
 differ from their CST counterparts in name, unit and optionality, so it throws rather than return a
 half-correct update.
 
