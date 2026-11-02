@@ -7,8 +7,8 @@ import {
   serializeRewardAddress,
   UTxO,
 } from "@meshsdk/core";
-import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
 import {
+  OfflineEvaluatorScalus,
   resolveNativeScriptHash,
   resolveScriptHashDRepId,
   resolveScriptRef,
@@ -19,7 +19,10 @@ import { alwaysSucceedCbor, alwaysSucceedHash, txHash } from "../test-util";
 
 describe("MeshTxBuilder - Script Transactions", () => {
   const offlineFetcher = new OfflineFetcher();
-  const offlineEvaluator = new OfflineEvaluator(offlineFetcher, "preprod");
+  const offlineEvaluator = new OfflineEvaluatorScalus(
+    offlineFetcher,
+    "preprod",
+  );
 
   offlineFetcher.addUTxOs([
     {
@@ -97,36 +100,16 @@ describe("MeshTxBuilder - Script Transactions", () => {
   ]);
 
   const txBuilder = new MeshTxBuilder({
-    serializer: new CSLSerializer(),
-    fetcher: offlineFetcher,
-    evaluator: null,
-  });
-
-  const txBuilder2 = new MeshTxBuilder({
     fetcher: offlineFetcher,
     evaluator: null,
   });
 
   beforeEach(() => {
     txBuilder.reset();
-    txBuilder2.reset();
   });
 
   it("should be able to spend from a script address", async () => {
     const txHex = await txBuilder
-      .spendingPlutusScriptV3()
-      .txIn(txHash("tx2"), 0)
-      .txInInlineDatumPresent()
-      .txInRedeemerValue("")
-      .txInScript(alwaysSucceedCbor)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .setFee("5000000")
-      .complete();
-
-    const txHex2 = await txBuilder2
       .spendingPlutusScriptV3()
       .txIn(txHash("tx2"), 0)
       .txInInlineDatumPresent()
@@ -156,35 +139,15 @@ describe("MeshTxBuilder - Script Transactions", () => {
       },
     ]);
 
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "SPEND",
-      },
-    ]);
-
     const cardanoTx = Serialization.Transaction.fromCbor(
       Serialization.TxCBOR(txHex),
     );
-    const cardanoTx2 = Serialization.Transaction.fromCbor(
-      Serialization.TxCBOR(txHex2),
-    );
     expect(cardanoTx.body().fee().toString()).toBe("5000000");
-    expect(cardanoTx2.body().fee().toString()).toBe("5000000");
-    expect(cardanoTx2.body().totalCollateral()).toBe(7500000n);
-    expect(cardanoTx2.body().collateralReturn()?.address().toBech32()).toBe(
+    expect(cardanoTx.body().totalCollateral()).toBe(7500000n);
+    expect(cardanoTx.body().collateralReturn()?.address().toBech32()).toBe(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
     );
-    expect(cardanoTx2.body().collateralReturn()?.amount().coin()).toBe(
+    expect(cardanoTx.body().collateralReturn()?.amount().coin()).toBe(
       92500000n,
     );
   });
@@ -202,37 +165,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .spendingPlutusScriptV3()
-      .txIn(txHash("tx2"), 0)
-      .txInInlineDatumPresent()
-      .txInRedeemerValue("")
-      .spendingTxInReference(txHash("tx3"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "SPEND",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -260,37 +195,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .mintPlutusScriptV3()
-      .mint("1", alwaysSucceedHash, "")
-      .mintRedeemerValue("")
-      .mintingScript(alwaysSucceedCbor)
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "MINT",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -318,37 +225,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .mintPlutusScriptV3()
-      .mint("1", alwaysSucceedHash, "")
-      .mintRedeemerValue("")
-      .mintTxInReference(txHash("tx3"), 0)
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "MINT",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -376,37 +255,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .withdrawalPlutusScriptV3()
-      .withdrawal(serializeRewardAddress(alwaysSucceedHash, true), "0")
-      .withdrawalScript(alwaysSucceedCbor)
-      .withdrawalRedeemerValue("")
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "REWARD",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -434,37 +285,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .withdrawalPlutusScriptV3()
-      .withdrawal(serializeRewardAddress(alwaysSucceedHash, true), "0")
-      .withdrawalRedeemerValue("")
-      .withdrawalTxInReference(txHash("tx3"), 0)
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "REWARD",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -498,39 +321,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .voteDelegationCertificate(
-        drep,
-        serializeRewardAddress(alwaysSucceedHash, true),
-      )
-      .certificateScript(alwaysSucceedCbor, "V3")
-      .certificateRedeemerValue("")
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "CERT",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -564,39 +357,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .voteDelegationCertificate(
-        drep,
-        serializeRewardAddress(alwaysSucceedHash, true),
-      )
-      .certificateTxInReference(txHash("tx3"), 0, undefined, undefined, "V3")
-      .certificateRedeemerValue("")
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "CERT",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -628,41 +391,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .votePlutusScriptV3()
-      .vote(
-        { type: "DRep", drepId: resolveScriptHashDRepId(alwaysSucceedHash) },
-        { txHash: txHash("tx100"), txIndex: 0 },
-        { voteKind: "Yes" },
-      )
-      .voteTxInReference(txHash("tx3"), 0)
-      .voteRedeemerValue("")
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "VOTE",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -707,54 +438,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .votePlutusScriptV3()
-      .vote(
-        { type: "DRep", drepId: resolveScriptHashDRepId(alwaysSucceedHash) },
-        { txHash: txHash("tx100"), txIndex: 0 },
-        { voteKind: "Yes" },
-      )
-      .voteTxInReference(txHash("tx3"), 0)
-      .voteRedeemerValue("")
-      .vote(
-        {
-          type: "DRep",
-          drepId: resolveScriptHashDRepId(
-            resolveNativeScriptHash({ type: "all", scripts: [] }),
-          ),
-        },
-        { txHash: txHash("tx100"), txIndex: 0 },
-        { voteKind: "Yes" },
-      )
-      .voteScript(
-        serializeNativeScript({ type: "all", scripts: [] }).scriptCbor!,
-      )
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "VOTE",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -792,47 +478,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .withdrawalPlutusScriptV3()
-      .withdrawal(serializeRewardAddress(alwaysSucceedHash, true), "0")
-      .withdrawalScript(alwaysSucceedCbor)
-      .withdrawalRedeemerValue("")
-      .withdrawal(
-        serializeRewardAddress(
-          resolveNativeScriptHash({ type: "all", scripts: [] }),
-          true,
-        ),
-        "0",
-      )
-      .withdrawalScript(
-        serializeNativeScript({ type: "all", scripts: [] }).scriptCbor!,
-      )
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "REWARD",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -865,47 +513,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .spendingPlutusScriptV3()
-      .txIn(txHash("tx2"), 0)
-      .txInInlineDatumPresent()
-      .txInRedeemerValue("")
-      .spendingTxInReference(txHash("tx3"), 0)
-      .spendingPlutusScriptV3()
-      .txIn(txHash("tx4"), 0)
-      .txInInlineDatumPresent()
-      .txInRedeemerValue("")
-      .spendingTxInReference(txHash("tx3"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "SPEND",
-      },
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 1,
-        tag: "SPEND",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -942,41 +552,9 @@ describe("MeshTxBuilder - Script Transactions", () => {
       )
       .complete();
 
-    const txHex2 = await txBuilder2
-      .mintPlutusScriptV3()
-      .mint("1", alwaysSucceedHash, "60")
-      .mintRedeemerValue("")
-      .mintTxInReference(txHash("tx3"), 0)
-      .mintPlutusScriptV3()
-      .mint("1", alwaysSucceedHash, "61")
-      .mintRedeemerValue("")
-      .mintTxInReference(txHash("tx3"), 0)
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "MINT",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],
@@ -1005,26 +583,6 @@ describe("MeshTxBuilder - Script Transactions", () => {
       .certificateRedeemerValue("")
       .delegateStakeCertificate(
         serializeRewardAddress(alwaysSucceedHash, true),
-        "624fcb718d9facc7dcc8daa3c5cad6753886ddc968cc4a6bea5e9cc3",
-      )
-      .certificateTxInReference(txHash("tx3"), 0, undefined, undefined, "V3")
-      .certificateRedeemerValue("")
-      .txIn(txHash("tx1"), 0)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete();
-
-    const txHex2 = await txBuilder2
-      .voteDelegationCertificate(
-        drep,
-        serializeRewardAddress(alwaysSucceedHash, true),
-      )
-      .certificateTxInReference(txHash("tx3"), 0, undefined, undefined, "V3")
-      .certificateRedeemerValue("")
-      .delegateStakeCertificate(
-        serializeRewardAddress(alwaysSucceedHash, true),
         "pool1vf8ukuvdn7kv0hxgm23utjkkw5ugdhwfdrxy56l2t6wvxezspyu",
       )
       .certificateTxInReference(txHash("tx3"), 0, undefined, undefined, "V3")
@@ -1039,27 +597,6 @@ describe("MeshTxBuilder - Script Transactions", () => {
     expect(
       await offlineEvaluator.evaluateTx(
         txHex,
-        Object.values(
-          txBuilder.meshTxBuilderBody.inputsForEvaluation,
-        ) as UTxO[],
-        txBuilder.meshTxBuilderBody.chainedTxs,
-      ),
-    ).toEqual([
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 0,
-        tag: "CERT",
-      },
-      {
-        budget: { mem: expect.any(Number), steps: expect.any(Number) },
-        index: 1,
-        tag: "CERT",
-      },
-    ]);
-
-    expect(
-      await offlineEvaluator.evaluateTx(
-        txHex2,
         Object.values(
           txBuilder.meshTxBuilderBody.inputsForEvaluation,
         ) as UTxO[],

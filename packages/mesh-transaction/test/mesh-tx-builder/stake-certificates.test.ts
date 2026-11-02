@@ -1,6 +1,10 @@
 import { mConStr0 } from "@meshsdk/common";
-import { CSLSerializer } from "@meshsdk/core-csl";
-import { HexBlob, Serialization, TxCBOR } from "@meshsdk/core-cst";
+import {
+  CardanoSDKSerializer,
+  HexBlob,
+  Serialization,
+  TxCBOR,
+} from "@meshsdk/core-cst";
 
 import { MeshTxBuilder } from "../../src/mesh-tx-builder";
 import { Transaction } from "../../src/transaction";
@@ -129,11 +133,11 @@ describe("deposit-bearing stake certificates", () => {
     ]);
   });
 
-  it("rebuilds a stake registration parsed by the CSL parser with the keyDeposit deposit", async () => {
+  it("rebuilds a parsed stake registration with the deposit it states", async () => {
     const txHex = await fundedBuilder()
-      .registerStakeCertificate(rewardAddress(1))
+      .registerStakeCertificate(rewardAddress(1), 3_000_000)
       .complete();
-    const parsed = await new TxParser(new CSLSerializer()).parse(txHex, [
+    const parsed = await new TxParser(new CardanoSDKSerializer()).parse(txHex, [
       {
         input: { txHash: txHash("stake-certificates"), outputIndex: 0 },
         output: {
@@ -142,16 +146,18 @@ describe("deposit-bearing stake certificates", () => {
         },
       },
     ]);
-    // whisky's parser reports coin 0 for every stake registration, which
-    // must not become the deposit
-    expect(parsed.certificates[0]!.certType).not.toHaveProperty("coin");
+    // The parser renders the reward address on the network of the transaction
+    expect(parsed.certificates[0]!.certType).toMatchObject({
+      type: "RegisterStake",
+      coin: 3_000_000,
+    });
 
     const rebuilt = fundedBuilder();
     rebuilt.meshTxBuilderBody.certificates.push(...parsed.certificates);
     const tx = decode(await rebuilt.complete());
     expect(tx.body().certs()!.values()[0]!.toCore()).toMatchObject({
       __typename: "RegistrationCertificate",
-      deposit: 2_000_000n,
+      deposit: 3_000_000n,
     });
   });
 });

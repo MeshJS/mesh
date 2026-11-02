@@ -39,7 +39,6 @@ yarn-error.log*
 apps/docs/src/data/mesh-common.json
 apps/docs/src/data/mesh-contracts.json
 apps/docs/src/data/mesh-core.json
-apps/docs/src/data/mesh-core-csl.json
 apps/docs/src/data/mesh-core-cst.json
 apps/docs/src/data/mesh-providers.json
 apps/docs/src/data/mesh-react.json

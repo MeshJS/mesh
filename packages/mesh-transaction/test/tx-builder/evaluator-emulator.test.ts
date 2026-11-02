@@ -4,7 +4,6 @@ import {
   ScriptEvaluationError,
   UTxO,
 } from "@meshsdk/core";
-import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
   OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
@@ -149,7 +148,6 @@ describe("TxBuilder's evaluators on the emulator", () => {
   });
 
   it.each<[string, (provider: ScalusEmulator) => IEvaluator, boolean]>([
-    ["OfflineEvaluator", (p) => new OfflineEvaluator(p, "preview"), false],
     [
       "OfflineEvaluatorScalus",
       (p) => new OfflineEvaluatorScalus(p, "preview"),

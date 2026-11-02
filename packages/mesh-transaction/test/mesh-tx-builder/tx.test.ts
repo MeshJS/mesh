@@ -11,10 +11,10 @@ import {
   resolveScriptRef,
   serializeRewardAddress,
 } from "@meshsdk/core";
-import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
   Cardano,
   Hash28ByteBase16,
+  OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
   Serialization,
 } from "@meshsdk/core-cst";
@@ -1265,7 +1265,10 @@ describe("MeshTxBuilder transactions", () => {
         },
       },
     ]);
-    const offlineEvaluator = new OfflineEvaluator(offlineFetcher, "preprod");
+    const offlineEvaluator = new OfflineEvaluatorScalus(
+      offlineFetcher,
+      "preprod",
+    );
     const mesh = new MeshTxBuilder({
       fetcher: offlineFetcher,
       evaluator: offlineEvaluator,
