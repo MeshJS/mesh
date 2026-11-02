@@ -1,14 +1,14 @@
 import { Data } from "@meshsdk/common";
-import { castDataToPlutusData } from "@meshsdk/core-csl";
+import { fromBuilderToPlutusData } from "@meshsdk/core-cst";
 
 export const serializeData = (mesh: Data, json: any) => {
-  const meshData = castDataToPlutusData({
+  const meshData = fromBuilderToPlutusData({
     type: "Mesh",
     content: mesh,
-  }).to_hex();
-  const jsonData = castDataToPlutusData({
+  }).toCbor();
+  const jsonData = fromBuilderToPlutusData({
     type: "JSON",
     content: JSON.stringify(json),
-  }).to_hex();
+  }).toCbor();
   return [meshData, jsonData];
 };

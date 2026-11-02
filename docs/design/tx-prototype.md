@@ -4,6 +4,11 @@
 encoder/decoder + `mesh-core-csl` serializer). This document is the design record for that work; it
 introduces no code of its own.
 
+**Update (November 2026):** `@meshsdk/core-csl` (the whisky backend) has since been removed from the
+monorepo, so `mesh-core-cst` is now the only serializer backend. Every mention of `mesh-core-csl`,
+`serializeTxPrototype` and whisky below describes the state of the tree at the time of #837 and is kept
+as the record of why the design is shaped the way it is.
+
 ## Problem
 
 `IMeshTxSerializer.serializeTxBody()` takes a `MeshTxBuilderBody` — the builder's own working state —

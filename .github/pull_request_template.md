@@ -13,7 +13,6 @@
 - [ ] `@meshsdk/common`
 - [ ] `@meshsdk/contract`
 - [ ] `@meshsdk/core`
-- [ ] `@meshsdk/core-csl`
 - [ ] `@meshsdk/core-cst`
 - [ ] `@meshsdk/hydra`
 - [ ] `@meshsdk/provider`
