@@ -1,17 +1,20 @@
 import {
   DEFAULT_PROTOCOL_PARAMETERS,
+  emptyTxBuilderBody,
   MeshTxBuilderBody,
+  PlutusScript,
 } from "@meshsdk/common";
-import { MeshTxBuilder } from "@meshsdk/core";
+import { MeshTxBuilder, serializeNativeScript } from "@meshsdk/core";
 import {
   calculateFees,
-  CardanoSDKSerializer,
   Ed25519PublicKeyHex,
   Ed25519SignatureHex,
   Serialization,
   Transaction,
   TxCBOR,
 } from "@meshsdk/core-cst";
+
+import { CardanoSDKSerializer } from "../src";
 
 describe("Ref Script output", () => {
   it("serializer should build a tx with ref script output", async () => {
@@ -122,5 +125,46 @@ describe("Ref Script output", () => {
         0,
       ),
     );
+  });
+
+  it("keeps a native reference script on an output", () => {
+    const address =
+      "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+    const { scriptCbor } = serializeNativeScript({ type: "all", scripts: [] });
+    const body: MeshTxBuilderBody = {
+      ...emptyTxBuilderBody(),
+      inputs: [
+        {
+          type: "PubKey",
+          txIn: {
+            txHash:
+              "c15875aef7d14602040affbb80219681d318dfd035c03f9581cca5c625270e6a",
+            txIndex: 1,
+            amount: [{ unit: "lovelace", quantity: "307063809" }],
+            address,
+          },
+        },
+      ],
+      outputs: [
+        {
+          address,
+          amount: [{ unit: "lovelace", quantity: "2000000" }],
+          // `Output.referenceScript` is typed as a Plutus script; any other version marker
+          // means a native script
+          referenceScript: {
+            code: scriptCbor,
+            version: "Native",
+          } as unknown as PlutusScript,
+        },
+      ],
+      changeAddress: address,
+    };
+
+    const txHex = new CardanoSDKSerializer().serializeTxBody(
+      body,
+      DEFAULT_PROTOCOL_PARAMETERS,
+    );
+    const output = Transaction.fromCbor(TxCBOR(txHex)).body().outputs()[0]!;
+    expect(output.scriptRef()?.asNative()?.toCbor()).toBe(scriptCbor);
   });
 });

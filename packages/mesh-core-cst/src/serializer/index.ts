@@ -1031,6 +1031,14 @@ class CardanoSDKSerializerCore {
           );
           break;
         }
+        default: {
+          cardanoOutput.setScriptRef(
+            Script.newNativeScript(
+              NativeScript.fromCbor(HexBlob(output.referenceScript.code)),
+            ),
+          );
+          break;
+        }
       }
     }
     return cardanoOutput;
