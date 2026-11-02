@@ -10,7 +10,6 @@ The architecture is modular with clear dependency boundaries:
 
 ```
 @meshsdk/core (exports all functionality)
-├── @meshsdk/core-csl (integrates with cardano-serialization-lib)
 ├── @meshsdk/core-cst (integrates with cardano-js-sdk)
 ├── @meshsdk/provider (blockchain data providers)
 ├── @meshsdk/react (React component library)
@@ -100,6 +99,6 @@ const updatedTransactionMeta = {
 
 ## Library Design Decisions
 
-- Multiple serialization library support through adapter packages (`core-csl`, `core-cst`)
+- Serialization isolated behind the `IMeshTxSerializer` interface, implemented by the `core-cst` adapter package
 - Provider abstraction allowing swappable blockchain data sources
 - TypeScript-first approach with comprehensive type safety

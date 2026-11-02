@@ -84,7 +84,6 @@ This monorepo publishes the core Mesh packages to npm under the `@meshsdk` scope
 | [@meshsdk/contract](https://github.com/MeshJS/mesh/tree/main/packages/mesh-contract) | Open-source smart contracts with off-chain transaction code | [Docs](https://docs.meshjs.dev/contracts) · [Playground](https://meshjs.dev/smart-contracts) |
 | [@meshsdk/common](https://github.com/MeshJS/mesh/tree/main/packages/mesh-common) | Shared constants, types and interfaces used across the SDK | [Docs](https://docs.meshjs.dev/common) |
 | [@meshsdk/core-cst](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core-cst) | Serialization and utilities built on cardano-js-sdk and Harmonic Labs libraries | [Docs](https://docs.meshjs.dev/core-cst) |
-| [@meshsdk/core-csl](https://github.com/MeshJS/mesh/tree/main/packages/mesh-core-csl) | Serialization and utilities built on Whisky (cardano-serialization-lib) | [Docs](https://docs.meshjs.dev/core-csl) |
 | [@meshsdk/scalus-emulator](https://github.com/MeshJS/mesh/tree/main/packages/mesh-scalus-emulator) | Local Cardano ledger emulator built on Scalus, for testing transactions offline | |
 
 ### Packages in other repositories
@@ -106,14 +105,12 @@ These `@meshsdk` packages are developed in their own repositories:
 graph TD
   core["@meshsdk/core"]
   common["@meshsdk/common"]
-  core_csl["@meshsdk/core-csl"]
   core_cst["@meshsdk/core-cst"]
   provider["@meshsdk/provider"]
   transaction["@meshsdk/transaction"]
   wallet["@meshsdk/wallet"]
   contract["@meshsdk/contract"]
   emulator["@meshsdk/scalus-emulator"]
-  whisky["@sidan-lab/whisky-js"]
   cardano_sdk["@cardano-sdk/*"]
   harmoniclabs["@harmoniclabs/*"]
 
@@ -127,15 +124,12 @@ graph TD
   emulator --> core_cst
 
   subgraph serializers
-    core_csl --> whisky
     core_cst --> cardano_sdk
     core_cst --> harmoniclabs
   end
 
   core_cst --> common
-  core_csl --> common
 
-  click core_csl "https://docs.meshjs.dev/core-csl" _parent
   click core_cst "https://docs.meshjs.dev/core-cst" _parent
   click provider "https://github.com/MeshJS/providers" _parent
   click transaction "https://docs.meshjs.dev/transactions" _parent

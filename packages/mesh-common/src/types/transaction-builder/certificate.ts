@@ -18,9 +18,11 @@ export type Certificate =
 
 export type CertificateType =
   | { type: "RegisterPool"; poolParams: PoolParams }
-  | { type: "RegisterStake"; stakeKeyAddress: string }
+  // `coin` is the deposit stated by the Conway `reg_cert` / `unreg_cert`; without it the
+  // legacy certificates, which leave the deposit implicit, are used
+  | { type: "RegisterStake"; stakeKeyAddress: string; coin?: number }
   | { type: "DelegateStake"; stakeKeyAddress: string; poolId: string }
-  | { type: "DeregisterStake"; stakeKeyAddress: string }
+  | { type: "DeregisterStake"; stakeKeyAddress: string; coin?: number }
   | { type: "RetirePool"; poolId: string; epoch: number }
   | { type: "VoteDelegation"; stakeKeyAddress: string; drep: DRep }
   | {
