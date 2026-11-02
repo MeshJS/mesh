@@ -1,4 +1,4 @@
-import { Serialization } from "@cardano-sdk/core";
+import { Cardano, Serialization } from "@cardano-sdk/core";
 
 import {
   Asset,
@@ -878,6 +878,44 @@ describe("CardanoSDKTxParser", () => {
     ]);
   });
 
+  it("keeps the deposit stated by Conway stake registration and deregistration certificates", async () => {
+    const { txHex, body } = await build((b) =>
+      b
+        .registerStakeCertificate(keyStake, 2000000)
+        .deregisterStakeCertificate(keyStake2, 2000000)
+        .txIn(txHash("tx10"), 0)
+        .changeAddress(ADDR),
+    );
+    expect(
+      Transaction.fromCbor(TxCBOR(txHex))
+        .body()
+        .certs()!
+        .values()
+        .map((cert) => cert.toCore().__typename),
+    ).toEqual([
+      Cardano.CertificateType.Registration,
+      Cardano.CertificateType.Unregistration,
+    ]);
+    expect(body.certificates).toEqual([
+      {
+        type: "BasicCertificate",
+        certType: {
+          type: "RegisterStake",
+          stakeKeyAddress: keyStake,
+          coin: 2000000,
+        },
+      },
+      {
+        type: "BasicCertificate",
+        certType: {
+          type: "DeregisterStake",
+          stakeKeyAddress: keyStake2,
+          coin: 2000000,
+        },
+      },
+    ]);
+  });
+
   it("parses a Plutus script certificate with a provided script", async () => {
     const { body } = await build((b) =>
       b
@@ -1611,6 +1649,21 @@ describe("CardanoSDKTxParser", () => {
           .metadataValue(674, ["round", "trip"])
           .changeAddress(ADDR),
       );
+      expect(rebuilt).toEqual(body);
+    });
+
+    it("rebuilds the same transaction body from parsed Conway stake certificates", async () => {
+      const { body, rebuilt } = await rebuild((b) =>
+        b
+          .registerStakeCertificate(keyStake, 2000000)
+          .deregisterStakeCertificate(keyStake2, 2000000)
+          .txIn(txHash("tx10"), 0)
+          .changeAddress(ADDR),
+      );
+      expect(body.certificates.map((cert) => cert.certType)).toEqual([
+        { type: "RegisterStake", stakeKeyAddress: keyStake, coin: 2000000 },
+        { type: "DeregisterStake", stakeKeyAddress: keyStake2, coin: 2000000 },
+      ]);
       expect(rebuilt).toEqual(body);
     });
 

@@ -108,7 +108,6 @@ const decodeCertificate = (
 
   switch (core.__typename) {
     case Cardano.CertificateType.StakeRegistration:
-    case Cardano.CertificateType.Registration:
       return {
         certType: {
           type: "RegisterStake",
@@ -116,12 +115,30 @@ const decodeCertificate = (
         },
         credential: core.stakeCredential,
       };
+    // The Conway `reg_cert` / `unreg_cert` state their deposit
+    case Cardano.CertificateType.Registration:
+      return {
+        certType: {
+          type: "RegisterStake",
+          stakeKeyAddress: stake(core.stakeCredential),
+          coin: Number(core.deposit),
+        },
+        credential: core.stakeCredential,
+      };
     case Cardano.CertificateType.StakeDeregistration:
+      return {
+        certType: {
+          type: "DeregisterStake",
+          stakeKeyAddress: stake(core.stakeCredential),
+        },
+        credential: core.stakeCredential,
+      };
     case Cardano.CertificateType.Unregistration:
       return {
         certType: {
           type: "DeregisterStake",
           stakeKeyAddress: stake(core.stakeCredential),
+          coin: Number(core.deposit),
         },
         credential: core.stakeCredential,
       };

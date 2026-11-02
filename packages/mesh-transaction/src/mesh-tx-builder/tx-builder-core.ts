@@ -1257,14 +1257,17 @@ export class MeshTxBuilderCore {
   /**
    * Creates a stake registration certificate, and adds it to the transaction
    * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @param coin The deposit in lovelace; when given, the Conway `reg_cert` stating it is
+   * used instead of the legacy certificate that leaves the deposit implicit
    * @returns The MeshTxBuilder instance
    */
-  registerStakeCertificate = (rewardAddress: string) => {
+  registerStakeCertificate = (rewardAddress: string, coin?: number) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "RegisterStake",
         stakeKeyAddress: rewardAddress,
+        ...(coin !== undefined ? { coin } : {}),
       },
     });
     return this;
@@ -1292,14 +1295,17 @@ export class MeshTxBuilderCore {
   /**
    * Creates a stake deregister certificate, and adds it to the transaction
    * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @param coin The deposit refunded in lovelace; when given, the Conway `unreg_cert`
+   * stating it is used instead of the legacy certificate that leaves the deposit implicit
    * @returns The MeshTxBuilder instance
    */
-  deregisterStakeCertificate = (rewardAddress: string) => {
+  deregisterStakeCertificate = (rewardAddress: string, coin?: number) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "DeregisterStake",
         stakeKeyAddress: rewardAddress,
+        ...(coin !== undefined ? { coin } : {}),
       },
     });
     return this;

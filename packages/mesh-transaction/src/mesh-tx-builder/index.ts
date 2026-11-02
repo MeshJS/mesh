@@ -1560,9 +1560,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (let cert of this.meshTxBuilderBody.certificates) {
       const certType = cert.certType;
       if (certType.type === "RegisterStake") {
-        if (cert.certType) {
-          accum += BigInt(this._protocolParams.keyDeposit);
-        }
+        accum += BigInt(certType.coin ?? this._protocolParams.keyDeposit);
       } else if (certType.type === "RegisterPool") {
         accum += BigInt(this._protocolParams.poolDeposit);
       } else if (certType.type === "DRepRegistration") {
@@ -1590,9 +1588,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (let cert of this.meshTxBuilderBody.certificates) {
       const certType = cert.certType;
       if (certType.type === "DeregisterStake") {
-        if (cert.certType) {
-          accum += BigInt(this._protocolParams.keyDeposit);
-        }
+        accum += BigInt(certType.coin ?? this._protocolParams.keyDeposit);
       } else if (certType.type === "DRepDeregistration") {
         accum += BigInt(certType.coin);
       }
