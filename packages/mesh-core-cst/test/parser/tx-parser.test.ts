@@ -1380,6 +1380,23 @@ describe("CardanoSDKTxParser", () => {
     );
   });
 
+  it("throws on an invalid scriptRef of a resolved reference input", async () => {
+    const { txHex } = await build((b) =>
+      b
+        .readOnlyTxInReference(txHash("tx6"), 0)
+        .txIn(txHash("tx1"), 0)
+        .changeAddress(ADDR),
+    );
+    const corrupted = utxos.map((u) =>
+      u.input.txHash === txHash("tx6")
+        ? { ...u, output: { ...u.output, scriptRef: "deadbeef" } }
+        : u,
+    );
+    expect(() => parseTxBuilderBody(txHex, corrupted)).toThrow(
+      /invalid scriptRef on UTxO/,
+    );
+  });
+
   it("exposes the parsed body, the body without change output and a tester", async () => {
     const { txHex, parser, body } = await build((b) =>
       b
