@@ -718,6 +718,20 @@ export const bodyToParts = (
     for (const item of group)
       if (item.type === "ScriptVote" && !item.redeemer)
         fail({ part: missing.part }, "WITNESS_MISMATCH", missing.message);
+    // The voter's script runs once, with one redeemer: its votes give the same one
+    const redeemersGiven = new Set(
+      group.flatMap((item) =>
+        item.type === "ScriptVote"
+          ? [comparable(toRedeemerInput(item.redeemer, missing))]
+          : [],
+      ),
+    );
+    if (redeemersGiven.size > 1)
+      fail(
+        { part: missing.part },
+        "WITNESS_MISMATCH",
+        `The votes of one voter give different redeemers, and its script runs once with one: voter ${describeVoter(first.vote.voter)}`,
+      );
     const witness =
       first.type === "SimpleScriptVote"
         ? nativeWitness(first.simpleScriptSource)
