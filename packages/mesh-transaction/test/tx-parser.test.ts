@@ -1,10 +1,10 @@
 import { UTxO } from "@meshsdk/common";
 import { OfflineFetcher, TxParser } from "@meshsdk/core";
-import { CSLSerializer } from "@meshsdk/core-csl";
+import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
 describe("TxParser", () => {
   it("should parse the tx", async () => {
-    const serializer = new CSLSerializer();
+    const serializer = new CardanoSDKSerializer();
     const txParser = new TxParser(serializer);
 
     const utxo1: UTxO = {
@@ -199,7 +199,7 @@ describe("TxParser", () => {
     );
     fetcher.addUTxOs([utxo1, utxo2]);
 
-    const serializer = new CSLSerializer();
+    const serializer = new CardanoSDKSerializer();
     const txParser = new TxParser(serializer, fetcher);
 
     const txBuilderBody = await txParser.parse(transactionHex);

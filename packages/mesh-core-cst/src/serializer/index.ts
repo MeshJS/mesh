@@ -58,15 +58,14 @@ import {
   toBytes,
   TransactionPrototype,
   TxIn,
-  TxInput,
   TxMetadata,
-  UTxO,
   ValidityRange,
   Vote,
   Withdrawal,
 } from "@meshsdk/common";
 
 import { resolveDataHash } from "..";
+import { CardanoSDKTxParser } from "../parser";
 import {
   Address,
   AddressType,
@@ -562,23 +561,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     return cardanoOutput.toCbor();
   }
 
-  parser: ITxParser = {
-    getRequiredInputs: function (txHex: string): TxInput[] {
-      throw new Error("Function not implemented.");
-    },
-    parse: function (txHex: string, resolvedUtxos?: UTxO[]): void {
-      throw new Error("Method not implemented.");
-    },
-    toTester: function (): any {
-      throw new Error("Method not implemented.");
-    },
-    getBuilderBody: function (): MeshTxBuilderBody {
-      throw new Error("Method not implemented.");
-    },
-    getBuilderBodyWithoutChange: function (): MeshTxBuilderBody {
-      throw new Error("Method not implemented.");
-    },
-  };
+  parser: ITxParser = new CardanoSDKTxParser();
 }
 
 class CardanoSDKSerializerCore {
