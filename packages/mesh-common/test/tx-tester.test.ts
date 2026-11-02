@@ -1,10 +1,10 @@
 import { byteString, conStr0, MeshValue, UTxO } from "@meshsdk/common";
 import { TxParser } from "@meshsdk/core";
-import { CSLSerializer, resolveDataHash } from "@meshsdk/core-csl";
+import { CardanoSDKSerializer, resolveDataHash } from "@meshsdk/core-cst";
 
 describe("TxTester", () => {
   it("should test transaction validation", async () => {
-    const serializer = new CSLSerializer();
+    const serializer = new CardanoSDKSerializer();
     const txParser = new TxParser(serializer);
     // Create datum and get its CBOR/hash
     const datum =
