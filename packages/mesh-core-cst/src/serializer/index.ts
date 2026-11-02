@@ -126,6 +126,7 @@ import { toCardanoMetadataMap } from "../utils/metadata";
 import { toCardanoProposalProcedure } from "../utils/proposal";
 import { hashScriptData } from "../utils/script-data-hash";
 import {
+  compareVoters,
   toCardanoGovernanceActionId,
   toCardanoVoter,
   toCardanoVotingProcedure,
@@ -560,6 +561,7 @@ class CardanoSDKSerializerCore {
   >();
 
   private mintRedeemers: Map<String, Redeemer> = new Map<String, Redeemer>();
+  private voteRedeemers: Map<string, Redeemer> = new Map<string, Redeemer>();
 
   private scriptsProvided: Set<string> = new Set<string>();
   private datumsProvided: Set<PlutusData> = new Set<PlutusData>();
@@ -1698,23 +1700,47 @@ class CardanoSDKSerializerCore {
   };
 
   private addAllVotes = (votes: Vote[]) => {
-    for (let i = 0; i < votes.length; i++) {
-      const vote = votes[i];
-      switch (vote!.type) {
+    for (const vote of votes) {
+      switch (vote.type) {
         case "BasicVote": {
-          this.addBasicVote(vote as BasicVote);
+          this.addBasicVote(vote);
           break;
         }
         case "ScriptVote": {
-          this.addScriptVote(vote as ScriptVote, i);
+          this.addScriptVote(vote);
           break;
         }
         case "SimpleScriptVote": {
-          this.addSimpleScriptVote(vote as SimpleScriptVote);
+          this.addSimpleScriptVote(vote);
           break;
         }
       }
     }
+    this.addVoteRedeemers();
+  };
+
+  // The ledger runs a voter's script once for all of its votes: one redeemer per voter,
+  // indexed by the position of the voter in the ledger's ordering of the voting procedures
+  private addVoteRedeemers = () => {
+    if (this.voteRedeemers.size === 0) return;
+    const voters = [
+      ...(this.txBody.votingProcedures()?.getVoters() ?? []),
+    ].sort(compareVoters);
+    const redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
+    const redeemersList = [...redeemers.values()];
+    this.voteRedeemers.forEach((redeemer, voterCbor) => {
+      const index = voters.findIndex((voter) => voter.toCbor() === voterCbor);
+      redeemersList.push(
+        new Redeemer(
+          RedeemerTag.Voting,
+          BigInt(index),
+          redeemer.data(),
+          redeemer.exUnits(),
+        ),
+      );
+    });
+    redeemers.setValues(redeemersList);
+    this.txWitnessSet.setRedeemers(redeemers);
   };
 
   private addBasicVote = (basicVote: BasicVote) => {
@@ -1730,7 +1756,7 @@ class CardanoSDKSerializerCore {
     this.txBody.setVotingProcedures(votes);
   };
 
-  private addScriptVote = (vote: ScriptVote, index: number) => {
+  private addScriptVote = (vote: ScriptVote) => {
     if (!vote.scriptSource)
       throw new Error("Script source not provided for plutus script vote");
     const plutusScriptSource = vote.scriptSource as ScriptSource;
@@ -1743,22 +1769,24 @@ class CardanoSDKSerializerCore {
       throw new Error("A redeemer was not provided for a plutus vote");
     }
 
-    // Add withdraw redeemer to witness set
-    let redeemers = this.txWitnessSet.redeemers() ?? Redeemers.fromCore([]);
-    let redeemersList = [...redeemers.values()];
-    redeemersList.push(
-      new Redeemer(
-        RedeemerTag.Voting,
-        BigInt(index),
-        fromBuilderToPlutusData(vote.redeemer.data),
-        new ExUnits(
-          BigInt(vote.redeemer.exUnits.mem),
-          BigInt(vote.redeemer.exUnits.steps),
-        ),
+    const redeemer = new Redeemer(
+      RedeemerTag.Voting,
+      BigInt(0),
+      fromBuilderToPlutusData(vote.redeemer.data),
+      new ExUnits(
+        BigInt(vote.redeemer.exUnits.mem),
+        BigInt(vote.redeemer.exUnits.steps),
       ),
     );
-    redeemers.setValues(redeemersList);
-    this.txWitnessSet.setRedeemers(redeemers);
+    const voterCbor = toCardanoVoter(vote.vote.voter).toCbor();
+    const existing = this.voteRedeemers.get(voterCbor);
+    if (existing) {
+      if (existing.toCbor() !== redeemer.toCbor()) {
+        throw new Error("The same voter must have the same redeemer");
+      }
+    } else {
+      this.voteRedeemers.set(voterCbor, redeemer);
+    }
 
     if (plutusScriptSource.type === "Provided") {
       this.addProvidedPlutusScript(plutusScriptSource.script);

@@ -23,9 +23,9 @@ import {
   RedeemerTag,
 } from "../types";
 import { fromValue } from "../utils/converter";
+import { compareCredentials } from "../utils/vote";
 import {
   addressToString,
-  compareCredentials,
   paymentCredentialOf,
   toResolvedScript,
   TxParserContext,

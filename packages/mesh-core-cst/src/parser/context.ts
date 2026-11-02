@@ -46,15 +46,6 @@ export type ScriptWitness = {
 export const utxoKey = (txHash: string, txIndex: number | bigint): string =>
   `${txHash}#${txIndex}`;
 
-/** The order the ledger keeps credentials in: script credentials first, then by hash */
-export const compareCredentials = (
-  a: CredentialCore,
-  b: CredentialCore,
-): number => {
-  if (a.type !== b.type) return a.type === CredentialType.ScriptHash ? -1 : 1;
-  return a.hash < b.hash ? -1 : a.hash > b.hash ? 1 : 0;
-};
-
 export const addressToString = (address: Address): string =>
   address.getType() === AddressType.Byron
     ? address.toBase58()

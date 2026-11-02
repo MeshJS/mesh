@@ -1613,5 +1613,33 @@ describe("CardanoSDKTxParser", () => {
       );
       expect(rebuilt).toEqual(body);
     });
+
+    it("rebuilds the same transaction body from parsed votes and withdrawals", async () => {
+      const { body, rebuilt } = await rebuild((b) =>
+        b
+          .withdrawal(keyStake, "1000000")
+          .withdrawalPlutusScriptV3()
+          .withdrawal(scriptStake, "0")
+          .withdrawalScript(alwaysSucceedCbor)
+          .withdrawalRedeemerValue("")
+          .vote({ type: "StakingPool", keyHash: keyHashHex(1) }, GOV, {
+            voteKind: "Abstain",
+          })
+          .votePlutusScriptV3()
+          .vote({ type: "DRep", drepId: scriptDrep }, GOV, { voteKind: "Yes" })
+          .voteScript(alwaysSucceedCbor)
+          .voteRedeemerValue("")
+          .votePlutusScriptV3()
+          .vote({ type: "DRep", drepId: scriptDrep }, GOV2, { voteKind: "No" })
+          .voteScript(alwaysSucceedCbor)
+          .voteRedeemerValue("")
+          .txIn(txHash("tx1"), 0)
+          .txInCollateral(txHash("tx1"), 0)
+          .changeAddress(ADDR),
+      );
+      expect(body.withdrawals).toHaveLength(2);
+      expect(body.votes).toHaveLength(3);
+      expect(rebuilt).toEqual(body);
+    });
   });
 });

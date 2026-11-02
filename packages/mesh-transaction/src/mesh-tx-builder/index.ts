@@ -26,7 +26,6 @@ import {
   TxIn,
   UTxO,
   Vote,
-  Voter,
   Withdrawal,
 } from "@meshsdk/common";
 import {
@@ -568,75 +567,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   sortVotes = () => {
-    const variantOrder: Record<Voter["type"], number> = {
-      ConstitutionalCommittee: 0,
-      DRep: 1,
-      StakingPool: 2,
-    };
-    this.meshTxBuilderBody.votes.sort((a, b) => {
-      const voterA = a.vote.voter;
-      const voterB = b.vote.voter;
-      const orderA = variantOrder[voterA.type];
-      const orderB = variantOrder[voterB.type];
-      if (orderA !== orderB) return orderA - orderB;
-
-      // Same variant, compare inner values
-      if (
-        voterA.type === "ConstitutionalCommittee" &&
-        voterB.type === "ConstitutionalCommittee"
-      ) {
-        const credA = voterA.hotCred;
-        const credB = voterB.hotCred;
-        // Script credentials come before Key credentials
-        if (credA.type === "ScriptHash" && credB.type === "KeyHash") {
-          return -1;
-        }
-        if (credA.type === "KeyHash" && credB.type === "ScriptHash") {
-          return 1;
-        }
-        // If same type, compare the hashes
-        if (credA.type === credB.type) {
-          const hashA =
-            credA.type === "KeyHash" ? credA.keyHash : credA.scriptHash;
-          const hashB =
-            credB.type === "KeyHash" ? credB.keyHash : credB.scriptHash;
-          if (hashA < hashB) return -1;
-          if (hashA > hashB) return 1;
-          return 0;
-        }
-        return 0;
-      }
-      if (voterA.type === "DRep" && voterB.type === "DRep") {
-        const drepA = coreToCstDRep(voterA.drepId);
-        const drepB = coreToCstDRep(voterB.drepId);
-        const scriptHashA = drepA.toScriptHash();
-        const scriptHashB = drepB.toScriptHash();
-        const keyHashA = drepA.toKeyHash();
-        const keyHashB = drepB.toKeyHash();
-
-        // Script hashes come before key hashes
-        if (scriptHashA != null && scriptHashB != null) {
-          if (scriptHashA < scriptHashB) return -1;
-          if (scriptHashA > scriptHashB) return 1;
-          return 0;
-        }
-        if (scriptHashA != null) return -1;
-        if (scriptHashB != null) return 1;
-        // If both are key hashes, compare them
-        if (keyHashA != null && keyHashB != null) {
-          if (keyHashA < keyHashB) return -1;
-          if (keyHashA > keyHashB) return 1;
-          return 0;
-        }
-        return 0;
-      }
-      if (voterA.type === "StakingPool" && voterB.type === "StakingPool") {
-        if (voterA.keyHash < voterB.keyHash) return -1;
-        if (voterA.keyHash > voterB.keyHash) return 1;
-        return 0;
-      }
-      return 0;
-    });
+    this.meshTxBuilderBody.votes.sort((a, b) =>
+      this.compareVoters(a.vote.voter, b.vote.voter),
+    );
   };
 
   sortProposals = () => {
@@ -855,16 +788,18 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         });
       }
     }
-    for (let i = 0; i < meshTxBuilderBody.votes.length; i++) {
-      const vote = meshTxBuilderBody.votes[i]!;
-      if (vote.type === "ScriptVote" && vote.redeemer) {
-        redeemers.push({
-          tag: "VOTE",
-          index: i,
-          budget: structuredClone(vote.redeemer.exUnits),
-        });
+    this.votesByVoter(meshTxBuilderBody).forEach((votes, index) => {
+      for (const vote of votes) {
+        if (vote.type === "ScriptVote" && vote.redeemer) {
+          redeemers.push({
+            tag: "VOTE",
+            index,
+            budget: structuredClone(vote.redeemer.exUnits),
+          });
+          break;
+        }
       }
-    }
+    });
     return redeemers;
   };
 

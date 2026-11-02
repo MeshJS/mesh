@@ -9,50 +9,11 @@ import {
   VotingProcedure,
 } from "@meshsdk/common";
 
-import { CredentialCore, CredentialType, DRepID, RedeemerTag } from "../types";
-import { compareCredentials, TxParserContext } from "./context";
+import { CredentialType, DRepID, RedeemerTag } from "../types";
+import { compareVoters, voterCredential } from "../utils/vote";
+import { TxParserContext } from "./context";
 
 const { VoterKind } = Serialization;
-
-/** The credential that witnesses the votes of a voter (the pool key for SPOs) */
-const voterCredential = (voter: Serialization.Voter): CredentialCore => {
-  switch (voter.kind()) {
-    case VoterKind.ConstitutionalCommitteeKeyHash:
-    case VoterKind.ConstitutionalCommitteeScriptHash:
-      return voter.toConstitutionalCommitteeHotCred()!;
-    case VoterKind.DrepKeyHash:
-    case VoterKind.DRepScriptHash:
-      return voter.toDrepCred()!;
-    case VoterKind.StakePoolKeyHash:
-      return {
-        type: CredentialType.KeyHash,
-        hash: voter.toStakingPoolKeyHash()! as unknown as CredentialCore["hash"],
-      };
-    default:
-      throw new Error(`Unsupported voter kind: ${voter.kind()}`);
-  }
-};
-
-const voterRank = (voter: Serialization.Voter): number => {
-  switch (voter.kind()) {
-    case VoterKind.ConstitutionalCommitteeKeyHash:
-    case VoterKind.ConstitutionalCommitteeScriptHash:
-      return 0;
-    case VoterKind.DrepKeyHash:
-    case VoterKind.DRepScriptHash:
-      return 1;
-    default:
-      return 2;
-  }
-};
-
-/** The order the ledger keeps voters in: committee, DReps, pools; script credentials first */
-const compareVoters = (
-  a: Serialization.Voter,
-  b: Serialization.Voter,
-): number =>
-  voterRank(a) - voterRank(b) ||
-  compareCredentials(voterCredential(a), voterCredential(b));
 
 const toMeshVoter = (voter: Serialization.Voter): Voter => {
   switch (voter.kind()) {
