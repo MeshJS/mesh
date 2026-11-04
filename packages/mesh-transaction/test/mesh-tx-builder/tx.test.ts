@@ -734,9 +734,37 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("CC vote", async () => {
-    const { wallet, address, provider, params, utxos } =
-      await createTestSetup({ initialLovelace: "120000000000" });
+    const { wallet, address } = await createTestSetup();
     const hotKeyHash = resolvePaymentKeyHash(address);
+    // Only a sitting committee member may vote, so seat the wallet's key as one, with itself as
+    // the authorized hot key.
+    const { CardanoInfo, Emulator, Utxo, Value } = await importScalus();
+    const emulator = Emulator.create(CardanoInfo.preview(), {
+      committee: {
+        members: [
+          {
+            credentialType: "key",
+            credentialHash: hotKeyHash,
+            expiresAfter: 1_000_000,
+          },
+        ],
+        threshold: { numerator: 1, denominator: 1 },
+      },
+      committeeHotKeys: [
+        {
+          coldCredentialType: "key",
+          coldCredentialHash: hotKeyHash,
+          hotCredentialType: "key",
+          hotCredentialHash: hotKeyHash,
+        },
+      ],
+    });
+    emulator.addUtxo(
+      new Utxo("0".repeat(64), 0, address, new Value(120_000_000_000n, [])),
+    );
+    const provider = new ScalusEmulator(emulator);
+    const params = await provider.fetchProtocolParameters();
+    const utxos = await provider.fetchAddressUTxOs(address);
     const rewardAddress = serializeRewardAddress(hotKeyHash);
     const anchor = {
       anchorUrl: "https://path-to.jsonld",
