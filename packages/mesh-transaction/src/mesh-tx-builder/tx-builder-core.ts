@@ -41,7 +41,11 @@ import {
   VotingProcedure,
   Withdrawal,
 } from "@meshsdk/common";
-import { Address, CredentialType } from "@meshsdk/core-cst";
+import {
+  Address,
+  toDRep as coreToCstDRep,
+  CredentialType,
+} from "@meshsdk/core-cst";
 
 import { metadataObjToMap } from "../utils";
 
@@ -1253,14 +1257,17 @@ export class MeshTxBuilderCore {
   /**
    * Creates a stake registration certificate, and adds it to the transaction
    * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @param coin The deposit in lovelace; when given, the Conway `reg_cert` stating it is
+   * used instead of the legacy certificate that leaves the deposit implicit
    * @returns The MeshTxBuilder instance
    */
-  registerStakeCertificate = (rewardAddress: string) => {
+  registerStakeCertificate = (rewardAddress: string, coin?: number) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "RegisterStake",
         stakeKeyAddress: rewardAddress,
+        ...(coin !== undefined ? { coin } : {}),
       },
     });
     return this;
@@ -1288,14 +1295,17 @@ export class MeshTxBuilderCore {
   /**
    * Creates a stake deregister certificate, and adds it to the transaction
    * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @param coin The deposit refunded in lovelace; when given, the Conway `unreg_cert`
+   * stating it is used instead of the legacy certificate that leaves the deposit implicit
    * @returns The MeshTxBuilder instance
    */
-  deregisterStakeCertificate = (rewardAddress: string) => {
+  deregisterStakeCertificate = (rewardAddress: string, coin?: number) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "DeregisterStake",
         stakeKeyAddress: rewardAddress,
+        ...(coin !== undefined ? { coin } : {}),
       },
     });
     return this;
@@ -2016,24 +2026,138 @@ export class MeshTxBuilderCore {
             );
           }
           break;
-        case "VOTE":
-          const vote = meshTxBuilderBody.votes[redeemerEvaluation.index];
-          if (!vote) {
+        case "VOTE": {
+          // Voting redeemers are indexed by voter, and a voter's script runs once for all
+          // of its votes
+          const votes =
+            this.votesByVoter(meshTxBuilderBody)[redeemerEvaluation.index];
+          if (!votes) {
             throw Error(
               `updateRedeemer: Vote not found for index ${redeemerEvaluation.index}`,
             );
           }
-          if (vote.type === "ScriptVote" && vote.redeemer) {
-            vote.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
-            );
-            vote.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
-            );
+          for (const vote of votes) {
+            if (vote.type === "ScriptVote" && vote.redeemer) {
+              vote.redeemer.exUnits.mem = Math.floor(
+                redeemerEvaluation.budget.mem * txEvaluationMultiplier,
+              );
+              vote.redeemer.exUnits.steps = Math.floor(
+                redeemerEvaluation.budget.steps * txEvaluationMultiplier,
+              );
+            }
           }
           break;
+        }
       }
     });
+  };
+
+  /**
+   * The order the ledger keeps voters in, which is the order voting redeemers are indexed
+   * by: committee members, then DReps, then pools; script credentials before key hashes
+   */
+  protected compareVoters = (voterA: Voter, voterB: Voter): number => {
+    const variantOrder: Record<Voter["type"], number> = {
+      ConstitutionalCommittee: 0,
+      DRep: 1,
+      StakingPool: 2,
+    };
+    const orderA = variantOrder[voterA.type];
+    const orderB = variantOrder[voterB.type];
+    if (orderA !== orderB) return orderA - orderB;
+
+    // Same variant, compare inner values
+    if (
+      voterA.type === "ConstitutionalCommittee" &&
+      voterB.type === "ConstitutionalCommittee"
+    ) {
+      const credA = voterA.hotCred;
+      const credB = voterB.hotCred;
+      // Script credentials come before Key credentials
+      if (credA.type === "ScriptHash" && credB.type === "KeyHash") {
+        return -1;
+      }
+      if (credA.type === "KeyHash" && credB.type === "ScriptHash") {
+        return 1;
+      }
+      // If same type, compare the hashes
+      if (credA.type === credB.type) {
+        const hashA =
+          credA.type === "KeyHash" ? credA.keyHash : credA.scriptHash;
+        const hashB =
+          credB.type === "KeyHash" ? credB.keyHash : credB.scriptHash;
+        if (hashA < hashB) return -1;
+        if (hashA > hashB) return 1;
+        return 0;
+      }
+      return 0;
+    }
+    if (voterA.type === "DRep" && voterB.type === "DRep") {
+      const drepA = coreToCstDRep(voterA.drepId);
+      const drepB = coreToCstDRep(voterB.drepId);
+      const scriptHashA = drepA.toScriptHash();
+      const scriptHashB = drepB.toScriptHash();
+      const keyHashA = drepA.toKeyHash();
+      const keyHashB = drepB.toKeyHash();
+
+      // Script hashes come before key hashes
+      if (scriptHashA != null && scriptHashB != null) {
+        if (scriptHashA < scriptHashB) return -1;
+        if (scriptHashA > scriptHashB) return 1;
+        return 0;
+      }
+      if (scriptHashA != null) return -1;
+      if (scriptHashB != null) return 1;
+      // If both are key hashes, compare them
+      if (keyHashA != null && keyHashB != null) {
+        if (keyHashA < keyHashB) return -1;
+        if (keyHashA > keyHashB) return 1;
+        return 0;
+      }
+      return 0;
+    }
+    if (voterA.type === "StakingPool" && voterB.type === "StakingPool") {
+      if (voterA.keyHash < voterB.keyHash) return -1;
+      if (voterA.keyHash > voterB.keyHash) return 1;
+      return 0;
+    }
+    return 0;
+  };
+
+  /** Identifies a voter whatever the format of its id, to group the votes it casts */
+  protected voterKey = (voter: Voter): string => {
+    switch (voter.type) {
+      case "ConstitutionalCommittee":
+        return voter.hotCred.type === "ScriptHash"
+          ? `cc:script:${voter.hotCred.scriptHash}`
+          : `cc:key:${voter.hotCred.keyHash}`;
+      case "DRep": {
+        const drep = coreToCstDRep(voter.drepId);
+        const scriptHash = drep.toScriptHash();
+        return scriptHash != null
+          ? `drep:script:${scriptHash}`
+          : `drep:key:${drep.toKeyHash()}`;
+      }
+      case "StakingPool":
+        return `pool:${voter.keyHash}`;
+    }
+  };
+
+  /**
+   * The votes grouped by voter, in the order the ledger indexes voting redeemers by: a
+   * voter's script runs once for all of its votes, so there is one redeemer per voter
+   */
+  protected votesByVoter = (meshTxBuilderBody: MeshTxBuilderBody): Vote[][] => {
+    const groups = new Map<string, { voter: Voter; votes: Vote[] }>();
+    for (const vote of meshTxBuilderBody.votes) {
+      const key = this.voterKey(vote.vote.voter);
+      const group = groups.get(key) ?? { voter: vote.vote.voter, votes: [] };
+      group.votes.push(vote);
+      groups.set(key, group);
+    }
+    return [...groups.values()]
+      .sort((a, b) => this.compareVoters(a.voter, b.voter))
+      .map((group) => group.votes);
   };
 
   removeDuplicateInputs = () => {

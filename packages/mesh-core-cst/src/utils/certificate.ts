@@ -107,6 +107,15 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
         );
       }
 
+      // A stated deposit selects the Conway `reg_cert`
+      if (cert.coin !== undefined) {
+        return CardanoCert.newRegistrationCert(
+          new Serialization.Registration(
+            rewardAddress.getPaymentCredential(),
+            BigInt(cert.coin),
+          ),
+        );
+      }
       return CardanoCert.newStakeRegistration(
         new Serialization.StakeRegistration(
           rewardAddress.getPaymentCredential(),
@@ -144,6 +153,15 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
         );
       }
 
+      // A stated deposit selects the Conway `unreg_cert`
+      if (cert.coin !== undefined) {
+        return CardanoCert.newUnregistrationCert(
+          new Serialization.Unregistration(
+            rewardAddress.getPaymentCredential(),
+            BigInt(cert.coin),
+          ),
+        );
+      }
       return CardanoCert.newStakeDeregistration(
         new Serialization.StakeDeregistration(
           rewardAddress.getPaymentCredential(),

@@ -1,10 +1,9 @@
 import JSONBig from "json-bigint";
 
 import { NativeScript } from "@meshsdk/common";
-import { applyCborEncoding } from "@meshsdk/core-csl";
 import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 
-import { parseDatumCbor } from "../../src";
+import { normalizePlutusScript, parseDatumCbor } from "../../src";
 
 describe("Serialization utils", () => {
   const serializer = new CardanoSDKSerializer();
@@ -378,8 +377,9 @@ describe("Serialization utils", () => {
   it("should return correct script reference v3", () => {
     const result = serializer.resolver.script.resolveScriptRef({
       version: "V3",
-      code: applyCborEncoding(
+      code: normalizePlutusScript(
         "5850010100323232323225333002323232323253330073370e900018041baa0011324a26eb8c028c024dd50008b1804980500198040011803801180380098021baa00114984d9595cd2ab9d5573cae855d11",
+        "DoubleCBOR",
       ),
     });
     expect(result).toEqual(
@@ -390,8 +390,9 @@ describe("Serialization utils", () => {
   it("should return correct script reference v2", () => {
     const result = serializer.resolver.script.resolveScriptRef({
       version: "V2",
-      code: applyCborEncoding(
+      code: normalizePlutusScript(
         "5850010100323232323225333002323232323253330073370e900018041baa0011324a26eb8c028c024dd50008b1804980500198040011803801180380098021baa00114984d9595cd2ab9d5573cae855d11",
+        "DoubleCBOR",
       ),
     });
     expect(result).toEqual(
@@ -402,8 +403,9 @@ describe("Serialization utils", () => {
   it("should return correct script reference v1", () => {
     const result = serializer.resolver.script.resolveScriptRef({
       version: "V1",
-      code: applyCborEncoding(
+      code: normalizePlutusScript(
         "5850010100323232323225333002323232323253330073370e900018041baa0011324a26eb8c028c024dd50008b1804980500198040011803801180380098021baa00114984d9595cd2ab9d5573cae855d11",
+        "DoubleCBOR",
       ),
     });
     expect(result).toEqual(

@@ -1,6 +1,5 @@
 import { MeshTxBuilderBody } from "@meshsdk/common";
 import { MeshTxBuilder } from "@meshsdk/core";
-import { OfflineEvaluator } from "@meshsdk/core-csl";
 import { Transaction, TxCBOR } from "@meshsdk/core-cst";
 import { OfflineFetcher } from "@meshsdk/provider";
 

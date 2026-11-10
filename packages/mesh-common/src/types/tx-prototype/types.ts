@@ -2,8 +2,8 @@
  * A backend-agnostic, fully-resolved representation of a Cardano transaction — post
  * coin-selection, post witness collection — sitting between a transaction builder's own state and
  * CBOR. Root type: `TransactionPrototype`. It lives in `mesh-common` rather than in a serializer
- * package because `mesh-core-cst` and `mesh-core-csl` are two backends behind one
- * `IMeshTxSerializer` interface and both need the same shape; this file has no runtime imports,
+ * package because serializer backends (`mesh-core-cst` today) sit behind one
+ * `IMeshTxSerializer` interface and all need the same shape; this file has no runtime imports,
  * so it adds no dependency edge.
  *
  * Field names are snake_case verbatim (not camelCased). Serializer backends may hand this shape
@@ -22,7 +22,7 @@
  * a reason to narrow these types.
  *
  * One live caveat: `JSON.stringify` THROWS on `bigint`, so a backend serializing this to JSON
- * needs `json-bigint` or equivalent; `mesh-core-csl` already does.
+ * needs `json-bigint` or equivalent.
  */
 
 export type AddressPrototype = string;
