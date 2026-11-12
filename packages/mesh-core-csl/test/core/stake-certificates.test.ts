@@ -22,16 +22,29 @@ describe("CSL stake certificate compatibility", () => {
     },
   );
 
-  it.each(["RegisterStake", "DeregisterStake"] as const)(
-    "preserves explicit %s amounts in the JSON adaptor",
-    (type) => {
-      for (const coin of [0, 3_000_000]) {
-        const cert = {
-          type: "BasicCertificate" as const,
+  it.each([
+    ["RegisterStake", "registerStake"],
+    ["DeregisterStake", "deregisterStake"],
+  ] as const)("passes an explicit %s amount to whisky", (type, key) => {
+    for (const coin of [0, 3_000_000]) {
+      expect(
+        certificateToObj({
+          type: "BasicCertificate",
           certType: { type, stakeKeyAddress, coin },
-        };
-        expect(certificateFromObj(certificateToObj(cert))).toEqual(cert);
-      }
-    },
-  );
+        }),
+      ).toEqual({ basicCertificate: { [key]: { stakeKeyAddress, coin } } });
+    }
+  });
+
+  it("does not take the deposit whisky's parser reports for a stake registration", () => {
+    // whisky's parser reports coin 0 for any stake registration's deposit
+    expect(
+      certificateFromObj({
+        basicCertificate: { registerStake: { stakeKeyAddress, coin: 0 } },
+      }),
+    ).toEqual({
+      type: "BasicCertificate",
+      certType: { type: "RegisterStake", stakeKeyAddress },
+    });
+  });
 });

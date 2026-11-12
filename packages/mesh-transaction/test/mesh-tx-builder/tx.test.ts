@@ -419,7 +419,69 @@ describe("MeshTxBuilder transactions", () => {
 
   it("Build tx to register script stake should succeed", async () => {
     const { wallet, address, provider, params, utxos } =
+      await createTestSetup({ includeCollateral: true });
+    const collateralHash = "1".repeat(64);
+
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .changeAddress(address)
+      .selectUtxosFrom(
+        utxos.filter((utxo) => utxo.input.txHash !== collateralHash),
+      )
+      .registerStakeCertificate(serializeRewardAddress(alwaysSucceedHash, true))
+      .certificateScript(alwaysSucceedCbor, "V3")
+      .certificateRedeemerValue(mConStr0([]))
+      .txInCollateral(
+        collateralHash,
+        0,
+        [{ unit: "lovelace", quantity: "5000000" }],
+        address,
+      )
+      .complete();
+    const signedTx = await wallet.signTx(txHex);
+    const txHash = await provider.submitTx(signedTx);
+
+    expect(txHash).toHaveLength(64);
+  });
+
+  it("Build tx to register script stake without its script should fail", async () => {
+    const { wallet, address, provider, params, utxos } =
       await createTestSetup();
+
+    // Certificate 7, unlike the removed certificate 0, needs a witness
+    const txHex = await new MeshTxBuilder({
+      fetcher: provider,
+      submitter: provider,
+      evaluator: provider,
+      params,
+    })
+      .changeAddress(address)
+      .selectUtxosFrom(utxos)
+      .registerStakeCertificate(serializeRewardAddress(alwaysSucceedHash, true))
+      .complete();
+
+    await expect(
+      provider.submitTx(await wallet.signTx(txHex)),
+    ).rejects.toThrow("MissingOrExtraScriptHashes");
+  });
+
+  it("Build tx to register stake should need the stake key signature", async () => {
+    const { wallet, address, provider, params, utxos } =
+      await createTestSetup();
+    const stakeWallet = new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "mnemonic",
+        words: Array(24).fill("solution"),
+      },
+      accountType: "stake",
+    });
+    await stakeWallet.init();
+    const [rewardAddress] = await wallet.getRewardAddresses();
 
     const txHex = await new MeshTxBuilder({
       fetcher: provider,
@@ -429,12 +491,16 @@ describe("MeshTxBuilder transactions", () => {
     })
       .changeAddress(address)
       .selectUtxosFrom(utxos)
-      .registerStakeCertificate(
-        "stake_test17ryje2rawy9d7m2fwn4nrxgch8st3anccre32g885gu232snvhvu7",
-      )
+      .registerStakeCertificate(rewardAddress!)
       .complete();
-    const signedTx = await wallet.signTx(txHex);
-    const txHash = await provider.submitTx(signedTx);
+    const paymentSignedTx = await wallet.signTx(txHex);
+
+    await expect(provider.submitTx(paymentSignedTx)).rejects.toThrow(
+      "MissingKeyHashes",
+    );
+    const txHash = await provider.submitTx(
+      await stakeWallet.signTx(paymentSignedTx, true),
+    );
 
     expect(txHash).toHaveLength(64);
   });
@@ -455,6 +521,14 @@ describe("MeshTxBuilder transactions", () => {
       params,
     })
       .registerStakeCertificate(rewardAddress)
+      .certificateScript(alwaysSucceedCbor, "V3")
+      .certificateRedeemerValue(mConStr0([]))
+      .txInCollateral(
+        collateralHash,
+        0,
+        [{ unit: "lovelace", quantity: "5000000" }],
+        address,
+      )
       .changeAddress(address)
       .selectUtxosFrom(registrationUtxos)
       .complete();
