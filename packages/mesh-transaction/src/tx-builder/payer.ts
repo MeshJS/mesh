@@ -13,6 +13,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import type { NetworkEntry } from "./network";
+import { throwIfAborted } from "./abort";
 import { TxBuildError } from "./errors";
 import { checkNetworks, utxoEntry } from "./network";
 import { addressText, errorText } from "./parts/normalize";
@@ -166,7 +167,7 @@ const copyUtxo = (value: unknown): UTxO => {
 };
 
 /** A UTxO given as an object or as CBOR, converted */
-const toUtxo = (entry: unknown): UTxO =>
+export const toUtxo = (entry: unknown): UTxO =>
   typeof entry === "string" ? decodeUtxo(entry) : copyUtxo(entry);
 
 const invalidPayer = (value: unknown, reason: string, cause?: unknown) =>
@@ -248,6 +249,22 @@ export type PayerReadContext = {
   network: NetworkConfig;
   /** The provider as given, not its cache: a payer's UTxOs are always read fresh */
   provider?: IFetcher;
+  /** No read is started once it is aborted */
+  signal?: AbortSignal;
+};
+
+/** What a CIP-30 api's `getCollateral` takes and answers */
+export type GetCollateral = (params: {
+  amount: string;
+}) => Promise<string[] | null | undefined>;
+
+/**
+ * A payer as read: the snapshot, and for a CIP-30 api, its `getCollateral` (or
+ * `experimental.getCollateral`), the fallback for collateral
+ */
+export type PayerRead = {
+  readonly snapshot: PayerSnapshot;
+  readonly getCollateral?: GetCollateral;
 };
 
 /** The numeric `code` of a thrown value, as CIP-30 errors carry it; read without instanceof */
@@ -336,7 +353,7 @@ const providerFailed = (address: string, error: unknown) =>
 const readWallet = async (
   wallet: TxWallet,
   ctx: PayerReadContext,
-): Promise<PayerSnapshot> => {
+): Promise<PayerRead> => {
   const ownUtxos = typeof wallet.getUtxos === "function";
   if (!ownUtxos && !ctx.provider)
     throw new TxBuildError(
@@ -370,10 +387,13 @@ const readWallet = async (
     { role: "payer", address: changeAddress },
   ]);
   let read: UTxO[];
-  if (!ownUtxos) read = await fetchPayerUtxos(changeAddress, ctx);
-  else if (utxos.status === "rejected") {
+  if (!ownUtxos) {
+    throwIfAborted(ctx.signal);
+    read = await fetchPayerUtxos(changeAddress, ctx);
+  } else if (utxos.status === "rejected") {
     if (!isFetcherRequired(utxos.reason))
       throw walletFailed("getUtxos", utxos.reason);
+    throwIfAborted(ctx.signal);
     read = await fetchPayerUtxos(changeAddress, ctx);
   } else {
     const answer = utxos.value;
@@ -390,24 +410,51 @@ const readWallet = async (
     ctx.network,
     read.map((utxo) => utxoEntry(utxo)),
   );
-  return { changeAddress, utxos: read };
+  const snapshot = { changeAddress, utxos: read };
+  // A wallet answering in hex is a CIP-30 api; one in the Mesh format is never asked for
+  // collateral, whatever members it has
+  const getCollateral = isHexAddress(address.value)
+    ? collateralMethodOf(wallet as Cip30WalletApi)
+    : undefined;
+  return getCollateral ? { snapshot, getCollateral } : { snapshot };
+};
+
+/** Whether an address text is the hex of the address's bytes, as a CIP-30 api gives it */
+const isHexAddress = (text: unknown) =>
+  typeof text === "string" &&
+  /^[0-9a-f]+$/i.test(text) &&
+  Address.fromString(text)?.toBytes().toString() === text.toLowerCase();
+
+/** `getCollateral`, else `experimental.getCollateral`, bound to the api; one of them only */
+const collateralMethodOf = (api: Cip30WalletApi): GetCollateral | undefined => {
+  if (typeof api.getCollateral === "function")
+    return (params) => api.getCollateral!(params);
+  const { experimental } = api as { experimental?: unknown };
+  if (
+    isObject(experimental) &&
+    typeof experimental.getCollateral === "function"
+  )
+    return (params) =>
+      (experimental.getCollateral as GetCollateral).call(experimental, params);
+  return undefined;
 };
 
 /**
  * Reads a payer whose given data was checked: a wallet, or the UTxOs of an address; a snapshot
- * is returned as it is. What was read is checked for its network: the wallet's network id (only
- * mainnet against the test networks), the change address and every UTxO.
+ * is returned as it is. A CIP-30 api also gives its collateral method. What was read is checked
+ * for its network: the wallet's network id (only mainnet against the test networks), the change
+ * address and every UTxO.
  */
 export const readPayerSource = async (
   source: PayerSource,
   ctx: PayerReadContext,
-): Promise<PayerSnapshot> => {
-  if (source.form === "snapshot") return source.snapshot;
+): Promise<PayerRead> => {
+  if (source.form === "snapshot") return { snapshot: source.snapshot };
   if (source.form === "wallet") return readWallet(source.wallet, ctx);
   const utxos = await fetchPayerUtxos(source.address, ctx);
   checkNetworks(
     ctx.network,
     utxos.map((utxo) => utxoEntry(utxo)),
   );
-  return { changeAddress: source.address, utxos };
+  return { snapshot: { changeAddress: source.address, utxos } };
 };

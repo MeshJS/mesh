@@ -30,6 +30,7 @@ export {
   type Provider,
   type ChainSnapshot,
   type BuildOptions,
+  type BuildEvent,
   type PartEntry,
   type PartsInput,
   type BuiltTx,

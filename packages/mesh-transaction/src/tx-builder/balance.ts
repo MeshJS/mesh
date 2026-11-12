@@ -66,6 +66,11 @@ export type BalanceContext = {
   utxos: readonly UTxO[];
   /** Out refs of the UTxOs selected neither as inputs nor as collateral: a filter refused them */
   refused?: ReadonlySet<string>;
+  /**
+   * The UTxOs collateral is chosen from in place of the payer's, which are then still selected
+   * for payment only: those a wallet gave for collateral
+   */
+  collateralPool?: readonly UTxO[];
   /** Selects the inputs in place of the built-in selection */
   coinSelection?: SelectInputs;
   /**
@@ -90,6 +95,25 @@ export type BalanceContext = {
    * calls for: collateral that falls short is then put up as it is rather than rejected
    */
   provisional?: boolean;
+  /**
+   * Collateral that falls short is left out rather than rejected, as in a provisional round, in
+   * a round that only prices the transaction
+   */
+  lenientCollateral?: boolean;
+  /** Told of every round that prices a transaction */
+  onRound?: (round: PricedRound) => void;
+};
+
+/** A balancing round that priced a transaction */
+export type PricedRound = {
+  /** The round's number within its balancing, from 0 */
+  round: number;
+  /** The fee the round's transaction carries */
+  fee: bigint;
+  /** Its size in bytes, with placeholder witnesses */
+  size: number;
+  /** How many inputs selection has added */
+  selected: number;
 };
 
 export type CollateralPlan = {
@@ -148,6 +172,74 @@ const isKeyLocked = (utxo: UTxO) => {
   if (address.asByron()) return true;
   return address.getProps().paymentPart?.type === CredentialType.KeyHash;
 };
+
+/**
+ * The payer's UTxOs selection may take for payment: key-locked, not spent, read or named as
+ * collateral by a part, and not refused by the filter; with the count of the others, each by
+ * its first reason
+ */
+export const paymentPool = (
+  parts: readonly TxPart[],
+  utxos: readonly UTxO[],
+  refused: ReadonlySet<string> = new Set(),
+): { pool: UTxO[]; counts: InsufficientFundsDetails["pool"] } => {
+  const spent = new Set(
+    parts.flatMap((p) => (p.kind === "spend" ? [utxoKey(p.utxo!)] : [])),
+  );
+  const read = readByParts(parts);
+  const putUp = putUpByParts(parts);
+  const pool: UTxO[] = [];
+  const counts: InsufficientFundsDetails["pool"] = {
+    given: utxos.length,
+    selectable: 0,
+    scriptLocked: 0,
+    excludedByFilter: 0,
+    readByParts: 0,
+    spentByAfter: 0,
+  };
+  for (const utxo of utxos) {
+    const key = utxoKey(utxo);
+    // Already in the transaction: only given
+    if (spent.has(key) || putUp.has(key)) continue;
+    if (!isKeyLocked(utxo)) counts.scriptLocked++;
+    else if (read.has(key)) counts.readByParts++;
+    else if (refused.has(key)) counts.excludedByFilter++;
+    else pool.push(utxo);
+  }
+  counts.selectable = pool.length;
+  return { pool, counts };
+};
+
+/**
+ * The UTxOs of a list that may be put up as collateral: key-locked, not read by a part, and let
+ * by the filter, which is asked once about each; each out ref once. What the filter throws is
+ * not caught.
+ */
+export const collateralCandidates = (
+  parts: readonly TxPart[],
+  utxos: readonly UTxO[],
+  canSelect?: (utxo: UTxO) => boolean,
+): UTxO[] => {
+  const read = readByParts(parts);
+  const seen = new Set<string>();
+  return utxos.filter((utxo) => {
+    const key = utxoKey(utxo);
+    if (seen.has(key) || !isKeyLocked(utxo) || read.has(key)) return false;
+    seen.add(key);
+    return !canSelect || canSelect(utxo);
+  });
+};
+
+/** Collateral errors raised because the UTxOs collateral is chosen from cannot cover it */
+const poolShortfalls = new WeakSet<object>();
+
+/**
+ * Whether an error is INSUFFICIENT_COLLATERAL of the builder's own choice of collateral: the
+ * UTxOs it chooses from cannot cover it. Not for collateral given by parts, nor for a given
+ * total below the minimum.
+ */
+export const isPoolShortfall = (error: unknown) =>
+  typeof error === "object" && error !== null && poolShortfalls.has(error);
 
 /**
  * The out refs of the UTxOs a filter refuses, asking it once about each UTxO it could let be
@@ -397,31 +489,11 @@ export const balance = (
     parts.flatMap((p) => (p.kind === "spend" ? [utxoKey(p.utxo!)] : [])),
   );
   const read = readByParts(parts);
-  // A collateral part's UTxO is spent only when a spend part names it as well
-  const putUp = putUpByParts(parts);
   const refused = ctx.refused ?? new Set<string>();
   // Where what is left goes: the change address, or the address everything is sent to
   const changeTo = ctx.sendAllTo ?? ctx.changeAddress;
   // The UTxOs selection may take, and why the others may not, each counted once
-  const pool: UTxO[] = [];
-  const counts: InsufficientFundsDetails["pool"] = {
-    given: ctx.utxos.length,
-    selectable: 0,
-    scriptLocked: 0,
-    excludedByFilter: 0,
-    readByParts: 0,
-    spentByAfter: 0,
-  };
-  for (const utxo of ctx.utxos) {
-    const key = utxoKey(utxo);
-    // Already in the transaction: only given
-    if (spent.has(key) || putUp.has(key)) continue;
-    if (!isKeyLocked(utxo)) counts.scriptLocked++;
-    else if (read.has(key)) counts.readByParts++;
-    else if (refused.has(key)) counts.excludedByFilter++;
-    else pool.push(utxo);
-  }
-  counts.selectable = pool.length;
+  const { pool, counts } = paymentPool(parts, ctx.utxos, refused);
   const selected: UTxO[] = [];
   const selectedKeys = new Set<string>();
   const select = (utxo: UTxO) => {
@@ -692,16 +764,19 @@ export const balance = (
   };
 
   const needsCollateral = runsPlutus || givenCollateral.length > 0;
-  const collateralPool = ctx.utxos.filter(
-    (u) => isKeyLocked(u) && !read.has(utxoKey(u)) && !refused.has(utxoKey(u)),
-  );
+  const collateralPool =
+    ctx.collateralPool ??
+    ctx.utxos.filter(
+      (u) =>
+        isKeyLocked(u) && !read.has(utxoKey(u)) && !refused.has(utxoKey(u)),
+    );
   /**
    * The collateral for a fee. Leniently, collateral that falls short is put up as given rather
    * than rejected: placeholder units overstate the fee it is worked out from
    */
   const planCollateral = (
     fee: bigint,
-    lenient = ctx.provisional,
+    lenient = ctx.provisional || ctx.lenientCollateral,
   ): CollateralPlan => {
     const plan = () =>
       collateralFor(fee, {
@@ -785,6 +860,7 @@ export const balance = (
       ...placeholderWitnesses(requiredSigners(all), ctx.extraKeyWitnesses),
     });
     const size = ctx.serialize(sized.prototype).length / 2;
+    ctx.onRound?.({ round, fee, size, selected: selected.length });
     if (size > params.maxTxSize)
       throw new TxBuildError(
         "TX_TOO_LARGE",
@@ -941,10 +1017,13 @@ const collateralFor = (
     const found = plan(inputs);
     if (found) return found;
   }
-  return fail(
+  const shortfall = new TxBuildError(
+    "INSUFFICIENT_COLLATERAL",
     inputs.length === 0
       ? "no key-locked UTxO is available to put up as collateral"
       : `no ${params.maxCollateralInputs} UTxOs cover the ${required} lovelace collateral`,
-    { required, available: lovelaceIn(inputs) },
+    { details: { required, available: lovelaceIn(inputs) } },
   );
+  poolShortfalls.add(shortfall);
+  throw shortfall;
 };

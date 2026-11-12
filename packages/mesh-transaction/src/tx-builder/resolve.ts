@@ -50,6 +50,8 @@ export type ResolveContext = {
   deposits: GovernanceDeposits;
   /** UTxOs already known, keyed by `txHash#index`; fetched ones are added */
   known: Map<string, UTxO>;
+  /** Told of the out refs looked up through the provider, as `txHash#index`, when asked for */
+  onFetch?: (outRefs: string[]) => void;
 };
 
 export const utxoKey = (utxo: Readonly<UTxO>) =>
@@ -86,13 +88,15 @@ const inputsOf = (part: TxPart): TransactionInputPrototype[] => {
  */
 const fetchMissing = async (
   parts: readonly TxPart[],
-  ctx: Pick<ResolveContext, "known" | "provider">,
+  ctx: Pick<ResolveContext, "known" | "provider" | "onFetch">,
 ) => {
   const missing = new Map<string, TransactionInputPrototype[]>();
   for (const part of parts) {
     for (const input of inputsOf(part)) {
       if (ctx.known.has(outRefString(input))) continue;
       const list = missing.get(input.transaction_id) ?? [];
+      // Two parts may read one output: it is asked for once
+      if (list.some((l) => l.index === input.index)) continue;
       list.push(input);
       missing.set(input.transaction_id, list);
     }
@@ -106,6 +110,9 @@ const fetchMissing = async (
       `outputs ${outRefs.flat().join(", ")} are given by reference only, and the builder has no provider`,
     );
   }
+  ctx.onFetch?.(
+    Array.from(missing.values(), (l) => l.map(outRefString)).flat(),
+  );
   await Promise.all(
     Array.from(missing.keys(), async (txHash) => {
       let utxos: UTxO[];

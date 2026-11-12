@@ -23,6 +23,7 @@ import {
   timeAt,
 } from "@meshsdk/common";
 import {
+  CborWriter,
   OfflineEvaluatorScalus,
   Transaction,
   transactionPrototypeToHex,
@@ -30,7 +31,12 @@ import {
 } from "@meshsdk/core-cst";
 
 import type { AssembledRedeemer } from "./assemble";
-import type { Balanced, CollateralPlan, SelectInputs } from "./balance";
+import type {
+  BalanceContext,
+  Balanced,
+  CollateralPlan,
+  SelectInputs,
+} from "./balance";
 import type { PartFailure } from "./errors";
 import type {
   CredentialInput,
@@ -38,9 +44,23 @@ import type {
   PlutusWitness,
   TxPart,
 } from "./parts/types";
-import type { Payer, PayerSnapshot, PayerSource } from "./payer";
+import type {
+  GetCollateral,
+  Payer,
+  PayerRead,
+  PayerSnapshot,
+  PayerSource,
+} from "./payer";
 import type { GovernanceDeposits } from "./resolve";
-import { balance, refusedBy, totalExUnits } from "./balance";
+import { abortable, throwIfAborted } from "./abort";
+import {
+  balance,
+  collateralCandidates,
+  isPoolShortfall,
+  paymentPool,
+  refusedBy,
+  totalExUnits,
+} from "./balance";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, minCoin, valueSize } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
@@ -52,6 +72,7 @@ import {
   resolveNetwork,
   rewardAddressOn,
   scriptAddressOn,
+  utxoEntry,
 } from "./network";
 import { freeze } from "./parts/normalize";
 import {
@@ -59,6 +80,7 @@ import {
   readPayerSource,
   toAddressText,
   toPayerSource,
+  toUtxo,
 } from "./payer";
 import { resolveParts, utxoKey } from "./resolve";
 
@@ -137,6 +159,30 @@ export type PartEntry =
  */
 export type PartsInput = TxPart | readonly PartEntry[];
 
+/** One step of a build, for diagnostics; the builder never logs by itself */
+export type BuildEvent =
+  /** The payer as read: its change address, how many UTxOs it has, how many may be selected */
+  | { type: "payer"; changeAddress: string; utxos: number; selectable: number }
+  /** The outputs looked up through the provider, as `txHash#index` */
+  | { type: "fetched"; outRefs: string[] }
+  /** A balancing round that priced a transaction: its fee, its size in bytes, its selected inputs */
+  | {
+      type: "round";
+      round: number;
+      fee: bigint;
+      size: number;
+      selected: number;
+    }
+  /** An evaluation, with the execution units it gave each redeemer */
+  | { type: "evaluated"; round: number; redeemers: readonly BuiltRedeemer[] }
+  /** A submitter answered with another hash than the transaction's; sent by an intent, never by a build */
+  | {
+      type: "warning";
+      code: "HASH_MISMATCH";
+      txHash: string;
+      reportedHash: string;
+    };
+
 /** Per-build options */
 export type BuildOptions = {
   /** Who pays and gets the change; a build without one is MISSING_PAYER */
@@ -162,6 +208,13 @@ export type BuildOptions = {
   registeredPools?: readonly string[];
   /** Key witnesses expected beyond those the parts call for */
   extraKeyWitnesses?: number;
+  /**
+   * Aborts the build with ABORTED: a wallet read, a lookup, the collateral call or an evaluation
+   * that is pending is no longer waited for
+   */
+  signal?: AbortSignal;
+  /** Receives the steps of the build, for diagnostics; whatever it throws or rejects with is ignored */
+  trace?: (event: BuildEvent) => void;
 };
 
 /** Every part kind, once: the compiler checks the list against `TxPart` */
@@ -261,13 +314,56 @@ const invalidOption = (
 
 const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
 
+/** An abort signal by its shape, whatever made it */
+const isAbortSignal = (value: unknown): value is AbortSignal =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as { aborted?: unknown }).aborted === "boolean" &&
+  typeof (value as { addEventListener?: unknown }).addEventListener ===
+    "function";
+
+/**
+ * Sends events to a `trace` callback. What it returns is not waited for, and what it throws or
+ * rejects with is dropped: the build goes on as it would without it.
+ */
+const tracer =
+  (trace: ((event: BuildEvent) => void) | undefined) => (event: BuildEvent) => {
+    if (!trace) return;
+    try {
+      const answer: unknown = trace(event);
+      if (
+        typeof answer === "object" &&
+        answer !== null &&
+        typeof (answer as PromiseLike<unknown>).then === "function"
+      )
+        (answer as PromiseLike<unknown>).then(undefined, () => undefined);
+    } catch {
+      // Diagnostics never change a build
+    }
+  };
+
+/**
+ * The bytes collateral adds to a transaction at most, beyond what it has without: for each
+ * input the ledger allows, the input and a key witness; and the fields of the return and the
+ * total
+ */
+const collateralBytes = (params: Protocol) =>
+  140 * params.maxCollateralInputs + 100;
+
+/** A coin as CIP-30 takes an amount: the CBOR of an unsigned integer, in hex */
+const coinCbor = (lovelace: bigint) => {
+  const writer = new CborWriter();
+  writer.writeInt(lovelace);
+  return writer.encodeAsHex();
+};
+
 /**
  * Checks the type of every option of a build but `payer`, and converts `sendAllTo` to bech32
  * (base58 for Byron)
  * @throws TxBuildError INVALID_OPTION naming the first option that is not of its type
  */
 const checkBuildOptions = (options: BuildOptions): { sendAllTo?: string } => {
-  const { canSelect, coinSelection, sendAllTo } = options;
+  const { canSelect, coinSelection, sendAllTo, signal, trace } = options;
   const { fee, registeredPools, extraKeyWitnesses } = options;
   if (canSelect !== undefined && typeof canSelect !== "function")
     throw invalidOption(
@@ -281,6 +377,10 @@ const checkBuildOptions = (options: BuildOptions): { sendAllTo?: string } => {
       coinSelection,
       "a function selecting inputs from its candidates",
     );
+  if (trace !== undefined && typeof trace !== "function")
+    throw invalidOption("trace", trace, "a function taking build events");
+  if (signal !== undefined && !isAbortSignal(signal))
+    throw invalidOption("signal", signal, "an AbortSignal");
   if (fee !== undefined && !(typeof fee === "bigint" && fee >= 0n))
     throw invalidOption("fee", fee, "a bigint of lovelace, 0 or more");
   if (
@@ -369,6 +469,17 @@ const NO_PROVIDER: IFetcher = (() => {
     get: none,
   };
 })();
+
+/** Calls a wallet method, its answer or its failure as a value, a synchronous throw included */
+const attemptCall = async <T>(
+  call: () => Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> => {
+  try {
+    return { ok: true, value: await call() };
+  } catch (error) {
+    return { ok: false, error };
+  }
+};
 
 /** Most evaluation rounds; the second one normally settles the execution units */
 const MAX_EVALUATION_ROUNDS = 5;
@@ -650,12 +761,16 @@ export class TxBuilder {
    * 3. Balances: selects inputs from the payer's UTxOs that `canSelect` lets it, with
    *    `coinSelection` when given, returns change to its change address (or sends everything
    *    left to `sendAllTo`), puts up collateral with a collateral return, and settles the fee.
+   *    When the payer's UTxOs cannot cover the collateral and the payer is a CIP-30 api with
+   *    `getCollateral`, that is called once, and the collateral is taken from its answer alone.
    * 4. Evaluates the scripts with the builder's evaluator, configured with its network, slot
    *    clock and the cost models of step 1, and balances again with their execution units,
    *    until they settle. A local evaluator gets every UTxO the build knows for the
    *    transaction's inputs; any other resolves them from its chain. Units stated on a redeemer
    *    are checked, not replaced, when the builder has an evaluator; after `evaluator: null`
    *    they are taken as stated.
+   *
+   * `signal` aborts the build between and during these steps; `trace` is told of each of them.
    *
    * Redeemer indices follow from where each item ends up in the ledger's order, assigned once
    * by `assembleTxPrototype`; evaluation results are matched back to their parts through them.
@@ -678,7 +793,9 @@ export class TxBuilder {
       ...flat.flatMap(partEntries),
     ]);
     const { fee, registeredPools, extraKeyWitnesses } = options ?? {};
-    const { canSelect, coinSelection } = options ?? {};
+    const { canSelect, coinSelection, signal } = options ?? {};
+    throwIfAborted(signal);
+    const emit = tracer(options?.trace);
     const known = new Map<string, UTxO>();
     // A snapshot's UTxOs are known before the lookups start, so a part may name one by out ref
     if (source.form === "snapshot")
@@ -687,20 +804,28 @@ export class TxBuilder {
 
     // Every read starts at once, and none waits for another
     const paramsRead = this.loadParams();
-    const [params, costModels, payer, resolved] = await Promise.all([
-      paramsRead,
-      plutus
-        ? this.loadCostModels().then((models) => models ?? [])
-        : Promise.resolve([]),
-      this.readSource(source),
-      resolveParts(flat, {
-        network: this.network,
-        ...(this.cache && { provider: this.cache }),
-        params: paramsRead,
-        deposits: this.deposits,
-        known,
-      }),
-    ]);
+    let fetched: string[] = [];
+    const [params, costModels, payerRead, resolved] = await abortable(
+      Promise.all([
+        paramsRead,
+        plutus
+          ? this.loadCostModels().then((models) => models ?? [])
+          : Promise.resolve([]),
+        this.readSource(source, signal),
+        resolveParts(flat, {
+          network: this.network,
+          ...(this.cache && { provider: this.cache }),
+          params: paramsRead,
+          deposits: this.deposits,
+          known,
+          onFetch: (outRefs) => {
+            fetched = outRefs;
+          },
+        }),
+      ]),
+      signal,
+    );
+    const payer = payerRead.snapshot;
     // The copy a part was checked against stays the one the build knows
     for (const utxo of payer.utxos)
       if (!known.has(utxoKey(utxo))) known.set(utxoKey(utxo), utxo);
@@ -717,6 +842,14 @@ export class TxBuilder {
     });
     // The filter is asked once per build; its answers serve every balancing round
     const refused = canSelect && refusedBy(canSelect, filled, payerUtxos);
+    emit({
+      type: "payer",
+      changeAddress: payer.changeAddress,
+      utxos: payerUtxos.length,
+      selectable: paymentPool(filled, payerUtxos, refused || undefined).pool
+        .length,
+    });
+    if (fetched.length > 0) emit({ type: "fetched", outRefs: fetched });
 
     // Execution units: as given, or placeholders until evaluation fills them in
     const redeemerParts = filled.flatMap((part, i) =>
@@ -738,7 +871,7 @@ export class TxBuilder {
     );
     const evaluated = new Set<number>();
 
-    const context = {
+    const context: BalanceContext = {
       params,
       costModels,
       changeAddress: payer.changeAddress,
@@ -751,6 +884,28 @@ export class TxBuilder {
       registeredPools: new Set(registeredPools ?? []),
       extraKeyWitnesses: extraKeyWitnesses ?? 0,
       serialize: (prototype: TransactionPrototype) => this.serialize(prototype),
+      onRound: (priced) => emit({ type: "round", ...priced }),
+    };
+
+    // The collateral fallback of a CIP-30 payer is asked once per build, and only when the
+    // payer's own UTxOs cannot cover the collateral of a round whose units are settled
+    let collateralAsked = false;
+    const balanceRound = async (roundParts: TxPart[], provisional: boolean) => {
+      try {
+        return balance(roundParts, { ...context, provisional });
+      } catch (error) {
+        const { getCollateral } = payerRead;
+        if (collateralAsked || !getCollateral || !isPoolShortfall(error))
+          throw error;
+        collateralAsked = true;
+        context.collateralPool = await this.collateralFromWallet(
+          getCollateral,
+          roundParts,
+          context,
+          { known, canSelect, signal },
+        );
+        return balance(roundParts, { ...context, provisional });
+      }
     };
 
     for (let round = 0; round < MAX_EVALUATION_ROUNDS; round++) {
@@ -758,15 +913,37 @@ export class TxBuilder {
         const exUnits = units.get(i);
         return exUnits ? withExUnits(part, exUnits) : part;
       });
-      const balanced = balance(roundParts, {
-        ...context,
-        provisional: evaluated.size < open.length,
-      });
+      const balanced = await balanceRound(
+        roundParts,
+        evaluated.size < open.length,
+      );
       if (redeemerParts.length === 0 || !this.evaluator)
         return this.finish(balanced, params, costModels);
 
       const tx = this.serialize(balanced.assembled.prototype);
-      const results = await this.evaluate(tx, balanced, known, costModels);
+      throwIfAborted(signal);
+      const results = await abortable(
+        this.evaluate(tx, balanced, known, costModels),
+        signal,
+      );
+      emit({
+        type: "evaluated",
+        round,
+        redeemers: balanced.assembled.redeemers.flatMap((r) => {
+          const result = results.get(`${r.tag}:${r.index}`);
+          return result
+            ? [
+                {
+                  tag: r.tag,
+                  index: r.index,
+                  exUnits: toBudget(result),
+                  part: r.part,
+                  ...(r.label !== undefined && { label: r.label }),
+                },
+              ]
+            : [];
+        }),
+      });
       // Redeemers belong to the very part objects given to balancing
       const position = new Map(roundParts.map((part, i) => [part, i]));
 
@@ -827,15 +1004,101 @@ export class TxBuilder {
   async readPayer(payer: Payer): Promise<PayerSnapshot> {
     const source = toPayerSource(payer);
     checkNetworks(this.network, givenPayerEntries(source));
-    return this.readSource(source);
+    return (await this.readSource(source)).snapshot;
   }
 
   /** Reads a payer whose given data was checked; its UTxOs from the provider past the cache */
-  private readSource(source: PayerSource): Promise<PayerSnapshot> {
+  private readSource(
+    source: PayerSource,
+    signal?: AbortSignal,
+  ): Promise<PayerRead> {
     return readPayerSource(source, {
       network: this.network,
       ...(this.cache && { provider: this.cache.fetcher }),
+      ...(signal && { signal }),
     });
+  }
+
+  /**
+   * Asks a CIP-30 payer for collateral, once: for the collateral the transaction calls for, an
+   * upper estimate, and returns the UTxOs of the answer that may be put up. Those become known
+   * to the build.
+   * @throws TxBuildError INSUFFICIENT_COLLATERAL when the call fails or gives nothing usable;
+   *   NETWORK_MISMATCH for a UTxO of another network; ABORTED
+   */
+  private async collateralFromWallet(
+    getCollateral: GetCollateral,
+    parts: TxPart[],
+    ctx: BalanceContext,
+    options: {
+      /** Every UTxO the build knows, which the usable ones join */
+      known: Map<string, UTxO>;
+      canSelect?: (utxo: UTxO) => boolean;
+      signal?: AbortSignal;
+    },
+  ): Promise<UTxO[]> {
+    const { params } = ctx;
+    const stated = parts.find(
+      (p): p is Extract<TxPart, { kind: "collateralReturn" }> =>
+        p.kind === "collateralReturn",
+    )?.totalCollateral;
+    let amount: bigint;
+    if (stated !== undefined) amount = BigInt(stated);
+    else {
+      // The fee with the collateral it cannot put up left out, and the bytes collateral adds
+      const fee =
+        ctx.fee ??
+        balance(parts, { ...ctx, onRound: undefined, lenientCollateral: true })
+          .fee +
+          BigInt(params.minFeeA) * BigInt(collateralBytes(params));
+      amount = (fee * BigInt(params.collateralPercent) + 99n) / 100n;
+      if (amount < 1n) amount = 1n;
+    }
+    const refused = (message: string, cause?: unknown) =>
+      new TxBuildError(
+        "INSUFFICIENT_COLLATERAL",
+        `the payer's UTxOs cannot cover the collateral, and the wallet's getCollateral ${message}`,
+        {
+          details: { required: amount, available: 0n },
+          ...(cause !== undefined && { cause }),
+        },
+      );
+
+    throwIfAborted(options.signal);
+    const answer = await abortable(
+      attemptCall(() => getCollateral({ amount: coinCbor(amount) })),
+      options.signal,
+    );
+    if (!answer.ok)
+      throw refused(`failed: ${errorText(answer.error)}`, answer.error);
+    let utxos: UTxO[];
+    try {
+      const { value } = answer;
+      if (value === undefined || value === null) utxos = [];
+      else if (!Array.isArray(value))
+        throw new Error("the answer is not a list");
+      else utxos = value.map(toUtxo);
+    } catch (error) {
+      throw refused(
+        `answered with what is not a list of UTxOs: ${errorText(error)}`,
+        error,
+      );
+    }
+    checkNetworks(
+      this.network,
+      utxos.map((utxo) => utxoEntry(utxo)),
+    );
+    const usable = collateralCandidates(parts, utxos, options.canSelect);
+    if (usable.length === 0)
+      throw refused(
+        utxos.length === 0
+          ? `gave no UTxO for ${amount} lovelace`
+          : `gave no UTxO that may be put up for ${amount} lovelace`,
+      );
+    for (const utxo of usable)
+      if (!options.known.has(utxoKey(utxo)))
+        options.known.set(utxoKey(utxo), utxo);
+    return usable;
   }
 
   /** The `params` option, else the provider's parameters */

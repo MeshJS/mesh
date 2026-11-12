@@ -799,6 +799,10 @@ describe("TxBuilder: bad values", () => {
     ["sendAllTo", { sendAllTo: rewardAddress(1) }],
     ["sendAllTo", { sendAllTo: 5 }],
     ["canSelect", { canSelect: true }],
+    ["trace", { trace: "log" }],
+    ["signal", { signal: {} }],
+    ["signal", { signal: { aborted: false } }],
+    ["signal", { signal: { addEventListener: () => {} } }],
     ["coinSelection", { coinSelection: [] }],
     [
       "coinSelection",
