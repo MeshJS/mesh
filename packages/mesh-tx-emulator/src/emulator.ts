@@ -6,6 +6,7 @@ import type {
   DRepRegistration,
   Emulator,
   ProtocolParams,
+  RedeemerBudget,
   StakeRegistration,
   Utxo,
 } from "scalus";
@@ -30,12 +31,21 @@ import type {
   ISubmitter,
   PoolState,
   Protocol,
+  RedeemerTagType,
+  ScriptFailure,
+  SlotConfig,
   TransactionInfo,
   TransactionPrototype,
   UTxO,
 } from "@meshsdk/common";
 import {
+  ProviderError,
+  ScriptEvaluationError,
+  TxConfirmTimeoutError,
+} from "@meshsdk/common";
+import {
   Cardano,
+  Crypto,
   deserializeTx,
   fromValue,
   resolveDataHash,
@@ -272,20 +282,90 @@ export type TxRejected = {
 
 export type TxResult = TxAccepted | TxRejected;
 
-/** Thrown by `submitTx` when the ledger rejects the transaction */
-export class TxRejectedError extends Error {
+/**
+ * What the search answers for one transaction hash: a transaction applied, or outputs that
+ * appeared under the hash without a transaction. Never changed in place, as a ledger shares
+ * its records with its forks: a change replaces the record.
+ */
+type TxRecord = {
+  /** The slot, and so the block, it is in */
+  readonly slot: number;
+  /** Its place among the records made in its slot, from 0 */
+  readonly index: number;
+} & (
+  | {
+      readonly applied: true;
+      readonly info: Omit<
+        TransactionInfo,
+        "index" | "block" | "hash" | "slot" | "blockHeight"
+      >;
+    }
+  | {
+      readonly applied: false;
+      /** The first output that appeared at each output index */
+      readonly outputs: readonly Utxo[];
+    }
+);
+
+/**
+ * Thrown by `submitTx` when the ledger rejects the transaction. It is the `ProviderError` a
+ * provider throws for a refused submission: `kind` is `"rejected"`, `status` is 400 (the HTTP
+ * status a provider answers with; the emulator makes no request), `retryable` is false, as the
+ * same bytes are refused again while the state is the same, and `body` is `result`. Tell a
+ * refusal by `instanceof TxRejectedError`, or without importing the emulator by
+ * `ProviderError.is(error) && error.kind === "rejected"`.
+ */
+export class TxRejectedError extends ProviderError {
   constructor(readonly result: TxRejected) {
     super(
       `transaction rejected: ${result.errors
         .map((error) => `${error.rule}: ${error.message}`)
         .join("; ")}`,
+      { kind: "rejected", status: 400, retryable: false, body: result },
     );
-    this.name = "TxRejectedError";
   }
 }
 
 const hexToBytes = (hex: string): Uint8Array =>
   Uint8Array.from(hex.match(/../g) ?? [], (byte) => parseInt(byte, 16));
+
+/** The blake2b-256 hash of a text, as 64 lower-case hex characters */
+const textHash = (text: string): string =>
+  Crypto.blake2b.hash<string>(
+    Array.from(new TextEncoder().encode(text), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("") as never,
+    32,
+  );
+
+/**
+ * The made-up hash of the block of a slot: there is one block in every slot, and its hash
+ * depends on the slot alone
+ */
+const blockHash = (slot: number): string => slot.toString(16).padStart(64, "0");
+
+/**
+ * An output address given as bech32, base58 (Byron) or the hex of its bytes, as the ledger lists
+ * it. A reward address is refused: no output can be sent to it
+ */
+const listedAddress = (address: string): string => {
+  let parsed: Cardano.Address | null = null;
+  try {
+    parsed = Cardano.Address.fromString(address);
+  } catch {
+    // Not an address in any form
+  }
+  if (!parsed) throw new Error(`${address} is not an address`);
+  const type = parsed.getType();
+  if (
+    type === Cardano.AddressType.RewardKey ||
+    type === Cardano.AddressType.RewardScript
+  )
+    throw new Error(`${address} is a reward address, not an output address`);
+  return parsed.getType() === Cardano.AddressType.Byron
+    ? parsed.toBase58()
+    : parsed.toBech32();
+};
 
 const rejected = (
   txHash: string | undefined,
@@ -409,6 +489,43 @@ const brokenRules = (ledger: Emulator, tx: Uint8Array): string[] => {
   } catch {
     return [];
   }
+};
+
+/** Redeemer tags as Mesh spells them, by the name Scalus gives them */
+const SCALUS_TAGS: Record<RedeemerBudget["tag"], RedeemerTagType> = {
+  Spend: "SPEND",
+  Mint: "MINT",
+  Cert: "CERT",
+  Reward: "REWARD",
+  Voting: "VOTE",
+  Proposing: "PROPOSE",
+};
+
+/**
+ * A script failure of Scalus's evaluator as a `ScriptEvaluationError`: one failure for the
+ * redeemer it names, none when it names none; the evaluator's error is the `cause`
+ */
+const scriptEvaluationError = (error: Error): ScriptEvaluationError => {
+  const { redeemer, logs } = error as Error & {
+    redeemer?: RedeemerBudget;
+    logs?: readonly string[];
+  };
+  const tag = redeemer && SCALUS_TAGS[redeemer.tag];
+  const failures: ScriptFailure[] = tag
+    ? [
+        {
+          tag,
+          index: redeemer.index,
+          message: error.message,
+          logs: [...(logs ?? [])],
+          budget: {
+            mem: Number(redeemer.budget.memory),
+            steps: Number(redeemer.budget.steps),
+          },
+        },
+      ]
+    : [];
+  return new ScriptEvaluationError(error.message, failures, { cause: error });
 };
 
 /** Redeemer tags as Mesh spells them, by their number in a transaction */
@@ -624,6 +741,10 @@ const unsupported = (method: string) =>
  * - `fork` branches the whole ledger, so one setup can be reused across scenarios.
  * - The emulator is itself a Mesh fetcher, governance and stake pool fetcher, submitter and
  *   evaluator, for building transactions against it and reading its state.
+ * - It answers as a provider of a chain: there is a block in every slot, so the tip
+ *   (`fetchLatestBlock`) is the current slot and its height is the slot number, and the search
+ *   (`fetchTxInfo`) finds every transaction applied, at the slot it was applied in, and the
+ *   hash of every output added without a transaction, at the slot it appeared in.
  * - The state can also be changed directly, for what no transaction does here: rewards, which
  *   are not paid, governance outcomes, which are not enacted, funds, parameters.
  *
@@ -659,6 +780,20 @@ export class TxEmulator
    * transaction reading one of them, rather than after every withdrawal.
    */
   private withdrawn = new Set<string>();
+  /**
+   * What the search answers, by transaction hash in lower case. Scalus's own chain cannot say:
+   * it neither follows transactions the emulator applies itself nor survives a rebuild.
+   */
+  private records = new Map<string, TxRecord>();
+  /** Whether `records` is shared with a fork, and so copied before it is next changed */
+  private recordsShared = false;
+  /** The slot the last record was made in, and how many records were made in it */
+  private block = { slot: -1, records: 0 };
+  /**
+   * Where `fund` takes its made-up transaction hashes from: a sequence of its own, which a fork
+   * starts anew, and the next counter value in it
+   */
+  private funding = { sequence: "", counter: 0 };
 
   private constructor(
     readonly validator: TxValidator,
@@ -771,12 +906,22 @@ export class TxEmulator
         datum,
       })),
     };
+    const utxos = (input.utxos ?? []).map((utxo) => fromMeshUtxo(utxo, lib));
     const ledger = scalusLedger(lib, info, state, {
-      utxos: (input.utxos ?? []).map((utxo) => fromMeshUtxo(utxo, lib)),
+      utxos,
       ...(input.slot !== undefined && { slot: input.slot }),
       ...seed,
     });
-    return new TxEmulator(input.validator, network, lib, ledger, state, seed);
+    const emulator = new TxEmulator(
+      input.validator,
+      network,
+      lib,
+      ledger,
+      state,
+      seed,
+    );
+    emulator.recordSeeded(input.utxos ?? [], utxos);
+    return emulator;
   }
 
   /**
@@ -830,7 +975,10 @@ export class TxEmulator
 
   /**
    * An independent copy of the whole ledger: UTxOs, stake addresses, pools, DReps, governance
-   * state and the clock. The copy and this ledger evolve separately from then on.
+   * state, the clock and what the search finds. The copy and this ledger evolve separately
+   * from then on: what is applied or funded on one is not found on the other. The copy's
+   * `fund` never gives a hash this ledger's `fund` gives, and two copies of the same state give
+   * the same hashes.
    */
   fork(): TxEmulator {
     const copy = new TxEmulator(
@@ -842,6 +990,15 @@ export class TxEmulator
       this.seed,
     );
     copy.withdrawn = new Set(this.withdrawn);
+    copy.records = this.records;
+    copy.recordsShared = this.recordsShared = true;
+    copy.block = { ...this.block };
+    copy.funding = {
+      sequence: textHash(
+        `TxEmulator fork ${this.funding.sequence} ${this.funding.counter}`,
+      ),
+      counter: 0,
+    };
     return copy;
   }
 
@@ -875,6 +1032,22 @@ export class TxEmulator
   /** The current epoch, by the network's slot clock */
   get epoch(): number {
     return this.epochOf(this.slot);
+  }
+
+  /**
+   * The slot clock of the emulated network, a new object on every read. For mainnet, preprod
+   * and preview it equals `SLOT_CONFIG_NETWORK` of `@meshsdk/common`.
+   */
+  get slotConfig(): SlotConfig {
+    const { zeroTime, zeroSlot, slotLength, epochLength, zeroEpoch } =
+      this.info.slotConfig;
+    return {
+      zeroTime,
+      zeroSlot,
+      slotLength,
+      startEpoch: zeroEpoch,
+      epochLength,
+    };
   }
 
   /**
@@ -913,11 +1086,52 @@ export class TxEmulator
   // then on, and checked, in a ledger built with `fromChain` too. The state cannot change while
   // a transaction is being checked: await `simulate` and `submit` first.
 
-  /** Add outputs to the ledger, replacing any at the same input */
+  /**
+   * Add outputs to the ledger, replacing any at the same input. The search finds their
+   * transaction hash as a transaction accepted in the current slot, unless it finds the hash
+   * already: a transaction applied keeps its answer, and outputs added under the hash earlier
+   * keep theirs, joined by those at output indices it does not list yet.
+   */
   addUtxos(utxos: UTxO[]): void {
     this.assertIdle();
     const added = utxos.map((utxo) => fromMeshUtxo(utxo, this.lib));
     for (const utxo of added) this.ledger.addUtxo(utxo);
+    this.recordSeeded(utxos, added);
+  }
+
+  /**
+   * Add an output holding `value` at `address`, with no datum and no script, under a made-up
+   * transaction hash, and return it as the ledger lists it, at output index 0. The search finds
+   * its hash at the current slot, as for `addUtxos`.
+   *
+   * The hashes come from a counter, so they are the same on every run; one the ledger has held
+   * an output under is passed over. A copy made by `fork` has a sequence of its own.
+   * @param address Bech32, base58 for a Byron address, or the hex of the address bytes; the
+   * output holds it in the form the ledger lists. Another network's address is accepted.
+   * @param value Lovelace (`lovelace`, 0 when left out) and tokens by unit (policy id and asset
+   * name in hex); a token of quantity 0 is left out
+   * @throws Error for a string that is not an address, a reward address, or a negative quantity
+   */
+  fund(address: string, value: Record<string, bigint>): UTxO {
+    this.assertIdle();
+    const amount = [{ unit: "lovelace", quantity: "0" }];
+    for (const [unit, quantity] of Object.entries(value)) {
+      if (quantity < 0n)
+        throw new Error(`the quantity of ${unit} is negative: ${quantity}`);
+      if (unit === "lovelace") amount[0]!.quantity = quantity.toString();
+      else if (quantity > 0n)
+        amount.push({ unit, quantity: quantity.toString() });
+    }
+    const output = { address: listedAddress(address), amount };
+    let txHash: string;
+    do {
+      txHash = textHash(
+        `TxEmulator fund ${this.funding.sequence} ${this.funding.counter}`,
+      );
+      this.funding.counter += 1;
+    } while (this.records.has(txHash));
+    this.addUtxos([{ input: { txHash, outputIndex: 0 }, output }]);
+    return this.utxos({ txHash })[0]!;
   }
 
   /** Remove outputs from the ledger; those it does not hold are ignored */
@@ -1120,6 +1334,38 @@ export class TxEmulator
     throw unsupported("fetchBlockInfo");
   }
 
+  /**
+   * The tip: the block of the current slot. There is a block in every slot, so `slot` is the
+   * current slot and `height` is the slot number; only `advanceTo` moves them. `hash` is
+   * made up from the slot, `previousBlock` is the hash of the slot before, and `time` is the
+   * slot's start in POSIX seconds. Not filled, as the emulator does not keep them:
+   * `slotLeader`, `operationalCertificate` and `VRFKey` are empty, `size`, `txCount`, `output`
+   * and `fees` are 0, `nextBlock` is empty and `confirmations` is 0.
+   */
+  async fetchLatestBlock(): Promise<BlockInfo> {
+    const slot = this.slot;
+    const { zeroSlot, zeroEpoch, epochLength } = this.info.slotConfig;
+    const epoch = this.epochOf(slot);
+    return {
+      time: Math.floor(this.time / 1000),
+      hash: blockHash(slot),
+      slot: String(slot),
+      epoch,
+      epochSlot: String(slot - (zeroSlot + (epoch - zeroEpoch) * epochLength)),
+      slotLeader: "",
+      size: 0,
+      txCount: 0,
+      output: "0",
+      fees: "0",
+      previousBlock: slot > 0 ? blockHash(slot - 1) : "",
+      nextBlock: "",
+      confirmations: 0,
+      operationalCertificate: "",
+      VRFKey: "",
+      height: slot,
+    };
+  }
+
   async fetchCollectionAssets(): Promise<{
     assets: Asset[];
     next?: string | number | null;
@@ -1136,8 +1382,74 @@ export class TxEmulator
     return this.scalus.fetchCostModels();
   }
 
-  async fetchTxInfo(): Promise<TransactionInfo> {
-    throw unsupported("fetchTxInfo");
+  /**
+   * Find a transaction: one `submit` or `submitTx` applied, marked invalid or not
+   * (`validContract`), or the hash of outputs that appeared without a transaction (given to
+   * `create`, read by `fromChain`, added by `addUtxos` or `fund`), as a transaction accepted in
+   * the slot they appeared in. `slot` and `blockHeight` are the slot it is in, so the tip's
+   * `height` less `blockHeight` is the slots passed since; transactions of one slot share a
+   * block, `index` being the place in it.
+   *
+   * For a transaction applied, `inputs` and `outputs` are what it spent and created (its
+   * collateral and collateral return when marked invalid), `fees` what it paid (the collateral
+   * lost when marked invalid), `deposit` the deposits paid less those taken back. For outputs
+   * without a transaction, `outputs` are those that appeared under the hash, and the rest is
+   * zero or empty. The answer stays when the outputs are spent or removed, unlike `fetchUTxOs`,
+   * which lists those still held. `blockTime` is left out.
+   *
+   * It answers from the state as it is: await `submit` and `submitTx` first.
+   * @throws ProviderError of kind `"notFound"`, status 404 (the HTTP status a provider answers
+   * with; the emulator makes no request), for a hash it does not find
+   */
+  async fetchTxInfo(hash: string): Promise<TransactionInfo> {
+    const key = hash.toLowerCase();
+    const record = this.records.get(key);
+    if (!record)
+      throw new ProviderError(`transaction ${key} is not in the ledger`, {
+        kind: "notFound",
+        status: 404,
+        retryable: false,
+      });
+    const info = record.applied
+      ? structuredClone(record.info)
+      : {
+          fees: "0",
+          size: 0,
+          deposit: "0",
+          invalidBefore: "",
+          invalidAfter: "",
+          inputs: [],
+          outputs: [...record.outputs]
+            .sort((a, b) => a.outputIndex - b.outputIndex)
+            .map(toMeshUtxo),
+          validContract: true,
+        };
+    return {
+      index: record.index,
+      block: blockHash(record.slot),
+      hash: key,
+      slot: String(record.slot),
+      blockHeight: record.slot,
+      ...info,
+    };
+  }
+
+  /**
+   * Whether a transaction is in a block: `true` at once for every hash `fetchTxInfo` finds,
+   * including a transaction marked invalid (read `validContract` from `fetchTxInfo`) and the
+   * hash of outputs that appeared without a transaction. Nothing else can apply a transaction
+   * meanwhile, so it never waits: for any other hash it rejects at once.
+   *
+   * It answers from the state as it is: await `submit` and `submitTx` first.
+   * @param timeoutMs Only reported in the error; 0, the time waited, when left out
+   * @throws TxConfirmTimeoutError for a hash `fetchTxInfo` does not find
+   */
+  async awaitTransactionConfirmation(
+    txHash: string,
+    timeoutMs?: number,
+  ): Promise<boolean> {
+    if (this.records.has(txHash.toLowerCase())) return true;
+    throw new TxConfirmTimeoutError(txHash, timeoutMs ?? 0);
   }
 
   fetchUTxOs(hash: string, index?: number): Promise<UTxO[]> {
@@ -1276,12 +1588,26 @@ export class TxEmulator
 
   // IEvaluator
 
-  evaluateTx(
+  /**
+   * The execution units each redeemer's script uses, evaluated by Scalus against the ledger.
+   * @throws ScriptEvaluationError when a script fails, naming the redeemer whose script failed
+   * @throws Error for any other failure, e.g. an input the ledger does not hold
+   */
+  async evaluateTx(
     tx: string,
     additionalUtxos?: UTxO[],
     additionalTxs?: string[],
   ): Promise<Omit<Action, "data">[]> {
-    return this.scalus.evaluateTx(tx, additionalUtxos, additionalTxs);
+    try {
+      return await this.scalus.evaluateTx(tx, additionalUtxos, additionalTxs);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name === "PlutusScriptEvaluationError"
+      )
+        throw scriptEvaluationError(error);
+      throw error;
+    }
   }
 
   private requireKnown(key: string, subject: string) {
@@ -1289,6 +1615,70 @@ export class TxEmulator
       throw new Error(
         `${subject} is not known: ${unknownReason(this.state, key)}`,
       );
+  }
+
+  /** The place of the next record made in a slot among the records of that slot */
+  private nextIndex(slot: number): number {
+    if (this.block.slot !== slot) this.block = { slot, records: 0 };
+    return this.block.records++;
+  }
+
+  /**
+   * Record outputs that appeared without a transaction, at the current slot: a hash without a
+   * record gets one; a record of such outputs gets those at output indices it does not list;
+   * the record of a transaction applied is left as it is
+   * @param given The outputs as given, read here rather than Scalus's copies, as reading those
+   * calls into Scalus
+   * @param added Scalus's copies, in the same order, which the record keeps
+   */
+  private recordSeeded(given: readonly UTxO[], added: readonly Utxo[]): void {
+    if (given.length === 0) return;
+    const byHash = new Map<string, Utxo[]>();
+    // The output indices of each hash given more than once
+    const indices = new Map<string, Set<number>>();
+    given.forEach(({ input }, position) => {
+      const hash = input.txHash.toLowerCase();
+      const outputs = byHash.get(hash);
+      if (!outputs) {
+        byHash.set(hash, [added[position]!]);
+        return;
+      }
+      let seen = indices.get(hash);
+      if (!seen) indices.set(hash, (seen = new Set([outputs[0]!.outputIndex])));
+      if (!seen.has(input.outputIndex)) {
+        seen.add(input.outputIndex);
+        outputs.push(added[position]!);
+      }
+    });
+    const slot = this.slot;
+    for (const [hash, outputs] of byHash) {
+      const record = this.records.get(hash);
+      if (!record)
+        this.setRecord(hash, {
+          slot,
+          index: this.nextIndex(slot),
+          applied: false,
+          outputs,
+        });
+      else if (!record.applied) {
+        const listed = new Set(record.outputs.map((u) => u.outputIndex));
+        const joining = outputs.filter((u) => !listed.has(u.outputIndex));
+        if (joining.length > 0)
+          this.setRecord(hash, {
+            ...record,
+            outputs: [...record.outputs, ...joining],
+          });
+      }
+    }
+  }
+
+  /** Make or replace the record of a hash, in this ledger alone */
+  private setRecord(hash: string, record: TxRecord): void {
+    if (this.recordsShared) {
+      this.records = new Map(this.records);
+      this.recordsShared = false;
+    }
+    this.records.set(hash, record);
   }
 
   private epochOf(slot: number): number {
@@ -1362,6 +1752,7 @@ export class TxEmulator
     }));
     const consumed = this.ledger.getUtxos({ outRefs: spent }).map(toMeshUtxo);
     const produced = producedBy(tx, isValid);
+    const slot = this.slot;
     const notChecked = notCheckedIssues(this.state, refs);
     const { params } = this;
     const assumed = assumedState(this.state, refs, {
@@ -1514,6 +1905,37 @@ export class TxEmulator
       });
       // Only once the state holds the transaction's effects
       if (resync) this.stale = true;
+      const fee = body.fee();
+      const withdrawn = [...refs.withdrawals.values()].reduce(
+        (sum, amount) => sum + amount,
+        0n,
+      );
+      this.setRecord(txHash, {
+        slot,
+        index: this.nextIndex(slot),
+        applied: true,
+        info: {
+          // A transaction marked invalid pays its collateral, not its fee, and no deposits
+          fees: (isValid
+            ? fee
+            : lovelaceOf(consumed) - lovelaceOf(produced)
+          ).toString(),
+          size: txHex.length / 2,
+          deposit: (isValid
+            ? lovelaceOf(consumed) +
+              withdrawn -
+              lovelaceOf(produced) -
+              fee -
+              (refs.donation ?? 0n)
+            : 0n
+          ).toString(),
+          invalidBefore: body.validityStartInterval()?.toString() ?? "",
+          invalidAfter: body.ttl()?.toString() ?? "",
+          inputs: structuredClone(consumed),
+          outputs: structuredClone(produced),
+          validContract: isValid,
+        },
+      });
     }
 
     return {

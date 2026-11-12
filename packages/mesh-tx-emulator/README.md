@@ -118,7 +118,44 @@ const branch = emulator.fork(); // an independent copy of the whole ledger
 ```
 
 `submitTx` submits like any Mesh submitter, throwing a `TxRejectedError` carrying the result
-when the ledger rejects the transaction.
+when the ledger rejects the transaction. `evaluateTx` evaluates like any Mesh evaluator,
+rejecting with the `ScriptEvaluationError` of `@meshsdk/common` when a script fails: its
+`failures` name the redeemer (`tag`, `index`) with the evaluator's message, the script's logs
+and the budget it spent.
+
+## Blocks and the search
+
+The emulator answers as a provider of a chain with a block in every slot:
+
+```ts
+const tip = await emulator.fetchLatestBlock(); // the block of the current slot
+tip.slot; // String(emulator.slot)
+tip.height; // emulator.slot
+
+const txHash = await emulator.submitTx(signedTx);
+const info = await emulator.fetchTxInfo(txHash);
+info.blockHeight; // the slot it was applied in
+info.validContract; // false for a transaction marked invalid, which only paid its collateral
+tip.height - info.blockHeight; // its depth: the slots passed since
+
+await emulator.awaitTransactionConfirmation(txHash); // true at once
+```
+
+`fetchTxInfo` finds every transaction `submit` and `submitTx` applied, and the transaction hash
+of every output that entered the ledger without one (given to `create`, read by `fromChain`,
+added by `addUtxos` or `fund`), as a transaction accepted in the slot the output appeared in.
+The answer stays after the outputs are spent or removed. Transactions of one slot share a block,
+`index` being their place in it. Nothing else is found: not what `simulate` checked, nor a
+transaction refused. For any other hash it rejects with the `ProviderError` of
+`@meshsdk/common` a provider throws for "not found": `kind: "notFound"`, `status: 404`.
+
+`awaitTransactionConfirmation` resolves `true` at once for every hash `fetchTxInfo` finds, a
+transaction marked invalid included, and rejects at once with `TxConfirmTimeoutError` for any
+other: nothing else can apply a transaction meanwhile.
+
+A refusal is told from other failures as a provider's: `TxRejectedError` is a `ProviderError`
+with `kind: "rejected"` and `status: 400`, and `body` is the result. The search and the wait
+answer from the state as it is: await `submit` and `submitTx` first.
 
 ## Starting state
 
@@ -168,6 +205,7 @@ change a parameter midway.
 ```ts
 emulator.addUtxos([utxo]); // replacing any output at the same input
 emulator.removeUtxos([utxo.input]);
+const funded = emulator.fund(address, { lovelace: 100_000_000n, [unit]: 5n }); // the new UTxO
 
 emulator.setAccount({ rewardAddress, rewards: "5000000" }); // registered, or changed
 emulator.removeAccount(rewardAddress);
@@ -186,6 +224,11 @@ emulator.setConstitution({ anchor, guardrailScriptHash });
 
 emulator.setProtocolParameters({ maxTxSize: 20_000 }); // the others keep their values
 ```
+
+`fund` adds one output, with no datum and no script, under a made-up transaction hash, at
+output index 0. The address may be bech32 or the hex of its bytes; the output holds it as
+bech32 (base58 for a Byron address). The hashes come from a counter, so they are the same on
+every run, and a hash the ledger has held an output under is passed over.
 
 The `set` methods take what `create` does. For a stake address, pool, DRep, governance action
 or committee member already in the ledger, fields left out keep their values, and `null` removes
@@ -234,13 +277,18 @@ emulator.advanceTo({ time: Date.now() + 3_600_000 });
 emulator.advanceTo({ epoch: emulator.epoch + 1 }); // the epoch's first slot
 ```
 
-The clock only moves forward. Entering an epoch retires the pools due to retire, paying their
-deposits back and undelegating their stake, adds the previous epoch's donations to the treasury,
-and removes the governance actions past their lifetime, returning their deposits, with the
-committee members only they proposed. Committee members proposed but not sitting lose their hot
-credentials and resignations, as the ledger keeps those only for the sitting committee: such a
-member authorises its hot credential again in each epoch until it is elected. No rewards are
-paid, and no governance actions are ratified or enacted.
+The clock only moves forward, and only through `advanceTo`: transactions and changes of the
+state do not move it, and nothing reads the wall clock. `emulator.slotConfig` is the network's
+slot clock as a Mesh `SlotConfig`, equal to `SLOT_CONFIG_NETWORK[network]` of `@meshsdk/common`.
+The tip is the block of the current slot, so its `time` is the slot's start, in POSIX seconds.
+
+Entering an epoch retires the pools due to retire, paying their deposits back and undelegating
+their stake, adds the previous epoch's donations to the treasury, and removes the governance
+actions past their lifetime, returning their deposits, with the committee members only they
+proposed. Committee members proposed but not sitting lose their hot credentials and
+resignations, as the ledger keeps those only for the sitting committee: such a member authorises
+its hot credential again in each epoch until it is elected. No rewards are paid, and no
+governance actions are ratified or enacted.
 
 ## Limits
 
@@ -248,6 +296,11 @@ paid, and no governance actions are ratified or enacted.
   ratification and enactment, and DRep expiry are not computed; their outcomes can be set
   directly.
 - Each validator leaves some rules unchecked: see [Validators](#validators).
+- There is a block in every slot and no mempool: an applied transaction is in the block of the
+  current slot and found at once, and the tip's `height` is the slot number. Blocks carry no
+  totals, slot leader or certificates. There are no rollbacks: play one by switching to a copy
+  made with `fork()` before. `fund` on a copy never gives a hash that `fund` on its original
+  gives, and two copies of the same state give the same hashes.
 - Both validators hash a native script as they re-encode it, not over the bytes the transaction
   or output carries. A valid script encoded another way, with indefinite-length lists (as the
   ledger's own encoder writes lists of more than 23 scripts) or integers longer than needed,

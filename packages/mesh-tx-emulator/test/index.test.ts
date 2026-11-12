@@ -1,5 +1,13 @@
 import type { TransactionPrototype } from "@meshsdk/common";
 import {
+  awaitTransactionConfirmation,
+  ProviderError,
+  ScriptEvaluationError,
+  SLOT_CONFIG_NETWORK,
+  slotToBeginUnixTime,
+  TxConfirmTimeoutError,
+} from "@meshsdk/common";
+import {
   applyCborEncoding,
   deserializeAddress,
   GovernanceActionKind,
@@ -49,6 +57,35 @@ const anchor = {
   anchor_url: "https://example.com/a.json",
   anchor_data_hash: "cd".repeat(32),
 };
+/** A transaction hash no ledger here holds */
+const UNKNOWN = "ab".repeat(32);
+/** A token unit: policy id and asset name, in hex */
+const TOKEN = "cd".repeat(28) + "4d657368";
+const txHashOf = (txHex: string) => deserializeTx(txHex).getId().toString();
+
+/** How a promise has settled after many microtasks, before any timer can fire */
+const settledWithoutTimers = async (promise: Promise<unknown>) => {
+  let state = "pending";
+  promise.then(
+    () => (state = "resolved"),
+    () => (state = "rejected"),
+  );
+  for (let tick = 0; tick < 100; tick += 1) await Promise.resolve();
+  return state;
+};
+const lovelaceOf = (utxos: UTxO[]) =>
+  utxos.reduce(
+    (sum, { output }) =>
+      sum +
+      BigInt(output.amount.find((a) => a.unit === "lovelace")?.quantity ?? 0),
+    0n,
+  );
+/**
+ * The vesting validator: its datum is `[lockUntil, owner, beneficiary]`; the owner may unlock at
+ * any time, the beneficiary once the validity interval starts after `lockUntil`
+ */
+const VESTING_SCRIPT =
+  "5901a7010100323232323232322533300232323232325332330083001300937540042646464a66601666e1d2000300c37540022646464a66601c660026eb0c008c040dd50059bae3013301430103754006294454ccc038cc004dd6180118081baa00b375c60266028602860206ea800c4c8cc88c8c8c8c8c94ccc058c03cc05cdd5001099299980b802099b88007001002375a603660306ea80080044c94ccc058c03cc05cdd5001099299980b802001099b89007001375a603660306ea8008004528180c8011806180a1baa3018301900133016301700133016333012300b30133754602e603000298103d87a80004c0103d87980004bd7018099baa3003301337540046028602a602a602a602a602a602a602a60226ea8030dd6980098089baa0042301400114a044646600200200644a66602800229404c94ccc048cdc79bae301700200414a2266006006002602e00246024602660266026602660266026602660260026020601a6ea800458c03cc040008c038004c028dd50011b874800858c02cc030008c028004c028008c020004c010dd50008a4c26cacae6955ceaab9e5573eae815d0aba21";
 
 // A native script with no conditions: it needs no signature, so transactions it witnesses are
 // valid unsigned and chains of them can be built and played without keys
@@ -227,6 +264,46 @@ async function setup(
     next,
     sign,
   };
+}
+
+/** A ledger holding an always-succeeding (`#0`) and an always-failing (`#1`) script output */
+async function withLocked(validator: TxValidator) {
+  const locked = (outputIndex: number, script: typeof alwaysSucceed): UTxO => ({
+    input: { txHash: "9".repeat(64), outputIndex },
+    output: {
+      address: resolvePlutusScriptAddress(script, 1),
+      amount: lovelace("20000000"),
+      plutusData: "d87980",
+    },
+  });
+  const context = await setup(validator, {
+    utxos: [locked(0, alwaysSucceed), locked(1, alwaysFail)],
+  });
+  const { address, collateral, builder } = context;
+  /** An unsigned spend of one of the two */
+  const spend = (
+    outputIndex: number,
+    script: typeof alwaysSucceed,
+    evaluate: boolean,
+  ) =>
+    builder({ evaluate })
+      .spendingPlutusScriptV3()
+      .txIn("9".repeat(64), outputIndex)
+      .txInInlineDatumPresent()
+      .txInRedeemerValue(mConStr0([]), "Mesh", {
+        mem: 1_000_000,
+        steps: 500_000_000,
+      })
+      .txInScript(script.code)
+      .txInCollateral(
+        collateral.input.txHash,
+        collateral.input.outputIndex,
+        collateral.output.amount,
+        collateral.output.address,
+      )
+      .changeAddress(address)
+      .complete();
+  return { ...context, spend };
 }
 
 describe.each(["scalus", "cquisitor"] as const)(
@@ -1312,6 +1389,874 @@ describe.each(["scalus", "cquisitor"] as const)(
       expectAccepted(await submission);
       emulator.setTreasury("1000000000");
       expect(await emulator.fetchTreasury()).toBe("1000000000");
+    });
+
+    it("states the slot clock of the network it emulates", async () => {
+      for (const network of ["mainnet", "preprod", "preview"] as const) {
+        const emulator = await TxEmulator.create({ validator, network });
+        const slotConfig = emulator.slotConfig;
+        expect(slotConfig).toEqual(SLOT_CONFIG_NETWORK[network]);
+        expect(slotToBeginUnixTime(emulator.slot, slotConfig)).toBe(
+          emulator.time,
+        );
+        // A copy on every read, which no parameter change touches
+        expect(emulator.slotConfig).toEqual(slotConfig);
+        expect(emulator.slotConfig).not.toBe(slotConfig);
+        emulator.setProtocolParameters({ minFeeA: 45 });
+        expect(emulator.slotConfig).toEqual(slotConfig);
+      }
+    });
+
+    it("has a block in every slot: the tip is the current slot, moved only by the clock", async () => {
+      const { wallet, address, emulator, send } = await setup(validator);
+      const start = emulator.slot;
+      expect(await emulator.fetchLatestBlock()).toMatchObject({
+        slot: String(start),
+        height: start,
+      });
+
+      expectAccepted(await emulator.submit(await wallet.signTx(await send())));
+      emulator.addUtxos([
+        { input: outRef(3), output: { address, amount: lovelace("7000000") } },
+      ]);
+      emulator.fund(address, { lovelace: 5_000_000n });
+      emulator.setTreasury("1000000000");
+      emulator.setProtocolParameters({ minFeeA: 45 });
+      expect(await emulator.fetchLatestBlock()).toMatchObject({
+        slot: String(start),
+        height: start,
+      });
+
+      emulator.advanceTo({ slot: start + 30 });
+      expect(await emulator.fetchLatestBlock()).toMatchObject({
+        slot: String(start + 30),
+        height: start + 30,
+      });
+    });
+
+    it("finds a transaction it applied, at the slot it was applied in", async () => {
+      const { wallet, emulator, send } = await setup(validator);
+      emulator.advanceTo({ slot: emulator.slot + 5 });
+      const slot = emulator.slot;
+      const result = expectAccepted(
+        await emulator.submit(await wallet.signTx(await send())),
+      );
+
+      const info = await emulator.fetchTxInfo(result.txHash);
+      expect(info).toMatchObject({
+        hash: result.txHash,
+        slot: String(slot),
+        blockHeight: slot,
+        validContract: true,
+        fees: result.fee,
+      });
+      expect(info.inputs).toEqual(result.consumed);
+      expect(info.outputs).toEqual(result.produced);
+    });
+
+    it("finds a transaction marked invalid as one that only paid its collateral", async () => {
+      const locked: UTxO = {
+        input: { txHash: "9".repeat(64), outputIndex: 0 },
+        output: {
+          address: resolvePlutusScriptAddress(alwaysFail, 1),
+          amount: lovelace("20000000"),
+          plutusData: "d87980",
+        },
+      };
+      const { wallet, address, collateral, emulator, builder } = await setup(
+        validator,
+        { utxos: [locked] },
+      );
+      const txHex = await builder({ evaluate: false })
+        .spendingPlutusScriptV3()
+        .txIn(locked.input.txHash, 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", {
+          mem: 1_000_000,
+          steps: 500_000_000,
+        })
+        .txInScript(alwaysFail.code)
+        .txInCollateral(
+          collateral.input.txHash,
+          0,
+          collateral.output.amount,
+          address,
+        )
+        .setTotalCollateral("3000000")
+        .setCollateralReturnAddress(address)
+        .changeAddress(address)
+        .complete();
+      const tx = deserializeTx(await wallet.signTx(txHex));
+      tx.setIsValid(false);
+      const result = expectAccepted(await emulator.submit(tx.toCbor()));
+      const slot = emulator.slot;
+
+      const info = await emulator.fetchTxInfo(result.txHash);
+      expect(info).toMatchObject({
+        slot: String(slot),
+        blockHeight: slot,
+        validContract: false,
+        deposit: "0",
+        fees: "3000000",
+      });
+      expect(info.inputs).toEqual([collateral]);
+      expect(info.outputs).toEqual(result.produced);
+      expect(info.outputs).toHaveLength(1);
+      expect(lovelaceOf(info.inputs) - lovelaceOf(info.outputs)).toBe(
+        3_000_000n,
+      );
+      expect(await emulator.awaitTransactionConfirmation(result.txHash)).toBe(
+        true,
+      );
+
+      // Outputs added under its hash later do not move it, nor make it valid
+      emulator.advanceTo({ slot: slot + 10 });
+      emulator.addUtxos([
+        {
+          input: { txHash: result.txHash, outputIndex: 5 },
+          output: { address, amount: lovelace("7000000") },
+        },
+      ]);
+      expect(await emulator.fetchTxInfo(result.txHash)).toEqual(info);
+    });
+
+    it("tells a transaction it does not know as not found", async () => {
+      const { emulator } = await setup(validator);
+      const error = await emulator.fetchTxInfo(UNKNOWN).catch((e) => e);
+
+      expect(ProviderError.is(error)).toBe(true);
+      expect(error).toMatchObject({
+        kind: "notFound",
+        status: 404,
+        retryable: false,
+      });
+      expect(error.body).toBeUndefined();
+      expect(error.message).not.toContain("not supported");
+    });
+
+    it("refuses a transaction on submitTx as a provider does", async () => {
+      const { emulator, send } = await setup(validator);
+      const error = await emulator.submitTx(await send()).catch((e) => e);
+
+      expect(error).toBeInstanceOf(TxRejectedError);
+      expect(rules((error as TxRejectedError).result)).toEqual([
+        validator === "scalus" ? "MissingKeyHashes" : "MissingVKeyWitnesses",
+      ]);
+      expect(ProviderError.is(error)).toBe(true);
+      expect(error).toMatchObject({
+        kind: "rejected",
+        status: 400,
+        retryable: false,
+      });
+      expect(error.body).toBe(error.result);
+      await expect(
+        emulator.fetchTxInfo(error.result.txHash),
+      ).rejects.toMatchObject({ kind: "notFound" });
+
+      // Bytes that are not a transaction are refused the same way
+      const junk = await emulator.submitTx("00").catch((e) => e);
+      expect(junk).toBeInstanceOf(TxRejectedError);
+      expect(junk).toMatchObject({
+        kind: "rejected",
+        status: 400,
+        retryable: false,
+      });
+      expect(rules((junk as TxRejectedError).result)).toEqual([
+        "InvalidTransaction",
+      ]);
+    });
+
+    it("finds the outputs it starts with as a transaction of the starting slot", async () => {
+      const utxo: UTxO = {
+        input: outRef(5),
+        output: { address: openAddress, amount: lovelace("9000000") },
+      };
+      const emulator = await TxEmulator.create({
+        validator,
+        slot: 1_000,
+        utxos: [utxo],
+      });
+
+      const info = await emulator.fetchTxInfo(utxo.input.txHash);
+      expect(info).toMatchObject({
+        hash: utxo.input.txHash,
+        slot: "1000",
+        blockHeight: 1000,
+        validContract: true,
+      });
+      expect(info.outputs).toContainEqual(utxo);
+    });
+
+    it("finds outputs added without a transaction at the slot they were added in", async () => {
+      const { address, emulator } = await setup(validator);
+      const start = emulator.slot;
+      emulator.advanceTo({ slot: start + 20 });
+      const extra: UTxO = {
+        input: outRef(3),
+        output: { address, amount: lovelace("7000000") },
+      };
+      emulator.addUtxos([extra]);
+
+      expect(await emulator.fetchTxInfo(extra.input.txHash)).toMatchObject({
+        slot: String(start + 20),
+        blockHeight: start + 20,
+        validContract: true,
+        outputs: [extra],
+      });
+      // The outputs it started with stay at the starting slot
+      expect((await emulator.fetchTxInfo(outRef(0).txHash)).blockHeight).toBe(
+        start,
+      );
+    });
+
+    it("finds a funded output at the slot it was funded in", async () => {
+      const { address, emulator } = await setup(validator);
+      const slot = emulator.advanceTo({ slot: emulator.slot + 40 });
+      const funded = emulator.fund(address, { lovelace: 5_000_000n });
+
+      expect(await emulator.fetchTxInfo(funded.input.txHash)).toMatchObject({
+        slot: String(slot),
+        blockHeight: slot,
+        validContract: true,
+        outputs: [funded],
+      });
+    });
+
+    it("keeps finding outputs it started with once they are spent or removed", async () => {
+      const { wallet, funding, collateral, emulator, send } =
+        await setup(validator);
+      const before = await emulator.fetchTxInfo(funding.input.txHash);
+
+      expectAccepted(await emulator.submit(await wallet.signTx(await send())));
+      expect(emulator.utxos({ txHash: funding.input.txHash })).toEqual([]);
+      expect(await emulator.fetchTxInfo(funding.input.txHash)).toEqual(before);
+      expect(before.outputs).toEqual([funding]);
+
+      emulator.removeUtxos([collateral.input]);
+      expect(
+        (await emulator.fetchTxInfo(collateral.input.txHash)).outputs,
+      ).toEqual([collateral]);
+    });
+
+    it("confirms at once what it finds, and times out at once otherwise", async () => {
+      const { wallet, funding, emulator, send } = await setup(validator);
+      const result = expectAccepted(
+        await emulator.submit(await wallet.signTx(await send())),
+      );
+
+      expect(
+        await emulator.awaitTransactionConfirmation(result.txHash, 60_000),
+      ).toBe(true);
+      expect(
+        await emulator.awaitTransactionConfirmation(funding.input.txHash),
+      ).toBe(true);
+
+      // Settled before any timer could fire
+      const waiting = emulator.awaitTransactionConfirmation(UNKNOWN, 60_000);
+      expect(await settledWithoutTimers(waiting)).toBe("rejected");
+      const error = await waiting.catch((e) => e);
+      expect(TxConfirmTimeoutError.is(error)).toBe(true);
+      expect(error).toMatchObject({ txHash: UNKNOWN, timeoutMs: 60_000 });
+      // Without a timeout it reports the time it waited
+      expect(
+        await emulator.awaitTransactionConfirmation(UNKNOWN).catch((e) => e),
+      ).toMatchObject({ txHash: UNKNOWN, timeoutMs: 0 });
+    });
+
+    it("funds an address, given as bech32 or hex, under hashes the same on every run", async () => {
+      const emulator = await TxEmulator.create({ validator });
+      const funded = emulator.fund(openAddress, {
+        lovelace: 5_000_000n,
+        [TOKEN]: 7n,
+      });
+      expect(emulator.utxos({ txHash: funded.input.txHash })).toEqual([funded]);
+      expect(funded.input.outputIndex).toBe(0);
+      expect(funded.output.address).toBe(openAddress);
+      expect(funded.output.amount).toEqual([
+        { unit: "lovelace", quantity: "5000000" },
+        { unit: TOKEN, quantity: "7" },
+      ]);
+
+      const hex = Cardano.Address.fromBech32(openAddress).toBytes();
+      const second = emulator.fund(hex, { lovelace: 1_000_000n });
+      expect(second.output.address).toBe(openAddress);
+      expect(second.input.txHash).not.toBe(funded.input.txHash);
+      for (const { input } of [funded, second])
+        expect(input.txHash).toMatch(/^[0-9a-f]{64}$/);
+
+      // Another emulator made the same way gives the same hashes
+      const again = await TxEmulator.create({ validator });
+      expect(
+        again.fund(openAddress, { lovelace: 5_000_000n }).input.txHash,
+      ).toBe(funded.input.txHash);
+      expect(again.fund(hex, { lovelace: 1_000_000n }).input.txHash).toBe(
+        second.input.txHash,
+      );
+
+      // One holding a funded output passes over its hash
+      const holding = await TxEmulator.create({ validator, utxos: [funded] });
+      const own = holding.fund(openAddress, { lovelace: 1_000_000n });
+      expect(own.input.txHash).not.toBe(funded.input.txHash);
+      expect(holding.utxos({ address: openAddress })).toEqual(
+        expect.arrayContaining([funded, own]),
+      );
+      expect(holding.utxos({ address: openAddress })).toHaveLength(2);
+    });
+
+    it("rejects evaluating a failing script with a ScriptEvaluationError naming its redeemer", async () => {
+      const { emulator, spend } = await withLocked(validator);
+      const error = await emulator
+        .evaluateTx(await spend(1, alwaysFail, false))
+        .catch((e) => e);
+
+      expect(ScriptEvaluationError.is(error)).toBe(true);
+      expect(error.failures).toEqual([
+        {
+          tag: "SPEND",
+          index: 0,
+          message: error.message,
+          logs: expect.any(Array),
+          budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        },
+      ]);
+      expect(error.message).toContain("failed");
+      // The evaluator's whole message, and its error as the cause
+      expect(error.cause).toBeInstanceOf(Error);
+      expect(error.cause.name).toBe("PlutusScriptEvaluationError");
+      expect(error.message).toBe(error.cause.message);
+      expect(error.message).toContain("spent budget");
+    });
+
+    it("evaluates a passing script as before, and lets other failures through", async () => {
+      const { emulator, spend } = await withLocked(validator);
+      const txHex = await spend(0, alwaysSucceed, false);
+
+      expect(await emulator.evaluateTx(txHex)).toEqual([
+        {
+          tag: "SPEND",
+          index: 0,
+          budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        },
+      ]);
+      emulator.removeUtxos([{ txHash: "9".repeat(64), outputIndex: 0 }]);
+      const error = await emulator.evaluateTx(txHex).catch((e) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect(ScriptEvaluationError.is(error)).toBe(false);
+      // Nor are bytes that are not a transaction
+      const junk = await emulator.evaluateTx("00").catch((e) => e);
+      expect(junk).toBeInstanceOf(Error);
+      expect(ScriptEvaluationError.is(junk)).toBe(false);
+    });
+
+    it("locks to a vesting script, refuses the wrong key, and unlocks after the deadline", async () => {
+      const vesting = {
+        code: applyCborEncoding(VESTING_SCRIPT),
+        version: "V3" as const,
+      };
+      const scriptAddress = resolvePlutusScriptAddress(vesting, 1);
+      const emulator = await TxEmulator.create({
+        validator,
+        slot: 160_000_000,
+      });
+      const params = await emulator.fetchProtocolParameters();
+      const builder = (evaluate = true) =>
+        new MeshTxBuilder({
+          fetcher: emulator,
+          evaluator: evaluate ? emulator : null,
+          params,
+        });
+      const [owner, beneficiary, attacker] = await Promise.all(
+        [0, 1, 2].map(async (accountIndex) => {
+          const wallet = new MeshWallet({
+            networkId: 1,
+            key: { type: "mnemonic", words: Array(24).fill("solution") },
+            accountIndex,
+          });
+          await wallet.init();
+          const address = (await wallet.getChangeAddress())!;
+          emulator.fund(address, { lovelace: 100_000_000n });
+          emulator.fund(address, { lovelace: 5_000_000n });
+          return {
+            wallet,
+            address,
+            keyHash: deserializeAddress(address).pubKeyHash,
+          };
+        }),
+      );
+
+      // The owner locks 50 ADA for the beneficiary, for an hour
+      const lockUntil = emulator.time + 3_600_000;
+      const lockTx = await builder()
+        .txOut(scriptAddress, lovelace("50000000"))
+        .txOutInlineDatumValue(
+          mConStr0([lockUntil, owner!.keyHash, beneficiary!.keyHash]),
+        )
+        .changeAddress(owner!.address)
+        .selectUtxosFrom(emulator.utxos({ address: owner!.address }))
+        .complete();
+      const lockHash = await emulator.submitTx(
+        await owner!.wallet.signTx(lockTx),
+      );
+      expect(await emulator.awaitTransactionConfirmation(lockHash)).toBe(true);
+      expect((await emulator.fetchTxInfo(lockHash)).validContract).toBe(true);
+
+      emulator.advanceTo({ time: lockUntil + 60_000 });
+      const [locked] = emulator.utxos({ address: scriptAddress });
+      /** An unlock paid by `by`, naming `signer` as the one who signs it */
+      const unlock = (
+        by: typeof owner,
+        signer: typeof owner,
+        evaluate: boolean,
+      ) => {
+        const collateral = emulator
+          .utxos({ address: by!.address })
+          .find((u) => u.output.amount[0]!.quantity === "5000000")!;
+        return builder(evaluate)
+          .spendingPlutusScriptV3()
+          .txIn(
+            locked!.input.txHash,
+            locked!.input.outputIndex,
+            locked!.output.amount,
+            scriptAddress,
+          )
+          .txInInlineDatumPresent()
+          .txInRedeemerValue(mConStr0([]), "Mesh", {
+            mem: 1_000_000,
+            steps: 500_000_000,
+          })
+          .txInScript(vesting.code)
+          .requiredSignerHash(signer!.keyHash)
+          .invalidBefore(emulator.slot)
+          .txInCollateral(
+            collateral.input.txHash,
+            collateral.input.outputIndex,
+            collateral.output.amount,
+            by!.address,
+          )
+          .changeAddress(by!.address)
+          .complete();
+      };
+
+      // The attacker's own key is not the beneficiary's: the script fails
+      const error = await emulator
+        .evaluateTx(await unlock(attacker, attacker, false))
+        .catch((e) => e);
+      expect(ScriptEvaluationError.is(error)).toBe(true);
+      expect(error.failures).toMatchObject([{ tag: "SPEND", index: 0 }]);
+
+      // Naming the beneficiary without their signature is refused
+      const forged = await emulator.submit(
+        await attacker!.wallet.signTx(
+          await unlock(attacker, beneficiary, true),
+        ),
+      );
+      expect(rules(forged)).toEqual([
+        validator === "scalus" ? "MissingKeyHashes" : "MissingVKeyWitnesses",
+      ]);
+
+      // The beneficiary unlocks
+      const unlocked = expectAccepted(
+        await emulator.submit(
+          await beneficiary!.wallet.signTx(
+            await unlock(beneficiary, beneficiary, true),
+          ),
+        ),
+      );
+      expect(unlocked.redeemers).toEqual([
+        {
+          tag: "SPEND",
+          index: 0,
+          budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        },
+      ]);
+      expect(emulator.utxos({ address: scriptAddress })).toEqual([]);
+      expect((await emulator.fetchTxInfo(unlocked.txHash)).validContract).toBe(
+        true,
+      );
+    });
+
+    it("answers from the state at the call, not waiting for a running submit", async () => {
+      const { wallet, emulator, send } = await setup(validator);
+      const signed = await wallet.signTx(await send());
+      const txHash = txHashOf(signed);
+      const tip = await emulator.fetchLatestBlock();
+
+      const pending = emulator.submit(signed);
+      const search = emulator.fetchTxInfo(txHash).catch((e) => e);
+      const wait = emulator
+        .awaitTransactionConfirmation(txHash)
+        .catch((e) => e);
+      const latest = emulator.fetchLatestBlock();
+      expect(await search).toMatchObject({ kind: "notFound" });
+      expect(TxConfirmTimeoutError.is(await wait)).toBe(true);
+      expect(await latest).toEqual(tip);
+
+      expectAccepted(await pending);
+      expect((await emulator.fetchTxInfo(txHash)).hash).toBe(txHash);
+      expect(await emulator.awaitTransactionConfirmation(txHash)).toBe(true);
+    });
+
+    it("finds nothing that it did not apply", async () => {
+      const { emulator, send } = await setup(validator);
+      const simulated = expectAccepted(await emulator.simulate(rawTx({})));
+      await expect(
+        emulator.fetchTxInfo(simulated.txHash),
+      ).rejects.toMatchObject({ kind: "notFound" });
+
+      const unsigned = await send();
+      const refused = await emulator.submit(unsigned);
+      expect(refused.accepted).toBe(false);
+      await expect(emulator.fetchTxInfo(refused.txHash!)).rejects.toMatchObject(
+        { kind: "notFound" },
+      );
+
+      const evaluated = rawTx({ fee: 3_000_000n });
+      await emulator.evaluateTx(evaluated);
+      await expect(
+        emulator.fetchTxInfo(txHashOf(evaluated)),
+      ).rejects.toMatchObject({ kind: "notFound" });
+    });
+
+    it("puts the transactions of one slot in one block, in the order applied", async () => {
+      const { address, emulator } = await setup(validator);
+      // The outputs it starts with are records of the starting slot
+      emulator.advanceTo({ slot: emulator.slot + 1 });
+      const first = expectAccepted(await emulator.submit(rawTx({})));
+      const second = expectAccepted(
+        await emulator.submit(rawTx(nextOpen(emulator))),
+      );
+      const [a, b] = await Promise.all(
+        [first, second].map((r) => emulator.fetchTxInfo(r.txHash)),
+      );
+      expect(a!.blockHeight).toBe(b!.blockHeight);
+      expect(a!.block).toBe(b!.block);
+      expect([a!.index, b!.index]).toEqual([0, 1]);
+
+      // A funded output takes its place before a transaction applied after it
+      const slot = emulator.advanceTo({ slot: emulator.slot + 1 });
+      const funded = emulator.fund(address, { lovelace: 5_000_000n });
+      const third = expectAccepted(
+        await emulator.submit(rawTx(nextOpen(emulator))),
+      );
+      expect((await emulator.fetchTxInfo(funded.input.txHash)).index).toBe(0);
+      expect(await emulator.fetchTxInfo(third.txHash)).toMatchObject({
+        index: 1,
+        blockHeight: slot,
+      });
+
+      emulator.advanceTo({ slot: slot + 1 });
+      const fourth = expectAccepted(
+        await emulator.submit(rawTx(nextOpen(emulator))),
+      );
+      expect(await emulator.fetchTxInfo(fourth.txHash)).toMatchObject({
+        index: 0,
+        blockHeight: slot + 1,
+      });
+    });
+
+    it("counts the depth of a transaction by the slots passed since", async () => {
+      const { emulator } = await setup(validator);
+      const depth = async (txHash: string) =>
+        (await emulator.fetchLatestBlock()).height! -
+        (await emulator.fetchTxInfo(txHash)).blockHeight!;
+      const applied = expectAccepted(await emulator.submit(rawTx({})));
+      const info = await emulator.fetchTxInfo(applied.txHash);
+      expect(await depth(applied.txHash)).toBe(0);
+
+      const slot = emulator.slot;
+      emulator.advanceTo({ slot: slot + 30 });
+      expect(await depth(applied.txHash)).toBe(30);
+
+      // Its outputs spent, an epoch boundary, a parameter change: the answer stays
+      expectAccepted(await emulator.submit(rawTx(nextOpen(emulator))));
+      expect(emulator.utxos({ txHash: applied.txHash })).toEqual([]);
+      emulator.advanceTo({ epoch: emulator.epoch + 1 });
+      emulator.setProtocolParameters({ minFeeA: 45 });
+      expect(await emulator.fetchTxInfo(applied.txHash)).toEqual(info);
+      expect(await depth(applied.txHash)).toBe(emulator.slot - slot);
+    });
+
+    it("keeps what each fork finds apart", async () => {
+      const { address, emulator } = await setup(validator);
+      const before = expectAccepted(await emulator.submit(rawTx({})));
+      const copy = emulator.fork();
+      const twin = emulator.fork();
+      expect(await copy.fetchTxInfo(before.txHash)).toEqual(
+        await emulator.fetchTxInfo(before.txHash),
+      );
+
+      const onCopy = expectAccepted(await copy.submit(rawTx(nextOpen(copy))));
+      await expect(emulator.fetchTxInfo(onCopy.txHash)).rejects.toMatchObject({
+        kind: "notFound",
+      });
+      // The copy goes on with the order of the slot it was made in, and so does the original
+      const beforeIndex = (await copy.fetchTxInfo(before.txHash)).index;
+      expect((await copy.fetchTxInfo(onCopy.txHash)).index).toBe(
+        beforeIndex + 1,
+      );
+      const onOriginal = expectAccepted(
+        await emulator.submit(rawTx(nextOpen(emulator))),
+      );
+      expect((await emulator.fetchTxInfo(onOriginal.txHash)).index).toBe(
+        beforeIndex + 1,
+      );
+
+      const fundedHere = emulator.fund(address, { lovelace: 5_000_000n });
+      const fundedThere = copy.fund(address, { lovelace: 5_000_000n });
+      expect(fundedHere.input.txHash).not.toBe(fundedThere.input.txHash);
+      await expect(
+        copy.fetchTxInfo(fundedHere.input.txHash),
+      ).rejects.toMatchObject({ kind: "notFound" });
+      await expect(
+        emulator.fetchTxInfo(fundedThere.input.txHash),
+      ).rejects.toMatchObject({ kind: "notFound" });
+
+      // The original goes on as if it had not been forked
+      const { emulator: unforked } = await setup(validator);
+      expectAccepted(await unforked.submit(rawTx({})));
+      expect(
+        unforked.fund(address, { lovelace: 5_000_000n }).input.txHash,
+      ).toBe(fundedHere.input.txHash);
+      // Copies of one state give the same hashes
+      expect(twin.fund(address, { lovelace: 5_000_000n }).input.txHash).toBe(
+        fundedThere.input.txHash,
+      );
+    });
+
+    it("confirms through the wait of @meshsdk/common, by its own wait or by the search", async () => {
+      const { emulator } = await setup(validator);
+      const applied = expectAccepted(await emulator.submit(rawTx({})));
+      const options = { timeoutMs: 200, pollMs: 10 };
+      const searchOnly = {
+        fetchTxInfo: (hash: string) => emulator.fetchTxInfo(hash),
+      };
+
+      for (const provider of [emulator, searchOnly]) {
+        await expect(
+          awaitTransactionConfirmation(provider, applied.txHash, options),
+        ).resolves.toBeUndefined();
+        const error = await awaitTransactionConfirmation(
+          provider,
+          UNKNOWN,
+          options,
+        ).catch((e) => e);
+        expect(TxConfirmTimeoutError.is(error)).toBe(true);
+      }
+    });
+
+    it("spends a funded output", async () => {
+      const { wallet, address, emulator, builder } = await setup(validator);
+      const funded = emulator.fund(address, { lovelace: 20_000_000n });
+      const txHex = await builder()
+        .txOut(address, lovelace("2000000"))
+        .changeAddress(address)
+        .selectUtxosFrom([funded])
+        .complete();
+
+      const result = expectAccepted(
+        await emulator.submit(await wallet.signTx(txHex)),
+      );
+      expect(result.consumed).toEqual([funded]);
+    });
+
+    it("funds only valid outputs, and not while a transaction is being checked", async () => {
+      const { wallet, address, emulator, send } = await setup(validator);
+      expect(() =>
+        emulator.fund("not an address", { lovelace: 1_000_000n }),
+      ).toThrow("not an address");
+      // No output can be sent to a reward address, in any form
+      const [keyReward] = await wallet.getRewardAddresses();
+      for (const reward of [
+        keyReward!,
+        Cardano.Address.fromBech32(keyReward!).toBytes(),
+        openStake,
+      ])
+        expect(() => emulator.fund(reward, { lovelace: 1_000_000n })).toThrow(
+          "reward address",
+        );
+      expect(() => emulator.fund(address, { lovelace: -1n })).toThrow(
+        "negative",
+      );
+      expect(() => emulator.fund(address, { [TOKEN]: -1n })).toThrow(
+        "negative",
+      );
+      expect(
+        emulator.fund(address, { lovelace: 2_000_000n, [TOKEN]: 0n }).output
+          .amount,
+      ).toEqual([{ unit: "lovelace", quantity: "2000000" }]);
+      expect(emulator.fund(address, { [TOKEN]: 5n }).output.amount).toEqual([
+        { unit: "lovelace", quantity: "0" },
+        { unit: TOKEN, quantity: "5" },
+      ]);
+      // Another network's address is the builder's and the ledger's to report
+      const testnet = resolveNativeScriptAddress(openScript, 0);
+      expect(
+        emulator.fund(testnet, { lovelace: 1_000_000n }).output.address,
+      ).toBe(testnet);
+
+      const submission = emulator.submit(await wallet.signTx(await send()));
+      expect(() => emulator.fund(address, { lovelace: 1_000_000n })).toThrow(
+        "await",
+      );
+      expectAccepted(await submission);
+    });
+
+    it("is a fetcher with a tip and a network", async () => {
+      const { emulator } = await setup(validator);
+      // Checked by the type checker
+      const fetcher: Required<Pick<IFetcher, "fetchLatestBlock" | "network">> =
+        emulator;
+      expect(fetcher.network).toBe("mainnet");
+      expect((await fetcher.fetchLatestBlock()).height).toBe(emulator.slot);
+    });
+
+    it("answers for one hash by the first thing that happened under it, but a transaction", async () => {
+      const { address, emulator } = await setup(validator);
+      const hash = "5".repeat(64);
+      const output = (outputIndex: number, quantity: string): UTxO => ({
+        input: { txHash: hash, outputIndex },
+        output: { address, amount: lovelace(quantity) },
+      });
+      const start = emulator.slot;
+      // Given twice in one call, the ledger holds the last and the search the first
+      emulator.addUtxos([output(0, "1000000"), output(0, "9000000")]);
+      expect(emulator.utxos({ txHash: hash })).toEqual([output(0, "9000000")]);
+      emulator.advanceTo({ slot: start + 10 });
+      emulator.addUtxos([output(1, "2000000"), output(0, "3000000")]);
+      expect(await emulator.fetchTxInfo(hash)).toMatchObject({
+        slot: String(start),
+        blockHeight: start,
+        outputs: [output(0, "1000000"), output(1, "2000000")],
+      });
+      // The ledger holds the output added last
+      expect(emulator.utxos({ txHash: hash })).toContainEqual(
+        output(0, "3000000"),
+      );
+
+      // Outputs added under the hash of a transaction applied later give way to it
+      const txHex = rawTx({});
+      const txHash = txHashOf(txHex);
+      emulator.addUtxos([
+        {
+          input: { txHash, outputIndex: 5 },
+          output: { address, amount: lovelace("4000000") },
+        },
+      ]);
+      const slot = emulator.advanceTo({ slot: emulator.slot + 10 });
+      const applied = expectAccepted(await emulator.submit(txHex));
+      const info = await emulator.fetchTxInfo(txHash);
+      expect(info).toMatchObject({
+        slot: String(slot),
+        blockHeight: slot,
+        validContract: true,
+      });
+      expect(info.outputs).toEqual(applied.produced);
+
+      // Outputs added under the hash of a transaction applied leave it as it was
+      emulator.advanceTo({ slot: slot + 10 });
+      emulator.addUtxos([
+        {
+          input: { txHash, outputIndex: 6 },
+          output: { address, amount: lovelace("4000000") },
+        },
+      ]);
+      expect(await emulator.fetchTxInfo(txHash)).toEqual(info);
+    });
+
+    it("states the deposit, validity interval and size of a transaction", async () => {
+      const { emulator, fromOpen } = await setup(validator);
+      const registration = rawTx({
+        delta: 2_000_000n,
+        body: {
+          certs: [
+            {
+              type: "STAKE_REGISTRATION",
+              value: { stake_credential: openCredential },
+            },
+          ],
+        },
+      });
+      const registered = expectAccepted(await emulator.submit(registration));
+      const info = await emulator.fetchTxInfo(registered.txHash);
+      expect(info).toMatchObject({
+        deposit: "2000000",
+        invalidBefore: "",
+        invalidAfter: "",
+        size: registration.length / 2,
+      });
+
+      const from = emulator.slot - 10;
+      const to = emulator.slot + 100;
+      const bounded = await fromOpen(
+        emulator.utxos({ address: openAddress })[0],
+      )
+        .invalidBefore(from)
+        .invalidHereafter(to)
+        .complete();
+      const result = expectAccepted(await emulator.submit(bounded));
+      expect(await emulator.fetchTxInfo(result.txHash)).toMatchObject({
+        deposit: "0",
+        invalidBefore: String(from),
+        invalidAfter: String(to),
+        size: bounded.length / 2,
+      });
+    });
+
+    it("states the hash, time and epoch of the tip", async () => {
+      const { emulator } = await setup(validator);
+      const tip = await emulator.fetchLatestBlock();
+      expect(tip.hash).toMatch(/^[0-9a-f]{64}$/);
+      expect(tip.time).toBe(Math.floor(emulator.time / 1000));
+      expect(tip.epoch).toBe(emulator.epoch);
+      const applied = expectAccepted(await emulator.submit(rawTx({})));
+      expect((await emulator.fetchTxInfo(applied.txHash)).block).toBe(tip.hash);
+
+      emulator.advanceTo({ slot: emulator.slot + 1 });
+      const next = await emulator.fetchLatestBlock();
+      expect(next.hash).not.toBe(tip.hash);
+      expect(next.previousBlock).toBe(tip.hash);
+      expect(next.time).toBe(Math.floor(emulator.time / 1000));
+
+      // The slot within the epoch counts from its first slot
+      emulator.advanceTo({ epoch: emulator.epoch + 1 });
+      expect((await emulator.fetchLatestBlock()).epochSlot).toBe("0");
+      emulator.advanceTo({ slot: emulator.slot + 5 });
+      expect((await emulator.fetchLatestBlock()).epochSlot).toBe("5");
+
+      // The block of slot 0 has none before it
+      const first = await TxEmulator.create({
+        validator,
+        network: "preview",
+        slot: 0,
+      });
+      expect(await first.fetchLatestBlock()).toMatchObject({
+        slot: "0",
+        epochSlot: "0",
+        previousBlock: "",
+      });
+    });
+
+    it("matches hashes in any case, and answers with values of the caller's own", async () => {
+      const { emulator } = await setup(validator);
+      const applied = expectAccepted(await emulator.submit(rawTx({})));
+      const info = await emulator.fetchTxInfo(applied.txHash.toUpperCase());
+      expect(info.hash).toBe(applied.txHash);
+      expect(
+        await emulator.awaitTransactionConfirmation(
+          applied.txHash.toUpperCase(),
+        ),
+      ).toBe(true);
+
+      const answer = structuredClone(info);
+      info.outputs[0]!.output.amount[0]!.quantity = "1";
+      info.inputs.length = 0;
+      info.validContract = false;
+      expect(await emulator.fetchTxInfo(applied.txHash)).toEqual(answer);
+      const seeded = await emulator.fetchTxInfo(outRef(0).txHash);
+      seeded.outputs.length = 0;
+      expect(
+        (await emulator.fetchTxInfo(outRef(0).txHash)).outputs,
+      ).toHaveLength(1);
     });
   },
 );
@@ -2511,6 +3456,27 @@ describe.each(["scalus", "cquisitor"] as const)(
         },
       }) as unknown as IFetcher;
     };
+
+    it("finds the outputs it read as transactions of its starting slot", async () => {
+      const { emulator: chain, next, open } = await setup(validator);
+      const tx = await next().complete();
+
+      const emulator = await TxEmulator.fromChain(tx, {
+        validator,
+        fetcher: chain,
+      });
+
+      expect(await emulator.fetchTxInfo(open.input.txHash)).toMatchObject({
+        slot: String(emulator.slot),
+        blockHeight: emulator.slot,
+        validContract: true,
+        outputs: [open],
+      });
+      expectAccepted(await emulator.submit(tx));
+      expect((await emulator.fetchTxInfo(txHashOf(tx))).validContract).toBe(
+        true,
+      );
+    });
 
     it("checks a transaction against the state a full provider reports", async () => {
       const { emulator: chain, next } = await setup(validator, {
