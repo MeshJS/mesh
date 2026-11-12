@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import * as scalus from "scalus";
 
-import { SLOT_CONFIG_NETWORK } from "@meshsdk/common";
+import { ScriptEvaluationError, SLOT_CONFIG_NETWORK } from "@meshsdk/common";
 import { OfflineFetcher } from "@meshsdk/core";
 
 import { OfflineEvaluatorScalus } from "../src/offline-providers";
@@ -239,9 +239,13 @@ describe("OfflineEvaluatorScalus", () => {
     it("cannot evaluate a transaction with a validity interval, and says so before fetching anything", async () => {
       // The transaction has a TTL. The fetcher holds no UTxOs: a fetch would fail with another message.
       const unknown = new OfflineEvaluatorScalus(fetcher);
-      await expect(unknown.evaluateTx(txHex)).rejects.toThrow(
+      const error = await unknown.evaluateTx(txHex).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(
         /network it is for is unknown.*`configure`/s,
       );
+      // Not a script failure: no script ran
+      expect(ScriptEvaluationError.is(error)).toBe(false);
     });
 
     it("evaluates as for the network it is configured with", async () => {

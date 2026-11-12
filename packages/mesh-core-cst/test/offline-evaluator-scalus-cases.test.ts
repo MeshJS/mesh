@@ -1,6 +1,10 @@
 import { jest } from "@jest/globals";
 
-import { SLOT_CONFIG_NETWORK } from "@meshsdk/common";
+import {
+  IFetcher,
+  ScriptEvaluationError,
+  SLOT_CONFIG_NETWORK,
+} from "@meshsdk/common";
 import { OfflineFetcher } from "@meshsdk/provider";
 
 import { OfflineEvaluatorScalus } from "../src/offline-providers";
@@ -356,6 +360,37 @@ describe("OfflineEvaluatorScalus cases", () => {
     expect(res).toBeInstanceOf(Error);
     expect(res.message).toContain("Mint[0] failed");
     expect(res.message).toContain("This is a trace");
+    // A script failure: one entry for the redeemer that failed, with its logs and spent units
+    expect(ScriptEvaluationError.is(res)).toBe(true);
+    expect(res.failures).toHaveLength(1);
+    const [failure] = res.failures;
+    expect(failure).toMatchObject({ tag: "MINT", index: 0 });
+    expect(failure.message).toBe(res.message);
+    expect(failure.logs).toContain("This is a trace");
+    expect(typeof failure.budget.mem).toBe("number");
+    expect(typeof failure.budget.steps).toBe("number");
+    expect(failure.budget.mem).toBeGreaterThan(0);
+    expect(failure.budget.steps).toBeGreaterThan(0);
+    // Scalus's own error is kept as the cause
+    expect(res.cause).toBeInstanceOf(Error);
+    expect((res.cause as Error).name).toBe("PlutusScriptEvaluationError");
+    expect((res.cause as Error).message).toBe(res.message);
+    expect(ScriptEvaluationError.is(res.cause)).toBe(false);
+  });
+
+  it("rejects with a plain error, not a script failure, when an input is not found", async () => {
+    // A fetcher that answers with no UTxO for the input of the transaction
+    const empty = { fetchUTxOs: async () => [] } as unknown as IFetcher;
+    const res = await new OfflineEvaluatorScalus(empty, "preprod")
+      .evaluateTx(
+        "84a700d901028182582047ce1b14c0599bb377a3c73c20973e49adbd10e5090129879b068ca0aa4216c2000181825839003f1b5974f4f09f0974be655e4ce94f8a2d087df378b79ef3916c26b2b1f70b573b204c6695b8f66eb6e7c78c55ede9430024ebec6fd5f85d821b0000000252c63160a2581c0f6b02150cbcc7fedafa388abcc41635a9443afb860100099ba40f07a1446d65736801581cf1c9053e4e03414fc37092d0155682f96d20770afc13a07f00f057ffa14001021a000c6b250758207564366f82807a253ef1f25af3f04486ac49ecd7fb631da76a713b32580994d709a1581cf1c9053e4e03414fc37092d0155682f96d20770afc13a07f00f057ffa140010b582001208ac891cd1aefe984b233bb0f9c4ece236b172c279d14d4940a483d68ccb00dd90102818258206213898aa37d5e585721f4ebdd16da2ac6cd9cd0e81318906dfeea3ebdf9f15700a207d901028158a0589e01010032323232323225333002323232323253330073370e900018049baa00113253300949010f5468697320697320612074726163650016375c601660146ea800454cc02124010f5468697320697320612074726163650016300a300b003300900230080023008001300537540022930a99801a491856616c696461746f722072657475726e65642066616c736500136565734ae7155ceaab9e5742ae8905a182010082d8799f446d657368ff821a006acfc01ab2d05e00f5a11902d1a178386631633930353365346530333431346663333730393264303135353638326639366432303737306166633133613037663030663035376666a1646d657368a46b6465736372697074696f6e783254686973204e465420776173206d696e746564206279204d657368202868747470733a2f2f6d6573686a732e6465762f292e65696d6167657835697066733a2f2f516d527a6963705265757477436b4d36616f74754b6a4572464355443231334470775071364279757a4d4a617561696d656469615479706569696d6167652f6a7067646e616d656a4d65736820546f6b656e",
+        [],
+        [],
+      )
+      .catch((e) => e);
+    expect(res).toBeInstanceOf(Error);
+    expect(res.message).toContain("UTxO not found for input");
+    expect(ScriptEvaluationError.is(res)).toBe(false);
   });
 
   it("should log slot based on network defaults", async () => {
@@ -414,6 +449,10 @@ describe("OfflineEvaluatorScalus cases", () => {
     expect(res.message).toContain("loan_term: 1734809132108");
     expect(res.message).toContain("time_now > loan_term ? False");
     expect(res.message).toContain("Validator returned false");
+    expect(ScriptEvaluationError.is(res)).toBe(true);
+    expect(res.failures).toHaveLength(1);
+    expect(res.failures[0]).toMatchObject({ tag: "SPEND", index: 0 });
+    expect((res.cause as Error).name).toBe("PlutusScriptEvaluationError");
 
     const mainnetEvaluator = new OfflineEvaluatorScalus(fetcher, "mainnet");
 
