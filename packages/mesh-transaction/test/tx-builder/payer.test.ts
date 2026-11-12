@@ -240,7 +240,7 @@ describe("TxBuilder: payer forms", () => {
       [pay(), {}],
       [pay(), { payer: undefined }],
       [pay(), { payer: null as never }],
-      [pay(), { sendAllTo: "not an address" } as BuildOptions],
+      [pay(), { sendAllTo: "not an address" }],
       [pay(), { fee: 1000 as unknown as bigint }],
       [pay(), { extraKeyWitnesses: -1 }],
       [pay(), { registeredPools: "pool" as unknown as string[] }],
@@ -782,6 +782,11 @@ describe("TxBuilder: bad values", () => {
     );
     expect(error.cause).toBeInstanceOf(Error);
     expect(error.details.value).toBe("zz");
+    const sendAllTo = await invalid("sendAllTo", (builder, walletPayer) =>
+      builder.build([], { payer: walletPayer, sendAllTo: "zz" }),
+    );
+    expect(sendAllTo.cause).toBeInstanceOf(Error);
+    expect(sendAllTo.details.value).toBe("zz");
   });
 
   it.each([
@@ -790,6 +795,15 @@ describe("TxBuilder: bad values", () => {
     ["registeredPools", { registeredPools: "pool" }],
     ["extraKeyWitnesses", { extraKeyWitnesses: 1.5 }],
     ["extraKeyWitnesses", { extraKeyWitnesses: -1 }],
+    ["sendAllTo", { sendAllTo: "not an address" }],
+    ["sendAllTo", { sendAllTo: rewardAddress(1) }],
+    ["sendAllTo", { sendAllTo: 5 }],
+    ["canSelect", { canSelect: true }],
+    ["coinSelection", { coinSelection: [] }],
+    [
+      "coinSelection",
+      { coinSelection: { name: "custom", selectInputs: () => [] } },
+    ],
   ])("refuses an option %s of the wrong type: %p", async (option, options) => {
     await invalid(option, (builder, walletPayer) =>
       builder.build(pay(), {

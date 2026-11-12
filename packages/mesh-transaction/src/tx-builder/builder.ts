@@ -30,7 +30,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import type { AssembledRedeemer } from "./assemble";
-import type { Balanced, CollateralPlan } from "./balance";
+import type { Balanced, CollateralPlan, SelectInputs } from "./balance";
 import type { PartFailure } from "./errors";
 import type {
   CredentialInput,
@@ -40,7 +40,7 @@ import type {
 } from "./parts/types";
 import type { Payer, PayerSnapshot, PayerSource } from "./payer";
 import type { GovernanceDeposits } from "./resolve";
-import { balance, totalExUnits } from "./balance";
+import { balance, refusedBy, totalExUnits } from "./balance";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, minCoin, valueSize } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
@@ -54,7 +54,12 @@ import {
   scriptAddressOn,
 } from "./network";
 import { freeze } from "./parts/normalize";
-import { givenPayerEntries, readPayerSource, toPayerSource } from "./payer";
+import {
+  givenPayerEntries,
+  readPayerSource,
+  toAddressText,
+  toPayerSource,
+} from "./payer";
 import { resolveParts, utxoKey } from "./resolve";
 
 /**
@@ -136,6 +141,18 @@ export type PartsInput = TxPart | readonly PartEntry[];
 export type BuildOptions = {
   /** Who pays and gets the change; a build without one is MISSING_PAYER */
   payer?: Payer;
+  /**
+   * Which of the payer's UTxOs may be selected for payment and collateral. UTxOs the parts read
+   * (reference inputs, reference scripts) and script-locked UTxOs are never selected.
+   */
+  canSelect?: (utxo: UTxO) => boolean;
+  /** Replaces the built-in selection (each token from its largest holders, then lovelace) */
+  coinSelection?: SelectInputs;
+  /**
+   * Spend every selectable UTxO of the payer and send all that is left over the outputs,
+   * deposits and fee to this address, in several outputs when its tokens exceed `maxValSize`
+   */
+  sendAllTo?: string;
   /**
    * A fee that goes into the body as given; FEE_TOO_LOW `{ fee, minFee }` when the final
    * transaction's minimum fee is higher
@@ -227,19 +244,43 @@ const describe = (value: unknown): string => {
   return String(value);
 };
 
-const invalidOption = (option: string, value: unknown, allowed: string) =>
+const invalidOption = (
+  option: string,
+  value: unknown,
+  allowed: string,
+  cause?: unknown,
+) =>
   new TxBuildError(
     "INVALID_OPTION",
     `invalid ${option}: expected ${allowed}; got ${describe(value)}`,
-    { details: { option, value, allowed } },
+    {
+      details: { option, value, allowed },
+      ...(cause !== undefined && { cause }),
+    },
   );
 
+const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
+
 /**
- * Checks the type of every option of a build but `payer`
+ * Checks the type of every option of a build but `payer`, and converts `sendAllTo` to bech32
+ * (base58 for Byron)
  * @throws TxBuildError INVALID_OPTION naming the first option that is not of its type
  */
-const checkBuildOptions = (options: BuildOptions) => {
+const checkBuildOptions = (options: BuildOptions): { sendAllTo?: string } => {
+  const { canSelect, coinSelection, sendAllTo } = options;
   const { fee, registeredPools, extraKeyWitnesses } = options;
+  if (canSelect !== undefined && typeof canSelect !== "function")
+    throw invalidOption(
+      "canSelect",
+      canSelect,
+      "a function telling whether a UTxO may be selected",
+    );
+  if (coinSelection !== undefined && typeof coinSelection !== "function")
+    throw invalidOption(
+      "coinSelection",
+      coinSelection,
+      "a function selecting inputs from its candidates",
+    );
   if (fee !== undefined && !(typeof fee === "bigint" && fee >= 0n))
     throw invalidOption("fee", fee, "a bigint of lovelace, 0 or more");
   if (
@@ -263,6 +304,14 @@ const checkBuildOptions = (options: BuildOptions) => {
       extraKeyWitnesses,
       "a whole number, 0 or more",
     );
+  if (sendAllTo === undefined) return {};
+  if (typeof sendAllTo !== "string")
+    throw invalidOption("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED);
+  try {
+    return { sendAllTo: toAddressText(sendAllTo) };
+  } catch (error) {
+    throw invalidOption("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED, error);
+  }
 };
 
 export type BuiltRedeemer = {
@@ -598,8 +647,9 @@ export class TxBuilder {
    *    the payer's UTxOs are always read past it. What is read and looked up is checked for its
    *    network too.
    * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace.
-   * 3. Balances: selects inputs from the payer's UTxOs, returns change to its change address,
-   *    puts up collateral with a collateral return, and settles the fee.
+   * 3. Balances: selects inputs from the payer's UTxOs that `canSelect` lets it, with
+   *    `coinSelection` when given, returns change to its change address (or sends everything
+   *    left to `sendAllTo`), puts up collateral with a collateral return, and settles the fee.
    * 4. Evaluates the scripts with the builder's evaluator, configured with its network, slot
    *    clock and the cost models of step 1, and balances again with their execution units,
    *    until they settle. A local evaluator gets every UTxO the build knows for the
@@ -618,13 +668,17 @@ export class TxBuilder {
     // network of what the build is given, all before any request
     const source = toPayerSource(options?.payer);
     const flat = flattenParts(parts);
-    checkBuildOptions(options ?? {});
+    const { sendAllTo } = checkBuildOptions(options ?? {});
     // What is read and looked up is checked once found
     checkNetworks(this.network, [
       ...givenPayerEntries(source),
+      ...(sendAllTo === undefined
+        ? []
+        : [{ role: "output" as const, address: sendAllTo }]),
       ...flat.flatMap(partEntries),
     ]);
     const { fee, registeredPools, extraKeyWitnesses } = options ?? {};
+    const { canSelect, coinSelection } = options ?? {};
     const known = new Map<string, UTxO>();
     // A snapshot's UTxOs are known before the lookups start, so a part may name one by out ref
     if (source.form === "snapshot")
@@ -653,6 +707,16 @@ export class TxBuilder {
     const filled = resolved.map((part) =>
       part.kind === "output" ? withMinCoin(part, params) : part,
     );
+    // Each out ref once, as the payer first lists it: a repeated entry is not selected twice
+    const listed = new Set<string>();
+    const payerUtxos = payer.utxos.filter((utxo) => {
+      const key = utxoKey(utxo);
+      if (listed.has(key)) return false;
+      listed.add(key);
+      return true;
+    });
+    // The filter is asked once per build; its answers serve every balancing round
+    const refused = canSelect && refusedBy(canSelect, filled, payerUtxos);
 
     // Execution units: as given, or placeholders until evaluation fills them in
     const redeemerParts = filled.flatMap((part, i) =>
@@ -678,7 +742,10 @@ export class TxBuilder {
       params,
       costModels,
       changeAddress: payer.changeAddress,
-      utxos: payer.utxos,
+      utxos: payerUtxos,
+      ...(refused && { refused }),
+      ...(coinSelection && { coinSelection }),
+      ...(sendAllTo !== undefined && { sendAllTo }),
       known,
       ...(fee !== undefined && { fee }),
       registeredPools: new Set(registeredPools ?? []),

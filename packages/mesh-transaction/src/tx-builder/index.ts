@@ -44,5 +44,5 @@ export {
   type RequiredKeys,
   type TxWallet,
 } from "./payer";
-export type { CollateralPlan } from "./balance";
+export type { CollateralPlan, SelectInputs } from "./balance";
 export type { GovernanceDeposits } from "./resolve";

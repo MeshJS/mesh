@@ -98,7 +98,7 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 /** An address text in canonical form, bech32 or base58 for Byron; throws for any other text */
-const toAddressText = (text: unknown): string => {
+export const toAddressText = (text: unknown): string => {
   if (typeof text !== "string") throw new Error("an address must be a string");
   let parsed: Address | null;
   try {

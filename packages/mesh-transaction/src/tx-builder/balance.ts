@@ -11,6 +11,7 @@ import type {
   CollateralPart,
   CollateralReturnPart,
   OutputPart,
+  OutRef,
   SpendPart,
   TxPart,
 } from "./parts/types";
@@ -32,15 +33,46 @@ import {
 } from "./value";
 import { placeholderWitnesses, requiredSigners } from "./witnesses";
 
+/**
+ * Replaces input selection. Called whenever something is missing; every UTxO returned must be
+ * among `candidates` (else INVALID_SELECTION), and a non-empty need must get at least one
+ * (else INSUFFICIENT_FUNDS). Until the scripts are evaluated, `context.fee` is an upper
+ * estimate, and so is a need of lovelace.
+ */
+export type SelectInputs = (
+  need: {
+    readonly lovelace: bigint;
+    readonly assets: ReadonlyMap<string, bigint>;
+  },
+  /** Key-locked payer UTxOs not spent, read, excluded or selected yet */
+  candidates: readonly UTxO[],
+  context: {
+    readonly round: number;
+    readonly selected: readonly UTxO[];
+    readonly fee: bigint;
+    readonly params: Protocol;
+  },
+) => readonly UTxO[];
+
 export type BalanceContext = {
   params: Protocol;
   costModels: readonly (readonly number[])[];
+  /** The payer's change address, where change and, by default, the collateral return go */
   changeAddress: string;
   /**
    * UTxOs inputs and collateral may be selected from. Those the parts read are never selected,
    * and those named by collateral parts are never selected as inputs.
    */
   utxos: readonly UTxO[];
+  /** Out refs of the UTxOs selected neither as inputs nor as collateral: a filter refused them */
+  refused?: ReadonlySet<string>;
+  /** Selects the inputs in place of the built-in selection */
+  coinSelection?: SelectInputs;
+  /**
+   * Every selectable UTxO is spent, and what is left goes to this address in place of the
+   * change address; the outputs it takes are change only when it is the change address
+   */
+  sendAllTo?: string;
   /** Every UTxO known to the build, keyed by `txHash#index` */
   known: ReadonlyMap<string, UTxO>;
   /**
@@ -102,11 +134,40 @@ const readByParts = (parts: readonly TxPart[]): Set<string> => {
   return read;
 };
 
+/** The out refs a part names as collateral */
+const putUpByParts = (parts: readonly TxPart[]): Set<string> =>
+  new Set(
+    parts.flatMap((p) =>
+      p.kind === "collateral" ? [outRefString(p.input)] : [],
+    ),
+  );
+
 const isKeyLocked = (utxo: UTxO) => {
   const address = Address.fromString(utxo.output.address);
   if (!address) return false;
   if (address.asByron()) return true;
   return address.getProps().paymentPart?.type === CredentialType.KeyHash;
+};
+
+/**
+ * The out refs of the UTxOs a filter refuses, asking it once about each UTxO it could let be
+ * selected: key-locked, not read by a part and not named as collateral. What the filter throws
+ * is not caught.
+ */
+export const refusedBy = (
+  canSelect: (utxo: UTxO) => boolean,
+  parts: readonly TxPart[],
+  utxos: readonly UTxO[],
+): Set<string> => {
+  const read = readByParts(parts);
+  const putUp = putUpByParts(parts);
+  const refused = new Set<string>();
+  for (const utxo of utxos) {
+    const key = utxoKey(utxo);
+    if (!isKeyLocked(utxo) || read.has(key) || putUp.has(key)) continue;
+    if (!canSelect(utxo)) refused.add(key);
+  }
+  return refused;
 };
 
 /** Lovelace deposited and refunded by a part */
@@ -337,7 +398,10 @@ export const balance = (
   );
   const read = readByParts(parts);
   // A collateral part's UTxO is spent only when a spend part names it as well
-  const putUp = new Set(givenCollateral.map((p) => outRefString(p.input)));
+  const putUp = putUpByParts(parts);
+  const refused = ctx.refused ?? new Set<string>();
+  // Where what is left goes: the change address, or the address everything is sent to
+  const changeTo = ctx.sendAllTo ?? ctx.changeAddress;
   // The UTxOs selection may take, and why the others may not, each counted once
   const pool: UTxO[] = [];
   const counts: InsufficientFundsDetails["pool"] = {
@@ -354,6 +418,7 @@ export const balance = (
     if (spent.has(key) || putUp.has(key)) continue;
     if (!isKeyLocked(utxo)) counts.scriptLocked++;
     else if (read.has(key)) counts.readByParts++;
+    else if (refused.has(key)) counts.excludedByFilter++;
     else pool.push(utxo);
   }
   counts.selectable = pool.length;
@@ -391,7 +456,7 @@ export const balance = (
     let changeMinimum: bigint | undefined;
     if (!withoutChange) {
       try {
-        const least = leastChange(tokens, ctx.changeAddress, params);
+        const least = leastChange(tokens, changeTo, params);
         change = least.outputs;
         changeMinimum = least.needed;
       } catch {
@@ -435,18 +500,43 @@ export const balance = (
     return withMinimum({ feeEstimate: fee });
   };
 
-  /** Fails for `unit`, the first one selection cannot cover */
-  const insufficient = (unit: string): never => {
+  /** What the transaction holds as it stands: what the parts bring in and what is selected */
+  const held = () =>
+    addValues(
+      flow.consumed,
+      ...selected.map((u) => fromAssets(u.output.amount)),
+    );
+
+  /**
+   * Fails for `unit`, the first one selection cannot cover. With `unanswered`, the shortfall a
+   * `coinSelection` function answered with nothing, the details are of the transaction as it
+   * stands, since the UTxOs it left could still cover it.
+   */
+  const insufficient = (unit: string, unanswered?: Value): never => {
     const quantity = (value: Value) =>
       unit === "lovelace" ? value.coin : (value.assets.get(unit) ?? 0n);
-    const available = quantity(everything());
+    const available = quantity(unanswered ? held() : everything());
     const produced = quantity(flow.produced);
-    const estimated: { feeEstimate?: bigint; changeMinimum?: bigint } =
-      unit === "lovelace" ? estimate() : {};
-    const required =
-      produced +
-      (estimated.feeEstimate ?? 0n) +
-      (estimated.changeMinimum ?? 0n);
+    let estimated: { feeEstimate?: bigint; changeMinimum?: bigint } = {};
+    let required: bigint;
+    if (unanswered) {
+      required = available + quantity(unanswered);
+      // A shortfall of lovelace beyond the outputs and the fee is of the change minimum, once
+      // the transaction has an input
+      const ofChange =
+        available >= produced + fee && spent.size + selected.length > 0;
+      if (unit === "lovelace")
+        estimated = {
+          feeEstimate: fee,
+          ...(ofChange && { changeMinimum: required - produced - fee }),
+        };
+    } else {
+      if (unit === "lovelace") estimated = estimate();
+      required =
+        produced +
+        (estimated.feeEstimate ?? 0n) +
+        (estimated.changeMinimum ?? 0n);
+    }
     const missing = required - available > 0n ? required - available : 1n;
     const reason: InsufficientFundsDetails["reason"] =
       counts.given === 0
@@ -461,6 +551,7 @@ export const balance = (
         ? `${missing} lovelace are missing: the transaction takes ${required}, the fee of ${estimated.feeEstimate}${estimated.changeMinimum === undefined ? "" : ` and change of at least ${estimated.changeMinimum}`} included, and ${available} are available`
         : `${missing} of ${unit} are missing: the transaction takes ${required}, and ${available} are available`;
     const notes = [
+      ...(unanswered ? ["coinSelection selected nothing for it"] : []),
       ...(reason === "noUtxos"
         ? [
             `no UTxOs are given for the payer ${ctx.changeAddress}; a provider may answer a failed request with an empty list`,
@@ -483,8 +574,78 @@ export const balance = (
     });
   };
 
-  /** Selects inputs covering a shortfall: each token from its largest holders, then lovelace */
-  const selectFor = (shortfall: Value) => {
+  /** The unit reported when a shortfall cannot be covered: its first token, else lovelace */
+  const firstUnit = (shortfall: Value) =>
+    Array.from(shortfall.assets.keys()).sort()[0] ?? "lovelace";
+
+  /**
+   * Selects inputs for a shortfall with the caller's function: what it returns must be among
+   * the candidates, and something must be returned. Not called with no candidate left.
+   */
+  const selectWith = (
+    coinSelection: SelectInputs,
+    shortfall: Value,
+    round: number,
+  ) => {
+    const candidates = pool.filter((u) => !selectedKeys.has(utxoKey(u)));
+    if (candidates.length === 0) insufficient(firstUnit(shortfall));
+    const answer: unknown = coinSelection(
+      { lovelace: shortfall.coin, assets: new Map(shortfall.assets) },
+      candidates,
+      { round, selected: [...selected], fee, params },
+    );
+    /** An answer that is not a list of UTxOs: the function is not a `SelectInputs` */
+    const notAList = (value: unknown) =>
+      new TxBuildError(
+        "INVALID_OPTION",
+        "invalid coinSelection: it must return a list of UTxOs among its candidates",
+        {
+          details: {
+            option: "coinSelection",
+            value,
+            allowed:
+              "a function returning a list of UTxOs among its candidates",
+          },
+        },
+      );
+    if (!Array.isArray(answer)) throw notAList(answer);
+    const byKey = new Map(candidates.map((u) => [utxoKey(u), u]));
+    const picked = new Map<string, UTxO>();
+    for (const entry of answer as unknown[]) {
+      const input = (
+        entry as { input?: { txHash?: unknown; outputIndex?: unknown } } | null
+      )?.input;
+      if (
+        typeof input?.txHash !== "string" ||
+        typeof input.outputIndex !== "number"
+      )
+        throw notAList(entry);
+      const ref: OutRef = {
+        txHash: input.txHash,
+        outputIndex: input.outputIndex,
+      };
+      // Out refs compare in lower case, as the payer's UTxOs are kept
+      const key = `${ref.txHash.toLowerCase()}#${ref.outputIndex}`;
+      const candidate = byKey.get(key);
+      if (!candidate)
+        throw new TxBuildError(
+          "INVALID_SELECTION",
+          `coinSelection returned ${ref.txHash}#${ref.outputIndex}, which is not among its candidates`,
+          { details: { utxo: ref } },
+        );
+      picked.set(key, candidate);
+    }
+    if (picked.size === 0) insufficient(firstUnit(shortfall), shortfall);
+    for (const utxo of picked.values()) select(utxo);
+  };
+
+  /**
+   * Selects inputs covering a shortfall: with the caller's function when there is one, else
+   * each token from its largest holders, then lovelace
+   */
+  const selectFor = (shortfall: Value, round: number) => {
+    if (ctx.coinSelection)
+      return selectWith(ctx.coinSelection, shortfall, round);
     // What this call has selected so far, which may already hold the next token
     let added = emptyValue();
     const take = (utxo: UTxO) => {
@@ -532,7 +693,7 @@ export const balance = (
 
   const needsCollateral = runsPlutus || givenCollateral.length > 0;
   const collateralPool = ctx.utxos.filter(
-    (u) => isKeyLocked(u) && !read.has(utxoKey(u)),
+    (u) => isKeyLocked(u) && !read.has(utxoKey(u)) && !refused.has(utxoKey(u)),
   );
   /**
    * The collateral for a fee. Leniently, collateral that falls short is put up as given rather
@@ -587,11 +748,11 @@ export const balance = (
     },
   ];
 
+  // A sweep spends every selectable UTxO from the start, leaving selection nothing to choose
+  if (ctx.sendAllTo !== undefined) for (const utxo of pool) select(utxo);
+
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    const available = addValues(
-      flow.consumed,
-      ...selected.map((u) => fromAssets(u.output.amount)),
-    );
+    const available = held();
     const rest = subtractValues(
       available,
       addValues(flow.produced, coinValue(fee)),
@@ -601,12 +762,12 @@ export const balance = (
     if (spent.size + selected.length === 0 && shortfall.coin === 0n)
       shortfall.coin = 1n;
     if (!isEmpty(shortfall)) {
-      selectFor(shortfall);
+      selectFor(shortfall, round);
       continue;
     }
-    const change = makeChange(rest, ctx.changeAddress, params);
+    const change = makeChange(rest, changeTo, params);
     if (!Array.isArray(change)) {
-      selectFor(coinValue(change.missing));
+      selectFor(coinValue(change.missing), round);
       continue;
     }
 
@@ -653,7 +814,8 @@ export const balance = (
         parts: all,
         fee,
         selected,
-        change,
+        // What is sent to another address is not the payer's change
+        change: changeTo === ctx.changeAddress ? change : [],
         ...(collateral && { collateral }),
       };
     fee = required;

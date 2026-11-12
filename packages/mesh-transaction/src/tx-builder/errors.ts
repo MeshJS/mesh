@@ -119,19 +119,26 @@ export type InsufficientFundsDetails = {
   unit: string;
   /**
    * What to add for this build to pass: outputs, deposits, the fee with every selectable UTxO
-   * selected, and the change minimum
+   * selected, and the change minimum. When `coinSelection` answered with nothing: what it was
+   * asked for
    */
   missing: bigint;
   /** What the transaction takes out of `unit`, the fee and the change minimum included */
   required: bigint;
-  /** What the parts bring in of `unit`, and every selectable UTxO holds */
+  /**
+   * What the parts bring in of `unit`, and every selectable UTxO holds. When `coinSelection`
+   * answered with nothing: what the parts bring in and the inputs selected before
+   */
   available: bigint;
   /**
    * `noUtxos`: the payer has no UTxOs at all (the message says so, and names the payer);
    * `change`: only the change minimum is short; `payment`: the rest
    */
   reason: "payment" | "change" | "noUtxos";
-  /** The fee of the transaction with every selectable UTxO selected; lovelace only */
+  /**
+   * The fee of the transaction with every selectable UTxO selected, or of the round when
+   * `coinSelection` answered with nothing; lovelace only
+   */
   feeEstimate?: bigint;
   /** The least lovelace the change of that transaction must hold; lovelace only */
   changeMinimum?: bigint;
