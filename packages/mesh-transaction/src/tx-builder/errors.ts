@@ -14,7 +14,7 @@ export type TxBuildErrorCode =
   | "DUPLICATE_PART"
   /** Collateral inputs that cannot cover the total collateral */
   | "INVALID_COLLATERAL"
-  /** Something has to be looked up, and no fetcher is given */
+  /** Something has to be looked up, and the builder has no provider */
   | "MISSING_FETCHER"
   /** An output referenced by the transaction does not exist, or could not be fetched */
   | "UTXO_NOT_FOUND"

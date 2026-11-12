@@ -27,6 +27,8 @@ export {
 export {
   TxBuilder,
   type TxBuilderOptions,
+  type Provider,
+  type ChainSnapshot,
   type BuildTxRequest,
   type BuiltTx,
   type BuiltRedeemer,

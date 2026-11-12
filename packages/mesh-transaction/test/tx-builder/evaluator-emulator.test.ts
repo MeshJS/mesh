@@ -23,6 +23,8 @@ import {
 } from "../../src/tx-builder";
 import { alwaysFailCbor, alwaysSucceedCbor } from "../test-util";
 
+/** The emulator's ledger is a preview one */
+const network = "preview";
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const failingScript = { code: alwaysFailCbor, version: "V3" as const };
 const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
@@ -133,7 +135,7 @@ describe("TxBuilder's evaluators on the emulator", () => {
       const evaluator = make(provider);
       const evaluateTx = jest.spyOn(evaluator, "evaluateTx");
       const built = await build(
-        new TxBuilder({ fetcher: provider, evaluator }),
+        new TxBuilder({ network, provider, evaluator }),
         [unlock()],
       );
       expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0);
@@ -150,7 +152,7 @@ describe("TxBuilder's evaluators on the emulator", () => {
 
   it("evaluates with the UTxOs it holds, the provider asked only for the outputs parts name", async () => {
     const fetchUTxOs = jest.spyOn(provider, "fetchUTxOs");
-    const builder = new TxBuilder({ fetcher: provider });
+    const builder = new TxBuilder({ network, provider });
     expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
     const built = await build(builder, [unlock()]);
 
@@ -164,7 +166,7 @@ describe("TxBuilder's evaluators on the emulator", () => {
 
   it("reports a failing script, and takes stated units without evaluation after `evaluator: null`", async () => {
     const error = (await expectBuildError(
-      build(new TxBuilder({ fetcher: provider }), [unlockFailing()]),
+      build(new TxBuilder({ network, provider }), [unlockFailing()]),
       "EVALUATION_FAILED",
     )) as TxBuildError<"EVALUATION_FAILED">;
     // The one failed script names the part; the evaluator's error is the cause
@@ -184,13 +186,13 @@ describe("TxBuilder's evaluators on the emulator", () => {
 
     const stated = { mem: 100_000, steps: 100_000_000 };
     const built = await build(
-      new TxBuilder({ fetcher: provider, evaluator: null }),
+      new TxBuilder({ network, provider, evaluator: null }),
       [unlockFailing(stated)],
     );
     expect(built.redeemers[0]!.exUnits).toEqual(stated);
   });
 
-  it("needs an evaluator made for the network to evaluate a transaction with a validity interval", async () => {
+  it("evaluates a transaction with a validity interval on the builder's network clock", async () => {
     const parts = [
       unlock(),
       validity({
@@ -198,26 +200,17 @@ describe("TxBuilder's evaluators on the emulator", () => {
         invalidHereafter: provider.emulator.getSlot() + 3600,
       }),
     ];
-    const error = await expectBuildError(
-      build(new TxBuilder({ fetcher: provider }), parts),
-      "EVALUATION_FAILED",
-    );
-    expect(error.message).toContain("the network it is for is unknown");
-
-    const built = await build(
-      new TxBuilder({
-        fetcher: provider,
-        evaluator: new OfflineEvaluatorScalus(provider, "preview"),
-      }),
-      parts,
-    );
+    const builder = new TxBuilder({ network, provider });
+    expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
+    const built = await build(builder, parts);
+    expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0);
     expect(await submit(built)).toBe(built.txHash);
   });
 
   it("checks units stated on a redeemer with the default evaluator", async () => {
     const tooLow = { mem: 7, steps: 7 };
     const error = await expectBuildError(
-      build(new TxBuilder({ fetcher: provider }), [unlock(tooLow)]),
+      build(new TxBuilder({ network, provider }), [unlock(tooLow)]),
       "EXUNITS_TOO_LOW",
     );
     const { needed, given } = (error as TxBuildError<"EXUNITS_TOO_LOW">)
@@ -229,13 +222,13 @@ describe("TxBuilder's evaluators on the emulator", () => {
       mem: Number(needed.mem) + 1000,
       steps: Number(needed.steps) + 1000,
     };
-    const built = await build(new TxBuilder({ fetcher: provider }), [
+    const built = await build(new TxBuilder({ network, provider }), [
       unlock(enough),
     ]);
     expect(built.redeemers[0]!.exUnits).toEqual(enough);
 
     const unchecked = await build(
-      new TxBuilder({ fetcher: provider, evaluator: null }),
+      new TxBuilder({ network, provider, evaluator: null }),
       [unlock(tooLow)],
     );
     expect(unchecked.redeemers[0]!.exUnits).toEqual(tooLow);

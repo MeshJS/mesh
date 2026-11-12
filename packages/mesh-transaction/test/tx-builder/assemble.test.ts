@@ -1,4 +1,7 @@
 import {
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
   mConStr0,
   NativeScript,
   resolveNativeScriptHash,
@@ -56,7 +59,15 @@ const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 const walletAddress = baseAddress(1);
 const nativeScript: NativeScript = { type: "all", scripts: [] };
 const anchor = { url: "https://example.com/a.json", dataHash: "ab".repeat(32) };
-const fee = { fee: 200000n };
+/** The fee, and the cost models the script data hash of every Plutus version needs */
+const options = {
+  fee: 200000n,
+  costModels: [
+    DEFAULT_V1_COST_MODEL_LIST,
+    DEFAULT_V2_COST_MODEL_LIST,
+    DEFAULT_V3_COST_MODEL_LIST,
+  ],
+};
 const referenceScript = resolveScriptRef(plutusScript);
 
 const utxo = (
@@ -103,7 +114,7 @@ const expectBuildError = (build: () => unknown, code: string) => {
 
 /** The redeemer data's argument, which tells the test's redeemers apart */
 const redeemerArgs = (parts: TxPart[]) =>
-  assembleTxPrototype(parts, fee).redeemers.map((r) => ({
+  assembleTxPrototype(parts, options).redeemers.map((r) => ({
     tag: r.tag,
     index: r.index,
     label: r.label,
@@ -119,7 +130,7 @@ describe("assembleTxPrototype: redeemer indices", () => {
       scriptSpend("aa".repeat(32), 0, 3),
       pay,
     ];
-    const { prototype, redeemers } = assembleTxPrototype(parts, fee);
+    const { prototype, redeemers } = assembleTxPrototype(parts, options);
 
     expect(
       prototype.body.inputs.map((i) => `${i.transaction_id[0]}#${i.index}`),
@@ -171,7 +182,7 @@ describe("assembleTxPrototype: redeemer indices", () => {
     ];
     const sorted = [...policies].sort();
 
-    const { prototype, redeemers } = assembleTxPrototype(parts, fee);
+    const { prototype, redeemers } = assembleTxPrototype(parts, options);
 
     expect(Object.keys(prototype.body.mint!)).toEqual(sorted);
     for (const r of redeemers) {
@@ -205,7 +216,7 @@ describe("assembleTxPrototype: redeemer indices", () => {
         label: "42",
       }),
     ];
-    const { prototype, redeemers } = assembleTxPrototype(parts, fee);
+    const { prototype, redeemers } = assembleTxPrototype(parts, options);
 
     const scriptsFirst = [
       [alwaysSucceedHash, "always"],
@@ -274,7 +285,7 @@ describe("assembleTxPrototype: redeemer indices", () => {
       vote({ voter: { committee: keyCred }, votes }),
       vote({ voter: { committee: scriptCred }, votes, witness, label: "cc" }),
     ];
-    const { prototype, redeemers } = assembleTxPrototype(parts, fee);
+    const { prototype, redeemers } = assembleTxPrototype(parts, options);
 
     expect(
       prototype.body.voting_procedures!.map(
@@ -304,7 +315,7 @@ describe("assembleTxPrototype: redeemer indices", () => {
       scriptSpend("bb".repeat(32), 0, 1),
       scriptSpend("aa".repeat(32), 0, 2),
     ];
-    const { prototype } = assembleTxPrototype(parts, fee);
+    const { prototype } = assembleTxPrototype(parts, options);
     expect(
       prototype.witness_set.redeemers!.map((r) => `${r.tag.type}:${r.index}`),
     ).toEqual(["SPEND:0", "SPEND:1", "MINT:0"]);
@@ -339,7 +350,7 @@ describe("assembleTxPrototype: transaction contents", () => {
       referenceInput({ utxo: reference }),
       referenceInput({ utxo: utxo("ee".repeat(32), 4) }),
     ];
-    const { prototype, languages } = assembleTxPrototype(parts, fee);
+    const { prototype, languages } = assembleTxPrototype(parts, options);
 
     expect(prototype.body.reference_inputs).toEqual([
       { transaction_id: "cc".repeat(32), index: 0 },
@@ -364,7 +375,7 @@ describe("assembleTxPrototype: transaction contents", () => {
       collateral({ utxo: utxo("dd".repeat(32), 1) }),
       collateralReturn({ address: walletAddress, totalCollateral: 3000000n }),
     ];
-    const { prototype } = assembleTxPrototype(parts, fee);
+    const { prototype } = assembleTxPrototype(parts, options);
 
     expect(prototype.body.collateral).toHaveLength(2);
     expect(prototype.body.total_collateral).toBe("3000000");
@@ -382,7 +393,7 @@ describe("assembleTxPrototype: transaction contents", () => {
       collateral({ utxo: utxo("dd".repeat(32), 1) }),
       collateralReturn({ address: walletAddress, totalCollateral: 5000000n }),
     ];
-    const { prototype } = assembleTxPrototype(parts, fee);
+    const { prototype } = assembleTxPrototype(parts, options);
     expect(prototype.body.total_collateral).toBe("5000000");
     expect(prototype.body.collateral_return).toBeUndefined();
   });
@@ -398,7 +409,7 @@ describe("assembleTxPrototype: transaction contents", () => {
               totalCollateral: 5000001n,
             }),
           ],
-          fee,
+          options,
         ),
       "INVALID_COLLATERAL",
     );
@@ -464,7 +475,7 @@ describe("assembleTxPrototype: transaction contents", () => {
       }),
       collateral({ utxo: utxo("dd".repeat(32), 1) }),
     ];
-    const { prototype } = assembleTxPrototype(parts, fee);
+    const { prototype } = assembleTxPrototype(parts, options);
     const decoded = transactionPrototypeFromHex(
       transactionPrototypeToHex(prototype),
     );
@@ -492,7 +503,7 @@ describe("assembleTxPrototype: errors", () => {
               redeemer: { data: mConStr0([]) },
             }),
           ],
-          fee,
+          options,
         ),
       "UNRESOLVED",
     );
@@ -597,7 +608,7 @@ describe("assembleTxPrototype: errors", () => {
   ];
   it.each(twice)("rejects %s given twice", (_, parts, item) => {
     const error = expectBuildError(
-      () => assembleTxPrototype(parts, fee),
+      () => assembleTxPrototype(parts, options),
       "DUPLICATE_PART",
     );
     expect(error.details).toEqual({ item });
@@ -611,7 +622,7 @@ describe("assembleTxPrototype: errors", () => {
       [read, spend.pubKey({ utxo: spent })],
     ]) {
       const error = expectBuildError(
-        () => assembleTxPrototype(parts, fee),
+        () => assembleTxPrototype(parts, options),
         "DUPLICATE_PART",
       );
       expect(error).toMatchObject({
@@ -638,7 +649,7 @@ describe("assembleTxPrototype: errors", () => {
           redeemer: redeemer(1),
         }),
       ],
-      fee,
+      options,
     );
     expect(self.prototype.body.reference_inputs).toBeUndefined();
     expect(self.prototype.body.inputs).toEqual([
@@ -652,7 +663,7 @@ describe("assembleTxPrototype: errors", () => {
         collateral({ utxo: put }),
         referenceInput({ utxo: put }),
       ],
-      fee,
+      options,
     );
     const input = { transaction_id: "cc".repeat(32), index: 1 };
     expect(prototype.body.collateral).toEqual([input]);
@@ -674,7 +685,7 @@ describe("assembleTxPrototype: errors", () => {
               withdrawal.pubKey({ rewardAddress: a!, amount: 0n }),
               withdrawal.pubKey({ rewardAddress: b!, amount: 0n }),
             ],
-            fee,
+            options,
           ),
         "DUPLICATE_PART",
       );

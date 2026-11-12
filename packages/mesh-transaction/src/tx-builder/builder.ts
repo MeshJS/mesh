@@ -4,6 +4,11 @@ import type {
   IEvaluator,
   IFetcher,
   IMeshTxSerializer,
+  ISubmitter,
+  NativeScript,
+  NetworkConfig,
+  NetworkInput,
+  PlutusScript,
   Protocol,
   RedeemerTagType,
   ScriptFailure,
@@ -13,11 +18,9 @@ import type {
 } from "@meshsdk/common";
 import {
   CachedFetcher,
-  DEFAULT_PROTOCOL_PARAMETERS,
-  DEFAULT_V1_COST_MODEL_LIST,
-  DEFAULT_V2_COST_MODEL_LIST,
-  DEFAULT_V3_COST_MODEL_LIST,
   ScriptEvaluationError,
+  slotAt,
+  timeAt,
 } from "@meshsdk/common";
 import {
   OfflineEvaluatorScalus,
@@ -29,28 +32,74 @@ import {
 import type { AssembledRedeemer } from "./assemble";
 import type { Balanced, CollateralPlan } from "./balance";
 import type { PartFailure } from "./errors";
-import type { OutputPart, PlutusWitness, TxPart } from "./parts/types";
+import type {
+  CredentialInput,
+  OutputPart,
+  PlutusWitness,
+  TxPart,
+} from "./parts/types";
 import type { GovernanceDeposits } from "./resolve";
 import { balance, totalExUnits } from "./balance";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, minCoin, valueSize } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
+import {
+  checkNetworks,
+  checkProviderNetwork,
+  evaluatorNetwork,
+  partEntries,
+  resolveNetwork,
+  rewardAddressOn,
+  scriptAddressOn,
+  utxoEntry,
+} from "./network";
 import { freeze } from "./parts/normalize";
 import { resolveParts, utxoKey } from "./resolve";
 
+/**
+ * What the builder reads the chain through: every read, the tip and the search; submits when it
+ * can
+ */
+export type Provider = IFetcher & Partial<ISubmitter>;
+
+/**
+ * Everything a build reads from the chain, as plain JSON-safe data. `builder.chain()` returns
+ * it; spread into `TxBuilderOptions` it gives a builder that fetches no parameters, for
+ * fixtures, deterministic tests and workers sharing one epoch's values.
+ */
+export type ChainSnapshot = {
+  readonly network: NetworkConfig;
+  readonly params: Protocol;
+  /** Cost models by Plutus language number, V1 first */
+  readonly costModels: number[][];
+};
+
+/** `new TxBuilder(options)` */
 export type TxBuilderOptions = {
   /**
-   * Looks up outputs given by reference, reward balances, and the parameters below, through the
-   * `CachedFetcher` shared by everything using this fetcher
+   * The network the builder builds for. It fixes the network id every address is checked
+   * against, the slot clock time bounds are converted with, and what the evaluator is configured
+   * with. `"testnet"`, or anything but `"mainnet"`, `"preprod"`, `"preview"` and a network
+   * config, is refused with INVALID_OPTION: for a devnet give a `customNetwork(...)`.
    */
-  fetcher?: IFetcher;
+  network: NetworkInput;
   /**
-   * Works out execution units. By default a local evaluator made for this builder
-   * (`OfflineEvaluatorScalus` over the fetcher), configured before each evaluation with the
-   * build's cost models, and loaded only when a Plutus script runs. It is made only when a
-   * fetcher is given, and for no network: a transaction with a validity interval needs an
-   * evaluator built for its network. An evaluator given here is configured the same way when it
-   * has `configure`. `null`: no evaluation (every redeemer then needs its execution units).
+   * Reads outputs, reward balances, protocol parameters and cost models, through the
+   * `CachedFetcher` shared by everything using this provider. That cache keeps parameters and
+   * cost models until the epoch ends, as far as it knows the network; on a custom network whose
+   * parameters change, give a `CachedFetcher` made with `network: "testnet"`, which keeps none.
+   */
+  provider?: Provider;
+  /** Submits in place of the provider; the builder itself never submits */
+  submitter?: ISubmitter;
+  /**
+   * Works out execution units. By default a local evaluator made for this builder:
+   * `OfflineEvaluatorScalus` over the provider, or one that looks nothing up when the builder
+   * has no provider. Before each evaluation the builder configures it, and an evaluator given
+   * here that has `configure`, with its network, slot clock and the build's cost models; it is
+   * loaded only when a Plutus script runs. `null`: no evaluation; every redeemer then needs its
+   * execution units, and they are taken unchecked. An evaluator given to builders of different
+   * networks is reconfigured by each of them: give each its own.
    */
   evaluator?: IEvaluator | null;
   /**
@@ -59,13 +108,13 @@ export type TxBuilderOptions = {
    */
   serializer?: IMeshTxSerializer;
   /**
-   * Protocol parameters; fetched when omitted and a fetcher is given, Mesh's defaults
-   * otherwise
+   * Protocol parameters, used whole instead of reading them from the provider. With neither a
+   * provider nor `params`, the constructor throws MISSING_PARAMETER.
    */
   params?: Protocol;
   /**
-   * Cost models of Plutus V1, V2 and V3, in that order, for the script data hash; fetched
-   * when omitted and a fetcher is given, Mesh's defaults otherwise
+   * Cost models by Plutus language number, V1 first, used instead of reading them from the
+   * provider. With neither, a build that runs a Plutus script throws MISSING_PARAMETER.
    */
   costModels?: number[][];
   /** The governance deposits, which `Protocol` does not carry */
@@ -130,6 +179,30 @@ export type BuiltTx = {
   /** Every part of the transaction, resolved, the ones added by balancing included */
   parts: TxPart[];
 };
+
+/**
+ * What the default evaluator of a builder without a provider looks UTxOs up through. It knows
+ * none, so the evaluator's own error names an input the build did not hand it; the builder
+ * hands it every UTxO it knows, and never reads through it.
+ */
+const NO_PROVIDER: IFetcher = (() => {
+  const none = () => Promise.reject(new Error("the builder has no provider"));
+  return {
+    fetchUTxOs: async () => [],
+    fetchAccountInfo: none,
+    fetchAddressUTxOs: none,
+    fetchAddressTxs: none,
+    fetchAssetAddresses: none,
+    fetchAssetMetadata: none,
+    fetchBlockInfo: none,
+    fetchCollectionAssets: none,
+    fetchProtocolParameters: none,
+    fetchCostModels: none,
+    fetchTxInfo: none,
+    fetchGovernanceProposal: none,
+    get: none,
+  };
+})();
 
 /** Most evaluation rounds; the second one normally settles the execution units */
 const MAX_EVALUATION_ROUNDS = 5;
@@ -204,13 +277,13 @@ const maxUnits = (
  * Builds transactions from parts: looks up what they leave open, balances them, works out the
  * execution units of their scripts, and serializes the result.
  *
- * A builder holds only its providers and settings, so one builder can build any number of
- * transactions, concurrently included. It reads through the `CachedFetcher` of its fetcher,
- * shared with every builder, wallet and evaluator over the same fetcher. Given a fetcher, it
- * evaluates scripts locally unless given another evaluator.
+ * A builder holds only its network, providers and settings, so one builder can build any number
+ * of transactions, concurrently included. It reads through the `CachedFetcher` of its provider,
+ * shared with every builder, wallet and evaluator over the same provider, and evaluates scripts
+ * locally unless given another evaluator.
  *
  * ```ts
- * const builder = new TxBuilder({ fetcher: provider });
+ * const builder = new TxBuilder({ network: "preprod", provider });
  * const { tx, fee } = await builder.build({
  *   parts: [output({ address, value: { lovelace: 5_000_000n } })],
  *   changeAddress: walletAddress,
@@ -219,29 +292,34 @@ const maxUnits = (
  * ```
  */
 export class TxBuilder {
-  /** The fetcher as given */
-  readonly fetcher?: IFetcher;
+  /** The network the builder builds for, resolved from the `network` option */
+  readonly network: NetworkConfig;
+  /** The provider as given; reads go through its shared cache */
+  readonly provider?: Provider;
+  /** The submitter as given */
+  readonly submitter?: ISubmitter;
   /**
-   * The evaluator in effect: the one given, or the default made over the fetcher; none after
-   * `evaluator: null` or without a fetcher
+   * The evaluator in effect: the one given, or the default made for this builder; none after
+   * `evaluator: null`
    */
   readonly evaluator?: IEvaluator;
   readonly serializer?: IMeshTxSerializer;
+  /** The `params` option; never what was read from the provider */
   readonly params?: Protocol;
+  /** The `costModels` option; never what was read from the provider */
   readonly costModels?: number[][];
   readonly deposits: GovernanceDeposits;
-  /** The shared cache of the fetcher; every read goes through it */
+  /** The shared cache of the provider; every read goes through it */
   private readonly cache?: CachedFetcher;
 
-  constructor(options: TxBuilderOptions = {}) {
-    if (options.fetcher) {
-      this.fetcher = options.fetcher;
-      this.cache = CachedFetcher.wrap(options.fetcher);
-    }
-    if (options.evaluator) this.evaluator = options.evaluator;
-    // The default: local evaluation with Scalus, which reads the same shared cache
-    else if (options.evaluator === undefined && options.fetcher)
-      this.evaluator = new OfflineEvaluatorScalus(options.fetcher);
+  /**
+   * @throws TxBuildError INVALID_OPTION for a missing or unacceptable `network`;
+   *   UNSUPPORTED_SERIALIZER for a serializer without `serializeTxPrototype`;
+   *   MISSING_PARAMETER with neither a provider nor `params`;
+   *   NETWORK_MISMATCH when the provider states another network
+   */
+  constructor(options: TxBuilderOptions) {
+    this.network = resolveNetwork(options?.network);
     if (options.serializer) {
       if (!options.serializer.serializeTxPrototype)
         throw new TxBuildError(
@@ -250,9 +328,130 @@ export class TxBuilder {
         );
       this.serializer = options.serializer;
     }
+    if (!options.provider && !options.params)
+      throw new TxBuildError(
+        "MISSING_PARAMETER",
+        "the builder needs protocol parameters: give it a provider to read them from, or params",
+        { details: { parameter: "params" } },
+      );
+    if (options.provider) {
+      checkProviderNetwork(this.network, options.provider);
+      this.provider = options.provider;
+      this.cache = CachedFetcher.wrap(options.provider);
+    }
+    if (options.submitter) this.submitter = options.submitter;
+    if (options.evaluator) this.evaluator = options.evaluator;
+    // The default: local evaluation with Scalus, which reads the same shared cache
+    else if (options.evaluator === undefined)
+      this.evaluator = new OfflineEvaluatorScalus(
+        options.provider ?? NO_PROVIDER,
+      );
     if (options.params) this.params = options.params;
     if (options.costModels) this.costModels = options.costModels;
     this.deposits = { ...options.deposits };
+  }
+
+  /**
+   * The network, parameters and cost models this builder builds on now, as data: the options
+   * where given, else read from the provider
+   * @throws TxBuildError MISSING_PARAMETER when the parameters or the cost models cannot be had
+   */
+  async chain(): Promise<ChainSnapshot> {
+    const [params, costModels] = await Promise.all([
+      this.loadParams(),
+      this.loadCostModels(),
+    ]);
+    if (!costModels)
+      throw new TxBuildError(
+        "MISSING_PARAMETER",
+        this.cache
+          ? "the provider gave no cost models; give the builder costModels"
+          : "the builder has no cost models: give it costModels, or a provider to read them from",
+        { details: { parameter: "costModels" } },
+      );
+    // A copy, so that changing it changes neither the builder nor the provider's cache
+    return structuredClone({ network: this.network, params, costModels });
+  }
+
+  /**
+   * The slot containing a POSIX time on the builder's network (`"down"`, the default), or the
+   * first slot starting at or after it (`"up"`)
+   * @param time POSIX time in milliseconds, or a Date
+   * @throws TxBuildError INVALID_OPTION for a time that is not finite, or another `round`
+   */
+  slotAt(time: number | Date, round?: "down" | "up"): number {
+    const ms = time instanceof Date ? time.getTime() : time;
+    if (!(typeof ms === "number" && Number.isFinite(ms)))
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid time ${String(time)}: expected POSIX milliseconds or a Date, finite`,
+        {
+          details: {
+            option: "time",
+            value: time,
+            allowed: "a finite number of POSIX milliseconds, or a valid Date",
+          },
+        },
+      );
+    if (round !== undefined && round !== "down" && round !== "up")
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid round ${String(round)}: expected "down" or "up"`,
+        {
+          details: { option: "round", value: round, allowed: '"down" or "up"' },
+        },
+      );
+    return slotAt(this.network, ms, round);
+  }
+
+  /**
+   * The POSIX time in milliseconds at which a slot starts on the builder's network
+   * @throws TxBuildError INVALID_OPTION for a slot that is not a finite number
+   */
+  timeAt(slot: number | bigint): number {
+    if (!(
+      (typeof slot === "number" || typeof slot === "bigint") &&
+      Number.isFinite(Number(slot))
+    ))
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid slot ${String(slot)}: expected a finite number or a bigint`,
+        {
+          details: {
+            option: "slot",
+            value: slot,
+            allowed: "a finite number, or a bigint",
+          },
+        },
+      );
+    return timeAt(this.network, slot);
+  }
+
+  /**
+   * The address of a script on the builder's network; Plutus `code` in any CBOR wrapping,
+   * normalised as the parts normalise it, so lock address and unlock witness always agree
+   * @param stake The stake credential of a base address: a bech32 reward address (only its
+   *   credential is taken), or `{ type: "KEY" | "SCRIPT", value: <hash> }`; without it, an
+   *   enterprise address
+   * @throws TxBuildError INVALID_OPTION for a script or a stake credential that cannot be read
+   */
+  scriptAddress(
+    script: PlutusScript | NativeScript,
+    stake?: CredentialInput,
+  ): string {
+    return scriptAddressOn(this.network, script, stake);
+  }
+
+  /**
+   * The reward address of a script, or of a key or script credential, on the builder's network
+   * @param credential A `PlutusScript` or `NativeScript`; a bech32 reward address (only its
+   *   credential is taken); or `{ type: "KEY" | "SCRIPT", value: <hash> }`
+   * @throws TxBuildError INVALID_OPTION for a script or credential that cannot be read
+   */
+  rewardAddress(
+    credential: PlutusScript | NativeScript | CredentialInput,
+  ): string {
+    return rewardAddressOn(this.network, credential);
   }
 
   /**
@@ -268,35 +467,48 @@ export class TxBuilder {
   /**
    * Builds a balanced, unsigned transaction from parts.
    *
-   * 1. Looks up, all at once and once each, the outputs the parts reference, the reward
-   *    balances they withdraw in full, the protocol parameters and (when Plutus scripts run) the
-   *    cost models, through the fetcher's shared cache, which answers from what it holds.
+   * 1. Checks that every address it is given is of the builder's network. Looks up, all at once
+   *    and once each, the outputs the parts reference, the reward balances they withdraw in full,
+   *    the protocol parameters and (when Plutus scripts run) the cost models, through the
+   *    provider's shared cache, which answers from what it holds; the outputs looked up are
+   *    checked for their network too.
    * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace.
    * 3. Balances: selects inputs from `utxos`, returns change, puts up collateral with a
    *    collateral return, and settles the fee.
-   * 4. Evaluates the scripts with the builder's evaluator, configured with the cost models of
-   *    step 1, and balances again with their execution units, until they settle. A local
-   *    evaluator gets every UTxO the build knows for the transaction's inputs; any other
-   *    resolves them from its chain. Units stated on a redeemer are checked, not replaced,
-   *    when the builder has an evaluator; without one they are taken as stated.
+   * 4. Evaluates the scripts with the builder's evaluator, configured with its network, slot
+   *    clock and the cost models of step 1, and balances again with their execution units,
+   *    until they settle. A local evaluator gets every UTxO the build knows for the
+   *    transaction's inputs; any other resolves them from its chain. Units stated on a redeemer
+   *    are checked, not replaced, when the builder has an evaluator; after `evaluator: null`
+   *    they are taken as stated.
    *
    * Redeemer indices follow from where each item ends up in the ledger's order, assigned once
    * by `assembleTxPrototype`; evaluation results are matched back to their parts through them.
    *
-   * @throws TxBuildError when the transaction cannot be built; TxPartError when what is looked
+   * @throws TxBuildError when the transaction cannot be built (NETWORK_MISMATCH for an address
+   *   of another network, before anything is selected); TxPartError when what is looked
    *   up does not fit a part (e.g. a reference output holding a different script)
    */
   async build(request: BuildTxRequest): Promise<BuiltTx> {
+    // What the build is given is checked before any request; what is looked up, once found
+    checkNetworks(this.network, [
+      { role: "payer", address: request.changeAddress },
+      ...(request.utxos ?? []).map((utxo) => utxoEntry(utxo)),
+      ...request.parts.flatMap(partEntries),
+    ]);
     const known = new Map<string, UTxO>();
     for (const utxo of request.utxos ?? []) known.set(utxoKey(utxo), utxo);
     const plutus = request.parts.some(runsPlutus);
 
     const [params, costModels] = await Promise.all([
       this.loadParams(),
-      plutus ? this.loadCostModels() : Promise.resolve([]),
+      plutus
+        ? this.loadCostModels().then((models) => models ?? [])
+        : Promise.resolve([]),
     ]);
     const resolved = await resolveParts(request.parts, {
-      ...(this.cache && { fetcher: this.cache }),
+      network: this.network,
+      ...(this.cache && { provider: this.cache }),
       params,
       deposits: this.deposits,
       known,
@@ -400,12 +612,14 @@ export class TxBuilder {
     );
   }
 
+  /** The `params` option, else the provider's parameters */
   private async loadParams(): Promise<Protocol> {
     if (this.params) return this.params;
-    if (!this.cache) return DEFAULT_PROTOCOL_PARAMETERS;
+    // The constructor makes sure there is a provider without `params`
+    let params: Protocol | null | undefined;
     try {
       // NaN asks providers for the latest epoch's parameters
-      return await this.cache.fetchProtocolParameters(Number.NaN);
+      params = await this.cache!.fetchProtocolParameters(Number.NaN);
     } catch (error) {
       throw new TxBuildError(
         "MISSING_PARAMETER",
@@ -413,18 +627,25 @@ export class TxBuilder {
         { details: { parameter: "params" }, cause: error },
       );
     }
+    if (params === undefined || params === null)
+      throw new TxBuildError(
+        "MISSING_PARAMETER",
+        "the provider gave no protocol parameters; give the builder params",
+        { details: { parameter: "params" } },
+      );
+    return params;
   }
 
-  private async loadCostModels(): Promise<number[][]> {
+  /**
+   * The `costModels` option, else the provider's cost models; undefined when there is no
+   * provider or it gave none. A build then fails only if a Plutus script runs, where the script
+   * data hash is taken.
+   */
+  private async loadCostModels(): Promise<number[][] | undefined> {
     if (this.costModels) return this.costModels;
-    if (!this.cache)
-      return [
-        DEFAULT_V1_COST_MODEL_LIST,
-        DEFAULT_V2_COST_MODEL_LIST,
-        DEFAULT_V3_COST_MODEL_LIST,
-      ];
+    if (!this.cache) return undefined;
     try {
-      return await this.cache.fetchCostModels();
+      return (await this.cache.fetchCostModels()) ?? undefined;
     } catch (error) {
       throw new TxBuildError(
         "MISSING_PARAMETER",
@@ -435,8 +656,8 @@ export class TxBuilder {
   }
 
   /**
-   * Evaluates a transaction, keyed by redeemer pointer. The evaluator is first given the cost
-   * models the script data hash is made from.
+   * Evaluates a transaction, keyed by redeemer pointer. The evaluator is first given the
+   * builder's network and slot clock, and the cost models the script data hash is made from.
    */
   private async evaluate(
     tx: string,
@@ -462,7 +683,11 @@ export class TxBuilder {
     }
     let actions;
     try {
-      evaluator.configure?.({ costModels });
+      evaluator.configure?.({
+        network: evaluatorNetwork(this.network),
+        slotConfig: this.network.slotConfig,
+        costModels,
+      });
       actions = await evaluator.evaluateTx(tx, Array.from(utxos.values()), []);
     } catch (error) {
       const failures = ScriptEvaluationError.is(error)

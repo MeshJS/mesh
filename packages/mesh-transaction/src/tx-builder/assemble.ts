@@ -68,8 +68,8 @@ export type AssembleTxOptions = {
   /** The fee, in lovelace */
   fee: bigint;
   /**
-   * Cost models of Plutus V1, V2 and V3, in that order, for the script data hash; the defaults
-   * when omitted
+   * Cost models by Plutus language number, V1 first, for the script data hash. Every Plutus
+   * version the transaction runs needs its model: MISSING_PARAMETER otherwise.
    */
   costModels?: readonly (readonly number[])[];
   /** Key witnesses to put in the witness set, e.g. placeholders when sizing the transaction */
@@ -194,6 +194,8 @@ const REDEEMER_TAG_RANK: Record<RedeemerTagPrototype["type"], number> = {
  * @param parts The transaction's parts, each complete
  * @param options The fee, and what the hashes and witness set need beyond the parts
  * @returns The prototype, with every redeemer tied to the part it belongs to
+ * @throws TxBuildError MISSING_PARAMETER when a Plutus version the parts run has no cost model
+ *   in `options.costModels`
  */
 export const assembleTxPrototype = (
   parts: readonly TxPart[],

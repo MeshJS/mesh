@@ -1,13 +1,17 @@
-import { bech32 } from "bech32";
-
 import {
   Action,
   CachedFetcher,
+  customNetwork,
   DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
   IEvaluator,
   IFetcher,
   mConStr0,
   NativeScript,
+  networkConfig,
+  NetworkInput,
   Protocol,
   resolveScriptRef,
   ScriptEvaluationError,
@@ -51,7 +55,15 @@ import {
   vrfKeyHashHex,
 } from "../test-util";
 
+/** The builder's network: the fixtures' addresses are testnet ones */
+const network = "preprod";
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
+/** Cost models for builds that run Plutus scripts: the builder has none of its own */
+const costModels = [
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+];
 const wallet = baseAddress(1);
 const recipient = baseAddress(2);
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
@@ -129,7 +141,7 @@ const fakeFetcher = (utxos: UTxO[], rewards: Record<string, string> = {}) => {
     },
     fetchCostModels: async () => {
       count("fetchCostModels");
-      return [] as number[][];
+      return costModels;
     },
   } as unknown as IFetcher;
   return { fetcher, calls };
@@ -183,7 +195,7 @@ const signedMinFee = (built: BuiltTx, signers: number) => {
 describe("TxBuilder: balancing", () => {
   it("pays an output, returns change and settles the fee at the minimum", async () => {
     const funds = [utxo(lovelace(ada(100)))];
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [output({ address: recipient, value: { lovelace: ada(5) } })],
       changeAddress: wallet,
       utxos: funds,
@@ -201,7 +213,7 @@ describe("TxBuilder: balancing", () => {
 
   it("fills in the lovelace an output needs when it is left out", async () => {
     const unit = mockTokenUnit(1);
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [output({ address: recipient, value: { [unit]: 1n } })],
       changeAddress: wallet,
       utxos: [utxo([...lovelace(ada(10)), { unit, quantity: "5" }])],
@@ -218,7 +230,7 @@ describe("TxBuilder: balancing", () => {
 
   it("rejects an output holding less lovelace than it needs", async () => {
     const error = await expectBuildError(
-      new TxBuilder({ params }).build({
+      new TxBuilder({ network, params }).build({
         parts: [output({ address: recipient, value: { lovelace: 100n } })],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(10)))],
@@ -235,7 +247,7 @@ describe("TxBuilder: balancing", () => {
   it("rejects an output whose value is too large", async () => {
     const units = Array.from({ length: 30 }, (_, i) => mockTokenUnit(i + 1));
     const error = await expectBuildError(
-      new TxBuilder({ params: { ...params, maxValSize: 400 } }).build({
+      new TxBuilder({ network, params: { ...params, maxValSize: 400 } }).build({
         parts: [
           output({
             address: recipient,
@@ -256,7 +268,7 @@ describe("TxBuilder: balancing", () => {
   it("rejects change holding a token that does not fit in an output on its own", async () => {
     const unit = mockTokenUnit(1);
     const error = await expectBuildError(
-      new TxBuilder({ params: { ...params, maxValSize: 20 } }).build({
+      new TxBuilder({ network, params: { ...params, maxValSize: 20 } }).build({
         parts: [output({ address: recipient, value: { lovelace: ada(5) } })],
         changeAddress: wallet,
         utxos: [utxo([...lovelace(ada(100)), { unit, quantity: "1" }])],
@@ -273,7 +285,7 @@ describe("TxBuilder: balancing", () => {
   it("selects another input when the change would hold too little lovelace", async () => {
     const spent = utxo(lovelace(2_300_000n));
     const extra = utxo(lovelace(ada(5)));
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [
         spend.pubKey({ utxo: spent }),
         output({ address: recipient, value: { lovelace: ada(2) } }),
@@ -288,7 +300,7 @@ describe("TxBuilder: balancing", () => {
 
   it("leaves out change when nothing is left over", async () => {
     // A fixed fee that takes exactly what the output leaves
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [output({ address: recipient, value: { lovelace: ada(3) } })],
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(3) + 200_000n))],
@@ -304,7 +316,7 @@ describe("TxBuilder: balancing", () => {
     const small = utxo([...lovelace(ada(2)), { unit, quantity: "3" }]);
     const large = utxo([...lovelace(ada(2)), { unit, quantity: "8" }]);
     const plain = utxo(lovelace(ada(50)));
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [output({ address: recipient, value: { [unit]: 10n } })],
       changeAddress: wallet,
       utxos: [small, plain, large],
@@ -316,7 +328,7 @@ describe("TxBuilder: balancing", () => {
   it("splits change whose tokens do not fit in one output", async () => {
     const units = Array.from({ length: 30 }, (_, i) => mockTokenUnit(i + 1));
     const small = { ...params, maxValSize: 400 };
-    const built = await new TxBuilder({ params: small }).build({
+    const built = await new TxBuilder({ network, params: small }).build({
       parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
       changeAddress: wallet,
       utxos: [
@@ -338,7 +350,7 @@ describe("TxBuilder: balancing", () => {
 
   it("reports what is missing when the UTxOs cannot pay", async () => {
     const lovelaceShort = await expectBuildError(
-      new TxBuilder({ params }).build({
+      new TxBuilder({ network, params }).build({
         parts: [output({ address: recipient, value: { lovelace: ada(50) } })],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(10)))],
@@ -369,7 +381,7 @@ describe("TxBuilder: balancing", () => {
 
     const unit = mockTokenUnit(3);
     const tokenShort = await expectBuildError(
-      new TxBuilder({ params }).build({
+      new TxBuilder({ network, params }).build({
         parts: [output({ address: recipient, value: { [unit]: 2n } })],
         changeAddress: wallet,
         utxos: [utxo([...lovelace(ada(10)), { unit, quantity: "1" }])],
@@ -390,7 +402,7 @@ describe("TxBuilder: balancing", () => {
 
   it("selects only key-locked UTxOs", async () => {
     const error = await expectBuildError(
-      new TxBuilder({ params }).build({
+      new TxBuilder({ network, params }).build({
         parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(10)), {}, scriptAddress)],
@@ -413,7 +425,7 @@ describe("TxBuilder: balancing", () => {
   it("uses a fixed fee as is, and rejects one below the minimum", async () => {
     const funds = [utxo(lovelace(ada(10)))];
     const parts = [output({ address: recipient, value: { lovelace: ada(2) } })];
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts,
       changeAddress: wallet,
       utxos: funds,
@@ -424,7 +436,7 @@ describe("TxBuilder: balancing", () => {
     expectBalanced(built);
 
     const error = await expectBuildError(
-      new TxBuilder({ params }).build({
+      new TxBuilder({ network, params }).build({
         parts,
         changeAddress: wallet,
         utxos: funds,
@@ -444,8 +456,8 @@ describe("TxBuilder: balancing", () => {
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(10)))],
     };
-    const one = await new TxBuilder({ params }).build(request);
-    const three = await new TxBuilder({ params }).build({
+    const one = await new TxBuilder({ network, params }).build(request);
+    const three = await new TxBuilder({ network, params }).build({
       ...request,
       extraKeyWitnesses: 2,
     });
@@ -453,7 +465,7 @@ describe("TxBuilder: balancing", () => {
   });
 
   it("donates to the treasury out of the inputs", async () => {
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [donation({ amount: ada(7) })],
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(10)))],
@@ -468,7 +480,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
     output({ address: recipient, value: { lovelace: ada(n) } });
   const fundsShort = async (
     request: Omit<Parameters<TxBuilder["build"]>[0], "changeAddress">,
-    builder = new TxBuilder({ params }),
+    builder = new TxBuilder({ network, params }),
   ) =>
     (
       (await expectBuildError(
@@ -499,7 +511,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
       const topUp = (by: bigint) =>
         utxos.map((u, i) => (i === last ? raised(u, by) : u));
 
-      const built = await new TxBuilder({ params }).build({
+      const built = await new TxBuilder({ network, params }).build({
         parts,
         changeAddress: wallet,
         utxos: topUp(short.missing),
@@ -530,7 +542,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
     });
     expect(short.changeMinimum).toBeGreaterThan(lovelaceOnly!);
 
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [pay(50)],
       changeAddress: wallet,
       utxos: [raised(funds, short.missing)],
@@ -556,7 +568,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
         parts: [pay(50)],
         utxos: [utxo([...lovelace(ada(10)), { unit, quantity: "1" }])],
       },
-      new TxBuilder({ params: { ...params, maxValSize: 20 } }),
+      new TxBuilder({ network, params: { ...params, maxValSize: 20 } }),
     );
     expect(short.unit).toBe("lovelace");
     expect(short.reason).toBe("payment");
@@ -576,7 +588,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
     );
     expect(short.missing).toBe(short.required - short.available);
 
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [pay(50)],
       changeAddress: wallet,
       utxos: [raised(funds, short.missing)],
@@ -589,7 +601,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
   });
 
   it("names the payer when no UTxOs are given at all", async () => {
-    const builder = new TxBuilder({ params });
+    const builder = new TxBuilder({ network, params });
     const error = await expectBuildError(
       builder.build({ parts: [pay(5)], changeAddress: wallet, utxos: [] }),
       "INSUFFICIENT_FUNDS",
@@ -645,7 +657,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
     expect(short.missing).toBe(100_000n);
     expect(short.required).toBe(ada(3) + 200_000n);
 
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [pay(3)],
       changeAddress: wallet,
       utxos: [raised(funds, short.missing)],
@@ -671,6 +683,8 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
       output({ address: recipient, value: { lovelace: 11_200_000n } }),
     ];
     const builder = new TxBuilder({
+      network,
+      costModels,
       params,
       evaluator: fakeEvaluator(units).evaluator,
     });
@@ -711,6 +725,7 @@ describe("TxBuilder: deposits and refunds", () => {
   const build = (
     parts: TxPart[],
     builder = new TxBuilder({
+      network,
       params,
       deposits: { drepDeposit: ada(500), govActionDeposit: ada(1000) },
     }),
@@ -791,7 +806,7 @@ describe("TxBuilder: deposits and refunds", () => {
     const error = await expectBuildError(
       build(
         [proposal.info({ rewardAccount: stake, anchor })],
-        new TxBuilder({ params }),
+        new TxBuilder({ network, params }),
       ),
       "MISSING_PARAMETER",
     );
@@ -805,7 +820,7 @@ describe("TxBuilder: deposits and refunds", () => {
     const error = await expectBuildError(
       build(
         [certificate.stakeRegistration({ stake })],
-        new TxBuilder({ params: withoutKeyDeposit as Protocol }),
+        new TxBuilder({ network, params: withoutKeyDeposit as Protocol }),
       ),
       "MISSING_PARAMETER",
     );
@@ -819,7 +834,7 @@ describe("TxBuilder: deposits and refunds", () => {
     const { fetcher, calls } = fakeFetcher([], { [stake]: "4200000" });
     const built = await build(
       [withdrawal.pubKey({ rewardAddress: stake, amount: "all" })],
-      new TxBuilder({ params, fetcher }),
+      new TxBuilder({ network, params, provider: fetcher }),
     );
     expect(built.prototype.body.withdrawals).toEqual({ [stake]: "4200000" });
     expect(calls.fetchAccountInfo).toBe(1);
@@ -836,7 +851,11 @@ describe("TxBuilder: resolution", () => {
     }));
     const known = utxo(lovelace(ada(4)));
     const { fetcher, calls } = fakeFetcher([...outputs, known]);
-    const built = await new TxBuilder({ params, fetcher }).build({
+    const built = await new TxBuilder({
+      network,
+      params,
+      provider: fetcher,
+    }).build({
       parts: [
         spend.pubKey({ utxo: { txHash, outputIndex: 0 } }),
         spend.pubKey({ utxo: { txHash, outputIndex: 1 } }),
@@ -852,7 +871,7 @@ describe("TxBuilder: resolution", () => {
 
   it("fetches the protocol parameters, and cost models only for Plutus scripts", async () => {
     const { fetcher, calls } = fakeFetcher([]);
-    await new TxBuilder({ fetcher }).build({
+    await new TxBuilder({ network, provider: fetcher }).build({
       parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(10)))],
@@ -862,7 +881,7 @@ describe("TxBuilder: resolution", () => {
 
   it("needs a fetcher for outputs given by reference", async () => {
     await expectBuildError(
-      new TxBuilder({ params }).build({
+      new TxBuilder({ network, params }).build({
         parts: [
           spend.pubKey({ utxo: { txHash: "ee".repeat(32), outputIndex: 0 } }),
         ],
@@ -874,7 +893,11 @@ describe("TxBuilder: resolution", () => {
 
   it("reports an output that does not exist", async () => {
     const error = await expectBuildError(
-      new TxBuilder({ params, fetcher: fakeFetcher([]).fetcher }).build({
+      new TxBuilder({
+        network,
+        params,
+        provider: fakeFetcher([]).fetcher,
+      }).build({
         parts: [
           spend.pubKey({ utxo: { txHash: "ee".repeat(32), outputIndex: 3 } }),
         ],
@@ -899,8 +922,9 @@ describe("TxBuilder: resolution", () => {
       },
     };
     const built = await new TxBuilder({
+      network,
       params,
-      fetcher: fakeFetcher([locked]).fetcher,
+      provider: fakeFetcher([locked]).fetcher,
       evaluator: fakeEvaluator().evaluator,
     }).build({
       parts: [
@@ -939,7 +963,12 @@ describe("TxBuilder: scripts", () => {
 
   it("evaluates until the execution units settle, then prices them in", async () => {
     const { evaluator, calls } = fakeEvaluator({ mem: 5000, steps: 7000 });
-    const built = await new TxBuilder({ params, evaluator }).build({
+    const built = await new TxBuilder({
+      network,
+      costModels,
+      params,
+      evaluator,
+    }).build({
       parts: [scriptSpend(2), scriptSpend(1)],
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(10)))],
@@ -965,7 +994,12 @@ describe("TxBuilder: scripts", () => {
 
   it("keeps given execution units, and checks them against evaluation", async () => {
     const { evaluator } = fakeEvaluator({ mem: 5000, steps: 7000 });
-    const built = await new TxBuilder({ params, evaluator }).build({
+    const built = await new TxBuilder({
+      network,
+      costModels,
+      params,
+      evaluator,
+    }).build({
       parts: [scriptSpend(1, { mem: 6000, steps: 8000 })],
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(10)))],
@@ -973,7 +1007,7 @@ describe("TxBuilder: scripts", () => {
     expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000, steps: 8000 });
 
     const error = await expectBuildError(
-      new TxBuilder({ params, evaluator }).build({
+      new TxBuilder({ network, costModels, params, evaluator }).build({
         parts: [scriptSpend(1, { mem: 4000, steps: 8000 })],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(10)))],
@@ -988,7 +1022,12 @@ describe("TxBuilder: scripts", () => {
   });
 
   it("builds offline when every redeemer states its units", async () => {
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({
+      network,
+      costModels,
+      evaluator: null,
+      params,
+    }).build({
       parts: [scriptSpend(1, { mem: 6000, steps: 8000 })],
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(10)))],
@@ -998,7 +1037,7 @@ describe("TxBuilder: scripts", () => {
 
   it("needs an evaluator for redeemers without units", async () => {
     await expectBuildError(
-      new TxBuilder({ params }).build({
+      new TxBuilder({ network, costModels, evaluator: null, params }).build({
         parts: [scriptSpend(1)],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(10)))],
@@ -1038,7 +1077,7 @@ describe("TxBuilder: scripts", () => {
     ]);
     const error = evaluationError(
       await expectBuildError(
-        new TxBuilder({ params, evaluator }).build({
+        new TxBuilder({ network, costModels, params, evaluator }).build({
           parts: [scriptSpend(1)],
           changeAddress: wallet,
           utxos: [utxo(lovelace(ada(10)))],
@@ -1063,7 +1102,12 @@ describe("TxBuilder: scripts", () => {
     const two = failingEvaluator([failure("SPEND", 1), failure("SPEND", 0)]);
     const error = evaluationError(
       await expectBuildError(
-        new TxBuilder({ params, evaluator: two.evaluator }).build({
+        new TxBuilder({
+          network,
+          costModels,
+          params,
+          evaluator: two.evaluator,
+        }).build({
           parts: [scriptSpend(1), scriptSpend(2)],
           changeAddress: wallet,
           utxos: [utxo(lovelace(ada(10)))],
@@ -1094,6 +1138,8 @@ describe("TxBuilder: scripts", () => {
     const all = evaluationError(
       await expectBuildError(
         new TxBuilder({
+          network,
+          costModels,
           params,
           evaluator: every.evaluator,
           deposits: { govActionDeposit: ada(10) },
@@ -1150,7 +1196,7 @@ describe("TxBuilder: scripts", () => {
 
   it("makes up no failure the evaluator did not join to a redeemer", async () => {
     const build = (evaluator: IEvaluator) =>
-      new TxBuilder({ params, evaluator })
+      new TxBuilder({ network, costModels, params, evaluator })
         .build({
           parts: [scriptSpend(1)],
           changeAddress: wallet,
@@ -1204,7 +1250,7 @@ describe("TxBuilder: scripts", () => {
   it("reports scripts needing more than a transaction may use", async () => {
     const { evaluator } = fakeEvaluator({ mem: 9_000_000, steps: 1000 });
     const error = await expectBuildError(
-      new TxBuilder({ params, evaluator }).build({
+      new TxBuilder({ network, costModels, params, evaluator }).build({
         parts: [scriptSpend(1), scriptSpend(2)],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(100)))],
@@ -1218,7 +1264,7 @@ describe("TxBuilder: scripts", () => {
     const { evaluator, calls } = fakeEvaluator();
     const stated = { mem: 9_000_000, steps: 1000 };
     const error = await expectBuildError(
-      new TxBuilder({ params, evaluator }).build({
+      new TxBuilder({ network, costModels, params, evaluator }).build({
         parts: [scriptSpend(1, stated), scriptSpend(2, stated), scriptSpend(3)],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(100)))],
@@ -1236,6 +1282,8 @@ describe("TxBuilder: scripts", () => {
     const witness = { plutus: plutusScript, redeemer: { data: mConStr0([]) } };
     const { evaluator } = fakeEvaluator();
     const built = await new TxBuilder({
+      network,
+      costModels,
       params,
       evaluator,
       deposits: { govActionDeposit: ada(10) },
@@ -1294,6 +1342,8 @@ describe("TxBuilder: scripts", () => {
     const held = utxo(lovelace(ada(20)));
     const returnTo = baseAddress(9);
     const built = await new TxBuilder({
+      network,
+      costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
     }).build({
@@ -1315,6 +1365,8 @@ describe("TxBuilder: scripts", () => {
   it("forfeits the whole collateral when what is left is too little to return", async () => {
     const tight = utxo(lovelace(ada(1)));
     const built = await new TxBuilder({
+      network,
+      costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
     }).build({
@@ -1331,6 +1383,8 @@ describe("TxBuilder: scripts", () => {
     const tight = utxo(lovelace(ada(1)));
     const roomy = utxo(lovelace(ada(3)));
     const built = await new TxBuilder({
+      network,
+      costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
     }).build({
@@ -1346,7 +1400,12 @@ describe("TxBuilder: scripts", () => {
     const detailsOf = (error: TxBuildError) =>
       (error as TxBuildError<"INSUFFICIENT_COLLATERAL">).details;
     const none = await expectBuildError(
-      new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
+      new TxBuilder({
+        network,
+        costModels,
+        params,
+        evaluator: fakeEvaluator().evaluator,
+      }).build({
         parts: [scriptSpend(1)],
         changeAddress: wallet,
         utxos: [],
@@ -1357,7 +1416,12 @@ describe("TxBuilder: scripts", () => {
     expect(typeof detailsOf(none).required).toBe("bigint");
 
     const small = await expectBuildError(
-      new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
+      new TxBuilder({
+        network,
+        costModels,
+        params,
+        evaluator: fakeEvaluator().evaluator,
+      }).build({
         parts: [scriptSpend(1), collateral({ utxo: utxo(lovelace(100_000n)) })],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(10)))],
@@ -1369,7 +1433,12 @@ describe("TxBuilder: scripts", () => {
 
     // A stated total below what the fee calls for
     const stated = await expectBuildError(
-      new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
+      new TxBuilder({
+        network,
+        costModels,
+        params,
+        evaluator: fakeEvaluator().evaluator,
+      }).build({
         parts: [
           scriptSpend(1),
           collateral({ utxo: utxo(lovelace(ada(5))) }),
@@ -1406,7 +1475,12 @@ describe("TxBuilder: UTxOs left out of selection", () => {
       (i) => `${i.transaction_id}#${i.index}`,
     );
   const build = (parts: TxPart[], utxos: UTxO[]) =>
-    new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
+    new TxBuilder({
+      network,
+      costModels,
+      params,
+      evaluator: fakeEvaluator().evaluator,
+    }).build({
       parts,
       changeAddress: wallet,
       utxos,
@@ -1521,7 +1595,12 @@ describe("TxBuilder: a given fee with scripts", () => {
 
   it("judges the fee on the final transaction, not the provisional round", async () => {
     const { evaluator, calls } = fakeEvaluator();
-    const built = await new TxBuilder({ params, evaluator }).build({
+    const built = await new TxBuilder({
+      network,
+      costModels,
+      params,
+      evaluator,
+    }).build({
       parts: [scriptSpend(), pay(5)],
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(10)))],
@@ -1540,7 +1619,12 @@ describe("TxBuilder: a given fee with scripts", () => {
 
   it("rejects a fee below the final transaction's minimum", async () => {
     const error = await expectBuildError(
-      new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
+      new TxBuilder({
+        network,
+        costModels,
+        params,
+        evaluator: fakeEvaluator().evaluator,
+      }).build({
         parts: [scriptSpend(), pay(5)],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(10)))],
@@ -1556,6 +1640,8 @@ describe("TxBuilder: a given fee with scripts", () => {
 
   it("asks the payer for no more than the given fee in the provisional round", async () => {
     const built = await new TxBuilder({
+      network,
+      costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
     }).build({
@@ -1578,12 +1664,14 @@ describe("TxBuilder: a given fee with scripts", () => {
       fee: 1000n,
     };
     await expectBuildError(
-      new TxBuilder({ params, evaluator: null }).build(request),
+      new TxBuilder({ network, costModels, params, evaluator: null }).build(
+        request,
+      ),
       "FEE_TOO_LOW",
     );
     const { evaluator, calls } = fakeEvaluator();
     await expectBuildError(
-      new TxBuilder({ params, evaluator }).build(request),
+      new TxBuilder({ network, costModels, params, evaluator }).build(request),
       "FEE_TOO_LOW",
     );
     expect(calls).toEqual([]);
@@ -1595,7 +1683,7 @@ describe("TxBuilder: addresses in hex", () => {
     const stake = keyHashToRewardAddress(keyHashHex(5), 0);
     const hexOf = (address: string) =>
       Address.fromString(address)!.toBytes().toString();
-    const built = await new TxBuilder({ params }).build({
+    const built = await new TxBuilder({ network, params }).build({
       parts: [
         output({ address: hexOf(recipient), value: { lovelace: ada(2) } }),
         withdrawal.pubKey({ rewardAddress: hexOf(stake), amount: 0n }),
@@ -1611,14 +1699,14 @@ describe("TxBuilder: addresses in hex", () => {
 /** `fakeFetcher` with jest mocks for methods, so its calls can be read by argument */
 const mockedFetcher = (
   utxos: UTxO[],
-  { rewards = {}, costModels = [] as number[][] } = {},
+  { rewards = {}, costModels: models = costModels } = {},
 ) => {
   const { fetcher } = fakeFetcher(utxos, rewards);
   const mocks = {
     fetchUTxOs: jest.fn(fetcher.fetchUTxOs),
     fetchAccountInfo: jest.fn(fetcher.fetchAccountInfo),
     fetchProtocolParameters: jest.fn(fetcher.fetchProtocolParameters),
-    fetchCostModels: jest.fn(async (): Promise<number[][]> => costModels),
+    fetchCostModels: jest.fn(async (): Promise<number[][]> => models),
   };
   return { ...mocks, fetcher: mocks as unknown as IFetcher };
 };
@@ -1654,6 +1742,14 @@ const isFrozenAnywhere = (value: unknown): boolean =>
   typeof value === "object" &&
   value !== null &&
   (Object.isFrozen(value) || Object.values(value).some(isFrozenAnywhere));
+
+/** A custom network, with a clock of its own */
+const devnet = customNetwork({
+  name: "devnet",
+  systemStart: "2026-01-01T00:00:00Z",
+  slotLengthMs: 200,
+  epochLength: 500,
+});
 
 // 2026-10-12, mid mainnet epoch 661 and mid preview/preprod day: clear of an epoch boundary
 const NOW = 1791816751000;
@@ -1701,7 +1797,8 @@ describe("TxBuilder: reads", () => {
   it("goes through the shared cache, each value fetched once across builds", async () => {
     const provider = mockedFetcher([locked, holdingScript, keyOutput]);
     const builder = new TxBuilder({
-      fetcher: new CachedFetcher(provider.fetcher, { now: () => NOW }),
+      network,
+      provider: new CachedFetcher(provider.fetcher, { now: () => NOW }),
       evaluator: fakeEvaluator().evaluator,
     });
     await builder.build(request([scriptSpend()]));
@@ -1721,7 +1818,8 @@ describe("TxBuilder: reads", () => {
     const builders = [0, 1].map(
       () =>
         new TxBuilder({
-          fetcher: provider.fetcher,
+          network,
+          provider: provider.fetcher,
           evaluator: fakeEvaluator().evaluator,
         }),
     );
@@ -1735,7 +1833,7 @@ describe("TxBuilder: reads", () => {
 
     const other = mockedFetcher([keyOutput]);
     await CachedFetcher.wrap(other.fetcher).fetchUTxOs(otherHash);
-    await new TxBuilder({ params, fetcher: other.fetcher }).build(
+    await new TxBuilder({ network, params, provider: other.fetcher }).build(
       request([keySpend()]),
     );
     expect(other.fetchUTxOs).toHaveBeenCalledTimes(1);
@@ -1745,8 +1843,8 @@ describe("TxBuilder: reads", () => {
     const provider = mockedFetcher([]);
     // Keeps no parameters, as for a custom network
     const cache = new CachedFetcher(provider.fetcher, { network: "testnet" });
-    const builder = new TxBuilder({ fetcher: cache });
-    expect(builder.fetcher).toBe(cache);
+    const builder = new TxBuilder({ network, provider: cache });
+    expect(builder.provider).toBe(cache);
     await builder.build(request([output({ address: recipient, value: {} })]));
     await builder.build(request([output({ address: recipient, value: {} })]));
     expect(provider.fetchProtocolParameters).toHaveBeenCalledTimes(2);
@@ -1754,7 +1852,11 @@ describe("TxBuilder: reads", () => {
 
   it("asks again after a failed or empty answer", async () => {
     const provider = mockedFetcher([keyOutput]);
-    const builder = new TxBuilder({ params, fetcher: provider.fetcher });
+    const builder = new TxBuilder({
+      network,
+      params,
+      provider: provider.fetcher,
+    });
     provider.fetchUTxOs.mockRejectedValueOnce(new Error("offline"));
     await expectBuildError(
       builder.build(request([keySpend()])),
@@ -1777,7 +1879,8 @@ describe("TxBuilder: reads", () => {
     ] as const) {
       const provider = mockedFetcher([locked, holdingScript]);
       const builder = new TxBuilder({
-        fetcher: new CachedFetcher(provider.fetcher, { now: () => NOW }),
+        network,
+        provider: new CachedFetcher(provider.fetcher, { now: () => NOW }),
         evaluator: fakeEvaluator().evaluator,
       });
       provider[method].mockRejectedValueOnce(new Error("down"));
@@ -1797,7 +1900,7 @@ describe("TxBuilder: reads", () => {
     const outputs = mockedFetcher([keyOutput]);
     outputs.fetchUTxOs.mockRejectedValueOnce(down);
     const notFound = await expectBuildError(
-      new TxBuilder({ params, fetcher: outputs.fetcher }).build(
+      new TxBuilder({ network, params, provider: outputs.fetcher }).build(
         request([keySpend()]),
       ),
       "UTXO_NOT_FOUND",
@@ -1815,19 +1918,30 @@ describe("TxBuilder: reads", () => {
       provider[method].mockRejectedValueOnce(down);
       const error = await expectBuildError(
         new TxBuilder({
-          fetcher: new CachedFetcher(provider.fetcher, { now: () => NOW }),
+          network,
+          provider: new CachedFetcher(provider.fetcher, { now: () => NOW }),
           evaluator: fakeEvaluator().evaluator,
         }).build(request([scriptSpend()])),
         "MISSING_PARAMETER",
       );
       expect(error.details).toEqual({ parameter });
       expect(error.cause).toBe(down);
+
+      // The same from chain()
+      const read = mockedFetcher([]);
+      read[method].mockRejectedValueOnce(down);
+      const fromChain = await expectBuildError(
+        new TxBuilder({ network, provider: read.fetcher }).chain(),
+        "MISSING_PARAMETER",
+      );
+      expect(fromChain.details).toEqual({ parameter });
+      expect(fromChain.cause).toBe(down);
     }
 
     const rewards = mockedFetcher([]);
     rewards.fetchAccountInfo.mockRejectedValueOnce(down);
     const failed = await expectBuildError(
-      new TxBuilder({ params, fetcher: rewards.fetcher }).build(
+      new TxBuilder({ network, params, provider: rewards.fetcher }).build(
         request([withdrawal.pubKey({ rewardAddress: stake, amount: "all" })]),
       ),
       "PROVIDER_FAILED",
@@ -1841,8 +1955,9 @@ describe("TxBuilder: reads", () => {
     const original = structuredClone([keyOutput, holdingScript]);
     const provider = mockedFetcher([keyOutput, holdingScript]);
     const built = await new TxBuilder({
+      network,
       params,
-      fetcher: provider.fetcher,
+      provider: provider.fetcher,
     }).build(
       request([keySpend(), referenceInput({ utxo: holdingScript.input })]),
     );
@@ -1868,7 +1983,11 @@ describe("TxBuilder: reads", () => {
     // The clock of the cache the builder makes
     jest.spyOn(Date, "now").mockReturnValue(NOW);
     const provider = mockedFetcher([], { rewards: { [stake]: "4200000" } });
-    const builder = new TxBuilder({ params, fetcher: provider.fetcher });
+    const builder = new TxBuilder({
+      network,
+      params,
+      provider: provider.fetcher,
+    });
     const withdraw = () =>
       builder.build(
         request([withdrawal.pubKey({ rewardAddress: stake, amount: "all" })]),
@@ -1880,21 +1999,23 @@ describe("TxBuilder: reads", () => {
   });
 
   it("neither clears the cache nor sets its network", async () => {
-    // A mainnet change address
-    const bytes = bech32.fromWords(bech32.decode(wallet, 200).words);
-    bytes[0] = 0x01;
-    const mainnet = bech32.encode("addr", bech32.toWords(bytes), 200);
-    const provider = mockedFetcher([locked, holdingScript]);
-    const cache = CachedFetcher.wrap(provider.fetcher);
-    const clear = jest.spyOn(cache, "clear");
-    const clearVolatile = jest.spyOn(cache, "clearVolatile");
-    await new TxBuilder({
-      fetcher: provider.fetcher,
-      evaluator: fakeEvaluator().evaluator,
-    }).build(request([scriptSpend()], mainnet));
-    expect(cache.network).toBeUndefined();
-    expect(clear).not.toHaveBeenCalled();
-    expect(clearVolatile).not.toHaveBeenCalled();
+    for (const builderNetwork of [network, devnet] as NetworkInput[]) {
+      const provider = mockedFetcher([locked, holdingScript]);
+      const cache = CachedFetcher.wrap(provider.fetcher);
+      const clear = jest.spyOn(cache, "clear");
+      const clearVolatile = jest.spyOn(cache, "clearVolatile");
+      const builder = new TxBuilder({
+        network: builderNetwork,
+        provider: provider.fetcher,
+        evaluator: fakeEvaluator().evaluator,
+      });
+      expect(cache.network).toBeUndefined();
+      await builder.build(request([scriptSpend()]));
+      await builder.chain();
+      expect(cache.network).toBeUndefined();
+      expect(clear).not.toHaveBeenCalled();
+      expect(clearVolatile).not.toHaveBeenCalled();
+    }
   });
 });
 
@@ -1932,13 +2053,20 @@ describe("TxBuilder: evaluator", () => {
   });
   const scalusEvaluateTx = () =>
     jest.spyOn(OfflineEvaluatorScalus.prototype, "evaluateTx");
+  /** What a preprod builder tells its evaluator */
+  const contextOf = (models: number[][]) => ({
+    network: "preprod",
+    slotConfig: networkConfig("preprod").slotConfig,
+    costModels: models,
+  });
 
   afterEach(() => jest.restoreAllMocks());
 
   it("calls the evaluator with outputs only, never transactions", async () => {
     const { evaluator, evaluateTx } = mockedEvaluator();
     await new TxBuilder({
-      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      network,
+      provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator,
     }).build(request([scriptSpend()]));
     expect(evaluateTx).toHaveBeenCalledTimes(2);
@@ -1951,7 +2079,8 @@ describe("TxBuilder: evaluator", () => {
   it("gives every known UTxO only to an evaluator that accepts them", async () => {
     const local = mockedEvaluator({ acceptsKnownUtxos: true });
     await new TxBuilder({
-      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      network,
+      provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator: local.evaluator,
     }).build(request([scriptSpend()]));
     expect(local.evaluateTx.mock.calls.length).toBeGreaterThan(0);
@@ -1972,7 +2101,8 @@ describe("TxBuilder: evaluator", () => {
 
     const remote = mockedEvaluator();
     await new TxBuilder({
-      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      network,
+      provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator: remote.evaluator,
     }).build(request([scriptSpend()]));
     expect(remote.evaluateTx.mock.calls.length).toBeGreaterThan(0);
@@ -1980,19 +2110,20 @@ describe("TxBuilder: evaluator", () => {
       expect(utxos).toEqual([]);
   });
 
-  it("configures the evaluator with the build's cost models before each evaluation", async () => {
+  it("configures the evaluator with the network, its clock and the build's cost models before each evaluation", async () => {
     const fetched = [[1, 2], [3], [4, 5, 6]];
     const { evaluator, evaluateTx, configure } = mockedEvaluator({
       configurable: true,
     });
     await new TxBuilder({
-      fetcher: mockedFetcher([locked, holdingScript], { costModels: fetched })
+      network,
+      provider: mockedFetcher([locked, holdingScript], { costModels: fetched })
         .fetcher,
       evaluator,
     }).build(request([scriptSpend()]));
     expect(configure).toHaveBeenCalledTimes(evaluateTx.mock.calls.length);
     configure.mock.calls.forEach(([context], i) => {
-      expect(context).toStrictEqual({ costModels: fetched });
+      expect(context).toStrictEqual(contextOf(fetched));
       expect(configure.mock.invocationCallOrder[i]).toBeLessThan(
         evaluateTx.mock.invocationCallOrder[i]!,
       );
@@ -2001,19 +2132,21 @@ describe("TxBuilder: evaluator", () => {
     const given = [[7], [8], [9]];
     const other = mockedEvaluator({ configurable: true });
     await new TxBuilder({
-      fetcher: mockedFetcher([locked, holdingScript], { costModels: fetched })
+      network,
+      provider: mockedFetcher([locked, holdingScript], { costModels: fetched })
         .fetcher,
       costModels: given,
       evaluator: other.evaluator,
     }).build(request([scriptSpend()]));
     expect(other.configure.mock.calls.length).toBeGreaterThan(0);
     for (const [context] of other.configure.mock.calls)
-      expect(context).toStrictEqual({ costModels: given });
+      expect(context).toStrictEqual(contextOf(given));
 
     // An evaluator without configure is evaluated with all the same
     const plain = mockedEvaluator();
     await new TxBuilder({
-      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      network,
+      provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator: plain.evaluator,
     }).build(request([scriptSpend()]));
     expect(plain.evaluateTx).toHaveBeenCalled();
@@ -2027,7 +2160,8 @@ describe("TxBuilder: evaluator", () => {
       fakeEvaluator().evaluator.evaluateTx,
     );
     const own = new TxBuilder({
-      fetcher: mockedFetcher([locked, holdingScript], { costModels: fetched })
+      network,
+      provider: mockedFetcher([locked, holdingScript], { costModels: fetched })
         .fetcher,
     });
     expect(own.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
@@ -2035,35 +2169,45 @@ describe("TxBuilder: evaluator", () => {
     expect(ownEvaluateTx.mock.calls.length).toBeGreaterThan(0);
     expect(ownConfigure).toHaveBeenCalledTimes(ownEvaluateTx.mock.calls.length);
     ownConfigure.mock.calls.forEach(([context], i) => {
-      expect(context).toStrictEqual({ costModels: fetched });
+      expect(context).toStrictEqual(contextOf(fetched));
       expect(ownConfigure.mock.invocationCallOrder[i]).toBeLessThan(
         ownEvaluateTx.mock.invocationCallOrder[i]!,
       );
     });
   });
 
-  it("is a Scalus evaluator of its own, given a fetcher and no evaluator", () => {
+  it("is a Scalus evaluator of its own unless given one, with a provider or without", () => {
     const { fetcher } = fakeFetcher([]);
-    const builder = new TxBuilder({ fetcher });
+    const builder = new TxBuilder({ network, provider: fetcher });
     expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
-    expect(builder.fetcher).toBe(fetcher);
+    expect(builder.provider).toBe(fetcher);
     expect(
-      new TxBuilder({ fetcher, evaluator: undefined }).evaluator,
+      new TxBuilder({ network, provider: fetcher, evaluator: undefined })
+        .evaluator,
     ).toBeInstanceOf(OfflineEvaluatorScalus);
-    expect(new TxBuilder({ fetcher }).evaluator).not.toBe(builder.evaluator);
+    expect(new TxBuilder({ network, provider: fetcher }).evaluator).not.toBe(
+      builder.evaluator,
+    );
 
     const { evaluator } = fakeEvaluator();
-    expect(new TxBuilder({ fetcher, evaluator }).evaluator).toBe(evaluator);
-    expect(new TxBuilder({ params }).evaluator).toBeUndefined();
     expect(
-      new TxBuilder({ fetcher, evaluator: null }).evaluator,
+      new TxBuilder({ network, provider: fetcher, evaluator }).evaluator,
+    ).toBe(evaluator);
+    const offline = new TxBuilder({ network, params });
+    expect(offline.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
+    expect(new TxBuilder({ network, params }).evaluator).not.toBe(
+      offline.evaluator,
+    );
+    expect(
+      new TxBuilder({ network, provider: fetcher, evaluator: null }).evaluator,
     ).toBeUndefined();
   });
 
   it("evaluates nothing after `evaluator: null`", async () => {
     const evaluateTx = scalusEvaluateTx();
     const builder = new TxBuilder({
-      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      network,
+      provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator: null,
     });
     const built = await builder.build(
@@ -2079,7 +2223,10 @@ describe("TxBuilder: evaluator", () => {
 
   it("does not run the default evaluator for a transaction without Plutus scripts", async () => {
     const evaluateTx = scalusEvaluateTx();
-    const builder = new TxBuilder({ fetcher: mockedFetcher([]).fetcher });
+    const builder = new TxBuilder({
+      network,
+      provider: mockedFetcher([]).fetcher,
+    });
     expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
     await builder.build(
       request([output({ address: recipient, value: { lovelace: ada(2) } })]),
@@ -2095,8 +2242,9 @@ describe("TxBuilder: serialization", () => {
       changeAddress: wallet,
       utxos: [utxo(lovelace(ada(10)))],
     };
-    const cst = await new TxBuilder({ params }).build(request);
+    const cst = await new TxBuilder({ network, params }).build(request);
     const csl = await new TxBuilder({
+      network,
       params,
       serializer: new CSLSerializer(),
     }).build(request);
@@ -2104,14 +2252,18 @@ describe("TxBuilder: serialization", () => {
     expect(csl.txHash).toBe(cst.txHash);
   });
 
-  it("rejects a serializer without serializeTxPrototype", () => {
+  it("rejects a serializer without serializeTxPrototype", async () => {
     const serializer = {
       ...new CSLSerializer(),
       serializeTxPrototype: undefined,
     };
-    expect(() => new TxBuilder({ serializer: serializer as never })).toThrow(
-      TxBuildError,
-    );
+    // With params the serializer is the only fault; without them it is still the one reported
+    for (const options of [{ network, params }, { network }] as const)
+      await expectBuildError(
+        (async () =>
+          new TxBuilder({ ...options, serializer: serializer as never }))(),
+        "UNSUPPORTED_SERIALIZER",
+      );
   });
 });
 

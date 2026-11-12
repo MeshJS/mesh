@@ -1,5 +1,6 @@
 import type {
   IFetcher,
+  NetworkConfig,
   Protocol,
   TransactionInputPrototype,
   UTxO,
@@ -21,6 +22,7 @@ import type {
   TxPart,
 } from "./parts/types";
 import { TxBuildError } from "./errors";
+import { checkNetworks, heldUtxos, utxoEntry } from "./network";
 import { checkLock, toSpendDatum } from "./parts/inputs";
 import {
   freeze,
@@ -40,7 +42,10 @@ export type GovernanceDeposits = {
 };
 
 export type ResolveContext = {
-  fetcher?: IFetcher;
+  /** The builder's network, which every UTxO looked up is checked against */
+  network: NetworkConfig;
+  /** What lookups go through: the shared cache of the builder's provider */
+  provider?: IFetcher;
   params: Protocol;
   deposits: GovernanceDeposits;
   /** UTxOs already known, keyed by `txHash#index`; fetched ones are added */
@@ -90,19 +95,19 @@ const fetchMissing = async (parts: readonly TxPart[], ctx: ResolveContext) => {
     }
   }
   if (missing.size === 0) return;
-  const { fetcher } = ctx;
-  if (!fetcher)
+  const { provider } = ctx;
+  if (!provider) {
+    const outRefs = Array.from(missing.values(), (l) => l.map(outRefString));
     throw new TxBuildError(
       "MISSING_FETCHER",
-      `outputs ${Array.from(missing.values(), (l) => l.map(outRefString))
-        .flat()
-        .join(", ")} are given by reference only, and no fetcher is given`,
+      `outputs ${outRefs.flat().join(", ")} are given by reference only, and the builder has no provider`,
     );
+  }
   await Promise.all(
     Array.from(missing.keys(), async (txHash) => {
       let utxos: UTxO[];
       try {
-        utxos = await fetcher.fetchUTxOs(txHash);
+        utxos = await provider.fetchUTxOs(txHash);
       } catch (error) {
         const [first] = missing.get(txHash)!;
         throw new TxBuildError(
@@ -262,17 +267,17 @@ const fetchRewardBalances = async (
       addresses.add(part.rewardAddress);
   const balances = new Map<string, string>();
   if (addresses.size === 0) return balances;
-  const { fetcher } = ctx;
-  if (!fetcher)
+  const { provider } = ctx;
+  if (!provider)
     throw new TxBuildError(
       "MISSING_FETCHER",
-      `the reward balance of ${Array.from(addresses).join(", ")} has to be looked up, and no fetcher is given`,
+      `the reward balance of ${Array.from(addresses).join(", ")} has to be looked up, and the builder has no provider`,
     );
   await Promise.all(
     Array.from(addresses, async (address) => {
       let info;
       try {
-        info = await fetcher.fetchAccountInfo(address);
+        info = await provider.fetchAccountInfo(address);
       } catch (error) {
         throw new TxBuildError(
           "PROVIDER_FAILED",
@@ -285,6 +290,20 @@ const fetchRewardBalances = async (
   );
   return balances;
 };
+
+/**
+ * The UTxOs the parts name by reference only, as looked up, for the network check: those held in
+ * full were checked before anything was looked up
+ */
+const fetchedEntries = (parts: readonly TxPart[], ctx: ResolveContext) =>
+  parts.flatMap((part) => {
+    const held = new Set(heldUtxos(part).map(utxoKey));
+    return inputsOf(part).flatMap((input) => {
+      const key = outRefString(input);
+      const utxo = ctx.known.get(key);
+      return utxo && !held.has(key) ? [utxoEntry(utxo, part)] : [];
+    });
+  });
 
 /**
  * Fills in what parts leave open and can be found out before balancing: the outputs they
@@ -306,6 +325,7 @@ export const resolveParts = async (
     fetchMissing(parts, ctx),
     fetchRewardBalances(parts, ctx),
   ]);
+  checkNetworks(ctx.network, fetchedEntries(parts, ctx));
 
   return parts.map((part): TxPart => {
     switch (part.kind) {

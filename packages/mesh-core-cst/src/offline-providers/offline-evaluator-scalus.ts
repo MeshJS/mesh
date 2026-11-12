@@ -138,14 +138,20 @@ export class OfflineEvaluatorScalus implements IEvaluator {
   }
 
   /**
-   * A network other than the current one replaces the slot config, unless one was given to the
-   * constructor. Cost models replace the current ones version by version; an empty entry keeps
-   * the current model of its version.
+   * A slot config replaces the current one, unless one was given to the constructor; without
+   * one, a network other than the current one replaces it with that network's. Cost models
+   * replace the current ones version by version; an empty entry keeps the current model of its
+   * version.
    */
-  configure({ network, costModels }: EvaluationContext): void {
+  configure({ network, costModels, slotConfig }: EvaluationContext): void {
     if (network && network !== this.network) {
       this.network = network;
-      if (!this.pinnedSlotConfig) this.slotConfig = slotConfigOf(network);
+      if (!this.pinnedSlotConfig && !slotConfig)
+        this.slotConfig = slotConfigOf(network);
+    }
+    if (slotConfig && !this.pinnedSlotConfig) {
+      const { zeroTime, zeroSlot, slotLength } = slotConfig;
+      this.slotConfig = { zeroTime, zeroSlot, slotLength };
     }
     if (costModels)
       this.costModels = this.costModels.map((current, version) => {

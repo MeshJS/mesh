@@ -18,6 +18,8 @@ import { alwaysSucceedCbor } from "../test-util";
 const double = alwaysSucceedCbor;
 const single = double.slice(4);
 const flat = single.slice(4);
+/** The emulator's ledger is a preview one */
+const network = "preview";
 const plutusScript = { code: double, version: "V3" as const };
 const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 const lovelace = (n: number) => [
@@ -62,7 +64,7 @@ describe("TxBuilder's input traps on the emulator", () => {
     parts: TxPart[],
     fee?: bigint,
   ) =>
-    new TxBuilder({ fetcher: emulator, evaluator: emulator }).build({
+    new TxBuilder({ network, provider: emulator, evaluator: emulator }).build({
       parts,
       changeAddress: address,
       utxos: await emulator.fetchAddressUTxOs(address),
